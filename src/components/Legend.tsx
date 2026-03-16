@@ -9,6 +9,20 @@ interface LegendProps {
 export const Legend: React.FC<LegendProps> = ({ layerId }) => {
   const layer = getLayerById(layerId);
 
+  // Pick ~4 evenly-spaced tick indices including first and last
+  const tickIndices: number[] = [];
+  const n = layer.stops.length;
+  if (n <= 4) {
+    for (let i = 0; i < n; i++) tickIndices.push(i);
+  } else {
+    tickIndices.push(0);
+    const mid1 = Math.round(n / 3);
+    const mid2 = Math.round((2 * n) / 3);
+    tickIndices.push(mid1);
+    if (mid2 !== mid1 && mid2 !== n - 1) tickIndices.push(mid2);
+    tickIndices.push(n - 1);
+  }
+
   return (
     <div className="absolute bottom-20 md:bottom-8 left-3 md:left-4 z-10">
       <div className="rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl px-4 py-3">
@@ -20,9 +34,22 @@ export const Legend: React.FC<LegendProps> = ({ layerId }) => {
             <div key={i} className="w-6 h-3 first:rounded-l last:rounded-r" style={{ backgroundColor: color }} />
           ))}
         </div>
-        <div className="flex justify-between mt-1">
-          <span className="text-[10px] text-surface-500">{layer.format(layer.stops[0])}</span>
-          <span className="text-[10px] text-surface-500">{layer.format(layer.stops[layer.stops.length - 1])}</span>
+        <div className="relative mt-1" style={{ width: `${layer.colors.length * 24}px` }}>
+          {tickIndices.map((idx) => {
+            const pct = (idx / (n - 1)) * 100;
+            return (
+              <span
+                key={idx}
+                className="absolute text-[10px] text-surface-500 whitespace-nowrap"
+                style={{
+                  left: `${pct}%`,
+                  transform: idx === 0 ? 'none' : idx === n - 1 ? 'translateX(-100%)' : 'translateX(-50%)',
+                }}
+              >
+                {layer.format(layer.stops[idx])}
+              </span>
+            );
+          })}
         </div>
       </div>
     </div>

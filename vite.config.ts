@@ -11,5 +11,13 @@ export default defineConfig({
   ],
   build: {
     assetsInlineLimit: 0, // Never inline data files — always emit as hashed assets
+    rollupOptions: {
+      output: {
+        manualChunks(id: string) {
+          if (id.includes('maplibre-gl')) return 'maplibre';
+          if (id.includes('node_modules/react-dom') || id.includes('node_modules/react/')) return 'vendor';
+        },
+      },
+    },
   },
 })

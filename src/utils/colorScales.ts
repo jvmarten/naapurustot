@@ -418,8 +418,35 @@ export const LAYERS: LayerConfig[] = [
   },
 ];
 
+// Colorblind-safe palette (viridis-inspired, 8 stops)
+const VIRIDIS_8 = ['#440154', '#46327e', '#365c8d', '#277f8e', '#1fa187', '#4ac16d', '#9fda3a', '#fde725'];
+
+let colorblindMode = false;
+
+export function setColorblindMode(enabled: boolean) {
+  colorblindMode = enabled;
+  try { localStorage.setItem('naapurustot-colorblind', enabled ? '1' : '0'); } catch {}
+}
+
+export function getColorblindMode(): boolean {
+  return colorblindMode;
+}
+
+// Initialize from localStorage
+try {
+  colorblindMode = localStorage.getItem('naapurustot-colorblind') === '1';
+} catch {}
+
 export function getLayerById(id: LayerId): LayerConfig {
-  return LAYERS.find((l) => l.id === id) ?? LAYERS[0];
+  const layer = LAYERS.find((l) => l.id === id) ?? LAYERS[0];
+  if (!colorblindMode) return layer;
+  // Return layer with colorblind-safe colors
+  const cbColors = VIRIDIS_8.length === layer.colors.length
+    ? VIRIDIS_8
+    : layer.colors.length > 8
+      ? [...VIRIDIS_8, ...VIRIDIS_8.slice(-2)] // extend for 10-stop layers
+      : VIRIDIS_8.slice(0, layer.colors.length);
+  return { ...layer, colors: cbColors };
 }
 
 export function getColorForValue(layer: LayerConfig, value: number | null | undefined): string {

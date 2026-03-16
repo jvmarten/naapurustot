@@ -7,6 +7,7 @@ join foreign-language speaker data and external quality-of-life data, and output
 
 import argparse
 import json
+import logging
 import sys
 import time
 from pathlib import Path
@@ -15,6 +16,17 @@ import geopandas as gpd
 import pandas as pd
 import requests
 from pyproj import Transformer
+
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -140,23 +152,25 @@ def _record_error(source: str, error: Exception, fatal: bool = False):
     """Record an error for the final report."""
     entry = {"source": source, "error": str(error), "fatal": fatal}
     _errors.append(entry)
-    prefix = "ERROR" if fatal else "Warning"
-    print(f"  {prefix} [{source}]: {error}")
+    if fatal:
+        logger.error("[%s]: %s", source, error)
+    else:
+        logger.warning("[%s]: %s", source, error)
 
 
 def _print_error_report():
-    """Print a summary of all errors encountered during the run."""
+    """Log a summary of all errors encountered during the run."""
     if not _errors:
-        print("\nNo errors encountered.")
+        logger.info("No errors encountered.")
         return
     fatal = [e for e in _errors if e["fatal"]]
     warnings = [e for e in _errors if not e["fatal"]]
-    print(f"\n{'='*60}")
-    print(f"Error report: {len(fatal)} fatal, {len(warnings)} warnings")
-    print(f"{'='*60}")
+    logger.info("Error report: %d fatal, %d warnings", len(fatal), len(warnings))
     for e in _errors:
-        tag = "FATAL" if e["fatal"] else "WARN "
-        print(f"  [{tag}] {e['source']}: {e['error']}")
+        if e["fatal"]:
+            logger.error("[FATAL] %s: %s", e["source"], e["error"])
+        else:
+            logger.warning("[WARN]  %s: %s", e["source"], e["error"])
 
 
 # ---------------------------------------------------------------------------
@@ -179,7 +193,7 @@ def _request_with_retry(method, url, *, label, retries=MAX_RETRIES, **kwargs):
             last_exc = exc
             if attempt < retries:
                 wait = RETRY_BACKOFF_BASE ** attempt
-                print(f"  Retry {attempt}/{retries} for {label} in {wait}s ({exc})")
+                logger.warning("Retry %d/%d for %s in %ds (%s)", attempt, retries, label, wait, exc)
                 time.sleep(wait)
     raise last_exc  # type: ignore[misc]
 
@@ -277,12 +291,12 @@ def safe_div(a, b):
 # ---------------------------------------------------------------------------
 
 def fetch_paavo():
-    print("Fetching Paavo WFS data...")
+    logger.info("Fetching Paavo WFS data...")
     r = _request_with_retry("GET", WFS_URL, label="Paavo WFS", timeout=120)
     body = r.json()
     features = _validate_geojson_features(body, "Paavo WFS")
     gdf = gpd.GeoDataFrame.from_features(features, crs="EPSG:3067")
-    print(f"  Received {len(gdf)} features")
+    logger.info("Received %d features", len(gdf))
     return gdf
 
 
@@ -296,7 +310,7 @@ def filter_metro(gdf):
     if col is None:
         # Try to derive from pno (first 3 digits map to municipality in some cases)
         # Actually, look at all columns to find it
-        print("  Available columns:", list(gdf.columns))
+        logger.info("  Available columns: %s", list(gdf.columns))
         # Fall back: check if 'pno' starts with metro prefixes
         # Helsinki 00xxx, Espoo 02xxx, Vantaa 01xxx, Kauniainen 02700
         metro = gdf[
@@ -304,21 +318,21 @@ def filter_metro(gdf):
             | gdf["pno"].str.startswith("01")
             | gdf["pno"].str.startswith("02")
         ].copy()
-        print(f"  Filtered to {len(metro)} metro postal codes by prefix")
+        logger.info("  Filtered to %s metro postal codes by prefix", len(metro))
         return metro
 
     metro = gdf[gdf[col].astype(str).isin(METRO_CODES)].copy()
-    print(f"  Filtered to {len(metro)} metro postal codes by municipality code")
+    logger.info("  Filtered to %s metro postal codes by municipality code", len(metro))
     return metro
 
 
 def reproject(gdf):
-    print("Reprojecting to WGS84...")
+    logger.info("Reprojecting to WGS84...")
     return gdf.to_crs("EPSG:4326")
 
 
 def calculate_metrics(gdf):
-    print("Calculating derived metrics...")
+    logger.info("Calculating derived metrics...")
     # Add pno field from postinumeroalue (frontend expects 'pno')
     gdf["pno"] = gdf["postinumeroalue"]
     for idx, row in gdf.iterrows():
@@ -382,15 +396,15 @@ def load_foreign_language():
     Primary source: scripts/foreign_language_pct.json containing per-postal-code
     percentages (source: Statistics Finland via OKM, 2020 data).
     """
-    print("Loading foreign-language speaker data...")
+    logger.info("Loading foreign-language speaker data...")
 
     if FOREIGN_LANG_FILE.exists():
         with open(FOREIGN_LANG_FILE) as f:
             data = json.load(f)
-        print(f"  Loaded {len(data)} postal codes from {FOREIGN_LANG_FILE.name}")
+        logger.info("  Loaded %s postal codes from %s", len(data), FOREIGN_LANG_FILE.name)
         return data
 
-    print(f"  Warning: {FOREIGN_LANG_FILE} not found")
+    logger.warning(" %s not found", FOREIGN_LANG_FILE)
     return {}
 
 
@@ -400,14 +414,14 @@ def join_foreign_language(gdf, lang_data):
         gdf["foreign_language_pct"] = None
         return gdf
 
-    print("Joining foreign-language data...")
+    logger.info("Joining foreign-language data...")
     for idx, row in gdf.iterrows():
         pno = row.get("postinumeroalue", "")
         pct = lang_data.get(pno)
         gdf.at[idx, "foreign_language_pct"] = float(pct) if pct is not None else None
 
     matched = gdf["foreign_language_pct"].notna().sum()
-    print(f"  Matched {matched}/{len(gdf)} postal codes")
+    logger.info("  Matched %s/%s postal codes", matched, len(gdf))
     return gdf
 
 
@@ -416,15 +430,15 @@ def load_crime_index():
 
     Source: Finnish Police (Poliisi) open data.
     """
-    print("Loading crime index data...")
+    logger.info("Loading crime index data...")
 
     if CRIME_INDEX_FILE.exists():
         with open(CRIME_INDEX_FILE) as f:
             data = json.load(f)
-        print(f"  Loaded {len(data)} postal codes from {CRIME_INDEX_FILE.name}")
+        logger.info("  Loaded %s postal codes from %s", len(data), CRIME_INDEX_FILE.name)
         return data
 
-    print(f"  Warning: {CRIME_INDEX_FILE} not found")
+    logger.warning(" %s not found", CRIME_INDEX_FILE)
     return {}
 
 
@@ -434,14 +448,14 @@ def join_crime_index(gdf, crime_data):
         gdf["crime_index"] = None
         return gdf
 
-    print("Joining crime index data...")
+    logger.info("Joining crime index data...")
     for idx, row in gdf.iterrows():
         pno = row.get("postinumeroalue", "") or row.get("pno", "")
         val = crime_data.get(pno)
         gdf.at[idx, "crime_index"] = float(val) if val is not None else None
 
     matched = gdf["crime_index"].notna().sum()
-    print(f"  Matched {matched}/{len(gdf)} postal codes")
+    logger.info("  Matched %s/%s postal codes", matched, len(gdf))
     return gdf
 
 
@@ -462,7 +476,7 @@ def clean_properties(gdf):
 
 def fetch_property_prices():
     """Fetch apartment price data (€/m²) per postal code from Statistics Finland."""
-    print("Fetching property price data from Statistics Finland...")
+    logger.info("Fetching property price data from Statistics Finland...")
 
     try:
         meta_r = _request_with_retry(
@@ -474,10 +488,10 @@ def fetch_property_prices():
         _record_error("fetch_property_prices/meta", e)
         # Fall back to local file
         if PROPERTY_PRICE_FILE.exists():
-            print(f"  Falling back to local file: {PROPERTY_PRICE_FILE.name}")
+            logger.info("  Falling back to local file: %s", PROPERTY_PRICE_FILE.name)
             with open(PROPERTY_PRICE_FILE) as f:
                 data = json.load(f)
-            print(f"  Loaded {len(data)} postal codes from {PROPERTY_PRICE_FILE.name}")
+            logger.info("  Loaded %s postal codes from %s", len(data), PROPERTY_PRICE_FILE.name)
             return {k: float(v) for k, v in data.items()}
         return {}
 
@@ -539,7 +553,7 @@ def fetch_property_prices():
                     except (ValueError, TypeError):
                         pass
 
-        print(f"  Parsed property prices for {len(result)} postal codes")
+        logger.info("  Parsed property prices for %s postal codes", len(result))
     except Exception as e:
         _record_error("fetch_property_prices/parse", e)
 
@@ -552,7 +566,7 @@ def join_property_prices(gdf, price_data):
         gdf["property_price_sqm"] = None
         return gdf
 
-    print("Joining property price data...")
+    logger.info("Joining property price data...")
     for idx, row in gdf.iterrows():
         pno = row.get("pno", "")
         gdf.at[idx, "property_price_sqm"] = price_data.get(pno)
@@ -564,7 +578,7 @@ def fetch_hsl_transit_stops():
     Fetch public transit stop counts per postal code area from HSL Digitransit API.
     This gives a rough transit accessibility score based on stop density.
     """
-    print("Fetching HSL transit stop data...")
+    logger.info("Fetching HSL transit stop data...")
 
     # Use a simple bbox query for the Helsinki metro area
     query = """
@@ -588,7 +602,7 @@ def fetch_hsl_transit_stops():
         )
         data = r.json()
         stops = _validate_graphql_stops(data, "HSL Digitransit")
-        print(f"  Fetched {len(stops)} transit stops")
+        logger.info("  Fetched %s transit stops", len(stops))
         return stops
     except Exception as e:
         _record_error("fetch_hsl_transit_stops", e)
@@ -598,10 +612,10 @@ def fetch_hsl_transit_stops():
 def _load_transit_density_fallback():
     """Load pre-computed transit stop density from local JSON file."""
     if TRANSIT_DENSITY_FILE.exists():
-        print(f"  Falling back to local file: {TRANSIT_DENSITY_FILE.name}")
+        logger.info("  Falling back to local file: %s", TRANSIT_DENSITY_FILE.name)
         with open(TRANSIT_DENSITY_FILE) as f:
             data = json.load(f)
-        print(f"  Loaded {len(data)} postal codes from {TRANSIT_DENSITY_FILE.name}")
+        logger.info("  Loaded %s postal codes from %s", len(data), TRANSIT_DENSITY_FILE.name)
         return {k: float(v) for k, v in data.items()}
     return None
 
@@ -612,17 +626,17 @@ def join_transit_data(gdf, stops):
         # Try local fallback
         fallback = _load_transit_density_fallback()
         if fallback:
-            print("Joining transit density data from fallback...")
+            logger.info("Joining transit density data from fallback...")
             for idx, row in gdf.iterrows():
                 pno = row.get("pno", "")
                 gdf.at[idx, "transit_stop_density"] = fallback.get(pno)
             matched = gdf["transit_stop_density"].notna().sum()
-            print(f"  Matched {matched}/{len(gdf)} postal codes")
+            logger.info("  Matched %s/%s postal codes", matched, len(gdf))
             return gdf
         gdf["transit_stop_density"] = None
         return gdf
 
-    print("Joining transit stop data...")
+    logger.info("Joining transit stop data...")
     from shapely.geometry import Point
 
     # Count stops per postal code polygon
@@ -648,7 +662,7 @@ def join_transit_data(gdf, stops):
         else:
             gdf.at[idx, "transit_stop_density"] = None
 
-    print(f"  Computed transit density for {len(stop_counts)} postal codes")
+    logger.info("  Computed transit density for %s postal codes", len(stop_counts))
     return gdf
 
 
@@ -657,7 +671,7 @@ def fetch_air_quality():
     Fetch air quality index data from HSY.
     Returns a dict of postal_code -> annual average air quality index.
     """
-    print("Fetching air quality data from HSY...")
+    logger.info("Fetching air quality data from HSY...")
 
     try:
         r = _request_with_retry(
@@ -666,7 +680,7 @@ def fetch_air_quality():
         data = r.json()
         if not isinstance(data, list):
             raise ValueError(f"expected JSON array, got {type(data).__name__}")
-        print(f"  Fetched air quality data: {len(data)} records")
+        logger.info("  Fetched air quality data: %s records", len(data))
         return data
     except Exception as e:
         _record_error("fetch_air_quality", e)
@@ -678,22 +692,22 @@ def join_air_quality(gdf, aq_data):
     if not aq_data:
         # Try local fallback
         if AIR_QUALITY_FILE.exists():
-            print(f"  Falling back to local file: {AIR_QUALITY_FILE.name}")
+            logger.info("  Falling back to local file: %s", AIR_QUALITY_FILE.name)
             with open(AIR_QUALITY_FILE) as f:
                 fallback = json.load(f)
-            print(f"  Loaded {len(fallback)} postal codes from {AIR_QUALITY_FILE.name}")
-            print("Joining air quality data from fallback...")
+            logger.info("  Loaded %s postal codes from %s", len(fallback), AIR_QUALITY_FILE.name)
+            logger.info("Joining air quality data from fallback...")
             for idx, row in gdf.iterrows():
                 pno = row.get("pno", "")
                 val = fallback.get(pno)
                 gdf.at[idx, "air_quality_index"] = float(val) if val is not None else None
             matched = gdf["air_quality_index"].notna().sum()
-            print(f"  Matched {matched}/{len(gdf)} postal codes")
+            logger.info("  Matched %s/%s postal codes", matched, len(gdf))
             return gdf
         gdf["air_quality_index"] = None
         return gdf
 
-    print("Joining air quality data...")
+    logger.info("Joining air quality data...")
     # HSY data is station-based; assign nearest station value to postal code areas
     from shapely.geometry import Point
 
@@ -746,7 +760,7 @@ def _overpass_query(query: str, label: str) -> list:
         )
         data = r.json()
         elements = data.get("elements", [])
-        print(f"  Fetched {len(elements)} elements for {label}")
+        logger.info("  Fetched %s elements for %s", len(elements), label)
         return elements
     except Exception as e:
         _record_error(label, e)
@@ -755,7 +769,7 @@ def _overpass_query(query: str, label: str) -> list:
 
 def fetch_osm_green_spaces():
     """Fetch parks, forests, and green spaces from OSM for Helsinki metro."""
-    print("Fetching green space data from OpenStreetMap...")
+    logger.info("Fetching green space data from OpenStreetMap...")
     query = f"""
     [out:json][timeout:120];
     (
@@ -820,14 +834,14 @@ def join_green_spaces(gdf, elements):
         gdf["green_space_pct"] = None
         return gdf
 
-    print("Joining green space data (area coverage)...")
+    logger.info("Joining green space data (area coverage)...")
 
     green_polys = _parse_osm_green_geometries(elements)
     if not green_polys:
-        print("  Warning: no valid green space polygons parsed")
+        logger.warning(" no valid green space polygons parsed")
         gdf["green_space_pct"] = None
         return gdf
-    print(f"  Parsed {len(green_polys)} green space polygons")
+    logger.info("  Parsed %s green space polygons", len(green_polys))
 
     from shapely.geometry import MultiPolygon
     from shapely.ops import unary_union
@@ -859,15 +873,17 @@ def join_green_spaces(gdf, elements):
     gdf["green_space_pct"] = gdf.index.map(lambda i: green_pct.get(i))
 
     valid = [v for v in green_pct.values() if v is not None and v > 0]
-    print(f"  Computed green space coverage for {len(valid)} postal codes "
-          f"(avg {sum(valid)/len(valid):.1f}%)" if valid else
-          "  No green space coverage computed")
+    if valid:
+        logger.info("Computed green space coverage for %d postal codes (avg %.1f%%)",
+                     len(valid), sum(valid) / len(valid))
+    else:
+        logger.info("No green space coverage computed")
     return gdf
 
 
 def fetch_osm_daycares():
     """Fetch daycare/kindergarten locations from OSM."""
-    print("Fetching daycare data from OpenStreetMap...")
+    logger.info("Fetching daycare data from OpenStreetMap...")
     query = f"""
     [out:json][timeout:60];
     (
@@ -887,7 +903,7 @@ def join_daycares(gdf, elements):
         gdf["daycare_density"] = None
         return gdf
 
-    print("Joining daycare data...")
+    logger.info("Joining daycare data...")
     from shapely.geometry import Point
 
     counts = {}
@@ -912,13 +928,13 @@ def join_daycares(gdf, elements):
         else:
             gdf.at[idx, "daycare_density"] = None
 
-    print(f"  Computed daycare density for {len(counts)} postal codes")
+    logger.info("  Computed daycare density for %s postal codes", len(counts))
     return gdf
 
 
 def fetch_osm_schools():
     """Fetch school locations from OSM."""
-    print("Fetching school data from OpenStreetMap...")
+    logger.info("Fetching school data from OpenStreetMap...")
     query = f"""
     [out:json][timeout:60];
     (
@@ -936,7 +952,7 @@ def join_schools(gdf, elements):
         gdf["school_density"] = None
         return gdf
 
-    print("Joining school data...")
+    logger.info("Joining school data...")
     from shapely.geometry import Point
 
     counts = {}
@@ -961,13 +977,13 @@ def join_schools(gdf, elements):
         else:
             gdf.at[idx, "school_density"] = None
 
-    print(f"  Computed school density for {len(counts)} postal codes")
+    logger.info("  Computed school density for %s postal codes", len(counts))
     return gdf
 
 
 def fetch_osm_healthcare():
     """Fetch healthcare facility locations from OSM."""
-    print("Fetching healthcare data from OpenStreetMap...")
+    logger.info("Fetching healthcare data from OpenStreetMap...")
     query = f"""
     [out:json][timeout:60];
     (
@@ -991,7 +1007,7 @@ def join_healthcare(gdf, elements):
         gdf["healthcare_density"] = None
         return gdf
 
-    print("Joining healthcare data...")
+    logger.info("Joining healthcare data...")
     from shapely.geometry import Point
 
     counts = {}
@@ -1016,13 +1032,13 @@ def join_healthcare(gdf, elements):
         else:
             gdf.at[idx, "healthcare_density"] = None
 
-    print(f"  Computed healthcare density for {len(counts)} postal codes")
+    logger.info("  Computed healthcare density for %s postal codes", len(counts))
     return gdf
 
 
 def fetch_osm_restaurants():
     """Fetch restaurant and cafe locations from OSM."""
-    print("Fetching restaurant/cafe data from OpenStreetMap...")
+    logger.info("Fetching restaurant/cafe data from OpenStreetMap...")
     query = f"""
     [out:json][timeout:60];
     (
@@ -1042,7 +1058,7 @@ def join_restaurants(gdf, elements):
         gdf["restaurant_density"] = None
         return gdf
 
-    print("Joining restaurant data...")
+    logger.info("Joining restaurant data...")
     from shapely.geometry import Point
 
     counts = {}
@@ -1067,13 +1083,13 @@ def join_restaurants(gdf, elements):
         else:
             gdf.at[idx, "restaurant_density"] = None
 
-    print(f"  Computed restaurant density for {len(counts)} postal codes")
+    logger.info("  Computed restaurant density for %s postal codes", len(counts))
     return gdf
 
 
 def fetch_osm_groceries():
     """Fetch grocery/supermarket locations from OSM."""
-    print("Fetching grocery store data from OpenStreetMap...")
+    logger.info("Fetching grocery store data from OpenStreetMap...")
     query = f"""
     [out:json][timeout:60];
     (
@@ -1093,7 +1109,7 @@ def join_groceries(gdf, elements):
         gdf["grocery_density"] = None
         return gdf
 
-    print("Joining grocery store data...")
+    logger.info("Joining grocery store data...")
     from shapely.geometry import Point
 
     counts = {}
@@ -1118,13 +1134,13 @@ def join_groceries(gdf, elements):
         else:
             gdf.at[idx, "grocery_density"] = None
 
-    print(f"  Computed grocery density for {len(counts)} postal codes")
+    logger.info("  Computed grocery density for %s postal codes", len(counts))
     return gdf
 
 
 def fetch_osm_cycling():
     """Fetch cycling infrastructure from OSM."""
-    print("Fetching cycling infrastructure data from OpenStreetMap...")
+    logger.info("Fetching cycling infrastructure data from OpenStreetMap...")
     query = f"""
     [out:json][timeout:90];
     (
@@ -1144,7 +1160,7 @@ def join_cycling(gdf, elements):
         gdf["cycling_density"] = None
         return gdf
 
-    print("Joining cycling infrastructure data...")
+    logger.info("Joining cycling infrastructure data...")
     from shapely.geometry import Point
 
     counts = {}
@@ -1169,7 +1185,7 @@ def join_cycling(gdf, elements):
         else:
             gdf.at[idx, "cycling_density"] = None
 
-    print(f"  Computed cycling density for {len(counts)} postal codes")
+    logger.info("  Computed cycling density for %s postal codes", len(counts))
     return gdf
 
 
@@ -1179,13 +1195,13 @@ def join_cycling(gdf, elements):
 
 def _load_json_data(filepath: Path, label: str) -> dict:
     """Load a JSON file containing postal code -> value mapping."""
-    print(f"Loading {label}...")
+    logger.info("Loading %s...", label)
     if filepath.exists():
         with open(filepath) as f:
             data = json.load(f)
-        print(f"  Loaded {len(data)} postal codes from {filepath.name}")
+        logger.info("  Loaded %s postal codes from %s", len(data), filepath.name)
         return data
-    print(f"  Warning: {filepath} not found — column will be null")
+    logger.warning(" %s not found — column will be null", filepath)
     return {}
 
 
@@ -1195,14 +1211,14 @@ def _join_simple_data(gdf, data: dict, column: str, label: str):
         gdf[column] = None
         return gdf
 
-    print(f"Joining {label}...")
+    logger.info("Joining %s...", label)
     for idx, row in gdf.iterrows():
         pno = row.get("pno", "") or row.get("postinumeroalue", "")
         val = data.get(pno)
         gdf.at[idx, column] = float(val) if val is not None else None
 
     matched = gdf[column].notna().sum()
-    print(f"  Matched {matched}/{len(gdf)} postal codes")
+    logger.info("  Matched %s/%s postal codes", matched, len(gdf))
     return gdf
 
 
@@ -1214,7 +1230,7 @@ def fetch_historical_paavo():
 
     Returns a dict: { postal_code: { metric: { year: value } } }
     """
-    print("Fetching historical Paavo data for time-series trends...")
+    logger.info("Fetching historical Paavo data for time-series trends...")
 
     # Structure: { pno: { "hr_mtu": {2019: val, ...}, "he_vakiy": {...}, "unemployment_rate": {...} } }
     history = {}
@@ -1227,7 +1243,7 @@ def fetch_historical_paavo():
             r = _request_with_retry("GET", url, label=f"Paavo WFS {year}", timeout=120)
             body = r.json()
             features = _validate_geojson_features(body, f"Paavo WFS {year}")
-            print(f"  Year {year}: {len(features)} features")
+            logger.info("  Year %s: %s features", year, len(features))
 
             for feat in features:
                 props = feat.get("properties", {})
@@ -1244,9 +1260,9 @@ def fetch_historical_paavo():
                         history[pno][field][str(year)] = val
         except Exception as e:
             _record_error(f"fetch_historical_paavo/{year}", e)
-            print(f"  Warning: Could not fetch historical data for {year}")
+            logger.warning(" Could not fetch historical data for %s", year)
 
-    print(f"  Collected historical data for {len(history)} postal codes")
+    logger.info("  Collected historical data for %s postal codes", len(history))
     return history
 
 
@@ -1295,10 +1311,10 @@ def join_historical_trends(gdf, history: dict):
     if not history:
         # Try local fallback
         if HISTORICAL_TRENDS_FILE.exists():
-            print(f"  Falling back to local file: {HISTORICAL_TRENDS_FILE.name}")
+            logger.info("  Falling back to local file: %s", HISTORICAL_TRENDS_FILE.name)
             with open(HISTORICAL_TRENDS_FILE) as f:
                 history = json.load(f)
-            print(f"  Loaded historical trends for {len(history)} postal codes")
+            logger.info("  Loaded historical trends for %s postal codes", len(history))
         else:
             gdf["income_history"] = None
             gdf["population_history"] = None
@@ -1307,7 +1323,7 @@ def join_historical_trends(gdf, history: dict):
 
     trend_data = _build_trend_arrays(history) if history and not isinstance(next(iter(history.values()), {}).get("income_history", None), list) else history
 
-    print("Joining historical trend data...")
+    logger.info("Joining historical trend data...")
     trend_keys = ["income_history", "population_history", "unemployment_history"]
     for idx, row in gdf.iterrows():
         pno = row.get("pno", "") or row.get("postinumeroalue", "")
@@ -1321,14 +1337,14 @@ def join_historical_trends(gdf, history: dict):
 
     for key in trend_keys:
         matched = gdf[key].notna().sum()
-        print(f"  {key}: {matched}/{len(gdf)} postal codes have data")
+        logger.info("  %s: %s/%s postal codes have data", key, matched, len(gdf))
 
     return gdf
 
 
 def calculate_single_person_hh(gdf):
     """Calculate single-person household percentage from Paavo te_ fields."""
-    print("Calculating single-person household share...")
+    logger.info("Calculating single-person household share...")
     for idx, row in gdf.iterrows():
         te_takk = safe_val(row.get("te_takk"))
         te_taly = safe_val(row.get("te_taly"))
@@ -1362,10 +1378,10 @@ def _load_previous_output(path: Path) -> dict:
             pno = props.get("pno") or props.get("postinumeroalue", "")
             if pno:
                 lookup[pno] = props
-        print(f"Loaded previous output with {len(lookup)} postal codes for fallback")
+        logger.info("Loaded previous output with %s postal codes for fallback", len(lookup))
         return lookup
     except Exception as e:
-        print(f"  Warning: could not load previous output: {e}")
+        logger.warning(" could not load previous output: %s", e)
         return {}
 
 
@@ -1383,7 +1399,7 @@ def _backfill_nulls(gdf, previous: dict, columns: list[str]):
                 backfilled[col] += 1
     for col, count in backfilled.items():
         if count > 0:
-            print(f"  Backfilled {count} null values in '{col}' from previous output")
+            logger.info("  Backfilled %s null values in '%s' from previous output", count, col)
     return gdf
 
 
@@ -1535,15 +1551,15 @@ def main():
 
     # --- Dry-run exits before writing ---
     if args.dry_run:
-        print(f"\n[dry-run] Would write {len(gdf)} features to {out_path}")
-        print("[dry-run] Exiting without writing output.")
+        logger.info("[dry-run] Would write %d features to %s", len(gdf), out_path)
+        logger.info("[dry-run] Exiting without writing output.")
         sys.exit(1 if any(e["fatal"] for e in _errors) else 0)
 
     # --- Write output ---
     out_path.parent.mkdir(parents=True, exist_ok=True)
     gdf.to_file(out_path, driver="GeoJSON")
     size_mb = out_path.stat().st_size / 1024 / 1024
-    print(f"\nWrote {len(gdf)} features to {out_path} ({size_mb:.1f} MB)")
+    logger.info("Wrote %d features to %s (%.1f MB)", len(gdf), out_path, size_mb)
 
     # Exit with error code if any fatal errors occurred
     if any(e["fatal"] for e in _errors):

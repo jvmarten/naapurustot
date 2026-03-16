@@ -19,7 +19,7 @@ interface MapProps {
   activeLayer: LayerId;
   onHover: (props: NeighborhoodProperties | null, x: number, y: number) => void;
   onClick: (props: NeighborhoodProperties) => void;
-  flyTo: [number, number] | null;
+  flyTo: { center: [number, number]; zoom?: number } | null;
   pinnedPnos?: string[];
   filterActive?: boolean;
   filterMatchPnos?: Set<string>;
@@ -60,6 +60,9 @@ const HIGHLIGHT_LAYER = 'neighborhoods-highlight';
 const PINNED_LAYER = 'neighborhoods-pinned';
 
 const FILTER_HIGHLIGHT_LAYER = 'neighborhoods-filter-highlight';
+
+export const DEFAULT_CENTER: [number, number] = [MAP_CENTER_LNG, MAP_CENTER_LAT];
+export const DEFAULT_ZOOM = MAP_ZOOM;
 
 export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, flyTo, pinnedPnos = [], filterActive = false, filterMatchPnos = new Set(), qualityVersion = 0 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -296,7 +299,7 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
   // FlyTo
   useEffect(() => {
     if (!mapRef.current || !flyTo) return;
-    mapRef.current.flyTo({ center: flyTo, zoom: 13.5, duration: 1200 });
+    mapRef.current.flyTo({ center: flyTo.center, zoom: flyTo.zoom ?? 13.5, duration: 1200 });
   }, [flyTo]);
 
   // Highlight pinned neighborhoods

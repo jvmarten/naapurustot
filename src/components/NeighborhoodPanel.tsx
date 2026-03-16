@@ -6,6 +6,8 @@ import { t, getLang } from '../utils/i18n';
 import { getQualityCategory, QUALITY_CATEGORIES } from '../utils/qualityIndex';
 import { exportCsv, exportPdf } from '../utils/export';
 import { TrendSection } from './TrendChart';
+import RadarChart from './RadarChart';
+import { findSimilarNeighborhoods } from '../utils/similarity';
 
 interface PanelProps {
   data: NeighborhoodProperties;
@@ -17,6 +19,10 @@ interface PanelProps {
   pinCount?: number;
   onCustomize?: () => void;
   isCustomWeights?: boolean;
+  allFeatures?: GeoJSON.Feature[];
+  onFlyTo?: (center: [number, number]) => void;
+  isFavorite?: boolean;
+  onToggleFavorite?: () => void;
 }
 
 const StatRow: React.FC<{
@@ -135,10 +141,19 @@ const PEEK_HEIGHT = 140;
 const HALF_RATIO = 0.5;
 const FULL_RATIO = 0.92;
 
-export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false }) => {
+export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, allFeatures, onFlyTo, isFavorite = false, onToggleFavorite }) => {
   const eduTotal = [d.ko_yl_kork, d.ko_al_kork, d.ko_ammat, d.ko_perus]
     .filter((v) => v != null && v > 0)
     .reduce((a, b) => a! + b!, 0) || 1;
+
+  // Copy link state
+  const [copied, setCopied] = useState(false);
+  const handleCopyLink = useCallback(() => {
+    navigator.clipboard.writeText(window.location.href).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }, []);
 
   // Bottom sheet state (mobile only)
   const [snap, setSnap] = useState<SheetSnap>('half');
@@ -203,6 +218,22 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
     }
   }, [sheetHeight, isDragging, onClose]);
 
+  const favoriteButton = onToggleFavorite && (
+    <button
+      onClick={onToggleFavorite}
+      className={`p-1.5 rounded-lg transition-colors min-h-[44px] md:min-h-0 ${
+        isFavorite
+          ? 'text-amber-500 hover:text-amber-600'
+          : 'text-surface-400 hover:text-amber-500'
+      }`}
+      title={isFavorite ? t('favorites.remove') : t('favorites.add')}
+    >
+      <svg className="w-5 h-5" fill={isFavorite ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+      </svg>
+    </button>
+  );
+
   const pinButton = onPin && (
     <button
       onClick={() => isPinned && onUnpin ? onUnpin(d.pno) : onPin(d)}
@@ -250,6 +281,12 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
   const incomeHistory = useMemo(() => parseTrendSeries(d.income_history), [d.income_history]);
   const populationHistory = useMemo(() => parseTrendSeries(d.population_history), [d.population_history]);
   const unemploymentHistory = useMemo(() => parseTrendSeries(d.unemployment_history), [d.unemployment_history]);
+
+  // CF-1: Similar neighborhoods
+  const similar = useMemo(() => {
+    if (!allFeatures) return [];
+    return findSimilarNeighborhoods(d, allFeatures, 5);
+  }, [d, allFeatures]);
 
   const panelContent = (
     <div className="px-6 py-4 space-y-6">
@@ -628,6 +665,35 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
       <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
         <StatRow label={t('panel.avg_income')} value={formatEuro(d.hr_ktu)} />
       </div>
+
+      {/* CF-4: Radar chart */}
+      <RadarChart data={d} metroAverages={avg} />
+
+      {/* CF-1: Similar neighborhoods */}
+      {similar.length > 0 && (
+        <div>
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 mb-3">
+            {t('panel.similar')}
+          </h3>
+          <div className="space-y-2">
+            {similar.map((s) => (
+              <button
+                key={s.properties.pno}
+                onClick={() => onFlyTo?.(s.center)}
+                className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg
+                           bg-surface-100 dark:bg-surface-900/60 hover:bg-surface-200 dark:hover:bg-surface-800
+                           transition-colors text-left"
+              >
+                <div>
+                  <span className="text-sm font-medium text-surface-900 dark:text-white">{s.properties.nimi}</span>
+                  <span className="text-xs text-surface-400 ml-1.5">{s.properties.pno}</span>
+                </div>
+                <span className="text-xs text-surface-500">{(s.distance * 100).toFixed(0)}% {t('panel.similar').toLowerCase()}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -640,10 +706,31 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
         <div className="sticky top-0 bg-white/95 dark:bg-surface-950/95 backdrop-blur-xl border-b border-surface-200 dark:border-surface-800/50 px-6 py-5">
           <div className="flex items-start justify-between">
             <div>
-              <h2 className="text-xl font-display font-bold text-surface-900 dark:text-white">{d.nimi}</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-display font-bold text-surface-900 dark:text-white">{d.nimi}</h2>
+                <button
+                  onClick={handleCopyLink}
+                  className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-surface-400 hover:text-surface-600 dark:hover:text-surface-200"
+                  title={t('panel.copy_link')}
+                >
+                  {copied ? (
+                    <svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                    </svg>
+                  )}
+                </button>
+                {copied && (
+                  <span className="text-xs text-emerald-500 font-medium animate-fade-in">{t('panel.copied')}</span>
+                )}
+              </div>
               <p className="text-surface-500 dark:text-surface-400 text-sm mt-0.5">{d.pno}</p>
             </div>
             <div className="flex items-center gap-1">
+              {favoriteButton}
               {pinButton}
               <button
                 onClick={onClose}
@@ -685,10 +772,31 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
         {/* Header */}
         <div className="flex items-center justify-between px-5 pb-3 border-b border-surface-200 dark:border-surface-800/50">
           <div className="min-w-0">
-            <h2 className="text-lg font-display font-bold text-surface-900 dark:text-white truncate">{d.nimi}</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-display font-bold text-surface-900 dark:text-white truncate">{d.nimi}</h2>
+              <button
+                onClick={handleCopyLink}
+                className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-surface-400 hover:text-surface-600 dark:hover:text-surface-200 flex-shrink-0"
+                title={t('panel.copy_link')}
+              >
+                {copied ? (
+                  <svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                  </svg>
+                )}
+              </button>
+              {copied && (
+                <span className="text-xs text-emerald-500 font-medium">{t('panel.copied')}</span>
+              )}
+            </div>
             <p className="text-surface-500 dark:text-surface-400 text-xs">{d.pno}</p>
           </div>
           <div className="flex items-center gap-1">
+            {favoriteButton}
             {pinButton}
             <button
               onClick={onClose}
