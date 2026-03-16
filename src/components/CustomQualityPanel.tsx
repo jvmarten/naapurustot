@@ -189,10 +189,9 @@ export const CustomQualityPanel: React.FC<Props> = ({ weights, onChange, onClose
   return (
     <div
       ref={panelRef}
-      className="absolute top-14 right-[17rem] z-30 w-72
+      className="absolute top-4 right-[15rem] z-30 w-72 max-h-[85vh] overflow-y-auto
                  bg-white/95 dark:bg-surface-900/95 backdrop-blur-md
-                 rounded-2xl shadow-2xl border border-surface-200 dark:border-surface-700/40
-                 overflow-hidden"
+                 rounded-2xl shadow-2xl border border-surface-200 dark:border-surface-700/40"
     >
       {content}
     </div>
