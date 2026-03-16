@@ -57,59 +57,76 @@ const BarSegment: React.FC<{ label: string; value: number; total: number; color:
   );
 };
 
-const formatDensity = (v: number | null | undefined): string => {
-  if (v == null) return '—';
-  return `${v.toLocaleString('fi-FI')} /km²`;
+const toNum = (v: unknown): number | null => {
+  if (v == null) return null;
+  const n = Number(v);
+  return isFinite(n) ? n : null;
 };
 
-const formatSqm = (v: number | null | undefined): string => {
-  if (v == null) return '—';
-  return `${v.toFixed(1)} m²`;
+const formatDensity = (v: number | string | null | undefined): string => {
+  const n = toNum(v);
+  if (n == null) return '—';
+  return `${n.toLocaleString('fi-FI')} /km²`;
 };
 
-const formatEuroSqm = (v: number | null | undefined): string => {
-  if (v == null) return '—';
-  return `${v.toLocaleString('fi-FI')} €/m²`;
+const formatSqm = (v: number | string | null | undefined): string => {
+  const n = toNum(v);
+  if (n == null) return '—';
+  return `${n.toFixed(1)} m²`;
 };
 
-const formatStopDensity = (v: number | null | undefined): string => {
-  if (v == null) return '—';
-  return `${v.toFixed(1)} /km²`;
+const formatEuroSqm = (v: number | string | null | undefined): string => {
+  const n = toNum(v);
+  if (n == null) return '—';
+  return `${n.toLocaleString('fi-FI')} €/m²`;
 };
 
-const formatMinutes = (v: number | null | undefined): string => {
-  if (v == null) return '—';
-  return `${v.toFixed(0)} min`;
+const formatStopDensity = (v: number | string | null | undefined): string => {
+  const n = toNum(v);
+  if (n == null) return '—';
+  return `${n.toFixed(1)} /km²`;
 };
 
-const formatGini = (v: number | null | undefined): string => {
-  if (v == null) return '—';
-  return v.toFixed(2);
+const formatMinutes = (v: number | string | null | undefined): string => {
+  const n = toNum(v);
+  if (n == null) return '—';
+  return `${n.toFixed(0)} min`;
 };
 
-const formatCarsHh = (v: number | null | undefined): string => {
-  if (v == null) return '—';
-  return v.toFixed(2);
+const formatGini = (v: number | string | null | undefined): string => {
+  const n = toNum(v);
+  if (n == null) return '—';
+  return n.toFixed(2);
 };
 
-const formatYear = (v: number | null | undefined): string => {
-  if (v == null) return '—';
-  return v.toFixed(0);
+const formatCarsHh = (v: number | string | null | undefined): string => {
+  const n = toNum(v);
+  if (n == null) return '—';
+  return n.toFixed(2);
 };
 
-const formatDb = (v: number | null | undefined): string => {
-  if (v == null) return '—';
-  return `${v.toFixed(0)} dB`;
+const formatYear = (v: number | string | null | undefined): string => {
+  const n = toNum(v);
+  if (n == null) return '—';
+  return n.toFixed(0);
 };
 
-const formatScore = (v: number | null | undefined): string => {
-  if (v == null) return '—';
-  return `${v.toFixed(0)}/100`;
+const formatDb = (v: number | string | null | undefined): string => {
+  const n = toNum(v);
+  if (n == null) return '—';
+  return `${n.toFixed(0)} dB`;
 };
 
-const formatRent = (v: number | null | undefined): string => {
-  if (v == null) return '—';
-  return `${v.toFixed(2)} €/m²/kk`;
+const formatScore = (v: number | string | null | undefined): string => {
+  const n = toNum(v);
+  if (n == null) return '—';
+  return `${n.toFixed(0)}/100`;
+};
+
+const formatRent = (v: number | string | null | undefined): string => {
+  const n = toNum(v);
+  if (n == null) return '—';
+  return `${n.toFixed(2)} €/m²/kk`;
 };
 
 type SheetSnap = 'peek' | 'half' | 'full';
@@ -434,13 +451,13 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
           />
           <StatRow
             label={t('panel.air_quality')}
-            value={d.air_quality_index != null ? d.air_quality_index.toFixed(1) : '—'}
+            value={d.air_quality_index != null ? Number(d.air_quality_index).toFixed(1) : '—'}
             diff={formatDiff(d.air_quality_index, avg.air_quality_index)}
             diffClass={diffColor(d.air_quality_index, avg.air_quality_index, false)}
           />
           <StatRow
             label={t('panel.crime_rate')}
-            value={d.crime_index != null ? `${d.crime_index.toFixed(1)} /1000` : '—'}
+            value={d.crime_index != null ? `${Number(d.crime_index).toFixed(1)} /1000` : '—'}
             diff={formatDiff(d.crime_index, avg.crime_index)}
             diffClass={diffColor(d.crime_index, avg.crime_index, false)}
           />
@@ -510,7 +527,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
           />
           <StatRow
             label={t('panel.energy_class')}
-            value={d.energy_efficiency != null ? d.energy_efficiency.toFixed(1) : '—'}
+            value={d.energy_efficiency != null ? Number(d.energy_efficiency).toFixed(1) : '—'}
           />
         </div>
       </div>
