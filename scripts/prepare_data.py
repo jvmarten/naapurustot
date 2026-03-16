@@ -58,6 +58,39 @@ HSY_AIR_QUALITY_URL = (
     "https://www.hsy.fi/globalassets/ilmanlaatu/opendata/air-quality-index.json"
 )
 
+# Overpass API for OpenStreetMap data
+OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+
+# Helsinki metro bounding box (for Overpass queries)
+METRO_BBOX = "60.10,24.50,60.40,25.25"
+
+# THL Sotkanet API for social/health indicators
+SOTKANET_URL = "https://sotkanet.fi/sotkanet/fi/taulukko"
+
+# Traficom open data — vehicles per postal code
+TRAFICOM_VEHICLES_FILE = Path(__file__).parent / "car_ownership.json"
+
+# HSL travel time matrix data
+COMMUTE_TIME_FILE = Path(__file__).parent / "commute_times.json"
+
+# HSY noise level data
+NOISE_LEVEL_FILE = Path(__file__).parent / "noise_levels.json"
+
+# Building age data (derived from building registry)
+BUILDING_AGE_FILE = Path(__file__).parent / "building_ages.json"
+
+# Energy efficiency data (ARA energy certificate registry)
+ENERGY_CLASS_FILE = Path(__file__).parent / "energy_classes.json"
+
+# Population growth data (year-over-year comparison)
+POPULATION_GROWTH_FILE = Path(__file__).parent / "population_growth.json"
+
+# Income inequality data (Gini coefficients by postal code)
+INCOME_INEQUALITY_FILE = Path(__file__).parent / "income_inequality.json"
+
+# Seniors living alone data (THL Sotkanet)
+SENIORS_ALONE_FILE = Path(__file__).parent / "seniors_alone.json"
+
 # ---------------------------------------------------------------------------
 # Retry & rate-limit settings
 # ---------------------------------------------------------------------------
@@ -628,6 +661,438 @@ def join_air_quality(gdf, aq_data):
 
 
 # ---------------------------------------------------------------------------
+# Phase 3: OSM-based data (Overpass API)
+# ---------------------------------------------------------------------------
+
+def _overpass_query(query: str, label: str) -> list:
+    """Execute an Overpass API query and return elements."""
+    try:
+        r = _request_with_retry(
+            "POST", OVERPASS_URL, label=label,
+            data={"data": query},
+            timeout=120,
+        )
+        data = r.json()
+        elements = data.get("elements", [])
+        print(f"  Fetched {len(elements)} elements for {label}")
+        return elements
+    except Exception as e:
+        _record_error(label, e)
+        return []
+
+
+def fetch_osm_green_spaces():
+    """Fetch parks, forests, and green spaces from OSM for Helsinki metro."""
+    print("Fetching green space data from OpenStreetMap...")
+    query = f"""
+    [out:json][timeout:90];
+    (
+      way["leisure"="park"]({METRO_BBOX});
+      way["landuse"="forest"]({METRO_BBOX});
+      way["landuse"="grass"]({METRO_BBOX});
+      way["natural"="wood"]({METRO_BBOX});
+      relation["leisure"="park"]({METRO_BBOX});
+      relation["landuse"="forest"]({METRO_BBOX});
+    );
+    out center;
+    """
+    return _overpass_query(query, "OSM green spaces")
+
+
+def join_green_spaces(gdf, elements):
+    """Calculate green space coverage per postal code area."""
+    if not elements:
+        gdf["green_space_pct"] = None
+        return gdf
+
+    print("Joining green space data...")
+    from shapely.geometry import Point
+
+    # Count green space points per postal code
+    green_counts = {}
+    for el in elements:
+        lat = el.get("lat") or (el.get("center", {}) or {}).get("lat")
+        lon = el.get("lon") or (el.get("center", {}) or {}).get("lon")
+        if lat is None or lon is None:
+            continue
+        point = Point(float(lon), float(lat))
+        for idx, row in gdf.iterrows():
+            if row.geometry and row.geometry.contains(point):
+                pno = row.get("pno", "")
+                green_counts[pno] = green_counts.get(pno, 0) + 1
+                break
+
+    # Normalize to a density score (green features per km²)
+    for idx, row in gdf.iterrows():
+        pno = row.get("pno", "")
+        count = green_counts.get(pno, 0)
+        area_m2 = safe_val(row.get("pinta_ala"))
+        if area_m2 is not None and area_m2 > 0:
+            gdf.at[idx, "green_space_pct"] = round(count / (area_m2 / 1_000_000), 1)
+        else:
+            gdf.at[idx, "green_space_pct"] = None
+
+    print(f"  Computed green space density for {len(green_counts)} postal codes")
+    return gdf
+
+
+def fetch_osm_daycares():
+    """Fetch daycare/kindergarten locations from OSM."""
+    print("Fetching daycare data from OpenStreetMap...")
+    query = f"""
+    [out:json][timeout:60];
+    (
+      node["amenity"="kindergarten"]({METRO_BBOX});
+      way["amenity"="kindergarten"]({METRO_BBOX});
+      node["amenity"="childcare"]({METRO_BBOX});
+      way["amenity"="childcare"]({METRO_BBOX});
+    );
+    out center;
+    """
+    return _overpass_query(query, "OSM daycares")
+
+
+def join_daycares(gdf, elements):
+    """Calculate daycare density per postal code area."""
+    if not elements:
+        gdf["daycare_density"] = None
+        return gdf
+
+    print("Joining daycare data...")
+    from shapely.geometry import Point
+
+    counts = {}
+    for el in elements:
+        lat = el.get("lat") or (el.get("center", {}) or {}).get("lat")
+        lon = el.get("lon") or (el.get("center", {}) or {}).get("lon")
+        if lat is None or lon is None:
+            continue
+        point = Point(float(lon), float(lat))
+        for idx, row in gdf.iterrows():
+            if row.geometry and row.geometry.contains(point):
+                pno = row.get("pno", "")
+                counts[pno] = counts.get(pno, 0) + 1
+                break
+
+    for idx, row in gdf.iterrows():
+        pno = row.get("pno", "")
+        count = counts.get(pno, 0)
+        area_m2 = safe_val(row.get("pinta_ala"))
+        if area_m2 is not None and area_m2 > 0:
+            gdf.at[idx, "daycare_density"] = round(count / (area_m2 / 1_000_000), 1)
+        else:
+            gdf.at[idx, "daycare_density"] = None
+
+    print(f"  Computed daycare density for {len(counts)} postal codes")
+    return gdf
+
+
+def fetch_osm_schools():
+    """Fetch school locations from OSM."""
+    print("Fetching school data from OpenStreetMap...")
+    query = f"""
+    [out:json][timeout:60];
+    (
+      node["amenity"="school"]({METRO_BBOX});
+      way["amenity"="school"]({METRO_BBOX});
+    );
+    out center;
+    """
+    return _overpass_query(query, "OSM schools")
+
+
+def join_schools(gdf, elements):
+    """Calculate school density per postal code area."""
+    if not elements:
+        gdf["school_density"] = None
+        return gdf
+
+    print("Joining school data...")
+    from shapely.geometry import Point
+
+    counts = {}
+    for el in elements:
+        lat = el.get("lat") or (el.get("center", {}) or {}).get("lat")
+        lon = el.get("lon") or (el.get("center", {}) or {}).get("lon")
+        if lat is None or lon is None:
+            continue
+        point = Point(float(lon), float(lat))
+        for idx, row in gdf.iterrows():
+            if row.geometry and row.geometry.contains(point):
+                pno = row.get("pno", "")
+                counts[pno] = counts.get(pno, 0) + 1
+                break
+
+    for idx, row in gdf.iterrows():
+        pno = row.get("pno", "")
+        count = counts.get(pno, 0)
+        area_m2 = safe_val(row.get("pinta_ala"))
+        if area_m2 is not None and area_m2 > 0:
+            gdf.at[idx, "school_density"] = round(count / (area_m2 / 1_000_000), 1)
+        else:
+            gdf.at[idx, "school_density"] = None
+
+    print(f"  Computed school density for {len(counts)} postal codes")
+    return gdf
+
+
+def fetch_osm_healthcare():
+    """Fetch healthcare facility locations from OSM."""
+    print("Fetching healthcare data from OpenStreetMap...")
+    query = f"""
+    [out:json][timeout:60];
+    (
+      node["amenity"="hospital"]({METRO_BBOX});
+      way["amenity"="hospital"]({METRO_BBOX});
+      node["amenity"="clinic"]({METRO_BBOX});
+      way["amenity"="clinic"]({METRO_BBOX});
+      node["amenity"="doctors"]({METRO_BBOX});
+      way["amenity"="doctors"]({METRO_BBOX});
+      node["healthcare"]({METRO_BBOX});
+      way["healthcare"]({METRO_BBOX});
+    );
+    out center;
+    """
+    return _overpass_query(query, "OSM healthcare")
+
+
+def join_healthcare(gdf, elements):
+    """Calculate healthcare facility density per postal code area."""
+    if not elements:
+        gdf["healthcare_density"] = None
+        return gdf
+
+    print("Joining healthcare data...")
+    from shapely.geometry import Point
+
+    counts = {}
+    for el in elements:
+        lat = el.get("lat") or (el.get("center", {}) or {}).get("lat")
+        lon = el.get("lon") or (el.get("center", {}) or {}).get("lon")
+        if lat is None or lon is None:
+            continue
+        point = Point(float(lon), float(lat))
+        for idx, row in gdf.iterrows():
+            if row.geometry and row.geometry.contains(point):
+                pno = row.get("pno", "")
+                counts[pno] = counts.get(pno, 0) + 1
+                break
+
+    for idx, row in gdf.iterrows():
+        pno = row.get("pno", "")
+        count = counts.get(pno, 0)
+        area_m2 = safe_val(row.get("pinta_ala"))
+        if area_m2 is not None and area_m2 > 0:
+            gdf.at[idx, "healthcare_density"] = round(count / (area_m2 / 1_000_000), 1)
+        else:
+            gdf.at[idx, "healthcare_density"] = None
+
+    print(f"  Computed healthcare density for {len(counts)} postal codes")
+    return gdf
+
+
+def fetch_osm_restaurants():
+    """Fetch restaurant and cafe locations from OSM."""
+    print("Fetching restaurant/cafe data from OpenStreetMap...")
+    query = f"""
+    [out:json][timeout:60];
+    (
+      node["amenity"="restaurant"]({METRO_BBOX});
+      node["amenity"="cafe"]({METRO_BBOX});
+      node["amenity"="bar"]({METRO_BBOX});
+      node["amenity"="fast_food"]({METRO_BBOX});
+    );
+    out;
+    """
+    return _overpass_query(query, "OSM restaurants")
+
+
+def join_restaurants(gdf, elements):
+    """Calculate restaurant/cafe density per postal code area."""
+    if not elements:
+        gdf["restaurant_density"] = None
+        return gdf
+
+    print("Joining restaurant data...")
+    from shapely.geometry import Point
+
+    counts = {}
+    for el in elements:
+        lat = el.get("lat")
+        lon = el.get("lon")
+        if lat is None or lon is None:
+            continue
+        point = Point(float(lon), float(lat))
+        for idx, row in gdf.iterrows():
+            if row.geometry and row.geometry.contains(point):
+                pno = row.get("pno", "")
+                counts[pno] = counts.get(pno, 0) + 1
+                break
+
+    for idx, row in gdf.iterrows():
+        pno = row.get("pno", "")
+        count = counts.get(pno, 0)
+        area_m2 = safe_val(row.get("pinta_ala"))
+        if area_m2 is not None and area_m2 > 0:
+            gdf.at[idx, "restaurant_density"] = round(count / (area_m2 / 1_000_000), 1)
+        else:
+            gdf.at[idx, "restaurant_density"] = None
+
+    print(f"  Computed restaurant density for {len(counts)} postal codes")
+    return gdf
+
+
+def fetch_osm_groceries():
+    """Fetch grocery/supermarket locations from OSM."""
+    print("Fetching grocery store data from OpenStreetMap...")
+    query = f"""
+    [out:json][timeout:60];
+    (
+      node["shop"="supermarket"]({METRO_BBOX});
+      way["shop"="supermarket"]({METRO_BBOX});
+      node["shop"="convenience"]({METRO_BBOX});
+      node["shop"="grocery"]({METRO_BBOX});
+    );
+    out center;
+    """
+    return _overpass_query(query, "OSM groceries")
+
+
+def join_groceries(gdf, elements):
+    """Calculate grocery store density per postal code area."""
+    if not elements:
+        gdf["grocery_density"] = None
+        return gdf
+
+    print("Joining grocery store data...")
+    from shapely.geometry import Point
+
+    counts = {}
+    for el in elements:
+        lat = el.get("lat") or (el.get("center", {}) or {}).get("lat")
+        lon = el.get("lon") or (el.get("center", {}) or {}).get("lon")
+        if lat is None or lon is None:
+            continue
+        point = Point(float(lon), float(lat))
+        for idx, row in gdf.iterrows():
+            if row.geometry and row.geometry.contains(point):
+                pno = row.get("pno", "")
+                counts[pno] = counts.get(pno, 0) + 1
+                break
+
+    for idx, row in gdf.iterrows():
+        pno = row.get("pno", "")
+        count = counts.get(pno, 0)
+        area_m2 = safe_val(row.get("pinta_ala"))
+        if area_m2 is not None and area_m2 > 0:
+            gdf.at[idx, "grocery_density"] = round(count / (area_m2 / 1_000_000), 1)
+        else:
+            gdf.at[idx, "grocery_density"] = None
+
+    print(f"  Computed grocery density for {len(counts)} postal codes")
+    return gdf
+
+
+def fetch_osm_cycling():
+    """Fetch cycling infrastructure from OSM."""
+    print("Fetching cycling infrastructure data from OpenStreetMap...")
+    query = f"""
+    [out:json][timeout:90];
+    (
+      way["highway"="cycleway"]({METRO_BBOX});
+      way["cycleway"="lane"]({METRO_BBOX});
+      way["cycleway"="track"]({METRO_BBOX});
+      way["bicycle"="designated"]({METRO_BBOX});
+    );
+    out center;
+    """
+    return _overpass_query(query, "OSM cycling")
+
+
+def join_cycling(gdf, elements):
+    """Calculate cycling infrastructure density per postal code area."""
+    if not elements:
+        gdf["cycling_density"] = None
+        return gdf
+
+    print("Joining cycling infrastructure data...")
+    from shapely.geometry import Point
+
+    counts = {}
+    for el in elements:
+        lat = el.get("lat") or (el.get("center", {}) or {}).get("lat")
+        lon = el.get("lon") or (el.get("center", {}) or {}).get("lon")
+        if lat is None or lon is None:
+            continue
+        point = Point(float(lon), float(lat))
+        for idx, row in gdf.iterrows():
+            if row.geometry and row.geometry.contains(point):
+                pno = row.get("pno", "")
+                counts[pno] = counts.get(pno, 0) + 1
+                break
+
+    for idx, row in gdf.iterrows():
+        pno = row.get("pno", "")
+        count = counts.get(pno, 0)
+        area_m2 = safe_val(row.get("pinta_ala"))
+        if area_m2 is not None and area_m2 > 0:
+            gdf.at[idx, "cycling_density"] = round(count / (area_m2 / 1_000_000), 1)
+        else:
+            gdf.at[idx, "cycling_density"] = None
+
+    print(f"  Computed cycling density for {len(counts)} postal codes")
+    return gdf
+
+
+# ---------------------------------------------------------------------------
+# Phase 3: JSON file-based data sources
+# ---------------------------------------------------------------------------
+
+def _load_json_data(filepath: Path, label: str) -> dict:
+    """Load a JSON file containing postal code -> value mapping."""
+    print(f"Loading {label}...")
+    if filepath.exists():
+        with open(filepath) as f:
+            data = json.load(f)
+        print(f"  Loaded {len(data)} postal codes from {filepath.name}")
+        return data
+    print(f"  Warning: {filepath} not found — column will be null")
+    return {}
+
+
+def _join_simple_data(gdf, data: dict, column: str, label: str):
+    """Join a simple postal_code -> value dict to the GeoDataFrame."""
+    if not data:
+        gdf[column] = None
+        return gdf
+
+    print(f"Joining {label}...")
+    for idx, row in gdf.iterrows():
+        pno = row.get("pno", "") or row.get("postinumeroalue", "")
+        val = data.get(pno)
+        gdf.at[idx, column] = float(val) if val is not None else None
+
+    matched = gdf[column].notna().sum()
+    print(f"  Matched {matched}/{len(gdf)} postal codes")
+    return gdf
+
+
+def calculate_single_person_hh(gdf):
+    """Calculate single-person household percentage from Paavo te_ fields."""
+    print("Calculating single-person household share...")
+    for idx, row in gdf.iterrows():
+        te_takk = safe_val(row.get("te_takk"))
+        te_taly = safe_val(row.get("te_taly"))
+        # te_takk represents 1-person households in some Paavo versions
+        # If available, use it; otherwise set to None
+        if te_takk is not None and te_taly is not None and te_taly > 0:
+            gdf.at[idx, "single_person_hh_pct"] = round(te_takk / te_taly * 100, 1)
+        else:
+            gdf.at[idx, "single_person_hh_pct"] = None
+    return gdf
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -675,6 +1140,63 @@ def main():
     _rate_limit()
     aq_data = fetch_air_quality()
     gdf = join_air_quality(gdf, aq_data)
+
+    # --- Phase 3: OSM-based data sources ---
+    _rate_limit()
+    green_data = fetch_osm_green_spaces()
+    gdf = join_green_spaces(gdf, green_data)
+
+    _rate_limit()
+    daycare_data = fetch_osm_daycares()
+    gdf = join_daycares(gdf, daycare_data)
+
+    _rate_limit()
+    school_data = fetch_osm_schools()
+    gdf = join_schools(gdf, school_data)
+
+    _rate_limit()
+    healthcare_data = fetch_osm_healthcare()
+    gdf = join_healthcare(gdf, healthcare_data)
+
+    _rate_limit()
+    restaurant_data = fetch_osm_restaurants()
+    gdf = join_restaurants(gdf, restaurant_data)
+
+    _rate_limit()
+    grocery_data = fetch_osm_groceries()
+    gdf = join_groceries(gdf, grocery_data)
+
+    _rate_limit()
+    cycling_data = fetch_osm_cycling()
+    gdf = join_cycling(gdf, cycling_data)
+
+    # --- Phase 3: JSON file-based data sources ---
+    noise_data = _load_json_data(NOISE_LEVEL_FILE, "noise levels")
+    gdf = _join_simple_data(gdf, noise_data, "noise_level", "noise levels")
+
+    building_data = _load_json_data(BUILDING_AGE_FILE, "building ages")
+    gdf = _join_simple_data(gdf, building_data, "avg_building_year", "building ages")
+
+    energy_data = _load_json_data(ENERGY_CLASS_FILE, "energy classes")
+    gdf = _join_simple_data(gdf, energy_data, "energy_efficiency", "energy classes")
+
+    growth_data = _load_json_data(POPULATION_GROWTH_FILE, "population growth")
+    gdf = _join_simple_data(gdf, growth_data, "population_growth_pct", "population growth")
+
+    inequality_data = _load_json_data(INCOME_INEQUALITY_FILE, "income inequality")
+    gdf = _join_simple_data(gdf, inequality_data, "gini_coefficient", "income inequality")
+
+    seniors_data = _load_json_data(SENIORS_ALONE_FILE, "seniors living alone")
+    gdf = _join_simple_data(gdf, seniors_data, "seniors_alone_pct", "seniors living alone")
+
+    car_data = _load_json_data(TRAFICOM_VEHICLES_FILE, "car ownership")
+    gdf = _join_simple_data(gdf, car_data, "cars_per_household", "car ownership")
+
+    commute_data = _load_json_data(COMMUTE_TIME_FILE, "commute times")
+    gdf = _join_simple_data(gdf, commute_data, "avg_commute_min", "commute times")
+
+    # Single-person households (from existing Paavo data)
+    gdf = calculate_single_person_hh(gdf)
 
     # --- Error report ---
     _print_error_report()
