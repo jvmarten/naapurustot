@@ -32,9 +32,9 @@ describe('Legend', () => {
   it('displays min and max formatted values', () => {
     const { container } = render(<Legend layerId="quality_index" />);
     const texts = container.textContent;
-    // quality_index format: "X / 100"
-    expect(texts).toContain('0 / 100');
-    expect(texts).toContain('100 / 100');
+    // quality_index format: plain number
+    expect(texts).toContain('0');
+    expect(texts).toContain('100');
   });
 });
 
@@ -46,7 +46,7 @@ describe('Tooltip', () => {
 
   it('renders formatted value', () => {
     render(<Tooltip x={100} y={200} name="Kallio" value={75} layerId="quality_index" />);
-    expect(screen.getByText('75 / 100')).toBeInTheDocument();
+    expect(screen.getByText('75')).toBeInTheDocument();
   });
 
   it('renders em dash for null value', () => {
