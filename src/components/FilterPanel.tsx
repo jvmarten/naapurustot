@@ -439,7 +439,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
                      border-b border-surface-100 dark:border-surface-800/30 last:border-0"
         >
           <span className="text-xs font-mono text-surface-400 dark:text-surface-500 w-6 text-right flex-shrink-0">
-            {i + 1}
+            {sortDir === 'asc' ? ranked.length - i : i + 1}
           </span>
           <div className="flex-1 min-w-0">
             <div className="text-sm text-surface-800 dark:text-surface-200 truncate">
