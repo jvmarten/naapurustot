@@ -8,7 +8,7 @@ import { Legend } from './components/Legend';
 import { ThemeToggle } from './components/ThemeToggle';
 import { useMapData } from './hooks/useMapData';
 import { useSelectedNeighborhood } from './hooks/useSelectedNeighborhood';
-import type { LayerId } from './utils/colorScales';
+import { type LayerId, getLayerById } from './utils/colorScales';
 import type { NeighborhoodProperties } from './utils/metrics';
 import { t, getLang, setLang, type Lang } from './utils/i18n';
 
@@ -124,15 +124,7 @@ const App: React.FC = () => {
           x={tooltip.x}
           y={tooltip.y}
           name={tooltip.props.nimi || tooltip.props.pno}
-          value={tooltip.props[
-            activeLayer === 'quality_index' ? 'quality_index' :
-            activeLayer === 'median_income' ? 'hr_mtu' :
-            activeLayer === 'unemployment' ? 'unemployment_rate' :
-            activeLayer === 'education' ? 'higher_education_rate' :
-            activeLayer === 'foreign_lang' ? 'foreign_language_pct' :
-            activeLayer === 'avg_age' ? 'he_kika' :
-            'pensioner_share'
-          ] as number | null}
+          value={tooltip.props[getLayerById(activeLayer).property] as number | null}
           layerId={activeLayer}
         />
       )}
