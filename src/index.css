@@ -126,15 +126,8 @@ body,
 
 /* Mobile: hide map navigation controls to reduce clutter */
 @media (max-width: 767px) {
-  .maplibregl-ctrl-top-right {
-    top: auto !important;
-    bottom: 5.5rem !important;
-    right: 0.75rem !important;
-  }
-
-  .maplibregl-ctrl-group button {
-    width: 44px !important;
-    height: 44px !important;
+  .maplibregl-ctrl-group {
+    display: none !important;
   }
 
   .maplibregl-ctrl-attrib {
