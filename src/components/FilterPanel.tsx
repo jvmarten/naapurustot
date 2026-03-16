@@ -572,7 +572,12 @@ export function computeMatchingPnos(
       const layer = getLayerById(criterion.layerId);
       const value = p[layer.property];
       if (typeof value !== 'number' || value == null) return false;
-      return value >= criterion.min && value <= criterion.max;
+      const [rangeMin, rangeMax] = getLayerRange(layer);
+      // When slider is at its extreme position, include all values beyond the stop range
+      // so neighborhoods with outlier values (e.g. 1.4% when stops start at 2%) aren't excluded
+      const minOk = criterion.min <= rangeMin ? true : value >= criterion.min;
+      const maxOk = criterion.max >= rangeMax ? true : value <= criterion.max;
+      return minOk && maxOk;
     });
 
     if (matches) pnos.add(p.pno);
