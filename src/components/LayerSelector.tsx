@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { LAYERS, type LayerId } from '../utils/colorScales';
 import { t } from '../utils/i18n';
 
@@ -20,6 +20,12 @@ const LAYER_GROUPS: LayerGroup[] = [
 ];
 
 export const LayerSelector: React.FC<LayerSelectorProps> = ({ activeLayer, onLayerChange }) => {
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+
+  const toggleGroup = (labelKey: string) => {
+    setCollapsed((prev) => ({ ...prev, [labelKey]: !prev[labelKey] }));
+  };
+
   return (
     <div className="absolute top-4 right-4 z-10 w-52 max-h-[80vh] overflow-y-auto">
       <div className="rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden">
@@ -34,15 +40,35 @@ export const LayerSelector: React.FC<LayerSelectorProps> = ({ activeLayer, onLay
               .map((id) => LAYERS.find((l) => l.id === id))
               .filter(Boolean);
             if (groupLayers.length === 0) return null;
+            const isCollapsed = !!collapsed[group.labelKey];
+            const hasActiveLayer = group.ids.includes(activeLayer);
 
             return (
               <div key={group.labelKey}>
-                <div className="px-3 pt-2 pb-1">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500">
+                <button
+                  onClick={() => toggleGroup(group.labelKey)}
+                  className="w-full flex items-center justify-between px-3 pt-2 pb-1 group cursor-pointer"
+                >
+                  <span className={`text-[10px] font-semibold uppercase tracking-wider ${
+                    hasActiveLayer && isCollapsed
+                      ? 'text-brand-500 dark:text-brand-400'
+                      : 'text-surface-400 dark:text-surface-500'
+                  }`}>
                     {t(group.labelKey)}
                   </span>
-                </div>
-                {groupLayers.map((layer) => {
+                  <svg
+                    className={`w-3 h-3 text-surface-400 dark:text-surface-500 transition-transform duration-200 ${
+                      isCollapsed ? '-rotate-90' : ''
+                    }`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {!isCollapsed && groupLayers.map((layer) => {
                   if (!layer) return null;
                   const isActive = layer.id === activeLayer;
                   return (
