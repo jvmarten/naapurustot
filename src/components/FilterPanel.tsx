@@ -10,6 +10,9 @@ export interface FilterCriterion {
   max: number;
 }
 
+type SortKey = 'score' | 'name' | LayerId;
+type SortDir = 'asc' | 'desc';
+
 interface FilterPanelProps {
   data: FeatureCollection | null;
   filters: FilterCriterion[];
@@ -265,6 +268,8 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   const [dragOffset, setDragOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [mobileResultsOpen, setMobileResultsOpen] = useState(false);
+  const [sortKey, setSortKey] = useState<SortKey>('score');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     dragStartY.current = e.touches[0].clientY;
@@ -306,33 +311,43 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   const ranked = useMemo(() => {
     if (matchingFeatures.length === 0) return [];
 
-    return matchingFeatures
-      .map((f) => {
-        const p = f.properties as NeighborhoodProperties;
-        // Score: average normalized position within each filter range
-        let score = 0;
-        for (const criterion of filters) {
-          const layer = getLayerById(criterion.layerId);
-          const value = p[layer.property] as number;
-          const range = criterion.max - criterion.min;
-          if (range > 0) {
-            score += (value - criterion.min) / range;
-          } else {
-            score += 1;
-          }
+    const items = matchingFeatures.map((f) => {
+      const p = f.properties as NeighborhoodProperties;
+      let score = 0;
+      for (const criterion of filters) {
+        const layer = getLayerById(criterion.layerId);
+        const value = p[layer.property] as number;
+        const range = criterion.max - criterion.min;
+        if (range > 0) {
+          score += (value - criterion.min) / range;
+        } else {
+          score += 1;
         }
-        score /= filters.length;
+      }
+      score /= filters.length;
 
-        return {
-          pno: p.pno,
-          name: p.nimi || p.pno,
-          score,
-          center: getCenter(f),
-          properties: p,
-        };
-      })
-      .sort((a, b) => b.score - a.score);
-  }, [matchingFeatures, filters]);
+      return {
+        pno: p.pno,
+        name: p.nimi || p.pno,
+        score,
+        center: getCenter(f),
+        properties: p,
+      };
+    });
+
+    const dir = sortDir === 'asc' ? 1 : -1;
+    items.sort((a, b) => {
+      if (sortKey === 'score') return dir * (a.score - b.score);
+      if (sortKey === 'name') return dir * a.name.localeCompare(b.name, 'fi');
+      // Sort by a specific layer property
+      const layer = getLayerById(sortKey as LayerId);
+      const va = (a.properties[layer.property] as number) ?? 0;
+      const vb = (b.properties[layer.property] as number) ?? 0;
+      return dir * (va - vb);
+    });
+
+    return items;
+  }, [matchingFeatures, filters, sortKey, sortDir]);
 
   // Add a new filter criterion
   const handleAddFilter = useCallback(
@@ -361,6 +376,55 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
     },
     [filters, onFiltersChange],
   );
+
+  // Reset sortKey to 'score' if the selected layer filter is removed
+  const validSortKey = sortKey === 'score' || sortKey === 'name' || filters.some((f) => f.layerId === sortKey)
+    ? sortKey
+    : 'score';
+  React.useEffect(() => {
+    if (validSortKey !== sortKey) setSortKey(validSortKey);
+  }, [validSortKey, sortKey]);
+
+  const sortBar = filters.length > 0 ? (
+    <div className="flex items-center gap-1.5 px-4 py-2 border-t border-surface-200 dark:border-surface-700/40 flex-shrink-0">
+      <span className="text-[10px] font-medium text-surface-500 dark:text-surface-400 flex-shrink-0">
+        {ranked.length} {t('filter.matches')}
+      </span>
+      <div className="flex-1" />
+      <select
+        value={validSortKey}
+        onChange={(e) => {
+          const newKey = e.target.value as SortKey;
+          setSortKey(newKey);
+          // Default direction: desc for score/layer values, asc for name
+          setSortDir(newKey === 'name' ? 'asc' : 'desc');
+        }}
+        className="text-[10px] font-medium bg-transparent text-surface-600 dark:text-surface-300
+                   border border-surface-200 dark:border-surface-700/40 rounded px-1.5 py-0.5
+                   cursor-pointer focus:outline-none focus:ring-1 focus:ring-brand-500/50"
+      >
+        <option value="score">{t('filter.sort_best_match')}</option>
+        <option value="name">{t('filter.sort_name')}</option>
+        {filters.map((criterion) => {
+          const layer = getLayerById(criterion.layerId);
+          return (
+            <option key={criterion.layerId} value={criterion.layerId}>
+              {t(layer.labelKey)}
+            </option>
+          );
+        })}
+      </select>
+      <button
+        onClick={() => setSortDir(sortDir === 'asc' ? 'desc' : 'asc')}
+        className="text-[10px] font-medium text-surface-500 dark:text-surface-400
+                   border border-surface-200 dark:border-surface-700/40 rounded px-1 py-0.5
+                   hover:bg-surface-100 dark:hover:bg-surface-800/60 transition-colors"
+        title={sortDir === 'asc' ? 'Ascending' : 'Descending'}
+      >
+        {sortDir === 'asc' ? '↑' : '↓'}
+      </button>
+    </div>
+  ) : null;
 
   const resultsList = (
     <div className="overflow-y-auto flex-1 min-h-0">
@@ -454,14 +518,8 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
           <AddFilterDropdown filters={filters} onAdd={handleAddFilter} />
         </div>
 
-        {/* Divider + result count */}
-        {filters.length > 0 && (
-          <div className="px-4 py-2 border-t border-surface-200 dark:border-surface-700/40 flex-shrink-0">
-            <p className="text-[10px] font-medium text-surface-500 dark:text-surface-400">
-              {ranked.length} {t('filter.matches')}
-            </p>
-          </div>
-        )}
+        {/* Sort bar + result count */}
+        {sortBar}
 
         {/* Results list */}
         {resultsList}
@@ -536,10 +594,8 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
           {/* Results */}
           {filters.length > 0 && (
             <>
-              <div className="px-4 py-2 border-t border-surface-200 dark:border-surface-700/40 flex-shrink-0 flex items-center justify-between">
-                <p className="text-[10px] font-medium text-surface-500 dark:text-surface-400">
-                  {ranked.length} {t('filter.matches')}
-                </p>
+              {sortBar}
+              <div className="px-4 py-1 flex-shrink-0 flex items-center justify-end">
                 <button
                   onClick={() => setMobileResultsOpen(!mobileResultsOpen)}
                   className="text-[10px] font-medium text-brand-500 dark:text-brand-400"
