@@ -49,14 +49,20 @@ PROPERTY_PRICE_URL = (
     "https://pxdata.stat.fi/PxWeb/api/v1/en/"
     "StatFin/ashi/statfin_ashi_pxt_112p.px"
 )
+# Local fallback for property prices
+PROPERTY_PRICE_FILE = Path(__file__).parent / "property_prices.json"
 
 # HSL Digitransit API v1 for transit accessibility
 DIGITRANSIT_URL = "https://api.digitransit.fi/routing/v1/routers/hsl/index/graphql"
+# Local fallback for transit stop density
+TRANSIT_DENSITY_FILE = Path(__file__).parent / "transit_stop_density.json"
 
 # HSY air quality open data
 HSY_AIR_QUALITY_URL = (
     "https://www.hsy.fi/globalassets/ilmanlaatu/opendata/air-quality-index.json"
 )
+# Local fallback for air quality index
+AIR_QUALITY_FILE = Path(__file__).parent / "air_quality.json"
 
 # Overpass API for OpenStreetMap data
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
@@ -442,6 +448,13 @@ def fetch_property_prices():
         variables = _validate_pxweb_meta(meta, "property price metadata")
     except Exception as e:
         _record_error("fetch_property_prices/meta", e)
+        # Fall back to local file
+        if PROPERTY_PRICE_FILE.exists():
+            print(f"  Falling back to local file: {PROPERTY_PRICE_FILE.name}")
+            with open(PROPERTY_PRICE_FILE) as f:
+                data = json.load(f)
+            print(f"  Loaded {len(data)} postal codes from {PROPERTY_PRICE_FILE.name}")
+            return {k: float(v) for k, v in data.items()}
         return {}
 
     query_items = []
@@ -558,9 +571,30 @@ def fetch_hsl_transit_stops():
         return []
 
 
+def _load_transit_density_fallback():
+    """Load pre-computed transit stop density from local JSON file."""
+    if TRANSIT_DENSITY_FILE.exists():
+        print(f"  Falling back to local file: {TRANSIT_DENSITY_FILE.name}")
+        with open(TRANSIT_DENSITY_FILE) as f:
+            data = json.load(f)
+        print(f"  Loaded {len(data)} postal codes from {TRANSIT_DENSITY_FILE.name}")
+        return {k: float(v) for k, v in data.items()}
+    return None
+
+
 def join_transit_data(gdf, stops):
     """Count transit stops per postal code area and calculate density."""
     if not stops:
+        # Try local fallback
+        fallback = _load_transit_density_fallback()
+        if fallback:
+            print("Joining transit density data from fallback...")
+            for idx, row in gdf.iterrows():
+                pno = row.get("pno", "")
+                gdf.at[idx, "transit_stop_density"] = fallback.get(pno)
+            matched = gdf["transit_stop_density"].notna().sum()
+            print(f"  Matched {matched}/{len(gdf)} postal codes")
+            return gdf
         gdf["transit_stop_density"] = None
         return gdf
 
@@ -618,6 +652,20 @@ def fetch_air_quality():
 def join_air_quality(gdf, aq_data):
     """Join air quality data to postal code areas."""
     if not aq_data:
+        # Try local fallback
+        if AIR_QUALITY_FILE.exists():
+            print(f"  Falling back to local file: {AIR_QUALITY_FILE.name}")
+            with open(AIR_QUALITY_FILE) as f:
+                fallback = json.load(f)
+            print(f"  Loaded {len(fallback)} postal codes from {AIR_QUALITY_FILE.name}")
+            print("Joining air quality data from fallback...")
+            for idx, row in gdf.iterrows():
+                pno = row.get("pno", "")
+                val = fallback.get(pno)
+                gdf.at[idx, "air_quality_index"] = float(val) if val is not None else None
+            matched = gdf["air_quality_index"].notna().sum()
+            print(f"  Matched {matched}/{len(gdf)} postal codes")
+            return gdf
         gdf["air_quality_index"] = None
         return gdf
 
