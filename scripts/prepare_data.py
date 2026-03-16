@@ -757,7 +757,7 @@ def fetch_osm_green_spaces():
     """Fetch parks, forests, and green spaces from OSM for Helsinki metro."""
     print("Fetching green space data from OpenStreetMap...")
     query = f"""
-    [out:json][timeout:90];
+    [out:json][timeout:120];
     (
       way["leisure"="park"]({METRO_BBOX});
       way["landuse"="forest"]({METRO_BBOX});
@@ -766,45 +766,102 @@ def fetch_osm_green_spaces():
       relation["leisure"="park"]({METRO_BBOX});
       relation["landuse"="forest"]({METRO_BBOX});
     );
-    out center;
+    out geom;
     """
     return _overpass_query(query, "OSM green spaces")
 
 
+def _parse_osm_green_geometries(elements):
+    """Parse OSM elements with full geometry into Shapely polygons."""
+    from shapely.geometry import Polygon, MultiPolygon
+    from shapely.validation import make_valid
+
+    polygons = []
+    for el in elements:
+        try:
+            if el.get("type") == "way" and "geometry" in el:
+                coords = [(pt["lon"], pt["lat"]) for pt in el["geometry"]]
+                if len(coords) >= 4:
+                    poly = Polygon(coords)
+                    if not poly.is_valid:
+                        poly = make_valid(poly)
+                    if not poly.is_empty:
+                        polygons.append(poly)
+            elif el.get("type") == "relation" and "members" in el:
+                outers = []
+                inners = []
+                for m in el["members"]:
+                    if "geometry" not in m:
+                        continue
+                    coords = [(pt["lon"], pt["lat"]) for pt in m["geometry"]]
+                    if len(coords) < 4:
+                        continue
+                    if m.get("role") == "inner":
+                        inners.append(coords)
+                    else:
+                        outers.append(coords)
+                for outer in outers:
+                    try:
+                        poly = Polygon(outer, inners)
+                        if not poly.is_valid:
+                            poly = make_valid(poly)
+                        if not poly.is_empty:
+                            polygons.append(poly)
+                    except Exception:
+                        continue
+        except Exception:
+            continue
+    return polygons
+
+
 def join_green_spaces(gdf, elements):
-    """Calculate green space coverage per postal code area."""
+    """Calculate green space area coverage (%) per postal code."""
     if not elements:
         gdf["green_space_pct"] = None
         return gdf
 
-    print("Joining green space data...")
-    from shapely.geometry import Point
+    print("Joining green space data (area coverage)...")
 
-    # Count green space points per postal code
-    green_counts = {}
-    for el in elements:
-        lat = el.get("lat") or (el.get("center", {}) or {}).get("lat")
-        lon = el.get("lon") or (el.get("center", {}) or {}).get("lon")
-        if lat is None or lon is None:
+    green_polys = _parse_osm_green_geometries(elements)
+    if not green_polys:
+        print("  Warning: no valid green space polygons parsed")
+        gdf["green_space_pct"] = None
+        return gdf
+    print(f"  Parsed {len(green_polys)} green space polygons")
+
+    from shapely.geometry import MultiPolygon
+    from shapely.ops import unary_union
+
+    # Build a GeoDataFrame of green spaces and union overlapping areas
+    green_gdf = gpd.GeoDataFrame(geometry=green_polys, crs="EPSG:4326")
+
+    # Reproject both to EPSG:3067 (Finnish metre-based CRS) for area calculation
+    gdf_proj = gdf[["geometry"]].to_crs("EPSG:3067")
+    green_gdf_proj = green_gdf.to_crs("EPSG:3067")
+
+    # Spatial join: intersect green polygons with postal code boundaries
+    green_union = unary_union(green_gdf_proj.geometry)
+
+    green_pct = {}
+    for idx, row in gdf_proj.iterrows():
+        postal_geom = row.geometry
+        if postal_geom is None or postal_geom.is_empty:
             continue
-        point = Point(float(lon), float(lat))
-        for idx, row in gdf.iterrows():
-            if row.geometry and row.geometry.contains(point):
-                pno = row.get("pno", "")
-                green_counts[pno] = green_counts.get(pno, 0) + 1
-                break
-
-    # Normalize to a density score (green features per km²)
-    for idx, row in gdf.iterrows():
-        pno = row.get("pno", "")
-        count = green_counts.get(pno, 0)
-        area_m2 = safe_val(row.get("pinta_ala"))
-        if area_m2 is not None and area_m2 > 0:
-            gdf.at[idx, "green_space_pct"] = round(count / (area_m2 / 1_000_000), 1)
+        postal_area = postal_geom.area
+        if postal_area <= 0:
+            continue
+        intersection = postal_geom.intersection(green_union)
+        if intersection.is_empty:
+            green_pct[idx] = 0.0
         else:
-            gdf.at[idx, "green_space_pct"] = None
+            green_pct[idx] = round(intersection.area / postal_area * 100, 1)
 
-    print(f"  Computed green space density for {len(green_counts)} postal codes")
+    gdf["green_space_pct"] = gdf.index.map(lambda i: green_pct.get(i))
+
+    valid = [v for v in green_pct.values() if v is not None and v > 0]
+    print(f"  Computed green space coverage for {len(valid)} postal codes "
+          f"(avg {sum(valid)/len(valid):.1f}%)" if valid else
+          "  No green space coverage computed")
     return gdf
 
 

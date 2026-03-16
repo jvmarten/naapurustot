@@ -236,10 +236,10 @@ export const LAYERS: LayerConfig[] = [
     id: 'green_space',
     labelKey: 'layer.green_space',
     property: 'green_space_pct',
-    unit: '/km²',
+    unit: '%',
     colors: ['#f7fcf5', '#e5f5e0', '#c7e9c0', '#a1d99b', '#74c476', '#41ab5d', '#238b45', '#005a32'],
-    stops: [1, 3, 5, 10, 15, 25, 40, 60],
-    format: density,
+    stops: [5, 10, 20, 30, 40, 55, 70, 85],
+    format: pct,
   },
   {
     id: 'daycare_density',
