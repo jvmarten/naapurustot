@@ -208,7 +208,7 @@ export function getColorForValue(layer: LayerConfig, value: number | null | unde
 }
 
 export function buildFillColorExpression(layer: LayerConfig): ExpressionSpecification {
-  const interpolation: (string | ExpressionSpecification | number)[] = ['interpolate', ['linear'], ['get', layer.property]];
+  const interpolation: unknown[] = ['interpolate', ['linear'], ['get', layer.property]];
   for (let i = 0; i < layer.stops.length; i++) {
     interpolation.push(layer.stops[i], layer.colors[i]);
   }

@@ -14,6 +14,7 @@ export interface NeighborhoodProperties {
   pt_tyoll: number | null;
   pt_tyott: number | null;
   pt_opisk: number | null;
+  pt_vakiy: number | null;
   pt_elak: number | null;
   ra_asunn: number | null;
   ra_as_kpa: number | null;

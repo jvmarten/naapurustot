@@ -82,13 +82,13 @@ describe('getColorForValue', () => {
 describe('buildFillColorExpression', () => {
   it('produces a valid MapLibre expression structure', () => {
     const layer = getLayerById('median_income');
-    const expr = buildFillColorExpression(layer);
+    const expr = buildFillColorExpression(layer) as unknown as unknown[];
 
     expect(expr[0]).toBe('case');
     // Condition for has + not-null
-    expect(expr[1][0]).toBe('all');
+    expect((expr[1] as unknown[])[0]).toBe('all');
     // Interpolation expression
-    const interpolation = expr[2];
+    const interpolation = expr[2] as unknown[];
     expect(interpolation[0]).toBe('interpolate');
     expect(interpolation[1]).toEqual(['linear']);
     expect(interpolation[2]).toEqual(['get', 'hr_mtu']);
@@ -98,8 +98,8 @@ describe('buildFillColorExpression', () => {
 
   it('includes all stops and colors in interpolation', () => {
     const layer = getLayerById('unemployment');
-    const expr = buildFillColorExpression(layer);
-    const interpolation = expr[2];
+    const expr = buildFillColorExpression(layer) as unknown as unknown[];
+    const interpolation = expr[2] as unknown[];
     // 3 header items + 2 per stop (value, color)
     expect(interpolation.length).toBe(3 + layer.stops.length * 2);
   });
