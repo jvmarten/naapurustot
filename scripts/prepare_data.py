@@ -24,9 +24,9 @@ WFS_URL = (
     "&outputFormat=application/json"
 )
 
-PXWEB_URL = (
+LANG_URL = (
     "https://pxdata.stat.fi/PxWeb/api/v1/en/"
-    "Postinumeroalueittainen_avoin_tieto/uusin/paavo_pxt_12f7.px"
+    "StatFin/vaerak/statfin_vaerak_pxt_11rm.px"
 )
 
 
@@ -86,13 +86,15 @@ def reproject(gdf):
 
 def calculate_metrics(gdf):
     print("Calculating derived metrics...")
+    # Add pno field from postinumeroalue (frontend expects 'pno')
+    gdf["pno"] = gdf["postinumeroalue"]
     for idx, row in gdf.iterrows():
         pop = safe_val(row.get("he_vakiy"))
         adult_pop = safe_val(row.get("ko_ika18y"))
         unemployed = safe_val(row.get("pt_tyott"))
         higher = safe_val(row.get("ko_yl_kork"))
         bachelor = safe_val(row.get("ko_al_kork"))
-        pensioners = safe_val(row.get("pt_elak"))
+        pensioners = safe_val(row.get("pt_elakel"))
 
         gdf.at[idx, "unemployment_rate"] = safe_div(unemployed, pop)
         gdf.at[idx, "higher_education_rate"] = (
@@ -105,112 +107,101 @@ def calculate_metrics(gdf):
 
 
 def fetch_foreign_language():
-    """Fetch foreign-language speaker data from PxWeb API."""
-    print("Fetching foreign-language speaker data from PxWeb...")
+    """Fetch foreign-language speaker percentages per municipality from StatFin.
 
-    # First, get table metadata to understand the structure
+    Language data is not available at the postal code level in Paavo, so we
+    use municipality-level data from Statistics Finland's population structure
+    table (11rm) and apply it to postal codes by municipality.
+    """
+    print("Fetching foreign-language speaker data from StatFin...")
+
+    # Municipality codes used in the StatFin API (prefixed with KU)
+    muni_codes = [f"KU{c}" for c in METRO_CODES]
+
     try:
-        meta_r = requests.get(PXWEB_URL, timeout=30)
+        # Get metadata to find the latest year
+        meta_r = requests.get(LANG_URL, timeout=30)
         meta_r.raise_for_status()
         meta = meta_r.json()
     except Exception as e:
-        print(f"  Warning: Could not fetch PxWeb metadata: {e}")
+        print(f"  Warning: Could not fetch StatFin metadata: {e}")
         return {}
 
-    # Build a query for the latest year, all postal codes, relevant language groups
-    variables = meta.get("variables", [])
-    query_items = []
+    latest_year = None
+    for var in meta.get("variables", []):
+        if var["code"].lower() in ("vuosi", "year"):
+            latest_year = var["values"][-1]
+            break
 
-    for var in variables:
-        code = var["code"]
-        values = var["values"]
-        if code.lower() in ("vuosi", "year"):
-            # Take latest year
-            query_items.append({"code": code, "selection": {"filter": "item", "values": [values[-1]]}})
-        elif code.lower() in ("postinumeroalue", "postal code area", "alue"):
-            # All postal codes
-            query_items.append({"code": code, "selection": {"filter": "all", "values": ["*"]}})
-        elif code.lower() in ("kieli", "language", "kieli1"):
-            # All languages to calculate foreign share
-            query_items.append({"code": code, "selection": {"filter": "all", "values": ["*"]}})
-        else:
-            query_items.append({"code": code, "selection": {"filter": "all", "values": ["*"]}})
+    if not latest_year:
+        print("  Warning: Could not determine latest year")
+        return {}
 
-    query = {"query": query_items, "response": {"format": "json"}}
+    # Query total (SSS) and foreign languages (02) for metro municipalities
+    query = {
+        "query": [
+            {"code": "Alue", "selection": {"filter": "item", "values": muni_codes}},
+            {"code": "Kieli", "selection": {"filter": "item", "values": ["SSS", "02"]}},
+            {"code": "Sukupuoli", "selection": {"filter": "item", "values": ["SSS"]}},
+            {"code": "Vuosi", "selection": {"filter": "item", "values": [latest_year]}},
+        ],
+        "response": {"format": "json"},
+    }
 
     try:
-        r = requests.post(PXWEB_URL, json=query, timeout=60)
+        r = requests.post(LANG_URL, json=query, timeout=60)
         r.raise_for_status()
         data = r.json()
     except Exception as e:
-        print(f"  Warning: Could not fetch PxWeb data: {e}")
+        print(f"  Warning: Could not fetch StatFin data: {e}")
         return {}
 
-    # Parse JSON-stat-like response
-    # Group by postal code, sum Finnish+Swedish vs other
+    # Parse response: build {municipality_code: foreign_pct}
+    # Each municipality has two rows: SSS (total) and 02 (foreign)
+    muni_totals = {}
+    muni_foreign = {}
+    for row in data.get("data", []):
+        keys = row.get("key", [])
+        vals = row.get("values", [])
+        if not keys or not vals:
+            continue
+        muni = keys[0].replace("KU", "")  # e.g. "KU091" -> "091"
+        lang_code = keys[1]
+        val = float(vals[0]) if vals[0] not in (None, "..", "...", "") else 0
+        if lang_code == "SSS":
+            muni_totals[muni] = val
+        elif lang_code == "02":
+            muni_foreign[muni] = val
+
     result = {}
-    try:
-        columns = data.get("columns", [])
-        comments = data.get("data", []) if "data" in data else []
-        # Find the postal code column and language column indices
-        pno_idx = None
-        lang_idx = None
-        val_idx = None
-        for i, col in enumerate(columns):
-            code = col.get("code", "").lower()
-            if code in ("postinumeroalue", "postal code area", "alue"):
-                pno_idx = i
-            elif code in ("kieli", "language", "kieli1"):
-                lang_idx = i
+    for muni in muni_totals:
+        total = muni_totals.get(muni, 0)
+        foreign = muni_foreign.get(muni, 0)
+        if total > 0:
+            result[muni] = round(foreign / total * 100, 1)
+        else:
+            result[muni] = None
 
-        if pno_idx is not None:
-            for row in comments:
-                keys = row.get("key", [])
-                vals = row.get("values", [])
-                if not keys or not vals:
-                    continue
-                pno = keys[pno_idx][:5]  # Extract 5-digit postal code
-                lang = keys[lang_idx] if lang_idx is not None else ""
-                val = float(vals[0]) if vals[0] not in (None, "..", "...", "") else 0
-
-                if pno not in result:
-                    result[pno] = {"total": 0, "finnish": 0, "swedish": 0, "other": 0}
-
-                result[pno]["total"] += val
-                # Finnish = fi, Swedish = sv
-                lang_lower = lang.lower()
-                if "suomi" in lang_lower or "finska" in lang_lower or "finnish" in lang_lower or lang_lower == "fi":
-                    result[pno]["finnish"] += val
-                elif "ruotsi" in lang_lower or "svenska" in lang_lower or "swedish" in lang_lower or lang_lower == "sv":
-                    result[pno]["swedish"] += val
-                else:
-                    result[pno]["other"] += val
-
-        print(f"  Parsed foreign-language data for {len(result)} postal codes")
-    except Exception as e:
-        print(f"  Warning: Could not parse PxWeb response: {e}")
+    print(f"  Foreign-language percentages by municipality:")
+    for muni, pct in sorted(result.items()):
+        print(f"    {muni}: {pct}%")
 
     return result
 
 
 def join_foreign_language(gdf, lang_data):
+    """Apply municipality-level foreign-language percentages to postal codes."""
     if not lang_data:
         gdf["foreign_language_pct"] = None
         return gdf
 
-    print("Joining foreign-language data...")
+    print("Joining foreign-language data by municipality...")
     for idx, row in gdf.iterrows():
-        pno = row.get("pno", "")
-        if pno in lang_data:
-            d = lang_data[pno]
-            total = d["total"]
-            other = d["other"]
-            if total and total > 0:
-                gdf.at[idx, "foreign_language_pct"] = round(other / total * 100, 1)
-            else:
-                gdf.at[idx, "foreign_language_pct"] = None
-        else:
-            gdf.at[idx, "foreign_language_pct"] = None
+        muni = str(row.get("kunta", ""))
+        gdf.at[idx, "foreign_language_pct"] = lang_data.get(muni)
+
+    matched = gdf["foreign_language_pct"].notna().sum()
+    print(f"  Matched {matched}/{len(gdf)} postal codes")
     return gdf
 
 
@@ -219,7 +210,7 @@ def clean_properties(gdf):
     key_fields = [
         "he_vakiy", "he_kika", "ko_ika18y", "ko_yl_kork", "ko_al_kork",
         "ko_ammat", "ko_perus", "hr_mtu", "hr_ktu", "pt_tyoll", "pt_tyott",
-        "pt_opisk", "pt_elak", "ra_asunn", "te_takk",
+        "pt_opisk", "pt_elakel", "ra_asunn", "te_takk",
     ]
     for col in key_fields:
         if col in gdf.columns:
