@@ -27,8 +27,8 @@ export const LAYERS: LayerConfig[] = [
     labelKey: 'layer.quality_index',
     property: 'quality_index',
     unit: '',
-    colors: ['#ef4444', '#f97316', '#eab308', '#22c55e', '#a855f7'],
-    stops: [0, 25, 50, 75, 100],
+    colors: ['#1a5c3a', '#ef4444', '#f97316', '#a3911a', '#eab308', '#22c55e', '#7ccf2b', '#c8e620'],
+    stops: [0, 15, 30, 45, 55, 70, 85, 100],
     format: (v: number) => `${v.toFixed(0)} / 100`,
   },
   {
