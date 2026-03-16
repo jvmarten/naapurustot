@@ -121,6 +121,7 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
         source: SOURCE_ID,
         paint: {
           'fill-color': buildFillColorExpression(layer) as any,
+          'fill-color-transition': { duration: 300, delay: 0 },
           'fill-opacity': [
             'case',
             ['boolean', ['feature-state', 'hover'], false],
@@ -158,7 +159,17 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
     } else {
       map.on('load', addLayers);
     }
-  }, [data, activeLayer, theme]);
+  }, [data, theme]);
+
+  // Smoothly transition fill color when active layer changes
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !data) return;
+    if (!map.getLayer(FILL_LAYER)) return;
+
+    const layer = getLayerById(activeLayer);
+    map.setPaintProperty(FILL_LAYER, 'fill-color', buildFillColorExpression(layer) as any);
+  }, [activeLayer]);
 
   // Hover handler
   useEffect(() => {
