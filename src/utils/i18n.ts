@@ -172,14 +172,14 @@ const translations: Record<string, Record<Lang, string>> = {
   'donate.button': { fi: 'Lahjoita', en: 'Donate' },
   'donate.title': { fi: 'Tue Naapurustot.fi', en: 'Support Naapurustot.fi' },
   'donate.description': {
-    fi: 'Kopioi Lightning-osoite lompakkoosi lähettääksesi lahjoituksen.',
-    en: 'Copy the Lightning address to your wallet to send a donation.',
+    fi: 'Skannaa QR-koodi tai kopioi BOLT 12 -tarjous Lightning-lompakkoosi.',
+    en: 'Scan the QR code or copy the BOLT 12 offer into your Lightning wallet.',
   },
   'donate.copy': { fi: 'Kopioi', en: 'Copy' },
   'donate.copied': { fi: 'Kopioitu!', en: 'Copied!' },
   'donate.hint': {
-    fi: 'Avaa Bitcoin Lightning -lompakko ja liitä osoite.',
-    en: 'Open any Bitcoin Lightning wallet and paste the address.',
+    fi: 'Toimii Phoenix-, Zeus- ja muissa BOLT 12 -yhteensopivissa lompakoissa.',
+    en: 'Works with Phoenix, Zeus, and other BOLT 12 compatible wallets.',
   },
 
   // Custom quality index
