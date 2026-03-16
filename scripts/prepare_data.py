@@ -29,6 +29,10 @@ LANG_URL = (
     "StatFin/vaerak/statfin_vaerak_pxt_11rm.px"
 )
 
+# Postal-code-level foreign language speaker percentages
+# Source: Statistics Finland via OKM (Ministry of Education), 2020 data
+FOREIGN_LANG_FILE = Path(__file__).parent / "foreign_language_pct.json"
+
 
 def safe_val(v):
     """Return None if value is suppressed (-1) or missing."""
@@ -106,99 +110,35 @@ def calculate_metrics(gdf):
     return gdf
 
 
-def fetch_foreign_language():
-    """Fetch foreign-language speaker percentages per municipality from StatFin.
+def load_foreign_language():
+    """Load postal-code-level foreign-language speaker percentages.
 
-    Language data is not available at the postal code level in Paavo, so we
-    use municipality-level data from Statistics Finland's population structure
-    table (11rm) and apply it to postal codes by municipality.
+    Primary source: scripts/foreign_language_pct.json containing per-postal-code
+    percentages (source: Statistics Finland via OKM, 2020 data).
     """
-    print("Fetching foreign-language speaker data from StatFin...")
+    print("Loading foreign-language speaker data...")
 
-    # Municipality codes used in the StatFin API (prefixed with KU)
-    muni_codes = [f"KU{c}" for c in METRO_CODES]
+    if FOREIGN_LANG_FILE.exists():
+        with open(FOREIGN_LANG_FILE) as f:
+            data = json.load(f)
+        print(f"  Loaded {len(data)} postal codes from {FOREIGN_LANG_FILE.name}")
+        return data
 
-    try:
-        # Get metadata to find the latest year
-        meta_r = requests.get(LANG_URL, timeout=30)
-        meta_r.raise_for_status()
-        meta = meta_r.json()
-    except Exception as e:
-        print(f"  Warning: Could not fetch StatFin metadata: {e}")
-        return {}
-
-    latest_year = None
-    for var in meta.get("variables", []):
-        if var["code"].lower() in ("vuosi", "year"):
-            latest_year = var["values"][-1]
-            break
-
-    if not latest_year:
-        print("  Warning: Could not determine latest year")
-        return {}
-
-    # Query total (SSS) and foreign languages (02) for metro municipalities
-    query = {
-        "query": [
-            {"code": "Alue", "selection": {"filter": "item", "values": muni_codes}},
-            {"code": "Kieli", "selection": {"filter": "item", "values": ["SSS", "02"]}},
-            {"code": "Sukupuoli", "selection": {"filter": "item", "values": ["SSS"]}},
-            {"code": "Vuosi", "selection": {"filter": "item", "values": [latest_year]}},
-        ],
-        "response": {"format": "json"},
-    }
-
-    try:
-        r = requests.post(LANG_URL, json=query, timeout=60)
-        r.raise_for_status()
-        data = r.json()
-    except Exception as e:
-        print(f"  Warning: Could not fetch StatFin data: {e}")
-        return {}
-
-    # Parse response: build {municipality_code: foreign_pct}
-    # Each municipality has two rows: SSS (total) and 02 (foreign)
-    muni_totals = {}
-    muni_foreign = {}
-    for row in data.get("data", []):
-        keys = row.get("key", [])
-        vals = row.get("values", [])
-        if not keys or not vals:
-            continue
-        muni = keys[0].replace("KU", "")  # e.g. "KU091" -> "091"
-        lang_code = keys[1]
-        val = float(vals[0]) if vals[0] not in (None, "..", "...", "") else 0
-        if lang_code == "SSS":
-            muni_totals[muni] = val
-        elif lang_code == "02":
-            muni_foreign[muni] = val
-
-    result = {}
-    for muni in muni_totals:
-        total = muni_totals.get(muni, 0)
-        foreign = muni_foreign.get(muni, 0)
-        if total > 0:
-            result[muni] = round(foreign / total * 100, 1)
-        else:
-            result[muni] = None
-
-    print(f"  Foreign-language percentages by municipality:")
-    for muni, pct in sorted(result.items()):
-        print(f"    {muni}: {pct}%")
-
-    return result
+    print(f"  Warning: {FOREIGN_LANG_FILE} not found")
+    return {}
 
 
 def join_foreign_language(gdf, lang_data):
-    """Apply municipality-level foreign-language percentages to postal codes."""
+    """Apply foreign-language percentages to postal codes."""
     if not lang_data:
         gdf["foreign_language_pct"] = None
         return gdf
 
-    print("Joining foreign-language data by municipality...")
+    print("Joining foreign-language data...")
     for idx, row in gdf.iterrows():
-        muni = str(row.get("kunta", ""))
-        gdf.at[idx, "foreign_language_pct"] = lang_data.get(muni)
+        pno = row.get("postinumeroalue", "")
+        pct = lang_data.get(pno)
+        gdf.at[idx, "foreign_language_pct"] = float(pct) if pct is not None else None
 
     matched = gdf["foreign_language_pct"].notna().sum()
     print(f"  Matched {matched}/{len(gdf)} postal codes")
@@ -227,7 +167,7 @@ def main():
     gdf = clean_properties(gdf)
     gdf = calculate_metrics(gdf)
 
-    lang_data = fetch_foreign_language()
+    lang_data = load_foreign_language()
     gdf = join_foreign_language(gdf, lang_data)
 
     # Write output
