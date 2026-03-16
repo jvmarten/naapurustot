@@ -1,5 +1,6 @@
 import React, { useRef, useState, useLayoutEffect } from 'react';
 import { getLayerById, type LayerId } from '../utils/colorScales';
+import { t } from '../utils/i18n';
 
 interface TooltipProps {
   x: number;
@@ -14,7 +15,7 @@ const PADDING = 8;
 
 export const Tooltip: React.FC<TooltipProps> = ({ x, y, name, value, layerId }) => {
   const layer = getLayerById(layerId);
-  const formatted = value != null ? layer.format(value) : '—';
+  const formatted = value != null ? layer.format(value) : t('tooltip.no_data');
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ left: 0, top: 0 });
 

@@ -73,104 +73,172 @@ function findBest(pinned: NeighborhoodProperties[], key: string, higherIsBetter:
   return bestPno;
 }
 
+/** Mobile card for a single neighborhood in stacked comparison */
+const MobileCard: React.FC<{
+  n: NeighborhoodProperties;
+  color: string;
+  onUnpin: (pno: string) => void;
+  allPinned: NeighborhoodProperties[];
+}> = ({ n, color, onUnpin, allPinned }) => (
+  <div className="bg-surface-50 dark:bg-surface-900/60 rounded-xl p-4 relative">
+    <div className="flex items-center justify-between mb-3">
+      <div>
+        <span className={`font-display font-bold text-sm ${color}`}>{n.nimi}</span>
+        <span className="text-[10px] text-surface-400 ml-1.5">{n.pno}</span>
+      </div>
+      <button
+        onClick={() => onUnpin(n.pno)}
+        className="p-1.5 rounded-lg hover:bg-surface-200 dark:hover:bg-surface-800 transition-colors text-surface-400 hover:text-rose-500"
+      >
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+    <div className="space-y-1.5">
+      {STAT_SECTIONS.flatMap((section) =>
+        section.stats.map((stat) => {
+          const val = n[stat.key] as number | null;
+          const bestPno = findBest(allPinned, stat.key, stat.higherIsBetter);
+          const isBest = allPinned.length > 1 && n.pno === bestPno;
+          return (
+            <div key={stat.key} className="flex justify-between text-xs">
+              <span className="text-surface-500 dark:text-surface-400">{t(stat.label)}</span>
+              <span className={isBest ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-surface-900 dark:text-white font-medium'}>
+                {stat.format(val)}
+                {isBest && <span className="ml-1 text-[9px] uppercase text-emerald-500">{t('compare.best')}</span>}
+              </span>
+            </div>
+          );
+        }),
+      )}
+    </div>
+  </div>
+);
+
 export const ComparisonPanel: React.FC<ComparisonPanelProps> = ({ pinned, onUnpin, onClear }) => {
   if (pinned.length < 2) return null;
 
   return (
-    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 w-[95vw] max-w-[800px]
-                    bg-white/95 dark:bg-surface-950/95 backdrop-blur-xl rounded-2xl
-                    border border-surface-200 dark:border-surface-800/50 shadow-2xl
-                    overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-surface-200 dark:border-surface-800/50">
-        <h2 className="text-sm font-display font-bold text-surface-900 dark:text-white">
-          {t('compare.title')}
-        </h2>
-        <button
-          onClick={onClear}
-          className="text-xs text-surface-500 hover:text-rose-500 dark:text-surface-400 dark:hover:text-rose-400 transition-colors"
-        >
-          {t('compare.clear')}
-        </button>
+    <>
+      {/* Desktop: horizontal table */}
+      <div className="hidden md:block absolute bottom-4 left-1/2 -translate-x-1/2 z-20 w-[95vw] max-w-[800px]
+                      bg-white/95 dark:bg-surface-950/95 backdrop-blur-xl rounded-2xl
+                      border border-surface-200 dark:border-surface-800/50 shadow-2xl
+                      overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-3 border-b border-surface-200 dark:border-surface-800/50">
+          <h2 className="text-sm font-display font-bold text-surface-900 dark:text-white">
+            {t('compare.title')}
+          </h2>
+          <button
+            onClick={onClear}
+            className="text-xs text-surface-500 hover:text-rose-500 dark:text-surface-400 dark:hover:text-rose-400 transition-colors"
+          >
+            {t('compare.clear')}
+          </button>
+        </div>
+
+        {/* Table */}
+        <div className="overflow-x-auto max-h-[50vh] overflow-y-auto">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-white/95 dark:bg-surface-950/95 backdrop-blur-xl">
+              <tr>
+                <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-surface-400 w-[160px] min-w-[140px]" />
+                {pinned.map((n, i) => (
+                  <th key={n.pno} className="px-3 py-2.5 text-center min-w-[120px]">
+                    <div className="flex items-center justify-center gap-1.5">
+                      <span className={`font-display font-bold text-sm ${COLUMN_COLORS[i]}`}>
+                        {n.nimi}
+                      </span>
+                      <button
+                        onClick={() => onUnpin(n.pno)}
+                        className="p-0.5 rounded hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-surface-400 hover:text-rose-500"
+                        title="Remove"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                    <span className="text-[10px] text-surface-400">{n.pno}</span>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {STAT_SECTIONS.map((section) => (
+                <React.Fragment key={section.title || '_main'}>
+                  {section.title && (
+                    <tr>
+                      <td
+                        colSpan={pinned.length + 1}
+                        className="px-4 pt-4 pb-1 text-xs font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400"
+                      >
+                        {t(section.title)}
+                      </td>
+                    </tr>
+                  )}
+                  {section.stats.map((stat) => {
+                    const bestPno = findBest(pinned, stat.key, stat.higherIsBetter);
+                    return (
+                      <tr key={stat.key} className="border-t border-surface-100 dark:border-surface-800/30">
+                        <td className="px-4 py-2 text-surface-500 dark:text-surface-400 text-xs">
+                          {t(stat.label)}
+                        </td>
+                        {pinned.map((n) => {
+                          const val = n[stat.key] as number | null;
+                          const isBest = pinned.length > 1 && n.pno === bestPno;
+                          return (
+                            <td
+                              key={n.pno}
+                              className={`px-3 py-2 text-center font-medium ${
+                                isBest
+                                  ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-900/10'
+                                  : 'text-surface-900 dark:text-white'
+                              }`}
+                            >
+                              {stat.format(val)}
+                              {isBest && (
+                                <span className="ml-1 text-[9px] font-semibold uppercase text-emerald-500 dark:text-emerald-400">
+                                  {t('compare.best')}
+                                </span>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto max-h-[50vh] overflow-y-auto">
-        <table className="w-full text-sm">
-          {/* Column headers — neighborhood names */}
-          <thead className="sticky top-0 bg-white/95 dark:bg-surface-950/95 backdrop-blur-xl">
-            <tr>
-              <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-surface-400 w-[160px] min-w-[140px]" />
-              {pinned.map((n, i) => (
-                <th key={n.pno} className="px-3 py-2.5 text-center min-w-[120px]">
-                  <div className="flex items-center justify-center gap-1.5">
-                    <span className={`font-display font-bold text-sm ${COLUMN_COLORS[i]}`}>
-                      {n.nimi}
-                    </span>
-                    <button
-                      onClick={() => onUnpin(n.pno)}
-                      className="p-0.5 rounded hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-surface-400 hover:text-rose-500"
-                      title="Remove"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                  <span className="text-[10px] text-surface-400">{n.pno}</span>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {STAT_SECTIONS.map((section) => (
-              <React.Fragment key={section.title || '_main'}>
-                {section.title && (
-                  <tr>
-                    <td
-                      colSpan={pinned.length + 1}
-                      className="px-4 pt-4 pb-1 text-xs font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400"
-                    >
-                      {t(section.title)}
-                    </td>
-                  </tr>
-                )}
-                {section.stats.map((stat) => {
-                  const bestPno = findBest(pinned, stat.key, stat.higherIsBetter);
-                  return (
-                    <tr key={stat.key} className="border-t border-surface-100 dark:border-surface-800/30">
-                      <td className="px-4 py-2 text-surface-500 dark:text-surface-400 text-xs">
-                        {t(stat.label)}
-                      </td>
-                      {pinned.map((n) => {
-                        const val = n[stat.key] as number | null;
-                        const isBest = pinned.length > 1 && n.pno === bestPno;
-                        return (
-                          <td
-                            key={n.pno}
-                            className={`px-3 py-2 text-center font-medium ${
-                              isBest
-                                ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-900/10'
-                                : 'text-surface-900 dark:text-white'
-                            }`}
-                          >
-                            {stat.format(val)}
-                            {isBest && (
-                              <span className="ml-1 text-[9px] font-semibold uppercase text-emerald-500 dark:text-emerald-400">
-                                {t('compare.best')}
-                              </span>
-                            )}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  );
-                })}
-              </React.Fragment>
-            ))}
-          </tbody>
-        </table>
+      {/* Mobile: stacked cards in bottom sheet */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-20 max-h-[60vh]
+                      bg-white/95 dark:bg-surface-950/95 backdrop-blur-xl
+                      border-t border-surface-200 dark:border-surface-800/50
+                      shadow-[0_-4px_30px_rgba(0,0,0,0.15)] rounded-t-2xl">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-surface-200 dark:border-surface-800/50">
+          <h2 className="text-sm font-display font-bold text-surface-900 dark:text-white">
+            {t('compare.title')}
+          </h2>
+          <button
+            onClick={onClear}
+            className="text-xs text-surface-500 hover:text-rose-500 dark:text-surface-400 dark:hover:text-rose-400 transition-colors"
+          >
+            {t('compare.clear')}
+          </button>
+        </div>
+        <div className="overflow-y-auto p-4 space-y-3" style={{ maxHeight: 'calc(60vh - 52px)' }}>
+          {pinned.map((n, i) => (
+            <MobileCard key={n.pno} n={n} color={COLUMN_COLORS[i]} onUnpin={onUnpin} allPinned={pinned} />
+          ))}
+        </div>
       </div>
-    </div>
+    </>
   );
 };
