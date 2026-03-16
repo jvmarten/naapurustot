@@ -129,6 +129,17 @@ const translations: Record<string, Record<Lang, string>> = {
     en: 'Data: Statistics Finland, HSL, HSY, Police, OpenStreetMap (CC BY 4.0)',
   },
 
+  // Filter panel
+  'filter.title': { fi: 'Etsi naapurustoja', en: 'Find Neighborhoods' },
+  'filter.toggle': { fi: 'Suodata', en: 'Filter' },
+  'filter.add': { fi: 'Lisää kriteeri', en: 'Add criterion' },
+  'filter.remove': { fi: 'Poista', en: 'Remove' },
+  'filter.matches': { fi: 'osumaa', en: 'matches' },
+  'filter.no_match': { fi: 'Ei tuloksia — kokeile laajempia rajoja', en: 'No matches — try wider ranges' },
+  'filter.empty': { fi: 'Lisää kriteereitä suodattaaksesi naapurustoja', en: 'Add criteria to filter neighborhoods' },
+  'filter.show_results': { fi: 'Näytä tulokset', en: 'Show results' },
+  'filter.hide_results': { fi: 'Piilota tulokset', en: 'Hide results' },
+
   // Comparison panel
   'compare.title': { fi: 'Vertailu', en: 'Comparison' },
   'compare.pin': { fi: 'Lisää vertailuun', en: 'Add to comparison' },

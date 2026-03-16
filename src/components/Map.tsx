@@ -21,6 +21,8 @@ interface MapProps {
   onClick: (props: NeighborhoodProperties) => void;
   flyTo: [number, number] | null;
   pinnedPnos?: string[];
+  filterActive?: boolean;
+  filterMatchPnos?: Set<string>;
 }
 
 function makeStyle(theme: 'dark' | 'light'): maplibregl.StyleSpecification {
@@ -55,7 +57,9 @@ const HIGHLIGHT_LAYER = 'neighborhoods-highlight';
 
 const PINNED_LAYER = 'neighborhoods-pinned';
 
-export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, flyTo, pinnedPnos = [] }) => {
+const FILTER_HIGHLIGHT_LAYER = 'neighborhoods-filter-highlight';
+
+export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, flyTo, pinnedPnos = [], filterActive = false, filterMatchPnos = new Set() }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const hoveredIdRef = useRef<string | null>(null);
@@ -173,6 +177,50 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
     const layer = getLayerById(activeLayer);
     map.setPaintProperty(FILL_LAYER, 'fill-color', buildFillColorExpression(layer));
   }, [activeLayer]);
+
+  // Filter-aware rendering: dim non-matching neighborhoods and highlight matching ones
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !data) return;
+    if (!map.getLayer(FILL_LAYER)) return;
+
+    if (filterActive && filterMatchPnos.size > 0) {
+      // Dim non-matching: set lower opacity for non-matching neighborhoods
+      const matchPnoArray = Array.from(filterMatchPnos);
+      map.setPaintProperty(FILL_LAYER, 'fill-opacity', [
+        'case',
+        ['boolean', ['feature-state', 'hover'], false],
+        0.85,
+        ['in', ['get', 'pno'], ['literal', matchPnoArray]],
+        0.8,
+        0.15,
+      ]);
+
+      // Add/update a highlight border for matching neighborhoods
+      if (map.getLayer(FILTER_HIGHLIGHT_LAYER)) map.removeLayer(FILTER_HIGHLIGHT_LAYER);
+      map.addLayer({
+        id: FILTER_HIGHLIGHT_LAYER,
+        type: 'line',
+        source: SOURCE_ID,
+        filter: ['in', ['get', 'pno'], ['literal', matchPnoArray]] as unknown as maplibregl.ExpressionSpecification,
+        paint: {
+          'line-color': theme === 'dark' ? '#34d399' : '#059669',
+          'line-width': 2,
+          'line-opacity': 0.8,
+        },
+      });
+    } else {
+      // Restore default opacity
+      map.setPaintProperty(FILL_LAYER, 'fill-opacity', [
+        'case',
+        ['boolean', ['feature-state', 'hover'], false],
+        0.85,
+        0.65,
+      ]);
+
+      if (map.getLayer(FILTER_HIGHLIGHT_LAYER)) map.removeLayer(FILTER_HIGHLIGHT_LAYER);
+    }
+  }, [filterActive, filterMatchPnos, data, theme]);
 
   // Hover handler
   useEffect(() => {
