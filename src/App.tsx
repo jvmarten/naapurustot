@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { Map } from './components/Map';
 import { LayerSelector } from './components/LayerSelector';
 import { NeighborhoodPanel } from './components/NeighborhoodPanel';
@@ -9,6 +9,7 @@ import { Legend } from './components/Legend';
 import { ThemeToggle } from './components/ThemeToggle';
 import { ErrorBanner } from './components/ErrorBanner';
 import { RankingTable } from './components/RankingTable';
+import { FilterPanel, computeMatchingPnos, type FilterCriterion } from './components/FilterPanel';
 import { useMapData } from './hooks/useMapData';
 import { useSelectedNeighborhood } from './hooks/useSelectedNeighborhood';
 import { type LayerId, getLayerById } from './utils/colorScales';
@@ -30,6 +31,8 @@ const App: React.FC = () => {
   const [flyTarget, setFlyTarget] = useState<[number, number] | null>(null);
   const [lang, setLangState] = useState<Lang>(getLang());
   const [showRanking, setShowRanking] = useState(false);
+  const [showFilter, setShowFilter] = useState(false);
+  const [filters, setFilters] = useState<FilterCriterion[]>([]);
   const restoredPno = useRef(false);
 
   // Restore neighborhood selection from URL once data is loaded
@@ -82,6 +85,27 @@ const App: React.FC = () => {
     setLangState(next);
   }, [lang]);
 
+  // Compute matching neighborhood PNOs for filter-aware map rendering
+  const filterMatchPnos = useMemo(
+    () => (showFilter ? computeMatchingPnos(data, filters) : new Set<string>()),
+    [data, filters, showFilter],
+  );
+
+  // Close ranking when opening filter and vice versa
+  const toggleFilter = useCallback(() => {
+    setShowFilter((v) => {
+      if (!v) setShowRanking(false);
+      return !v;
+    });
+  }, []);
+
+  const toggleRanking = useCallback(() => {
+    setShowRanking((v) => {
+      if (!v) setShowFilter(false);
+      return !v;
+    });
+  }, []);
+
   return (
     <div className="h-screen w-screen overflow-hidden relative">
       {/* Map */}
@@ -92,6 +116,8 @@ const App: React.FC = () => {
         onClick={handleClick}
         flyTo={flyTarget}
         pinnedPnos={pinned.map((p) => p.pno)}
+        filterActive={showFilter && filters.length > 0}
+        filterMatchPnos={filterMatchPnos}
       />
 
       {/* Skeleton / shimmer loading overlay */}
@@ -122,9 +148,26 @@ const App: React.FC = () => {
 
       {/* Top-right controls — flex row to prevent mobile overlap */}
       <div className="absolute top-3 md:top-4 right-3 md:right-[17rem] z-10 flex items-center gap-1.5">
+        {/* Filter toggle */}
+        <button
+          onClick={toggleFilter}
+          className={`flex px-3 py-2.5 rounded-xl backdrop-blur-md
+                     border shadow-2xl text-xs font-semibold transition-all items-center justify-center
+                     min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0
+                     ${showFilter
+                       ? 'bg-brand-500/15 dark:bg-brand-600/20 border-brand-500/30 dark:border-brand-500/30 text-brand-600 dark:text-brand-300'
+                       : 'bg-white/90 dark:bg-surface-900/90 border-surface-200 dark:border-surface-700/40 text-surface-600 dark:text-surface-300 hover:text-surface-900 dark:hover:text-white hover:bg-white dark:hover:bg-surface-800/80'
+                     }`}
+          aria-label={t('filter.toggle')}
+          title={t('filter.toggle')}
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+          </svg>
+        </button>
         {/* Ranking toggle */}
         <button
-          onClick={() => setShowRanking((v) => !v)}
+          onClick={toggleRanking}
           className={`flex px-3 py-2.5 rounded-xl backdrop-blur-md
                      border shadow-2xl text-xs font-semibold transition-all items-center justify-center
                      min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0
@@ -162,6 +205,17 @@ const App: React.FC = () => {
           activeLayer={activeLayer}
           onSelect={handleSearch}
           onClose={() => setShowRanking(false)}
+        />
+      )}
+
+      {/* Filter panel */}
+      {showFilter && (
+        <FilterPanel
+          data={data}
+          filters={filters}
+          onFiltersChange={setFilters}
+          onSelect={handleSearch}
+          onClose={() => setShowFilter(false)}
         />
       )}
 
