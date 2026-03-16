@@ -168,6 +168,20 @@ const translations: Record<string, Record<Lang, string>> = {
   'compare.max': { fi: 'Enintään 3 aluetta', en: 'Max 3 areas' },
   'compare.best': { fi: 'Paras', en: 'Best' },
 
+  // Donate
+  'donate.button': { fi: 'Lahjoita', en: 'Donate' },
+  'donate.title': { fi: 'Tue Naapurustot.fi', en: 'Support Naapurustot.fi' },
+  'donate.description': {
+    fi: 'Kopioi Lightning-osoite lompakkoosi lähettääksesi lahjoituksen.',
+    en: 'Copy the Lightning address to your wallet to send a donation.',
+  },
+  'donate.copy': { fi: 'Kopioi', en: 'Copy' },
+  'donate.copied': { fi: 'Kopioitu!', en: 'Copied!' },
+  'donate.hint': {
+    fi: 'Avaa Bitcoin Lightning -lompakko ja liitä osoite.',
+    en: 'Open any Bitcoin Lightning wallet and paste the address.',
+  },
+
   // Custom quality index
   'custom_quality.title': { fi: 'Muokkaa laatuindeksiä', en: 'Customize Quality Index' },
   'custom_quality.description': {

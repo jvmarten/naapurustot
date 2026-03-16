@@ -7,6 +7,7 @@ import { SearchBar } from './components/SearchBar';
 import { Tooltip } from './components/Tooltip';
 import { Legend } from './components/Legend';
 import { ThemeToggle } from './components/ThemeToggle';
+import { DonateButton } from './components/DonateButton';
 import { ErrorBanner } from './components/ErrorBanner';
 import { RankingTable } from './components/RankingTable';
 import { FilterPanel, computeMatchingPnos, type FilterCriterion } from './components/FilterPanel';
@@ -208,6 +209,7 @@ const App: React.FC = () => {
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 4h13M3 8h9M3 12h5m4 0l4-4m0 0l4 4m-4-4v12" />
           </svg>
         </button>
+        <DonateButton />
         <ThemeToggle />
         <button
           onClick={toggleLang}
