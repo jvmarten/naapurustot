@@ -4,6 +4,7 @@ const translations: Record<string, Record<Lang, string>> = {
   'app.title': { fi: 'Naapurustot', en: 'Neighborhoods' },
   'app.subtitle': { fi: 'Helsingin seutu', en: 'Helsinki Metro' },
   'search.placeholder': { fi: 'Hae postinumero tai alue…', en: 'Search postal code or area…' },
+  'search.moreResults': { fi: 'tulosta lisää…', en: 'more results…' },
   'layer.quality_index': { fi: 'Laatuindeksi', en: 'Quality Index' },
   'panel.quality_index': { fi: 'Laatuindeksi', en: 'Quality Index' },
   'layer.median_income': { fi: 'Mediaanitulo', en: 'Median Income' },

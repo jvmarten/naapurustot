@@ -13,19 +13,18 @@ export const SearchBar: React.FC<SearchBarProps> = ({ data, onSelect }) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const results = useMemo(() => {
-    if (!data || query.length < 2) return [];
+  const { results, totalCount } = useMemo(() => {
+    if (!data || query.length < 2) return { results: [], totalCount: 0 };
     const q = query.toLowerCase();
-    return data.features
-      .filter((f) => {
-        const p = f.properties!;
-        return (
-          p.nimi?.toLowerCase().includes(q) ||
-          p.namn?.toLowerCase().includes(q) ||
-          p.pno?.startsWith(q)
-        );
-      })
-      .slice(0, 8);
+    const matched = data.features.filter((f) => {
+      const p = f.properties!;
+      return (
+        p.nimi?.toLowerCase().includes(q) ||
+        p.namn?.toLowerCase().includes(q) ||
+        p.pno?.startsWith(q)
+      );
+    });
+    return { results: matched.slice(0, 8), totalCount: matched.length };
   }, [data, query]);
 
   useEffect(() => {
@@ -94,6 +93,11 @@ export const SearchBar: React.FC<SearchBarProps> = ({ data, onSelect }) => {
               <span className="text-surface-500 dark:text-surface-400 ml-2">{f.properties!.pno}</span>
             </button>
           ))}
+          {totalCount > 8 && (
+            <div className="px-4 py-2 text-xs text-surface-400 dark:text-surface-500 text-center border-t border-surface-100 dark:border-surface-800/40">
+              {totalCount - 8} {t('search.moreResults')}
+            </div>
+          )}
         </div>
       )}
     </div>
