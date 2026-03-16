@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import type { LayerId } from '../utils/colorScales';
 import { LAYERS } from '../utils/colorScales';
 

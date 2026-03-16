@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import React from 'react';
 import { Legend } from '../components/Legend';
 import { Tooltip } from '../components/Tooltip';
 import { LayerSelector } from '../components/LayerSelector';

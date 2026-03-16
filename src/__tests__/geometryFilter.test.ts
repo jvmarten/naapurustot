@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { filterSmallIslands } from '../utils/geometryFilter';
-import type { Feature, MultiPolygon, Polygon } from 'geojson';
+import type { Feature, MultiPolygon } from 'geojson';
 
 // Helper: create a rectangular polygon from (x1,y1) to (x2,y2)
 function rect(x1: number, y1: number, x2: number, y2: number): number[][][] {
@@ -39,12 +39,6 @@ describe('filterSmallIslands', () => {
   });
 
   it('passes through single Polygon features unchanged', () => {
-    const feature: Feature<Polygon> = {
-      type: 'Feature',
-      geometry: { type: 'Polygon', coordinates: rect(0, 0, 5, 5)[0] ? [rect(0, 0, 5, 5)[0]] : [] },
-      properties: {},
-    };
-    // Actually just use a proper Polygon
     const polyFeature: Feature = {
       type: 'Feature',
       geometry: { type: 'Polygon', coordinates: rect(0, 0, 5, 5) },
