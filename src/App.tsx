@@ -8,6 +8,7 @@ import { Tooltip } from './components/Tooltip';
 import { Legend } from './components/Legend';
 import { ThemeToggle } from './components/ThemeToggle';
 import { ErrorBanner } from './components/ErrorBanner';
+import { RankingTable } from './components/RankingTable';
 import { useMapData } from './hooks/useMapData';
 import { useSelectedNeighborhood } from './hooks/useSelectedNeighborhood';
 import { type LayerId, getLayerById } from './utils/colorScales';
@@ -28,6 +29,7 @@ const App: React.FC = () => {
   } | null>(null);
   const [flyTarget, setFlyTarget] = useState<[number, number] | null>(null);
   const [lang, setLangState] = useState<Lang>(getLang());
+  const [showRanking, setShowRanking] = useState(false);
   const restoredPno = useRef(false);
 
   // Restore neighborhood selection from URL once data is loaded
@@ -136,6 +138,33 @@ const App: React.FC = () => {
 
       {/* Search */}
       <SearchBar data={data} onSelect={handleSearch} />
+
+      {/* Ranking toggle */}
+      <button
+        onClick={() => setShowRanking((v) => !v)}
+        className={`absolute top-4 left-[19.5rem] z-10 px-3 py-2.5 rounded-xl backdrop-blur-md
+                   border shadow-2xl text-xs font-semibold transition-all
+                   ${showRanking
+                     ? 'bg-brand-500/15 dark:bg-brand-600/20 border-brand-500/30 dark:border-brand-500/30 text-brand-600 dark:text-brand-300'
+                     : 'bg-white/90 dark:bg-surface-900/90 border-surface-200 dark:border-surface-700/40 text-surface-600 dark:text-surface-300 hover:text-surface-900 dark:hover:text-white hover:bg-white dark:hover:bg-surface-800/80'
+                   }`}
+        aria-label={t('ranking.toggle')}
+        title={t('ranking.toggle')}
+      >
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3 4h13M3 8h9M3 12h5m4 0l4-4m0 0l4 4m-4-4v12" />
+        </svg>
+      </button>
+
+      {/* Ranking table */}
+      {showRanking && (
+        <RankingTable
+          data={data}
+          activeLayer={activeLayer}
+          onSelect={handleSearch}
+          onClose={() => setShowRanking(false)}
+        />
+      )}
 
       {/* Layer selector */}
       <LayerSelector activeLayer={activeLayer} onLayerChange={setActiveLayer} />
