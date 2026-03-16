@@ -119,16 +119,27 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
                   ({cat?.min}–{cat?.max})
                 </span>
               </div>
-              <div className="flex gap-1">
-                {QUALITY_CATEGORIES.map((c) => (
-                  <div key={c.min} className="flex-1 flex flex-col items-center gap-1">
-                    <div
-                      className={`w-full h-2 rounded-full ${qi >= c.min && qi <= c.max ? 'ring-2 ring-white dark:ring-surface-300' : ''}`}
-                      style={{ backgroundColor: c.color, opacity: qi >= c.min && qi <= c.max ? 1 : 0.35 }}
-                    />
-                    <span className="text-[9px] text-surface-500 dark:text-surface-400">{c.label[lang]}</span>
-                  </div>
-                ))}
+              <div className="relative">
+                <div className="flex gap-0.5">
+                  {QUALITY_CATEGORIES.map((c) => (
+                    <div key={c.min} className="flex-1 flex flex-col items-center gap-1">
+                      <div
+                        className="w-full h-2 rounded-full"
+                        style={{ backgroundColor: c.color }}
+                      />
+                      <span className="text-[9px] text-surface-500 dark:text-surface-400">{c.label[lang]}</span>
+                    </div>
+                  ))}
+                </div>
+                {/* Dot indicator */}
+                <div
+                  className="absolute top-0 w-4 h-4 -mt-1 rounded-full border-2 border-white dark:border-surface-300 shadow-md"
+                  style={{
+                    left: `${qi}%`,
+                    transform: 'translateX(-50%)',
+                    backgroundColor: cat?.color ?? '#6b7280',
+                  }}
+                />
               </div>
             </div>
           );
