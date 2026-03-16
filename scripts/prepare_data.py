@@ -5,6 +5,7 @@ filter to Helsinki metro area, reproject, calculate derived metrics,
 join foreign-language speaker data and external quality-of-life data, and output GeoJSON.
 """
 
+import argparse
 import json
 import sys
 import time
@@ -15,9 +16,14 @@ import pandas as pd
 import requests
 from pyproj import Transformer
 
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+
 # Metro municipality codes
 METRO_CODES = {"091", "049", "092", "235"}
 
+# Pinned API versions — bump these explicitly when upgrading
 WFS_URL = (
     "https://geo.stat.fi/geoserver/postialue/wfs"
     "?service=WFS&version=2.0.0&request=GetFeature"
@@ -34,13 +40,13 @@ LANG_URL = (
 # Source: Statistics Finland via OKM (Ministry of Education), 2020 data
 FOREIGN_LANG_FILE = Path(__file__).parent / "foreign_language_pct.json"
 
-# Statistics Finland apartment price data by postal code
+# Statistics Finland apartment price data by postal code — PxWeb API v1
 PROPERTY_PRICE_URL = (
     "https://pxdata.stat.fi/PxWeb/api/v1/en/"
     "StatFin/ashi/statfin_ashi_pxt_112p.px"
 )
 
-# HSL Digitransit API for transit accessibility
+# HSL Digitransit API v1 for transit accessibility
 DIGITRANSIT_URL = "https://api.digitransit.fi/routing/v1/routers/hsl/index/graphql"
 
 # HSY air quality open data
@@ -48,6 +54,132 @@ HSY_AIR_QUALITY_URL = (
     "https://www.hsy.fi/globalassets/ilmanlaatu/opendata/air-quality-index.json"
 )
 
+# ---------------------------------------------------------------------------
+# Retry & rate-limit settings
+# ---------------------------------------------------------------------------
+
+MAX_RETRIES = 3
+RETRY_BACKOFF_BASE = 2  # seconds; exponential: 2, 4, 8
+RATE_LIMIT_DELAY = 1.0  # seconds between successive API calls
+
+# ---------------------------------------------------------------------------
+# Error report collector
+# ---------------------------------------------------------------------------
+
+_errors: list[dict] = []
+
+
+def _record_error(source: str, error: Exception, fatal: bool = False):
+    """Record an error for the final report."""
+    entry = {"source": source, "error": str(error), "fatal": fatal}
+    _errors.append(entry)
+    prefix = "ERROR" if fatal else "Warning"
+    print(f"  {prefix} [{source}]: {error}")
+
+
+def _print_error_report():
+    """Print a summary of all errors encountered during the run."""
+    if not _errors:
+        print("\nNo errors encountered.")
+        return
+    fatal = [e for e in _errors if e["fatal"]]
+    warnings = [e for e in _errors if not e["fatal"]]
+    print(f"\n{'='*60}")
+    print(f"Error report: {len(fatal)} fatal, {len(warnings)} warnings")
+    print(f"{'='*60}")
+    for e in _errors:
+        tag = "FATAL" if e["fatal"] else "WARN "
+        print(f"  [{tag}] {e['source']}: {e['error']}")
+
+
+# ---------------------------------------------------------------------------
+# Retry helper
+# ---------------------------------------------------------------------------
+
+def _request_with_retry(method, url, *, label, retries=MAX_RETRIES, **kwargs):
+    """Execute an HTTP request with exponential-backoff retries.
+
+    Returns the Response object or raises on exhaustion.
+    """
+    kwargs.setdefault("timeout", 60)
+    last_exc = None
+    for attempt in range(1, retries + 1):
+        try:
+            r = requests.request(method, url, **kwargs)
+            r.raise_for_status()
+            return r
+        except requests.RequestException as exc:
+            last_exc = exc
+            if attempt < retries:
+                wait = RETRY_BACKOFF_BASE ** attempt
+                print(f"  Retry {attempt}/{retries} for {label} in {wait}s ({exc})")
+                time.sleep(wait)
+    raise last_exc  # type: ignore[misc]
+
+
+def _rate_limit():
+    """Sleep briefly between API calls to be a good citizen."""
+    time.sleep(RATE_LIMIT_DELAY)
+
+
+# ---------------------------------------------------------------------------
+# Schema validation helpers
+# ---------------------------------------------------------------------------
+
+def _validate_geojson_features(data: dict, label: str) -> list:
+    """Validate that *data* looks like a GeoJSON FeatureCollection."""
+    if not isinstance(data, dict):
+        raise ValueError(f"{label}: expected JSON object, got {type(data).__name__}")
+    features = data.get("features")
+    if not isinstance(features, list):
+        raise ValueError(f"{label}: missing or invalid 'features' array")
+    if len(features) == 0:
+        raise ValueError(f"{label}: 'features' array is empty")
+    # Spot-check first feature
+    first = features[0]
+    if "geometry" not in first or "properties" not in first:
+        raise ValueError(f"{label}: first feature missing 'geometry' or 'properties'")
+    return features
+
+
+def _validate_pxweb_meta(data: dict, label: str) -> list:
+    """Validate PxWeb metadata response has a variables list."""
+    if not isinstance(data, dict):
+        raise ValueError(f"{label}: expected JSON object, got {type(data).__name__}")
+    variables = data.get("variables")
+    if not isinstance(variables, list) or len(variables) == 0:
+        raise ValueError(f"{label}: missing or empty 'variables'")
+    return variables
+
+
+def _validate_pxweb_data(data: dict, label: str) -> tuple[list, list]:
+    """Validate PxWeb data response has columns and data rows."""
+    if not isinstance(data, dict):
+        raise ValueError(f"{label}: expected JSON object, got {type(data).__name__}")
+    columns = data.get("columns")
+    rows = data.get("data")
+    if not isinstance(columns, list):
+        raise ValueError(f"{label}: missing 'columns'")
+    if not isinstance(rows, list):
+        raise ValueError(f"{label}: missing 'data'")
+    return columns, rows
+
+
+def _validate_graphql_stops(data: dict, label: str) -> list:
+    """Validate Digitransit GraphQL response contains stops."""
+    if not isinstance(data, dict):
+        raise ValueError(f"{label}: expected JSON object, got {type(data).__name__}")
+    if "errors" in data:
+        raise ValueError(f"{label}: GraphQL errors: {data['errors']}")
+    stops = data.get("data", {}).get("stops")
+    if not isinstance(stops, list):
+        raise ValueError(f"{label}: missing 'data.stops'")
+    return stops
+
+
+# ---------------------------------------------------------------------------
+# Utility
+# ---------------------------------------------------------------------------
 
 def safe_val(v):
     """Return None if value is suppressed (-1), missing, or NaN."""
@@ -73,11 +205,16 @@ def safe_div(a, b):
     return round(a / b * 100, 1)
 
 
+# ---------------------------------------------------------------------------
+# Data fetching (with retry, validation, rate limiting)
+# ---------------------------------------------------------------------------
+
 def fetch_paavo():
     print("Fetching Paavo WFS data...")
-    r = requests.get(WFS_URL, timeout=120)
-    r.raise_for_status()
-    gdf = gpd.GeoDataFrame.from_features(r.json()["features"], crs="EPSG:3067")
+    r = _request_with_retry("GET", WFS_URL, label="Paavo WFS", timeout=120)
+    body = r.json()
+    features = _validate_geojson_features(body, "Paavo WFS")
+    gdf = gpd.GeoDataFrame.from_features(features, crs="EPSG:3067")
     print(f"  Received {len(gdf)} features")
     return gdf
 
@@ -227,14 +364,15 @@ def fetch_property_prices():
     print("Fetching property price data from Statistics Finland...")
 
     try:
-        meta_r = requests.get(PROPERTY_PRICE_URL, timeout=30)
-        meta_r.raise_for_status()
+        meta_r = _request_with_retry(
+            "GET", PROPERTY_PRICE_URL, label="property price metadata", timeout=30,
+        )
         meta = meta_r.json()
+        variables = _validate_pxweb_meta(meta, "property price metadata")
     except Exception as e:
-        print(f"  Warning: Could not fetch property price metadata: {e}")
+        _record_error("fetch_property_prices/meta", e)
         return {}
 
-    variables = meta.get("variables", [])
     query_items = []
 
     for var in variables:
@@ -255,19 +393,21 @@ def fetch_property_prices():
 
     query = {"query": query_items, "response": {"format": "json"}}
 
+    _rate_limit()
+
     try:
-        r = requests.post(PROPERTY_PRICE_URL, json=query, timeout=60)
-        r.raise_for_status()
+        r = _request_with_retry(
+            "POST", PROPERTY_PRICE_URL, label="property price data",
+            json=query, timeout=60,
+        )
         data = r.json()
+        columns, rows = _validate_pxweb_data(data, "property price data")
     except Exception as e:
-        print(f"  Warning: Could not fetch property price data: {e}")
+        _record_error("fetch_property_prices/data", e)
         return {}
 
     result = {}
     try:
-        columns = data.get("columns", [])
-        rows = data.get("data", [])
-
         pno_idx = None
         for i, col in enumerate(columns):
             code_lower = col.get("code", "").lower()
@@ -293,7 +433,7 @@ def fetch_property_prices():
 
         print(f"  Parsed property prices for {len(result)} postal codes")
     except Exception as e:
-        print(f"  Warning: Could not parse property price response: {e}")
+        _record_error("fetch_property_prices/parse", e)
 
     return result
 
@@ -332,19 +472,18 @@ def fetch_hsl_transit_stops():
     """
 
     try:
-        r = requests.post(
-            DIGITRANSIT_URL,
+        r = _request_with_retry(
+            "POST", DIGITRANSIT_URL, label="HSL Digitransit",
             json={"query": query},
             headers={"Content-Type": "application/json"},
             timeout=60,
         )
-        r.raise_for_status()
         data = r.json()
-        stops = data.get("data", {}).get("stops", [])
+        stops = _validate_graphql_stops(data, "HSL Digitransit")
         print(f"  Fetched {len(stops)} transit stops")
         return stops
     except Exception as e:
-        print(f"  Warning: Could not fetch HSL transit data: {e}")
+        _record_error("fetch_hsl_transit_stops", e)
         return []
 
 
@@ -392,13 +531,16 @@ def fetch_air_quality():
     print("Fetching air quality data from HSY...")
 
     try:
-        r = requests.get(HSY_AIR_QUALITY_URL, timeout=30)
-        r.raise_for_status()
+        r = _request_with_retry(
+            "GET", HSY_AIR_QUALITY_URL, label="HSY air quality", timeout=30,
+        )
         data = r.json()
+        if not isinstance(data, list):
+            raise ValueError(f"expected JSON array, got {type(data).__name__}")
         print(f"  Fetched air quality data: {len(data)} records")
         return data
     except Exception as e:
-        print(f"  Warning: Could not fetch air quality data: {e}")
+        _record_error("fetch_air_quality", e)
         return []
 
 
@@ -447,10 +589,31 @@ def join_air_quality(gdf, aq_data):
     return gdf
 
 
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
 def main():
+    parser = argparse.ArgumentParser(
+        description="Prepare Helsinki metro neighborhood GeoJSON data."
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Validate API connectivity and response schemas without writing output.",
+    )
+    args = parser.parse_args()
+
     out_path = Path(__file__).parent.parent / "public" / "data" / "metro_neighborhoods.geojson"
 
-    gdf = fetch_paavo()
+    # --- Core data (fatal on failure) ---
+    try:
+        gdf = fetch_paavo()
+    except Exception as e:
+        _record_error("fetch_paavo", e, fatal=True)
+        _print_error_report()
+        sys.exit(1)
+
     gdf = filter_metro(gdf)
     gdf = reproject(gdf)
     gdf = clean_properties(gdf)
@@ -459,21 +622,37 @@ def main():
     lang_data = load_foreign_language()
     gdf = join_foreign_language(gdf, lang_data)
 
-    # Phase 2: External data sources (graceful fallback if APIs unavailable)
+    # --- Phase 2: External data sources (graceful fallback if APIs unavailable) ---
+    _rate_limit()
     price_data = fetch_property_prices()
     gdf = join_property_prices(gdf, price_data)
 
+    _rate_limit()
     transit_stops = fetch_hsl_transit_stops()
     gdf = join_transit_data(gdf, transit_stops)
 
+    _rate_limit()
     aq_data = fetch_air_quality()
     gdf = join_air_quality(gdf, aq_data)
 
-    # Write output
+    # --- Error report ---
+    _print_error_report()
+
+    # --- Dry-run exits before writing ---
+    if args.dry_run:
+        print(f"\n[dry-run] Would write {len(gdf)} features to {out_path}")
+        print("[dry-run] Exiting without writing output.")
+        sys.exit(1 if any(e["fatal"] for e in _errors) else 0)
+
+    # --- Write output ---
     out_path.parent.mkdir(parents=True, exist_ok=True)
     gdf.to_file(out_path, driver="GeoJSON")
     size_mb = out_path.stat().st_size / 1024 / 1024
     print(f"\nWrote {len(gdf)} features to {out_path} ({size_mb:.1f} MB)")
+
+    # Exit with error code if any fatal errors occurred
+    if any(e["fatal"] for e in _errors):
+        sys.exit(1)
 
 
 if __name__ == "__main__":
