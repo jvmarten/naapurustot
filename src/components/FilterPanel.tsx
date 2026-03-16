@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useRef } from 'react';
 import type { FeatureCollection } from 'geojson';
-import { LAYERS, type LayerId, type LayerConfig, getLayerById, getColorForValue } from '../utils/colorScales';
+import { LAYERS, type LayerId, type LayerConfig, getLayerById } from '../utils/colorScales';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { t } from '../utils/i18n';
 
@@ -333,8 +333,6 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
       })
       .sort((a, b) => b.score - a.score);
   }, [matchingFeatures, filters]);
-
-  const matchingPnos = useMemo(() => new Set(ranked.map((r) => r.pno)), [ranked]);
 
   // Add a new filter criterion
   const handleAddFilter = useCallback(
