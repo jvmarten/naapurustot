@@ -9,17 +9,20 @@ interface MapDataState {
   loading: boolean;
   error: string | null;
   metroAverages: Record<string, number>;
+  retry: () => void;
 }
 
 export function useMapData(): MapDataState {
-  const [state, setState] = useState<MapDataState>({
+  const [state, setState] = useState<Omit<MapDataState, 'retry'>>({
     data: null,
     loading: true,
     error: null,
     metroAverages: {},
   });
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
+    setState({ data: null, loading: true, error: null, metroAverages: {} });
     fetch(import.meta.env.VITE_DATA_PATH as string)
       .then((res) => {
         if (!res.ok) throw new Error(`Failed to load data: ${res.status}`);
@@ -34,7 +37,9 @@ export function useMapData(): MapDataState {
       .catch((err) => {
         setState({ data: null, loading: false, error: err.message, metroAverages: {} });
       });
-  }, []);
+  }, [attempt]);
 
-  return state;
+  const retry = () => setAttempt((a) => a + 1);
+
+  return { ...state, retry };
 }

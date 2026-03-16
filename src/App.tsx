@@ -6,6 +6,7 @@ import { SearchBar } from './components/SearchBar';
 import { Tooltip } from './components/Tooltip';
 import { Legend } from './components/Legend';
 import { ThemeToggle } from './components/ThemeToggle';
+import { ErrorBanner } from './components/ErrorBanner';
 import { useMapData } from './hooks/useMapData';
 import { useSelectedNeighborhood } from './hooks/useSelectedNeighborhood';
 import { type LayerId, getLayerById } from './utils/colorScales';
@@ -13,7 +14,7 @@ import type { NeighborhoodProperties } from './utils/metrics';
 import { t, getLang, setLang, type Lang } from './utils/i18n';
 
 const App: React.FC = () => {
-  const { data, loading, error, metroAverages } = useMapData();
+  const { data, loading, error, metroAverages, retry } = useMapData();
   const { selected, select, deselect } = useSelectedNeighborhood();
   const [activeLayer, setActiveLayer] = useState<LayerId>('median_income');
   const [tooltip, setTooltip] = useState<{
@@ -52,18 +53,6 @@ const App: React.FC = () => {
     setLangState(next);
   }, [lang]);
 
-  if (error) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-surface-100 dark:bg-surface-950">
-        <div className="text-center">
-          <h1 className="text-2xl font-display font-bold text-surface-900 dark:text-white mb-2">Naapurustot</h1>
-          <p className="text-surface-500 dark:text-surface-400 mb-4">Failed to load neighborhood data</p>
-          <p className="text-rose-600 dark:text-rose-400 text-sm">{error}</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="h-screen w-screen overflow-hidden relative">
       {/* Map */}
@@ -75,16 +64,24 @@ const App: React.FC = () => {
         flyTo={flyTarget}
       />
 
-      {/* Loading overlay */}
+      {/* Skeleton / shimmer loading overlay */}
       {loading && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/80 dark:bg-surface-950/80 backdrop-blur-sm">
-          <div className="text-center">
-            <div className="w-8 h-8 border-2 border-brand-400 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <div className="text-center space-y-4">
+            {/* Shimmer placeholder blocks */}
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-48 h-5 rounded-md bg-surface-200 dark:bg-surface-700 animate-pulse" />
+              <div className="w-32 h-3 rounded-md bg-surface-200 dark:bg-surface-700 animate-pulse" />
+              <div className="w-10 h-10 rounded-full bg-surface-200 dark:bg-surface-700 animate-pulse mt-2" />
+            </div>
             <h1 className="text-xl font-display font-bold text-surface-900 dark:text-white">Naapurustot</h1>
-            <p className="text-surface-500 dark:text-surface-400 text-sm mt-1">Loading neighborhood data…</p>
+            <p className="text-surface-500 dark:text-surface-400 text-sm">{t('loading.title')}</p>
           </div>
         </div>
       )}
+
+      {/* Error banner */}
+      {error && <ErrorBanner message={error} onRetry={retry} />}
 
       {/* Brand mark */}
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
