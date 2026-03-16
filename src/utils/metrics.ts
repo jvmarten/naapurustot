@@ -40,6 +40,7 @@ export interface NeighborhoodProperties {
   property_price_sqm: number | null;
   transit_stop_density: number | null;
   air_quality_index: number | null;
+  crime_index: number | null;
   [key: string]: string | number | null;
 }
 
@@ -69,6 +70,8 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
   let transitCount = 0;
   let totalAirQuality = 0;
   let airQualityCount = 0;
+  let totalCrimeIndex = 0;
+  let crimeIndexCount = 0;
 
   for (const f of features) {
     const p = f.properties as NeighborhoodProperties;
@@ -114,6 +117,10 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
         totalAirQuality += p.air_quality_index * pop;
         airQualityCount += pop;
       }
+      if (p.crime_index != null) {
+        totalCrimeIndex += p.crime_index * pop;
+        crimeIndexCount += pop;
+      }
     }
   }
 
@@ -137,5 +144,6 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
     property_price_sqm: propertyPriceCount > 0 ? Math.round(totalPropertyPrice / propertyPriceCount) : 0,
     transit_stop_density: transitCount > 0 ? Math.round((totalTransitDensity / transitCount) * 10) / 10 : 0,
     air_quality_index: airQualityCount > 0 ? Math.round((totalAirQuality / airQualityCount) * 10) / 10 : 0,
+    crime_index: crimeIndexCount > 0 ? Math.round((totalCrimeIndex / crimeIndexCount) * 10) / 10 : 0,
   };
 }

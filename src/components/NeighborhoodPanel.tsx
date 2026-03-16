@@ -347,6 +347,12 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             diff={formatDiff(d.air_quality_index, avg.air_quality_index)}
             diffClass={diffColor(d.air_quality_index, avg.air_quality_index, false)}
           />
+          <StatRow
+            label={t('panel.crime_rate')}
+            value={d.crime_index != null ? `${d.crime_index.toFixed(1)} /1000` : '—'}
+            diff={formatDiff(d.crime_index, avg.crime_index)}
+            diffClass={diffColor(d.crime_index, avg.crime_index, false)}
+          />
         </div>
       </div>
 

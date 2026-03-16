@@ -13,7 +13,7 @@ type LayerGroup = {
 };
 
 const LAYER_GROUPS: LayerGroup[] = [
-  { labelKey: 'layers.quality', ids: ['quality_index', 'transit_access', 'air_quality'] },
+  { labelKey: 'layers.quality', ids: ['quality_index', 'transit_access', 'air_quality', 'crime_rate'] },
   { labelKey: 'layers.demographics', ids: ['avg_age', 'population_density', 'child_ratio', 'student_share', 'foreign_lang', 'pensioners'] },
   { labelKey: 'layers.economy', ids: ['median_income', 'unemployment', 'education', 'property_price'] },
   { labelKey: 'layers.housing', ids: ['ownership', 'rental', 'apt_size', 'detached_houses'] },
