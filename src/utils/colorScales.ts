@@ -47,7 +47,7 @@ export const LAYERS: LayerConfig[] = [
     unit: '',
     colors: ['#7c3aed', '#a855f7', '#ef4444', '#f97316', '#eab308', '#facc15', '#84cc16', '#22c55e'],
     stops: [0, 15, 30, 45, 55, 70, 85, 100],
-    format: (v: number) => `${v.toFixed(0)} / 100`,
+    format: (v: number) => v.toFixed(0),
   },
   {
     id: 'median_income',

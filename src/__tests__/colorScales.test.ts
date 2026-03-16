@@ -106,9 +106,9 @@ describe('buildFillColorExpression', () => {
 });
 
 describe('layer format functions', () => {
-  it('formats quality_index as "X / 100"', () => {
+  it('formats quality_index as plain number', () => {
     const layer = getLayerById('quality_index');
-    expect(layer.format(75)).toBe('75 / 100');
+    expect(layer.format(75)).toBe('75');
   });
 
   it('formats median_income as euro with locale grouping', () => {
