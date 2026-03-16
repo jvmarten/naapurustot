@@ -10,8 +10,10 @@ interface SearchBarProps {
 export const SearchBar: React.FC<SearchBarProps> = ({ data, onSelect }) => {
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   const { results, totalCount } = useMemo(() => {
     if (!data || query.length < 2) return { results: [], totalCount: 0 };
@@ -36,6 +38,50 @@ export const SearchBar: React.FC<SearchBarProps> = ({ data, onSelect }) => {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  // Reset highlight when results change
+  useEffect(() => {
+    setHighlightedIndex(-1);
+  }, [results]);
+
+  function selectResult(feature: GeoJSON.Feature) {
+    onSelect(feature.properties!.pno, getCenter(feature));
+    setQuery(feature.properties!.nimi || feature.properties!.pno);
+    setIsOpen(false);
+    setHighlightedIndex(-1);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (!isOpen || results.length === 0) {
+      if (e.key === 'Escape') {
+        setIsOpen(false);
+        inputRef.current?.blur();
+      }
+      return;
+    }
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setHighlightedIndex((prev) => (prev < results.length - 1 ? prev + 1 : 0));
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : results.length - 1));
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (highlightedIndex >= 0 && highlightedIndex < results.length) {
+          selectResult(results[highlightedIndex]);
+        }
+        break;
+      case 'Escape':
+        e.preventDefault();
+        setIsOpen(false);
+        setHighlightedIndex(-1);
+        break;
+    }
+  }
 
   function getCenter(feature: GeoJSON.Feature): [number, number] {
     const geom = feature.geometry;
@@ -62,12 +108,18 @@ export const SearchBar: React.FC<SearchBarProps> = ({ data, onSelect }) => {
         <input
           ref={inputRef}
           type="text"
+          role="combobox"
+          aria-expanded={isOpen && results.length > 0}
+          aria-activedescendant={highlightedIndex >= 0 ? `search-result-${highlightedIndex}` : undefined}
+          aria-controls="search-results-list"
+          aria-autocomplete="list"
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
             setIsOpen(true);
           }}
           onFocus={() => setIsOpen(true)}
+          onKeyDown={handleKeyDown}
           placeholder={t('search.placeholder')}
           className="w-full rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40
                      pl-10 pr-4 py-2.5 text-sm text-surface-900 dark:text-white placeholder-surface-400 dark:placeholder-surface-500
@@ -77,17 +129,25 @@ export const SearchBar: React.FC<SearchBarProps> = ({ data, onSelect }) => {
       </div>
 
       {isOpen && results.length > 0 && (
-        <div className="mt-1.5 rounded-xl bg-white/95 dark:bg-surface-900/95 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden">
-          {results.map((f) => (
+        <div
+          ref={listRef}
+          id="search-results-list"
+          role="listbox"
+          className="mt-1.5 rounded-xl bg-white/95 dark:bg-surface-900/95 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden"
+        >
+          {results.map((f, index) => (
             <button
               key={f.properties!.pno}
-              className="w-full text-left px-4 py-2.5 text-sm hover:bg-surface-100 dark:hover:bg-surface-800/60 transition-colors
-                         border-b border-surface-100 dark:border-surface-800/40 last:border-0"
-              onClick={() => {
-                onSelect(f.properties!.pno, getCenter(f));
-                setQuery(f.properties!.nimi || f.properties!.pno);
-                setIsOpen(false);
-              }}
+              id={`search-result-${index}`}
+              role="option"
+              aria-selected={index === highlightedIndex}
+              className={`w-full text-left px-4 py-2.5 text-sm transition-colors
+                         border-b border-surface-100 dark:border-surface-800/40 last:border-0
+                         ${index === highlightedIndex
+                           ? 'bg-brand-50 dark:bg-brand-900/30'
+                           : 'hover:bg-surface-100 dark:hover:bg-surface-800/60'}`}
+              onMouseEnter={() => setHighlightedIndex(index)}
+              onClick={() => selectResult(f)}
             >
               <span className="text-surface-900 dark:text-white font-medium">{f.properties!.nimi}</span>
               <span className="text-surface-500 dark:text-surface-400 ml-2">{f.properties!.pno}</span>
