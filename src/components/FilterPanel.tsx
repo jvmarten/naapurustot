@@ -399,9 +399,11 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
           // Default direction: desc for score/layer values, asc for name
           setSortDir(newKey === 'name' ? 'asc' : 'desc');
         }}
-        className="text-[10px] font-medium bg-transparent text-surface-600 dark:text-surface-300
+        className="text-[10px] font-medium text-surface-600 dark:text-surface-300
+                   bg-white dark:bg-surface-800
                    border border-surface-200 dark:border-surface-700/40 rounded px-1.5 py-0.5
-                   cursor-pointer focus:outline-none focus:ring-1 focus:ring-brand-500/50"
+                   cursor-pointer focus:outline-none focus:ring-1 focus:ring-brand-500/50
+                   dark:[color-scheme:dark]"
       >
         <option value="score">{t('filter.sort_best_match')}</option>
         <option value="name">{t('filter.sort_name')}</option>
