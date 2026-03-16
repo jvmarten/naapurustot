@@ -100,7 +100,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ data, onSelect }) => {
   }
 
   return (
-    <div ref={containerRef} className="absolute top-4 left-4 z-10 w-72">
+    <div ref={containerRef} className="absolute top-3 md:top-4 left-3 md:left-4 z-10 w-[calc(100%-6.5rem)] md:w-72">
       <div className="relative">
         <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
           <svg className="w-4 h-4 text-surface-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -124,7 +124,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ data, onSelect }) => {
           onKeyDown={handleKeyDown}
           placeholder={t('search.placeholder')}
           className="w-full rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40
-                     pl-10 pr-4 py-2.5 text-sm text-surface-900 dark:text-white placeholder-surface-400 dark:placeholder-surface-500
+                     pl-10 pr-4 py-3 md:py-2.5 text-sm text-surface-900 dark:text-white placeholder-surface-400 dark:placeholder-surface-500
                      focus:outline-none focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/30
                      shadow-2xl transition-all"
         />
@@ -143,7 +143,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ data, onSelect }) => {
               id={`search-result-${index}`}
               role="option"
               aria-selected={index === highlightedIndex}
-              className={`w-full text-left px-4 py-2.5 text-sm transition-colors
+              className={`w-full text-left px-4 py-3 md:py-2.5 text-sm transition-colors min-h-[44px] md:min-h-0
                          border-b border-surface-100 dark:border-surface-800/40 last:border-0
                          ${index === highlightedIndex
                            ? 'bg-brand-50 dark:bg-brand-900/30'

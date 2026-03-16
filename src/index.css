@@ -111,3 +111,33 @@ body,
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+/* Mobile bottom-sheet safe area padding */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Hide tooltip on touch devices */
+@media (hover: none) and (pointer: coarse) {
+  .tooltip-desktop {
+    display: none !important;
+  }
+}
+
+/* Mobile: hide map navigation controls to reduce clutter */
+@media (max-width: 767px) {
+  .maplibregl-ctrl-top-right {
+    top: auto !important;
+    bottom: 5.5rem !important;
+    right: 0.75rem !important;
+  }
+
+  .maplibregl-ctrl-group button {
+    width: 44px !important;
+    height: 44px !important;
+  }
+
+  .maplibregl-ctrl-attrib {
+    display: none !important;
+  }
+}
