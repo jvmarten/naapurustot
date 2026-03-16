@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Map } from './components/Map';
 import { LayerSelector } from './components/LayerSelector';
 import { NeighborhoodPanel } from './components/NeighborhoodPanel';
@@ -10,13 +10,16 @@ import { ErrorBanner } from './components/ErrorBanner';
 import { useMapData } from './hooks/useMapData';
 import { useSelectedNeighborhood } from './hooks/useSelectedNeighborhood';
 import { type LayerId, getLayerById } from './utils/colorScales';
+import { readInitialUrlState, useSyncUrlState } from './hooks/useUrlState';
 import type { NeighborhoodProperties } from './utils/metrics';
 import { t, getLang, setLang, type Lang } from './utils/i18n';
+
+const initialUrl = readInitialUrlState();
 
 const App: React.FC = () => {
   const { data, loading, error, metroAverages, retry } = useMapData();
   const { selected, select, deselect } = useSelectedNeighborhood();
-  const [activeLayer, setActiveLayer] = useState<LayerId>('median_income');
+  const [activeLayer, setActiveLayer] = useState<LayerId>(initialUrl.layer ?? 'median_income');
   const [tooltip, setTooltip] = useState<{
     props: NeighborhoodProperties;
     x: number;
@@ -24,6 +27,20 @@ const App: React.FC = () => {
   } | null>(null);
   const [flyTarget, setFlyTarget] = useState<[number, number] | null>(null);
   const [lang, setLangState] = useState<Lang>(getLang());
+  const restoredPno = useRef(false);
+
+  // Restore neighborhood selection from URL once data is loaded
+  useEffect(() => {
+    if (!data || restoredPno.current || !initialUrl.pno) return;
+    restoredPno.current = true;
+    const feature = data.features.find((f) => f.properties?.pno === initialUrl.pno);
+    if (feature?.properties) {
+      select(feature.properties as NeighborhoodProperties);
+    }
+  }, [data, select]);
+
+  // Keep URL in sync with current state
+  useSyncUrlState(selected?.pno ?? null, activeLayer);
 
   const handleHover = useCallback(
     (props: NeighborhoodProperties | null, x: number, y: number) => {
@@ -43,9 +60,18 @@ const App: React.FC = () => {
     [select],
   );
 
-  const handleSearch = useCallback((_pno: string, center: [number, number]) => {
-    setFlyTarget(center);
-  }, []);
+  const handleSearch = useCallback(
+    (pno: string, center: [number, number]) => {
+      setFlyTarget(center);
+      if (data) {
+        const feature = data.features.find((f) => f.properties?.pno === pno);
+        if (feature?.properties) {
+          select(feature.properties as NeighborhoodProperties);
+        }
+      }
+    },
+    [data, select],
+  );
 
   const toggleLang = useCallback(() => {
     const next = lang === 'fi' ? 'en' : 'fi';
