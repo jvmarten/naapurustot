@@ -95,6 +95,13 @@ const translations: Record<string, Record<Lang, string>> = {
   'panel.restaurant_density': { fi: 'Ravintolat (/km²)', en: 'Restaurants (/km²)' },
   'panel.grocery_access': { fi: 'Ruokakaupat (/km²)', en: 'Groceries (/km²)' },
 
+  // Trend chart labels
+  'panel.trends': { fi: 'Kehityssuunnat', en: 'Historical Trends' },
+  'panel.trend_income': { fi: 'Mediaanitulo', en: 'Median Income' },
+  'panel.trend_population': { fi: 'Väestö', en: 'Population' },
+  'panel.trend_unemployment': { fi: 'Työttömyysaste', en: 'Unemployment Rate' },
+  'panel.trend_unit_euro': { fi: '€/vuosi', en: '€/year' },
+
   // Layer group headers
   'layers.title': { fi: 'Aineistot', en: 'Data Layers' },
   'layers.demographics': { fi: 'Väestö', en: 'Demographics' },
