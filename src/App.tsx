@@ -246,7 +246,12 @@ const App: React.FC = () => {
       )}
 
       {/* Layer selector */}
-      <LayerSelector activeLayer={activeLayer} onLayerChange={setActiveLayer} />
+      <LayerSelector
+        activeLayer={activeLayer}
+        onLayerChange={setActiveLayer}
+        onCustomizeQuality={() => setShowCustomQuality((v) => !v)}
+        isCustomWeights={isCustomWeights(qualityWeights)}
+      />
 
       {/* Legend — repositioned for mobile */}
       <Legend layerId={activeLayer} />

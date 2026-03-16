@@ -5,6 +5,8 @@ import { t } from '../utils/i18n';
 interface LayerSelectorProps {
   activeLayer: LayerId;
   onLayerChange: (id: LayerId) => void;
+  onCustomizeQuality?: () => void;
+  isCustomWeights?: boolean;
 }
 
 type LayerGroup = {
@@ -21,7 +23,7 @@ const LAYER_GROUPS: LayerGroup[] = [
   { labelKey: 'layers.mobility', ids: ['commute_time', 'car_ownership', 'cycling_infra'] },
 ];
 
-export const LayerSelector: React.FC<LayerSelectorProps> = ({ activeLayer, onLayerChange }) => {
+export const LayerSelector: React.FC<LayerSelectorProps> = ({ activeLayer, onLayerChange, onCustomizeQuality, isCustomWeights = false }) => {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(
     Object.fromEntries(LAYER_GROUPS.map((g) => [g.labelKey, true]))
   );
@@ -100,29 +102,54 @@ export const LayerSelector: React.FC<LayerSelectorProps> = ({ activeLayer, onLay
             {!isCollapsed && groupLayers.map((layer) => {
               if (!layer) return null;
               const isActive = layer.id === activeLayer;
+              const showEditBtn = layer.id === 'quality_index' && onCustomizeQuality;
               return (
-                <button
-                  key={layer.id}
-                  onClick={() => {
-                    onLayerChange(layer.id);
-                    setMobileOpen(false);
-                  }}
-                  className={`w-full text-left px-3 py-2.5 md:py-1.5 rounded-lg text-sm transition-all duration-150 min-h-[44px] md:min-h-0 ${
-                    isActive
-                      ? 'bg-brand-500/15 dark:bg-brand-600/20 text-brand-600 dark:text-brand-300 font-medium'
-                      : 'text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800/60 hover:text-surface-900 dark:hover:text-white'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <div
-                      className="w-3 h-3 md:w-2.5 md:h-2.5 rounded-full flex-shrink-0"
-                      style={{
-                        backgroundColor: isActive ? layer.colors[5] || layer.colors[3] : '#94a3b8',
+                <div key={layer.id} className="flex items-center gap-0.5">
+                  <button
+                    onClick={() => {
+                      onLayerChange(layer.id);
+                      setMobileOpen(false);
+                    }}
+                    className={`flex-1 text-left px-3 py-2.5 md:py-1.5 rounded-lg text-sm transition-all duration-150 min-h-[44px] md:min-h-0 ${
+                      isActive
+                        ? 'bg-brand-500/15 dark:bg-brand-600/20 text-brand-600 dark:text-brand-300 font-medium'
+                        : 'text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800/60 hover:text-surface-900 dark:hover:text-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-3 h-3 md:w-2.5 md:h-2.5 rounded-full flex-shrink-0"
+                        style={{
+                          backgroundColor: isActive ? layer.colors[5] || layer.colors[3] : '#94a3b8',
+                        }}
+                      />
+                      {t(layer.labelKey)}
+                      {layer.id === 'quality_index' && isCustomWeights && (
+                        <span className="text-[10px] text-brand-500 dark:text-brand-400 ml-0.5">
+                          ({t('custom_quality.custom_label')})
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                  {showEditBtn && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onCustomizeQuality!();
                       }}
-                    />
-                    {t(layer.labelKey)}
-                  </div>
-                </button>
+                      className={`flex-shrink-0 p-1.5 rounded-lg transition-colors min-h-[44px] md:min-h-0 min-w-[32px] flex items-center justify-center ${
+                        isCustomWeights
+                          ? 'text-brand-500 dark:text-brand-400 hover:bg-brand-500/15'
+                          : 'text-surface-400 dark:text-surface-500 hover:text-surface-600 dark:hover:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800/60'
+                      }`}
+                      title={t('custom_quality.button')}
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
               );
             })}
           </div>
