@@ -40,6 +40,10 @@ const translations: Record<string, Record<Lang, string>> = {
   'layer.commute_time': { fi: 'Työmatka-aika', en: 'Commute Time' },
   'layer.restaurant_density': { fi: 'Ravintolat & kahvilat', en: 'Restaurants & Cafes' },
   'layer.grocery_access': { fi: 'Ruokakaupat', en: 'Grocery Stores' },
+  'layer.walkability': { fi: 'Käveltävyys', en: 'Walkability' },
+  'layer.kela_benefits': { fi: 'Kela-tuet', en: 'Social Benefits (Kela)' },
+  'layer.rental_price': { fi: 'Vuokrataso', en: 'Rental Prices' },
+  'layer.taxable_income': { fi: 'Verotettavat tulot', en: 'Taxable Income' },
 
   // Panel labels
   'panel.population': { fi: 'Väestö', en: 'Population' },
@@ -94,6 +98,10 @@ const translations: Record<string, Record<Lang, string>> = {
   'panel.commute_time': { fi: 'Työmatka-aika (min)', en: 'Commute Time (min)' },
   'panel.restaurant_density': { fi: 'Ravintolat (/km²)', en: 'Restaurants (/km²)' },
   'panel.grocery_access': { fi: 'Ruokakaupat (/km²)', en: 'Groceries (/km²)' },
+  'panel.walkability': { fi: 'Käveltävyys', en: 'Walkability Score' },
+  'panel.kela_benefits': { fi: 'Kela-tuensaajat (%)', en: 'Kela Recipients (%)' },
+  'panel.rental_price': { fi: 'Vuokra (€/m²/kk)', en: 'Rent (€/m²/mo)' },
+  'panel.taxable_income': { fi: 'Verotettavat tulot', en: 'Avg. Taxable Income' },
 
   // Trend chart labels
   'panel.trends': { fi: 'Kehityssuunnat', en: 'Historical Trends' },
@@ -132,8 +140,8 @@ const translations: Record<string, Record<Lang, string>> = {
   'export.value': { fi: 'Arvo', en: 'Value' },
 
   'footer.attribution': {
-    fi: 'Aineisto: Tilastokeskus, HSL, HSY, Poliisi, OpenStreetMap (CC BY 4.0)',
-    en: 'Data: Statistics Finland, HSL, HSY, Police, OpenStreetMap (CC BY 4.0)',
+    fi: 'Aineisto: Tilastokeskus, HSL, HSY, Poliisi, Kela, Verohallinto, OpenStreetMap (CC BY 4.0)',
+    en: 'Data: Statistics Finland, HSL, HSY, Police, Kela, Tax Admin, OpenStreetMap (CC BY 4.0)',
   },
 
   // Filter panel

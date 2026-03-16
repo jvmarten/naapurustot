@@ -18,6 +18,7 @@ function collectStats(d: NeighborhoodProperties, avg: Record<string, number>): S
     { label: t('panel.quality_index'), value: d.quality_index != null ? String(d.quality_index) : '—' },
     { label: t('panel.population'), value: formatNumber(d.he_vakiy) },
     { label: t('panel.median_income'), value: formatEuro(d.hr_mtu) },
+    { label: t('panel.taxable_income'), value: formatEuro(d.avg_taxable_income) },
     { label: t('panel.avg_income'), value: formatEuro(d.hr_ktu) },
     { label: t('panel.unemployment'), value: formatPct(d.unemployment_rate) },
     { label: t('panel.foreign_lang'), value: formatPct(d.foreign_language_pct) },
@@ -32,7 +33,10 @@ function collectStats(d: NeighborhoodProperties, avg: Record<string, number>): S
     { label: t('panel.population_density'), value: fmtDensity(d.population_density) },
     { label: t('panel.child_ratio'), value: formatPct(d.child_ratio) },
     { label: t('panel.student_share'), value: formatPct(d.student_share) },
+    { label: t('panel.rental_price'), value: d.rental_price_sqm != null ? `${d.rental_price_sqm.toFixed(2)} €/m²/kk` : '—' },
+    { label: t('panel.kela_benefits'), value: formatPct(d.kela_benefit_pct) },
     // Quality of life
+    { label: t('panel.walkability'), value: d.walkability_index != null ? `${d.walkability_index.toFixed(0)}/100` : '—' },
     { label: t('panel.property_price'), value: fmtEuroSqm(d.property_price_sqm) },
     { label: t('panel.transit_access'), value: fmtStopDensity(d.transit_stop_density) },
     { label: t('panel.air_quality'), value: d.air_quality_index != null ? d.air_quality_index.toFixed(1) : '—' },

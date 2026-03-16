@@ -102,6 +102,16 @@ const formatDb = (v: number | null | undefined): string => {
   return `${v.toFixed(0)} dB`;
 };
 
+const formatScore = (v: number | null | undefined): string => {
+  if (v == null) return '—';
+  return `${v.toFixed(0)}/100`;
+};
+
+const formatRent = (v: number | null | undefined): string => {
+  if (v == null) return '—';
+  return `${v.toFixed(2)} €/m²/kk`;
+};
+
 type SheetSnap = 'peek' | 'half' | 'full';
 
 const PEEK_HEIGHT = 140;
@@ -309,6 +319,12 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             diffClass={diffColor(d.hr_mtu, avg.hr_mtu)}
           />
           <StatRow
+            label={t('panel.taxable_income')}
+            value={formatEuro(d.avg_taxable_income)}
+            diff={formatDiff(d.avg_taxable_income, avg.avg_taxable_income)}
+            diffClass={diffColor(d.avg_taxable_income, avg.avg_taxable_income)}
+          />
+          <StatRow
             label={t('panel.unemployment')}
             value={formatPct(d.unemployment_rate)}
             diff={formatDiff(d.unemployment_rate, avg.unemployment_rate)}
@@ -349,6 +365,12 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             value={formatSqm(d.ra_as_kpa)}
             diff={formatDiff(d.ra_as_kpa, avg.ra_as_kpa)}
             diffClass={diffColor(d.ra_as_kpa, avg.ra_as_kpa)}
+          />
+          <StatRow
+            label={t('panel.rental_price')}
+            value={formatRent(d.rental_price_sqm)}
+            diff={formatDiff(d.rental_price_sqm, avg.rental_price_sqm)}
+            diffClass={diffColor(d.rental_price_sqm, avg.rental_price_sqm)}
           />
           <StatRow
             label={t('panel.detached_houses')}
@@ -392,6 +414,12 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
           {t('panel.quality_of_life')}
         </h3>
         <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
+          <StatRow
+            label={t('panel.walkability')}
+            value={formatScore(d.walkability_index)}
+            diff={formatDiff(d.walkability_index, avg.walkability_index)}
+            diffClass={diffColor(d.walkability_index, avg.walkability_index)}
+          />
           <StatRow
             label={t('panel.property_price')}
             value={formatEuroSqm(d.property_price_sqm)}
@@ -535,6 +563,12 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
           <StatRow
             label={t('panel.seniors_alone')}
             value={formatPct(d.seniors_alone_pct)}
+          />
+          <StatRow
+            label={t('panel.kela_benefits')}
+            value={formatPct(d.kela_benefit_pct)}
+            diff={formatDiff(d.kela_benefit_pct, avg.kela_benefit_pct)}
+            diffClass={diffColor(d.kela_benefit_pct, avg.kela_benefit_pct, false)}
           />
         </div>
       </div>
