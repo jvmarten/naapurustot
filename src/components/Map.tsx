@@ -23,6 +23,8 @@ interface MapProps {
   pinnedPnos?: string[];
   filterActive?: boolean;
   filterMatchPnos?: Set<string>;
+  /** Increment to force GeoJSON source refresh (e.g. after quality index recomputation) */
+  qualityVersion?: number;
 }
 
 function makeStyle(theme: 'dark' | 'light'): maplibregl.StyleSpecification {
@@ -59,7 +61,7 @@ const PINNED_LAYER = 'neighborhoods-pinned';
 
 const FILTER_HIGHLIGHT_LAYER = 'neighborhoods-filter-highlight';
 
-export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, flyTo, pinnedPnos = [], filterActive = false, filterMatchPnos = new Set() }) => {
+export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, flyTo, pinnedPnos = [], filterActive = false, filterMatchPnos = new Set(), qualityVersion = 0 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const hoveredIdRef = useRef<string | null>(null);
@@ -167,6 +169,16 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
       map.on('load', addLayers);
     }
   }, [data, theme]);
+
+  // Refresh GeoJSON source data when quality indices are recomputed
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !data || qualityVersion === 0) return;
+    const source = map.getSource(SOURCE_ID) as maplibregl.GeoJSONSource | undefined;
+    if (source) {
+      source.setData(data);
+    }
+  }, [qualityVersion, data]);
 
   // Smoothly transition fill color when active layer changes
   useEffect(() => {

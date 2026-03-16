@@ -15,6 +15,8 @@ interface PanelProps {
   onUnpin?: (pno: string) => void;
   isPinned?: boolean;
   pinCount?: number;
+  onCustomize?: () => void;
+  isCustomWeights?: boolean;
 }
 
 const StatRow: React.FC<{
@@ -106,7 +108,7 @@ const PEEK_HEIGHT = 140;
 const HALF_RATIO = 0.5;
 const FULL_RATIO = 0.92;
 
-export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0 }) => {
+export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false }) => {
   const eduTotal = [d.ko_yl_kork, d.ko_al_kork, d.ko_ammat, d.ko_perus]
     .filter((v) => v != null && v > 0)
     .reduce((a, b) => a! + b!, 0) || 1;
@@ -231,9 +233,31 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
         const lang = getLang();
         return (
           <div className="rounded-xl bg-surface-100 dark:bg-surface-900/60 p-4">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400 mb-3">
-              {t('panel.quality_index')}
-            </h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400">
+                {t('panel.quality_index')}
+                {isCustomWeights && (
+                  <span className="ml-1.5 text-brand-500 dark:text-brand-400">
+                    ({t('custom_quality.custom_label')})
+                  </span>
+                )}
+              </h3>
+              {onCustomize && (
+                <button
+                  onClick={onCustomize}
+                  className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold transition-colors
+                    ${isCustomWeights
+                      ? 'bg-brand-500/15 text-brand-600 dark:text-brand-400 hover:bg-brand-500/25'
+                      : 'bg-surface-200/60 dark:bg-surface-800/60 text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-200'
+                    }`}
+                >
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                  </svg>
+                  {t('custom_quality.button')}
+                </button>
+              )}
+            </div>
             <div className="flex items-center gap-3 mb-3">
               <div
                 className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm"

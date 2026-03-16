@@ -10,12 +10,14 @@ import { ThemeToggle } from './components/ThemeToggle';
 import { ErrorBanner } from './components/ErrorBanner';
 import { RankingTable } from './components/RankingTable';
 import { FilterPanel, computeMatchingPnos, type FilterCriterion } from './components/FilterPanel';
+import { CustomQualityPanel } from './components/CustomQualityPanel';
 import { useMapData } from './hooks/useMapData';
 import { useSelectedNeighborhood } from './hooks/useSelectedNeighborhood';
 import { type LayerId, getLayerById } from './utils/colorScales';
 import { readInitialUrlState, useSyncUrlState } from './hooks/useUrlState';
 import type { NeighborhoodProperties } from './utils/metrics';
 import { t, getLang, setLang, type Lang } from './utils/i18n';
+import { computeQualityIndices, getDefaultWeights, isCustomWeights, type QualityWeights } from './utils/qualityIndex';
 
 const initialUrl = readInitialUrlState();
 
@@ -32,8 +34,12 @@ const App: React.FC = () => {
   const [lang, setLangState] = useState<Lang>(getLang());
   const [showRanking, setShowRanking] = useState(false);
   const [showFilter, setShowFilter] = useState(false);
+  const [showCustomQuality, setShowCustomQuality] = useState(false);
   const [filters, setFilters] = useState<FilterCriterion[]>([]);
+  const [qualityWeights, setQualityWeights] = useState<QualityWeights>(getDefaultWeights);
   const restoredPno = useRef(false);
+  // Monotonic version counter to force re-renders when quality indices change
+  const [qualityVersion, setQualityVersion] = useState(0);
 
   // Restore neighborhood selection from URL once data is loaded
   useEffect(() => {
@@ -47,6 +53,25 @@ const App: React.FC = () => {
 
   // Keep URL in sync with current state
   useSyncUrlState(selected?.pno ?? null, activeLayer);
+
+  // Recompute quality indices when custom weights change
+  const handleQualityWeightsChange = useCallback(
+    (newWeights: QualityWeights) => {
+      setQualityWeights(newWeights);
+      if (data) {
+        computeQualityIndices(data.features, newWeights);
+        setQualityVersion((v) => v + 1);
+        // Update selected neighborhood if it exists
+        if (selected) {
+          const feature = data.features.find((f) => f.properties?.pno === selected.pno);
+          if (feature?.properties) {
+            select(feature.properties as NeighborhoodProperties);
+          }
+        }
+      }
+    },
+    [data, selected, select],
+  );
 
   const handleHover = useCallback(
     (props: NeighborhoodProperties | null, x: number, y: number) => {
@@ -118,6 +143,7 @@ const App: React.FC = () => {
         pinnedPnos={pinned.map((p) => p.pno)}
         filterActive={showFilter && filters.length > 0}
         filterMatchPnos={filterMatchPnos}
+        qualityVersion={qualityVersion}
       />
 
       {/* Skeleton / shimmer loading overlay */}
@@ -236,6 +262,15 @@ const App: React.FC = () => {
         />
       )}
 
+      {/* Custom quality sliders panel */}
+      {showCustomQuality && (
+        <CustomQualityPanel
+          weights={qualityWeights}
+          onChange={handleQualityWeightsChange}
+          onClose={() => setShowCustomQuality(false)}
+        />
+      )}
+
       {/* Neighborhood detail panel */}
       {selected && (
         <NeighborhoodPanel
@@ -246,6 +281,8 @@ const App: React.FC = () => {
           onUnpin={unpin}
           isPinned={pinned.some((p) => p.pno === selected.pno)}
           pinCount={pinned.length}
+          onCustomize={() => setShowCustomQuality((v) => !v)}
+          isCustomWeights={isCustomWeights(qualityWeights)}
         />
       )}
 

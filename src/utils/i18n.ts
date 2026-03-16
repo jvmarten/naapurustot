@@ -154,6 +154,16 @@ const translations: Record<string, Record<Lang, string>> = {
   'compare.clear': { fi: 'Tyhjennä', en: 'Clear all' },
   'compare.max': { fi: 'Enintään 3 aluetta', en: 'Max 3 areas' },
   'compare.best': { fi: 'Paras', en: 'Best' },
+
+  // Custom quality index
+  'custom_quality.title': { fi: 'Muokkaa laatuindeksiä', en: 'Customize Quality Index' },
+  'custom_quality.description': {
+    fi: 'Säädä painotuksia sen mukaan, mitä arvostat eniten. Asteikko 0–100.',
+    en: 'Adjust weights based on what you value most. Scale 0–100.',
+  },
+  'custom_quality.reset': { fi: 'Palauta oletukset', en: 'Reset defaults' },
+  'custom_quality.button': { fi: 'Muokkaa', en: 'Customize' },
+  'custom_quality.custom_label': { fi: 'mukautettu', en: 'custom' },
 };
 
 let currentLang: Lang = 'fi';
