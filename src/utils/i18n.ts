@@ -12,7 +12,19 @@ const translations: Record<string, Record<Lang, string>> = {
   'layer.foreign_lang': { fi: 'Vieraskieliset', en: 'Foreign-Language Speakers' },
   'layer.avg_age': { fi: 'Keski-ikä', en: 'Average Age' },
   'layer.pensioners': { fi: 'Eläkeläiset', en: 'Pensioner Share' },
+  'layer.ownership': { fi: 'Omistusasuminen', en: 'Home Ownership' },
+  'layer.rental': { fi: 'Vuokra-asuminen', en: 'Rental Rate' },
+  'layer.apt_size': { fi: 'Asunnon koko', en: 'Avg. Apartment Size' },
+  'layer.detached_houses': { fi: 'Omakotitalot', en: 'Detached Houses' },
+  'layer.student_share': { fi: 'Opiskelijat', en: 'Student Share' },
+  'layer.population_density': { fi: 'Väestötiheys', en: 'Population Density' },
+  'layer.child_ratio': { fi: 'Lapsiperheet', en: 'Young Children (0-6)' },
+  'layer.property_price': { fi: 'Asuntohinnat', en: 'Property Prices' },
+  'layer.transit_access': { fi: 'Joukkoliikenne', en: 'Transit Access' },
+  'layer.air_quality': { fi: 'Ilmanlaatu', en: 'Air Quality' },
   'layer.noise': { fi: 'Melutaso', en: 'Noise Level' },
+
+  // Panel labels
   'panel.population': { fi: 'Väestö', en: 'Population' },
   'panel.median_income': { fi: 'Mediaanitulo', en: 'Median Income' },
   'panel.avg_income': { fi: 'Keskitulo', en: 'Average Income' },
@@ -31,11 +43,33 @@ const translations: Record<string, Record<Lang, string>> = {
   'panel.households': { fi: 'Talouksia', en: 'Households' },
   'panel.vs_metro': { fi: 'vs. seutu', en: 'vs. metro' },
   'panel.age_distribution': { fi: 'Ikäjakauma', en: 'Age Distribution' },
-  'footer.attribution': {
-    fi: 'Aineisto: Tilastokeskus (CC BY 4.0)',
-    en: 'Data: Statistics Finland (CC BY 4.0)',
-  },
+
+  // New panel labels for Phase 1 & 2 metrics
+  'panel.housing': { fi: 'Asuminen', en: 'Housing' },
+  'panel.ownership_rate': { fi: 'Omistusaste', en: 'Ownership Rate' },
+  'panel.rental_rate': { fi: 'Vuokra-aste', en: 'Rental Rate' },
+  'panel.avg_apt_size': { fi: 'Asunnon koko (ka.)', en: 'Avg. Apt. Size' },
+  'panel.detached_houses': { fi: 'Omakotitalot', en: 'Detached Houses' },
+  'panel.demographics': { fi: 'Väestörakenne', en: 'Demographics' },
+  'panel.population_density': { fi: 'Väestötiheys', en: 'Pop. Density' },
+  'panel.child_ratio': { fi: 'Lapset (0-6)', en: 'Children (0-6)' },
+  'panel.student_share': { fi: 'Opiskelijaosuus', en: 'Student Share' },
+  'panel.quality_of_life': { fi: 'Elämänlaatu', en: 'Quality of Life' },
+  'panel.property_price': { fi: 'Asuntohinta (€/m²)', en: 'Property Price (€/m²)' },
+  'panel.transit_access': { fi: 'Pysäkkitiheys', en: 'Transit Stop Density' },
+  'panel.air_quality': { fi: 'Ilmanlaatu', en: 'Air Quality Index' },
+
+  // Layer group headers
   'layers.title': { fi: 'Aineistot', en: 'Data Layers' },
+  'layers.demographics': { fi: 'Väestö', en: 'Demographics' },
+  'layers.economy': { fi: 'Talous', en: 'Economy' },
+  'layers.housing': { fi: 'Asuminen', en: 'Housing' },
+  'layers.quality': { fi: 'Elämänlaatu', en: 'Quality of Life' },
+
+  'footer.attribution': {
+    fi: 'Aineisto: Tilastokeskus, HSL, HSY (CC BY 4.0)',
+    en: 'Data: Statistics Finland, HSL, HSY (CC BY 4.0)',
+  },
 };
 
 let currentLang: Lang = 'fi';

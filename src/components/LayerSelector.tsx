@@ -7,38 +7,67 @@ interface LayerSelectorProps {
   onLayerChange: (id: LayerId) => void;
 }
 
+type LayerGroup = {
+  labelKey: string;
+  ids: LayerId[];
+};
+
+const LAYER_GROUPS: LayerGroup[] = [
+  { labelKey: 'layers.quality', ids: ['quality_index', 'transit_access', 'air_quality'] },
+  { labelKey: 'layers.demographics', ids: ['avg_age', 'population_density', 'child_ratio', 'student_share', 'foreign_lang', 'pensioners'] },
+  { labelKey: 'layers.economy', ids: ['median_income', 'unemployment', 'education', 'property_price'] },
+  { labelKey: 'layers.housing', ids: ['ownership', 'rental', 'apt_size', 'detached_houses'] },
+];
+
 export const LayerSelector: React.FC<LayerSelectorProps> = ({ activeLayer, onLayerChange }) => {
   return (
-    <div className="absolute top-4 right-4 z-10 w-52">
+    <div className="absolute top-4 right-4 z-10 w-52 max-h-[80vh] overflow-y-auto">
       <div className="rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden">
         <div className="px-4 py-3 border-b border-surface-200 dark:border-surface-700/40">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400">
             {t('layers.title')}
           </h3>
         </div>
-        <div className="p-2 space-y-0.5">
-          {LAYERS.map((layer) => {
-            const isActive = layer.id === activeLayer;
+        <div className="p-2 space-y-1">
+          {LAYER_GROUPS.map((group) => {
+            const groupLayers = group.ids
+              .map((id) => LAYERS.find((l) => l.id === id))
+              .filter(Boolean);
+            if (groupLayers.length === 0) return null;
+
             return (
-              <button
-                key={layer.id}
-                onClick={() => onLayerChange(layer.id)}
-                className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all duration-150 ${
-                  isActive
-                    ? 'bg-brand-500/15 dark:bg-brand-600/20 text-brand-600 dark:text-brand-300 font-medium'
-                    : 'text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800/60 hover:text-surface-900 dark:hover:text-white'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <div
-                    className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                    style={{
-                      backgroundColor: isActive ? layer.colors[5] || layer.colors[3] : '#94a3b8',
-                    }}
-                  />
-                  {t(layer.labelKey)}
+              <div key={group.labelKey}>
+                <div className="px-3 pt-2 pb-1">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500">
+                    {t(group.labelKey)}
+                  </span>
                 </div>
-              </button>
+                {groupLayers.map((layer) => {
+                  if (!layer) return null;
+                  const isActive = layer.id === activeLayer;
+                  return (
+                    <button
+                      key={layer.id}
+                      onClick={() => onLayerChange(layer.id)}
+                      className={`w-full text-left px-3 py-1.5 rounded-lg text-sm transition-all duration-150 ${
+                        isActive
+                          ? 'bg-brand-500/15 dark:bg-brand-600/20 text-brand-600 dark:text-brand-300 font-medium'
+                          : 'text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800/60 hover:text-surface-900 dark:hover:text-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                          style={{
+                            backgroundColor: isActive ? layer.colors[5] || layer.colors[3] : '#94a3b8',
+                          }}
+                        />
+                        {t(layer.labelKey)}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             );
           })}
         </div>

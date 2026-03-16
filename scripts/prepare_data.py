@@ -2,11 +2,12 @@
 """
 Fetch Paavo statistics + postal code boundaries from Statistics Finland WFS,
 filter to Helsinki metro area, reproject, calculate derived metrics,
-join foreign-language speaker data, and output GeoJSON.
+join foreign-language speaker data and external quality-of-life data, and output GeoJSON.
 """
 
 import json
 import sys
+import time
 from pathlib import Path
 
 import geopandas as gpd
@@ -32,6 +33,20 @@ LANG_URL = (
 # Postal-code-level foreign language speaker percentages
 # Source: Statistics Finland via OKM (Ministry of Education), 2020 data
 FOREIGN_LANG_FILE = Path(__file__).parent / "foreign_language_pct.json"
+
+# Statistics Finland apartment price data by postal code
+PROPERTY_PRICE_URL = (
+    "https://pxdata.stat.fi/PxWeb/api/v1/en/"
+    "StatFin/ashi/statfin_ashi_pxt_112p.px"
+)
+
+# HSL Digitransit API for transit accessibility
+DIGITRANSIT_URL = "https://api.digitransit.fi/routing/v1/routers/hsl/index/graphql"
+
+# HSY air quality open data
+HSY_AIR_QUALITY_URL = (
+    "https://www.hsy.fi/globalassets/ilmanlaatu/opendata/air-quality-index.json"
+)
 
 
 def safe_val(v):
@@ -107,6 +122,43 @@ def calculate_metrics(gdf):
             else None
         )
         gdf.at[idx, "pensioner_share"] = safe_div(pensioners, pop)
+
+        # --- Phase 1: New metrics from existing data ---
+
+        # Home ownership rate (te_omis_as / te_taly)
+        owner_occ = safe_val(row.get("te_omis_as"))
+        total_hh = safe_val(row.get("te_taly"))
+        gdf.at[idx, "ownership_rate"] = safe_div(owner_occ, total_hh)
+
+        # Rental rate (te_vuok_as / te_taly)
+        rental = safe_val(row.get("te_vuok_as"))
+        gdf.at[idx, "rental_rate"] = safe_div(rental, total_hh)
+
+        # Population density (persons per km²)
+        area_m2 = safe_val(row.get("pinta_ala"))
+        if pop is not None and area_m2 is not None and area_m2 > 0:
+            gdf.at[idx, "population_density"] = round(pop / (area_m2 / 1_000_000))
+        else:
+            gdf.at[idx, "population_density"] = None
+
+        # Child ratio (ages 0-6 / total population)
+        children_0_2 = safe_val(row.get("he_0_2"))
+        children_3_6 = safe_val(row.get("he_3_6"))
+        if children_0_2 is not None and children_3_6 is not None and pop:
+            gdf.at[idx, "child_ratio"] = round((children_0_2 + children_3_6) / pop * 100, 1)
+        else:
+            gdf.at[idx, "child_ratio"] = None
+
+        # Student share (pt_opisk / pt_vakiy)
+        students = safe_val(row.get("pt_opisk"))
+        act_pop = safe_val(row.get("pt_vakiy"))
+        gdf.at[idx, "student_share"] = safe_div(students, act_pop)
+
+        # Detached house share (ra_pt_as / ra_asunn)
+        detached = safe_val(row.get("ra_pt_as"))
+        total_dwellings = safe_val(row.get("ra_asunn"))
+        gdf.at[idx, "detached_house_share"] = safe_div(detached, total_dwellings)
+
     return gdf
 
 
@@ -151,10 +203,237 @@ def clean_properties(gdf):
         "he_vakiy", "he_kika", "ko_ika18y", "ko_yl_kork", "ko_al_kork",
         "ko_ammat", "ko_perus", "hr_mtu", "hr_ktu", "pt_tyoll", "pt_tyott",
         "pt_opisk", "pt_elakel", "ra_asunn", "te_takk",
+        "te_omis_as", "te_vuok_as", "te_taly", "ra_as_kpa", "ra_pt_as",
+        "pinta_ala", "he_0_2", "he_3_6",
     ]
     for col in key_fields:
         if col in gdf.columns:
             gdf[col] = gdf[col].apply(lambda v: None if v == -1 or v == -1.0 else v)
+    return gdf
+
+
+def fetch_property_prices():
+    """Fetch apartment price data (€/m²) per postal code from Statistics Finland."""
+    print("Fetching property price data from Statistics Finland...")
+
+    try:
+        meta_r = requests.get(PROPERTY_PRICE_URL, timeout=30)
+        meta_r.raise_for_status()
+        meta = meta_r.json()
+    except Exception as e:
+        print(f"  Warning: Could not fetch property price metadata: {e}")
+        return {}
+
+    variables = meta.get("variables", [])
+    query_items = []
+
+    for var in variables:
+        code = var["code"]
+        values = var["values"]
+        code_lower = code.lower()
+
+        if code_lower in ("vuosineljännes", "quarter", "vuosi", "year"):
+            # Take latest available
+            query_items.append({"code": code, "selection": {"filter": "item", "values": [values[-1]]}})
+        elif code_lower in ("postinumero", "postal code", "alue", "postinumeroalue"):
+            query_items.append({"code": code, "selection": {"filter": "all", "values": ["*"]}})
+        elif code_lower in ("tiedot", "information", "talotyyppi", "building type"):
+            # All info / all building types
+            query_items.append({"code": code, "selection": {"filter": "all", "values": ["*"]}})
+        else:
+            query_items.append({"code": code, "selection": {"filter": "all", "values": ["*"]}})
+
+    query = {"query": query_items, "response": {"format": "json"}}
+
+    try:
+        r = requests.post(PROPERTY_PRICE_URL, json=query, timeout=60)
+        r.raise_for_status()
+        data = r.json()
+    except Exception as e:
+        print(f"  Warning: Could not fetch property price data: {e}")
+        return {}
+
+    result = {}
+    try:
+        columns = data.get("columns", [])
+        rows = data.get("data", [])
+
+        pno_idx = None
+        for i, col in enumerate(columns):
+            code_lower = col.get("code", "").lower()
+            if code_lower in ("postinumero", "postal code", "alue", "postinumeroalue"):
+                pno_idx = i
+
+        if pno_idx is not None:
+            for row in rows:
+                keys = row.get("key", [])
+                vals = row.get("values", [])
+                if not keys or not vals:
+                    continue
+                pno = keys[pno_idx][:5]
+                val = vals[0]
+                if val not in (None, "..", "...", ""):
+                    try:
+                        price = float(val)
+                        # Keep the highest/latest value per postal code
+                        if pno not in result or price > result[pno]:
+                            result[pno] = price
+                    except (ValueError, TypeError):
+                        pass
+
+        print(f"  Parsed property prices for {len(result)} postal codes")
+    except Exception as e:
+        print(f"  Warning: Could not parse property price response: {e}")
+
+    return result
+
+
+def join_property_prices(gdf, price_data):
+    """Join property price (€/m²) data to the GeoDataFrame."""
+    if not price_data:
+        gdf["property_price_sqm"] = None
+        return gdf
+
+    print("Joining property price data...")
+    for idx, row in gdf.iterrows():
+        pno = row.get("pno", "")
+        gdf.at[idx, "property_price_sqm"] = price_data.get(pno)
+    return gdf
+
+
+def fetch_hsl_transit_stops():
+    """
+    Fetch public transit stop counts per postal code area from HSL Digitransit API.
+    This gives a rough transit accessibility score based on stop density.
+    """
+    print("Fetching HSL transit stop data...")
+
+    # Use a simple bbox query for the Helsinki metro area
+    query = """
+    {
+      stops(feeds: ["HSL"]) {
+        gtfsId
+        name
+        lat
+        lon
+        vehicleMode
+      }
+    }
+    """
+
+    try:
+        r = requests.post(
+            DIGITRANSIT_URL,
+            json={"query": query},
+            headers={"Content-Type": "application/json"},
+            timeout=60,
+        )
+        r.raise_for_status()
+        data = r.json()
+        stops = data.get("data", {}).get("stops", [])
+        print(f"  Fetched {len(stops)} transit stops")
+        return stops
+    except Exception as e:
+        print(f"  Warning: Could not fetch HSL transit data: {e}")
+        return []
+
+
+def join_transit_data(gdf, stops):
+    """Count transit stops per postal code area and calculate density."""
+    if not stops:
+        gdf["transit_stop_density"] = None
+        return gdf
+
+    print("Joining transit stop data...")
+    from shapely.geometry import Point
+
+    # Count stops per postal code polygon
+    stop_counts = {}
+    for stop in stops:
+        lat = stop.get("lat")
+        lon = stop.get("lon")
+        if lat is None or lon is None:
+            continue
+        point = Point(lon, lat)
+        for idx, row in gdf.iterrows():
+            if row.geometry and row.geometry.contains(point):
+                pno = row.get("pno", "")
+                stop_counts[pno] = stop_counts.get(pno, 0) + 1
+                break
+
+    for idx, row in gdf.iterrows():
+        pno = row.get("pno", "")
+        count = stop_counts.get(pno, 0)
+        area_km2 = safe_val(row.get("pinta_ala"))
+        if area_km2 is not None and area_km2 > 0:
+            gdf.at[idx, "transit_stop_density"] = round(count / (area_km2 / 1_000_000), 1)
+        else:
+            gdf.at[idx, "transit_stop_density"] = None
+
+    print(f"  Computed transit density for {len(stop_counts)} postal codes")
+    return gdf
+
+
+def fetch_air_quality():
+    """
+    Fetch air quality index data from HSY.
+    Returns a dict of postal_code -> annual average air quality index.
+    """
+    print("Fetching air quality data from HSY...")
+
+    try:
+        r = requests.get(HSY_AIR_QUALITY_URL, timeout=30)
+        r.raise_for_status()
+        data = r.json()
+        print(f"  Fetched air quality data: {len(data)} records")
+        return data
+    except Exception as e:
+        print(f"  Warning: Could not fetch air quality data: {e}")
+        return []
+
+
+def join_air_quality(gdf, aq_data):
+    """Join air quality data to postal code areas."""
+    if not aq_data:
+        gdf["air_quality_index"] = None
+        return gdf
+
+    print("Joining air quality data...")
+    # HSY data is station-based; assign nearest station value to postal code areas
+    from shapely.geometry import Point
+
+    stations = []
+    for record in aq_data:
+        lat = record.get("lat") or record.get("latitude")
+        lon = record.get("lon") or record.get("longitude")
+        aqi = record.get("index") or record.get("aqi") or record.get("air_quality_index")
+        if lat and lon and aqi:
+            try:
+                stations.append({"point": Point(float(lon), float(lat)), "aqi": float(aqi)})
+            except (ValueError, TypeError):
+                pass
+
+    if not stations:
+        gdf["air_quality_index"] = None
+        return gdf
+
+    for idx, row in gdf.iterrows():
+        centroid = row.geometry.centroid if row.geometry else None
+        if centroid is None:
+            gdf.at[idx, "air_quality_index"] = None
+            continue
+
+        # Find nearest station
+        min_dist = float("inf")
+        nearest_aqi = None
+        for s in stations:
+            dist = centroid.distance(s["point"])
+            if dist < min_dist:
+                min_dist = dist
+                nearest_aqi = s["aqi"]
+
+        gdf.at[idx, "air_quality_index"] = nearest_aqi
+
     return gdf
 
 
@@ -169,6 +448,16 @@ def main():
 
     lang_data = load_foreign_language()
     gdf = join_foreign_language(gdf, lang_data)
+
+    # Phase 2: External data sources (graceful fallback if APIs unavailable)
+    price_data = fetch_property_prices()
+    gdf = join_property_prices(gdf, price_data)
+
+    transit_stops = fetch_hsl_transit_stops()
+    gdf = join_transit_data(gdf, transit_stops)
+
+    aq_data = fetch_air_quality()
+    gdf = join_air_quality(gdf, aq_data)
 
     # Write output
     out_path.parent.mkdir(parents=True, exist_ok=True)

@@ -48,6 +48,26 @@ const BarSegment: React.FC<{ label: string; value: number; total: number; color:
   );
 };
 
+const formatDensity = (v: number | null | undefined): string => {
+  if (v == null) return '—';
+  return `${v.toLocaleString('fi-FI')} /km²`;
+};
+
+const formatSqm = (v: number | null | undefined): string => {
+  if (v == null) return '—';
+  return `${v.toFixed(1)} m²`;
+};
+
+const formatEuroSqm = (v: number | null | undefined): string => {
+  if (v == null) return '—';
+  return `${v.toLocaleString('fi-FI')} €/m²`;
+};
+
+const formatStopDensity = (v: number | null | undefined): string => {
+  if (v == null) return '—';
+  return `${v.toFixed(1)} /km²`;
+};
+
 export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages: avg, onClose }) => {
   const eduTotal = [d.ko_yl_kork, d.ko_al_kork, d.ko_ammat, d.ko_perus]
     .filter((v) => v != null && v > 0)
@@ -137,6 +157,91 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
           </div>
         </div>
 
+        {/* Housing section */}
+        <div>
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 mb-3">
+            {t('panel.housing')}
+          </h3>
+          <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
+            <StatRow
+              label={t('panel.ownership_rate')}
+              value={formatPct(d.ownership_rate)}
+              diff={formatDiff(d.ownership_rate, avg.ownership_rate)}
+              diffClass={diffColor(d.ownership_rate, avg.ownership_rate)}
+            />
+            <StatRow
+              label={t('panel.rental_rate')}
+              value={formatPct(d.rental_rate)}
+            />
+            <StatRow
+              label={t('panel.avg_apt_size')}
+              value={formatSqm(d.ra_as_kpa)}
+              diff={formatDiff(d.ra_as_kpa, avg.ra_as_kpa)}
+              diffClass={diffColor(d.ra_as_kpa, avg.ra_as_kpa)}
+            />
+            <StatRow
+              label={t('panel.detached_houses')}
+              value={formatPct(d.detached_house_share)}
+            />
+            <StatRow label={t('panel.dwellings')} value={formatNumber(d.ra_asunn)} />
+            <StatRow label={t('panel.households')} value={formatNumber(d.te_taly)} />
+          </div>
+        </div>
+
+        {/* Demographics section */}
+        <div>
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 mb-3">
+            {t('panel.demographics')}
+          </h3>
+          <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
+            <StatRow
+              label={t('panel.population_density')}
+              value={formatDensity(d.population_density)}
+              diff={formatDiff(d.population_density, avg.population_density)}
+              diffClass={diffColor(d.population_density, avg.population_density)}
+            />
+            <StatRow
+              label={t('panel.child_ratio')}
+              value={formatPct(d.child_ratio)}
+              diff={formatDiff(d.child_ratio, avg.child_ratio)}
+              diffClass={diffColor(d.child_ratio, avg.child_ratio)}
+            />
+            <StatRow
+              label={t('panel.student_share')}
+              value={formatPct(d.student_share)}
+              diff={formatDiff(d.student_share, avg.student_share)}
+              diffClass={diffColor(d.student_share, avg.student_share)}
+            />
+          </div>
+        </div>
+
+        {/* Quality of Life section */}
+        <div>
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 mb-3">
+            {t('panel.quality_of_life')}
+          </h3>
+          <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
+            <StatRow
+              label={t('panel.property_price')}
+              value={formatEuroSqm(d.property_price_sqm)}
+              diff={formatDiff(d.property_price_sqm, avg.property_price_sqm)}
+              diffClass={diffColor(d.property_price_sqm, avg.property_price_sqm)}
+            />
+            <StatRow
+              label={t('panel.transit_access')}
+              value={formatStopDensity(d.transit_stop_density)}
+              diff={formatDiff(d.transit_stop_density, avg.transit_stop_density)}
+              diffClass={diffColor(d.transit_stop_density, avg.transit_stop_density)}
+            />
+            <StatRow
+              label={t('panel.air_quality')}
+              value={d.air_quality_index != null ? d.air_quality_index.toFixed(1) : '—'}
+              diff={formatDiff(d.air_quality_index, avg.air_quality_index)}
+              diffClass={diffColor(d.air_quality_index, avg.air_quality_index, false)}
+            />
+          </div>
+        </div>
+
         {/* Education breakdown */}
         <div>
           <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 mb-3">
@@ -174,8 +279,6 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
         {/* Extra stats */}
         <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
           <StatRow label={t('panel.avg_income')} value={formatEuro(d.hr_ktu)} />
-          <StatRow label={t('panel.dwellings')} value={formatNumber(d.ra_asunn)} />
-          <StatRow label={t('panel.households')} value={formatNumber(d.te_takk)} />
         </div>
       </div>
     </div>
