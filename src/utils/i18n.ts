@@ -24,7 +24,22 @@ const translations: Record<string, Record<Lang, string>> = {
   'layer.transit_access': { fi: 'Joukkoliikenne', en: 'Transit Access' },
   'layer.air_quality': { fi: 'Ilmanlaatu', en: 'Air Quality' },
   'layer.crime_rate': { fi: 'Rikollisuus', en: 'Crime Rate' },
-  'layer.noise': { fi: 'Melutaso', en: 'Noise Level' },
+  'layer.noise_level': { fi: 'Melutaso', en: 'Noise Level' },
+  'layer.green_space': { fi: 'Viheralueet', en: 'Green Spaces' },
+  'layer.daycare_density': { fi: 'Päiväkodit', en: 'Daycare Density' },
+  'layer.school_density': { fi: 'Koulut', en: 'School Density' },
+  'layer.healthcare_access': { fi: 'Terveyspalvelut', en: 'Healthcare Access' },
+  'layer.building_age': { fi: 'Rakennusten ikä', en: 'Building Age' },
+  'layer.energy_class': { fi: 'Energialuokka', en: 'Energy Efficiency' },
+  'layer.population_growth': { fi: 'Väestönkasvu', en: 'Population Growth' },
+  'layer.income_inequality': { fi: 'Tuloeroindeksi', en: 'Income Inequality' },
+  'layer.single_person_hh': { fi: 'Yksinasuvat', en: 'Single-Person HH' },
+  'layer.seniors_alone': { fi: 'Yksinasuvat seniorit', en: 'Seniors Living Alone' },
+  'layer.car_ownership': { fi: 'Autoistuminen', en: 'Car Ownership' },
+  'layer.cycling_infra': { fi: 'Pyöräilyinfra', en: 'Cycling Infrastructure' },
+  'layer.commute_time': { fi: 'Työmatka-aika', en: 'Commute Time' },
+  'layer.restaurant_density': { fi: 'Ravintolat & kahvilat', en: 'Restaurants & Cafes' },
+  'layer.grocery_access': { fi: 'Ruokakaupat', en: 'Grocery Stores' },
 
   // Panel labels
   'panel.population': { fi: 'Väestö', en: 'Population' },
@@ -62,12 +77,33 @@ const translations: Record<string, Record<Lang, string>> = {
   'panel.air_quality': { fi: 'Ilmanlaatu', en: 'Air Quality Index' },
   'panel.crime_rate': { fi: 'Rikoksia / 1000 as.', en: 'Crimes / 1000 res.' },
 
+  // New panel labels for Phase 3 metrics
+  'panel.green_space': { fi: 'Viheralueet (/km²)', en: 'Green Spaces (/km²)' },
+  'panel.daycare_density': { fi: 'Päiväkodit (/km²)', en: 'Daycares (/km²)' },
+  'panel.school_density': { fi: 'Koulut (/km²)', en: 'Schools (/km²)' },
+  'panel.healthcare_access': { fi: 'Terveyspalvelut (/km²)', en: 'Healthcare (/km²)' },
+  'panel.noise_level': { fi: 'Melutaso (dB)', en: 'Noise Level (dB)' },
+  'panel.building_age': { fi: 'Rakennusten keski-ikä', en: 'Avg. Building Year' },
+  'panel.energy_class': { fi: 'Energialuokka', en: 'Energy Class' },
+  'panel.population_growth': { fi: 'Väestönkasvu (%)', en: 'Pop. Growth (%)' },
+  'panel.income_inequality': { fi: 'Gini-kerroin', en: 'Gini Coefficient' },
+  'panel.single_person_hh': { fi: 'Yksinasuvat (%)', en: 'Single-Person HH (%)' },
+  'panel.seniors_alone': { fi: 'Yksinasuvat 65+ (%)', en: 'Seniors Alone (%)' },
+  'panel.car_ownership': { fi: 'Autoja / talous', en: 'Cars / Household' },
+  'panel.cycling_infra': { fi: 'Pyöräilyinfra (/km²)', en: 'Cycling Infra (/km²)' },
+  'panel.commute_time': { fi: 'Työmatka-aika (min)', en: 'Commute Time (min)' },
+  'panel.restaurant_density': { fi: 'Ravintolat (/km²)', en: 'Restaurants (/km²)' },
+  'panel.grocery_access': { fi: 'Ruokakaupat (/km²)', en: 'Groceries (/km²)' },
+
   // Layer group headers
   'layers.title': { fi: 'Aineistot', en: 'Data Layers' },
   'layers.demographics': { fi: 'Väestö', en: 'Demographics' },
   'layers.economy': { fi: 'Talous', en: 'Economy' },
   'layers.housing': { fi: 'Asuminen', en: 'Housing' },
   'layers.quality': { fi: 'Elämänlaatu', en: 'Quality of Life' },
+  'layers.services': { fi: 'Palvelut', en: 'Services' },
+  'layers.environment': { fi: 'Ympäristö', en: 'Environment' },
+  'layers.mobility': { fi: 'Liikkuminen', en: 'Mobility' },
 
   'error.load_failed': {
     fi: 'Aluetietojen lataaminen epäonnistui',
@@ -87,8 +123,8 @@ const translations: Record<string, Record<Lang, string>> = {
   'export.value': { fi: 'Arvo', en: 'Value' },
 
   'footer.attribution': {
-    fi: 'Aineisto: Tilastokeskus, HSL, HSY, Poliisi (CC BY 4.0)',
-    en: 'Data: Statistics Finland, HSL, HSY, Police (CC BY 4.0)',
+    fi: 'Aineisto: Tilastokeskus, HSL, HSY, Poliisi, OpenStreetMap (CC BY 4.0)',
+    en: 'Data: Statistics Finland, HSL, HSY, Police, OpenStreetMap (CC BY 4.0)',
   },
 
   // Comparison panel

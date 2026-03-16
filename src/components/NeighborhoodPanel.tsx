@@ -73,6 +73,31 @@ const formatStopDensity = (v: number | null | undefined): string => {
   return `${v.toFixed(1)} /km²`;
 };
 
+const formatMinutes = (v: number | null | undefined): string => {
+  if (v == null) return '—';
+  return `${v.toFixed(0)} min`;
+};
+
+const formatGini = (v: number | null | undefined): string => {
+  if (v == null) return '—';
+  return v.toFixed(2);
+};
+
+const formatCarsHh = (v: number | null | undefined): string => {
+  if (v == null) return '—';
+  return v.toFixed(2);
+};
+
+const formatYear = (v: number | null | undefined): string => {
+  if (v == null) return '—';
+  return v.toFixed(0);
+};
+
+const formatDb = (v: number | null | undefined): string => {
+  if (v == null) return '—';
+  return `${v.toFixed(0)} dB`;
+};
+
 type SheetSnap = 'peek' | 'half' | 'full';
 
 const PEEK_HEIGHT = 140;
@@ -353,6 +378,126 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             value={d.crime_index != null ? `${d.crime_index.toFixed(1)} /1000` : '—'}
             diff={formatDiff(d.crime_index, avg.crime_index)}
             diffClass={diffColor(d.crime_index, avg.crime_index, false)}
+          />
+        </div>
+      </div>
+
+      {/* Services section */}
+      <div>
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 mb-3">
+          {t('layers.services')}
+        </h3>
+        <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
+          <StatRow
+            label={t('panel.restaurant_density')}
+            value={formatStopDensity(d.restaurant_density)}
+            diff={formatDiff(d.restaurant_density, avg.restaurant_density)}
+            diffClass={diffColor(d.restaurant_density, avg.restaurant_density)}
+          />
+          <StatRow
+            label={t('panel.grocery_access')}
+            value={formatStopDensity(d.grocery_density)}
+            diff={formatDiff(d.grocery_density, avg.grocery_density)}
+            diffClass={diffColor(d.grocery_density, avg.grocery_density)}
+          />
+          <StatRow
+            label={t('panel.daycare_density')}
+            value={formatStopDensity(d.daycare_density)}
+            diff={formatDiff(d.daycare_density, avg.daycare_density)}
+            diffClass={diffColor(d.daycare_density, avg.daycare_density)}
+          />
+          <StatRow
+            label={t('panel.school_density')}
+            value={formatStopDensity(d.school_density)}
+            diff={formatDiff(d.school_density, avg.school_density)}
+            diffClass={diffColor(d.school_density, avg.school_density)}
+          />
+          <StatRow
+            label={t('panel.healthcare_access')}
+            value={formatStopDensity(d.healthcare_density)}
+            diff={formatDiff(d.healthcare_density, avg.healthcare_density)}
+            diffClass={diffColor(d.healthcare_density, avg.healthcare_density)}
+          />
+          <StatRow
+            label={t('panel.green_space')}
+            value={formatStopDensity(d.green_space_pct)}
+            diff={formatDiff(d.green_space_pct, avg.green_space_pct)}
+            diffClass={diffColor(d.green_space_pct, avg.green_space_pct)}
+          />
+        </div>
+      </div>
+
+      {/* Environment section */}
+      <div>
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 mb-3">
+          {t('layers.environment')}
+        </h3>
+        <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
+          <StatRow
+            label={t('panel.noise_level')}
+            value={formatDb(d.noise_level)}
+            diff={formatDiff(d.noise_level, avg.noise_level)}
+            diffClass={diffColor(d.noise_level, avg.noise_level, false)}
+          />
+          <StatRow
+            label={t('panel.building_age')}
+            value={formatYear(d.avg_building_year)}
+          />
+          <StatRow
+            label={t('panel.energy_class')}
+            value={d.energy_efficiency != null ? d.energy_efficiency.toFixed(1) : '—'}
+          />
+        </div>
+      </div>
+
+      {/* Mobility section */}
+      <div>
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 mb-3">
+          {t('layers.mobility')}
+        </h3>
+        <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
+          <StatRow
+            label={t('panel.commute_time')}
+            value={formatMinutes(d.avg_commute_min)}
+            diff={formatDiff(d.avg_commute_min, avg.avg_commute_min)}
+            diffClass={diffColor(d.avg_commute_min, avg.avg_commute_min, false)}
+          />
+          <StatRow
+            label={t('panel.car_ownership')}
+            value={formatCarsHh(d.cars_per_household)}
+            diff={formatDiff(d.cars_per_household, avg.cars_per_household)}
+            diffClass={diffColor(d.cars_per_household, avg.cars_per_household)}
+          />
+          <StatRow
+            label={t('panel.cycling_infra')}
+            value={formatStopDensity(d.cycling_density)}
+            diff={formatDiff(d.cycling_density, avg.cycling_density)}
+            diffClass={diffColor(d.cycling_density, avg.cycling_density)}
+          />
+        </div>
+      </div>
+
+      {/* Additional demographics */}
+      <div>
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 mb-3">
+          {t('layers.demographics')} +
+        </h3>
+        <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
+          <StatRow
+            label={t('panel.population_growth')}
+            value={formatPct(d.population_growth_pct)}
+          />
+          <StatRow
+            label={t('panel.income_inequality')}
+            value={formatGini(d.gini_coefficient)}
+          />
+          <StatRow
+            label={t('panel.single_person_hh')}
+            value={formatPct(d.single_person_hh_pct)}
+          />
+          <StatRow
+            label={t('panel.seniors_alone')}
+            value={formatPct(d.seniors_alone_pct)}
           />
         </div>
       </div>

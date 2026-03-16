@@ -41,6 +41,22 @@ export interface NeighborhoodProperties {
   transit_stop_density: number | null;
   air_quality_index: number | null;
   crime_index: number | null;
+  green_space_pct: number | null;
+  daycare_density: number | null;
+  school_density: number | null;
+  healthcare_density: number | null;
+  noise_level: number | null;
+  avg_building_year: number | null;
+  energy_efficiency: number | null;
+  population_growth_pct: number | null;
+  gini_coefficient: number | null;
+  single_person_hh_pct: number | null;
+  seniors_alone_pct: number | null;
+  cars_per_household: number | null;
+  cycling_density: number | null;
+  avg_commute_min: number | null;
+  restaurant_density: number | null;
+  grocery_density: number | null;
   [key: string]: string | number | null;
 }
 
@@ -72,6 +88,38 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
   let airQualityCount = 0;
   let totalCrimeIndex = 0;
   let crimeIndexCount = 0;
+  let totalGreenSpace = 0;
+  let greenSpaceCount = 0;
+  let totalDaycare = 0;
+  let daycareCount = 0;
+  let totalSchool = 0;
+  let schoolCount = 0;
+  let totalHealthcare = 0;
+  let healthcareCount = 0;
+  let totalNoise = 0;
+  let noiseCount = 0;
+  let totalBuildingYear = 0;
+  let buildingYearCount = 0;
+  let totalEnergy = 0;
+  let energyCount = 0;
+  let totalPopGrowth = 0;
+  let popGrowthCount = 0;
+  let totalGini = 0;
+  let giniCount = 0;
+  let totalSingleHh = 0;
+  let singleHhTotal = 0;
+  let totalSeniorsAlone = 0;
+  let seniorsAloneCount = 0;
+  let totalCars = 0;
+  let carsCount = 0;
+  let totalCycling = 0;
+  let cyclingCount = 0;
+  let totalCommute = 0;
+  let commuteCount = 0;
+  let totalRestaurant = 0;
+  let restaurantCount = 0;
+  let totalGrocery = 0;
+  let groceryCount = 0;
 
   for (const f of features) {
     const p = f.properties as NeighborhoodProperties;
@@ -121,6 +169,70 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
         totalCrimeIndex += p.crime_index * pop;
         crimeIndexCount += pop;
       }
+      if (p.green_space_pct != null) {
+        totalGreenSpace += p.green_space_pct * pop;
+        greenSpaceCount += pop;
+      }
+      if (p.daycare_density != null) {
+        totalDaycare += p.daycare_density * pop;
+        daycareCount += pop;
+      }
+      if (p.school_density != null) {
+        totalSchool += p.school_density * pop;
+        schoolCount += pop;
+      }
+      if (p.healthcare_density != null) {
+        totalHealthcare += p.healthcare_density * pop;
+        healthcareCount += pop;
+      }
+      if (p.noise_level != null) {
+        totalNoise += p.noise_level * pop;
+        noiseCount += pop;
+      }
+      if (p.avg_building_year != null) {
+        totalBuildingYear += p.avg_building_year * pop;
+        buildingYearCount += pop;
+      }
+      if (p.energy_efficiency != null) {
+        totalEnergy += p.energy_efficiency * pop;
+        energyCount += pop;
+      }
+      if (p.population_growth_pct != null) {
+        totalPopGrowth += p.population_growth_pct * pop;
+        popGrowthCount += pop;
+      }
+      if (p.gini_coefficient != null) {
+        totalGini += p.gini_coefficient * pop;
+        giniCount += pop;
+      }
+      if (p.single_person_hh_pct != null && p.te_taly != null) {
+        totalSingleHh += (p.single_person_hh_pct / 100) * p.te_taly;
+        singleHhTotal += p.te_taly;
+      }
+      if (p.seniors_alone_pct != null) {
+        totalSeniorsAlone += p.seniors_alone_pct * pop;
+        seniorsAloneCount += pop;
+      }
+      if (p.cars_per_household != null) {
+        totalCars += p.cars_per_household * pop;
+        carsCount += pop;
+      }
+      if (p.cycling_density != null) {
+        totalCycling += p.cycling_density * pop;
+        cyclingCount += pop;
+      }
+      if (p.avg_commute_min != null) {
+        totalCommute += p.avg_commute_min * pop;
+        commuteCount += pop;
+      }
+      if (p.restaurant_density != null) {
+        totalRestaurant += p.restaurant_density * pop;
+        restaurantCount += pop;
+      }
+      if (p.grocery_density != null) {
+        totalGrocery += p.grocery_density * pop;
+        groceryCount += pop;
+      }
     }
   }
 
@@ -145,5 +257,21 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
     transit_stop_density: transitCount > 0 ? Math.round((totalTransitDensity / transitCount) * 10) / 10 : 0,
     air_quality_index: airQualityCount > 0 ? Math.round((totalAirQuality / airQualityCount) * 10) / 10 : 0,
     crime_index: crimeIndexCount > 0 ? Math.round((totalCrimeIndex / crimeIndexCount) * 10) / 10 : 0,
+    green_space_pct: greenSpaceCount > 0 ? Math.round((totalGreenSpace / greenSpaceCount) * 10) / 10 : 0,
+    daycare_density: daycareCount > 0 ? Math.round((totalDaycare / daycareCount) * 10) / 10 : 0,
+    school_density: schoolCount > 0 ? Math.round((totalSchool / schoolCount) * 10) / 10 : 0,
+    healthcare_density: healthcareCount > 0 ? Math.round((totalHealthcare / healthcareCount) * 10) / 10 : 0,
+    noise_level: noiseCount > 0 ? Math.round((totalNoise / noiseCount) * 10) / 10 : 0,
+    avg_building_year: buildingYearCount > 0 ? Math.round(totalBuildingYear / buildingYearCount) : 0,
+    energy_efficiency: energyCount > 0 ? Math.round((totalEnergy / energyCount) * 10) / 10 : 0,
+    population_growth_pct: popGrowthCount > 0 ? Math.round((totalPopGrowth / popGrowthCount) * 10) / 10 : 0,
+    gini_coefficient: giniCount > 0 ? Math.round((totalGini / giniCount) * 100) / 100 : 0,
+    single_person_hh_pct: singleHhTotal > 0 ? Math.round((totalSingleHh / singleHhTotal) * 1000) / 10 : 0,
+    seniors_alone_pct: seniorsAloneCount > 0 ? Math.round((totalSeniorsAlone / seniorsAloneCount) * 10) / 10 : 0,
+    cars_per_household: carsCount > 0 ? Math.round((totalCars / carsCount) * 100) / 100 : 0,
+    cycling_density: cyclingCount > 0 ? Math.round((totalCycling / cyclingCount) * 10) / 10 : 0,
+    avg_commute_min: commuteCount > 0 ? Math.round(totalCommute / commuteCount) : 0,
+    restaurant_density: restaurantCount > 0 ? Math.round((totalRestaurant / restaurantCount) * 10) / 10 : 0,
+    grocery_density: groceryCount > 0 ? Math.round((totalGrocery / groceryCount) * 10) / 10 : 0,
   };
 }
