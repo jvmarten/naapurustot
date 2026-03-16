@@ -1144,6 +1144,48 @@ def calculate_single_person_hh(gdf):
 # Main
 # ---------------------------------------------------------------------------
 
+def _load_previous_output(path: Path) -> dict:
+    """Load the previous GeoJSON output as a postal-code-keyed dict of properties.
+
+    When an external API fails, we fall back to these values so that no metric
+    regresses to null just because a single run had a network problem.
+    """
+    if not path.exists():
+        return {}
+    try:
+        prev = json.loads(path.read_text())
+        features = prev.get("features", [])
+        lookup = {}
+        for f in features:
+            props = f.get("properties", {})
+            pno = props.get("pno") or props.get("postinumeroalue", "")
+            if pno:
+                lookup[pno] = props
+        print(f"Loaded previous output with {len(lookup)} postal codes for fallback")
+        return lookup
+    except Exception as e:
+        print(f"  Warning: could not load previous output: {e}")
+        return {}
+
+
+def _backfill_nulls(gdf, previous: dict, columns: list[str]):
+    """For each column, replace null values with values from the previous run."""
+    if not previous:
+        return gdf
+    backfilled = {col: 0 for col in columns}
+    for idx, row in gdf.iterrows():
+        pno = row.get("pno", "")
+        prev_props = previous.get(pno, {})
+        for col in columns:
+            if row.get(col) is None and prev_props.get(col) is not None:
+                gdf.at[idx, col] = prev_props[col]
+                backfilled[col] += 1
+    for col, count in backfilled.items():
+        if count > 0:
+            print(f"  Backfilled {count} null values in '{col}' from previous output")
+    return gdf
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Prepare Helsinki metro neighborhood GeoJSON data."
@@ -1156,6 +1198,9 @@ def main():
     args = parser.parse_args()
 
     out_path = Path(__file__).parent.parent / "public" / "data" / "metro_neighborhoods.geojson"
+
+    # Load previous output so we can backfill any metrics that fail this run
+    previous = _load_previous_output(out_path)
 
     # --- Core data (fatal on failure) ---
     try:
@@ -1245,6 +1290,24 @@ def main():
 
     # Single-person households (from existing Paavo data)
     gdf = calculate_single_person_hh(gdf)
+
+    # --- Backfill nulls from previous output ---
+    # If any data source failed this run, preserve the values from the last
+    # successful run instead of writing nulls.
+    backfill_columns = [
+        # Phase 2: external APIs
+        "property_price_sqm", "transit_stop_density", "air_quality_index",
+        # Phase 3: OSM-based
+        "green_space_pct", "daycare_density", "school_density",
+        "healthcare_density", "restaurant_density", "grocery_density",
+        "cycling_density",
+        # File-based
+        "foreign_language_pct", "crime_index", "noise_level",
+        "avg_building_year", "energy_efficiency", "population_growth_pct",
+        "gini_coefficient", "seniors_alone_pct", "cars_per_household",
+        "avg_commute_min",
+    ]
+    gdf = _backfill_nulls(gdf, previous, backfill_columns)
 
     # --- Error report ---
     _print_error_report()
