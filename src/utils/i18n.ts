@@ -154,6 +154,11 @@ const translations: Record<string, Record<Lang, string>> = {
   'filter.empty': { fi: 'Lisää kriteereitä suodattaaksesi naapurustoja', en: 'Add criteria to filter neighborhoods' },
   'filter.show_results': { fi: 'Näytä tulokset', en: 'Show results' },
   'filter.hide_results': { fi: 'Piilota tulokset', en: 'Hide results' },
+  'filter.sort_by': { fi: 'Järjestä', en: 'Sort by' },
+  'filter.sort_best_match': { fi: 'Paras osuma', en: 'Best match' },
+  'filter.sort_name': { fi: 'Nimi', en: 'Name' },
+  'filter.sort_asc': { fi: '↑', en: '↑' },
+  'filter.sort_desc': { fi: '↓', en: '↓' },
 
   // Comparison panel
   'compare.title': { fi: 'Vertailu', en: 'Comparison' },
