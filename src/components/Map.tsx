@@ -6,6 +6,14 @@ import { buildFillColorExpression, type LayerId, getLayerById } from '../utils/c
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { useTheme } from '../hooks/useTheme';
 
+const BASEMAP_LIGHT = import.meta.env.VITE_BASEMAP_LIGHT_URL as string;
+const BASEMAP_DARK = import.meta.env.VITE_BASEMAP_DARK_URL as string;
+const MAP_CENTER_LNG = Number(import.meta.env.VITE_MAP_CENTER_LNG);
+const MAP_CENTER_LAT = Number(import.meta.env.VITE_MAP_CENTER_LAT);
+const MAP_ZOOM = Number(import.meta.env.VITE_MAP_ZOOM);
+const MAP_MIN_ZOOM = Number(import.meta.env.VITE_MAP_MIN_ZOOM);
+const MAP_MAX_ZOOM = Number(import.meta.env.VITE_MAP_MAX_ZOOM);
+
 interface MapProps {
   data: FeatureCollection | null;
   activeLayer: LayerId;
@@ -15,9 +23,7 @@ interface MapProps {
 }
 
 function makeStyle(theme: 'dark' | 'light'): maplibregl.StyleSpecification {
-  const tiles = theme === 'dark'
-    ? 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png'
-    : 'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png';
+  const tiles = theme === 'dark' ? BASEMAP_DARK : BASEMAP_LIGHT;
   return {
     version: 8,
     name: theme === 'dark' ? 'Dark' : 'Light',
@@ -59,10 +65,10 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: makeStyle(theme),
-      center: [24.94, 60.17],
-      zoom: 10.5,
-      minZoom: 8,
-      maxZoom: 16,
+      center: [MAP_CENTER_LNG, MAP_CENTER_LAT],
+      zoom: MAP_ZOOM,
+      minZoom: MAP_MIN_ZOOM,
+      maxZoom: MAP_MAX_ZOOM,
       attributionControl: false,
     });
 
@@ -84,9 +90,7 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
 
     const source = map.getSource('carto') as maplibregl.RasterTileSource | undefined;
     if (source) {
-      const tiles = theme === 'dark'
-        ? 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png'
-        : 'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png';
+      const tiles = theme === 'dark' ? BASEMAP_DARK : BASEMAP_LIGHT;
       (source as any).setTiles([tiles]);
     }
   }, [theme]);
