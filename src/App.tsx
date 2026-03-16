@@ -209,7 +209,7 @@ const App: React.FC = () => {
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 4h13M3 8h9M3 12h5m4 0l4-4m0 0l4 4m-4-4v12" />
           </svg>
         </button>
-        <DonateButton />
+        <span className="hidden md:contents"><DonateButton /></span>
         <ThemeToggle />
         <button
           onClick={toggleLang}
