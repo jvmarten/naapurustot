@@ -39,7 +39,7 @@ export interface NeighborhoodProperties {
   property_price_sqm: number | null;
   transit_stop_density: number | null;
   air_quality_index: number | null;
-  [key: string]: any;
+  [key: string]: string | number | null;
 }
 
 export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string, number> {

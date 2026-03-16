@@ -86,12 +86,14 @@ export const SearchBar: React.FC<SearchBarProps> = ({ data, onSelect }) => {
   function getCenter(feature: GeoJSON.Feature): [number, number] {
     const geom = feature.geometry;
     if (geom.type === 'Point') return geom.coordinates as [number, number];
-    const coords: number[][] = [];
-    function extract(c: any) {
-      if (typeof c[0] === 'number') coords.push(c);
-      else c.forEach(extract);
+    const coords: GeoJSON.Position[] = [];
+    function extract(c: GeoJSON.Position | GeoJSON.Position[] | GeoJSON.Position[][] | GeoJSON.Position[][][]) {
+      if (typeof c[0] === 'number') coords.push(c as GeoJSON.Position);
+      else (c as GeoJSON.Position[][]).forEach(extract);
     }
-    extract((geom as any).coordinates);
+    if ('coordinates' in geom) {
+      extract(geom.coordinates as GeoJSON.Position[]);
+    }
     const lng = coords.reduce((s, c) => s + c[0], 0) / coords.length;
     const lat = coords.reduce((s, c) => s + c[1], 0) / coords.length;
     return [lng, lat];
