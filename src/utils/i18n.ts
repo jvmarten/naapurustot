@@ -74,6 +74,11 @@ const translations: Record<string, Record<Lang, string>> = {
   'error.retry': { fi: 'Yritä uudelleen', en: 'Try again' },
   'loading.title': { fi: 'Ladataan aluetietoja…', en: 'Loading neighborhood data…' },
 
+  'ranking.title': { fi: 'Alueet järjestyksessä', en: 'Neighborhood Ranking' },
+  'ranking.no_data': { fi: 'Ei tietoja', en: 'No data available' },
+  'ranking.areas': { fi: 'aluetta', en: 'areas' },
+  'ranking.toggle': { fi: 'Ranking', en: 'Ranking' },
+
   'footer.attribution': {
     fi: 'Aineisto: Tilastokeskus, HSL, HSY (CC BY 4.0)',
     en: 'Data: Statistics Finland, HSL, HSY (CC BY 4.0)',
