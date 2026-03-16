@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import { t } from '../utils/i18n';
 
-// Replace with your Lightning Address (e.g., yourname@getalby.com)
-const LIGHTNING_ADDRESS = 'naapurustot@getalby.com';
+const BOLT12_OFFER =
+  'lno1zrxq8pjw7qjlm68mtp7e3yvxee4y5xrgjhhyf2fxhlphpckrvevh50u0qw9y07wzkqlq5yek7g53xhyrjfsqhyz7dygu0srtfagh8jyws0umjqszkt849v9ad3afkf8x6kllvg7ch9detyux8u8hg7f80wdurc8s4ycqqv622dhrd8t0xcehufgj7ckgfw80fhmlfqs8j2nvzdwf04g9x3s5syxkcfwkearq326z8xkcklcmztsyvw5sqd97wsh2sgl7vtng75japckt6dcmanjcssdp96c052j3cfxa8r68wqqs6q8rgxe6m4jgnusl2348zng7ky';
 
 export const DonateButton: React.FC = () => {
   const [open, setOpen] = useState(false);
@@ -22,13 +23,12 @@ export const DonateButton: React.FC = () => {
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(LIGHTNING_ADDRESS);
+      await navigator.clipboard.writeText(BOLT12_OFFER);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Fallback for older browsers
       const input = document.createElement('input');
-      input.value = LIGHTNING_ADDRESS;
+      input.value = BOLT12_OFFER;
       document.body.appendChild(input);
       input.select();
       document.execCommand('copy');
@@ -50,16 +50,17 @@ export const DonateButton: React.FC = () => {
         aria-label={t('donate.button')}
         title={t('donate.button')}
       >
-        {/* Lightning bolt icon */}
         <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
         </svg>
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-72 rounded-xl bg-white dark:bg-surface-900
-                        border border-surface-200 dark:border-surface-700/40 shadow-2xl backdrop-blur-md
-                        p-4 z-50">
+        <div
+          className="absolute right-0 top-full mt-2 w-72 rounded-xl bg-white dark:bg-surface-900
+                     border border-surface-200 dark:border-surface-700/40 shadow-2xl backdrop-blur-md
+                     p-4 z-50"
+        >
           <h3 className="text-sm font-semibold text-surface-800 dark:text-white mb-1">
             {t('donate.title')}
           </h3>
@@ -67,13 +68,24 @@ export const DonateButton: React.FC = () => {
             {t('donate.description')}
           </p>
 
-          {/* Lightning Address */}
+          {/* QR Code */}
+          <div className="flex justify-center mb-3">
+            <div className="bg-white p-2 rounded-lg">
+              <QRCodeSVG
+                value={BOLT12_OFFER}
+                size={180}
+                level="L"
+              />
+            </div>
+          </div>
+
+          {/* Copyable offer string */}
           <div className="flex items-center gap-2 bg-surface-50 dark:bg-surface-800 rounded-lg p-2.5 mb-2">
             <svg className="w-4 h-4 text-amber-500 shrink-0" viewBox="0 0 24 24" fill="currentColor">
               <path d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
-            <span className="text-xs font-mono text-surface-700 dark:text-surface-300 truncate flex-1">
-              {LIGHTNING_ADDRESS}
+            <span className="text-[10px] font-mono text-surface-700 dark:text-surface-300 truncate flex-1">
+              {BOLT12_OFFER}
             </span>
             <button
               onClick={handleCopy}
