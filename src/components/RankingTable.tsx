@@ -100,13 +100,12 @@ export const RankingTable: React.FC<RankingTableProps> = ({ data, activeLayer, o
         <div className="flex items-center gap-1">
           <button
             onClick={() => setReversed(r => !r)}
-            className="px-2 py-1 rounded-lg text-[10px] font-medium transition-colors
+            className="p-1.5 rounded-lg transition-colors
                        bg-surface-100 dark:bg-surface-800/60 text-surface-600 dark:text-surface-300
                        hover:bg-surface-200 dark:hover:bg-surface-700/60"
             aria-label={reversed ? t('ranking.worst_first') : t('ranking.best_first')}
           >
-            {reversed ? t('ranking.worst_first') : t('ranking.best_first')}
-            <svg className={`inline-block w-3 h-3 ml-0.5 transition-transform ${reversed ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className={`w-4 h-4 transition-transform ${reversed ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
             </svg>
           </button>
