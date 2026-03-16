@@ -10,6 +10,7 @@ interface PanelProps {
   metroAverages: Record<string, number>;
   onClose: () => void;
   onPin?: (props: NeighborhoodProperties) => void;
+  onUnpin?: (pno: string) => void;
   isPinned?: boolean;
   pinCount?: number;
 }
@@ -78,7 +79,7 @@ const PEEK_HEIGHT = 140;
 const HALF_RATIO = 0.5;
 const FULL_RATIO = 0.92;
 
-export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages: avg, onClose, onPin, isPinned, pinCount = 0 }) => {
+export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0 }) => {
   const eduTotal = [d.ko_yl_kork, d.ko_al_kork, d.ko_ammat, d.ko_perus]
     .filter((v) => v != null && v > 0)
     .reduce((a, b) => a! + b!, 0) || 1;
@@ -148,11 +149,11 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
 
   const pinButton = onPin && (
     <button
-      onClick={() => onPin(d)}
-      disabled={isPinned || pinCount >= 3}
+      onClick={() => isPinned && onUnpin ? onUnpin(d.pno) : onPin(d)}
+      disabled={!isPinned && pinCount >= 3}
       className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors min-h-[44px] md:min-h-0 ${
         isPinned
-          ? 'bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 cursor-default'
+          ? 'bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 hover:bg-rose-100 hover:text-rose-600 dark:hover:bg-rose-900/30 dark:hover:text-rose-400'
           : pinCount >= 3
             ? 'bg-surface-100 dark:bg-surface-800 text-surface-400 cursor-not-allowed'
             : 'bg-brand-500 hover:bg-brand-600 text-white'
