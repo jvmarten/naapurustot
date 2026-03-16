@@ -213,7 +213,7 @@ export const LAYERS: LayerConfig[] = [
     property: 'air_quality_index',
     unit: '',
     colors: ['#1a9850', '#66bd63', '#a6d96a', '#d9ef8b', '#fee08b', '#fdae61', '#f46d43', '#d73027'],
-    stops: [1, 1.5, 2, 2.5, 3, 3.5, 4, 5],
+    stops: [18, 22, 26, 30, 34, 38, 42, 48],
     format: age,
   },
   {
