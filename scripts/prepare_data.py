@@ -50,16 +50,26 @@ HSY_AIR_QUALITY_URL = (
 
 
 def safe_val(v):
-    """Return None if value is suppressed (-1) or missing."""
+    """Return None if value is suppressed (-1), missing, or NaN."""
     if v is None or v == -1 or v == -1.0:
         return None
+    try:
+        if v != v:  # NaN check (works for numpy and float NaN)
+            return None
+    except (TypeError, ValueError):
+        pass
     return v
 
 
 def safe_div(a, b):
-    """Safe division — returns None if either operand is None/zero."""
+    """Safe division — returns None if either operand is None/zero/NaN."""
     if a is None or b is None or b == 0:
         return None
+    try:
+        if a != a or b != b:  # NaN check
+            return None
+    except (TypeError, ValueError):
+        pass
     return round(a / b * 100, 1)
 
 
