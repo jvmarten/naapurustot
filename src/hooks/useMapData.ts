@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import type { FeatureCollection } from 'geojson';
 import { computeMetroAverages } from '../utils/metrics';
 import { computeQualityIndices } from '../utils/qualityIndex';
+import { filterSmallIslands } from '../utils/geometryFilter';
 
 interface MapDataState {
   data: FeatureCollection | null;
@@ -25,6 +26,7 @@ export function useMapData(): MapDataState {
         return res.json();
       })
       .then((geojson: FeatureCollection) => {
+        geojson.features = filterSmallIslands(geojson.features);
         computeQualityIndices(geojson.features);
         const metroAverages = computeMetroAverages(geojson.features);
         setState({ data: geojson, loading: false, error: null, metroAverages });
