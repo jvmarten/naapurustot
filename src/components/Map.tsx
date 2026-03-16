@@ -91,7 +91,7 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
     const source = map.getSource('carto') as maplibregl.RasterTileSource | undefined;
     if (source) {
       const tiles = theme === 'dark' ? BASEMAP_DARK : BASEMAP_LIGHT;
-      (source as any).setTiles([tiles]);
+      source.setTiles([tiles]);
     }
   }, [theme]);
 
@@ -120,7 +120,7 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
         type: 'fill',
         source: SOURCE_ID,
         paint: {
-          'fill-color': buildFillColorExpression(layer) as any,
+          'fill-color': buildFillColorExpression(layer),
           'fill-color-transition': { duration: 300, delay: 0 },
           'fill-opacity': [
             'case',
@@ -168,7 +168,7 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
     if (!map.getLayer(FILL_LAYER)) return;
 
     const layer = getLayerById(activeLayer);
-    map.setPaintProperty(FILL_LAYER, 'fill-color', buildFillColorExpression(layer) as any);
+    map.setPaintProperty(FILL_LAYER, 'fill-color', buildFillColorExpression(layer));
   }, [activeLayer]);
 
   // Hover handler

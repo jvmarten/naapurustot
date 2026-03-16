@@ -1,3 +1,5 @@
+import type { ExpressionSpecification } from '@maplibre/maplibre-gl-style-spec';
+
 export type LayerId =
   | 'quality_index'
   | 'median_income'
@@ -205,8 +207,8 @@ export function getColorForValue(layer: LayerConfig, value: number | null | unde
   return layer.colors[0];
 }
 
-export function buildFillColorExpression(layer: LayerConfig): any[] {
-  const interpolation: any[] = ['interpolate', ['linear'], ['get', layer.property]];
+export function buildFillColorExpression(layer: LayerConfig): ExpressionSpecification {
+  const interpolation: (string | ExpressionSpecification | number)[] = ['interpolate', ['linear'], ['get', layer.property]];
   for (let i = 0; i < layer.stops.length; i++) {
     interpolation.push(layer.stops[i], layer.colors[i]);
   }
@@ -216,5 +218,5 @@ export function buildFillColorExpression(layer: LayerConfig): any[] {
     ['all', ['has', layer.property], ['!=', ['get', layer.property], null]],
     interpolation,
     '#d1d5db',
-  ];
+  ] as unknown as ExpressionSpecification;
 }

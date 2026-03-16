@@ -60,11 +60,11 @@ export function computeQualityIndices(features: GeoJSON.Feature[]): void {
     ].filter((s) => s.value != null) as { value: number; weight: number }[];
 
     if (scores.length === 0) {
-      (f.properties as any).quality_index = null;
+      (f.properties as NeighborhoodProperties).quality_index = null;
     } else {
       const totalWeight = scores.reduce((sum, s) => sum + s.weight, 0);
       const weighted = scores.reduce((sum, s) => sum + s.value * s.weight, 0);
-      (f.properties as any).quality_index = Math.round(weighted / totalWeight);
+      (f.properties as NeighborhoodProperties).quality_index = Math.round(weighted / totalWeight);
     }
   }
 }
