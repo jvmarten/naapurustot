@@ -17,7 +17,8 @@ export type LayerId =
   | 'child_ratio'
   | 'property_price'
   | 'transit_access'
-  | 'air_quality';
+  | 'air_quality'
+  | 'crime_rate';
 
 export interface LayerConfig {
   id: LayerId;
@@ -36,6 +37,7 @@ const density = (v: number) => `${v.toLocaleString('fi-FI')} /km²`;
 const sqm = (v: number) => `${v.toFixed(1)} m²`;
 const euroSqm = (v: number) => `${v.toLocaleString('fi-FI')} €/m²`;
 const stops = (v: number) => `${v.toFixed(1)} /km²`;
+const perThousand = (v: number) => `${v.toFixed(1)} /1000`;
 
 export const LAYERS: LayerConfig[] = [
   {
@@ -192,6 +194,15 @@ export const LAYERS: LayerConfig[] = [
     colors: ['#1a9850', '#66bd63', '#a6d96a', '#d9ef8b', '#fee08b', '#fdae61', '#f46d43', '#d73027'],
     stops: [1, 1.5, 2, 2.5, 3, 3.5, 4, 5],
     format: age,
+  },
+  {
+    id: 'crime_rate',
+    labelKey: 'layer.crime_rate',
+    property: 'crime_index',
+    unit: '/1000',
+    colors: ['#f7fcf5', '#d5efcf', '#a1d99b', '#74c476', '#f9d057', '#fd8d3c', '#e5533d', '#b00026'],
+    stops: [20, 35, 50, 65, 80, 100, 130, 170],
+    format: perThousand,
   },
 ];
 

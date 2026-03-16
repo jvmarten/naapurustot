@@ -23,6 +23,7 @@ const translations: Record<string, Record<Lang, string>> = {
   'layer.property_price': { fi: 'Asuntohinnat', en: 'Property Prices' },
   'layer.transit_access': { fi: 'Joukkoliikenne', en: 'Transit Access' },
   'layer.air_quality': { fi: 'Ilmanlaatu', en: 'Air Quality' },
+  'layer.crime_rate': { fi: 'Rikollisuus', en: 'Crime Rate' },
   'layer.noise': { fi: 'Melutaso', en: 'Noise Level' },
 
   // Panel labels
@@ -59,6 +60,7 @@ const translations: Record<string, Record<Lang, string>> = {
   'panel.property_price': { fi: 'Asuntohinta (€/m²)', en: 'Property Price (€/m²)' },
   'panel.transit_access': { fi: 'Pysäkkitiheys', en: 'Transit Stop Density' },
   'panel.air_quality': { fi: 'Ilmanlaatu', en: 'Air Quality Index' },
+  'panel.crime_rate': { fi: 'Rikoksia / 1000 as.', en: 'Crimes / 1000 res.' },
 
   // Layer group headers
   'layers.title': { fi: 'Aineistot', en: 'Data Layers' },
@@ -85,8 +87,8 @@ const translations: Record<string, Record<Lang, string>> = {
   'export.value': { fi: 'Arvo', en: 'Value' },
 
   'footer.attribution': {
-    fi: 'Aineisto: Tilastokeskus, HSL, HSY (CC BY 4.0)',
-    en: 'Data: Statistics Finland, HSL, HSY (CC BY 4.0)',
+    fi: 'Aineisto: Tilastokeskus, HSL, HSY, Poliisi (CC BY 4.0)',
+    en: 'Data: Statistics Finland, HSL, HSY, Police (CC BY 4.0)',
   },
 
   // Comparison panel

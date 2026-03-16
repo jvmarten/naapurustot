@@ -40,6 +40,10 @@ LANG_URL = (
 # Source: Statistics Finland via OKM (Ministry of Education), 2020 data
 FOREIGN_LANG_FILE = Path(__file__).parent / "foreign_language_pct.json"
 
+# Postal-code-level crime index (reported crimes per 1,000 residents)
+# Source: Finnish Police (Poliisi) open data
+CRIME_INDEX_FILE = Path(__file__).parent / "crime_index.json"
+
 # Statistics Finland apartment price data by postal code — PxWeb API v1
 PROPERTY_PRICE_URL = (
     "https://pxdata.stat.fi/PxWeb/api/v1/en/"
@@ -344,6 +348,40 @@ def join_foreign_language(gdf, lang_data):
     return gdf
 
 
+def load_crime_index():
+    """Load postal-code-level crime index data (crimes per 1,000 residents).
+
+    Source: Finnish Police (Poliisi) open data.
+    """
+    print("Loading crime index data...")
+
+    if CRIME_INDEX_FILE.exists():
+        with open(CRIME_INDEX_FILE) as f:
+            data = json.load(f)
+        print(f"  Loaded {len(data)} postal codes from {CRIME_INDEX_FILE.name}")
+        return data
+
+    print(f"  Warning: {CRIME_INDEX_FILE} not found")
+    return {}
+
+
+def join_crime_index(gdf, crime_data):
+    """Apply crime index values to postal codes."""
+    if not crime_data:
+        gdf["crime_index"] = None
+        return gdf
+
+    print("Joining crime index data...")
+    for idx, row in gdf.iterrows():
+        pno = row.get("postinumeroalue", "") or row.get("pno", "")
+        val = crime_data.get(pno)
+        gdf.at[idx, "crime_index"] = float(val) if val is not None else None
+
+    matched = gdf["crime_index"].notna().sum()
+    print(f"  Matched {matched}/{len(gdf)} postal codes")
+    return gdf
+
+
 def clean_properties(gdf):
     """Replace -1 suppressed values with None in key fields."""
     key_fields = [
@@ -621,6 +659,9 @@ def main():
 
     lang_data = load_foreign_language()
     gdf = join_foreign_language(gdf, lang_data)
+
+    crime_data = load_crime_index()
+    gdf = join_crime_index(gdf, crime_data)
 
     # --- Phase 2: External data sources (graceful fallback if APIs unavailable) ---
     _rate_limit()
