@@ -74,6 +74,11 @@ const translations: Record<string, Record<Lang, string>> = {
   'error.retry': { fi: 'Yritä uudelleen', en: 'Try again' },
   'loading.title': { fi: 'Ladataan aluetietoja…', en: 'Loading neighborhood data…' },
 
+  'export.csv': { fi: 'Lataa CSV', en: 'Export CSV' },
+  'export.pdf': { fi: 'Lataa PDF', en: 'Export PDF' },
+  'export.field': { fi: 'Kenttä', en: 'Field' },
+  'export.value': { fi: 'Arvo', en: 'Value' },
+
   'footer.attribution': {
     fi: 'Aineisto: Tilastokeskus, HSL, HSY (CC BY 4.0)',
     en: 'Data: Statistics Finland, HSL, HSY (CC BY 4.0)',
