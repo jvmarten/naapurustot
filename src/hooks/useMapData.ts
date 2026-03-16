@@ -1,8 +1,12 @@
 import { useState, useEffect } from 'react';
 import type { FeatureCollection } from 'geojson';
+import { feature } from 'topojson-client';
+import type { Topology } from 'topojson-specification';
 import { computeMetroAverages } from '../utils/metrics';
 import { computeQualityIndices } from '../utils/qualityIndex';
 import { filterSmallIslands } from '../utils/geometryFilter';
+
+import topoUrl from '../data/metro_neighborhoods.topojson?url';
 
 interface MapDataState {
   data: FeatureCollection | null;
@@ -23,12 +27,14 @@ export function useMapData(): MapDataState {
 
   useEffect(() => {
     setState({ data: null, loading: true, error: null, metroAverages: {} });
-    fetch(import.meta.env.VITE_DATA_PATH as string)
+    fetch(topoUrl)
       .then((res) => {
         if (!res.ok) throw new Error(`Failed to load data: ${res.status}`);
         return res.json();
       })
-      .then((geojson: FeatureCollection) => {
+      .then((topo: Topology) => {
+        const objectName = Object.keys(topo.objects)[0];
+        const geojson = feature(topo, topo.objects[objectName]) as FeatureCollection;
         geojson.features = filterSmallIslands(geojson.features);
         computeQualityIndices(geojson.features);
         const metroAverages = computeMetroAverages(geojson.features);
