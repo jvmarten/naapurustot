@@ -20,6 +20,7 @@ interface MapProps {
   onHover: (props: NeighborhoodProperties | null, x: number, y: number) => void;
   onClick: (props: NeighborhoodProperties) => void;
   flyTo: [number, number] | null;
+  pinnedPnos?: string[];
 }
 
 function makeStyle(theme: 'dark' | 'light'): maplibregl.StyleSpecification {
@@ -52,7 +53,9 @@ const FILL_LAYER = 'neighborhoods-fill';
 const LINE_LAYER = 'neighborhoods-line';
 const HIGHLIGHT_LAYER = 'neighborhoods-highlight';
 
-export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, flyTo }) => {
+const PINNED_LAYER = 'neighborhoods-pinned';
+
+export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, flyTo, pinnedPnos = [] }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const hoveredIdRef = useRef<string | null>(null);
@@ -234,6 +237,42 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
     if (!mapRef.current || !flyTo) return;
     mapRef.current.flyTo({ center: flyTo, zoom: 13.5, duration: 1200 });
   }, [flyTo]);
+
+  // Highlight pinned neighborhoods
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !data) return;
+
+    const apply = () => {
+      // Remove old pinned layer if exists
+      if (map.getLayer(PINNED_LAYER)) map.removeLayer(PINNED_LAYER);
+
+      if (pinnedPnos.length === 0) return;
+
+      // Build a filter for pinned features
+      const filter: unknown[] = ['in', ['get', 'pno'], ['literal', pinnedPnos]];
+
+      map.addLayer({
+        id: PINNED_LAYER,
+        type: 'line',
+        source: SOURCE_ID,
+        filter: filter as maplibregl.ExpressionSpecification,
+        paint: {
+          'line-color': theme === 'dark' ? '#facc15' : '#d97706',
+          'line-width': 3,
+          'line-opacity': 1,
+        },
+      });
+    };
+
+    if (map.isStyleLoaded() && map.getSource(SOURCE_ID)) {
+      apply();
+    }
+
+    return () => {
+      if (map.getLayer(PINNED_LAYER)) map.removeLayer(PINNED_LAYER);
+    };
+  }, [pinnedPnos, data, theme]);
 
   return <div ref={containerRef} className="absolute inset-0" />;
 };

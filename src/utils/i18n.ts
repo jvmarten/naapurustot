@@ -79,10 +79,23 @@ const translations: Record<string, Record<Lang, string>> = {
   'ranking.areas': { fi: 'aluetta', en: 'areas' },
   'ranking.toggle': { fi: 'Ranking', en: 'Ranking' },
 
+  'export.csv': { fi: 'Lataa CSV', en: 'Export CSV' },
+  'export.pdf': { fi: 'Lataa PDF', en: 'Export PDF' },
+  'export.field': { fi: 'Kenttä', en: 'Field' },
+  'export.value': { fi: 'Arvo', en: 'Value' },
+
   'footer.attribution': {
     fi: 'Aineisto: Tilastokeskus, HSL, HSY (CC BY 4.0)',
     en: 'Data: Statistics Finland, HSL, HSY (CC BY 4.0)',
   },
+
+  // Comparison panel
+  'compare.title': { fi: 'Vertailu', en: 'Comparison' },
+  'compare.pin': { fi: 'Lisää vertailuun', en: 'Add to comparison' },
+  'compare.pinned': { fi: 'Vertailussa', en: 'Pinned' },
+  'compare.clear': { fi: 'Tyhjennä', en: 'Clear all' },
+  'compare.max': { fi: 'Enintään 3 aluetta', en: 'Max 3 areas' },
+  'compare.best': { fi: 'Paras', en: 'Best' },
 };
 
 let currentLang: Lang = 'fi';
