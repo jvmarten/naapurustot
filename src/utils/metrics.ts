@@ -21,6 +21,7 @@ export interface NeighborhoodProperties {
   higher_education_rate: number | null;
   pensioner_share: number | null;
   foreign_language_pct: number | null;
+  quality_index: number | null;
   [key: string]: any;
 }
 

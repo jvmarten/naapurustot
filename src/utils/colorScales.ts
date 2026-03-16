@@ -1,4 +1,5 @@
 export type LayerId =
+  | 'quality_index'
   | 'median_income'
   | 'unemployment'
   | 'education'
@@ -21,6 +22,15 @@ const pct = (v: number) => `${v.toFixed(1)} %`;
 const age = (v: number) => `${v.toFixed(1)}`;
 
 export const LAYERS: LayerConfig[] = [
+  {
+    id: 'quality_index',
+    labelKey: 'layer.quality_index',
+    property: 'quality_index',
+    unit: '',
+    colors: ['#ef4444', '#f97316', '#eab308', '#22c55e', '#a855f7'],
+    stops: [0, 25, 50, 75, 100],
+    format: (v: number) => `${v.toFixed(0)} / 100`,
+  },
   {
     id: 'median_income',
     labelKey: 'layer.median_income',

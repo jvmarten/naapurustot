@@ -125,6 +125,7 @@ const App: React.FC = () => {
           y={tooltip.y}
           name={tooltip.props.nimi || tooltip.props.pno}
           value={tooltip.props[
+            activeLayer === 'quality_index' ? 'quality_index' :
             activeLayer === 'median_income' ? 'hr_mtu' :
             activeLayer === 'unemployment' ? 'unemployment_rate' :
             activeLayer === 'education' ? 'higher_education_rate' :

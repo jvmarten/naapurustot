@@ -1,7 +1,8 @@
 import React from 'react';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { formatNumber, formatEuro, formatPct, formatDiff, diffColor } from '../utils/formatting';
-import { t } from '../utils/i18n';
+import { t, getLang } from '../utils/i18n';
+import { getQualityCategory, QUALITY_CATEGORIES } from '../utils/qualityIndex';
 
 interface PanelProps {
   data: NeighborhoodProperties;
@@ -74,6 +75,45 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
       </div>
 
       <div className="px-6 py-4 space-y-6">
+        {/* Quality Index */}
+        {d.quality_index != null && (() => {
+          const qi = d.quality_index!;
+          const cat = getQualityCategory(qi);
+          const lang = getLang();
+          return (
+            <div className="rounded-xl bg-surface-100 dark:bg-surface-900/60 p-4">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400 mb-3">
+                {t('panel.quality_index')}
+              </h3>
+              <div className="flex items-center gap-3 mb-3">
+                <div
+                  className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm"
+                  style={{ backgroundColor: cat?.color ?? '#6b7280' }}
+                >
+                  {qi}
+                </div>
+                <span className="text-surface-900 dark:text-white font-semibold text-lg">
+                  {cat?.label[lang] ?? '—'}
+                </span>
+                <span className="text-surface-500 dark:text-surface-400 text-sm">
+                  ({cat?.min}–{cat?.max})
+                </span>
+              </div>
+              <div className="flex gap-1">
+                {QUALITY_CATEGORIES.map((c) => (
+                  <div key={c.min} className="flex-1 flex flex-col items-center gap-1">
+                    <div
+                      className={`w-full h-2 rounded-full ${qi >= c.min && qi <= c.max ? 'ring-2 ring-white dark:ring-surface-300' : ''}`}
+                      style={{ backgroundColor: c.color, opacity: qi >= c.min && qi <= c.max ? 1 : 0.35 }}
+                    />
+                    <span className="text-[9px] text-surface-500 dark:text-surface-400">{c.label[lang]}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Key stats */}
         <div>
           <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
