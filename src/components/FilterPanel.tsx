@@ -220,7 +220,7 @@ const AddFilterDropdown: React.FC<{
       </button>
 
       {open && (
-        <div className="absolute left-0 right-0 bottom-full mb-1 z-50 max-h-52 overflow-y-auto
+        <div className="absolute left-0 right-0 top-full mt-1 z-50 max-h-52 overflow-y-auto
                         rounded-lg bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700/40
                         shadow-xl">
           {available.map((layer) => (
@@ -420,7 +420,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
       {/* Desktop: panel on left side */}
       <div className="hidden md:flex absolute top-14 left-4 z-20 w-80 max-h-[calc(100vh-7rem)] flex-col
                       rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md
-                      border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden">
+                      border border-surface-200 dark:border-surface-700/40 shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-surface-200 dark:border-surface-700/40 flex-shrink-0">
           <div>
@@ -440,18 +440,20 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
         </div>
 
         {/* Filter criteria */}
-        <div className="flex-shrink-0 max-h-[40vh] overflow-y-auto">
-          {filters.map((criterion, i) => (
-            <FilterRow
-              key={criterion.layerId}
-              criterion={criterion}
-              onChange={(c) => handleUpdateFilter(i, c)}
-              onRemove={() => handleRemoveFilter(i)}
-            />
-          ))}
-          <div className="p-2">
-            <AddFilterDropdown filters={filters} onAdd={handleAddFilter} />
+        {filters.length > 0 && (
+          <div className="flex-shrink-0 max-h-[40vh] overflow-y-auto">
+            {filters.map((criterion, i) => (
+              <FilterRow
+                key={criterion.layerId}
+                criterion={criterion}
+                onChange={(c) => handleUpdateFilter(i, c)}
+                onRemove={() => handleRemoveFilter(i)}
+              />
+            ))}
           </div>
+        )}
+        <div className="flex-shrink-0 p-2">
+          <AddFilterDropdown filters={filters} onAdd={handleAddFilter} />
         </div>
 
         {/* Divider + result count */}
@@ -486,7 +488,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
                      bg-white/95 dark:bg-surface-950/95 backdrop-blur-xl
                      border-t border-surface-200 dark:border-surface-800/50
                      shadow-[0_-4px_30px_rgba(0,0,0,0.15)] rounded-t-2xl
-                     max-h-[85vh] overflow-hidden flex flex-col"
+                     max-h-[85vh] flex flex-col"
           style={{
             transform: `translateY(${dragOffset}px)`,
             transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
@@ -517,18 +519,20 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
           </div>
 
           {/* Filter criteria */}
-          <div className="flex-shrink-0 max-h-[35vh] overflow-y-auto">
-            {filters.map((criterion, i) => (
-              <FilterRow
-                key={criterion.layerId}
-                criterion={criterion}
-                onChange={(c) => handleUpdateFilter(i, c)}
-                onRemove={() => handleRemoveFilter(i)}
-              />
-            ))}
-            <div className="p-2">
-              <AddFilterDropdown filters={filters} onAdd={handleAddFilter} />
+          {filters.length > 0 && (
+            <div className="flex-shrink-0 max-h-[35vh] overflow-y-auto">
+              {filters.map((criterion, i) => (
+                <FilterRow
+                  key={criterion.layerId}
+                  criterion={criterion}
+                  onChange={(c) => handleUpdateFilter(i, c)}
+                  onRemove={() => handleRemoveFilter(i)}
+                />
+              ))}
             </div>
+          )}
+          <div className="flex-shrink-0 p-2">
+            <AddFilterDropdown filters={filters} onAdd={handleAddFilter} />
           </div>
 
           {/* Results */}
