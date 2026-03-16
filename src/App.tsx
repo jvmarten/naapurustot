@@ -192,6 +192,7 @@ const App: React.FC = () => {
           metroAverages={metroAverages}
           onClose={deselect}
           onPin={pin}
+          onUnpin={unpin}
           isPinned={pinned.some((p) => p.pno === selected.pno)}
           pinCount={pinned.length}
         />
