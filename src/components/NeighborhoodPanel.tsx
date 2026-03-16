@@ -8,6 +8,9 @@ interface PanelProps {
   data: NeighborhoodProperties;
   metroAverages: Record<string, number>;
   onClose: () => void;
+  onPin?: (props: NeighborhoodProperties) => void;
+  isPinned?: boolean;
+  pinCount?: number;
 }
 
 const StatRow: React.FC<{
@@ -68,7 +71,7 @@ const formatStopDensity = (v: number | null | undefined): string => {
   return `${v.toFixed(1)} /km²`;
 };
 
-export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages: avg, onClose }) => {
+export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages: avg, onClose, onPin, isPinned, pinCount = 0 }) => {
   const eduTotal = [d.ko_yl_kork, d.ko_al_kork, d.ko_ammat, d.ko_perus]
     .filter((v) => v != null && v > 0)
     .reduce((a, b) => a! + b!, 0) || 1;
@@ -83,14 +86,32 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             <h2 className="text-xl font-display font-bold text-surface-900 dark:text-white">{d.nimi}</h2>
             <p className="text-surface-500 dark:text-surface-400 text-sm mt-0.5">{d.pno}</p>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-surface-400 hover:text-surface-900 dark:hover:text-white"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-1">
+            {onPin && (
+              <button
+                onClick={() => onPin(d)}
+                disabled={isPinned || pinCount >= 3}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                  isPinned
+                    ? 'bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 cursor-default'
+                    : pinCount >= 3
+                      ? 'bg-surface-100 dark:bg-surface-800 text-surface-400 cursor-not-allowed'
+                      : 'bg-brand-500 hover:bg-brand-600 text-white'
+                }`}
+                title={isPinned ? t('compare.pinned') : pinCount >= 3 ? t('compare.max') : t('compare.pin')}
+              >
+                {isPinned ? t('compare.pinned') : t('compare.pin')}
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-surface-400 hover:text-surface-900 dark:hover:text-white"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
 
