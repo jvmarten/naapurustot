@@ -47,7 +47,6 @@ export const RankingTable: React.FC<RankingTableProps> = ({ data, activeLayer, o
 
     const property = layer.property;
     const bestFirst = !LOWER_IS_BETTER.has(activeLayer);
-    const descending = reversed ? !bestFirst : bestFirst;
 
     const entries: { feature: GeoJSON.Feature; value: number }[] = [];
     for (const f of data.features) {
@@ -58,7 +57,8 @@ export const RankingTable: React.FC<RankingTableProps> = ({ data, activeLayer, o
       }
     }
 
-    entries.sort((a, b) => descending ? b.value - a.value : a.value - b.value);
+    // Always sort "best first" to assign stable ranks
+    entries.sort((a, b) => bestFirst ? b.value - a.value : a.value - b.value);
 
     let mn = Infinity;
     let mx = -Infinity;
@@ -74,6 +74,9 @@ export const RankingTable: React.FC<RankingTableProps> = ({ data, activeLayer, o
       value: e.value,
       center: getCenter(e.feature),
     }));
+
+    // Reverse display order if toggled, but keep rank numbers stable
+    if (reversed) ranked.reverse();
 
     return { items: ranked, minVal: mn === Infinity ? 0 : mn, maxVal: mx === -Infinity ? 1 : mx };
   }, [data, activeLayer, layer.property, reversed]);
