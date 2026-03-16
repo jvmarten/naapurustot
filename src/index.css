@@ -16,19 +16,19 @@ body,
   overflow: hidden;
 }
 
-/* MapLibre overrides for dark theme */
-.maplibregl-ctrl-attrib {
+/* MapLibre overrides — dark mode */
+.dark .maplibregl-ctrl-attrib {
   background-color: rgba(15, 23, 42, 0.7) !important;
   backdrop-filter: blur(8px);
   border-radius: 8px !important;
   font-size: 10px !important;
 }
 
-.maplibregl-ctrl-attrib a {
+.dark .maplibregl-ctrl-attrib a {
   color: #94a3b8 !important;
 }
 
-.maplibregl-ctrl-group {
+.dark .maplibregl-ctrl-group {
   background-color: rgba(15, 23, 42, 0.9) !important;
   backdrop-filter: blur(8px);
   border: 1px solid rgba(51, 65, 85, 0.4) !important;
@@ -36,19 +36,65 @@ body,
   overflow: hidden;
 }
 
-.maplibregl-ctrl-group button {
+.dark .maplibregl-ctrl-group button {
   border-color: rgba(51, 65, 85, 0.4) !important;
 }
 
-.maplibregl-ctrl-group button:hover {
+.dark .maplibregl-ctrl-group button:hover {
   background-color: rgba(30, 41, 59, 0.8) !important;
 }
 
-.maplibregl-ctrl-group button .maplibregl-ctrl-icon {
+.dark .maplibregl-ctrl-group button .maplibregl-ctrl-icon {
   filter: invert(1) brightness(0.8);
 }
 
-/* Custom scrollbar */
+/* MapLibre overrides — light mode */
+:not(.dark) .maplibregl-ctrl-attrib {
+  background-color: rgba(255, 255, 255, 0.8) !important;
+  backdrop-filter: blur(8px);
+  border-radius: 8px !important;
+  font-size: 10px !important;
+}
+
+:not(.dark) .maplibregl-ctrl-attrib a {
+  color: #475569 !important;
+}
+
+:not(.dark) .maplibregl-ctrl-group {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(203, 213, 225, 0.6) !important;
+  border-radius: 12px !important;
+  overflow: hidden;
+}
+
+:not(.dark) .maplibregl-ctrl-group button {
+  border-color: rgba(203, 213, 225, 0.4) !important;
+}
+
+:not(.dark) .maplibregl-ctrl-group button:hover {
+  background-color: rgba(241, 245, 249, 0.8) !important;
+}
+
+/* Custom scrollbar — dark */
+.dark ::-webkit-scrollbar {
+  width: 6px;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 3px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* Custom scrollbar — light */
 ::-webkit-scrollbar {
   width: 6px;
 }
@@ -58,10 +104,10 @@ body,
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: #cbd5e1;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: #94a3b8;
 }

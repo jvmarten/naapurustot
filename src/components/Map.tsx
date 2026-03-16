@@ -4,6 +4,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import type { FeatureCollection } from 'geojson';
 import { buildFillColorExpression, type LayerId, getLayerById } from '../utils/colorScales';
 import type { NeighborhoodProperties } from '../utils/metrics';
+import { useTheme } from '../hooks/useTheme';
 
 interface MapProps {
   data: FeatureCollection | null;
@@ -13,27 +14,32 @@ interface MapProps {
   flyTo: [number, number] | null;
 }
 
-const DARK_STYLE: maplibregl.StyleSpecification = {
-  version: 8,
-  name: 'Dark',
-  sources: {
-    carto: {
-      type: 'raster',
-      tiles: ['https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png'],
-      tileSize: 256,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
+function makeStyle(theme: 'dark' | 'light'): maplibregl.StyleSpecification {
+  const tiles = theme === 'dark'
+    ? 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png'
+    : 'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png';
+  return {
+    version: 8,
+    name: theme === 'dark' ? 'Dark' : 'Light',
+    sources: {
+      carto: {
+        type: 'raster',
+        tiles: [tiles],
+        tileSize: 256,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
+      },
     },
-  },
-  layers: [
-    {
-      id: 'carto-tiles',
-      type: 'raster',
-      source: 'carto',
-      minzoom: 0,
-      maxzoom: 20,
-    },
-  ],
-};
+    layers: [
+      {
+        id: 'carto-tiles',
+        type: 'raster',
+        source: 'carto',
+        minzoom: 0,
+        maxzoom: 20,
+      },
+    ],
+  };
+}
 
 const SOURCE_ID = 'neighborhoods';
 const FILL_LAYER = 'neighborhoods-fill';
@@ -44,6 +50,7 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const hoveredIdRef = useRef<string | null>(null);
+  const { theme } = useTheme();
 
   // Initialize map
   useEffect(() => {
@@ -51,7 +58,7 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
 
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: DARK_STYLE,
+      style: makeStyle(theme),
       center: [24.94, 60.17],
       zoom: 10.5,
       minZoom: 8,
@@ -69,6 +76,20 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
       mapRef.current = null;
     };
   }, []);
+
+  // Switch basemap on theme change
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const source = map.getSource('carto') as maplibregl.RasterTileSource | undefined;
+    if (source) {
+      const tiles = theme === 'dark'
+        ? 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png'
+        : 'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png';
+      (source as any).setTiles([tiles]);
+    }
+  }, [theme]);
 
   // Add/update data source and layers
   useEffect(() => {
@@ -110,7 +131,7 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
         type: 'line',
         source: SOURCE_ID,
         paint: {
-          'line-color': '#1e293b',
+          'line-color': theme === 'dark' ? '#1e293b' : '#cbd5e1',
           'line-width': 0.8,
           'line-opacity': 0.6,
         },
@@ -121,7 +142,7 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
         type: 'line',
         source: SOURCE_ID,
         paint: {
-          'line-color': '#f8fafc',
+          'line-color': theme === 'dark' ? '#f8fafc' : '#0f172a',
           'line-width': 2.5,
           'line-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 1, 0],
         },
@@ -133,7 +154,7 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
     } else {
       map.on('load', addLayers);
     }
-  }, [data, activeLayer]);
+  }, [data, activeLayer, theme]);
 
   // Hover handler
   useEffect(() => {
