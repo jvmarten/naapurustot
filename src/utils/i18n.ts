@@ -80,6 +80,8 @@ const translations: Record<string, Record<Lang, string>> = {
   'ranking.no_data': { fi: 'Ei tietoja', en: 'No data available' },
   'ranking.areas': { fi: 'aluetta', en: 'areas' },
   'ranking.toggle': { fi: 'Ranking', en: 'Ranking' },
+  'ranking.best_first': { fi: 'Paras ensin', en: 'Best first' },
+  'ranking.worst_first': { fi: 'Heikoin ensin', en: 'Worst first' },
 
   'export.csv': { fi: 'Lataa CSV', en: 'Export CSV' },
   'export.pdf': { fi: 'Lataa PDF', en: 'Export PDF' },

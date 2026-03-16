@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import type { FeatureCollection } from 'geojson';
 import { type LayerId, getLayerById, getColorForValue } from '../utils/colorScales';
 import type { NeighborhoodProperties } from '../utils/metrics';
@@ -40,12 +40,14 @@ const LOWER_IS_BETTER: Set<LayerId> = new Set(['unemployment', 'air_quality']);
 
 export const RankingTable: React.FC<RankingTableProps> = ({ data, activeLayer, onSelect, onClose }) => {
   const layer = getLayerById(activeLayer);
+  const [reversed, setReversed] = useState(false);
 
   const { items, minVal, maxVal } = useMemo(() => {
     if (!data) return { items: [], minVal: 0, maxVal: 1 };
 
     const property = layer.property;
-    const descending = !LOWER_IS_BETTER.has(activeLayer);
+    const bestFirst = !LOWER_IS_BETTER.has(activeLayer);
+    const descending = reversed ? !bestFirst : bestFirst;
 
     const entries: { feature: GeoJSON.Feature; value: number }[] = [];
     for (const f of data.features) {
@@ -74,7 +76,7 @@ export const RankingTable: React.FC<RankingTableProps> = ({ data, activeLayer, o
     }));
 
     return { items: ranked, minVal: mn === Infinity ? 0 : mn, maxVal: mx === -Infinity ? 1 : mx };
-  }, [data, activeLayer, layer.property]);
+  }, [data, activeLayer, layer.property, reversed]);
 
   const range = maxVal - minVal || 1;
 
@@ -92,6 +94,19 @@ export const RankingTable: React.FC<RankingTableProps> = ({ data, activeLayer, o
             {t(layer.labelKey)}
           </p>
         </div>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setReversed(r => !r)}
+            className="px-2 py-1 rounded-lg text-[10px] font-medium transition-colors
+                       bg-surface-100 dark:bg-surface-800/60 text-surface-600 dark:text-surface-300
+                       hover:bg-surface-200 dark:hover:bg-surface-700/60"
+            aria-label={reversed ? t('ranking.worst_first') : t('ranking.best_first')}
+          >
+            {reversed ? t('ranking.worst_first') : t('ranking.best_first')}
+            <svg className={`inline-block w-3 h-3 ml-0.5 transition-transform ${reversed ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
         <button
           onClick={onClose}
           className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800/60 transition-colors"
@@ -101,6 +116,7 @@ export const RankingTable: React.FC<RankingTableProps> = ({ data, activeLayer, o
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
+        </div>
       </div>
 
       {/* List */}
