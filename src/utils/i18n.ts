@@ -66,6 +66,13 @@ const translations: Record<string, Record<Lang, string>> = {
   'layers.housing': { fi: 'Asuminen', en: 'Housing' },
   'layers.quality': { fi: 'Elämänlaatu', en: 'Quality of Life' },
 
+  'error.load_failed': {
+    fi: 'Aluetietojen lataaminen epäonnistui',
+    en: 'Failed to load neighborhood data',
+  },
+  'error.retry': { fi: 'Yritä uudelleen', en: 'Try again' },
+  'loading.title': { fi: 'Ladataan aluetietoja…', en: 'Loading neighborhood data…' },
+
   'footer.attribution': {
     fi: 'Aineisto: Tilastokeskus, HSL, HSY (CC BY 4.0)',
     en: 'Data: Statistics Finland, HSL, HSY (CC BY 4.0)',
