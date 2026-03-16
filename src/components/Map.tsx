@@ -137,6 +137,7 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
             0.85,
             0.65,
           ],
+          'fill-opacity-transition': { duration: 300, delay: 0 },
         },
       });
 
