@@ -1,0 +1,31 @@
+name: Auto-merge to main
+
+on:
+  push:
+    branches-ignore:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  merge-to-main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Merge into main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git checkout main
+          git merge --no-ff ${{ github.sha }} -m "Auto-merge ${GITHUB_REF_NAME} into main [skip ci]"
+          git push origin main
+
+      - name: Delete merged branch
+        if: success()
+        run: git push origin --delete "${{ github.ref_name }}" || true
