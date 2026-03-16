@@ -68,17 +68,17 @@ describe('Tooltip', () => {
 describe('LayerSelector', () => {
   it('renders all layer group headers', () => {
     render(<LayerSelector activeLayer="quality_index" onLayerChange={() => {}} />);
-    expect(screen.getByText('layers.quality')).toBeInTheDocument();
-    expect(screen.getByText('layers.demographics')).toBeInTheDocument();
-    expect(screen.getByText('layers.economy')).toBeInTheDocument();
-    expect(screen.getByText('layers.housing')).toBeInTheDocument();
+    expect(screen.getAllByText('layers.quality').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('layers.demographics').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('layers.economy').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('layers.housing').length).toBeGreaterThanOrEqual(1);
   });
 
   it('renders layer buttons', () => {
     render(<LayerSelector activeLayer="quality_index" onLayerChange={() => {}} />);
-    // Should have a button for each layer
+    // Should have buttons for layers (desktop + mobile + FAB + group toggles + close)
     const buttons = screen.getAllByRole('button');
-    expect(buttons.length).toBe(LAYERS.length);
+    expect(buttons.length).toBeGreaterThanOrEqual(LAYERS.length);
   });
 
   it('calls onLayerChange when a layer button is clicked', () => {
@@ -104,6 +104,6 @@ describe('LayerSelector', () => {
 
   it('renders the title', () => {
     render(<LayerSelector activeLayer="quality_index" onLayerChange={() => {}} />);
-    expect(screen.getByText('layers.title')).toBeInTheDocument();
+    expect(screen.getAllByText('layers.title').length).toBeGreaterThanOrEqual(1);
   });
 });

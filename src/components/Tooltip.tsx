@@ -50,7 +50,7 @@ export const Tooltip: React.FC<TooltipProps> = ({ x, y, name, value, layerId }) 
   return (
     <div
       ref={ref}
-      className="pointer-events-none fixed z-50 rounded-lg bg-white/95 dark:bg-surface-900/95 px-3 py-2 text-sm shadow-xl backdrop-blur-sm border border-surface-200 dark:border-surface-700/50"
+      className="tooltip-desktop pointer-events-none fixed z-50 rounded-lg bg-white/95 dark:bg-surface-900/95 px-3 py-2 text-sm shadow-xl backdrop-blur-sm border border-surface-200 dark:border-surface-700/50"
       style={{
         left: pos.left,
         top: pos.top,

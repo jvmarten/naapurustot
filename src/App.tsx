@@ -114,24 +114,26 @@ const App: React.FC = () => {
       {error && <ErrorBanner message={error} onRetry={retry} />}
 
       {/* Brand mark */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
-        <h1 className="text-lg font-display font-bold text-surface-800/90 dark:text-white/90 tracking-tight">
+      <div className="absolute top-3 md:top-4 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
+        <h1 className="text-base md:text-lg font-display font-bold text-surface-800/90 dark:text-white/90 tracking-tight">
           naapurustot<span className="text-brand-500 dark:text-brand-400">.fi</span>
         </h1>
       </div>
 
-      {/* Theme toggle */}
-      <div className="absolute top-4 right-[20.5rem] z-10">
+      {/* Theme toggle — desktop: top-right offset, mobile: top-right compact row */}
+      <div className="absolute top-3 md:top-4 right-[4.5rem] md:right-[20.5rem] z-10">
         <ThemeToggle />
       </div>
 
       {/* Language toggle */}
       <button
         onClick={toggleLang}
-        className="absolute top-4 right-[17rem] z-10 px-3 py-1.5 rounded-lg bg-white/90 dark:bg-surface-900/90 backdrop-blur-md
+        className="absolute top-3 md:top-4 right-14 md:right-[17rem] z-10
+                   px-3 py-2 md:py-1.5 rounded-lg bg-white/90 dark:bg-surface-900/90 backdrop-blur-md
                    border border-surface-200 dark:border-surface-700/40 text-xs font-semibold text-surface-600 dark:text-surface-300
                    hover:text-surface-900 dark:hover:text-white hover:bg-white dark:hover:bg-surface-800/80
-                   transition-all shadow-lg uppercase tracking-wider"
+                   transition-all shadow-lg uppercase tracking-wider min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0
+                   flex items-center justify-center"
       >
         {lang === 'fi' ? 'EN' : 'FI'}
       </button>
@@ -169,10 +171,10 @@ const App: React.FC = () => {
       {/* Layer selector */}
       <LayerSelector activeLayer={activeLayer} onLayerChange={setActiveLayer} />
 
-      {/* Legend */}
+      {/* Legend — repositioned for mobile */}
       <Legend layerId={activeLayer} />
 
-      {/* Tooltip */}
+      {/* Tooltip — hidden on touch devices via CSS */}
       {tooltip && !selected && (
         <Tooltip
           x={tooltip.x}
@@ -199,7 +201,7 @@ const App: React.FC = () => {
       <ComparisonPanel pinned={pinned} onUnpin={unpin} onClear={clearPinned} />
 
       {/* Attribution footer */}
-      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10">
+      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 hidden md:block">
         <p className="text-[10px] text-surface-600/70 dark:text-surface-500/70">{t('footer.attribution')}</p>
       </div>
     </div>

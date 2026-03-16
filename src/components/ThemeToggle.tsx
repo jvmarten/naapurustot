@@ -8,10 +8,11 @@ export const ThemeToggle: React.FC = () => {
     <button
       onClick={toggle}
       aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-      className="px-3 py-1.5 rounded-lg bg-white/90 dark:bg-surface-900/90 backdrop-blur-md
+      className="px-3 py-2 md:py-1.5 rounded-lg bg-white/90 dark:bg-surface-900/90 backdrop-blur-md
                  border border-surface-200 dark:border-surface-700/40 text-surface-600 dark:text-surface-300
                  hover:text-surface-900 dark:hover:text-white hover:bg-white dark:hover:bg-surface-800/80
-                 transition-all shadow-lg"
+                 transition-all shadow-lg min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0
+                 flex items-center justify-center"
     >
       {theme === 'dark' ? (
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
