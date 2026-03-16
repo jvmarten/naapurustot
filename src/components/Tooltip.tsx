@@ -15,15 +15,15 @@ export const Tooltip: React.FC<TooltipProps> = ({ x, y, name, value, layerId }) 
 
   return (
     <div
-      className="pointer-events-none fixed z-50 rounded-lg bg-surface-900/95 px-3 py-2 text-sm shadow-xl backdrop-blur-sm border border-surface-700/50"
+      className="pointer-events-none fixed z-50 rounded-lg bg-white/95 dark:bg-surface-900/95 px-3 py-2 text-sm shadow-xl backdrop-blur-sm border border-surface-200 dark:border-surface-700/50"
       style={{
         left: x + 12,
         top: y - 10,
         transform: 'translateY(-100%)',
       }}
     >
-      <div className="font-semibold text-white">{name}</div>
-      <div className="text-surface-300">
+      <div className="font-semibold text-surface-900 dark:text-white">{name}</div>
+      <div className="text-surface-600 dark:text-surface-300">
         {formatted}
       </div>
     </div>

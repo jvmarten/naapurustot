@@ -41,7 +41,6 @@ export const SearchBar: React.FC<SearchBarProps> = ({ data, onSelect }) => {
   function getCenter(feature: GeoJSON.Feature): [number, number] {
     const geom = feature.geometry;
     if (geom.type === 'Point') return geom.coordinates as [number, number];
-    // Simple centroid for polygon: average of bbox
     const coords: number[][] = [];
     function extract(c: any) {
       if (typeof c[0] === 'number') coords.push(c);
@@ -71,28 +70,28 @@ export const SearchBar: React.FC<SearchBarProps> = ({ data, onSelect }) => {
           }}
           onFocus={() => setIsOpen(true)}
           placeholder={t('search.placeholder')}
-          className="w-full rounded-xl bg-surface-900/90 backdrop-blur-md border border-surface-700/40
-                     pl-10 pr-4 py-2.5 text-sm text-white placeholder-surface-500
+          className="w-full rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40
+                     pl-10 pr-4 py-2.5 text-sm text-surface-900 dark:text-white placeholder-surface-400 dark:placeholder-surface-500
                      focus:outline-none focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/30
                      shadow-2xl transition-all"
         />
       </div>
 
       {isOpen && results.length > 0 && (
-        <div className="mt-1.5 rounded-xl bg-surface-900/95 backdrop-blur-md border border-surface-700/40 shadow-2xl overflow-hidden">
+        <div className="mt-1.5 rounded-xl bg-white/95 dark:bg-surface-900/95 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden">
           {results.map((f) => (
             <button
               key={f.properties!.pno}
-              className="w-full text-left px-4 py-2.5 text-sm hover:bg-surface-800/60 transition-colors
-                         border-b border-surface-800/40 last:border-0"
+              className="w-full text-left px-4 py-2.5 text-sm hover:bg-surface-100 dark:hover:bg-surface-800/60 transition-colors
+                         border-b border-surface-100 dark:border-surface-800/40 last:border-0"
               onClick={() => {
                 onSelect(f.properties!.pno, getCenter(f));
                 setQuery(f.properties!.nimi || f.properties!.pno);
                 setIsOpen(false);
               }}
             >
-              <span className="text-white font-medium">{f.properties!.nimi}</span>
-              <span className="text-surface-400 ml-2">{f.properties!.pno}</span>
+              <span className="text-surface-900 dark:text-white font-medium">{f.properties!.nimi}</span>
+              <span className="text-surface-500 dark:text-surface-400 ml-2">{f.properties!.pno}</span>
             </button>
           ))}
         </div>

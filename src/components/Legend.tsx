@@ -11,8 +11,8 @@ export const Legend: React.FC<LegendProps> = ({ layerId }) => {
 
   return (
     <div className="absolute bottom-8 left-4 z-10">
-      <div className="rounded-xl bg-surface-900/90 backdrop-blur-md border border-surface-700/40 shadow-2xl px-4 py-3">
-        <div className="text-xs font-semibold text-surface-400 uppercase tracking-wider mb-2">
+      <div className="rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl px-4 py-3">
+        <div className="text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-2">
           {t(layer.labelKey)}
         </div>
         <div className="flex items-center gap-0">
