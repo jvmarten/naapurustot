@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Map } from './components/Map';
 import { LayerSelector } from './components/LayerSelector';
 import { NeighborhoodPanel } from './components/NeighborhoodPanel';
+import { ComparisonPanel } from './components/ComparisonPanel';
 import { SearchBar } from './components/SearchBar';
 import { Tooltip } from './components/Tooltip';
 import { Legend } from './components/Legend';
@@ -18,7 +19,7 @@ const initialUrl = readInitialUrlState();
 
 const App: React.FC = () => {
   const { data, loading, error, metroAverages, retry } = useMapData();
-  const { selected, select, deselect } = useSelectedNeighborhood();
+  const { selected, select, deselect, pinned, pin, unpin, clearPinned } = useSelectedNeighborhood();
   const [activeLayer, setActiveLayer] = useState<LayerId>(initialUrl.layer ?? 'median_income');
   const [tooltip, setTooltip] = useState<{
     props: NeighborhoodProperties;
@@ -88,6 +89,7 @@ const App: React.FC = () => {
         onHover={handleHover}
         onClick={handleClick}
         flyTo={flyTarget}
+        pinnedPnos={pinned.map((p) => p.pno)}
       />
 
       {/* Skeleton / shimmer loading overlay */}
@@ -154,8 +156,18 @@ const App: React.FC = () => {
 
       {/* Neighborhood detail panel */}
       {selected && (
-        <NeighborhoodPanel data={selected} metroAverages={metroAverages} onClose={deselect} />
+        <NeighborhoodPanel
+          data={selected}
+          metroAverages={metroAverages}
+          onClose={deselect}
+          onPin={pin}
+          isPinned={pinned.some((p) => p.pno === selected.pno)}
+          pinCount={pinned.length}
+        />
       )}
+
+      {/* Comparison panel */}
+      <ComparisonPanel pinned={pinned} onUnpin={unpin} onClear={clearPinned} />
 
       {/* Attribution footer */}
       <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10">
