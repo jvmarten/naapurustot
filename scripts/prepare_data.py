@@ -109,6 +109,18 @@ INCOME_INEQUALITY_FILE = Path(__file__).parent / "income_inequality.json"
 # Seniors living alone data (THL Sotkanet)
 SENIORS_ALONE_FILE = Path(__file__).parent / "seniors_alone.json"
 
+# Walkability index (composite score based on amenity/transit/street density)
+WALKABILITY_FILE = Path(__file__).parent / "walkability.json"
+
+# Kela social benefit recipients (% of population)
+KELA_BENEFITS_FILE = Path(__file__).parent / "kela_benefits.json"
+
+# Rental prices (€/m²/month) — Statistics Finland / ARA registry
+RENTAL_PRICE_FILE = Path(__file__).parent / "rental_prices.json"
+
+# Average taxable income (€) — Finnish Tax Administration
+TAXABLE_INCOME_FILE = Path(__file__).parent / "taxable_income.json"
+
 # ---------------------------------------------------------------------------
 # Retry & rate-limit settings
 # ---------------------------------------------------------------------------
@@ -1420,6 +1432,18 @@ def main():
     commute_data = _load_json_data(COMMUTE_TIME_FILE, "commute times")
     gdf = _join_simple_data(gdf, commute_data, "avg_commute_min", "commute times")
 
+    walkability_data = _load_json_data(WALKABILITY_FILE, "walkability")
+    gdf = _join_simple_data(gdf, walkability_data, "walkability_index", "walkability")
+
+    kela_data = _load_json_data(KELA_BENEFITS_FILE, "Kela benefits")
+    gdf = _join_simple_data(gdf, kela_data, "kela_benefit_pct", "Kela benefits")
+
+    rental_data = _load_json_data(RENTAL_PRICE_FILE, "rental prices")
+    gdf = _join_simple_data(gdf, rental_data, "rental_price_sqm", "rental prices")
+
+    tax_data = _load_json_data(TAXABLE_INCOME_FILE, "taxable income")
+    gdf = _join_simple_data(gdf, tax_data, "avg_taxable_income", "taxable income")
+
     # Single-person households (from existing Paavo data)
     gdf = calculate_single_person_hh(gdf)
 
@@ -1442,7 +1466,8 @@ def main():
         "foreign_language_pct", "crime_index", "noise_level",
         "avg_building_year", "energy_efficiency", "population_growth_pct",
         "gini_coefficient", "seniors_alone_pct", "cars_per_household",
-        "avg_commute_min",
+        "avg_commute_min", "walkability_index", "kela_benefit_pct",
+        "rental_price_sqm", "avg_taxable_income",
         # Phase 4: historical time-series
         "income_history", "population_history", "unemployment_history",
     ]

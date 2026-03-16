@@ -13,9 +13,9 @@ type LayerGroup = {
 };
 
 const LAYER_GROUPS: LayerGroup[] = [
-  { labelKey: 'layers.quality', ids: ['quality_index', 'transit_access', 'air_quality', 'crime_rate', 'noise_level'] },
-  { labelKey: 'layers.demographics', ids: ['avg_age', 'population_density', 'child_ratio', 'student_share', 'foreign_lang', 'pensioners', 'population_growth', 'single_person_hh', 'seniors_alone'] },
-  { labelKey: 'layers.economy', ids: ['median_income', 'unemployment', 'education', 'property_price', 'income_inequality'] },
+  { labelKey: 'layers.quality', ids: ['quality_index', 'walkability', 'transit_access', 'air_quality', 'crime_rate', 'noise_level'] },
+  { labelKey: 'layers.demographics', ids: ['avg_age', 'population_density', 'child_ratio', 'student_share', 'foreign_lang', 'pensioners', 'population_growth', 'single_person_hh', 'seniors_alone', 'kela_benefits'] },
+  { labelKey: 'layers.economy', ids: ['median_income', 'taxable_income', 'unemployment', 'education', 'property_price', 'rental_price', 'income_inequality'] },
   { labelKey: 'layers.housing', ids: ['ownership', 'rental', 'apt_size', 'detached_houses', 'building_age', 'energy_class'] },
   { labelKey: 'layers.services', ids: ['restaurant_density', 'grocery_access', 'daycare_density', 'school_density', 'healthcare_access', 'green_space'] },
   { labelKey: 'layers.mobility', ids: ['commute_time', 'car_ownership', 'cycling_infra'] },

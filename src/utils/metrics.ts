@@ -57,6 +57,10 @@ export interface NeighborhoodProperties {
   avg_commute_min: number | null;
   restaurant_density: number | null;
   grocery_density: number | null;
+  walkability_index: number | null;
+  kela_benefit_pct: number | null;
+  rental_price_sqm: number | null;
+  avg_taxable_income: number | null;
   // Historical time-series data (JSON-encoded arrays of [year, value] pairs)
   income_history: string | null;
   population_history: string | null;
@@ -141,6 +145,14 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
   let restaurantCount = 0;
   let totalGrocery = 0;
   let groceryCount = 0;
+  let totalWalkability = 0;
+  let walkabilityCount = 0;
+  let totalKela = 0;
+  let kelaCount = 0;
+  let totalRentalPrice = 0;
+  let rentalPriceCount = 0;
+  let totalTaxIncome = 0;
+  let taxIncomeCount = 0;
 
   for (const f of features) {
     const p = f.properties as NeighborhoodProperties;
@@ -254,6 +266,22 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
         totalGrocery += p.grocery_density * pop;
         groceryCount += pop;
       }
+      if (p.walkability_index != null) {
+        totalWalkability += p.walkability_index * pop;
+        walkabilityCount += pop;
+      }
+      if (p.kela_benefit_pct != null) {
+        totalKela += p.kela_benefit_pct * pop;
+        kelaCount += pop;
+      }
+      if (p.rental_price_sqm != null) {
+        totalRentalPrice += p.rental_price_sqm * pop;
+        rentalPriceCount += pop;
+      }
+      if (p.avg_taxable_income != null && p.avg_taxable_income > 0) {
+        totalTaxIncome += p.avg_taxable_income * pop;
+        taxIncomeCount += pop;
+      }
     }
   }
 
@@ -294,5 +322,9 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
     avg_commute_min: commuteCount > 0 ? Math.round(totalCommute / commuteCount) : 0,
     restaurant_density: restaurantCount > 0 ? Math.round((totalRestaurant / restaurantCount) * 10) / 10 : 0,
     grocery_density: groceryCount > 0 ? Math.round((totalGrocery / groceryCount) * 10) / 10 : 0,
+    walkability_index: walkabilityCount > 0 ? Math.round((totalWalkability / walkabilityCount) * 10) / 10 : 0,
+    kela_benefit_pct: kelaCount > 0 ? Math.round((totalKela / kelaCount) * 10) / 10 : 0,
+    rental_price_sqm: rentalPriceCount > 0 ? Math.round((totalRentalPrice / rentalPriceCount) * 100) / 100 : 0,
+    avg_taxable_income: taxIncomeCount > 0 ? Math.round(totalTaxIncome / taxIncomeCount) : 0,
   };
 }

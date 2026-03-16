@@ -34,7 +34,11 @@ export type LayerId =
   | 'cycling_infra'
   | 'commute_time'
   | 'restaurant_density'
-  | 'grocery_access';
+  | 'grocery_access'
+  | 'walkability'
+  | 'kela_benefits'
+  | 'rental_price'
+  | 'taxable_income';
 
 export interface LayerConfig {
   id: LayerId;
@@ -59,6 +63,8 @@ const year = (v: number) => `${v.toFixed(0)}`;
 const minutes = (v: number) => `${v.toFixed(0)} min`;
 const gini = (v: number) => `${v.toFixed(2)}`;
 const carsHh = (v: number) => `${v.toFixed(2)}`;
+const euroMonth = (v: number) => `${v.toFixed(2)} €/m²/kk`;
+const score = (v: number) => `${v.toFixed(0)}/100`;
 
 export const LAYERS: LayerConfig[] = [
   {
@@ -372,6 +378,43 @@ export const LAYERS: LayerConfig[] = [
     colors: ['#1a9850', '#66bd63', '#a6d96a', '#d9ef8b', '#fee08b', '#fdae61', '#f46d43', '#d73027'],
     stops: [10, 15, 20, 25, 30, 35, 45, 60],
     format: minutes,
+  },
+  // --- Phase 4: New external data layers ---
+  {
+    id: 'walkability',
+    labelKey: 'layer.walkability',
+    property: 'walkability_index',
+    unit: '/100',
+    colors: ['#67001f', '#b2182b', '#d6604d', '#f4a582', '#d1e5f0', '#92c5de', '#4393c3', '#2166ac'],
+    stops: [20, 30, 40, 50, 60, 70, 80, 90],
+    format: score,
+  },
+  {
+    id: 'kela_benefits',
+    labelKey: 'layer.kela_benefits',
+    property: 'kela_benefit_pct',
+    unit: '%',
+    colors: ['#f7fcf5', '#e5f5e0', '#c7e9c0', '#a1d99b', '#74c476', '#41ab5d', '#238b45', '#005a32'],
+    stops: [5, 8, 12, 15, 18, 22, 26, 32],
+    format: pct,
+  },
+  {
+    id: 'rental_price',
+    labelKey: 'layer.rental_price',
+    property: 'rental_price_sqm',
+    unit: '€/m²/kk',
+    colors: ['#ffffb2', '#fed976', '#feb24c', '#fd8d3c', '#fc4e2a', '#e31a1c', '#bd0026', '#800026'],
+    stops: [10, 13, 15, 17, 19, 22, 25, 30],
+    format: euroMonth,
+  },
+  {
+    id: 'taxable_income',
+    labelKey: 'layer.taxable_income',
+    property: 'avg_taxable_income',
+    unit: '€',
+    colors: ['#1a1a2e', '#16213e', '#0f3460', '#1a759f', '#34a0a4', '#76c893', '#b5e48c', '#d9ed92'],
+    stops: [20000, 25000, 30000, 35000, 40000, 45000, 50000, 60000],
+    format: euro,
   },
 ];
 
