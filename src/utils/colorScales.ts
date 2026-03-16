@@ -206,9 +206,15 @@ export function getColorForValue(layer: LayerConfig, value: number | null | unde
 }
 
 export function buildFillColorExpression(layer: LayerConfig): any[] {
-  const expr: any[] = ['interpolate', ['linear'], ['coalesce', ['get', layer.property], 0]];
+  const interpolation: any[] = ['interpolate', ['linear'], ['get', layer.property]];
   for (let i = 0; i < layer.stops.length; i++) {
-    expr.push(layer.stops[i], layer.colors[i]);
+    interpolation.push(layer.stops[i], layer.colors[i]);
   }
-  return expr;
+  // Show gray for features where the property is null/missing
+  return [
+    'case',
+    ['all', ['has', layer.property], ['!=', ['get', layer.property], null]],
+    interpolation,
+    '#d1d5db',
+  ];
 }
