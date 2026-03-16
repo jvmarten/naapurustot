@@ -100,7 +100,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ data, onSelect }) => {
   }
 
   return (
-    <div ref={containerRef} className="absolute top-3 md:top-4 left-3 md:left-4 z-10 w-[calc(100%-6.5rem)] md:w-72">
+    <div ref={containerRef} className="absolute top-3 md:top-4 left-3 md:left-4 z-10 w-[calc(100%-10.5rem)] md:w-72">
       <div className="relative">
         <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
           <svg className="w-4 h-4 text-surface-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">

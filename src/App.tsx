@@ -120,43 +120,40 @@ const App: React.FC = () => {
         </h1>
       </div>
 
-      {/* Theme toggle — desktop: top-right offset, mobile: top-right compact row */}
-      <div className="absolute top-3 md:top-4 right-[4.5rem] md:right-[20.5rem] z-10">
+      {/* Top-right controls — flex row to prevent mobile overlap */}
+      <div className="absolute top-3 md:top-4 right-3 md:right-[17rem] z-10 flex items-center gap-1.5">
+        {/* Ranking toggle */}
+        <button
+          onClick={() => setShowRanking((v) => !v)}
+          className={`flex px-3 py-2.5 rounded-xl backdrop-blur-md
+                     border shadow-2xl text-xs font-semibold transition-all items-center justify-center
+                     min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0
+                     ${showRanking
+                       ? 'bg-brand-500/15 dark:bg-brand-600/20 border-brand-500/30 dark:border-brand-500/30 text-brand-600 dark:text-brand-300'
+                       : 'bg-white/90 dark:bg-surface-900/90 border-surface-200 dark:border-surface-700/40 text-surface-600 dark:text-surface-300 hover:text-surface-900 dark:hover:text-white hover:bg-white dark:hover:bg-surface-800/80'
+                     }`}
+          aria-label={t('ranking.toggle')}
+          title={t('ranking.toggle')}
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 4h13M3 8h9M3 12h5m4 0l4-4m0 0l4 4m-4-4v12" />
+          </svg>
+        </button>
         <ThemeToggle />
+        <button
+          onClick={toggleLang}
+          className="px-3 py-2 md:py-1.5 rounded-lg bg-white/90 dark:bg-surface-900/90 backdrop-blur-md
+                     border border-surface-200 dark:border-surface-700/40 text-xs font-semibold text-surface-600 dark:text-surface-300
+                     hover:text-surface-900 dark:hover:text-white hover:bg-white dark:hover:bg-surface-800/80
+                     transition-all shadow-lg uppercase tracking-wider min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0
+                     flex items-center justify-center"
+        >
+          {lang === 'fi' ? 'EN' : 'FI'}
+        </button>
       </div>
-
-      {/* Language toggle */}
-      <button
-        onClick={toggleLang}
-        className="absolute top-3 md:top-4 right-14 md:right-[17rem] z-10
-                   px-3 py-2 md:py-1.5 rounded-lg bg-white/90 dark:bg-surface-900/90 backdrop-blur-md
-                   border border-surface-200 dark:border-surface-700/40 text-xs font-semibold text-surface-600 dark:text-surface-300
-                   hover:text-surface-900 dark:hover:text-white hover:bg-white dark:hover:bg-surface-800/80
-                   transition-all shadow-lg uppercase tracking-wider min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0
-                   flex items-center justify-center"
-      >
-        {lang === 'fi' ? 'EN' : 'FI'}
-      </button>
 
       {/* Search */}
       <SearchBar data={data} onSelect={handleSearch} />
-
-      {/* Ranking toggle */}
-      <button
-        onClick={() => setShowRanking((v) => !v)}
-        className={`absolute top-4 left-[19.5rem] z-10 px-3 py-2.5 rounded-xl backdrop-blur-md
-                   border shadow-2xl text-xs font-semibold transition-all
-                   ${showRanking
-                     ? 'bg-brand-500/15 dark:bg-brand-600/20 border-brand-500/30 dark:border-brand-500/30 text-brand-600 dark:text-brand-300'
-                     : 'bg-white/90 dark:bg-surface-900/90 border-surface-200 dark:border-surface-700/40 text-surface-600 dark:text-surface-300 hover:text-surface-900 dark:hover:text-white hover:bg-white dark:hover:bg-surface-800/80'
-                   }`}
-        aria-label={t('ranking.toggle')}
-        title={t('ranking.toggle')}
-      >
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M3 4h13M3 8h9M3 12h5m4 0l4-4m0 0l4 4m-4-4v12" />
-        </svg>
-      </button>
 
       {/* Ranking table */}
       {showRanking && (
