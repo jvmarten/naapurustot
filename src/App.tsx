@@ -21,7 +21,7 @@ const initialUrl = readInitialUrlState();
 const App: React.FC = () => {
   const { data, loading, error, metroAverages, retry } = useMapData();
   const { selected, select, deselect, pinned, pin, unpin, clearPinned } = useSelectedNeighborhood();
-  const [activeLayer, setActiveLayer] = useState<LayerId>(initialUrl.layer ?? 'median_income');
+  const [activeLayer, setActiveLayer] = useState<LayerId>(initialUrl.layer ?? 'quality_index');
   const [tooltip, setTooltip] = useState<{
     props: NeighborhoodProperties;
     x: number;

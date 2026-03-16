@@ -23,7 +23,7 @@ function parseHash(): UrlState {
 function writeHash(pno: string | null, layer: LayerId) {
   const params = new URLSearchParams();
   if (pno) params.set('pno', pno);
-  if (layer !== 'median_income') params.set('layer', layer);
+  if (layer !== 'quality_index') params.set('layer', layer);
   const str = params.toString();
   const newHash = str ? `#${str}` : '';
   if (window.location.hash !== newHash) {

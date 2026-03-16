@@ -20,7 +20,9 @@ const LAYER_GROUPS: LayerGroup[] = [
 ];
 
 export const LayerSelector: React.FC<LayerSelectorProps> = ({ activeLayer, onLayerChange }) => {
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(
+    Object.fromEntries(LAYER_GROUPS.map((g) => [g.labelKey, true]))
+  );
   const [mobileOpen, setMobileOpen] = useState(false);
   const sheetRef = useRef<HTMLDivElement>(null);
   const dragStartY = useRef<number | null>(null);
