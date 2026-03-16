@@ -7,10 +7,17 @@
 
 ## Project Context
 
-Naapurustot.fi is a client-side React/TypeScript SPA that visualizes demographic, economic, housing, and quality-of-life data for Helsinki metro area neighborhoods on an interactive MapLibre GL map. It currently ships 18 data layers, bilingual (FI/EN) support, dark/light themes, and a detailed neighborhood stats panel.
+Naapurustot.fi is a client-side React/TypeScript SPA that visualizes 41 data layers across ~100 Helsinki metro neighborhoods on an interactive MapLibre GL map. The app already ships:
 
-**Tech stack:** React 19, TypeScript 5.9, Vite 8, MapLibre GL, Turf.js, Tailwind CSS 3, PostCSS.
-**Data:** Static GeoJSON (~1.1 MB) built from Statistics Finland Paavo, HSL Digitransit, HSY air quality, and property price APIs via a Python build script.
+- 41 choropleth data layers (demographics, economy, housing, services, mobility, quality of life)
+- Customizable quality index with 8 weighted factors
+- Neighborhood comparison (pin up to 3), ranking table, multi-criteria filter
+- CSV & PDF export, bilingual UI (FI/EN), dark/light themes
+- URL deep linking, keyboard-accessible search, mobile bottom sheets
+- Vitest test suite, Brotli/Gzip compression, Netlify deploy workflow
+
+**Tech stack:** React 19, TypeScript 5.9, Vite 8, MapLibre GL 5, Turf.js, Tailwind CSS 3, PostCSS.
+**Data:** Static TopoJSON (~1.1 MB) built from Statistics Finland Paavo, HSL Digitransit, HSY, Police open data, and property price APIs via a Python pipeline.
 
 ---
 
@@ -18,57 +25,57 @@ Naapurustot.fi is a client-side React/TypeScript SPA that visualizes demographic
 
 Small effort, noticeable improvement for users.
 
-### QW-1 URL Deep Linking
+### QW-1 Permalink Share Button
 
 | | |
 |---|---|
-| **What** | Encode the selected neighborhood postal code and active layer in the URL hash/query params so users can share or bookmark a specific view. |
-| **Why** | Currently there is no way to share a link to a specific neighborhood — every visit starts from scratch. |
-| **Touches** | `src/App.tsx` (state init & sync), `src/hooks/useSelectedNeighborhood.ts`, `src/components/SearchBar.tsx` |
+| **What** | Add a "Copy link" button next to the neighborhood name in the detail panel. Copies the current URL (which already encodes pno + layer) to the clipboard with a brief "Copied!" toast. |
+| **Why** | URL deep linking exists but users don't know they can share the URL. An explicit button makes sharing discoverable. |
+| **Touches** | `src/components/NeighborhoodPanel.tsx` |
 | **Complexity** | Small |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### QW-2 Search Result Truncation Indicator
+### QW-2 "Back to Overview" Map Reset
 
 | | |
 |---|---|
-| **What** | When the autocomplete list is capped at 8 results, show a "N more results…" hint so users know to refine their query. |
-| **Why** | With 100+ neighborhoods, users may not realize their target is just outside the visible list. |
-| **Touches** | `src/components/SearchBar.tsx` |
+| **What** | A small button (or double-click on brand mark) that resets the map to the default center/zoom and deselects any neighborhood. |
+| **Why** | After zooming into a specific area, there's no quick way to return to the full metro overview. Users must manually zoom out. |
+| **Touches** | `src/App.tsx`, `src/components/Map.tsx` (expose `flyTo` for reset coordinates) |
 | **Complexity** | Small |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### QW-3 Keyboard Navigation for Search
+### QW-3 Layer Value in Legend Tick Labels
 
 | | |
 |---|---|
-| **What** | Arrow-key navigation through autocomplete results, Enter to select, Escape to close. |
-| **Why** | Standard UX pattern that power users expect; improves accessibility. |
-| **Touches** | `src/components/SearchBar.tsx` |
+| **What** | Show the numeric stop values (e.g. "20k €", "5%") along the legend gradient bar, not just low/high labels. |
+| **Why** | The legend currently shows only the color gradient and unit. Users can't tell what numeric range a color represents without hovering individual neighborhoods. |
+| **Touches** | `src/components/Legend.tsx`, `src/utils/colorScales.ts` (expose stop values) |
 | **Complexity** | Small |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### QW-4 Proper README
+### QW-4 Keyboard Shortcut: Escape to Close Panels
 
 | | |
 |---|---|
-| **What** | Replace the boilerplate Vite README with a real project description, setup instructions, data-source attribution, and architecture overview. |
-| **Why** | The current README says nothing about the project. New contributors and visitors have no context. |
-| **Touches** | `README.md` |
+| **What** | Global `keydown` handler: Escape closes the topmost open panel (detail → filter → ranking → custom quality), allowing fast keyboard-driven navigation. |
+| **Why** | Users who navigate via keyboard or power users expect Escape to dismiss overlays. Currently only the search dropdown responds to Escape. |
+| **Touches** | `src/App.tsx` (global keydown effect) |
 | **Complexity** | Small |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### QW-5 Tooltip Off-Screen Clamping
+### QW-5 Smooth Layer Transition Animation
 
 | | |
 |---|---|
-| **What** | Detect when the hover tooltip would overflow the viewport and flip/shift it so it stays fully visible. |
-| **Why** | Neighborhoods at screen edges cause the tooltip to clip or disappear. |
-| **Touches** | `src/components/Tooltip.tsx` |
+| **What** | Add a `paint` transition of ~300ms to the `fill-color` and `fill-opacity` properties so layer switches crossfade instead of snapping. |
+| **Why** | Layer changes are currently instant and jarring. A brief transition feels polished without adding complexity. |
+| **Touches** | `src/components/Map.tsx` (MapLibre paint transition config) |
 | **Complexity** | Small |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
@@ -79,71 +86,71 @@ Small effort, noticeable improvement for users.
 
 Meaningful additions that make the product more complete.
 
-### CF-1 Neighborhood Comparison Mode
+### CF-1 Neighborhood "Similar To" Recommendations
 
 | | |
 |---|---|
-| **What** | Let users pin 2–3 neighborhoods and view them in a side-by-side stats table with highlighted differences. |
-| **Why** | Comparing neighborhoods is the most natural follow-up after browsing individual ones — currently impossible without switching back and forth. |
-| **Touches** | New component `src/components/ComparisonPanel.tsx`, `src/App.tsx` (multi-select state), `src/components/Map.tsx` (multi-highlight), `src/hooks/useSelectedNeighborhood.ts` |
+| **What** | In the detail panel, show a "Similar neighborhoods" section listing 3–5 areas with the most similar statistical profile (Euclidean distance across normalized key metrics). Clickable to fly to each. |
+| **Why** | Users interested in one neighborhood likely want to know comparable alternatives — especially house-hunters who didn't find availability in their first choice. |
+| **Touches** | New utility `src/utils/similarity.ts`, `src/components/NeighborhoodPanel.tsx`, `src/utils/metrics.ts` (normalization helpers) |
 | **Complexity** | Medium |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### CF-2 Multi-Layer Filtering / Neighborhood Finder
+### CF-2 Saved / Favorite Neighborhoods
 
 | | |
 |---|---|
-| **What** | A "Find neighborhoods" mode where users set min/max thresholds on multiple layers (e.g., income > €35k AND transit density > 50) and matching neighborhoods are highlighted on the map with a ranked list. |
-| **Why** | Browsing one layer at a time makes it hard to answer multi-criteria questions like "affordable areas with good transit." |
-| **Touches** | New component `src/components/FilterPanel.tsx`, `src/App.tsx` (filter state), `src/components/Map.tsx` (filter-aware rendering), `src/utils/colorScales.ts` (layer metadata for ranges) |
+| **What** | Let users star/favorite neighborhoods (persisted in localStorage). Show a "My favorites" list accessible from the top bar. Favorites appear with a star icon on the map. |
+| **Why** | Users comparing areas over multiple sessions lose their context on each visit. Favorites create continuity without requiring accounts. |
+| **Touches** | New hook `src/hooks/useFavorites.ts`, `src/App.tsx` (state + UI toggle), `src/components/Map.tsx` (star markers), `src/components/NeighborhoodPanel.tsx` (favorite button) |
+| **Complexity** | Medium |
+| **Dependencies** | None |
+| **Tag** | Claude Code |
+
+### CF-3 Neighborhood Score Card (Shareable Image)
+
+| | |
+|---|---|
+| **What** | Generate a shareable image (PNG via `<canvas>` or html2canvas) summarizing a neighborhood's key stats — quality index, top 5 metrics, mini radar chart. Downloadable and optimized for social sharing. |
+| **Why** | Users sharing on social media or messaging apps want a visual snapshot, not a URL. This drives organic traffic and makes the app more useful for real estate agents. |
+| **Touches** | New utility `src/utils/scoreCard.ts`, `src/components/NeighborhoodPanel.tsx` (share button), possibly `html2canvas` dependency |
+| **Complexity** | Medium |
+| **Dependencies** | None |
+| **Tag** | Claude Code |
+
+### CF-4 Radar / Spider Chart for Neighborhood Profile
+
+| | |
+|---|---|
+| **What** | An SVG radar chart (no library needed) in the detail panel showing 6–8 key dimensions (income, safety, transit, green space, education, services) as normalized axes. Optionally overlay pinned neighborhoods for visual comparison. |
+| **Why** | A single number (quality index) doesn't capture a neighborhood's character. A radar chart instantly communicates the trade-off profile — "great transit but low green space." |
+| **Touches** | New component `src/components/RadarChart.tsx`, `src/components/NeighborhoodPanel.tsx`, `src/components/ComparisonPanel.tsx` (optional overlay) |
+| **Complexity** | Medium |
+| **Dependencies** | None |
+| **Tag** | Claude Code |
+
+### CF-5 Multi-Year Time-Series Data Integration
+
+| | |
+|---|---|
+| **What** | Extend `prepare_data.py` to fetch Paavo data for 2019–2024, compute year-over-year deltas, and embed `*_history` arrays in the TopoJSON. The existing `TrendChart.tsx` component then renders sparklines for income, population, and unemployment trends. |
+| **Why** | The TrendChart component and `*_history` data schema already exist but contain limited data. Full historical integration turns static snapshots into dynamic narratives — "this area has been gentrifying for 5 years." |
+| **Touches** | `scripts/prepare_data.py` (multi-year fetch loop), `src/utils/metrics.ts` (history parsing), `src/components/TrendChart.tsx` (rendering), `src/components/NeighborhoodPanel.tsx` (display section) |
 | **Complexity** | Large |
-| **Dependencies** | None |
-| **Tag** | Claude Code |
+| **Dependencies** | Requires verifying Statistics Finland WFS endpoint availability for each historical year. |
+| **Tag** | Manual Setup |
 
-### CF-3 Noise Level Layer
-
-| | |
-|---|---|
-| **What** | Implement the noise level data layer that already has translation keys (`layer.noise`) but no data pipeline or rendering. Source from HSY/Syke noise maps. |
-| **Why** | Noise is a top concern for residents choosing neighborhoods; translations already promise this feature. |
-| **Touches** | `scripts/prepare_data.py` (new data source), `src/utils/colorScales.ts` (new layer config), `src/components/LayerSelector.tsx` (add to group) |
-| **Complexity** | Medium |
-| **Dependencies** | Requires identifying and integrating a suitable noise data API or dataset. |
-| **Tag** | Manual Setup (need to evaluate and register for noise data source) |
-
-### CF-4 Data Export (CSV / PDF)
+### CF-6 "Neighborhood Finder" Guided Wizard
 
 | | |
 |---|---|
-| **What** | Add export buttons to the NeighborhoodPanel: CSV for raw stats, and a styled PDF summary card. |
-| **Why** | Real estate professionals and researchers need to get data out of the app for reports. |
-| **Touches** | `src/components/NeighborhoodPanel.tsx` (export buttons), new utility `src/utils/export.ts` |
+| **What** | A step-by-step wizard (3–4 screens) that asks plain-language preference questions ("How important is public transit?", "Do you prefer quiet areas?") and maps answers to filter criteria. Shows top 5 matching neighborhoods with explanations. |
+| **Why** | The filter panel is powerful but intimidating — users need to know which of 41 layers matter and what ranges are good. A guided wizard makes the tool accessible to non-technical users. |
+| **Touches** | New component `src/components/NeighborhoodWizard.tsx`, `src/App.tsx` (wizard toggle), reuses `computeMatchingPnos` from FilterPanel |
 | **Complexity** | Medium |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
-
-### CF-5 Neighborhood Ranking View
-
-| | |
-|---|---|
-| **What** | A togglable list/table view showing all neighborhoods ranked by the active layer, with sparkline bars. Clicking a row flies to that neighborhood. |
-| **Why** | Map view is great for spatial patterns but bad for answering "which neighborhood has the highest X?" |
-| **Touches** | New component `src/components/RankingTable.tsx`, `src/App.tsx` (toggle state) |
-| **Complexity** | Medium |
-| **Dependencies** | None |
-| **Tag** | Claude Code |
-
-### CF-6 Time-Series Data / Historical Trends
-
-| | |
-|---|---|
-| **What** | For layers where historical data is available (income, population, unemployment), show a mini line chart in the neighborhood panel showing change over time. |
-| **Why** | Trends matter more than snapshots — a neighborhood getting better fast is more interesting than one that's already good but declining. |
-| **Touches** | `scripts/prepare_data.py` (fetch multi-year data), new `src/components/TrendChart.tsx`, `src/components/NeighborhoodPanel.tsx`, GeoJSON schema expansion |
-| **Complexity** | Large |
-| **Dependencies** | Requires multi-year Paavo data availability check. |
-| **Tag** | Manual Setup (verify multi-year data availability from Statistics Finland) |
 
 ---
 
@@ -151,68 +158,68 @@ Meaningful additions that make the product more complete.
 
 UX improvements, animations, better feedback, edge case handling.
 
-### PO-1 Mobile-Optimized Layout
+### PO-1 Colorblind-Safe Palette Option
 
 | | |
 |---|---|
-| **What** | Responsive redesign: bottom sheet for neighborhood panel, swipe-up layer selector, larger touch targets, collapsible controls. |
-| **Why** | The app works on mobile but panels overlap the map and controls are small. Mobile is likely the majority of casual user traffic. |
-| **Touches** | `src/App.tsx` (layout), `src/components/NeighborhoodPanel.tsx`, `src/components/LayerSelector.tsx`, `src/index.css`, `tailwind.config.js` |
+| **What** | Add a "Colorblind mode" toggle in settings that switches all choropleth gradients to viridis/cividis palettes. Persist choice in localStorage. |
+| **Why** | ~8% of males have color vision deficiency. The current green-yellow-red scales are problematic for deuteranopia (the most common type). |
+| **Touches** | `src/utils/colorScales.ts` (alternative palette sets), `src/components/Legend.tsx`, `src/App.tsx` (settings state), `src/components/Map.tsx` (palette-aware expression building) |
 | **Complexity** | Medium |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### PO-2 Colorblind-Safe Palettes
+### PO-2 Onboarding Tour for First-Time Visitors
 
 | | |
 |---|---|
-| **What** | Add alternative color scales (e.g., viridis, cividis) and a toggle in settings. Optionally add pattern fills for choropleth boundaries. |
-| **Why** | ~8% of males have color vision deficiency. The current green-red scales are problematic. |
-| **Touches** | `src/utils/colorScales.ts` (alternative palettes), `src/components/Legend.tsx`, new settings UI or toggle |
-| **Complexity** | Medium |
-| **Dependencies** | None |
-| **Tag** | Claude Code |
-
-### PO-3 ARIA Labels & Screen Reader Support
-
-| | |
-|---|---|
-| **What** | Add ARIA roles, labels, and live regions to all interactive elements. Announce layer changes, selected neighborhood, and panel content to screen readers. |
-| **Why** | The app currently has almost no ARIA markup outside the theme toggle — it is unusable for blind and low-vision users. |
-| **Touches** | All components in `src/components/`, `src/App.tsx` |
-| **Complexity** | Medium |
-| **Dependencies** | None |
-| **Tag** | Claude Code |
-
-### PO-4 Smooth Layer Transition Animation
-
-| | |
-|---|---|
-| **What** | Animate color changes when switching layers (crossfade or interpolate fill colors over ~300ms). |
-| **Why** | Layer switches are currently instant and jarring — a brief transition makes the experience feel polished. |
-| **Touches** | `src/components/Map.tsx` (paint property transitions) |
+| **What** | A 3–4 step overlay tour highlighting the layer selector, search bar, click-to-explore, and filter/compare features. Shown once on first visit (tracked via localStorage). Skippable with "Got it" button on each step. |
+| **Why** | New users may not discover the layer selector, comparison mode, or filter panel. A brief tour dramatically improves feature discovery without cluttering the UI permanently. |
+| **Touches** | New component `src/components/OnboardingTour.tsx`, `src/App.tsx` (first-visit state) |
 | **Complexity** | Small |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### PO-5 Loading & Error States
+### PO-3 ARIA Live Regions & Screen Reader Announcements
 
 | | |
 |---|---|
-| **What** | Show a skeleton/shimmer UI while GeoJSON loads, and a user-friendly error banner with retry button if the fetch fails. |
-| **Why** | Currently a silent failure if the data doesn't load; users see an empty map with no explanation. |
-| **Touches** | `src/hooks/useMapData.ts` (error state), `src/App.tsx` (error UI), new `src/components/ErrorBanner.tsx` |
+| **What** | Add `aria-live` regions to announce: layer changes, selected neighborhood, filter results count, comparison updates. Add `role` and `aria-label` attributes to all interactive elements missing them. |
+| **Why** | The app has partial ARIA support (some buttons have labels) but no live announcements. Switching layers or selecting a neighborhood produces no audible feedback for screen reader users. |
+| **Touches** | All components in `src/components/`, `src/App.tsx` (live region container) |
+| **Complexity** | Medium |
+| **Dependencies** | None |
+| **Tag** | Claude Code |
+
+### PO-4 Map Print / Screenshot Mode
+
+| | |
+|---|---|
+| **What** | A "Print map" button that hides all overlays, renders the current map view + legend to a clean layout suitable for printing or screenshotting (via `window.print()` with a print-specific CSS stylesheet). |
+| **Why** | Researchers and students want to include map screenshots in reports. Currently they must manually screenshot and crop. |
+| **Touches** | `src/index.css` (print media queries), `src/App.tsx` (print mode toggle), `src/components/Legend.tsx` (print-friendly variant) |
 | **Complexity** | Small |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### PO-6 Onboarding Tour / First-Visit Hints
+### PO-5 Empty State & No-Data Handling
 
 | | |
 |---|---|
-| **What** | A 3–4 step overlay tour for first-time visitors highlighting the layer selector, search, and neighborhood panel. Dismissed permanently via localStorage. |
-| **Why** | New users may not discover the layer selector or realize they can click neighborhoods for details. |
-| **Touches** | New component `src/components/OnboardingTour.tsx`, `src/App.tsx` |
+| **What** | When a neighborhood has `null` or missing data for the active layer, show a clear "No data available" indicator in the tooltip, detail panel, and use a distinct hatched pattern on the map polygon instead of leaving it uncolored. |
+| **Why** | Some neighborhoods have missing values for certain layers (e.g., crime, energy efficiency). Currently these show as blank/zero with no explanation, which is misleading. |
+| **Touches** | `src/components/Tooltip.tsx`, `src/components/NeighborhoodPanel.tsx`, `src/components/Map.tsx` (hatched fill pattern for null), `src/utils/colorScales.ts` |
+| **Complexity** | Small |
+| **Dependencies** | None |
+| **Tag** | Claude Code |
+
+### PO-6 Responsive Comparison Panel
+
+| | |
+|---|---|
+| **What** | Redesign ComparisonPanel for mobile: stack cards vertically in a scrollable bottom sheet instead of horizontal layout. Add swipe-to-remove gesture for unpinning on touch devices. |
+| **Why** | The comparison panel currently overflows on small screens when 3 neighborhoods are pinned. The horizontal layout doesn't work below 768px. |
+| **Touches** | `src/components/ComparisonPanel.tsx`, `src/index.css` (mobile overrides) |
 | **Complexity** | Small |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
@@ -223,156 +230,149 @@ UX improvements, animations, better feedback, edge case handling.
 
 Not user-facing but unblocks future growth.
 
-### IN-1 Unit & Integration Test Suite
+### IN-1 CI Pipeline (Lint + Type-Check + Test)
 
 | | |
 |---|---|
-| **What** | Set up Vitest + React Testing Library. Write tests for: quality index calculation, metro average computation, color scale generation, formatting utilities, and key component rendering. |
-| **Why** | Zero test coverage today. Any refactor or data change risks silent regressions — especially dangerous for the quality index and statistical calculations. |
-| **Touches** | New `vitest.config.ts`, new `src/__tests__/` directory, `package.json` (devDeps) |
+| **What** | Add a GitHub Actions workflow that runs `eslint`, `tsc --noEmit`, and `vitest run` on every push and PR. Block merges on failure. |
+| **Why** | The current `auto-merge.yml` workflow merges everything to main with no quality gate. Broken code or type errors can ship immediately. |
+| **Touches** | New `.github/workflows/ci.yml`, `package.json` (ensure `lint`, `typecheck` scripts exist) |
+| **Complexity** | Small |
+| **Dependencies** | None |
+| **Tag** | Claude Code |
+
+### IN-2 Performance Budget & Bundle Analysis
+
+| | |
+|---|---|
+| **What** | Add `rollup-plugin-visualizer` to the Vite build for bundle size analysis. Set a CI check that fails if the JS bundle exceeds 250 KB (gzipped) or the TopoJSON exceeds 400 KB (brotli). |
+| **Why** | The app loads a 1.1 MB TopoJSON + JS bundle on every visit. Without a budget, new features silently bloat the payload. A performance budget catches regressions early. |
+| **Touches** | `vite.config.ts` (visualizer plugin), `.github/workflows/ci.yml` (size check step) |
+| **Complexity** | Small |
+| **Dependencies** | IN-1 (CI must exist) |
+| **Tag** | Claude Code |
+
+### IN-3 Data Pipeline: Automated Refresh
+
+| | |
+|---|---|
+| **What** | Add a GitHub Actions scheduled workflow (e.g., monthly) that runs `prepare_data.py`, commits updated TopoJSON if data changed, and opens a PR for review. Include retry logic, schema validation, and diff summary in PR body. |
+| **Why** | The data pipeline is manual — someone must run the Python script locally and commit. Statistics Finland updates Paavo data annually; property prices and transit data update more frequently. Stale data undermines user trust. |
+| **Touches** | New `.github/workflows/data-refresh.yml`, `scripts/prepare_data.py` (add `--validate` flag and exit codes), `requirements.txt` (pin Python deps) |
+| **Complexity** | Medium |
+| **Dependencies** | None |
+| **Tag** | Manual Setup (requires GitHub Actions secrets for any authenticated APIs, plus Python env setup in CI) |
+
+### IN-4 End-to-End Tests with Playwright
+
+| | |
+|---|---|
+| **What** | Add Playwright tests for critical user flows: load app → select neighborhood → view panel → switch layer → use search → pin & compare → export CSV. Run in CI on each PR. |
+| **Why** | Unit tests cover utility logic but not UI integration. The map, panels, and data pipeline interact in complex ways that only E2E tests can validate. Regressions in map click handling or panel rendering go undetected. |
+| **Touches** | New `e2e/` directory, `playwright.config.ts`, `package.json` (devDeps + script), `.github/workflows/ci.yml` (E2E step) |
+| **Complexity** | Medium |
+| **Dependencies** | IN-1 (CI pipeline) |
+| **Tag** | Claude Code |
+
+### IN-5 Structured SEO & Open Graph Metadata
+
+| | |
+|---|---|
+| **What** | Generate per-neighborhood `<meta>` tags (title, description, og:image) dynamically when a pno is in the URL hash. Add JSON-LD structured data for the site. Consider pre-rendering or SSG for key neighborhoods to improve search indexing. |
+| **Why** | As a SPA, the app serves identical meta tags for every URL. Search engines and social media previews show generic content regardless of the shared neighborhood. This limits organic discovery. |
+| **Touches** | `index.html` (base meta), `src/App.tsx` (dynamic `document.title`), potentially a pre-rendering build step |
 | **Complexity** | Medium |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### IN-2 GeoJSON Caching & Compression
+### IN-6 Error Tracking & Analytics
 
 | | |
 |---|---|
-| **What** | Serve the GeoJSON gzipped with proper cache headers. Add a content hash to the filename for cache-busting. Consider topojson for ~60% size reduction. |
-| **Why** | 1.1 MB is loaded fresh on every visit with no caching strategy. Returning visitors re-download the same data. |
-| **Touches** | `vite.config.ts` (asset hashing), `public/data/` (compression), `src/hooks/useMapData.ts` (path update) |
+| **What** | Integrate lightweight error tracking (Sentry) and privacy-respecting analytics (Plausible or Umami) to understand usage patterns and catch runtime errors in production. |
+| **Why** | No visibility into whether users hit errors, which layers/neighborhoods are most popular, or how many people use comparison/filter features. Data-driven prioritization is impossible. |
+| **Touches** | `src/main.tsx` (Sentry init), `index.html` (analytics script tag), `package.json` (Sentry SDK) |
 | **Complexity** | Small |
 | **Dependencies** | None |
-| **Tag** | Claude Code |
+| **Tag** | Manual Setup (requires Sentry DSN and analytics account creation) |
 
-### IN-3 Environment Configuration
-
-| | |
-|---|---|
-| **What** | Move hardcoded values (map center, zoom, basemap URL, data path) into Vite env variables with `.env` defaults. |
-| **Why** | Enables staging/production environments, local development overrides, and makes the app adaptable to other metro regions. |
-| **Touches** | New `.env`, `.env.example`, `vite.config.ts`, `src/components/Map.tsx`, `src/hooks/useMapData.ts` |
-| **Complexity** | Small |
-| **Dependencies** | None |
-| **Tag** | Claude Code |
-
-### IN-4 CI Pipeline (Lint + Type-Check + Test)
+### IN-7 Data Pipeline Hardening
 
 | | |
 |---|---|
-| **What** | Add a GitHub Actions workflow that runs ESLint, `tsc --noEmit`, and Vitest on every push and PR. |
-| **Why** | The current auto-merge workflow merges everything to main with no quality gate. Broken code can ship immediately. |
-| **Touches** | `.github/workflows/ci.yml`, `package.json` (scripts) |
-| **Complexity** | Small |
-| **Dependencies** | IN-1 (test suite must exist first) |
-| **Tag** | Claude Code |
-
-### IN-5 Eliminate `any` Types
-
-| | |
-|---|---|
-| **What** | Replace all `any` usages with proper types: MapLibre expression types, GeoJSON geometry unions, and typed feature properties. |
-| **Why** | Multiple `any` casts bypass TypeScript's safety net, especially in Map.tsx, SearchBar.tsx, colorScales.ts, and qualityIndex.ts. |
-| **Touches** | `src/components/Map.tsx`, `src/components/SearchBar.tsx`, `src/utils/colorScales.ts`, `src/utils/qualityIndex.ts`, `src/utils/metrics.ts` |
-| **Complexity** | Small |
-| **Dependencies** | IN-1 (tests protect against regressions during refactor) |
-| **Tag** | Claude Code |
-
-### IN-6 Data Pipeline Hardening
-
-| | |
-|---|---|
-| **What** | Add retry logic, rate limiting, schema validation, and error reporting to `prepare_data.py`. Pin API versions. Add a `--dry-run` flag. |
-| **Why** | The Python build script calls 4+ external APIs with no error handling — a transient failure silently produces bad data. |
+| **What** | Add retry logic with exponential backoff, rate limiting, JSON schema validation for API responses, and structured error reporting to `prepare_data.py`. Add a `--dry-run` flag that validates without writing. Pin all API versions explicitly. |
+| **Why** | The Python script calls 5+ external APIs. A transient failure or schema change silently produces bad or partial data, which then gets committed and shipped. |
 | **Touches** | `scripts/prepare_data.py` |
 | **Complexity** | Medium |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### IN-7 Deployment Pipeline (Static Hosting)
+### IN-8 Internationalization: Externalize Strings to JSON
 
 | | |
 |---|---|
-| **What** | Add a GitHub Actions deploy workflow to push `dist/` to Vercel, Netlify, or GitHub Pages on merge to main. Include preview deploys for PRs. |
-| **Why** | No automated deployment exists. Shipping requires manual steps. |
-| **Touches** | `.github/workflows/deploy.yml`, potentially `vercel.json` or `netlify.toml` |
-| **Complexity** | Small |
-| **Dependencies** | IN-4 (CI should pass before deploy) |
-| **Tag** | Manual Setup (requires hosting account creation and secret configuration) |
-
-### IN-8 Error Tracking & Analytics
-
-| | |
-|---|---|
-| **What** | Integrate a lightweight error tracker (e.g., Sentry) and privacy-respecting analytics (e.g., Plausible or Umami) to understand usage patterns and catch runtime errors. |
-| **Why** | No visibility into whether users hit errors or which features are actually used. |
-| **Touches** | `src/main.tsx` (init), `index.html` (analytics script), `package.json` |
+| **What** | Move the `translations` object from `src/utils/i18n.ts` into separate `locales/fi.json` and `locales/en.json` files. This enables future crowd-sourced translations and tooling (e.g., i18next, Crowdin). |
+| **Why** | The current inline translation map (140+ keys) is growing and hard to manage. Adding a third language (e.g., Swedish, Estonian) would require duplicating the entire TypeScript object. JSON files are standard for i18n tooling. |
+| **Touches** | `src/utils/i18n.ts` (loader refactor), new `src/locales/fi.json`, `src/locales/en.json` |
 | **Complexity** | Small |
 | **Dependencies** | None |
-| **Tag** | Manual Setup (requires Sentry/analytics account creation and DSN/keys) |
+| **Tag** | Claude Code |
 
 ---
 
 ## Suggested Sequencing
 
-Items within each batch can be safely developed as **parallel Claude Code sessions** without logical conflicts. Each batch depends only on prior batches being complete.
+Items within each batch can be safely developed as **parallel Claude Code sessions** without logical conflicts. Each batch depends only on prior batches being complete. Order optimizes for: unblocking future work first, then high-impact user features, then polish.
 
-### Batch 1 — Foundation & Quick Wins (no dependencies)
-
-| Item | Category | Complexity | Tag |
-|------|----------|------------|-----|
-| IN-1 Unit & Integration Test Suite | Infrastructure | Medium | Claude Code |
-| IN-3 Environment Configuration | Infrastructure | Small | Claude Code |
-| IN-6 Data Pipeline Hardening | Infrastructure | Medium | Claude Code |
-| QW-4 Proper README | Quick Win | Small | Claude Code |
-| QW-5 Tooltip Off-Screen Clamping | Quick Win | Small | Claude Code |
-| PO-5 Loading & Error States | Polish | Small | Claude Code |
-
-> **Why first:** Tests (IN-1) and env config (IN-3) are foundational. The rest are isolated quick wins that touch no shared code.
-
-### Batch 2 — CI, Type Safety & Core UX (depends on Batch 1)
+### Batch 1 — Infrastructure Foundation & Independent Quick Wins (no dependencies)
 
 | Item | Category | Complexity | Tag |
 |------|----------|------------|-----|
-| IN-4 CI Pipeline | Infrastructure | Small | Claude Code |
-| IN-5 Eliminate `any` Types | Infrastructure | Small | Claude Code |
-| QW-1 URL Deep Linking | Quick Win | Small | Claude Code |
-| QW-2 Search Truncation Indicator | Quick Win | Small | Claude Code |
-| QW-3 Keyboard Navigation for Search | Quick Win | Small | Claude Code |
-| PO-4 Smooth Layer Transition | Polish | Small | Claude Code |
+| IN-1 CI Pipeline | Infrastructure | Small | Claude Code |
+| IN-7 Data Pipeline Hardening | Infrastructure | Medium | Claude Code |
+| IN-8 Externalize i18n Strings | Infrastructure | Small | Claude Code |
+| QW-1 Permalink Share Button | Quick Win | Small | Claude Code |
+| QW-2 Back to Overview Reset | Quick Win | Small | Claude Code |
+| QW-3 Legend Tick Labels | Quick Win | Small | Claude Code |
+| QW-4 Escape to Close Panels | Quick Win | Small | Claude Code |
+| QW-5 Smooth Layer Transition | Quick Win | Small | Claude Code |
 
-> **Why second:** CI and type cleanup depend on tests from Batch 1. Search improvements (QW-2, QW-3) touch the same file but different functions — safe in parallel. QW-1 and PO-4 are fully isolated.
+> **Why first:** CI (IN-1) gates all future PRs. Pipeline hardening (IN-7) and i18n (IN-8) touch isolated files. Quick wins are all independent, small, and touch different components — zero merge conflict risk.
 
-### Batch 3 — Major Features (depends on Batch 2)
-
-| Item | Category | Complexity | Tag |
-|------|----------|------------|-----|
-| CF-1 Neighborhood Comparison Mode | Core Feature | Medium | Claude Code |
-| CF-4 Data Export (CSV / PDF) | Core Feature | Medium | Claude Code |
-| CF-5 Neighborhood Ranking View | Core Feature | Medium | Claude Code |
-| PO-1 Mobile-Optimized Layout | Polish | Medium | Claude Code |
-| IN-2 GeoJSON Caching & Compression | Infrastructure | Small | Claude Code |
-
-> **Why third:** Comparison and ranking add new components without conflicting. Mobile layout touches existing components but is primarily CSS. GeoJSON caching is isolated to data loading.
-
-### Batch 4 — Accessibility & External Integrations (depends on Batch 3)
+### Batch 2 — Core UX Features & CI Extensions (depends on Batch 1)
 
 | Item | Category | Complexity | Tag |
 |------|----------|------------|-----|
-| PO-2 Colorblind-Safe Palettes | Polish | Medium | Claude Code |
-| PO-3 ARIA Labels & Screen Reader Support | Polish | Medium | Claude Code |
-| PO-6 Onboarding Tour | Polish | Small | Claude Code |
-| CF-3 Noise Level Layer | Core Feature | Medium | Manual Setup |
-| IN-7 Deployment Pipeline | Infrastructure | Small | Manual Setup |
-| IN-8 Error Tracking & Analytics | Infrastructure | Small | Manual Setup |
+| IN-2 Performance Budget | Infrastructure | Small | Claude Code |
+| IN-5 SEO & Open Graph | Infrastructure | Medium | Claude Code |
+| CF-1 Similar Neighborhoods | Core Feature | Medium | Claude Code |
+| CF-2 Saved Favorites | Core Feature | Medium | Claude Code |
+| CF-4 Radar Chart | Core Feature | Medium | Claude Code |
+| PO-5 Empty State Handling | Polish | Small | Claude Code |
 
-> **Why fourth:** Accessibility work (PO-2, PO-3) benefits from stable component APIs from prior batches. Manual Setup items can proceed whenever accounts are ready, but are grouped here so CI/CD is solid first.
+> **Why second:** Performance budget depends on CI. SEO is independent. The three core features (CF-1, CF-2, CF-4) each add new files/components without overlapping — CF-1 adds a utility, CF-2 adds a hook, CF-4 adds a component. PO-5 touches Tooltip and Map but only for null-value paths, not conflicting with others.
 
-### Batch 5 — Advanced Features (depends on Batch 4)
+### Batch 3 — Polish & Advanced Features (depends on Batch 2)
 
 | Item | Category | Complexity | Tag |
 |------|----------|------------|-----|
-| CF-2 Multi-Layer Filtering | Core Feature | Large | Claude Code |
-| CF-6 Time-Series Historical Trends | Core Feature | Large | Manual Setup |
+| CF-3 Shareable Score Card | Core Feature | Medium | Claude Code |
+| CF-6 Neighborhood Finder Wizard | Core Feature | Medium | Claude Code |
+| PO-1 Colorblind-Safe Palettes | Polish | Medium | Claude Code |
+| PO-2 Onboarding Tour | Polish | Small | Claude Code |
+| PO-4 Map Print Mode | Polish | Small | Claude Code |
+| PO-6 Responsive Comparison | Polish | Small | Claude Code |
 
-> **Why last:** These are the highest-effort features. Filtering depends on stable layer metadata and rendering from prior batches. Time-series requires external data source verification and significant data pipeline changes.
+> **Why third:** Score card and wizard are new standalone components. Colorblind palettes touch colorScales.ts (safe now that Batch 2's features are stable). Onboarding tour, print mode, and responsive comparison are isolated to their own components/CSS.
+
+### Batch 4 — Accessibility, E2E Tests & External Integrations (depends on Batch 3)
+
+| Item | Category | Complexity | Tag |
+|------|----------|------------|-----|
+| IN-4 E2E Tests (Playwright) | Infrastructure | Medium | Claude Code |
+| IN-6 Error Tracking & Analytics | Infrastructure | Small | Manual Setup |
+| PO-3 ARIA Live Regions | Polish | Medium | Claude Code |
+| CF-5 Multi-Year Time-Series | Core Feature | Large | Manual Setup |
+| IN-3 Data Pipeline Auto-Refresh | Infrastructure | Medium | Manual Setup |
+
+> **Why last:** E2E tests benefit from a stable feature set. ARIA touches all components — best done when the component tree is settled. Time-series and auto-refresh require external service verification and secrets configuration. These are the highest-effort items with the most external dependencies.
