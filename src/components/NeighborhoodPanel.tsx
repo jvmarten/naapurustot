@@ -1,9 +1,11 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import type { NeighborhoodProperties } from '../utils/metrics';
+import { parseTrendSeries } from '../utils/metrics';
 import { formatNumber, formatEuro, formatPct, formatDiff, diffColor } from '../utils/formatting';
 import { t, getLang } from '../utils/i18n';
 import { getQualityCategory, QUALITY_CATEGORIES } from '../utils/qualityIndex';
 import { exportCsv, exportPdf } from '../utils/export';
+import { TrendSection } from './TrendChart';
 
 interface PanelProps {
   data: NeighborhoodProperties;
@@ -216,6 +218,10 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
     </div>
   );
 
+  const incomeHistory = useMemo(() => parseTrendSeries(d.income_history), [d.income_history]);
+  const populationHistory = useMemo(() => parseTrendSeries(d.population_history), [d.population_history]);
+  const unemploymentHistory = useMemo(() => parseTrendSeries(d.unemployment_history), [d.unemployment_history]);
+
   const panelContent = (
     <div className="px-6 py-4 space-y-6">
       {/* Quality Index */}
@@ -290,6 +296,13 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
           />
         </div>
       </div>
+
+      {/* Historical Trends */}
+      <TrendSection
+        incomeData={incomeHistory}
+        populationData={populationHistory}
+        unemploymentData={unemploymentHistory}
+      />
 
       {/* Housing section */}
       <div>

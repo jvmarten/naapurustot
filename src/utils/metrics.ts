@@ -57,7 +57,28 @@ export interface NeighborhoodProperties {
   avg_commute_min: number | null;
   restaurant_density: number | null;
   grocery_density: number | null;
+  // Historical time-series data (JSON-encoded arrays of [year, value] pairs)
+  income_history: string | null;
+  population_history: string | null;
+  unemployment_history: string | null;
   [key: string]: string | number | null;
+}
+
+/** A single data point in a time series: [year, value] */
+export type TrendDataPoint = [number, number];
+
+/** Parse a JSON-encoded trend series from GeoJSON properties */
+export function parseTrendSeries(raw: string | null | undefined): TrendDataPoint[] | null {
+  if (!raw) return null;
+  try {
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (Array.isArray(parsed) && parsed.length >= 2) {
+      return parsed as TrendDataPoint[];
+    }
+  } catch {
+    // invalid JSON
+  }
+  return null;
 }
 
 export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string, number> {

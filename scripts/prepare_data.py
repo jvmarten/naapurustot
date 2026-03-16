@@ -31,6 +31,18 @@ WFS_URL = (
     "&outputFormat=application/json"
 )
 
+# Historical Paavo data years for time-series trends
+HISTORICAL_YEARS = [2019, 2020, 2021, 2022, 2023, 2024]
+HISTORICAL_WFS_TEMPLATE = (
+    "https://geo.stat.fi/geoserver/postialue/wfs"
+    "?service=WFS&version=2.0.0&request=GetFeature"
+    "&typeNames=postialue:pno_tilasto_{year}"
+    "&outputFormat=application/json"
+)
+
+# Local fallback for historical time-series data
+HISTORICAL_TRENDS_FILE = Path(__file__).parent / "historical_trends.json"
+
 LANG_URL = (
     "https://pxdata.stat.fi/PxWeb/api/v1/en/"
     "StatFin/vaerak/statfin_vaerak_pxt_11rm.px"
@@ -1125,6 +1137,126 @@ def _join_simple_data(gdf, data: dict, column: str, label: str):
     return gdf
 
 
+def fetch_historical_paavo():
+    """Fetch multi-year Paavo data for time-series trends.
+
+    Fetches income (hr_mtu), population (he_vakiy), and unemployment (pt_tyott)
+    for each historical year to build trend arrays per postal code.
+
+    Returns a dict: { postal_code: { metric: { year: value } } }
+    """
+    print("Fetching historical Paavo data for time-series trends...")
+
+    # Structure: { pno: { "hr_mtu": {2019: val, ...}, "he_vakiy": {...}, "unemployment_rate": {...} } }
+    history = {}
+    trend_fields = ["hr_mtu", "he_vakiy", "pt_tyott", "ko_ika18y"]
+
+    for year in HISTORICAL_YEARS:
+        url = HISTORICAL_WFS_TEMPLATE.format(year=year)
+        try:
+            _rate_limit()
+            r = _request_with_retry("GET", url, label=f"Paavo WFS {year}", timeout=120)
+            body = r.json()
+            features = _validate_geojson_features(body, f"Paavo WFS {year}")
+            print(f"  Year {year}: {len(features)} features")
+
+            for feat in features:
+                props = feat.get("properties", {})
+                pno = props.get("postinumeroalue", "")
+                if not pno:
+                    continue
+
+                if pno not in history:
+                    history[pno] = {f: {} for f in trend_fields}
+
+                for field in trend_fields:
+                    val = safe_val(props.get(field))
+                    if val is not None:
+                        history[pno][field][str(year)] = val
+        except Exception as e:
+            _record_error(f"fetch_historical_paavo/{year}", e)
+            print(f"  Warning: Could not fetch historical data for {year}")
+
+    print(f"  Collected historical data for {len(history)} postal codes")
+    return history
+
+
+def _build_trend_arrays(history: dict) -> dict:
+    """Convert raw historical data into sorted trend arrays.
+
+    Returns: { pno: { "income_history": [[year, value], ...], ... } }
+    """
+    result = {}
+    for pno, metrics in history.items():
+        entry = {}
+
+        # Income trend (hr_mtu)
+        if metrics.get("hr_mtu"):
+            series = sorted([[int(y), v] for y, v in metrics["hr_mtu"].items()])
+            if len(series) >= 2:
+                entry["income_history"] = series
+
+        # Population trend (he_vakiy)
+        if metrics.get("he_vakiy"):
+            series = sorted([[int(y), v] for y, v in metrics["he_vakiy"].items()])
+            if len(series) >= 2:
+                entry["population_history"] = series
+
+        # Unemployment rate trend (pt_tyott / he_vakiy)
+        pt_tyott = metrics.get("pt_tyott", {})
+        he_vakiy_hist = metrics.get("he_vakiy", {})
+        if pt_tyott and he_vakiy_hist:
+            unemp_series = []
+            for y in sorted(pt_tyott.keys()):
+                pop = he_vakiy_hist.get(y)
+                if pop and pop > 0:
+                    rate = round(pt_tyott[y] / pop * 100, 1)
+                    unemp_series.append([int(y), rate])
+            if len(unemp_series) >= 2:
+                entry["unemployment_history"] = unemp_series
+
+        if entry:
+            result[pno] = entry
+
+    return result
+
+
+def join_historical_trends(gdf, history: dict):
+    """Join historical trend arrays to the GeoDataFrame as JSON-encoded strings."""
+    if not history:
+        # Try local fallback
+        if HISTORICAL_TRENDS_FILE.exists():
+            print(f"  Falling back to local file: {HISTORICAL_TRENDS_FILE.name}")
+            with open(HISTORICAL_TRENDS_FILE) as f:
+                history = json.load(f)
+            print(f"  Loaded historical trends for {len(history)} postal codes")
+        else:
+            gdf["income_history"] = None
+            gdf["population_history"] = None
+            gdf["unemployment_history"] = None
+            return gdf
+
+    trend_data = _build_trend_arrays(history) if history and not isinstance(next(iter(history.values()), {}).get("income_history", None), list) else history
+
+    print("Joining historical trend data...")
+    trend_keys = ["income_history", "population_history", "unemployment_history"]
+    for idx, row in gdf.iterrows():
+        pno = row.get("pno", "") or row.get("postinumeroalue", "")
+        pno_trends = trend_data.get(pno, {})
+        for key in trend_keys:
+            series = pno_trends.get(key)
+            if series and len(series) >= 2:
+                gdf.at[idx, key] = json.dumps(series)
+            else:
+                gdf.at[idx, key] = None
+
+    for key in trend_keys:
+        matched = gdf[key].notna().sum()
+        print(f"  {key}: {matched}/{len(gdf)} postal codes have data")
+
+    return gdf
+
+
 def calculate_single_person_hh(gdf):
     """Calculate single-person household percentage from Paavo te_ fields."""
     print("Calculating single-person household share...")
@@ -1291,6 +1423,11 @@ def main():
     # Single-person households (from existing Paavo data)
     gdf = calculate_single_person_hh(gdf)
 
+    # --- Phase 4: Historical time-series data ---
+    _rate_limit()
+    historical = fetch_historical_paavo()
+    gdf = join_historical_trends(gdf, historical)
+
     # --- Backfill nulls from previous output ---
     # If any data source failed this run, preserve the values from the last
     # successful run instead of writing nulls.
@@ -1306,6 +1443,8 @@ def main():
         "avg_building_year", "energy_efficiency", "population_growth_pct",
         "gini_coefficient", "seniors_alone_pct", "cars_per_household",
         "avg_commute_min",
+        # Phase 4: historical time-series
+        "income_history", "population_history", "unemployment_history",
     ]
     gdf = _backfill_nulls(gdf, previous, backfill_columns)
 
