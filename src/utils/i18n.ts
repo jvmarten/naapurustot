@@ -177,6 +177,7 @@ const translations: Record<string, Record<Lang, string>> = {
   'custom_quality.reset': { fi: 'Palauta oletukset', en: 'Reset defaults' },
   'custom_quality.button': { fi: 'Muokkaa', en: 'Customize' },
   'custom_quality.custom_label': { fi: 'mukautettu', en: 'custom' },
+  'custom_quality.customize_qi': { fi: 'Muokkaa laatuindeksiä', en: 'Customize QI' },
 };
 
 let currentLang: Lang = 'fi';
