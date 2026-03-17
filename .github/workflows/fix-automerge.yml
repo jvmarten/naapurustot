@@ -1,0 +1,57 @@
+name: Fix automerge failures
+
+on:
+  workflow_run:
+    workflows: ["Auto-merge to main"]
+    types:
+      - completed
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  fix-merge-failure:
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get branch name
+        id: branch
+        run: echo "name=${{ github.event.workflow_run.head_branch }}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.branch.outputs.name }}
+          fetch-depth: 0
+
+      - name: Check if branch still exists
+        id: check
+        run: |
+          if git ls-remote --exit-code origin "${{ steps.branch.outputs.name }}" > /dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Fix merge failure with Claude Code
+        if: steps.check.outputs.exists == 'true'
+        uses: anthropics/claude-code-action@v1
+        with:
+          prompt: |
+            The auto-merge of branch "${{ steps.branch.outputs.name }}" into main has failed.
+
+            Diagnose and fix the issue:
+            1. Run `git fetch origin main` and try `git merge origin/main` to reproduce the conflict
+            2. If there are merge conflicts, resolve them sensibly
+            3. If the build is broken (`npm run build`), fix the build errors
+            4. If tests fail (`npm run test`), fix the test failures
+            5. If lint fails (`npm run lint`), fix the lint errors
+            6. Commit the fixes and push to the branch
+
+            After pushing, the auto-merge workflow will re-trigger automatically.
+          use_oauth: true
+          allowed_tools: "Bash,Read,Edit,Write,Glob,Grep"
+          direct_prompt: true
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
