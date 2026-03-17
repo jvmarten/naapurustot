@@ -6,8 +6,8 @@ import { ComparisonPanel } from './components/ComparisonPanel';
 import { SearchBar } from './components/SearchBar';
 import { Tooltip } from './components/Tooltip';
 import { Legend } from './components/Legend';
-import { ThemeToggle } from './components/ThemeToggle';
-import { DonateButton } from './components/DonateButton';
+import { SettingsDropdown } from './components/SettingsDropdown';
+import { ToolsDropdown } from './components/ToolsDropdown';
 import { ErrorBanner } from './components/ErrorBanner';
 import { RankingTable } from './components/RankingTable';
 import { FilterPanel, computeMatchingPnos, type FilterCriterion } from './components/FilterPanel';
@@ -241,86 +241,21 @@ const App: React.FC = () => {
         </button>
       </div>
 
-      {/* Top-right controls — flex row to prevent mobile overlap */}
+      {/* Top-right controls — two dropdown menus */}
       <div className="absolute top-3 md:top-4 right-3 md:right-[17rem] z-10 flex items-center gap-1.5">
-        {/* Wizard toggle */}
-        <button
-          onClick={() => setShowWizard(true)}
-          className="flex px-3 py-2.5 rounded-xl backdrop-blur-md
-                     border shadow-2xl text-xs font-semibold transition-all items-center justify-center
-                     min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0
-                     bg-white/90 dark:bg-surface-900/90 border-surface-200 dark:border-surface-700/40 text-surface-600 dark:text-surface-300 hover:text-surface-900 dark:hover:text-white hover:bg-white dark:hover:bg-surface-800/80"
-          aria-label={t('wizard.open')}
-          title={t('wizard.open')}
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-          </svg>
-        </button>
-        {/* Filter toggle */}
-        <button
-          onClick={toggleFilter}
-          className={`flex px-3 py-2.5 rounded-xl backdrop-blur-md
-                     border shadow-2xl text-xs font-semibold transition-all items-center justify-center
-                     min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0
-                     ${showFilter
-                       ? 'bg-brand-500/15 dark:bg-brand-600/20 border-brand-500/30 dark:border-brand-500/30 text-brand-600 dark:text-brand-300'
-                       : 'bg-white/90 dark:bg-surface-900/90 border-surface-200 dark:border-surface-700/40 text-surface-600 dark:text-surface-300 hover:text-surface-900 dark:hover:text-white hover:bg-white dark:hover:bg-surface-800/80'
-                     }`}
-          aria-label={t('filter.toggle')}
-          title={t('filter.toggle')}
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-          </svg>
-        </button>
-        {/* Ranking toggle */}
-        <button
-          onClick={toggleRanking}
-          className={`flex px-3 py-2.5 rounded-xl backdrop-blur-md
-                     border shadow-2xl text-xs font-semibold transition-all items-center justify-center
-                     min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0
-                     ${showRanking
-                       ? 'bg-brand-500/15 dark:bg-brand-600/20 border-brand-500/30 dark:border-brand-500/30 text-brand-600 dark:text-brand-300'
-                       : 'bg-white/90 dark:bg-surface-900/90 border-surface-200 dark:border-surface-700/40 text-surface-600 dark:text-surface-300 hover:text-surface-900 dark:hover:text-white hover:bg-white dark:hover:bg-surface-800/80'
-                     }`}
-          aria-label={t('ranking.toggle')}
-          title={t('ranking.toggle')}
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 4h13M3 8h9M3 12h5m4 0l4-4m0 0l4 4m-4-4v12" />
-          </svg>
-        </button>
-        {/* Colorblind mode toggle */}
-        <button
-          onClick={toggleColorblind}
-          className={`flex px-3 py-2.5 rounded-xl backdrop-blur-md
-                     border shadow-2xl text-xs font-semibold transition-all items-center justify-center
-                     min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0
-                     ${colorblind
-                       ? 'bg-brand-500/15 dark:bg-brand-600/20 border-brand-500/30 dark:border-brand-500/30 text-brand-600 dark:text-brand-300'
-                       : 'bg-white/90 dark:bg-surface-900/90 border-surface-200 dark:border-surface-700/40 text-surface-600 dark:text-surface-300 hover:text-surface-900 dark:hover:text-white hover:bg-white dark:hover:bg-surface-800/80'
-                     }`}
-          aria-label={t('settings.colorblind')}
-          title={t('settings.colorblind')}
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-          </svg>
-        </button>
-        <span className="hidden md:contents"><DonateButton /></span>
-        <ThemeToggle />
-        <button
-          onClick={toggleLang}
-          className="px-3 py-2 md:py-1.5 rounded-lg bg-white/90 dark:bg-surface-900/90 backdrop-blur-md
-                     border border-surface-200 dark:border-surface-700/40 text-xs font-semibold text-surface-600 dark:text-surface-300
-                     hover:text-surface-900 dark:hover:text-white hover:bg-white dark:hover:bg-surface-800/80
-                     transition-all shadow-lg uppercase tracking-wider min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0
-                     flex items-center justify-center"
-        >
-          {lang === 'fi' ? 'EN' : 'FI'}
-        </button>
+        <ToolsDropdown
+          showFilter={showFilter}
+          showRanking={showRanking}
+          onToggleFilter={toggleFilter}
+          onToggleRanking={toggleRanking}
+          onOpenWizard={() => setShowWizard(true)}
+        />
+        <SettingsDropdown
+          colorblind={colorblind}
+          onToggleColorblind={toggleColorblind}
+          lang={lang}
+          onToggleLang={toggleLang}
+        />
       </div>
 
       {/* Search */}

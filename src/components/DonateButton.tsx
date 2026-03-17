@@ -5,7 +5,11 @@ import { t } from '../utils/i18n';
 const BOLT12_OFFER =
   'lno1zrxq8pjw7qjlm68mtp7e3yvxee4y5xrgjhhyf2fxhlphpckrvevh50u0qw9y07wzkqlq5yek7g53xhyrjfsqhyz7dygu0srtfagh8jyws0umjqszkt849v9ad3afkf8x6kllvg7ch9detyux8u8hg7f80wdurc8s4ycqqv622dhrd8t0xcehufgj7ckgfw80fhmlfqs8j2nvzdwf04g9x3s5syxkcfwkearq326z8xkcklcmztsyvw5sqd97wsh2sgl7vtng75japckt6dcmanjcssdp96c052j3cfxa8r68wqqs6q8rgxe6m4jgnusl2348zng7ky';
 
-export const DonateButton: React.FC = () => {
+interface DonateButtonProps {
+  variant?: 'button' | 'menu-item';
+}
+
+export const DonateButton: React.FC<DonateButtonProps> = ({ variant = 'button' }) => {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const popupRef = useRef<HTMLDivElement>(null);
@@ -38,29 +42,13 @@ export const DonateButton: React.FC = () => {
     }
   };
 
-  return (
-    <div className="relative" ref={popupRef}>
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="px-3 py-2 md:py-1.5 rounded-lg bg-white/90 dark:bg-surface-900/90 backdrop-blur-md
-                   border border-surface-200 dark:border-surface-700/40 text-surface-600 dark:text-surface-300
-                   hover:text-amber-500 dark:hover:text-amber-400 hover:bg-white dark:hover:bg-surface-800/80
-                   transition-all shadow-lg min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0
-                   flex items-center justify-center"
-        aria-label={t('donate.button')}
-        title={t('donate.button')}
+  const donateContent = (
+    <>
+      <div
+        className="absolute right-0 top-full mt-2 w-72 rounded-xl bg-white dark:bg-surface-900
+                   border border-surface-200 dark:border-surface-700/40 shadow-2xl backdrop-blur-md
+                   p-4 z-50"
       >
-        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-        </svg>
-      </button>
-
-      {open && (
-        <div
-          className="absolute right-0 top-full mt-2 w-72 rounded-xl bg-white dark:bg-surface-900
-                     border border-surface-200 dark:border-surface-700/40 shadow-2xl backdrop-blur-md
-                     p-4 z-50"
-        >
           <h3 className="text-sm font-semibold text-surface-800 dark:text-white mb-1">
             {t('donate.title')}
           </h3>
@@ -99,8 +87,45 @@ export const DonateButton: React.FC = () => {
           <p className="text-[10px] text-surface-400 dark:text-surface-500">
             {t('donate.hint')}
           </p>
-        </div>
-      )}
+      </div>
+    </>
+  );
+
+  if (variant === 'menu-item') {
+    return (
+      <div className="relative" ref={popupRef}>
+        <button
+          onClick={() => setOpen((v) => !v)}
+          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200
+                     hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors"
+        >
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          <span>{t('donate.button')}</span>
+        </button>
+        {open && donateContent}
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative" ref={popupRef}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="px-3 py-2 md:py-1.5 rounded-lg bg-white/90 dark:bg-surface-900/90 backdrop-blur-md
+                   border border-surface-200 dark:border-surface-700/40 text-surface-600 dark:text-surface-300
+                   hover:text-amber-500 dark:hover:text-amber-400 hover:bg-white dark:hover:bg-surface-800/80
+                   transition-all shadow-lg min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0
+                   flex items-center justify-center"
+        aria-label={t('donate.button')}
+        title={t('donate.button')}
+      >
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
+      </button>
+      {open && donateContent}
     </div>
   );
 };

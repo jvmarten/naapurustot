@@ -170,6 +170,9 @@
   "radar.services": "Palvelut",
   "radar.walkability": "K\u00e4velt\u00e4vyys",
   "radar.housing": "Asuminen",
+  "settings.title": "Asetukset",
+  "settings.light_mode": "Vaalea tila",
+  "settings.dark_mode": "Tumma tila",
   "settings.colorblind": "V\u00e4risokeusyst\u00e4v\u00e4llinen",
   "panel.similar": "Samankaltaiset alueet",
   "favorites.title": "Suosikit",
@@ -219,6 +222,7 @@
   "wizard.reason_healthcare": "Hyv\u00e4t terveyspalvelut",
   "panel.no_data": "Ei tietoja saatavilla",
   "tooltip.no_data": "Ei tietoja",
+  "tools.title": "Ty\u00f6kalut",
   "aria.layer_changed": "Aineisto vaihdettu",
   "aria.neighborhood_selected": "Alue valittu",
   "aria.filter_results": "Suodatustuloksia"
