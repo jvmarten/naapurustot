@@ -88,7 +88,7 @@ jobs:
             echo "fixed=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         if: steps.check.outputs.exists == 'true' && steps.simple-fix.outputs.fixed != 'true'
         with:
           ref: ${{ steps.branch.outputs.name }}
