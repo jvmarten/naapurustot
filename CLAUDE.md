@@ -39,6 +39,10 @@ npm run lint       # ESLint
 4. Add Finnish and English labels to both `src/locales/fi.json` and `src/locales/en.json`
 5. Include the data in `public/data/metro_neighborhoods.geojson` (via `scripts/prepare_data.py`)
 
+## Data granularity
+
+We want the lowest-level data possible. The minimum acceptable granularity is **postal code level**, but whenever a data source offers finer resolution (e.g., 250 m × 250 m grid cells, building-level, block-level, or coordinate-level data), prefer and integrate that instead. When evaluating new data sources or extending existing ones, always check whether a sub-postal-code breakdown is available.
+
 ## Code style
 
 - TypeScript strict mode
