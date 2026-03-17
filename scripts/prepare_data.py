@@ -133,6 +133,12 @@ RENTAL_PRICE_FILE = Path(__file__).parent / "rental_prices.json"
 # Average taxable income (€) — Finnish Tax Administration
 TAXABLE_INCOME_FILE = Path(__file__).parent / "taxable_income.json"
 
+# Obesity rate (% of adult population with BMI >= 30) — THL FinSote survey
+OBESITY_RATE_FILE = Path(__file__).parent / "obesity_rate.json"
+
+# Life expectancy (years) — THL / Statistics Finland
+LIFE_EXPECTANCY_FILE = Path(__file__).parent / "life_expectancy.json"
+
 # ---------------------------------------------------------------------------
 # Retry & rate-limit settings
 # ---------------------------------------------------------------------------
@@ -1528,6 +1534,12 @@ def main():
     tax_data = _load_json_data(TAXABLE_INCOME_FILE, "taxable income")
     gdf = _join_simple_data(gdf, tax_data, "avg_taxable_income", "taxable income")
 
+    obesity_data = _load_json_data(OBESITY_RATE_FILE, "obesity rate")
+    gdf = _join_simple_data(gdf, obesity_data, "obesity_rate", "obesity rate")
+
+    life_exp_data = _load_json_data(LIFE_EXPECTANCY_FILE, "life expectancy")
+    gdf = _join_simple_data(gdf, life_exp_data, "life_expectancy", "life expectancy")
+
     # Single-person households (from existing Paavo data)
     gdf = calculate_single_person_hh(gdf)
 
@@ -1552,6 +1564,7 @@ def main():
         "gini_coefficient", "seniors_alone_pct", "cars_per_household",
         "avg_commute_min", "walkability_index", "kela_benefit_pct",
         "rental_price_sqm", "avg_taxable_income",
+        "obesity_rate", "life_expectancy",
         # Phase 4: historical time-series
         "income_history", "population_history", "unemployment_history",
     ]

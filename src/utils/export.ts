@@ -40,6 +40,9 @@ function collectStats(d: NeighborhoodProperties, avg: Record<string, number>): S
     { label: t('panel.property_price'), value: fmtEuroSqm(d.property_price_sqm) },
     { label: t('panel.transit_access'), value: fmtStopDensity(d.transit_stop_density) },
     { label: t('panel.air_quality'), value: d.air_quality_index != null ? d.air_quality_index.toFixed(1) : '—' },
+    // Health
+    { label: t('panel.obesity_rate'), value: d.obesity_rate != null ? `${d.obesity_rate.toFixed(1)} %` : '—' },
+    { label: t('panel.life_expectancy'), value: d.life_expectancy != null ? d.life_expectancy.toFixed(1) : '—' },
     // Activity
     { label: t('panel.employed'), value: formatNumber(d.pt_tyoll) },
     { label: t('panel.unemployed'), value: formatNumber(d.pt_tyott) },

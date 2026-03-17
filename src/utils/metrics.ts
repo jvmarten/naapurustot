@@ -61,6 +61,8 @@ export interface NeighborhoodProperties {
   kela_benefit_pct: number | null;
   rental_price_sqm: number | null;
   avg_taxable_income: number | null;
+  obesity_rate: number | null;
+  life_expectancy: number | null;
   // Historical time-series data (JSON-encoded arrays of [year, value] pairs)
   income_history: string | null;
   population_history: string | null;
@@ -153,6 +155,10 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
   let rentalPriceCount = 0;
   let totalTaxIncome = 0;
   let taxIncomeCount = 0;
+  let totalObesity = 0;
+  let obesityCount = 0;
+  let totalLifeExp = 0;
+  let lifeExpCount = 0;
 
   for (const f of features) {
     const p = f.properties as NeighborhoodProperties;
@@ -282,6 +288,14 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
         totalTaxIncome += p.avg_taxable_income * pop;
         taxIncomeCount += pop;
       }
+      if (p.obesity_rate != null) {
+        totalObesity += p.obesity_rate * pop;
+        obesityCount += pop;
+      }
+      if (p.life_expectancy != null) {
+        totalLifeExp += p.life_expectancy * pop;
+        lifeExpCount += pop;
+      }
     }
   }
 
@@ -326,5 +340,7 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
     kela_benefit_pct: kelaCount > 0 ? Math.round((totalKela / kelaCount) * 10) / 10 : 0,
     rental_price_sqm: rentalPriceCount > 0 ? Math.round((totalRentalPrice / rentalPriceCount) * 100) / 100 : 0,
     avg_taxable_income: taxIncomeCount > 0 ? Math.round(totalTaxIncome / taxIncomeCount) : 0,
+    obesity_rate: obesityCount > 0 ? Math.round((totalObesity / obesityCount) * 10) / 10 : 0,
+    life_expectancy: lifeExpCount > 0 ? Math.round((totalLifeExp / lifeExpCount) * 10) / 10 : 0,
   };
 }
