@@ -2,7 +2,7 @@ name: Fix automerge failures
 
 on:
   workflow_run:
-    workflows: ["Auto-merge to main"]
+    workflows: ["Auto-merge to main", "Implement issue with Claude"]
     types:
       - completed
 
@@ -11,6 +11,7 @@ permissions:
   pull-requests: write
   issues: write
   actions: read
+  id-token: write
 
 concurrency:
   group: fix-automerge-${{ github.event.workflow_run.head_branch }}
@@ -97,6 +98,8 @@ jobs:
         if: steps.check.outputs.exists == 'true' && steps.simple-fix.outputs.fixed != 'true'
         uses: anthropics/claude-code-action@v1
         with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: "--model claude-opus-4-6"
           prompt: |
             The auto-merge of branch "${{ steps.branch.outputs.name }}" into main has failed.
             A simple rebase was attempted but did not work.
@@ -116,8 +119,3 @@ jobs:
             6. Commit the fixes and push to the branch
 
             After pushing, the auto-merge workflow will re-trigger automatically.
-          use_oauth: true
-          allowed_tools: "Bash,Read,Edit,Write,Glob,Grep"
-          direct_prompt: true
-        env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
