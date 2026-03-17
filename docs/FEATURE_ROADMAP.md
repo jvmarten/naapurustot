@@ -19,6 +19,10 @@ Naapurustot.fi is a client-side React/TypeScript SPA that visualizes 41 data lay
 **Tech stack:** React 19, TypeScript 5.9, Vite 8, MapLibre GL 5, Turf.js, Tailwind CSS 3, PostCSS.
 **Data:** Static TopoJSON (~1.1 MB) built from Statistics Finland Paavo, HSL Digitransit, HSY, Police open data, and property price APIs via a Python pipeline.
 
+### Data Granularity Requirement
+
+We are interested in as low-level data as possible. The minimum acceptable granularity is **postal code level**, but whenever a data source offers finer resolution (e.g., 250 m × 250 m grid cells, building-level, block-level, or coordinate-level data), we should prefer and integrate that instead. When evaluating new data sources or extending existing ones, always check whether a sub-postal-code breakdown is available.
+
 ---
 
 ## 1 — Quick Wins
