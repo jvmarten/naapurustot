@@ -45,6 +45,19 @@ jobs:
             7. Commit your changes with a descriptive message referencing #${{ github.event.issue.number }}
             8. Push directly to main
 
+      - name: Ensure changes are on main
+        run: |
+          git fetch origin main
+          # Check if HEAD is ahead of main (Claude pushed to a branch instead of main)
+          if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git checkout main
+            git reset --hard origin/main
+            git merge --no-ff HEAD@{1} -m "Auto-merge issue #${{ github.event.issue.number }} into main"
+            git push origin main
+          fi
+
       - name: Close issue
         uses: actions/github-script@v7
         with:
@@ -60,5 +73,28 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.payload.issue.number,
-              body: 'Implemented and pushed to main.',
+              body: 'Implemented and deployed to main.',
             });
+
+  deploy:
+    needs: implement
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: Deploy to Netlify
+        run: npx netlify-cli deploy --prod --dir=dist
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}

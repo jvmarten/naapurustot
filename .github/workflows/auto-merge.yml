@@ -30,7 +30,7 @@ jobs:
             git checkout main
             git reset --hard origin/main
 
-            if git merge --no-ff ${{ github.sha }} -m "Auto-merge ${GITHUB_REF_NAME} into main [skip ci]"; then
+            if git merge --no-ff ${{ github.sha }} -m "Auto-merge ${GITHUB_REF_NAME} into main"; then
               if git push origin main; then
                 echo "Merge and push succeeded on attempt $attempt"
                 exit 0
@@ -51,3 +51,26 @@ jobs:
       - name: Delete merged branch
         if: success()
         run: git push origin --delete "${{ github.ref_name }}" || true
+
+  deploy:
+    needs: merge-to-main
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: Deploy to Netlify
+        run: npx netlify-cli deploy --prod --dir=dist
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
