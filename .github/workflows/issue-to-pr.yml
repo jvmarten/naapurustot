@@ -23,6 +23,7 @@ jobs:
           fetch-depth: 0
 
       - name: Implement with Claude Code
+        id: claude
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -45,22 +46,44 @@ jobs:
             7. Commit your changes with a descriptive message referencing #${{ github.event.issue.number }}
             8. Push directly to main
 
-      - name: Ensure changes are on main
+      - name: Merge changes into main
         run: |
-          # Save the current commit SHA before switching branches
+          set -e
+
+          # Get the current branch name (claude-code-action creates a claude/* branch)
+          CURRENT_BRANCH=$(git branch --show-current)
           CLAUDE_COMMIT=$(git rev-parse HEAD)
+
+          echo "Current branch: $CURRENT_BRANCH"
+          echo "Claude commit: $CLAUDE_COMMIT"
+
           git fetch origin main
-          # Check if HEAD is ahead of main (Claude pushed to a branch instead of main)
-          if [ "$CLAUDE_COMMIT" != "$(git rev-parse origin/main)" ]; then
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git checkout main
-            git reset --hard origin/main
-            git merge --no-ff "$CLAUDE_COMMIT" -m "Auto-merge issue #${{ github.event.issue.number }} into main"
-            git push origin main
+          MAIN_COMMIT=$(git rev-parse origin/main)
+          echo "Main commit: $MAIN_COMMIT"
+
+          # If Claude already pushed to main, nothing to do
+          if git merge-base --is-ancestor "$CLAUDE_COMMIT" origin/main 2>/dev/null; then
+            echo "Changes are already on main, nothing to merge"
+            exit 0
+          fi
+
+          # Merge Claude's changes into main
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout main
+          git reset --hard origin/main
+          git merge --no-ff "$CLAUDE_COMMIT" -m "Auto-merge issue #${{ github.event.issue.number }} into main"
+          git push origin main
+
+          echo "Successfully merged into main"
+
+          # Delete the Claude branch if it's not main
+          if [ "$CURRENT_BRANCH" != "main" ] && [ -n "$CURRENT_BRANCH" ]; then
+            git push origin --delete "$CURRENT_BRANCH" || echo "Branch $CURRENT_BRANCH already deleted or not found"
           fi
 
       - name: Close issue
+        if: success()
         uses: actions/github-script@v7
         with:
           script: |
@@ -75,6 +98,17 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.payload.issue.number,
-              body: 'Implemented and deployed to main.',
+              body: 'Implemented and merged to main.',
             });
 
+      - name: Comment on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.issue.number,
+              body: 'Failed to implement this issue. Check the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.',
+            });
