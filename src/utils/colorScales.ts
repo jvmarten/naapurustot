@@ -40,7 +40,15 @@ export type LayerId =
   | 'rental_price'
   | 'taxable_income'
   | 'obesity_rate'
-  | 'life_expectancy';
+  | 'life_expectancy'
+  | 'school_quality'
+  | 'household_debt'
+  | 'price_to_rent'
+  | 'light_pollution'
+  | 'mental_health'
+  | 'net_migration'
+  | 'neighborhood_stability'
+  | 'traffic_accidents';
 
 export interface LayerConfig {
   id: LayerId;
@@ -67,6 +75,10 @@ const gini = (v: number) => `${v.toFixed(2)}`;
 const carsHh = (v: number) => `${v.toFixed(2)}`;
 const euroMonth = (v: number) => `${v.toFixed(2)} €/m²/kk`;
 const score = (v: number) => `${v.toFixed(0)}/100`;
+const years = (v: number) => `${v.toFixed(1)} v`;
+const ratio = (v: number) => `${v.toFixed(1)}x`;
+const bortle = (v: number) => `${v.toFixed(1)}`;
+const accidentDensity = (v: number) => `${v.toFixed(1)} /km`;
 
 export const LAYERS: LayerConfig[] = [
   {
@@ -436,6 +448,79 @@ export const LAYERS: LayerConfig[] = [
     colors: ['#d73027', '#f46d43', '#fdae61', '#fee08b', '#d9ef8b', '#a6d96a', '#66bd63', '#1a9850'],
     stops: [77, 78.5, 80, 81, 82, 83, 84.5, 87],
     format: age,
+  },
+  // --- Phase 6: New metrics ---
+  {
+    id: 'school_quality',
+    labelKey: 'layer.school_quality',
+    property: 'school_quality_score',
+    unit: '',
+    colors: ['#d73027', '#f46d43', '#fdae61', '#fee08b', '#d9ef8b', '#a6d96a', '#66bd63', '#1a9850'],
+    stops: [4, 5, 5.5, 6, 6.5, 7, 7.5, 8],
+    format: age,
+  },
+  {
+    id: 'household_debt',
+    labelKey: 'layer.household_debt',
+    property: 'median_household_debt',
+    unit: '€',
+    colors: ['#f7fcf5', '#e5f5e0', '#c7e9c0', '#a1d99b', '#74c476', '#41ab5d', '#238b45', '#005a32'],
+    stops: [30000, 45000, 60000, 75000, 90000, 105000, 120000, 150000],
+    format: euro,
+  },
+  {
+    id: 'price_to_rent',
+    labelKey: 'layer.price_to_rent',
+    property: 'price_to_rent_ratio',
+    unit: 'x',
+    colors: ['#f7fbff', '#deebf7', '#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#084594'],
+    stops: [15, 18, 20, 23, 26, 29, 32, 38],
+    format: ratio,
+  },
+  {
+    id: 'light_pollution',
+    labelKey: 'layer.light_pollution',
+    property: 'light_pollution',
+    unit: '',
+    colors: ['#1a1a2e', '#16213e', '#0f3460', '#533483', '#7b2d8e', '#e94560', '#f38375', '#f8c291'],
+    stops: [4, 5, 5.5, 6, 6.5, 7, 7.5, 8.5],
+    format: bortle,
+  },
+  {
+    id: 'mental_health',
+    labelKey: 'layer.mental_health',
+    property: 'mental_health_pct',
+    unit: '%',
+    colors: ['#f7fcf5', '#e5f5e0', '#c7e9c0', '#a1d99b', '#74c476', '#41ab5d', '#238b45', '#005a32'],
+    stops: [2, 4, 5, 6, 7, 8, 9, 11],
+    format: pct,
+  },
+  {
+    id: 'net_migration',
+    labelKey: 'layer.net_migration',
+    property: 'net_migration_pct',
+    unit: '%',
+    colors: ['#b2182b', '#d6604d', '#f4a582', '#fddbc7', '#d1e5f0', '#92c5de', '#4393c3', '#2166ac'],
+    stops: [-5, -3, -1, 0, 1, 3, 5, 8],
+    format: pct,
+  },
+  {
+    id: 'neighborhood_stability',
+    labelKey: 'layer.neighborhood_stability',
+    property: 'avg_residency_years',
+    unit: '',
+    colors: ['#ffffcc', '#ffeda0', '#fed976', '#feb24c', '#fd8d3c', '#fc4e2a', '#e31a1c', '#b10026'],
+    stops: [3, 5, 7, 9, 11, 13, 15, 18],
+    format: years,
+  },
+  {
+    id: 'traffic_accidents',
+    labelKey: 'layer.traffic_accidents',
+    property: 'traffic_accident_density',
+    unit: '/km',
+    colors: ['#1a9850', '#66bd63', '#a6d96a', '#d9ef8b', '#fee08b', '#fdae61', '#f46d43', '#d73027'],
+    stops: [0.5, 1, 2, 3, 4, 5, 6, 8],
+    format: accidentDensity,
   },
 ];
 

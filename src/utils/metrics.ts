@@ -63,6 +63,14 @@ export interface NeighborhoodProperties {
   avg_taxable_income: number | null;
   obesity_rate: number | null;
   life_expectancy: number | null;
+  school_quality_score: number | null;
+  median_household_debt: number | null;
+  price_to_rent_ratio: number | null;
+  light_pollution: number | null;
+  mental_health_pct: number | null;
+  net_migration_pct: number | null;
+  avg_residency_years: number | null;
+  traffic_accident_density: number | null;
   // Historical time-series data (JSON-encoded arrays of [year, value] pairs)
   income_history: string | null;
   population_history: string | null;
@@ -159,6 +167,22 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
   let obesityCount = 0;
   let totalLifeExp = 0;
   let lifeExpCount = 0;
+  let totalSchoolQuality = 0;
+  let schoolQualityCount = 0;
+  let totalHhDebt = 0;
+  let hhDebtCount = 0;
+  let totalPtrRatio = 0;
+  let ptrCount = 0;
+  let totalLightPollution = 0;
+  let lightPollutionCount = 0;
+  let totalMentalHealth = 0;
+  let mentalHealthCount = 0;
+  let totalNetMigration = 0;
+  let netMigrationCount = 0;
+  let totalResidency = 0;
+  let residencyCount = 0;
+  let totalTrafficAccidents = 0;
+  let trafficAccidentsCount = 0;
 
   for (const f of features) {
     const p = f.properties as NeighborhoodProperties;
@@ -296,6 +320,38 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
         totalLifeExp += p.life_expectancy * pop;
         lifeExpCount += pop;
       }
+      if (p.school_quality_score != null) {
+        totalSchoolQuality += p.school_quality_score * pop;
+        schoolQualityCount += pop;
+      }
+      if (p.median_household_debt != null) {
+        totalHhDebt += p.median_household_debt * pop;
+        hhDebtCount += pop;
+      }
+      if (p.price_to_rent_ratio != null) {
+        totalPtrRatio += p.price_to_rent_ratio * pop;
+        ptrCount += pop;
+      }
+      if (p.light_pollution != null) {
+        totalLightPollution += p.light_pollution * pop;
+        lightPollutionCount += pop;
+      }
+      if (p.mental_health_pct != null) {
+        totalMentalHealth += p.mental_health_pct * pop;
+        mentalHealthCount += pop;
+      }
+      if (p.net_migration_pct != null) {
+        totalNetMigration += p.net_migration_pct * pop;
+        netMigrationCount += pop;
+      }
+      if (p.avg_residency_years != null) {
+        totalResidency += p.avg_residency_years * pop;
+        residencyCount += pop;
+      }
+      if (p.traffic_accident_density != null) {
+        totalTrafficAccidents += p.traffic_accident_density * pop;
+        trafficAccidentsCount += pop;
+      }
     }
   }
 
@@ -342,5 +398,13 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
     avg_taxable_income: taxIncomeCount > 0 ? Math.round(totalTaxIncome / taxIncomeCount) : 0,
     obesity_rate: obesityCount > 0 ? Math.round((totalObesity / obesityCount) * 10) / 10 : 0,
     life_expectancy: lifeExpCount > 0 ? Math.round((totalLifeExp / lifeExpCount) * 10) / 10 : 0,
+    school_quality_score: schoolQualityCount > 0 ? Math.round((totalSchoolQuality / schoolQualityCount) * 10) / 10 : 0,
+    median_household_debt: hhDebtCount > 0 ? Math.round(totalHhDebt / hhDebtCount) : 0,
+    price_to_rent_ratio: ptrCount > 0 ? Math.round((totalPtrRatio / ptrCount) * 10) / 10 : 0,
+    light_pollution: lightPollutionCount > 0 ? Math.round((totalLightPollution / lightPollutionCount) * 10) / 10 : 0,
+    mental_health_pct: mentalHealthCount > 0 ? Math.round((totalMentalHealth / mentalHealthCount) * 10) / 10 : 0,
+    net_migration_pct: netMigrationCount > 0 ? Math.round((totalNetMigration / netMigrationCount) * 10) / 10 : 0,
+    avg_residency_years: residencyCount > 0 ? Math.round((totalResidency / residencyCount) * 10) / 10 : 0,
+    traffic_accident_density: trafficAccidentsCount > 0 ? Math.round((totalTrafficAccidents / trafficAccidentsCount) * 10) / 10 : 0,
   };
 }
