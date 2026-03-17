@@ -34,6 +34,7 @@ jobs:
       - name: Implement with Claude Code
         uses: anthropics/claude-code-action@v1
         with:
+          anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
             Implement the following GitHub issue:
 
@@ -53,9 +54,6 @@ jobs:
             8. Push to the current branch
 
             After pushing, a PR will be created automatically.
-          anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          allowed_tools: "Bash,Read,Edit,Write,Glob,Grep"
-          direct_prompt: true
 
       - name: Create pull request
         uses: actions/github-script@v7
