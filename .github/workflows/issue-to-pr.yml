@@ -76,25 +76,3 @@ jobs:
               body: 'Implemented and deployed to main.',
             });
 
-  deploy:
-    needs: implement
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: main
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - run: npm ci
-
-      - run: npm run build
-
-      - name: Deploy to Netlify
-        run: npx netlify-cli deploy --prod --dir=dist
-        env:
-          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
