@@ -1,4 +1,4 @@
-# Naapurustot
+# naapurustot
 
 Interactive map application for exploring demographic, economic, housing, and quality-of-life data across Helsinki metropolitan area neighborhoods.
 

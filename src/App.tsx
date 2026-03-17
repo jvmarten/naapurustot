@@ -165,7 +165,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (selected) {
       const qi = selected.quality_index != null ? ` — ${t('panel.quality_index')}: ${selected.quality_index}` : '';
-      document.title = `${selected.nimi} (${selected.pno})${qi} | Naapurustot.fi`;
+      document.title = `${selected.nimi} (${selected.pno})${qi} | naapurustot.fi`;
       const desc = document.querySelector('meta[name="description"]');
       if (desc) {
         desc.setAttribute('content',
@@ -175,13 +175,13 @@ const App: React.FC = () => {
         );
       }
       const ogTitle = document.querySelector('meta[property="og:title"]');
-      if (ogTitle) ogTitle.setAttribute('content', `${selected.nimi} — Naapurustot.fi`);
+      if (ogTitle) ogTitle.setAttribute('content', `${selected.nimi} — naapurustot.fi`);
       const ogDesc = document.querySelector('meta[property="og:description"]');
       if (ogDesc) ogDesc.setAttribute('content', `${selected.nimi} (${selected.pno}) — ${t('panel.quality_index')}: ${selected.quality_index ?? '—'}`);
     } else {
-      document.title = 'Naapurustot — Helsingin seudun naapurustot kartalla | Naapurustot.fi';
+      document.title = 'naapurustot — Helsingin seudun naapurustot kartalla | naapurustot.fi';
       const desc = document.querySelector('meta[name="description"]');
-      if (desc) desc.setAttribute('content', 'Naapurustot.fi — vertaile Helsingin, Espoon ja Vantaan naapurustoja ja asuinalueita 35+ mittarilla. Tulotaso, asuntohinnat, palvelut, turvallisuus, joukkoliikenne ja paljon muuta interaktiivisella kartalla.');
+      if (desc) desc.setAttribute('content', 'naapurustot.fi — vertaile Helsingin, Espoon ja Vantaan naapurustoja ja asuinalueita 35+ mittarilla. Tulotaso, asuntohinnat, palvelut, turvallisuus, joukkoliikenne ja paljon muuta interaktiivisella kartalla.');
     }
   }, [selected, lang]);
 
@@ -232,7 +232,7 @@ const App: React.FC = () => {
               <div className="w-32 h-3 rounded-md bg-surface-200 dark:bg-surface-700 animate-pulse" />
               <div className="w-10 h-10 rounded-full bg-surface-200 dark:bg-surface-700 animate-pulse mt-2" />
             </div>
-            <h1 className="text-xl font-display font-bold text-surface-900 dark:text-white">Naapurustot</h1>
+            <h1 className="text-xl font-display font-bold text-surface-900 dark:text-white">naapurustot</h1>
             <p className="text-surface-500 dark:text-surface-400 text-sm">{t('loading.title')}</p>
           </div>
         </div>

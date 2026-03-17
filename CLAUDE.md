@@ -2,7 +2,7 @@
 
 ## Project overview
 
-Naapurustot is a static React + TypeScript map application for exploring neighborhood-level data across the Helsinki metropolitan area. Live at naapurustot.fi. No backend — everything runs in the browser using a pre-built GeoJSON dataset.
+naapurustot is a static React + TypeScript map application for exploring neighborhood-level data across the Helsinki metropolitan area. Live at naapurustot.fi. No backend — everything runs in the browser using a pre-built GeoJSON dataset.
 
 ## Commands
 
