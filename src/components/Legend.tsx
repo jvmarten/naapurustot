@@ -9,19 +9,9 @@ interface LegendProps {
 export const Legend: React.FC<LegendProps> = ({ layerId }) => {
   const layer = getLayerById(layerId);
 
-  // Pick ~4 evenly-spaced tick indices including first and last
-  const tickIndices: number[] = [];
+  // Show only first and last tick values
   const n = layer.stops.length;
-  if (n <= 4) {
-    for (let i = 0; i < n; i++) tickIndices.push(i);
-  } else {
-    tickIndices.push(0);
-    const mid1 = Math.round(n / 3);
-    const mid2 = Math.round((2 * n) / 3);
-    tickIndices.push(mid1);
-    if (mid2 !== mid1 && mid2 !== n - 1) tickIndices.push(mid2);
-    tickIndices.push(n - 1);
-  }
+  const tickIndices = [0, n - 1];
 
   return (
     <div className="absolute bottom-20 md:bottom-8 left-3 md:left-4 z-10">
