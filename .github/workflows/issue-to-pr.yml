@@ -6,7 +6,6 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
   issues: write
   id-token: write
 
@@ -23,18 +22,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Create branch
-        id: branch
-        run: |
-          BRANCH="claude/issue-${{ github.event.issue.number }}"
-          git checkout -b "$BRANCH"
-          git push -u origin "$BRANCH"
-          echo "name=$BRANCH" >> "$GITHUB_OUTPUT"
-
       - name: Implement with Claude Code
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: "--model claude-opus-4-6"
           prompt: |
             Implement the following GitHub issue:
 
@@ -51,32 +43,22 @@ jobs:
             5. Run `npm run lint` to verify linting passes
             6. If you add user-visible text, add translations to both src/locales/fi.json and src/locales/en.json
             7. Commit your changes with a descriptive message referencing #${{ github.event.issue.number }}
-            8. Push to the current branch
+            8. Push directly to main
 
-            After pushing, a PR will be created automatically.
-
-      - name: Create pull request
+      - name: Close issue
         uses: actions/github-script@v7
         with:
           script: |
-            const issue = context.payload.issue;
-            const { data: pr } = await github.rest.pulls.create({
+            await github.rest.issues.update({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: issue.title,
-              body: `Closes #${issue.number}\n\nAutomatically implemented by Claude from issue #${issue.number}.`,
-              head: '${{ steps.branch.outputs.name }}',
-              base: 'main',
-            });
-            await github.rest.issues.addLabels({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: pr.number,
-              labels: ['automated'],
+              issue_number: context.payload.issue.number,
+              state: 'closed',
+              state_reason: 'completed',
             });
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: issue.number,
-              body: `PR created: ${pr.html_url}`,
+              issue_number: context.payload.issue.number,
+              body: 'Implemented and pushed to main.',
             });
