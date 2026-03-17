@@ -11,6 +11,9 @@ permissions:
   pull-requests: write
   issues: write
 
+concurrency:
+  group: fix-automerge-${{ github.event.workflow_run.head_branch }}
+
 jobs:
   fix-merge-failure:
     if: ${{ github.event.workflow_run.conclusion == 'failure' }}
@@ -19,11 +22,6 @@ jobs:
       - name: Get branch name
         id: branch
         run: echo "name=${{ github.event.workflow_run.head_branch }}" >> "$GITHUB_OUTPUT"
-
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ steps.branch.outputs.name }}
-          fetch-depth: 0
 
       - name: Check if branch still exists
         id: check
@@ -34,12 +32,37 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Fix merge failure with Claude Code
+      - name: Try simple rebase-merge first
+        id: simple-fix
         if: steps.check.outputs.exists == 'true'
+        run: |
+          git clone --depth=50 https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git repo
+          cd repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin main "${{ steps.branch.outputs.name }}"
+          git checkout "${{ steps.branch.outputs.name }}"
+
+          if git rebase origin/main; then
+            git push --force-with-lease origin "${{ steps.branch.outputs.name }}"
+            echo "fixed=true" >> "$GITHUB_OUTPUT"
+          else
+            git rebase --abort
+            echo "fixed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.exists == 'true' && steps.simple-fix.outputs.fixed != 'true'
+        with:
+          ref: ${{ steps.branch.outputs.name }}
+          fetch-depth: 0
+
+      - name: Fix merge failure with Claude Code
+        if: steps.check.outputs.exists == 'true' && steps.simple-fix.outputs.fixed != 'true'
         uses: anthropics/claude-code-action@v1
         with:
           prompt: |
-            The auto-merge of branch "${{ steps.branch.outputs.name }}" into main has failed.
+            The auto-merge of branch "${{ steps.branch.outputs.name }}" into main has failed and a simple rebase did not work (there are real conflicts).
 
             Diagnose and fix the issue:
             1. Run `git fetch origin main` and try `git merge origin/main` to reproduce the conflict

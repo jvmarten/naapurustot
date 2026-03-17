@@ -8,6 +8,9 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: auto-merge-to-main
+
 jobs:
   merge-to-main:
     runs-on: ubuntu-latest
@@ -21,10 +24,29 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git fetch origin main
-          git checkout main
-          git merge --no-ff ${{ github.sha }} -m "Auto-merge ${GITHUB_REF_NAME} into main [skip ci]"
-          git push origin main
+
+          for attempt in 1 2 3; do
+            git fetch origin main
+            git checkout main
+            git reset --hard origin/main
+
+            if git merge --no-ff ${{ github.sha }} -m "Auto-merge ${GITHUB_REF_NAME} into main [skip ci]"; then
+              if git push origin main; then
+                echo "Merge and push succeeded on attempt $attempt"
+                exit 0
+              else
+                echo "Push failed on attempt $attempt (main moved), retrying..."
+                sleep 2
+              fi
+            else
+              echo "Merge conflict on attempt $attempt"
+              git merge --abort || true
+              exit 1
+            fi
+          done
+
+          echo "Failed after 3 attempts"
+          exit 1
 
       - name: Delete merged branch
         if: success()
