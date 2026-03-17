@@ -170,6 +170,9 @@
   "radar.services": "Services",
   "radar.walkability": "Walkability",
   "radar.housing": "Housing",
+  "settings.title": "Settings",
+  "settings.light_mode": "Light mode",
+  "settings.dark_mode": "Dark mode",
   "settings.colorblind": "Colorblind-safe mode",
   "panel.similar": "Similar neighborhoods",
   "favorites.title": "Favorites",
@@ -219,6 +222,7 @@
   "wizard.reason_healthcare": "Good healthcare access",
   "panel.no_data": "No data available",
   "tooltip.no_data": "No data",
+  "tools.title": "Tools",
   "aria.layer_changed": "Layer changed to",
   "aria.neighborhood_selected": "Neighborhood selected",
   "aria.filter_results": "Filter results"
