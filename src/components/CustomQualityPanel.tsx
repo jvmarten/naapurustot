@@ -14,7 +14,8 @@ const WeightSlider: React.FC<{
   value: number;
   onChange: (v: number) => void;
   color: string;
-}> = ({ label, value, onChange, color }) => {
+  sliderId: string;
+}> = ({ label, value, onChange, color, sliderId }) => {
   const pct = `${value}%`;
   return (
     <div className="py-2">
@@ -29,10 +30,10 @@ const WeightSlider: React.FC<{
           type="range"
           min={0}
           max={100}
-          step={5}
+          step={1}
           value={value}
           onChange={(e) => onChange(Number(e.target.value))}
-          className="w-full h-2 rounded-full appearance-none cursor-pointer
+          className={`slider-${sliderId} w-full h-2 rounded-full appearance-none cursor-pointer
                      [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4
                      [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2
                      [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow-md
@@ -40,16 +41,14 @@ const WeightSlider: React.FC<{
                      [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4
                      [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2
                      [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:shadow-md
-                     [&::-moz-range-thumb]:cursor-pointer"
+                     [&::-moz-range-thumb]:cursor-pointer`}
           style={{
             background: `linear-gradient(to right, ${color} ${pct}, rgb(var(--color-surface-200)) ${pct})`,
-            // Thumb color via CSS custom property
-            ['--tw-slider-color' as string]: color,
           }}
         />
         <style>{`
-          input[type="range"]::-webkit-slider-thumb { background-color: ${color}; }
-          input[type="range"]::-moz-range-thumb { background-color: ${color}; }
+          .slider-${sliderId}::-webkit-slider-thumb { background-color: ${color}; }
+          .slider-${sliderId}::-moz-range-thumb { background-color: ${color}; }
         `}</style>
       </div>
     </div>
@@ -58,19 +57,31 @@ const WeightSlider: React.FC<{
 
 // Assign distinct colors to each factor
 const FACTOR_COLORS: Record<string, string> = {
-  income: '#22c55e',
-  employment: '#3b82f6',
-  education: '#a855f7',
   safety: '#ef4444',
-  green_space: '#10b981',
+  employment: '#3b82f6',
+  income: '#22c55e',
+  education: '#a855f7',
   transit: '#f59e0b',
   services: '#ec4899',
+  green_space: '#10b981',
+  air_quality: '#06b6d4',
   quietness: '#6366f1',
+  walkability: '#8b5cf6',
+  school_quality: '#14b8a6',
+  life_expectancy: '#f43f5e',
+  commute_time: '#d97706',
+  cycling: '#84cc16',
+  grocery_access: '#0ea5e9',
+  restaurants: '#e11d48',
 };
+
+const primaryFactors = QUALITY_FACTORS.filter((f) => f.primary);
+const secondaryFactors = QUALITY_FACTORS.filter((f) => !f.primary);
 
 export const CustomQualityPanel: React.FC<Props> = ({ weights, onChange, onClose }) => {
   const lang = getLang();
   const panelRef = useRef<HTMLDivElement>(null);
+  const [showMore, setShowMore] = useState(false);
 
   // Mobile bottom sheet state
   const [isMobile, setIsMobile] = useState(false);
@@ -81,6 +92,12 @@ export const CustomQualityPanel: React.FC<Props> = ({ weights, onChange, onClose
     return () => window.removeEventListener('resize', check);
   }, []);
 
+  // Auto-expand secondary section if any secondary factor has non-zero weight
+  useEffect(() => {
+    const hasActiveSecondary = secondaryFactors.some((f) => (weights[f.id] ?? 0) > 0);
+    if (hasActiveSecondary) setShowMore(true);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleChange = useCallback(
     (factorId: string, value: number) => {
       onChange({ ...weights, [factorId]: value });
@@ -90,12 +107,30 @@ export const CustomQualityPanel: React.FC<Props> = ({ weights, onChange, onClose
 
   const handleReset = useCallback(() => {
     onChange(getDefaultWeights());
+    setShowMore(false);
   }, [onChange]);
 
   const isCustom = isCustomWeights(weights);
 
   // Calculate effective weight percentages for display
   const totalWeight = QUALITY_FACTORS.reduce((sum, f) => sum + (weights[f.id] ?? 0), 0);
+
+  const renderFactorSliders = (factors: typeof QUALITY_FACTORS) =>
+    factors.map((factor) => {
+      const w = weights[factor.id] ?? 0;
+      const effectivePct = totalWeight > 0 ? ((w / totalWeight) * 100).toFixed(0) : '0';
+      return (
+        <div key={factor.id}>
+          <WeightSlider
+            label={`${factor.label[lang]}${w > 0 ? ` (${effectivePct}%)` : ''}`}
+            value={w}
+            onChange={(v) => handleChange(factor.id, v)}
+            color={FACTOR_COLORS[factor.id] ?? '#6b7280'}
+            sliderId={factor.id}
+          />
+        </div>
+      );
+    });
 
   const content = (
     <>
@@ -133,23 +168,36 @@ export const CustomQualityPanel: React.FC<Props> = ({ weights, onChange, onClose
         </p>
       </div>
 
-      {/* Sliders */}
-      <div className="px-5 pb-4 space-y-0.5">
-        {QUALITY_FACTORS.map((factor) => {
-          const w = weights[factor.id] ?? 0;
-          const effectivePct = totalWeight > 0 ? ((w / totalWeight) * 100).toFixed(0) : '0';
-          return (
-            <div key={factor.id}>
-              <WeightSlider
-                label={`${factor.label[lang]}${w > 0 ? ` (${effectivePct}%)` : ''}`}
-                value={w}
-                onChange={(v) => handleChange(factor.id, v)}
-                color={FACTOR_COLORS[factor.id] ?? '#6b7280'}
-              />
-            </div>
-          );
-        })}
+      {/* Primary Sliders */}
+      <div className="px-5 pb-2 space-y-0.5">
+        {renderFactorSliders(primaryFactors)}
       </div>
+
+      {/* Show more / less toggle */}
+      {secondaryFactors.length > 0 && (
+        <div className="px-5 pb-2">
+          <button
+            onClick={() => setShowMore(!showMore)}
+            className="flex items-center gap-1.5 text-xs font-medium text-surface-500 dark:text-surface-400
+                       hover:text-surface-700 dark:hover:text-surface-200 transition-colors"
+          >
+            <svg
+              className={`w-3.5 h-3.5 transition-transform duration-200 ${showMore ? 'rotate-180' : ''}`}
+              fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+            {showMore ? t('custom_quality.show_less') : t('custom_quality.show_more')}
+          </button>
+        </div>
+      )}
+
+      {/* Secondary Sliders */}
+      {showMore && (
+        <div className="px-5 pb-4 space-y-0.5 border-t border-surface-100 dark:border-surface-800 pt-2">
+          {renderFactorSliders(secondaryFactors)}
+        </div>
+      )}
 
       {/* Active factor summary */}
       {totalWeight > 0 && (

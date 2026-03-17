@@ -31,23 +31,28 @@ describe('computeQualityIndices', () => {
     }
   });
 
-  it('computes exact values for two-feature min/max scenario', () => {
+  it('computes exact values for two-feature min/max scenario with explicit weights', () => {
     const features = [
       makeFeature({ hr_mtu: 10000, unemployment_rate: 0, higher_education_rate: 0 }),
       makeFeature({ hr_mtu: 50000, unemployment_rate: 20, higher_education_rate: 100 }),
     ];
 
-    computeQualityIndices(features);
+    // Use explicit weights to test calculation precisely
+    const weights: Record<string, number> = {
+      safety: 0, employment: 35, income: 35, education: 30,
+      transit: 0, services: 0, green_space: 0, air_quality: 0, quietness: 0,
+      walkability: 0, school_quality: 0, life_expectancy: 0, commute_time: 0,
+      cycling: 0, grocery_access: 0, restaurants: 0,
+    };
+
+    computeQualityIndices(features, weights);
 
     // Feature 0: income=0(min), unemployment=100(inverted, lowest=best), education=0(min)
-    // income: normalize(10000, {10000,50000}) = 0, weighted = 0 * 0.35
-    // unemployment: 100 - normalize(0, {0,20}) = 100 - 0 = 100, weighted = 100 * 0.35
-    // education: normalize(0, {0,100}) = 0, weighted = 0 * 0.30
-    // total = (0*0.35 + 100*0.35 + 0*0.30) / 1.0 = 35
+    // total = (0*35 + 100*35 + 0*30) / 100 = 35
     expect(features[0].properties!.quality_index).toBe(35);
 
-    // Feature 1: income=100(max), unemployment=100-100=0(worst), education=100(max)
-    // total = (100*0.35 + 0*0.35 + 100*0.30) / 1.0 = 65
+    // Feature 1: income=100(max), unemployment=0(worst), education=100(max)
+    // total = (100*35 + 0*35 + 100*30) / 100 = 65
     expect(features[1].properties!.quality_index).toBe(65);
   });
 

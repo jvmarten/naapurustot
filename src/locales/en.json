@@ -177,6 +177,8 @@
   "custom_quality.button": "Customize",
   "custom_quality.custom_label": "custom",
   "custom_quality.customize_qi": "Customize QI",
+  "custom_quality.show_more": "Show more factors",
+  "custom_quality.show_less": "Show less",
   "panel.radar_title": "Neighborhood Profile",
   "radar.income": "Income",
   "radar.safety": "Safety",
