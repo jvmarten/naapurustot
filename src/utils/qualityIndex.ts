@@ -4,15 +4,15 @@ import type { NeighborhoodProperties } from './metrics';
  * Computes a composite Quality Index (0–100) for each neighborhood.
  *
  * Default primary factors (9):
- *   - Safety (crime rate, inverted) — 20%
- *   - Employment (unemployment, inverted) — 15%
- *   - Income (median income) — 15%
- *   - Education (higher education rate) — 10%
- *   - Transit access — 10%
- *   - Services (healthcare, school, daycare, grocery) — 10%
- *   - Green spaces — 8%
- *   - Air quality (inverted) — 7%
- *   - Quietness (noise level, inverted) — 5%
+ *   - Safety (crime rate, inverted) — 25%
+ *   - Income (median income) — 20%
+ *   - Employment (unemployment, inverted) — 20%
+ *   - Education (higher education rate) — 15%
+ *   - Transit access — 7%
+ *   - Services (healthcare, school, daycare, grocery) — 5%
+ *   - Green spaces — 3%
+ *   - Air quality (inverted) — 3%
+ *   - Quietness (noise level, inverted) — 2%
  *
  * Additional factors available via "Show more":
  *   - Walkability
@@ -51,35 +51,37 @@ export interface QualityFactor {
 }
 
 export const QUALITY_FACTORS: QualityFactor[] = [
-  // --- Primary factors (9): shown by default with optimized weights ---
+  // --- Primary factors (9): shown by default ---
+  // Socioeconomic factors (80%) correlate and drive score differentiation.
+  // Environmental factors (20%) add nuance without flattening the spread.
   {
     id: 'safety',
     label: { fi: 'Turvallisuus', en: 'Safety' },
-    defaultWeight: 20,
+    defaultWeight: 25,
     properties: ['crime_index'],
-    invert: true,
-    primary: true,
-  },
-  {
-    id: 'employment',
-    label: { fi: 'Työllisyys', en: 'Employment' },
-    defaultWeight: 15,
-    properties: ['unemployment_rate'],
     invert: true,
     primary: true,
   },
   {
     id: 'income',
     label: { fi: 'Tulotaso', en: 'Income' },
-    defaultWeight: 15,
+    defaultWeight: 20,
     properties: ['hr_mtu'],
     invert: false,
     primary: true,
   },
   {
+    id: 'employment',
+    label: { fi: 'Työllisyys', en: 'Employment' },
+    defaultWeight: 20,
+    properties: ['unemployment_rate'],
+    invert: true,
+    primary: true,
+  },
+  {
     id: 'education',
     label: { fi: 'Koulutus', en: 'Education' },
-    defaultWeight: 10,
+    defaultWeight: 15,
     properties: ['higher_education_rate'],
     invert: false,
     primary: true,
@@ -87,7 +89,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   {
     id: 'transit',
     label: { fi: 'Joukkoliikenne', en: 'Transit' },
-    defaultWeight: 10,
+    defaultWeight: 7,
     properties: ['transit_stop_density'],
     invert: false,
     primary: true,
@@ -95,7 +97,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   {
     id: 'services',
     label: { fi: 'Palvelut', en: 'Services' },
-    defaultWeight: 10,
+    defaultWeight: 5,
     properties: ['healthcare_density', 'school_density', 'daycare_density', 'grocery_density'],
     invert: false,
     primary: true,
@@ -103,7 +105,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   {
     id: 'green_space',
     label: { fi: 'Viheralueet', en: 'Green Spaces' },
-    defaultWeight: 8,
+    defaultWeight: 3,
     properties: ['green_space_pct'],
     invert: false,
     primary: true,
@@ -111,7 +113,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   {
     id: 'air_quality',
     label: { fi: 'Ilmanlaatu', en: 'Air Quality' },
-    defaultWeight: 7,
+    defaultWeight: 3,
     properties: ['air_quality_index'],
     invert: true,
     primary: true,
@@ -119,7 +121,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   {
     id: 'quietness',
     label: { fi: 'Rauhallisuus', en: 'Quietness' },
-    defaultWeight: 5,
+    defaultWeight: 2,
     properties: ['noise_level'],
     invert: true,
     primary: true,
@@ -270,37 +272,7 @@ export function computeQualityIndices(
     } else {
       const totalWeight = scores.reduce((sum, s) => sum + s.weight, 0);
       const weighted = scores.reduce((sum, s) => sum + s.value * s.weight, 0);
-      (f.properties as NeighborhoodProperties).quality_index = weighted / totalWeight;
-    }
-  }
-
-  // Re-normalize final scores to span the full 0–100 range.
-  // With many factors, the weighted average compresses scores toward the middle.
-  // This step stretches the distribution so the best area ≈ 100 and worst ≈ 0.
-  const rawScores: number[] = [];
-  for (const f of features) {
-    const qi = (f.properties as NeighborhoodProperties).quality_index;
-    if (typeof qi === 'number' && qi != null) rawScores.push(qi);
-  }
-
-  if (rawScores.length > 1) {
-    const rawMin = Math.min(...rawScores);
-    const rawMax = Math.max(...rawScores);
-    if (rawMax > rawMin) {
-      for (const f of features) {
-        const qi = (f.properties as NeighborhoodProperties).quality_index;
-        if (typeof qi === 'number' && qi != null) {
-          (f.properties as NeighborhoodProperties).quality_index =
-            Math.round(((qi - rawMin) / (rawMax - rawMin)) * 100);
-        }
-      }
-    } else {
-      // All scores identical — set to 50
-      for (const f of features) {
-        if ((f.properties as NeighborhoodProperties).quality_index != null) {
-          (f.properties as NeighborhoodProperties).quality_index = 50;
-        }
-      }
+      (f.properties as NeighborhoodProperties).quality_index = Math.round(weighted / totalWeight);
     }
   }
 }
