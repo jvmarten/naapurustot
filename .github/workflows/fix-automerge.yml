@@ -2,7 +2,7 @@ name: Fix automerge failures
 
 on:
   workflow_run:
-    workflows: ["Auto-merge to main", "Implement issue with Claude"]
+    workflows: ["Auto-merge to main"]
     types:
       - completed
 
