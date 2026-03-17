@@ -47,7 +47,7 @@ function collectStats(d: NeighborhoodProperties, avg: Record<string, number>): S
     { label: t('panel.employed'), value: formatNumber(d.pt_tyoll) },
     { label: t('panel.unemployed'), value: formatNumber(d.pt_tyott) },
     { label: t('panel.students'), value: formatNumber(d.pt_opisk) },
-    { label: t('panel.pensioners'), value: formatNumber(d.pt_elak) },
+    { label: t('panel.pensioners'), value: formatNumber(d.pt_elakel) },
   ];
 
   // Add metro comparison column
