@@ -36,7 +36,7 @@ function getCenter(feature: GeoJSON.Feature): [number, number] {
 }
 
 // Layers where lower values are better
-const LOWER_IS_BETTER: Set<LayerId> = new Set(['unemployment', 'air_quality']);
+const LOWER_IS_BETTER: Set<LayerId> = new Set(['unemployment', 'air_quality', 'light_pollution', 'mental_health', 'traffic_accidents']);
 
 export const RankingTable: React.FC<RankingTableProps> = ({ data, activeLayer, onSelect, onClose }) => {
   const layer = getLayerById(activeLayer);

@@ -139,6 +139,31 @@ OBESITY_RATE_FILE = Path(__file__).parent / "obesity_rate.json"
 # Life expectancy (years) — THL / Statistics Finland
 LIFE_EXPECTANCY_FILE = Path(__file__).parent / "life_expectancy.json"
 
+# School quality scores (average matriculation exam results, scale 4-8.5)
+# Source: Ylioppilastutkintolautakunta
+SCHOOL_QUALITY_FILE = Path(__file__).parent / "school_quality.json"
+
+# Median household debt (€) — Statistics Finland
+HOUSEHOLD_DEBT_FILE = Path(__file__).parent / "household_debt.json"
+
+# Price-to-rent ratio (property price / annual rent)
+PRICE_TO_RENT_FILE = Path(__file__).parent / "price_to_rent.json"
+
+# Light pollution levels (Bortle scale 1-9) — satellite/FMI data
+LIGHT_POLLUTION_FILE = Path(__file__).parent / "light_pollution.json"
+
+# Mental health service usage (% of population) — THL Sotkanet
+MENTAL_HEALTH_FILE = Path(__file__).parent / "mental_health_usage.json"
+
+# Net migration flow (% per year) — Statistics Finland
+NET_MIGRATION_FILE = Path(__file__).parent / "net_migration.json"
+
+# Neighborhood stability (average years of residency) — Statistics Finland
+NEIGHBORHOOD_STABILITY_FILE = Path(__file__).parent / "neighborhood_stability.json"
+
+# Traffic accident density (accidents per km road/year) — Traficom/Digiroad
+TRAFFIC_ACCIDENTS_FILE = Path(__file__).parent / "traffic_accidents.json"
+
 # ---------------------------------------------------------------------------
 # Retry & rate-limit settings
 # ---------------------------------------------------------------------------
@@ -1540,6 +1565,31 @@ def main():
     life_exp_data = _load_json_data(LIFE_EXPECTANCY_FILE, "life expectancy")
     gdf = _join_simple_data(gdf, life_exp_data, "life_expectancy", "life expectancy")
 
+    # --- Phase 6: New metrics ---
+    school_data = _load_json_data(SCHOOL_QUALITY_FILE, "school quality")
+    gdf = _join_simple_data(gdf, school_data, "school_quality_score", "school quality")
+
+    debt_data = _load_json_data(HOUSEHOLD_DEBT_FILE, "household debt")
+    gdf = _join_simple_data(gdf, debt_data, "median_household_debt", "household debt")
+
+    ptr_data = _load_json_data(PRICE_TO_RENT_FILE, "price-to-rent ratio")
+    gdf = _join_simple_data(gdf, ptr_data, "price_to_rent_ratio", "price-to-rent ratio")
+
+    light_data = _load_json_data(LIGHT_POLLUTION_FILE, "light pollution")
+    gdf = _join_simple_data(gdf, light_data, "light_pollution", "light pollution")
+
+    mental_data = _load_json_data(MENTAL_HEALTH_FILE, "mental health service usage")
+    gdf = _join_simple_data(gdf, mental_data, "mental_health_pct", "mental health service usage")
+
+    migration_data = _load_json_data(NET_MIGRATION_FILE, "net migration")
+    gdf = _join_simple_data(gdf, migration_data, "net_migration_pct", "net migration")
+
+    stability_data = _load_json_data(NEIGHBORHOOD_STABILITY_FILE, "neighborhood stability")
+    gdf = _join_simple_data(gdf, stability_data, "avg_residency_years", "neighborhood stability")
+
+    accident_data = _load_json_data(TRAFFIC_ACCIDENTS_FILE, "traffic accidents")
+    gdf = _join_simple_data(gdf, accident_data, "traffic_accident_density", "traffic accidents")
+
     # Single-person households (from existing Paavo data)
     gdf = calculate_single_person_hh(gdf)
 
@@ -1565,6 +1615,10 @@ def main():
         "avg_commute_min", "walkability_index", "kela_benefit_pct",
         "rental_price_sqm", "avg_taxable_income",
         "obesity_rate", "life_expectancy",
+        # Phase 6: new metrics
+        "school_quality_score", "median_household_debt", "price_to_rent_ratio",
+        "light_pollution", "mental_health_pct", "net_migration_pct",
+        "avg_residency_years", "traffic_accident_density",
         # Phase 4: historical time-series
         "income_history", "population_history", "unemployment_history",
     ]
