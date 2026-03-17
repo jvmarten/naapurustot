@@ -774,11 +774,22 @@ def fetch_osm_green_spaces():
     [out:json][timeout:120];
     (
       way["leisure"="park"]({METRO_BBOX});
+      way["leisure"="nature_reserve"]({METRO_BBOX});
+      way["leisure"="garden"]({METRO_BBOX});
       way["landuse"="forest"]({METRO_BBOX});
       way["landuse"="grass"]({METRO_BBOX});
+      way["landuse"="meadow"]({METRO_BBOX});
       way["natural"="wood"]({METRO_BBOX});
+      way["natural"="scrub"]({METRO_BBOX});
+      way["natural"="heath"]({METRO_BBOX});
+      way["boundary"="national_park"]({METRO_BBOX});
       relation["leisure"="park"]({METRO_BBOX});
+      relation["leisure"="nature_reserve"]({METRO_BBOX});
       relation["landuse"="forest"]({METRO_BBOX});
+      relation["landuse"="grass"]({METRO_BBOX});
+      relation["natural"="wood"]({METRO_BBOX});
+      relation["boundary"="national_park"]({METRO_BBOX});
+      relation["boundary"="protected_area"]({METRO_BBOX});
     );
     out geom;
     """
