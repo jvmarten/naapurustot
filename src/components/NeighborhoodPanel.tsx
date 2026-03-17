@@ -669,7 +669,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             { label: t('panel.employed'), value: d.pt_tyoll, color: 'bg-emerald-500' },
             { label: t('panel.unemployed'), value: d.pt_tyott, color: 'bg-rose-500' },
             { label: t('panel.students'), value: d.pt_opisk, color: 'bg-amber-500' },
-            { label: t('panel.pensioners'), value: d.pt_elak, color: 'bg-blue-500' },
+            { label: t('panel.pensioners'), value: d.pt_elakel, color: 'bg-blue-500' },
           ].map((item) => (
             <div key={item.label} className="bg-surface-100 dark:bg-surface-900/60 rounded-lg p-3">
               <div className="flex items-center gap-2 mb-1">
