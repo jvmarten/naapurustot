@@ -46,8 +46,8 @@ const AXES: AxisDef[] = [
     key: 'radar.green_space',
     extract: (p) => p.green_space_pct,
     extractAvg: (a) => a.green_space_pct,
-    min: 5,
-    max: 85,
+    min: 0,
+    max: 95,
     inverted: false,
   },
   {
