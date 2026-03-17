@@ -21,15 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-
-      - name: Create implementation branch
-        id: branch
-        run: |
-          BRANCH="claude/issue-${{ github.event.issue.number }}"
-          git checkout -b "$BRANCH"
-          git push -u origin "$BRANCH"
-          echo "name=$BRANCH" >> "$GITHUB_OUTPUT"
+          fetch-depth: 1
 
       - name: Implement with Claude Code
         id: claude
@@ -55,46 +47,6 @@ jobs:
             7. Commit your changes with a descriptive message referencing #${{ github.event.issue.number }}
             8. Push your commits to the current branch
 
-      - name: Verify and push changes
-        run: |
-          set -e
-
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          BRANCH="${{ steps.branch.outputs.name }}"
-
-          # Commit any uncommitted changes
-          if [ -n "$(git status --porcelain)" ]; then
-            echo "Found uncommitted changes — committing them now"
-            git add -A
-            git commit -m "Implement #${{ github.event.issue.number }}: ${{ github.event.issue.title }}"
-          fi
-
-          # Check if there are new commits vs origin/main
-          git fetch origin main
-          if git diff --quiet origin/main..HEAD; then
-            echo "ERROR: No changes were made by Claude Code"
-            exit 1
-          fi
-
-          # Push the branch (force in case action already pushed partial)
-          git push origin "$BRANCH" --force-with-lease
-          echo "Changes pushed to $BRANCH"
-          echo "Auto-merge workflow will handle merging to main."
-
-      - name: Close issue on success
-        if: success()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.issue.number,
-              body: 'Implemented on branch `${{ steps.branch.outputs.name }}`. Auto-merge will handle merging to main.',
-            });
-
       - name: Comment on failure
         if: failure()
         uses: actions/github-script@v7
@@ -106,8 +58,3 @@ jobs:
               issue_number: context.payload.issue.number,
               body: 'Failed to implement this issue. Check the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.',
             });
-
-      - name: Cleanup branch on failure
-        if: failure()
-        run: |
-          git push origin --delete "${{ steps.branch.outputs.name }}" || true
