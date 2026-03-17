@@ -4,23 +4,29 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Naapurustot.fi — Helsinki Metro Neighborhood Explorer</title>
-    <meta name="description" content="Vertaile Helsingin seudun asuinalueita 35+ mittarilla: tulotaso, asuntohinnat, palvelut, joukkoliikenne, turvallisuus ja paljon muuta. Interaktiivinen karttapalvelu asuinalueiden vertailuun." />
+    <title>Naapurustot — Helsingin seudun naapurustot kartalla | Naapurustot.fi</title>
+    <meta name="description" content="Naapurustot.fi — vertaile Helsingin, Espoon ja Vantaan naapurustoja ja asuinalueita 35+ mittarilla. Tulotaso, asuntohinnat, palvelut, turvallisuus, joukkoliikenne ja paljon muuta interaktiivisella kartalla." />
+    <meta name="keywords" content="naapurustot, naapurusto, asuinalueet, Helsinki, Espoo, Vantaa, asuinalueiden vertailu, asuntohinnat, postinumeroalueet, karttapalvelu" />
     <link rel="canonical" href="https://naapurustot.fi/" />
 
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://naapurustot.fi/" />
-    <meta property="og:title" content="Naapurustot.fi — Helsingin seudun asuinalueiden vertailu" />
-    <meta property="og:description" content="Vertaile Helsingin seudun asuinalueita 35+ mittarilla: tulotaso, asuntohinnat, palvelut, joukkoliikenne, turvallisuus ja paljon muuta." />
+    <meta property="og:title" content="Naapurustot — Helsingin seudun naapurustot kartalla" />
+    <meta property="og:description" content="Vertaile Helsingin, Espoon ja Vantaan naapurustoja 35+ mittarilla: tulotaso, asuntohinnat, palvelut, joukkoliikenne ja turvallisuus." />
+    <meta property="og:image" content="https://naapurustot.fi/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Naapurustot.fi — Helsingin seudun naapurustot interaktiivisella kartalla" />
     <meta property="og:locale" content="fi_FI" />
     <meta property="og:locale:alternate" content="en_US" />
     <meta property="og:site_name" content="Naapurustot.fi" />
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Naapurustot.fi — Helsingin seudun asuinalueiden vertailu" />
-    <meta name="twitter:description" content="Vertaile Helsingin seudun asuinalueita 35+ mittarilla interaktiivisella kartalla." />
+    <meta name="twitter:title" content="Naapurustot — Helsingin seudun naapurustot kartalla" />
+    <meta name="twitter:description" content="Vertaile Helsingin, Espoon ja Vantaan naapurustoja 35+ mittarilla interaktiivisella kartalla." />
+    <meta name="twitter:image" content="https://naapurustot.fi/og-image.png" />
 
     <!-- Additional SEO -->
     <meta name="robots" content="index, follow" />
@@ -31,14 +37,35 @@
     <link rel="alternate" hreflang="en" href="https://naapurustot.fi/" />
     <link rel="alternate" hreflang="x-default" href="https://naapurustot.fi/" />
 
-    <!-- Structured Data -->
+    <!-- Structured Data: WebSite for sitelinks search box -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "Naapurustot.fi",
+      "alternateName": ["Naapurustot", "Helsinki naapurustot"],
+      "url": "https://naapurustot.fi",
+      "description": "Helsingin seudun naapurustot ja asuinalueet interaktiivisella kartalla. Vertaile naapurustoja yli 35 mittarilla.",
+      "inLanguage": ["fi", "en"],
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": {
+          "@type": "EntryPoint",
+          "urlTemplate": "https://naapurustot.fi/?pno={search_term_string}"
+        },
+        "query-input": "required name=search_term_string"
+      }
+    }
+    </script>
+
+    <!-- Structured Data: WebApplication -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
       "@type": "WebApplication",
       "name": "Naapurustot.fi",
       "url": "https://naapurustot.fi",
-      "description": "Interaktiivinen karttapalvelu Helsingin seudun asuinalueiden vertailuun 35+ mittarilla.",
+      "description": "Interaktiivinen karttapalvelu Helsingin seudun naapurustojen ja asuinalueiden vertailuun 35+ mittarilla.",
       "applicationCategory": "UtilitiesApplication",
       "operatingSystem": "Web",
       "inLanguage": ["fi", "en"],
@@ -54,13 +81,14 @@
       },
       "spatialCoverage": {
         "@type": "Place",
-        "name": "Helsinki Metropolitan Area",
+        "name": "Helsingin seutu",
         "geo": {
           "@type": "GeoCoordinates",
           "latitude": 60.17,
           "longitude": 24.94
         }
-      }
+      },
+      "keywords": "naapurustot, naapurusto, asuinalueet, Helsinki, Espoo, Vantaa, asuinalueiden vertailu, karttapalvelu"
     }
     </script>
 
@@ -70,6 +98,31 @@
   </head>
   <body class="bg-surface-100 dark:bg-surface-950 text-surface-900 dark:text-white antialiased">
     <div id="root"></div>
+    <noscript>
+      <div style="max-width:800px;margin:2rem auto;padding:1rem;font-family:sans-serif">
+        <h1>Naapurustot.fi — Helsingin seudun naapurustot kartalla</h1>
+        <p>Naapurustot.fi on ilmainen interaktiivinen karttapalvelu, jolla voit vertailla Helsingin, Espoon, Vantaan ja Kauniaisten naapurustoja ja asuinalueita yli 35 eri mittarilla.</p>
+        <h2>Vertaile naapurustoja</h2>
+        <p>Palvelun avulla voit tutkia ja vertailla asuinalueita seuraavilla mittareilla: mediaanitulot, asuntohinnat, työttömyysaste, palvelut, joukkoliikenneyhteydet, turvallisuus, viheralueet, koulujen ja päiväkotien tiheys, ja paljon muuta.</p>
+        <h2>Helsingin seudun naapurustot</h2>
+        <p>Palvelu kattaa yli 160 naapurustoa Helsingin seudulla, mukaan lukien:</p>
+        <ul>
+          <li>Helsingin naapurustot: Kallio, Töölö, Kamppi, Vallila, Käpylä, Munkkiniemi, Lauttasaari, Herttoniemi, Vuosaari, Malmi, Kontula ja monet muut</li>
+          <li>Espoon naapurustot: Tapiola, Leppävaara, Matinkylä, Olari, Espoonlahti, Kauniainen ja monet muut</li>
+          <li>Vantaan naapurustot: Tikkurila, Myyrmäki, Korso, Kivistö, Hakunila ja monet muut</li>
+        </ul>
+        <h2>Ominaisuudet</h2>
+        <ul>
+          <li>Interaktiivinen kartta naapurustojen vertailuun</li>
+          <li>Yli 35 eri mittaria ja tilastoa</li>
+          <li>Naapurustojen ranking-listat</li>
+          <li>Asuinalueen hakutyökalu</li>
+          <li>Naapurustojen vertailu vierekkäin</li>
+          <li>Suodattimet sopivan naapuruston löytämiseen</li>
+        </ul>
+        <p>Ota JavaScript käyttöön nähdäksesi interaktiivisen kartan.</p>
+      </div>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
