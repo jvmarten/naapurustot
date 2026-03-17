@@ -44,17 +44,26 @@ jobs:
             5. Run `npm run lint` to verify linting passes
             6. If you add user-visible text, add translations to both src/locales/fi.json and src/locales/en.json
             7. Commit your changes with a descriptive message referencing #${{ github.event.issue.number }}
-            8. Push directly to main
+            8. Do NOT push — the workflow will handle merging to main
 
-      - name: Merge changes into main
+      - name: Commit and merge changes into main
         run: |
           set -e
 
-          # Get the current branch name (claude-code-action creates a claude/* branch)
-          CURRENT_BRANCH=$(git branch --show-current)
-          CLAUDE_COMMIT=$(git rev-parse HEAD)
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
+          CURRENT_BRANCH=$(git branch --show-current)
           echo "Current branch: $CURRENT_BRANCH"
+
+          # Check if Claude left uncommitted changes in the working tree
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "Found uncommitted changes — committing them now"
+            git add -A
+            git commit -m "Implement #${{ github.event.issue.number }}: ${{ github.event.issue.title }}"
+          fi
+
+          CLAUDE_COMMIT=$(git rev-parse HEAD)
           echo "Claude commit: $CLAUDE_COMMIT"
 
           git fetch origin main
@@ -62,20 +71,21 @@ jobs:
           echo "Main commit: $MAIN_COMMIT"
 
           # If Claude already pushed to main, nothing to do
-          if git merge-base --is-ancestor "$CLAUDE_COMMIT" origin/main 2>/dev/null; then
-            echo "Changes are already on main, nothing to merge"
-            exit 0
+          if [ "$CLAUDE_COMMIT" = "$MAIN_COMMIT" ]; then
+            echo "ERROR: No changes were made by Claude Code"
+            exit 1
           fi
 
-          # Merge Claude's changes into main
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout main
-          git reset --hard origin/main
-          git merge --no-ff "$CLAUDE_COMMIT" -m "Auto-merge issue #${{ github.event.issue.number }} into main"
-          git push origin main
-
-          echo "Successfully merged into main"
+          # If there are new commits on the current branch, merge them into main
+          if ! git merge-base --is-ancestor "$CLAUDE_COMMIT" origin/main 2>/dev/null; then
+            git checkout main
+            git reset --hard origin/main
+            git merge --no-ff "$CLAUDE_COMMIT" -m "Auto-merge issue #${{ github.event.issue.number }} into main"
+            git push origin main
+            echo "Successfully merged into main"
+          else
+            echo "Changes are already on main"
+          fi
 
           # Delete the Claude branch if it's not main
           if [ "$CURRENT_BRANCH" != "main" ] && [ -n "$CURRENT_BRANCH" ]; then
