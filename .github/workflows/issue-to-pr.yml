@@ -29,6 +29,7 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: "--model claude-opus-4-6"
+          allowed_tools: "Bash,Read,Write,Edit,Glob,Grep,WebSearch,WebFetch,TodoWrite"
           prompt: |
             Implement the following GitHub issue:
 
