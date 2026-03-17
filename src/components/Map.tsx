@@ -19,7 +19,8 @@ interface MapProps {
   activeLayer: LayerId;
   onHover: (props: NeighborhoodProperties | null, x: number, y: number) => void;
   onClick: (props: NeighborhoodProperties) => void;
-  flyTo: { center: [number, number]; zoom?: number } | null;
+  flyTo: { center: [number, number]; zoom?: number; bounds?: [number, number, number, number] } | null;
+  selectedPno?: string | null;
   pinnedPnos?: string[];
   filterActive?: boolean;
   filterMatchPnos?: Set<string>;
@@ -64,10 +65,11 @@ const FILTER_HIGHLIGHT_LAYER = 'neighborhoods-filter-highlight';
 export const DEFAULT_CENTER: [number, number] = [MAP_CENTER_LNG, MAP_CENTER_LAT];
 export const DEFAULT_ZOOM = MAP_ZOOM;
 
-export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, flyTo, pinnedPnos = [], filterActive = false, filterMatchPnos = new Set(), qualityVersion = 0 }) => {
+export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = [], filterActive = false, filterMatchPnos = new Set(), qualityVersion = 0 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const hoveredIdRef = useRef<string | null>(null);
+  const selectedIdRef = useRef<string | null>(null);
   const { theme } = useTheme();
 
   // Initialize map
@@ -138,6 +140,8 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
             'case',
             ['boolean', ['feature-state', 'hover'], false],
             0.85,
+            ['boolean', ['feature-state', 'selected'], false],
+            0.85,
             0.65,
           ],
           'fill-opacity-transition': { duration: 300, delay: 0 },
@@ -162,7 +166,7 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
         paint: {
           'line-color': theme === 'dark' ? '#f8fafc' : '#0f172a',
           'line-width': 2.5,
-          'line-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 1, 0],
+          'line-opacity': ['case', ['any', ['boolean', ['feature-state', 'hover'], false], ['boolean', ['feature-state', 'selected'], false]], 1, 0],
         },
       });
     };
@@ -207,6 +211,8 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
         'case',
         ['boolean', ['feature-state', 'hover'], false],
         0.85,
+        ['boolean', ['feature-state', 'selected'], false],
+        0.85,
         ['in', ['get', 'pno'], ['literal', matchPnoArray]],
         0.8,
         0.15,
@@ -230,6 +236,8 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
       map.setPaintProperty(FILL_LAYER, 'fill-opacity', [
         'case',
         ['boolean', ['feature-state', 'hover'], false],
+        0.85,
+        ['boolean', ['feature-state', 'selected'], false],
         0.85,
         0.65,
       ]);
@@ -296,11 +304,33 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
     };
   }, [data, onHover, onClick]);
 
-  // FlyTo
+  // FlyTo / fitBounds
   useEffect(() => {
     if (!mapRef.current || !flyTo) return;
-    mapRef.current.flyTo({ center: flyTo.center, zoom: flyTo.zoom ?? 13.5, duration: 1200 });
+    if (flyTo.bounds) {
+      mapRef.current.fitBounds(flyTo.bounds, { padding: 100, duration: 1200, maxZoom: 14.5 });
+    } else {
+      mapRef.current.flyTo({ center: flyTo.center, zoom: flyTo.zoom ?? 13.5, duration: 1200 });
+    }
   }, [flyTo]);
+
+  // Highlight selected neighborhood
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !data) return;
+    if (!map.getSource(SOURCE_ID)) return;
+
+    // Clear previous selection
+    if (selectedIdRef.current) {
+      map.setFeatureState({ source: SOURCE_ID, id: selectedIdRef.current }, { selected: false });
+    }
+
+    // Set new selection
+    if (selectedPno) {
+      map.setFeatureState({ source: SOURCE_ID, id: selectedPno }, { selected: true });
+    }
+    selectedIdRef.current = selectedPno;
+  }, [selectedPno, data]);
 
   // Highlight pinned neighborhoods
   useEffect(() => {

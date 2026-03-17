@@ -13,6 +13,7 @@ import { RankingTable } from './components/RankingTable';
 import { FilterPanel, computeMatchingPnos, type FilterCriterion } from './components/FilterPanel';
 import { CustomQualityPanel } from './components/CustomQualityPanel';
 import { NeighborhoodWizard } from './components/NeighborhoodWizard';
+import { bbox } from '@turf/turf';
 import { useMapData } from './hooks/useMapData';
 import { useFavorites } from './hooks/useFavorites';
 import { useSelectedNeighborhood } from './hooks/useSelectedNeighborhood';
@@ -33,7 +34,7 @@ const App: React.FC = () => {
     x: number;
     y: number;
   } | null>(null);
-  const [flyTarget, setFlyTarget] = useState<{ center: [number, number]; zoom?: number } | null>(null);
+  const [flyTarget, setFlyTarget] = useState<{ center: [number, number]; zoom?: number; bounds?: [number, number, number, number] } | null>(null);
   const [lang, setLangState] = useState<Lang>(getLang());
   const [showRanking, setShowRanking] = useState(false);
   const [showFilter, setShowFilter] = useState(false);
@@ -101,12 +102,22 @@ const App: React.FC = () => {
 
   const handleSearch = useCallback(
     (pno: string, center: [number, number]) => {
-      setFlyTarget({ center });
       if (data) {
         const feature = data.features.find((f) => f.properties?.pno === pno);
         if (feature?.properties) {
           select(feature.properties as NeighborhoodProperties);
+          // Use feature bounding box for better zoom fit
+          if (feature.geometry) {
+            const [minLng, minLat, maxLng, maxLat] = bbox(feature);
+            setFlyTarget({ center, bounds: [minLng, minLat, maxLng, maxLat] });
+          } else {
+            setFlyTarget({ center });
+          }
+        } else {
+          setFlyTarget({ center });
         }
+      } else {
+        setFlyTarget({ center });
       }
     },
     [data, select],
@@ -203,6 +214,7 @@ const App: React.FC = () => {
         onHover={handleHover}
         onClick={handleClick}
         flyTo={flyTarget}
+        selectedPno={selected?.pno ?? null}
         pinnedPnos={pinned.map((p) => p.pno)}
         filterActive={showFilter && filters.length > 0}
         filterMatchPnos={filterMatchPnos}
