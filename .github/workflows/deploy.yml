@@ -5,6 +5,10 @@ on:
   push:
     branches:
       - main
+  workflow_run:
+    workflows: ["Auto-merge to main"]
+    types:
+      - completed
 
 permissions:
   contents: read
@@ -17,9 +21,14 @@ concurrency:
 
 jobs:
   build:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: main
 
       - uses: actions/setup-node@v5
         with:
