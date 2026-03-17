@@ -2,7 +2,8 @@ import React from 'react';
 import { useTheme } from '../hooks/useTheme';
 
 export const ThemeToggle: React.FC = () => {
-  const { theme, toggle } = useTheme();
+  const { theme, setMode } = useTheme();
+  const toggle = () => setMode(theme === 'dark' ? 'light' : 'dark');
 
   return (
     <button
