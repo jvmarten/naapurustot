@@ -3,17 +3,25 @@ import type { NeighborhoodProperties } from './metrics';
 /**
  * Computes a composite Quality Index (0–100) for each neighborhood.
  *
- * Default factors (3):
- *   - Median income (35%)
- *   - Low unemployment (35%)
- *   - Higher education rate (30%)
+ * Default primary factors (9):
+ *   - Safety (crime rate, inverted) — 20%
+ *   - Employment (unemployment, inverted) — 15%
+ *   - Income (median income) — 15%
+ *   - Education (higher education rate) — 10%
+ *   - Transit access — 10%
+ *   - Services (healthcare, school, daycare, grocery) — 10%
+ *   - Green spaces — 8%
+ *   - Air quality (inverted) — 7%
+ *   - Quietness (noise level, inverted) — 5%
  *
- * Custom mode adds additional factors that users can weight via sliders:
- *   - Safety (crime rate, inverted)
- *   - Green spaces
- *   - Transit access
- *   - Services (healthcare, school, daycare, grocery average)
- *   - Quietness (noise level, inverted)
+ * Additional factors available via "Show more":
+ *   - Walkability
+ *   - School quality
+ *   - Life expectancy
+ *   - Commute time (inverted)
+ *   - Cycling infrastructure
+ *   - Grocery access
+ *   - Restaurant density
  *
  * Each metric is min-max normalized across all neighborhoods,
  * then combined using the (custom) weights.
@@ -38,64 +46,140 @@ export interface QualityFactor {
   properties: (keyof NeighborhoodProperties)[];
   /** If true, lower raw values = higher quality score */
   invert: boolean;
+  /** If true, shown by default in the panel. Factors with defaultWeight > 0 are always primary. */
+  primary: boolean;
 }
 
 export const QUALITY_FACTORS: QualityFactor[] = [
+  // --- Primary factors (9): shown by default with optimized weights ---
   {
-    id: 'income',
-    label: { fi: 'Tulotaso', en: 'Income' },
-    defaultWeight: 35,
-    properties: ['hr_mtu'],
-    invert: false,
+    id: 'safety',
+    label: { fi: 'Turvallisuus', en: 'Safety' },
+    defaultWeight: 20,
+    properties: ['crime_index'],
+    invert: true,
+    primary: true,
   },
   {
     id: 'employment',
     label: { fi: 'Työllisyys', en: 'Employment' },
-    defaultWeight: 35,
+    defaultWeight: 15,
     properties: ['unemployment_rate'],
     invert: true,
+    primary: true,
+  },
+  {
+    id: 'income',
+    label: { fi: 'Tulotaso', en: 'Income' },
+    defaultWeight: 15,
+    properties: ['hr_mtu'],
+    invert: false,
+    primary: true,
   },
   {
     id: 'education',
     label: { fi: 'Koulutus', en: 'Education' },
-    defaultWeight: 30,
+    defaultWeight: 10,
     properties: ['higher_education_rate'],
     invert: false,
-  },
-  {
-    id: 'safety',
-    label: { fi: 'Turvallisuus', en: 'Safety' },
-    defaultWeight: 0,
-    properties: ['crime_index'],
-    invert: true,
-  },
-  {
-    id: 'green_space',
-    label: { fi: 'Viheralueet', en: 'Green Spaces' },
-    defaultWeight: 0,
-    properties: ['green_space_pct'],
-    invert: false,
+    primary: true,
   },
   {
     id: 'transit',
     label: { fi: 'Joukkoliikenne', en: 'Transit' },
-    defaultWeight: 0,
+    defaultWeight: 10,
     properties: ['transit_stop_density'],
     invert: false,
+    primary: true,
   },
   {
     id: 'services',
     label: { fi: 'Palvelut', en: 'Services' },
-    defaultWeight: 0,
+    defaultWeight: 10,
     properties: ['healthcare_density', 'school_density', 'daycare_density', 'grocery_density'],
     invert: false,
+    primary: true,
+  },
+  {
+    id: 'green_space',
+    label: { fi: 'Viheralueet', en: 'Green Spaces' },
+    defaultWeight: 8,
+    properties: ['green_space_pct'],
+    invert: false,
+    primary: true,
+  },
+  {
+    id: 'air_quality',
+    label: { fi: 'Ilmanlaatu', en: 'Air Quality' },
+    defaultWeight: 7,
+    properties: ['air_quality_index'],
+    invert: true,
+    primary: true,
   },
   {
     id: 'quietness',
     label: { fi: 'Rauhallisuus', en: 'Quietness' },
-    defaultWeight: 0,
+    defaultWeight: 5,
     properties: ['noise_level'],
     invert: true,
+    primary: true,
+  },
+  // --- Secondary factors: hidden by default, available via "Show more" ---
+  {
+    id: 'walkability',
+    label: { fi: 'Käveltävyys', en: 'Walkability' },
+    defaultWeight: 0,
+    properties: ['walkability_index'],
+    invert: false,
+    primary: false,
+  },
+  {
+    id: 'school_quality',
+    label: { fi: 'Koulujen laatu', en: 'School Quality' },
+    defaultWeight: 0,
+    properties: ['school_quality_score'],
+    invert: false,
+    primary: false,
+  },
+  {
+    id: 'life_expectancy',
+    label: { fi: 'Elinajanodote', en: 'Life Expectancy' },
+    defaultWeight: 0,
+    properties: ['life_expectancy'],
+    invert: false,
+    primary: false,
+  },
+  {
+    id: 'commute_time',
+    label: { fi: 'Työmatka-aika', en: 'Commute Time' },
+    defaultWeight: 0,
+    properties: ['avg_commute_min'],
+    invert: true,
+    primary: false,
+  },
+  {
+    id: 'cycling',
+    label: { fi: 'Pyöräilyinfra', en: 'Cycling Infrastructure' },
+    defaultWeight: 0,
+    properties: ['cycling_density'],
+    invert: false,
+    primary: false,
+  },
+  {
+    id: 'grocery_access',
+    label: { fi: 'Ruokakaupat', en: 'Grocery Access' },
+    defaultWeight: 0,
+    properties: ['grocery_density'],
+    invert: false,
+    primary: false,
+  },
+  {
+    id: 'restaurants',
+    label: { fi: 'Ravintolat', en: 'Restaurants' },
+    defaultWeight: 0,
+    properties: ['restaurant_density'],
+    invert: false,
+    primary: false,
   },
 ];
 

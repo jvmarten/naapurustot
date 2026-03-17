@@ -177,6 +177,8 @@
   "custom_quality.button": "Muokkaa",
   "custom_quality.custom_label": "mukautettu",
   "custom_quality.customize_qi": "Muokkaa laatuindeksi\u00e4",
+  "custom_quality.show_more": "N\u00e4yt\u00e4 lis\u00e4\u00e4 tekij\u00f6it\u00e4",
+  "custom_quality.show_less": "N\u00e4yt\u00e4 v\u00e4hemm\u00e4n",
   "panel.radar_title": "Alueen profiili",
   "radar.income": "Tulot",
   "radar.safety": "Turvallisuus",
