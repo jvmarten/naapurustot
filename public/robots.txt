@@ -2,4 +2,8 @@ User-agent: *
 Allow: /
 Disallow: /data/
 
+# Sitemaps
 Sitemap: https://naapurustot.fi/sitemap.xml
+
+# Host
+Host: https://naapurustot.fi

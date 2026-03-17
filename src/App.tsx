@@ -168,9 +168,9 @@ const App: React.FC = () => {
       const ogDesc = document.querySelector('meta[property="og:description"]');
       if (ogDesc) ogDesc.setAttribute('content', `${selected.nimi} (${selected.pno}) — ${t('panel.quality_index')}: ${selected.quality_index ?? '—'}`);
     } else {
-      document.title = 'Naapurustot.fi — Helsinki Metro Neighborhood Explorer';
+      document.title = 'Naapurustot — Helsingin seudun naapurustot kartalla | Naapurustot.fi';
       const desc = document.querySelector('meta[name="description"]');
-      if (desc) desc.setAttribute('content', 'Vertaile Helsingin seudun asuinalueita 35+ mittarilla: tulotaso, asuntohinnat, palvelut, joukkoliikenne, turvallisuus ja paljon muuta.');
+      if (desc) desc.setAttribute('content', 'Naapurustot.fi — vertaile Helsingin, Espoon ja Vantaan naapurustoja ja asuinalueita 35+ mittarilla. Tulotaso, asuntohinnat, palvelut, turvallisuus, joukkoliikenne ja paljon muuta interaktiivisella kartalla.');
     }
   }, [selected, lang]);
 
