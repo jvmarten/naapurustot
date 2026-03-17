@@ -21,6 +21,7 @@ const LAYER_GROUPS: LayerGroup[] = [
   { labelKey: 'layers.housing', ids: ['ownership', 'rental', 'apt_size', 'detached_houses', 'building_age', 'energy_class'] },
   { labelKey: 'layers.services', ids: ['restaurant_density', 'grocery_access', 'daycare_density', 'school_density', 'healthcare_access', 'green_space'] },
   { labelKey: 'layers.mobility', ids: ['commute_time', 'car_ownership', 'cycling_infra'] },
+  { labelKey: 'layers.health', ids: ['obesity_rate', 'life_expectancy'] },
 ];
 
 export const LayerSelector: React.FC<LayerSelectorProps> = ({ activeLayer, onLayerChange, onCustomizeQuality, isCustomWeights = false }) => {

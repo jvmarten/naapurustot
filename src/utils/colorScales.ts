@@ -38,7 +38,9 @@ export type LayerId =
   | 'walkability'
   | 'kela_benefits'
   | 'rental_price'
-  | 'taxable_income';
+  | 'taxable_income'
+  | 'obesity_rate'
+  | 'life_expectancy';
 
 export interface LayerConfig {
   id: LayerId;
@@ -415,6 +417,25 @@ export const LAYERS: LayerConfig[] = [
     colors: ['#1a1a2e', '#16213e', '#0f3460', '#1a759f', '#34a0a4', '#76c893', '#b5e48c', '#d9ed92'],
     stops: [20000, 25000, 30000, 35000, 40000, 45000, 50000, 60000],
     format: euro,
+  },
+  // --- Phase 5: Health metrics ---
+  {
+    id: 'obesity_rate',
+    labelKey: 'layer.obesity_rate',
+    property: 'obesity_rate',
+    unit: '%',
+    colors: ['#1a9850', '#66bd63', '#a6d96a', '#d9ef8b', '#fee08b', '#fdae61', '#f46d43', '#d73027'],
+    stops: [10, 13, 15, 17, 19, 21, 24, 28],
+    format: pct,
+  },
+  {
+    id: 'life_expectancy',
+    labelKey: 'layer.life_expectancy',
+    property: 'life_expectancy',
+    unit: '',
+    colors: ['#d73027', '#f46d43', '#fdae61', '#fee08b', '#d9ef8b', '#a6d96a', '#66bd63', '#1a9850'],
+    stops: [77, 78.5, 80, 81, 82, 83, 84.5, 87],
+    format: age,
   },
 ];
 

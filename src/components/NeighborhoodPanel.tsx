@@ -596,6 +596,27 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
         </div>
       </div>
 
+      {/* Health section */}
+      <div>
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 mb-3">
+          {t('layers.health')}
+        </h3>
+        <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
+          <StatRow
+            label={t('panel.obesity_rate')}
+            value={d.obesity_rate != null ? `${Number(d.obesity_rate).toFixed(1)} %` : '—'}
+            diff={formatDiff(d.obesity_rate, avg.obesity_rate)}
+            diffClass={diffColor(d.obesity_rate, avg.obesity_rate, false)}
+          />
+          <StatRow
+            label={t('panel.life_expectancy')}
+            value={d.life_expectancy != null ? `${Number(d.life_expectancy).toFixed(1)}` : '—'}
+            diff={formatDiff(d.life_expectancy, avg.life_expectancy)}
+            diffClass={diffColor(d.life_expectancy, avg.life_expectancy)}
+          />
+        </div>
+      </div>
+
       {/* Additional demographics */}
       <div>
         <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 mb-3">
