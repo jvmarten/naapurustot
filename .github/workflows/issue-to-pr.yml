@@ -22,6 +22,10 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Save pre-run commit
+        id: pre
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
       - name: Implement with Claude Code
         id: claude
         uses: anthropics/claude-code-action@v1
@@ -46,15 +50,15 @@ jobs:
             7. Commit your changes with a descriptive message referencing #${{ github.event.issue.number }}
             8. Do NOT push — the workflow will handle merging to main
 
-      - name: Commit and merge changes into main
+      - name: Verify changes were made
         run: |
           set -e
 
+          PRE_SHA="${{ steps.pre.outputs.sha }}"
+          echo "Pre-run commit: $PRE_SHA"
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          CURRENT_BRANCH=$(git branch --show-current)
-          echo "Current branch: $CURRENT_BRANCH"
 
           # Check if Claude left uncommitted changes in the working tree
           if [ -n "$(git status --porcelain)" ]; then
@@ -63,34 +67,38 @@ jobs:
             git commit -m "Implement #${{ github.event.issue.number }}: ${{ github.event.issue.title }}"
           fi
 
-          CLAUDE_COMMIT=$(git rev-parse HEAD)
-          echo "Claude commit: $CLAUDE_COMMIT"
+          POST_SHA=$(git rev-parse HEAD)
+          echo "Post-run commit: $POST_SHA"
 
+          # Also check if the action already pushed to origin/main
           git fetch origin main
-          MAIN_COMMIT=$(git rev-parse origin/main)
-          echo "Main commit: $MAIN_COMMIT"
+          MAIN_SHA=$(git rev-parse origin/main)
+          echo "Origin main: $MAIN_SHA"
 
-          # If Claude already pushed to main, nothing to do
-          if [ "$CLAUDE_COMMIT" = "$MAIN_COMMIT" ]; then
+          # Determine if changes were made
+          if [ "$POST_SHA" = "$PRE_SHA" ] && [ "$MAIN_SHA" = "$PRE_SHA" ]; then
             echo "ERROR: No changes were made by Claude Code"
             exit 1
           fi
 
-          # If there are new commits on the current branch, merge them into main
-          if ! git merge-base --is-ancestor "$CLAUDE_COMMIT" origin/main 2>/dev/null; then
-            git checkout main
-            git reset --hard origin/main
-            git merge --no-ff "$CLAUDE_COMMIT" -m "Auto-merge issue #${{ github.event.issue.number }} into main"
-            git push origin main
-            echo "Successfully merged into main"
-          else
-            echo "Changes are already on main"
+          # If the action already pushed to main, we're done
+          if [ "$MAIN_SHA" != "$PRE_SHA" ]; then
+            echo "Changes already pushed to main by claude-code-action"
+            exit 0
           fi
 
-          # Delete the Claude branch if it's not main
-          if [ "$CURRENT_BRANCH" != "main" ] && [ -n "$CURRENT_BRANCH" ]; then
-            git push origin --delete "$CURRENT_BRANCH" || echo "Branch $CURRENT_BRANCH already deleted or not found"
+          # Otherwise, merge local commits into main
+          CURRENT_BRANCH=$(git branch --show-current)
+          if [ "$CURRENT_BRANCH" != "main" ]; then
+            git checkout main
+            git reset --hard origin/main
+            git merge --no-ff "$POST_SHA" -m "Auto-merge issue #${{ github.event.issue.number }} into main"
+            git push origin main
+            git push origin --delete "$CURRENT_BRANCH" || true
+          else
+            git push origin main
           fi
+          echo "Successfully merged into main"
 
       - name: Close issue
         if: success()
