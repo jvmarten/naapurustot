@@ -149,8 +149,8 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
         type: 'line',
         source: SOURCE_ID,
         paint: {
-          'line-color': theme === 'dark' ? '#1e293b' : '#cbd5e1',
-          'line-width': 0.8,
+          'line-color': theme === 'dark' ? '#1e293b' : '#475569',
+          'line-width': theme === 'dark' ? 0.8 : 1,
           'line-opacity': 0.6,
         },
       });
