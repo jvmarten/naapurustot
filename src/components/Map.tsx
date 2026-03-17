@@ -26,6 +26,7 @@ interface MapProps {
   filterMatchPnos?: Set<string>;
   /** Increment to force GeoJSON source refresh (e.g. after quality index recomputation) */
   qualityVersion?: number;
+  colorblind?: boolean;
 }
 
 function makeStyle(theme: 'dark' | 'light'): maplibregl.StyleSpecification {
@@ -65,7 +66,7 @@ const FILTER_HIGHLIGHT_LAYER = 'neighborhoods-filter-highlight';
 export const DEFAULT_CENTER: [number, number] = [MAP_CENTER_LNG, MAP_CENTER_LAT];
 export const DEFAULT_ZOOM = MAP_ZOOM;
 
-export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = [], filterActive = false, filterMatchPnos = new Set(), qualityVersion = 0 }) => {
+export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = [], filterActive = false, filterMatchPnos = new Set(), qualityVersion = 0, colorblind = false }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const hoveredIdRef = useRef<string | null>(null);
@@ -188,7 +189,7 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
     }
   }, [qualityVersion, data]);
 
-  // Smoothly transition fill color when active layer changes
+  // Smoothly transition fill color when active layer or colorblind mode changes
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !data) return;
@@ -196,7 +197,7 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
 
     const layer = getLayerById(activeLayer);
     map.setPaintProperty(FILL_LAYER, 'fill-color', buildFillColorExpression(layer));
-  }, [activeLayer]);
+  }, [activeLayer, colorblind]);
 
   // Filter-aware rendering: dim non-matching neighborhoods and highlight matching ones
   useEffect(() => {

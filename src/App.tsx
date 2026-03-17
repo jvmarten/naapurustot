@@ -219,6 +219,7 @@ const App: React.FC = () => {
         filterActive={showFilter && filters.length > 0}
         filterMatchPnos={filterMatchPnos}
         qualityVersion={qualityVersion}
+        colorblind={colorblind}
       />
 
       {/* Skeleton / shimmer loading overlay */}
@@ -303,7 +304,7 @@ const App: React.FC = () => {
       />
 
       {/* Legend — repositioned for mobile */}
-      <Legend layerId={activeLayer} />
+      <Legend layerId={activeLayer} colorblind={colorblind} />
 
       {/* Tooltip — hidden on touch devices via CSS */}
       {tooltip && !selected && (

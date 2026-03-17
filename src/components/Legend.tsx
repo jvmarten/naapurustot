@@ -4,9 +4,10 @@ import { t } from '../utils/i18n';
 
 interface LegendProps {
   layerId: LayerId;
+  colorblind?: boolean;
 }
 
-export const Legend: React.FC<LegendProps> = ({ layerId }) => {
+export const Legend: React.FC<LegendProps> = ({ layerId, colorblind: _colorblind }) => {
   const layer = getLayerById(layerId);
 
   // Show only first and last tick values
