@@ -1,4 +1,4 @@
-# Naapurustot.fi — Feature Roadmap
+# naapurustot.fi — Feature Roadmap
 
 > Generated 2026-03-17 from full codebase analysis.
 > Status: **planning only** — nothing here has been implemented yet.
@@ -7,7 +7,7 @@
 
 ## Project Context
 
-Naapurustot.fi is a client-side React/TypeScript SPA that visualizes 51 data layers across ~160 Helsinki metro neighborhoods on an interactive MapLibre GL map. The app already ships:
+naapurustot.fi is a client-side React/TypeScript SPA that visualizes 51 data layers across ~160 Helsinki metro neighborhoods on an interactive MapLibre GL map. The app already ships:
 
 - 51 choropleth data layers across 7 categories (demographics, economy, housing, services, mobility, health, quality of life)
 - Customizable quality index with 8 weighted factors and adjustable sliders

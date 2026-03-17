@@ -1,5 +1,5 @@
 {
-  "app.title": "Naapurustot",
+  "app.title": "naapurustot",
   "app.subtitle": "Helsingin seutu",
   "search.placeholder": "Hae postinumero tai alue\u2026",
   "search.moreResults": "tulosta lis\u00e4\u00e4\u2026",
@@ -166,7 +166,7 @@
   "compare.max": "Enint\u00e4\u00e4n 3 aluetta",
   "compare.best": "Paras",
   "donate.button": "Lahjoita",
-  "donate.title": "Tue Naapurustot.fi",
+  "donate.title": "Tue naapurustot.fi",
   "donate.description": "Skannaa QR-koodi tai kopioi BOLT 12 -tarjous Lightning-lompakkoosi.",
   "donate.copy": "Kopioi",
   "donate.copied": "Kopioitu!",
