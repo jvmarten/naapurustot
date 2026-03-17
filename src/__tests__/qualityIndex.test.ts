@@ -47,13 +47,10 @@ describe('computeQualityIndices', () => {
 
     computeQualityIndices(features, weights);
 
-    // Feature 0: income=0(min), unemployment=100(inverted, lowest=best), education=0(min)
-    // total = (0*35 + 100*35 + 0*30) / 100 = 35
-    expect(features[0].properties!.quality_index).toBe(35);
-
-    // Feature 1: income=100(max), unemployment=0(worst), education=100(max)
-    // total = (100*35 + 0*35 + 100*30) / 100 = 65
-    expect(features[1].properties!.quality_index).toBe(65);
+    // Feature 0: raw weighted avg = 35, Feature 1: raw weighted avg = 65
+    // After re-normalization across both features: 0 and 100
+    expect(features[0].properties!.quality_index).toBe(0);
+    expect(features[1].properties!.quality_index).toBe(100);
   });
 
   it('sets quality_index to null when all metrics are missing', () => {

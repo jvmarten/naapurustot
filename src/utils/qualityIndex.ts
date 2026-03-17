@@ -270,7 +270,37 @@ export function computeQualityIndices(
     } else {
       const totalWeight = scores.reduce((sum, s) => sum + s.weight, 0);
       const weighted = scores.reduce((sum, s) => sum + s.value * s.weight, 0);
-      (f.properties as NeighborhoodProperties).quality_index = Math.round(weighted / totalWeight);
+      (f.properties as NeighborhoodProperties).quality_index = weighted / totalWeight;
+    }
+  }
+
+  // Re-normalize final scores to span the full 0–100 range.
+  // With many factors, the weighted average compresses scores toward the middle.
+  // This step stretches the distribution so the best area ≈ 100 and worst ≈ 0.
+  const rawScores: number[] = [];
+  for (const f of features) {
+    const qi = (f.properties as NeighborhoodProperties).quality_index;
+    if (typeof qi === 'number' && qi != null) rawScores.push(qi);
+  }
+
+  if (rawScores.length > 1) {
+    const rawMin = Math.min(...rawScores);
+    const rawMax = Math.max(...rawScores);
+    if (rawMax > rawMin) {
+      for (const f of features) {
+        const qi = (f.properties as NeighborhoodProperties).quality_index;
+        if (typeof qi === 'number' && qi != null) {
+          (f.properties as NeighborhoodProperties).quality_index =
+            Math.round(((qi - rawMin) / (rawMax - rawMin)) * 100);
+        }
+      }
+    } else {
+      // All scores identical — set to 50
+      for (const f of features) {
+        if ((f.properties as NeighborhoodProperties).quality_index != null) {
+          (f.properties as NeighborhoodProperties).quality_index = 50;
+        }
+      }
     }
   }
 }
