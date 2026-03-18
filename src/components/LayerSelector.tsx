@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { LAYERS, type LayerId } from '../utils/colorScales';
 import { t } from '../utils/i18n';
 
@@ -16,6 +16,7 @@ type LayerGroup = {
 
 const LAYER_GROUPS: LayerGroup[] = [
   { labelKey: 'layers.quality', ids: ['quality_index', 'walkability', 'transit_access', 'air_quality', 'crime_rate', 'noise_level', 'light_pollution'] },
+  { labelKey: 'layers.trends', ids: ['income_change', 'population_change', 'unemployment_change'] },
   { labelKey: 'layers.demographics', ids: ['avg_age', 'population_density', 'child_ratio', 'student_share', 'foreign_lang', 'pensioners', 'population_growth', 'net_migration', 'single_person_hh', 'seniors_alone', 'neighborhood_stability', 'kela_benefits'] },
   { labelKey: 'layers.economy', ids: ['median_income', 'taxable_income', 'unemployment', 'education', 'property_price', 'rental_price', 'price_to_rent', 'income_inequality', 'household_debt'] },
   { labelKey: 'layers.housing', ids: ['ownership', 'rental', 'apt_size', 'detached_houses', 'building_age', 'energy_class'] },
@@ -65,8 +66,48 @@ export const LayerSelector: React.FC<LayerSelectorProps> = ({ activeLayer, onLay
     setDragOffset(0);
   }, [dragOffset]);
 
+  // PO-2: Keyboard navigation
+  const listRef = useRef<HTMLDivElement>(null);
+  const [focusedIndex, setFocusedIndex] = useState(-1);
+
+  // Build flat list of visible layer IDs for keyboard navigation
+  const visibleLayers = LAYER_GROUPS.flatMap((group) =>
+    collapsed[group.labelKey] ? [] : group.ids
+  );
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!listRef.current?.contains(document.activeElement)) return;
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setFocusedIndex((prev) => Math.min(prev + 1, visibleLayers.length - 1));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setFocusedIndex((prev) => Math.max(prev - 1, 0));
+      } else if (e.key === 'Enter' && focusedIndex >= 0 && focusedIndex < visibleLayers.length) {
+        e.preventDefault();
+        onLayerChange(visibleLayers[focusedIndex]);
+        setMobileOpen(false);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        setMobileOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [visibleLayers, focusedIndex, onLayerChange]);
+
+  // Scroll focused item into view
+  useEffect(() => {
+    if (focusedIndex < 0) return;
+    const el = listRef.current?.querySelector(`[data-layer-index="${focusedIndex}"]`);
+    el?.scrollIntoView({ block: 'nearest' });
+  }, [focusedIndex]);
+
   const layerList = (
-    <div className="p-2 space-y-1">
+    <div className="p-2 space-y-1" ref={listRef} role="listbox" aria-label={t('layers.title')}>
       {LAYER_GROUPS.map((group) => {
         const groupLayers = group.ids
           .map((id) => LAYERS.find((l) => l.id === id))
@@ -104,17 +145,24 @@ export const LayerSelector: React.FC<LayerSelectorProps> = ({ activeLayer, onLay
               if (!layer) return null;
               const isActive = layer.id === activeLayer;
               const showEditBtn = layer.id === 'quality_index' && onCustomizeQuality;
+              const flatIndex = visibleLayers.indexOf(layer.id);
+              const isFocused = flatIndex === focusedIndex;
               return (
-                <div key={layer.id} className="flex items-center gap-0.5">
+                <div key={layer.id} className="flex items-center gap-0.5" data-layer-index={flatIndex}>
                   <button
                     onClick={() => {
                       onLayerChange(layer.id);
                       setMobileOpen(false);
                     }}
+                    role="option"
+                    aria-selected={isActive}
+                    tabIndex={isActive ? 0 : -1}
                     className={`flex-1 text-left px-3 py-2.5 md:py-1.5 rounded-lg text-sm transition-all duration-150 min-h-[44px] md:min-h-0 ${
                       isActive
                         ? 'bg-brand-500/15 dark:bg-brand-600/20 text-brand-600 dark:text-brand-300 font-medium'
-                        : 'text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800/60 hover:text-surface-900 dark:hover:text-white'
+                        : isFocused
+                          ? 'bg-surface-200 dark:bg-surface-700/60 text-surface-900 dark:text-white ring-2 ring-brand-500/50'
+                          : 'text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800/60 hover:text-surface-900 dark:hover:text-white'
                     }`}
                   >
                     <div className="flex items-center gap-2">

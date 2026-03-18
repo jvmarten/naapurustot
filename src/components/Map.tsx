@@ -27,6 +27,8 @@ interface MapProps {
   /** Increment to force GeoJSON source refresh (e.g. after quality index recomputation) */
   qualityVersion?: number;
   colorblind?: boolean;
+  /** PO-4: PNOs to highlight from wizard results */
+  wizardHighlightPnos?: string[];
 }
 
 function makeStyle(theme: 'dark' | 'light'): maplibregl.StyleSpecification {
@@ -62,11 +64,13 @@ const HIGHLIGHT_LAYER = 'neighborhoods-highlight';
 const PINNED_LAYER = 'neighborhoods-pinned';
 
 const FILTER_HIGHLIGHT_LAYER = 'neighborhoods-filter-highlight';
+const WIZARD_HIGHLIGHT_LAYER = 'neighborhoods-wizard-highlight';
+const NO_DATA_LAYER = 'neighborhoods-no-data-pattern';
 
 export const DEFAULT_CENTER: [number, number] = [MAP_CENTER_LNG, MAP_CENTER_LAT];
 export const DEFAULT_ZOOM = MAP_ZOOM;
 
-export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = [], filterActive = false, filterMatchPnos = new Set(), qualityVersion = 0, colorblind = false }) => {
+export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = [], filterActive = false, filterMatchPnos = new Set(), qualityVersion = 0, colorblind = false, wizardHighlightPnos = [] }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const hoveredIdRef = useRef<string | null>(null);
@@ -170,6 +174,24 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
           'line-opacity': ['case', ['any', ['boolean', ['feature-state', 'hover'], false], ['boolean', ['feature-state', 'selected'], false]], 1, 0],
         },
       });
+
+      // QW-2: Hatched pattern overlay for neighborhoods with null data
+      if (map.getLayer(NO_DATA_LAYER)) map.removeLayer(NO_DATA_LAYER);
+      map.addLayer({
+        id: NO_DATA_LAYER,
+        type: 'line',
+        source: SOURCE_ID,
+        filter: ['any',
+          ['!', ['has', layer.property]],
+          ['==', ['get', layer.property], null],
+        ] as unknown as maplibregl.ExpressionSpecification,
+        paint: {
+          'line-color': theme === 'dark' ? '#475569' : '#94a3b8',
+          'line-width': 1.5,
+          'line-dasharray': [2, 2],
+          'line-opacity': 0.8,
+        },
+      });
     };
 
     if (map.isStyleLoaded()) {
@@ -197,6 +219,14 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
 
     const layer = getLayerById(activeLayer);
     map.setPaintProperty(FILL_LAYER, 'fill-color', buildFillColorExpression(layer));
+
+    // QW-2: Update no-data layer filter for new active layer
+    if (map.getLayer(NO_DATA_LAYER)) {
+      map.setFilter(NO_DATA_LAYER, ['any',
+        ['!', ['has', layer.property]],
+        ['==', ['get', layer.property], null],
+      ] as unknown as maplibregl.FilterSpecification);
+    }
   }, [activeLayer, colorblind]);
 
   // Filter-aware rendering: dim non-matching neighborhoods and highlight matching ones
@@ -368,6 +398,63 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
       if (map.getLayer(PINNED_LAYER)) map.removeLayer(PINNED_LAYER);
     };
   }, [pinnedPnos, data, theme]);
+
+  // PO-4: Wizard results highlight layer
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !data) return;
+
+    const apply = () => {
+      if (map.getLayer(WIZARD_HIGHLIGHT_LAYER)) map.removeLayer(WIZARD_HIGHLIGHT_LAYER);
+
+      if (wizardHighlightPnos.length === 0) return;
+
+      // Dim non-highlighted neighborhoods
+      if (map.getLayer(FILL_LAYER)) {
+        map.setPaintProperty(FILL_LAYER, 'fill-opacity', [
+          'case',
+          ['boolean', ['feature-state', 'hover'], false],
+          0.85,
+          ['boolean', ['feature-state', 'selected'], false],
+          0.85,
+          ['in', ['get', 'pno'], ['literal', wizardHighlightPnos]],
+          0.8,
+          0.2,
+        ]);
+      }
+
+      map.addLayer({
+        id: WIZARD_HIGHLIGHT_LAYER,
+        type: 'line',
+        source: SOURCE_ID,
+        filter: ['in', ['get', 'pno'], ['literal', wizardHighlightPnos]] as unknown as maplibregl.ExpressionSpecification,
+        paint: {
+          'line-color': theme === 'dark' ? '#60a5fa' : '#2563eb',
+          'line-width': 3,
+          'line-opacity': 1,
+        },
+      });
+    };
+
+    if (map.isStyleLoaded() && map.getSource(SOURCE_ID)) {
+      apply();
+    }
+
+    return () => {
+      if (map.getLayer(WIZARD_HIGHLIGHT_LAYER)) map.removeLayer(WIZARD_HIGHLIGHT_LAYER);
+      // Restore default opacity
+      if (map.getLayer(FILL_LAYER) && wizardHighlightPnos.length > 0) {
+        map.setPaintProperty(FILL_LAYER, 'fill-opacity', [
+          'case',
+          ['boolean', ['feature-state', 'hover'], false],
+          0.85,
+          ['boolean', ['feature-state', 'selected'], false],
+          0.85,
+          0.65,
+        ]);
+      }
+    };
+  }, [wizardHighlightPnos, data, theme]);
 
   return <div ref={containerRef} className="absolute inset-0" />;
 };

@@ -253,6 +253,49 @@ const AddFilterDropdown: React.FC<{
 };
 
 /* ------------------------------------------------------------------ */
+/* PO-5: Filter presets                                               */
+/* ------------------------------------------------------------------ */
+interface FilterPreset {
+  labelKey: string;
+  criteria: { layerId: LayerId; min: number; max: number }[];
+}
+
+const FILTER_PRESETS: FilterPreset[] = [
+  {
+    labelKey: 'filter.preset_families',
+    criteria: [
+      { layerId: 'child_ratio', min: 6, max: 20 },
+      { layerId: 'school_quality', min: 5.5, max: 8 },
+      { layerId: 'daycare_density', min: 2, max: 20 },
+      { layerId: 'green_space', min: 20, max: 90 },
+    ],
+  },
+  {
+    labelKey: 'filter.preset_commuters',
+    criteria: [
+      { layerId: 'transit_access', min: 40, max: 200 },
+      { layerId: 'commute_time', min: 10, max: 30 },
+      { layerId: 'cycling_infra', min: 20, max: 150 },
+    ],
+  },
+  {
+    labelKey: 'filter.preset_affordable',
+    criteria: [
+      { layerId: 'property_price', min: 1000, max: 4000 },
+      { layerId: 'rental_price', min: 10, max: 18 },
+    ],
+  },
+  {
+    labelKey: 'filter.preset_premium',
+    criteria: [
+      { layerId: 'quality_index', min: 60, max: 100 },
+      { layerId: 'walkability', min: 60, max: 90 },
+      { layerId: 'air_quality', min: 18, max: 30 },
+    ],
+  },
+];
+
+/* ------------------------------------------------------------------ */
 /* Main FilterPanel                                                   */
 /* ------------------------------------------------------------------ */
 export const FilterPanel: React.FC<FilterPanelProps> = ({
@@ -503,6 +546,28 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
           </button>
         </div>
 
+        {/* PO-5: Filter presets */}
+        {filters.length === 0 && (
+          <div className="flex-shrink-0 px-3 py-2 space-y-1.5">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500">
+              {t('filter.presets')}
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {FILTER_PRESETS.map((preset) => (
+                <button
+                  key={preset.labelKey}
+                  onClick={() => onFiltersChange(preset.criteria)}
+                  className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium
+                             bg-brand-500/10 dark:bg-brand-600/15 text-brand-600 dark:text-brand-300
+                             hover:bg-brand-500/20 dark:hover:bg-brand-600/25 transition-colors"
+                >
+                  {t(preset.labelKey)}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Filter criteria */}
         {filters.length > 0 && (
           <div className="flex-shrink-0 max-h-[40vh] overflow-y-auto">
@@ -575,6 +640,28 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
               </svg>
             </button>
           </div>
+
+          {/* PO-5: Filter presets (mobile) */}
+          {filters.length === 0 && (
+            <div className="flex-shrink-0 px-3 py-2 space-y-1.5">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500">
+                {t('filter.presets')}
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {FILTER_PRESETS.map((preset) => (
+                  <button
+                    key={preset.labelKey}
+                    onClick={() => onFiltersChange(preset.criteria)}
+                    className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium
+                               bg-brand-500/10 dark:bg-brand-600/15 text-brand-600 dark:text-brand-300
+                               hover:bg-brand-500/20 dark:hover:bg-brand-600/25 transition-colors"
+                  >
+                    {t(preset.labelKey)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Filter criteria */}
           {filters.length > 0 && (

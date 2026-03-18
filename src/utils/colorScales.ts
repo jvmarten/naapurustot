@@ -48,7 +48,10 @@ export type LayerId =
   | 'mental_health'
   | 'net_migration'
   | 'neighborhood_stability'
-  | 'traffic_accidents';
+  | 'traffic_accidents'
+  | 'income_change'
+  | 'population_change'
+  | 'unemployment_change';
 
 export interface LayerConfig {
   id: LayerId;
@@ -521,6 +524,34 @@ export const LAYERS: LayerConfig[] = [
     colors: ['#1a9850', '#66bd63', '#a6d96a', '#d9ef8b', '#fee08b', '#fdae61', '#f46d43', '#d73027'],
     stops: [0.5, 1, 2, 3, 4, 5, 6, 8],
     format: accidentDensity,
+  },
+  // CF-4: Change over time layers
+  {
+    id: 'income_change',
+    labelKey: 'layer.income_change',
+    property: 'income_change_pct',
+    unit: '%',
+    colors: ['#b2182b', '#d6604d', '#f4a582', '#fddbc7', '#d1e5f0', '#92c5de', '#4393c3', '#2166ac'],
+    stops: [-15, -10, -5, 0, 5, 10, 15, 25],
+    format: pct,
+  },
+  {
+    id: 'population_change',
+    labelKey: 'layer.population_change',
+    property: 'population_change_pct',
+    unit: '%',
+    colors: ['#b2182b', '#d6604d', '#f4a582', '#fddbc7', '#d1e5f0', '#92c5de', '#4393c3', '#2166ac'],
+    stops: [-15, -10, -5, 0, 5, 10, 15, 25],
+    format: pct,
+  },
+  {
+    id: 'unemployment_change',
+    labelKey: 'layer.unemployment_change',
+    property: 'unemployment_change_pct',
+    unit: '%',
+    colors: ['#2166ac', '#4393c3', '#92c5de', '#d1e5f0', '#fddbc7', '#f4a582', '#d6604d', '#b2182b'],
+    stops: [-30, -20, -10, 0, 10, 20, 30, 50],
+    format: pct,
   },
 ];
 

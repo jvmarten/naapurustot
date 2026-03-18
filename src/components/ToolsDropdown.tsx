@@ -7,6 +7,9 @@ interface ToolsDropdownProps {
   onToggleFilter: () => void;
   onToggleRanking: () => void;
   onOpenWizard: () => void;
+  onPrint?: () => void;
+  wizardHighlightActive?: boolean;
+  onClearWizardHighlight?: () => void;
 }
 
 export const ToolsDropdown: React.FC<ToolsDropdownProps> = ({
@@ -15,6 +18,9 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = ({
   onToggleFilter,
   onToggleRanking,
   onOpenWizard,
+  onPrint,
+  wizardHighlightActive,
+  onClearWizardHighlight,
 }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -68,6 +74,20 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = ({
             <span>{t('wizard.open')}</span>
           </button>
 
+          {/* Clear wizard highlights */}
+          {wizardHighlightActive && onClearWizardHighlight && (
+            <button
+              onClick={() => { onClearWizardHighlight(); setOpen(false); }}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-amber-600 dark:text-amber-400
+                         hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              <span>{t('wizard.clear_highlights')}</span>
+            </button>
+          )}
+
           {/* Filter */}
           <button
             onClick={() => { onToggleFilter(); setOpen(false); }}
@@ -100,6 +120,25 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = ({
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
               </svg>
             )}
+          </button>
+
+          {/* Divider */}
+          <div className="border-t border-surface-200 dark:border-surface-700/40 my-1" />
+
+          {/* Print / Screenshot */}
+          <button
+            onClick={() => {
+              setOpen(false);
+              if (onPrint) onPrint();
+              else window.print();
+            }}
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200
+                       hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+            </svg>
+            <span>{t('tools.print')}</span>
           </button>
         </div>
       )}

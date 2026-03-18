@@ -75,6 +75,10 @@ export interface NeighborhoodProperties {
   income_history: string | null;
   population_history: string | null;
   unemployment_history: string | null;
+  // CF-4: Computed change metrics (derived from history arrays)
+  income_change_pct: number | null;
+  population_change_pct: number | null;
+  unemployment_change_pct: number | null;
   [key: string]: string | number | null;
 }
 
@@ -93,6 +97,31 @@ export function parseTrendSeries(raw: string | null | undefined): TrendDataPoint
     // invalid JSON
   }
   return null;
+}
+
+/**
+ * CF-4: Compute year-over-year change from a trend series.
+ * Returns the percentage change between the first and last data points.
+ */
+function computeChangePct(series: TrendDataPoint[] | null): number | null {
+  if (!series || series.length < 2) return null;
+  const first = series[0][1];
+  const last = series[series.length - 1][1];
+  if (first === 0 || first == null) return null;
+  return ((last - first) / Math.abs(first)) * 100;
+}
+
+/**
+ * CF-4: Compute change metrics for all features from their history arrays.
+ * Should be called after data is loaded.
+ */
+export function computeChangeMetrics(features: GeoJSON.Feature[]): void {
+  for (const f of features) {
+    const p = f.properties as NeighborhoodProperties;
+    p.income_change_pct = computeChangePct(parseTrendSeries(p.income_history));
+    p.population_change_pct = computeChangePct(parseTrendSeries(p.population_history));
+    p.unemployment_change_pct = computeChangePct(parseTrendSeries(p.unemployment_history));
+  }
 }
 
 export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string, number> {
