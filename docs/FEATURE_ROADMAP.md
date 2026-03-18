@@ -1,36 +1,27 @@
 # naapurustot.fi — Feature Roadmap
 
-> Generated 2026-03-17 from full codebase analysis.
+> Generated 2026-03-18 from full codebase analysis.
 > Status: **planning only** — nothing here has been implemented yet.
 
 ---
 
 ## Project Context
 
-naapurustot.fi is a client-side React/TypeScript SPA that visualizes 51 data layers across ~160 Helsinki metro neighborhoods on an interactive MapLibre GL map. The app already ships:
+naapurustot.fi is a client-side React/TypeScript SPA that visualizes 54 data layers (including 3 trend/change layers) across ~160 Helsinki metro neighborhoods on an interactive MapLibre GL map. The app ships a substantial feature set:
 
-- 51 choropleth data layers across 7 categories (demographics, economy, housing, services, mobility, health, quality of life)
-- Customizable quality index with 8 weighted factors and adjustable sliders
-- Neighborhood comparison (pin up to 3), ranking table, multi-criteria filter with dual-thumb sliders
-- 4-step neighborhood finder wizard with preference-based scoring
-- Similar neighborhood recommendations (Euclidean distance on 12 metrics)
-- Radar chart (8-axis) and historical trend charts (income, population, unemployment)
-- Saved/favorite neighborhoods via localStorage
-- CSV & PDF export, bilingual UI (FI/EN), dark/light themes, colorblind-safe viridis palette
-- URL deep linking with copy-to-clipboard, keyboard Escape to dismiss panels
-- Dynamic SEO meta tags, ARIA live regions for screen readers
-- Shimmer loading skeleton, error banner with retry
-- Mobile bottom sheets with drag handles, responsive stacked comparison cards
-- Smooth 300ms layer transition animations
-- Bitcoin Lightning donation button (BOLT12)
-- Vitest unit tests, Brotli/Gzip compression, Netlify deploy workflow
+**Visualization:** 54 choropleth layers across 8 categories (quality of life, trends, demographics, economy, housing, services, mobility, health). Colorblind-safe viridis palette. Smooth 300ms layer transitions. Print mode with `@media print` CSS.
+
+**Analysis tools:** Customizable quality index (16 weighted factors, adjustable sliders). Multi-criteria filter with dual-thumb sliders and 4 presets (families, commuters, affordable, premium). Ranking table. 4-step neighborhood finder wizard with preference-based scoring and "Show on Map" highlighting. Similar neighborhood recommendations (Euclidean distance on 12 metrics). Radar chart (8-axis) and historical trend charts (income, population, unemployment). Comparison panel (pin up to 3).
+
+**UX:** Bilingual FI/EN, dark/light theme, URL deep linking with comparison sharing, search by name/PNO, keyboard navigation in layer selector, CSV & PDF export, saved favorites via localStorage, tooltip with metro average comparison (arrow + % diff), Escape to dismiss panels, dynamic SEO meta tags, ARIA live regions.
+
+**Infrastructure:** CI pipeline (lint + typecheck + test + build + bundle size budget), Playwright E2E skeleton (5 tests), PWA with service worker (Workbox, map tile caching, offline indicator), Brotli/Gzip compression, rollup-plugin-visualizer, Netlify deploy, ErrorBoundary wrappers, Vitest unit tests (colorScales, formatting, metrics, geometryFilter, qualityIndex, export, urlState, similarity, favorites).
+
+**Unused/unwired code:** `SplitMapView.tsx` exists but is not rendered in `App.tsx`. `useAnimatedValue.ts` hook exists but no component imports it. `useBottomSheet.ts` hook exists but panels use custom drag logic.
 
 **Tech stack:** React 19, TypeScript 5.9, Vite 8, MapLibre GL 5, Turf.js, Tailwind CSS 3, topojson-client, proj4, qrcode.react.
-**Data:** Static TopoJSON (~1.1 MB) with 75 properties per neighborhood, built from Statistics Finland Paavo, HSL, HSY, Police open data, and property price APIs via a Python pipeline (`scripts/prepare_data.py`).
 
-### Data Granularity Requirement
-
-We want the lowest-level data possible. The minimum acceptable granularity is **postal code level**, but whenever a data source offers finer resolution (e.g., 250 m × 250 m grid cells, building-level, block-level, or coordinate-level data), prefer and integrate that instead.
+**Data:** Static TopoJSON (~1.1 MB) with 75+ properties per neighborhood, built from Statistics Finland Paavo, HSL, HSY, Police, Kela, THL, Tax Administration, and OpenStreetMap data via a Python pipeline (`scripts/prepare_data.py`).
 
 ---
 
@@ -42,43 +33,43 @@ Small effort, noticeable improvement for users.
 
 | | |
 |---|---|
-| **What** | Show 3–5 numeric stop values (e.g., "20k €", "5%", "50") along the legend gradient bar instead of only the first and last values. Use `layer.stops` and `layer.format` already available in `getLayerById()`. |
-| **Why** | The legend currently shows only two endpoint values. Users can't judge what numeric value a mid-range color represents without hovering individual neighborhoods. Adding 3 evenly-spaced ticks makes the scale self-explanatory. |
-| **Touches** | `src/components/Legend.tsx` (change `tickIndices` from `[0, n-1]` to include midpoints) |
+| **What** | Show 3–5 evenly-spaced numeric stop values along the legend gradient bar instead of only the first and last values. Currently `Legend.tsx` hardcodes `tickIndices = [0, n - 1]`. Change to include 2–3 midpoints (e.g., indices 0, 2, 4, 7 for an 8-stop scale). Use existing `layer.stops` and `layer.format`. |
+| **Why** | Users can't judge what color corresponds to which value without hovering individual neighborhoods. Three intermediate ticks make the scale self-explanatory — critical for 54 layers with different units. |
+| **Touches** | `src/components/Legend.tsx` (lines 14–15: change `tickIndices` calculation) |
 | **Complexity** | Small |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### QW-2 Empty State & No-Data Indicators
+### QW-2 Wire Up useAnimatedValue in Panels
 
 | | |
 |---|---|
-| **What** | When a neighborhood has `null` or missing data for the active layer, show "No data" in the tooltip and detail panel instead of blank/zero. Use a distinct hatched SVG pattern on the map polygon for neighborhoods with null values. |
-| **Why** | Some neighborhoods have missing values for certain layers (e.g., crime, energy efficiency, school quality). Currently these render as blank or zero with no explanation — misleading for users making decisions. |
-| **Touches** | `src/components/Tooltip.tsx` (null check + label), `src/components/NeighborhoodPanel.tsx` (null display), `src/components/Map.tsx` (add fill-pattern for null features), `src/utils/colorScales.ts` (null-aware expression) |
+| **What** | Import and use the existing `useAnimatedValue` hook in `NeighborhoodPanel.tsx` for the quality index score display and key stat values. The hook already exists at `src/hooks/useAnimatedValue.ts` with 300ms ease-out cubic animation — it just needs to be imported and wrapped around numeric displays. |
+| **Why** | The hook was written (PO-1) but never connected. Currently all values snap instantly when switching neighborhoods. Animated transitions make the app feel responsive and draw attention to what changed. |
+| **Touches** | `src/components/NeighborhoodPanel.tsx` (import hook, wrap quality index display + key stats) |
 | **Complexity** | Small |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### QW-3 Comparison URL Sharing
+### QW-3 Unify Bottom Sheet Logic (Wire useBottomSheet)
 
 | | |
 |---|---|
-| **What** | Encode pinned neighborhood PNOs in the URL hash (e.g., `#pno=00100&layer=median_income&compare=00200,00300`). When the URL is loaded, automatically pin those neighborhoods and show the comparison panel. |
-| **Why** | Users can share a single neighborhood via URL, but not a comparison view. Real estate agents and researchers comparing areas must ask others to manually pin the same neighborhoods. |
-| **Touches** | `src/hooks/useUrlState.ts` (read/write `compare` param), `src/App.tsx` (restore pinned from URL on load) |
+| **What** | Replace the custom `dragStartY`/`setDragOffset`/`handleTouchEnd` logic in `NeighborhoodPanel.tsx`, `LayerSelector.tsx`, and `FilterPanel.tsx` with the existing `useBottomSheet` hook. The hook at `src/hooks/useBottomSheet.ts` already implements velocity-based snapping with peek/half/full snap positions — but no component uses it. |
+| **Why** | Three components independently reimplement bottom sheet drag behavior with subtly different snap points and missing velocity detection. Using the shared hook makes behavior consistent, reduces code, and makes future panels mobile-ready for free. |
+| **Touches** | `src/components/NeighborhoodPanel.tsx`, `src/components/LayerSelector.tsx`, `src/components/FilterPanel.tsx` (replace custom drag state with `useBottomSheet` call) |
 | **Complexity** | Small |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### QW-4 Map Print / Screenshot Mode
+### QW-4 Wire Up SplitMapView
 
 | | |
 |---|---|
-| **What** | A "Print" button (in ToolsDropdown or SettingsDropdown) that hides all overlays, renders the current map view + legend into a clean layout via `@media print` CSS, and calls `window.print()`. |
-| **Why** | Researchers, students, and real estate professionals want to include map screenshots in reports. Currently they must manually screenshot and crop UI elements. |
-| **Touches** | `src/index.css` (print media queries to hide panels/controls, show only map + legend), `src/components/ToolsDropdown.tsx` (print button) |
-| **Complexity** | Small |
+| **What** | Add a "Compare layers" toggle to `ToolsDropdown.tsx` that renders `SplitMapView.tsx` (already exists with synchronized pan/zoom between two MapLibre instances) in place of the main `Map` component. Add state in `App.tsx` for split mode and a secondary layer picker. |
+| **Why** | The `SplitMapView` component is fully implemented but unreachable from the UI. Users frequently want to correlate two metrics visually (e.g., income vs. transit access) — the filter handles this numerically, but spatial side-by-side comparison is more intuitive. |
+| **Touches** | `src/App.tsx` (split mode state, conditional rendering), `src/components/ToolsDropdown.tsx` (new menu item), `src/components/LayerSelector.tsx` (secondary layer support) |
+| **Complexity** | Small–Medium |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
@@ -86,9 +77,9 @@ Small effort, noticeable improvement for users.
 
 | | |
 |---|---|
-| **What** | A 4-step highlight overlay shown once on first visit (tracked via localStorage). Steps: (1) layer selector, (2) search bar, (3) click to explore, (4) filter/compare features. Each step has a tooltip with "Next"/"Got it" buttons. |
-| **Why** | New users may never discover the layer selector, comparison mode, wizard, or filter panel. A brief tour dramatically improves feature discovery without permanently cluttering the UI. |
-| **Touches** | New component `src/components/OnboardingTour.tsx`, `src/App.tsx` (first-visit state + render) |
+| **What** | A 4-step highlight overlay shown once on first visit (tracked via localStorage). Steps: (1) layer selector — "51+ data layers across 8 categories", (2) search bar — "search by name or postal code", (3) click a neighborhood — "click to explore details", (4) tools dropdown — "filter, compare, and find neighborhoods". Each step has a tooltip with "Next"/"Got it" buttons and a semi-transparent backdrop highlighting the target element. |
+| **Why** | New users may never discover the layer selector, comparison mode, wizard, or filter panel. A brief tour dramatically improves feature discovery without cluttering the UI. |
+| **Touches** | New `src/components/OnboardingTour.tsx`, `src/App.tsx` (first-visit state + conditional render), `src/locales/fi.json` and `src/locales/en.json` (tour step labels) |
 | **Complexity** | Small |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
@@ -103,67 +94,67 @@ Meaningful additions that make the product more complete.
 
 | | |
 |---|---|
-| **What** | Extend SearchBar to accept street addresses (e.g., "Mannerheimintie 5") in addition to neighborhood names. Use a free geocoding API (Digitransit/HSL or Nominatim) to resolve addresses to coordinates, then identify which neighborhood polygon contains the point using Turf.js `booleanPointInPolygon`. |
-| **Why** | Most people know their address, not their postal code area name. "Which neighborhood is Mannerheimintie 5 in?" is the #1 entry point for house-hunters but currently impossible without external lookup. |
-| **Touches** | `src/components/SearchBar.tsx` (address input mode, geocoding API call), `src/utils/geometryFilter.ts` or new `src/utils/geocode.ts` (point-in-polygon lookup) |
+| **What** | Extend `SearchBar.tsx` to accept street addresses (e.g., "Mannerheimintie 5") in addition to neighborhood names/PNOs. Use the Digitransit geocoding API (free, rate-limited, no key required for moderate traffic) or Nominatim as fallback. Resolve address to coordinates, then identify which neighborhood polygon contains the point using Turf.js `booleanPointInPolygon` (already a dependency). Show "Address results" section below neighborhood matches in the dropdown. |
+| **Why** | Most users know their address, not their postal code area. "Which neighborhood is Aleksanterinkatu 10 in?" is the #1 entry point for house-hunters but currently requires external lookup. The Digitransit API is operated by HSL and specifically serves Helsinki metro data. |
+| **Touches** | `src/components/SearchBar.tsx` (detect address-like input, API call, point-in-polygon), new `src/utils/geocode.ts` (API client + caching), `src/locales/*.json` (labels for address mode) |
 | **Complexity** | Medium |
 | **Dependencies** | None |
-| **Tag** | Manual Setup (requires API key for Digitransit geocoding, or use Nominatim which is keyless but rate-limited) |
+| **Tag** | Manual Setup (Digitransit API is keyless but may need registration for high traffic; Nominatim has strict rate limits) |
 
 ### CF-2 Shareable Neighborhood Score Card (Image)
 
 | | |
 |---|---|
-| **What** | Generate a shareable PNG image summarizing a neighborhood's key stats — quality index badge, top 5 metrics, mini radar chart, and naapurustot.fi branding. Use `<canvas>` rendering (no external dependency needed) or a lightweight library like `html-to-image`. Downloadable via a "Share as image" button. |
-| **Why** | Users sharing on WhatsApp, Instagram, or Twitter want a visual snapshot, not a URL. This drives organic traffic and is especially valuable for real estate agents sharing neighborhood profiles with clients. |
-| **Touches** | New utility `src/utils/scoreCard.ts` (canvas rendering logic), `src/components/NeighborhoodPanel.tsx` (share-image button), `package.json` (optional `html-to-image` dep) |
+| **What** | Generate a shareable PNG image summarizing a neighborhood's key stats — quality index badge, top 5 metrics with metro comparison, mini radar chart, and naapurustot.fi branding. Use `html-to-image` (already a common pattern with the existing React rendering). Downloadable via a "Share as image" button in the panel header. |
+| **Why** | Users sharing on WhatsApp, Instagram, or Twitter want a visual snapshot, not a URL. Real estate agents sharing neighborhood profiles with clients especially benefit. This drives organic traffic with branded visuals. |
+| **Touches** | New `src/utils/scoreCard.ts` (image generation logic), `src/components/NeighborhoodPanel.tsx` (share-image button), `package.json` (html-to-image dep) |
 | **Complexity** | Medium |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### CF-3 Dual-Layer / Split Map View
+### CF-3 Point-of-Interest Overlay Layer
 
 | | |
 |---|---|
-| **What** | A "Compare layers" mode that splits the map into two side-by-side views, each showing a different data layer for the same area. Synchronized pan/zoom between the two maps. Toggle via ToolsDropdown. |
-| **Why** | Users often want to correlate two metrics visually — e.g., "where is income high but transit poor?" The filter panel answers this numerically, but a visual side-by-side is far more intuitive for spatial patterns. |
-| **Touches** | New component `src/components/SplitMapView.tsx`, `src/components/Map.tsx` (refactor to accept layer prop externally), `src/App.tsx` (split mode state), `src/components/LayerSelector.tsx` (second layer picker) |
+| **What** | Toggle-able map markers showing real POI locations: schools, daycares, grocery stores, healthcare facilities, transit stops. Data sourced from OpenStreetMap via Overpass API or downloaded as static GeoJSON. Clustered markers at low zoom (MapLibre's built-in clustering), individual pins at high zoom. Toggle via a checkbox in the layer selector or a new POI section. |
+| **Why** | Current density metrics (e.g., `school_density`, `grocery_density`) are abstract numbers. Showing actual locations lets users see *where* services are relative to specific streets — much more actionable for someone choosing between two neighborhoods. |
+| **Touches** | New `src/components/POILayer.tsx`, `src/components/Map.tsx` (additional source + clustered layer), `scripts/fetch_pois.py` (Overpass query), new `public/data/pois.geojson`, `src/locales/*.json` |
 | **Complexity** | Large |
+| **Dependencies** | None |
+| **Tag** | Manual Setup (requires running Overpass queries, data may need periodic refresh) |
+
+### CF-4 Neighborhood Notes / User Annotations
+
+| | |
+|---|---|
+| **What** | Let users add private text notes to neighborhoods, stored in localStorage alongside favorites. Display notes in the NeighborhoodPanel with an editable text area. Export notes as part of CSV/PDF exports. |
+| **Why** | Users researching multiple neighborhoods over days/weeks need to record observations ("visited on Saturday, loved the park but noisy highway nearby"). Currently they must use external tools. Notes complement the existing favorites feature. |
+| **Touches** | New `src/hooks/useNotes.ts` (localStorage CRUD), `src/components/NeighborhoodPanel.tsx` (notes section), `src/utils/export.ts` (include notes in CSV/PDF) |
+| **Complexity** | Small |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### CF-4 Neighborhood Change Over Time ("What Changed")
+### CF-5 Heatmap / Grid View Mode
 
 | | |
 |---|---|
-| **What** | Add a "Trends" layer category that shows year-over-year percentage change for key metrics (income growth, population change, unemployment delta). Extend `prepare_data.py` to compute deltas from the existing `*_history` arrays. Color scale: green for positive change, red for negative (or inverted for unemployment). |
-| **Why** | Static snapshots don't tell users whether a neighborhood is improving or declining. "This area's income grew 15% in 3 years" is more actionable than "median income is €35k". The trend data infrastructure (`*_history` arrays, `TrendChart.tsx`, `parseTrendSeries()`) already exists. |
-| **Touches** | `scripts/prepare_data.py` (compute `*_change_pct` fields), `src/utils/colorScales.ts` (new change layers), `src/utils/metrics.ts` (new properties), `src/locales/*.json` (labels) |
+| **What** | An alternative visualization mode that shows data as a 250m grid heatmap instead of postal code polygons, using Statistics Finland's 250m grid data where available (population, income, education). Toggle between "Neighborhoods" and "Grid" view via ToolsDropdown. Uses MapLibre's heatmap layer type. |
+| **Why** | Postal code areas vary hugely in size — some cover entire forests while others are single city blocks. A fine-grained grid reveals intra-neighborhood variation that postal code averages hide (e.g., a wealthy enclave within a lower-income postal code). Aligns with the CLAUDE.md data granularity requirement to "prefer sub-postal-code breakdown." |
+| **Touches** | New `scripts/fetch_grid_data.py`, new `public/data/grid_250m.topojson`, `src/components/Map.tsx` (grid source + heatmap layer), `src/components/ToolsDropdown.tsx` (toggle), `src/App.tsx` (view mode state) |
+| **Complexity** | Large |
+| **Dependencies** | None |
+| **Tag** | Manual Setup (requires fetching Statistics Finland 250m grid WFS data) |
+
+### CF-6 Swedish Language Support
+
+| | |
+|---|---|
+| **What** | Add Swedish as a third language option (FI/EN/SV). The data already includes Swedish names (`namn` property). Create `src/locales/sv.json` with Swedish translations. Update `SettingsDropdown` to cycle through three languages or show a language picker. |
+| **Why** | Swedish is an official language in Finland and widely spoken in parts of the Helsinki metro area (Espoo/Kirkkonummi especially). The GeoJSON data already contains the `namn` (Swedish name) field — it's simply not exposed in the UI. |
+| **Touches** | New `src/locales/sv.json`, `src/utils/i18n.ts` (add 'sv' to Lang union, load sv.json), `src/components/SettingsDropdown.tsx` (language picker), `src/components/NeighborhoodPanel.tsx` / `SearchBar.tsx` (use `namn` for Swedish) |
 | **Complexity** | Medium |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
-
-### CF-5 Point-of-Interest Overlay Layer
-
-| | |
-|---|---|
-| **What** | Toggle-able map markers showing real POI locations: schools, daycares, grocery stores, healthcare facilities, transit stops. Data sourced from OpenStreetMap via Overpass API or HSL/HSY open data. Clustered at low zoom, individual pins at high zoom. |
-| **Why** | The current density metrics (e.g., `school_density`, `grocery_density`) are abstract numbers. Showing actual locations on the map lets users see *where* services are relative to specific streets, not just that "this postal code has 3.2 schools per km²". |
-| **Touches** | New `src/components/POILayer.tsx`, `src/components/Map.tsx` (additional source + layers), `scripts/prepare_data.py` or separate `scripts/fetch_pois.py` (POI data extraction), new `public/data/pois.geojson` |
-| **Complexity** | Large |
-| **Dependencies** | None |
-| **Tag** | Manual Setup (requires Overpass API queries or HSL API access; POI data must be fetched and cached) |
-
-### CF-6 Multi-Year Time-Series Data Expansion
-
-| | |
-|---|---|
-| **What** | Extend `prepare_data.py` to fetch Paavo data for 2019–2024 (currently limited coverage), compute comprehensive year-over-year deltas, and ensure all `*_history` arrays are fully populated. The existing `TrendChart.tsx` and `parseTrendSeries()` already handle rendering. |
-| **Why** | The TrendChart component and history data schema exist but may have gaps in historical coverage. Full 5-year data turns static snapshots into dynamic narratives — "this area has been gentrifying for 5 years" or "unemployment has been falling steadily." |
-| **Touches** | `scripts/prepare_data.py` (multi-year fetch loop, historical Paavo WFS queries), `src/utils/metrics.ts` (ensure parsing handles all years) |
-| **Complexity** | Large |
-| **Dependencies** | Requires verifying Statistics Finland WFS endpoint availability for each historical year. |
-| **Tag** | Manual Setup |
 
 ---
 
@@ -171,69 +162,69 @@ Meaningful additions that make the product more complete.
 
 UX improvements, animations, better feedback, edge case handling.
 
-### PO-1 Animated Number Transitions
+### PO-1 Hatched Pattern for Missing Data
 
 | | |
 |---|---|
-| **What** | When switching neighborhoods or layers, animate numeric values in the detail panel (quality index score, stat values) with a brief count-up/count-down transition (~300ms). Use `requestAnimationFrame` — no library needed. |
-| **Why** | Currently, all values snap instantly when switching neighborhoods. Animated transitions make the app feel responsive and alive, drawing attention to what changed. This is a standard practice in data dashboards. |
-| **Touches** | New hook `src/hooks/useAnimatedValue.ts`, `src/components/NeighborhoodPanel.tsx` (wrap key numeric displays) |
+| **What** | When a neighborhood has `null` for the active layer, render the polygon with a distinct diagonal-stripe SVG fill pattern instead of solid gray (`#d1d5db`). This makes missing-data areas visually distinct from low-value areas. The current `buildFillColorExpression` returns gray for null — add a second fill layer with a pattern for null features. |
+| **Why** | Solid gray can be confused with "low value" on some scales. A hatched pattern is the cartographic convention for "no data available" and immediately communicates the distinction. |
+| **Touches** | `src/components/Map.tsx` (add fill-pattern layer for null features), `src/utils/colorScales.ts` (optional: export a null-detection expression) |
 | **Complexity** | Small |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### PO-2 Keyboard Navigation for Layer Selector
+### PO-2 Neighborhood Panel — Collapsible Sections
 
 | | |
 |---|---|
-| **What** | Add full keyboard navigation to LayerSelector: arrow keys to move between layers, Enter to select, Tab to move between groups, Escape to close. Add `role="listbox"` and `aria-selected` attributes. |
-| **Why** | The layer selector is mouse/touch-only. Power users and accessibility-dependent users cannot navigate the 51-layer list via keyboard. This blocks WCAG 2.1 AA compliance. |
-| **Touches** | `src/components/LayerSelector.tsx` (keydown handlers, ARIA roles, focus management) |
+| **What** | Group the long list of stats in `NeighborhoodPanel.tsx` into collapsible sections (Demographics, Economy, Housing, Quality of Life, Health, Services, Mobility) with section headers. Default: first two sections open, rest collapsed. Persist toggle state per session. |
+| **Why** | The panel currently shows 25+ stat rows in a single scrollable list. On mobile especially, users scroll endlessly to find the metric they care about. Collapsible sections let users jump to relevant categories and reduce cognitive load. |
+| **Touches** | `src/components/NeighborhoodPanel.tsx` (wrap stat rows in collapsible groups) |
 | **Complexity** | Small |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### PO-3 Tooltip Enhancement: Mini Comparison
+### PO-3 Layer Search / Quick Filter in Layer Selector
 
 | | |
 |---|---|
-| **What** | Expand the hover tooltip to show a small bar or arrow indicating how the hovered neighborhood compares to the metro average for the active layer (e.g., "▲ 12% above avg"). Use existing `metroAverages` data. |
-| **Why** | The current tooltip shows only name + raw value. Without context, users can't tell if "€32,000 income" is good or bad. A quick comparison indicator makes hovering over the map far more informative without needing to click. |
-| **Touches** | `src/components/Tooltip.tsx` (add metro average prop and comparison display), `src/App.tsx` (pass metroAverages to Tooltip) |
+| **What** | Add a small search/filter input at the top of the LayerSelector panel. As the user types, filter the 54 layers to only show those whose label matches the query. Especially valuable on mobile where the full list requires significant scrolling through 8 groups. |
+| **Why** | With 54 layers across 8 groups, finding a specific layer requires opening groups and scanning. A type-to-filter input lets power users jump directly to "walkability" or "crime" without scanning the entire tree. |
+| **Touches** | `src/components/LayerSelector.tsx` (search input + filtering logic), `src/locales/*.json` (placeholder label) |
 | **Complexity** | Small |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### PO-4 Wizard Results: "Show on Map" Mode
+### PO-4 Comparison Panel — Chart View
 
 | | |
 |---|---|
-| **What** | After the wizard shows its top 5 results, add a "Show on map" button that closes the wizard and highlights those 5 neighborhoods on the map (similar to filter highlighting with green borders and dimmed non-matches). |
-| **Why** | The wizard currently shows results in a modal overlay. Users must manually remember neighborhood names and find them on the map. Bridging wizard results directly to the map view completes the user flow. |
-| **Touches** | `src/components/NeighborhoodWizard.tsx` (emit result PNOs), `src/App.tsx` (wizard results highlighting state), `src/components/Map.tsx` (wizard highlight layer, reuse filter dimming logic) |
-| **Complexity** | Small |
-| **Dependencies** | None |
-| **Tag** | Claude Code |
-
-### PO-5 Filter Presets
-
-| | |
-|---|---|
-| **What** | Add 3–4 preset filter configurations to FilterPanel: "Best for families" (child_ratio, school_quality, daycare_density, green_space), "Best for commuters" (transit_stop_density, commute_time, cycling_infra), "Most affordable" (property_price, rental_price, unemployment inverted). One-click to load preset criteria. |
-| **Why** | The filter panel is powerful but intimidating — users must know which of 51 layers matter and what ranges are "good." Presets provide instant value for common use cases while teaching users how filtering works. |
-| **Touches** | `src/components/FilterPanel.tsx` (preset buttons + predefined filter configs) |
-| **Complexity** | Small |
-| **Dependencies** | None |
-| **Tag** | Claude Code |
-
-### PO-6 Mobile Bottom Sheet Improvements
-
-| | |
-|---|---|
-| **What** | Unify the bottom sheet behavior across NeighborhoodPanel, LayerSelector, FilterPanel, and CustomQualityPanel into a shared hook or component. Add velocity-based snap (swipe up fast = full screen, slow = half), proper body scroll locking, and a semi-transparent backdrop that dims the map. |
-| **Why** | Each panel currently reimplements its own touch drag logic with slightly different snap points and behavior. This creates inconsistency on mobile and makes maintenance harder. A shared abstraction also enables future panels to get mobile support for free. |
-| **Touches** | New `src/hooks/useBottomSheet.ts` or `src/components/BottomSheet.tsx`, refactor all bottom-sheet panels to use it |
+| **What** | Add a "Chart" tab to the `ComparisonPanel` that shows a grouped bar chart comparing the 2–3 pinned neighborhoods across key metrics (income, unemployment, property price, transit, walkability, safety). Use SVG bars rendered inline — no charting library needed. |
+| **Why** | The current comparison shows a table of raw numbers. Humans compare quantities much faster visually with bars than by reading numbers in columns. A side-by-side bar chart makes the "winner" per metric instantly obvious. |
+| **Touches** | `src/components/ComparisonPanel.tsx` (add chart tab, SVG bar rendering) |
 | **Complexity** | Medium |
+| **Dependencies** | None |
+| **Tag** | Claude Code |
+
+### PO-5 "Recently Viewed" Neighborhoods
+
+| | |
+|---|---|
+| **What** | Track the last 5–10 neighborhoods the user clicked on (stored in sessionStorage or a ref). Show them as small chips below the search bar or in a "Recent" section in the search dropdown when the input is empty/focused. |
+| **Why** | Users exploring neighborhoods frequently want to go back to one they looked at 5 minutes ago. Currently they must search again by name or scroll the map. Recent history provides quick navigation. |
+| **Touches** | `src/components/SearchBar.tsx` (recent list in dropdown), `src/App.tsx` or new `src/hooks/useRecentNeighborhoods.ts` (history tracking) |
+| **Complexity** | Small |
+| **Dependencies** | None |
+| **Tag** | Claude Code |
+
+### PO-6 Data Freshness Indicator
+
+| | |
+|---|---|
+| **What** | Show a small "Data last updated: March 2026" label in the footer or settings panel. Embed the build timestamp in the data pipeline output (add a `_metadata` property to the TopoJSON) and display it. Optionally, show per-metric source dates. |
+| **Why** | Users making real decisions (buying apartments, relocating) need to know how current the data is. "Is this 2024 or 2020 data?" is a common concern. Transparency builds trust. |
+| **Touches** | `scripts/prepare_data.py` (add metadata timestamp), `src/hooks/useMapData.ts` (extract metadata), `src/components/SettingsDropdown.tsx` or footer (display date), `src/locales/*.json` |
+| **Complexity** | Small |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
@@ -243,90 +234,68 @@ UX improvements, animations, better feedback, edge case handling.
 
 Not user-facing but unblocks future growth.
 
-### IN-1 CI Pipeline (Lint + Type-Check + Test)
+### IN-1 Refactor computeMetroAverages
 
 | | |
 |---|---|
-| **What** | Add a GitHub Actions workflow that runs `eslint`, `tsc --noEmit`, and `vitest run` on every push and PR. Block merges on failure. The current `auto-merge.yml` merges everything with no quality gate. |
-| **Why** | Broken code or type errors can ship immediately to production. A CI pipeline catches regressions before they reach users and gives confidence for parallel development. |
-| **Touches** | New `.github/workflows/ci.yml`, `package.json` (ensure `lint` script exists, add `typecheck` script) |
-| **Complexity** | Small |
-| **Dependencies** | None |
-| **Tag** | Claude Code |
-
-### IN-2 End-to-End Tests with Playwright
-
-| | |
-|---|---|
-| **What** | Add Playwright tests for critical user flows: load app → select neighborhood → view panel → switch layer → use search → pin & compare → export CSV → use filter → use wizard. Run in CI on each PR. |
-| **Why** | Unit tests cover utility logic (colorScales, formatting, qualityIndex, metrics, geometryFilter) but not UI integration. Map interactions, panel rendering, and bottom sheet behavior are untested. Regressions in these areas go undetected. |
-| **Touches** | New `e2e/` directory, `playwright.config.ts`, `package.json` (devDeps + script), `.github/workflows/ci.yml` (E2E step) |
-| **Complexity** | Medium |
-| **Dependencies** | IN-1 (CI pipeline should exist) |
-| **Tag** | Claude Code |
-
-### IN-3 Performance Budget & Bundle Analysis
-
-| | |
-|---|---|
-| **What** | Add `rollup-plugin-visualizer` to Vite for bundle size reports. Set a CI check that fails if the JS bundle exceeds 250 KB gzipped or TopoJSON exceeds 400 KB brotli. Output a bundle size comment on each PR. |
-| **Why** | The app loads a ~1.1 MB TopoJSON + JS bundle. Without a budget, new features and dependencies silently bloat the payload. Especially important as more layers, POIs, and history data are added. |
-| **Touches** | `vite.config.ts` (visualizer plugin), `.github/workflows/ci.yml` (size check step), `package.json` (devDep) |
-| **Complexity** | Small |
-| **Dependencies** | IN-1 (CI must exist) |
-| **Tag** | Claude Code |
-
-### IN-4 Data Pipeline: Automated Monthly Refresh
-
-| | |
-|---|---|
-| **What** | Add a GitHub Actions scheduled workflow (monthly cron) that runs `prepare_data.py`, validates output against a JSON schema, and opens a PR if data changed — with a diff summary (which metrics changed, by how much) in the PR body. |
-| **Why** | The data pipeline is manual — someone must run the Python script locally and commit. Statistics Finland updates Paavo annually; property prices update quarterly; transit data changes with route updates. Stale data undermines user trust. |
-| **Touches** | New `.github/workflows/data-refresh.yml`, `scripts/prepare_data.py` (add `--validate` flag, JSON schema), `requirements.txt` (pin deps) |
-| **Complexity** | Medium |
-| **Dependencies** | None |
-| **Tag** | Manual Setup (requires GitHub Actions secrets for authenticated APIs, Python environment setup in CI) |
-
-### IN-5 Error Tracking & Privacy-Respecting Analytics
-
-| | |
-|---|---|
-| **What** | Integrate Sentry for error tracking (catch runtime errors, map rendering failures, data load issues) and Plausible or Umami for privacy-respecting usage analytics (page views, most-used layers, feature usage). |
-| **Why** | No visibility into production errors or usage patterns. Can't tell which layers are popular, whether users find the wizard, or if mobile users hit rendering bugs. Data-driven prioritization is currently impossible. |
-| **Touches** | `src/main.tsx` (Sentry init), `index.html` (analytics script), `package.json` (Sentry SDK) |
-| **Complexity** | Small |
-| **Dependencies** | None |
-| **Tag** | Manual Setup (requires Sentry DSN creation and analytics account setup) |
-
-### IN-6 Service Worker & Offline Support
-
-| | |
-|---|---|
-| **What** | Add a service worker (via `vite-plugin-pwa` or manual `workbox`) that caches the app shell, TopoJSON data, and map tiles for offline use. Show a "You're offline — using cached data" indicator when network is unavailable. |
-| **Why** | The app is fully static and could work offline, but doesn't. Users on trains (common in Helsinki metro commutes) lose access. Caching the 1.1 MB TopoJSON after first load also speeds up repeat visits significantly. |
-| **Touches** | `vite.config.ts` (PWA plugin), new `src/sw.ts` or generated service worker, `src/App.tsx` (offline indicator), `index.html` (manifest link) |
+| **What** | Replace the ~210-line `computeMetroAverages` function in `src/utils/metrics.ts` (which manually maintains 60+ counter variables) with a data-driven approach: define an array of `{ property, type: 'population-weighted' | 'household-weighted' | 'count' }` objects and compute all averages in a single loop. |
+| **Why** | Every new data layer requires adding 4+ lines of counter variables, an accumulation block, and a result entry. This is the #1 source of bugs when adding layers. A data-driven approach makes adding a layer a one-line config change. |
+| **Touches** | `src/utils/metrics.ts` (rewrite `computeMetroAverages`) |
 | **Complexity** | Medium |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### IN-7 React Error Boundaries
+### IN-2 Expand E2E Test Coverage
 
 | | |
 |---|---|
-| **What** | Add React error boundaries around the Map, NeighborhoodPanel, and FilterPanel components. On crash, show a friendly fallback UI with a "Reload" button instead of a blank screen. Log errors to console (or Sentry if IN-5 is done). |
-| **Why** | No error boundaries exist. A rendering error in any component (e.g., unexpected null property, MapLibre GL crash) white-screens the entire app with no recovery path. |
-| **Touches** | New `src/components/ErrorBoundary.tsx`, `src/App.tsx` (wrap key sections) |
-| **Complexity** | Small |
+| **What** | Expand the Playwright test suite from 5 basic tests to comprehensive user flow coverage: select neighborhood → view panel → verify stats → switch layer → verify legend updates → pin & compare → export CSV → use filter presets → use wizard → verify wizard "show on map." Currently only tests: app load, search, layer click, URL hash, tools dropdown open. |
+| **Why** | The existing E2E tests verify the app loads but don't test any actual user flows or data correctness. Regressions in panel rendering, filter logic, comparison, and wizard are undetectable. The CI pipeline runs these tests but they cover almost nothing. |
+| **Touches** | `e2e/app.spec.ts` (expand), possibly split into `e2e/search.spec.ts`, `e2e/panel.spec.ts`, `e2e/filter.spec.ts`, `e2e/wizard.spec.ts` |
+| **Complexity** | Medium |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### IN-8 Unit Test Coverage Expansion
+### IN-3 Data Pipeline: Automated Refresh Workflow
 
 | | |
 |---|---|
-| **What** | Expand Vitest test suite to cover: `similarity.ts` (distance calculation edge cases), `qualityIndex.ts` (custom weight combinations, edge cases with all-null data), `export.ts` (CSV generation), `useUrlState.ts` (URL parsing), `useFavorites.ts` (localStorage operations). Current tests cover colorScales, formatting, metrics, geometryFilter, and basic components. |
-| **Why** | Test coverage has gaps in critical business logic — similarity scoring, quality index calculation, and data export. These are the features users depend on most for making real decisions. |
-| **Touches** | New test files in `src/__tests__/` (similarity.test.ts, export.test.ts, urlState.test.ts, favorites.test.ts), expand existing qualityIndex.test.ts |
+| **What** | Add a GitHub Actions scheduled workflow (monthly or quarterly cron) that runs `prepare_data.py`, validates output (row count, no null-only columns, schema check), and opens a PR if data changed — with a diff summary in the PR body. Pin Python deps in `requirements.txt`. |
+| **Why** | The data pipeline is manual. Statistics Finland updates Paavo annually; property prices and transit data change more frequently. Stale data undermines user trust. Automated refresh with validation catches data regressions. |
+| **Touches** | New `.github/workflows/data-refresh.yml`, `scripts/prepare_data.py` (add `--validate` flag), new `requirements.txt` |
+| **Complexity** | Medium |
+| **Dependencies** | None |
+| **Tag** | Manual Setup (requires ensuring all API endpoints work in CI, Python env setup, possible API keys) |
+
+### IN-4 Error Tracking & Usage Analytics
+
+| | |
+|---|---|
+| **What** | Integrate Sentry for error tracking (runtime errors, map rendering failures, data load issues) and Plausible or Umami for privacy-respecting usage analytics (page views, most-used layers, feature usage — no cookies, GDPR-compliant). |
+| **Why** | No visibility into production errors or usage patterns. Can't tell which of the 54 layers are popular, whether users find the wizard, or if mobile users hit rendering bugs. Data-driven prioritization is impossible without this. |
+| **Touches** | `src/main.tsx` (Sentry init), `index.html` (Plausible/Umami script tag), `package.json` (Sentry SDK) |
+| **Complexity** | Small |
+| **Dependencies** | None |
+| **Tag** | Manual Setup (requires Sentry DSN, Plausible/Umami account setup) |
+
+### IN-5 Component Storybook or Visual Regression Tests
+
+| | |
+|---|---|
+| **What** | Add Chromatic or Percy visual regression testing for key components (Legend, Tooltip, RadarChart, ComparisonPanel, FilterPanel) to catch unintended visual changes. Alternatively, set up Storybook for isolated component development. Run in CI on PRs. |
+| **Why** | The app is heavily visual — color scales, chart rendering, responsive layouts, dark mode. Unit tests verify logic, but subtle visual regressions (wrong spacing, broken dark mode, truncated labels) slip through. Visual testing catches these automatically. |
+| **Touches** | New `.storybook/` or visual test config, `package.json` (devDeps), `.github/workflows/ci.yml` (visual test step) |
+| **Complexity** | Medium |
+| **Dependencies** | None |
+| **Tag** | Manual Setup (Chromatic/Percy require account setup; Storybook is Claude Code) |
+
+### IN-6 Performance: Lazy Load Heavy Components
+
+| | |
+|---|---|
+| **What** | Lazy-load `NeighborhoodWizard`, `CustomQualityPanel`, `RankingTable`, `FilterPanel`, `SplitMapView`, and `ComparisonPanel` using `React.lazy()` + `Suspense`. These components are only rendered when the user actively opens them but currently are bundled in the main chunk. |
+| **Why** | The main JS bundle includes all panel code upfront. Lazy loading these conditionally-rendered components reduces initial bundle size and speeds up first paint. The CI bundle budget (250KB gzip) becomes easier to maintain as features grow. |
+| **Touches** | `src/App.tsx` (wrap conditional panels in React.lazy + Suspense) |
 | **Complexity** | Small |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
@@ -335,65 +304,63 @@ Not user-facing but unblocks future growth.
 
 ## Suggested Sequencing
 
-Items within each batch can be safely developed as **parallel Claude Code sessions** without logical conflicts. Each batch depends only on prior batches being complete. Order optimizes for: unblocking future work first, then high-impact user features, then polish.
+Items within each batch can be safely developed as **parallel Claude Code sessions** without logical conflicts. Each batch depends only on prior batches being complete. Order optimizes for: wiring existing code first, then high-impact features, then polish, then infrastructure.
 
-### Batch 1 — Infrastructure Foundation & Independent Quick Wins
+### Batch 1 — Wire Existing Code & Independent Quick Wins
 
-No dependencies. All items touch different files with zero merge conflict risk.
+These items complete already-written code or touch completely independent files. Zero merge conflict risk.
 
 | Item | Category | Complexity | Tag |
 |------|----------|------------|-----|
-| IN-1 CI Pipeline | Infrastructure | Small | Claude Code |
-| IN-7 React Error Boundaries | Infrastructure | Small | Claude Code |
-| IN-8 Unit Test Coverage Expansion | Infrastructure | Small | Claude Code |
 | QW-1 Legend Intermediate Ticks | Quick Win | Small | Claude Code |
-| QW-2 Empty State & No-Data | Quick Win | Small | Claude Code |
-| QW-3 Comparison URL Sharing | Quick Win | Small | Claude Code |
-| QW-4 Map Print Mode | Quick Win | Small | Claude Code |
+| QW-2 Wire useAnimatedValue | Quick Win | Small | Claude Code |
+| QW-3 Wire useBottomSheet | Quick Win | Small | Claude Code |
 | QW-5 Onboarding Tour | Quick Win | Small | Claude Code |
+| IN-1 Refactor computeMetroAverages | Infrastructure | Medium | Claude Code |
+| IN-6 Lazy Load Heavy Components | Infrastructure | Small | Claude Code |
 
-> **Why first:** CI (IN-1) gates all future PRs. Error boundaries (IN-7) prevent white-screens. Test expansion (IN-8) catches regressions. Quick wins are independent, small, and touch different files — zero conflict risk. Each session modifies at most 2–3 files with no overlap.
+> **Why first:** QW-2, QW-3 complete existing unused code — maximum value for minimum effort. QW-1 and QW-5 are fully independent. IN-1 makes future layer additions easier. IN-6 reduces bundle size. Each session touches 1–3 files with no overlap.
 
-### Batch 2 — Core UX Features & CI Extensions
+### Batch 2 — Core UX & Polish
 
-Depends on Batch 1 for CI pipeline. Feature items are independent of each other.
+Depends on Batch 1 for stable panel behavior (bottom sheets) and averages refactor. Items are independent of each other.
 
 | Item | Category | Complexity | Tag |
 |------|----------|------------|-----|
-| IN-3 Performance Budget | Infrastructure | Small | Claude Code |
-| IN-6 Service Worker & Offline | Infrastructure | Medium | Claude Code |
+| QW-4 Wire SplitMapView | Quick Win | Small–Medium | Claude Code |
 | CF-2 Shareable Score Card | Core Feature | Medium | Claude Code |
-| CF-4 Neighborhood Change Over Time | Core Feature | Medium | Claude Code |
-| PO-1 Animated Number Transitions | Polish | Small | Claude Code |
-| PO-3 Tooltip Mini Comparison | Polish | Small | Claude Code |
-| PO-5 Filter Presets | Polish | Small | Claude Code |
+| CF-4 Neighborhood Notes | Core Feature | Small | Claude Code |
+| CF-6 Swedish Language | Core Feature | Medium | Claude Code |
+| PO-1 Hatched Pattern for Missing Data | Polish | Small | Claude Code |
+| PO-2 Panel Collapsible Sections | Polish | Small | Claude Code |
+| PO-3 Layer Search in Selector | Polish | Small | Claude Code |
 
-> **Why second:** Performance budget depends on CI. The three core/polish features add new files/hooks without overlapping — CF-2 adds a utility, CF-4 touches colorScales (new layers only), PO-1 adds a hook, PO-3 modifies Tooltip only, PO-5 modifies FilterPanel only.
+> **Why second:** QW-4 wires the last major unused component. CF-2, CF-4, CF-6 add new files without overlapping. PO-1 touches Map.tsx (no conflict with QW-4 which replaces Map rendering conditionally). PO-2 only touches NeighborhoodPanel. PO-3 only touches LayerSelector.
 
-### Batch 3 — Polish, Mobile, & Advanced Features
+### Batch 3 — Polish & Testing
 
-Depends on Batch 2 for stable feature set. Items are independent of each other.
-
-| Item | Category | Complexity | Tag |
-|------|----------|------------|-----|
-| CF-1 Address / Coordinate Search | Core Feature | Medium | Manual Setup |
-| CF-3 Dual-Layer / Split Map View | Core Feature | Large | Claude Code |
-| PO-2 Keyboard Navigation for Layers | Polish | Small | Claude Code |
-| PO-4 Wizard Results "Show on Map" | Polish | Small | Claude Code |
-| PO-6 Mobile Bottom Sheet Unification | Polish | Medium | Claude Code |
-
-> **Why third:** Address search needs API key setup. Split map is the largest feature — best done once the Map component is stable from earlier batches. Bottom sheet unification is a refactor best done after all panels exist. Wizard "Show on Map" builds on the filter highlighting pattern established in Batch 1's empty state work.
-
-### Batch 4 — E2E Tests, Analytics & Data Pipeline
-
-Depends on stable feature set from Batches 1–3. External service setup required for some items.
+Depends on Batch 2 for complete feature set. All items are independent.
 
 | Item | Category | Complexity | Tag |
 |------|----------|------------|-----|
-| IN-2 E2E Tests (Playwright) | Infrastructure | Medium | Claude Code |
-| IN-4 Data Pipeline Auto-Refresh | Infrastructure | Medium | Manual Setup |
-| IN-5 Error Tracking & Analytics | Infrastructure | Small | Manual Setup |
-| CF-5 POI Overlay Layer | Core Feature | Large | Manual Setup |
-| CF-6 Multi-Year Time-Series Expansion | Core Feature | Large | Manual Setup |
+| CF-1 Address / Geocoding Search | Core Feature | Medium | Manual Setup |
+| PO-4 Comparison Chart View | Polish | Medium | Claude Code |
+| PO-5 Recently Viewed Neighborhoods | Polish | Small | Claude Code |
+| PO-6 Data Freshness Indicator | Polish | Small | Claude Code |
+| IN-2 Expand E2E Tests | Infrastructure | Medium | Claude Code |
 
-> **Why last:** E2E tests benefit from a complete, stable feature set. Analytics and error tracking require account creation. POI overlay and multi-year data both need external API access and data pipeline work — highest effort with most external dependencies. Running E2E tests after all features are built maximizes coverage from a single test suite.
+> **Why third:** CF-1 needs external API evaluation. PO-4 and PO-5 enhance existing features. IN-2 benefits from a stable, complete feature set — writing comprehensive E2E tests after all UI features are in place maximizes coverage.
+
+### Batch 4 — External Services & Advanced Features
+
+Requires account creation, external API access, or large data pipeline work. Items are independent.
+
+| Item | Category | Complexity | Tag |
+|------|----------|------------|-----|
+| CF-3 POI Overlay Layer | Core Feature | Large | Manual Setup |
+| CF-5 Heatmap / Grid View | Core Feature | Large | Manual Setup |
+| IN-3 Automated Data Refresh | Infrastructure | Medium | Manual Setup |
+| IN-4 Error Tracking & Analytics | Infrastructure | Small | Manual Setup |
+| IN-5 Visual Regression Tests | Infrastructure | Medium | Manual Setup |
+
+> **Why last:** All require external service setup, API access, or significant data pipeline work. CF-3 and CF-5 are the largest features. IN-3 and IN-4 need credentials. IN-5 needs Chromatic/Percy accounts. These should be tackled after the core app is fully polished and tested.
