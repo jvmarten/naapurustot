@@ -9,6 +9,7 @@ import { Legend } from './components/Legend';
 import { SettingsDropdown } from './components/SettingsDropdown';
 import { ToolsDropdown } from './components/ToolsDropdown';
 import { ErrorBanner } from './components/ErrorBanner';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { RankingTable } from './components/RankingTable';
 import { FilterPanel, computeMatchingPnos, type FilterCriterion } from './components/FilterPanel';
 import { CustomQualityPanel } from './components/CustomQualityPanel';
@@ -29,6 +30,7 @@ const App: React.FC = () => {
   const { data, loading, error, metroAverages, retry } = useMapData();
   const { selected, select, deselect, pinned, pin, unpin, clearPinned } = useSelectedNeighborhood();
   const [activeLayer, setActiveLayer] = useState<LayerId>(initialUrl.layer ?? 'quality_index');
+  const [wizardResultPnos, setWizardResultPnos] = useState<string[]>([]);
   const [tooltip, setTooltip] = useState<{
     props: NeighborhoodProperties;
     x: number;
@@ -49,18 +51,29 @@ const App: React.FC = () => {
   const [qualityVersion, setQualityVersion] = useState(0);
   const [ariaAnnouncement, setAriaAnnouncement] = useState('');
 
-  // Restore neighborhood selection from URL once data is loaded
+  // Restore neighborhood selection and pinned comparisons from URL once data is loaded
   useEffect(() => {
-    if (!data || restoredPno.current || !initialUrl.pno) return;
+    if (!data || restoredPno.current) return;
     restoredPno.current = true;
-    const feature = data.features.find((f) => f.properties?.pno === initialUrl.pno);
-    if (feature?.properties) {
-      select(feature.properties as NeighborhoodProperties);
+    if (initialUrl.pno) {
+      const feature = data.features.find((f) => f.properties?.pno === initialUrl.pno);
+      if (feature?.properties) {
+        select(feature.properties as NeighborhoodProperties);
+      }
     }
-  }, [data, select]);
+    // QW-3: Restore pinned comparisons from URL
+    if (initialUrl.compare && initialUrl.compare.length > 0) {
+      for (const pno of initialUrl.compare) {
+        const feature = data.features.find((f) => f.properties?.pno === pno);
+        if (feature?.properties) {
+          pin(feature.properties as NeighborhoodProperties);
+        }
+      }
+    }
+  }, [data, select, pin]);
 
-  // Keep URL in sync with current state
-  useSyncUrlState(selected?.pno ?? null, activeLayer);
+  // Keep URL in sync with current state (including pinned comparisons)
+  useSyncUrlState(selected?.pno ?? null, activeLayer, pinned.map((p) => p.pno));
 
   // Recompute quality indices when custom weights change
   const handleQualityWeightsChange = useCallback(
@@ -208,19 +221,22 @@ const App: React.FC = () => {
   return (
     <div className="h-screen w-screen overflow-hidden relative">
       {/* Map */}
-      <Map
-        data={data}
-        activeLayer={activeLayer}
-        onHover={handleHover}
-        onClick={handleClick}
-        flyTo={flyTarget}
-        selectedPno={selected?.pno ?? null}
-        pinnedPnos={pinned.map((p) => p.pno)}
-        filterActive={showFilter && filters.length > 0}
-        filterMatchPnos={filterMatchPnos}
-        qualityVersion={qualityVersion}
-        colorblind={colorblind}
-      />
+      <ErrorBoundary>
+        <Map
+          data={data}
+          activeLayer={activeLayer}
+          onHover={handleHover}
+          onClick={handleClick}
+          flyTo={flyTarget}
+          selectedPno={selected?.pno ?? null}
+          pinnedPnos={pinned.map((p) => p.pno)}
+          filterActive={showFilter && filters.length > 0}
+          filterMatchPnos={filterMatchPnos}
+          qualityVersion={qualityVersion}
+          colorblind={colorblind}
+          wizardHighlightPnos={wizardResultPnos}
+        />
+      </ErrorBoundary>
 
       {/* Skeleton / shimmer loading overlay */}
       {loading && (
@@ -262,6 +278,8 @@ const App: React.FC = () => {
           onToggleFilter={toggleFilter}
           onToggleRanking={toggleRanking}
           onOpenWizard={() => setShowWizard(true)}
+          wizardHighlightActive={wizardResultPnos.length > 0}
+          onClearWizardHighlight={() => setWizardResultPnos([])}
         />
         <SettingsDropdown
           colorblind={colorblind}
@@ -286,13 +304,15 @@ const App: React.FC = () => {
 
       {/* Filter panel */}
       {showFilter && (
-        <FilterPanel
-          data={data}
-          filters={filters}
-          onFiltersChange={setFilters}
-          onSelect={handleSearch}
-          onClose={() => setShowFilter(false)}
-        />
+        <ErrorBoundary>
+          <FilterPanel
+            data={data}
+            filters={filters}
+            onFiltersChange={setFilters}
+            onSelect={handleSearch}
+            onClose={() => setShowFilter(false)}
+          />
+        </ErrorBoundary>
       )}
 
       {/* Layer selector */}
@@ -314,6 +334,7 @@ const App: React.FC = () => {
           name={tooltip.props.nimi || tooltip.props.pno}
           value={tooltip.props[getLayerById(activeLayer).property] as number | null}
           layerId={activeLayer}
+          metroAverage={metroAverages[getLayerById(activeLayer).property]}
         />
       )}
 
@@ -328,21 +349,23 @@ const App: React.FC = () => {
 
       {/* Neighborhood detail panel */}
       {selected && (
-        <NeighborhoodPanel
-          data={selected}
-          metroAverages={metroAverages}
-          onClose={deselect}
-          onPin={pin}
-          onUnpin={unpin}
-          isPinned={pinned.some((p) => p.pno === selected.pno)}
-          pinCount={pinned.length}
-          onCustomize={() => setShowCustomQuality((v) => !v)}
-          isCustomWeights={isCustomWeights(qualityWeights)}
-          allFeatures={data?.features}
-          onFlyTo={(center) => setFlyTarget({ center })}
-          isFavorite={isFavorite(selected.pno)}
-          onToggleFavorite={() => toggleFavorite(selected.pno)}
-        />
+        <ErrorBoundary>
+          <NeighborhoodPanel
+            data={selected}
+            metroAverages={metroAverages}
+            onClose={deselect}
+            onPin={pin}
+            onUnpin={unpin}
+            isPinned={pinned.some((p) => p.pno === selected.pno)}
+            pinCount={pinned.length}
+            onCustomize={() => setShowCustomQuality((v) => !v)}
+            isCustomWeights={isCustomWeights(qualityWeights)}
+            allFeatures={data?.features}
+            onFlyTo={(center) => setFlyTarget({ center })}
+            isFavorite={isFavorite(selected.pno)}
+            onToggleFavorite={() => toggleFavorite(selected.pno)}
+          />
+        </ErrorBoundary>
       )}
 
       {/* Neighborhood wizard */}
@@ -351,11 +374,23 @@ const App: React.FC = () => {
           data={data}
           onSelect={handleSearch}
           onClose={() => setShowWizard(false)}
+          onShowOnMap={(pnos) => {
+            setWizardResultPnos(pnos);
+            setShowWizard(false);
+          }}
         />
       )}
 
       {/* Comparison panel */}
       <ComparisonPanel pinned={pinned} onUnpin={unpin} onClear={clearPinned} />
+
+      {/* IN-6: Offline indicator */}
+      {typeof navigator !== 'undefined' && !navigator.onLine && (
+        <div className="absolute top-12 left-1/2 -translate-x-1/2 z-50 px-3 py-1.5 rounded-lg
+                       bg-amber-500/90 text-white text-xs font-medium backdrop-blur-sm">
+          {t('offline.indicator')}
+        </div>
+      )}
 
       {/* Attribution footer */}
       <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 hidden md:block">

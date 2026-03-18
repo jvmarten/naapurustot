@@ -8,16 +8,29 @@ interface TooltipProps {
   name: string;
   value: number | null;
   layerId: LayerId;
+  metroAverage?: number;
 }
 
 const OFFSET = 12;
 const PADDING = 8;
 
-export const Tooltip: React.FC<TooltipProps> = ({ x, y, name, value, layerId }) => {
+export const Tooltip: React.FC<TooltipProps> = ({ x, y, name, value, layerId, metroAverage }) => {
   const layer = getLayerById(layerId);
   const formatted = value != null ? layer.format(value) : t('tooltip.no_data');
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ left: 0, top: 0 });
+
+  // PO-3: Mini comparison to metro average
+  let comparisonText = '';
+  let comparisonClass = '';
+  if (value != null && metroAverage != null && metroAverage !== 0) {
+    const diffPct = ((value - metroAverage) / Math.abs(metroAverage)) * 100;
+    if (Math.abs(diffPct) >= 1) {
+      const sign = diffPct > 0 ? '+' : '';
+      comparisonText = `${diffPct > 0 ? '\u25B2' : '\u25BC'} ${sign}${diffPct.toFixed(0)}% vs. avg`;
+      comparisonClass = diffPct > 0 ? 'text-emerald-500' : 'text-rose-400';
+    }
+  }
 
   useLayoutEffect(() => {
     const el = ref.current;
@@ -58,9 +71,14 @@ export const Tooltip: React.FC<TooltipProps> = ({ x, y, name, value, layerId }) 
       }}
     >
       <div className="font-semibold text-surface-900 dark:text-white">{name}</div>
-      <div className="text-surface-600 dark:text-surface-300">
+      <div className={`${value == null ? 'text-surface-400 italic' : 'text-surface-600 dark:text-surface-300'}`}>
         {formatted}
       </div>
+      {comparisonText && (
+        <div className={`text-xs mt-0.5 ${comparisonClass}`}>
+          {comparisonText}
+        </div>
+      )}
     </div>
   );
 };

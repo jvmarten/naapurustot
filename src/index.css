@@ -134,3 +134,40 @@ body,
     display: none !important;
   }
 }
+
+/* QW-4: Print mode — show only map + legend */
+@media print {
+  body, html, #root {
+    overflow: visible !important;
+    height: auto !important;
+  }
+
+  /* Hide everything except the map and legend */
+  .absolute:not([data-print="keep"]),
+  .fixed {
+    display: none !important;
+  }
+
+  /* Keep the map container visible */
+  div[class*="absolute inset-0"] {
+    display: block !important;
+    position: relative !important;
+    width: 100vw !important;
+    height: 100vh !important;
+  }
+
+  /* Keep the legend visible */
+  .print-keep {
+    display: block !important;
+    position: fixed !important;
+    bottom: 20px !important;
+    left: 20px !important;
+    z-index: 10 !important;
+  }
+
+  /* Hide map controls in print */
+  .maplibregl-ctrl-group,
+  .maplibregl-ctrl-attrib {
+    display: none !important;
+  }
+}
