@@ -294,21 +294,21 @@ const App: React.FC = () => {
       {/* Error banner */}
       {error && <ErrorBanner message={error} onRetry={retry} />}
 
-      {/* Brand mark — double-click to reset view */}
-      <div className="absolute top-3 md:top-4 left-1/2 -translate-x-1/2 z-10">
+      {/* Brand mark — double-click to reset view, hidden on mobile to avoid overlap */}
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 hidden md:block">
         <button
           onDoubleClick={handleResetView}
           className="cursor-pointer bg-transparent border-none"
           title={t('map.reset_view')}
         >
-          <h1 className="text-base md:text-lg font-display font-bold text-surface-800/90 dark:text-white/90 tracking-tight">
+          <h1 className="text-lg font-display font-bold text-surface-800/90 dark:text-white/90 tracking-tight">
             naapurustot<span className="text-brand-500 dark:text-brand-400">.fi</span>
           </h1>
         </button>
       </div>
 
       {/* Top-right controls — two dropdown menus */}
-      <div className="absolute top-3 md:top-4 right-3 md:right-[17rem] z-10 flex items-center gap-1.5">
+      <div className="absolute top-3 md:top-4 right-3 md:right-[17rem] z-10 flex items-center gap-2">
         <ToolsDropdown
           showFilter={showFilter}
           showRanking={showRanking}
