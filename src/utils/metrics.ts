@@ -90,7 +90,17 @@ export function parseTrendSeries(raw: string | null | undefined): TrendDataPoint
   if (!raw) return null;
   try {
     const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
-    if (Array.isArray(parsed) && parsed.length >= 2) {
+    if (
+      Array.isArray(parsed) &&
+      parsed.length >= 2 &&
+      parsed.every(
+        (p: unknown) =>
+          Array.isArray(p) &&
+          p.length === 2 &&
+          typeof p[0] === 'number' &&
+          typeof p[1] === 'number',
+      )
+    ) {
       return parsed as TrendDataPoint[];
     }
   } catch {

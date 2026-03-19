@@ -1,4 +1,5 @@
 const DIGITRANSIT_URL = 'https://api.digitransit.fi/geocoding/v1/search';
+const MAX_CACHE_SIZE = 100;
 const CACHE = new Map<string, GeocodeResult[]>();
 
 export interface GeocodeResult {
@@ -34,6 +35,10 @@ export async function geocodeAddress(query: string): Promise<GeocodeResult[]> {
       }),
     );
 
+    if (CACHE.size >= MAX_CACHE_SIZE) {
+      const oldest = CACHE.keys().next().value;
+      if (oldest !== undefined) CACHE.delete(oldest);
+    }
     CACHE.set(cacheKey, results);
     return results;
   } catch {

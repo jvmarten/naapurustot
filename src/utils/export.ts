@@ -77,6 +77,15 @@ function escapeCsvField(field: string): string {
   return field;
 }
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export function exportCsv(d: NeighborhoodProperties, avg: Record<string, number>): void {
   const stats = collectStats(d, avg);
   const header = `${escapeCsvField(t('export.field'))},${escapeCsvField(t('export.value'))}`;
@@ -102,16 +111,20 @@ export function exportPdf(d: NeighborhoodProperties, avg: Record<string, number>
   const tableRows = stats
     .map(
       (s) =>
-        `<tr><td style="padding:6px 12px;border-bottom:1px solid #e5e7eb;color:#374151">${s.label}</td>` +
-        `<td style="padding:6px 12px;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:500">${s.value}</td></tr>`,
+        `<tr><td style="padding:6px 12px;border-bottom:1px solid #e5e7eb;color:#374151">${escapeHtml(s.label)}</td>` +
+        `<td style="padding:6px 12px;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:500">${escapeHtml(s.value)}</td></tr>`,
     )
     .join('');
+
+  const safeNimi = escapeHtml(d.nimi);
+  const safePno = escapeHtml(d.pno);
+  const safeNamn = escapeHtml(d.namn ?? '');
 
   const html = `<!DOCTYPE html>
 <html lang="${lang}">
 <head>
 <meta charset="utf-8">
-<title>${d.nimi} – ${d.pno}</title>
+<title>${safeNimi} – ${safePno}</title>
 <style>
   @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 2rem auto; color: #111827; }
@@ -129,9 +142,9 @@ export function exportPdf(d: NeighborhoodProperties, avg: Record<string, number>
 <body>
 <div class="card">
   <div class="header">
-    <h1>${d.nimi}</h1>
-    <p>${d.pno}${d.namn && d.namn !== d.nimi ? ` · ${d.namn}` : ''}</p>
-    ${qi != null ? `<div class="qi"><span class="qi-score">${qi}</span><span>${catLabel}</span></div>` : ''}
+    <h1>${safeNimi}</h1>
+    <p>${safePno}${d.namn && d.namn !== d.nimi ? ` · ${safeNamn}` : ''}</p>
+    ${qi != null ? `<div class="qi"><span class="qi-score">${qi}</span><span>${escapeHtml(catLabel)}</span></div>` : ''}
   </div>
   <table>
     ${tableRows}
