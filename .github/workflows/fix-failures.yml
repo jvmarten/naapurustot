@@ -1,0 +1,225 @@
+name: Fix workflow failures
+
+on:
+  workflow_run:
+    workflows:
+      - "Auto-merge to main"
+      - "Deploy to GitHub Pages"
+      - "CI"
+    types:
+      - completed
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: read
+  id-token: write
+
+concurrency:
+  group: fix-failures-${{ github.event.workflow_run.id }}
+
+jobs:
+  fix-failure:
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine failure type and fix strategy
+        id: strategy
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const workflowName = context.payload.workflow_run.name;
+            const headBranch = context.payload.workflow_run.head_branch;
+            const runId = context.payload.workflow_run.id;
+            const event = context.payload.workflow_run.event;
+
+            console.log(`Failed workflow: ${workflowName}`);
+            console.log(`Head branch: ${headBranch}`);
+            console.log(`Event: ${event}`);
+
+            // Loop prevention: skip if the failure came from a fix branch
+            if (headBranch && headBranch.startsWith('fix/auto-')) {
+              console.log('Skipping: failure originated from a fix branch (loop prevention)');
+              core.setOutput('should_skip', 'true');
+              return;
+            }
+
+            let failureType, fixBranch, checkoutRef;
+
+            if (workflowName === 'Auto-merge to main') {
+              failureType = 'automerge';
+              fixBranch = headBranch;
+              checkoutRef = headBranch;
+            } else if (workflowName === 'Deploy to GitHub Pages') {
+              failureType = 'deploy';
+              fixBranch = `fix/auto-deploy-${runId}`;
+              checkoutRef = 'main';
+            } else if (workflowName === 'CI') {
+              // Skip CI failures on PRs — let the PR author handle it
+              if (event === 'pull_request') {
+                console.log('Skipping: CI failure on a pull request');
+                core.setOutput('should_skip', 'true');
+                return;
+              }
+              failureType = 'ci';
+              fixBranch = `fix/auto-ci-${runId}`;
+              checkoutRef = 'main';
+            } else {
+              console.log(`Unknown workflow: ${workflowName}`);
+              core.setOutput('should_skip', 'true');
+              return;
+            }
+
+            core.setOutput('should_skip', 'false');
+            core.setOutput('failure_type', failureType);
+            core.setOutput('fix_branch', fixBranch);
+            core.setOutput('checkout_ref', checkoutRef);
+            core.setOutput('workflow_name', workflowName);
+
+      - name: Check if branch still exists (automerge only)
+        if: steps.strategy.outputs.should_skip != 'true' && steps.strategy.outputs.failure_type == 'automerge'
+        id: check
+        run: |
+          if git ls-remote --exit-code https://github.com/${{ github.repository }}.git "${{ steps.strategy.outputs.fix_branch }}" > /dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Branch no longer exists, skipping"
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Should continue
+        id: gate
+        run: |
+          if [[ "${{ steps.strategy.outputs.should_skip }}" == "true" ]]; then
+            echo "continue=false" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ steps.strategy.outputs.failure_type }}" == "automerge" && "${{ steps.check.outputs.exists }}" == "false" ]]; then
+            echo "continue=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "continue=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Fetch failed workflow logs
+        if: steps.gate.outputs.continue == 'true'
+        id: logs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runId = context.payload.workflow_run.id;
+
+            const { data: jobs } = await github.rest.actions.listJobsForWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: runId,
+            });
+
+            let errorLogs = '';
+            for (const job of jobs.jobs) {
+              if (job.conclusion === 'failure') {
+                const { data: logData } = await github.rest.actions.downloadJobLogsForWorkflowRun({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  job_id: job.id,
+                });
+                errorLogs += `=== Job: ${job.name} ===\n${logData}\n\n`;
+              }
+            }
+
+            if (errorLogs.length > 3000) {
+              errorLogs = '... (truncated)\n' + errorLogs.slice(-3000);
+            }
+
+            core.setOutput('error_logs', errorLogs || 'No logs available');
+
+      - name: Try simple rebase first (automerge only)
+        id: simple-fix
+        if: steps.gate.outputs.continue == 'true' && steps.strategy.outputs.failure_type == 'automerge'
+        run: |
+          git clone --depth=50 https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git repo
+          cd repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin main "${{ steps.strategy.outputs.fix_branch }}"
+          git checkout "${{ steps.strategy.outputs.fix_branch }}"
+
+          if git rebase origin/main; then
+            git push --force-with-lease origin "${{ steps.strategy.outputs.fix_branch }}"
+            echo "fixed=true" >> "$GITHUB_OUTPUT"
+          else
+            git rebase --abort
+            echo "fixed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Should invoke Claude
+        id: need-claude
+        run: |
+          if [[ "${{ steps.gate.outputs.continue }}" != "true" ]]; then
+            echo "invoke=false" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ steps.simple-fix.outputs.fixed }}" == "true" ]]; then
+            echo "invoke=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "invoke=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v5
+        if: steps.need-claude.outputs.invoke == 'true'
+        with:
+          ref: ${{ steps.strategy.outputs.checkout_ref }}
+          fetch-depth: 0
+
+      - name: Create fix branch (deploy/CI only)
+        if: steps.need-claude.outputs.invoke == 'true' && steps.strategy.outputs.failure_type != 'automerge'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "${{ steps.strategy.outputs.fix_branch }}"
+
+      - name: Fix with Claude Code
+        if: steps.need-claude.outputs.invoke == 'true'
+        id: claude-fix
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: "--model claude-opus-4-6"
+          prompt: |
+            The "${{ steps.strategy.outputs.workflow_name }}" workflow failed.
+            Branch: "${{ steps.strategy.outputs.fix_branch }}"
+            Failure type: ${{ steps.strategy.outputs.failure_type }}
+
+            Error logs from the failed workflow run:
+            ```
+            ${{ steps.logs.outputs.error_logs }}
+            ```
+
+            Diagnose and fix the issue based on the logs above:
+
+            1. If this is an automerge failure:
+               - Run `git fetch origin main` and `git merge origin/main`
+               - Resolve any merge conflicts sensibly
+            2. Identify and fix the root cause from the error logs
+            3. Verify your fix:
+               - `npm run build` must succeed
+               - `npm run test` must succeed
+               - `npm run lint` must succeed
+            4. Commit with a descriptive message explaining what failed and how you fixed it
+            5. Push to the current branch
+
+            After pushing, the auto-merge workflow will merge this into main and re-trigger deployment automatically.
+
+      - name: Create issue on failure
+        if: failure() && steps.need-claude.outputs.invoke == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const workflowName = '${{ steps.strategy.outputs.workflow_name }}';
+            const failedRunId = context.payload.workflow_run.id;
+            const fixRunUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const failedRunUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${failedRunId}`;
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Automatic fix failed: ${workflowName}`,
+              body: `The "${workflowName}" workflow failed and automatic recovery was unsuccessful.\n\n- [Failed workflow run](${failedRunUrl})\n- [Fix attempt](${fixRunUrl})\n\nManual intervention is needed.`,
+              labels: ['bug']
+            });
