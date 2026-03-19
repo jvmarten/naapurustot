@@ -53,7 +53,10 @@ const App: React.FC = () => {
   const [colorblind, setColorblind] = useState(getColorblindMode);
   const [showWizard, setShowWizard] = useState(false);
   const { presets: savedPresets, addPreset: saveFilterPreset, removePreset: removeFilterPreset } = useFilterPresets();
-  const [fillOpacity, setFillOpacity] = useState(1);
+  const [fillOpacity, setFillOpacity] = useState(() => {
+    const saved = localStorage.getItem('naapurustot-fill-opacity');
+    return saved !== null ? Number(saved) : 1;
+  });
   // QW-4: Split map view state
   const [splitMode, setSplitMode] = useState(false);
   const [secondaryLayer] = useState<LayerId>('median_income');
@@ -328,7 +331,7 @@ const App: React.FC = () => {
           lang={lang}
           onToggleLang={toggleLang}
           fillOpacity={fillOpacity}
-          onFillOpacityChange={setFillOpacity}
+          onFillOpacityChange={(v: number) => { localStorage.setItem('naapurustot-fill-opacity', String(v)); setFillOpacity(v); }}
         />
       </div>
 
