@@ -29,6 +29,8 @@ interface MapProps {
   colorblind?: string;
   /** PO-4: PNOs to highlight from wizard results */
   wizardHighlightPnos?: string[];
+  /** User-adjustable fill opacity multiplier (0–1, default 1) */
+  fillOpacity?: number;
 }
 
 function makeStyle(theme: 'dark' | 'light'): maplibregl.StyleSpecification {
@@ -70,7 +72,24 @@ const NO_DATA_LAYER = 'neighborhoods-no-data-pattern';
 export const DEFAULT_CENTER: [number, number] = [MAP_CENTER_LNG, MAP_CENTER_LAT];
 export const DEFAULT_ZOOM = MAP_ZOOM;
 
-export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = [], filterActive = false, filterMatchPnos = new Set(), qualityVersion = 0, colorblind = false, wizardHighlightPnos = [] }) => {
+/** Build a fill-opacity expression scaled by user opacity multiplier */
+function buildFillOpacity(o: number, overrides?: { matchExpr?: unknown[]; matchVal?: number; dimVal?: number }) {
+  const base: unknown[] = [
+    'case',
+    ['boolean', ['feature-state', 'hover'], false],
+    0.85 * o,
+    ['boolean', ['feature-state', 'selected'], false],
+    0.85 * o,
+  ];
+  if (overrides?.matchExpr) {
+    base.push(overrides.matchExpr, (overrides.matchVal ?? 0.8) * o, (overrides.dimVal ?? 0.15) * o);
+  } else {
+    base.push(0.65 * o);
+  }
+  return base;
+}
+
+export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = [], filterActive = false, filterMatchPnos = new Set(), qualityVersion = 0, colorblind = false, wizardHighlightPnos = [], fillOpacity = 1 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const hoveredIdRef = useRef<string | null>(null);
@@ -141,14 +160,7 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
         paint: {
           'fill-color': buildFillColorExpression(layer),
           'fill-color-transition': { duration: 300, delay: 0 },
-          'fill-opacity': [
-            'case',
-            ['boolean', ['feature-state', 'hover'], false],
-            0.85,
-            ['boolean', ['feature-state', 'selected'], false],
-            0.85,
-            0.65,
-          ],
+          'fill-opacity': buildFillOpacity(fillOpacity) as maplibregl.ExpressionSpecification,
           'fill-opacity-transition': { duration: 300, delay: 0 },
         },
       });
@@ -211,6 +223,19 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
     }
   }, [qualityVersion, data]);
 
+  // Update fill opacity when user adjusts the slider
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !data) return;
+    if (!map.getLayer(FILL_LAYER)) return;
+
+    // Only update if no filter/wizard override is active (those effects handle their own opacity)
+    if (filterActive && filterMatchPnos.size > 0) return;
+    if (wizardHighlightPnos.length > 0) return;
+
+    map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(fillOpacity));
+  }, [fillOpacity]);
+
   // Smoothly transition fill color when active layer or colorblind mode changes
   useEffect(() => {
     const map = mapRef.current;
@@ -238,16 +263,11 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
     if (filterActive && filterMatchPnos.size > 0) {
       // Dim non-matching: set lower opacity for non-matching neighborhoods
       const matchPnoArray = Array.from(filterMatchPnos);
-      map.setPaintProperty(FILL_LAYER, 'fill-opacity', [
-        'case',
-        ['boolean', ['feature-state', 'hover'], false],
-        0.85,
-        ['boolean', ['feature-state', 'selected'], false],
-        0.85,
-        ['in', ['get', 'pno'], ['literal', matchPnoArray]],
-        0.8,
-        0.15,
-      ]);
+      map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(fillOpacity, {
+        matchExpr: ['in', ['get', 'pno'], ['literal', matchPnoArray]],
+        matchVal: 0.8,
+        dimVal: 0.15,
+      }));
 
       // Add/update a highlight border for matching neighborhoods
       if (map.getLayer(FILTER_HIGHLIGHT_LAYER)) map.removeLayer(FILTER_HIGHLIGHT_LAYER);
@@ -264,18 +284,11 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
       });
     } else {
       // Restore default opacity
-      map.setPaintProperty(FILL_LAYER, 'fill-opacity', [
-        'case',
-        ['boolean', ['feature-state', 'hover'], false],
-        0.85,
-        ['boolean', ['feature-state', 'selected'], false],
-        0.85,
-        0.65,
-      ]);
+      map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(fillOpacity));
 
       if (map.getLayer(FILTER_HIGHLIGHT_LAYER)) map.removeLayer(FILTER_HIGHLIGHT_LAYER);
     }
-  }, [filterActive, filterMatchPnos, data, theme]);
+  }, [filterActive, filterMatchPnos, data, theme, fillOpacity]);
 
   // Hover handler
   useEffect(() => {
@@ -411,16 +424,11 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
 
       // Dim non-highlighted neighborhoods
       if (map.getLayer(FILL_LAYER)) {
-        map.setPaintProperty(FILL_LAYER, 'fill-opacity', [
-          'case',
-          ['boolean', ['feature-state', 'hover'], false],
-          0.85,
-          ['boolean', ['feature-state', 'selected'], false],
-          0.85,
-          ['in', ['get', 'pno'], ['literal', wizardHighlightPnos]],
-          0.8,
-          0.2,
-        ]);
+        map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(fillOpacity, {
+          matchExpr: ['in', ['get', 'pno'], ['literal', wizardHighlightPnos]],
+          matchVal: 0.8,
+          dimVal: 0.2,
+        }));
       }
 
       map.addLayer({
@@ -444,17 +452,10 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
       if (map.getLayer(WIZARD_HIGHLIGHT_LAYER)) map.removeLayer(WIZARD_HIGHLIGHT_LAYER);
       // Restore default opacity
       if (map.getLayer(FILL_LAYER) && wizardHighlightPnos.length > 0) {
-        map.setPaintProperty(FILL_LAYER, 'fill-opacity', [
-          'case',
-          ['boolean', ['feature-state', 'hover'], false],
-          0.85,
-          ['boolean', ['feature-state', 'selected'], false],
-          0.85,
-          0.65,
-        ]);
+        map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(fillOpacity));
       }
     };
-  }, [wizardHighlightPnos, data, theme]);
+  }, [wizardHighlightPnos, data, theme, fillOpacity]);
 
   return <div ref={containerRef} className="absolute inset-0" />;
 };

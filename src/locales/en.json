@@ -287,5 +287,6 @@
   "recent.title": "Recently viewed",
   "data.last_updated": "Data last updated",
   "share.image": "Share as image",
-  "share.generating": "Generating image\u2026"
+  "share.generating": "Generating image\u2026",
+  "legend.opacity": "Opacity"
 }
