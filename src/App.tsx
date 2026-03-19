@@ -327,6 +327,8 @@ const App: React.FC = () => {
           onColorblindChange={handleColorblindChange}
           lang={lang}
           onToggleLang={toggleLang}
+          fillOpacity={fillOpacity}
+          onFillOpacityChange={setFillOpacity}
         />
       </div>
 
@@ -372,7 +374,7 @@ const App: React.FC = () => {
       />
 
       {/* Legend — repositioned for mobile */}
-      <Legend layerId={activeLayer} colorblind={colorblind} fillOpacity={fillOpacity} onFillOpacityChange={setFillOpacity} />
+      <Legend layerId={activeLayer} colorblind={colorblind} />
 
       {/* Tooltip — hidden on touch devices via CSS */}
       {tooltip && !selected && (
