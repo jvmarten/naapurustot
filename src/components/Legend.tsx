@@ -15,7 +15,7 @@ export const Legend: React.FC<LegendProps> = ({ layerId, colorblind: _colorblind
   const tickIndices = [0, n - 1];
 
   return (
-    <div className="absolute bottom-5 md:bottom-8 left-3 md:left-4 z-10">
+    <div className="absolute bottom-6 md:bottom-8 left-3 md:left-4 z-10">
       <div className="rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl px-4 py-3">
         <div className="text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-2">
           {t(layer.labelKey)}
@@ -25,22 +25,15 @@ export const Legend: React.FC<LegendProps> = ({ layerId, colorblind: _colorblind
             <div key={i} className="w-6 h-3 first:rounded-l last:rounded-r" style={{ backgroundColor: color }} />
           ))}
         </div>
-        <div className="relative mt-1.5 mx-0.5" style={{ width: `${layer.colors.length * 24}px` }}>
-          {tickIndices.map((idx) => {
-            const pct = (idx / (n - 1)) * 100;
-            return (
-              <span
-                key={idx}
-                className="absolute text-[10px] text-surface-500 whitespace-nowrap"
-                style={{
-                  left: `${pct}%`,
-                  transform: idx === 0 ? 'none' : idx === n - 1 ? 'translateX(-100%)' : 'translateX(-50%)',
-                }}
-              >
-                {layer.format(layer.stops[idx])}
-              </span>
-            );
-          })}
+        <div className="flex justify-between mt-1.5" style={{ width: `${layer.colors.length * 24}px` }}>
+          {tickIndices.map((idx) => (
+            <span
+              key={idx}
+              className="text-[10px] text-surface-500"
+            >
+              {layer.format(layer.stops[idx])}
+            </span>
+          ))}
         </div>
       </div>
     </div>
