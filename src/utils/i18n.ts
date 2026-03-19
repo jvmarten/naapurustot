@@ -12,7 +12,7 @@ for (const key of Object.keys(fi) as (keyof typeof fi)[]) {
   };
 }
 
-let currentLang: Lang = 'fi';
+let currentLang: Lang = 'en';
 
 export function setLang(lang: Lang) {
   currentLang = lang;
