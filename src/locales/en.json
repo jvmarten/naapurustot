@@ -2,6 +2,7 @@
   "app.title": "Neighborhoods",
   "app.subtitle": "Helsinki Metro",
   "search.placeholder": "Search postal code or area\u2026",
+  "search.placeholder_short": "Search area\u2026",
   "search.moreResults": "more results\u2026",
   "layer.quality_index": "Quality Index",
   "panel.quality_index": "Quality Index",
