@@ -220,7 +220,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = ({ activeLayer, onLay
         {!mobileOpen && (
           <button
             onClick={() => setMobileOpen(true)}
-            className="fixed bottom-6 right-3 z-30 w-14 h-14 rounded-2xl
+            className="fixed bottom-8 right-3 z-30 w-14 h-14 rounded-2xl
                        bg-white/95 dark:bg-surface-900/95 backdrop-blur-md
                        border border-surface-200 dark:border-surface-700/40
                        shadow-2xl flex items-center justify-center
