@@ -69,7 +69,7 @@ function escapeHtml(str: string): string {
     .replace(/'/g, '&#39;');
 }
 
-export function exportCsv(d: NeighborhoodProperties, avg: Record<string, number>): void {
+export function exportCsv(d: NeighborhoodProperties, _avg: Record<string, number>): void {
   const stats = collectStats(d);
   const header = `${escapeCsvField(t('export.field'))},${escapeCsvField(t('export.value'))}`;
   const rows = stats.map((s) => `${escapeCsvField(s.label)},${escapeCsvField(s.value)}`);
@@ -84,7 +84,7 @@ export function exportCsv(d: NeighborhoodProperties, avg: Record<string, number>
   URL.revokeObjectURL(url);
 }
 
-export function exportPdf(d: NeighborhoodProperties, avg: Record<string, number>): void {
+export function exportPdf(d: NeighborhoodProperties, _avg: Record<string, number>): void {
   const stats = collectStats(d);
   const lang = getLang();
   const qi = d.quality_index;
