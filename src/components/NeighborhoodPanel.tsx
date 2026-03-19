@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { parseTrendSeries } from '../utils/metrics';
 import { formatNumber, formatEuro, formatPct, formatDiff, diffColor } from '../utils/formatting';

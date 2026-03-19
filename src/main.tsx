@@ -7,7 +7,8 @@ import './index.css';
 // IN-4: Error tracking (activate by setting VITE_SENTRY_DSN in .env)
 const SENTRY_DSN = import.meta.env.VITE_SENTRY_DSN as string | undefined;
 if (SENTRY_DSN) {
-  import('@sentry/browser').then(({ init, browserTracingIntegration }) => {
+  // @ts-expect-error — @sentry/browser is an optional dependency, only loaded when DSN is set
+  import('@sentry/browser').then(({ init, browserTracingIntegration }: { init: (opts: Record<string, unknown>) => void; browserTracingIntegration: () => unknown }) => {
     init({
       dsn: SENTRY_DSN,
       integrations: [browserTracingIntegration()],

@@ -53,7 +53,7 @@ const App: React.FC = () => {
   const [showWizard, setShowWizard] = useState(false);
   // QW-4: Split map view state
   const [splitMode, setSplitMode] = useState(false);
-  const [secondaryLayer, setSecondaryLayer] = useState<LayerId>('median_income');
+  const [secondaryLayer] = useState<LayerId>('median_income');
   const { isFavorite, toggleFavorite } = useFavorites();
   const { getNote, setNote } = useNotes();
   const { recent, addRecent } = useRecentNeighborhoods();

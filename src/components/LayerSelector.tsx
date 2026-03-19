@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { LAYERS, type LayerId } from '../utils/colorScales';
 import { t } from '../utils/i18n';
 import { useBottomSheet } from '../hooks/useBottomSheet';
