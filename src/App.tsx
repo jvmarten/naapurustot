@@ -187,8 +187,10 @@ const App: React.FC = () => {
     });
   }, []);
 
-  // IN-5: Dynamic SEO — update document title and meta when neighborhood selected
+  // IN-5: Dynamic SEO — update document title, meta, and canonical when neighborhood selected
   useEffect(() => {
+    const canonical = document.querySelector('link[rel="canonical"]');
+    const ogUrl = document.querySelector('meta[property="og:url"]');
     if (selected) {
       const qi = selected.quality_index != null ? ` — ${t('panel.quality_index')}: ${selected.quality_index}` : '';
       document.title = `${selected.nimi} (${selected.pno})${qi} | naapurustot.fi`;
@@ -204,12 +206,22 @@ const App: React.FC = () => {
       if (ogTitle) ogTitle.setAttribute('content', `${selected.nimi} — naapurustot.fi`);
       const ogDesc = document.querySelector('meta[property="og:description"]');
       if (ogDesc) ogDesc.setAttribute('content', `${selected.nimi} (${selected.pno}) — ${t('panel.quality_index')}: ${selected.quality_index ?? '—'}`);
+      const pnoUrl = `https://naapurustot.fi/?pno=${selected.pno}`;
+      if (canonical) canonical.setAttribute('href', pnoUrl);
+      if (ogUrl) ogUrl.setAttribute('content', pnoUrl);
     } else {
       document.title = 'naapurustot — Helsingin seudun naapurustot kartalla | naapurustot.fi';
       const desc = document.querySelector('meta[name="description"]');
       if (desc) desc.setAttribute('content', 'naapurustot.fi — vertaile Helsingin, Espoon ja Vantaan naapurustoja ja asuinalueita 35+ mittarilla. Tulotaso, asuntohinnat, palvelut, turvallisuus, joukkoliikenne ja paljon muuta interaktiivisella kartalla.');
+      if (canonical) canonical.setAttribute('href', 'https://naapurustot.fi/');
+      if (ogUrl) ogUrl.setAttribute('content', 'https://naapurustot.fi/');
     }
   }, [selected, lang]);
+
+  // Dynamic HTML lang attribute for SEO
+  useEffect(() => {
+    document.documentElement.lang = lang;
+  }, [lang]);
 
   // ARIA: announce layer changes
   useEffect(() => {
