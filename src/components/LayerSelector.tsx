@@ -36,7 +36,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = ({ activeLayer, onLay
   const sheetRef = useRef<HTMLDivElement>(null);
 
   // QW-3: Unified bottom sheet drag behavior
-  const { sheetHeight: _sheetHeight, isDragging, handlers: sheetHandlers } = useBottomSheet({
+  const { isDragging, handlers: sheetHandlers } = useBottomSheet({
     peekHeight: 0,
     halfRatio: 0.7,
     initialSnap: 'half',

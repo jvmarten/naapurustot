@@ -11,8 +11,11 @@ export interface SavedPreset {
 function loadPresets(): SavedPreset[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch { /* localStorage unavailable */ }
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch { /* localStorage unavailable or malformed data */ }
   return [];
 }
 

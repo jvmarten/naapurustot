@@ -20,7 +20,7 @@ try {
 
 export function setLang(lang: Lang) {
   currentLang = lang;
-  localStorage.setItem('lang', lang);
+  try { localStorage.setItem('lang', lang); } catch { /* localStorage unavailable */ }
 }
 
 export function getLang(): Lang {

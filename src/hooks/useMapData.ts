@@ -34,9 +34,11 @@ export function useMapData(): MapDataState {
 
   useEffect(() => {
     setState({ data: null, loading: true, error: null, metroAverages: {} });
-    // Use prefetched response on first load, fresh fetch on retries
+    // Use prefetched response on first load, fresh fetch on retries.
+    // Clone the prefetched response so the original can be reused
+    // (e.g., if React StrictMode double-mounts the component).
     const responsePromise = attempt === 0 && prefetchedResponse
-      ? prefetchedResponse
+      ? prefetchedResponse.then((res) => res.clone())
       : fetch(topoUrl);
     responsePromise
       .then((res) => {

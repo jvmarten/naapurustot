@@ -27,7 +27,8 @@ export const SearchBar: React.FC<SearchBarProps> = ({ data, onSelect, recent = [
     if (!data || query.length < 2) return { results: [], totalCount: 0 };
     const q = query.toLowerCase();
     const matched = data.features.filter((f) => {
-      const p = f.properties!;
+      const p = f.properties;
+      if (!p) return false;
       return (
         p.nimi?.toLowerCase().includes(q) ||
         p.namn?.toLowerCase().includes(q) ||
@@ -137,6 +138,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ data, onSelect, recent = [
     if ('coordinates' in geom) {
       extract(geom.coordinates as GeoJSON.Position[]);
     }
+    if (coords.length === 0) return [0, 0];
     const lng = coords.reduce((s, c) => s + c[0], 0) / coords.length;
     const lat = coords.reduce((s, c) => s + c[1], 0) / coords.length;
     return [lng, lat];

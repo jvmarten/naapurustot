@@ -8,7 +8,7 @@ interface StatEntry {
   value: string;
 }
 
-function collectStats(d: NeighborhoodProperties, avg: Record<string, number>): StatEntry[] {
+function collectStats(d: NeighborhoodProperties): StatEntry[] {
   const fmtDensity = (v: number | null | undefined) => (v == null ? '—' : `${v.toLocaleString('fi-FI')} /km²`);
   const fmtSqm = (v: number | null | undefined) => (v == null ? '—' : `${v.toFixed(1)} m²`);
   const fmtEuroSqm = (v: number | null | undefined) => (v == null ? '—' : `${v.toLocaleString('fi-FI')} €/m²`);
@@ -50,24 +50,7 @@ function collectStats(d: NeighborhoodProperties, avg: Record<string, number>): S
     { label: t('panel.pensioners'), value: formatNumber(d.pt_elakel) },
   ];
 
-  // Add metro comparison column
-  const metroMap: Record<string, number | undefined> = {
-    [t('panel.median_income')]: avg.hr_mtu,
-    [t('panel.unemployment')]: avg.unemployment_rate,
-    [t('panel.ownership_rate')]: avg.ownership_rate,
-    [t('panel.avg_apt_size')]: avg.ra_as_kpa,
-    [t('panel.population_density')]: avg.population_density,
-    [t('panel.child_ratio')]: avg.child_ratio,
-    [t('panel.student_share')]: avg.student_share,
-    [t('panel.property_price')]: avg.property_price_sqm,
-    [t('panel.transit_access')]: avg.transit_stop_density,
-    [t('panel.air_quality')]: avg.air_quality_index,
-  };
-
-  return rows.map((r) => {
-    const metroVal = metroMap[r.label];
-    return metroVal != null ? { ...r, label: r.label } : r;
-  });
+  return rows;
 }
 
 function escapeCsvField(field: string): string {
@@ -87,7 +70,7 @@ function escapeHtml(str: string): string {
 }
 
 export function exportCsv(d: NeighborhoodProperties, avg: Record<string, number>): void {
-  const stats = collectStats(d, avg);
+  const stats = collectStats(d);
   const header = `${escapeCsvField(t('export.field'))},${escapeCsvField(t('export.value'))}`;
   const rows = stats.map((s) => `${escapeCsvField(s.label)},${escapeCsvField(s.value)}`);
   const csv = [header, ...rows].join('\n');
@@ -102,7 +85,7 @@ export function exportCsv(d: NeighborhoodProperties, avg: Record<string, number>
 }
 
 export function exportPdf(d: NeighborhoodProperties, avg: Record<string, number>): void {
-  const stats = collectStats(d, avg);
+  const stats = collectStats(d);
   const lang = getLang();
   const qi = d.quality_index;
   const cat = qi != null ? getQualityCategory(qi) : null;
