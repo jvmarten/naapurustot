@@ -1,8 +1,6 @@
-import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { Map, DEFAULT_CENTER, DEFAULT_ZOOM } from './components/Map';
 import { LayerSelector } from './components/LayerSelector';
-import { NeighborhoodPanel } from './components/NeighborhoodPanel';
-import { ComparisonPanel } from './components/ComparisonPanel';
 import { SearchBar } from './components/SearchBar';
 import { Tooltip } from './components/Tooltip';
 import { Legend } from './components/Legend';
@@ -10,13 +8,21 @@ import { SettingsDropdown } from './components/SettingsDropdown';
 import { ToolsDropdown } from './components/ToolsDropdown';
 import { ErrorBanner } from './components/ErrorBanner';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { RankingTable } from './components/RankingTable';
-import { FilterPanel, computeMatchingPnos, type FilterCriterion } from './components/FilterPanel';
-import { CustomQualityPanel } from './components/CustomQualityPanel';
-import { NeighborhoodWizard } from './components/NeighborhoodWizard';
+import { computeMatchingPnos, type FilterCriterion } from './components/FilterPanel';
+
+// IN-6: Lazy load heavy conditionally-rendered components
+const NeighborhoodPanel = lazy(() => import('./components/NeighborhoodPanel').then(m => ({ default: m.NeighborhoodPanel })));
+const ComparisonPanel = lazy(() => import('./components/ComparisonPanel').then(m => ({ default: m.ComparisonPanel })));
+const RankingTable = lazy(() => import('./components/RankingTable').then(m => ({ default: m.RankingTable })));
+const FilterPanel = lazy(() => import('./components/FilterPanel').then(m => ({ default: m.FilterPanel })));
+const CustomQualityPanel = lazy(() => import('./components/CustomQualityPanel').then(m => ({ default: m.CustomQualityPanel })));
+const NeighborhoodWizard = lazy(() => import('./components/NeighborhoodWizard').then(m => ({ default: m.NeighborhoodWizard })));
+const SplitMapView = lazy(() => import('./components/SplitMapView').then(m => ({ default: m.SplitMapView })));
 import { bbox } from '@turf/turf';
 import { useMapData } from './hooks/useMapData';
 import { useFavorites } from './hooks/useFavorites';
+import { useNotes } from './hooks/useNotes';
+import { useRecentNeighborhoods } from './hooks/useRecentNeighborhoods';
 import { useSelectedNeighborhood } from './hooks/useSelectedNeighborhood';
 import { type LayerId, getLayerById, getColorblindMode, setColorblindMode } from './utils/colorScales';
 import { readInitialUrlState, useSyncUrlState } from './hooks/useUrlState';
@@ -45,7 +51,12 @@ const App: React.FC = () => {
   const [qualityWeights, setQualityWeights] = useState<QualityWeights>(getDefaultWeights);
   const [colorblind, setColorblind] = useState(getColorblindMode);
   const [showWizard, setShowWizard] = useState(false);
+  // QW-4: Split map view state
+  const [splitMode, setSplitMode] = useState(false);
+  const [secondaryLayer, setSecondaryLayer] = useState<LayerId>('median_income');
   const { isFavorite, toggleFavorite } = useFavorites();
+  const { getNote, setNote } = useNotes();
+  const { recent, addRecent } = useRecentNeighborhoods();
   const restoredPno = useRef(false);
   // Monotonic version counter to force re-renders when quality indices change
   const [qualityVersion, setQualityVersion] = useState(0);
@@ -118,7 +129,9 @@ const App: React.FC = () => {
       if (data) {
         const feature = data.features.find((f) => f.properties?.pno === pno);
         if (feature?.properties) {
-          select(feature.properties as NeighborhoodProperties);
+          const props = feature.properties as NeighborhoodProperties;
+          select(props);
+          addRecent({ pno: props.pno, name: props.nimi || props.pno, center });
           // Use feature bounding box for better zoom fit
           if (feature.geometry) {
             const [minLng, minLat, maxLng, maxLat] = bbox(feature);
@@ -220,22 +233,33 @@ const App: React.FC = () => {
 
   return (
     <div className="h-screen w-screen overflow-hidden relative">
-      {/* Map */}
+      {/* Map — QW-4: Conditional split view */}
       <ErrorBoundary>
-        <Map
-          data={data}
-          activeLayer={activeLayer}
-          onHover={handleHover}
-          onClick={handleClick}
-          flyTo={flyTarget}
-          selectedPno={selected?.pno ?? null}
-          pinnedPnos={pinned.map((p) => p.pno)}
-          filterActive={showFilter && filters.length > 0}
-          filterMatchPnos={filterMatchPnos}
-          qualityVersion={qualityVersion}
-          colorblind={colorblind}
-          wizardHighlightPnos={wizardResultPnos}
-        />
+        {splitMode ? (
+          <Suspense fallback={null}>
+            <SplitMapView
+              data={data}
+              leftLayer={activeLayer}
+              rightLayer={secondaryLayer}
+              colorblind={colorblind}
+            />
+          </Suspense>
+        ) : (
+          <Map
+            data={data}
+            activeLayer={activeLayer}
+            onHover={handleHover}
+            onClick={handleClick}
+            flyTo={flyTarget}
+            selectedPno={selected?.pno ?? null}
+            pinnedPnos={pinned.map((p) => p.pno)}
+            filterActive={showFilter && filters.length > 0}
+            filterMatchPnos={filterMatchPnos}
+            qualityVersion={qualityVersion}
+            colorblind={colorblind}
+            wizardHighlightPnos={wizardResultPnos}
+          />
+        )}
       </ErrorBoundary>
 
       {/* Skeleton / shimmer loading overlay */}
@@ -280,6 +304,8 @@ const App: React.FC = () => {
           onOpenWizard={() => setShowWizard(true)}
           wizardHighlightActive={wizardResultPnos.length > 0}
           onClearWizardHighlight={() => setWizardResultPnos([])}
+          splitMode={splitMode}
+          onToggleSplitMode={() => setSplitMode((v) => !v)}
         />
         <SettingsDropdown
           colorblind={colorblind}
@@ -290,28 +316,32 @@ const App: React.FC = () => {
       </div>
 
       {/* Search */}
-      <SearchBar data={data} onSelect={handleSearch} />
+      <SearchBar data={data} onSelect={handleSearch} recent={recent} />
 
       {/* Ranking table */}
       {showRanking && (
-        <RankingTable
-          data={data}
-          activeLayer={activeLayer}
-          onSelect={handleSearch}
-          onClose={() => setShowRanking(false)}
-        />
+        <Suspense fallback={null}>
+          <RankingTable
+            data={data}
+            activeLayer={activeLayer}
+            onSelect={handleSearch}
+            onClose={() => setShowRanking(false)}
+          />
+        </Suspense>
       )}
 
       {/* Filter panel */}
       {showFilter && (
         <ErrorBoundary>
-          <FilterPanel
-            data={data}
-            filters={filters}
-            onFiltersChange={setFilters}
-            onSelect={handleSearch}
-            onClose={() => setShowFilter(false)}
-          />
+          <Suspense fallback={null}>
+            <FilterPanel
+              data={data}
+              filters={filters}
+              onFiltersChange={setFilters}
+              onSelect={handleSearch}
+              onClose={() => setShowFilter(false)}
+            />
+          </Suspense>
         </ErrorBoundary>
       )}
 
@@ -340,16 +370,19 @@ const App: React.FC = () => {
 
       {/* Custom quality sliders panel */}
       {showCustomQuality && (
-        <CustomQualityPanel
-          weights={qualityWeights}
-          onChange={handleQualityWeightsChange}
-          onClose={() => setShowCustomQuality(false)}
-        />
+        <Suspense fallback={null}>
+          <CustomQualityPanel
+            weights={qualityWeights}
+            onChange={handleQualityWeightsChange}
+            onClose={() => setShowCustomQuality(false)}
+          />
+        </Suspense>
       )}
 
       {/* Neighborhood detail panel */}
       {selected && (
         <ErrorBoundary>
+          <Suspense fallback={null}>
           <NeighborhoodPanel
             data={selected}
             metroAverages={metroAverages}
@@ -364,12 +397,16 @@ const App: React.FC = () => {
             onFlyTo={(center) => setFlyTarget({ center })}
             isFavorite={isFavorite(selected.pno)}
             onToggleFavorite={() => toggleFavorite(selected.pno)}
+            note={getNote(selected.pno)}
+            onNoteChange={(text) => setNote(selected.pno, text)}
           />
+          </Suspense>
         </ErrorBoundary>
       )}
 
       {/* Neighborhood wizard */}
       {showWizard && (
+        <Suspense fallback={null}>
         <NeighborhoodWizard
           data={data}
           onSelect={handleSearch}
@@ -379,10 +416,13 @@ const App: React.FC = () => {
             setShowWizard(false);
           }}
         />
+        </Suspense>
       )}
 
       {/* Comparison panel */}
-      <ComparisonPanel pinned={pinned} onUnpin={unpin} onClear={clearPinned} />
+      <Suspense fallback={null}>
+        <ComparisonPanel pinned={pinned} onUnpin={unpin} onClear={clearPinned} />
+      </Suspense>
 
       {/* IN-6: Offline indicator */}
       {typeof navigator !== 'undefined' && !navigator.onLine && (

@@ -3,6 +3,7 @@ import type { FeatureCollection } from 'geojson';
 import { LAYERS, type LayerId, type LayerConfig, getLayerById } from '../utils/colorScales';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { t } from '../utils/i18n';
+import { useBottomSheet } from '../hooks/useBottomSheet';
 
 export interface FilterCriterion {
   layerId: LayerId;
@@ -305,32 +306,16 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   onSelect,
   onClose,
 }) => {
-  // Mobile sheet drag handling
+  // QW-3: Unified bottom sheet drag behavior
   const sheetRef = useRef<HTMLDivElement>(null);
-  const dragStartY = useRef<number | null>(null);
-  const [dragOffset, setDragOffset] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
+  const { sheetHeight: _filterSheetHeight, isDragging, handlers: sheetHandlers } = useBottomSheet({
+    halfRatio: 0.85,
+    initialSnap: 'half',
+    onClose,
+  });
   const [mobileResultsOpen, setMobileResultsOpen] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>('score');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
-
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    dragStartY.current = e.touches[0].clientY;
-    setIsDragging(true);
-  }, []);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (dragStartY.current == null) return;
-    const delta = e.touches[0].clientY - dragStartY.current;
-    if (delta > 0) setDragOffset(delta);
-  }, []);
-
-  const handleTouchEnd = useCallback(() => {
-    setIsDragging(false);
-    dragStartY.current = null;
-    if (dragOffset > 80) onClose();
-    setDragOffset(0);
-  }, [dragOffset, onClose]);
 
   // Compute matching neighborhoods
   const matchingFeatures = useMemo(() => {
@@ -598,10 +583,6 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
         <div
           className="fixed inset-0 z-30 bg-black/20 dark:bg-black/40"
           onClick={onClose}
-          style={{
-            opacity: isDragging ? Math.max(0, 1 - dragOffset / 200) : 1,
-            transition: isDragging ? 'none' : 'opacity 0.2s',
-          }}
         />
 
         {/* Sheet */}
@@ -613,16 +594,15 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
                      shadow-[0_-4px_30px_rgba(0,0,0,0.15)] rounded-t-2xl
                      max-h-[85vh] flex flex-col"
           style={{
-            transform: `translateY(${dragOffset}px)`,
             transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
           }}
         >
           {/* Drag handle */}
           <div
             className="flex items-center justify-center pt-3 pb-2 cursor-grab active:cursor-grabbing touch-none flex-shrink-0"
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
+            onTouchStart={sheetHandlers.onTouchStart}
+            onTouchMove={sheetHandlers.onTouchMove}
+            onTouchEnd={sheetHandlers.onTouchEnd}
           >
             <div className="w-10 h-1.5 rounded-full bg-surface-300 dark:bg-surface-600" />
           </div>

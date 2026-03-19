@@ -1,19 +1,27 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import type { FeatureCollection } from 'geojson';
 import { t } from '../utils/i18n';
+import type { RecentEntry } from '../hooks/useRecentNeighborhoods';
+import { geocodeAddress, type GeocodeResult } from '../utils/geocode';
+import { booleanPointInPolygon, point } from '@turf/turf';
 
 interface SearchBarProps {
   data: FeatureCollection | null;
   onSelect: (pno: string, center: [number, number]) => void;
+  recent?: RecentEntry[];
 }
 
-export const SearchBar: React.FC<SearchBarProps> = ({ data, onSelect }) => {
+export const SearchBar: React.FC<SearchBarProps> = ({ data, onSelect, recent = [] }) => {
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+
+  // CF-1: Address geocoding state
+  const [addressResults, setAddressResults] = useState<GeocodeResult[]>([]);
+  const geocodeTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
   const { results, totalCount } = useMemo(() => {
     if (!data || query.length < 2) return { results: [], totalCount: 0 };
@@ -28,6 +36,41 @@ export const SearchBar: React.FC<SearchBarProps> = ({ data, onSelect }) => {
     });
     return { results: matched.slice(0, 8), totalCount: matched.length };
   }, [data, query]);
+
+  // CF-1: Debounced address geocoding — trigger when query looks like an address
+  useEffect(() => {
+    if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current);
+    if (query.length < 3 || /^\d{5}$/.test(query.trim())) {
+      setAddressResults([]);
+      return;
+    }
+    // Only geocode if neighborhood results are few (likely an address query)
+    if (results.length > 3) {
+      setAddressResults([]);
+      return;
+    }
+    geocodeTimerRef.current = setTimeout(async () => {
+      const res = await geocodeAddress(query);
+      setAddressResults(res);
+    }, 300);
+    return () => { if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current); };
+  }, [query, results.length]);
+
+  // CF-1: Find which neighborhood contains a geocoded point
+  function findNeighborhoodForPoint(coords: [number, number]): GeoJSON.Feature | null {
+    if (!data) return null;
+    const pt = point(coords);
+    for (const feature of data.features) {
+      try {
+        if (booleanPointInPolygon(pt, feature as GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.MultiPolygon>)) {
+          return feature;
+        }
+      } catch {
+        continue;
+      }
+    }
+    return null;
+  }
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -130,7 +173,32 @@ export const SearchBar: React.FC<SearchBarProps> = ({ data, onSelect }) => {
         />
       </div>
 
-      {isOpen && results.length > 0 && (
+      {/* PO-5: Recent neighborhoods when input is empty/focused */}
+      {isOpen && results.length === 0 && query.length < 2 && recent.length > 0 && (
+        <div className="mt-1.5 rounded-xl bg-white/95 dark:bg-surface-900/95 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden">
+          <div className="px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500">
+            {t('recent.title')}
+          </div>
+          {recent.slice(0, 5).map((entry) => (
+            <button
+              key={entry.pno}
+              className="w-full text-left px-4 py-2.5 md:py-2 text-sm transition-colors min-h-[44px] md:min-h-0
+                         border-b border-surface-100 dark:border-surface-800/40 last:border-0
+                         hover:bg-surface-100 dark:hover:bg-surface-800/60"
+              onClick={() => {
+                onSelect(entry.pno, entry.center);
+                setQuery(entry.name);
+                setIsOpen(false);
+              }}
+            >
+              <span className="text-surface-900 dark:text-white font-medium">{entry.name}</span>
+              <span className="text-surface-500 dark:text-surface-400 ml-2">{entry.pno}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {isOpen && (results.length > 0 || addressResults.length > 0) && (
         <div
           ref={listRef}
           id="search-results-list"
@@ -159,6 +227,35 @@ export const SearchBar: React.FC<SearchBarProps> = ({ data, onSelect }) => {
             <div className="px-4 py-2 text-xs text-surface-400 dark:text-surface-500 text-center border-t border-surface-100 dark:border-surface-800/40">
               {totalCount - 8} {t('search.moreResults')}
             </div>
+          )}
+          {/* CF-1: Address results */}
+          {addressResults.length > 0 && (
+            <>
+              <div className="px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500 border-t border-surface-100 dark:border-surface-800/40">
+                {t('search.address_results')}
+              </div>
+              {addressResults.map((addr, i) => (
+                <button
+                  key={i}
+                  className="w-full text-left px-4 py-2.5 md:py-2 text-sm transition-colors min-h-[44px] md:min-h-0
+                             border-b border-surface-100 dark:border-surface-800/40 last:border-0
+                             hover:bg-surface-100 dark:hover:bg-surface-800/60"
+                  onClick={() => {
+                    const neighborhood = findNeighborhoodForPoint(addr.coordinates);
+                    if (neighborhood?.properties) {
+                      onSelect(neighborhood.properties.pno, addr.coordinates);
+                      setQuery(neighborhood.properties.nimi || addr.label);
+                    } else {
+                      onSelect('', addr.coordinates);
+                      setQuery(addr.label);
+                    }
+                    setIsOpen(false);
+                  }}
+                >
+                  <span className="text-surface-700 dark:text-surface-200 text-xs">{addr.label}</span>
+                </button>
+              ))}
+            </>
           )}
         </div>
       )}

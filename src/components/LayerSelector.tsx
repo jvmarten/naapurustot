@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { LAYERS, type LayerId } from '../utils/colorScales';
 import { t } from '../utils/i18n';
+import { useBottomSheet } from '../hooks/useBottomSheet';
 
 interface LayerSelectorProps {
   activeLayer: LayerId;
@@ -29,42 +30,22 @@ export const LayerSelector: React.FC<LayerSelectorProps> = ({ activeLayer, onLay
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(
     Object.fromEntries(LAYER_GROUPS.map((g) => [g.labelKey, true]))
   );
+  // PO-3: Layer search filter
+  const [layerSearch, setLayerSearch] = useState('');
   const [mobileOpen, setMobileOpen] = useState(false);
   const sheetRef = useRef<HTMLDivElement>(null);
-  const dragStartY = useRef<number | null>(null);
-  const [dragOffset, setDragOffset] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
+
+  // QW-3: Unified bottom sheet drag behavior
+  const { sheetHeight: _sheetHeight, isDragging, handlers: sheetHandlers } = useBottomSheet({
+    peekHeight: 0,
+    halfRatio: 0.7,
+    initialSnap: 'half',
+    onClose: () => setMobileOpen(false),
+  });
 
   const toggleGroup = (labelKey: string) => {
     setCollapsed((prev) => ({ ...prev, [labelKey]: !prev[labelKey] }));
   };
-
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    dragStartY.current = e.touches[0].clientY;
-    setIsDragging(true);
-  }, []);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (dragStartY.current == null) return;
-    const delta = e.touches[0].clientY - dragStartY.current;
-    // Only allow downward drag when open
-    if (mobileOpen && delta > 0) {
-      setDragOffset(delta);
-    }
-    // Allow upward drag when closed
-    if (!mobileOpen && delta < -30) {
-      setMobileOpen(true);
-    }
-  }, [mobileOpen]);
-
-  const handleTouchEnd = useCallback(() => {
-    setIsDragging(false);
-    dragStartY.current = null;
-    if (dragOffset > 80) {
-      setMobileOpen(false);
-    }
-    setDragOffset(0);
-  }, [dragOffset]);
 
   // PO-2: Keyboard navigation
   const listRef = useRef<HTMLDivElement>(null);
@@ -106,14 +87,31 @@ export const LayerSelector: React.FC<LayerSelectorProps> = ({ activeLayer, onLay
     el?.scrollIntoView({ block: 'nearest' });
   }, [focusedIndex]);
 
+  // PO-3: Filter layers by search query
+  const searchQuery = layerSearch.toLowerCase().trim();
+
   const layerList = (
     <div className="p-2 space-y-1" ref={listRef} role="listbox" aria-label={t('layers.title')}>
+      {/* PO-3: Search input */}
+      <div className="px-2 pb-2">
+        <input
+          type="text"
+          value={layerSearch}
+          onChange={(e) => setLayerSearch(e.target.value)}
+          placeholder={t('layers.search_placeholder')}
+          className="w-full rounded-lg bg-surface-100 dark:bg-surface-800/60 border border-surface-200 dark:border-surface-700/40
+                     px-3 py-2 md:py-1.5 text-xs text-surface-900 dark:text-white placeholder-surface-400 dark:placeholder-surface-500
+                     focus:outline-none focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/30"
+        />
+      </div>
       {LAYER_GROUPS.map((group) => {
         const groupLayers = group.ids
           .map((id) => LAYERS.find((l) => l.id === id))
-          .filter(Boolean);
+          .filter(Boolean)
+          .filter((layer) => !searchQuery || t(layer!.labelKey).toLowerCase().includes(searchQuery));
         if (groupLayers.length === 0) return null;
-        const isCollapsed = !!collapsed[group.labelKey];
+        // PO-3: Auto-expand groups when searching
+        const isCollapsed = searchQuery ? false : !!collapsed[group.labelKey];
         const hasActiveLayer = group.ids.includes(activeLayer);
 
         return (
@@ -245,10 +243,6 @@ export const LayerSelector: React.FC<LayerSelectorProps> = ({ activeLayer, onLay
           <div
             className="fixed inset-0 z-30 bg-black/20 dark:bg-black/40"
             onClick={() => setMobileOpen(false)}
-            style={{
-              opacity: isDragging ? Math.max(0, 1 - dragOffset / 200) : 1,
-              transition: isDragging ? 'none' : 'opacity 0.2s',
-            }}
           />
         )}
 
@@ -262,16 +256,15 @@ export const LayerSelector: React.FC<LayerSelectorProps> = ({ activeLayer, onLay
                        shadow-[0_-4px_30px_rgba(0,0,0,0.15)] rounded-t-2xl
                        max-h-[70vh] overflow-hidden"
             style={{
-              transform: `translateY(${dragOffset}px)`,
               transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
             }}
           >
             {/* Drag handle */}
             <div
               className="flex items-center justify-center pt-3 pb-2 cursor-grab active:cursor-grabbing touch-none"
-              onTouchStart={handleTouchStart}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={handleTouchEnd}
+              onTouchStart={sheetHandlers.onTouchStart}
+              onTouchMove={sheetHandlers.onTouchMove}
+              onTouchEnd={sheetHandlers.onTouchEnd}
             >
               <div className="w-10 h-1.5 rounded-full bg-surface-300 dark:bg-surface-600" />
             </div>

@@ -1,0 +1,107 @@
+name: Data Refresh
+
+on:
+  schedule:
+    # Run at midnight UTC on the 1st of every month
+    - cron: '0 0 1 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run data pipeline
+        run: python scripts/prepare_data.py --validate
+
+      - name: Validate output
+        run: |
+          GEOJSON="public/data/metro_neighborhoods.geojson"
+
+          if [ ! -f "$GEOJSON" ]; then
+            echo "::error::GeoJSON output file not found: $GEOJSON"
+            exit 1
+          fi
+
+          SIZE=$(stat --format=%s "$GEOJSON")
+          echo "GeoJSON file size: $SIZE bytes"
+
+          # Must be at least 100 KB (sanity check — current file is ~1.1 MB)
+          if [ "$SIZE" -lt 102400 ]; then
+            echo "::error::GeoJSON file too small ($SIZE bytes) — likely corrupted or truncated"
+            exit 1
+          fi
+
+          # Must not exceed 10 MB (guard against data explosion)
+          if [ "$SIZE" -gt 10485760 ]; then
+            echo "::error::GeoJSON file too large ($SIZE bytes) — exceeds 10 MB limit"
+            exit 1
+          fi
+
+          # Verify valid JSON with at least one feature
+          FEATURE_COUNT=$(python3 -c "
+          import json, sys
+          with open('$GEOJSON') as f:
+              data = json.load(f)
+          features = data.get('features', [])
+          print(len(features))
+          if len(features) == 0:
+              sys.exit(1)
+          ")
+          echo "GeoJSON contains $FEATURE_COUNT features"
+
+      - name: Check for changes
+        id: diff
+        run: |
+          git diff --quiet public/data/metro_neighborhoods.geojson && echo "changed=false" >> "$GITHUB_OUTPUT" || echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Create PR if data changed
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DATE=$(date +%Y-%m-%d)
+          BRANCH="data-refresh/$DATE"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git checkout -b "$BRANCH"
+          git add public/data/metro_neighborhoods.geojson
+          git commit -m "chore: refresh neighborhood data ($DATE)"
+          git push origin "$BRANCH"
+
+          FEATURE_COUNT=$(python3 -c "
+          import json
+          with open('public/data/metro_neighborhoods.geojson') as f:
+              data = json.load(f)
+          print(len(data.get('features', [])))
+          ")
+          SIZE=$(stat --format=%s public/data/metro_neighborhoods.geojson)
+          SIZE_KB=$((SIZE / 1024))
+
+          gh pr create \
+            --title "chore: refresh neighborhood data ($DATE)" \
+            --body "## Data Refresh
+
+          Automated monthly data refresh from upstream sources.
+
+          - **Date:** $DATE
+          - **Features:** $FEATURE_COUNT postal code areas
+          - **File size:** ${SIZE_KB} KB
+
+          Please review the diff to verify data changes are reasonable before merging."

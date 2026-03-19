@@ -1,0 +1,7 @@
+# Python dependencies for scripts/prepare_data.py
+geopandas==1.0.1
+pandas==2.2.3
+requests==2.32.3
+pyproj==3.7.0
+shapely==2.0.6
+fiona==1.10.1

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { formatNumber, formatEuro, formatPct } from '../utils/formatting';
 import { t } from '../utils/i18n';
@@ -116,7 +116,58 @@ const MobileCard: React.FC<{
   </div>
 );
 
+// PO-4: Chart metrics for bar chart comparison
+const CHART_METRICS: { label: string; key: string; higherIsBetter: boolean; max?: number }[] = [
+  { label: 'panel.median_income', key: 'hr_mtu', higherIsBetter: true },
+  { label: 'panel.unemployment', key: 'unemployment_rate', higherIsBetter: false, max: 30 },
+  { label: 'panel.property_price', key: 'property_price_sqm', higherIsBetter: true },
+  { label: 'panel.transit_access', key: 'transit_stop_density', higherIsBetter: true },
+  { label: 'panel.walkability', key: 'walkability_index', higherIsBetter: true, max: 100 },
+  { label: 'panel.crime_rate', key: 'crime_index', higherIsBetter: false },
+];
+
+const BAR_COLORS = ['#6366f1', '#10b981', '#f59e0b'];
+
+const ComparisonChart: React.FC<{ pinned: NeighborhoodProperties[] }> = ({ pinned }) => {
+  return (
+    <div className="px-5 py-4 space-y-5">
+      {CHART_METRICS.map((metric) => {
+        const values = pinned.map((n) => (n[metric.key] as number) ?? 0);
+        const maxVal = metric.max ?? Math.max(...values, 1);
+        return (
+          <div key={metric.key}>
+            <div className="text-xs text-surface-500 dark:text-surface-400 mb-1.5">{t(metric.label)}</div>
+            <div className="space-y-1">
+              {pinned.map((n, i) => {
+                const val = (n[metric.key] as number) ?? 0;
+                const pct = Math.min((val / maxVal) * 100, 100);
+                return (
+                  <div key={n.pno} className="flex items-center gap-2">
+                    <span className="w-16 text-[10px] text-surface-500 dark:text-surface-400 truncate">{n.nimi}</span>
+                    <div className="flex-1 h-4 bg-surface-100 dark:bg-surface-800 rounded overflow-hidden">
+                      <div
+                        className="h-full rounded transition-all duration-300"
+                        style={{ width: `${pct}%`, backgroundColor: BAR_COLORS[i] }}
+                      />
+                    </div>
+                    <span className="w-16 text-[10px] text-surface-700 dark:text-surface-300 text-right tabular-nums">
+                      {typeof val === 'number' ? val.toLocaleString('fi-FI') : '—'}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 export const ComparisonPanel: React.FC<ComparisonPanelProps> = ({ pinned, onUnpin, onClear }) => {
+  // PO-4: Tab state for chart vs table view
+  const [view, setView] = useState<'table' | 'chart'>('table');
+
   if (pinned.length < 2) return null;
 
   return (
@@ -126,11 +177,32 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = ({ pinned, onUnpi
                       bg-white/95 dark:bg-surface-950/95 backdrop-blur-xl rounded-2xl
                       border border-surface-200 dark:border-surface-800/50 shadow-2xl
                       overflow-hidden">
-        {/* Header */}
+        {/* Header with tab toggle */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-surface-200 dark:border-surface-800/50">
-          <h2 className="text-sm font-display font-bold text-surface-900 dark:text-white">
-            {t('compare.title')}
-          </h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-sm font-display font-bold text-surface-900 dark:text-white">
+              {t('compare.title')}
+            </h2>
+            {/* PO-4: Tab toggle */}
+            <div className="flex rounded-lg bg-surface-100 dark:bg-surface-800 p-0.5">
+              <button
+                onClick={() => setView('table')}
+                className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-colors ${
+                  view === 'table' ? 'bg-white dark:bg-surface-700 text-surface-900 dark:text-white shadow-sm' : 'text-surface-500 dark:text-surface-400'
+                }`}
+              >
+                {t('compare.table')}
+              </button>
+              <button
+                onClick={() => setView('chart')}
+                className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-colors ${
+                  view === 'chart' ? 'bg-white dark:bg-surface-700 text-surface-900 dark:text-white shadow-sm' : 'text-surface-500 dark:text-surface-400'
+                }`}
+              >
+                {t('compare.chart')}
+              </button>
+            </div>
+          </div>
           <button
             onClick={onClear}
             className="text-xs text-surface-500 hover:text-rose-500 dark:text-surface-400 dark:hover:text-rose-400 transition-colors"
@@ -139,7 +211,11 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = ({ pinned, onUnpi
           </button>
         </div>
 
-        {/* Table */}
+        {/* PO-4: Chart view */}
+        {view === 'chart' && <ComparisonChart pinned={pinned} />}
+
+        {/* Table view */}
+        {view === 'table' && (
         <div className="overflow-x-auto max-h-[50vh] overflow-y-auto">
           <table className="w-full text-sm">
             <thead className="sticky top-0 bg-white/95 dark:bg-surface-950/95 backdrop-blur-xl">
@@ -215,6 +291,7 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = ({ pinned, onUnpi
             </tbody>
           </table>
         </div>
+        )}
       </div>
 
       {/* Mobile: stacked cards in bottom sheet */}

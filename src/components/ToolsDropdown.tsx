@@ -10,6 +10,8 @@ interface ToolsDropdownProps {
   onPrint?: () => void;
   wizardHighlightActive?: boolean;
   onClearWizardHighlight?: () => void;
+  splitMode?: boolean;
+  onToggleSplitMode?: () => void;
 }
 
 export const ToolsDropdown: React.FC<ToolsDropdownProps> = ({
@@ -21,6 +23,8 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = ({
   onPrint,
   wizardHighlightActive,
   onClearWizardHighlight,
+  splitMode,
+  onToggleSplitMode,
 }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -121,6 +125,25 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = ({
               </svg>
             )}
           </button>
+
+          {/* QW-4: Compare layers (split map) */}
+          {onToggleSplitMode && (
+            <button
+              onClick={() => { onToggleSplitMode(); setOpen(false); }}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200
+                         hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7" />
+              </svg>
+              <span>{t('tools.compare_layers')}</span>
+              {splitMode && (
+                <svg className="w-4 h-4 ml-auto text-brand-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </button>
+          )}
 
           {/* Divider */}
           <div className="border-t border-surface-200 dark:border-surface-700/40 my-1" />
