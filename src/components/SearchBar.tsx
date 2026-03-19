@@ -18,15 +18,6 @@ export const SearchBar: React.FC<SearchBarProps> = ({ data, onSelect, recent = [
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    const mql = window.matchMedia('(max-width: 767px)');
-    setIsMobile(mql.matches);
-    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
-    mql.addEventListener('change', handler);
-    return () => mql.removeEventListener('change', handler);
-  }, []);
 
   // CF-1: Address geocoding state
   const [addressResults, setAddressResults] = useState<GeocodeResult[]>([]);
@@ -174,7 +165,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ data, onSelect, recent = [
           }}
           onFocus={() => setIsOpen(true)}
           onKeyDown={handleKeyDown}
-          placeholder={isMobile ? t('search.placeholder_short') : t('search.placeholder')}
+          placeholder={window.innerWidth < 768 ? t('search.placeholder_short') : t('search.placeholder')}
           className="w-full rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40
                      pl-10 pr-4 py-3 md:py-2.5 text-base md:text-sm text-surface-900 dark:text-white placeholder-surface-400 dark:placeholder-surface-500
                      focus:outline-none focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/30
