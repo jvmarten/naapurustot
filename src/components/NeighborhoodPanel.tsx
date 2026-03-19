@@ -187,8 +187,8 @@ const CollapsibleSection: React.FC<{
 
 export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, allFeatures, onFlyTo, isFavorite = false, onToggleFavorite, note = '', onNoteChange }) => {
   const eduTotal = [d.ko_yl_kork, d.ko_al_kork, d.ko_ammat, d.ko_perus]
-    .filter((v) => v != null && v > 0)
-    .reduce((a, b) => a! + b!, 0) || 1;
+    .filter((v): v is number => v != null && v > 0)
+    .reduce((a, b) => a + b, 0) || 1;
 
   // QW-2: Animated value displays
   const animatedQI = useAnimatedValue(d.quality_index);

@@ -19,7 +19,7 @@ function loadRecent(): RecentEntry[] {
 }
 
 function saveRecent(entries: RecentEntry[]): void {
-  sessionStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+  try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(entries)); } catch { /* quota exceeded or unavailable */ }
 }
 
 export function useRecentNeighborhoods() {

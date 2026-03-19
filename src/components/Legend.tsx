@@ -7,7 +7,9 @@ interface LegendProps {
   colorblind?: string;
 }
 
-export const Legend: React.FC<LegendProps> = ({ layerId, colorblind: _colorblind }) => {
+// colorblind prop triggers re-render when mode changes (getLayerById reads global state)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export const Legend: React.FC<LegendProps> = ({ layerId, colorblind }) => {
   const layer = getLayerById(layerId);
 
   // Show only first and last tick values

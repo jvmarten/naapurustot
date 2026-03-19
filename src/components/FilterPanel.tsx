@@ -43,6 +43,7 @@ function getCenter(feature: GeoJSON.Feature): [number, number] {
   if ('coordinates' in geom) {
     extract(geom.coordinates as GeoJSON.Position[]);
   }
+  if (coords.length === 0) return [0, 0];
   const lng = coords.reduce((s, c) => s + c[0], 0) / coords.length;
   const lat = coords.reduce((s, c) => s + c[1], 0) / coords.length;
   return [lng, lat];
@@ -316,7 +317,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
 }) => {
   // QW-3: Unified bottom sheet drag behavior
   const sheetRef = useRef<HTMLDivElement>(null);
-  const { sheetHeight: _filterSheetHeight, isDragging, handlers: sheetHandlers } = useBottomSheet({
+  const { isDragging, handlers: sheetHandlers } = useBottomSheet({
     halfRatio: 0.85,
     initialSnap: 'half',
     onClose,

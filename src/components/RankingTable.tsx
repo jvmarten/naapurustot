@@ -30,13 +30,18 @@ function getCenter(feature: GeoJSON.Feature): [number, number] {
   if ('coordinates' in geom) {
     extract(geom.coordinates as GeoJSON.Position[]);
   }
+  if (coords.length === 0) return [0, 0];
   const lng = coords.reduce((s, c) => s + c[0], 0) / coords.length;
   const lat = coords.reduce((s, c) => s + c[1], 0) / coords.length;
   return [lng, lat];
 }
 
 // Layers where lower values are better
-const LOWER_IS_BETTER: Set<LayerId> = new Set(['unemployment', 'air_quality', 'light_pollution', 'mental_health', 'traffic_accidents']);
+const LOWER_IS_BETTER: Set<LayerId> = new Set([
+  'unemployment', 'air_quality', 'crime_rate', 'noise_level',
+  'commute_time', 'light_pollution', 'mental_health', 'traffic_accidents',
+  'obesity_rate', 'kela_benefits',
+]);
 
 export const RankingTable: React.FC<RankingTableProps> = ({ data, activeLayer, onSelect, onClose }) => {
   const layer = getLayerById(activeLayer);

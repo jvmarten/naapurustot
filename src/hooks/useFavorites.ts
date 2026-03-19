@@ -18,7 +18,7 @@ function readFavorites(): string[] {
 }
 
 function writeFavorites(favorites: string[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(favorites));
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(favorites)); } catch { /* quota exceeded or unavailable */ }
 }
 
 export function useFavorites() {

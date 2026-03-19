@@ -5,14 +5,16 @@ const STORAGE_KEY = 'naapurustot-notes';
 function loadNotes(): Record<string, string> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+    }
+  } catch { /* malformed data or unavailable */ }
+  return {};
 }
 
 function saveNotes(notes: Record<string, string>): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(notes)); } catch { /* quota exceeded or unavailable */ }
 }
 
 export function useNotes() {
