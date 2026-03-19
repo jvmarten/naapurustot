@@ -9,6 +9,7 @@ import { ToolsDropdown } from './components/ToolsDropdown';
 import { ErrorBanner } from './components/ErrorBanner';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { computeMatchingPnos, type FilterCriterion } from './components/FilterPanel';
+import { useFilterPresets } from './hooks/useFilterPresets';
 
 // IN-6: Lazy load heavy conditionally-rendered components
 const NeighborhoodPanel = lazy(() => import('./components/NeighborhoodPanel').then(m => ({ default: m.NeighborhoodPanel })));
@@ -24,7 +25,7 @@ import { useFavorites } from './hooks/useFavorites';
 import { useNotes } from './hooks/useNotes';
 import { useRecentNeighborhoods } from './hooks/useRecentNeighborhoods';
 import { useSelectedNeighborhood } from './hooks/useSelectedNeighborhood';
-import { type LayerId, getLayerById, getColorblindMode, setColorblindMode } from './utils/colorScales';
+import { type LayerId, type ColorblindType, getLayerById, getColorblindMode, setColorblindMode } from './utils/colorScales';
 import { readInitialUrlState, useSyncUrlState } from './hooks/useUrlState';
 import type { NeighborhoodProperties } from './utils/metrics';
 import { t, getLang, setLang, type Lang } from './utils/i18n';
@@ -51,6 +52,7 @@ const App: React.FC = () => {
   const [qualityWeights, setQualityWeights] = useState<QualityWeights>(getDefaultWeights);
   const [colorblind, setColorblind] = useState(getColorblindMode);
   const [showWizard, setShowWizard] = useState(false);
+  const { presets: savedPresets, addPreset: saveFilterPreset, removePreset: removeFilterPreset } = useFilterPresets();
   // QW-4: Split map view state
   const [splitMode, setSplitMode] = useState(false);
   const [secondaryLayer] = useState<LayerId>('median_income');
@@ -160,11 +162,10 @@ const App: React.FC = () => {
     setLangState(next);
   }, [lang]);
 
-  const toggleColorblind = useCallback(() => {
-    const next = !colorblind;
-    setColorblindMode(next);
-    setColorblind(next);
-  }, [colorblind]);
+  const handleColorblindChange = useCallback((mode: ColorblindType) => {
+    setColorblindMode(mode);
+    setColorblind(mode);
+  }, []);
 
   // Compute matching neighborhood PNOs for filter-aware map rendering
   const filterMatchPnos = useMemo(
@@ -309,7 +310,7 @@ const App: React.FC = () => {
         />
         <SettingsDropdown
           colorblind={colorblind}
-          onToggleColorblind={toggleColorblind}
+          onColorblindChange={handleColorblindChange}
           lang={lang}
           onToggleLang={toggleLang}
         />
@@ -340,6 +341,9 @@ const App: React.FC = () => {
               onFiltersChange={setFilters}
               onSelect={handleSearch}
               onClose={() => setShowFilter(false)}
+              savedPresets={savedPresets}
+              onSavePreset={saveFilterPreset}
+              onRemovePreset={removeFilterPreset}
             />
           </Suspense>
         </ErrorBoundary>

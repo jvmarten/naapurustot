@@ -22,7 +22,7 @@ interface SplitMapViewProps {
   data: FeatureCollection | null;
   leftLayer: LayerId;
   rightLayer: LayerId;
-  colorblind?: boolean;
+  colorblind?: string;
 }
 
 function makeStyle(theme: 'dark' | 'light'): maplibregl.StyleSpecification {

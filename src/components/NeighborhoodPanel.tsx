@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useMemo } from 'react';
 import type { NeighborhoodProperties } from '../utils/metrics';
-import { parseTrendSeries } from '../utils/metrics';
+import { parseTrendSeries, METRIC_SOURCES } from '../utils/metrics';
 import { formatNumber, formatEuro, formatPct, formatDiff, diffColor } from '../utils/formatting';
 import { t, getLang } from '../utils/i18n';
 import { getQualityCategory, QUALITY_CATEGORIES } from '../utils/qualityIndex';
@@ -35,19 +35,36 @@ const StatRow: React.FC<{
   value: string;
   diff?: string;
   diffClass?: string;
-}> = ({ label, value, diff, diffClass }) => (
-  <div className="flex items-center justify-between py-2.5 md:py-2">
-    <span className="text-surface-500 dark:text-surface-400 text-sm">{label}</span>
-    <div className="text-right">
-      <span className="text-surface-900 dark:text-white font-medium">{value}</span>
-      {diff && (
-        <span className={`ml-2 text-xs ${diffClass}`}>
-          {diff} {t('panel.vs_metro')}
-        </span>
-      )}
+  /** GeoJSON property name — used to look up data source attribution */
+  property?: string;
+}> = ({ label, value, diff, diffClass, property }) => {
+  const source = property ? METRIC_SOURCES[property] : undefined;
+  return (
+    <div className="flex items-center justify-between py-2.5 md:py-2">
+      <span className="text-surface-500 dark:text-surface-400 text-sm flex items-center gap-1">
+        {label}
+        {source && (
+          <span
+            className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full text-[8px] font-bold
+                       text-surface-400 dark:text-surface-500 border border-surface-300 dark:border-surface-600
+                       cursor-help flex-shrink-0"
+            title={`${source.source} (${source.year})`}
+          >
+            i
+          </span>
+        )}
+      </span>
+      <div className="text-right">
+        <span className="text-surface-900 dark:text-white font-medium">{value}</span>
+        {diff && (
+          <span className={`ml-2 text-xs ${diffClass}`}>
+            {diff} {t('panel.vs_metro')}
+          </span>
+        )}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const BarSegment: React.FC<{ label: string; value: number; total: number; color: string }> = ({
   label,
@@ -355,28 +372,32 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
       {/* Key stats */}
       <div>
         <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
-          <StatRow label={t('panel.population')} value={formatNumber(animatedPopulation)} />
+          <StatRow label={t('panel.population')} value={formatNumber(animatedPopulation)} property="he_vakiy" />
           <StatRow
             label={t('panel.median_income')}
             value={formatEuro(animatedIncome)}
             diff={formatDiff(d.hr_mtu, avg.hr_mtu)}
             diffClass={diffColor(d.hr_mtu, avg.hr_mtu)}
+            property="hr_mtu"
           />
           <StatRow
             label={t('panel.taxable_income')}
             value={formatEuro(d.avg_taxable_income)}
             diff={formatDiff(d.avg_taxable_income, avg.avg_taxable_income)}
             diffClass={diffColor(d.avg_taxable_income, avg.avg_taxable_income)}
+            property="avg_taxable_income"
           />
           <StatRow
             label={t('panel.unemployment')}
             value={formatPct(animatedUnemployment)}
             diff={formatDiff(d.unemployment_rate, avg.unemployment_rate)}
             diffClass={diffColor(d.unemployment_rate, avg.unemployment_rate, false)}
+            property="unemployment_rate"
           />
           <StatRow
             label={t('panel.foreign_lang')}
             value={formatPct(d.foreign_language_pct)}
+            property="foreign_language_pct"
           />
         </div>
       </div>
@@ -396,26 +417,31 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             value={formatPct(d.ownership_rate)}
             diff={formatDiff(d.ownership_rate, avg.ownership_rate)}
             diffClass={diffColor(d.ownership_rate, avg.ownership_rate)}
+            property="ownership_rate"
           />
           <StatRow
             label={t('panel.rental_rate')}
             value={formatPct(d.rental_rate)}
+            property="rental_rate"
           />
           <StatRow
             label={t('panel.avg_apt_size')}
             value={formatSqm(d.ra_as_kpa)}
             diff={formatDiff(d.ra_as_kpa, avg.ra_as_kpa)}
             diffClass={diffColor(d.ra_as_kpa, avg.ra_as_kpa)}
+            property="ra_as_kpa"
           />
           <StatRow
             label={t('panel.rental_price')}
             value={formatRent(d.rental_price_sqm)}
             diff={formatDiff(d.rental_price_sqm, avg.rental_price_sqm)}
             diffClass={diffColor(d.rental_price_sqm, avg.rental_price_sqm)}
+            property="rental_price_sqm"
           />
           <StatRow
             label={t('panel.detached_houses')}
             value={formatPct(d.detached_house_share)}
+            property="detached_house_share"
           />
           <StatRow label={t('panel.dwellings')} value={formatNumber(d.ra_asunn)} />
           <StatRow label={t('panel.households')} value={formatNumber(d.te_taly)} />
@@ -430,18 +456,21 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             value={formatDensity(d.population_density)}
             diff={formatDiff(d.population_density, avg.population_density)}
             diffClass={diffColor(d.population_density, avg.population_density)}
+            property="population_density"
           />
           <StatRow
             label={t('panel.child_ratio')}
             value={formatPct(d.child_ratio)}
             diff={formatDiff(d.child_ratio, avg.child_ratio)}
             diffClass={diffColor(d.child_ratio, avg.child_ratio)}
+            property="child_ratio"
           />
           <StatRow
             label={t('panel.student_share')}
             value={formatPct(d.student_share)}
             diff={formatDiff(d.student_share, avg.student_share)}
             diffClass={diffColor(d.student_share, avg.student_share)}
+            property="student_share"
           />
         </div>
       </CollapsibleSection>
@@ -454,30 +483,35 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             value={formatScore(d.walkability_index)}
             diff={formatDiff(d.walkability_index, avg.walkability_index)}
             diffClass={diffColor(d.walkability_index, avg.walkability_index)}
+            property="walkability_index"
           />
           <StatRow
             label={t('panel.property_price')}
             value={formatEuroSqm(animatedPropertyPrice)}
             diff={formatDiff(d.property_price_sqm, avg.property_price_sqm)}
             diffClass={diffColor(d.property_price_sqm, avg.property_price_sqm)}
+            property="property_price_sqm"
           />
           <StatRow
             label={t('panel.transit_access')}
             value={formatStopDensity(d.transit_stop_density)}
             diff={formatDiff(d.transit_stop_density, avg.transit_stop_density)}
             diffClass={diffColor(d.transit_stop_density, avg.transit_stop_density)}
+            property="transit_stop_density"
           />
           <StatRow
             label={t('panel.air_quality')}
             value={d.air_quality_index != null ? Number(d.air_quality_index).toFixed(1) : '—'}
             diff={formatDiff(d.air_quality_index, avg.air_quality_index)}
             diffClass={diffColor(d.air_quality_index, avg.air_quality_index, false)}
+            property="air_quality_index"
           />
           <StatRow
             label={t('panel.crime_rate')}
             value={d.crime_index != null ? `${Number(d.crime_index).toFixed(1)} /1000` : '—'}
             diff={formatDiff(d.crime_index, avg.crime_index)}
             diffClass={diffColor(d.crime_index, avg.crime_index, false)}
+            property="crime_index"
           />
         </div>
       </CollapsibleSection>
@@ -490,42 +524,49 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             value={formatStopDensity(d.restaurant_density)}
             diff={formatDiff(d.restaurant_density, avg.restaurant_density)}
             diffClass={diffColor(d.restaurant_density, avg.restaurant_density)}
+            property="restaurant_density"
           />
           <StatRow
             label={t('panel.grocery_access')}
             value={formatStopDensity(d.grocery_density)}
             diff={formatDiff(d.grocery_density, avg.grocery_density)}
             diffClass={diffColor(d.grocery_density, avg.grocery_density)}
+            property="grocery_density"
           />
           <StatRow
             label={t('panel.daycare_density')}
             value={formatStopDensity(d.daycare_density)}
             diff={formatDiff(d.daycare_density, avg.daycare_density)}
             diffClass={diffColor(d.daycare_density, avg.daycare_density)}
+            property="daycare_density"
           />
           <StatRow
             label={t('panel.school_density')}
             value={formatStopDensity(d.school_density)}
             diff={formatDiff(d.school_density, avg.school_density)}
             diffClass={diffColor(d.school_density, avg.school_density)}
+            property="school_density"
           />
           <StatRow
             label={t('panel.school_quality')}
             value={d.school_quality_score != null ? Number(d.school_quality_score).toFixed(1) : '—'}
             diff={formatDiff(d.school_quality_score, avg.school_quality_score)}
             diffClass={diffColor(d.school_quality_score, avg.school_quality_score)}
+            property="school_quality_score"
           />
           <StatRow
             label={t('panel.healthcare_access')}
             value={formatStopDensity(d.healthcare_density)}
             diff={formatDiff(d.healthcare_density, avg.healthcare_density)}
             diffClass={diffColor(d.healthcare_density, avg.healthcare_density)}
+            property="healthcare_density"
           />
           <StatRow
             label={t('panel.green_space')}
             value={formatStopDensity(d.green_space_pct)}
             diff={formatDiff(d.green_space_pct, avg.green_space_pct)}
             diffClass={diffColor(d.green_space_pct, avg.green_space_pct)}
+            property="green_space_pct"
           />
         </div>
       </CollapsibleSection>
@@ -538,20 +579,24 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             value={formatDb(d.noise_level)}
             diff={formatDiff(d.noise_level, avg.noise_level)}
             diffClass={diffColor(d.noise_level, avg.noise_level, false)}
+            property="noise_level"
           />
           <StatRow
             label={t('panel.building_age')}
             value={formatYear(d.avg_building_year)}
+            property="avg_building_year"
           />
           <StatRow
             label={t('panel.energy_class')}
             value={d.energy_efficiency != null ? Number(d.energy_efficiency).toFixed(1) : '—'}
+            property="energy_efficiency"
           />
           <StatRow
             label={t('panel.light_pollution')}
             value={d.light_pollution != null ? Number(d.light_pollution).toFixed(1) : '—'}
             diff={formatDiff(d.light_pollution, avg.light_pollution)}
             diffClass={diffColor(d.light_pollution, avg.light_pollution, false)}
+            property="light_pollution"
           />
         </div>
       </CollapsibleSection>
@@ -564,24 +609,28 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             value={formatMinutes(d.avg_commute_min)}
             diff={formatDiff(d.avg_commute_min, avg.avg_commute_min)}
             diffClass={diffColor(d.avg_commute_min, avg.avg_commute_min, false)}
+            property="avg_commute_min"
           />
           <StatRow
             label={t('panel.car_ownership')}
             value={formatCarsHh(d.cars_per_household)}
             diff={formatDiff(d.cars_per_household, avg.cars_per_household)}
             diffClass={diffColor(d.cars_per_household, avg.cars_per_household)}
+            property="cars_per_household"
           />
           <StatRow
             label={t('panel.cycling_infra')}
             value={formatStopDensity(d.cycling_density)}
             diff={formatDiff(d.cycling_density, avg.cycling_density)}
             diffClass={diffColor(d.cycling_density, avg.cycling_density)}
+            property="cycling_density"
           />
           <StatRow
             label={t('panel.traffic_accidents')}
             value={d.traffic_accident_density != null ? `${Number(d.traffic_accident_density).toFixed(1)} /km` : '—'}
             diff={formatDiff(d.traffic_accident_density, avg.traffic_accident_density)}
             diffClass={diffColor(d.traffic_accident_density, avg.traffic_accident_density, false)}
+            property="traffic_accident_density"
           />
         </div>
       </CollapsibleSection>
@@ -594,18 +643,21 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             value={d.obesity_rate != null ? `${Number(d.obesity_rate).toFixed(1)} %` : '—'}
             diff={formatDiff(d.obesity_rate, avg.obesity_rate)}
             diffClass={diffColor(d.obesity_rate, avg.obesity_rate, false)}
+            property="obesity_rate"
           />
           <StatRow
             label={t('panel.life_expectancy')}
             value={d.life_expectancy != null ? `${Number(d.life_expectancy).toFixed(1)}` : '—'}
             diff={formatDiff(d.life_expectancy, avg.life_expectancy)}
             diffClass={diffColor(d.life_expectancy, avg.life_expectancy)}
+            property="life_expectancy"
           />
           <StatRow
             label={t('panel.mental_health')}
             value={d.mental_health_pct != null ? `${Number(d.mental_health_pct).toFixed(1)} %` : '—'}
             diff={formatDiff(d.mental_health_pct, avg.mental_health_pct)}
             diffClass={diffColor(d.mental_health_pct, avg.mental_health_pct, false)}
+            property="mental_health_pct"
           />
         </div>
       </CollapsibleSection>
@@ -616,48 +668,57 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
           <StatRow
             label={t('panel.population_growth')}
             value={formatPct(d.population_growth_pct)}
+            property="population_growth_pct"
           />
           <StatRow
             label={t('panel.income_inequality')}
             value={formatGini(d.gini_coefficient)}
+            property="gini_coefficient"
           />
           <StatRow
             label={t('panel.single_person_hh')}
             value={formatPct(d.single_person_hh_pct)}
+            property="single_person_hh_pct"
           />
           <StatRow
             label={t('panel.seniors_alone')}
             value={formatPct(d.seniors_alone_pct)}
+            property="seniors_alone_pct"
           />
           <StatRow
             label={t('panel.kela_benefits')}
             value={formatPct(d.kela_benefit_pct)}
             diff={formatDiff(d.kela_benefit_pct, avg.kela_benefit_pct)}
             diffClass={diffColor(d.kela_benefit_pct, avg.kela_benefit_pct, false)}
+            property="kela_benefit_pct"
           />
           <StatRow
             label={t('panel.net_migration')}
             value={formatPct(d.net_migration_pct)}
             diff={formatDiff(d.net_migration_pct, avg.net_migration_pct)}
             diffClass={diffColor(d.net_migration_pct, avg.net_migration_pct)}
+            property="net_migration_pct"
           />
           <StatRow
             label={t('panel.neighborhood_stability')}
             value={d.avg_residency_years != null ? `${Number(d.avg_residency_years).toFixed(1)} v` : '—'}
             diff={formatDiff(d.avg_residency_years, avg.avg_residency_years)}
             diffClass={diffColor(d.avg_residency_years, avg.avg_residency_years)}
+            property="avg_residency_years"
           />
           <StatRow
             label={t('panel.household_debt')}
             value={d.median_household_debt != null ? `${Number(d.median_household_debt).toLocaleString('fi-FI')} €` : '—'}
             diff={formatDiff(d.median_household_debt, avg.median_household_debt)}
             diffClass={diffColor(d.median_household_debt, avg.median_household_debt)}
+            property="median_household_debt"
           />
           <StatRow
             label={t('panel.price_to_rent')}
             value={d.price_to_rent_ratio != null ? `${Number(d.price_to_rent_ratio).toFixed(1)}x` : '—'}
             diff={formatDiff(d.price_to_rent_ratio, avg.price_to_rent_ratio)}
             diffClass={diffColor(d.price_to_rent_ratio, avg.price_to_rent_ratio)}
+            property="price_to_rent_ratio"
           />
         </div>
       </CollapsibleSection>
@@ -698,7 +759,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
 
       {/* Extra stats */}
       <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
-        <StatRow label={t('panel.avg_income')} value={formatEuro(d.hr_ktu)} />
+        <StatRow label={t('panel.avg_income')} value={formatEuro(d.hr_ktu)} property="hr_ktu" />
       </div>
 
       {/* CF-4: Radar chart */}

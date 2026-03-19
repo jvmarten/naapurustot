@@ -555,34 +555,45 @@ export const LAYERS: LayerConfig[] = [
   },
 ];
 
-// Colorblind-safe palette (viridis-inspired, 8 stops)
-const VIRIDIS_8 = ['#440154', '#46327e', '#365c8d', '#277f8e', '#1fa187', '#4ac16d', '#9fda3a', '#fde725'];
+// Colorblind-safe palettes (8 stops each)
+export type ColorblindType = 'off' | 'protanopia' | 'deuteranopia' | 'tritanopia';
 
-let colorblindMode = false;
+const CB_PALETTES: Record<Exclude<ColorblindType, 'off'>, string[]> = {
+  // Viridis — safe for protanopia (red-blind)
+  protanopia: ['#440154', '#46327e', '#365c8d', '#277f8e', '#1fa187', '#4ac16d', '#9fda3a', '#fde725'],
+  // Cividis — optimized for deuteranopia (green-blind)
+  deuteranopia: ['#00204d', '#1a3a5c', '#40546a', '#696e78', '#918985', '#bba58e', '#e6c28f', '#ffe945'],
+  // Inferno-like — safe for tritanopia (blue-blind)
+  tritanopia: ['#000004', '#2c115f', '#711f81', '#b63679', '#ee605e', '#fb9d3a', '#f7e54a', '#fcffa4'],
+};
 
-export function setColorblindMode(enabled: boolean) {
-  colorblindMode = enabled;
-  try { localStorage.setItem('naapurustot-colorblind', enabled ? '1' : '0'); } catch {}
+let colorblindMode: ColorblindType = 'off';
+
+export function setColorblindMode(mode: ColorblindType) {
+  colorblindMode = mode;
+  try { localStorage.setItem('naapurustot-colorblind', mode); } catch { /* localStorage unavailable */ }
 }
 
-export function getColorblindMode(): boolean {
+export function getColorblindMode(): ColorblindType {
   return colorblindMode;
 }
 
 // Initialize from localStorage
 try {
-  colorblindMode = localStorage.getItem('naapurustot-colorblind') === '1';
-} catch {}
+  const stored = localStorage.getItem('naapurustot-colorblind');
+  if (stored === '1') colorblindMode = 'protanopia'; // migrate old boolean
+  else if (stored && stored !== '0') colorblindMode = stored as ColorblindType;
+} catch { /* localStorage unavailable */ }
 
 export function getLayerById(id: LayerId): LayerConfig {
   const layer = LAYERS.find((l) => l.id === id) ?? LAYERS[0];
-  if (!colorblindMode) return layer;
-  // Return layer with colorblind-safe colors
-  const cbColors = VIRIDIS_8.length === layer.colors.length
-    ? VIRIDIS_8
+  if (colorblindMode === 'off') return layer;
+  const palette = CB_PALETTES[colorblindMode];
+  const cbColors = palette.length === layer.colors.length
+    ? palette
     : layer.colors.length > 8
-      ? [...VIRIDIS_8, ...VIRIDIS_8.slice(-2)] // extend for 10-stop layers
-      : VIRIDIS_8.slice(0, layer.colors.length);
+      ? [...palette, ...palette.slice(-2)] // extend for 10-stop layers
+      : palette.slice(0, layer.colors.length);
   return { ...layer, colors: cbColors };
 }
 
