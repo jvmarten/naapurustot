@@ -8,15 +8,17 @@ export function useAnimatedValue(target: number | null, duration = 300): number 
   const [display, setDisplay] = useState(target);
   const startRef = useRef<number | null>(null);
   const fromRef = useRef<number | null>(null);
+  const displayRef = useRef<number | null>(target);
   const rafRef = useRef<number>(0);
 
   useEffect(() => {
     if (target == null) {
       setDisplay(null);
+      displayRef.current = null;
       return;
     }
 
-    const from = display ?? target;
+    const from = displayRef.current ?? target;
     fromRef.current = from;
     startRef.current = null;
 
@@ -29,11 +31,14 @@ export function useAnimatedValue(target: number | null, duration = 300): number 
       const eased = 1 - Math.pow(1 - progress, 3);
       const current = fromRef.current! + (target - fromRef.current!) * eased;
 
-      setDisplay(Math.round(current * 10) / 10);
+      const rounded = Math.round(current * 10) / 10;
+      displayRef.current = rounded;
+      setDisplay(rounded);
 
       if (progress < 1) {
         rafRef.current = requestAnimationFrame(animate);
       } else {
+        displayRef.current = target;
         setDisplay(target);
       }
     };

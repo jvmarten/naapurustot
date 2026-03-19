@@ -4,6 +4,15 @@ import { formatEuro, formatPct } from './formatting';
 import { t } from './i18n';
 import { getQualityCategory } from './qualityIndex';
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 const METRICS = [
   { key: 'hr_mtu', label: 'panel.median_income', format: formatEuro },
   { key: 'unemployment_rate', label: 'panel.unemployment', format: (v: number | null) => formatPct(v) },
@@ -30,8 +39,8 @@ export async function generateScoreCard(
   container.innerHTML = `
     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
       <div>
-        <div style="font-size: 24px; font-weight: 700; color: #0f172a;">${data.nimi}</div>
-        <div style="font-size: 14px; color: #64748b; margin-top: 4px;">${data.pno}</div>
+        <div style="font-size: 24px; font-weight: 700; color: #0f172a;">${escapeHtml(data.nimi)}</div>
+        <div style="font-size: 14px; color: #64748b; margin-top: 4px;">${escapeHtml(data.pno)}</div>
       </div>
       ${qi != null && cat ? `
       <div style="display: flex; align-items: center; gap: 12px;">

@@ -12,7 +12,11 @@ for (const key of Object.keys(fi) as (keyof typeof fi)[]) {
   };
 }
 
-let currentLang: Lang = (localStorage.getItem('lang') as Lang) || 'fi';
+let currentLang: Lang = 'fi';
+try {
+  const stored = localStorage.getItem('lang');
+  if (stored === 'fi' || stored === 'en') currentLang = stored;
+} catch { /* localStorage unavailable in SSR/tests */ }
 
 export function setLang(lang: Lang) {
   currentLang = lang;

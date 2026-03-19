@@ -579,10 +579,11 @@ export function getColorblindMode(): ColorblindType {
 }
 
 // Initialize from localStorage
+const VALID_CB_MODES = new Set<string>(['protanopia', 'deuteranopia', 'tritanopia']);
 try {
   const stored = localStorage.getItem('naapurustot-colorblind');
   if (stored === '1') colorblindMode = 'protanopia'; // migrate old boolean
-  else if (stored && stored !== '0') colorblindMode = stored as ColorblindType;
+  else if (stored && VALID_CB_MODES.has(stored)) colorblindMode = stored as ColorblindType;
 } catch { /* localStorage unavailable */ }
 
 export function getLayerById(id: LayerId): LayerConfig {

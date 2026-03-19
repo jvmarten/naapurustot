@@ -215,7 +215,13 @@ function collectRange(features: GeoJSON.Feature[], prop: keyof NeighborhoodPrope
     }
   }
   if (vals.length === 0) return { min: 0, max: 0 };
-  return { min: Math.min(...vals), max: Math.max(...vals) };
+  let min = vals[0];
+  let max = vals[0];
+  for (let i = 1; i < vals.length; i++) {
+    if (vals[i] < min) min = vals[i];
+    if (vals[i] > max) max = vals[i];
+  }
+  return { min, max };
 }
 
 function getFactorScore(

@@ -67,6 +67,7 @@ const App: React.FC = () => {
   // Monotonic version counter to force re-renders when quality indices change
   const [qualityVersion, setQualityVersion] = useState(0);
   const [ariaAnnouncement, setAriaAnnouncement] = useState('');
+  const [isOffline, setIsOffline] = useState(() => typeof navigator !== 'undefined' && !navigator.onLine);
 
   // Restore neighborhood selection and pinned comparisons from URL once data is loaded
   useEffect(() => {
@@ -152,7 +153,7 @@ const App: React.FC = () => {
         setFlyTarget({ center });
       }
     },
-    [data, select],
+    [data, select, addRecent],
   );
 
   const handleResetView = useCallback(() => {
@@ -233,6 +234,18 @@ const App: React.FC = () => {
     const layer = getLayerById(activeLayer);
     setAriaAnnouncement(`${t('aria.layer_changed')} ${t(layer.labelKey)}`);
   }, [activeLayer]);
+
+  // IN-6: Reactive offline detection
+  useEffect(() => {
+    const goOffline = () => setIsOffline(true);
+    const goOnline = () => setIsOffline(false);
+    window.addEventListener('offline', goOffline);
+    window.addEventListener('online', goOnline);
+    return () => {
+      window.removeEventListener('offline', goOffline);
+      window.removeEventListener('online', goOnline);
+    };
+  }, []);
 
   // QW-4: Escape to close topmost panel
   useEffect(() => {
@@ -448,7 +461,7 @@ const App: React.FC = () => {
       </Suspense>
 
       {/* IN-6: Offline indicator */}
-      {typeof navigator !== 'undefined' && !navigator.onLine && (
+      {isOffline && (
         <div className="absolute top-12 left-1/2 -translate-x-1/2 z-50 px-3 py-1.5 rounded-lg
                        bg-amber-500/90 text-white text-xs font-medium backdrop-blur-sm">
           {t('offline.indicator')}
