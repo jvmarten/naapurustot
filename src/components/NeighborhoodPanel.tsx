@@ -8,6 +8,9 @@ import { exportCsv, exportPdf } from '../utils/export';
 import { TrendSection } from './TrendChart';
 import RadarChart from './RadarChart';
 import { findSimilarNeighborhoods } from '../utils/similarity';
+import { useAnimatedValue } from '../hooks/useAnimatedValue';
+import { useBottomSheet } from '../hooks/useBottomSheet';
+import { generateScoreCard } from '../utils/scoreCard';
 
 interface PanelProps {
   data: NeighborhoodProperties;
@@ -23,6 +26,8 @@ interface PanelProps {
   onFlyTo?: (center: [number, number]) => void;
   isFavorite?: boolean;
   onToggleFavorite?: () => void;
+  note?: string;
+  onNoteChange?: (text: string) => void;
 }
 
 const StatRow: React.FC<{
@@ -135,16 +140,45 @@ const formatRent = (v: number | string | null | undefined): string => {
   return `${n.toFixed(2)} €/m²/kk`;
 };
 
-type SheetSnap = 'peek' | 'half' | 'full';
+// PO-2: Collapsible section component
+const CollapsibleSection: React.FC<{
+  title: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}> = ({ title, defaultOpen = false, children }) => {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between py-2 cursor-pointer group"
+      >
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400 group-hover:text-surface-700 dark:group-hover:text-surface-200 transition-colors">
+          {title}
+        </h3>
+        <svg
+          className={`w-3.5 h-3.5 text-surface-400 dark:text-surface-500 transition-transform duration-200 ${open ? '' : '-rotate-90'}`}
+          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && children}
+    </div>
+  );
+};
 
-const PEEK_HEIGHT = 140;
-const HALF_RATIO = 0.5;
-const FULL_RATIO = 0.92;
-
-export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, allFeatures, onFlyTo, isFavorite = false, onToggleFavorite }) => {
+export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, allFeatures, onFlyTo, isFavorite = false, onToggleFavorite, note = '', onNoteChange }) => {
   const eduTotal = [d.ko_yl_kork, d.ko_al_kork, d.ko_ammat, d.ko_perus]
     .filter((v) => v != null && v > 0)
     .reduce((a, b) => a! + b!, 0) || 1;
+
+  // QW-2: Animated value displays
+  const animatedQI = useAnimatedValue(d.quality_index);
+  const animatedIncome = useAnimatedValue(d.hr_mtu);
+  const animatedUnemployment = useAnimatedValue(d.unemployment_rate);
+  const animatedPopulation = useAnimatedValue(d.he_vakiy);
+  const animatedPropertyPrice = useAnimatedValue(d.property_price_sqm);
 
   // Copy link state
   const [copied, setCopied] = useState(false);
@@ -155,68 +189,12 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
     });
   }, []);
 
-  // Bottom sheet state (mobile only)
-  const [snap, setSnap] = useState<SheetSnap>('half');
+  // QW-3: Bottom sheet state (mobile only) — uses shared useBottomSheet hook
   const sheetRef = useRef<HTMLDivElement>(null);
-  const dragStartY = useRef<number | null>(null);
-  const dragStartHeight = useRef<number>(0);
-  const [sheetHeight, setSheetHeight] = useState<number | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-
-  const getSnapHeight = useCallback((s: SheetSnap) => {
-    const vh = window.innerHeight;
-    switch (s) {
-      case 'peek': return PEEK_HEIGHT;
-      case 'half': return vh * HALF_RATIO;
-      case 'full': return vh * FULL_RATIO;
-    }
-  }, []);
-
-  // Set initial height
-  useEffect(() => {
-    setSheetHeight(getSnapHeight('half'));
-  }, [getSnapHeight]);
-
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    dragStartY.current = e.touches[0].clientY;
-    dragStartHeight.current = sheetHeight ?? getSnapHeight(snap);
-    setIsDragging(true);
-  }, [sheetHeight, snap, getSnapHeight]);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (dragStartY.current == null) return;
-    const deltaY = dragStartY.current - e.touches[0].clientY;
-    const newHeight = Math.max(PEEK_HEIGHT, Math.min(window.innerHeight * FULL_RATIO, dragStartHeight.current + deltaY));
-    setSheetHeight(newHeight);
-  }, []);
-
-  const handleTouchEnd = useCallback(() => {
-    setIsDragging(false);
-    if (dragStartY.current == null || sheetHeight == null) return;
-    dragStartY.current = null;
-
-    const vh = window.innerHeight;
-    const ratio = sheetHeight / vh;
-
-    // Snap to nearest
-    if (ratio < 0.25) {
-      setSnap('peek');
-      setSheetHeight(getSnapHeight('peek'));
-    } else if (ratio < 0.7) {
-      setSnap('half');
-      setSheetHeight(getSnapHeight('half'));
-    } else {
-      setSnap('full');
-      setSheetHeight(getSnapHeight('full'));
-    }
-  }, [sheetHeight, getSnapHeight]);
-
-  // Close on swipe down past peek
-  useEffect(() => {
-    if (sheetHeight != null && sheetHeight < PEEK_HEIGHT * 0.5 && !isDragging) {
-      onClose();
-    }
-  }, [sheetHeight, isDragging, onClose]);
+  const { sheetHeight, isDragging, handlers: sheetHandlers } = useBottomSheet({
+    initialSnap: 'half',
+    onClose,
+  });
 
   const favoriteButton = onToggleFavorite && (
     <button
@@ -275,6 +253,18 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
         </svg>
         {t('export.pdf')}
       </button>
+      {/* CF-2: Share as image */}
+      <button
+        onClick={() => generateScoreCard(d, avg)}
+        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 md:py-1.5 rounded-lg text-xs font-medium min-h-[44px] md:min-h-0
+                   bg-brand-500/10 dark:bg-brand-600/15 text-brand-600 dark:text-brand-300
+                   hover:bg-brand-500/20 dark:hover:bg-brand-600/25 transition-colors"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+        {t('share.image')}
+      </button>
     </div>
   );
 
@@ -292,7 +282,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
     <div className="px-6 py-4 space-y-6">
       {/* Quality Index */}
       {d.quality_index != null && (() => {
-        const qi = d.quality_index!;
+        const qi = animatedQI != null ? Math.round(animatedQI) : d.quality_index!;
         const cat = getQualityCategory(qi);
         const lang = getLang();
         return (
@@ -365,10 +355,10 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
       {/* Key stats */}
       <div>
         <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
-          <StatRow label={t('panel.population')} value={formatNumber(d.he_vakiy)} />
+          <StatRow label={t('panel.population')} value={formatNumber(animatedPopulation)} />
           <StatRow
             label={t('panel.median_income')}
-            value={formatEuro(d.hr_mtu)}
+            value={formatEuro(animatedIncome)}
             diff={formatDiff(d.hr_mtu, avg.hr_mtu)}
             diffClass={diffColor(d.hr_mtu, avg.hr_mtu)}
           />
@@ -380,7 +370,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
           />
           <StatRow
             label={t('panel.unemployment')}
-            value={formatPct(d.unemployment_rate)}
+            value={formatPct(animatedUnemployment)}
             diff={formatDiff(d.unemployment_rate, avg.unemployment_rate)}
             diffClass={diffColor(d.unemployment_rate, avg.unemployment_rate, false)}
           />
@@ -398,11 +388,8 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
         unemploymentData={unemploymentHistory}
       />
 
-      {/* Housing section */}
-      <div>
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 mb-3">
-          {t('panel.housing')}
-        </h3>
+      {/* Housing section — PO-2: collapsible, default open */}
+      <CollapsibleSection title={t('panel.housing')} defaultOpen>
         <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
           <StatRow
             label={t('panel.ownership_rate')}
@@ -433,13 +420,10 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
           <StatRow label={t('panel.dwellings')} value={formatNumber(d.ra_asunn)} />
           <StatRow label={t('panel.households')} value={formatNumber(d.te_taly)} />
         </div>
-      </div>
+      </CollapsibleSection>
 
-      {/* Demographics section */}
-      <div>
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 mb-3">
-          {t('panel.demographics')}
-        </h3>
+      {/* Demographics section — PO-2: collapsible */}
+      <CollapsibleSection title={t('panel.demographics')}>
         <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
           <StatRow
             label={t('panel.population_density')}
@@ -460,13 +444,10 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             diffClass={diffColor(d.student_share, avg.student_share)}
           />
         </div>
-      </div>
+      </CollapsibleSection>
 
-      {/* Quality of Life section */}
-      <div>
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 mb-3">
-          {t('panel.quality_of_life')}
-        </h3>
+      {/* Quality of Life section — PO-2: collapsible */}
+      <CollapsibleSection title={t('panel.quality_of_life')}>
         <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
           <StatRow
             label={t('panel.walkability')}
@@ -476,7 +457,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
           />
           <StatRow
             label={t('panel.property_price')}
-            value={formatEuroSqm(d.property_price_sqm)}
+            value={formatEuroSqm(animatedPropertyPrice)}
             diff={formatDiff(d.property_price_sqm, avg.property_price_sqm)}
             diffClass={diffColor(d.property_price_sqm, avg.property_price_sqm)}
           />
@@ -499,13 +480,10 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             diffClass={diffColor(d.crime_index, avg.crime_index, false)}
           />
         </div>
-      </div>
+      </CollapsibleSection>
 
-      {/* Services section */}
-      <div>
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 mb-3">
-          {t('layers.services')}
-        </h3>
+      {/* Services section — PO-2: collapsible */}
+      <CollapsibleSection title={t('layers.services')}>
         <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
           <StatRow
             label={t('panel.restaurant_density')}
@@ -550,13 +528,10 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             diffClass={diffColor(d.green_space_pct, avg.green_space_pct)}
           />
         </div>
-      </div>
+      </CollapsibleSection>
 
-      {/* Environment section */}
-      <div>
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 mb-3">
-          {t('layers.environment')}
-        </h3>
+      {/* Environment section — PO-2: collapsible */}
+      <CollapsibleSection title={t('layers.environment')}>
         <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
           <StatRow
             label={t('panel.noise_level')}
@@ -579,13 +554,10 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             diffClass={diffColor(d.light_pollution, avg.light_pollution, false)}
           />
         </div>
-      </div>
+      </CollapsibleSection>
 
-      {/* Mobility section */}
-      <div>
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 mb-3">
-          {t('layers.mobility')}
-        </h3>
+      {/* Mobility section — PO-2: collapsible */}
+      <CollapsibleSection title={t('layers.mobility')}>
         <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
           <StatRow
             label={t('panel.commute_time')}
@@ -612,13 +584,10 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             diffClass={diffColor(d.traffic_accident_density, avg.traffic_accident_density, false)}
           />
         </div>
-      </div>
+      </CollapsibleSection>
 
-      {/* Health section */}
-      <div>
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 mb-3">
-          {t('layers.health')}
-        </h3>
+      {/* Health section — PO-2: collapsible */}
+      <CollapsibleSection title={t('layers.health')}>
         <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
           <StatRow
             label={t('panel.obesity_rate')}
@@ -639,13 +608,10 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             diffClass={diffColor(d.mental_health_pct, avg.mental_health_pct, false)}
           />
         </div>
-      </div>
+      </CollapsibleSection>
 
-      {/* Additional demographics */}
-      <div>
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 mb-3">
-          {t('layers.demographics')} +
-        </h3>
+      {/* Additional demographics — PO-2: collapsible */}
+      <CollapsibleSection title={`${t('layers.demographics')} +`}>
         <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
           <StatRow
             label={t('panel.population_growth')}
@@ -694,7 +660,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             diffClass={diffColor(d.price_to_rent_ratio, avg.price_to_rent_ratio)}
           />
         </div>
-      </div>
+      </CollapsibleSection>
 
       {/* Education breakdown */}
       <div>
@@ -737,6 +703,23 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
 
       {/* CF-4: Radar chart */}
       <RadarChart data={d} metroAverages={avg} />
+
+      {/* CF-4: Neighborhood Notes */}
+      {onNoteChange && (
+        <div>
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 mb-3">
+            {t('notes.title')}
+          </h3>
+          <textarea
+            value={note}
+            onChange={(e) => onNoteChange(e.target.value)}
+            placeholder={t('notes.placeholder')}
+            className="w-full rounded-lg bg-surface-100 dark:bg-surface-900/60 border border-surface-200 dark:border-surface-800/50
+                       p-3 text-sm text-surface-900 dark:text-white placeholder-surface-400 dark:placeholder-surface-500
+                       focus:outline-none focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/30 resize-y min-h-[80px]"
+          />
+        </div>
+      )}
 
       {/* CF-1: Similar neighborhoods */}
       {similar.length > 0 && (
@@ -824,16 +807,16 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
                    border-t border-surface-200 dark:border-surface-800/50
                    shadow-[0_-4px_30px_rgba(0,0,0,0.15)] rounded-t-2xl"
         style={{
-          height: sheetHeight ?? getSnapHeight('half'),
+          height: sheetHeight,
           transition: isDragging ? 'none' : 'height 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
         }}
       >
         {/* Drag handle */}
         <div
           className="flex items-center justify-center pt-3 pb-2 cursor-grab active:cursor-grabbing touch-none"
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
+          onTouchStart={sheetHandlers.onTouchStart}
+          onTouchMove={sheetHandlers.onTouchMove}
+          onTouchEnd={sheetHandlers.onTouchEnd}
         >
           <div className="w-10 h-1.5 rounded-full bg-surface-300 dark:bg-surface-600" />
         </div>

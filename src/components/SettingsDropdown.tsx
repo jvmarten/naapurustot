@@ -128,6 +128,12 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({
 
           {/* Donate */}
           <DonateButton variant="menu-item" />
+
+          {/* PO-6: Data freshness indicator */}
+          <div className="border-t border-surface-100 dark:border-surface-700/40 my-1" />
+          <div className="px-4 py-2 text-[10px] text-surface-400 dark:text-surface-500">
+            {t('data.last_updated')}: 2026-03
+          </div>
         </div>
       )}
     </div>

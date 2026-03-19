@@ -124,316 +124,184 @@ export function computeChangeMetrics(features: GeoJSON.Feature[]): void {
   }
 }
 
+/**
+ * IN-1: Data-driven metro average computation.
+ * Each metric is defined once with its property name, weighting type, and rounding precision.
+ * Adding a new layer is a one-line config change.
+ */
+type WeightType = 'population' | 'household' | 'count';
+
+interface MetricDef {
+  property: string;
+  weight: WeightType;
+  /** Decimal places for rounding (default: 1) */
+  precision?: number;
+  /** Require value > 0 to include (e.g., income) */
+  requirePositive?: boolean;
+  /** For percentage properties that need conversion from pct to count */
+  pctOfPop?: boolean;
+  /** For percentage properties weighted by household count */
+  pctOfHh?: boolean;
+}
+
+const METRIC_DEFS: MetricDef[] = [
+  // Economy
+  { property: 'hr_mtu', weight: 'population', precision: 0, requirePositive: true },
+  { property: 'avg_taxable_income', weight: 'population', precision: 0, requirePositive: true },
+  { property: 'property_price_sqm', weight: 'population', precision: 0, requirePositive: true },
+  { property: 'ra_as_kpa', weight: 'population', precision: 1, requirePositive: true },
+  { property: 'rental_price_sqm', weight: 'population', precision: 2 },
+  { property: 'gini_coefficient', weight: 'population', precision: 2 },
+  { property: 'median_household_debt', weight: 'population', precision: 0 },
+  { property: 'price_to_rent_ratio', weight: 'population', precision: 1 },
+
+  // Quality of life
+  { property: 'transit_stop_density', weight: 'population', precision: 1 },
+  { property: 'air_quality_index', weight: 'population', precision: 1 },
+  { property: 'crime_index', weight: 'population', precision: 1 },
+  { property: 'green_space_pct', weight: 'population', precision: 1 },
+  { property: 'walkability_index', weight: 'population', precision: 1 },
+  { property: 'noise_level', weight: 'population', precision: 1 },
+  { property: 'light_pollution', weight: 'population', precision: 1 },
+
+  // Services
+  { property: 'daycare_density', weight: 'population', precision: 1 },
+  { property: 'school_density', weight: 'population', precision: 1 },
+  { property: 'healthcare_density', weight: 'population', precision: 1 },
+  { property: 'restaurant_density', weight: 'population', precision: 1 },
+  { property: 'grocery_density', weight: 'population', precision: 1 },
+  { property: 'school_quality_score', weight: 'population', precision: 1 },
+
+  // Demographics
+  { property: 'population_growth_pct', weight: 'population', precision: 1 },
+  { property: 'seniors_alone_pct', weight: 'population', precision: 1 },
+  { property: 'kela_benefit_pct', weight: 'population', precision: 1 },
+  { property: 'net_migration_pct', weight: 'population', precision: 1 },
+  { property: 'avg_residency_years', weight: 'population', precision: 1 },
+  { property: 'foreign_language_pct', weight: 'population', precision: 1, pctOfPop: true },
+  { property: 'single_person_hh_pct', weight: 'household', precision: 1, pctOfHh: true },
+
+  // Housing
+  { property: 'avg_building_year', weight: 'population', precision: 0 },
+  { property: 'energy_efficiency', weight: 'population', precision: 1 },
+
+  // Mobility
+  { property: 'cars_per_household', weight: 'population', precision: 2 },
+  { property: 'cycling_density', weight: 'population', precision: 1 },
+  { property: 'avg_commute_min', weight: 'population', precision: 0 },
+  { property: 'traffic_accident_density', weight: 'population', precision: 1 },
+
+  // Health
+  { property: 'obesity_rate', weight: 'population', precision: 1 },
+  { property: 'life_expectancy', weight: 'population', precision: 1 },
+  { property: 'mental_health_pct', weight: 'population', precision: 1 },
+];
+
+function roundTo(value: number, precision: number): number {
+  const factor = Math.pow(10, precision);
+  return Math.round(value * factor) / factor;
+}
+
 export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string, number> {
+  // Accumulators for data-driven metrics
+  const totals: Record<string, number> = {};
+  const weights: Record<string, number> = {};
+  for (const def of METRIC_DEFS) {
+    totals[def.property] = 0;
+    weights[def.property] = 0;
+  }
+
+  // Accumulators for special ratio-based metrics that can't be data-driven
   let totalPop = 0;
-  let totalIncome = 0;
-  let incomeCount = 0;
   let totalUnemployed = 0;
   let totalHigherEd = 0;
   let totalAdultPop = 0;
-  let totalForeignLang = 0;
-  let foreignLangCount = 0;
   let totalOwnerOcc = 0;
   let totalHouseholds = 0;
   let totalRental = 0;
-  let totalAptSize = 0;
-  let aptSizeCount = 0;
   let totalStudents = 0;
   let totalActPop = 0;
   let totalChildren = 0;
   let totalArea = 0;
   let totalDetached = 0;
   let totalDwellings = 0;
-  let totalPropertyPrice = 0;
-  let propertyPriceCount = 0;
-  let totalTransitDensity = 0;
-  let transitCount = 0;
-  let totalAirQuality = 0;
-  let airQualityCount = 0;
-  let totalCrimeIndex = 0;
-  let crimeIndexCount = 0;
-  let totalGreenSpace = 0;
-  let greenSpaceCount = 0;
-  let totalDaycare = 0;
-  let daycareCount = 0;
-  let totalSchool = 0;
-  let schoolCount = 0;
-  let totalHealthcare = 0;
-  let healthcareCount = 0;
-  let totalNoise = 0;
-  let noiseCount = 0;
-  let totalBuildingYear = 0;
-  let buildingYearCount = 0;
-  let totalEnergy = 0;
-  let energyCount = 0;
-  let totalPopGrowth = 0;
-  let popGrowthCount = 0;
-  let totalGini = 0;
-  let giniCount = 0;
-  let totalSingleHh = 0;
-  let singleHhTotal = 0;
-  let totalSeniorsAlone = 0;
-  let seniorsAloneCount = 0;
-  let totalCars = 0;
-  let carsCount = 0;
-  let totalCycling = 0;
-  let cyclingCount = 0;
-  let totalCommute = 0;
-  let commuteCount = 0;
-  let totalRestaurant = 0;
-  let restaurantCount = 0;
-  let totalGrocery = 0;
-  let groceryCount = 0;
-  let totalWalkability = 0;
-  let walkabilityCount = 0;
-  let totalKela = 0;
-  let kelaCount = 0;
-  let totalRentalPrice = 0;
-  let rentalPriceCount = 0;
-  let totalTaxIncome = 0;
-  let taxIncomeCount = 0;
-  let totalObesity = 0;
-  let obesityCount = 0;
-  let totalLifeExp = 0;
-  let lifeExpCount = 0;
-  let totalSchoolQuality = 0;
-  let schoolQualityCount = 0;
-  let totalHhDebt = 0;
-  let hhDebtCount = 0;
-  let totalPtrRatio = 0;
-  let ptrCount = 0;
-  let totalLightPollution = 0;
-  let lightPollutionCount = 0;
-  let totalMentalHealth = 0;
-  let mentalHealthCount = 0;
-  let totalNetMigration = 0;
-  let netMigrationCount = 0;
-  let totalResidency = 0;
-  let residencyCount = 0;
-  let totalTrafficAccidents = 0;
-  let trafficAccidentsCount = 0;
 
   for (const f of features) {
     const p = f.properties as NeighborhoodProperties;
     const pop = p.he_vakiy;
-    if (pop != null && pop > 0) {
-      totalPop += pop;
-      if (p.hr_mtu != null && p.hr_mtu > 0) {
-        totalIncome += p.hr_mtu * pop;
-        incomeCount += pop;
-      }
-      if (p.pt_tyott != null) totalUnemployed += p.pt_tyott;
-      if (p.ko_yl_kork != null) totalHigherEd += p.ko_yl_kork;
-      if (p.ko_al_kork != null) totalHigherEd += p.ko_al_kork;
-      if (p.ko_ika18y != null) totalAdultPop += p.ko_ika18y;
-      if (p.foreign_language_pct != null) {
-        totalForeignLang += (p.foreign_language_pct / 100) * pop;
-        foreignLangCount += pop;
-      }
-      if (p.te_omis_as != null) totalOwnerOcc += p.te_omis_as;
-      if (p.te_taly != null) totalHouseholds += p.te_taly;
-      if (p.te_vuok_as != null) totalRental += p.te_vuok_as;
-      if (p.ra_as_kpa != null && p.ra_as_kpa > 0) {
-        totalAptSize += p.ra_as_kpa * pop;
-        aptSizeCount += pop;
-      }
-      if (p.pt_opisk != null) totalStudents += p.pt_opisk;
-      if (p.pt_vakiy != null) totalActPop += p.pt_vakiy;
-      else totalActPop += pop;
-      if (p.he_0_2 != null) totalChildren += p.he_0_2;
-      if (p.he_3_6 != null) totalChildren += p.he_3_6;
-      if (p.pinta_ala != null) totalArea += p.pinta_ala;
-      if (p.ra_pt_as != null) totalDetached += p.ra_pt_as;
-      if (p.ra_asunn != null) totalDwellings += p.ra_asunn;
-      if (p.property_price_sqm != null && p.property_price_sqm > 0) {
-        totalPropertyPrice += p.property_price_sqm * pop;
-        propertyPriceCount += pop;
-      }
-      if (p.transit_stop_density != null) {
-        totalTransitDensity += p.transit_stop_density * pop;
-        transitCount += pop;
-      }
-      if (p.air_quality_index != null) {
-        totalAirQuality += p.air_quality_index * pop;
-        airQualityCount += pop;
-      }
-      if (p.crime_index != null) {
-        totalCrimeIndex += p.crime_index * pop;
-        crimeIndexCount += pop;
-      }
-      if (p.green_space_pct != null) {
-        totalGreenSpace += p.green_space_pct * pop;
-        greenSpaceCount += pop;
-      }
-      if (p.daycare_density != null) {
-        totalDaycare += p.daycare_density * pop;
-        daycareCount += pop;
-      }
-      if (p.school_density != null) {
-        totalSchool += p.school_density * pop;
-        schoolCount += pop;
-      }
-      if (p.healthcare_density != null) {
-        totalHealthcare += p.healthcare_density * pop;
-        healthcareCount += pop;
-      }
-      if (p.noise_level != null) {
-        totalNoise += p.noise_level * pop;
-        noiseCount += pop;
-      }
-      if (p.avg_building_year != null) {
-        totalBuildingYear += p.avg_building_year * pop;
-        buildingYearCount += pop;
-      }
-      if (p.energy_efficiency != null) {
-        totalEnergy += p.energy_efficiency * pop;
-        energyCount += pop;
-      }
-      if (p.population_growth_pct != null) {
-        totalPopGrowth += p.population_growth_pct * pop;
-        popGrowthCount += pop;
-      }
-      if (p.gini_coefficient != null) {
-        totalGini += p.gini_coefficient * pop;
-        giniCount += pop;
-      }
-      if (p.single_person_hh_pct != null && p.te_taly != null) {
-        totalSingleHh += (p.single_person_hh_pct / 100) * p.te_taly;
-        singleHhTotal += p.te_taly;
-      }
-      if (p.seniors_alone_pct != null) {
-        totalSeniorsAlone += p.seniors_alone_pct * pop;
-        seniorsAloneCount += pop;
-      }
-      if (p.cars_per_household != null) {
-        totalCars += p.cars_per_household * pop;
-        carsCount += pop;
-      }
-      if (p.cycling_density != null) {
-        totalCycling += p.cycling_density * pop;
-        cyclingCount += pop;
-      }
-      if (p.avg_commute_min != null) {
-        totalCommute += p.avg_commute_min * pop;
-        commuteCount += pop;
-      }
-      if (p.restaurant_density != null) {
-        totalRestaurant += p.restaurant_density * pop;
-        restaurantCount += pop;
-      }
-      if (p.grocery_density != null) {
-        totalGrocery += p.grocery_density * pop;
-        groceryCount += pop;
-      }
-      if (p.walkability_index != null) {
-        totalWalkability += p.walkability_index * pop;
-        walkabilityCount += pop;
-      }
-      if (p.kela_benefit_pct != null) {
-        totalKela += p.kela_benefit_pct * pop;
-        kelaCount += pop;
-      }
-      if (p.rental_price_sqm != null) {
-        totalRentalPrice += p.rental_price_sqm * pop;
-        rentalPriceCount += pop;
-      }
-      if (p.avg_taxable_income != null && p.avg_taxable_income > 0) {
-        totalTaxIncome += p.avg_taxable_income * pop;
-        taxIncomeCount += pop;
-      }
-      if (p.obesity_rate != null) {
-        totalObesity += p.obesity_rate * pop;
-        obesityCount += pop;
-      }
-      if (p.life_expectancy != null) {
-        totalLifeExp += p.life_expectancy * pop;
-        lifeExpCount += pop;
-      }
-      if (p.school_quality_score != null) {
-        totalSchoolQuality += p.school_quality_score * pop;
-        schoolQualityCount += pop;
-      }
-      if (p.median_household_debt != null) {
-        totalHhDebt += p.median_household_debt * pop;
-        hhDebtCount += pop;
-      }
-      if (p.price_to_rent_ratio != null) {
-        totalPtrRatio += p.price_to_rent_ratio * pop;
-        ptrCount += pop;
-      }
-      if (p.light_pollution != null) {
-        totalLightPollution += p.light_pollution * pop;
-        lightPollutionCount += pop;
-      }
-      if (p.mental_health_pct != null) {
-        totalMentalHealth += p.mental_health_pct * pop;
-        mentalHealthCount += pop;
-      }
-      if (p.net_migration_pct != null) {
-        totalNetMigration += p.net_migration_pct * pop;
-        netMigrationCount += pop;
-      }
-      if (p.avg_residency_years != null) {
-        totalResidency += p.avg_residency_years * pop;
-        residencyCount += pop;
-      }
-      if (p.traffic_accident_density != null) {
-        totalTrafficAccidents += p.traffic_accident_density * pop;
-        trafficAccidentsCount += pop;
+    if (pop == null || pop <= 0) continue;
+
+    totalPop += pop;
+
+    // Count-based special metrics
+    if (p.pt_tyott != null) totalUnemployed += p.pt_tyott;
+    if (p.ko_yl_kork != null) totalHigherEd += p.ko_yl_kork;
+    if (p.ko_al_kork != null) totalHigherEd += p.ko_al_kork;
+    if (p.ko_ika18y != null) totalAdultPop += p.ko_ika18y;
+    if (p.te_omis_as != null) totalOwnerOcc += p.te_omis_as;
+    if (p.te_taly != null) totalHouseholds += p.te_taly;
+    if (p.te_vuok_as != null) totalRental += p.te_vuok_as;
+    if (p.pt_opisk != null) totalStudents += p.pt_opisk;
+    if (p.pt_vakiy != null) totalActPop += p.pt_vakiy;
+    else totalActPop += pop;
+    if (p.he_0_2 != null) totalChildren += p.he_0_2;
+    if (p.he_3_6 != null) totalChildren += p.he_3_6;
+    if (p.pinta_ala != null) totalArea += p.pinta_ala;
+    if (p.ra_pt_as != null) totalDetached += p.ra_pt_as;
+    if (p.ra_asunn != null) totalDwellings += p.ra_asunn;
+
+    // Data-driven weighted metrics
+    for (const def of METRIC_DEFS) {
+      const value = p[def.property] as number | null;
+      if (value == null) continue;
+      if (def.requirePositive && value <= 0) continue;
+
+      const w = def.weight === 'household' ? (p.te_taly ?? 0) : pop;
+      if (w <= 0) continue;
+
+      if (def.pctOfPop) {
+        // Percentage of population: accumulate count, not pct
+        totals[def.property] += (value / 100) * pop;
+        weights[def.property] += pop;
+      } else if (def.pctOfHh) {
+        // Percentage of households
+        totals[def.property] += (value / 100) * (p.te_taly ?? 0);
+        weights[def.property] += p.te_taly ?? 0;
+      } else {
+        totals[def.property] += value * w;
+        weights[def.property] += w;
       }
     }
   }
 
-  return {
-    hr_mtu: incomeCount > 0 ? Math.round(totalIncome / incomeCount) : 0,
-    unemployment_rate: totalPop > 0 ? Math.round((totalUnemployed / totalPop) * 1000) / 10 : 0,
-    higher_education_rate:
-      totalAdultPop > 0 ? Math.round((totalHigherEd / totalAdultPop) * 1000) / 10 : 0,
-    foreign_language_pct:
-      foreignLangCount > 0
-        ? Math.round((totalForeignLang / foreignLangCount) * 1000) / 10
-        : 0,
-    he_vakiy: totalPop,
-    ownership_rate: totalHouseholds > 0 ? Math.round((totalOwnerOcc / totalHouseholds) * 1000) / 10 : 0,
-    rental_rate: totalHouseholds > 0 ? Math.round((totalRental / totalHouseholds) * 1000) / 10 : 0,
-    ra_as_kpa: aptSizeCount > 0 ? Math.round((totalAptSize / aptSizeCount) * 10) / 10 : 0,
-    student_share: totalActPop > 0 ? Math.round((totalStudents / totalActPop) * 1000) / 10 : 0,
-    population_density: totalArea > 0 ? Math.round(totalPop / (totalArea / 1_000_000)) : 0,
-    child_ratio: totalPop > 0 ? Math.round((totalChildren / totalPop) * 1000) / 10 : 0,
-    detached_house_share: totalDwellings > 0 ? Math.round((totalDetached / totalDwellings) * 1000) / 10 : 0,
-    property_price_sqm: propertyPriceCount > 0 ? Math.round(totalPropertyPrice / propertyPriceCount) : 0,
-    transit_stop_density: transitCount > 0 ? Math.round((totalTransitDensity / transitCount) * 10) / 10 : 0,
-    air_quality_index: airQualityCount > 0 ? Math.round((totalAirQuality / airQualityCount) * 10) / 10 : 0,
-    crime_index: crimeIndexCount > 0 ? Math.round((totalCrimeIndex / crimeIndexCount) * 10) / 10 : 0,
-    green_space_pct: greenSpaceCount > 0 ? Math.round((totalGreenSpace / greenSpaceCount) * 10) / 10 : 0,
-    daycare_density: daycareCount > 0 ? Math.round((totalDaycare / daycareCount) * 10) / 10 : 0,
-    school_density: schoolCount > 0 ? Math.round((totalSchool / schoolCount) * 10) / 10 : 0,
-    healthcare_density: healthcareCount > 0 ? Math.round((totalHealthcare / healthcareCount) * 10) / 10 : 0,
-    noise_level: noiseCount > 0 ? Math.round((totalNoise / noiseCount) * 10) / 10 : 0,
-    avg_building_year: buildingYearCount > 0 ? Math.round(totalBuildingYear / buildingYearCount) : 0,
-    energy_efficiency: energyCount > 0 ? Math.round((totalEnergy / energyCount) * 10) / 10 : 0,
-    population_growth_pct: popGrowthCount > 0 ? Math.round((totalPopGrowth / popGrowthCount) * 10) / 10 : 0,
-    gini_coefficient: giniCount > 0 ? Math.round((totalGini / giniCount) * 100) / 100 : 0,
-    single_person_hh_pct: singleHhTotal > 0 ? Math.round((totalSingleHh / singleHhTotal) * 1000) / 10 : 0,
-    seniors_alone_pct: seniorsAloneCount > 0 ? Math.round((totalSeniorsAlone / seniorsAloneCount) * 10) / 10 : 0,
-    cars_per_household: carsCount > 0 ? Math.round((totalCars / carsCount) * 100) / 100 : 0,
-    cycling_density: cyclingCount > 0 ? Math.round((totalCycling / cyclingCount) * 10) / 10 : 0,
-    avg_commute_min: commuteCount > 0 ? Math.round(totalCommute / commuteCount) : 0,
-    restaurant_density: restaurantCount > 0 ? Math.round((totalRestaurant / restaurantCount) * 10) / 10 : 0,
-    grocery_density: groceryCount > 0 ? Math.round((totalGrocery / groceryCount) * 10) / 10 : 0,
-    walkability_index: walkabilityCount > 0 ? Math.round((totalWalkability / walkabilityCount) * 10) / 10 : 0,
-    kela_benefit_pct: kelaCount > 0 ? Math.round((totalKela / kelaCount) * 10) / 10 : 0,
-    rental_price_sqm: rentalPriceCount > 0 ? Math.round((totalRentalPrice / rentalPriceCount) * 100) / 100 : 0,
-    avg_taxable_income: taxIncomeCount > 0 ? Math.round(totalTaxIncome / taxIncomeCount) : 0,
-    obesity_rate: obesityCount > 0 ? Math.round((totalObesity / obesityCount) * 10) / 10 : 0,
-    life_expectancy: lifeExpCount > 0 ? Math.round((totalLifeExp / lifeExpCount) * 10) / 10 : 0,
-    school_quality_score: schoolQualityCount > 0 ? Math.round((totalSchoolQuality / schoolQualityCount) * 10) / 10 : 0,
-    median_household_debt: hhDebtCount > 0 ? Math.round(totalHhDebt / hhDebtCount) : 0,
-    price_to_rent_ratio: ptrCount > 0 ? Math.round((totalPtrRatio / ptrCount) * 10) / 10 : 0,
-    light_pollution: lightPollutionCount > 0 ? Math.round((totalLightPollution / lightPollutionCount) * 10) / 10 : 0,
-    mental_health_pct: mentalHealthCount > 0 ? Math.round((totalMentalHealth / mentalHealthCount) * 10) / 10 : 0,
-    net_migration_pct: netMigrationCount > 0 ? Math.round((totalNetMigration / netMigrationCount) * 10) / 10 : 0,
-    avg_residency_years: residencyCount > 0 ? Math.round((totalResidency / residencyCount) * 10) / 10 : 0,
-    traffic_accident_density: trafficAccidentsCount > 0 ? Math.round((totalTrafficAccidents / trafficAccidentsCount) * 10) / 10 : 0,
-  };
+  // Build result from data-driven metrics
+  const result: Record<string, number> = {};
+
+  for (const def of METRIC_DEFS) {
+    const w = weights[def.property];
+    const precision = def.precision ?? 1;
+    if (w > 0) {
+      if (def.pctOfPop || def.pctOfHh) {
+        // Convert back to percentage
+        result[def.property] = roundTo((totals[def.property] / w) * 100, precision);
+      } else {
+        result[def.property] = roundTo(totals[def.property] / w, precision);
+      }
+    } else {
+      result[def.property] = 0;
+    }
+  }
+
+  // Add special ratio-based metrics
+  result.he_vakiy = totalPop;
+  result.unemployment_rate = totalPop > 0 ? roundTo((totalUnemployed / totalPop) * 100, 1) : 0;
+  result.higher_education_rate = totalAdultPop > 0 ? roundTo((totalHigherEd / totalAdultPop) * 100, 1) : 0;
+  result.ownership_rate = totalHouseholds > 0 ? roundTo((totalOwnerOcc / totalHouseholds) * 100, 1) : 0;
+  result.rental_rate = totalHouseholds > 0 ? roundTo((totalRental / totalHouseholds) * 100, 1) : 0;
+  result.student_share = totalActPop > 0 ? roundTo((totalStudents / totalActPop) * 100, 1) : 0;
+  result.population_density = totalArea > 0 ? Math.round(totalPop / (totalArea / 1_000_000)) : 0;
+  result.child_ratio = totalPop > 0 ? roundTo((totalChildren / totalPop) * 100, 1) : 0;
+  result.detached_house_share = totalDwellings > 0 ? roundTo((totalDetached / totalDwellings) * 100, 1) : 0;
+
+  return result;
 }
