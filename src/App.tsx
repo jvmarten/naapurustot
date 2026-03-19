@@ -53,6 +53,7 @@ const App: React.FC = () => {
   const [colorblind, setColorblind] = useState(getColorblindMode);
   const [showWizard, setShowWizard] = useState(false);
   const { presets: savedPresets, addPreset: saveFilterPreset, removePreset: removeFilterPreset } = useFilterPresets();
+  const [fillOpacity, setFillOpacity] = useState(1);
   // QW-4: Split map view state
   const [splitMode, setSplitMode] = useState(false);
   const [secondaryLayer] = useState<LayerId>('median_income');
@@ -271,6 +272,7 @@ const App: React.FC = () => {
             qualityVersion={qualityVersion}
             colorblind={colorblind}
             wizardHighlightPnos={wizardResultPnos}
+            fillOpacity={fillOpacity}
           />
         )}
       </ErrorBoundary>
@@ -370,7 +372,7 @@ const App: React.FC = () => {
       />
 
       {/* Legend — repositioned for mobile */}
-      <Legend layerId={activeLayer} colorblind={colorblind} />
+      <Legend layerId={activeLayer} colorblind={colorblind} fillOpacity={fillOpacity} onFillOpacityChange={setFillOpacity} />
 
       {/* Tooltip — hidden on touch devices via CSS */}
       {tooltip && !selected && (

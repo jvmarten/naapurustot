@@ -287,5 +287,6 @@
   "recent.title": "Viimeksi katsotut",
   "data.last_updated": "Aineisto päivitetty",
   "share.image": "Jaa kuvana",
-  "share.generating": "Luodaan kuvaa\u2026"
+  "share.generating": "Luodaan kuvaa\u2026",
+  "legend.opacity": "Peitto"
 }
