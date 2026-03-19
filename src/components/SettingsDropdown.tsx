@@ -2,17 +2,25 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useTheme } from '../hooks/useTheme';
 import { DonateButton } from './DonateButton';
 import { t, type Lang } from '../utils/i18n';
+import type { ColorblindType } from '../utils/colorScales';
 
 interface SettingsDropdownProps {
-  colorblind: boolean;
-  onToggleColorblind: () => void;
+  colorblind: ColorblindType;
+  onColorblindChange: (mode: ColorblindType) => void;
   lang: Lang;
   onToggleLang: () => void;
 }
 
+const CB_OPTIONS: { value: ColorblindType; labelKey: string }[] = [
+  { value: 'off', labelKey: 'settings.cb_off' },
+  { value: 'protanopia', labelKey: 'settings.cb_protanopia' },
+  { value: 'deuteranopia', labelKey: 'settings.cb_deuteranopia' },
+  { value: 'tritanopia', labelKey: 'settings.cb_tritanopia' },
+];
+
 export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({
   colorblind,
-  onToggleColorblind,
+  onColorblindChange,
   lang,
   onToggleLang,
 }) => {
@@ -106,22 +114,28 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({
           </button>
 
           {/* Colorblind mode */}
-          <button
-            onClick={onToggleColorblind}
-            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200
-                       hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-            </svg>
-            <span>{t('settings.colorblind')}</span>
-            {colorblind && (
-              <svg className="w-4 h-4 ml-auto text-brand-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          <div className="px-4 py-2.5">
+            <div className="flex items-center gap-3 mb-2">
+              <svg className="w-4 h-4 text-surface-500 dark:text-surface-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
               </svg>
-            )}
-          </button>
+              <span className="text-xs font-medium text-surface-500 dark:text-surface-400">{t('settings.colorblind')}</span>
+            </div>
+            <select
+              value={colorblind}
+              onChange={(e) => onColorblindChange(e.target.value as ColorblindType)}
+              className="w-full text-sm text-surface-700 dark:text-surface-200
+                         bg-white dark:bg-surface-800
+                         border border-surface-200 dark:border-surface-700/40 rounded-lg px-2.5 py-1.5
+                         cursor-pointer focus:outline-none focus:ring-1 focus:ring-brand-500/50
+                         dark:[color-scheme:dark]"
+            >
+              {CB_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>{t(opt.labelKey)}</option>
+              ))}
+            </select>
+          </div>
 
           {/* Divider */}
           <div className="border-t border-surface-100 dark:border-surface-700/40 my-1" />

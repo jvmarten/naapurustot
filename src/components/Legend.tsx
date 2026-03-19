@@ -4,7 +4,7 @@ import { t } from '../utils/i18n';
 
 interface LegendProps {
   layerId: LayerId;
-  colorblind?: boolean;
+  colorblind?: string;
 }
 
 export const Legend: React.FC<LegendProps> = ({ layerId, colorblind: _colorblind }) => {

@@ -14,12 +14,17 @@ export interface FilterCriterion {
 type SortKey = 'score' | 'name' | LayerId;
 type SortDir = 'asc' | 'desc';
 
+import type { SavedPreset } from '../hooks/useFilterPresets';
+
 interface FilterPanelProps {
   data: FeatureCollection | null;
   filters: FilterCriterion[];
   onFiltersChange: (filters: FilterCriterion[]) => void;
   onSelect: (pno: string, center: [number, number]) => void;
   onClose: () => void;
+  savedPresets?: SavedPreset[];
+  onSavePreset?: (name: string, criteria: FilterCriterion[]) => void;
+  onRemovePreset?: (index: number) => void;
 }
 
 /** Get the data range (min stop, max stop) for a layer from its color stops. */
@@ -305,6 +310,9 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   onFiltersChange,
   onSelect,
   onClose,
+  savedPresets = [],
+  onSavePreset,
+  onRemovePreset,
 }) => {
   // QW-3: Unified bottom sheet drag behavior
   const sheetRef = useRef<HTMLDivElement>(null);
@@ -549,7 +557,48 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
                   {t(preset.labelKey)}
                 </button>
               ))}
+              {savedPresets.map((preset, i) => (
+                <div key={`saved-${i}`} className="flex items-center gap-0.5">
+                  <button
+                    onClick={() => onFiltersChange(preset.criteria)}
+                    className="px-2.5 py-1.5 rounded-l-lg text-[11px] font-medium
+                               bg-surface-100 dark:bg-surface-800/60 text-surface-700 dark:text-surface-200
+                               hover:bg-surface-200 dark:hover:bg-surface-700/60 transition-colors"
+                  >
+                    {preset.name}
+                  </button>
+                  {onRemovePreset && (
+                    <button
+                      onClick={() => onRemovePreset(i)}
+                      className="px-1 py-1.5 rounded-r-lg text-[11px]
+                                 bg-surface-100 dark:bg-surface-800/60 text-surface-400
+                                 hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-500 transition-colors"
+                      aria-label={t('filter.remove')}
+                    >
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              ))}
             </div>
+          </div>
+        )}
+
+        {/* Save current filter as preset */}
+        {filters.length > 0 && onSavePreset && (
+          <div className="flex-shrink-0 px-3 py-1.5">
+            <button
+              onClick={() => {
+                const name = prompt(t('filter.preset_name'));
+                if (name?.trim()) onSavePreset(name.trim(), filters);
+              }}
+              className="text-[10px] font-medium text-brand-500 dark:text-brand-400
+                         hover:text-brand-600 dark:hover:text-brand-300 transition-colors"
+            >
+              {t('filter.save_preset')}
+            </button>
           </div>
         )}
 
@@ -639,7 +688,48 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
                     {t(preset.labelKey)}
                   </button>
                 ))}
+                {savedPresets.map((preset, i) => (
+                  <div key={`saved-m-${i}`} className="flex items-center gap-0.5">
+                    <button
+                      onClick={() => onFiltersChange(preset.criteria)}
+                      className="px-2.5 py-1.5 rounded-l-lg text-[11px] font-medium
+                                 bg-surface-100 dark:bg-surface-800/60 text-surface-700 dark:text-surface-200
+                                 hover:bg-surface-200 dark:hover:bg-surface-700/60 transition-colors"
+                    >
+                      {preset.name}
+                    </button>
+                    {onRemovePreset && (
+                      <button
+                        onClick={() => onRemovePreset(i)}
+                        className="px-1 py-1.5 rounded-r-lg text-[11px]
+                                   bg-surface-100 dark:bg-surface-800/60 text-surface-400
+                                   hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-500 transition-colors"
+                        aria-label={t('filter.remove')}
+                      >
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                ))}
               </div>
+            </div>
+          )}
+
+          {/* Save current filter as preset (mobile) */}
+          {filters.length > 0 && onSavePreset && (
+            <div className="flex-shrink-0 px-3 py-1.5">
+              <button
+                onClick={() => {
+                  const name = prompt(t('filter.preset_name'));
+                  if (name?.trim()) onSavePreset(name.trim(), filters);
+                }}
+                className="text-[10px] font-medium text-brand-500 dark:text-brand-400
+                           hover:text-brand-600 dark:hover:text-brand-300 transition-colors"
+              >
+                {t('filter.save_preset')}
+              </button>
             </div>
           )}
 

@@ -8,6 +8,13 @@ import { filterSmallIslands } from '../utils/geometryFilter';
 
 import topoUrl from '../data/metro_neighborhoods.topojson?url';
 
+// Start fetching data immediately at module load time — before React mounts.
+// This eliminates the delay between JS parse and the first useEffect.
+let prefetchedResponse: Promise<Response> | null = null;
+try {
+  prefetchedResponse = fetch(topoUrl);
+} catch { /* fetch unavailable in SSR */ }
+
 interface MapDataState {
   data: FeatureCollection | null;
   loading: boolean;
@@ -27,7 +34,11 @@ export function useMapData(): MapDataState {
 
   useEffect(() => {
     setState({ data: null, loading: true, error: null, metroAverages: {} });
-    fetch(topoUrl)
+    // Use prefetched response on first load, fresh fetch on retries
+    const responsePromise = attempt === 0 && prefetchedResponse
+      ? prefetchedResponse
+      : fetch(topoUrl);
+    responsePromise
       .then((res) => {
         if (!res.ok) throw new Error(`Failed to load data: ${res.status}`);
         return res.json();

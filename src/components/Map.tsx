@@ -26,7 +26,7 @@ interface MapProps {
   filterMatchPnos?: Set<string>;
   /** Increment to force GeoJSON source refresh (e.g. after quality index recomputation) */
   qualityVersion?: number;
-  colorblind?: boolean;
+  colorblind?: string;
   /** PO-4: PNOs to highlight from wizard results */
   wizardHighlightPnos?: string[];
 }

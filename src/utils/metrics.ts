@@ -144,6 +144,79 @@ interface MetricDef {
   pctOfHh?: boolean;
 }
 
+/** Data source attribution for metrics shown in the neighborhood panel. */
+export interface MetricSource {
+  source: string;
+  year: number | string;
+}
+
+/**
+ * Maps GeoJSON property names (or panel label keys) to their data source and year.
+ * Used by NeighborhoodPanel to show attribution per stat row.
+ */
+export const METRIC_SOURCES: Record<string, MetricSource> = {
+  // Economy
+  hr_mtu: { source: 'Tilastokeskus (Paavo)', year: 2024 },
+  hr_ktu: { source: 'Tilastokeskus (Paavo)', year: 2024 },
+  avg_taxable_income: { source: 'Verohallinto', year: 2023 },
+  unemployment_rate: { source: 'Tilastokeskus (Paavo)', year: 2024 },
+  higher_education_rate: { source: 'Tilastokeskus (Paavo)', year: 2024 },
+  property_price_sqm: { source: 'Tilastokeskus (PxWeb)', year: 2024 },
+  rental_price_sqm: { source: 'Tilastokeskus / ARA', year: 2024 },
+  gini_coefficient: { source: 'Tilastokeskus', year: 2023 },
+  median_household_debt: { source: 'Tilastokeskus', year: 2023 },
+  price_to_rent_ratio: { source: 'johdettu', year: 2024 },
+
+  // Demographics
+  he_vakiy: { source: 'Tilastokeskus (Paavo)', year: 2024 },
+  foreign_language_pct: { source: 'Tilastokeskus', year: 2020 },
+  population_density: { source: 'Tilastokeskus (Paavo)', year: 2024 },
+  child_ratio: { source: 'Tilastokeskus (Paavo)', year: 2024 },
+  student_share: { source: 'Tilastokeskus (Paavo)', year: 2024 },
+  population_growth_pct: { source: 'Tilastokeskus', year: '2019–2024' },
+  net_migration_pct: { source: 'Tilastokeskus', year: 2023 },
+  single_person_hh_pct: { source: 'Tilastokeskus', year: 2023 },
+  seniors_alone_pct: { source: 'THL (Sotkanet)', year: 2023 },
+  avg_residency_years: { source: 'Tilastokeskus', year: 2023 },
+  kela_benefit_pct: { source: 'Kela', year: 2023 },
+
+  // Housing
+  ownership_rate: { source: 'Tilastokeskus (Paavo)', year: 2024 },
+  rental_rate: { source: 'Tilastokeskus (Paavo)', year: 2024 },
+  ra_as_kpa: { source: 'Tilastokeskus (Paavo)', year: 2024 },
+  detached_house_share: { source: 'Tilastokeskus (Paavo)', year: 2024 },
+  avg_building_year: { source: 'Rakennusrekisteri', year: 2024 },
+  energy_efficiency: { source: 'ARA', year: 2024 },
+
+  // Quality of life
+  walkability_index: { source: 'johdettu (OSM + HSL)', year: 2024 },
+  transit_stop_density: { source: 'HSL (Digitransit)', year: 2024 },
+  air_quality_index: { source: 'HSY', year: 2024 },
+  crime_index: { source: 'Poliisi', year: 2023 },
+  noise_level: { source: 'HSY', year: 2023 },
+  light_pollution: { source: 'FMI / satelliitti', year: 2023 },
+
+  // Services
+  restaurant_density: { source: 'OpenStreetMap', year: 2024 },
+  grocery_density: { source: 'OpenStreetMap', year: 2024 },
+  daycare_density: { source: 'OpenStreetMap', year: 2024 },
+  school_density: { source: 'OpenStreetMap', year: 2024 },
+  school_quality_score: { source: 'YTL', year: 2023 },
+  healthcare_density: { source: 'OpenStreetMap', year: 2024 },
+  green_space_pct: { source: 'OpenStreetMap', year: 2024 },
+
+  // Mobility
+  avg_commute_min: { source: 'HSL', year: 2023 },
+  cars_per_household: { source: 'Traficom', year: 2023 },
+  cycling_density: { source: 'OpenStreetMap', year: 2024 },
+  traffic_accident_density: { source: 'Traficom / Digiroad', year: 2023 },
+
+  // Health
+  obesity_rate: { source: 'THL (FinSote)', year: 2023 },
+  life_expectancy: { source: 'THL / Tilastokeskus', year: 2023 },
+  mental_health_pct: { source: 'THL (Sotkanet)', year: 2023 },
+};
+
 const METRIC_DEFS: MetricDef[] = [
   // Economy
   { property: 'hr_mtu', weight: 'population', precision: 0, requirePositive: true },
