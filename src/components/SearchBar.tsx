@@ -21,7 +21,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ data, onSelect, recent = [
 
   // CF-1: Address geocoding state
   const [addressResults, setAddressResults] = useState<GeocodeResult[]>([]);
-  const geocodeTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const geocodeTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const { results, totalCount } = useMemo(() => {
     if (!data || query.length < 2) return { results: [], totalCount: 0 };

@@ -1,6 +1,4 @@
-import { useEffect } from 'react';
 import type maplibregl from 'maplibre-gl';
-import { t } from '../utils/i18n';
 
 const POI_SOURCE = 'pois';
 const POI_CLUSTER_LAYER = 'poi-clusters';
