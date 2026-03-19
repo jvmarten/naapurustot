@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="fi">
+  <head>
+    <meta charset="UTF-8" />
+    <title>naapurustot.fi</title>
+    <script>
+      // GitHub Pages SPA redirect: convert path to query params and reload
+      // e.g. /pno/00100 or any unknown path → /?pno=... or /
+      var search = window.location.search;
+      var hash = window.location.hash;
+      // Preserve query params and hash, redirect to root
+      var redirect = '/' + (search ? search : '') + (hash ? hash : '');
+      window.location.replace(redirect);
+    </script>
+  </head>
+  <body>
+  </body>
+</html>

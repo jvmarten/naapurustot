@@ -10,12 +10,32 @@ interface UrlState {
 
 const VALID_LAYER_IDS = new Set<string>(LAYERS.map((l) => l.id));
 
-function parseHash(): UrlState {
-  const hash = window.location.hash.slice(1); // remove '#'
-  const params = new URLSearchParams(hash);
-  const pno = params.get('pno');
-  const layer = params.get('layer');
-  const compare = params.get('compare');
+function parseUrl(): UrlState {
+  // Support both query params (?pno=) and legacy hash (#pno=) for backwards compat
+  const searchParams = new URLSearchParams(window.location.search);
+  let pno = searchParams.get('pno');
+  let layer = searchParams.get('layer');
+  let compare = searchParams.get('compare');
+
+  // Fallback: read from hash for old bookmarks/links
+  if (!pno && !layer && !compare && window.location.hash) {
+    const hash = window.location.hash.slice(1);
+    const hashParams = new URLSearchParams(hash);
+    pno = hashParams.get('pno');
+    layer = hashParams.get('layer');
+    compare = hashParams.get('compare');
+
+    // Migrate hash to query params silently
+    if (pno || layer || compare) {
+      const newParams = new URLSearchParams();
+      if (pno) newParams.set('pno', pno);
+      if (layer) newParams.set('layer', layer);
+      if (compare) newParams.set('compare', compare);
+      const newUrl = `${window.location.pathname}?${newParams.toString()}`;
+      window.history.replaceState(null, '', newUrl);
+    }
+  }
+
   return {
     pno: pno && /^\d{5}$/.test(pno) ? pno : null,
     layer: layer && VALID_LAYER_IDS.has(layer) ? (layer as LayerId) : null,
@@ -25,20 +45,22 @@ function parseHash(): UrlState {
   };
 }
 
-function writeHash(pno: string | null, layer: LayerId, comparePnos: string[]) {
+function writeUrl(pno: string | null, layer: LayerId, comparePnos: string[]) {
   const params = new URLSearchParams();
   if (pno) params.set('pno', pno);
   if (layer !== 'quality_index') params.set('layer', layer);
   if (comparePnos.length > 0) params.set('compare', comparePnos.join(','));
   const str = params.toString();
-  const newHash = str ? `#${str}` : '';
-  if (window.location.hash !== newHash) {
-    window.history.replaceState(null, '', newHash || window.location.pathname);
+  const newUrl = str
+    ? `${window.location.pathname}?${str}`
+    : window.location.pathname;
+  if (window.location.search !== (str ? `?${str}` : '')) {
+    window.history.replaceState(null, '', newUrl);
   }
 }
 
 export function readInitialUrlState(): UrlState {
-  return parseHash();
+  return parseUrl();
 }
 
 export function useSyncUrlState(pno: string | null, layer: LayerId, comparePnos: string[] = []) {
@@ -47,6 +69,6 @@ export function useSyncUrlState(pno: string | null, layer: LayerId, comparePnos:
   // Write state changes to URL
   useEffect(() => {
     skipNextHashChange.current = true;
-    writeHash(pno, layer, comparePnos);
+    writeUrl(pno, layer, comparePnos);
   }, [pno, layer, comparePnos]);
 }
