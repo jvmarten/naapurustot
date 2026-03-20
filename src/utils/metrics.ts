@@ -82,13 +82,9 @@ export interface NeighborhoodProperties {
   // Phase 7: New data layers
   voter_turnout_pct: number | null;
   party_diversity_index: number | null;
-  burglary_rate: number | null;
-  domestic_disturbance_rate: number | null;
-  water_quality_index: number | null;
   broadband_coverage_pct: number | null;
   ev_charging_density: number | null;
   tree_canopy_pct: number | null;
-  surface_temp_diff: number | null;
   transit_reachability_score: number | null;
   // Quick wins — derived from existing Paavo fields
   youth_ratio_pct: number | null;
@@ -376,12 +372,6 @@ export const METRIC_SOURCES: Record<string, MetricSource> = {
   voter_turnout_pct: { source: 'Tilastokeskus / Oikeusministeriö', year: 2023 },
   party_diversity_index: { source: 'Tilastokeskus / Oikeusministeriö', year: 2023 },
 
-  // Safety & Crime Detail
-  burglary_rate: { source: 'Poliisi', year: 2023 },
-  domestic_disturbance_rate: { source: 'Poliisi', year: 2023 },
-
-  // Water Quality
-  water_quality_index: { source: 'HSY', year: 2024 },
 
   // Internet & Connectivity
   broadband_coverage_pct: { source: 'Traficom', year: 2024 },
@@ -389,7 +379,6 @@ export const METRIC_SOURCES: Record<string, MetricSource> = {
 
   // Tree Canopy / Urban Heat Island
   tree_canopy_pct: { source: 'HSY (LiDAR)', year: 2023 },
-  surface_temp_diff: { source: 'HSY / Landsat', year: 2023 },
 
   // Accessibility
   transit_reachability_score: { source: 'HSL (matka-aikamatriisi)', year: 2024 },
@@ -468,13 +457,9 @@ const METRIC_DEFS: MetricDef[] = [
   // Phase 7: New layers
   { property: 'voter_turnout_pct', weight: 'population', precision: 1 },
   { property: 'party_diversity_index', weight: 'population', precision: 2 },
-  { property: 'burglary_rate', weight: 'population', precision: 1 },
-  { property: 'domestic_disturbance_rate', weight: 'population', precision: 1 },
-  { property: 'water_quality_index', weight: 'population', precision: 1 },
   { property: 'broadband_coverage_pct', weight: 'population', precision: 1 },
   { property: 'ev_charging_density', weight: 'population', precision: 1 },
   { property: 'tree_canopy_pct', weight: 'population', precision: 1 },
-  { property: 'surface_temp_diff', weight: 'population', precision: 1 },
   { property: 'transit_reachability_score', weight: 'population', precision: 1 },
   { property: 'youth_ratio_pct', weight: 'population', precision: 1, pctOfPop: true },
   { property: 'single_parent_hh_pct', weight: 'household', precision: 1, pctOfHh: true },

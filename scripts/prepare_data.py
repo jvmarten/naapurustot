@@ -172,14 +172,6 @@ VOTER_TURNOUT_FILE = Path(__file__).parent / "voter_turnout.json"
 # Political diversity index (Shannon diversity of party votes)
 PARTY_DIVERSITY_FILE = Path(__file__).parent / "party_diversity.json"
 
-# Burglary rate (burglaries per 1,000 residents) — Finnish Police
-BURGLARY_RATE_FILE = Path(__file__).parent / "burglary_rate.json"
-
-# Domestic disturbance rate (calls per 1,000 residents) — Finnish Police
-DOMESTIC_DISTURBANCE_FILE = Path(__file__).parent / "domestic_disturbance.json"
-
-# Water quality index (0-100 composite) — HSY
-WATER_QUALITY_FILE = Path(__file__).parent / "water_quality.json"
 
 # Broadband coverage (% of addresses with 100 Mbit+) — Traficom
 BROADBAND_COVERAGE_FILE = Path(__file__).parent / "broadband_coverage.json"
@@ -190,8 +182,6 @@ EV_CHARGING_FILE = Path(__file__).parent / "ev_charging.json"
 # Tree canopy coverage (% of area covered by trees) — HSY LiDAR
 TREE_CANOPY_FILE = Path(__file__).parent / "tree_canopy.json"
 
-# Surface temperature difference from metro average (°C) — HSY / Landsat
-SURFACE_TEMP_FILE = Path(__file__).parent / "surface_temperature.json"
 
 # Transit reachability score (0-100, jobs/services within 30 min) — HSL
 TRANSIT_REACHABILITY_FILE = Path(__file__).parent / "transit_reachability.json"
@@ -1743,14 +1733,6 @@ def main():
     party_data = _load_json_data(PARTY_DIVERSITY_FILE, "party diversity")
     gdf = _join_simple_data(gdf, party_data, "party_diversity_index", "party diversity")
 
-    burglary_data = _load_json_data(BURGLARY_RATE_FILE, "burglary rate")
-    gdf = _join_simple_data(gdf, burglary_data, "burglary_rate", "burglary rate")
-
-    disturbance_data = _load_json_data(DOMESTIC_DISTURBANCE_FILE, "domestic disturbances")
-    gdf = _join_simple_data(gdf, disturbance_data, "domestic_disturbance_rate", "domestic disturbances")
-
-    water_data = _load_json_data(WATER_QUALITY_FILE, "water quality")
-    gdf = _join_simple_data(gdf, water_data, "water_quality_index", "water quality")
 
     broadband_data = _load_json_data(BROADBAND_COVERAGE_FILE, "broadband coverage")
     gdf = _join_simple_data(gdf, broadband_data, "broadband_coverage_pct", "broadband coverage")
@@ -1761,8 +1743,6 @@ def main():
     canopy_data = _load_json_data(TREE_CANOPY_FILE, "tree canopy coverage")
     gdf = _join_simple_data(gdf, canopy_data, "tree_canopy_pct", "tree canopy coverage")
 
-    temp_data = _load_json_data(SURFACE_TEMP_FILE, "surface temperature")
-    gdf = _join_simple_data(gdf, temp_data, "surface_temp_diff", "surface temperature")
 
     reach_data = _load_json_data(TRANSIT_REACHABILITY_FILE, "transit reachability")
     gdf = _join_simple_data(gdf, reach_data, "transit_reachability_score", "transit reachability")
@@ -1801,9 +1781,8 @@ def main():
         "income_history", "population_history", "unemployment_history",
         # Phase 7: new data sources
         "voter_turnout_pct", "party_diversity_index",
-        "burglary_rate", "domestic_disturbance_rate",
-        "water_quality_index", "broadband_coverage_pct", "ev_charging_density",
-        "tree_canopy_pct", "surface_temp_diff", "transit_reachability_score",
+        "broadband_coverage_pct", "ev_charging_density",
+        "tree_canopy_pct", "transit_reachability_score",
         # Phase 8: More demographic detail + trends
         "property_price_change_pct",
     ]
