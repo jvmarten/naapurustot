@@ -12,7 +12,41 @@ concurrency:
   group: auto-merge-to-main
 
 jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Test
+        run: npm run test
+
+      - name: Build
+        run: npm run build
+
+      - name: Check bundle size
+        run: |
+          JS_SIZE=$(find dist/assets -name '*.js' -exec gzip -c {} \; | wc -c)
+          echo "Total JS bundle (gzipped): $JS_SIZE bytes"
+          if [ "$JS_SIZE" -gt 256000 ]; then
+            echo "::error::JS bundle size exceeds 250KB gzipped budget ($JS_SIZE bytes)"
+            exit 1
+          fi
+
   merge-to-main:
+    needs: ci
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
