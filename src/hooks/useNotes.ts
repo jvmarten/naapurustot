@@ -17,6 +17,7 @@ function saveNotes(notes: Record<string, string>): void {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(notes)); } catch { /* quota exceeded or unavailable */ }
 }
 
+/** Manage per-neighborhood user notes (free text), persisted to localStorage. */
 export function useNotes() {
   const [notes, setNotes] = useState<Record<string, string>>(loadNotes);
 

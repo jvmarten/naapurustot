@@ -1,3 +1,5 @@
+/** Formatting utilities for displaying numbers, currencies, and percentages in Finnish locale. */
+
 function toNum(v: unknown): number | null {
   if (v == null) return null;
   const n = Number(v);
@@ -22,6 +24,7 @@ export function formatPct(v: number | string | null | undefined, decimals = 1): 
   return `${n.toFixed(decimals)} %`;
 }
 
+/** Format the difference between a value and average with a +/- sign. */
 export function formatDiff(value: number | string | null, avg: number | string | null): string {
   const a = toNum(value);
   const b = toNum(avg);
@@ -31,6 +34,7 @@ export function formatDiff(value: number | string | null, avg: number | string |
   return `${sign}${diff.toFixed(1)}`;
 }
 
+/** Return a Tailwind text color class (green or red) based on whether the value beats the average. */
 export function diffColor(value: number | string | null, avg: number | string | null, higherIsBetter = true): string {
   const a = toNum(value);
   const b = toNum(avg);

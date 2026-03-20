@@ -62,6 +62,7 @@ function escapeHtml(str: string): string {
     .replace(/'/g, '&#39;');
 }
 
+/** Export neighborhood stats as a CSV file download (UTF-8 BOM for Excel compatibility). */
 export function exportCsv(d: NeighborhoodProperties, _avg: Record<string, number>): void {
   const stats = collectStats(d);
   const header = `${escapeCsvField(t('export.field'))},${escapeCsvField(t('export.value'))}`;
@@ -77,6 +78,7 @@ export function exportCsv(d: NeighborhoodProperties, _avg: Record<string, number
   URL.revokeObjectURL(url);
 }
 
+/** Generate a styled HTML report in a new window and trigger the browser's print dialog. */
 export function exportPdf(d: NeighborhoodProperties, _avg: Record<string, number>): void {
   const stats = collectStats(d);
   const lang = getLang();

@@ -21,6 +21,7 @@ function writeFavorites(favorites: string[]): void {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(favorites)); } catch { /* quota exceeded or unavailable */ }
 }
 
+/** Manage a list of favorited neighborhood PNOs, persisted to localStorage. */
 export function useFavorites() {
   const [favorites, setFavorites] = useState<string[]>(readFavorites);
 

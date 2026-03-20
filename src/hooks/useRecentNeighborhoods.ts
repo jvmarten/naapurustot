@@ -22,6 +22,7 @@ function saveRecent(entries: RecentEntry[]): void {
   try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(entries)); } catch { /* quota exceeded or unavailable */ }
 }
 
+/** Track recently searched neighborhoods (max 10), persisted to sessionStorage. */
 export function useRecentNeighborhoods() {
   const [recent, setRecent] = useState<RecentEntry[]>(loadRecent);
 

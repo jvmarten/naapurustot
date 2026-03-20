@@ -1,3 +1,8 @@
+/**
+ * Street address geocoding via HSL Digitransit API.
+ * Results are bounded to the Helsinki metro area and cached in memory (LRU, max 100 entries).
+ */
+
 const DIGITRANSIT_URL = 'https://api.digitransit.fi/geocoding/v1/search';
 const MAX_CACHE_SIZE = 100;
 const CACHE = new Map<string, GeocodeResult[]>();
@@ -7,6 +12,7 @@ export interface GeocodeResult {
   coordinates: [number, number]; // [lng, lat]
 }
 
+/** Geocode a street address or place name. Returns up to 5 results within the Helsinki metro bbox. */
 export async function geocodeAddress(query: string): Promise<GeocodeResult[]> {
   if (query.length < 3) return [];
 

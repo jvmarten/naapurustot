@@ -1,3 +1,8 @@
+/**
+ * Minimal i18n system. Translations are flat key-value JSON files loaded at build time.
+ * Language preference is persisted to localStorage. Use `t('key')` to get a localized string.
+ */
+
 import fi from '../locales/fi.json';
 import en from '../locales/en.json';
 
@@ -27,6 +32,7 @@ export function getLang(): Lang {
   return currentLang;
 }
 
+/** Look up a translation by key. Returns the key itself if no translation is found. */
 export function t(key: string): string {
   return translations[key]?.[currentLang] ?? key;
 }

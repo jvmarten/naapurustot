@@ -1,3 +1,12 @@
+/**
+ * Properties attached to each GeoJSON feature representing a postal code area.
+ *
+ * Fields prefixed with `he_`, `ko_`, `hr_`, `pt_`, `ra_`, `te_`, `tp_` come directly
+ * from Statistics Finland's Paavo open data. Derived fields (e.g., `unemployment_rate`,
+ * `quality_index`) are computed client-side after data loading.
+ *
+ * The index signature allows dynamic property access by layer config `property` keys.
+ */
 export interface NeighborhoodProperties {
   pno: string;
   nimi: string;
@@ -427,6 +436,13 @@ function roundTo(value: number, precision: number): number {
   return Math.round(value * factor) / factor;
 }
 
+/**
+ * Compute population-weighted (or household-weighted) metro-wide averages for all metrics.
+ *
+ * Some metrics are ratio-based (e.g., unemployment rate) and need special handling:
+ * raw counts are summed and divided at the end rather than averaging percentages directly.
+ * Data-driven metrics use the METRIC_DEFS config array; adding a new metric is a one-line change.
+ */
 export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string, number> {
   // Accumulators for data-driven metrics
   const totals: Record<string, number> = {};
