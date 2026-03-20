@@ -97,30 +97,6 @@ METRO_BBOX = "60.10,24.50,60.40,25.25"
 # THL Sotkanet API for social/health indicators
 SOTKANET_URL = "https://sotkanet.fi/sotkanet/fi/taulukko"
 
-# Traficom open data — vehicles per postal code
-TRAFICOM_VEHICLES_FILE = Path(__file__).parent / "car_ownership.json"
-
-# HSL travel time matrix data
-COMMUTE_TIME_FILE = Path(__file__).parent / "commute_times.json"
-
-# HSY noise level data
-NOISE_LEVEL_FILE = Path(__file__).parent / "noise_levels.json"
-
-# Building age data (derived from building registry)
-BUILDING_AGE_FILE = Path(__file__).parent / "building_ages.json"
-
-# Energy efficiency data (ARA energy certificate registry)
-ENERGY_CLASS_FILE = Path(__file__).parent / "energy_classes.json"
-
-# Population growth data (year-over-year comparison)
-POPULATION_GROWTH_FILE = Path(__file__).parent / "population_growth.json"
-
-# Income inequality data (Gini coefficients by postal code)
-INCOME_INEQUALITY_FILE = Path(__file__).parent / "income_inequality.json"
-
-# Seniors living alone data (THL Sotkanet)
-SENIORS_ALONE_FILE = Path(__file__).parent / "seniors_alone.json"
-
 # Walkability index (composite score based on amenity/transit/street density)
 WALKABILITY_FILE = Path(__file__).parent / "walkability.json"
 
@@ -1656,30 +1632,6 @@ def main():
     gdf = join_cycling(gdf, cycling_data)
 
     # --- Phase 3: JSON file-based data sources ---
-    noise_data = _load_json_data(NOISE_LEVEL_FILE, "noise levels")
-    gdf = _join_simple_data(gdf, noise_data, "noise_level", "noise levels")
-
-    building_data = _load_json_data(BUILDING_AGE_FILE, "building ages")
-    gdf = _join_simple_data(gdf, building_data, "avg_building_year", "building ages")
-
-    energy_data = _load_json_data(ENERGY_CLASS_FILE, "energy classes")
-    gdf = _join_simple_data(gdf, energy_data, "energy_efficiency", "energy classes")
-
-    growth_data = _load_json_data(POPULATION_GROWTH_FILE, "population growth")
-    gdf = _join_simple_data(gdf, growth_data, "population_growth_pct", "population growth")
-
-    inequality_data = _load_json_data(INCOME_INEQUALITY_FILE, "income inequality")
-    gdf = _join_simple_data(gdf, inequality_data, "gini_coefficient", "income inequality")
-
-    seniors_data = _load_json_data(SENIORS_ALONE_FILE, "seniors living alone")
-    gdf = _join_simple_data(gdf, seniors_data, "seniors_alone_pct", "seniors living alone")
-
-    car_data = _load_json_data(TRAFICOM_VEHICLES_FILE, "car ownership")
-    gdf = _join_simple_data(gdf, car_data, "cars_per_household", "car ownership")
-
-    commute_data = _load_json_data(COMMUTE_TIME_FILE, "commute times")
-    gdf = _join_simple_data(gdf, commute_data, "avg_commute_min", "commute times")
-
     walkability_data = _load_json_data(WALKABILITY_FILE, "walkability")
     gdf = _join_simple_data(gdf, walkability_data, "walkability_index", "walkability")
 
@@ -1767,10 +1719,8 @@ def main():
         "healthcare_density", "restaurant_density", "grocery_density",
         "cycling_density",
         # File-based
-        "foreign_language_pct", "crime_index", "noise_level",
-        "avg_building_year", "energy_efficiency", "population_growth_pct",
-        "gini_coefficient", "seniors_alone_pct", "cars_per_household",
-        "avg_commute_min", "walkability_index", "kela_benefit_pct",
+        "foreign_language_pct", "crime_index",
+        "walkability_index", "kela_benefit_pct",
         "rental_price_sqm", "avg_taxable_income",
         "obesity_rate", "life_expectancy",
         # Phase 6: new metrics

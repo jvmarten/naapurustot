@@ -121,7 +121,6 @@ function scoreNeighborhoods(
   };
 
   const transitRange = range('transit_stop_density');
-  const noiseRange = range('noise_level');
   const restaurantRange = range('restaurant_density');
   const aptSizeRange = range('ra_as_kpa');
   const childRange = range('child_ratio');
@@ -152,15 +151,13 @@ function scoreNeighborhoods(
 
     // --- Quiet vs lively ---
     if (answers.quietPreference === 'quiet') {
-      const noiseScore = 1 - normalize(p.noise_level, noiseRange.min, noiseRange.max);
       const restaurantInv = 1 - normalize(p.restaurant_density, restaurantRange.min, restaurantRange.max);
-      score += (noiseScore * 1.5 + restaurantInv * 0.5);
+      score += restaurantInv * 2;
       totalWeight += 2;
-      if (noiseScore > 0.7) reasons.push(t('wizard.reason_quiet'));
+      if (restaurantInv > 0.7) reasons.push(t('wizard.reason_quiet'));
     } else if (answers.quietPreference === 'lively') {
       const restaurantScore = normalize(p.restaurant_density, restaurantRange.min, restaurantRange.max);
-      const noiseAccept = normalize(p.noise_level, noiseRange.min, noiseRange.max);
-      score += (restaurantScore * 1.5 + noiseAccept * 0.5);
+      score += restaurantScore * 2;
       totalWeight += 2;
       if (restaurantScore > 0.7) reasons.push(t('wizard.reason_lively'));
     } else {
