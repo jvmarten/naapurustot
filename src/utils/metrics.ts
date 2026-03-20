@@ -41,7 +41,6 @@ export interface NeighborhoodProperties {
   transit_stop_density: number | null;
   air_quality_index: number | null;
   crime_index: number | null;
-  green_space_pct: number | null;
   daycare_density: number | null;
   school_density: number | null;
   healthcare_density: number | null;
@@ -315,25 +314,23 @@ export const METRIC_SOURCES: Record<string, MetricSource> = {
   daycare_density: { source: 'OpenStreetMap', year: 2024 },
   school_density: { source: 'OpenStreetMap', year: 2024 },
   healthcare_density: { source: 'OpenStreetMap', year: 2024 },
-  green_space_pct: { source: 'OpenStreetMap', year: 2024 },
-
   // Mobility
   cycling_density: { source: 'OpenStreetMap', year: 2024 },
 
   // Phase 7: Voting & Political
-  voter_turnout_pct: { source: 'Tilastokeskus / Oikeusministeriö', year: 2023 },
-  party_diversity_index: { source: 'Tilastokeskus / Oikeusministeriö', year: 2023 },
+  voter_turnout_pct: { source: 'Tilastokeskus (kuntavaalit)', year: 2025 },
+  party_diversity_index: { source: 'Tilastokeskus (kuntavaalit)', year: 2025 },
 
 
   // Internet & Connectivity
   broadband_coverage_pct: { source: 'Traficom', year: 2024 },
-  ev_charging_density: { source: 'Traficom / OpenStreetMap', year: 2024 },
+  ev_charging_density: { source: 'OpenStreetMap', year: 2025 },
 
   // Tree Canopy / Urban Heat Island
-  tree_canopy_pct: { source: 'HSY (LiDAR)', year: 2023 },
+  tree_canopy_pct: { source: 'HSY (LiDAR maanpeite)', year: 2024 },
 
   // Accessibility
-  transit_reachability_score: { source: 'HSL (matka-aikamatriisi)', year: 2024 },
+  transit_reachability_score: { source: 'HSL / johdettu', year: 2025 },
 
   // Phase 8: More demographic detail + trends
   employment_rate: { source: 'Tilastokeskus (Paavo)', year: 2024 },
@@ -363,7 +360,6 @@ const METRIC_DEFS: MetricDef[] = [
   { property: 'transit_stop_density', weight: 'population', precision: 1 },
   { property: 'air_quality_index', weight: 'population', precision: 1 },
   { property: 'crime_index', weight: 'population', precision: 1 },
-  { property: 'green_space_pct', weight: 'population', precision: 1 },
 
   // Services
   { property: 'daycare_density', weight: 'population', precision: 1 },

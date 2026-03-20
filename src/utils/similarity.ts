@@ -19,7 +19,6 @@ const SIMILARITY_METRICS: (keyof NeighborhoodProperties)[] = [
   'transit_stop_density',
   'property_price_sqm',
   'crime_index',
-  'green_space_pct',
   'population_density',
   'child_ratio',
 ];

@@ -43,14 +43,6 @@ const AXES: AxisDef[] = [
     inverted: false,
   },
   {
-    key: 'radar.green_space',
-    extract: (p) => p.green_space_pct,
-    extractAvg: (a) => a.green_space_pct,
-    min: 0,
-    max: 95,
-    inverted: false,
-  },
-  {
     key: 'radar.education',
     extract: (p) => p.higher_education_rate,
     extractAvg: (a) => a.higher_education_rate,

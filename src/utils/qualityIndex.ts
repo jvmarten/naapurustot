@@ -3,14 +3,13 @@ import type { NeighborhoodProperties } from './metrics';
 /**
  * Computes a composite Quality Index (0–100) for each neighborhood.
  *
- * Default primary factors (9):
+ * Default primary factors (8):
  *   - Safety (crime rate, inverted) — 25%
  *   - Income (median income) — 20%
  *   - Employment (unemployment, inverted) — 20%
  *   - Education (higher education rate) — 15%
  *   - Transit access — 7%
  *   - Services (healthcare, school, daycare, grocery) — 5%
- *   - Green spaces — 3%
  *   - Air quality (inverted) — 3%
  *   - Quietness (noise level, inverted) — 2%
  *
@@ -95,14 +94,6 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     label: { fi: 'Palvelut', en: 'Services' },
     defaultWeight: 5,
     properties: ['healthcare_density', 'school_density', 'daycare_density', 'grocery_density'],
-    invert: false,
-    primary: true,
-  },
-  {
-    id: 'green_space',
-    label: { fi: 'Viheralueet', en: 'Green Spaces' },
-    defaultWeight: 3,
-    properties: ['green_space_pct'],
     invert: false,
     primary: true,
   },

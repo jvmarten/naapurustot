@@ -273,7 +273,6 @@ const FILTER_PRESETS: FilterPreset[] = [
     criteria: [
       { layerId: 'child_ratio', min: 6, max: 20 },
       { layerId: 'daycare_density', min: 2, max: 20 },
-      { layerId: 'green_space', min: 20, max: 90 },
     ],
   },
   {

@@ -513,13 +513,6 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             diffClass={diffColor(d.healthcare_density, avg.healthcare_density)}
             property="healthcare_density"
           />
-          <StatRow
-            label={t('panel.green_space')}
-            value={formatStopDensity(d.green_space_pct)}
-            diff={formatDiff(d.green_space_pct, avg.green_space_pct)}
-            diffClass={diffColor(d.green_space_pct, avg.green_space_pct)}
-            property="green_space_pct"
-          />
         </div>
       </CollapsibleSection>
 

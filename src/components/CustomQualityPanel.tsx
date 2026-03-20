@@ -63,7 +63,6 @@ const FACTOR_COLORS: Record<string, string> = {
   education: '#a855f7',
   transit: '#f59e0b',
   services: '#ec4899',
-  green_space: '#10b981',
   air_quality: '#06b6d4',
   cycling: '#84cc16',
   grocery_access: '#0ea5e9',
