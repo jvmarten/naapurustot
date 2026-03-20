@@ -2,8 +2,8 @@ name: Auto-merge to main
 
 on:
   push:
-    branches-ignore:
-      - main
+    branches:
+      - 'claude/**'
 
 permissions:
   contents: write
