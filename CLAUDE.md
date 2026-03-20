@@ -39,6 +39,10 @@ npm run lint       # ESLint
 4. Add Finnish and English labels to both `src/locales/fi.json` and `src/locales/en.json`
 5. Include the data in `public/data/metro_neighborhoods.geojson` (via `scripts/prepare_data.py`)
 
+## Data integrity
+
+**All data must come from real, verifiable sources.** Never generate, fabricate, or use placeholder/fake data — not in the GeoJSON dataset, not in the data pipeline, and not as temporary stand-ins. If real data is not yet available for a metric or area, leave it out entirely rather than filling in synthetic values. Every value shown on the map must trace back to an actual data source (e.g., Statistics Finland, HSL, Helsinki Region Infoshare, OpenStreetMap).
+
 ## Data granularity
 
 We want the lowest-level data possible. The minimum acceptable granularity is **postal code level**, but whenever a data source offers finer resolution (e.g., 250 m × 250 m grid cells, building-level, block-level, or coordinate-level data), prefer and integrate that instead. When evaluating new data sources or extending existing ones, always check whether a sub-postal-code breakdown is available.
