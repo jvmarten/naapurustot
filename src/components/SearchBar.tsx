@@ -39,15 +39,10 @@ export const SearchBar: React.FC<SearchBarProps> = ({ data, onSelect, recent = [
     return { results: matched.slice(0, 8), totalCount: matched.length };
   }, [data, query]);
 
-  // CF-1: Debounced address geocoding — trigger when query looks like an address
+  // CF-1: Debounced address geocoding — always search for streets/addresses alongside neighborhoods
   useEffect(() => {
     if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current);
     if (query.length < 3 || /^\d{5}$/.test(query.trim())) {
-      setAddressResults([]);
-      return;
-    }
-    // Only geocode if neighborhood results are few (likely an address query)
-    if (results.length > 3) {
       setAddressResults([]);
       return;
     }
@@ -56,7 +51,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ data, onSelect, recent = [
       setAddressResults(res);
     }, 300);
     return () => { if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current); };
-  }, [query, results.length]);
+  }, [query]);
 
   // CF-1: Find which neighborhood contains a geocoded point
   function findNeighborhoodForPoint(coords: [number, number]): GeoJSON.Feature | null {
