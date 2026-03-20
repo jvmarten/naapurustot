@@ -14,10 +14,6 @@ import type { NeighborhoodProperties } from './metrics';
  *   - Quietness (noise level, inverted) — 2%
  *
  * Additional factors available via "Show more":
- *   - Walkability
- *   - School quality
- *   - Life expectancy
- *   - Commute time (inverted)
  *   - Cycling infrastructure
  *   - Grocery access
  *   - Restaurant density
@@ -110,30 +106,6 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     primary: true,
   },
   // --- Secondary factors: hidden by default, available via "Show more" ---
-  {
-    id: 'walkability',
-    label: { fi: 'Käveltävyys', en: 'Walkability' },
-    defaultWeight: 0,
-    properties: ['walkability_index'],
-    invert: false,
-    primary: false,
-  },
-  {
-    id: 'school_quality',
-    label: { fi: 'Koulujen laatu', en: 'School Quality' },
-    defaultWeight: 0,
-    properties: ['school_quality_score'],
-    invert: false,
-    primary: false,
-  },
-  {
-    id: 'life_expectancy',
-    label: { fi: 'Elinajanodote', en: 'Life Expectancy' },
-    defaultWeight: 0,
-    properties: ['life_expectancy'],
-    invert: false,
-    primary: false,
-  },
   {
     id: 'cycling',
     label: { fi: 'Pyöräilyinfra', en: 'Cycling Infrastructure' },

@@ -116,18 +116,6 @@ const formatStopDensity = (v: number | string | null | undefined): string => {
 };
 
 
-const formatScore = (v: number | string | null | undefined): string => {
-  const n = toNum(v);
-  if (n == null) return '—';
-  return `${n.toFixed(0)}/100`;
-};
-
-const formatRent = (v: number | string | null | undefined): string => {
-  const n = toNum(v);
-  if (n == null) return '—';
-  return `${n.toFixed(2)} €/m²/kk`;
-};
-
 // PO-2: Collapsible section component
 const CollapsibleSection: React.FC<{
   title: string;
@@ -352,13 +340,6 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             property="hr_mtu"
           />
           <StatRow
-            label={t('panel.taxable_income')}
-            value={formatEuro(d.avg_taxable_income)}
-            diff={formatDiff(d.avg_taxable_income, avg.avg_taxable_income)}
-            diffClass={diffColor(d.avg_taxable_income, avg.avg_taxable_income)}
-            property="avg_taxable_income"
-          />
-          <StatRow
             label={t('panel.unemployment')}
             value={formatPct(animatedUnemployment)}
             diff={formatDiff(d.unemployment_rate, avg.unemployment_rate)}
@@ -401,13 +382,6 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             diff={formatDiff(d.ra_as_kpa, avg.ra_as_kpa)}
             diffClass={diffColor(d.ra_as_kpa, avg.ra_as_kpa)}
             property="ra_as_kpa"
-          />
-          <StatRow
-            label={t('panel.rental_price')}
-            value={formatRent(d.rental_price_sqm)}
-            diff={formatDiff(d.rental_price_sqm, avg.rental_price_sqm)}
-            diffClass={diffColor(d.rental_price_sqm, avg.rental_price_sqm)}
-            property="rental_price_sqm"
           />
           <StatRow
             label={t('panel.detached_houses')}
@@ -471,13 +445,6 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
       <CollapsibleSection title={t('panel.quality_of_life')}>
         <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
           <StatRow
-            label={t('panel.walkability')}
-            value={formatScore(d.walkability_index)}
-            diff={formatDiff(d.walkability_index, avg.walkability_index)}
-            diffClass={diffColor(d.walkability_index, avg.walkability_index)}
-            property="walkability_index"
-          />
-          <StatRow
             label={t('panel.property_price')}
             value={formatEuroSqm(animatedPropertyPrice)}
             diff={formatDiff(d.property_price_sqm, avg.property_price_sqm)}
@@ -540,31 +507,11 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             property="school_density"
           />
           <StatRow
-            label={t('panel.school_quality')}
-            value={d.school_quality_score != null ? Number(d.school_quality_score).toFixed(1) : '—'}
-            diff={formatDiff(d.school_quality_score, avg.school_quality_score)}
-            diffClass={diffColor(d.school_quality_score, avg.school_quality_score)}
-            property="school_quality_score"
-          />
-          <StatRow
             label={t('panel.healthcare_access')}
             value={formatStopDensity(d.healthcare_density)}
             diff={formatDiff(d.healthcare_density, avg.healthcare_density)}
             diffClass={diffColor(d.healthcare_density, avg.healthcare_density)}
             property="healthcare_density"
-          />
-        </div>
-      </CollapsibleSection>
-
-      {/* Environment section — PO-2: collapsible */}
-      <CollapsibleSection title={t('layers.environment')}>
-        <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
-          <StatRow
-            label={t('panel.light_pollution')}
-            value={d.light_pollution != null ? Number(d.light_pollution).toFixed(1) : '—'}
-            diff={formatDiff(d.light_pollution, avg.light_pollution)}
-            diffClass={diffColor(d.light_pollution, avg.light_pollution, false)}
-            property="light_pollution"
           />
         </div>
       </CollapsibleSection>
@@ -579,40 +526,6 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             diffClass={diffColor(d.cycling_density, avg.cycling_density)}
             property="cycling_density"
           />
-          <StatRow
-            label={t('panel.traffic_accidents')}
-            value={d.traffic_accident_density != null ? `${Number(d.traffic_accident_density).toFixed(1)} /km` : '—'}
-            diff={formatDiff(d.traffic_accident_density, avg.traffic_accident_density)}
-            diffClass={diffColor(d.traffic_accident_density, avg.traffic_accident_density, false)}
-            property="traffic_accident_density"
-          />
-        </div>
-      </CollapsibleSection>
-
-      {/* Health section — PO-2: collapsible */}
-      <CollapsibleSection title={t('layers.health')}>
-        <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
-          <StatRow
-            label={t('panel.obesity_rate')}
-            value={d.obesity_rate != null ? `${Number(d.obesity_rate).toFixed(1)} %` : '—'}
-            diff={formatDiff(d.obesity_rate, avg.obesity_rate)}
-            diffClass={diffColor(d.obesity_rate, avg.obesity_rate, false)}
-            property="obesity_rate"
-          />
-          <StatRow
-            label={t('panel.life_expectancy')}
-            value={d.life_expectancy != null ? `${Number(d.life_expectancy).toFixed(1)}` : '—'}
-            diff={formatDiff(d.life_expectancy, avg.life_expectancy)}
-            diffClass={diffColor(d.life_expectancy, avg.life_expectancy)}
-            property="life_expectancy"
-          />
-          <StatRow
-            label={t('panel.mental_health')}
-            value={d.mental_health_pct != null ? `${Number(d.mental_health_pct).toFixed(1)} %` : '—'}
-            diff={formatDiff(d.mental_health_pct, avg.mental_health_pct)}
-            diffClass={diffColor(d.mental_health_pct, avg.mental_health_pct, false)}
-            property="mental_health_pct"
-          />
         </div>
       </CollapsibleSection>
 
@@ -623,48 +536,6 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             label={t('panel.single_person_hh')}
             value={formatPct(d.single_person_hh_pct)}
             property="single_person_hh_pct"
-          />
-          <StatRow
-            label={t('panel.kela_benefits')}
-            value={formatPct(d.kela_benefit_pct)}
-            diff={formatDiff(d.kela_benefit_pct, avg.kela_benefit_pct)}
-            diffClass={diffColor(d.kela_benefit_pct, avg.kela_benefit_pct, false)}
-            property="kela_benefit_pct"
-          />
-          <StatRow
-            label={t('panel.net_migration')}
-            value={formatPct(d.net_migration_pct)}
-            diff={formatDiff(d.net_migration_pct, avg.net_migration_pct)}
-            diffClass={diffColor(d.net_migration_pct, avg.net_migration_pct)}
-            property="net_migration_pct"
-          />
-          <StatRow
-            label={t('panel.neighborhood_stability')}
-            value={d.avg_residency_years != null ? `${Number(d.avg_residency_years).toFixed(1)} v` : '—'}
-            diff={formatDiff(d.avg_residency_years, avg.avg_residency_years)}
-            diffClass={diffColor(d.avg_residency_years, avg.avg_residency_years)}
-            property="avg_residency_years"
-          />
-          <StatRow
-            label={t('panel.household_debt')}
-            value={d.median_household_debt != null ? `${Number(d.median_household_debt).toLocaleString('fi-FI')} €` : '—'}
-            diff={formatDiff(d.median_household_debt, avg.median_household_debt)}
-            diffClass={diffColor(d.median_household_debt, avg.median_household_debt)}
-            property="median_household_debt"
-          />
-          <StatRow
-            label={t('panel.price_to_rent')}
-            value={d.price_to_rent_ratio != null ? `${Number(d.price_to_rent_ratio).toFixed(1)}x` : '—'}
-            diff={formatDiff(d.price_to_rent_ratio, avg.price_to_rent_ratio)}
-            diffClass={diffColor(d.price_to_rent_ratio, avg.price_to_rent_ratio)}
-            property="price_to_rent_ratio"
-          />
-          <StatRow
-            label={t('panel.property_price_change')}
-            value={formatPct(d.property_price_change_pct)}
-            diff={formatDiff(d.property_price_change_pct, avg.property_price_change_pct)}
-            diffClass={diffColor(d.property_price_change_pct, avg.property_price_change_pct)}
-            property="property_price_change_pct"
           />
           <StatRow
             label={t('panel.new_construction')}

@@ -66,14 +66,6 @@ const AXES: AxisDef[] = [
     inverted: false,
   },
   {
-    key: 'radar.walkability',
-    extract: (p) => p.walkability_index,
-    extractAvg: (a) => a.walkability_index,
-    min: 20,
-    max: 90,
-    inverted: false,
-  },
-  {
     key: 'radar.housing',
     extract: (p) => p.property_price_sqm,
     extractAvg: (a) => a.property_price_sqm,

@@ -48,20 +48,6 @@ export interface NeighborhoodProperties {
   cycling_density: number | null;
   restaurant_density: number | null;
   grocery_density: number | null;
-  walkability_index: number | null;
-  kela_benefit_pct: number | null;
-  rental_price_sqm: number | null;
-  avg_taxable_income: number | null;
-  obesity_rate: number | null;
-  life_expectancy: number | null;
-  school_quality_score: number | null;
-  median_household_debt: number | null;
-  price_to_rent_ratio: number | null;
-  light_pollution: number | null;
-  mental_health_pct: number | null;
-  net_migration_pct: number | null;
-  avg_residency_years: number | null;
-  traffic_accident_density: number | null;
   // Historical time-series data (JSON-encoded arrays of [year, value] pairs)
   income_history: string | null;
   population_history: string | null;
@@ -91,7 +77,6 @@ export interface NeighborhoodProperties {
   manufacturing_jobs_pct: number | null;
   public_sector_jobs_pct: number | null;
   service_sector_jobs_pct: number | null;
-  property_price_change_pct: number | null;
   new_construction_pct: number | null;
   // Raw Paavo fields used for quick win computations
   he_naiset: number | null;
@@ -301,13 +286,9 @@ export const METRIC_SOURCES: Record<string, MetricSource> = {
   // Economy
   hr_mtu: { source: 'Tilastokeskus (Paavo)', year: 2024 },
   hr_ktu: { source: 'Tilastokeskus (Paavo)', year: 2024 },
-  avg_taxable_income: { source: 'Verohallinto', year: 2023 },
   unemployment_rate: { source: 'Tilastokeskus (Paavo)', year: 2024 },
   higher_education_rate: { source: 'Tilastokeskus (Paavo)', year: 2024 },
   property_price_sqm: { source: 'Tilastokeskus (PxWeb)', year: 2024 },
-  rental_price_sqm: { source: 'Tilastokeskus / ARA', year: 2024 },
-  median_household_debt: { source: 'Tilastokeskus', year: 2023 },
-  price_to_rent_ratio: { source: 'johdettu', year: 2024 },
 
   // Demographics
   he_vakiy: { source: 'Tilastokeskus (Paavo)', year: 2024 },
@@ -315,10 +296,7 @@ export const METRIC_SOURCES: Record<string, MetricSource> = {
   population_density: { source: 'Tilastokeskus (Paavo)', year: 2024 },
   child_ratio: { source: 'Tilastokeskus (Paavo)', year: 2024 },
   student_share: { source: 'Tilastokeskus (Paavo)', year: 2024 },
-  net_migration_pct: { source: 'Tilastokeskus', year: 2023 },
   single_person_hh_pct: { source: 'Tilastokeskus', year: 2023 },
-  avg_residency_years: { source: 'Tilastokeskus', year: 2023 },
-  kela_benefit_pct: { source: 'Kela', year: 2023 },
 
   // Housing
   ownership_rate: { source: 'Tilastokeskus (Paavo)', year: 2024 },
@@ -326,27 +304,18 @@ export const METRIC_SOURCES: Record<string, MetricSource> = {
   ra_as_kpa: { source: 'Tilastokeskus (Paavo)', year: 2024 },
   detached_house_share: { source: 'Tilastokeskus (Paavo)', year: 2024 },
   // Quality of life
-  walkability_index: { source: 'johdettu (OSM + HSL)', year: 2024 },
   transit_stop_density: { source: 'HSL (Digitransit)', year: 2024 },
   air_quality_index: { source: 'HSY', year: 2024 },
   crime_index: { source: 'Poliisi', year: 2023 },
-  light_pollution: { source: 'FMI / satelliitti', year: 2023 },
 
   // Services
   restaurant_density: { source: 'OpenStreetMap', year: 2024 },
   grocery_density: { source: 'OpenStreetMap', year: 2024 },
   daycare_density: { source: 'OpenStreetMap', year: 2024 },
   school_density: { source: 'OpenStreetMap', year: 2024 },
-  school_quality_score: { source: 'YTL', year: 2023 },
   healthcare_density: { source: 'OpenStreetMap', year: 2024 },
   // Mobility
   cycling_density: { source: 'OpenStreetMap', year: 2024 },
-  traffic_accident_density: { source: 'Traficom / Digiroad', year: 2023 },
-
-  // Health
-  obesity_rate: { source: 'THL (FinSote)', year: 2023 },
-  life_expectancy: { source: 'THL / Tilastokeskus', year: 2023 },
-  mental_health_pct: { source: 'THL (Sotkanet)', year: 2023 },
 
   // Phase 7: Voting & Political
   voter_turnout_pct: { source: 'Tilastokeskus (kuntavaalit)', year: 2025 },
@@ -370,7 +339,6 @@ export const METRIC_SOURCES: Record<string, MetricSource> = {
   manufacturing_jobs_pct: { source: 'Tilastokeskus (Paavo)', year: 2024 },
   public_sector_jobs_pct: { source: 'Tilastokeskus (Paavo)', year: 2024 },
   service_sector_jobs_pct: { source: 'Tilastokeskus (Paavo)', year: 2024 },
-  property_price_change_pct: { source: 'Tilastokeskus (PxWeb)', year: '2019–2024' },
   new_construction_pct: { source: 'Tilastokeskus (Paavo)', year: 2024 },
 
   // Quick wins (from existing Paavo data)
@@ -385,19 +353,13 @@ export const METRIC_SOURCES: Record<string, MetricSource> = {
 const METRIC_DEFS: MetricDef[] = [
   // Economy
   { property: 'hr_mtu', weight: 'population', precision: 0, requirePositive: true },
-  { property: 'avg_taxable_income', weight: 'population', precision: 0, requirePositive: true },
   { property: 'property_price_sqm', weight: 'population', precision: 0, requirePositive: true },
   { property: 'ra_as_kpa', weight: 'population', precision: 1, requirePositive: true },
-  { property: 'rental_price_sqm', weight: 'population', precision: 2 },
-  { property: 'median_household_debt', weight: 'population', precision: 0 },
-  { property: 'price_to_rent_ratio', weight: 'population', precision: 1 },
 
   // Quality of life
   { property: 'transit_stop_density', weight: 'population', precision: 1 },
   { property: 'air_quality_index', weight: 'population', precision: 1 },
   { property: 'crime_index', weight: 'population', precision: 1 },
-  { property: 'walkability_index', weight: 'population', precision: 1 },
-  { property: 'light_pollution', weight: 'population', precision: 1 },
 
   // Services
   { property: 'daycare_density', weight: 'population', precision: 1 },
@@ -405,23 +367,13 @@ const METRIC_DEFS: MetricDef[] = [
   { property: 'healthcare_density', weight: 'population', precision: 1 },
   { property: 'restaurant_density', weight: 'population', precision: 1 },
   { property: 'grocery_density', weight: 'population', precision: 1 },
-  { property: 'school_quality_score', weight: 'population', precision: 1 },
 
   // Demographics
-  { property: 'kela_benefit_pct', weight: 'population', precision: 1 },
-  { property: 'net_migration_pct', weight: 'population', precision: 1 },
-  { property: 'avg_residency_years', weight: 'population', precision: 1 },
   { property: 'foreign_language_pct', weight: 'population', precision: 1, pctOfPop: true },
   { property: 'single_person_hh_pct', weight: 'household', precision: 1, pctOfHh: true },
 
   // Mobility
   { property: 'cycling_density', weight: 'population', precision: 1 },
-  { property: 'traffic_accident_density', weight: 'population', precision: 1 },
-
-  // Health
-  { property: 'obesity_rate', weight: 'population', precision: 1 },
-  { property: 'life_expectancy', weight: 'population', precision: 1 },
-  { property: 'mental_health_pct', weight: 'population', precision: 1 },
 
   // Phase 7: New layers
   { property: 'voter_turnout_pct', weight: 'population', precision: 1 },
@@ -442,7 +394,6 @@ const METRIC_DEFS: MetricDef[] = [
   { property: 'manufacturing_jobs_pct', weight: 'population', precision: 1 },
   { property: 'public_sector_jobs_pct', weight: 'population', precision: 1 },
   { property: 'service_sector_jobs_pct', weight: 'population', precision: 1 },
-  { property: 'property_price_change_pct', weight: 'population', precision: 1 },
   { property: 'new_construction_pct', weight: 'population', precision: 1 },
 ];
 

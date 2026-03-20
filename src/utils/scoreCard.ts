@@ -17,7 +17,6 @@ const METRICS = [
   { key: 'hr_mtu', label: 'panel.median_income', format: formatEuro },
   { key: 'unemployment_rate', label: 'panel.unemployment', format: (v: number | null) => formatPct(v) },
   { key: 'property_price_sqm', label: 'panel.property_price', format: (v: number | null) => v != null ? `${v.toLocaleString('fi-FI')} €/m²` : '—' },
-  { key: 'walkability_index', label: 'panel.walkability', format: (v: number | null) => v != null ? `${v.toFixed(0)}/100` : '—' },
   { key: 'transit_stop_density', label: 'panel.transit_access', format: (v: number | null) => v != null ? `${v.toFixed(1)} /km²` : '—' },
 ] as const;
 
