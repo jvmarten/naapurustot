@@ -55,7 +55,10 @@ export type LayerId =
   | 'rental_price'
   | 'price_to_rent'
   | 'walkability'
-  | 'traffic_accidents';
+  | 'traffic_accidents'
+  | 'property_price_change'
+  | 'school_quality'
+  | 'light_pollution';
 
 export interface LayerConfig {
   id: LayerId;
@@ -551,6 +554,33 @@ export const LAYERS: LayerConfig[] = [
     colors: ['#f7fcf5', '#d5efcf', '#a1d99b', '#74c476', '#f9d057', '#fd8d3c', '#e5533d', '#b00026'],
     stops: [0.5, 1, 2, 3, 5, 8, 12, 20],
     format: perThousand,
+  },
+  {
+    id: 'property_price_change',
+    labelKey: 'layer.property_price_change',
+    property: 'property_price_change_pct',
+    unit: '%',
+    colors: ['#b2182b', '#d6604d', '#f4a582', '#fddbc7', '#d1e5f0', '#92c5de', '#4393c3', '#2166ac'],
+    stops: [-30, -20, -10, 0, 5, 10, 20, 40],
+    format: pct,
+  },
+  {
+    id: 'school_quality',
+    labelKey: 'layer.school_quality',
+    property: 'school_quality_score',
+    unit: '/100',
+    colors: ['#67001f', '#b2182b', '#d6604d', '#f4a582', '#d1e5f0', '#92c5de', '#4393c3', '#2166ac'],
+    stops: [30, 40, 50, 55, 60, 65, 70, 80],
+    format: score,
+  },
+  {
+    id: 'light_pollution',
+    labelKey: 'layer.light_pollution',
+    property: 'light_pollution',
+    unit: '/km²',
+    colors: ['#000004', '#1b0c41', '#4a0c6b', '#781c6d', '#a52c60', '#cf4446', '#ed6925', '#fcffa4'],
+    stops: [5, 20, 50, 100, 150, 250, 400, 550],
+    format: density,
   },
 ];
 
