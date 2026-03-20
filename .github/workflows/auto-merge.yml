@@ -10,9 +10,35 @@ permissions:
 
 concurrency:
   group: auto-merge-to-main
+  cancel-in-progress: false
 
 jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Test
+        run: npm run test
+
+      - name: Build
+        run: npm run build
+
   merge-to-main:
+    needs: ci
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -25,7 +51,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          for attempt in 1 2 3; do
+          backoff=2
+          for attempt in 1 2 3 4 5; do
             git fetch origin main
             git checkout main
             git reset --hard origin/main
@@ -35,8 +62,9 @@ jobs:
                 echo "Merge and push succeeded on attempt $attempt"
                 exit 0
               else
-                echo "Push failed on attempt $attempt (main moved), retrying..."
-                sleep 2
+                echo "Push failed on attempt $attempt (main moved), retrying in ${backoff}s..."
+                sleep $backoff
+                backoff=$((backoff * 2))
               fi
             else
               echo "Merge conflict on attempt $attempt"
@@ -45,7 +73,7 @@ jobs:
             fi
           done
 
-          echo "Failed after 3 attempts"
+          echo "Failed after 5 attempts"
           exit 1
 
       - name: Delete merged branch
