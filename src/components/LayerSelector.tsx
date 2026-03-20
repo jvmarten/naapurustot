@@ -16,7 +16,7 @@ type LayerGroup = {
 };
 
 const LAYER_GROUPS: LayerGroup[] = [
-  { labelKey: 'layers.quality', ids: ['quality_index', 'walkability', 'transit_access', 'transit_reachability', 'air_quality', 'noise_level', 'light_pollution', 'water_quality'] },
+  { labelKey: 'layers.quality', ids: ['walkability', 'transit_access', 'transit_reachability', 'air_quality', 'noise_level', 'light_pollution', 'water_quality'] },
   { labelKey: 'layers.trends', ids: ['income_change', 'population_change', 'unemployment_change'] },
   { labelKey: 'layers.demographics', ids: ['avg_age', 'population_density', 'child_ratio', 'youth_ratio', 'gender_ratio', 'student_share', 'foreign_lang', 'pensioners', 'population_growth', 'net_migration', 'single_person_hh', 'single_parent_hh', 'families_with_children', 'seniors_alone', 'neighborhood_stability', 'kela_benefits'] },
   { labelKey: 'layers.economy', ids: ['median_income', 'taxable_income', 'unemployment', 'education', 'property_price', 'rental_price', 'price_to_rent', 'income_inequality', 'household_debt', 'tech_sector_jobs', 'healthcare_workers'] },
@@ -108,6 +108,60 @@ export const LayerSelector: React.FC<LayerSelectorProps> = ({ activeLayer, onLay
                      focus:outline-none focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/30"
         />
       </div>
+      {/* Standalone quality index — always visible at the top */}
+      {(() => {
+        const qLayer = LAYERS.find((l) => l.id === 'quality_index');
+        if (!qLayer) return null;
+        if (searchQuery && !t(qLayer.labelKey).toLowerCase().includes(searchQuery)) return null;
+        const isActive = qLayer.id === activeLayer;
+        const showEditBtn = qLayer.id === 'quality_index' && onCustomizeQuality;
+        return (
+          <div className="flex items-center gap-0.5 mb-1">
+            <button
+              onClick={() => {
+                onLayerChange(qLayer.id);
+                setMobileOpen(false);
+              }}
+              role="option"
+              aria-selected={isActive}
+              tabIndex={isActive ? 0 : -1}
+              className={`flex-1 text-left px-3 py-2.5 md:py-1.5 rounded-lg text-sm transition-all duration-150 min-h-[44px] md:min-h-0 ${
+                isActive
+                  ? 'bg-brand-500/15 dark:bg-brand-600/20 text-brand-600 dark:text-brand-300 font-medium'
+                  : 'text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800/60 hover:text-surface-900 dark:hover:text-white'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <div
+                  className="w-3 h-3 md:w-2.5 md:h-2.5 rounded-full flex-shrink-0"
+                  style={{
+                    backgroundColor: isActive ? qLayer.colors[5] || qLayer.colors[3] : '#94a3b8',
+                  }}
+                />
+                {t(qLayer.labelKey)}
+              </div>
+            </button>
+            {showEditBtn && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCustomizeQuality!();
+                }}
+                className={`flex-shrink-0 p-1.5 rounded-lg transition-colors min-h-[44px] md:min-h-0 min-w-[32px] flex items-center justify-center ${
+                  isCustomWeights
+                    ? 'text-brand-500 dark:text-brand-400 hover:bg-brand-500/15'
+                    : 'text-surface-400 dark:text-surface-500 hover:text-surface-600 dark:hover:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800/60'
+                }`}
+                title={t('custom_quality.button')}
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                </svg>
+              </button>
+            )}
+          </div>
+        );
+      })()}
       {LAYER_GROUPS.map((group) => {
         const groupLayers = group.ids
           .map((id) => LAYERS.find((l) => l.id === id))
