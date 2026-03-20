@@ -57,8 +57,12 @@ const App: React.FC = () => {
   const [fillOpacity, setFillOpacity] = useState(() => {
     try {
       const saved = localStorage.getItem('naapurustot-fill-opacity');
-      return saved !== null ? Number(saved) : 1;
-    } catch { return 1; }
+      if (saved !== null) {
+        const n = Number(saved);
+        if (isFinite(n) && n >= 0 && n <= 1) return n;
+      }
+    } catch { /* localStorage unavailable */ }
+    return 1;
   });
   // QW-4: Split map view state
   const [splitMode, setSplitMode] = useState(false);

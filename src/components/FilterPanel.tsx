@@ -5,7 +5,7 @@ import type { NeighborhoodProperties } from '../utils/metrics';
 import { t } from '../utils/i18n';
 import { useBottomSheet } from '../hooks/useBottomSheet';
 
-import type { FilterCriterion } from '../utils/filterUtils';
+import { type FilterCriterion, computeMatchingPnos } from '../utils/filterUtils';
 
 type SortKey = 'score' | 'name' | LayerId;
 type SortDir = 'asc' | 'desc';
@@ -317,22 +317,12 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   const [sortKey, setSortKey] = useState<SortKey>('score');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
 
-  // Compute matching neighborhoods
+  // Compute matching neighborhoods — use the same logic as the map highlighting
+  const matchingPnos = useMemo(() => computeMatchingPnos(data, filters), [data, filters]);
   const matchingFeatures = useMemo(() => {
-    if (!data || filters.length === 0) return [];
-
-    return data.features.filter((f) => {
-      const p = f.properties as NeighborhoodProperties;
-      if (!p.he_vakiy || p.he_vakiy <= 0) return false;
-
-      return filters.every((criterion) => {
-        const layer = getLayerById(criterion.layerId);
-        const value = p[layer.property];
-        if (typeof value !== 'number' || value == null) return false;
-        return value >= criterion.min && value <= criterion.max;
-      });
-    });
-  }, [data, filters]);
+    if (!data || matchingPnos.size === 0) return [];
+    return data.features.filter((f) => matchingPnos.has((f.properties as NeighborhoodProperties).pno));
+  }, [data, matchingPnos]);
 
   // Sort matching neighborhoods by how many criteria they score well on
   // Use a simple score: for each criterion, how far into the range (normalized 0-1)

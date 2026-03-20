@@ -33,6 +33,7 @@ export function useMapData(): MapDataState {
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
+    let cancelled = false;
     setState({ data: null, loading: true, error: null, metroAverages: {} });
     // Use prefetched response on first load, fresh fetch on retries.
     // Clone the prefetched response so the original can be reused
@@ -46,6 +47,7 @@ export function useMapData(): MapDataState {
         return res.json();
       })
       .then((topo: Topology) => {
+        if (cancelled) return;
         const objectName = Object.keys(topo.objects)[0];
         const geojson = feature(topo, topo.objects[objectName]) as FeatureCollection;
         geojson.features = filterSmallIslands(geojson.features);
@@ -56,8 +58,10 @@ export function useMapData(): MapDataState {
         setState({ data: geojson, loading: false, error: null, metroAverages });
       })
       .catch((err) => {
+        if (cancelled) return;
         setState({ data: null, loading: false, error: err.message, metroAverages: {} });
       });
+    return () => { cancelled = true; };
   }, [attempt]);
 
   const retry = () => setAttempt((a) => a + 1);
