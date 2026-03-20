@@ -122,7 +122,6 @@ const CHART_METRICS: { label: string; key: string; higherIsBetter: boolean; max?
   { label: 'panel.unemployment', key: 'unemployment_rate', higherIsBetter: false, max: 30 },
   { label: 'panel.property_price', key: 'property_price_sqm', higherIsBetter: true },
   { label: 'panel.transit_access', key: 'transit_stop_density', higherIsBetter: true },
-  { label: 'panel.walkability', key: 'walkability_index', higherIsBetter: true, max: 100 },
   { label: 'panel.crime_rate', key: 'crime_index', higherIsBetter: false },
 ];
 

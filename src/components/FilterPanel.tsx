@@ -272,7 +272,6 @@ const FILTER_PRESETS: FilterPreset[] = [
     labelKey: 'filter.preset_families',
     criteria: [
       { layerId: 'child_ratio', min: 6, max: 20 },
-      { layerId: 'school_quality', min: 5.5, max: 8 },
       { layerId: 'daycare_density', min: 2, max: 20 },
       { layerId: 'green_space', min: 20, max: 90 },
     ],
@@ -288,14 +287,12 @@ const FILTER_PRESETS: FilterPreset[] = [
     labelKey: 'filter.preset_affordable',
     criteria: [
       { layerId: 'property_price', min: 1000, max: 4000 },
-      { layerId: 'rental_price', min: 10, max: 18 },
     ],
   },
   {
     labelKey: 'filter.preset_premium',
     criteria: [
       { layerId: 'quality_index', min: 60, max: 100 },
-      { layerId: 'walkability', min: 60, max: 90 },
       { layerId: 'air_quality', min: 18, max: 30 },
     ],
   },
