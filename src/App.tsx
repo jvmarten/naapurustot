@@ -20,7 +20,7 @@ const FilterPanel = lazy(() => import('./components/FilterPanel').then(m => ({ d
 const CustomQualityPanel = lazy(() => import('./components/CustomQualityPanel').then(m => ({ default: m.CustomQualityPanel })));
 const NeighborhoodWizard = lazy(() => import('./components/NeighborhoodWizard').then(m => ({ default: m.NeighborhoodWizard })));
 const SplitMapView = lazy(() => import('./components/SplitMapView').then(m => ({ default: m.SplitMapView })));
-import { bbox } from '@turf/turf';
+import { bbox } from '@turf/bbox';
 import { useMapData } from './hooks/useMapData';
 import { useFavorites } from './hooks/useFavorites';
 import { useNotes } from './hooks/useNotes';

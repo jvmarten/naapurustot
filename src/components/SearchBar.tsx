@@ -3,7 +3,8 @@ import type { FeatureCollection } from 'geojson';
 import { t } from '../utils/i18n';
 import type { RecentEntry } from '../hooks/useRecentNeighborhoods';
 import { geocodeAddress, type GeocodeResult } from '../utils/geocode';
-import { booleanPointInPolygon, point } from '@turf/turf';
+import { booleanPointInPolygon } from '@turf/boolean-point-in-polygon';
+import { point } from '@turf/helpers';
 
 interface SearchBarProps {
   data: FeatureCollection | null;
