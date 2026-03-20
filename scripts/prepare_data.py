@@ -132,6 +132,20 @@ RENTAL_PRICE_FILE = Path(__file__).parent / "rental_prices.json"
 # Traffic accidents — Väylävirasto open data
 TRAFFIC_ACCIDENTS_FILE = Path(__file__).parent / "traffic_accidents.json"
 
+# Statistics Finland property price history — PxWeb API v1
+# Table statfin_ashi_pxt_13mu: price/m² by postal code, annual, 2009-2025
+PROPERTY_PRICE_HISTORY_URL = (
+    "https://pxdata.stat.fi/PxWeb/api/v1/en/"
+    "StatFin/ashi/statfin_ashi_pxt_13mu.px"
+)
+PROPERTY_PRICE_CHANGE_FILE = Path(__file__).parent / "property_price_change.json"
+
+# School quality — YTL matriculation exam results (pre-processed)
+SCHOOL_QUALITY_FILE = Path(__file__).parent / "school_quality.json"
+
+# Light pollution — NASA VIIRS nighttime radiance (pre-processed)
+LIGHT_POLLUTION_FILE = Path(__file__).parent / "light_pollution.json"
+
 # ---------------------------------------------------------------------------
 # Retry & rate-limit settings
 # ---------------------------------------------------------------------------
@@ -1678,6 +1692,173 @@ def join_traffic_accidents(gdf, accident_data):
     return gdf
 
 
+def fetch_property_price_change():
+    """Fetch property price change (%) over 5 years from Statistics Finland.
+
+    Uses PxWeb table statfin_ashi_pxt_13mu (€/m² by postal code, annual).
+    Computes percentage change between 5 years ago and latest available year.
+    """
+    logger.info("Fetching property price history from Statistics Finland...")
+
+    try:
+        meta_r = _request_with_retry(
+            "GET", PROPERTY_PRICE_HISTORY_URL, label="property price history metadata", timeout=30,
+        )
+        meta = meta_r.json()
+        variables = _validate_pxweb_meta(meta, "property price history metadata")
+    except Exception as e:
+        _record_error("fetch_property_price_change/meta", e)
+        if PROPERTY_PRICE_CHANGE_FILE.exists():
+            logger.info("  Falling back to local file: %s", PROPERTY_PRICE_CHANGE_FILE.name)
+            with open(PROPERTY_PRICE_CHANGE_FILE) as f:
+                data = json.load(f)
+            logger.info("  Loaded %s postal codes from %s", len(data), PROPERTY_PRICE_CHANGE_FILE.name)
+            return {k: float(v) for k, v in data.items()}
+        return {}
+
+    # Find year variable and select two years 5 apart
+    query_items = []
+    for var in variables:
+        code = var["code"]
+        values = var["values"]
+        code_lower = code.lower()
+
+        if code_lower in ("vuosi", "year"):
+            # Pick latest and 5 years earlier
+            latest = values[-1]
+            try:
+                target_old = str(int(latest) - 5)
+            except ValueError:
+                target_old = values[0]
+            old_year = target_old if target_old in values else values[0]
+            query_items.append({"code": code, "selection": {"filter": "item", "values": [old_year, latest]}})
+        elif code_lower in ("postinumero", "postal code", "alue", "postinumeroalue"):
+            query_items.append({"code": code, "selection": {"filter": "all", "values": ["*"]}})
+        elif code_lower in ("talotyyppi", "building type"):
+            # All building types
+            query_items.append({"code": code, "selection": {"filter": "all", "values": ["*"]}})
+        elif code_lower in ("tiedot", "information"):
+            # Select price per sqm (first item usually)
+            query_items.append({"code": code, "selection": {"filter": "item", "values": [values[0]]}})
+        else:
+            query_items.append({"code": code, "selection": {"filter": "all", "values": ["*"]}})
+
+    query = {"query": query_items, "response": {"format": "json"}}
+
+    _rate_limit()
+
+    try:
+        r = _request_with_retry(
+            "POST", PROPERTY_PRICE_HISTORY_URL, label="property price history data",
+            json=query, timeout=60,
+        )
+        data = r.json()
+        columns, rows = _validate_pxweb_data(data, "property price history data")
+    except Exception as e:
+        _record_error("fetch_property_price_change/data", e)
+        return {}
+
+    # Parse: collect price per postal code per year, then compute change
+    prices_by_pno = {}  # { pno: { year: price } }
+    try:
+        pno_idx = None
+        year_idx = None
+        for i, col in enumerate(columns):
+            code_lower = col.get("code", "").lower()
+            if code_lower in ("postinumero", "postal code", "alue", "postinumeroalue"):
+                pno_idx = i
+            if code_lower in ("vuosi", "year"):
+                year_idx = i
+
+        if pno_idx is not None and year_idx is not None:
+            for row in rows:
+                keys = row.get("key", [])
+                vals = row.get("values", [])
+                if not keys or not vals:
+                    continue
+                pno = keys[pno_idx][:5]
+                year = keys[year_idx]
+                val = vals[0]
+                if val not in (None, "..", "...", ""):
+                    try:
+                        price = float(val)
+                        if price > 0:
+                            if pno not in prices_by_pno:
+                                prices_by_pno[pno] = {}
+                            # Keep highest price per year per postal code (across building types)
+                            if year not in prices_by_pno[pno] or price > prices_by_pno[pno][year]:
+                                prices_by_pno[pno][year] = price
+                    except (ValueError, TypeError):
+                        pass
+
+        # Compute percentage change
+        result = {}
+        for pno, year_prices in prices_by_pno.items():
+            years_sorted = sorted(year_prices.keys())
+            if len(years_sorted) >= 2:
+                old_price = year_prices[years_sorted[0]]
+                new_price = year_prices[years_sorted[-1]]
+                if old_price > 0:
+                    change_pct = round((new_price - old_price) / old_price * 100, 1)
+                    result[pno] = change_pct
+
+        logger.info("  Computed property price change for %s postal codes", len(result))
+        return result
+
+    except Exception as e:
+        _record_error("fetch_property_price_change/parse", e)
+        return {}
+
+
+def join_property_price_change(gdf, change_data):
+    """Join property price change (%) data to the GeoDataFrame."""
+    if not change_data:
+        gdf["property_price_change_pct"] = None
+        return gdf
+
+    logger.info("Joining property price change data...")
+    for idx, row in gdf.iterrows():
+        pno = row.get("pno", "")
+        gdf.at[idx, "property_price_change_pct"] = change_data.get(pno)
+    matched = gdf["property_price_change_pct"].notna().sum()
+    logger.info("  Matched %s/%s postal codes", matched, len(gdf))
+    return gdf
+
+
+def fetch_school_quality():
+    """Load school quality data per postal code.
+
+    Pre-processed from YTL (Ylioppilastutkintolautakunta) matriculation exam
+    results. Average scores geocoded to postal code areas.
+    Returns dict of postal_code -> average matriculation score (0-100 scale).
+    """
+    logger.info("Loading school quality data...")
+    if SCHOOL_QUALITY_FILE.exists():
+        with open(SCHOOL_QUALITY_FILE) as f:
+            data = json.load(f)
+        logger.info("  Loaded %s postal codes from %s", len(data), SCHOOL_QUALITY_FILE.name)
+        return data
+    logger.warning(" %s not found — column will be null", SCHOOL_QUALITY_FILE)
+    return {}
+
+
+def fetch_light_pollution():
+    """Load light pollution data per postal code.
+
+    Pre-processed from NASA VIIRS nighttime radiance data.
+    Mean radiance (nW/cm²/sr) per postal code area computed via zonal statistics.
+    Returns dict of postal_code -> mean_radiance.
+    """
+    logger.info("Loading light pollution data...")
+    if LIGHT_POLLUTION_FILE.exists():
+        with open(LIGHT_POLLUTION_FILE) as f:
+            data = json.load(f)
+        logger.info("  Loaded %s postal codes from %s", len(data), LIGHT_POLLUTION_FILE.name)
+        return data
+    logger.warning(" %s not found — column will be null", LIGHT_POLLUTION_FILE)
+    return {}
+
+
 def calculate_single_person_hh(gdf):
     """Calculate single-person household percentage from Paavo te_ fields."""
     logger.info("Calculating single-person household share...")
@@ -1834,6 +2015,19 @@ def main():
     accident_data = fetch_traffic_accidents()
     gdf = join_traffic_accidents(gdf, accident_data)
 
+    # Property price change (5-year %)
+    _rate_limit()
+    price_change_data = fetch_property_price_change()
+    gdf = join_property_price_change(gdf, price_change_data)
+
+    # School quality (YTL matriculation exam results)
+    school_data = fetch_school_quality()
+    gdf = _join_simple_data(gdf, school_data, "school_quality_score", "school quality")
+
+    # Light pollution (NASA VIIRS nighttime radiance)
+    light_data = fetch_light_pollution()
+    gdf = _join_simple_data(gdf, light_data, "light_pollution", "light pollution")
+
     # --- Phase 7: New data sources ---
     voter_data = _load_json_data(VOTER_TURNOUT_FILE, "voter turnout")
     gdf = _join_simple_data(gdf, voter_data, "voter_turnout_pct", "voter turnout")
@@ -1881,6 +2075,8 @@ def main():
         # Phase 9: real open data
         "rental_price_sqm", "price_to_rent_ratio",
         "walkability_index", "traffic_accident_rate",
+        "property_price_change_pct", "school_quality_score",
+        "light_pollution",
     ]
     gdf = _backfill_nulls(gdf, previous, backfill_columns)
 
