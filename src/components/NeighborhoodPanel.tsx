@@ -466,6 +466,13 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             property="property_price_sqm"
           />
           <StatRow
+            label={t('panel.property_price_change')}
+            value={d.property_price_change_pct != null ? `${Number(d.property_price_change_pct) >= 0 ? '+' : ''}${Number(d.property_price_change_pct).toFixed(1)} %` : '—'}
+            diff={formatDiff(d.property_price_change_pct, avg.property_price_change_pct)}
+            diffClass={diffColor(d.property_price_change_pct, avg.property_price_change_pct)}
+            property="property_price_change_pct"
+          />
+          <StatRow
             label={t('panel.transit_access')}
             value={formatStopDensity(d.transit_stop_density)}
             diff={formatDiff(d.transit_stop_density, avg.transit_stop_density)}
@@ -500,6 +507,20 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             diffClass={diffColor(d.traffic_accident_rate, avg.traffic_accident_rate, false)}
             property="traffic_accident_rate"
           />
+          <StatRow
+            label={t('panel.light_pollution')}
+            value={d.light_pollution != null ? `${Number(d.light_pollution).toFixed(1)} nW` : '—'}
+            diff={formatDiff(d.light_pollution, avg.light_pollution)}
+            diffClass={diffColor(d.light_pollution, avg.light_pollution, false)}
+            property="light_pollution"
+          />
+          <StatRow
+            label={t('panel.kela_benefits')}
+            value={d.kela_benefits_pct != null ? `${Number(d.kela_benefits_pct).toFixed(1)} %` : '—'}
+            diff={formatDiff(d.kela_benefits_pct, avg.kela_benefits_pct)}
+            diffClass={diffColor(d.kela_benefits_pct, avg.kela_benefits_pct)}
+            property="kela_benefits_pct"
+          />
         </div>
       </CollapsibleSection>
 
@@ -533,6 +554,13 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             diff={formatDiff(d.school_density, avg.school_density)}
             diffClass={diffColor(d.school_density, avg.school_density)}
             property="school_density"
+          />
+          <StatRow
+            label={t('panel.school_quality')}
+            value={d.school_quality_score != null ? `${Number(d.school_quality_score).toFixed(0)}/100` : '—'}
+            diff={formatDiff(d.school_quality_score, avg.school_quality_score)}
+            diffClass={diffColor(d.school_quality_score, avg.school_quality_score)}
+            property="school_quality_score"
           />
           <StatRow
             label={t('panel.healthcare_access')}

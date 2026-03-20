@@ -104,6 +104,10 @@ export interface NeighborhoodProperties {
   price_to_rent_ratio: number | null;
   walkability_index: number | null;
   traffic_accident_rate: number | null;
+  property_price_change_pct: number | null;
+  school_quality_score: number | null;
+  kela_benefits_pct: number | null;
+  light_pollution: number | null;
   [key: string]: string | number | null;
 }
 
@@ -354,6 +358,10 @@ export const METRIC_SOURCES: Record<string, MetricSource> = {
   price_to_rent_ratio: { source: 'Tilastokeskus (PxWeb)', year: 2024 },
   walkability_index: { source: 'OpenStreetMap (composite)', year: 2024 },
   traffic_accident_rate: { source: 'Väylävirasto', year: 2023 },
+  property_price_change_pct: { source: 'Tilastokeskus (PxWeb)', year: '2020–2025' },
+  school_quality_score: { source: 'YTL (ylioppilastutkinto)', year: 2024 },
+  kela_benefits_pct: { source: 'Kela (avoindata.fi)', year: 2024 },
+  light_pollution: { source: 'NASA VIIRS', year: 2024 },
 
   // Quick wins (from existing Paavo data)
   youth_ratio_pct: { source: 'Tilastokeskus (Paavo)', year: 2024 },
@@ -415,6 +423,10 @@ const METRIC_DEFS: MetricDef[] = [
   { property: 'price_to_rent_ratio', weight: 'population', precision: 1, requirePositive: true },
   { property: 'walkability_index', weight: 'population', precision: 0 },
   { property: 'traffic_accident_rate', weight: 'population', precision: 1 },
+  { property: 'property_price_change_pct', weight: 'population', precision: 1 },
+  { property: 'school_quality_score', weight: 'population', precision: 0 },
+  { property: 'kela_benefits_pct', weight: 'population', precision: 1, pctOfPop: true },
+  { property: 'light_pollution', weight: 'population', precision: 1 },
 ];
 
 function roundTo(value: number, precision: number): number {
