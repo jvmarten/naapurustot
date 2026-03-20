@@ -388,6 +388,20 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             value={formatPct(d.detached_house_share)}
             property="detached_house_share"
           />
+          <StatRow
+            label={t('panel.rental_price')}
+            value={d.rental_price_sqm != null ? `${Number(d.rental_price_sqm).toFixed(2)} €/m²/kk` : '—'}
+            diff={formatDiff(d.rental_price_sqm, avg.rental_price_sqm)}
+            diffClass={diffColor(d.rental_price_sqm, avg.rental_price_sqm, false)}
+            property="rental_price_sqm"
+          />
+          <StatRow
+            label={t('panel.price_to_rent')}
+            value={d.price_to_rent_ratio != null ? `${Number(d.price_to_rent_ratio).toFixed(1)} v` : '—'}
+            diff={formatDiff(d.price_to_rent_ratio, avg.price_to_rent_ratio)}
+            diffClass={diffColor(d.price_to_rent_ratio, avg.price_to_rent_ratio)}
+            property="price_to_rent_ratio"
+          />
           <StatRow label={t('panel.dwellings')} value={formatNumber(d.ra_asunn)} />
           <StatRow label={t('panel.households')} value={formatNumber(d.te_taly)} />
         </div>
@@ -471,6 +485,20 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             diff={formatDiff(d.crime_index, avg.crime_index)}
             diffClass={diffColor(d.crime_index, avg.crime_index, false)}
             property="crime_index"
+          />
+          <StatRow
+            label={t('panel.walkability')}
+            value={d.walkability_index != null ? `${Number(d.walkability_index).toFixed(0)}/100` : '—'}
+            diff={formatDiff(d.walkability_index, avg.walkability_index)}
+            diffClass={diffColor(d.walkability_index, avg.walkability_index)}
+            property="walkability_index"
+          />
+          <StatRow
+            label={t('panel.traffic_accidents')}
+            value={d.traffic_accident_rate != null ? `${Number(d.traffic_accident_rate).toFixed(1)} /1000` : '—'}
+            diff={formatDiff(d.traffic_accident_rate, avg.traffic_accident_rate)}
+            diffClass={diffColor(d.traffic_accident_rate, avg.traffic_accident_rate, false)}
+            property="traffic_accident_rate"
           />
         </div>
       </CollapsibleSection>

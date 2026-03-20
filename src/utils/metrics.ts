@@ -99,6 +99,11 @@ export interface NeighborhoodProperties {
   tp_o_julk: number | null;
   tp_palv_gu: number | null;
   ra_raky: number | null;
+  // Phase 9: Real open data layers
+  rental_price_sqm: number | null;
+  price_to_rent_ratio: number | null;
+  walkability_index: number | null;
+  traffic_accident_rate: number | null;
   [key: string]: string | number | null;
 }
 
@@ -344,6 +349,12 @@ export const METRIC_SOURCES: Record<string, MetricSource> = {
   service_sector_jobs_pct: { source: 'Tilastokeskus (Paavo)', year: 2024 },
   new_construction_pct: { source: 'Tilastokeskus (Paavo)', year: 2024 },
 
+  // Phase 9: Real open data layers
+  rental_price_sqm: { source: 'Tilastokeskus (PxWeb)', year: 2024 },
+  price_to_rent_ratio: { source: 'Tilastokeskus (PxWeb)', year: 2024 },
+  walkability_index: { source: 'OpenStreetMap (composite)', year: 2024 },
+  traffic_accident_rate: { source: 'Väylävirasto', year: 2023 },
+
   // Quick wins (from existing Paavo data)
   youth_ratio_pct: { source: 'Tilastokeskus (Paavo)', year: 2024 },
   gender_ratio: { source: 'Tilastokeskus (Paavo)', year: 2024 },
@@ -399,6 +410,11 @@ const METRIC_DEFS: MetricDef[] = [
   { property: 'public_sector_jobs_pct', weight: 'population', precision: 1 },
   { property: 'service_sector_jobs_pct', weight: 'population', precision: 1 },
   { property: 'new_construction_pct', weight: 'population', precision: 1 },
+  // Phase 9: Real open data layers
+  { property: 'rental_price_sqm', weight: 'population', precision: 2, requirePositive: true },
+  { property: 'price_to_rent_ratio', weight: 'population', precision: 1, requirePositive: true },
+  { property: 'walkability_index', weight: 'population', precision: 0 },
+  { property: 'traffic_accident_rate', weight: 'population', precision: 1 },
 ];
 
 function roundTo(value: number, precision: number): number {
