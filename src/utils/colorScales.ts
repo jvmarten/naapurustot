@@ -55,13 +55,9 @@ export type LayerId =
   // Phase 7: New data layers
   | 'voter_turnout'
   | 'party_diversity'
-  | 'burglary_rate'
-  | 'domestic_disturbance'
-  | 'water_quality'
   | 'broadband_coverage'
   | 'ev_charging_density'
   | 'tree_canopy'
-  | 'surface_temperature'
   | 'transit_reachability'
   // Quick wins from existing GeoJSON data
   | 'youth_ratio'
@@ -600,35 +596,6 @@ export const LAYERS: LayerConfig[] = [
     stops: [0.4, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.85],
     format: gini,
   },
-  // #2 Safety & Crime Detail
-  {
-    id: 'burglary_rate',
-    labelKey: 'layer.burglary_rate',
-    property: 'burglary_rate',
-    unit: '/1000',
-    colors: ['#f7fcf5', '#d5efcf', '#a1d99b', '#74c476', '#f9d057', '#fd8d3c', '#e5533d', '#b00026'],
-    stops: [0.5, 1, 2, 3, 5, 7, 10, 15],
-    format: perThousand,
-  },
-  {
-    id: 'domestic_disturbance',
-    labelKey: 'layer.domestic_disturbance',
-    property: 'domestic_disturbance_rate',
-    unit: '/1000',
-    colors: ['#f7fcf5', '#d5efcf', '#a1d99b', '#74c476', '#f9d057', '#fd8d3c', '#e5533d', '#b00026'],
-    stops: [1, 2, 4, 6, 8, 12, 16, 22],
-    format: perThousand,
-  },
-  // #4 Water Quality
-  {
-    id: 'water_quality',
-    labelKey: 'layer.water_quality',
-    property: 'water_quality_index',
-    unit: '/100',
-    colors: ['#d73027', '#f46d43', '#fdae61', '#fee08b', '#d9ef8b', '#a6d96a', '#66bd63', '#1a9850'],
-    stops: [40, 50, 60, 65, 70, 75, 85, 95],
-    format: score,
-  },
   // #8 Internet & Connectivity
   {
     id: 'broadband_coverage',
@@ -657,15 +624,6 @@ export const LAYERS: LayerConfig[] = [
     colors: ['#ffffcc', '#d9f0a3', '#addd8e', '#78c679', '#41ab5d', '#238443', '#006837', '#004529'],
     stops: [5, 10, 15, 20, 30, 40, 55, 75],
     format: pct,
-  },
-  {
-    id: 'surface_temperature',
-    labelKey: 'layer.surface_temperature',
-    property: 'surface_temp_diff',
-    unit: '°C',
-    colors: ['#2166ac', '#4393c3', '#92c5de', '#d1e5f0', '#fddbc7', '#f4a582', '#d6604d', '#b2182b'],
-    stops: [-2, -1, 0, 0.5, 1, 2, 3, 5],
-    format: (v: number) => `${v > 0 ? '+' : ''}${v.toFixed(1)} °C`,
   },
   // #12 Accessibility
   {
