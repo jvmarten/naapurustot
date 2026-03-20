@@ -742,6 +742,13 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             property="price_to_rent_ratio"
           />
           <StatRow
+            label={t('panel.property_price_change')}
+            value={formatPct(d.property_price_change_pct)}
+            diff={formatDiff(d.property_price_change_pct, avg.property_price_change_pct)}
+            diffClass={diffColor(d.property_price_change_pct, avg.property_price_change_pct)}
+            property="property_price_change_pct"
+          />
+          <StatRow
             label={t('panel.new_construction')}
             value={formatPct(d.new_construction_pct)}
             diff={formatDiff(d.new_construction_pct, avg.new_construction_pct)}
