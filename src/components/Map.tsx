@@ -69,8 +69,6 @@ const FILTER_HIGHLIGHT_LAYER = 'neighborhoods-filter-highlight';
 const WIZARD_HIGHLIGHT_LAYER = 'neighborhoods-wizard-highlight';
 const NO_DATA_LAYER = 'neighborhoods-no-data-pattern';
 
-export const DEFAULT_CENTER: [number, number] = [MAP_CENTER_LNG, MAP_CENTER_LAT];
-export const DEFAULT_ZOOM = MAP_ZOOM;
 
 /** Build a fill-opacity expression scaled by user opacity multiplier */
 function buildFillOpacity(o: number, overrides?: { matchExpr?: unknown[]; matchVal?: number; dimVal?: number }) {
@@ -119,6 +117,7 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
       map.remove();
       mapRef.current = null;
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- init once; theme changes handled by separate effect
   }, []);
 
   // Switch basemap on theme change
@@ -211,6 +210,7 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
     } else {
       map.on('load', addLayers);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- activeLayer/fillOpacity changes handled by dedicated effects
   }, [data, theme]);
 
   // Refresh GeoJSON source data when quality indices are recomputed
@@ -234,6 +234,7 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
     if (wizardHighlightPnos.length > 0) return;
 
     map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(fillOpacity));
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- data/filterActive/filterMatchPnos/wizardHighlightPnos are guards, not triggers
   }, [fillOpacity]);
 
   // Smoothly transition fill color when active layer or colorblind mode changes
@@ -252,6 +253,7 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
         ['==', ['get', layer.property], null],
       ] as unknown as maplibregl.FilterSpecification);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- data is a guard, not a trigger
   }, [activeLayer, colorblind]);
 
   // Filter-aware rendering: dim non-matching neighborhoods and highlight matching ones

@@ -5,11 +5,7 @@ import type { NeighborhoodProperties } from '../utils/metrics';
 import { t } from '../utils/i18n';
 import { useBottomSheet } from '../hooks/useBottomSheet';
 
-export interface FilterCriterion {
-  layerId: LayerId;
-  min: number;
-  max: number;
-}
+import type { FilterCriterion } from '../utils/filterUtils';
 
 type SortKey = 'score' | 'name' | LayerId;
 type SortDir = 'asc' | 'desc';
@@ -770,32 +766,3 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   );
 };
 
-/** Compute the set of matching PNOs given data and filters. Used by Map.tsx. */
-export function computeMatchingPnos(
-  data: FeatureCollection | null,
-  filters: FilterCriterion[],
-): Set<string> {
-  if (!data || filters.length === 0) return new Set();
-
-  const pnos = new Set<string>();
-  for (const f of data.features) {
-    const p = f.properties as NeighborhoodProperties;
-    if (!p.he_vakiy || p.he_vakiy <= 0) continue;
-
-    const matches = filters.every((criterion) => {
-      const layer = getLayerById(criterion.layerId);
-      const value = p[layer.property];
-      if (typeof value !== 'number' || value == null) return false;
-      const [rangeMin, rangeMax] = getLayerRange(layer);
-      // When slider is at its extreme position, include all values beyond the stop range
-      // so neighborhoods with outlier values (e.g. 1.4% when stops start at 2%) aren't excluded
-      const minOk = criterion.min <= rangeMin ? true : value >= criterion.min;
-      const maxOk = criterion.max >= rangeMax ? true : value <= criterion.max;
-      return minOk && maxOk;
-    });
-
-    if (matches) pnos.add(p.pno);
-  }
-
-  return pnos;
-}

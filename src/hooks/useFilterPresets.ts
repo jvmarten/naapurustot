@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import type { FilterCriterion } from '../components/FilterPanel';
+import type { FilterCriterion } from '../utils/filterUtils';
 
 const STORAGE_KEY = 'naapurustot-filter-presets';
 

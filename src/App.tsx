@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
-import { Map, DEFAULT_CENTER, DEFAULT_ZOOM } from './components/Map';
+import { Map } from './components/Map';
+import { DEFAULT_CENTER, DEFAULT_ZOOM } from './utils/mapConstants';
 import { LayerSelector } from './components/LayerSelector';
 import { SearchBar } from './components/SearchBar';
 import { Tooltip } from './components/Tooltip';
@@ -8,7 +9,7 @@ import { SettingsDropdown } from './components/SettingsDropdown';
 import { ToolsDropdown } from './components/ToolsDropdown';
 import { ErrorBanner } from './components/ErrorBanner';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { computeMatchingPnos, type FilterCriterion } from './components/FilterPanel';
+import { computeMatchingPnos, type FilterCriterion } from './utils/filterUtils';
 import { useFilterPresets } from './hooks/useFilterPresets';
 
 // IN-6: Lazy load heavy conditionally-rendered components
