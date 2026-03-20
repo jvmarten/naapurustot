@@ -109,15 +109,18 @@ function scoreNeighborhoods(
   );
 
   // Collect ranges for normalization
-  const vals = (key: keyof NeighborhoodProperties) =>
-    features
-      .map((f) => (f.properties as NeighborhoodProperties)[key] as number | null)
-      .filter((v): v is number => v != null);
-
   const range = (key: keyof NeighborhoodProperties) => {
-    const v = vals(key);
-    if (v.length === 0) return { min: 0, max: 1 };
-    return { min: Math.min(...v), max: Math.max(...v) };
+    let min = Infinity;
+    let max = -Infinity;
+    for (const f of features) {
+      const v = (f.properties as NeighborhoodProperties)[key] as number | null;
+      if (v != null) {
+        if (v < min) min = v;
+        if (v > max) max = v;
+      }
+    }
+    if (min > max) return { min: 0, max: 1 };
+    return { min, max };
   };
 
   const transitRange = range('transit_stop_density');

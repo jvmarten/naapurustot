@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import type { LayerId } from '../utils/colorScales';
 import { LAYERS } from '../utils/colorScales';
 
@@ -64,11 +64,8 @@ export function readInitialUrlState(): UrlState {
 }
 
 export function useSyncUrlState(pno: string | null, layer: LayerId, comparePnos: string[] = []) {
-  const skipNextHashChange = useRef(false);
-
   // Write state changes to URL
   useEffect(() => {
-    skipNextHashChange.current = true;
     writeUrl(pno, layer, comparePnos);
   }, [pno, layer, comparePnos]);
 }

@@ -95,8 +95,22 @@ export const SearchBar: React.FC<SearchBarProps> = ({ data, onSelect, recent = [
     setHighlightedIndex(-1);
   }
 
+  function selectAddressResult(addr: GeocodeResult) {
+    const neighborhood = findNeighborhoodForPoint(addr.coordinates);
+    if (neighborhood?.properties) {
+      onSelect(neighborhood.properties.pno, addr.coordinates);
+      setQuery(neighborhood.properties.nimi || addr.label);
+    } else {
+      onSelect('', addr.coordinates);
+      setQuery(addr.label);
+    }
+    setIsOpen(false);
+    setHighlightedIndex(-1);
+  }
+
   function handleKeyDown(e: React.KeyboardEvent) {
-    if (!isOpen || results.length === 0) {
+    const totalItems = results.length + addressResults.length;
+    if (!isOpen || totalItems === 0) {
       if (e.key === 'Escape') {
         setIsOpen(false);
         inputRef.current?.blur();
@@ -107,16 +121,18 @@ export const SearchBar: React.FC<SearchBarProps> = ({ data, onSelect, recent = [
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault();
-        setHighlightedIndex((prev) => (prev < results.length - 1 ? prev + 1 : 0));
+        setHighlightedIndex((prev) => (prev < totalItems - 1 ? prev + 1 : 0));
         break;
       case 'ArrowUp':
         e.preventDefault();
-        setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : results.length - 1));
+        setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : totalItems - 1));
         break;
       case 'Enter':
         e.preventDefault();
         if (highlightedIndex >= 0 && highlightedIndex < results.length) {
           selectResult(results[highlightedIndex]);
+        } else if (highlightedIndex >= results.length && highlightedIndex < totalItems) {
+          selectAddressResult(addressResults[highlightedIndex - results.length]);
         }
         break;
       case 'Escape':
@@ -236,27 +252,26 @@ export const SearchBar: React.FC<SearchBarProps> = ({ data, onSelect, recent = [
               <div className="px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500 border-t border-surface-100 dark:border-surface-800/40">
                 {t('search.address_results')}
               </div>
-              {addressResults.map((addr, i) => (
-                <button
-                  key={i}
-                  className="w-full text-left px-4 py-2.5 md:py-2 text-sm transition-colors min-h-[44px] md:min-h-0
-                             border-b border-surface-100 dark:border-surface-800/40 last:border-0
-                             hover:bg-surface-100 dark:hover:bg-surface-800/60"
-                  onClick={() => {
-                    const neighborhood = findNeighborhoodForPoint(addr.coordinates);
-                    if (neighborhood?.properties) {
-                      onSelect(neighborhood.properties.pno, addr.coordinates);
-                      setQuery(neighborhood.properties.nimi || addr.label);
-                    } else {
-                      onSelect('', addr.coordinates);
-                      setQuery(addr.label);
-                    }
-                    setIsOpen(false);
-                  }}
-                >
-                  <span className="text-surface-700 dark:text-surface-200 text-xs">{addr.label}</span>
-                </button>
-              ))}
+              {addressResults.map((addr, i) => {
+                const globalIndex = results.length + i;
+                return (
+                  <button
+                    key={i}
+                    id={`search-result-${globalIndex}`}
+                    role="option"
+                    aria-selected={globalIndex === highlightedIndex}
+                    className={`w-full text-left px-4 py-2.5 md:py-2 text-sm transition-colors min-h-[44px] md:min-h-0
+                               border-b border-surface-100 dark:border-surface-800/40 last:border-0
+                               ${globalIndex === highlightedIndex
+                                 ? 'bg-brand-50 dark:bg-brand-900/30'
+                                 : 'hover:bg-surface-100 dark:hover:bg-surface-800/60'}`}
+                    onMouseEnter={() => setHighlightedIndex(globalIndex)}
+                    onClick={() => selectAddressResult(addr)}
+                  >
+                    <span className="text-surface-700 dark:text-surface-200 text-xs">{addr.label}</span>
+                  </button>
+                );
+              })}
             </>
           )}
         </div>

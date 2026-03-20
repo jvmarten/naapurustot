@@ -585,15 +585,37 @@ try {
   else if (stored && VALID_CB_MODES.has(stored)) colorblindMode = stored as ColorblindType;
 } catch { /* localStorage unavailable */ }
 
+/** Linearly sample `count` colors from a palette of hex colors. */
+function resamplePalette(palette: string[], count: number): string[] {
+  if (count === palette.length) return palette;
+  if (count < palette.length) return palette.slice(0, count);
+  const result: string[] = [];
+  for (let i = 0; i < count; i++) {
+    // Map output index to a fractional position in the source palette
+    const t = (i / (count - 1)) * (palette.length - 1);
+    const lo = Math.floor(t);
+    const hi = Math.min(lo + 1, palette.length - 1);
+    const frac = t - lo;
+    if (frac === 0 || lo === hi) {
+      result.push(palette[lo]);
+    } else {
+      // Lerp between two adjacent palette colors
+      const c1 = parseInt(palette[lo].slice(1), 16);
+      const c2 = parseInt(palette[hi].slice(1), 16);
+      const r = Math.round(((c1 >> 16) & 0xff) * (1 - frac) + ((c2 >> 16) & 0xff) * frac);
+      const g = Math.round(((c1 >> 8) & 0xff) * (1 - frac) + ((c2 >> 8) & 0xff) * frac);
+      const b = Math.round((c1 & 0xff) * (1 - frac) + (c2 & 0xff) * frac);
+      result.push(`#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`);
+    }
+  }
+  return result;
+}
+
 export function getLayerById(id: LayerId): LayerConfig {
   const layer = LAYERS.find((l) => l.id === id) ?? LAYERS[0];
   if (colorblindMode === 'off') return layer;
   const palette = CB_PALETTES[colorblindMode];
-  const cbColors = palette.length === layer.colors.length
-    ? palette
-    : layer.colors.length > 8
-      ? [...palette, ...palette.slice(-2)] // extend for 10-stop layers
-      : palette.slice(0, layer.colors.length);
+  const cbColors = resamplePalette(palette, layer.colors.length);
   return { ...layer, colors: cbColors };
 }
 
