@@ -79,6 +79,35 @@ export interface NeighborhoodProperties {
   income_change_pct: number | null;
   population_change_pct: number | null;
   unemployment_change_pct: number | null;
+  // Phase 7: New data layers
+  voter_turnout_pct: number | null;
+  party_diversity_index: number | null;
+  burglary_rate: number | null;
+  domestic_disturbance_rate: number | null;
+  water_quality_index: number | null;
+  broadband_coverage_pct: number | null;
+  ev_charging_density: number | null;
+  tree_canopy_pct: number | null;
+  surface_temp_diff: number | null;
+  transit_reachability_score: number | null;
+  // Quick wins — derived from existing Paavo fields
+  youth_ratio_pct: number | null;
+  gender_ratio: number | null;
+  single_parent_hh_pct: number | null;
+  families_with_children_pct: number | null;
+  tech_sector_pct: number | null;
+  healthcare_workers_pct: number | null;
+  // Raw Paavo fields used for quick win computations
+  he_naiset: number | null;
+  he_miehet: number | null;
+  he_18_19: number | null;
+  he_20_24: number | null;
+  he_25_29: number | null;
+  te_eil_np: number | null;
+  te_laps: number | null;
+  tp_tyopy: number | null;
+  tp_jk_info: number | null;
+  tp_qr_terv: number | null;
   [key: string]: string | number | null;
 }
 
@@ -107,6 +136,58 @@ export function parseTrendSeries(raw: string | null | undefined): TrendDataPoint
     // invalid JSON
   }
   return null;
+}
+
+/**
+ * Phase 7: Compute demographic detail metrics from existing Paavo fields.
+ * These layers require no new data — they derive from fields already in the GeoJSON.
+ */
+export function computeQuickWinMetrics(features: GeoJSON.Feature[]): void {
+  for (const f of features) {
+    const p = f.properties as NeighborhoodProperties;
+    const pop = p.he_vakiy;
+
+    // Youth ratio (18-29 year olds as % of population)
+    const he_18_19 = p.he_18_19 as number | null;
+    const he_20_24 = p.he_20_24 as number | null;
+    const he_25_29 = p.he_25_29 as number | null;
+    if (pop != null && pop > 0 && he_18_19 != null && he_20_24 != null && he_25_29 != null) {
+      p.youth_ratio_pct = Math.round(((he_18_19 + he_20_24 + he_25_29) / pop) * 1000) / 10;
+    }
+
+    // Gender ratio (women / men)
+    const naiset = p.he_naiset as number | null;
+    const miehet = p.he_miehet as number | null;
+    if (naiset != null && miehet != null && miehet > 0) {
+      p.gender_ratio = Math.round((naiset / miehet) * 100) / 100;
+    }
+
+    // Single-parent households (% of total households)
+    const eil_np = p.te_eil_np as number | null;
+    const taly = p.te_taly as number | null;
+    if (eil_np != null && taly != null && taly > 0) {
+      p.single_parent_hh_pct = Math.round((eil_np / taly) * 1000) / 10;
+    }
+
+    // Families with children (% of total households)
+    const te_laps = p.te_laps as number | null;
+    if (te_laps != null && taly != null && taly > 0) {
+      p.families_with_children_pct = Math.round((te_laps / taly) * 1000) / 10;
+    }
+
+    // Tech sector jobs (information sector / total jobs %)
+    const tp_tyopy = p.tp_tyopy as number | null;
+    const tp_jk_info = p.tp_jk_info as number | null;
+    if (tp_jk_info != null && tp_tyopy != null && tp_tyopy > 0) {
+      p.tech_sector_pct = Math.round((tp_jk_info / tp_tyopy) * 1000) / 10;
+    }
+
+    // Healthcare workers (health/social sector / total jobs %)
+    const tp_qr_terv = p.tp_qr_terv as number | null;
+    if (tp_qr_terv != null && tp_tyopy != null && tp_tyopy > 0) {
+      p.healthcare_workers_pct = Math.round((tp_qr_terv / tp_tyopy) * 1000) / 10;
+    }
+  }
 }
 
 /**
@@ -225,6 +306,36 @@ export const METRIC_SOURCES: Record<string, MetricSource> = {
   obesity_rate: { source: 'THL (FinSote)', year: 2023 },
   life_expectancy: { source: 'THL / Tilastokeskus', year: 2023 },
   mental_health_pct: { source: 'THL (Sotkanet)', year: 2023 },
+
+  // Phase 7: Voting & Political
+  voter_turnout_pct: { source: 'Tilastokeskus / Oikeusministeriö', year: 2023 },
+  party_diversity_index: { source: 'Tilastokeskus / Oikeusministeriö', year: 2023 },
+
+  // Safety & Crime Detail
+  burglary_rate: { source: 'Poliisi', year: 2023 },
+  domestic_disturbance_rate: { source: 'Poliisi', year: 2023 },
+
+  // Water Quality
+  water_quality_index: { source: 'HSY', year: 2024 },
+
+  // Internet & Connectivity
+  broadband_coverage_pct: { source: 'Traficom', year: 2024 },
+  ev_charging_density: { source: 'Traficom / OpenStreetMap', year: 2024 },
+
+  // Tree Canopy / Urban Heat Island
+  tree_canopy_pct: { source: 'HSY (LiDAR)', year: 2023 },
+  surface_temp_diff: { source: 'HSY / Landsat', year: 2023 },
+
+  // Accessibility
+  transit_reachability_score: { source: 'HSL (matka-aikamatriisi)', year: 2024 },
+
+  // Quick wins (from existing Paavo data)
+  youth_ratio_pct: { source: 'Tilastokeskus (Paavo)', year: 2024 },
+  gender_ratio: { source: 'Tilastokeskus (Paavo)', year: 2024 },
+  single_parent_hh_pct: { source: 'Tilastokeskus (Paavo)', year: 2024 },
+  families_with_children_pct: { source: 'Tilastokeskus (Paavo)', year: 2024 },
+  tech_sector_pct: { source: 'Tilastokeskus (Paavo)', year: 2024 },
+  healthcare_workers_pct: { source: 'Tilastokeskus (Paavo)', year: 2024 },
 };
 
 const METRIC_DEFS: MetricDef[] = [
@@ -278,6 +389,23 @@ const METRIC_DEFS: MetricDef[] = [
   { property: 'obesity_rate', weight: 'population', precision: 1 },
   { property: 'life_expectancy', weight: 'population', precision: 1 },
   { property: 'mental_health_pct', weight: 'population', precision: 1 },
+
+  // Phase 7: New layers
+  { property: 'voter_turnout_pct', weight: 'population', precision: 1 },
+  { property: 'party_diversity_index', weight: 'population', precision: 2 },
+  { property: 'burglary_rate', weight: 'population', precision: 1 },
+  { property: 'domestic_disturbance_rate', weight: 'population', precision: 1 },
+  { property: 'water_quality_index', weight: 'population', precision: 1 },
+  { property: 'broadband_coverage_pct', weight: 'population', precision: 1 },
+  { property: 'ev_charging_density', weight: 'population', precision: 1 },
+  { property: 'tree_canopy_pct', weight: 'population', precision: 1 },
+  { property: 'surface_temp_diff', weight: 'population', precision: 1 },
+  { property: 'transit_reachability_score', weight: 'population', precision: 1 },
+  { property: 'youth_ratio_pct', weight: 'population', precision: 1, pctOfPop: true },
+  { property: 'single_parent_hh_pct', weight: 'household', precision: 1, pctOfHh: true },
+  { property: 'families_with_children_pct', weight: 'household', precision: 1, pctOfHh: true },
+  { property: 'tech_sector_pct', weight: 'population', precision: 1 },
+  { property: 'healthcare_workers_pct', weight: 'population', precision: 1 },
 ];
 
 function roundTo(value: number, precision: number): number {

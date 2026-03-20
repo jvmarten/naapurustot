@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import type { FeatureCollection } from 'geojson';
 import { feature } from 'topojson-client';
 import type { Topology } from 'topojson-specification';
-import { computeMetroAverages, computeChangeMetrics } from '../utils/metrics';
+import { computeMetroAverages, computeChangeMetrics, computeQuickWinMetrics } from '../utils/metrics';
 import { computeQualityIndices } from '../utils/qualityIndex';
 import { filterSmallIslands } from '../utils/geometryFilter';
 
@@ -51,6 +51,7 @@ export function useMapData(): MapDataState {
         geojson.features = filterSmallIslands(geojson.features);
         computeQualityIndices(geojson.features);
         computeChangeMetrics(geojson.features);
+        computeQuickWinMetrics(geojson.features);
         const metroAverages = computeMetroAverages(geojson.features);
         setState({ data: geojson, loading: false, error: null, metroAverages });
       })

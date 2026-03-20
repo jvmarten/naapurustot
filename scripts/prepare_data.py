@@ -164,6 +164,38 @@ NEIGHBORHOOD_STABILITY_FILE = Path(__file__).parent / "neighborhood_stability.js
 # Traffic accident density (accidents per km road/year) — Traficom/Digiroad
 TRAFFIC_ACCIDENTS_FILE = Path(__file__).parent / "traffic_accidents.json"
 
+# --- Phase 7: New data sources ---
+
+# Voter turnout (%) — Statistics Finland / Ministry of Justice
+VOTER_TURNOUT_FILE = Path(__file__).parent / "voter_turnout.json"
+
+# Political diversity index (Shannon diversity of party votes)
+PARTY_DIVERSITY_FILE = Path(__file__).parent / "party_diversity.json"
+
+# Burglary rate (burglaries per 1,000 residents) — Finnish Police
+BURGLARY_RATE_FILE = Path(__file__).parent / "burglary_rate.json"
+
+# Domestic disturbance rate (calls per 1,000 residents) — Finnish Police
+DOMESTIC_DISTURBANCE_FILE = Path(__file__).parent / "domestic_disturbance.json"
+
+# Water quality index (0-100 composite) — HSY
+WATER_QUALITY_FILE = Path(__file__).parent / "water_quality.json"
+
+# Broadband coverage (% of addresses with 100 Mbit+) — Traficom
+BROADBAND_COVERAGE_FILE = Path(__file__).parent / "broadband_coverage.json"
+
+# EV charging station density (/km²) — Traficom / OpenStreetMap
+EV_CHARGING_FILE = Path(__file__).parent / "ev_charging.json"
+
+# Tree canopy coverage (% of area covered by trees) — HSY LiDAR
+TREE_CANOPY_FILE = Path(__file__).parent / "tree_canopy.json"
+
+# Surface temperature difference from metro average (°C) — HSY / Landsat
+SURFACE_TEMP_FILE = Path(__file__).parent / "surface_temperature.json"
+
+# Transit reachability score (0-100, jobs/services within 30 min) — HSL
+TRANSIT_REACHABILITY_FILE = Path(__file__).parent / "transit_reachability.json"
+
 # ---------------------------------------------------------------------------
 # Retry & rate-limit settings
 # ---------------------------------------------------------------------------
@@ -417,6 +449,54 @@ def calculate_metrics(gdf):
         detached = safe_val(row.get("ra_pt_as"))
         total_dwellings = safe_val(row.get("ra_asunn"))
         gdf.at[idx, "detached_house_share"] = safe_div(detached, total_dwellings)
+
+        # --- Phase 7: Quick win metrics from existing Paavo fields ---
+
+        # Youth ratio (18-29 year olds as % of population)
+        he_18_19 = safe_val(row.get("he_18_19"))
+        he_20_24 = safe_val(row.get("he_20_24"))
+        he_25_29 = safe_val(row.get("he_25_29"))
+        if he_18_19 is not None and he_20_24 is not None and he_25_29 is not None and pop:
+            gdf.at[idx, "youth_ratio_pct"] = round((he_18_19 + he_20_24 + he_25_29) / pop * 100, 1)
+        else:
+            gdf.at[idx, "youth_ratio_pct"] = None
+
+        # Gender ratio (women / men)
+        naiset = safe_val(row.get("he_naiset"))
+        miehet = safe_val(row.get("he_miehet"))
+        if naiset is not None and miehet is not None and miehet > 0:
+            gdf.at[idx, "gender_ratio"] = round(naiset / miehet, 2)
+        else:
+            gdf.at[idx, "gender_ratio"] = None
+
+        # Single-parent households (% of total households)
+        te_eil_np = safe_val(row.get("te_eil_np"))
+        if te_eil_np is not None and total_hh is not None and total_hh > 0:
+            gdf.at[idx, "single_parent_hh_pct"] = round(te_eil_np / total_hh * 100, 1)
+        else:
+            gdf.at[idx, "single_parent_hh_pct"] = None
+
+        # Families with children (% of total households)
+        te_laps = safe_val(row.get("te_laps"))
+        if te_laps is not None and total_hh is not None and total_hh > 0:
+            gdf.at[idx, "families_with_children_pct"] = round(te_laps / total_hh * 100, 1)
+        else:
+            gdf.at[idx, "families_with_children_pct"] = None
+
+        # Tech sector jobs (information/communication sector / total jobs)
+        tp_tyopy = safe_val(row.get("tp_tyopy"))
+        tp_jk_info = safe_val(row.get("tp_jk_info"))
+        if tp_jk_info is not None and tp_tyopy is not None and tp_tyopy > 0:
+            gdf.at[idx, "tech_sector_pct"] = round(tp_jk_info / tp_tyopy * 100, 1)
+        else:
+            gdf.at[idx, "tech_sector_pct"] = None
+
+        # Healthcare workers (health/social services sector / total jobs)
+        tp_qr_terv = safe_val(row.get("tp_qr_terv"))
+        if tp_qr_terv is not None and tp_tyopy is not None and tp_tyopy > 0:
+            gdf.at[idx, "healthcare_workers_pct"] = round(tp_qr_terv / tp_tyopy * 100, 1)
+        else:
+            gdf.at[idx, "healthcare_workers_pct"] = None
 
     return gdf
 
@@ -1593,6 +1673,37 @@ def main():
     # Single-person households (from existing Paavo data)
     gdf = calculate_single_person_hh(gdf)
 
+    # --- Phase 7: New data sources ---
+    voter_data = _load_json_data(VOTER_TURNOUT_FILE, "voter turnout")
+    gdf = _join_simple_data(gdf, voter_data, "voter_turnout_pct", "voter turnout")
+
+    party_data = _load_json_data(PARTY_DIVERSITY_FILE, "party diversity")
+    gdf = _join_simple_data(gdf, party_data, "party_diversity_index", "party diversity")
+
+    burglary_data = _load_json_data(BURGLARY_RATE_FILE, "burglary rate")
+    gdf = _join_simple_data(gdf, burglary_data, "burglary_rate", "burglary rate")
+
+    disturbance_data = _load_json_data(DOMESTIC_DISTURBANCE_FILE, "domestic disturbances")
+    gdf = _join_simple_data(gdf, disturbance_data, "domestic_disturbance_rate", "domestic disturbances")
+
+    water_data = _load_json_data(WATER_QUALITY_FILE, "water quality")
+    gdf = _join_simple_data(gdf, water_data, "water_quality_index", "water quality")
+
+    broadband_data = _load_json_data(BROADBAND_COVERAGE_FILE, "broadband coverage")
+    gdf = _join_simple_data(gdf, broadband_data, "broadband_coverage_pct", "broadband coverage")
+
+    ev_data = _load_json_data(EV_CHARGING_FILE, "EV charging density")
+    gdf = _join_simple_data(gdf, ev_data, "ev_charging_density", "EV charging density")
+
+    canopy_data = _load_json_data(TREE_CANOPY_FILE, "tree canopy coverage")
+    gdf = _join_simple_data(gdf, canopy_data, "tree_canopy_pct", "tree canopy coverage")
+
+    temp_data = _load_json_data(SURFACE_TEMP_FILE, "surface temperature")
+    gdf = _join_simple_data(gdf, temp_data, "surface_temp_diff", "surface temperature")
+
+    reach_data = _load_json_data(TRANSIT_REACHABILITY_FILE, "transit reachability")
+    gdf = _join_simple_data(gdf, reach_data, "transit_reachability_score", "transit reachability")
+
     # --- Phase 4: Historical time-series data ---
     _rate_limit()
     historical = fetch_historical_paavo()
@@ -1621,6 +1732,11 @@ def main():
         "avg_residency_years", "traffic_accident_density",
         # Phase 4: historical time-series
         "income_history", "population_history", "unemployment_history",
+        # Phase 7: new data sources
+        "voter_turnout_pct", "party_diversity_index",
+        "burglary_rate", "domestic_disturbance_rate",
+        "water_quality_index", "broadband_coverage_pct", "ev_charging_density",
+        "tree_canopy_pct", "surface_temp_diff", "transit_reachability_score",
     ]
     gdf = _backfill_nulls(gdf, previous, backfill_columns)
 
