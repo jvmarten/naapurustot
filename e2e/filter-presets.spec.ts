@@ -37,8 +37,7 @@ test.describe('filter presets flow', () => {
 
     // There should be neighborhood results listed below the criteria
     // Each result is a button with a neighborhood name
-    const resultButtons = page.locator('.hidden.md\\:flex button').filter({ hasText: /^\d+$/ });
-    // Alternative: just check that results exist by looking for numbered items
+    // Check that results exist by looking for numbered items
     await page.waitForTimeout(500);
   });
 

@@ -33,7 +33,6 @@ test.describe('neighborhood panel flow', () => {
 
     // Close the panel by clicking the close button (X icon in the panel header)
     // The close button is inside the panel, near the heading
-    const closeButton = page.locator('.hidden.md\\:block svg path[d="M6 18L18 6M6 6l12 12"]').first();
     // Use a more reliable approach: find the X button within the panel
     const panel = page.locator('.hidden.md\\:block.absolute');
     const panelCloseBtn = panel.locator('button').filter({

@@ -21,7 +21,9 @@ function getStoredMode(): ThemeMode {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored === 'light' || stored === 'dark' || stored === 'system') return stored;
-  } catch {}
+  } catch {
+    // localStorage may be unavailable (e.g. private browsing)
+  }
   return 'system';
 }
 
@@ -59,7 +61,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
     try {
       localStorage.setItem(STORAGE_KEY, mode);
-    } catch {}
+    } catch {
+      // localStorage may be unavailable
+    }
   }, [resolved, mode]);
 
   const setMode = useCallback((m: ThemeMode) => setModeState(m), []);
@@ -71,4 +75,5 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components -- custom hook co-located with provider
 export const useTheme = () => useContext(ThemeContext);
