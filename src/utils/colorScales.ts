@@ -51,7 +51,25 @@ export type LayerId =
   | 'traffic_accidents'
   | 'income_change'
   | 'population_change'
-  | 'unemployment_change';
+  | 'unemployment_change'
+  // Phase 7: New data layers
+  | 'voter_turnout'
+  | 'party_diversity'
+  | 'burglary_rate'
+  | 'domestic_disturbance'
+  | 'water_quality'
+  | 'broadband_coverage'
+  | 'ev_charging_density'
+  | 'tree_canopy'
+  | 'surface_temperature'
+  | 'transit_reachability'
+  // Quick wins from existing GeoJSON data
+  | 'youth_ratio'
+  | 'gender_ratio'
+  | 'single_parent_hh'
+  | 'families_with_children'
+  | 'tech_sector_jobs'
+  | 'healthcare_workers';
 
 export interface LayerConfig {
   id: LayerId;
@@ -551,6 +569,158 @@ export const LAYERS: LayerConfig[] = [
     unit: '%',
     colors: ['#2166ac', '#4393c3', '#92c5de', '#d1e5f0', '#fddbc7', '#f4a582', '#d6604d', '#b2182b'],
     stops: [-30, -20, -10, 0, 10, 20, 30, 50],
+    format: pct,
+  },
+  // --- Phase 7: New data layers ---
+  // #1 Voting & Political
+  {
+    id: 'voter_turnout',
+    labelKey: 'layer.voter_turnout',
+    property: 'voter_turnout_pct',
+    unit: '%',
+    colors: ['#f7fbff', '#deebf7', '#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#084594'],
+    stops: [40, 50, 55, 60, 65, 70, 75, 85],
+    format: pct,
+  },
+  {
+    id: 'party_diversity',
+    labelKey: 'layer.party_diversity',
+    property: 'party_diversity_index',
+    unit: '',
+    colors: ['#f7f4f9', '#e7e1ef', '#d4b9da', '#c994c7', '#df65b0', '#e7298a', '#ce1256', '#91003f'],
+    stops: [0.4, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.85],
+    format: gini,
+  },
+  // #2 Safety & Crime Detail
+  {
+    id: 'burglary_rate',
+    labelKey: 'layer.burglary_rate',
+    property: 'burglary_rate',
+    unit: '/1000',
+    colors: ['#f7fcf5', '#d5efcf', '#a1d99b', '#74c476', '#f9d057', '#fd8d3c', '#e5533d', '#b00026'],
+    stops: [0.5, 1, 2, 3, 5, 7, 10, 15],
+    format: perThousand,
+  },
+  {
+    id: 'domestic_disturbance',
+    labelKey: 'layer.domestic_disturbance',
+    property: 'domestic_disturbance_rate',
+    unit: '/1000',
+    colors: ['#f7fcf5', '#d5efcf', '#a1d99b', '#74c476', '#f9d057', '#fd8d3c', '#e5533d', '#b00026'],
+    stops: [1, 2, 4, 6, 8, 12, 16, 22],
+    format: perThousand,
+  },
+  // #4 Water Quality
+  {
+    id: 'water_quality',
+    labelKey: 'layer.water_quality',
+    property: 'water_quality_index',
+    unit: '/100',
+    colors: ['#d73027', '#f46d43', '#fdae61', '#fee08b', '#d9ef8b', '#a6d96a', '#66bd63', '#1a9850'],
+    stops: [40, 50, 60, 65, 70, 75, 85, 95],
+    format: score,
+  },
+  // #8 Internet & Connectivity
+  {
+    id: 'broadband_coverage',
+    labelKey: 'layer.broadband_coverage',
+    property: 'broadband_coverage_pct',
+    unit: '%',
+    colors: ['#ffffb2', '#fed976', '#feb24c', '#fd8d3c', '#fc4e2a', '#e31a1c', '#bd0026', '#800026'],
+    stops: [30, 50, 60, 70, 80, 85, 90, 98],
+    format: pct,
+  },
+  {
+    id: 'ev_charging_density',
+    labelKey: 'layer.ev_charging_density',
+    property: 'ev_charging_density',
+    unit: '/km²',
+    colors: ['#f7fcf5', '#e5f5e0', '#c7e9c0', '#a1d99b', '#74c476', '#41ab5d', '#238b45', '#005a32'],
+    stops: [0.5, 1, 2, 4, 6, 10, 15, 25],
+    format: density,
+  },
+  // #10 Tree Canopy / Urban Heat Island
+  {
+    id: 'tree_canopy',
+    labelKey: 'layer.tree_canopy',
+    property: 'tree_canopy_pct',
+    unit: '%',
+    colors: ['#ffffcc', '#d9f0a3', '#addd8e', '#78c679', '#41ab5d', '#238443', '#006837', '#004529'],
+    stops: [5, 10, 15, 20, 30, 40, 55, 75],
+    format: pct,
+  },
+  {
+    id: 'surface_temperature',
+    labelKey: 'layer.surface_temperature',
+    property: 'surface_temp_diff',
+    unit: '°C',
+    colors: ['#2166ac', '#4393c3', '#92c5de', '#d1e5f0', '#fddbc7', '#f4a582', '#d6604d', '#b2182b'],
+    stops: [-2, -1, 0, 0.5, 1, 2, 3, 5],
+    format: (v: number) => `${v > 0 ? '+' : ''}${v.toFixed(1)} °C`,
+  },
+  // #12 Accessibility
+  {
+    id: 'transit_reachability',
+    labelKey: 'layer.transit_reachability',
+    property: 'transit_reachability_score',
+    unit: '/100',
+    colors: ['#67001f', '#b2182b', '#d6604d', '#f4a582', '#d1e5f0', '#92c5de', '#4393c3', '#2166ac'],
+    stops: [10, 20, 30, 40, 50, 60, 70, 85],
+    format: score,
+  },
+  // #11 Quick wins — derived from existing GeoJSON fields
+  {
+    id: 'youth_ratio',
+    labelKey: 'layer.youth_ratio',
+    property: 'youth_ratio_pct',
+    unit: '%',
+    colors: ['#ffffd4', '#fee391', '#fec44f', '#fe9929', '#ec7014', '#cc4c02', '#993404', '#662506'],
+    stops: [3, 5, 7, 9, 11, 13, 16, 20],
+    format: pct,
+  },
+  {
+    id: 'gender_ratio',
+    labelKey: 'layer.gender_ratio',
+    property: 'gender_ratio',
+    unit: '',
+    colors: ['#b2182b', '#d6604d', '#f4a582', '#fddbc7', '#d1e5f0', '#92c5de', '#4393c3', '#2166ac'],
+    stops: [0.8, 0.85, 0.9, 0.95, 1.0, 1.05, 1.1, 1.2],
+    format: (v: number) => `${v.toFixed(2)}`,
+  },
+  {
+    id: 'single_parent_hh',
+    labelKey: 'layer.single_parent_hh',
+    property: 'single_parent_hh_pct',
+    unit: '%',
+    colors: ['#f7fcf5', '#e5f5e0', '#c7e9c0', '#a1d99b', '#74c476', '#41ab5d', '#238b45', '#005a32'],
+    stops: [2, 4, 6, 8, 10, 14, 18, 25],
+    format: pct,
+  },
+  {
+    id: 'families_with_children',
+    labelKey: 'layer.families_with_children',
+    property: 'families_with_children_pct',
+    unit: '%',
+    colors: ['#f7fcf0', '#e0f3db', '#ccebc5', '#a8ddb5', '#7bccc4', '#4eb3d3', '#2b8cbe', '#08589e'],
+    stops: [5, 10, 15, 20, 25, 30, 35, 45],
+    format: pct,
+  },
+  {
+    id: 'tech_sector_jobs',
+    labelKey: 'layer.tech_sector_jobs',
+    property: 'tech_sector_pct',
+    unit: '%',
+    colors: ['#f7f4f9', '#e7e1ef', '#d4b9da', '#c994c7', '#df65b0', '#e7298a', '#ce1256', '#91003f'],
+    stops: [2, 4, 6, 8, 12, 16, 22, 30],
+    format: pct,
+  },
+  {
+    id: 'healthcare_workers',
+    labelKey: 'layer.healthcare_workers',
+    property: 'healthcare_workers_pct',
+    unit: '%',
+    colors: ['#fff5eb', '#fee6ce', '#fdd0a2', '#fdae6b', '#fd8d3c', '#f16913', '#d94801', '#8c2d04'],
+    stops: [2, 4, 6, 8, 10, 14, 18, 25],
     format: pct,
   },
 ];
