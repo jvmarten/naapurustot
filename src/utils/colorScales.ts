@@ -59,7 +59,6 @@ export type LayerId =
   | 'traffic_accidents'
   | 'property_price_change'
   | 'school_quality'
-  | 'kela_benefits'
   | 'light_pollution';
 
 export interface LayerConfig {
@@ -583,15 +582,6 @@ export const LAYERS: LayerConfig[] = [
     colors: ['#67001f', '#b2182b', '#d6604d', '#f4a582', '#d1e5f0', '#92c5de', '#4393c3', '#2166ac'],
     stops: [30, 40, 50, 55, 60, 65, 70, 80],
     format: score,
-  },
-  {
-    id: 'kela_benefits',
-    labelKey: 'layer.kela_benefits',
-    property: 'kela_benefits_pct',
-    unit: '%',
-    colors: ['#f7fcf5', '#e5f5e0', '#c7e9c0', '#a1d99b', '#74c476', '#41ab5d', '#238b45', '#005a32'],
-    stops: [5, 10, 15, 20, 25, 30, 40, 55],
-    format: pct,
   },
   {
     id: 'light_pollution',

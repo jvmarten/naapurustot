@@ -143,9 +143,6 @@ PROPERTY_PRICE_CHANGE_FILE = Path(__file__).parent / "property_price_change.json
 # School quality — YTL matriculation exam results (pre-processed)
 SCHOOL_QUALITY_FILE = Path(__file__).parent / "school_quality.json"
 
-# Kela benefits — per postal code (pre-processed from Kela open data)
-KELA_BENEFITS_FILE = Path(__file__).parent / "kela_benefits.json"
-
 # Light pollution — NASA VIIRS nighttime radiance (pre-processed)
 LIGHT_POLLUTION_FILE = Path(__file__).parent / "light_pollution.json"
 
@@ -1845,24 +1842,6 @@ def fetch_school_quality():
     return {}
 
 
-def fetch_kela_benefits():
-    """Load Kela social benefits data per postal code.
-
-    Pre-processed from Kela open data (avoindata.fi).
-    Percentage of population receiving Kela benefits (housing allowance,
-    basic social assistance, sickness/disability).
-    Returns dict of postal_code -> benefits_pct.
-    """
-    logger.info("Loading Kela benefits data...")
-    if KELA_BENEFITS_FILE.exists():
-        with open(KELA_BENEFITS_FILE) as f:
-            data = json.load(f)
-        logger.info("  Loaded %s postal codes from %s", len(data), KELA_BENEFITS_FILE.name)
-        return data
-    logger.warning(" %s not found — column will be null", KELA_BENEFITS_FILE)
-    return {}
-
-
 def fetch_light_pollution():
     """Load light pollution data per postal code.
 
@@ -2045,10 +2024,6 @@ def main():
     school_data = fetch_school_quality()
     gdf = _join_simple_data(gdf, school_data, "school_quality_score", "school quality")
 
-    # Kela benefits (% of population receiving benefits)
-    kela_data = fetch_kela_benefits()
-    gdf = _join_simple_data(gdf, kela_data, "kela_benefits_pct", "Kela benefits")
-
     # Light pollution (NASA VIIRS nighttime radiance)
     light_data = fetch_light_pollution()
     gdf = _join_simple_data(gdf, light_data, "light_pollution", "light pollution")
@@ -2101,7 +2076,7 @@ def main():
         "rental_price_sqm", "price_to_rent_ratio",
         "walkability_index", "traffic_accident_rate",
         "property_price_change_pct", "school_quality_score",
-        "kela_benefits_pct", "light_pollution",
+        "light_pollution",
     ]
     gdf = _backfill_nulls(gdf, previous, backfill_columns)
 

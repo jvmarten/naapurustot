@@ -514,13 +514,6 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             diffClass={diffColor(d.light_pollution, avg.light_pollution, false)}
             property="light_pollution"
           />
-          <StatRow
-            label={t('panel.kela_benefits')}
-            value={d.kela_benefits_pct != null ? `${Number(d.kela_benefits_pct).toFixed(1)} %` : '—'}
-            diff={formatDiff(d.kela_benefits_pct, avg.kela_benefits_pct)}
-            diffClass={diffColor(d.kela_benefits_pct, avg.kela_benefits_pct)}
-            property="kela_benefits_pct"
-          />
         </div>
       </CollapsibleSection>
 
