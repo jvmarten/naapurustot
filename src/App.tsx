@@ -317,7 +317,7 @@ const App: React.FC = () => {
       {/* Brand mark — double-click to reset view, hidden on mobile to avoid overlap */}
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 hidden md:block">
         <button
-          onDoubleClick={handleResetView}
+          onClick={handleResetView}
           className="cursor-pointer bg-transparent border-none"
           title={t('map.reset_view')}
         >
