@@ -281,7 +281,6 @@ const FILTER_PRESETS: FilterPreset[] = [
     labelKey: 'filter.preset_commuters',
     criteria: [
       { layerId: 'transit_access', min: 40, max: 200 },
-      { layerId: 'commute_time', min: 10, max: 30 },
       { layerId: 'cycling_infra', min: 20, max: 150 },
     ],
   },

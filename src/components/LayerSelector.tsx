@@ -16,14 +16,14 @@ type LayerGroup = {
 };
 
 const LAYER_GROUPS: LayerGroup[] = [
-  { labelKey: 'layers.quality', ids: ['walkability', 'transit_access', 'transit_reachability', 'air_quality', 'noise_level', 'light_pollution'] },
+  { labelKey: 'layers.quality', ids: ['walkability', 'transit_access', 'transit_reachability', 'air_quality', 'light_pollution'] },
   { labelKey: 'layers.trends', ids: ['income_change', 'population_change', 'unemployment_change', 'property_price_change'] },
-  { labelKey: 'layers.demographics', ids: ['avg_age', 'population_density', 'child_ratio', 'youth_ratio', 'elderly_ratio', 'gender_ratio', 'student_share', 'foreign_lang', 'pensioners', 'population_growth', 'net_migration', 'single_person_hh', 'single_parent_hh', 'families_with_children', 'seniors_alone', 'neighborhood_stability', 'avg_household_size', 'kela_benefits'] },
-  { labelKey: 'layers.economy', ids: ['median_income', 'taxable_income', 'unemployment', 'employment_rate', 'education', 'property_price', 'rental_price', 'price_to_rent', 'income_inequality', 'household_debt', 'tech_sector_jobs', 'healthcare_workers', 'manufacturing_jobs', 'public_sector_jobs', 'service_sector_jobs'] },
-  { labelKey: 'layers.housing', ids: ['ownership', 'rental', 'apt_size', 'detached_houses', 'building_age', 'energy_class', 'new_construction'] },
+  { labelKey: 'layers.demographics', ids: ['avg_age', 'population_density', 'child_ratio', 'youth_ratio', 'elderly_ratio', 'gender_ratio', 'student_share', 'foreign_lang', 'pensioners', 'net_migration', 'single_person_hh', 'single_parent_hh', 'families_with_children', 'neighborhood_stability', 'avg_household_size', 'kela_benefits'] },
+  { labelKey: 'layers.economy', ids: ['median_income', 'taxable_income', 'unemployment', 'employment_rate', 'education', 'property_price', 'rental_price', 'price_to_rent', 'household_debt', 'tech_sector_jobs', 'healthcare_workers', 'manufacturing_jobs', 'public_sector_jobs', 'service_sector_jobs'] },
+  { labelKey: 'layers.housing', ids: ['ownership', 'rental', 'apt_size', 'detached_houses', 'new_construction'] },
   { labelKey: 'layers.services', ids: ['restaurant_density', 'grocery_access', 'daycare_density', 'school_density', 'school_quality', 'healthcare_access'] },
   { labelKey: 'layers.safety', ids: ['crime_rate', 'traffic_accidents'] },
-  { labelKey: 'layers.mobility', ids: ['commute_time', 'car_ownership', 'cycling_infra', 'ev_charging_density'] },
+  { labelKey: 'layers.mobility', ids: ['cycling_infra', 'ev_charging_density'] },
   { labelKey: 'layers.environment', ids: ['green_space', 'tree_canopy'] },
   { labelKey: 'layers.health', ids: ['obesity_rate', 'life_expectancy', 'mental_health'] },
   { labelKey: 'layers.voting', ids: ['voter_turnout', 'party_diversity'] },

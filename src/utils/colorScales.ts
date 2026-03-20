@@ -23,16 +23,8 @@ export type LayerId =
   | 'daycare_density'
   | 'school_density'
   | 'healthcare_access'
-  | 'noise_level'
-  | 'building_age'
-  | 'energy_class'
-  | 'population_growth'
-  | 'income_inequality'
   | 'single_person_hh'
-  | 'seniors_alone'
-  | 'car_ownership'
   | 'cycling_infra'
-  | 'commute_time'
   | 'restaurant_density'
   | 'grocery_access'
   | 'walkability'
@@ -94,11 +86,7 @@ const sqm = (v: number) => `${v.toFixed(1)} m²`;
 const euroSqm = (v: number) => `${v.toLocaleString('fi-FI')} €/m²`;
 const stops = (v: number) => `${v.toFixed(1)} /km²`;
 const perThousand = (v: number) => `${v.toFixed(1)} /1000`;
-const dB = (v: number) => `${v.toFixed(0)} dB`;
-const year = (v: number) => `${v.toFixed(0)}`;
-const minutes = (v: number) => `${v.toFixed(0)} min`;
 const gini = (v: number) => `${v.toFixed(2)}`;
-const carsHh = (v: number) => `${v.toFixed(2)}`;
 const euroMonth = (v: number) => `${v.toFixed(2)} €/m²/kk`;
 const score = (v: number) => `${v.toFixed(0)}/100`;
 const years = (v: number) => `${v.toFixed(1)} v`;
@@ -326,34 +314,6 @@ export const LAYERS: LayerConfig[] = [
     stops: [0.5, 1, 2, 4, 6, 10, 15, 25],
     format: density,
   },
-  // --- Phase 3: Environment & Infrastructure ---
-  {
-    id: 'noise_level',
-    labelKey: 'layer.noise_level',
-    property: 'noise_level',
-    unit: 'dB',
-    colors: ['#1a9850', '#66bd63', '#a6d96a', '#d9ef8b', '#fee08b', '#fdae61', '#f46d43', '#d73027'],
-    stops: [35, 40, 45, 50, 55, 60, 65, 75],
-    format: dB,
-  },
-  {
-    id: 'building_age',
-    labelKey: 'layer.building_age',
-    property: 'avg_building_year',
-    unit: '',
-    colors: ['#7f3b08', '#b35806', '#e08214', '#fdb863', '#fee0b6', '#d8daeb', '#b2abd2', '#8073ac'],
-    stops: [1920, 1940, 1960, 1970, 1980, 1990, 2000, 2015],
-    format: year,
-  },
-  {
-    id: 'energy_class',
-    labelKey: 'layer.energy_class',
-    property: 'energy_efficiency',
-    unit: '',
-    colors: ['#d73027', '#f46d43', '#fdae61', '#fee08b', '#d9ef8b', '#a6d96a', '#66bd63', '#1a9850'],
-    stops: [1, 2, 3, 4, 5, 6, 7, 8],
-    format: age,
-  },
   {
     id: 'cycling_infra',
     labelKey: 'layer.cycling_infra',
@@ -363,25 +323,6 @@ export const LAYERS: LayerConfig[] = [
     stops: [2, 5, 10, 20, 40, 60, 100, 150],
     format: density,
   },
-  // --- Phase 3: Demographics & Socioeconomic ---
-  {
-    id: 'population_growth',
-    labelKey: 'layer.population_growth',
-    property: 'population_growth_pct',
-    unit: '%',
-    colors: ['#b2182b', '#d6604d', '#f4a582', '#fddbc7', '#d1e5f0', '#92c5de', '#4393c3', '#2166ac'],
-    stops: [-5, -3, -1, 0, 1, 3, 5, 10],
-    format: pct,
-  },
-  {
-    id: 'income_inequality',
-    labelKey: 'layer.income_inequality',
-    property: 'gini_coefficient',
-    unit: '',
-    colors: ['#f7fcf5', '#e5f5e0', '#c7e9c0', '#a1d99b', '#74c476', '#41ab5d', '#238b45', '#005a32'],
-    stops: [0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.6],
-    format: gini,
-  },
   {
     id: 'single_person_hh',
     labelKey: 'layer.single_person_hh',
@@ -390,34 +331,6 @@ export const LAYERS: LayerConfig[] = [
     colors: ['#ffffd4', '#fee391', '#fec44f', '#fe9929', '#ec7014', '#cc4c02', '#993404', '#662506'],
     stops: [10, 20, 30, 40, 50, 60, 70, 85],
     format: pct,
-  },
-  {
-    id: 'seniors_alone',
-    labelKey: 'layer.seniors_alone',
-    property: 'seniors_alone_pct',
-    unit: '%',
-    colors: ['#f7fbff', '#deebf7', '#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#084594'],
-    stops: [5, 10, 15, 20, 25, 30, 40, 55],
-    format: pct,
-  },
-  // --- Phase 3: Mobility ---
-  {
-    id: 'car_ownership',
-    labelKey: 'layer.car_ownership',
-    property: 'cars_per_household',
-    unit: '',
-    colors: ['#f7f4f9', '#e7e1ef', '#d4b9da', '#c994c7', '#df65b0', '#e7298a', '#ce1256', '#91003f'],
-    stops: [0.1, 0.2, 0.3, 0.4, 0.5, 0.7, 0.9, 1.2],
-    format: carsHh,
-  },
-  {
-    id: 'commute_time',
-    labelKey: 'layer.commute_time',
-    property: 'avg_commute_min',
-    unit: 'min',
-    colors: ['#1a9850', '#66bd63', '#a6d96a', '#d9ef8b', '#fee08b', '#fdae61', '#f46d43', '#d73027'],
-    stops: [10, 15, 20, 25, 30, 35, 45, 60],
-    format: minutes,
   },
   // --- Phase 4: New external data layers ---
   {

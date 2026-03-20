@@ -118,14 +118,6 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     invert: true,
     primary: true,
   },
-  {
-    id: 'quietness',
-    label: { fi: 'Rauhallisuus', en: 'Quietness' },
-    defaultWeight: 2,
-    properties: ['noise_level'],
-    invert: true,
-    primary: true,
-  },
   // --- Secondary factors: hidden by default, available via "Show more" ---
   {
     id: 'walkability',
@@ -149,14 +141,6 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     defaultWeight: 0,
     properties: ['life_expectancy'],
     invert: false,
-    primary: false,
-  },
-  {
-    id: 'commute_time',
-    label: { fi: 'Työmatka-aika', en: 'Commute Time' },
-    defaultWeight: 0,
-    properties: ['avg_commute_min'],
-    invert: true,
     primary: false,
   },
   {

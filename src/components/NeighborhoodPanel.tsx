@@ -115,35 +115,6 @@ const formatStopDensity = (v: number | string | null | undefined): string => {
   return `${n.toFixed(1)} /km²`;
 };
 
-const formatMinutes = (v: number | string | null | undefined): string => {
-  const n = toNum(v);
-  if (n == null) return '—';
-  return `${n.toFixed(0)} min`;
-};
-
-const formatGini = (v: number | string | null | undefined): string => {
-  const n = toNum(v);
-  if (n == null) return '—';
-  return n.toFixed(2);
-};
-
-const formatCarsHh = (v: number | string | null | undefined): string => {
-  const n = toNum(v);
-  if (n == null) return '—';
-  return n.toFixed(2);
-};
-
-const formatYear = (v: number | string | null | undefined): string => {
-  const n = toNum(v);
-  if (n == null) return '—';
-  return n.toFixed(0);
-};
-
-const formatDb = (v: number | string | null | undefined): string => {
-  const n = toNum(v);
-  if (n == null) return '—';
-  return `${n.toFixed(0)} dB`;
-};
 
 const formatScore = (v: number | string | null | undefined): string => {
   const n = toNum(v);
@@ -596,23 +567,6 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
       <CollapsibleSection title={t('layers.environment')}>
         <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
           <StatRow
-            label={t('panel.noise_level')}
-            value={formatDb(d.noise_level)}
-            diff={formatDiff(d.noise_level, avg.noise_level)}
-            diffClass={diffColor(d.noise_level, avg.noise_level, false)}
-            property="noise_level"
-          />
-          <StatRow
-            label={t('panel.building_age')}
-            value={formatYear(d.avg_building_year)}
-            property="avg_building_year"
-          />
-          <StatRow
-            label={t('panel.energy_class')}
-            value={d.energy_efficiency != null ? Number(d.energy_efficiency).toFixed(1) : '—'}
-            property="energy_efficiency"
-          />
-          <StatRow
             label={t('panel.light_pollution')}
             value={d.light_pollution != null ? Number(d.light_pollution).toFixed(1) : '—'}
             diff={formatDiff(d.light_pollution, avg.light_pollution)}
@@ -625,20 +579,6 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
       {/* Mobility section — PO-2: collapsible */}
       <CollapsibleSection title={t('layers.mobility')}>
         <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
-          <StatRow
-            label={t('panel.commute_time')}
-            value={formatMinutes(d.avg_commute_min)}
-            diff={formatDiff(d.avg_commute_min, avg.avg_commute_min)}
-            diffClass={diffColor(d.avg_commute_min, avg.avg_commute_min, false)}
-            property="avg_commute_min"
-          />
-          <StatRow
-            label={t('panel.car_ownership')}
-            value={formatCarsHh(d.cars_per_household)}
-            diff={formatDiff(d.cars_per_household, avg.cars_per_household)}
-            diffClass={diffColor(d.cars_per_household, avg.cars_per_household)}
-            property="cars_per_household"
-          />
           <StatRow
             label={t('panel.cycling_infra')}
             value={formatStopDensity(d.cycling_density)}
@@ -687,24 +627,9 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
       <CollapsibleSection title={`${t('layers.demographics')} +`}>
         <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
           <StatRow
-            label={t('panel.population_growth')}
-            value={formatPct(d.population_growth_pct)}
-            property="population_growth_pct"
-          />
-          <StatRow
-            label={t('panel.income_inequality')}
-            value={formatGini(d.gini_coefficient)}
-            property="gini_coefficient"
-          />
-          <StatRow
             label={t('panel.single_person_hh')}
             value={formatPct(d.single_person_hh_pct)}
             property="single_person_hh_pct"
-          />
-          <StatRow
-            label={t('panel.seniors_alone')}
-            value={formatPct(d.seniors_alone_pct)}
-            property="seniors_alone_pct"
           />
           <StatRow
             label={t('panel.kela_benefits')}
