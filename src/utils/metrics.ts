@@ -359,7 +359,7 @@ export const METRIC_SOURCES: Record<string, MetricSource> = {
   traffic_accident_rate: { source: 'Väylävirasto', year: 2023 },
   property_price_change_pct: { source: 'Tilastokeskus (PxWeb)', year: '2020–2025' },
   school_quality_score: { source: 'YTL (ylioppilastutkinto)', year: 2024 },
-  light_pollution: { source: 'NASA VIIRS', year: 2024 },
+  light_pollution: { source: 'OpenStreetMap', year: 2025 },
 
   // Quick wins (from existing Paavo data)
   youth_ratio_pct: { source: 'Tilastokeskus (Paavo)', year: 2024 },

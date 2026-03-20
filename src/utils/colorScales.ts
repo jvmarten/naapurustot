@@ -587,10 +587,10 @@ export const LAYERS: LayerConfig[] = [
     id: 'light_pollution',
     labelKey: 'layer.light_pollution',
     property: 'light_pollution',
-    unit: 'nW/cm²/sr',
+    unit: '/km²',
     colors: ['#000004', '#1b0c41', '#4a0c6b', '#781c6d', '#a52c60', '#cf4446', '#ed6925', '#fcffa4'],
-    stops: [1, 5, 10, 20, 35, 50, 75, 120],
-    format: (v: number) => `${v.toFixed(1)} nW`,
+    stops: [5, 20, 50, 100, 150, 250, 400, 550],
+    format: density,
   },
 ];
 

@@ -1,22 +1,25 @@
 #!/usr/bin/env python3
 """
-Compute light pollution (nighttime radiance) per postal code area using
-NASA VIIRS DNB annual composites via Google Earth Engine.
+Compute light pollution per postal code area using OpenStreetMap street light
+density as a proxy for nighttime illumination.
 
-Output: scripts/light_pollution.json — { postal_code: mean_radiance_nW }
+Street light density (lamps/km²) correlates strongly with satellite-measured
+radiance and directly reflects the lit environment residents experience.
 
-Prerequisites:
-- Google Earth Engine Python API: pip install earthengine-api
-- Authenticated: earthengine authenticate
-- GEE project: set EE_PROJECT env var or use default
+Output: scripts/light_pollution.json — { postal_code: lamps_per_km2 }
 
-Data source: NOAA/VIIRS/DNB/ANNUAL_V22 (2012-2024, ~500m resolution)
+Data source: OpenStreetMap via Overpass API (highway=street_lamp)
 """
 
 import json
 import logging
+import math
 import sys
+import time
 from pathlib import Path
+
+import requests
+from shapely.geometry import shape
 
 logging.basicConfig(
     level=logging.INFO,
@@ -27,36 +30,18 @@ logger = logging.getLogger(__name__)
 
 OUTPUT_FILE = Path(__file__).parent / "light_pollution.json"
 GEOJSON_FILE = Path(__file__).parent.parent / "public" / "data" / "metro_neighborhoods.geojson"
+OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+
+# Approximate m² per degree² at Helsinki latitude (~60°N)
+# 1° lat ≈ 111,320 m, 1° lon ≈ 111,320 * cos(60°) ≈ 55,660 m
+LAT_M_PER_DEG = 111_320
+LON_M_PER_DEG = 55_660
 
 
-def main():
-    try:
-        import ee
-    except ImportError:
-        logger.error(
-            "Google Earth Engine Python API not installed.\n"
-            "Install with: pip install earthengine-api\n"
-            "Then authenticate: earthengine authenticate"
-        )
-        sys.exit(1)
-
-    # Initialize Earth Engine
-    try:
-        ee.Initialize()
-        logger.info("Earth Engine initialized")
-    except Exception:
-        try:
-            ee.Authenticate()
-            ee.Initialize()
-            logger.info("Earth Engine authenticated and initialized")
-        except Exception as e:
-            logger.error("Could not initialize Earth Engine: %s", e)
-            sys.exit(1)
-
-    # Load postal code polygons from the project's GeoJSON
+def load_neighborhoods():
+    """Load postal code polygons from the project's GeoJSON."""
     if not GEOJSON_FILE.exists():
         logger.error("GeoJSON not found: %s", GEOJSON_FILE)
-        logger.error("Run prepare_data.py first to generate the GeoJSON")
         sys.exit(1)
 
     logger.info("Loading postal code polygons from %s...", GEOJSON_FILE.name)
@@ -66,64 +51,155 @@ def main():
     features = geojson.get("features", [])
     logger.info("  Loaded %d features", len(features))
 
-    # Upload polygons to Earth Engine as a FeatureCollection
-    ee_features = []
+    neighborhoods = []
     for feat in features:
-        pno = feat.get("properties", {}).get("pno", "")
-        if not pno:
-            continue
-        geom = feat.get("geometry")
-        if not geom:
-            continue
-        try:
-            ee_geom = ee.Geometry(geom)
-            ee_feat = ee.Feature(ee_geom, {"pno": pno})
-            ee_features.append(ee_feat)
-        except Exception:
-            continue
-
-    if not ee_features:
-        logger.error("No valid features to process")
-        sys.exit(1)
-
-    ee_fc = ee.FeatureCollection(ee_features)
-    logger.info("  Uploaded %d features to Earth Engine", len(ee_features))
-
-    # Load VIIRS annual composite (latest available year)
-    logger.info("Loading VIIRS DNB annual composite...")
-    viirs = ee.ImageCollection("NOAA/VIIRS/DNB/ANNUAL_V22")
-
-    # Get the latest year's average radiance band
-    latest = viirs.sort("system:time_start", False).first()
-    avg_radiance = latest.select("average")
-
-    logger.info("Computing zonal statistics (mean radiance per postal code)...")
-
-    # Reduce regions: compute mean radiance per polygon
-    results = avg_radiance.reduceRegions(
-        collection=ee_fc,
-        reducer=ee.Reducer.mean(),
-        scale=500,  # VIIRS native resolution
-    )
-
-    # Fetch results
-    result_list = results.getInfo()
-    if not result_list or "features" not in result_list:
-        logger.error("No results from Earth Engine")
-        sys.exit(1)
-
-    # Parse into postal code -> radiance dict
-    output = {}
-    for feat in result_list["features"]:
         props = feat.get("properties", {})
         pno = props.get("pno", "")
-        mean_val = props.get("mean")
-        if pno and mean_val is not None:
-            output[pno] = round(mean_val, 2)
+        geom = feat.get("geometry")
+        if pno and geom:
+            try:
+                shp = shape(geom)
+                neighborhoods.append({
+                    "pno": pno,
+                    "geometry": geom,
+                    "shape": shp,
+                    "bounds": shp.bounds,  # (minx, miny, maxx, maxy) = (lon_min, lat_min, lon_max, lat_max)
+                })
+            except Exception:
+                pass
+
+    return neighborhoods
+
+
+def compute_area_km2(shp):
+    """Approximate area of a Shapely polygon in km², using local projection."""
+    bounds = shp.bounds
+    mid_lat = (bounds[1] + bounds[3]) / 2
+    cos_lat = math.cos(math.radians(mid_lat))
+    # Use rough metric conversion for the area
+    # shapely area is in deg², convert to m²
+    area_deg2 = shp.area
+    area_m2 = area_deg2 * LAT_M_PER_DEG * LON_M_PER_DEG
+    return area_m2 / 1_000_000
+
+
+def query_street_lamps_batch(neighborhoods):
+    """Query Overpass API for street lamp counts in all postal code areas.
+
+    Uses a single large query covering the entire Helsinki metro bbox,
+    then does point-in-polygon assignment client-side.
+    """
+    # Compute overall bounding box
+    all_lons = []
+    all_lats = []
+    for nb in neighborhoods:
+        minx, miny, maxx, maxy = nb["bounds"]
+        all_lons.extend([minx, maxx])
+        all_lats.extend([miny, maxy])
+
+    bbox = (min(all_lats), min(all_lons), max(all_lats), max(all_lons))
+    logger.info("  Metro bbox: %.4f,%.4f,%.4f,%.4f", *bbox)
+
+    # Query all street lamps in the metro area at once
+    query = f"""
+[out:json][timeout:300];
+(
+  node["highway"="street_lamp"]({bbox[0]},{bbox[1]},{bbox[2]},{bbox[3]});
+);
+out body;
+"""
+    logger.info("Querying Overpass for all street lamps in metro area...")
+    for attempt in range(1, 5):
+        try:
+            r = requests.post(
+                OVERPASS_URL,
+                data={"data": query},
+                timeout=300,
+                verify=False,
+            )
+            r.raise_for_status()
+            data = r.json()
+            elements = data.get("elements", [])
+            logger.info("  Found %d street lamps", len(elements))
+            return elements
+        except Exception as e:
+            wait = 2 ** attempt
+            logger.warning("  Attempt %d failed: %s. Retrying in %ds...", attempt, e, wait)
+            time.sleep(wait)
+
+    logger.error("Failed to query Overpass API after 4 attempts")
+    return []
+
+
+def assign_lamps_to_neighborhoods(lamps, neighborhoods):
+    """Assign each street lamp to its postal code area using point-in-polygon."""
+    from shapely.geometry import Point
+    from shapely import STRtree
+
+    logger.info("Building spatial index for %d neighborhoods...", len(neighborhoods))
+    shapes = [nb["shape"] for nb in neighborhoods]
+    tree = STRtree(shapes)
+
+    # Count lamps per neighborhood
+    counts = {nb["pno"]: 0 for nb in neighborhoods}
+    assigned = 0
+
+    logger.info("Assigning %d lamps to neighborhoods...", len(lamps))
+    for i, lamp in enumerate(lamps):
+        if i > 0 and i % 50000 == 0:
+            logger.info("  Processed %d/%d lamps (%d assigned)...", i, len(lamps), assigned)
+
+        pt = Point(lamp["lon"], lamp["lat"])
+
+        # Query spatial index for candidate polygons
+        idx_results = tree.query(pt)
+        for idx in idx_results:
+            if shapes[idx].contains(pt):
+                counts[neighborhoods[idx]["pno"]] += 1
+                assigned += 1
+                break
+
+    logger.info("  Assigned %d/%d lamps to postal codes", assigned, len(lamps))
+    return counts
+
+
+def main():
+    neighborhoods = load_neighborhoods()
+    if not neighborhoods:
+        logger.error("No neighborhoods loaded")
+        sys.exit(1)
+
+    # Compute area for each neighborhood
+    for nb in neighborhoods:
+        nb["area_km2"] = compute_area_km2(nb["shape"])
+
+    # Query all street lamps
+    lamps = query_street_lamps_batch(neighborhoods)
+    if not lamps:
+        logger.error("No street lamp data retrieved")
+        sys.exit(1)
+
+    # Assign to postal codes
+    counts = assign_lamps_to_neighborhoods(lamps, neighborhoods)
+
+    # Compute density (lamps/km²)
+    output = {}
+    for nb in neighborhoods:
+        pno = nb["pno"]
+        count = counts.get(pno, 0)
+        area = nb["area_km2"]
+        if area > 0:
+            density = count / area
+            output[pno] = round(density, 1)
+
+    # Stats
+    vals = [v for v in output.values() if v > 0]
+    if vals:
+        logger.info("Density stats: min=%.1f, median=%.1f, max=%.1f lamps/km²",
+                     min(vals), sorted(vals)[len(vals)//2], max(vals))
 
     logger.info("Computed light pollution for %d postal codes", len(output))
 
-    # Write output
     OUTPUT_FILE.write_text(json.dumps(output, indent=2, ensure_ascii=False))
     logger.info("Wrote %d postal codes to %s", len(output), OUTPUT_FILE.name)
 

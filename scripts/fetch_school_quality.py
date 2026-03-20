@@ -153,16 +153,17 @@ def fetch_ytl_results():
 def fetch_school_postal_codes():
     """Fetch school registry from Opintopolku and extract postal codes.
 
+    Uses a two-step approach:
+    1. /hae to list all upper secondary schools (lukio) and get OIDs
+    2. /findbyoids POST to fetch full details including addresses
+
     Returns dict: school_number -> postal_code (5-digit string)
     """
     logger.info("Fetching school registry from Opintopolku...")
+    headers = {"Caller-Id": "naapurustot.fi"}
 
     try:
-        r = _get_with_retry(
-            OPINTOPOLKU_URL,
-            "Opintopolku schools",
-            headers={"Caller-Id": "naapurustot.fi"},
-        )
+        r = _get_with_retry(OPINTOPOLKU_URL, "Opintopolku schools", headers=headers)
         data = r.json()
     except Exception as e:
         logger.error("Could not fetch school registry: %s", e)
@@ -171,9 +172,36 @@ def fetch_school_postal_codes():
     organisations = data.get("organisaatiot", [])
     logger.info("  Found %d organisations", len(organisations))
 
+    # Collect OIDs for bulk detail fetch
+    oids = [org["oid"] for org in organisations if org.get("oid")]
+
+    # Fetch full details in batches of 100 via findbyoids
+    BATCH_SIZE = 100
+    FINDBYOIDS_URL = (
+        "https://virkailija.opintopolku.fi/organisaatio-service/"
+        "rest/organisaatio/v4/findbyoids"
+    )
+    all_details = []
+    for i in range(0, len(oids), BATCH_SIZE):
+        batch = oids[i : i + BATCH_SIZE]
+        logger.info("  Fetching details batch %d-%d...", i + 1, i + len(batch))
+        try:
+            r = requests.post(
+                FINDBYOIDS_URL,
+                headers={**headers, "Content-Type": "application/json"},
+                json=batch,
+                timeout=60,
+            )
+            r.raise_for_status()
+            all_details.extend(r.json())
+        except Exception as e:
+            logger.warning("  Batch %d failed: %s", i, e)
+            time.sleep(2)
+
+    logger.info("  Fetched details for %d organisations", len(all_details))
+
     school_postcodes = {}
-    for org in organisations:
-        # oppilaitosKoodi is a 5-digit string like "00093"
+    for org in all_details:
         koodi = org.get("oppilaitosKoodi", "")
         if not koodi:
             continue
@@ -193,15 +221,13 @@ def fetch_school_postal_codes():
 
         if postal_code:
             # Map oppilaitosKoodi to YTL school number format:
-            # YTL uses "1" + stripped leading zeros + koodi
-            # e.g., oppilaitosKoodi "00093" -> YTL "1093"
-            # But the mapping isn't always straightforward, so store both forms
+            # YTL uses "1" + stripped leading zeros, e.g., "00093" -> "1093"
             ytl_nro = "1" + koodi.lstrip("0")
             school_postcodes[ytl_nro] = postal_code
-            # Also store with original koodi (padded) in case of different format
             school_postcodes[koodi] = postal_code
 
-    logger.info("  Mapped %d schools to postal codes", len(school_postcodes) // 2)
+    unique_count = len({v for v in school_postcodes.values()})
+    logger.info("  Mapped %d schools to %d unique postal codes", len(school_postcodes) // 2, unique_count)
     return school_postcodes
 
 

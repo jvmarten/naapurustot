@@ -129,7 +129,7 @@
   "panel.traffic_accidents": "Accidents / 1000 res.",
   "panel.property_price_change": "Price Change 5yr (%)",
   "panel.school_quality": "School Quality (0–100)",
-  "panel.light_pollution": "Light Pollution (nW/cm²/sr)",
+  "panel.light_pollution": "Light Pollution (lamps/km²)",
   "panel.trends": "Historical Trends",
   "panel.trend_income": "Median Income",
   "panel.trend_population": "Population",
