@@ -472,6 +472,27 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             diffClass={diffColor(d.student_share, avg.student_share)}
             property="student_share"
           />
+          <StatRow
+            label={t('panel.elderly_ratio')}
+            value={formatPct(d.elderly_ratio_pct)}
+            diff={formatDiff(d.elderly_ratio_pct, avg.elderly_ratio_pct)}
+            diffClass={diffColor(d.elderly_ratio_pct, avg.elderly_ratio_pct)}
+            property="elderly_ratio_pct"
+          />
+          <StatRow
+            label={t('panel.employment_rate')}
+            value={formatPct(d.employment_rate)}
+            diff={formatDiff(d.employment_rate, avg.employment_rate)}
+            diffClass={diffColor(d.employment_rate, avg.employment_rate)}
+            property="employment_rate"
+          />
+          <StatRow
+            label={t('panel.avg_household_size')}
+            value={d.avg_household_size != null ? `${Number(d.avg_household_size).toFixed(2)}` : '—'}
+            diff={formatDiff(d.avg_household_size, avg.avg_household_size)}
+            diffClass={diffColor(d.avg_household_size, avg.avg_household_size)}
+            property="avg_household_size"
+          />
         </div>
       </CollapsibleSection>
 
@@ -719,6 +740,41 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             diff={formatDiff(d.price_to_rent_ratio, avg.price_to_rent_ratio)}
             diffClass={diffColor(d.price_to_rent_ratio, avg.price_to_rent_ratio)}
             property="price_to_rent_ratio"
+          />
+          <StatRow
+            label={t('panel.property_price_change')}
+            value={formatPct(d.property_price_change_pct)}
+            diff={formatDiff(d.property_price_change_pct, avg.property_price_change_pct)}
+            diffClass={diffColor(d.property_price_change_pct, avg.property_price_change_pct)}
+            property="property_price_change_pct"
+          />
+          <StatRow
+            label={t('panel.new_construction')}
+            value={formatPct(d.new_construction_pct)}
+            diff={formatDiff(d.new_construction_pct, avg.new_construction_pct)}
+            diffClass={diffColor(d.new_construction_pct, avg.new_construction_pct)}
+            property="new_construction_pct"
+          />
+          <StatRow
+            label={t('panel.manufacturing_jobs')}
+            value={formatPct(d.manufacturing_jobs_pct)}
+            diff={formatDiff(d.manufacturing_jobs_pct, avg.manufacturing_jobs_pct)}
+            diffClass={diffColor(d.manufacturing_jobs_pct, avg.manufacturing_jobs_pct)}
+            property="manufacturing_jobs_pct"
+          />
+          <StatRow
+            label={t('panel.public_sector_jobs')}
+            value={formatPct(d.public_sector_jobs_pct)}
+            diff={formatDiff(d.public_sector_jobs_pct, avg.public_sector_jobs_pct)}
+            diffClass={diffColor(d.public_sector_jobs_pct, avg.public_sector_jobs_pct)}
+            property="public_sector_jobs_pct"
+          />
+          <StatRow
+            label={t('panel.service_sector_jobs')}
+            value={formatPct(d.service_sector_jobs_pct)}
+            diff={formatDiff(d.service_sector_jobs_pct, avg.service_sector_jobs_pct)}
+            diffClass={diffColor(d.service_sector_jobs_pct, avg.service_sector_jobs_pct)}
+            property="service_sector_jobs_pct"
           />
         </div>
       </CollapsibleSection>

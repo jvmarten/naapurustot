@@ -69,7 +69,16 @@ export type LayerId =
   | 'single_parent_hh'
   | 'families_with_children'
   | 'tech_sector_jobs'
-  | 'healthcare_workers';
+  | 'healthcare_workers'
+  // Phase 8: More demographic detail + trends
+  | 'employment_rate'
+  | 'elderly_ratio'
+  | 'avg_household_size'
+  | 'manufacturing_jobs'
+  | 'public_sector_jobs'
+  | 'service_sector_jobs'
+  | 'property_price_change'
+  | 'new_construction';
 
 export interface LayerConfig {
   id: LayerId;
@@ -721,6 +730,79 @@ export const LAYERS: LayerConfig[] = [
     unit: '%',
     colors: ['#fff5eb', '#fee6ce', '#fdd0a2', '#fdae6b', '#fd8d3c', '#f16913', '#d94801', '#8c2d04'],
     stops: [2, 4, 6, 8, 10, 14, 18, 25],
+    format: pct,
+  },
+  // #12 Phase 8: More demographic detail + trends
+  {
+    id: 'employment_rate',
+    labelKey: 'layer.employment_rate',
+    property: 'employment_rate',
+    unit: '%',
+    colors: ['#d73027', '#f46d43', '#fdae61', '#fee08b', '#d9ef8b', '#a6d96a', '#66bd63', '#1a9850'],
+    stops: [30, 40, 50, 55, 60, 65, 70, 80],
+    format: pct,
+  },
+  {
+    id: 'elderly_ratio',
+    labelKey: 'layer.elderly_ratio',
+    property: 'elderly_ratio_pct',
+    unit: '%',
+    colors: ['#f7fbff', '#deebf7', '#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#084594'],
+    stops: [5, 10, 15, 20, 25, 30, 35, 45],
+    format: pct,
+  },
+  {
+    id: 'avg_household_size',
+    labelKey: 'layer.avg_household_size',
+    property: 'avg_household_size',
+    unit: '',
+    colors: ['#f7f4f9', '#e7e1ef', '#d4b9da', '#c994c7', '#df65b0', '#e7298a', '#ce1256', '#91003f'],
+    stops: [1.0, 1.3, 1.5, 1.7, 1.9, 2.2, 2.5, 3.0],
+    format: (v: number) => `${v.toFixed(2)}`,
+  },
+  {
+    id: 'manufacturing_jobs',
+    labelKey: 'layer.manufacturing_jobs',
+    property: 'manufacturing_jobs_pct',
+    unit: '%',
+    colors: ['#ffffd4', '#fee391', '#fec44f', '#fe9929', '#ec7014', '#cc4c02', '#993404', '#662506'],
+    stops: [1, 3, 5, 8, 12, 18, 25, 35],
+    format: pct,
+  },
+  {
+    id: 'public_sector_jobs',
+    labelKey: 'layer.public_sector_jobs',
+    property: 'public_sector_jobs_pct',
+    unit: '%',
+    colors: ['#f7fcf5', '#e5f5e0', '#c7e9c0', '#a1d99b', '#74c476', '#41ab5d', '#238b45', '#005a32'],
+    stops: [1, 3, 5, 8, 12, 16, 22, 30],
+    format: pct,
+  },
+  {
+    id: 'service_sector_jobs',
+    labelKey: 'layer.service_sector_jobs',
+    property: 'service_sector_jobs_pct',
+    unit: '%',
+    colors: ['#fff5eb', '#fee6ce', '#fdd0a2', '#fdae6b', '#fd8d3c', '#f16913', '#d94801', '#8c2d04'],
+    stops: [30, 45, 55, 65, 70, 80, 85, 95],
+    format: pct,
+  },
+  {
+    id: 'property_price_change',
+    labelKey: 'layer.property_price_change',
+    property: 'property_price_change_pct',
+    unit: '%',
+    colors: ['#b2182b', '#d6604d', '#f4a582', '#fddbc7', '#d1e5f0', '#92c5de', '#4393c3', '#2166ac'],
+    stops: [-30, -20, -10, 0, 5, 10, 20, 40],
+    format: pct,
+  },
+  {
+    id: 'new_construction',
+    labelKey: 'layer.new_construction',
+    property: 'new_construction_pct',
+    unit: '%',
+    colors: ['#f7fcf5', '#e5f5e0', '#c7e9c0', '#a1d99b', '#74c476', '#41ab5d', '#238b45', '#005a32'],
+    stops: [0, 2, 5, 8, 12, 18, 25, 40],
     format: pct,
   },
 ];
