@@ -119,6 +119,19 @@ TREE_CANOPY_FILE = Path(__file__).parent / "tree_canopy.json"
 # Transit reachability score (0-100, jobs/services within 30 min) — HSL
 TRANSIT_REACHABILITY_FILE = Path(__file__).parent / "transit_reachability.json"
 
+# --- Phase 9: Real open data layers ---
+
+# Statistics Finland rental price data by postal code — PxWeb API v1
+RENTAL_PRICE_URL = (
+    "https://pxdata.stat.fi/PxWeb/api/v1/en/"
+    "StatFin/asvu/statfin_asvu_pxt_13eb.px"
+)
+# Local fallback for rental prices
+RENTAL_PRICE_FILE = Path(__file__).parent / "rental_prices.json"
+
+# Traffic accidents — Väylävirasto open data
+TRAFFIC_ACCIDENTS_FILE = Path(__file__).parent / "traffic_accidents.json"
+
 # ---------------------------------------------------------------------------
 # Retry & rate-limit settings
 # ---------------------------------------------------------------------------
@@ -1445,6 +1458,226 @@ def join_historical_trends(gdf, history: dict):
     return gdf
 
 
+def fetch_rental_prices():
+    """Fetch rental price data (€/m²/month) per postal code from Statistics Finland.
+
+    Uses PxWeb API table statfin_asvu_pxt_13eb (rent levels of rental dwellings).
+    """
+    logger.info("Fetching rental price data from Statistics Finland...")
+
+    try:
+        meta_r = _request_with_retry(
+            "GET", RENTAL_PRICE_URL, label="rental price metadata", timeout=30,
+        )
+        meta = meta_r.json()
+        variables = _validate_pxweb_meta(meta, "rental price metadata")
+    except Exception as e:
+        _record_error("fetch_rental_prices/meta", e)
+        if RENTAL_PRICE_FILE.exists():
+            logger.info("  Falling back to local file: %s", RENTAL_PRICE_FILE.name)
+            with open(RENTAL_PRICE_FILE) as f:
+                data = json.load(f)
+            logger.info("  Loaded %s postal codes from %s", len(data), RENTAL_PRICE_FILE.name)
+            return {k: float(v) for k, v in data.items()}
+        return {}
+
+    query_items = []
+    for var in variables:
+        code = var["code"]
+        values = var["values"]
+        code_lower = code.lower()
+
+        if code_lower in ("vuosineljännes", "quarter", "vuosi", "year"):
+            # Take latest available
+            query_items.append({"code": code, "selection": {"filter": "item", "values": [values[-1]]}})
+        elif code_lower in ("postinumero", "postal code", "alue", "postinumeroalue"):
+            query_items.append({"code": code, "selection": {"filter": "all", "values": ["*"]}})
+        elif code_lower in ("huoneluku", "number of rooms"):
+            # All room counts
+            query_items.append({"code": code, "selection": {"filter": "all", "values": ["*"]}})
+        elif code_lower in ("tiedot", "information"):
+            # Select "Keskivuokra per neliö" / average rent per sqm
+            query_items.append({"code": code, "selection": {"filter": "all", "values": ["*"]}})
+        else:
+            query_items.append({"code": code, "selection": {"filter": "all", "values": ["*"]}})
+
+    query = {"query": query_items, "response": {"format": "json"}}
+
+    _rate_limit()
+
+    try:
+        r = _request_with_retry(
+            "POST", RENTAL_PRICE_URL, label="rental price data",
+            json=query, timeout=60,
+        )
+        data = r.json()
+        columns, rows = _validate_pxweb_data(data, "rental price data")
+    except Exception as e:
+        _record_error("fetch_rental_prices/data", e)
+        return {}
+
+    result = {}
+    try:
+        pno_idx = None
+        for i, col in enumerate(columns):
+            code_lower = col.get("code", "").lower()
+            if code_lower in ("postinumero", "postal code", "alue", "postinumeroalue"):
+                pno_idx = i
+
+        if pno_idx is not None:
+            for row in rows:
+                keys = row.get("key", [])
+                vals = row.get("values", [])
+                if not keys or not vals:
+                    continue
+                pno = keys[pno_idx][:5]
+                val = vals[0]
+                if val not in (None, "..", "...", ""):
+                    try:
+                        rent = float(val)
+                        if rent > 0:
+                            # Keep the value (could be averaged later)
+                            if pno not in result or rent > 0:
+                                result[pno] = rent
+                    except (ValueError, TypeError):
+                        pass
+
+        logger.info("  Parsed rental prices for %s postal codes", len(result))
+    except Exception as e:
+        _record_error("fetch_rental_prices/parse", e)
+
+    return result
+
+
+def join_rental_prices(gdf, rental_data):
+    """Join rental price (€/m²/month) data to the GeoDataFrame."""
+    if not rental_data:
+        gdf["rental_price_sqm"] = None
+        return gdf
+
+    logger.info("Joining rental price data...")
+    for idx, row in gdf.iterrows():
+        pno = row.get("pno", "")
+        gdf.at[idx, "rental_price_sqm"] = rental_data.get(pno)
+    matched = gdf["rental_price_sqm"].notna().sum()
+    logger.info("  Matched %s/%s postal codes", matched, len(gdf))
+    return gdf
+
+
+def calculate_price_to_rent(gdf):
+    """Calculate price-to-rent ratio from property price and rental price.
+
+    Formula: property_price_sqm / (rental_price_sqm * 12)
+    This gives the number of years of rent needed to equal the purchase price.
+    """
+    logger.info("Calculating price-to-rent ratio...")
+    count = 0
+    for idx, row in gdf.iterrows():
+        price = safe_val(row.get("property_price_sqm"))
+        rent = safe_val(row.get("rental_price_sqm"))
+        if price is not None and rent is not None and rent > 0:
+            gdf.at[idx, "price_to_rent_ratio"] = round(price / (rent * 12), 1)
+            count += 1
+        else:
+            gdf.at[idx, "price_to_rent_ratio"] = None
+    logger.info("  Computed price-to-rent ratio for %s postal codes", count)
+    return gdf
+
+
+def calculate_walkability(gdf):
+    """Calculate walkability index as a composite score (0-100) from existing OSM densities.
+
+    Components (equal weighting):
+    - Restaurant/cafe density (walkable dining/nightlife)
+    - Grocery store density (daily shopping)
+    - Transit stop density (public transport access)
+    - Healthcare facility density (essential services)
+    - Cycling infrastructure density (active transport)
+    - School density (family amenities)
+
+    Each component is normalized to 0-100 using percentile-based scaling,
+    then averaged.
+    """
+    logger.info("Calculating walkability index...")
+
+    components = [
+        "restaurant_density", "grocery_density", "transit_stop_density",
+        "healthcare_density", "cycling_density", "school_density",
+    ]
+
+    # Collect non-null values for each component to compute percentiles
+    comp_values = {}
+    for comp in components:
+        vals = []
+        for idx, row in gdf.iterrows():
+            v = safe_val(row.get(comp))
+            if v is not None and v >= 0:
+                vals.append(v)
+        comp_values[comp] = sorted(vals) if vals else []
+
+    def _percentile_score(value, sorted_vals):
+        """Return 0-100 percentile score for a value within sorted_vals."""
+        if not sorted_vals or value is None:
+            return None
+        n = len(sorted_vals)
+        # Count values less than or equal
+        count_le = sum(1 for v in sorted_vals if v <= value)
+        return round(count_le / n * 100, 1)
+
+    count = 0
+    for idx, row in gdf.iterrows():
+        scores = []
+        for comp in components:
+            v = safe_val(row.get(comp))
+            if v is not None and comp_values[comp]:
+                s = _percentile_score(v, comp_values[comp])
+                if s is not None:
+                    scores.append(s)
+
+        if len(scores) >= 3:  # Require at least 3 components
+            gdf.at[idx, "walkability_index"] = round(sum(scores) / len(scores), 0)
+            count += 1
+        else:
+            gdf.at[idx, "walkability_index"] = None
+
+    logger.info("  Computed walkability index for %s postal codes", count)
+    return gdf
+
+
+def fetch_traffic_accidents():
+    """Load traffic accident data per postal code.
+
+    Primary source: scripts/traffic_accidents.json pre-processed from
+    Väylävirasto (Finnish Transport Infrastructure Agency) open data.
+    Returns dict of postal_code -> accidents per 1000 residents.
+    """
+    logger.info("Loading traffic accident data...")
+    if TRAFFIC_ACCIDENTS_FILE.exists():
+        with open(TRAFFIC_ACCIDENTS_FILE) as f:
+            data = json.load(f)
+        logger.info("  Loaded %s postal codes from %s", len(data), TRAFFIC_ACCIDENTS_FILE.name)
+        return data
+    logger.warning(" %s not found — column will be null", TRAFFIC_ACCIDENTS_FILE)
+    return {}
+
+
+def join_traffic_accidents(gdf, accident_data):
+    """Join traffic accident rate data to postal codes."""
+    if not accident_data:
+        gdf["traffic_accident_rate"] = None
+        return gdf
+
+    logger.info("Joining traffic accident data...")
+    for idx, row in gdf.iterrows():
+        pno = row.get("pno", "") or row.get("postinumeroalue", "")
+        val = accident_data.get(pno)
+        gdf.at[idx, "traffic_accident_rate"] = float(val) if val is not None else None
+
+    matched = gdf["traffic_accident_rate"].notna().sum()
+    logger.info("  Matched %s/%s postal codes", matched, len(gdf))
+    return gdf
+
+
 def calculate_single_person_hh(gdf):
     """Calculate single-person household percentage from Paavo te_ fields."""
     logger.info("Calculating single-person household share...")
@@ -1586,6 +1819,21 @@ def main():
     # Single-person households (from existing Paavo data)
     gdf = calculate_single_person_hh(gdf)
 
+    # --- Phase 9: Real open data layers ---
+    _rate_limit()
+    rental_data = fetch_rental_prices()
+    gdf = join_rental_prices(gdf, rental_data)
+
+    # Price-to-rent ratio (derived from property price + rental price)
+    gdf = calculate_price_to_rent(gdf)
+
+    # Walkability index (composite from existing OSM densities)
+    gdf = calculate_walkability(gdf)
+
+    # Traffic accidents
+    accident_data = fetch_traffic_accidents()
+    gdf = join_traffic_accidents(gdf, accident_data)
+
     # --- Phase 7: New data sources ---
     voter_data = _load_json_data(VOTER_TURNOUT_FILE, "voter turnout")
     gdf = _join_simple_data(gdf, voter_data, "voter_turnout_pct", "voter turnout")
@@ -1630,6 +1878,9 @@ def main():
         "voter_turnout_pct", "party_diversity_index",
         "broadband_coverage_pct", "ev_charging_density",
         "tree_canopy_pct", "transit_reachability_score",
+        # Phase 9: real open data
+        "rental_price_sqm", "price_to_rent_ratio",
+        "walkability_index", "traffic_accident_rate",
     ]
     gdf = _backfill_nulls(gdf, previous, backfill_columns)
 

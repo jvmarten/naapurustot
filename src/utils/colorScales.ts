@@ -50,7 +50,12 @@ export type LayerId =
   | 'manufacturing_jobs'
   | 'public_sector_jobs'
   | 'service_sector_jobs'
-  | 'new_construction';
+  | 'new_construction'
+  // Phase 9: Real open data layers
+  | 'rental_price'
+  | 'price_to_rent'
+  | 'walkability'
+  | 'traffic_accidents';
 
 export interface LayerConfig {
   id: LayerId;
@@ -68,10 +73,12 @@ const age = (v: number) => `${v.toFixed(1)}`;
 const density = (v: number) => `${v.toLocaleString('fi-FI')} /km²`;
 const sqm = (v: number) => `${v.toFixed(1)} m²`;
 const euroSqm = (v: number) => `${v.toLocaleString('fi-FI')} €/m²`;
+const euroSqmMonth = (v: number) => `${v.toFixed(2)} €/m²/kk`;
 const stops = (v: number) => `${v.toFixed(1)} /km²`;
 const perThousand = (v: number) => `${v.toFixed(1)} /1000`;
 const gini = (v: number) => `${v.toFixed(2)}`;
 const score = (v: number) => `${v.toFixed(0)}/100`;
+const years = (v: number) => `${v.toFixed(1)} v`;
 
 export const LAYERS: LayerConfig[] = [
   {
@@ -507,6 +514,43 @@ export const LAYERS: LayerConfig[] = [
     colors: ['#f7fcf5', '#e5f5e0', '#c7e9c0', '#a1d99b', '#74c476', '#41ab5d', '#238b45', '#005a32'],
     stops: [0, 2, 5, 8, 12, 18, 25, 40],
     format: pct,
+  },
+  // --- Phase 9: Real open data layers ---
+  {
+    id: 'rental_price',
+    labelKey: 'layer.rental_price',
+    property: 'rental_price_sqm',
+    unit: '€/m²/kk',
+    colors: ['#ffffb2', '#fed976', '#feb24c', '#fd8d3c', '#fc4e2a', '#e31a1c', '#bd0026', '#800026'],
+    stops: [8, 12, 15, 18, 21, 25, 30, 40],
+    format: euroSqmMonth,
+  },
+  {
+    id: 'price_to_rent',
+    labelKey: 'layer.price_to_rent',
+    property: 'price_to_rent_ratio',
+    unit: '',
+    colors: ['#1a9850', '#66bd63', '#a6d96a', '#d9ef8b', '#fee08b', '#fdae61', '#f46d43', '#d73027'],
+    stops: [10, 15, 18, 20, 23, 26, 30, 40],
+    format: years,
+  },
+  {
+    id: 'walkability',
+    labelKey: 'layer.walkability',
+    property: 'walkability_index',
+    unit: '/100',
+    colors: ['#67001f', '#b2182b', '#d6604d', '#f4a582', '#d1e5f0', '#92c5de', '#4393c3', '#2166ac'],
+    stops: [10, 20, 30, 40, 50, 60, 70, 85],
+    format: score,
+  },
+  {
+    id: 'traffic_accidents',
+    labelKey: 'layer.traffic_accidents',
+    property: 'traffic_accident_rate',
+    unit: '/1000',
+    colors: ['#f7fcf5', '#d5efcf', '#a1d99b', '#74c476', '#f9d057', '#fd8d3c', '#e5533d', '#b00026'],
+    stops: [0.5, 1, 2, 3, 5, 8, 12, 20],
+    format: perThousand,
   },
 ];
 
