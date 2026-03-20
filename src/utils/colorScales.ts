@@ -1,5 +1,9 @@
 import type { ExpressionSpecification } from '@maplibre/maplibre-gl-style-spec';
 
+/**
+ * Identifier for each data layer available on the map.
+ * Maps 1:1 to entries in the LAYERS array and to GeoJSON feature properties.
+ */
 export type LayerId =
   | 'quality_index'
   | 'median_income'
@@ -60,13 +64,26 @@ export type LayerId =
   | 'school_quality'
   | 'light_pollution';
 
+/**
+ * Configuration for a single data layer displayed on the map.
+ *
+ * Each layer defines how a GeoJSON property is visualized as a choropleth:
+ * - `property` is the key on NeighborhoodProperties to read
+ * - `colors` and `stops` define the interpolated color scale (must be same length)
+ * - `format` converts raw values to display strings (e.g., "25 000 €")
+ * - `labelKey` is a translation key resolved via `t()` from i18n
+ */
 export interface LayerConfig {
   id: LayerId;
   labelKey: string;
+  /** GeoJSON feature property name to read the value from */
   property: string;
   unit: string;
+  /** Hex color values for the interpolated scale, aligned with `stops` */
   colors: string[];
+  /** Breakpoint values for the color scale, aligned with `colors` */
   stops: number[];
+  /** Format a raw value for display in tooltips, legends, and panels */
   format: (v: number) => string;
 }
 
@@ -615,7 +632,10 @@ try {
   else if (stored && VALID_CB_MODES.has(stored)) colorblindMode = stored as ColorblindType;
 } catch { /* localStorage unavailable */ }
 
-/** Linearly sample `count` colors from a palette of hex colors. */
+/**
+ * Linearly resample a colorblind-safe palette to match the number of stops a layer needs.
+ * When count > palette length, intermediate colors are interpolated via RGB lerp.
+ */
 function resamplePalette(palette: string[], count: number): string[] {
   if (count === palette.length) return palette;
   if (count < palette.length) return palette.slice(0, count);
@@ -641,6 +661,7 @@ function resamplePalette(palette: string[], count: number): string[] {
   return result;
 }
 
+/** Look up a layer config by ID, applying colorblind palette substitution if active. */
 export function getLayerById(id: LayerId): LayerConfig {
   const layer = LAYERS.find((l) => l.id === id) ?? LAYERS[0];
   if (colorblindMode === 'off') return layer;
@@ -649,6 +670,7 @@ export function getLayerById(id: LayerId): LayerConfig {
   return { ...layer, colors: cbColors };
 }
 
+/** Map a numeric value to a color from the layer's scale. Returns gray for null/undefined. */
 export function getColorForValue(layer: LayerConfig, value: number | null | undefined): string {
   if (value == null) return '#333';
   for (let i = layer.stops.length - 1; i >= 0; i--) {
@@ -657,6 +679,10 @@ export function getColorForValue(layer: LayerConfig, value: number | null | unde
   return layer.colors[0];
 }
 
+/**
+ * Build a MapLibre style expression for interpolated fill color.
+ * Returns gray (#d1d5db) for features where the property is null/missing.
+ */
 export function buildFillColorExpression(layer: LayerConfig): ExpressionSpecification {
   const interpolation: unknown[] = ['interpolate', ['linear'], ['get', layer.property]];
   for (let i = 0; i < layer.stops.length; i++) {

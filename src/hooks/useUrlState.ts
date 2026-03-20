@@ -59,10 +59,12 @@ function writeUrl(pno: string | null, layer: LayerId, comparePnos: string[]) {
   }
 }
 
+/** Read URL state once at app startup. Handles both query params and legacy hash format. */
 export function readInitialUrlState(): UrlState {
   return parseUrl();
 }
 
+/** Keep the browser URL in sync with the current selection, layer, and pinned comparisons. */
 export function useSyncUrlState(pno: string | null, layer: LayerId, comparePnos: string[] = []) {
   // Write state changes to URL
   useEffect(() => {

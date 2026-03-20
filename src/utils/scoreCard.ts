@@ -20,6 +20,7 @@ const METRICS = [
   { key: 'transit_stop_density', label: 'panel.transit_access', format: (v: number | null) => v != null ? `${v.toFixed(1)} /km²` : '—' },
 ] as const;
 
+/** Render a neighborhood score card as an off-screen HTML element, convert to PNG, and trigger download. */
 export async function generateScoreCard(
   data: NeighborhoodProperties,
   metroAverages: Record<string, number>,

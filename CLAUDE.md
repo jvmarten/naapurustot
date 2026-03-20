@@ -10,8 +10,16 @@ naapurustot is a static React + TypeScript map application for exploring neighbo
 npm run dev        # Start dev server (Vite, port 5173)
 npm run build      # TypeScript check + production build → dist/
 npm run test       # Run tests (Vitest, jsdom)
+npm run test:watch # Vitest in watch mode
+npm run test:e2e   # Playwright end-to-end tests
 npm run lint       # ESLint
+npm run preview    # Serve production build locally
 ```
+
+## Further docs
+
+- `docs/ARCHITECTURE.md` — system architecture, data flow, map layers, CI/CD
+- `docs/FEATURE_ROADMAP.md` — planned features and phases
 
 ## Architecture
 

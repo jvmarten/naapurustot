@@ -70,7 +70,14 @@ const WIZARD_HIGHLIGHT_LAYER = 'neighborhoods-wizard-highlight';
 const NO_DATA_LAYER = 'neighborhoods-no-data-pattern';
 
 
-/** Build a fill-opacity expression scaled by user opacity multiplier */
+/**
+ * Build a MapLibre fill-opacity expression that:
+ * 1. Highlights hovered/selected features at 85% opacity
+ * 2. Optionally dims non-matching features (used by filter and wizard highlight modes)
+ * 3. Scales all values by the user's opacity slider multiplier `o` (0–1)
+ *
+ * Returns a MapLibre "case" expression array.
+ */
 function buildFillOpacity(o: number, overrides?: { matchExpr?: unknown[]; matchVal?: number; dimVal?: number }) {
   const base: unknown[] = [
     'case',

@@ -25,6 +25,7 @@ function savePresets(presets: SavedPreset[]) {
   } catch { /* localStorage unavailable */ }
 }
 
+/** Manage saved filter presets (named sets of filter criteria), persisted to localStorage. */
 export function useFilterPresets() {
   const [presets, setPresets] = useState<SavedPreset[]>(loadPresets);
 

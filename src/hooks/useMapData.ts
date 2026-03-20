@@ -23,6 +23,15 @@ interface MapDataState {
   retry: () => void;
 }
 
+/**
+ * Fetches and processes the neighborhood TopoJSON data.
+ *
+ * Data loading is eager: a fetch starts at module evaluation time (before React mounts)
+ * and the prefetched response is consumed on first render. On retries, a fresh fetch is made.
+ *
+ * Processing pipeline: TopoJSON → GeoJSON → filter islands → compute quality indices →
+ * compute change metrics → compute quick-win metrics → compute metro averages.
+ */
 export function useMapData(): MapDataState {
   const [state, setState] = useState<Omit<MapDataState, 'retry'>>({
     data: null,

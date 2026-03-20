@@ -3,6 +3,7 @@ import type { Feature, MultiPolygon, Polygon } from 'geojson';
 /**
  * Calculate the area of a polygon ring using the shoelace formula.
  * Works with [lng, lat] coordinates; returns approximate relative area.
+ * Not geodesically accurate, but sufficient for comparing polygon sizes within a small region.
  */
 function ringArea(coords: number[][]): number {
   let area = 0;
