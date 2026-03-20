@@ -21,7 +21,6 @@ describe('exportCsv edge cases', () => {
     const { exportCsv } = await import('../utils/export');
 
     let blobContent = '';
-    let downloadFilename = '';
 
     // Mock Blob to capture content
     const originalBlob = globalThis.Blob;
