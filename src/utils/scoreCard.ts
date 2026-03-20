@@ -1,4 +1,3 @@
-import { toPng } from 'html-to-image';
 import type { NeighborhoodProperties } from './metrics';
 import { formatEuro, formatPct } from './formatting';
 import { t } from './i18n';
@@ -75,6 +74,9 @@ export async function generateScoreCard(
   document.body.appendChild(container);
 
   try {
+    // Lazy-load html-to-image (~30KB) only when user actually clicks "Share as image".
+    // This keeps it out of the initial bundle and the NeighborhoodPanel chunk.
+    const { toPng } = await import('html-to-image');
     const dataUrl = await toPng(container, { quality: 0.95, pixelRatio: 2 });
     const link = document.createElement('a');
     link.download = `${data.nimi}-${data.pno}-naapurustot.png`;

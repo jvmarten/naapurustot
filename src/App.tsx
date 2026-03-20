@@ -97,8 +97,13 @@ const App: React.FC = () => {
     }
   }, [data, select, pin]);
 
+  // Memoize pinned PNO array to avoid new references on every render.
+  // Without this, Map's pinnedPnos useEffect fires on every App re-render,
+  // recreating the pinned highlight layer unnecessarily.
+  const pinnedPnos = useMemo(() => pinned.map((p) => p.pno), [pinned]);
+
   // Keep URL in sync with current state (including pinned comparisons)
-  useSyncUrlState(selected?.pno ?? null, activeLayer, pinned.map((p) => p.pno));
+  useSyncUrlState(selected?.pno ?? null, activeLayer, pinnedPnos);
 
   // Recompute quality indices when custom weights change
   const handleQualityWeightsChange = useCallback(
@@ -289,7 +294,7 @@ const App: React.FC = () => {
             onClick={handleClick}
             flyTo={flyTarget}
             selectedPno={selected?.pno ?? null}
-            pinnedPnos={pinned.map((p) => p.pno)}
+            pinnedPnos={pinnedPnos}
             filterActive={showFilter && filters.length > 0}
             filterMatchPnos={filterMatchPnos}
             qualityVersion={qualityVersion}

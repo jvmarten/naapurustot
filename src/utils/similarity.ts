@@ -56,21 +56,15 @@ function featureCenter(feature: GeoJSON.Feature): [number, number] {
   return [(minLng + maxLng) / 2, (minLat + maxLat) / 2];
 }
 
-/**
- * Find the most similar neighborhoods to a target based on Euclidean distance
- * across normalized key metrics.
- *
- * @param target - The neighborhood to find similarities for
- * @param allFeatures - All GeoJSON features in the dataset
- * @param count - Number of similar neighborhoods to return (default 5)
- * @returns Array of similar neighborhoods sorted by ascending distance
- */
-export function findSimilarNeighborhoods(
-  target: NeighborhoodProperties,
-  allFeatures: GeoJSON.Feature[],
-  count: number = 5,
-): SimilarNeighborhood[] {
-  // 1. Compute min/max for each metric across the entire dataset
+// Cache min/max ranges per dataset to avoid recomputing on every panel open.
+// The dataset reference doesn't change after initial load, so we can key on identity.
+let cachedFeatures: GeoJSON.Feature[] | null = null;
+let cachedMins: Record<string, number> = {};
+let cachedMaxs: Record<string, number> = {};
+
+function getOrComputeRanges(allFeatures: GeoJSON.Feature[]): { mins: Record<string, number>; maxs: Record<string, number> } {
+  if (cachedFeatures === allFeatures) return { mins: cachedMins, maxs: cachedMaxs };
+
   const mins: Record<string, number> = {};
   const maxs: Record<string, number> = {};
 
@@ -89,6 +83,31 @@ export function findSimilarNeighborhoods(
       maxs[metric as string] = max;
     }
   }
+
+  cachedFeatures = allFeatures;
+  cachedMins = mins;
+  cachedMaxs = maxs;
+  return { mins, maxs };
+}
+
+/**
+ * Find the most similar neighborhoods to a target based on Euclidean distance
+ * across normalized key metrics.
+ *
+ * @param target - The neighborhood to find similarities for
+ * @param allFeatures - All GeoJSON features in the dataset
+ * @param count - Number of similar neighborhoods to return (default 5)
+ * @returns Array of similar neighborhoods sorted by ascending distance
+ */
+export function findSimilarNeighborhoods(
+  target: NeighborhoodProperties,
+  allFeatures: GeoJSON.Feature[],
+  count: number = 5,
+): SimilarNeighborhood[] {
+  // 1. Get cached or compute min/max for each metric across the entire dataset.
+  // Before this fix, ranges were recomputed on every call (10 metrics × ~200 features
+  // = ~2000 iterations). Now it's O(1) for repeated calls with the same dataset.
+  const { mins, maxs } = getOrComputeRanges(allFeatures);
 
   // 2. Compute Euclidean distance for each candidate
   const results: SimilarNeighborhood[] = [];
