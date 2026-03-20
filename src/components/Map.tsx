@@ -408,7 +408,9 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
     }
 
     return () => {
-      if (map.getLayer(PINNED_LAYER)) map.removeLayer(PINNED_LAYER);
+      try {
+        if (map.getLayer(PINNED_LAYER)) map.removeLayer(PINNED_LAYER);
+      } catch { /* map already removed */ }
     };
   }, [pinnedPnos, data, theme]);
 
@@ -449,11 +451,13 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
     }
 
     return () => {
-      if (map.getLayer(WIZARD_HIGHLIGHT_LAYER)) map.removeLayer(WIZARD_HIGHLIGHT_LAYER);
-      // Restore default opacity
-      if (map.getLayer(FILL_LAYER) && wizardHighlightPnos.length > 0) {
-        map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(fillOpacity));
-      }
+      try {
+        if (map.getLayer(WIZARD_HIGHLIGHT_LAYER)) map.removeLayer(WIZARD_HIGHLIGHT_LAYER);
+        // Restore default opacity
+        if (map.getLayer(FILL_LAYER) && wizardHighlightPnos.length > 0) {
+          map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(fillOpacity));
+        }
+      } catch { /* map already removed */ }
     };
   }, [wizardHighlightPnos, data, theme, fillOpacity]);
 
