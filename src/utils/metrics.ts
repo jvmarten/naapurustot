@@ -41,7 +41,6 @@ export interface NeighborhoodProperties {
   transit_stop_density: number | null;
   air_quality_index: number | null;
   crime_index: number | null;
-  green_space_pct: number | null;
   daycare_density: number | null;
   school_density: number | null;
   healthcare_density: number | null;
@@ -340,8 +339,6 @@ export const METRIC_SOURCES: Record<string, MetricSource> = {
   school_density: { source: 'OpenStreetMap', year: 2024 },
   school_quality_score: { source: 'YTL', year: 2023 },
   healthcare_density: { source: 'OpenStreetMap', year: 2024 },
-  green_space_pct: { source: 'OpenStreetMap', year: 2024 },
-
   // Mobility
   cycling_density: { source: 'OpenStreetMap', year: 2024 },
   traffic_accident_density: { source: 'Traficom / Digiroad', year: 2023 },
@@ -399,7 +396,6 @@ const METRIC_DEFS: MetricDef[] = [
   { property: 'transit_stop_density', weight: 'population', precision: 1 },
   { property: 'air_quality_index', weight: 'population', precision: 1 },
   { property: 'crime_index', weight: 'population', precision: 1 },
-  { property: 'green_space_pct', weight: 'population', precision: 1 },
   { property: 'walkability_index', weight: 'population', precision: 1 },
   { property: 'light_pollution', weight: 'population', precision: 1 },
 

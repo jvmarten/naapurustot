@@ -19,7 +19,6 @@ export type LayerId =
   | 'transit_access'
   | 'air_quality'
   | 'crime_rate'
-  | 'green_space'
   | 'daycare_density'
   | 'school_density'
   | 'healthcare_access'
@@ -260,15 +259,6 @@ export const LAYERS: LayerConfig[] = [
     format: perThousand,
   },
   // --- Phase 3: Services & Amenities ---
-  {
-    id: 'green_space',
-    labelKey: 'layer.green_space',
-    property: 'green_space_pct',
-    unit: '%',
-    colors: ['#f7fcf5', '#e5f5e0', '#c7e9c0', '#a1d99b', '#74c476', '#41ab5d', '#238b45', '#005a32'],
-    stops: [5, 10, 20, 30, 45, 60, 75, 90],
-    format: pct,
-  },
   {
     id: 'daycare_density',
     labelKey: 'layer.daycare_density',

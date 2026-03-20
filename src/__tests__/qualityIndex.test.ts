@@ -40,7 +40,7 @@ describe('computeQualityIndices', () => {
     // Use explicit weights to test calculation precisely
     const weights: Record<string, number> = {
       safety: 0, employment: 35, income: 35, education: 30,
-      transit: 0, services: 0, green_space: 0, air_quality: 0, quietness: 0,
+      transit: 0, services: 0, air_quality: 0, quietness: 0,
       walkability: 0, school_quality: 0, life_expectancy: 0, commute_time: 0,
       cycling: 0, grocery_access: 0, restaurants: 0,
     };
