@@ -352,19 +352,19 @@ export const METRIC_SOURCES: Record<string, MetricSource> = {
   mental_health_pct: { source: 'THL (Sotkanet)', year: 2023 },
 
   // Phase 7: Voting & Political
-  voter_turnout_pct: { source: 'Tilastokeskus / Oikeusministeriö', year: 2023 },
-  party_diversity_index: { source: 'Tilastokeskus / Oikeusministeriö', year: 2023 },
+  voter_turnout_pct: { source: 'Tilastokeskus (kuntavaalit)', year: 2025 },
+  party_diversity_index: { source: 'Tilastokeskus (kuntavaalit)', year: 2025 },
 
 
   // Internet & Connectivity
   broadband_coverage_pct: { source: 'Traficom', year: 2024 },
-  ev_charging_density: { source: 'Traficom / OpenStreetMap', year: 2024 },
+  ev_charging_density: { source: 'OpenStreetMap', year: 2025 },
 
   // Tree Canopy / Urban Heat Island
-  tree_canopy_pct: { source: 'HSY (LiDAR)', year: 2023 },
+  tree_canopy_pct: { source: 'HSY (LiDAR maanpeite)', year: 2024 },
 
   // Accessibility
-  transit_reachability_score: { source: 'HSL (matka-aikamatriisi)', year: 2024 },
+  transit_reachability_score: { source: 'HSL / johdettu', year: 2025 },
 
   // Phase 8: More demographic detail + trends
   employment_rate: { source: 'Tilastokeskus (Paavo)', year: 2024 },
