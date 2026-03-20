@@ -97,17 +97,35 @@ export interface NeighborhoodProperties {
   families_with_children_pct: number | null;
   tech_sector_pct: number | null;
   healthcare_workers_pct: number | null;
+  // Phase 8: More demographic detail + trends
+  employment_rate: number | null;
+  elderly_ratio_pct: number | null;
+  avg_household_size: number | null;
+  manufacturing_jobs_pct: number | null;
+  public_sector_jobs_pct: number | null;
+  service_sector_jobs_pct: number | null;
+  property_price_change_pct: number | null;
+  new_construction_pct: number | null;
   // Raw Paavo fields used for quick win computations
   he_naiset: number | null;
   he_miehet: number | null;
   he_18_19: number | null;
   he_20_24: number | null;
   he_25_29: number | null;
+  he_65_69: number | null;
+  he_70_74: number | null;
+  he_75_79: number | null;
+  he_80_84: number | null;
+  he_85_: number | null;
   te_eil_np: number | null;
   te_laps: number | null;
   tp_tyopy: number | null;
   tp_jk_info: number | null;
   tp_qr_terv: number | null;
+  tp_jalo_bf: number | null;
+  tp_o_julk: number | null;
+  tp_palv_gu: number | null;
+  ra_raky: number | null;
   [key: string]: string | number | null;
 }
 
@@ -186,6 +204,53 @@ export function computeQuickWinMetrics(features: GeoJSON.Feature[]): void {
     const tp_qr_terv = p.tp_qr_terv as number | null;
     if (tp_qr_terv != null && tp_tyopy != null && tp_tyopy > 0) {
       p.healthcare_workers_pct = Math.round((tp_qr_terv / tp_tyopy) * 1000) / 10;
+    }
+
+    // Phase 8: Employment rate (employed / working-age population)
+    const pt_tyoll = p.pt_tyoll as number | null;
+    const pt_vakiy = p.pt_vakiy as number | null;
+    if (pt_tyoll != null && pt_vakiy != null && pt_vakiy > 0) {
+      p.employment_rate = Math.round((pt_tyoll / pt_vakiy) * 1000) / 10;
+    }
+
+    // Elderly ratio (65+ as % of population)
+    const he_65_69 = p.he_65_69 as number | null;
+    const he_70_74 = p.he_70_74 as number | null;
+    const he_75_79 = p.he_75_79 as number | null;
+    const he_80_84 = p.he_80_84 as number | null;
+    const he_85_ = p.he_85_ as number | null;
+    if (pop != null && pop > 0 && he_65_69 != null && he_70_74 != null && he_75_79 != null && he_80_84 != null && he_85_ != null) {
+      p.elderly_ratio_pct = Math.round(((he_65_69 + he_70_74 + he_75_79 + he_80_84 + he_85_) / pop) * 1000) / 10;
+    }
+
+    // Average household size (population / households)
+    if (pop != null && pop > 0 && taly != null && taly > 0) {
+      p.avg_household_size = Math.round((pop / taly) * 100) / 100;
+    }
+
+    // Manufacturing jobs (secondary sector / total jobs %)
+    const tp_jalo_bf = p.tp_jalo_bf as number | null;
+    if (tp_jalo_bf != null && tp_tyopy != null && tp_tyopy > 0) {
+      p.manufacturing_jobs_pct = Math.round((tp_jalo_bf / tp_tyopy) * 1000) / 10;
+    }
+
+    // Public sector jobs (public admin / total jobs %)
+    const tp_o_julk = p.tp_o_julk as number | null;
+    if (tp_o_julk != null && tp_tyopy != null && tp_tyopy > 0) {
+      p.public_sector_jobs_pct = Math.round((tp_o_julk / tp_tyopy) * 1000) / 10;
+    }
+
+    // Service sector jobs (services / total jobs %)
+    const tp_palv_gu = p.tp_palv_gu as number | null;
+    if (tp_palv_gu != null && tp_tyopy != null && tp_tyopy > 0) {
+      p.service_sector_jobs_pct = Math.round((tp_palv_gu / tp_tyopy) * 1000) / 10;
+    }
+
+    // New construction (buildings under construction / total buildings %)
+    const ra_raky = p.ra_raky as number | null;
+    const ra_asunn = (p as Record<string, unknown>).ra_asunn as number | null;
+    if (ra_raky != null && ra_asunn != null && ra_asunn > 0) {
+      p.new_construction_pct = Math.round((ra_raky / ra_asunn) * 1000) / 10;
     }
   }
 }
@@ -329,6 +394,16 @@ export const METRIC_SOURCES: Record<string, MetricSource> = {
   // Accessibility
   transit_reachability_score: { source: 'HSL (matka-aikamatriisi)', year: 2024 },
 
+  // Phase 8: More demographic detail + trends
+  employment_rate: { source: 'Tilastokeskus (Paavo)', year: 2024 },
+  elderly_ratio_pct: { source: 'Tilastokeskus (Paavo)', year: 2024 },
+  avg_household_size: { source: 'Tilastokeskus (Paavo)', year: 2024 },
+  manufacturing_jobs_pct: { source: 'Tilastokeskus (Paavo)', year: 2024 },
+  public_sector_jobs_pct: { source: 'Tilastokeskus (Paavo)', year: 2024 },
+  service_sector_jobs_pct: { source: 'Tilastokeskus (Paavo)', year: 2024 },
+  property_price_change_pct: { source: 'Tilastokeskus (PxWeb)', year: '2019–2024' },
+  new_construction_pct: { source: 'Tilastokeskus (Paavo)', year: 2024 },
+
   // Quick wins (from existing Paavo data)
   youth_ratio_pct: { source: 'Tilastokeskus (Paavo)', year: 2024 },
   gender_ratio: { source: 'Tilastokeskus (Paavo)', year: 2024 },
@@ -406,6 +481,15 @@ const METRIC_DEFS: MetricDef[] = [
   { property: 'families_with_children_pct', weight: 'household', precision: 1, pctOfHh: true },
   { property: 'tech_sector_pct', weight: 'population', precision: 1 },
   { property: 'healthcare_workers_pct', weight: 'population', precision: 1 },
+  // Phase 8: More demographic detail + trends
+  { property: 'employment_rate', weight: 'population', precision: 1, pctOfPop: true },
+  { property: 'elderly_ratio_pct', weight: 'population', precision: 1, pctOfPop: true },
+  { property: 'avg_household_size', weight: 'population', precision: 2 },
+  { property: 'manufacturing_jobs_pct', weight: 'population', precision: 1 },
+  { property: 'public_sector_jobs_pct', weight: 'population', precision: 1 },
+  { property: 'service_sector_jobs_pct', weight: 'population', precision: 1 },
+  { property: 'property_price_change_pct', weight: 'population', precision: 1 },
+  { property: 'new_construction_pct', weight: 'population', precision: 1 },
 ];
 
 function roundTo(value: number, precision: number): number {

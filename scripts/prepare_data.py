@@ -196,6 +196,11 @@ SURFACE_TEMP_FILE = Path(__file__).parent / "surface_temperature.json"
 # Transit reachability score (0-100, jobs/services within 30 min) — HSL
 TRANSIT_REACHABILITY_FILE = Path(__file__).parent / "transit_reachability.json"
 
+# --- Phase 8: More demographic detail + trends ---
+
+# Property price change (%) — derived from historical prices
+PROPERTY_PRICE_CHANGE_FILE = Path(__file__).parent / "property_price_change.json"
+
 # ---------------------------------------------------------------------------
 # Retry & rate-limit settings
 # ---------------------------------------------------------------------------
@@ -497,6 +502,64 @@ def calculate_metrics(gdf):
             gdf.at[idx, "healthcare_workers_pct"] = round(tp_qr_terv / tp_tyopy * 100, 1)
         else:
             gdf.at[idx, "healthcare_workers_pct"] = None
+
+        # --- Phase 8: More demographic detail ---
+
+        # Employment rate (employed / working-age population)
+        pt_tyoll = safe_val(row.get("pt_tyoll"))
+        pt_vakiy = safe_val(row.get("pt_vakiy"))
+        if pt_tyoll is not None and pt_vakiy is not None and pt_vakiy > 0:
+            gdf.at[idx, "employment_rate"] = round(pt_tyoll / pt_vakiy * 100, 1)
+        else:
+            gdf.at[idx, "employment_rate"] = None
+
+        # Elderly ratio (65+ as % of population)
+        he_65_69 = safe_val(row.get("he_65_69"))
+        he_70_74 = safe_val(row.get("he_70_74"))
+        he_75_79 = safe_val(row.get("he_75_79"))
+        he_80_84 = safe_val(row.get("he_80_84"))
+        he_85_ = safe_val(row.get("he_85_"))
+        if all(v is not None for v in [he_65_69, he_70_74, he_75_79, he_80_84, he_85_]) and pop:
+            gdf.at[idx, "elderly_ratio_pct"] = round(
+                (he_65_69 + he_70_74 + he_75_79 + he_80_84 + he_85_) / pop * 100, 1
+            )
+        else:
+            gdf.at[idx, "elderly_ratio_pct"] = None
+
+        # Average household size (population / households)
+        if pop is not None and pop > 0 and total_hh is not None and total_hh > 0:
+            gdf.at[idx, "avg_household_size"] = round(pop / total_hh, 2)
+        else:
+            gdf.at[idx, "avg_household_size"] = None
+
+        # Manufacturing/industrial jobs (secondary sector / total jobs)
+        tp_jalo_bf = safe_val(row.get("tp_jalo_bf"))
+        if tp_jalo_bf is not None and tp_tyopy is not None and tp_tyopy > 0:
+            gdf.at[idx, "manufacturing_jobs_pct"] = round(tp_jalo_bf / tp_tyopy * 100, 1)
+        else:
+            gdf.at[idx, "manufacturing_jobs_pct"] = None
+
+        # Public sector jobs (public administration / total jobs)
+        tp_o_julk = safe_val(row.get("tp_o_julk"))
+        if tp_o_julk is not None and tp_tyopy is not None and tp_tyopy > 0:
+            gdf.at[idx, "public_sector_jobs_pct"] = round(tp_o_julk / tp_tyopy * 100, 1)
+        else:
+            gdf.at[idx, "public_sector_jobs_pct"] = None
+
+        # Service sector jobs (services / total jobs)
+        tp_palv_gu = safe_val(row.get("tp_palv_gu"))
+        if tp_palv_gu is not None and tp_tyopy is not None and tp_tyopy > 0:
+            gdf.at[idx, "service_sector_jobs_pct"] = round(tp_palv_gu / tp_tyopy * 100, 1)
+        else:
+            gdf.at[idx, "service_sector_jobs_pct"] = None
+
+        # New construction (buildings under construction / total dwellings %)
+        ra_raky = safe_val(row.get("ra_raky"))
+        total_dwellings = safe_val(row.get("ra_asunn"))
+        if ra_raky is not None and total_dwellings is not None and total_dwellings > 0:
+            gdf.at[idx, "new_construction_pct"] = round(ra_raky / total_dwellings * 100, 1)
+        else:
+            gdf.at[idx, "new_construction_pct"] = None
 
     return gdf
 
@@ -1704,6 +1767,10 @@ def main():
     reach_data = _load_json_data(TRANSIT_REACHABILITY_FILE, "transit reachability")
     gdf = _join_simple_data(gdf, reach_data, "transit_reachability_score", "transit reachability")
 
+    # --- Phase 8: Property price change ---
+    price_change_data = _load_json_data(PROPERTY_PRICE_CHANGE_FILE, "property price change")
+    gdf = _join_simple_data(gdf, price_change_data, "property_price_change_pct", "property price change")
+
     # --- Phase 4: Historical time-series data ---
     _rate_limit()
     historical = fetch_historical_paavo()
@@ -1737,6 +1804,8 @@ def main():
         "burglary_rate", "domestic_disturbance_rate",
         "water_quality_index", "broadband_coverage_pct", "ev_charging_density",
         "tree_canopy_pct", "surface_temp_diff", "transit_reachability_score",
+        # Phase 8: More demographic detail + trends
+        "property_price_change_pct",
     ]
     gdf = _backfill_nulls(gdf, previous, backfill_columns)
 
