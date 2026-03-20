@@ -1,7 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, lazy, Suspense } from 'react';
 import { useTheme } from '../hooks/useTheme';
-import { DonateButton } from './DonateButton';
 import { t, type Lang } from '../utils/i18n';
+
+// Lazy-load DonateButton to keep qrcode.react (~12KB) out of the initial bundle.
+// It only renders when the settings dropdown is open.
+const DonateButton = lazy(() => import('./DonateButton').then(m => ({ default: m.DonateButton })));
 import type { ColorblindType } from '../utils/colorScales';
 
 interface SettingsDropdownProps {
@@ -166,7 +169,9 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({
           <div className="border-t border-surface-100 dark:border-surface-700/40 my-1" />
 
           {/* Donate */}
-          <DonateButton variant="menu-item" />
+          <Suspense fallback={null}>
+            <DonateButton variant="menu-item" />
+          </Suspense>
 
           {/* PO-6: Data freshness indicator */}
           <div className="border-t border-surface-100 dark:border-surface-700/40 my-1" />

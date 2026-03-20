@@ -661,12 +661,27 @@ function resamplePalette(palette: string[], count: number): string[] {
   return result;
 }
 
+// O(1) layer lookup instead of O(n) Array.find() on every call.
+// getLayerById is called on every hover (tooltip), layer switch, and map paint update.
+const LAYER_MAP = new Map<LayerId, LayerConfig>();
+for (const layer of LAYERS) {
+  LAYER_MAP.set(layer.id, layer);
+}
+
+// Cache resampled colorblind palettes to avoid recomputing on every getLayerById call.
+// Key: "mode:colorCount", e.g. "protanopia:8"
+const cbPaletteCache = new Map<string, string[]>();
+
 /** Look up a layer config by ID, applying colorblind palette substitution if active. */
 export function getLayerById(id: LayerId): LayerConfig {
-  const layer = LAYERS.find((l) => l.id === id) ?? LAYERS[0];
+  const layer = LAYER_MAP.get(id) ?? LAYERS[0];
   if (colorblindMode === 'off') return layer;
-  const palette = CB_PALETTES[colorblindMode];
-  const cbColors = resamplePalette(palette, layer.colors.length);
+  const cacheKey = `${colorblindMode}:${layer.colors.length}`;
+  let cbColors = cbPaletteCache.get(cacheKey);
+  if (!cbColors) {
+    cbColors = resamplePalette(CB_PALETTES[colorblindMode], layer.colors.length);
+    cbPaletteCache.set(cacheKey, cbColors);
+  }
   return { ...layer, colors: cbColors };
 }
 

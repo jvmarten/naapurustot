@@ -151,24 +151,36 @@ export function isCustomWeights(weights: QualityWeights): boolean {
   return false;
 }
 
+// Cache ranges per dataset identity. When custom weights change,
+// computeQualityIndices is called again with the same features array.
+// Without caching, every property range is re-scanned (~200 features × ~12 properties).
+let rangeCache: Map<string, MinMax> | null = null;
+let rangeCacheFeatures: GeoJSON.Feature[] | null = null;
+
 function collectRange(features: GeoJSON.Feature[], prop: keyof NeighborhoodProperties): MinMax {
-  const vals: number[] = [];
+  // Check cache first
+  if (rangeCacheFeatures === features && rangeCache) {
+    const cached = rangeCache.get(prop as string);
+    if (cached) return cached;
+  } else {
+    // Dataset changed, invalidate cache
+    rangeCache = new Map();
+    rangeCacheFeatures = features;
+  }
+
+  let min = Infinity;
+  let max = -Infinity;
   for (const f of features) {
     const v = (f.properties as NeighborhoodProperties)[prop];
     if (typeof v === 'number' && v != null && isFinite(v)) {
-      // For income, skip zeros
       if (prop === 'hr_mtu' && v <= 0) continue;
-      vals.push(v);
+      if (v < min) min = v;
+      if (v > max) max = v;
     }
   }
-  if (vals.length === 0) return { min: 0, max: 0 };
-  let min = vals[0];
-  let max = vals[0];
-  for (let i = 1; i < vals.length; i++) {
-    if (vals[i] < min) min = vals[i];
-    if (vals[i] > max) max = vals[i];
-  }
-  return { min, max };
+  const result = min < max ? { min, max } : { min: 0, max: 0 };
+  rangeCache!.set(prop as string, result);
+  return result;
 }
 
 function getFactorScore(

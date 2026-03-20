@@ -33,6 +33,10 @@ interface MapProps {
   fillOpacity?: number;
 }
 
+// Stable empty defaults to avoid creating new references on every render
+const EMPTY_SET = new Set<string>();
+const EMPTY_ARRAY: string[] = [];
+
 function makeStyle(theme: 'dark' | 'light'): maplibregl.StyleSpecification {
   const tiles = theme === 'dark' ? BASEMAP_DARK : BASEMAP_LIGHT;
   return {
@@ -94,7 +98,7 @@ function buildFillOpacity(o: number, overrides?: { matchExpr?: unknown[]; matchV
   return base;
 }
 
-export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = [], filterActive = false, filterMatchPnos = new Set(), qualityVersion = 0, colorblind = false, wizardHighlightPnos = [], fillOpacity = 1 }) => {
+export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = false, wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const hoveredIdRef = useRef<string | null>(null);
