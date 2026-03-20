@@ -47,9 +47,7 @@ describe('exportCsv', () => {
       quality_index: 72,
     } as any;
 
-    const avg = { hr_mtu: 30000, unemployment_rate: 10 };
-
-    exportCsv(data, avg);
+    exportCsv(data);
 
     expect(capturedBlobContent).toBeDefined();
     // CSV should contain the BOM + header + data rows
@@ -98,9 +96,7 @@ describe('exportCsv', () => {
       pt_elakel: null,
     } as any;
 
-    const avg = {};
-
-    exportCsv(data, avg);
+    exportCsv(data);
 
     expect(capturedBlobContent).toBeDefined();
     // Null values should be represented with the dash character
@@ -117,9 +113,7 @@ describe('exportCsv', () => {
       quality_index: 72,
     } as any;
 
-    const avg = {};
-
-    exportCsv(data, avg);
+    exportCsv(data);
 
     expect(document.createElement).toHaveBeenCalledWith('a');
     expect(createdAnchor.download).toBe('Helsinki_00100.csv');

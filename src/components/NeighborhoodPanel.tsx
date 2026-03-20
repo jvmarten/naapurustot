@@ -220,7 +220,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
   const exportButtons = (
     <div className="flex gap-2 px-6 mt-3">
       <button
-        onClick={() => exportCsv(d, avg)}
+        onClick={() => exportCsv(d)}
         className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 md:py-1.5 rounded-lg text-xs font-medium min-h-[44px] md:min-h-0
                    bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300
                    hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors"
@@ -231,7 +231,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
         {t('export.csv')}
       </button>
       <button
-        onClick={() => exportPdf(d, avg)}
+        onClick={() => exportPdf(d)}
         className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 md:py-1.5 rounded-lg text-xs font-medium min-h-[44px] md:min-h-0
                    bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300
                    hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors"
