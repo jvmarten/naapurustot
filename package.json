@@ -22,8 +22,7 @@
     "qrcode.react": "^4.2.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "topojson-client": "^3.1.0",
-    "vite-plugin-compression": "^0.5.1"
+    "topojson-client": "^3.1.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
@@ -48,7 +47,11 @@
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.56.1",
     "vite": "^8.0.0",
+    "vite-plugin-compression": "^0.5.1",
     "vite-plugin-pwa": "^1.2.0",
     "vitest": "^4.1.0"
+  },
+  "overrides": {
+    "serialize-javascript": ">=7.0.3"
   }
 }
