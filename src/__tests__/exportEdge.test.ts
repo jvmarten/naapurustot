@@ -103,12 +103,13 @@ describe('exportPdf', () => {
   it('opens a new window with HTML content', async () => {
     const { exportPdf } = await import('../utils/export');
 
+    const listeners: Record<string, Function> = {};
     const mockWindow = {
       document: {
         write: vi.fn(),
         close: vi.fn(),
       },
-      addEventListener: vi.fn(),
+      addEventListener: vi.fn((event: string, handler: Function) => { listeners[event] = handler; }),
       print: vi.fn(),
     };
 
@@ -128,6 +129,9 @@ describe('exportPdf', () => {
     expect(window.open).toHaveBeenCalledWith('', '_blank');
     expect(mockWindow.document.write).toHaveBeenCalled();
     expect(mockWindow.document.close).toHaveBeenCalled();
+
+    // Print is deferred to 'load' event for proper rendering
+    listeners['load']?.();
     expect(mockWindow.print).toHaveBeenCalled();
 
     // Check HTML content includes neighborhood name (escaped)

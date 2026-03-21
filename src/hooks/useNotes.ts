@@ -24,10 +24,12 @@ export function useNotes() {
   const getNote = useCallback((pno: string): string => notes[pno] ?? '', [notes]);
 
   const setNote = useCallback((pno: string, text: string) => {
+    // Limit note length to prevent localStorage quota exhaustion
+    const trimmed = text.slice(0, 5000);
     setNotes((prev) => {
       const next = { ...prev };
-      if (text.trim()) {
-        next[pno] = text;
+      if (trimmed.trim()) {
+        next[pno] = trimmed;
       } else {
         delete next[pno];
       }

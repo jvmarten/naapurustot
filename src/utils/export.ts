@@ -145,5 +145,11 @@ export function exportPdf(d: NeighborhoodProperties, _avg: Record<string, number
   w.document.write(html);
   w.document.close();
   w.addEventListener('afterprint', () => w.close());
-  w.print();
+  // Defer print() until the document is fully rendered to avoid blank printouts.
+  // Use a flag to avoid double-printing from both the load event and the fallback timer.
+  let printed = false;
+  const doPrint = () => { if (!printed) { printed = true; w.print(); } };
+  w.addEventListener('load', doPrint);
+  // Fallback for browsers that don't fire 'load' on document.write()
+  setTimeout(doPrint, 300);
 }
