@@ -5,14 +5,20 @@ import type { FeatureCollection } from 'geojson';
 import { buildFillColorExpression, type LayerId, getLayerById } from '../utils/colorScales';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { useTheme } from '../hooks/useTheme';
+import { DEFAULT_CENTER, DEFAULT_ZOOM } from '../utils/mapConstants';
 
 const BASEMAP_LIGHT = (import.meta.env.VITE_BASEMAP_LIGHT_URL as string) || 'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png';
 const BASEMAP_DARK = (import.meta.env.VITE_BASEMAP_DARK_URL as string) || 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png';
-const MAP_CENTER_LNG = Number(import.meta.env.VITE_MAP_CENTER_LNG) || 24.94;
-const MAP_CENTER_LAT = Number(import.meta.env.VITE_MAP_CENTER_LAT) || 60.17;
-const MAP_ZOOM = Number(import.meta.env.VITE_MAP_ZOOM) || 10.5;
-const MAP_MIN_ZOOM = Number(import.meta.env.VITE_MAP_MIN_ZOOM) || 8;
-const MAP_MAX_ZOOM = Number(import.meta.env.VITE_MAP_MAX_ZOOM) || 16;
+
+function envNum(key: string, fallback: number): number {
+  const raw = import.meta.env[key];
+  if (raw == null || raw === '') return fallback;
+  const n = Number(raw);
+  return isFinite(n) ? n : fallback;
+}
+
+const MAP_MIN_ZOOM = envNum('VITE_MAP_MIN_ZOOM', 8);
+const MAP_MAX_ZOOM = envNum('VITE_MAP_MAX_ZOOM', 16);
 
 interface MapProps {
   data: FeatureCollection | null;
@@ -117,8 +123,8 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: makeStyle(theme),
-      center: [MAP_CENTER_LNG, MAP_CENTER_LAT],
-      zoom: MAP_ZOOM,
+      center: DEFAULT_CENTER,
+      zoom: DEFAULT_ZOOM,
       minZoom: MAP_MIN_ZOOM,
       maxZoom: MAP_MAX_ZOOM,
       attributionControl: false,

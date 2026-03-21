@@ -413,6 +413,7 @@ const METRIC_DEFS: MetricDef[] = [
   { property: 'youth_ratio_pct', weight: 'population', precision: 1, pctOfPop: true },
   { property: 'single_parent_hh_pct', weight: 'household', precision: 1, pctOfHh: true },
   { property: 'families_with_children_pct', weight: 'household', precision: 1, pctOfHh: true },
+  { property: 'gender_ratio', weight: 'population', precision: 2 },
   { property: 'tech_sector_pct', weight: 'population', precision: 1 },
   { property: 'healthcare_workers_pct', weight: 'population', precision: 1 },
   // Phase 8: More demographic detail + trends

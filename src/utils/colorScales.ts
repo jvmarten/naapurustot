@@ -94,12 +94,18 @@ export interface LayerConfig {
   gridProperty?: string;
 }
 
-const euro = (v: number) => `${v.toLocaleString('fi-FI')} €`;
+import { getLang } from './i18n';
+
+function locale(): string {
+  return getLang() === 'en' ? 'en-US' : 'fi-FI';
+}
+
+const euro = (v: number) => `${v.toLocaleString(locale())} €`;
 const pct = (v: number) => `${v.toFixed(1)} %`;
 const age = (v: number) => `${v.toFixed(1)}`;
-const density = (v: number) => `${v.toLocaleString('fi-FI')} /km²`;
+const density = (v: number) => `${v.toLocaleString(locale())} /km²`;
 const sqm = (v: number) => `${v.toFixed(1)} m²`;
-const euroSqm = (v: number) => `${v.toLocaleString('fi-FI')} €/m²`;
+const euroSqm = (v: number) => `${v.toLocaleString(locale())} €/m²`;
 const euroSqmMonth = (v: number) => `${v.toFixed(2)} €/m²/kk`;
 const stops = (v: number) => `${v.toFixed(1)} /km²`;
 const perThousand = (v: number) => `${v.toFixed(1)} /1000`;

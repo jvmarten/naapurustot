@@ -110,6 +110,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ data, onSelect, recent = [
     const totalItems = results.length + addressResults.length;
     if (!isOpen || totalItems === 0) {
       if (e.key === 'Escape') {
+        e.stopPropagation();
         setIsOpen(false);
         inputRef.current?.blur();
       }
