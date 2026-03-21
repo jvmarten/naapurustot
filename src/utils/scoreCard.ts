@@ -13,10 +13,10 @@ function escapeHtml(str: string): string {
 }
 
 const METRICS = [
-  { key: 'hr_mtu', label: 'panel.median_income', format: formatEuro },
-  { key: 'unemployment_rate', label: 'panel.unemployment', format: (v: number | null) => formatPct(v) },
-  { key: 'property_price_sqm', label: 'panel.property_price', format: (v: number | null) => v != null ? `${v.toLocaleString('fi-FI')} €/m²` : '—' },
-  { key: 'transit_stop_density', label: 'panel.transit_access', format: (v: number | null) => v != null ? `${v.toFixed(1)} /km²` : '—' },
+  { key: 'hr_mtu', label: 'panel.median_income', format: formatEuro, higherIsBetter: true },
+  { key: 'unemployment_rate', label: 'panel.unemployment', format: (v: number | null) => formatPct(v), higherIsBetter: false },
+  { key: 'property_price_sqm', label: 'panel.property_price', format: (v: number | null) => v != null ? `${v.toLocaleString('fi-FI')} €/m²` : '—', higherIsBetter: true },
+  { key: 'transit_stop_density', label: 'panel.transit_access', format: (v: number | null) => v != null ? `${v.toFixed(1)} /km²` : '—', higherIsBetter: true },
 ] as const;
 
 /** Render a neighborhood score card as an off-screen HTML element, convert to PNG, and trigger download. */
@@ -50,12 +50,13 @@ export async function generateScoreCard(
       </div>` : ''}
     </div>
     <div style="display: flex; flex-direction: column; gap: 12px;">
-      ${METRICS.map(({ key, label, format }) => {
+      ${METRICS.map(({ key, label, format, higherIsBetter }) => {
         const val = data[key] as number | null;
         const avg = metroAverages[key];
         const diff = val != null && avg != null ? val - avg : null;
         const diffStr = diff != null ? `${diff > 0 ? '+' : ''}${diff.toFixed(1)}` : '';
-        const diffColor = diff != null ? (diff > 0 ? '#059669' : diff < 0 ? '#dc2626' : '#64748b') : '#64748b';
+        const isGood = diff != null ? (higherIsBetter ? diff > 0 : diff < 0) : false;
+        const diffColor = diff != null ? (diff === 0 ? '#64748b' : isGood ? '#059669' : '#dc2626') : '#64748b';
         return `
           <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f1f5f9;">
             <span style="font-size: 13px; color: #64748b;">${t(label)}</span>
@@ -79,7 +80,7 @@ export async function generateScoreCard(
     const { toPng } = await import('html-to-image');
     const dataUrl = await toPng(container, { quality: 0.95, pixelRatio: 2 });
     const link = document.createElement('a');
-    link.download = `${data.nimi}-${data.pno}-naapurustot.png`;
+    link.download = `${data.nimi.replace(/[/\\:*?"<>|]/g, '_')}-${data.pno}-naapurustot.png`;
     link.href = dataUrl;
     link.click();
   } finally {

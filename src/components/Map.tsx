@@ -98,7 +98,7 @@ function buildFillOpacity(o: number, overrides?: { matchExpr?: unknown[]; matchV
   return base;
 }
 
-export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = false, wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1 }) => {
+export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const hoveredIdRef = useRef<string | null>(null);
@@ -149,7 +149,11 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
     if (!map || !data) return;
 
     const addLayers = () => {
-      // Remove existing
+      // Remove existing layers (must be removed before source)
+      if (map.getLayer(NO_DATA_LAYER)) map.removeLayer(NO_DATA_LAYER);
+      if (map.getLayer(FILTER_HIGHLIGHT_LAYER)) map.removeLayer(FILTER_HIGHLIGHT_LAYER);
+      if (map.getLayer(WIZARD_HIGHLIGHT_LAYER)) map.removeLayer(WIZARD_HIGHLIGHT_LAYER);
+      if (map.getLayer(PINNED_LAYER)) map.removeLayer(PINNED_LAYER);
       if (map.getLayer(HIGHLIGHT_LAYER)) map.removeLayer(HIGHLIGHT_LAYER);
       if (map.getLayer(LINE_LAYER)) map.removeLayer(LINE_LAYER);
       if (map.getLayer(FILL_LAYER)) map.removeLayer(FILL_LAYER);
@@ -221,6 +225,10 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
     } else {
       map.on('load', addLayers);
     }
+
+    return () => {
+      map.off('load', addLayers);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- activeLayer/fillOpacity changes handled by dedicated effects
   }, [data, theme]);
 
