@@ -241,8 +241,13 @@ const App: React.FC = () => {
     document.documentElement.lang = lang;
   }, [lang]);
 
-  // ARIA: announce layer changes
+  // ARIA: announce layer changes (skip initial render)
+  const isFirstLayerRender = useRef(true);
   useEffect(() => {
+    if (isFirstLayerRender.current) {
+      isFirstLayerRender.current = false;
+      return;
+    }
     const layer = getLayerById(activeLayer);
     setAriaAnnouncement(`${t('aria.layer_changed')} ${t(layer.labelKey)}`);
   }, [activeLayer]);
@@ -468,9 +473,11 @@ const App: React.FC = () => {
       )}
 
       {/* Comparison panel */}
-      <Suspense fallback={null}>
-        <ComparisonPanel pinned={pinned} onUnpin={unpin} onClear={clearPinned} />
-      </Suspense>
+      {pinned.length >= 2 && (
+        <Suspense fallback={null}>
+          <ComparisonPanel pinned={pinned} onUnpin={unpin} onClear={clearPinned} />
+        </Suspense>
+      )}
 
       {/* IN-6: Offline indicator */}
       {isOffline && (

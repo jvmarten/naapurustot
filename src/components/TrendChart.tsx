@@ -51,7 +51,7 @@ export const TrendChart: React.FC<TrendChartProps> = ({ title, data, color, form
   // Trend direction
   const firstVal = values[0];
   const lastVal = values[values.length - 1];
-  const changePct = ((lastVal - firstVal) / firstVal * 100);
+  const changePct = firstVal !== 0 ? ((lastVal - firstVal) / Math.abs(firstVal) * 100) : 0;
   const changeSign = changePct >= 0 ? '+' : '';
 
   return (

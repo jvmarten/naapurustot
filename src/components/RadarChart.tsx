@@ -83,6 +83,7 @@ const LABEL_RADIUS = RADIUS + 28;
 
 function normalize(value: number | null, min: number, max: number, inverted: boolean): number {
   if (value == null) return 0;
+  if (max === min) return 50;
   const clamped = Math.max(min, Math.min(max, value));
   const ratio = (clamped - min) / (max - min);
   const score = inverted ? 1 - ratio : ratio;

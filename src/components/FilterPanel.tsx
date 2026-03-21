@@ -69,8 +69,9 @@ const RangeSlider: React.FC<{
   onMinChange: (v: number) => void;
   onMaxChange: (v: number) => void;
 }> = ({ min, max, valueMin, valueMax, step, color, onMinChange, onMaxChange }) => {
-  const pctMin = ((valueMin - min) / (max - min)) * 100;
-  const pctMax = ((valueMax - min) / (max - min)) * 100;
+  const range = max - min;
+  const pctMin = range > 0 ? ((valueMin - min) / range) * 100 : 0;
+  const pctMax = range > 0 ? ((valueMax - min) / range) * 100 : 100;
 
   return (
     <div className="relative h-6 flex items-center select-none">
