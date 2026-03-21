@@ -29,7 +29,7 @@ const LAYER_GROUPS: LayerGroup[] = [
   { labelKey: 'layers.connectivity', ids: ['broadband_coverage'] },
 ];
 
-export const LayerSelector: React.FC<LayerSelectorProps> = ({ activeLayer, onLayerChange, onCustomizeQuality, isCustomWeights = false }) => {
+export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeLayer, onLayerChange, onCustomizeQuality, isCustomWeights = false }) => {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(
     Object.fromEntries(LAYER_GROUPS.map((g) => [g.labelKey, true]))
   );
@@ -350,4 +350,4 @@ export const LayerSelector: React.FC<LayerSelectorProps> = ({ activeLayer, onLay
       </div>
     </>
   );
-};
+});

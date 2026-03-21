@@ -212,6 +212,21 @@ const App: React.FC = () => {
     });
   }, []);
 
+  // Stable callbacks for memoized children (avoids new refs on every App re-render)
+  const handleOpenWizard = useCallback(() => setShowWizard(true), []);
+  const handleClearWizardHighlight = useCallback(() => setWizardResultPnos([]), []);
+  const handleToggleSplitMode = useCallback(() => setSplitMode((v) => !v), []);
+  const handleToggleCustomQuality = useCallback(() => setShowCustomQuality((v) => !v), []);
+  const handleCloseRanking = useCallback(() => setShowRanking(false), []);
+  const handleCloseFilter = useCallback(() => setShowFilter(false), []);
+  const handleCloseCustomQuality = useCallback(() => setShowCustomQuality(false), []);
+  const handleCloseWizard = useCallback(() => setShowWizard(false), []);
+  const handleWizardShowOnMap = useCallback((pnos: string[]) => {
+    setWizardResultPnos(pnos);
+    setShowWizard(false);
+  }, []);
+  const handleFlyTo = useCallback((center: [number, number]) => setFlyTarget({ center }), []);
+
   // IN-5: Dynamic SEO — update document title, meta, and canonical when neighborhood selected
   useEffect(() => {
     const canonical = document.querySelector('link[rel="canonical"]');
@@ -357,11 +372,11 @@ const App: React.FC = () => {
           showRanking={showRanking}
           onToggleFilter={toggleFilter}
           onToggleRanking={toggleRanking}
-          onOpenWizard={() => setShowWizard(true)}
+          onOpenWizard={handleOpenWizard}
           wizardHighlightActive={wizardResultPnos.length > 0}
-          onClearWizardHighlight={() => setWizardResultPnos([])}
+          onClearWizardHighlight={handleClearWizardHighlight}
           splitMode={splitMode}
-          onToggleSplitMode={() => setSplitMode((v) => !v)}
+          onToggleSplitMode={handleToggleSplitMode}
         />
         <SettingsDropdown
           colorblind={colorblind}
@@ -383,7 +398,7 @@ const App: React.FC = () => {
             data={data}
             activeLayer={activeLayer}
             onSelect={handleSearch}
-            onClose={() => setShowRanking(false)}
+            onClose={handleCloseRanking}
           />
         </Suspense>
       )}
@@ -397,7 +412,7 @@ const App: React.FC = () => {
               filters={filters}
               onFiltersChange={setFilters}
               onSelect={handleSearch}
-              onClose={() => setShowFilter(false)}
+              onClose={handleCloseFilter}
               savedPresets={savedPresets}
               onSavePreset={saveFilterPreset}
               onRemovePreset={removeFilterPreset}
@@ -410,7 +425,7 @@ const App: React.FC = () => {
       <LayerSelector
         activeLayer={activeLayer}
         onLayerChange={setActiveLayer}
-        onCustomizeQuality={() => setShowCustomQuality((v) => !v)}
+        onCustomizeQuality={handleToggleCustomQuality}
         isCustomWeights={isCustomWeights(qualityWeights)}
       />
 
@@ -435,7 +450,7 @@ const App: React.FC = () => {
           <CustomQualityPanel
             weights={qualityWeights}
             onChange={handleQualityWeightsChange}
-            onClose={() => setShowCustomQuality(false)}
+            onClose={handleCloseCustomQuality}
           />
         </Suspense>
       )}
@@ -452,10 +467,10 @@ const App: React.FC = () => {
             onUnpin={unpin}
             isPinned={pinned.some((p) => p.pno === selected.pno)}
             pinCount={pinned.length}
-            onCustomize={() => setShowCustomQuality((v) => !v)}
+            onCustomize={handleToggleCustomQuality}
             isCustomWeights={isCustomWeights(qualityWeights)}
             allFeatures={data?.features}
-            onFlyTo={(center) => setFlyTarget({ center })}
+            onFlyTo={handleFlyTo}
             isFavorite={isFavorite(selected.pno)}
             onToggleFavorite={() => toggleFavorite(selected.pno)}
             note={getNote(selected.pno)}
@@ -471,11 +486,8 @@ const App: React.FC = () => {
         <NeighborhoodWizard
           data={data}
           onSelect={handleSearch}
-          onClose={() => setShowWizard(false)}
-          onShowOnMap={(pnos) => {
-            setWizardResultPnos(pnos);
-            setShowWizard(false);
-          }}
+          onClose={handleCloseWizard}
+          onShowOnMap={handleWizardShowOnMap}
         />
         </Suspense>
       )}

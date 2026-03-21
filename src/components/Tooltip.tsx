@@ -1,4 +1,4 @@
-import React, { useRef, useState, useLayoutEffect } from 'react';
+import React, { useRef, useLayoutEffect } from 'react';
 import { getLayerById, type LayerId } from '../utils/colorScales';
 import { t } from '../utils/i18n';
 
@@ -18,7 +18,6 @@ export const Tooltip: React.FC<TooltipProps> = ({ x, y, name, value, layerId, me
   const layer = getLayerById(layerId);
   const formatted = value != null ? layer.format(value) : t('tooltip.no_data');
   const ref = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState({ left: 0, top: 0 });
 
   // PO-3: Mini comparison to metro average
   let comparisonText = '';
@@ -35,6 +34,8 @@ export const Tooltip: React.FC<TooltipProps> = ({ x, y, name, value, layerId, me
     }
   }
 
+  // Position via direct DOM mutation to avoid a second React render per mousemove.
+  // The old approach (useState + useLayoutEffect) caused a double render on every move.
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -61,7 +62,8 @@ export const Tooltip: React.FC<TooltipProps> = ({ x, y, name, value, layerId, me
       top = vh - height - PADDING;
     }
 
-    setPos({ left, top });
+    el.style.left = `${left}px`;
+    el.style.top = `${top}px`;
   }, [x, y]);
 
   return (
@@ -69,8 +71,8 @@ export const Tooltip: React.FC<TooltipProps> = ({ x, y, name, value, layerId, me
       ref={ref}
       className="tooltip-desktop pointer-events-none fixed z-50 rounded-lg bg-white/95 dark:bg-surface-900/95 px-3 py-2 text-sm shadow-xl backdrop-blur-sm border border-surface-200 dark:border-surface-700/50"
       style={{
-        left: pos.left,
-        top: pos.top,
+        left: 0,
+        top: 0,
       }}
     >
       <div className="font-semibold text-surface-900 dark:text-white">{name}</div>

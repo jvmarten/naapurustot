@@ -14,7 +14,7 @@ interface ToolsDropdownProps {
   onToggleSplitMode?: () => void;
 }
 
-export const ToolsDropdown: React.FC<ToolsDropdownProps> = ({
+export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
   showFilter,
   showRanking,
   onToggleFilter,
@@ -167,4 +167,4 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = ({
       )}
     </div>
   );
-};
+});

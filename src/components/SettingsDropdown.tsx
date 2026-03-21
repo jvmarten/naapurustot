@@ -64,7 +64,7 @@ const OpacitySlider: React.FC<{ fillOpacity: number; onFillOpacityChange: (v: nu
   );
 };
 
-export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({
+export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
   colorblind,
   onColorblindChange,
   lang,
@@ -205,4 +205,4 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({
       )}
     </div>
   );
-};
+});
