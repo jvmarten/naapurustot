@@ -2,10 +2,10 @@
 /**
  * Generate a fine-grained grid GeoJSON for the light pollution layer.
  *
- * Creates ~500m square grid cells over the Helsinki metro area and assigns
- * each cell the real VIIRS radiance value from the postal code it falls in.
- * This allows the map to render light pollution at grid resolution while
- * keeping postal code borders visible as overlays.
+ * Creates ~250m square grid cells over the Helsinki metro area and uses
+ * IDW (Inverse Distance Weighting) interpolation to blend radiance values
+ * from nearby postal code centroids. This produces smooth color gradients
+ * instead of blocky postal-code-level patches.
  *
  * Data source: real VIIRS radiance values already aggregated per postal code
  * in scripts/light_pollution.json (from NASA VIIRS Black Marble VNP46A4).
@@ -24,14 +24,17 @@ const GEOJSON_PATH = resolve(ROOT, 'public/data/metro_neighborhoods.geojson');
 const RADIANCE_PATH = resolve(ROOT, 'scripts/light_pollution.json');
 const OUTPUT_PATH = resolve(ROOT, 'public/data/light_pollution_grid.geojson');
 
-// Grid cell size in degrees (~500m at 60°N latitude)
+// Grid cell size in degrees (~250m at 60°N latitude)
 // At 60°N: 1° longitude ≈ 55.8 km, 1° latitude ≈ 111.3 km
-// 500m ≈ 0.00896° longitude, 0.00449° latitude
-const CELL_LNG = 0.009;
-const CELL_LAT = 0.0045;
+// 250m ≈ 0.00448° longitude, 0.00225° latitude
+const CELL_LNG = 0.0045;
+const CELL_LAT = 0.00225;
+
+// IDW interpolation parameters
+const IDW_POWER = 2; // distance decay exponent
+const IDW_NEIGHBORS = 6; // number of nearest centroids to consider
 
 function pointInPolygon(point, polygon) {
-  // Ray-casting algorithm for point-in-polygon
   const [px, py] = point;
   let inside = false;
   for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
@@ -46,9 +49,7 @@ function pointInPolygon(point, polygon) {
 
 function pointInMultiPolygon(point, multiPolygon) {
   for (const polygon of multiPolygon) {
-    // polygon[0] is the outer ring, polygon[1..n] are holes
     if (pointInPolygon(point, polygon[0])) {
-      // Check not in holes
       let inHole = false;
       for (let h = 1; h < polygon.length; h++) {
         if (pointInPolygon(point, polygon[h])) {
@@ -60,6 +61,54 @@ function pointInMultiPolygon(point, multiPolygon) {
     }
   }
   return false;
+}
+
+/** Compute centroid of a polygon (outer ring only, simple average). */
+function computeCentroid(coordinates, type) {
+  const rings = type === 'MultiPolygon'
+    ? coordinates.flatMap(poly => poly[0])
+    : coordinates[0];
+  let sumLng = 0, sumLat = 0;
+  // Exclude last point (duplicate of first in closed ring)
+  const n = rings.length - 1 || rings.length;
+  for (let i = 0; i < n; i++) {
+    sumLng += rings[i][0];
+    sumLat += rings[i][1];
+  }
+  return [sumLng / n, sumLat / n];
+}
+
+/** Approximate distance² in degrees (good enough for relative ranking at same latitude). */
+function dist2(a, b) {
+  const dlng = a[0] - b[0];
+  const dlat = a[1] - b[1];
+  return dlng * dlng + dlat * dlat;
+}
+
+/**
+ * IDW interpolation: blend radiance from the K nearest centroids,
+ * weighted by inverse distance^p.
+ */
+function idwInterpolate(point, centroids, k, power) {
+  // Compute distances to all centroids
+  const dists = centroids.map((c, i) => ({ i, d2: dist2(point, c.center) }));
+  dists.sort((a, b) => a.d2 - b.d2);
+
+  const nearest = dists.slice(0, k);
+
+  // If very close to a centroid, return its value directly
+  if (nearest[0].d2 < 1e-10) {
+    return centroids[nearest[0].i].radiance;
+  }
+
+  let wSum = 0;
+  let vSum = 0;
+  for (const { i, d2 } of nearest) {
+    const w = 1 / Math.pow(Math.sqrt(d2), power);
+    wSum += w;
+    vSum += w * centroids[i].radiance;
+  }
+  return vSum / wSum;
 }
 
 function main() {
@@ -87,7 +136,7 @@ function main() {
   }
   console.log(`  Bbox: [${minLng.toFixed(4)}, ${minLat.toFixed(4)}, ${maxLng.toFixed(4)}, ${maxLat.toFixed(4)}]`);
 
-  // Build a simple spatial lookup: for each feature, store pno, radiance, and coords
+  // Build neighborhoods with radiance data and centroids
   const neighborhoods = features
     .filter(f => f.properties.pno && radiance[f.properties.pno] !== undefined)
     .map(f => ({
@@ -95,12 +144,19 @@ function main() {
       radiance: radiance[f.properties.pno],
       coords: f.geometry.coordinates,
       type: f.geometry.type,
+      center: computeCentroid(f.geometry.coordinates, f.geometry.type),
     }));
 
   console.log(`  ${neighborhoods.length} neighborhoods with radiance data`);
 
-  // Generate grid cells
-  console.log('Generating grid cells...');
+  // Build centroid list for IDW
+  const centroids = neighborhoods.map(n => ({
+    center: n.center,
+    radiance: n.radiance,
+  }));
+
+  // Generate grid cells with IDW interpolation
+  console.log('Generating grid cells with IDW interpolation...');
   const gridFeatures = [];
 
   const cols = Math.ceil((maxLng - minLng) / CELL_LNG);
@@ -117,17 +173,25 @@ function main() {
       const cellMaxLng = cellMinLng + CELL_LNG;
       const centerLng = (cellMinLng + cellMaxLng) / 2;
 
-      // Find which neighborhood contains the cell center
-      let matchedRadiance = null;
+      // Check if cell center falls within any neighborhood
+      let insideMetro = false;
       for (const n of neighborhoods) {
         const multiCoords = n.type === 'MultiPolygon' ? n.coords : [n.coords];
         if (pointInMultiPolygon([centerLng, centerLat], multiCoords)) {
-          matchedRadiance = n.radiance;
+          insideMetro = true;
           break;
         }
       }
 
-      if (matchedRadiance === null) continue;
+      if (!insideMetro) continue;
+
+      // IDW-interpolate radiance from nearby postal code centroids
+      const interpolated = idwInterpolate(
+        [centerLng, centerLat],
+        centroids,
+        IDW_NEIGHBORS,
+        IDW_POWER,
+      );
 
       gridFeatures.push({
         type: 'Feature',
@@ -142,7 +206,7 @@ function main() {
           ]],
         },
         properties: {
-          radiance: matchedRadiance,
+          radiance: round2(interpolated),
         },
       });
     }
@@ -171,6 +235,10 @@ function main() {
 
 function round6(n) {
   return Math.round(n * 1000000) / 1000000;
+}
+
+function round2(n) {
+  return Math.round(n * 100) / 100;
 }
 
 main();
