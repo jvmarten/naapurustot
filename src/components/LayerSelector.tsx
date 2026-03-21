@@ -24,7 +24,7 @@ const LAYER_GROUPS: LayerGroup[] = [
   { labelKey: 'layers.services', ids: ['restaurant_density', 'grocery_access', 'daycare_density', 'school_density', 'healthcare_access', 'school_quality'] },
   { labelKey: 'layers.safety', ids: ['crime_rate', 'traffic_accidents'] },
   { labelKey: 'layers.mobility', ids: ['cycling_infra', 'ev_charging_density'] },
-  { labelKey: 'layers.environment', ids: ['tree_canopy', 'light_pollution'] },
+  { labelKey: 'layers.environment', ids: ['tree_canopy', 'light_pollution', 'noise_pollution'] },
   { labelKey: 'layers.voting', ids: ['voter_turnout', 'party_diversity'] },
   { labelKey: 'layers.connectivity', ids: ['broadband_coverage'] },
 ];
