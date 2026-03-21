@@ -2,18 +2,20 @@
 /**
  * Generate a fine-grained grid GeoJSON for the light pollution layer.
  *
- * Creates ~250m square grid cells over the Helsinki metro area and uses
- * IDW (Inverse Distance Weighting) interpolation to blend radiance values
- * from nearby postal code centroids. This produces smooth color gradients
- * instead of blocky postal-code-level patches.
+ * Preferred mode: uses real per-pixel VIIRS radiance data from
+ * scripts/light_pollution_pixels.json (native ~500m satellite pixels).
+ * Each grid cell gets the actual measured radiance for that location.
  *
- * Data source: real VIIRS radiance values already aggregated per postal code
- * in scripts/light_pollution.json (from NASA VIIRS Black Marble VNP46A4).
+ * Fallback mode: if pixel data is not available, falls back to
+ * postal-code-level values from scripts/light_pollution.json and
+ * assigns each grid cell the value of its containing postal code.
+ *
+ * Data source: NASA VIIRS Black Marble (VNP46A4), ~500m resolution
  *
  * Output: public/data/light_pollution_grid.geojson
  */
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -22,17 +24,14 @@ const ROOT = resolve(__dirname, '..');
 
 const GEOJSON_PATH = resolve(ROOT, 'public/data/metro_neighborhoods.geojson');
 const RADIANCE_PATH = resolve(ROOT, 'scripts/light_pollution.json');
+const PIXEL_PATH = resolve(ROOT, 'scripts/light_pollution_pixels.json');
 const OUTPUT_PATH = resolve(ROOT, 'public/data/light_pollution_grid.geojson');
 
-// Grid cell size in degrees (~250m at 60°N latitude)
+// Grid cell size in degrees (~500m at 60°N latitude, matching VIIRS native resolution)
 // At 60°N: 1° longitude ≈ 55.8 km, 1° latitude ≈ 111.3 km
-// 250m ≈ 0.00448° longitude, 0.00225° latitude
-const CELL_LNG = 0.0045;
-const CELL_LAT = 0.00225;
-
-// IDW interpolation parameters
-const IDW_POWER = 2; // distance decay exponent
-const IDW_NEIGHBORS = 6; // number of nearest centroids to consider
+// 500m ≈ 0.00896° longitude, 0.00449° latitude
+const CELL_LNG = 0.009;
+const CELL_LAT = 0.0045;
 
 function pointInPolygon(point, polygon) {
   const [px, py] = point;
@@ -63,58 +62,161 @@ function pointInMultiPolygon(point, multiPolygon) {
   return false;
 }
 
-/** Compute centroid of a polygon (outer ring only, simple average). */
-function computeCentroid(coordinates, type) {
-  const rings = type === 'MultiPolygon'
-    ? coordinates.flatMap(poly => poly[0])
-    : coordinates[0];
-  let sumLng = 0, sumLat = 0;
-  // Exclude last point (duplicate of first in closed ring)
-  const n = rings.length - 1 || rings.length;
-  for (let i = 0; i < n; i++) {
-    sumLng += rings[i][0];
-    sumLat += rings[i][1];
-  }
-  return [sumLng / n, sumLat / n];
-}
-
-/** Approximate distance² in degrees (good enough for relative ranking at same latitude). */
-function dist2(a, b) {
-  const dlng = a[0] - b[0];
-  const dlat = a[1] - b[1];
-  return dlng * dlng + dlat * dlat;
-}
-
 /**
- * IDW interpolation: blend radiance from the K nearest centroids,
- * weighted by inverse distance^p.
+ * Build a spatial grid index for fast pixel lookup.
+ * Maps grid cell (col, row) -> pixel radiance value.
  */
-function idwInterpolate(point, centroids, k, power) {
-  // Compute distances to all centroids
-  const dists = centroids.map((c, i) => ({ i, d2: dist2(point, c.center) }));
-  dists.sort((a, b) => a.d2 - b.d2);
+function buildPixelIndex(pixels, minLng, minLat) {
+  const index = new Map();
+  for (const p of pixels) {
+    const col = Math.floor((p.lng - minLng) / CELL_LNG);
+    const row = Math.floor((p.lat - minLat) / CELL_LAT);
+    const key = `${col},${row}`;
+    // If multiple pixels fall in the same cell, average them
+    if (index.has(key)) {
+      const existing = index.get(key);
+      existing.sum += p.radiance;
+      existing.count += 1;
+    } else {
+      index.set(key, { sum: p.radiance, count: 1 });
+    }
+  }
+  return index;
+}
 
-  const nearest = dists.slice(0, k);
+function generateFromPixels(pixels, neighborhoods, minLng, minLat, maxLng, maxLat) {
+  console.log(`  Using ${pixels.length} real VIIRS pixel values`);
 
-  // If very close to a centroid, return its value directly
-  if (nearest[0].d2 < 1e-10) {
-    return centroids[nearest[0].i].radiance;
+  const pixelIndex = buildPixelIndex(pixels, minLng, minLat);
+  console.log(`  Pixel index: ${pixelIndex.size} unique grid cells with data`);
+
+  const cols = Math.ceil((maxLng - minLng) / CELL_LNG);
+  const rows = Math.ceil((maxLat - minLat) / CELL_LAT);
+  console.log(`  Grid dimensions: ${cols} x ${rows} = ${cols * rows} potential cells`);
+
+  const gridFeatures = [];
+
+  for (let row = 0; row < rows; row++) {
+    const cellMinLat = minLat + row * CELL_LAT;
+    const cellMaxLat = cellMinLat + CELL_LAT;
+    const centerLat = (cellMinLat + cellMaxLat) / 2;
+
+    for (let col = 0; col < cols; col++) {
+      const key = `${col},${row}`;
+      const pixelData = pixelIndex.get(key);
+      if (!pixelData) continue;
+
+      const cellMinLng = minLng + col * CELL_LNG;
+      const cellMaxLng = cellMinLng + CELL_LNG;
+      const centerLng = (cellMinLng + cellMaxLng) / 2;
+
+      // Verify the cell is within the metro area
+      let insideMetro = false;
+      for (const n of neighborhoods) {
+        const multiCoords = n.type === 'MultiPolygon' ? n.coords : [n.coords];
+        if (pointInMultiPolygon([centerLng, centerLat], multiCoords)) {
+          insideMetro = true;
+          break;
+        }
+      }
+      if (!insideMetro) continue;
+
+      const radiance = round2(pixelData.sum / pixelData.count);
+
+      gridFeatures.push({
+        type: 'Feature',
+        geometry: {
+          type: 'Polygon',
+          coordinates: [[
+            [round6(cellMinLng), round6(cellMinLat)],
+            [round6(cellMaxLng), round6(cellMinLat)],
+            [round6(cellMaxLng), round6(cellMaxLat)],
+            [round6(cellMinLng), round6(cellMaxLat)],
+            [round6(cellMinLng), round6(cellMinLat)],
+          ]],
+        },
+        properties: { radiance },
+      });
+    }
+
+    if (row % 20 === 0) {
+      process.stdout.write(`  Row ${row}/${rows} (${gridFeatures.length} cells so far)\r`);
+    }
   }
 
-  let wSum = 0;
-  let vSum = 0;
-  for (const { i, d2 } of nearest) {
-    const w = 1 / Math.pow(Math.sqrt(d2), power);
-    wSum += w;
-    vSum += w * centroids[i].radiance;
+  return gridFeatures;
+}
+
+function generateFromPostalCodes(neighborhoods, minLng, minLat, maxLng, maxLat) {
+  console.log('  Falling back to postal-code-level values');
+
+  const cols = Math.ceil((maxLng - minLng) / CELL_LNG);
+  const rows = Math.ceil((maxLat - minLat) / CELL_LAT);
+  console.log(`  Grid dimensions: ${cols} x ${rows} = ${cols * rows} potential cells`);
+
+  const gridFeatures = [];
+
+  for (let row = 0; row < rows; row++) {
+    const cellMinLat = minLat + row * CELL_LAT;
+    const cellMaxLat = cellMinLat + CELL_LAT;
+    const centerLat = (cellMinLat + cellMaxLat) / 2;
+
+    for (let col = 0; col < cols; col++) {
+      const cellMinLng = minLng + col * CELL_LNG;
+      const cellMaxLng = cellMinLng + CELL_LNG;
+      const centerLng = (cellMinLng + cellMaxLng) / 2;
+
+      let matchedRadiance = null;
+      for (const n of neighborhoods) {
+        const multiCoords = n.type === 'MultiPolygon' ? n.coords : [n.coords];
+        if (pointInMultiPolygon([centerLng, centerLat], multiCoords)) {
+          matchedRadiance = n.radiance;
+          break;
+        }
+      }
+
+      if (matchedRadiance === null) continue;
+
+      gridFeatures.push({
+        type: 'Feature',
+        geometry: {
+          type: 'Polygon',
+          coordinates: [[
+            [round6(cellMinLng), round6(cellMinLat)],
+            [round6(cellMaxLng), round6(cellMinLat)],
+            [round6(cellMaxLng), round6(cellMaxLat)],
+            [round6(cellMinLng), round6(cellMaxLat)],
+            [round6(cellMinLng), round6(cellMinLat)],
+          ]],
+        },
+        properties: {
+          radiance: matchedRadiance,
+        },
+      });
+    }
+
+    if (row % 20 === 0) {
+      process.stdout.write(`  Row ${row}/${rows} (${gridFeatures.length} cells so far)\r`);
+    }
   }
-  return vSum / wSum;
+
+  return gridFeatures;
 }
 
 function main() {
   console.log('Loading metro neighborhoods...');
   const geojson = JSON.parse(readFileSync(GEOJSON_PATH, 'utf-8'));
   const radiance = JSON.parse(readFileSync(RADIANCE_PATH, 'utf-8'));
+
+  // Check for pixel-level data
+  const hasPixelData = existsSync(PIXEL_PATH);
+  let pixels = null;
+  if (hasPixelData) {
+    pixels = JSON.parse(readFileSync(PIXEL_PATH, 'utf-8'));
+    console.log(`  Found pixel-level data: ${pixels.length} pixels`);
+  } else {
+    console.log('  No pixel-level data found, will use postal-code values');
+  }
 
   const features = geojson.features;
   console.log(`  ${features.length} neighborhoods, ${Object.keys(radiance).length} radiance values`);
@@ -136,7 +238,6 @@ function main() {
   }
   console.log(`  Bbox: [${minLng.toFixed(4)}, ${minLat.toFixed(4)}, ${maxLng.toFixed(4)}, ${maxLat.toFixed(4)}]`);
 
-  // Build neighborhoods with radiance data and centroids
   const neighborhoods = features
     .filter(f => f.properties.pno && radiance[f.properties.pno] !== undefined)
     .map(f => ({
@@ -144,76 +245,17 @@ function main() {
       radiance: radiance[f.properties.pno],
       coords: f.geometry.coordinates,
       type: f.geometry.type,
-      center: computeCentroid(f.geometry.coordinates, f.geometry.type),
     }));
 
   console.log(`  ${neighborhoods.length} neighborhoods with radiance data`);
 
-  // Build centroid list for IDW
-  const centroids = neighborhoods.map(n => ({
-    center: n.center,
-    radiance: n.radiance,
-  }));
-
-  // Generate grid cells with IDW interpolation
-  console.log('Generating grid cells with IDW interpolation...');
-  const gridFeatures = [];
-
-  const cols = Math.ceil((maxLng - minLng) / CELL_LNG);
-  const rows = Math.ceil((maxLat - minLat) / CELL_LAT);
-  console.log(`  Grid dimensions: ${cols} x ${rows} = ${cols * rows} potential cells`);
-
-  for (let row = 0; row < rows; row++) {
-    const cellMinLat = minLat + row * CELL_LAT;
-    const cellMaxLat = cellMinLat + CELL_LAT;
-    const centerLat = (cellMinLat + cellMaxLat) / 2;
-
-    for (let col = 0; col < cols; col++) {
-      const cellMinLng = minLng + col * CELL_LNG;
-      const cellMaxLng = cellMinLng + CELL_LNG;
-      const centerLng = (cellMinLng + cellMaxLng) / 2;
-
-      // Check if cell center falls within any neighborhood
-      let insideMetro = false;
-      for (const n of neighborhoods) {
-        const multiCoords = n.type === 'MultiPolygon' ? n.coords : [n.coords];
-        if (pointInMultiPolygon([centerLng, centerLat], multiCoords)) {
-          insideMetro = true;
-          break;
-        }
-      }
-
-      if (!insideMetro) continue;
-
-      // IDW-interpolate radiance from nearby postal code centroids
-      const interpolated = idwInterpolate(
-        [centerLng, centerLat],
-        centroids,
-        IDW_NEIGHBORS,
-        IDW_POWER,
-      );
-
-      gridFeatures.push({
-        type: 'Feature',
-        geometry: {
-          type: 'Polygon',
-          coordinates: [[
-            [round6(cellMinLng), round6(cellMinLat)],
-            [round6(cellMaxLng), round6(cellMinLat)],
-            [round6(cellMaxLng), round6(cellMaxLat)],
-            [round6(cellMinLng), round6(cellMaxLat)],
-            [round6(cellMinLng), round6(cellMinLat)],
-          ]],
-        },
-        properties: {
-          radiance: round2(interpolated),
-        },
-      });
-    }
-
-    if (row % 20 === 0) {
-      process.stdout.write(`  Row ${row}/${rows} (${gridFeatures.length} cells so far)\r`);
-    }
+  // Generate grid cells
+  console.log('Generating grid cells...');
+  let gridFeatures;
+  if (pixels && pixels.length > 0) {
+    gridFeatures = generateFromPixels(pixels, neighborhoods, minLng, minLat, maxLng, maxLat);
+  } else {
+    gridFeatures = generateFromPostalCodes(neighborhoods, minLng, minLat, maxLng, maxLat);
   }
 
   console.log(`\n  Generated ${gridFeatures.length} grid cells`);
