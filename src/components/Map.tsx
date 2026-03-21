@@ -109,7 +109,7 @@ function buildFillOpacity(o: number, overrides?: { matchExpr?: unknown[]; matchV
   return base;
 }
 
-export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1, gridData = null }) => {
+export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1, gridData = null }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const hoveredIdRef = useRef<string | null>(null);
@@ -571,4 +571,4 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
   }, [wizardHighlightPnos, data, theme, fillOpacity]);
 
   return <div ref={containerRef} className="absolute inset-0" />;
-};
+});

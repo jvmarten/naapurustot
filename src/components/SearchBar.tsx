@@ -13,7 +13,7 @@ interface SearchBarProps {
   recent?: RecentEntry[];
 }
 
-export const SearchBar: React.FC<SearchBarProps> = ({ data, onSelect, recent = [] }) => {
+export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, onSelect, recent = [] }) => {
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
@@ -261,4 +261,4 @@ export const SearchBar: React.FC<SearchBarProps> = ({ data, onSelect, recent = [
       )}
     </div>
   );
-};
+});

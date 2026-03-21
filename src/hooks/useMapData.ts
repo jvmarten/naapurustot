@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { FeatureCollection } from 'geojson';
 import { feature } from 'topojson-client';
 import type { Topology } from 'topojson-specification';
@@ -81,7 +81,7 @@ export function useMapData(): MapDataState {
     return () => { cancelled = true; };
   }, [attempt]);
 
-  const retry = () => setAttempt((a) => a + 1);
+  const retry = useCallback(() => setAttempt((a) => a + 1), []);
 
   return { ...state, retry };
 }

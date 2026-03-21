@@ -114,8 +114,8 @@ export function findSimilarNeighborhoods(
   // = ~2000 iterations). Now it's O(1) for repeated calls with the same dataset.
   const { mins, maxs } = getOrComputeRanges(allFeatures);
 
-  // 2. Compute Euclidean distance for each candidate
-  const results: SimilarNeighborhood[] = [];
+  // 2. Compute Euclidean distance for each candidate (defer center computation)
+  const candidates: { feature: GeoJSON.Feature; properties: NeighborhoodProperties; distance: number }[] = [];
 
   for (const feature of allFeatures) {
     const props = feature.properties as NeighborhoodProperties;
@@ -156,15 +156,15 @@ export function findSimilarNeighborhoods(
     // different numbers of available metrics are still meaningful
     const distance = Math.sqrt(sumSq / usedMetrics);
 
-    results.push({
-      properties: props,
-      distance,
-      center: featureCenter(feature),
-    });
+    candidates.push({ feature, properties: props, distance });
   }
 
-  // 3. Sort by ascending distance and return top N
-  results.sort((a, b) => a.distance - b.distance);
+  // 3. Sort by ascending distance and compute centers only for top N
+  candidates.sort((a, b) => a.distance - b.distance);
 
-  return results.slice(0, count);
+  return candidates.slice(0, count).map((c) => ({
+    properties: c.properties,
+    distance: c.distance,
+    center: featureCenter(c.feature),
+  }));
 }

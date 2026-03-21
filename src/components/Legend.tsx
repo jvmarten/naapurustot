@@ -8,7 +8,7 @@ interface LegendProps {
 }
 
 // colorblind prop triggers re-render when mode changes (getLayerById reads global state)
-export const Legend: React.FC<LegendProps> = ({ layerId, colorblind: _colorblind }) => {
+export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: _colorblind }) => {
   const layer = getLayerById(layerId);
 
   // Show only first and last tick values
@@ -39,4 +39,4 @@ export const Legend: React.FC<LegendProps> = ({ layerId, colorblind: _colorblind
       </div>
     </div>
   );
-};
+});
