@@ -31,12 +31,14 @@ export const DonateButton: React.FC<DonateButtonProps> = ({ variant = 'button' }
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      const input = document.createElement('input');
-      input.value = BOLT12_OFFER;
-      document.body.appendChild(input);
-      input.select();
+      const textarea = document.createElement('textarea');
+      textarea.value = BOLT12_OFFER;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
       document.execCommand('copy');
-      document.body.removeChild(input);
+      document.body.removeChild(textarea);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }

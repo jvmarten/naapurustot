@@ -46,11 +46,12 @@ export const SearchBar: React.FC<SearchBarProps> = ({ data, onSelect, recent = [
       setAddressResults([]);
       return;
     }
+    let stale = false;
     geocodeTimerRef.current = setTimeout(async () => {
       const res = await geocodeAddress(query);
-      setAddressResults(res);
+      if (!stale) setAddressResults(res);
     }, 300);
-    return () => { if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current); };
+    return () => { stale = true; if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current); };
   }, [query]);
 
   // CF-1: Find which neighborhood contains a geocoded point

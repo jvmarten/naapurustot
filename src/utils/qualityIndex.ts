@@ -3,7 +3,7 @@ import type { NeighborhoodProperties } from './metrics';
 /**
  * Computes a composite Quality Index (0–100) for each neighborhood.
  *
- * Default primary factors (8):
+ * Default primary factors (7):
  *   - Safety (crime rate, inverted) — 25%
  *   - Income (median income) — 20%
  *   - Employment (unemployment, inverted) — 20%
@@ -11,7 +11,6 @@ import type { NeighborhoodProperties } from './metrics';
  *   - Transit access — 7%
  *   - Services (healthcare, school, daycare, grocery) — 5%
  *   - Air quality (inverted) — 3%
- *   - Quietness (noise level, inverted) — 2%
  *
  * Additional factors available via "Show more":
  *   - Cycling infrastructure
