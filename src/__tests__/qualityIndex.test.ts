@@ -111,8 +111,8 @@ describe('getQualityCategory', () => {
     expect(getQualityCategory(60)!.label.en).toBe('Okay');
     expect(getQualityCategory(61)!.label.en).toBe('Good');
     expect(getQualityCategory(80)!.label.en).toBe('Good');
-    expect(getQualityCategory(81)!.label.en).toBe('Peaceful');
-    expect(getQualityCategory(100)!.label.en).toBe('Peaceful');
+    expect(getQualityCategory(81)!.label.en).toBe('Excellent');
+    expect(getQualityCategory(100)!.label.en).toBe('Excellent');
   });
 
   it('returns correct colors', () => {
