@@ -5,6 +5,7 @@ import type { RecentEntry } from '../hooks/useRecentNeighborhoods';
 import { geocodeAddress, type GeocodeResult } from '../utils/geocode';
 import { booleanPointInPolygon } from '@turf/boolean-point-in-polygon';
 import { point } from '@turf/helpers';
+import { featureCenter } from '../utils/geometryFilter';
 
 interface SearchBarProps {
   data: FeatureCollection | null;
@@ -86,7 +87,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ data, onSelect, recent = [
   }, [results]);
 
   function selectResult(feature: GeoJSON.Feature) {
-    onSelect(feature.properties!.pno, getCenter(feature));
+    onSelect(feature.properties!.pno, featureCenter(feature));
     setQuery(feature.properties!.nimi || feature.properties!.pno);
     setIsOpen(false);
     setHighlightedIndex(-1);
@@ -140,22 +141,6 @@ export const SearchBar: React.FC<SearchBarProps> = ({ data, onSelect, recent = [
     }
   }
 
-  function getCenter(feature: GeoJSON.Feature): [number, number] {
-    const geom = feature.geometry;
-    if (geom.type === 'Point') return geom.coordinates as [number, number];
-    const coords: GeoJSON.Position[] = [];
-    function extract(c: GeoJSON.Position | GeoJSON.Position[] | GeoJSON.Position[][] | GeoJSON.Position[][][]) {
-      if (typeof c[0] === 'number') coords.push(c as GeoJSON.Position);
-      else (c as GeoJSON.Position[][]).forEach(extract);
-    }
-    if ('coordinates' in geom) {
-      extract(geom.coordinates as GeoJSON.Position[]);
-    }
-    if (coords.length === 0) return [0, 0];
-    const lng = coords.reduce((s, c) => s + c[0], 0) / coords.length;
-    const lat = coords.reduce((s, c) => s + c[1], 0) / coords.length;
-    return [lng, lat];
-  }
 
   return (
     <div ref={containerRef} className="absolute top-3 md:top-4 left-3 md:left-4 z-10 w-[calc(100%-8.5rem)] md:w-72">

@@ -2,15 +2,7 @@ import type { NeighborhoodProperties } from './metrics';
 import { formatEuro, formatPct } from './formatting';
 import { t } from './i18n';
 import { getQualityCategory } from './qualityIndex';
-
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
+import { escapeHtml } from './export';
 
 const METRICS = [
   { key: 'hr_mtu', label: 'panel.median_income', format: formatEuro, higherIsBetter: true },
@@ -80,7 +72,7 @@ export async function generateScoreCard(
     const { toPng } = await import('html-to-image');
     const dataUrl = await toPng(container, { quality: 0.95, pixelRatio: 2 });
     const link = document.createElement('a');
-    link.download = `${data.nimi.replace(/[/\\:*?"<>|]/g, '_')}-${data.pno}-naapurustot.png`;
+    link.download = `${(data.nimi || data.pno).replace(/[/\\:*?"<>|]/g, '_')}-${data.pno}-naapurustot.png`;
     link.href = dataUrl;
     link.click();
   } finally {

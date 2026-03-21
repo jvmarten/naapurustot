@@ -64,8 +64,10 @@ export function readInitialUrlState(): UrlState {
   return parseUrl();
 }
 
+const EMPTY_PNOS: string[] = [];
+
 /** Keep the browser URL in sync with the current selection, layer, and pinned comparisons. */
-export function useSyncUrlState(pno: string | null, layer: LayerId, comparePnos: string[] = []) {
+export function useSyncUrlState(pno: string | null, layer: LayerId, comparePnos: string[] = EMPTY_PNOS) {
   // Write state changes to URL
   useEffect(() => {
     writeUrl(pno, layer, comparePnos);

@@ -3,6 +3,7 @@ import type { FeatureCollection } from 'geojson';
 import { type LayerId, getLayerById, getColorForValue } from '../utils/colorScales';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { t } from '../utils/i18n';
+import { featureCenter } from '../utils/geometryFilter';
 
 interface RankingTableProps {
   data: FeatureCollection | null;
@@ -19,26 +20,10 @@ interface RankedItem {
   center: [number, number];
 }
 
-function getCenter(feature: GeoJSON.Feature): [number, number] {
-  const geom = feature.geometry;
-  if (geom.type === 'Point') return geom.coordinates as [number, number];
-  const coords: GeoJSON.Position[] = [];
-  function extract(c: GeoJSON.Position | GeoJSON.Position[] | GeoJSON.Position[][] | GeoJSON.Position[][][]) {
-    if (typeof c[0] === 'number') coords.push(c as GeoJSON.Position);
-    else (c as GeoJSON.Position[][]).forEach(extract);
-  }
-  if ('coordinates' in geom) {
-    extract(geom.coordinates as GeoJSON.Position[]);
-  }
-  if (coords.length === 0) return [0, 0];
-  const lng = coords.reduce((s, c) => s + c[0], 0) / coords.length;
-  const lat = coords.reduce((s, c) => s + c[1], 0) / coords.length;
-  return [lng, lat];
-}
 
 // Layers where lower values are better
 const LOWER_IS_BETTER: Set<LayerId> = new Set([
-  'unemployment', 'air_quality', 'crime_rate',
+  'unemployment', 'air_quality', 'crime_rate', 'traffic_accidents', 'light_pollution',
 ]);
 
 export const RankingTable: React.FC<RankingTableProps> = ({ data, activeLayer, onSelect, onClose }) => {
@@ -75,7 +60,7 @@ export const RankingTable: React.FC<RankingTableProps> = ({ data, activeLayer, o
       name: (e.feature.properties as NeighborhoodProperties).nimi || (e.feature.properties as NeighborhoodProperties).pno,
       pno: (e.feature.properties as NeighborhoodProperties).pno,
       value: e.value,
-      center: getCenter(e.feature),
+      center: featureCenter(e.feature),
     }));
 
     // Reverse display order if toggled, but keep rank numbers stable

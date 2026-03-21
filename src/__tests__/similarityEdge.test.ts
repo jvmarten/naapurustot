@@ -76,9 +76,9 @@ describe('findSimilarNeighborhoods — edge cases', () => {
       [target, candidate],
     );
     expect(result.length).toBe(1);
-    // Center of bbox [24,60] to [26,62] = [25, 61]
-    expect(result[0].center[0]).toBeCloseTo(25.0);
-    expect(result[0].center[1]).toBeCloseTo(61.0);
+    // Centroid by averaging vertices: [24.8, 60.8]
+    expect(result[0].center[0]).toBeCloseTo(24.8);
+    expect(result[0].center[1]).toBeCloseTo(60.8);
   });
 
   it('handles MultiPolygon geometry for center calculation', () => {
@@ -99,9 +99,9 @@ describe('findSimilarNeighborhoods — edge cases', () => {
       [target, candidate],
     );
     expect(result.length).toBe(1);
-    // Bounding box spans [10,50] to [40,60], center = [25, 55]
-    expect(result[0].center[0]).toBeCloseTo(25.0);
-    expect(result[0].center[1]).toBeCloseTo(55.0);
+    // Centroid by averaging all vertices: [24, 54]
+    expect(result[0].center[0]).toBeCloseTo(24.0);
+    expect(result[0].center[1]).toBeCloseTo(54.0);
   });
 
   it('normalizes distance by number of used metrics', () => {

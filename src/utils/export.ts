@@ -53,7 +53,7 @@ function escapeCsvField(field: string): string {
   return field;
 }
 
-function escapeHtml(str: string): string {
+export function escapeHtml(str: string): string {
   return str
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -73,7 +73,7 @@ export function exportCsv(d: NeighborhoodProperties, _avg: Record<string, number
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `${d.nimi.replace(/[/\\:*?"<>|]/g, '_')}_${d.pno}.csv`;
+  a.download = `${(d.nimi || d.pno).replace(/[/\\:*?"<>|]/g, '_')}_${d.pno}.csv`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

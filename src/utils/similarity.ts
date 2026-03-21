@@ -1,4 +1,5 @@
 import type { NeighborhoodProperties } from '../utils/metrics';
+import { featureCenter } from './geometryFilter';
 
 export interface SimilarNeighborhood {
   properties: NeighborhoodProperties;
@@ -22,39 +23,6 @@ const SIMILARITY_METRICS: (keyof NeighborhoodProperties)[] = [
   'population_density',
   'child_ratio',
 ];
-
-/**
- * Compute the center of a GeoJSON feature's geometry by taking the midpoint
- * of its bounding box.
- */
-function featureCenter(feature: GeoJSON.Feature): [number, number] {
-  let minLng = Infinity;
-  let maxLng = -Infinity;
-  let minLat = Infinity;
-  let maxLat = -Infinity;
-
-  const geometry = feature.geometry;
-  let coords: number[][][] = [];
-
-  if (geometry.type === 'Polygon') {
-    coords = (geometry as GeoJSON.Polygon).coordinates;
-  } else if (geometry.type === 'MultiPolygon') {
-    for (const poly of (geometry as GeoJSON.MultiPolygon).coordinates) {
-      coords.push(...poly);
-    }
-  }
-
-  for (const ring of coords) {
-    for (const [lng, lat] of ring) {
-      if (lng < minLng) minLng = lng;
-      if (lng > maxLng) maxLng = lng;
-      if (lat < minLat) minLat = lat;
-      if (lat > maxLat) maxLat = lat;
-    }
-  }
-
-  return [(minLng + maxLng) / 2, (minLat + maxLat) / 2];
-}
 
 // Cache min/max ranges per dataset to avoid recomputing on every panel open.
 // The dataset reference doesn't change after initial load, so we can key on identity.

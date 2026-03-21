@@ -116,7 +116,8 @@ describe('findSimilarNeighborhoods — deep edge cases', () => {
       },
     ];
     const results = findSimilarNeighborhoods(target, features, 5);
-    expect(results[0].center).toEqual([25.0, 61.0]);
+    expect(results[0].center[0]).toBeCloseTo(24.8);
+    expect(results[0].center[1]).toBeCloseTo(60.8);
   });
 
   it('handles MultiPolygon geometry for center calculation', () => {
@@ -136,9 +137,9 @@ describe('findSimilarNeighborhoods — deep edge cases', () => {
       },
     ];
     const results = findSimilarNeighborhoods(target, features, 5);
-    // Center should be midpoint of bounding box of all polygons: (24+27)/2=25.5, (60+63)/2=61.5
-    expect(results[0].center[0]).toBeCloseTo(25.5);
-    expect(results[0].center[1]).toBeCloseTo(61.5);
+    // Centroid by averaging all vertices: [25.4, 61.4]
+    expect(results[0].center[0]).toBeCloseTo(25.4);
+    expect(results[0].center[1]).toBeCloseTo(61.4);
   });
 
   it('handles empty features array', () => {
