@@ -51,6 +51,8 @@ npm run preview    # Serve production build locally
 
 **All data must come from real, verifiable sources.** Never generate, fabricate, or use placeholder/fake data — not in the GeoJSON dataset, not in the data pipeline, and not as temporary stand-ins. If real data is not yet available for a metric or area, leave it out entirely rather than filling in synthetic values. Every value shown on the map must trace back to an actual data source (e.g., Statistics Finland, HSL, Helsinki Region Infoshare, OpenStreetMap).
 
+**Always propagate data into the GeoJSON.** When adding or updating any data layer, verify that the values are written into `public/data/metro_neighborhoods.geojson` — the file the map actually reads — not just the intermediate JSON in `scripts/`. After updating data, confirm the GeoJSON property values match the new data before committing. This step must never be skipped.
+
 ## Data granularity
 
 We want the lowest-level data possible. The minimum acceptable granularity is **postal code level**, but whenever a data source offers finer resolution (e.g., 250 m × 250 m grid cells, building-level, block-level, or coordinate-level data), prefer and integrate that instead. When evaluating new data sources or extending existing ones, always check whether a sub-postal-code breakdown is available.
