@@ -12,18 +12,21 @@ function locale(): string {
   return getLang() === 'en' ? 'en-US' : 'fi-FI';
 }
 
+/** Format a number with locale-appropriate thousand separators. Returns '—' for null/undefined. */
 export function formatNumber(v: number | string | null | undefined): string {
   const n = toNum(v);
   if (n == null) return '—';
   return n.toLocaleString(locale());
 }
 
+/** Format a number as euros with locale-appropriate formatting. Returns '—' for null/undefined. */
 export function formatEuro(v: number | string | null | undefined): string {
   const n = toNum(v);
   if (n == null) return '—';
   return `${n.toLocaleString(locale())} €`;
 }
 
+/** Format a number as a percentage (e.g., "12.3 %"). Returns '—' for null/undefined. */
 export function formatPct(v: number | string | null | undefined, decimals = 1): string {
   const n = toNum(v);
   if (n == null) return '—';
