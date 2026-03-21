@@ -8,32 +8,63 @@
  * The index signature allows dynamic property access by layer config `property` keys.
  */
 export interface NeighborhoodProperties {
+  /** 5-digit Finnish postal code (e.g., "00100") */
   pno: string;
+  /** Neighborhood name in Finnish */
   nimi: string;
+  /** Neighborhood name in Swedish */
   namn: string;
+
+  // --- Paavo fields (Statistics Finland) ---
+  // Prefix key: he_ = population, ko_ = education, hr_ = income,
+  //             pt_ = economic activity, ra_ = buildings, te_ = households, tp_ = jobs
+  /** Total population (he = henkilöt) */
   he_vakiy: number | null;
+  /** Average age */
   he_kika: number | null;
+  /** Population aged 18+ (adult population) */
   ko_ika18y: number | null;
+  /** Higher tertiary education (university degree) count */
   ko_yl_kork: number | null;
+  /** Lower tertiary education (polytechnic) count */
   ko_al_kork: number | null;
+  /** Vocational education count */
   ko_ammat: number | null;
+  /** Basic education only count */
   ko_perus: number | null;
+  /** Median income (€/year) */
   hr_mtu: number | null;
+  /** Average income (€/year) */
   hr_ktu: number | null;
+  /** Employed persons count */
   pt_tyoll: number | null;
+  /** Unemployed persons count */
   pt_tyott: number | null;
+  /** Students count */
   pt_opisk: number | null;
+  /** Working-age population (15–74) */
   pt_vakiy: number | null;
+  /** Pensioners count */
   pt_elakel: number | null;
+  /** Total dwellings count */
   ra_asunn: number | null;
+  /** Average apartment size (m²) */
   ra_as_kpa: number | null;
+  /** Detached houses count */
   ra_pt_as: number | null;
+  /** Households with children count */
   te_takk: number | null;
+  /** Total households count */
   te_taly: number | null;
+  /** Owner-occupied dwellings count */
   te_omis_as: number | null;
+  /** Rental dwellings count */
   te_vuok_as: number | null;
+  /** Land area (m²) */
   pinta_ala: number | null;
+  /** Children aged 0–2 */
   he_0_2: number | null;
+  /** Children aged 3–6 */
   he_3_6: number | null;
   unemployment_rate: number | null;
   higher_education_rate: number | null;
@@ -87,25 +118,44 @@ export interface NeighborhoodProperties {
   public_sector_jobs_pct: number | null;
   service_sector_jobs_pct: number | null;
   new_construction_pct: number | null;
-  // Raw Paavo fields used for quick win computations
+  // --- Raw Paavo fields used for quick-win metric computations ---
+  /** Female population */
   he_naiset: number | null;
+  /** Male population */
   he_miehet: number | null;
+  /** Population aged 18–19 */
   he_18_19: number | null;
+  /** Population aged 20–24 */
   he_20_24: number | null;
+  /** Population aged 25–29 */
   he_25_29: number | null;
+  /** Population aged 65–69 */
   he_65_69: number | null;
+  /** Population aged 70–74 */
   he_70_74: number | null;
+  /** Population aged 75–79 */
   he_75_79: number | null;
+  /** Population aged 80–84 */
   he_80_84: number | null;
+  /** Population aged 85+ */
   he_85_: number | null;
+  /** Single-parent households (ei lapsiperhe = not a two-parent family) */
   te_eil_np: number | null;
+  /** Households with children */
   te_laps: number | null;
+  /** Total jobs in the area */
   tp_tyopy: number | null;
+  /** Information sector jobs */
   tp_jk_info: number | null;
+  /** Health/social sector jobs */
   tp_qr_terv: number | null;
+  /** Manufacturing/secondary sector jobs */
   tp_jalo_bf: number | null;
+  /** Public administration jobs */
   tp_o_julk: number | null;
+  /** Service sector jobs */
   tp_palv_gu: number | null;
+  /** Buildings under construction */
   ra_raky: number | null;
   // Phase 9: Real open data layers
   rental_price_sqm: number | null;

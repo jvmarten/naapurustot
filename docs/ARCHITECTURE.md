@@ -112,6 +112,22 @@ Translation is handled by a minimal custom system in `src/utils/i18n.ts`:
 - Language persisted in `localStorage`, toggled via a button in settings
 - `document.documentElement.lang` is updated dynamically for SEO
 
+## Hooks reference
+
+| Hook | Purpose | Persistence |
+|------|---------|-------------|
+| `useMapData()` | Fetch + process TopoJSON. Returns `{ data, loading, error, metroAverages, retry }`. Eager prefetch at module load time. | Memory |
+| `useSelectedNeighborhood()` | Manages selected neighborhood + up to 3 pinned comparisons. | React state (synced to URL) |
+| `useTheme()` | Dark/light/system theme via React Context. | `localStorage` |
+| `useFavorites()` | Toggle-able list of favorited PNOs. | `localStorage` |
+| `useNotes()` | Free-text notes per neighborhood (5000 char limit). | `localStorage` |
+| `useFilterPresets()` | Named sets of filter criteria. | `localStorage` |
+| `useRecentNeighborhoods()` | Recently searched neighborhoods (max 10). | `sessionStorage` |
+| `useUrlState` | `readInitialUrlState()` reads URL once at startup; `useSyncUrlState()` writes changes via `history.replaceState`. | URL query params |
+| `useGridData(layerId)` | Lazy-loads fine-grained grid data (250m cells) when a grid layer is active. Falls back silently if file doesn't exist. | Memory cache |
+| `useBottomSheet(opts)` | Touch drag with velocity-based snapping between peek/half/full positions. | React state |
+| `useAnimatedValue(target)` | Animates numeric values with 300ms ease-out cubic via `requestAnimationFrame`. | React state |
+
 ## Code splitting
 
 Heavy components that render conditionally are lazy-loaded via `React.lazy()`:
@@ -148,6 +164,26 @@ The Python data pipeline (`scripts/prepare_data.py`) aggregates data from multip
 2. Merges pre-computed JSON files for external data (crime, air quality, transit, property prices, etc.)
 3. Runs specialized fetch scripts for data that requires API calls (transit reachability, EV charging, tree canopy, voter turnout, etc.)
 4. Outputs `public/data/metro_neighborhoods.geojson` (and the app converts it to TopoJSON for smaller bundle size)
+
+```
+scripts/prepare_data.py
+├── Fetch postal code geometries (Statistics Finland WFS)
+├── Fetch Paavo statistics (Statistics Finland PxWeb API)
+├── Merge pre-computed JSON files:
+│   ├── crime_index.json          air_quality.json
+│   ├── transit_stop_density.json property_prices.json
+│   ├── school_quality.json       transit_reachability.json
+│   ├── tree_canopy.json          voter_turnout.json
+│   ├── party_diversity.json      ev_charging.json
+│   ├── light_pollution.json      noise_pollution.json
+│   └── foreign_language_pct.json historical_trends.json
+├── Run API fetch scripts (fetch_*.py) for data not pre-computed
+└── Output → public/data/metro_neighborhoods.geojson
+
+npm run build:data
+├── geo2topo (GeoJSON → TopoJSON for smaller bundle)
+└── build_grid_data.mjs (optional grid datasets)
+```
 
 A GitHub Actions workflow (`data-refresh.yml`) runs this pipeline monthly and creates a PR if data changes.
 
