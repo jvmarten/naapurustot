@@ -471,9 +471,11 @@ const App: React.FC = () => {
       )}
 
       {/* Comparison panel */}
-      <Suspense fallback={null}>
-        <ComparisonPanel pinned={pinned} onUnpin={unpin} onClear={clearPinned} />
-      </Suspense>
+      {pinned.length >= 2 && (
+        <Suspense fallback={null}>
+          <ComparisonPanel pinned={pinned} onUnpin={unpin} onClear={clearPinned} />
+        </Suspense>
+      )}
 
       {/* IN-6: Offline indicator */}
       {isOffline && (

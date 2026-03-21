@@ -15,14 +15,6 @@ const CATEGORY_COLORS: Record<POICategory, string> = {
   transit: '#3b82f6',
 };
 
-const CATEGORY_LABELS: Record<POICategory, string> = {
-  school: 'layer.school_density',
-  daycare: 'layer.daycare_density',
-  grocery: 'layer.grocery_access',
-  healthcare: 'layer.healthcare_access',
-  transit: 'layer.transit_access',
-};
-
 interface POILayerOptions {
   map: maplibregl.Map;
   categories: POICategory[];
@@ -124,4 +116,4 @@ export function removePOILayers(map: maplibregl.Map): void {
   if (map.getLayer(POI_CLUSTER_LAYER)) map.removeLayer(POI_CLUSTER_LAYER);
 }
 
-export { CATEGORY_COLORS, CATEGORY_LABELS };
+export { CATEGORY_COLORS };

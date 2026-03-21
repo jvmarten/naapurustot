@@ -134,6 +134,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ data, onSelect, recent = [
         break;
       case 'Escape':
         e.preventDefault();
+        e.stopPropagation();
         setIsOpen(false);
         setHighlightedIndex(-1);
         break;

@@ -252,7 +252,7 @@ function computeChangePct(series: TrendDataPoint[] | null): number | null {
   if (!series || series.length < 2) return null;
   const first = series[0][1];
   const last = series[series.length - 1][1];
-  if (first === 0 || first == null) return null;
+  if (!isFinite(first) || first === 0 || !isFinite(last)) return null;
   return ((last - first) / Math.abs(first)) * 100;
 }
 
