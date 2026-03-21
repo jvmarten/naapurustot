@@ -61,8 +61,8 @@ export async function generateScoreCard(
           <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f1f5f9;">
             <span style="font-size: 13px; color: #64748b;">${escapeHtml(t(label))}</span>
             <div style="display: flex; align-items: center; gap: 8px;">
-              <span style="font-size: 14px; font-weight: 600; color: #0f172a;">${format(val)}</span>
-              ${diffStr ? `<span style="font-size: 11px; color: ${diffColor};">${diffStr} vs. metro</span>` : ''}
+              <span style="font-size: 14px; font-weight: 600; color: #0f172a;">${escapeHtml(format(val))}</span>
+              ${diffStr ? `<span style="font-size: 11px; color: ${diffColor};">${escapeHtml(diffStr)} vs. metro</span>` : ''}
             </div>
           </div>`;
       }).join('')}

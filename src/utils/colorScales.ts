@@ -87,6 +87,12 @@ export interface LayerConfig {
   /** Format a raw value for display in tooltips, legends, and panels */
   format: (v: number) => string;
   /**
+   * Whether higher values are "better" for this metric.
+   * Used by Tooltip and comparison displays to color differences correctly.
+   * Defaults to true if not specified.
+   */
+  higherIsBetter?: boolean;
+  /**
    * When true, this layer has a fine-grained grid dataset (e.g. 250m cells)
    * that can be rendered instead of the postal-code choropleth.
    * The grid data property name used for coloring the cells.
@@ -142,6 +148,7 @@ export const LAYERS: LayerConfig[] = [
     colors: ['#d9ed92', '#b5e48c', '#99d98c', '#76c893', '#52b69a', '#34a0a4', '#168aad', '#1a759f', '#1e6091', '#184e77'],
     stops: [2, 4, 6, 8, 10, 12, 15, 18, 22, 28],
     format: pct,
+    higherIsBetter: false,
   },
   {
     id: 'education',
@@ -270,6 +277,7 @@ export const LAYERS: LayerConfig[] = [
     colors: ['#1a9850', '#66bd63', '#a6d96a', '#d9ef8b', '#fee08b', '#fdae61', '#f46d43', '#d73027'],
     stops: [18, 22, 26, 30, 34, 38, 42, 48],
     format: age,
+    higherIsBetter: false,
   },
   {
     id: 'crime_rate',
@@ -279,6 +287,7 @@ export const LAYERS: LayerConfig[] = [
     colors: ['#f7fcf5', '#d5efcf', '#a1d99b', '#74c476', '#f9d057', '#fd8d3c', '#e5533d', '#b00026'],
     stops: [20, 35, 50, 65, 80, 100, 130, 170],
     format: perThousand,
+    higherIsBetter: false,
   },
   // --- Phase 3: Services & Amenities ---
   {
@@ -371,6 +380,7 @@ export const LAYERS: LayerConfig[] = [
     colors: ['#2166ac', '#4393c3', '#92c5de', '#d1e5f0', '#fddbc7', '#f4a582', '#d6604d', '#b2182b'],
     stops: [-30, -20, -10, 0, 10, 20, 30, 50],
     format: pct,
+    higherIsBetter: false,
   },
   // --- Phase 7: New data layers ---
   // #1 Voting & Political
@@ -569,6 +579,7 @@ export const LAYERS: LayerConfig[] = [
     colors: ['#1a9850', '#66bd63', '#a6d96a', '#d9ef8b', '#fee08b', '#fdae61', '#f46d43', '#d73027'],
     stops: [10, 15, 18, 20, 23, 26, 30, 40],
     format: years,
+    higherIsBetter: false,
   },
   {
     id: 'walkability',
@@ -587,6 +598,7 @@ export const LAYERS: LayerConfig[] = [
     colors: ['#f7fcf5', '#d5efcf', '#a1d99b', '#74c476', '#f9d057', '#fd8d3c', '#e5533d', '#b00026'],
     stops: [0.5, 1, 2, 3, 5, 8, 12, 20],
     format: perThousand,
+    higherIsBetter: false,
   },
   {
     id: 'property_price_change',
@@ -614,6 +626,7 @@ export const LAYERS: LayerConfig[] = [
     colors: ['#000004', '#1b0c41', '#4a0c6b', '#781c6d', '#a52c60', '#cf4446', '#ed6925', '#fcffa4'],
     stops: [2, 5, 10, 25, 50, 100, 200, 400],
     format: radiance,
+    higherIsBetter: false,
     gridProperty: 'radiance',
   },
   {
@@ -624,6 +637,7 @@ export const LAYERS: LayerConfig[] = [
     colors: ['#1a9850', '#66bd63', '#a6d96a', '#d9ef8b', '#fee08b', '#fdae61', '#f46d43', '#d73027'],
     stops: [40, 43, 46, 49, 52, 55, 58, 62],
     format: decibel,
+    higherIsBetter: false,
   },
 ];
 

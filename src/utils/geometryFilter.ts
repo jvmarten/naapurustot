@@ -1,4 +1,4 @@
-import type { Feature, MultiPolygon, Polygon } from 'geojson';
+import type { Feature, MultiPolygon, Polygon, Position } from 'geojson';
 
 /**
  * Calculate the area of a polygon ring using the shoelace formula.
@@ -55,4 +55,27 @@ export function filterSmallIslands(features: Feature[]): Feature[] {
 
     return { ...feature, geometry: newGeometry };
   });
+}
+
+/**
+ * Compute the approximate center of a GeoJSON feature by averaging all
+ * vertex coordinates. Returns [lng, lat]. Falls back to [0, 0] for
+ * unsupported geometry types or features with no coordinates.
+ */
+export function getFeatureCenter(feature: Feature): [number, number] {
+  const geom = feature.geometry;
+  if (!geom) return [0, 0];
+  if (geom.type === 'Point') return geom.coordinates as [number, number];
+  const coords: Position[] = [];
+  function extract(c: Position | Position[] | Position[][] | Position[][][]) {
+    if (typeof c[0] === 'number') coords.push(c as Position);
+    else (c as Position[][]).forEach(extract);
+  }
+  if ('coordinates' in geom) {
+    extract(geom.coordinates as Position[]);
+  }
+  if (coords.length === 0) return [0, 0];
+  const lng = coords.reduce((s, c) => s + c[0], 0) / coords.length;
+  const lat = coords.reduce((s, c) => s + c[1], 0) / coords.length;
+  return [lng, lat];
 }

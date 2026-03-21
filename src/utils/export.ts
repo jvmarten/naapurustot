@@ -141,7 +141,12 @@ export function exportPdf(d: NeighborhoodProperties, _avg: Record<string, number
 </html>`;
 
   const w = window.open('', '_blank');
-  if (!w) return;
+  if (!w) {
+    alert(getLang() === 'fi'
+      ? 'Ponnahdusikkuna estettiin. Salli ponnahdusikkunat ja yritä uudelleen.'
+      : 'Popup was blocked. Please allow popups and try again.');
+    return;
+  }
   w.document.write(html);
   w.document.close();
   w.addEventListener('afterprint', () => w.close());
