@@ -466,6 +466,7 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
   let totalArea = 0;
   let totalDetached = 0;
   let totalDwellings = 0;
+  let totalPensioners = 0;
 
   for (const f of features) {
     const p = f.properties as NeighborhoodProperties;
@@ -490,6 +491,7 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
     if (p.pinta_ala != null) totalArea += p.pinta_ala;
     if (p.ra_pt_as != null) totalDetached += p.ra_pt_as;
     if (p.ra_asunn != null) totalDwellings += p.ra_asunn;
+    if (p.pt_elakel != null) totalPensioners += p.pt_elakel;
 
     // Data-driven weighted metrics
     for (const def of METRIC_DEFS) {
@@ -535,7 +537,7 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
 
   // Add special ratio-based metrics
   result.he_vakiy = totalPop;
-  result.unemployment_rate = totalPop > 0 ? roundTo((totalUnemployed / totalPop) * 100, 1) : 0;
+  result.unemployment_rate = totalActPop > 0 ? roundTo((totalUnemployed / totalActPop) * 100, 1) : 0;
   result.higher_education_rate = totalAdultPop > 0 ? roundTo((totalHigherEd / totalAdultPop) * 100, 1) : 0;
   result.ownership_rate = totalHouseholds > 0 ? roundTo((totalOwnerOcc / totalHouseholds) * 100, 1) : 0;
   result.rental_rate = totalHouseholds > 0 ? roundTo((totalRental / totalHouseholds) * 100, 1) : 0;
@@ -543,6 +545,7 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
   result.population_density = totalArea > 0 ? Math.round(totalPop / (totalArea / 1_000_000)) : 0;
   result.child_ratio = totalPop > 0 ? roundTo((totalChildren / totalPop) * 100, 1) : 0;
   result.detached_house_share = totalDwellings > 0 ? roundTo((totalDetached / totalDwellings) * 100, 1) : 0;
+  result.pensioner_share = totalActPop > 0 ? roundTo((totalPensioners / totalActPop) * 100, 1) : 0;
 
   return result;
 }

@@ -17,7 +17,13 @@ export async function geocodeAddress(query: string): Promise<GeocodeResult[]> {
   if (query.length < 3) return [];
 
   const cacheKey = query.toLowerCase().trim();
-  if (CACHE.has(cacheKey)) return CACHE.get(cacheKey)!;
+  const cached = CACHE.get(cacheKey);
+  if (cached !== undefined) {
+    // Move to most-recent position for proper LRU eviction
+    CACHE.delete(cacheKey);
+    CACHE.set(cacheKey, cached);
+    return cached;
+  }
 
   try {
     const params = new URLSearchParams({

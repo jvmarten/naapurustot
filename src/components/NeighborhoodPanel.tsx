@@ -162,7 +162,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
     navigator.clipboard.writeText(window.location.href).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    });
+    }).catch(() => { /* clipboard access denied or unavailable */ });
   }, []);
 
   // QW-3: Bottom sheet state (mobile only) — uses shared useBottomSheet hook
@@ -231,7 +231,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
       </button>
       {/* CF-2: Share as image */}
       <button
-        onClick={() => generateScoreCard(d, avg)}
+        onClick={() => generateScoreCard(d, avg).catch(() => { /* html-to-image load failed */ })}
         className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 md:py-1.5 rounded-lg text-xs font-medium min-h-[44px] md:min-h-0
                    bg-brand-500/10 dark:bg-brand-600/15 text-brand-600 dark:text-brand-300
                    hover:bg-brand-500/20 dark:hover:bg-brand-600/25 transition-colors"

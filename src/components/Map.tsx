@@ -202,7 +202,6 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
       });
 
       // QW-2: Hatched pattern overlay for neighborhoods with null data
-      if (map.getLayer(NO_DATA_LAYER)) map.removeLayer(NO_DATA_LAYER);
       map.addLayer({
         id: NO_DATA_LAYER,
         type: 'line',

@@ -75,7 +75,7 @@ export function exportCsv(d: NeighborhoodProperties, _avg: Record<string, number
   a.href = url;
   a.download = `${d.nimi.replace(/[/\\:*?"<>|]/g, '_')}_${d.pno}.csv`;
   a.click();
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 /** Generate a styled HTML report in a new window and trigger the browser's print dialog. */
