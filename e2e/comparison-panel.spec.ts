@@ -14,7 +14,7 @@ test.describe('pin neighborhoods and comparison panel', () => {
 
     // The comparison panel should appear with the title "Vertailu" (Finnish for "Comparison")
     // Use h2 to avoid matching "Lisää vertailuun" button
-    const comparisonTitle = page.locator('h2:has-text("Vertailu")');
+    const comparisonTitle = page.locator('h2:has-text("Vertailu")').first();
     await expect(comparisonTitle).toBeVisible({ timeout: 10000 });
 
     // The comparison panel should show the "Tyhjennä" (Clear all) button
@@ -46,7 +46,7 @@ test.describe('pin neighborhoods and comparison panel', () => {
     await waitForDataLoaded(page);
 
     // Wait for comparison panel
-    const comparisonTitle = page.locator('h2:has-text("Vertailu")');
+    const comparisonTitle = page.locator('h2:has-text("Vertailu")').first();
     await expect(comparisonTitle).toBeVisible({ timeout: 10000 });
 
     // The panel should have "Taulukko" (Table) and "Kaavio" (Chart) toggle buttons
@@ -72,7 +72,7 @@ test.describe('pin neighborhoods and comparison panel', () => {
     await waitForDataLoaded(page);
 
     // Wait for comparison panel title (use h2 to avoid matching "Lisää vertailuun" button)
-    const comparisonTitle = page.locator('h2:has-text("Vertailu")');
+    const comparisonTitle = page.locator('h2:has-text("Vertailu")').first();
     await expect(comparisonTitle).toBeVisible({ timeout: 10000 });
 
     // Click "Tyhjennä" (Clear all)
