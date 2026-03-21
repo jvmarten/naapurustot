@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """
-Fetch NASA VIIRS Black Marble nighttime radiance per postal code area.
+Fetch NASA VIIRS Black Marble nighttime radiance data.
 
-Uses the VNP46A4 annual composite product to compute mean radiance
-(nW/cm²/sr) for each postal code in the Helsinki metropolitan area
-via zonal statistics.
+Produces two outputs:
+  1. scripts/light_pollution.json — postal code → mean radiance (for choropleth)
+  2. scripts/light_pollution_pixels.json — per-pixel radiance at native ~500m
+     VIIRS resolution (for the fine-grained grid overlay)
+
+Uses the VNP46A4 annual composite product.
 
 Data source: NASA VIIRS Black Marble (VNP46A4)
   - Annual gap-filled, cloud-free, BRDF-corrected nighttime lights
@@ -20,7 +23,9 @@ Authentication:
     - Log in at https://urs.earthdata.nasa.gov
     - Go to "Generate Token" under your profile
 
-Output: scripts/light_pollution.json — { postal_code: mean_radiance_nw }
+Output:
+  scripts/light_pollution.json — { postal_code: mean_radiance_nw }
+  scripts/light_pollution_pixels.json — [ { lng, lat, radiance }, ... ]
 """
 
 import argparse
@@ -31,7 +36,9 @@ import sys
 from pathlib import Path
 
 import geopandas as gpd
+import numpy as np
 import pandas as pd
+from shapely.geometry import Point
 
 logging.basicConfig(
     level=logging.INFO,
@@ -41,6 +48,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 OUTPUT_FILE = Path(__file__).parent / "light_pollution.json"
+PIXEL_OUTPUT_FILE = Path(__file__).parent / "light_pollution_pixels.json"
 GEOJSON_FILE = (
     Path(__file__).parent.parent / "public" / "data" / "metro_neighborhoods.geojson"
 )
@@ -107,6 +115,89 @@ def extract_radiance(gdf, token, year):
     return result
 
 
+def extract_pixel_radiance(gdf, token, year):
+    """Extract per-pixel VIIRS radiance at native ~500m resolution.
+
+    Uses bm_raster to download the actual raster, then converts each
+    valid pixel within the metro area into a {lng, lat, radiance} record.
+    """
+    from blackmarble.raster import bm_raster
+
+    logger.info(
+        "Fetching %s raster for year %d (pixel-level export)...",
+        PRODUCT_ID,
+        year,
+    )
+
+    # bm_raster returns an xarray.Dataset at native VIIRS resolution
+    ds = bm_raster(
+        gdf,
+        product_id=PRODUCT_ID,
+        date_range=pd.date_range(f"{year}-01-01", periods=1, freq="YS").to_list(),
+        token=token,
+    )
+
+    # The dataset typically contains a variable like 'NearNadir_Composite_Snow_Free'
+    # Find the first data variable
+    var_names = list(ds.data_vars)
+    logger.info("  Raster variables: %s", var_names)
+
+    if not var_names:
+        logger.error("No data variables in raster — check product/year")
+        return []
+
+    var_name = var_names[0]
+    data = ds[var_name]
+
+    # If there's a time/band dimension, select first
+    if "time" in data.dims:
+        data = data.isel(time=0)
+    if "band" in data.dims:
+        data = data.isel(band=0)
+
+    # Get coordinate arrays
+    lats = data.coords["y"].values if "y" in data.coords else data.coords["latitude"].values
+    lngs = data.coords["x"].values if "x" in data.coords else data.coords["longitude"].values
+
+    # Build spatial index for metro area boundary check
+    metro_union = gdf.geometry.union_all()
+
+    logger.info(
+        "  Raster shape: %s, extracting pixels within metro area...",
+        data.shape,
+    )
+
+    pixels = []
+    values = data.values
+
+    for i, lat in enumerate(lats):
+        for j, lng in enumerate(lngs):
+            val = float(values[i, j])
+            # Skip fill/nodata values
+            if np.isnan(val) or val < 0:
+                continue
+            # Check if pixel center is within metro area
+            if metro_union.contains(Point(lng, lat)):
+                pixels.append({
+                    "lng": round(float(lng), 6),
+                    "lat": round(float(lat), 6),
+                    "radiance": round(val, 2),
+                })
+
+    logger.info("  Extracted %d valid pixels within metro area", len(pixels))
+
+    if pixels:
+        rads = [p["radiance"] for p in pixels]
+        logger.info(
+            "  Pixel radiance stats: min=%.2f, median=%.2f, max=%.2f nW/cm²/sr",
+            min(rads),
+            sorted(rads)[len(rads) // 2],
+            max(rads),
+        )
+
+    return pixels
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Fetch NASA VIIRS Black Marble radiance per postal code"
@@ -121,15 +212,19 @@ def main():
         default=DEFAULT_YEAR,
         help=f"Year for VNP46A4 annual composite (default: {DEFAULT_YEAR})",
     )
+    parser.add_argument(
+        "--skip-pixels",
+        action="store_true",
+        help="Skip pixel-level export (only compute postal code averages)",
+    )
     args = parser.parse_args()
 
     token = get_token(args)
     gdf = load_postal_codes()
 
+    # --- Postal code averages ---
     result = extract_radiance(gdf, token, args.year)
 
-    # Find the radiance column added by bm_extract
-    # blackmarblepy adds columns like 'ntl_mean' or similar
     radiance_cols = [
         c for c in result.columns if c not in gdf.columns and c != "geometry"
     ]
@@ -139,11 +234,9 @@ def main():
         logger.error("No radiance data extracted — check token and year")
         sys.exit(1)
 
-    # Use the first (and typically only) radiance column
     rad_col = radiance_cols[0]
     logger.info("  Using column: %s", rad_col)
 
-    # Build output: postal_code -> mean radiance (nW/cm²/sr)
     output = {}
     for _, row in result.iterrows():
         pno = row["pno"]
@@ -151,7 +244,6 @@ def main():
         if pd.notna(val) and val >= 0:
             output[pno] = round(float(val), 2)
 
-    # Stats
     vals = [v for v in output.values() if v > 0]
     if vals:
         logger.info(
@@ -162,9 +254,21 @@ def main():
         )
 
     logger.info("Computed radiance for %d postal codes", len(output))
-
     OUTPUT_FILE.write_text(json.dumps(output, indent=2, ensure_ascii=False))
     logger.info("Wrote %d postal codes to %s", len(output), OUTPUT_FILE.name)
+
+    # --- Pixel-level export ---
+    if not args.skip_pixels:
+        pixels = extract_pixel_radiance(gdf, token, args.year)
+        if pixels:
+            PIXEL_OUTPUT_FILE.write_text(
+                json.dumps(pixels, ensure_ascii=False)
+            )
+            logger.info(
+                "Wrote %d pixels to %s", len(pixels), PIXEL_OUTPUT_FILE.name
+            )
+    else:
+        logger.info("Skipping pixel-level export (--skip-pixels)")
 
 
 if __name__ == "__main__":
