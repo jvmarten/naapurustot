@@ -50,7 +50,7 @@ function collectStats(d: NeighborhoodProperties): StatEntry[] {
 function escapeCsvField(field: string): string {
   // Prevent CSV injection: prefix formula-triggering characters with a single quote
   // so Excel/LibreOffice treat the cell as text, not a formula.
-  const needsPrefix = /^[=+@\t\r]/.test(field);
+  const needsPrefix = /^[=+\-@\t\r]/.test(field);
   const escaped = needsPrefix ? `'${field}` : field;
   if (escaped.includes(',') || escaped.includes('"') || escaped.includes('\n')) {
     return `"${escaped.replace(/"/g, '""')}"`;

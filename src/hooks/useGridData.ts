@@ -74,7 +74,9 @@ export function useGridData(activeLayer: LayerId): GridDataState {
       })
       .catch((err) => {
         if (cancelled) return;
-        // Grid data is optional — silently fall back to postal choropleth
+        // Grid data is optional — silently fall back to postal choropleth.
+        // Remove from fetched set so a retry is possible on next layer switch.
+        fetchedRef.current.delete(activeLayer);
         console.warn(`Grid data not available for ${activeLayer}:`, err.message);
         setLoading(false);
       });

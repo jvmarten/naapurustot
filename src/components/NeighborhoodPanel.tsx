@@ -94,7 +94,8 @@ const toNum = (v: unknown): number | null => {
 const formatDensity = (v: number | string | null | undefined): string => {
   const n = toNum(v);
   if (n == null) return '—';
-  return `${n.toLocaleString('fi-FI')} /km²`;
+  const loc = getLang() === 'en' ? 'en-US' : 'fi-FI';
+  return `${n.toLocaleString(loc)} /km²`;
 };
 
 const formatSqm = (v: number | string | null | undefined): string => {
@@ -106,7 +107,8 @@ const formatSqm = (v: number | string | null | undefined): string => {
 const formatEuroSqm = (v: number | string | null | undefined): string => {
   const n = toNum(v);
   if (n == null) return '—';
-  return `${n.toLocaleString('fi-FI')} €/m²`;
+  const loc = getLang() === 'en' ? 'en-US' : 'fi-FI';
+  return `${n.toLocaleString(loc)} €/m²`;
 };
 
 const formatStopDensity = (v: number | string | null | undefined): string => {
@@ -159,6 +161,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
   // Copy link state
   const [copied, setCopied] = useState(false);
   const handleCopyLink = useCallback(() => {
+    if (!navigator.clipboard?.writeText) return;
     navigator.clipboard.writeText(window.location.href).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
