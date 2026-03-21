@@ -8,12 +8,23 @@ export interface SavedPreset {
   criteria: FilterCriterion[];
 }
 
+function isValidPreset(v: unknown): v is SavedPreset {
+  if (!v || typeof v !== 'object') return false;
+  const p = v as Record<string, unknown>;
+  if (typeof p.name !== 'string') return false;
+  if (!Array.isArray(p.criteria)) return false;
+  return p.criteria.every(
+    (c: unknown) => c && typeof c === 'object' && typeof (c as Record<string, unknown>).layerId === 'string'
+      && typeof (c as Record<string, unknown>).min === 'number' && typeof (c as Record<string, unknown>).max === 'number',
+  );
+}
+
 function loadPresets(): SavedPreset[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
+      if (Array.isArray(parsed)) return parsed.filter(isValidPreset);
     }
   } catch { /* localStorage unavailable or malformed data */ }
   return [];

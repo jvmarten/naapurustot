@@ -53,11 +53,11 @@ describe('getColorForValue', () => {
   const layer = getLayerById('quality_index');
 
   it('returns gray for null value', () => {
-    expect(getColorForValue(layer, null)).toBe('#333');
+    expect(getColorForValue(layer, null)).toBe('#d1d5db');
   });
 
   it('returns gray for undefined value', () => {
-    expect(getColorForValue(layer, undefined)).toBe('#333');
+    expect(getColorForValue(layer, undefined)).toBe('#d1d5db');
   });
 
   it('returns first color for value below first stop', () => {

@@ -24,6 +24,12 @@ export class ErrorBoundary extends React.Component<Props, State> {
     console.error('ErrorBoundary caught:', error, errorInfo);
   }
 
+  componentDidUpdate(prevProps: Props) {
+    if (this.state.hasError && prevProps.children !== this.props.children) {
+      this.setState({ hasError: false, error: null });
+    }
+  }
+
   render() {
     if (this.state.hasError) {
       if (this.props.fallback) return this.props.fallback;

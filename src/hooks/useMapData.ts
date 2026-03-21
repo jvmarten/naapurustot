@@ -47,9 +47,16 @@ export function useMapData(): MapDataState {
     // Use prefetched response on first load, fresh fetch on retries.
     // Clone the prefetched response so the original can be reused
     // (e.g., if React StrictMode double-mounts the component).
-    const responsePromise = attempt === 0 && prefetchedResponse
-      ? prefetchedResponse.then((res) => res.clone())
-      : fetch(topoUrl);
+    // If the prefetch failed, clear it and fall through to a fresh fetch.
+    let responsePromise: Promise<Response>;
+    if (attempt === 0 && prefetchedResponse) {
+      responsePromise = prefetchedResponse.then((res) => res.clone()).catch(() => {
+        prefetchedResponse = null;
+        return fetch(topoUrl);
+      });
+    } else {
+      responsePromise = fetch(topoUrl);
+    }
     responsePromise
       .then((res) => {
         if (!res.ok) throw new Error(`Failed to load data: ${res.status}`);
@@ -57,7 +64,8 @@ export function useMapData(): MapDataState {
       })
       .then((topo: Topology) => {
         if (cancelled) return;
-        const objectName = Object.keys(topo.objects)[0];
+        const objectName = Object.keys(topo.objects ?? {})[0];
+        if (!objectName) throw new Error('Invalid TopoJSON: no objects found');
         const geojson = feature(topo, topo.objects[objectName]) as FeatureCollection;
         geojson.features = filterSmallIslands(geojson.features);
         computeQualityIndices(geojson.features);
