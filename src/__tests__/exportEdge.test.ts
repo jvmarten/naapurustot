@@ -103,13 +103,13 @@ describe('exportPdf', () => {
   it('opens a new window with HTML content', async () => {
     const { exportPdf } = await import('../utils/export');
 
-    const listeners: Record<string, Function> = {};
+    const listeners: Record<string, () => void> = {};
     const mockWindow = {
       document: {
         write: vi.fn(),
         close: vi.fn(),
       },
-      addEventListener: vi.fn((event: string, handler: Function) => { listeners[event] = handler; }),
+      addEventListener: vi.fn((event: string, handler: () => void) => { listeners[event] = handler; }),
       print: vi.fn(),
     };
 
