@@ -85,6 +85,12 @@ export interface LayerConfig {
   stops: number[];
   /** Format a raw value for display in tooltips, legends, and panels */
   format: (v: number) => string;
+  /**
+   * When true, this layer has a fine-grained grid dataset (e.g. 250m cells)
+   * that can be rendered instead of the postal-code choropleth.
+   * The grid data property name used for coloring the cells.
+   */
+  gridProperty?: string;
 }
 
 const euro = (v: number) => `${v.toLocaleString('fi-FI')} €`;
@@ -416,6 +422,7 @@ export const LAYERS: LayerConfig[] = [
     colors: ['#67001f', '#b2182b', '#d6604d', '#f4a582', '#d1e5f0', '#92c5de', '#4393c3', '#2166ac'],
     stops: [10, 20, 30, 40, 50, 60, 70, 85],
     format: score,
+    gridProperty: 'reachability',
   },
   // #11 Quick wins — derived from existing GeoJSON fields
   {
@@ -599,6 +606,7 @@ export const LAYERS: LayerConfig[] = [
     colors: ['#000004', '#1b0c41', '#4a0c6b', '#781c6d', '#a52c60', '#cf4446', '#ed6925', '#fcffa4'],
     stops: [2, 5, 10, 20, 40, 70, 100, 150],
     format: radiance,
+    gridProperty: 'radiance',
   },
 ];
 
@@ -699,15 +707,16 @@ export function getColorForValue(layer: LayerConfig, value: number | null | unde
  * Build a MapLibre style expression for interpolated fill color.
  * Returns gray (#d1d5db) for features where the property is null/missing.
  */
-export function buildFillColorExpression(layer: LayerConfig): ExpressionSpecification {
-  const interpolation: unknown[] = ['interpolate', ['linear'], ['get', layer.property]];
+export function buildFillColorExpression(layer: LayerConfig, propertyOverride?: string): ExpressionSpecification {
+  const prop = propertyOverride ?? layer.property;
+  const interpolation: unknown[] = ['interpolate', ['linear'], ['get', prop]];
   for (let i = 0; i < layer.stops.length; i++) {
     interpolation.push(layer.stops[i], layer.colors[i]);
   }
   // Show gray for features where the property is null/missing
   return [
     'case',
-    ['all', ['has', layer.property], ['!=', ['get', layer.property], null]],
+    ['all', ['has', prop], ['!=', ['get', prop], null]],
     interpolation,
     '#d1d5db',
   ] as unknown as ExpressionSpecification;
