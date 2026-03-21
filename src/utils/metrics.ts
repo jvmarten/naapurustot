@@ -115,6 +115,7 @@ export interface NeighborhoodProperties {
   property_price_change_pct: number | null;
   school_quality_score: number | null;
   light_pollution: number | null;
+  noise_pollution: number | null;
   [key: string]: string | number | null;
 }
 
@@ -366,6 +367,7 @@ export const METRIC_SOURCES: Record<string, MetricSource> = {
   property_price_change_pct: { source: 'Tilastokeskus (PxWeb)', year: '2020–2025' },
   school_quality_score: { source: 'YTL (ylioppilastutkinto)', year: 2024 },
   light_pollution: { source: 'NASA VIIRS Black Marble (VNP46A4)', year: 2024 },
+  noise_pollution: { source: 'Helsinki meluselvitys 2022 / HRI pks liikennemelu 2012', year: '2012–2022' },
 
   // Quick wins (from existing Paavo data)
   youth_ratio_pct: { source: 'Tilastokeskus (Paavo)', year: 2024 },
@@ -429,6 +431,7 @@ const METRIC_DEFS: MetricDef[] = [
   { property: 'property_price_change_pct', weight: 'population', precision: 1 },
   { property: 'school_quality_score', weight: 'population', precision: 0 },
   { property: 'light_pollution', weight: 'population', precision: 1 },
+  { property: 'noise_pollution', weight: 'population', precision: 1 },
 ];
 
 function roundTo(value: number, precision: number): number {

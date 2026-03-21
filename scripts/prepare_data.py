@@ -145,6 +145,7 @@ SCHOOL_QUALITY_FILE = Path(__file__).parent / "school_quality.json"
 
 # Light pollution — NASA VIIRS nighttime radiance (pre-processed)
 LIGHT_POLLUTION_FILE = Path(__file__).parent / "light_pollution.json"
+NOISE_POLLUTION_FILE = Path(__file__).parent / "noise_pollution.json"
 
 # ---------------------------------------------------------------------------
 # Retry & rate-limit settings
@@ -1859,6 +1860,23 @@ def fetch_light_pollution():
     return {}
 
 
+def fetch_noise_pollution():
+    """Load noise pollution data per postal code.
+
+    Pre-processed from Helsinki 2022 noise survey (WFS) and HRI metro-area
+    noise shapefile (2012). Area-weighted average Lden (dB) per postal code.
+    Returns dict of postal_code -> avg_Lden_dB.
+    """
+    logger.info("Loading noise pollution data...")
+    if NOISE_POLLUTION_FILE.exists():
+        with open(NOISE_POLLUTION_FILE) as f:
+            data = json.load(f)
+        logger.info("  Loaded %s postal codes from %s", len(data), NOISE_POLLUTION_FILE.name)
+        return data
+    logger.warning(" %s not found — column will be null", NOISE_POLLUTION_FILE)
+    return {}
+
+
 def calculate_single_person_hh(gdf):
     """Calculate single-person household percentage from Paavo te_ fields."""
     logger.info("Calculating single-person household share...")
@@ -2028,6 +2046,10 @@ def main():
     light_data = fetch_light_pollution()
     gdf = _join_simple_data(gdf, light_data, "light_pollution", "light pollution")
 
+    # Noise pollution (Helsinki meluselvitys 2022 / HRI metro 2012)
+    noise_data = fetch_noise_pollution()
+    gdf = _join_simple_data(gdf, noise_data, "noise_pollution", "noise pollution")
+
     # --- Phase 7: New data sources ---
     voter_data = _load_json_data(VOTER_TURNOUT_FILE, "voter turnout")
     gdf = _join_simple_data(gdf, voter_data, "voter_turnout_pct", "voter turnout")
@@ -2077,6 +2099,7 @@ def main():
         "walkability_index", "traffic_accident_rate",
         "property_price_change_pct", "school_quality_score",
         "light_pollution",
+        "noise_pollution",
     ]
     gdf = _backfill_nulls(gdf, previous, backfill_columns)
 
