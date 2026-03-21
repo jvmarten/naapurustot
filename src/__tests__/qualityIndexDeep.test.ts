@@ -250,7 +250,7 @@ describe('QUALITY_FACTORS integrity', () => {
       expect(f.properties.length).toBeGreaterThan(0);
       for (const prop of f.properties) {
         expect(typeof prop).toBe('string');
-        expect(prop.length).toBeGreaterThan(0);
+        expect((prop as string).length).toBeGreaterThan(0);
       }
     }
   });

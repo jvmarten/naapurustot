@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 // We need a fresh module for each test to reset state
 describe('i18n deep tests', () => {
   let t: (key: string) => string;
-  let setLang: (lang: string) => void;
+  let setLang: (lang: 'fi' | 'en') => void;
 
   beforeEach(async () => {
     vi.resetModules();
