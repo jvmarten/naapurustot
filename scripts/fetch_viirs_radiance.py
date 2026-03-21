@@ -99,8 +99,8 @@ def extract_radiance(gdf, token, year):
     result = bm_extract(
         gdf,
         product_id=PRODUCT_ID,
-        date_range=pd.date_range(f"{year}-01-01", periods=1, freq="YS"),
-        bearer=token,
+        date_range=pd.date_range(f"{year}-01-01", periods=1, freq="YS").to_list(),
+        token=token,
         aggfunc="mean",
     )
 
