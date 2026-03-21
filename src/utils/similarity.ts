@@ -28,12 +28,14 @@ const SIMILARITY_METRICS: (keyof NeighborhoodProperties)[] = [
  * of its bounding box.
  */
 function featureCenter(feature: GeoJSON.Feature): [number, number] {
+  const geometry = feature.geometry;
+  if (!geometry) return [0, 0];
+
   let minLng = Infinity;
   let maxLng = -Infinity;
   let minLat = Infinity;
   let maxLat = -Infinity;
 
-  const geometry = feature.geometry;
   let coords: number[][][] = [];
 
   if (geometry.type === 'Polygon') {
@@ -52,6 +54,9 @@ function featureCenter(feature: GeoJSON.Feature): [number, number] {
       if (lat > maxLat) maxLat = lat;
     }
   }
+
+  // If no coordinates were found (e.g. unsupported geometry type), return [0, 0]
+  if (!isFinite(minLng)) return [0, 0];
 
   return [(minLng + maxLng) / 2, (minLat + maxLat) / 2];
 }
