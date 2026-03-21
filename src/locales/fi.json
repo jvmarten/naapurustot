@@ -127,7 +127,7 @@
   "panel.traffic_accidents": "Onnettomuudet / 1000 as.",
   "panel.property_price_change": "Hintamuutos 5v (%)",
   "panel.school_quality": "Lukiotaso (0–100)",
-  "panel.light_pollution": "Valosaaste (katuvalot/km²)",
+  "panel.light_pollution": "Valosaaste (nW/cm²/sr)",
   "panel.trends": "Kehityssuunnat",
   "panel.trend_income": "Mediaanitulo",
   "panel.trend_population": "V\u00e4est\u00f6",

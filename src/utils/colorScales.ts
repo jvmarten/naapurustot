@@ -98,6 +98,7 @@ const stops = (v: number) => `${v.toFixed(1)} /km²`;
 const perThousand = (v: number) => `${v.toFixed(1)} /1000`;
 const gini = (v: number) => `${v.toFixed(2)}`;
 const score = (v: number) => `${v.toFixed(0)}/100`;
+const radiance = (v: number) => `${v.toFixed(1)} nW/cm²/sr`;
 const years = (v: number) => `${v.toFixed(1)} v`;
 
 export const LAYERS: LayerConfig[] = [
@@ -594,10 +595,10 @@ export const LAYERS: LayerConfig[] = [
     id: 'light_pollution',
     labelKey: 'layer.light_pollution',
     property: 'light_pollution',
-    unit: '/km²',
+    unit: 'nW/cm²/sr',
     colors: ['#000004', '#1b0c41', '#4a0c6b', '#781c6d', '#a52c60', '#cf4446', '#ed6925', '#fcffa4'],
-    stops: [5, 20, 50, 100, 150, 250, 400, 550],
-    format: density,
+    stops: [2, 5, 10, 20, 40, 70, 100, 150],
+    format: radiance,
   },
 ];
 
