@@ -14,6 +14,7 @@ npm run test:watch # Vitest in watch mode
 npm run test:e2e   # Playwright end-to-end tests
 npm run lint       # ESLint
 npm run preview    # Serve production build locally
+npm run build:data # Rebuild TopoJSON from GeoJSON (after data pipeline changes)
 ```
 
 ## Further docs
@@ -36,7 +37,8 @@ npm run preview    # Serve production build locally
 - `src/utils/` — Data layers (`colorScales.ts`), metric definitions (`metrics.ts`), quality index calculation, formatting, i18n, geometry filtering
 - `src/locales/` — Translation JSON files (fi.json, en.json)
 - `src/__tests__/` — Vitest tests (jsdom environment)
-- `public/data/metro_neighborhoods.geojson` — Static dataset (~1.1 MB)
+- `public/data/metro_neighborhoods.geojson` — Static dataset (~1.1 MB), source of truth for all neighborhood data
+- `src/data/metro_neighborhoods.topojson` — TopoJSON file actually loaded by the app (built from GeoJSON via `npm run build:data`)
 - `scripts/prepare_data.py` — Python data pipeline that rebuilds the GeoJSON
 
 ### Adding a new data layer
@@ -46,6 +48,7 @@ npm run preview    # Serve production build locally
 3. Add metric metadata in `src/utils/metrics.ts`
 4. Add Finnish and English labels to both `src/locales/fi.json` and `src/locales/en.json`
 5. Include the data in `public/data/metro_neighborhoods.geojson` (via `scripts/prepare_data.py`)
+6. Rebuild the TopoJSON with `npm run build:data` — the app loads the TopoJSON, not the GeoJSON directly
 
 ## Data integrity
 
