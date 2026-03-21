@@ -264,8 +264,8 @@ const App: React.FC = () => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       if (showWizard) { setShowWizard(false); return; }
-      if (selected) { deselect(); return; }
       if (showCustomQuality) { setShowCustomQuality(false); return; }
+      if (selected) { deselect(); return; }
       if (showFilter) { setShowFilter(false); return; }
       if (showRanking) { setShowRanking(false); return; }
     };

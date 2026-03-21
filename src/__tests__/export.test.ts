@@ -102,6 +102,7 @@ describe('exportCsv', () => {
   });
 
   it('triggers a file download with correct filename', () => {
+    vi.useFakeTimers();
     const data = {
       pno: '00100',
       nimi: 'Helsinki',
@@ -119,6 +120,10 @@ describe('exportCsv', () => {
     expect(createdAnchor.download).toBe('Helsinki_00100.csv');
     expect(createdAnchor.href).toBe('blob:mock-url');
     expect(clickSpy).toHaveBeenCalled();
+    // revokeObjectURL is deferred to allow the browser to start the download
+    expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1000);
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:mock-url');
+    vi.useRealTimers();
   });
 });
