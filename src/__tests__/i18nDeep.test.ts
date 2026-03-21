@@ -3,7 +3,6 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 // We need a fresh module for each test to reset state
 describe('i18n deep tests', () => {
   let t: (key: string) => string;
-  let getLang: () => string;
   let setLang: (lang: string) => void;
 
   beforeEach(async () => {
@@ -12,7 +11,6 @@ describe('i18n deep tests', () => {
     localStorage.removeItem('lang');
     const mod = await import('../utils/i18n');
     t = mod.t;
-    getLang = mod.getLang;
     setLang = mod.setLang;
   });
 
