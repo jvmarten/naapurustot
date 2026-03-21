@@ -274,7 +274,7 @@ const App: React.FC = () => {
   }, [selected, showCustomQuality, showFilter, showRanking, showWizard, deselect]);
 
   return (
-    <div className="h-screen w-screen overflow-hidden relative">
+    <div className="h-screen w-screen overflow-hidden relative" data-testid="app-root" data-loaded={!loading}>
       {/* Map — QW-4: Conditional split view */}
       <ErrorBoundary>
         {splitMode ? (

@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 async function waitForDataLoaded(page: import('@playwright/test').Page) {
-  await page.locator('[data-testid="loading-overlay"]').waitFor({ state: 'hidden', timeout: 30000 });
+  await page.waitForSelector('[data-testid="app-root"][data-loaded="true"]', { timeout: 30000 });
 }
 
 test.describe('naapurustot app', () => {
@@ -16,8 +16,8 @@ test.describe('naapurustot app', () => {
     await page.goto('/');
     await waitForDataLoaded(page);
 
-    // Find and click the search input
-    const searchInput = page.locator('input[type="text"]');
+    // Find and click the search input (use role="combobox" to target main search, not layer filter)
+    const searchInput = page.locator('input[role="combobox"]');
     await searchInput.fill('00100');
     // Should see search results
     await expect(page.locator('text=00100')).toBeVisible({ timeout: 5000 });

@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 async function waitForDataLoaded(page: import('@playwright/test').Page) {
-  await page.locator('[data-testid="loading-overlay"]').waitFor({ state: 'hidden', timeout: 30000 });
+  await page.waitForSelector('[data-testid="app-root"][data-loaded="true"]', { timeout: 30000 });
 }
 
 test.describe('filter presets flow', () => {

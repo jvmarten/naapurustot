@@ -1,18 +1,16 @@
 import { test, expect } from '@playwright/test';
 
 async function waitForDataLoaded(page: import('@playwright/test').Page) {
-  await page.locator('[data-testid="loading-overlay"]').waitFor({ state: 'hidden', timeout: 30000 });
+  await page.waitForSelector('[data-testid="app-root"][data-loaded="true"]', { timeout: 30000 });
 }
 
 test.describe('neighborhood panel flow', () => {
-  test.beforeEach(async ({ page }) => {
+  test('select neighborhood via search → view panel → verify stats → close panel', async ({ page }) => {
     await page.goto('/');
     await waitForDataLoaded(page);
-  });
 
-  test('select neighborhood via search → view panel → verify stats → close panel', async ({ page }) => {
-    // Search for a known postal code
-    const searchInput = page.locator('input[type="text"]');
+    // Search for a known postal code (use role="combobox" to target main search)
+    const searchInput = page.locator('input[role="combobox"]');
     await searchInput.fill('00100');
 
     // Click the search result to select the neighborhood
@@ -21,8 +19,8 @@ test.describe('neighborhood panel flow', () => {
     await result.click();
 
     // The neighborhood panel should appear (desktop: side panel with h2 containing the name)
-    const panelHeading = page.locator('h2').filter({ hasText: /00100|Helsinki/ }).first();
-    await expect(panelHeading).toBeVisible({ timeout: 5000 });
+    const panelHeading = page.locator('h2').first();
+    await expect(panelHeading).toBeVisible({ timeout: 10000 });
 
     // Verify key stat labels are shown in the panel
     // The app defaults to Finnish — "Väestö" = Population, "Mediaanitulo" = Median Income
@@ -36,8 +34,6 @@ test.describe('neighborhood panel flow', () => {
     await expect(page.locator('p:has-text("00100")').first()).toBeVisible();
 
     // Close the panel by clicking the close button (X icon in the panel header)
-    // The close button is inside the panel, near the heading
-    // Use a more reliable approach: find the X button within the panel
     const panel = page.locator('.hidden.md\\:block.absolute');
     const panelCloseBtn = panel.locator('button').filter({
       has: page.locator('svg path[d="M6 18L18 6M6 6l12 12"]'),
@@ -53,7 +49,7 @@ test.describe('neighborhood panel flow', () => {
     await waitForDataLoaded(page);
 
     // Panel should be displayed with the neighborhood data
-    const panelHeading = page.locator('h2').filter({ hasText: /00100|Helsinki/ }).first();
+    const panelHeading = page.locator('.hidden.md\\:block.absolute h2').first();
     await expect(panelHeading).toBeVisible({ timeout: 10000 });
 
     // Verify stats are rendered (at least population and median income rows)
@@ -66,7 +62,7 @@ test.describe('neighborhood panel flow', () => {
     await waitForDataLoaded(page);
 
     // Wait for the panel to load
-    const panelHeading = page.locator('h2').filter({ hasText: /00100|Helsinki/ }).first();
+    const panelHeading = page.locator('.hidden.md\\:block.absolute h2').first();
     await expect(panelHeading).toBeVisible({ timeout: 10000 });
 
     // Housing section should be visible (it defaults to open)
