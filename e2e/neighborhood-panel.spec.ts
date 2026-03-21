@@ -1,9 +1,13 @@
 import { test, expect } from '@playwright/test';
 
+async function waitForDataLoaded(page: import('@playwright/test').Page) {
+  await page.locator('[data-testid="loading-overlay"]').waitFor({ state: 'hidden', timeout: 30000 });
+}
+
 test.describe('neighborhood panel flow', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    await page.waitForSelector('.maplibregl-canvas', { timeout: 15000 });
+    await waitForDataLoaded(page);
   });
 
   test('select neighborhood via search → view panel → verify stats → close panel', async ({ page }) => {
@@ -46,7 +50,7 @@ test.describe('neighborhood panel flow', () => {
 
   test('selecting neighborhood via URL hash shows panel with stats', async ({ page }) => {
     await page.goto('/#pno=00100&layer=median_income');
-    await page.waitForSelector('.maplibregl-canvas', { timeout: 15000 });
+    await waitForDataLoaded(page);
 
     // Panel should be displayed with the neighborhood data
     const panelHeading = page.locator('h2').filter({ hasText: /00100|Helsinki/ }).first();
@@ -59,7 +63,7 @@ test.describe('neighborhood panel flow', () => {
 
   test('panel shows housing section with stats', async ({ page }) => {
     await page.goto('/#pno=00100');
-    await page.waitForSelector('.maplibregl-canvas', { timeout: 15000 });
+    await waitForDataLoaded(page);
 
     // Wait for the panel to load
     const panelHeading = page.locator('h2').filter({ hasText: /00100|Helsinki/ }).first();

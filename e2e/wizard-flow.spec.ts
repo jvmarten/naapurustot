@@ -1,9 +1,13 @@
 import { test, expect } from '@playwright/test';
 
+async function waitForDataLoaded(page: import('@playwright/test').Page) {
+  await page.locator('[data-testid="loading-overlay"]').waitFor({ state: 'hidden', timeout: 30000 });
+}
+
 test.describe('neighborhood wizard flow', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    await page.waitForSelector('.maplibregl-canvas', { timeout: 15000 });
+    await waitForDataLoaded(page);
   });
 
   test('open wizard → complete all steps → verify results', async ({ page }) => {

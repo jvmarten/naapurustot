@@ -39,7 +39,7 @@ jobs:
             console.log(`Event: ${event}`);
 
             // Loop prevention: skip if the failure came from a fix branch
-            if (headBranch && headBranch.startsWith('fix/auto-')) {
+            if (headBranch && headBranch.startsWith('claude/fix-')) {
               console.log('Skipping: failure originated from a fix branch (loop prevention)');
               core.setOutput('should_skip', 'true');
               return;
@@ -53,7 +53,7 @@ jobs:
               checkoutRef = headBranch;
             } else if (workflowName === 'Deploy to GitHub Pages') {
               failureType = 'deploy';
-              fixBranch = `fix/auto-deploy-${runId}`;
+              fixBranch = `claude/fix-deploy-${runId}`;
               checkoutRef = 'main';
             } else if (workflowName === 'CI') {
               // Skip CI failures on PRs — let the PR author handle it
@@ -63,7 +63,7 @@ jobs:
                 return;
               }
               failureType = 'ci';
-              fixBranch = `fix/auto-ci-${runId}`;
+              fixBranch = `claude/fix-ci-${runId}`;
               checkoutRef = 'main';
             } else {
               console.log(`Unknown workflow: ${workflowName}`);
@@ -201,6 +201,7 @@ jobs:
                - `npm run build` must succeed
                - `npm run test` must succeed
                - `npm run lint` must succeed
+               - `npm run test:e2e` must succeed
             4. Commit with a descriptive message explaining what failed and how you fixed it
             5. Push to the current branch
 

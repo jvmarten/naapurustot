@@ -1,16 +1,16 @@
 import { test, expect } from '@playwright/test';
 
+async function waitForDataLoaded(page: import('@playwright/test').Page) {
+  await page.locator('[data-testid="loading-overlay"]').waitFor({ state: 'hidden', timeout: 30000 });
+}
+
 test.describe('pin neighborhoods and comparison panel', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/');
-    await page.waitForSelector('.maplibregl-canvas', { timeout: 15000 });
-  });
 
   test('pin two neighborhoods → comparison panel appears → unpin one', async ({ page }) => {
     // Select the first neighborhood via URL with two pinned neighborhoods
     // The comparison panel only shows when pinned.length >= 2
     await page.goto('/#pno=00100&compare=00200,00300');
-    await page.waitForSelector('.maplibregl-canvas', { timeout: 15000 });
+    await waitForDataLoaded(page);
 
     // The comparison panel should appear with the title "Vertailu" (Finnish for "Comparison")
     const comparisonTitle = page.locator('text=Vertailu').first();
@@ -42,7 +42,7 @@ test.describe('pin neighborhoods and comparison panel', () => {
 
   test('comparison panel has table and chart view toggle', async ({ page }) => {
     await page.goto('/#pno=00100&compare=00200,00300');
-    await page.waitForSelector('.maplibregl-canvas', { timeout: 15000 });
+    await waitForDataLoaded(page);
 
     // Wait for comparison panel
     const comparisonTitle = page.locator('text=Vertailu').first();
@@ -68,7 +68,7 @@ test.describe('pin neighborhoods and comparison panel', () => {
 
   test('clear all pinned neighborhoods removes comparison panel', async ({ page }) => {
     await page.goto('/#pno=00100&compare=00200,00300');
-    await page.waitForSelector('.maplibregl-canvas', { timeout: 15000 });
+    await waitForDataLoaded(page);
 
     // Wait for comparison panel
     const comparisonTitle = page.locator('text=Vertailu').first();
@@ -84,7 +84,7 @@ test.describe('pin neighborhoods and comparison panel', () => {
 
   test('pin button shows in neighborhood panel', async ({ page }) => {
     await page.goto('/#pno=00100');
-    await page.waitForSelector('.maplibregl-canvas', { timeout: 15000 });
+    await waitForDataLoaded(page);
 
     // Wait for the neighborhood panel
     const panelHeading = page.locator('h2').filter({ hasText: /00100|Helsinki/ }).first();

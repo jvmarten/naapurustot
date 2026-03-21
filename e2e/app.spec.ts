@@ -1,17 +1,20 @@
 import { test, expect } from '@playwright/test';
 
+async function waitForDataLoaded(page: import('@playwright/test').Page) {
+  await page.locator('[data-testid="loading-overlay"]').waitFor({ state: 'hidden', timeout: 30000 });
+}
+
 test.describe('naapurustot app', () => {
   test('loads the app and shows the map', async ({ page }) => {
     await page.goto('/');
-    // Wait for the loading screen to disappear
-    await expect(page.locator('h1:has-text("naapurustot")')).toBeVisible({ timeout: 15000 });
+    await waitForDataLoaded(page);
     // Map container should exist
     await expect(page.locator('.maplibregl-canvas')).toBeVisible({ timeout: 15000 });
   });
 
   test('can search for a neighborhood', async ({ page }) => {
     await page.goto('/');
-    await page.waitForSelector('.maplibregl-canvas', { timeout: 15000 });
+    await waitForDataLoaded(page);
 
     // Find and click the search input
     const searchInput = page.locator('input[type="text"]');
@@ -22,7 +25,7 @@ test.describe('naapurustot app', () => {
 
   test('can switch layers via the layer selector', async ({ page }) => {
     await page.goto('/');
-    await page.waitForSelector('.maplibregl-canvas', { timeout: 15000 });
+    await waitForDataLoaded(page);
 
     // Desktop: layer selector should be visible
     const layerSelector = page.locator('text=layers.title').first();
@@ -37,21 +40,21 @@ test.describe('naapurustot app', () => {
 
   test('URL hash updates when neighborhood is selected', async ({ page }) => {
     await page.goto('/#pno=00100&layer=median_income');
-    await page.waitForSelector('.maplibregl-canvas', { timeout: 15000 });
+    await waitForDataLoaded(page);
     // The URL should still contain the hash params
     expect(page.url()).toContain('pno=00100');
   });
 
   test('comparison URL with pinned neighborhoods', async ({ page }) => {
     await page.goto('/#pno=00100&compare=00200,00300');
-    await page.waitForSelector('.maplibregl-canvas', { timeout: 15000 });
+    await waitForDataLoaded(page);
     // URL should retain compare params
     expect(page.url()).toContain('compare=');
   });
 
   test('tools dropdown opens and shows options', async ({ page }) => {
     await page.goto('/');
-    await page.waitForSelector('.maplibregl-canvas', { timeout: 15000 });
+    await waitForDataLoaded(page);
 
     // Click the tools button (wrench icon)
     const toolsBtn = page.locator('button[title]').first();

@@ -307,7 +307,7 @@ const App: React.FC = () => {
 
       {/* Skeleton / shimmer loading overlay */}
       {loading && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/80 dark:bg-surface-950/80 backdrop-blur-sm">
+        <div data-testid="loading-overlay" className="absolute inset-0 z-50 flex items-center justify-center bg-white/80 dark:bg-surface-950/80 backdrop-blur-sm">
           <div className="text-center space-y-4">
             {/* Shimmer placeholder blocks */}
             <div className="flex flex-col items-center gap-3">
