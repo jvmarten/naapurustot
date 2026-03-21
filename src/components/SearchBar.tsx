@@ -5,6 +5,7 @@ import type { RecentEntry } from '../hooks/useRecentNeighborhoods';
 import { geocodeAddress, type GeocodeResult } from '../utils/geocode';
 import { booleanPointInPolygon } from '@turf/boolean-point-in-polygon';
 import { point } from '@turf/helpers';
+import { DEFAULT_CENTER } from '../utils/mapConstants';
 
 interface SearchBarProps {
   data: FeatureCollection | null;
@@ -152,7 +153,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ data, onSelect, recent = [
     if ('coordinates' in geom) {
       extract(geom.coordinates as GeoJSON.Position[]);
     }
-    if (coords.length === 0) return [0, 0];
+    if (coords.length === 0) return DEFAULT_CENTER;
     const lng = coords.reduce((s, c) => s + c[0], 0) / coords.length;
     const lat = coords.reduce((s, c) => s + c[1], 0) / coords.length;
     return [lng, lat];

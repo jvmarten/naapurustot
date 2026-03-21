@@ -164,6 +164,10 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
       if (map.getLayer(FILL_LAYER)) map.removeLayer(FILL_LAYER);
       if (map.getSource(SOURCE_ID)) map.removeSource(SOURCE_ID);
 
+      // Reset feature state refs — the old source (and its states) is gone
+      hoveredIdRef.current = null;
+      selectedIdRef.current = null;
+
       map.addSource(SOURCE_ID, {
         type: 'geojson',
         data,
