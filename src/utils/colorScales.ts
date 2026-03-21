@@ -62,7 +62,8 @@ export type LayerId =
   | 'traffic_accidents'
   | 'property_price_change'
   | 'school_quality'
-  | 'light_pollution';
+  | 'light_pollution'
+  | 'noise_pollution';
 
 /**
  * Configuration for a single data layer displayed on the map.
@@ -105,6 +106,7 @@ const perThousand = (v: number) => `${v.toFixed(1)} /1000`;
 const gini = (v: number) => `${v.toFixed(2)}`;
 const score = (v: number) => `${v.toFixed(0)}/100`;
 const radiance = (v: number) => `${v.toFixed(1)} nW/cm²/sr`;
+const decibel = (v: number) => `${v.toFixed(1)} dB`;
 const years = (v: number) => `${v.toFixed(1)} v`;
 
 export const LAYERS: LayerConfig[] = [
@@ -607,6 +609,15 @@ export const LAYERS: LayerConfig[] = [
     stops: [2, 5, 10, 20, 40, 70, 100, 150],
     format: radiance,
     gridProperty: 'radiance',
+  },
+  {
+    id: 'noise_pollution',
+    labelKey: 'layer.noise_pollution',
+    property: 'noise_pollution',
+    unit: 'dB',
+    colors: ['#1a9850', '#66bd63', '#a6d96a', '#d9ef8b', '#fee08b', '#fdae61', '#f46d43', '#d73027'],
+    stops: [40, 43, 46, 49, 52, 55, 58, 62],
+    format: decibel,
   },
 ];
 
