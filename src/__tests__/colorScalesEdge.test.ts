@@ -35,10 +35,10 @@ describe('colorScales edge cases', () => {
       expect(color).toBe(layer.colors[layer.colors.length - 1]);
     });
 
-    it('returns gray (#333) for null value', () => {
+    it('returns gray (#d1d5db) for null value', () => {
       const layer = LAYERS[0];
-      expect(getColorForValue(layer, null)).toBe('#333');
-      expect(getColorForValue(layer, undefined)).toBe('#333');
+      expect(getColorForValue(layer, null)).toBe('#d1d5db');
+      expect(getColorForValue(layer, undefined)).toBe('#d1d5db');
     });
 
     it('returns correct color at exact stop boundary', () => {

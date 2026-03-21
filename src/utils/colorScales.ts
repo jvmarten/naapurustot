@@ -638,7 +638,7 @@ try {
  */
 function resamplePalette(palette: string[], count: number): string[] {
   if (count === palette.length) return palette;
-  if (count < palette.length) return palette.slice(0, count);
+  if (count <= 1) return [palette[0]];
   const result: string[] = [];
   for (let i = 0; i < count; i++) {
     // Map output index to a fractional position in the source palette
@@ -687,7 +687,7 @@ export function getLayerById(id: LayerId): LayerConfig {
 
 /** Map a numeric value to a color from the layer's scale. Returns gray for null/undefined. */
 export function getColorForValue(layer: LayerConfig, value: number | null | undefined): string {
-  if (value == null) return '#333';
+  if (value == null) return '#d1d5db';
   for (let i = layer.stops.length - 1; i >= 0; i--) {
     if (value >= layer.stops[i]) return layer.colors[i];
   }

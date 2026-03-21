@@ -12,7 +12,14 @@ export interface RecentEntry {
 function loadRecent(): RecentEntry[] {
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (e: unknown): e is RecentEntry =>
+        !!e && typeof e === 'object' && typeof (e as RecentEntry).pno === 'string'
+        && typeof (e as RecentEntry).name === 'string' && Array.isArray((e as RecentEntry).center),
+    );
   } catch {
     return [];
   }
