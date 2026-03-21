@@ -9,9 +9,10 @@ interface StatEntry {
 }
 
 function collectStats(d: NeighborhoodProperties): StatEntry[] {
-  const fmtDensity = (v: number | null | undefined) => (v == null ? '—' : `${v.toLocaleString('fi-FI')} /km²`);
+  const loc = getLang() === 'en' ? 'en-US' : 'fi-FI';
+  const fmtDensity = (v: number | null | undefined) => (v == null ? '—' : `${v.toLocaleString(loc)} /km²`);
   const fmtSqm = (v: number | null | undefined) => (v == null ? '—' : `${v.toFixed(1)} m²`);
-  const fmtEuroSqm = (v: number | null | undefined) => (v == null ? '—' : `${v.toLocaleString('fi-FI')} €/m²`);
+  const fmtEuroSqm = (v: number | null | undefined) => (v == null ? '—' : `${v.toLocaleString(loc)} €/m²`);
   const fmtStopDensity = (v: number | null | undefined) => (v == null ? '—' : `${v.toFixed(1)} /km²`);
 
   const rows: StatEntry[] = [

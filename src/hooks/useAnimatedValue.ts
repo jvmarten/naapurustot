@@ -22,6 +22,13 @@ export function useAnimatedValue(target: number | null, duration = 300): number 
     fromRef.current = from;
     startRef.current = null;
 
+    // Skip animation if duration is zero or negative
+    if (duration <= 0) {
+      displayRef.current = target;
+      setDisplay(target);
+      return;
+    }
+
     const animate = (timestamp: number) => {
       if (startRef.current == null) startRef.current = timestamp;
       const elapsed = timestamp - startRef.current;

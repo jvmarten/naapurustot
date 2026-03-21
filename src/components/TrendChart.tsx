@@ -51,19 +51,21 @@ export const TrendChart: React.FC<TrendChartProps> = ({ title, data, color, form
   // Trend direction
   const firstVal = values[0];
   const lastVal = values[values.length - 1];
-  const changePct = ((lastVal - firstVal) / firstVal * 100);
-  const changeSign = changePct >= 0 ? '+' : '';
+  const changePct = firstVal !== 0 ? ((lastVal - firstVal) / Math.abs(firstVal) * 100) : null;
+  const changeSign = changePct != null && changePct >= 0 ? '+' : '';
 
   return (
     <div className="mt-1">
       <div className="flex items-center justify-between mb-1">
         <span className="text-xs font-medium text-surface-600 dark:text-surface-300">{title}</span>
+        {changePct != null && (
         <span className={`text-xs font-semibold ${changePct >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
           {changeSign}{changePct.toFixed(1)}%
           <span className="ml-0.5 text-[10px]">
             {changePct >= 0 ? '\u2197' : '\u2198'}
           </span>
         </span>
+        )}
       </div>
       <svg
         viewBox={`0 0 ${CHART_W} ${CHART_H}`}

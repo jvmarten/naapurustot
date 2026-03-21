@@ -19,6 +19,7 @@ function ringArea(coords: number[][]): number {
  * Calculate the net area of a polygon (outer ring minus holes).
  */
 function polygonArea(rings: number[][][]): number {
+  if (rings.length === 0) return 0;
   let area = ringArea(rings[0]);
   for (let i = 1; i < rings.length; i++) {
     area -= ringArea(rings[i]);

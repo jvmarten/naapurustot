@@ -1,4 +1,6 @@
-/** Formatting utilities for displaying numbers, currencies, and percentages in Finnish locale. */
+/** Formatting utilities for displaying numbers, currencies, and percentages. */
+
+import { getLang } from './i18n';
 
 function toNum(v: unknown): number | null {
   if (v == null) return null;
@@ -6,16 +8,20 @@ function toNum(v: unknown): number | null {
   return isFinite(n) ? n : null;
 }
 
+function locale(): string {
+  return getLang() === 'en' ? 'en-US' : 'fi-FI';
+}
+
 export function formatNumber(v: number | string | null | undefined): string {
   const n = toNum(v);
   if (n == null) return '—';
-  return n.toLocaleString('fi-FI');
+  return n.toLocaleString(locale());
 }
 
 export function formatEuro(v: number | string | null | undefined): string {
   const n = toNum(v);
   if (n == null) return '—';
-  return `${n.toLocaleString('fi-FI')} €`;
+  return `${n.toLocaleString(locale())} €`;
 }
 
 export function formatPct(v: number | string | null | undefined, decimals = 1): string {
