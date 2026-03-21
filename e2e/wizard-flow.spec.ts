@@ -1,9 +1,13 @@
 import { test, expect } from '@playwright/test';
 
+async function waitForDataLoaded(page: import('@playwright/test').Page) {
+  await page.waitForSelector('[data-testid="app-root"][data-loaded="true"]', { timeout: 30000 });
+}
+
 test.describe('neighborhood wizard flow', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    await page.waitForSelector('.maplibregl-canvas', { timeout: 15000 });
+    await waitForDataLoaded(page);
   });
 
   test('open wizard → complete all steps → verify results', async ({ page }) => {
@@ -70,8 +74,9 @@ test.describe('neighborhood wizard flow', () => {
     // Children question
     await expect(page.locator('text=Onko sinulla lapsia')).toBeVisible();
 
-    // Select "Ei" (No)
-    await page.locator('button:has-text("Ei")').first().click();
+    // Select "Ei" (No) — scope to wizard modal to avoid matching "Aineistot" FAB
+    const wizardModal = page.locator('.fixed.inset-0.z-50');
+    await wizardModal.locator('button:has-text("Ei")').first().click();
 
     // Healthcare importance slider should be present
     await expect(page.locator('text=Terveyspalvelujen tärkeys')).toBeVisible();

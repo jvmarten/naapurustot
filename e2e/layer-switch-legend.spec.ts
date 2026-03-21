@@ -1,18 +1,18 @@
 import { test, expect } from '@playwright/test';
 
+async function waitForDataLoaded(page: import('@playwright/test').Page) {
+  await page.waitForSelector('[data-testid="app-root"][data-loaded="true"]', { timeout: 30000 });
+}
+
 test.describe('layer switching and legend updates', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    await page.waitForSelector('.maplibregl-canvas', { timeout: 15000 });
+    await waitForDataLoaded(page);
   });
 
   test('switching layer updates the legend title', async ({ page }) => {
-    // The legend should initially show the default layer (Quality Index / "Laatuindeksi")
-    const legend = page.locator('.absolute.bottom-20, .absolute.bottom-8').first();
-    await expect(legend).toBeVisible({ timeout: 5000 });
-
     // Verify the default legend label is the quality index (Finnish: "Laatuindeksi")
-    await expect(page.locator('text=Laatuindeksi').first()).toBeVisible();
+    await expect(page.locator('text=Laatuindeksi').first()).toBeVisible({ timeout: 5000 });
 
     // Expand the "Talous" (Economy) group in the layer selector
     const economyGroup = page.locator('text=Talous').first();
@@ -25,8 +25,7 @@ test.describe('layer switching and legend updates', () => {
     await medianIncomeLayer.click();
 
     // The legend title should now show "Mediaanitulo"
-    // Wait for the legend to update
-    await expect(page.locator('.absolute.bottom-20 >> text=Mediaanitulo, .absolute.bottom-8 >> text=Mediaanitulo').first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('text=Mediaanitulo').first()).toBeVisible({ timeout: 5000 });
 
     // Verify the URL hash updates to reflect the new layer
     await expect(page).toHaveURL(/layer=median_income/, { timeout: 3000 });

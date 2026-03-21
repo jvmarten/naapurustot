@@ -274,7 +274,7 @@ const App: React.FC = () => {
   }, [selected, showCustomQuality, showFilter, showRanking, showWizard, deselect]);
 
   return (
-    <div className="h-screen w-screen overflow-hidden relative">
+    <div className="h-screen w-screen overflow-hidden relative" data-testid="app-root" data-loaded={!loading}>
       {/* Map — QW-4: Conditional split view */}
       <ErrorBoundary>
         {splitMode ? (
@@ -307,7 +307,7 @@ const App: React.FC = () => {
 
       {/* Skeleton / shimmer loading overlay */}
       {loading && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/80 dark:bg-surface-950/80 backdrop-blur-sm">
+        <div data-testid="loading-overlay" className="absolute inset-0 z-50 flex items-center justify-center bg-white/80 dark:bg-surface-950/80 backdrop-blur-sm">
           <div className="text-center space-y-4">
             {/* Shimmer placeholder blocks */}
             <div className="flex flex-col items-center gap-3">

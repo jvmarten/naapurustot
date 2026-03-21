@@ -31,6 +31,12 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E tests
+        run: npm run test:e2e
+
       - name: Check bundle size (IN-3)
         run: |
           JS_SIZE=$(find dist/assets -name '*.js' -exec gzip -c {} \; | wc -c)
