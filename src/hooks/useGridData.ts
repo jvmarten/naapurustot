@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { FeatureCollection } from 'geojson';
 import { feature } from 'topojson-client';
 import type { Topology } from 'topojson-specification';
@@ -48,11 +48,15 @@ function parseGridResponse(path: string, json: unknown): FeatureCollection {
 export function useGridData(activeLayer: LayerId): GridDataState {
   const [cache, setCache] = useState<Record<string, FeatureCollection>>({});
   const [loading, setLoading] = useState(false);
+  // Track which layers have been fetched (or are being fetched) to avoid
+  // re-triggering the effect when cache state updates.
+  const fetchedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const path = GRID_PATHS[activeLayer];
     if (!path) return;
-    if (cache[activeLayer]) return;
+    if (fetchedRef.current.has(activeLayer)) return;
+    fetchedRef.current.add(activeLayer);
 
     let cancelled = false;
     setLoading(true);
@@ -76,7 +80,7 @@ export function useGridData(activeLayer: LayerId): GridDataState {
       });
 
     return () => { cancelled = true; };
-  }, [activeLayer, cache]);
+  }, [activeLayer]);
 
   const path = GRID_PATHS[activeLayer];
   if (!path) return { gridData: null, loading: false };

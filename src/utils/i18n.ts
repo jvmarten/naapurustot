@@ -10,10 +10,15 @@ export type Lang = 'fi' | 'en';
 
 const translations: Record<string, Record<Lang, string>> = {};
 
-for (const key of Object.keys(fi) as (keyof typeof fi)[]) {
+// Build translations from both locale files. If a key is missing in one
+// language, fall back to the other language's value instead of undefined.
+const allKeys = new Set([...Object.keys(fi), ...Object.keys(en)]);
+for (const key of allKeys) {
+  const fiVal = (fi as Record<string, string>)[key];
+  const enVal = (en as Record<string, string>)[key];
   translations[key] = {
-    fi: fi[key],
-    en: en[key as keyof typeof en],
+    fi: fiVal ?? enVal,
+    en: enVal ?? fiVal,
   };
 }
 

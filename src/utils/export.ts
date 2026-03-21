@@ -47,10 +47,14 @@ function collectStats(d: NeighborhoodProperties): StatEntry[] {
 }
 
 function escapeCsvField(field: string): string {
-  if (field.includes(',') || field.includes('"') || field.includes('\n')) {
-    return `"${field.replace(/"/g, '""')}"`;
+  // Prevent CSV injection: prefix formula-triggering characters with a single quote
+  // so Excel/LibreOffice treat the cell as text, not a formula.
+  const needsPrefix = /^[=+@\t\r]/.test(field);
+  const escaped = needsPrefix ? `'${field}` : field;
+  if (escaped.includes(',') || escaped.includes('"') || escaped.includes('\n')) {
+    return `"${escaped.replace(/"/g, '""')}"`;
   }
-  return field;
+  return escaped;
 }
 
 function escapeHtml(str: string): string {
@@ -130,7 +134,7 @@ export function exportPdf(d: NeighborhoodProperties, _avg: Record<string, number
   <table>
     ${tableRows}
   </table>
-  <div class="footer">${t('footer.attribution')}</div>
+  <div class="footer">${escapeHtml(t('footer.attribution'))}</div>
 </div>
 </body>
 </html>`;

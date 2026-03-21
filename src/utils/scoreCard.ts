@@ -46,7 +46,7 @@ export async function generateScoreCard(
         <div style="width: 48px; height: 48px; border-radius: 12px; background: ${cat.color};
                     display: flex; align-items: center; justify-content: center;
                     color: white; font-weight: 700; font-size: 18px;">${qi}</div>
-        <div style="font-size: 13px; color: #64748b;">${t('panel.quality_index')}</div>
+        <div style="font-size: 13px; color: #64748b;">${escapeHtml(t('panel.quality_index'))}</div>
       </div>` : ''}
     </div>
     <div style="display: flex; flex-direction: column; gap: 12px;">
@@ -59,7 +59,7 @@ export async function generateScoreCard(
         const diffColor = diff != null ? (diff === 0 ? '#64748b' : isGood ? '#059669' : '#dc2626') : '#64748b';
         return `
           <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f1f5f9;">
-            <span style="font-size: 13px; color: #64748b;">${t(label)}</span>
+            <span style="font-size: 13px; color: #64748b;">${escapeHtml(t(label))}</span>
             <div style="display: flex; align-items: center; gap: 8px;">
               <span style="font-size: 14px; font-weight: 600; color: #0f172a;">${format(val)}</span>
               ${diffStr ? `<span style="font-size: 11px; color: ${diffColor};">${diffStr} vs. metro</span>` : ''}

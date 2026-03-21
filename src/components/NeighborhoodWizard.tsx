@@ -170,10 +170,12 @@ function scoreNeighborhoods(
 
     // --- Budget filter ---
     const price = p.property_price_sqm;
+    const bMin = Math.min(answers.budgetMin, answers.budgetMax);
+    const bMax = Math.max(answers.budgetMin, answers.budgetMax);
     if (price != null) {
-      if (price >= answers.budgetMin && price <= answers.budgetMax) {
-        const midBudget = (answers.budgetMin + answers.budgetMax) / 2;
-        const budgetFit = 1 - Math.abs(price - midBudget) / (answers.budgetMax - answers.budgetMin + 1);
+      if (price >= bMin && price <= bMax) {
+        const midBudget = (bMin + bMax) / 2;
+        const budgetFit = 1 - Math.abs(price - midBudget) / (bMax - bMin + 1);
         score += budgetFit * 2;
         totalWeight += 2;
         reasons.push(t('wizard.reason_budget'));
