@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useEffect, useState } from 'react';
+import React, { useCallback, useRef, useEffect, useState, useMemo } from 'react';
 import { QUALITY_FACTORS, getDefaultWeights, isCustomWeights, type QualityWeights } from '../utils/qualityIndex';
 import { getLang } from '../utils/i18n';
 import { t } from '../utils/i18n';
@@ -16,13 +16,27 @@ const WeightSlider: React.FC<{
   color: string;
   sliderId: string;
 }> = ({ label, value, onChange, color, sliderId }) => {
-  const pct = `${value}%`;
+  // Local state for smooth drag; debounce the expensive parent callback
+  // (quality index recomputation across ~200 features + Map source update).
+  const [localValue, setLocalValue] = useState(value);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  useEffect(() => { setLocalValue(value); }, [value]);
+  useEffect(() => () => clearTimeout(debounceRef.current), []);
+
+  const handleChange = (v: number) => {
+    setLocalValue(v);
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => onChange(v), 200);
+  };
+
+  const pct = `${localValue}%`;
   return (
     <div className="py-2">
       <div className="flex items-center justify-between mb-1.5">
         <span className="text-sm text-surface-700 dark:text-surface-300">{label}</span>
         <span className="text-xs font-semibold text-surface-500 dark:text-surface-400 tabular-nums w-8 text-right">
-          {value}
+          {localValue}
         </span>
       </div>
       <div className="relative">
@@ -31,8 +45,8 @@ const WeightSlider: React.FC<{
           min={0}
           max={100}
           step={1}
-          value={value}
-          onChange={(e) => onChange(Number(e.target.value))}
+          value={localValue}
+          onChange={(e) => handleChange(Number(e.target.value))}
           className={`slider-${sliderId} w-full h-2 rounded-full appearance-none cursor-pointer
                      [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4
                      [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2
@@ -107,7 +121,10 @@ export const CustomQualityPanel: React.FC<Props> = ({ weights, onChange, onClose
   const isCustom = isCustomWeights(weights);
 
   // Calculate effective weight percentages for display
-  const totalWeight = QUALITY_FACTORS.reduce((sum, f) => sum + (weights[f.id] ?? 0), 0);
+  const totalWeight = useMemo(
+    () => QUALITY_FACTORS.reduce((sum, f) => sum + (weights[f.id] ?? 0), 0),
+    [weights],
+  );
 
   const renderFactorSliders = (factors: typeof QUALITY_FACTORS) =>
     factors.map((factor) => {

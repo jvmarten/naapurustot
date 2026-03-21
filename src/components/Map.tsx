@@ -365,14 +365,14 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
   // eslint-disable-next-line react-hooks/exhaustive-deps -- data is a guard, not a trigger
   }, [activeLayer, colorblind]);
 
-  // Filter-aware rendering: dim non-matching neighborhoods and highlight matching ones
+  // Filter-aware rendering: dim non-matching neighborhoods and highlight matching ones.
+  // Uses setFilter on an existing layer instead of remove/add to avoid layer recreation overhead.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !data) return;
     if (!map.getLayer(FILL_LAYER)) return;
 
     if (filterActive && filterMatchPnos.size > 0) {
-      // Dim non-matching: set lower opacity for non-matching neighborhoods
       const matchPnoArray = Array.from(filterMatchPnos);
       map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(fillOpacity, {
         matchExpr: ['in', ['get', 'pno'], ['literal', matchPnoArray]],
@@ -380,24 +380,28 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
         dimVal: 0.15,
       }));
 
-      // Add/update a highlight border for matching neighborhoods
-      if (map.getLayer(FILTER_HIGHLIGHT_LAYER)) map.removeLayer(FILTER_HIGHLIGHT_LAYER);
-      map.addLayer({
-        id: FILTER_HIGHLIGHT_LAYER,
-        type: 'line',
-        source: SOURCE_ID,
-        filter: ['in', ['get', 'pno'], ['literal', matchPnoArray]] as unknown as maplibregl.ExpressionSpecification,
-        paint: {
-          'line-color': theme === 'dark' ? '#34d399' : '#059669',
-          'line-width': 2,
-          'line-opacity': 0.8,
-        },
-      });
+      const filterExpr = ['in', ['get', 'pno'], ['literal', matchPnoArray]] as unknown as maplibregl.ExpressionSpecification;
+      if (map.getLayer(FILTER_HIGHLIGHT_LAYER)) {
+        map.setFilter(FILTER_HIGHLIGHT_LAYER, filterExpr);
+        map.setLayoutProperty(FILTER_HIGHLIGHT_LAYER, 'visibility', 'visible');
+      } else {
+        map.addLayer({
+          id: FILTER_HIGHLIGHT_LAYER,
+          type: 'line',
+          source: SOURCE_ID,
+          filter: filterExpr,
+          paint: {
+            'line-color': theme === 'dark' ? '#34d399' : '#059669',
+            'line-width': 2,
+            'line-opacity': 0.8,
+          },
+        });
+      }
     } else {
-      // Restore default opacity
       map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(fillOpacity));
-
-      if (map.getLayer(FILTER_HIGHLIGHT_LAYER)) map.removeLayer(FILTER_HIGHLIGHT_LAYER);
+      if (map.getLayer(FILTER_HIGHLIGHT_LAYER)) {
+        map.setLayoutProperty(FILTER_HIGHLIGHT_LAYER, 'visibility', 'none');
+      }
     }
   }, [filterActive, filterMatchPnos, data, theme, fillOpacity]);
 
@@ -487,89 +491,83 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
     selectedIdRef.current = selectedPno;
   }, [selectedPno, data]);
 
-  // Highlight pinned neighborhoods
+  // Highlight pinned neighborhoods — uses setFilter on existing layer to avoid layer recreation.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !data) return;
+    if (!map.isStyleLoaded() || !map.getSource(SOURCE_ID)) return;
 
-    const apply = () => {
-      // Remove old pinned layer if exists
-      if (map.getLayer(PINNED_LAYER)) map.removeLayer(PINNED_LAYER);
+    if (pinnedPnos.length === 0) {
+      if (map.getLayer(PINNED_LAYER)) {
+        map.setLayoutProperty(PINNED_LAYER, 'visibility', 'none');
+      }
+      return;
+    }
 
-      if (pinnedPnos.length === 0) return;
+    const filter = ['in', ['get', 'pno'], ['literal', pinnedPnos]] as unknown as maplibregl.ExpressionSpecification;
 
-      // Build a filter for pinned features
-      const filter: unknown[] = ['in', ['get', 'pno'], ['literal', pinnedPnos]];
-
+    if (map.getLayer(PINNED_LAYER)) {
+      map.setFilter(PINNED_LAYER, filter);
+      map.setLayoutProperty(PINNED_LAYER, 'visibility', 'visible');
+    } else {
       map.addLayer({
         id: PINNED_LAYER,
         type: 'line',
         source: SOURCE_ID,
-        filter: filter as maplibregl.ExpressionSpecification,
+        filter: filter,
         paint: {
           'line-color': theme === 'dark' ? '#facc15' : '#d97706',
           'line-width': 3,
           'line-opacity': 1,
         },
       });
-    };
-
-    if (map.isStyleLoaded() && map.getSource(SOURCE_ID)) {
-      apply();
     }
-
-    return () => {
-      try {
-        if (map.getLayer(PINNED_LAYER)) map.removeLayer(PINNED_LAYER);
-      } catch { /* map already removed */ }
-    };
   }, [pinnedPnos, data, theme]);
 
-  // PO-4: Wizard results highlight layer
+  // PO-4: Wizard results highlight layer — uses setFilter on existing layer to avoid recreation.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !data) return;
+    if (!map.isStyleLoaded() || !map.getSource(SOURCE_ID)) return;
 
-    const apply = () => {
-      if (map.getLayer(WIZARD_HIGHLIGHT_LAYER)) map.removeLayer(WIZARD_HIGHLIGHT_LAYER);
-
-      if (wizardHighlightPnos.length === 0) return;
-
-      // Dim non-highlighted neighborhoods
-      if (map.getLayer(FILL_LAYER)) {
-        map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(fillOpacity, {
-          matchExpr: ['in', ['get', 'pno'], ['literal', wizardHighlightPnos]],
-          matchVal: 0.8,
-          dimVal: 0.2,
-        }));
+    if (wizardHighlightPnos.length === 0) {
+      if (map.getLayer(WIZARD_HIGHLIGHT_LAYER)) {
+        map.setLayoutProperty(WIZARD_HIGHLIGHT_LAYER, 'visibility', 'none');
       }
+      // Restore default opacity
+      if (map.getLayer(FILL_LAYER)) {
+        map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(fillOpacity));
+      }
+      return;
+    }
 
+    // Dim non-highlighted neighborhoods
+    if (map.getLayer(FILL_LAYER)) {
+      map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(fillOpacity, {
+        matchExpr: ['in', ['get', 'pno'], ['literal', wizardHighlightPnos]],
+        matchVal: 0.8,
+        dimVal: 0.2,
+      }));
+    }
+
+    const filter = ['in', ['get', 'pno'], ['literal', wizardHighlightPnos]] as unknown as maplibregl.ExpressionSpecification;
+
+    if (map.getLayer(WIZARD_HIGHLIGHT_LAYER)) {
+      map.setFilter(WIZARD_HIGHLIGHT_LAYER, filter);
+      map.setLayoutProperty(WIZARD_HIGHLIGHT_LAYER, 'visibility', 'visible');
+    } else {
       map.addLayer({
         id: WIZARD_HIGHLIGHT_LAYER,
         type: 'line',
         source: SOURCE_ID,
-        filter: ['in', ['get', 'pno'], ['literal', wizardHighlightPnos]] as unknown as maplibregl.ExpressionSpecification,
+        filter: filter,
         paint: {
           'line-color': theme === 'dark' ? '#60a5fa' : '#2563eb',
           'line-width': 3,
           'line-opacity': 1,
         },
       });
-    };
-
-    if (map.isStyleLoaded() && map.getSource(SOURCE_ID)) {
-      apply();
     }
-
-    return () => {
-      try {
-        if (map.getLayer(WIZARD_HIGHLIGHT_LAYER)) map.removeLayer(WIZARD_HIGHLIGHT_LAYER);
-        // Restore default opacity
-        if (map.getLayer(FILL_LAYER) && wizardHighlightPnos.length > 0) {
-          map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(fillOpacity));
-        }
-      } catch { /* map already removed */ }
-    };
   }, [wizardHighlightPnos, data, theme, fillOpacity]);
 
   return <div ref={containerRef} className="absolute inset-0" />;

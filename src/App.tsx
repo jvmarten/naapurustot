@@ -186,6 +186,11 @@ const App: React.FC = () => {
     setColorblind(mode);
   }, []);
 
+  const handleFillOpacityChange = useCallback((v: number) => {
+    try { localStorage.setItem('naapurustot-fill-opacity', String(v)); } catch { /* unavailable */ }
+    setFillOpacity(v);
+  }, []);
+
   // Compute matching neighborhood PNOs for filter-aware map rendering
   const filterMatchPnos = useMemo(
     () => (showFilter ? computeMatchingPnos(data, filters) : new Set<string>()),
@@ -364,7 +369,7 @@ const App: React.FC = () => {
           lang={lang}
           onToggleLang={toggleLang}
           fillOpacity={fillOpacity}
-          onFillOpacityChange={(v: number) => { try { localStorage.setItem('naapurustot-fill-opacity', String(v)); } catch { /* unavailable */ } setFillOpacity(v); }}
+          onFillOpacityChange={handleFillOpacityChange}
         />
       </div>
 

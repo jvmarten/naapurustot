@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { LAYERS, type LayerId } from '../utils/colorScales';
 import { t } from '../utils/i18n';
 import { useBottomSheet } from '../hooks/useBottomSheet';
@@ -54,9 +54,11 @@ export const LayerSelector: React.FC<LayerSelectorProps> = ({ activeLayer, onLay
   const listRef = useRef<HTMLDivElement>(null);
   const [focusedIndex, setFocusedIndex] = useState(-1);
 
-  // Build flat list of visible layer IDs for keyboard navigation
-  const visibleLayers = LAYER_GROUPS.flatMap((group) =>
-    collapsed[group.labelKey] ? [] : group.ids
+  // Build flat list of visible layer IDs for keyboard navigation.
+  // Memoized to avoid re-registering the keyboard listener on every render.
+  const visibleLayers = useMemo(
+    () => LAYER_GROUPS.flatMap((group) => collapsed[group.labelKey] ? [] : group.ids),
+    [collapsed],
   );
 
   useEffect(() => {
