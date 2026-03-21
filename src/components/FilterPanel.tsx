@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import type { FeatureCollection } from 'geojson';
 import { LAYERS, type LayerId, type LayerConfig, getLayerById } from '../utils/colorScales';
 import type { NeighborhoodProperties } from '../utils/metrics';
@@ -69,8 +69,33 @@ const RangeSlider: React.FC<{
   onMinChange: (v: number) => void;
   onMaxChange: (v: number) => void;
 }> = ({ min, max, valueMin, valueMax, step, color, onMinChange, onMaxChange }) => {
-  const pctMin = ((valueMin - min) / (max - min)) * 100;
-  const pctMax = ((valueMax - min) / (max - min)) * 100;
+  // Local state for smooth visual feedback during drag.
+  // Parent callback is debounced to avoid recomputing filter matches + map layers on every tick.
+  const [localMin, setLocalMin] = useState(valueMin);
+  const [localMax, setLocalMax] = useState(valueMax);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  // Sync from parent when values change externally (e.g. preset loaded)
+  useEffect(() => { setLocalMin(valueMin); }, [valueMin]);
+  useEffect(() => { setLocalMax(valueMax); }, [valueMax]);
+  useEffect(() => () => clearTimeout(debounceRef.current), []);
+
+  const handleMinChange = (v: number) => {
+    const clamped = Math.min(v, localMax - step);
+    setLocalMin(clamped);
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => onMinChange(clamped), 150);
+  };
+
+  const handleMaxChange = (v: number) => {
+    const clamped = Math.max(v, localMin + step);
+    setLocalMax(clamped);
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => onMaxChange(clamped), 150);
+  };
+
+  const pctMin = ((localMin - min) / (max - min)) * 100;
+  const pctMax = ((localMax - min) / (max - min)) * 100;
 
   return (
     <div className="relative h-6 flex items-center select-none">
@@ -92,11 +117,8 @@ const RangeSlider: React.FC<{
         min={min}
         max={max}
         step={step}
-        value={valueMin}
-        onChange={(e) => {
-          const v = Number(e.target.value);
-          onMinChange(Math.min(v, valueMax - step));
-        }}
+        value={localMin}
+        onChange={(e) => handleMinChange(Number(e.target.value))}
         className="absolute inset-x-0 appearance-none bg-transparent pointer-events-none
                    [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none
                    [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full
@@ -117,11 +139,8 @@ const RangeSlider: React.FC<{
         min={min}
         max={max}
         step={step}
-        value={valueMax}
-        onChange={(e) => {
-          const v = Number(e.target.value);
-          onMaxChange(Math.max(v, valueMin + step));
-        }}
+        value={localMax}
+        onChange={(e) => handleMaxChange(Number(e.target.value))}
         className="absolute inset-x-0 appearance-none bg-transparent pointer-events-none
                    [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none
                    [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full
@@ -181,6 +200,7 @@ const FilterRow: React.FC<{
         onMaxChange={(v) => onChange({ ...criterion, max: v })}
       />
       <div className="flex justify-between mt-1 text-[10px] text-surface-500 dark:text-surface-400 tabular-nums">
+        {/* Values reflect the RangeSlider's debounced local state via controlled inputs */}
         <span>{layer.format(criterion.min)}</span>
         <span>{layer.format(criterion.max)}</span>
       </div>

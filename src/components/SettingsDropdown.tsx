@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useRef, useEffect, lazy, Suspense, useCallback } from 'react';
 import { useTheme } from '../hooks/useTheme';
 import { t, type Lang } from '../utils/i18n';
 
@@ -22,6 +22,47 @@ const CB_OPTIONS: { value: ColorblindType; labelKey: string }[] = [
   { value: 'deuteranopia', labelKey: 'settings.cb_deuteranopia' },
   { value: 'tritanopia', labelKey: 'settings.cb_tritanopia' },
 ];
+
+/** Debounced opacity slider — local state for smooth drag, parent callback after 150ms pause. */
+const OpacitySlider: React.FC<{ fillOpacity: number; onFillOpacityChange: (v: number) => void }> = ({
+  fillOpacity,
+  onFillOpacityChange,
+}) => {
+  const [local, setLocal] = useState(() => Math.round(fillOpacity * 100));
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  useEffect(() => { setLocal(Math.round(fillOpacity * 100)); }, [fillOpacity]);
+  useEffect(() => () => clearTimeout(debounceRef.current), []);
+
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = Number(e.target.value);
+    setLocal(v);
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => onFillOpacityChange(v / 100), 150);
+  }, [onFillOpacityChange]);
+
+  return (
+    <div className="px-4 py-2.5">
+      <div className="flex items-center gap-3 mb-2">
+        <svg className="w-4 h-4 text-surface-500 dark:text-surface-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+        </svg>
+        <span className="text-xs font-medium text-surface-500 dark:text-surface-400">{t('settings.opacity')}</span>
+        <span className="ml-auto text-xs tabular-nums text-surface-400 dark:text-surface-500">
+          {local}%
+        </span>
+      </div>
+      <input
+        type="range"
+        min={0}
+        max={100}
+        value={local}
+        onChange={handleChange}
+        className="w-full h-1 accent-brand-500 cursor-pointer"
+      />
+    </div>
+  );
+};
 
 export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({
   colorblind,
@@ -144,26 +185,8 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({
             </select>
           </div>
 
-          {/* Layer opacity */}
-          <div className="px-4 py-2.5">
-            <div className="flex items-center gap-3 mb-2">
-              <svg className="w-4 h-4 text-surface-500 dark:text-surface-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
-              </svg>
-              <span className="text-xs font-medium text-surface-500 dark:text-surface-400">{t('settings.opacity')}</span>
-              <span className="ml-auto text-xs tabular-nums text-surface-400 dark:text-surface-500">
-                {Math.round(fillOpacity * 100)}%
-              </span>
-            </div>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              value={Math.round(fillOpacity * 100)}
-              onChange={(e) => onFillOpacityChange(Number(e.target.value) / 100)}
-              className="w-full h-1 accent-brand-500 cursor-pointer"
-            />
-          </div>
+          {/* Layer opacity — debounced to avoid Map paint updates + localStorage writes on every drag tick */}
+          <OpacitySlider fillOpacity={fillOpacity} onFillOpacityChange={onFillOpacityChange} />
 
           {/* Divider */}
           <div className="border-t border-surface-100 dark:border-surface-700/40 my-1" />
