@@ -243,8 +243,13 @@ const App: React.FC = () => {
     document.documentElement.lang = lang;
   }, [lang]);
 
-  // ARIA: announce layer changes
+  // ARIA: announce layer changes (skip initial mount to avoid spurious announcement)
+  const layerMountedRef = useRef(false);
   useEffect(() => {
+    if (!layerMountedRef.current) {
+      layerMountedRef.current = true;
+      return;
+    }
     const layer = getLayerById(activeLayer);
     setAriaAnnouncement(`${t('aria.layer_changed')} ${t(layer.labelKey)}`);
   }, [activeLayer]);

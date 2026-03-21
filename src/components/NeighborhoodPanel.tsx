@@ -402,7 +402,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             label={t('panel.price_to_rent')}
             value={d.price_to_rent_ratio != null ? `${Number(d.price_to_rent_ratio).toFixed(1)} v` : '—'}
             diff={formatDiff(d.price_to_rent_ratio, avg.price_to_rent_ratio)}
-            diffClass={diffColor(d.price_to_rent_ratio, avg.price_to_rent_ratio)}
+            diffClass={diffColor(d.price_to_rent_ratio, avg.price_to_rent_ratio, false)}
             property="price_to_rent_ratio"
           />
           <StatRow label={t('panel.dwellings')} value={formatNumber(d.ra_asunn)} />
@@ -698,7 +698,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
                   <span className="text-sm font-medium text-surface-900 dark:text-white">{s.properties.nimi}</span>
                   <span className="text-xs text-surface-400 ml-1.5">{s.properties.pno}</span>
                 </div>
-                <span className="text-xs text-surface-500">{(s.distance * 100).toFixed(0)}% {t('panel.similar').toLowerCase()}</span>
+                <span className="text-xs text-surface-500">{((1 - s.distance) * 100).toFixed(0)}%</span>
               </button>
             ))}
           </div>

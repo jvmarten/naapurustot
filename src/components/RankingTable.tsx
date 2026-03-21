@@ -36,9 +36,11 @@ function getCenter(feature: GeoJSON.Feature): [number, number] {
   return [lng, lat];
 }
 
-// Layers where lower values are better
+// Layers where lower values are better (used for default sort direction)
 const LOWER_IS_BETTER: Set<LayerId> = new Set([
   'unemployment', 'air_quality', 'crime_rate',
+  'light_pollution', 'noise_pollution', 'traffic_accidents',
+  'unemployment_change',
 ]);
 
 export const RankingTable: React.FC<RankingTableProps> = ({ data, activeLayer, onSelect, onClose }) => {

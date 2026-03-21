@@ -18,7 +18,10 @@ function loadRecent(): RecentEntry[] {
     return parsed.filter(
       (e: unknown): e is RecentEntry =>
         !!e && typeof e === 'object' && typeof (e as RecentEntry).pno === 'string'
-        && typeof (e as RecentEntry).name === 'string' && Array.isArray((e as RecentEntry).center),
+        && typeof (e as RecentEntry).name === 'string' && Array.isArray((e as RecentEntry).center)
+        && (e as RecentEntry).center.length === 2
+        && typeof (e as RecentEntry).center[0] === 'number' && isFinite((e as RecentEntry).center[0])
+        && typeof (e as RecentEntry).center[1] === 'number' && isFinite((e as RecentEntry).center[1]),
     );
   } catch {
     return [];
