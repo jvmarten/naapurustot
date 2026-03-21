@@ -31,6 +31,8 @@ interface MapProps {
   wizardHighlightPnos?: string[];
   /** User-adjustable fill opacity multiplier (0–1, default 1) */
   fillOpacity?: number;
+  /** Fine-resolution grid data for layers that have sub-postal-code data (e.g. light pollution) */
+  gridData?: FeatureCollection | null;
 }
 
 // Stable empty defaults to avoid creating new references on every render
@@ -73,6 +75,9 @@ const FILTER_HIGHLIGHT_LAYER = 'neighborhoods-filter-highlight';
 const WIZARD_HIGHLIGHT_LAYER = 'neighborhoods-wizard-highlight';
 const NO_DATA_LAYER = 'neighborhoods-no-data-pattern';
 
+const GRID_SOURCE_ID = 'light-pollution-grid';
+const GRID_FILL_LAYER = 'light-pollution-grid-fill';
+
 
 /**
  * Build a MapLibre fill-opacity expression that:
@@ -98,7 +103,7 @@ function buildFillOpacity(o: number, overrides?: { matchExpr?: unknown[]; matchV
   return base;
 }
 
-export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1 }) => {
+export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1, gridData = null }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const hoveredIdRef = useRef<string | null>(null);
@@ -273,6 +278,69 @@ export const Map: React.FC<MapProps> = ({ data, activeLayer, onHover, onClick, f
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- data is a guard, not a trigger
   }, [activeLayer, colorblind]);
+
+  // Show fine-resolution grid layer for light pollution (replaces postal code fill)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !data) return;
+
+    const isGridActive = activeLayer === 'light_pollution' && gridData != null;
+
+    const applyGrid = () => {
+      // Remove existing grid layer/source
+      if (map.getLayer(GRID_FILL_LAYER)) map.removeLayer(GRID_FILL_LAYER);
+      if (map.getSource(GRID_SOURCE_ID)) map.removeSource(GRID_SOURCE_ID);
+
+      if (!isGridActive) {
+        // Restore postal code fill opacity when grid is removed
+        if (map.getLayer(FILL_LAYER)) {
+          map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(fillOpacity));
+        }
+        return;
+      }
+
+      // Make postal code fill transparent — grid cells will provide the color
+      if (map.getLayer(FILL_LAYER)) {
+        map.setPaintProperty(FILL_LAYER, 'fill-opacity', 0);
+      }
+
+      // Add grid source
+      map.addSource(GRID_SOURCE_ID, {
+        type: 'geojson',
+        data: gridData,
+      });
+
+      // Build grid fill color expression using same color scale
+      const layer = getLayerById('light_pollution');
+      const gridColorExpr: unknown[] = ['interpolate', ['linear'], ['get', 'radiance']];
+      for (let i = 0; i < layer.stops.length; i++) {
+        gridColorExpr.push(layer.stops[i], layer.colors[i]);
+      }
+
+      // Insert grid fill layer below the postal code boundary lines
+      map.addLayer({
+        id: GRID_FILL_LAYER,
+        type: 'fill',
+        source: GRID_SOURCE_ID,
+        paint: {
+          'fill-color': gridColorExpr as maplibregl.ExpressionSpecification,
+          'fill-opacity': 0.85 * fillOpacity,
+          'fill-opacity-transition': { duration: 300, delay: 0 },
+        },
+      }, LINE_LAYER); // Insert before (below) the line layer
+    };
+
+    if (map.isStyleLoaded() && map.getSource(SOURCE_ID)) {
+      applyGrid();
+    }
+
+    return () => {
+      try {
+        if (map.getLayer(GRID_FILL_LAYER)) map.removeLayer(GRID_FILL_LAYER);
+        if (map.getSource(GRID_SOURCE_ID)) map.removeSource(GRID_SOURCE_ID);
+      } catch { /* map already removed */ }
+    };
+  }, [activeLayer, gridData, data, fillOpacity, colorblind]);
 
   // Filter-aware rendering: dim non-matching neighborhoods and highlight matching ones
   useEffect(() => {
