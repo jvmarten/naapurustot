@@ -97,6 +97,30 @@ def fetch_travel_time_summary() -> pd.DataFrame:
     return pd.DataFrame()
 
 
+def export_grid_geojson(grid: gpd.GeoDataFrame) -> None:
+    """
+    Export raw 250m grid cells as GeoJSON for fine-grained map rendering.
+
+    Each grid cell polygon retains its reachability score so the frontend
+    can render a smooth, cell-level choropleth instead of postal-code averages.
+    Output: public/data/transit_reachability_grid.geojson
+    """
+    if grid.empty or "reachability" not in grid.columns:
+        logger.warning("No grid reachability data to export")
+        return
+
+    # Convert to WGS84 for the web map
+    grid_wgs = grid.to_crs(epsg=4326) if grid.crs and grid.crs.to_epsg() != 4326 else grid
+
+    # Keep only geometry + reachability score to minimise file size
+    export = grid_wgs[["geometry", "reachability"]].copy()
+    export["reachability"] = export["reachability"].round(1)
+
+    out_path = OUT_DIR.parent / "public" / "data" / "transit_reachability_grid.geojson"
+    export.to_file(out_path, driver="GeoJSON")
+    logger.info("Wrote grid GeoJSON: %s (%d cells)", out_path, len(export))
+
+
 def compute_reachability_from_grid(
     grid: gpd.GeoDataFrame, postal: gpd.GeoDataFrame
 ) -> dict:
@@ -163,6 +187,8 @@ def main():
         logger.info("Loading cached grid data from %s", local_grid)
         grid = gpd.read_file(local_grid)
         result = compute_reachability_from_grid(grid, postal)
+        # Export raw 250m grid cells for fine-grained map rendering
+        export_grid_geojson(grid)
     else:
         logger.info("Travel time matrix not found locally.")
         logger.info("To populate this layer:")

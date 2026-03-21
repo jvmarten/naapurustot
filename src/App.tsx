@@ -22,7 +22,7 @@ const NeighborhoodWizard = lazy(() => import('./components/NeighborhoodWizard').
 const SplitMapView = lazy(() => import('./components/SplitMapView').then(m => ({ default: m.SplitMapView })));
 import { bbox } from '@turf/bbox';
 import { useMapData } from './hooks/useMapData';
-import { useLightPollutionGrid } from './hooks/useLightPollutionGrid';
+import { useGridData } from './hooks/useGridData';
 import { useFavorites } from './hooks/useFavorites';
 import { useNotes } from './hooks/useNotes';
 import { useRecentNeighborhoods } from './hooks/useRecentNeighborhoods';
@@ -39,7 +39,7 @@ const App: React.FC = () => {
   const { data, loading, error, metroAverages, retry } = useMapData();
   const { selected, select, deselect, pinned, pin, unpin, clearPinned } = useSelectedNeighborhood();
   const [activeLayer, setActiveLayer] = useState<LayerId>(initialUrl.layer ?? 'quality_index');
-  const lightPollutionGrid = useLightPollutionGrid(activeLayer);
+  const { gridData } = useGridData(activeLayer);
   const [wizardResultPnos, setWizardResultPnos] = useState<string[]>([]);
   const [tooltip, setTooltip] = useState<{
     props: NeighborhoodProperties;
@@ -303,7 +303,7 @@ const App: React.FC = () => {
             colorblind={colorblind}
             wizardHighlightPnos={wizardResultPnos}
             fillOpacity={fillOpacity}
-            gridData={lightPollutionGrid}
+            gridData={gridData}
           />
         )}
       </ErrorBoundary>

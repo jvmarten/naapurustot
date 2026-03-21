@@ -11,7 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "build:data": "npx -p topojson-server geo2topo neighborhoods=public/data/metro_neighborhoods.geojson > src/data/metro_neighborhoods.topojson"
+    "build:data": "npx -p topojson-server geo2topo neighborhoods=public/data/metro_neighborhoods.geojson > src/data/metro_neighborhoods.topojson && node scripts/build_grid_data.mjs"
   },
   "dependencies": {
     "@turf/bbox": "^7.3.4",
