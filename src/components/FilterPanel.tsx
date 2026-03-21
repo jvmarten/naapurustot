@@ -6,6 +6,7 @@ import { t } from '../utils/i18n';
 import { useBottomSheet } from '../hooks/useBottomSheet';
 
 import { type FilterCriterion, computeMatchingPnos } from '../utils/filterUtils';
+import { getFeatureCenter } from '../utils/geometryFilter';
 
 type SortKey = 'score' | 'name' | LayerId;
 type SortDir = 'asc' | 'desc';
@@ -26,23 +27,6 @@ interface FilterPanelProps {
 /** Get the data range (min stop, max stop) for a layer from its color stops. */
 function getLayerRange(layer: LayerConfig): [number, number] {
   return [layer.stops[0], layer.stops[layer.stops.length - 1]];
-}
-
-function getCenter(feature: GeoJSON.Feature): [number, number] {
-  const geom = feature.geometry;
-  if (geom.type === 'Point') return geom.coordinates as [number, number];
-  const coords: GeoJSON.Position[] = [];
-  function extract(c: GeoJSON.Position | GeoJSON.Position[] | GeoJSON.Position[][] | GeoJSON.Position[][][]) {
-    if (typeof c[0] === 'number') coords.push(c as GeoJSON.Position);
-    else (c as GeoJSON.Position[][]).forEach(extract);
-  }
-  if ('coordinates' in geom) {
-    extract(geom.coordinates as GeoJSON.Position[]);
-  }
-  if (coords.length === 0) return [0, 0];
-  const lng = coords.reduce((s, c) => s + c[0], 0) / coords.length;
-  const lat = coords.reduce((s, c) => s + c[1], 0) / coords.length;
-  return [lng, lat];
 }
 
 /** Layers already used as filter criteria */
@@ -368,7 +352,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
         pno: p.pno,
         name: p.nimi || p.pno,
         score,
-        center: getCenter(f),
+        center: getFeatureCenter(f),
         properties: p,
       };
     });
