@@ -111,12 +111,16 @@ def raster_to_grid_geojson(raster, boundary):
     Each pixel becomes a rectangular polygon with its radiance value.
     Only cells that intersect the metro boundary are kept.
     """
-    # Read the raster data and transform
-    data = raster.values  # shape: (bands, height, width) or (height, width)
-    if data.ndim == 3:
-        data = data[0]  # Take first band
+    # Extract the NearNadir_Composite_Snow_Free DataArray from the Dataset
+    var_name = "NearNadir_Composite_Snow_Free"
+    da = raster[var_name]
 
-    transform = raster.rio.transform()
+    # Squeeze time dimension if present
+    if "time" in da.dims:
+        da = da.isel(time=0)
+
+    data = da.values  # shape: (y, x)
+    transform = da.rio.transform()
     height, width = data.shape
     logger.info("  Raster size: %d x %d pixels", width, height)
 
