@@ -1,7 +1,10 @@
 import { useState, useCallback } from 'react';
 import type { FilterCriterion } from '../utils/filterUtils';
+import { LAYERS } from '../utils/colorScales';
 
 const STORAGE_KEY = 'naapurustot-filter-presets';
+
+const VALID_LAYER_IDS = new Set<string>(LAYERS.map((l) => l.id));
 
 export interface SavedPreset {
   name: string;
@@ -15,6 +18,7 @@ function isValidPreset(v: unknown): v is SavedPreset {
   if (!Array.isArray(p.criteria)) return false;
   return p.criteria.every(
     (c: unknown) => c && typeof c === 'object' && typeof (c as Record<string, unknown>).layerId === 'string'
+      && VALID_LAYER_IDS.has((c as Record<string, unknown>).layerId as string)
       && typeof (c as Record<string, unknown>).min === 'number' && typeof (c as Record<string, unknown>).max === 'number',
   );
 }

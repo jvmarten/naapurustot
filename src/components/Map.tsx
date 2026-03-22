@@ -489,7 +489,9 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       map.setFeatureState({ source: SOURCE_ID, id: selectedPno }, { selected: true });
     }
     selectedIdRef.current = selectedPno;
-  }, [selectedPno, data]);
+  // theme is included because the data/theme effect destroys and recreates the source,
+  // which clears all feature states — without this, the selection highlight is lost on theme change.
+  }, [selectedPno, data, theme]);
 
   // Highlight pinned neighborhoods — uses setFilter on existing layer to avoid layer recreation.
   useEffect(() => {

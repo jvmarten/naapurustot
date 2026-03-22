@@ -252,7 +252,7 @@ function scoreNeighborhoods(
       qualityIndex: p.quality_index,
       score: Math.round(finalScore * 100),
       reasons: uniqueReasons.slice(0, 3),
-      center: computeCentroid(feature.geometry),
+      center: feature.geometry ? computeCentroid(feature.geometry) : [24.94, 60.17],
     });
   }
 

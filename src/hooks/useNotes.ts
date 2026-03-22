@@ -7,7 +7,14 @@ function loadNotes(): Record<string, string> {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        // Validate that all values are strings to guard against tampered localStorage
+        const result: Record<string, string> = {};
+        for (const [key, val] of Object.entries(parsed)) {
+          if (typeof val === 'string') result[key] = val;
+        }
+        return result;
+      }
     }
   } catch { /* malformed data or unavailable */ }
   return {};
