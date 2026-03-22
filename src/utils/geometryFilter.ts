@@ -34,7 +34,7 @@ function polygonArea(rings: number[][][]): number {
 export function filterSmallIslands(features: Feature[]): Feature[] {
   return features.map((feature) => {
     const geom = feature.geometry;
-    if (geom.type !== 'MultiPolygon' || geom.coordinates.length <= 1) {
+    if (!geom || geom.type !== 'MultiPolygon' || geom.coordinates.length <= 1) {
       return feature;
     }
 

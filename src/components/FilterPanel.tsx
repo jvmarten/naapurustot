@@ -78,8 +78,9 @@ const RangeSlider: React.FC<{
     debounceRef.current = setTimeout(() => onMaxChange(clamped), 150);
   };
 
-  const pctMin = ((localMin - min) / (max - min)) * 100;
-  const pctMax = ((localMax - min) / (max - min)) * 100;
+  const range = max - min || 1;
+  const pctMin = ((localMin - min) / range) * 100;
+  const pctMax = ((localMax - min) / range) * 100;
 
   return (
     <div className="relative h-6 flex items-center select-none">
