@@ -9,7 +9,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { computeQuickWinMetrics, computeChangeMetrics, computeMetroAverages } from '../utils/metrics';
-import { computeQualityIndices, getDefaultWeights } from '../utils/qualityIndex';
+import { computeQualityIndices } from '../utils/qualityIndex';
 import { findSimilarNeighborhoods } from '../utils/similarity';
 import type { NeighborhoodProperties } from '../utils/metrics';
 
@@ -265,9 +265,6 @@ describe('Full data pipeline integration', () => {
 
     // Compute with safety-heavy weights
     const safetyWeights: Record<string, number> = {};
-    for (const f2 of [...Array.from({ length: 10 })].map((_, i) => i)) {
-      // zero all
-    }
     const factors = ['safety', 'income', 'employment', 'education', 'transit', 'services', 'air_quality', 'cycling', 'grocery_access', 'restaurants'];
     for (const fac of factors) safetyWeights[fac] = 0;
     safetyWeights.safety = 100;

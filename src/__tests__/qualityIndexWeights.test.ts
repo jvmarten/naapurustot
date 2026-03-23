@@ -5,7 +5,7 @@
  * The quality index is the most visible user-facing metric. Bugs here would
  * silently rank neighborhoods incorrectly.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   computeQualityIndices,
   getDefaultWeights,
@@ -39,8 +39,8 @@ describe('Quality index — custom weights', () => {
 
     // Default weights: safety=25, income=20
     computeQualityIndices(features);
-    const defaultA = getProp(features[0]).quality_index!;
-    const defaultB = getProp(features[1]).quality_index!;
+    const _defaultA = getProp(features[0]).quality_index!;
+    const _defaultB = getProp(features[1]).quality_index!;
 
     // Now weight ONLY safety at 100
     const safetyOnly: QualityWeights = {};

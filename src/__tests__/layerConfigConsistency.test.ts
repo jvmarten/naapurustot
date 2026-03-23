@@ -8,7 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import { LAYERS, getLayerById, getColorForValue, buildFillColorExpression } from '../utils/colorScales';
 import type { LayerId } from '../utils/colorScales';
-import { setLang } from '../utils/i18n';
+import { setLang as _setLang } from '../utils/i18n';
 import fi from '../locales/fi.json';
 import en from '../locales/en.json';
 
