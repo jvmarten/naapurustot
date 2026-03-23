@@ -297,5 +297,9 @@
   "data.last_updated": "Data last updated",
   "share.image": "Share as image",
   "share.generating": "Generating image\u2026",
-  "settings.opacity": "Layer opacity"
+  "settings.opacity": "Layer opacity",
+  "panel.tab.overview": "Overview",
+  "panel.tab.stats": "Stats",
+  "panel.tab.trends": "Trends",
+  "panel.tab.similar": "Similar"
 }

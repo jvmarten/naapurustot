@@ -297,5 +297,9 @@
   "data.last_updated": "Aineisto päivitetty",
   "share.image": "Jaa kuvana",
   "share.generating": "Luodaan kuvaa\u2026",
-  "settings.opacity": "Värien peitto"
+  "settings.opacity": "Värien peitto",
+  "panel.tab.overview": "Yleiskuva",
+  "panel.tab.stats": "Tilastot",
+  "panel.tab.trends": "Kehitys",
+  "panel.tab.similar": "Samankaltaiset"
 }
