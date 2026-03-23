@@ -39,8 +39,6 @@ describe('Quality index — custom weights', () => {
 
     // Default weights: safety=25, income=20
     computeQualityIndices(features);
-    const _defaultA = getProp(features[0]).quality_index!;
-    const _defaultB = getProp(features[1]).quality_index!;
 
     // Now weight ONLY safety at 100
     const safetyOnly: QualityWeights = {};

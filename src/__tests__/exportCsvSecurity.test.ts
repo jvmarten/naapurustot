@@ -136,7 +136,6 @@ describe('exportCsv — CSV content and security', () => {
     vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
       const el = origCreateElement(tag);
       if (tag === 'a') {
-        const _origClick = el.click.bind(el);
         el.click = () => {
           capturedFilename = (el as HTMLAnchorElement).download;
         };
