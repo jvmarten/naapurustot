@@ -448,7 +448,15 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     const onMapClick = (e: maplibregl.MapMouseEvent) => {
       const features = map.queryRenderedFeatures(e.point, { layers: [FILL_LAYER] });
       if (features.length > 0) {
-        onClick(features[0].properties as NeighborhoodProperties);
+        const pno = features[0].properties?.pno;
+        // Look up the original GeoJSON feature instead of using MapLibre's serialized copy,
+        // which can lose type fidelity for complex fields (e.g., JSON-encoded trend strings).
+        const original = pno ? data.features.find((f) => f.properties?.pno === pno) : null;
+        if (original?.properties) {
+          onClick(original.properties as NeighborhoodProperties);
+        } else {
+          onClick(features[0].properties as NeighborhoodProperties);
+        }
       }
     };
 

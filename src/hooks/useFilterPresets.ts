@@ -45,8 +45,10 @@ export function useFilterPresets() {
   const [presets, setPresets] = useState<SavedPreset[]>(loadPresets);
 
   const addPreset = useCallback((name: string, criteria: FilterCriterion[]) => {
+    const trimmed = name.trim().slice(0, 100);
+    if (!trimmed || criteria.length === 0) return;
     setPresets((prev) => {
-      const next = [...prev, { name, criteria }];
+      const next = [...prev, { name: trimmed, criteria }];
       savePresets(next);
       return next;
     });

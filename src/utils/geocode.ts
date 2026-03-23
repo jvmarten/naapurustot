@@ -14,9 +14,10 @@ export interface GeocodeResult {
 
 /** Geocode a street address or place name. Returns up to 5 results within the Helsinki metro bbox. */
 export async function geocodeAddress(query: string): Promise<GeocodeResult[]> {
-  if (query.length < 3) return [];
+  const trimmed = query.trim();
+  if (trimmed.length < 3 || trimmed.length > 200) return [];
 
-  const cacheKey = query.toLowerCase().trim();
+  const cacheKey = trimmed.toLowerCase();
   const cached = CACHE.get(cacheKey);
   if (cached !== undefined) {
     // Move to most-recent position for proper LRU eviction
@@ -27,7 +28,7 @@ export async function geocodeAddress(query: string): Promise<GeocodeResult[]> {
 
   try {
     const params = new URLSearchParams({
-      text: query,
+      text: trimmed,
       size: '5',
       'boundary.rect.min_lon': '24.5',
       'boundary.rect.min_lat': '60.1',

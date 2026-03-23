@@ -31,6 +31,8 @@ export function useNotes() {
   const getNote = useCallback((pno: string): string => notes[pno] ?? '', [notes]);
 
   const setNote = useCallback((pno: string, text: string) => {
+    // Validate PNO format (5-digit Finnish postal code)
+    if (!/^\d{5}$/.test(pno)) return;
     // Limit note length to prevent localStorage quota exhaustion
     const trimmed = text.slice(0, 5000);
     setNotes((prev) => {

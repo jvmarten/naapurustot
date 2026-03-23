@@ -1,4 +1,5 @@
 import React from 'react';
+import { t } from '../utils/i18n';
 
 interface Props {
   children: React.ReactNode;
@@ -37,16 +38,16 @@ export class ErrorBoundary extends React.Component<Props, State> {
         <div className="flex flex-col items-center justify-center p-8 text-center">
           <div className="text-4xl mb-4">⚠</div>
           <h2 className="text-lg font-semibold text-surface-900 dark:text-white mb-2">
-            Something went wrong
+            {t('error.boundary_title')}
           </h2>
           <p className="text-sm text-surface-500 dark:text-surface-400 mb-4 max-w-sm">
-            {this.state.error?.message || 'An unexpected error occurred'}
+            {this.state.error?.message || t('error.boundary_fallback')}
           </p>
           <button
             onClick={() => window.location.reload()}
             className="px-4 py-2 rounded-xl text-sm font-medium bg-brand-500 text-white hover:bg-brand-600 transition-colors"
           >
-            Reload
+            {t('error.reload')}
           </button>
         </div>
       );

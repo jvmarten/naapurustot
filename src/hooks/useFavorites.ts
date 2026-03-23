@@ -31,6 +31,7 @@ export function useFavorites() {
   );
 
   const toggleFavorite = useCallback((pno: string): void => {
+    if (!/^\d{5}$/.test(pno)) return;
     setFavorites((prev) => {
       const next = prev.includes(pno)
         ? prev.filter((p) => p !== pno)

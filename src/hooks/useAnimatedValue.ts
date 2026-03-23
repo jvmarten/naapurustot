@@ -4,7 +4,10 @@ import { useState, useEffect, useRef } from 'react';
  * PO-1: Animate a numeric value with a count-up/count-down transition.
  * Uses requestAnimationFrame for smooth ~300ms transitions.
  */
-export function useAnimatedValue(target: number | null, duration = 300): number | null {
+/**
+ * @param integerMode When true, round animated values to integers (use for population, income, etc.)
+ */
+export function useAnimatedValue(target: number | null, duration = 300, integerMode = false): number | null {
   const [display, setDisplay] = useState(target);
   const startRef = useRef<number | null>(null);
   const fromRef = useRef<number | null>(null);
@@ -38,7 +41,7 @@ export function useAnimatedValue(target: number | null, duration = 300): number 
       const eased = 1 - Math.pow(1 - progress, 3);
       const current = fromRef.current! + (target - fromRef.current!) * eased;
 
-      const rounded = Math.round(current * 10) / 10;
+      const rounded = integerMode ? Math.round(current) : Math.round(current * 10) / 10;
       displayRef.current = rounded;
       setDisplay(rounded);
 
@@ -53,7 +56,7 @@ export function useAnimatedValue(target: number | null, duration = 300): number 
     rafRef.current = requestAnimationFrame(animate);
 
     return () => cancelAnimationFrame(rafRef.current);
-  }, [target, duration]);
+  }, [target, duration, integerMode]);
 
   return display;
 }

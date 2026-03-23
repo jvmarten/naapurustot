@@ -153,10 +153,10 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
 
   // QW-2: Animated value displays
   const animatedQI = useAnimatedValue(d.quality_index);
-  const animatedIncome = useAnimatedValue(d.hr_mtu);
+  const animatedIncome = useAnimatedValue(d.hr_mtu, 300, true);
   const animatedUnemployment = useAnimatedValue(d.unemployment_rate);
-  const animatedPopulation = useAnimatedValue(d.he_vakiy);
-  const animatedPropertyPrice = useAnimatedValue(d.property_price_sqm);
+  const animatedPopulation = useAnimatedValue(d.he_vakiy, 300, true);
+  const animatedPropertyPrice = useAnimatedValue(d.property_price_sqm, 300, true);
 
   // Copy link state
   const [copied, setCopied] = useState(false);

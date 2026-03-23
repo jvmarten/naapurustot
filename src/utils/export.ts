@@ -79,7 +79,7 @@ export function exportCsv(d: NeighborhoodProperties, _avg: Record<string, number
   try {
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${d.nimi.replace(/[/\\:*?"<>|]/g, '_')}_${d.pno}.csv`;
+    a.download = `${d.nimi.replace(/[/\\:*?"<>|\r\n\t]/g, '_').replace(/^\.+|\.+$/g, '')}_${d.pno}.csv`;
     a.click();
   } finally {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -149,6 +149,8 @@ export function exportPdf(d: NeighborhoodProperties, _avg: Record<string, number
   }
   w.document.write(html);
   w.document.close();
+  // Sever the opener reference so the print window cannot navigate/access the parent.
+  try { w.opener = null; } catch { /* some browsers restrict this */ }
   w.addEventListener('afterprint', () => w.close());
   // Defer print() until the document is fully rendered to avoid blank printouts.
   // Use a flag to avoid double-printing from both the load event and the fallback timer.
