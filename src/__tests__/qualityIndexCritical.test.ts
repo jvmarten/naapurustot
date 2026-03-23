@@ -2,7 +2,7 @@
  * Critical tests for qualityIndex.ts — focuses on edge cases that would
  * cause the worst user-facing bugs if broken.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   computeQualityIndices,
   getQualityCategory,
