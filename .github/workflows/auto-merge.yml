@@ -7,8 +7,7 @@ on:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
+  actions: write
 
 concurrency:
   group: auto-merge-to-main
@@ -88,30 +87,9 @@ jobs:
         if: success()
         run: git push origin --delete "${{ github.ref_name }}" || true
 
-  deploy:
-    needs: merge-to-main
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          ref: main
-
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          cache: npm
-
-      - run: npm ci
-
-      - run: npm run build
-
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-
-      - id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Trigger deploy workflow
+        if: success()
+        run: gh workflow run deploy.yml --ref main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
