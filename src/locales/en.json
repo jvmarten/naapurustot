@@ -301,5 +301,14 @@
   "panel.tab.overview": "Overview",
   "panel.tab.stats": "Stats",
   "panel.tab.trends": "Trends",
-  "panel.tab.similar": "Similar"
+  "panel.tab.similar": "Similar",
+  "draw.toggle": "Draw area",
+  "draw.drawing": "Drawing\u2026",
+  "draw.clear": "Clear",
+  "draw.area_summary": "Area Summary",
+  "draw.neighborhoods": "neighborhoods",
+  "draw.selected_area": "Selected Area",
+  "draw.included_areas": "Included neighborhoods",
+  "draw.no_neighborhoods": "No neighborhoods in drawn area",
+  "draw.hint": "Click to add points, double-click to finish"
 }

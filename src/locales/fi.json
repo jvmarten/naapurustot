@@ -301,5 +301,14 @@
   "panel.tab.overview": "Yleiskuva",
   "panel.tab.stats": "Tilastot",
   "panel.tab.trends": "Kehitys",
-  "panel.tab.similar": "Samankaltaiset"
+  "panel.tab.similar": "Samankaltaiset",
+  "draw.toggle": "Piirrä alue",
+  "draw.drawing": "Piirretään\u2026",
+  "draw.clear": "Tyhjennä",
+  "draw.area_summary": "Alueen yhteenveto",
+  "draw.neighborhoods": "aluetta",
+  "draw.selected_area": "Valittu alue",
+  "draw.included_areas": "Sisältyvät alueet",
+  "draw.no_neighborhoods": "Piirretyllä alueella ei ole naapurustoja",
+  "draw.hint": "Klikkaa lisätäksesi pisteitä, tuplaklikkaa lopettaaksesi"
 }

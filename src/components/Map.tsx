@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import type { FeatureCollection } from 'geojson';
+import type { Feature, FeatureCollection, Polygon, Position } from 'geojson';
 import { buildFillColorExpression, type LayerId, getLayerById } from '../utils/colorScales';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { useTheme } from '../hooks/useTheme';
@@ -39,6 +39,15 @@ interface MapProps {
   fillOpacity?: number;
   /** Fine-grained grid data for layers that support it (e.g. 250m transit reachability cells) */
   gridData?: FeatureCollection | null;
+  /** CF-6: Draw mode — when true, clicks add polygon vertices instead of selecting neighborhoods */
+  drawMode?: boolean;
+  /** CF-6: Callback when a polygon vertex is added or polygon is completed */
+  onDrawClick?: (lngLat: [number, number]) => void;
+  onDrawDoubleClick?: () => void;
+  /** CF-6: Current draw vertices for preview rendering */
+  drawVertices?: Position[];
+  /** CF-6: Completed drawn polygon to render on the map */
+  drawnPolygon?: Feature<Polygon> | null;
 }
 
 // Stable empty defaults to avoid creating new references on every render
@@ -84,6 +93,14 @@ const NO_DATA_LAYER = 'neighborhoods-no-data-pattern';
 const GRID_SOURCE_ID = 'grid-cells';
 const GRID_FILL_LAYER = 'grid-fill';
 
+// CF-6: Draw polygon layer constants
+const DRAW_SOURCE_ID = 'draw-polygon';
+const DRAW_FILL_LAYER = 'draw-fill';
+const DRAW_LINE_LAYER = 'draw-line';
+const DRAW_VERTEX_LAYER = 'draw-vertices';
+const DRAW_PREVIEW_SOURCE_ID = 'draw-preview';
+const DRAW_PREVIEW_LINE_LAYER = 'draw-preview-line';
+
 
 /**
  * Build a MapLibre fill-opacity expression that:
@@ -109,7 +126,7 @@ function buildFillOpacity(o: number, overrides?: { matchExpr?: unknown[]; matchV
   return base;
 }
 
-export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1, gridData = null }) => {
+export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1, gridData = null, drawMode = false, onDrawClick, onDrawDoubleClick, drawVertices, drawnPolygon = null }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const hoveredIdRef = useRef<string | null>(null);
@@ -411,6 +428,13 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     if (!map || !data) return;
 
     const onMouseMove = (e: maplibregl.MapMouseEvent) => {
+      // In draw mode, show crosshair and update preview line
+      if (drawMode) {
+        map.getCanvas().style.cursor = 'crosshair';
+        onHover(null, 0, 0);
+        return;
+      }
+
       const features = map.queryRenderedFeatures(e.point, { layers: [FILL_LAYER] });
 
       if (features.length > 0) {
@@ -441,27 +465,42 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         map.setFeatureState({ source: SOURCE_ID, id: hoveredIdRef.current }, { hover: false });
         hoveredIdRef.current = null;
       }
-      map.getCanvas().style.cursor = '';
+      if (!drawMode) {
+        map.getCanvas().style.cursor = '';
+      }
       onHover(null, 0, 0);
     };
 
     const onMapClick = (e: maplibregl.MapMouseEvent) => {
+      if (drawMode) {
+        onDrawClick?.([e.lngLat.lng, e.lngLat.lat]);
+        return;
+      }
       const features = map.queryRenderedFeatures(e.point, { layers: [FILL_LAYER] });
       if (features.length > 0) {
         onClick(features[0].properties as NeighborhoodProperties);
       }
     };
 
-    map.on('mousemove', FILL_LAYER, onMouseMove);
+    const onMapDblClick = (e: maplibregl.MapMouseEvent) => {
+      if (drawMode) {
+        e.preventDefault();
+        onDrawDoubleClick?.();
+      }
+    };
+
+    map.on('mousemove', onMouseMove);
     map.on('mouseleave', FILL_LAYER, onMouseLeave);
-    map.on('click', FILL_LAYER, onMapClick);
+    map.on('click', onMapClick);
+    map.on('dblclick', onMapDblClick);
 
     return () => {
-      map.off('mousemove', FILL_LAYER, onMouseMove);
+      map.off('mousemove', onMouseMove);
       map.off('mouseleave', FILL_LAYER, onMouseLeave);
-      map.off('click', FILL_LAYER, onMapClick);
+      map.off('click', onMapClick);
+      map.off('dblclick', onMapDblClick);
     };
-  }, [data, onHover, onClick]);
+  }, [data, onHover, onClick, drawMode, onDrawClick, onDrawDoubleClick]);
 
   // FlyTo / fitBounds
   useEffect(() => {
@@ -571,6 +610,157 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       });
     }
   }, [wizardHighlightPnos, data, theme, fillOpacity]);
+
+  // CF-6: Draw mode cursor
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (drawMode) {
+      map.getCanvas().style.cursor = 'crosshair';
+      // Disable double-click zoom in draw mode
+      map.doubleClickZoom.disable();
+    } else {
+      map.getCanvas().style.cursor = '';
+      map.doubleClickZoom.enable();
+    }
+  }, [drawMode]);
+
+  // CF-6: Render draw preview (vertices being drawn)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const addPreview = () => {
+      // Clean up old
+      if (map.getLayer(DRAW_PREVIEW_LINE_LAYER)) map.removeLayer(DRAW_PREVIEW_LINE_LAYER);
+      if (map.getSource(DRAW_PREVIEW_SOURCE_ID)) map.removeSource(DRAW_PREVIEW_SOURCE_ID);
+
+      if (!drawVertices || drawVertices.length < 1) return;
+
+      const coords = drawVertices.length === 1
+        ? drawVertices // Just a point — show as degenerate line
+        : drawVertices;
+
+      map.addSource(DRAW_PREVIEW_SOURCE_ID, {
+        type: 'geojson',
+        data: {
+          type: 'Feature',
+          properties: {},
+          geometry: {
+            type: 'LineString',
+            coordinates: coords as Position[],
+          },
+        },
+      });
+
+      map.addLayer({
+        id: DRAW_PREVIEW_LINE_LAYER,
+        type: 'line',
+        source: DRAW_PREVIEW_SOURCE_ID,
+        paint: {
+          'line-color': '#8b5cf6',
+          'line-width': 2,
+          'line-dasharray': [3, 2],
+          'line-opacity': 0.8,
+        },
+      });
+    };
+
+    if (map.isStyleLoaded()) {
+      addPreview();
+    } else {
+      map.on('load', addPreview);
+      return () => { map.off('load', addPreview); };
+    }
+
+    return () => {
+      if (map.getLayer(DRAW_PREVIEW_LINE_LAYER)) map.removeLayer(DRAW_PREVIEW_LINE_LAYER);
+      if (map.getSource(DRAW_PREVIEW_SOURCE_ID)) map.removeSource(DRAW_PREVIEW_SOURCE_ID);
+    };
+  }, [drawVertices]);
+
+  // CF-6: Render completed drawn polygon
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const addDrawnPolygon = () => {
+      // Clean up old
+      if (map.getLayer(DRAW_VERTEX_LAYER)) map.removeLayer(DRAW_VERTEX_LAYER);
+      if (map.getLayer(DRAW_LINE_LAYER)) map.removeLayer(DRAW_LINE_LAYER);
+      if (map.getLayer(DRAW_FILL_LAYER)) map.removeLayer(DRAW_FILL_LAYER);
+      if (map.getSource(DRAW_SOURCE_ID)) map.removeSource(DRAW_SOURCE_ID);
+
+      if (!drawnPolygon) return;
+
+      map.addSource(DRAW_SOURCE_ID, {
+        type: 'geojson',
+        data: drawnPolygon,
+      });
+
+      map.addLayer({
+        id: DRAW_FILL_LAYER,
+        type: 'fill',
+        source: DRAW_SOURCE_ID,
+        paint: {
+          'fill-color': '#8b5cf6',
+          'fill-opacity': 0.15,
+        },
+      });
+
+      map.addLayer({
+        id: DRAW_LINE_LAYER,
+        type: 'line',
+        source: DRAW_SOURCE_ID,
+        paint: {
+          'line-color': '#8b5cf6',
+          'line-width': 2.5,
+          'line-opacity': 0.9,
+        },
+      });
+
+      // Vertex dots
+      const coords = drawnPolygon.geometry.coordinates[0];
+      map.addSource(DRAW_SOURCE_ID + '-pts', {
+        type: 'geojson',
+        data: {
+          type: 'FeatureCollection',
+          features: coords.slice(0, -1).map((c) => ({
+            type: 'Feature' as const,
+            properties: {},
+            geometry: { type: 'Point' as const, coordinates: c },
+          })),
+        },
+      });
+
+      map.addLayer({
+        id: DRAW_VERTEX_LAYER,
+        type: 'circle',
+        source: DRAW_SOURCE_ID + '-pts',
+        paint: {
+          'circle-radius': 4,
+          'circle-color': '#8b5cf6',
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#ffffff',
+        },
+      });
+    };
+
+    if (map.isStyleLoaded()) {
+      addDrawnPolygon();
+    } else {
+      map.on('load', addDrawnPolygon);
+      return () => { map.off('load', addDrawnPolygon); };
+    }
+
+    return () => {
+      if (map.getLayer(DRAW_VERTEX_LAYER)) map.removeLayer(DRAW_VERTEX_LAYER);
+      if (map.getSource(DRAW_SOURCE_ID + '-pts')) map.removeSource(DRAW_SOURCE_ID + '-pts');
+      if (map.getLayer(DRAW_LINE_LAYER)) map.removeLayer(DRAW_LINE_LAYER);
+      if (map.getLayer(DRAW_FILL_LAYER)) map.removeLayer(DRAW_FILL_LAYER);
+      if (map.getSource(DRAW_SOURCE_ID)) map.removeSource(DRAW_SOURCE_ID);
+    };
+  }, [drawnPolygon]);
 
   return <div ref={containerRef} className="absolute inset-0" />;
 });

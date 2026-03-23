@@ -14,7 +14,9 @@
     "build:data": "npx -p topojson-server geo2topo neighborhoods=public/data/metro_neighborhoods.geojson > src/data/metro_neighborhoods.topojson && node scripts/build_grid_data.mjs"
   },
   "dependencies": {
+    "@turf/area": "^7.3.4",
     "@turf/bbox": "^7.3.4",
+    "@turf/boolean-intersects": "^7.3.4",
     "@turf/boolean-point-in-polygon": "^7.3.4",
     "@turf/helpers": "^7.3.4",
     "html-to-image": "^1.11.13",

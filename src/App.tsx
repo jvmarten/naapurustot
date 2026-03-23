@@ -7,10 +7,12 @@ import { Tooltip } from './components/Tooltip';
 import { Legend } from './components/Legend';
 import { SettingsDropdown } from './components/SettingsDropdown';
 import { ToolsDropdown } from './components/ToolsDropdown';
+import { DrawTool } from './components/DrawTool';
 import { ErrorBanner } from './components/ErrorBanner';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { computeMatchingPnos, type FilterCriterion } from './utils/filterUtils';
 import { useFilterPresets } from './hooks/useFilterPresets';
+import type { Feature, Polygon, Position } from 'geojson';
 
 // IN-6: Lazy load heavy conditionally-rendered components
 const NeighborhoodPanel = lazy(() => import('./components/NeighborhoodPanel').then(m => ({ default: m.NeighborhoodPanel })));
@@ -20,6 +22,7 @@ const FilterPanel = lazy(() => import('./components/FilterPanel').then(m => ({ d
 const CustomQualityPanel = lazy(() => import('./components/CustomQualityPanel').then(m => ({ default: m.CustomQualityPanel })));
 const NeighborhoodWizard = lazy(() => import('./components/NeighborhoodWizard').then(m => ({ default: m.NeighborhoodWizard })));
 const SplitMapView = lazy(() => import('./components/SplitMapView').then(m => ({ default: m.SplitMapView })));
+const AreaSummaryPanel = lazy(() => import('./components/AreaSummaryPanel').then(m => ({ default: m.AreaSummaryPanel })));
 import { bbox } from '@turf/bbox';
 import { useMapData } from './hooks/useMapData';
 import { useGridData } from './hooks/useGridData';
@@ -77,6 +80,50 @@ const App: React.FC = () => {
   const [qualityVersion, setQualityVersion] = useState(0);
   const [ariaAnnouncement, setAriaAnnouncement] = useState('');
   const [isOffline, setIsOffline] = useState(() => typeof navigator !== 'undefined' && !navigator.onLine);
+
+  // CF-6: Draw polygon state
+  const [drawMode, setDrawMode] = useState(false);
+  const [drawVertices, setDrawVertices] = useState<Position[]>([]);
+  const [drawnPolygon, setDrawnPolygon] = useState<Feature<Polygon> | null>(null);
+
+  const handleToggleDraw = useCallback(() => {
+    setDrawMode((v) => {
+      if (v) {
+        // Exiting draw mode — clear in-progress vertices
+        setDrawVertices([]);
+      }
+      return !v;
+    });
+  }, []);
+
+  const handleDrawClick = useCallback((lngLat: [number, number]) => {
+    setDrawVertices((prev) => [...prev, lngLat]);
+  }, []);
+
+  const handleDrawDoubleClick = useCallback(() => {
+    setDrawVertices((prev) => {
+      if (prev.length >= 3) {
+        // Close the polygon
+        const closed = [...prev, prev[0]];
+        setDrawnPolygon({
+          type: 'Feature',
+          properties: {},
+          geometry: {
+            type: 'Polygon',
+            coordinates: [closed],
+          },
+        });
+        setDrawMode(false);
+      }
+      return [];
+    });
+  }, []);
+
+  const handleClearDraw = useCallback(() => {
+    setDrawnPolygon(null);
+    setDrawVertices([]);
+    setDrawMode(false);
+  }, []);
 
   // Restore neighborhood selection and pinned comparisons from URL once data is loaded
   useEffect(() => {
@@ -290,6 +337,8 @@ const App: React.FC = () => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
+      if (drawMode) { setDrawMode(false); setDrawVertices([]); return; }
+      if (drawnPolygon) { handleClearDraw(); return; }
       if (showWizard) { setShowWizard(false); return; }
       if (showCustomQuality) { setShowCustomQuality(false); return; }
       if (selected) { deselect(); return; }
@@ -298,7 +347,7 @@ const App: React.FC = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selected, showCustomQuality, showFilter, showRanking, showWizard, deselect]);
+  }, [selected, showCustomQuality, showFilter, showRanking, showWizard, deselect, drawMode, drawnPolygon, handleClearDraw]);
 
   return (
     <div className="h-screen w-screen overflow-hidden relative" data-testid="app-root" data-loaded={!loading}>
@@ -329,6 +378,11 @@ const App: React.FC = () => {
             wizardHighlightPnos={wizardResultPnos}
             fillOpacity={fillOpacity}
             gridData={gridData}
+            drawMode={drawMode}
+            onDrawClick={handleDrawClick}
+            onDrawDoubleClick={handleDrawDoubleClick}
+            drawVertices={drawVertices}
+            drawnPolygon={drawnPolygon}
           />
         )}
       </ErrorBoundary>
@@ -365,8 +419,14 @@ const App: React.FC = () => {
         </button>
       </div>
 
-      {/* Top-right controls — two dropdown menus */}
+      {/* Top-right controls — dropdown menus and draw tool */}
       <div className="absolute top-3 md:top-4 right-3 md:right-[17rem] z-10 flex items-center gap-2">
+        <DrawTool
+          active={drawMode}
+          hasPolygon={!!drawnPolygon}
+          onToggle={handleToggleDraw}
+          onClear={handleClearDraw}
+        />
         <ToolsDropdown
           showFilter={showFilter}
           showRanking={showRanking}
@@ -497,6 +557,26 @@ const App: React.FC = () => {
         <Suspense fallback={null}>
           <ComparisonPanel pinned={pinned} onUnpin={unpin} onClear={clearPinned} />
         </Suspense>
+      )}
+
+      {/* CF-6: Area summary panel for drawn polygon */}
+      {drawnPolygon && data && (
+        <Suspense fallback={null}>
+          <AreaSummaryPanel
+            polygon={drawnPolygon}
+            data={data}
+            metroAverages={metroAverages}
+            onClose={handleClearDraw}
+          />
+        </Suspense>
+      )}
+
+      {/* CF-6: Draw mode hint */}
+      {drawMode && (
+        <div className="absolute bottom-20 md:bottom-8 left-1/2 -translate-x-1/2 z-10 px-4 py-2 rounded-xl
+                       bg-violet-500/90 text-white text-xs font-medium backdrop-blur-sm shadow-lg">
+          {t('draw.hint')}
+        </div>
       )}
 
       {/* IN-6: Offline indicator */}
