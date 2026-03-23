@@ -60,7 +60,7 @@ describe('findSimilarNeighborhoods — distance normalization', () => {
     const target = { pno: '00100', hr_mtu: 40000 } as NeighborhoodProperties;
     const allFeatures = [
       makeFeature({ pno: '00100', hr_mtu: 40000 }),
-      { type: 'Feature' as const, geometry: null, properties: null } as GeoJSON.Feature,
+      { type: 'Feature' as const, geometry: null, properties: null } as unknown as GeoJSON.Feature,
       makeFeature({ pno: '00200', hr_mtu: 45000 }),
     ];
     const results = findSimilarNeighborhoods(target, allFeatures, 5);
