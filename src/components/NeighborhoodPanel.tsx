@@ -10,6 +10,7 @@ import RadarChart from './RadarChart';
 import { findSimilarNeighborhoods } from '../utils/similarity';
 import { useAnimatedValue } from '../hooks/useAnimatedValue';
 import { useBottomSheet } from '../hooks/useBottomSheet';
+import { useSwipeNavigation } from '../hooks/useSwipeNavigation';
 import { generateScoreCard } from '../utils/scoreCard';
 
 interface PanelProps {
@@ -173,6 +174,17 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
   const { sheetHeight, isDragging, handlers: sheetHandlers } = useBottomSheet({
     initialSnap: 'half',
     onClose,
+  });
+
+  // PO-3: Swipe navigation for mobile sections
+  const MOBILE_SECTIONS = [
+    t('panel.tab.overview'),
+    t('panel.tab.stats'),
+    t('panel.tab.trends'),
+    t('panel.tab.similar'),
+  ] as const;
+  const { activeSection, setActiveSection, handlers: swipeHandlers } = useSwipeNavigation({
+    sectionCount: MOBILE_SECTIONS.length,
   });
 
   const favoriteButton = onToggleFavorite && (
@@ -820,9 +832,316 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
         </div>
         {exportButtons}
 
-        {/* Scrollable content */}
-        <div className="overflow-y-auto" style={{ height: `calc(100% - 9rem)` }}>
-          {panelContent}
+        {/* PO-3: Section tabs */}
+        <div className="flex px-5 pt-3 pb-1 gap-1">
+          {MOBILE_SECTIONS.map((label, i) => (
+            <button
+              key={i}
+              onClick={() => setActiveSection(i)}
+              className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                activeSection === i
+                  ? 'bg-brand-500 text-white'
+                  : 'bg-surface-100 dark:bg-surface-800 text-surface-500 dark:text-surface-400'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {/* Dot indicators */}
+        <div className="flex justify-center gap-1.5 py-1.5">
+          {MOBILE_SECTIONS.map((_, i) => (
+            <div
+              key={i}
+              className={`w-1.5 h-1.5 rounded-full transition-colors ${
+                activeSection === i
+                  ? 'bg-brand-500'
+                  : 'bg-surface-300 dark:bg-surface-600'
+              }`}
+            />
+          ))}
+        </div>
+
+        {/* PO-3: Swipeable section content */}
+        <div
+          className="overflow-y-auto"
+          style={{ height: `calc(100% - 12rem)` }}
+          onTouchStart={swipeHandlers.onTouchStart}
+          onTouchMove={swipeHandlers.onTouchMove}
+          onTouchEnd={swipeHandlers.onTouchEnd}
+        >
+          {/* Section 0: Overview */}
+          {activeSection === 0 && (
+            <div className="px-6 py-4 space-y-6">
+              {/* Quality Index */}
+              {d.quality_index != null && (() => {
+                const qi = animatedQI != null ? Math.round(animatedQI) : d.quality_index!;
+                const cat = getQualityCategory(qi);
+                const lang = getLang();
+                return (
+                  <div className="rounded-xl bg-surface-100 dark:bg-surface-900/60 p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400">
+                        {t('panel.quality_index')}
+                        {isCustomWeights && (
+                          <span className="ml-1.5 text-brand-500 dark:text-brand-400">
+                            ({t('custom_quality.custom_label')})
+                          </span>
+                        )}
+                      </h3>
+                      {onCustomize && (
+                        <button
+                          onClick={onCustomize}
+                          className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold transition-colors
+                            ${isCustomWeights
+                              ? 'bg-brand-500/15 text-brand-600 dark:text-brand-400 hover:bg-brand-500/25'
+                              : 'bg-surface-200/60 dark:bg-surface-800/60 text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-200'
+                            }`}
+                        >
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                          </svg>
+                          {t('custom_quality.button')}
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 mb-3">
+                      <div
+                        className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm"
+                        style={{ backgroundColor: cat?.color ?? '#6b7280' }}
+                      >
+                        {qi}
+                      </div>
+                      <span className="text-surface-900 dark:text-white font-semibold text-lg">
+                        {cat?.label[lang] ?? '—'}
+                      </span>
+                      <span className="text-surface-500 dark:text-surface-400 text-sm">
+                        ({cat?.min}–{cat?.max})
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <div className="flex gap-0.5">
+                        {QUALITY_CATEGORIES.map((c) => (
+                          <div key={c.min} className="flex-1 flex flex-col items-center gap-1">
+                            <div
+                              className="w-full h-2 rounded-full"
+                              style={{ backgroundColor: c.color }}
+                            />
+                            <span className="text-[9px] text-surface-500 dark:text-surface-400">{c.label[lang]}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div
+                        className="absolute top-0 w-4 h-4 -mt-1 rounded-full border-2 border-white dark:border-surface-300 shadow-md"
+                        style={{
+                          left: `${qi}%`,
+                          transform: 'translateX(-50%)',
+                          backgroundColor: cat?.color ?? '#6b7280',
+                        }}
+                      />
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Key stats */}
+              <div>
+                <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
+                  <StatRow label={t('panel.population')} value={formatNumber(animatedPopulation)} property="he_vakiy" />
+                  <StatRow
+                    label={t('panel.median_income')}
+                    value={formatEuro(animatedIncome)}
+                    diff={formatDiff(d.hr_mtu, avg.hr_mtu)}
+                    diffClass={diffColor(d.hr_mtu, avg.hr_mtu)}
+                    property="hr_mtu"
+                  />
+                  <StatRow
+                    label={t('panel.unemployment')}
+                    value={formatPct(animatedUnemployment)}
+                    diff={formatDiff(d.unemployment_rate, avg.unemployment_rate)}
+                    diffClass={diffColor(d.unemployment_rate, avg.unemployment_rate, false)}
+                    property="unemployment_rate"
+                  />
+                  <StatRow
+                    label={t('panel.foreign_lang')}
+                    value={formatPct(d.foreign_language_pct)}
+                    property="foreign_language_pct"
+                  />
+                </div>
+              </div>
+
+              {/* Education breakdown */}
+              <div>
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 mb-3">
+                  {t('panel.education')}
+                </h3>
+                <BarSegment label={t('panel.higher_edu')} value={d.ko_yl_kork ?? 0} total={eduTotal} color="#a78bfa" />
+                <BarSegment label={t('panel.bachelor')} value={d.ko_al_kork ?? 0} total={eduTotal} color="#818cf8" />
+                <BarSegment label={t('panel.vocational')} value={d.ko_ammat ?? 0} total={eduTotal} color="#6366f1" />
+                <BarSegment label={t('panel.basic')} value={d.ko_perus ?? 0} total={eduTotal} color="#4f46e5" />
+              </div>
+
+              {/* Activity status */}
+              <div>
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 mb-3">
+                  {t('panel.age_distribution')}
+                </h3>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { label: t('panel.employed'), value: d.pt_tyoll, color: 'bg-emerald-500' },
+                    { label: t('panel.unemployed'), value: d.pt_tyott, color: 'bg-rose-500' },
+                    { label: t('panel.students'), value: d.pt_opisk, color: 'bg-amber-500' },
+                    { label: t('panel.pensioners'), value: d.pt_elakel, color: 'bg-blue-500' },
+                  ].map((item) => (
+                    <div key={item.label} className="bg-surface-100 dark:bg-surface-900/60 rounded-lg p-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className={`w-2 h-2 rounded-full ${item.color}`} />
+                        <span className="text-xs text-surface-500 dark:text-surface-400">{item.label}</span>
+                      </div>
+                      <span className="text-lg font-semibold text-surface-900 dark:text-white">{formatNumber(item.value)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Radar chart */}
+              <RadarChart data={d} metroAverages={avg} />
+            </div>
+          )}
+
+          {/* Section 1: Stats */}
+          {activeSection === 1 && (
+            <div className="px-6 py-4 space-y-6">
+              <CollapsibleSection title={t('panel.housing')} defaultOpen>
+                <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
+                  <StatRow label={t('panel.ownership_rate')} value={formatPct(d.ownership_rate)} diff={formatDiff(d.ownership_rate, avg.ownership_rate)} diffClass={diffColor(d.ownership_rate, avg.ownership_rate)} property="ownership_rate" />
+                  <StatRow label={t('panel.rental_rate')} value={formatPct(d.rental_rate)} property="rental_rate" />
+                  <StatRow label={t('panel.avg_apt_size')} value={formatSqm(d.ra_as_kpa)} diff={formatDiff(d.ra_as_kpa, avg.ra_as_kpa)} diffClass={diffColor(d.ra_as_kpa, avg.ra_as_kpa)} property="ra_as_kpa" />
+                  <StatRow label={t('panel.detached_houses')} value={formatPct(d.detached_house_share)} property="detached_house_share" />
+                  <StatRow label={t('panel.rental_price')} value={d.rental_price_sqm != null ? `${Number(d.rental_price_sqm).toFixed(2)} €/m²/kk` : '—'} diff={formatDiff(d.rental_price_sqm, avg.rental_price_sqm)} diffClass={diffColor(d.rental_price_sqm, avg.rental_price_sqm, false)} property="rental_price_sqm" />
+                  <StatRow label={t('panel.price_to_rent')} value={d.price_to_rent_ratio != null ? `${Number(d.price_to_rent_ratio).toFixed(1)} v` : '—'} diff={formatDiff(d.price_to_rent_ratio, avg.price_to_rent_ratio)} diffClass={diffColor(d.price_to_rent_ratio, avg.price_to_rent_ratio, false)} property="price_to_rent_ratio" />
+                  <StatRow label={t('panel.dwellings')} value={formatNumber(d.ra_asunn)} />
+                  <StatRow label={t('panel.households')} value={formatNumber(d.te_taly)} />
+                </div>
+              </CollapsibleSection>
+
+              <CollapsibleSection title={t('panel.demographics')} defaultOpen>
+                <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
+                  <StatRow label={t('panel.population_density')} value={formatDensity(d.population_density)} diff={formatDiff(d.population_density, avg.population_density)} diffClass={diffColor(d.population_density, avg.population_density)} property="population_density" />
+                  <StatRow label={t('panel.child_ratio')} value={formatPct(d.child_ratio)} diff={formatDiff(d.child_ratio, avg.child_ratio)} diffClass={diffColor(d.child_ratio, avg.child_ratio)} property="child_ratio" />
+                  <StatRow label={t('panel.student_share')} value={formatPct(d.student_share)} diff={formatDiff(d.student_share, avg.student_share)} diffClass={diffColor(d.student_share, avg.student_share)} property="student_share" />
+                  <StatRow label={t('panel.elderly_ratio')} value={formatPct(d.elderly_ratio_pct)} diff={formatDiff(d.elderly_ratio_pct, avg.elderly_ratio_pct)} diffClass={diffColor(d.elderly_ratio_pct, avg.elderly_ratio_pct)} property="elderly_ratio_pct" />
+                  <StatRow label={t('panel.employment_rate')} value={formatPct(d.employment_rate)} diff={formatDiff(d.employment_rate, avg.employment_rate)} diffClass={diffColor(d.employment_rate, avg.employment_rate)} property="employment_rate" />
+                  <StatRow label={t('panel.avg_household_size')} value={d.avg_household_size != null ? `${Number(d.avg_household_size).toFixed(2)}` : '—'} diff={formatDiff(d.avg_household_size, avg.avg_household_size)} diffClass={diffColor(d.avg_household_size, avg.avg_household_size)} property="avg_household_size" />
+                </div>
+              </CollapsibleSection>
+
+              <CollapsibleSection title={t('panel.quality_of_life')}>
+                <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
+                  <StatRow label={t('panel.property_price')} value={formatEuroSqm(animatedPropertyPrice)} diff={formatDiff(d.property_price_sqm, avg.property_price_sqm)} diffClass={diffColor(d.property_price_sqm, avg.property_price_sqm)} property="property_price_sqm" />
+                  <StatRow label={t('panel.property_price_change')} value={d.property_price_change_pct != null ? `${Number(d.property_price_change_pct) >= 0 ? '+' : ''}${Number(d.property_price_change_pct).toFixed(1)} %` : '—'} diff={formatDiff(d.property_price_change_pct, avg.property_price_change_pct)} diffClass={diffColor(d.property_price_change_pct, avg.property_price_change_pct)} property="property_price_change_pct" />
+                  <StatRow label={t('panel.transit_access')} value={formatStopDensity(d.transit_stop_density)} diff={formatDiff(d.transit_stop_density, avg.transit_stop_density)} diffClass={diffColor(d.transit_stop_density, avg.transit_stop_density)} property="transit_stop_density" />
+                  <StatRow label={t('panel.air_quality')} value={d.air_quality_index != null ? Number(d.air_quality_index).toFixed(1) : '—'} diff={formatDiff(d.air_quality_index, avg.air_quality_index)} diffClass={diffColor(d.air_quality_index, avg.air_quality_index, false)} property="air_quality_index" />
+                  <StatRow label={t('panel.crime_rate')} value={d.crime_index != null ? `${Number(d.crime_index).toFixed(1)} /1000` : '—'} diff={formatDiff(d.crime_index, avg.crime_index)} diffClass={diffColor(d.crime_index, avg.crime_index, false)} property="crime_index" />
+                  <StatRow label={t('panel.walkability')} value={d.walkability_index != null ? `${Number(d.walkability_index).toFixed(0)}/100` : '—'} diff={formatDiff(d.walkability_index, avg.walkability_index)} diffClass={diffColor(d.walkability_index, avg.walkability_index)} property="walkability_index" />
+                  <StatRow label={t('panel.traffic_accidents')} value={d.traffic_accident_rate != null ? `${Number(d.traffic_accident_rate).toFixed(1)} /1000` : '—'} diff={formatDiff(d.traffic_accident_rate, avg.traffic_accident_rate)} diffClass={diffColor(d.traffic_accident_rate, avg.traffic_accident_rate, false)} property="traffic_accident_rate" />
+                  <StatRow label={t('panel.light_pollution')} value={d.light_pollution != null ? `${Number(d.light_pollution).toFixed(1)} nW/cm²/sr` : '—'} diff={formatDiff(d.light_pollution, avg.light_pollution)} diffClass={diffColor(d.light_pollution, avg.light_pollution, false)} property="light_pollution" />
+                </div>
+              </CollapsibleSection>
+
+              <CollapsibleSection title={t('layers.services')}>
+                <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
+                  <StatRow label={t('panel.restaurant_density')} value={formatStopDensity(d.restaurant_density)} diff={formatDiff(d.restaurant_density, avg.restaurant_density)} diffClass={diffColor(d.restaurant_density, avg.restaurant_density)} property="restaurant_density" />
+                  <StatRow label={t('panel.grocery_access')} value={formatStopDensity(d.grocery_density)} diff={formatDiff(d.grocery_density, avg.grocery_density)} diffClass={diffColor(d.grocery_density, avg.grocery_density)} property="grocery_density" />
+                  <StatRow label={t('panel.daycare_density')} value={formatStopDensity(d.daycare_density)} diff={formatDiff(d.daycare_density, avg.daycare_density)} diffClass={diffColor(d.daycare_density, avg.daycare_density)} property="daycare_density" />
+                  <StatRow label={t('panel.school_density')} value={formatStopDensity(d.school_density)} diff={formatDiff(d.school_density, avg.school_density)} diffClass={diffColor(d.school_density, avg.school_density)} property="school_density" />
+                  <StatRow label={t('panel.school_quality')} value={d.school_quality_score != null ? `${Number(d.school_quality_score).toFixed(0)}/100` : '—'} diff={formatDiff(d.school_quality_score, avg.school_quality_score)} diffClass={diffColor(d.school_quality_score, avg.school_quality_score)} property="school_quality_score" />
+                  <StatRow label={t('panel.healthcare_access')} value={formatStopDensity(d.healthcare_density)} diff={formatDiff(d.healthcare_density, avg.healthcare_density)} diffClass={diffColor(d.healthcare_density, avg.healthcare_density)} property="healthcare_density" />
+                </div>
+              </CollapsibleSection>
+
+              <CollapsibleSection title={t('layers.mobility')}>
+                <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
+                  <StatRow label={t('panel.cycling_infra')} value={formatStopDensity(d.cycling_density)} diff={formatDiff(d.cycling_density, avg.cycling_density)} diffClass={diffColor(d.cycling_density, avg.cycling_density)} property="cycling_density" />
+                </div>
+              </CollapsibleSection>
+
+              <CollapsibleSection title={`${t('layers.demographics')} +`}>
+                <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
+                  <StatRow label={t('panel.single_person_hh')} value={formatPct(d.single_person_hh_pct)} property="single_person_hh_pct" />
+                  <StatRow label={t('panel.new_construction')} value={formatPct(d.new_construction_pct)} diff={formatDiff(d.new_construction_pct, avg.new_construction_pct)} diffClass={diffColor(d.new_construction_pct, avg.new_construction_pct)} property="new_construction_pct" />
+                  <StatRow label={t('panel.tech_sector_jobs')} value={formatPct(d.tech_sector_jobs_pct)} diff={formatDiff(d.tech_sector_jobs_pct, avg.tech_sector_jobs_pct)} diffClass={diffColor(d.tech_sector_jobs_pct, avg.tech_sector_jobs_pct)} property="tech_sector_jobs_pct" />
+                  <StatRow label={t('panel.manufacturing_jobs')} value={formatPct(d.manufacturing_jobs_pct)} diff={formatDiff(d.manufacturing_jobs_pct, avg.manufacturing_jobs_pct)} diffClass={diffColor(d.manufacturing_jobs_pct, avg.manufacturing_jobs_pct)} property="manufacturing_jobs_pct" />
+                  <StatRow label={t('panel.public_sector_jobs')} value={formatPct(d.public_sector_jobs_pct)} diff={formatDiff(d.public_sector_jobs_pct, avg.public_sector_jobs_pct)} diffClass={diffColor(d.public_sector_jobs_pct, avg.public_sector_jobs_pct)} property="public_sector_jobs_pct" />
+                  <StatRow label={t('panel.service_sector_jobs')} value={formatPct(d.service_sector_jobs_pct)} diff={formatDiff(d.service_sector_jobs_pct, avg.service_sector_jobs_pct)} diffClass={diffColor(d.service_sector_jobs_pct, avg.service_sector_jobs_pct)} property="service_sector_jobs_pct" />
+                </div>
+              </CollapsibleSection>
+
+              {/* Extra stats */}
+              <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
+                <StatRow label={t('panel.avg_income')} value={formatEuro(d.hr_ktu)} property="hr_ktu" />
+              </div>
+            </div>
+          )}
+
+          {/* Section 2: Trends */}
+          {activeSection === 2 && (
+            <div className="px-6 py-4 space-y-6">
+              <TrendSection
+                incomeData={incomeHistory}
+                populationData={populationHistory}
+                unemploymentData={unemploymentHistory}
+              />
+            </div>
+          )}
+
+          {/* Section 3: Similar */}
+          {activeSection === 3 && (
+            <div className="px-6 py-4 space-y-6">
+              {/* Notes */}
+              {onNoteChange && (
+                <div>
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 mb-3">
+                    {t('notes.title')}
+                  </h3>
+                  <textarea
+                    value={note}
+                    onChange={(e) => onNoteChange(e.target.value)}
+                    placeholder={t('notes.placeholder')}
+                    className="w-full rounded-lg bg-surface-100 dark:bg-surface-900/60 border border-surface-200 dark:border-surface-800/50
+                               p-3 text-sm text-surface-900 dark:text-white placeholder-surface-400 dark:placeholder-surface-500
+                               focus:outline-none focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/30 resize-y min-h-[80px]"
+                  />
+                </div>
+              )}
+
+              {/* Similar neighborhoods */}
+              {similar.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 mb-3">
+                    {t('panel.similar')}
+                  </h3>
+                  <div className="space-y-2">
+                    {similar.map((s) => (
+                      <button
+                        key={s.properties.pno}
+                        onClick={() => onFlyTo?.(s.center)}
+                        className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg
+                                   bg-surface-100 dark:bg-surface-900/60 hover:bg-surface-200 dark:hover:bg-surface-800
+                                   transition-colors text-left"
+                      >
+                        <div>
+                          <span className="text-sm font-medium text-surface-900 dark:text-white">{s.properties.nimi}</span>
+                          <span className="text-xs text-surface-400 ml-1.5">{s.properties.pno}</span>
+                        </div>
+                        <span className="text-xs text-surface-500">{((1 - s.distance) * 100).toFixed(0)}%</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </>
