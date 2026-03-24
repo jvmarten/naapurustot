@@ -274,7 +274,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
   return (
     <>
       {/* Desktop: top-right dropdown */}
-      <div className={`hidden md:block absolute top-4 right-4 z-10 ${minimized ? 'w-auto' : 'w-52 max-h-[80vh] overflow-y-auto'}`}>
+      <div className={`hidden md:block absolute top-[3.5rem] right-4 z-10 ${minimized ? 'w-auto' : 'w-52 max-h-[80vh] overflow-y-auto'}`}>
         <div className="rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden">
           <button
             onClick={() => setMinimized((prev) => !prev)}
