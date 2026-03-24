@@ -7,7 +7,6 @@ import { Tooltip } from './components/Tooltip';
 import { Legend } from './components/Legend';
 import { SettingsDropdown } from './components/SettingsDropdown';
 import { ToolsDropdown } from './components/ToolsDropdown';
-import { DrawTool } from './components/DrawTool';
 import { ErrorBanner } from './components/ErrorBanner';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { computeMatchingPnos, type FilterCriterion } from './utils/filterUtils';
@@ -531,15 +530,6 @@ const App: React.FC = () => {
 
       {/* Top-right controls — dropdown menus */}
       <div className="absolute top-3 md:top-4 right-3 md:right-[17rem] z-10 flex items-center gap-2">
-        {/* Draw tool — visible on desktop only, on mobile it lives inside the Tools dropdown */}
-        <div className="hidden md:block">
-          <DrawTool
-            active={drawMode}
-            hasPolygon={!!drawnPolygon}
-            onToggle={handleToggleDraw}
-            onClear={handleClearDraw}
-          />
-        </div>
         <ToolsDropdown
           showFilter={showFilter}
           showRanking={showRanking}
@@ -564,6 +554,10 @@ const App: React.FC = () => {
           onToggleLang={toggleLang}
           fillOpacity={fillOpacity}
           onFillOpacityChange={handleFillOpacityChange}
+          drawMode={drawMode}
+          hasPolygon={!!drawnPolygon}
+          onToggleDraw={handleToggleDraw}
+          onClearDraw={handleClearDraw}
         />
       </div>
 
