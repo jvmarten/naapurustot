@@ -196,7 +196,7 @@ export const AreaSummaryPanel: React.FC<AreaSummaryPanelProps> = ({ polygon, dat
                             {stat.format(val)}
                           </td>
                           <td className="px-3 py-2 text-center text-xs text-surface-400">
-                            {metro != null && !stat.isCount ? stat.format(metro) : '—'}
+                            {metro != null ? stat.format(metro) : '—'}
                           </td>
                         </tr>
                       );
