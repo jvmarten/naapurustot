@@ -100,6 +100,7 @@ const DRAW_LINE_LAYER = 'draw-line';
 const DRAW_VERTEX_LAYER = 'draw-vertices';
 const DRAW_PREVIEW_SOURCE_ID = 'draw-preview';
 const DRAW_PREVIEW_LINE_LAYER = 'draw-preview-line';
+const DRAW_PREVIEW_VERTEX_LAYER = 'draw-preview-vertices';
 
 
 /**
@@ -632,24 +633,44 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
 
     const addPreview = () => {
       // Clean up old
+      if (map.getLayer(DRAW_PREVIEW_VERTEX_LAYER)) map.removeLayer(DRAW_PREVIEW_VERTEX_LAYER);
       if (map.getLayer(DRAW_PREVIEW_LINE_LAYER)) map.removeLayer(DRAW_PREVIEW_LINE_LAYER);
       if (map.getSource(DRAW_PREVIEW_SOURCE_ID)) map.removeSource(DRAW_PREVIEW_SOURCE_ID);
 
       if (!drawVertices || drawVertices.length < 1) return;
 
-      const coords = drawVertices.length === 1
-        ? drawVertices // Just a point — show as degenerate line
-        : drawVertices;
+      // Use a FeatureCollection with both a LineString (for the line) and Points (for vertex dots)
+      const features: GeoJSON.Feature[] = [];
 
-      map.addSource(DRAW_PREVIEW_SOURCE_ID, {
-        type: 'geojson',
-        data: {
+      // Add line if we have 2+ vertices
+      if (drawVertices.length >= 2) {
+        features.push({
           type: 'Feature',
           properties: {},
           geometry: {
             type: 'LineString',
-            coordinates: coords as Position[],
+            coordinates: drawVertices as Position[],
           },
+        });
+      }
+
+      // Add a point for each vertex
+      for (const coord of drawVertices) {
+        features.push({
+          type: 'Feature',
+          properties: {},
+          geometry: {
+            type: 'Point',
+            coordinates: coord as Position,
+          },
+        });
+      }
+
+      map.addSource(DRAW_PREVIEW_SOURCE_ID, {
+        type: 'geojson',
+        data: {
+          type: 'FeatureCollection',
+          features,
         },
       });
 
@@ -657,11 +678,26 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         id: DRAW_PREVIEW_LINE_LAYER,
         type: 'line',
         source: DRAW_PREVIEW_SOURCE_ID,
+        filter: ['==', '$type', 'LineString'],
         paint: {
           'line-color': '#8b5cf6',
           'line-width': 2,
           'line-dasharray': [3, 2],
           'line-opacity': 0.8,
+        },
+      });
+
+      map.addLayer({
+        id: DRAW_PREVIEW_VERTEX_LAYER,
+        type: 'circle',
+        source: DRAW_PREVIEW_SOURCE_ID,
+        filter: ['==', '$type', 'Point'],
+        paint: {
+          'circle-radius': 5,
+          'circle-color': '#8b5cf6',
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': 2,
+          'circle-opacity': 0.9,
         },
       });
     };
@@ -674,6 +710,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     }
 
     return () => {
+      if (map.getLayer(DRAW_PREVIEW_VERTEX_LAYER)) map.removeLayer(DRAW_PREVIEW_VERTEX_LAYER);
       if (map.getLayer(DRAW_PREVIEW_LINE_LAYER)) map.removeLayer(DRAW_PREVIEW_LINE_LAYER);
       if (map.getSource(DRAW_PREVIEW_SOURCE_ID)) map.removeSource(DRAW_PREVIEW_SOURCE_ID);
     };
