@@ -110,7 +110,7 @@ const App: React.FC = () => {
     deselect();
     const vp = CITY_VIEWPORTS[city];
     if (vp) {
-      setFlyTarget({ center: vp.center, zoom: vp.zoom });
+      setFlyTarget({ center: vp.center, zoom: vp.zoom, bounds: vp.bounds });
     } else {
       setFlyTarget({ center: DEFAULT_CENTER, zoom: getInitialZoom() });
     }
