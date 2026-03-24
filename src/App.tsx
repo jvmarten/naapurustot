@@ -11,7 +11,8 @@ import { ErrorBanner } from './components/ErrorBanner';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { computeMatchingPnos, type FilterCriterion } from './utils/filterUtils';
 import { useFilterPresets } from './hooks/useFilterPresets';
-import type { Feature, Polygon, Position } from 'geojson';
+import type { Feature, Polygon, MultiPolygon, Position } from 'geojson';
+import { booleanIntersects } from '@turf/boolean-intersects';
 
 // IN-6: Lazy load heavy conditionally-rendered components
 const NeighborhoodPanel = lazy(() => import('./components/NeighborhoodPanel').then(m => ({ default: m.NeighborhoodPanel })));
@@ -207,6 +208,27 @@ const App: React.FC = () => {
       geometry: { type: 'Polygon', coordinates: [hull] },
     };
   }, [selectedAreaPnos, data]);
+
+  // Compute PNOs of neighborhoods intersecting with drawn polygon (for boundary snapping)
+  const drawnAreaPnos = useMemo<string[]>(() => {
+    if (!drawnPolygon || !data) return [];
+    // If we came from select mode, use the selectedAreaPnos directly
+    if (selectedAreaPnos.length > 0) return selectedAreaPnos;
+    const pnos: string[] = [];
+    for (const feature of data.features) {
+      if (!feature.geometry || !feature.properties?.pno) continue;
+      const geom = feature.geometry as Polygon | MultiPolygon;
+      if (geom.type !== 'Polygon' && geom.type !== 'MultiPolygon') continue;
+      try {
+        if (booleanIntersects(drawnPolygon, feature as Feature<Polygon | MultiPolygon>)) {
+          pnos.push(feature.properties.pno as string);
+        }
+      } catch {
+        // Skip features with invalid geometry
+      }
+    }
+    return pnos;
+  }, [drawnPolygon, data, selectedAreaPnos]);
 
   const handleSelectAreaClick = useCallback((props: NeighborhoodProperties) => {
     const pno = props.pno;
@@ -489,6 +511,7 @@ const App: React.FC = () => {
             onDrawDoubleClick={handleDrawDoubleClick}
             drawVertices={drawVertices}
             drawnPolygon={drawnPolygon}
+            drawnAreaPnos={drawnAreaPnos}
             selectMode={selectMode}
             selectedAreaPnos={selectedAreaPnos}
             onSelectAreaClick={handleSelectAreaClick}

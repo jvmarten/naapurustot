@@ -48,6 +48,8 @@ interface MapProps {
   drawVertices?: Position[];
   /** CF-6: Completed drawn polygon to render on the map */
   drawnPolygon?: Feature<Polygon> | null;
+  /** CF-6: PNOs of neighborhoods matched by the drawn polygon (for boundary snapping) */
+  drawnAreaPnos?: string[];
   /** Select-areas mode — tap neighborhoods to multi-select */
   selectMode?: boolean;
   /** Currently selected area PNOs in select mode */
@@ -108,6 +110,9 @@ const DRAW_VERTEX_LAYER = 'draw-vertices';
 const DRAW_PREVIEW_SOURCE_ID = 'draw-preview';
 const DRAW_PREVIEW_LINE_LAYER = 'draw-preview-line';
 const DRAW_PREVIEW_VERTEX_LAYER = 'draw-preview-vertices';
+// CF-6: Snapped boundary layers (showing actual neighborhood edges instead of raw drawn polygon)
+const DRAW_SNAP_FILL_LAYER = 'draw-snap-fill';
+const DRAW_SNAP_LINE_LAYER = 'draw-snap-line';
 
 
 /**
@@ -134,7 +139,7 @@ function buildFillOpacity(o: number, overrides?: { matchExpr?: unknown[]; matchV
   return base;
 }
 
-export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1, gridData = null, drawMode = false, onDrawClick, onDrawDoubleClick, drawVertices, drawnPolygon = null, selectMode = false, selectedAreaPnos = EMPTY_ARRAY, onSelectAreaClick }) => {
+export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1, gridData = null, drawMode = false, onDrawClick, onDrawDoubleClick, drawVertices, drawnPolygon = null, drawnAreaPnos = EMPTY_ARRAY, selectMode = false, selectedAreaPnos = EMPTY_ARRAY, onSelectAreaClick }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const hoveredIdRef = useRef<string | null>(null);
@@ -836,71 +841,79 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     };
   }, [drawVertices]);
 
-  // CF-6: Render completed drawn polygon
+  // CF-6: Render completed drawn polygon — snap to neighborhood boundaries when possible
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
     const addDrawnPolygon = () => {
-      // Clean up old
+      // Clean up old raw polygon layers
       if (map.getLayer(DRAW_VERTEX_LAYER)) map.removeLayer(DRAW_VERTEX_LAYER);
       if (map.getLayer(DRAW_LINE_LAYER)) map.removeLayer(DRAW_LINE_LAYER);
       if (map.getLayer(DRAW_FILL_LAYER)) map.removeLayer(DRAW_FILL_LAYER);
       if (map.getSource(DRAW_SOURCE_ID)) map.removeSource(DRAW_SOURCE_ID);
+      if (map.getSource(DRAW_SOURCE_ID + '-pts')) map.removeSource(DRAW_SOURCE_ID + '-pts');
+
+      // Clean up snapped boundary layers
+      if (map.getLayer(DRAW_SNAP_LINE_LAYER)) map.removeLayer(DRAW_SNAP_LINE_LAYER);
+      if (map.getLayer(DRAW_SNAP_FILL_LAYER)) map.removeLayer(DRAW_SNAP_FILL_LAYER);
 
       if (!drawnPolygon) return;
 
-      map.addSource(DRAW_SOURCE_ID, {
-        type: 'geojson',
-        data: drawnPolygon,
-      });
+      // When we have matched neighborhood PNOs, show their actual boundaries
+      if (drawnAreaPnos.length > 0 && map.getSource(SOURCE_ID)) {
+        const filter = ['in', ['get', 'pno'], ['literal', drawnAreaPnos]] as unknown as maplibregl.ExpressionSpecification;
 
-      map.addLayer({
-        id: DRAW_FILL_LAYER,
-        type: 'fill',
-        source: DRAW_SOURCE_ID,
-        paint: {
-          'fill-color': '#8b5cf6',
-          'fill-opacity': 0.15,
-        },
-      });
+        map.addLayer({
+          id: DRAW_SNAP_FILL_LAYER,
+          type: 'fill',
+          source: SOURCE_ID,
+          filter: filter,
+          paint: {
+            'fill-color': '#8b5cf6',
+            'fill-opacity': 0.15,
+          },
+        });
 
-      map.addLayer({
-        id: DRAW_LINE_LAYER,
-        type: 'line',
-        source: DRAW_SOURCE_ID,
-        paint: {
-          'line-color': '#8b5cf6',
-          'line-width': 2.5,
-          'line-opacity': 0.9,
-        },
-      });
+        map.addLayer({
+          id: DRAW_SNAP_LINE_LAYER,
+          type: 'line',
+          source: SOURCE_ID,
+          filter: filter,
+          paint: {
+            'line-color': theme === 'dark' ? '#a78bfa' : '#7c3aed',
+            'line-width': 3,
+            'line-opacity': 1,
+          },
+        });
+      } else {
+        // Fallback: show the raw drawn polygon if no PNOs matched
+        map.addSource(DRAW_SOURCE_ID, {
+          type: 'geojson',
+          data: drawnPolygon,
+        });
 
-      // Vertex dots
-      const coords = drawnPolygon.geometry.coordinates[0];
-      map.addSource(DRAW_SOURCE_ID + '-pts', {
-        type: 'geojson',
-        data: {
-          type: 'FeatureCollection',
-          features: coords.slice(0, -1).map((c) => ({
-            type: 'Feature' as const,
-            properties: {},
-            geometry: { type: 'Point' as const, coordinates: c },
-          })),
-        },
-      });
+        map.addLayer({
+          id: DRAW_FILL_LAYER,
+          type: 'fill',
+          source: DRAW_SOURCE_ID,
+          paint: {
+            'fill-color': '#8b5cf6',
+            'fill-opacity': 0.15,
+          },
+        });
 
-      map.addLayer({
-        id: DRAW_VERTEX_LAYER,
-        type: 'circle',
-        source: DRAW_SOURCE_ID + '-pts',
-        paint: {
-          'circle-radius': 4,
-          'circle-color': '#8b5cf6',
-          'circle-stroke-width': 2,
-          'circle-stroke-color': '#ffffff',
-        },
-      });
+        map.addLayer({
+          id: DRAW_LINE_LAYER,
+          type: 'line',
+          source: DRAW_SOURCE_ID,
+          paint: {
+            'line-color': '#8b5cf6',
+            'line-width': 2.5,
+            'line-opacity': 0.9,
+          },
+        });
+      }
     };
 
     if (map.isStyleLoaded()) {
@@ -916,8 +929,10 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       if (map.getLayer(DRAW_LINE_LAYER)) map.removeLayer(DRAW_LINE_LAYER);
       if (map.getLayer(DRAW_FILL_LAYER)) map.removeLayer(DRAW_FILL_LAYER);
       if (map.getSource(DRAW_SOURCE_ID)) map.removeSource(DRAW_SOURCE_ID);
+      if (map.getLayer(DRAW_SNAP_LINE_LAYER)) map.removeLayer(DRAW_SNAP_LINE_LAYER);
+      if (map.getLayer(DRAW_SNAP_FILL_LAYER)) map.removeLayer(DRAW_SNAP_FILL_LAYER);
     };
-  }, [drawnPolygon]);
+  }, [drawnPolygon, drawnAreaPnos, theme]);
 
   return <div ref={containerRef} className="absolute inset-0" />;
 });
