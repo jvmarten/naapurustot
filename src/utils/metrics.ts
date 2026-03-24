@@ -146,9 +146,9 @@ export interface NeighborhoodProperties {
   /** Total jobs in the area */
   tp_tyopy: number | null;
   /** Information sector jobs */
-  tp_jk_info: number | null;
+  tp_j_info: number | null;
   /** Health/social sector jobs */
-  tp_qr_terv: number | null;
+  tp_q_terv: number | null;
   /** Manufacturing/secondary sector jobs */
   tp_jalo_bf: number | null;
   /** Public administration jobs */
@@ -235,13 +235,13 @@ export function computeQuickWinMetrics(features: GeoJSON.Feature[]): void {
 
     // Tech sector jobs (information sector / total jobs %)
     const tp_tyopy = p.tp_tyopy as number | null;
-    const tp_jk_info = p.tp_jk_info as number | null;
+    const tp_jk_info = p.tp_j_info as number | null;
     if (tp_jk_info != null && tp_tyopy != null && tp_tyopy > 0) {
       p.tech_sector_pct = Math.round((tp_jk_info / tp_tyopy) * 1000) / 10;
     }
 
     // Healthcare workers (health/social sector / total jobs %)
-    const tp_qr_terv = p.tp_qr_terv as number | null;
+    const tp_qr_terv = p.tp_q_terv as number | null;
     if (tp_qr_terv != null && tp_tyopy != null && tp_tyopy > 0) {
       p.healthcare_workers_pct = Math.round((tp_qr_terv / tp_tyopy) * 1000) / 10;
     }
