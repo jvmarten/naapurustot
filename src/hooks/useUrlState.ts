@@ -51,12 +51,12 @@ function parseUrl(): UrlState {
   };
 }
 
-function writeUrl(pno: string | null, layer: LayerId, comparePnos: string[], city: string = 'all') {
+function writeUrl(pno: string | null, layer: LayerId, comparePnos: string[], city: string = 'helsinki_metro') {
   const params = new URLSearchParams();
   if (pno) params.set('pno', pno);
   if (layer !== 'quality_index') params.set('layer', layer);
   if (comparePnos.length > 0) params.set('compare', comparePnos.join(','));
-  if (city && city !== 'all') params.set('city', city);
+  if (city && city !== 'helsinki_metro') params.set('city', city);
   const str = params.toString();
   const newUrl = str
     ? `${window.location.pathname}?${str}`
@@ -72,7 +72,7 @@ export function readInitialUrlState(): UrlState {
 }
 
 /** Keep the browser URL in sync with the current selection, layer, pinned comparisons, and city. */
-export function useSyncUrlState(pno: string | null, layer: LayerId, comparePnos: string[] = [], city: string = 'all') {
+export function useSyncUrlState(pno: string | null, layer: LayerId, comparePnos: string[] = [], city: string = 'helsinki_metro') {
   // Write state changes to URL
   useEffect(() => {
     writeUrl(pno, layer, comparePnos, city);
