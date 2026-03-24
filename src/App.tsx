@@ -10,6 +10,7 @@ import { ToolsDropdown } from './components/ToolsDropdown';
 import { DrawTool } from './components/DrawTool';
 import { ErrorBanner } from './components/ErrorBanner';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { MapPinIllustration } from './components/EmptyStateIllustrations';
 import { computeMatchingPnos, type FilterCriterion } from './utils/filterUtils';
 import { useFilterPresets } from './hooks/useFilterPresets';
 import type { Feature, Polygon, Position } from 'geojson';
@@ -515,6 +516,19 @@ const App: React.FC = () => {
         </Suspense>
       )}
 
+      {/* PO-4: Empty state hint when no neighborhood selected */}
+      {!selected && !loading && data && (
+        <div className="hidden md:flex absolute top-20 right-4 z-10
+                        bg-white/90 dark:bg-surface-900/90 backdrop-blur-md rounded-xl
+                        border border-surface-200/60 dark:border-surface-800/40 shadow-lg
+                        px-5 py-4 items-center gap-3 pointer-events-none">
+          <MapPinIllustration className="w-10 h-10 opacity-50 flex-shrink-0" />
+          <p className="text-sm text-surface-400 dark:text-surface-500">
+            {t('empty.click_to_explore')}
+          </p>
+        </div>
+      )}
+
       {/* Neighborhood detail panel */}
       {selected && (
         <ErrorBoundary>
@@ -552,8 +566,8 @@ const App: React.FC = () => {
         </Suspense>
       )}
 
-      {/* Comparison panel */}
-      {pinned.length >= 2 && (
+      {/* Comparison panel (shows hint at 1 pinned, full panel at 2+) */}
+      {pinned.length >= 1 && (
         <Suspense fallback={null}>
           <ComparisonPanel pinned={pinned} onUnpin={unpin} onClear={clearPinned} />
         </Suspense>

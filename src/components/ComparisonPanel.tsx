@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { formatNumber, formatEuro, formatPct } from '../utils/formatting';
 import { t, getLang } from '../utils/i18n';
+import { CompareIllustration } from './EmptyStateIllustrations';
 
 interface ComparisonPanelProps {
   pinned: NeighborhoodProperties[];
@@ -167,7 +168,21 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = ({ pinned, onUnpi
   // PO-4: Tab state for chart vs table view
   const [view, setView] = useState<'table' | 'chart'>('table');
 
-  if (pinned.length < 2) return null;
+  if (pinned.length === 0) return null;
+
+  if (pinned.length === 1) {
+    return (
+      <div className="hidden md:flex absolute bottom-4 left-1/2 -translate-x-1/2 z-20
+                      bg-white/95 dark:bg-surface-950/95 backdrop-blur-xl rounded-2xl
+                      border border-surface-200 dark:border-surface-800/50 shadow-2xl
+                      px-6 py-4 items-center gap-4">
+        <CompareIllustration className="w-12 h-12 opacity-60 flex-shrink-0" />
+        <div className="text-sm text-surface-400 dark:text-surface-500">
+          {t('empty.compare_hint')}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
