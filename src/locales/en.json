@@ -1,6 +1,6 @@
 {
   "app.title": "Neighborhoods",
-  "app.subtitle": "Helsinki Metro",
+  "app.subtitle": "Finnish Cities",
   "search.placeholder": "Search by address, street, or area\u2026",
   "search.placeholder_short": "Search area\u2026",
   "search.moreResults": "more results\u2026",
@@ -318,5 +318,9 @@
   "share.title": "naapurustot.fi",
   "share.text": "Check out {name} on naapurustot.fi",
   "empty.click_to_explore": "Click any area to explore",
-  "empty.compare_hint": "Pin one more neighborhood to compare"
+  "empty.compare_hint": "Pin one more neighborhood to compare",
+  "city.select": "Select city",
+  "city.all": "All cities",
+  "city.helsinki_metro": "Helsinki Metro",
+  "city.turku": "Turku"
 }

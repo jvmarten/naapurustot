@@ -6,7 +6,10 @@ interface UrlState {
   pno: string | null;
   layer: LayerId | null;
   compare: string[];
+  city: string | null;
 }
+
+const VALID_CITIES = new Set(['all', 'helsinki_metro', 'turku']);
 
 const VALID_LAYER_IDS = new Set<string>(LAYERS.map((l) => l.id));
 
@@ -16,6 +19,7 @@ function parseUrl(): UrlState {
   let pno = searchParams.get('pno');
   let layer = searchParams.get('layer');
   let compare = searchParams.get('compare');
+  let city = searchParams.get('city');
 
   // Fallback: read from hash for old bookmarks/links
   if (!pno && !layer && !compare && window.location.hash) {
@@ -24,6 +28,7 @@ function parseUrl(): UrlState {
     pno = hashParams.get('pno');
     layer = hashParams.get('layer');
     compare = hashParams.get('compare');
+    city = hashParams.get('city');
 
     // Migrate hash to query params silently
     if (pno || layer || compare) {
@@ -42,14 +47,16 @@ function parseUrl(): UrlState {
     compare: compare
       ? compare.split(',').filter((p) => /^\d{5}$/.test(p))
       : [],
+    city: city && VALID_CITIES.has(city) ? city : null,
   };
 }
 
-function writeUrl(pno: string | null, layer: LayerId, comparePnos: string[]) {
+function writeUrl(pno: string | null, layer: LayerId, comparePnos: string[], city: string = 'all') {
   const params = new URLSearchParams();
   if (pno) params.set('pno', pno);
   if (layer !== 'quality_index') params.set('layer', layer);
   if (comparePnos.length > 0) params.set('compare', comparePnos.join(','));
+  if (city && city !== 'all') params.set('city', city);
   const str = params.toString();
   const newUrl = str
     ? `${window.location.pathname}?${str}`
@@ -64,10 +71,10 @@ export function readInitialUrlState(): UrlState {
   return parseUrl();
 }
 
-/** Keep the browser URL in sync with the current selection, layer, and pinned comparisons. */
-export function useSyncUrlState(pno: string | null, layer: LayerId, comparePnos: string[] = []) {
+/** Keep the browser URL in sync with the current selection, layer, pinned comparisons, and city. */
+export function useSyncUrlState(pno: string | null, layer: LayerId, comparePnos: string[] = [], city: string = 'all') {
   // Write state changes to URL
   useEffect(() => {
-    writeUrl(pno, layer, comparePnos);
-  }, [pno, layer, comparePnos]);
+    writeUrl(pno, layer, comparePnos, city);
+  }, [pno, layer, comparePnos, city]);
 }

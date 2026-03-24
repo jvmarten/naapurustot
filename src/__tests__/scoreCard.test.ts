@@ -23,6 +23,8 @@ function makeProps(overrides: Partial<NeighborhoodProperties> = {}): Neighborhoo
     pno: '00100',
     nimi: 'Helsinki keskusta',
     namn: 'Helsingfors centrum',
+    kunta: '091',
+    city: 'helsinki_metro',
     he_vakiy: 5000,
     he_kika: 35,
     ko_ika18y: 4000,

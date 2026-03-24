@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Fetch Paavo statistics + postal code boundaries from Statistics Finland WFS,
-filter to Helsinki metro area, reproject, calculate derived metrics,
+filter to supported regions (Helsinki metro, Turku), reproject, calculate derived metrics,
 join foreign-language speaker data and external quality-of-life data, and output GeoJSON.
 """
 
@@ -32,8 +32,21 @@ logger = logging.getLogger(__name__)
 # Configuration
 # ---------------------------------------------------------------------------
 
-# Metro municipality codes
-METRO_CODES = {"091", "049", "092", "235"}
+# Municipality codes per city/region
+HELSINKI_METRO_CODES = {"091", "049", "092", "235"}
+TURKU_CODES = {"853"}
+
+# All supported municipality codes (union of all regions)
+METRO_CODES = HELSINKI_METRO_CODES | TURKU_CODES
+
+# City label for each municipality code
+MUNICIPALITY_CITY = {
+    "091": "helsinki_metro",
+    "049": "helsinki_metro",
+    "092": "helsinki_metro",
+    "235": "helsinki_metro",
+    "853": "turku",
+}
 
 # Pinned API versions — bump these explicitly when upgrading
 WFS_URL = (
@@ -91,8 +104,12 @@ AIR_QUALITY_FILE = Path(__file__).parent / "air_quality.json"
 # Overpass API for OpenStreetMap data
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 
-# Helsinki metro bounding box (for Overpass queries)
-METRO_BBOX = "60.10,24.50,60.40,25.25"
+# Bounding boxes for Overpass queries (per region)
+HELSINKI_METRO_BBOX = "60.10,24.50,60.40,25.25"
+TURKU_BBOX = "60.35,22.05,60.55,22.45"
+
+# All bounding boxes for Overpass queries
+ALL_BBOXES = [HELSINKI_METRO_BBOX, TURKU_BBOX]
 
 # THL Sotkanet API for social/health indicators
 SOTKANET_URL = "https://sotkanet.fi/sotkanet/fi/taulukko"
@@ -326,17 +343,20 @@ def filter_metro(gdf):
         # Actually, look at all columns to find it
         logger.info("  Available columns: %s", list(gdf.columns))
         # Fall back: check if 'pno' starts with metro prefixes
-        # Helsinki 00xxx, Espoo 02xxx, Vantaa 01xxx, Kauniainen 02700
+        # Helsinki 00xxx, Espoo 02xxx, Vantaa 01xxx, Kauniainen 02700, Turku 20xxx
         metro = gdf[
             gdf["pno"].str.startswith("00")
             | gdf["pno"].str.startswith("01")
             | gdf["pno"].str.startswith("02")
+            | gdf["pno"].str.startswith("20")
         ].copy()
-        logger.info("  Filtered to %s metro postal codes by prefix", len(metro))
+        logger.info("  Filtered to %s postal codes by prefix", len(metro))
         return metro
 
     metro = gdf[gdf[col].astype(str).isin(METRO_CODES)].copy()
-    logger.info("  Filtered to %s metro postal codes by municipality code", len(metro))
+    # Add city label based on municipality code
+    metro["city"] = metro[col].astype(str).map(MUNICIPALITY_CITY).fillna("unknown")
+    logger.info("  Filtered to %s postal codes by municipality code", len(metro))
     return metro
 
 
@@ -887,33 +907,56 @@ def _overpass_query(query: str, label: str) -> list:
         return []
 
 
+def _overpass_query_all_regions(query_template: str, label: str) -> list:
+    """Run an Overpass query for all region bounding boxes and combine results.
+
+    The *query_template* should use ``{BBOX}`` as a placeholder for the bbox string.
+    """
+    all_elements: list = []
+    for bbox in ALL_BBOXES:
+        query = query_template.replace("{BBOX}", bbox)
+        _rate_limit()
+        elements = _overpass_query(query, f"{label} ({bbox})")
+        all_elements.extend(elements)
+    # Deduplicate by element id
+    seen: set = set()
+    unique: list = []
+    for el in all_elements:
+        eid = (el.get("type", ""), el.get("id", ""))
+        if eid not in seen:
+            seen.add(eid)
+            unique.append(el)
+    logger.info("  Total unique elements for %s: %s", label, len(unique))
+    return unique
+
+
 def fetch_osm_green_spaces():
-    """Fetch parks, forests, and green spaces from OSM for Helsinki metro."""
+    """Fetch parks, forests, and green spaces from OSM for all supported regions."""
     logger.info("Fetching green space data from OpenStreetMap...")
-    query = f"""
+    query = """
     [out:json][timeout:120];
     (
-      way["leisure"="park"]({METRO_BBOX});
-      way["leisure"="nature_reserve"]({METRO_BBOX});
-      way["leisure"="garden"]({METRO_BBOX});
-      way["landuse"="forest"]({METRO_BBOX});
-      way["landuse"="grass"]({METRO_BBOX});
-      way["landuse"="meadow"]({METRO_BBOX});
-      way["natural"="wood"]({METRO_BBOX});
-      way["natural"="scrub"]({METRO_BBOX});
-      way["natural"="heath"]({METRO_BBOX});
-      way["boundary"="national_park"]({METRO_BBOX});
-      relation["leisure"="park"]({METRO_BBOX});
-      relation["leisure"="nature_reserve"]({METRO_BBOX});
-      relation["landuse"="forest"]({METRO_BBOX});
-      relation["landuse"="grass"]({METRO_BBOX});
-      relation["natural"="wood"]({METRO_BBOX});
-      relation["boundary"="national_park"]({METRO_BBOX});
-      relation["boundary"="protected_area"]({METRO_BBOX});
+      way["leisure"="park"]({BBOX});
+      way["leisure"="nature_reserve"]({BBOX});
+      way["leisure"="garden"]({BBOX});
+      way["landuse"="forest"]({BBOX});
+      way["landuse"="grass"]({BBOX});
+      way["landuse"="meadow"]({BBOX});
+      way["natural"="wood"]({BBOX});
+      way["natural"="scrub"]({BBOX});
+      way["natural"="heath"]({BBOX});
+      way["boundary"="national_park"]({BBOX});
+      relation["leisure"="park"]({BBOX});
+      relation["leisure"="nature_reserve"]({BBOX});
+      relation["landuse"="forest"]({BBOX});
+      relation["landuse"="grass"]({BBOX});
+      relation["natural"="wood"]({BBOX});
+      relation["boundary"="national_park"]({BBOX});
+      relation["boundary"="protected_area"]({BBOX});
     );
     out geom;
     """
-    return _overpass_query(query, "OSM green spaces")
+    return _overpass_query_all_regions(query, "OSM green spaces")
 
 
 def _parse_osm_green_geometries(elements):
@@ -1015,17 +1058,17 @@ def join_green_spaces(gdf, elements):
 def fetch_osm_daycares():
     """Fetch daycare/kindergarten locations from OSM."""
     logger.info("Fetching daycare data from OpenStreetMap...")
-    query = f"""
+    query = """
     [out:json][timeout:60];
     (
-      node["amenity"="kindergarten"]({METRO_BBOX});
-      way["amenity"="kindergarten"]({METRO_BBOX});
-      node["amenity"="childcare"]({METRO_BBOX});
-      way["amenity"="childcare"]({METRO_BBOX});
+      node["amenity"="kindergarten"]({BBOX});
+      way["amenity"="kindergarten"]({BBOX});
+      node["amenity"="childcare"]({BBOX});
+      way["amenity"="childcare"]({BBOX});
     );
     out center;
     """
-    return _overpass_query(query, "OSM daycares")
+    return _overpass_query_all_regions(query, "OSM daycares")
 
 
 def join_daycares(gdf, elements):
@@ -1066,15 +1109,15 @@ def join_daycares(gdf, elements):
 def fetch_osm_schools():
     """Fetch school locations from OSM."""
     logger.info("Fetching school data from OpenStreetMap...")
-    query = f"""
+    query = """
     [out:json][timeout:60];
     (
-      node["amenity"="school"]({METRO_BBOX});
-      way["amenity"="school"]({METRO_BBOX});
+      node["amenity"="school"]({BBOX});
+      way["amenity"="school"]({BBOX});
     );
     out center;
     """
-    return _overpass_query(query, "OSM schools")
+    return _overpass_query_all_regions(query, "OSM schools")
 
 
 def join_schools(gdf, elements):
@@ -1115,21 +1158,21 @@ def join_schools(gdf, elements):
 def fetch_osm_healthcare():
     """Fetch healthcare facility locations from OSM."""
     logger.info("Fetching healthcare data from OpenStreetMap...")
-    query = f"""
+    query = """
     [out:json][timeout:60];
     (
-      node["amenity"="hospital"]({METRO_BBOX});
-      way["amenity"="hospital"]({METRO_BBOX});
-      node["amenity"="clinic"]({METRO_BBOX});
-      way["amenity"="clinic"]({METRO_BBOX});
-      node["amenity"="doctors"]({METRO_BBOX});
-      way["amenity"="doctors"]({METRO_BBOX});
-      node["healthcare"]({METRO_BBOX});
-      way["healthcare"]({METRO_BBOX});
+      node["amenity"="hospital"]({BBOX});
+      way["amenity"="hospital"]({BBOX});
+      node["amenity"="clinic"]({BBOX});
+      way["amenity"="clinic"]({BBOX});
+      node["amenity"="doctors"]({BBOX});
+      way["amenity"="doctors"]({BBOX});
+      node["healthcare"]({BBOX});
+      way["healthcare"]({BBOX});
     );
     out center;
     """
-    return _overpass_query(query, "OSM healthcare")
+    return _overpass_query_all_regions(query, "OSM healthcare")
 
 
 def join_healthcare(gdf, elements):
@@ -1170,17 +1213,17 @@ def join_healthcare(gdf, elements):
 def fetch_osm_restaurants():
     """Fetch restaurant and cafe locations from OSM."""
     logger.info("Fetching restaurant/cafe data from OpenStreetMap...")
-    query = f"""
+    query = """
     [out:json][timeout:60];
     (
-      node["amenity"="restaurant"]({METRO_BBOX});
-      node["amenity"="cafe"]({METRO_BBOX});
-      node["amenity"="bar"]({METRO_BBOX});
-      node["amenity"="fast_food"]({METRO_BBOX});
+      node["amenity"="restaurant"]({BBOX});
+      node["amenity"="cafe"]({BBOX});
+      node["amenity"="bar"]({BBOX});
+      node["amenity"="fast_food"]({BBOX});
     );
     out;
     """
-    return _overpass_query(query, "OSM restaurants")
+    return _overpass_query_all_regions(query, "OSM restaurants")
 
 
 def join_restaurants(gdf, elements):
@@ -1221,17 +1264,17 @@ def join_restaurants(gdf, elements):
 def fetch_osm_groceries():
     """Fetch grocery/supermarket locations from OSM."""
     logger.info("Fetching grocery store data from OpenStreetMap...")
-    query = f"""
+    query = """
     [out:json][timeout:60];
     (
-      node["shop"="supermarket"]({METRO_BBOX});
-      way["shop"="supermarket"]({METRO_BBOX});
-      node["shop"="convenience"]({METRO_BBOX});
-      node["shop"="grocery"]({METRO_BBOX});
+      node["shop"="supermarket"]({BBOX});
+      way["shop"="supermarket"]({BBOX});
+      node["shop"="convenience"]({BBOX});
+      node["shop"="grocery"]({BBOX});
     );
     out center;
     """
-    return _overpass_query(query, "OSM groceries")
+    return _overpass_query_all_regions(query, "OSM groceries")
 
 
 def join_groceries(gdf, elements):
@@ -1272,17 +1315,17 @@ def join_groceries(gdf, elements):
 def fetch_osm_cycling():
     """Fetch cycling infrastructure from OSM."""
     logger.info("Fetching cycling infrastructure data from OpenStreetMap...")
-    query = f"""
+    query = """
     [out:json][timeout:90];
     (
-      way["highway"="cycleway"]({METRO_BBOX});
-      way["cycleway"="lane"]({METRO_BBOX});
-      way["cycleway"="track"]({METRO_BBOX});
-      way["bicycle"="designated"]({METRO_BBOX});
+      way["highway"="cycleway"]({BBOX});
+      way["cycleway"="lane"]({BBOX});
+      way["cycleway"="track"]({BBOX});
+      way["bicycle"="designated"]({BBOX});
     );
     out center;
     """
-    return _overpass_query(query, "OSM cycling")
+    return _overpass_query_all_regions(query, "OSM cycling")
 
 
 def join_cycling(gdf, elements):

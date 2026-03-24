@@ -25,3 +25,9 @@ export const DEFAULT_ZOOM = MAP_ZOOM;
 export function getInitialZoom(): number {
   return DEFAULT_ZOOM;
 }
+
+/** Per-city viewport configurations. */
+export const CITY_VIEWPORTS: Record<string, { center: [number, number]; zoom: number }> = {
+  helsinki_metro: { center: [24.94, 60.17], zoom: 9.2 },
+  turku: { center: [22.27, 60.45], zoom: 11 },
+};

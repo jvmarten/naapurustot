@@ -1,8 +1,9 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { Map } from './components/Map';
-import { DEFAULT_CENTER, getInitialZoom } from './utils/mapConstants';
+import { DEFAULT_CENTER, getInitialZoom, CITY_VIEWPORTS } from './utils/mapConstants';
 import { LayerSelector } from './components/LayerSelector';
 import { SearchBar } from './components/SearchBar';
+import { CitySelector, type CityFilter } from './components/CitySelector';
 import { Tooltip } from './components/Tooltip';
 import { Legend } from './components/Legend';
 import { SettingsDropdown } from './components/SettingsDropdown';
@@ -33,6 +34,7 @@ import { useSelectedNeighborhood } from './hooks/useSelectedNeighborhood';
 import { type LayerId, type ColorblindType, getLayerById, getColorblindMode, setColorblindMode } from './utils/colorScales';
 import { readInitialUrlState, useSyncUrlState } from './hooks/useUrlState';
 import type { NeighborhoodProperties } from './utils/metrics';
+import { computeMetroAverages } from './utils/metrics';
 import { t, getLang, setLang, type Lang } from './utils/i18n';
 import { computeQualityIndices, getDefaultWeights, isCustomWeights, type QualityWeights } from './utils/qualityIndex';
 
@@ -80,6 +82,39 @@ const App: React.FC = () => {
   const [qualityVersion, setQualityVersion] = useState(0);
   const [ariaAnnouncement, setAriaAnnouncement] = useState('');
   const [isOffline, setIsOffline] = useState(() => typeof navigator !== 'undefined' && !navigator.onLine);
+
+  // City filter
+  const [cityFilter, setCityFilter] = useState<CityFilter>((initialUrl.city as CityFilter) ?? 'all');
+
+  // Filter data by selected city
+  const filteredData = useMemo(() => {
+    if (!data) return null;
+    if (cityFilter === 'all') return data;
+    return {
+      ...data,
+      features: data.features.filter(
+        (f) => f.properties?.city === cityFilter,
+      ),
+    } as typeof data;
+  }, [data, cityFilter]);
+
+  // Recompute metro averages for the selected city
+  const cityAverages = useMemo(() => {
+    if (!filteredData) return metroAverages;
+    if (cityFilter === 'all') return metroAverages;
+    return computeMetroAverages(filteredData.features);
+  }, [filteredData, cityFilter, metroAverages]);
+
+  const handleCityChange = useCallback((city: CityFilter) => {
+    setCityFilter(city);
+    deselect();
+    if (city !== 'all') {
+      const vp = CITY_VIEWPORTS[city];
+      if (vp) setFlyTarget({ center: vp.center, zoom: vp.zoom });
+    } else {
+      setFlyTarget({ center: DEFAULT_CENTER, zoom: getInitialZoom() });
+    }
+  }, [deselect]);
 
   // CF-6: Draw polygon state
   const [drawMode, setDrawMode] = useState(false);
@@ -145,10 +180,10 @@ const App: React.FC = () => {
 
   // Build union polygon from selected neighborhoods for AreaSummaryPanel
   const selectedAreasPolygon = useMemo<Feature<Polygon> | null>(() => {
-    if (selectedAreaPnos.length === 0 || !data) return null;
+    if (selectedAreaPnos.length === 0 || !filteredData) return null;
     // Collect all coordinates from selected neighborhoods and create a convex hull-like polygon
     // For the AreaSummaryPanel, we create a bounding polygon that contains all selected areas
-    const selectedFeatures = data.features.filter(
+    const selectedFeatures = filteredData.features.filter(
       (f) => f.properties?.pno && selectedAreaPnos.includes(f.properties.pno)
     );
     if (selectedFeatures.length === 0) return null;
@@ -207,15 +242,15 @@ const App: React.FC = () => {
       properties: {},
       geometry: { type: 'Polygon', coordinates: [hull] },
     };
-  }, [selectedAreaPnos, data]);
+  }, [selectedAreaPnos, filteredData]);
 
   // Compute PNOs of neighborhoods intersecting with drawn polygon (for boundary snapping)
   const drawnAreaPnos = useMemo<string[]>(() => {
-    if (!drawnPolygon || !data) return [];
+    if (!drawnPolygon || !filteredData) return [];
     // If we came from select mode, use the selectedAreaPnos directly
     if (selectedAreaPnos.length > 0) return selectedAreaPnos;
     const pnos: string[] = [];
-    for (const feature of data.features) {
+    for (const feature of filteredData.features) {
       if (!feature.geometry || !feature.properties?.pno) continue;
       const geom = feature.geometry as Polygon | MultiPolygon;
       if (geom.type !== 'Polygon' && geom.type !== 'MultiPolygon') continue;
@@ -228,7 +263,7 @@ const App: React.FC = () => {
       }
     }
     return pnos;
-  }, [drawnPolygon, data, selectedAreaPnos]);
+  }, [drawnPolygon, filteredData, selectedAreaPnos]);
 
   const handleSelectAreaClick = useCallback((props: NeighborhoodProperties) => {
     const pno = props.pno;
@@ -279,7 +314,7 @@ const App: React.FC = () => {
   const pinnedPnos = useMemo(() => pinned.map((p) => p.pno), [pinned]);
 
   // Keep URL in sync with current state (including pinned comparisons)
-  useSyncUrlState(selected?.pno ?? null, activeLayer, pinnedPnos);
+  useSyncUrlState(selected?.pno ?? null, activeLayer, pinnedPnos, cityFilter);
 
   // Recompute quality indices when custom weights change
   const handleQualityWeightsChange = useCallback(
@@ -325,6 +360,10 @@ const App: React.FC = () => {
         const feature = data.features.find((f) => f.properties?.pno === pno);
         if (feature?.properties) {
           const props = feature.properties as NeighborhoodProperties;
+          // Auto-switch city filter if the searched neighborhood is in a different city
+          if (props.city && cityFilter !== 'all' && props.city !== cityFilter) {
+            setCityFilter(props.city);
+          }
           select(props);
           addRecent({ pno: props.pno, name: props.nimi || props.pno, center });
           // Use feature bounding box for better zoom fit
@@ -341,7 +380,7 @@ const App: React.FC = () => {
         setFlyTarget({ center });
       }
     },
-    [data, select, addRecent],
+    [data, select, addRecent, cityFilter],
   );
 
   const handleResetView = useCallback(() => {
@@ -367,8 +406,8 @@ const App: React.FC = () => {
 
   // Compute matching neighborhood PNOs for filter-aware map rendering
   const filterMatchPnos = useMemo(
-    () => (showFilter ? computeMatchingPnos(data, filters) : new Set<string>()),
-    [data, filters, showFilter],
+    () => (showFilter ? computeMatchingPnos(filteredData, filters) : new Set<string>()),
+    [filteredData, filters, showFilter],
   );
 
   // Close ranking when opening filter and vice versa
@@ -413,7 +452,7 @@ const App: React.FC = () => {
         desc.setAttribute('content',
           lang === 'fi'
             ? `${selected.nimi} (${selected.pno}): mediaanitulo, työttömyys, asuntohinnat, palvelut ja 35+ mittaria Helsingin seudun asuinalueen vertailuun.`
-            : `${selected.nimi} (${selected.pno}): median income, unemployment, property prices, services and 35+ metrics for Helsinki metro neighborhood comparison.`
+            : `${selected.nimi} (${selected.pno}): median income, unemployment, property prices, services and 35+ metrics for neighborhood comparison.`
         );
       }
       const ogTitle = document.querySelector('meta[property="og:title"]');
@@ -424,9 +463,9 @@ const App: React.FC = () => {
       if (canonical) canonical.setAttribute('href', pnoUrl);
       if (ogUrl) ogUrl.setAttribute('content', pnoUrl);
     } else {
-      document.title = 'naapurustot — Helsingin seudun naapurustot kartalla | naapurustot.fi';
+      document.title = 'naapurustot — naapurustot kartalla | naapurustot.fi';
       const desc = document.querySelector('meta[name="description"]');
-      if (desc) desc.setAttribute('content', 'naapurustot.fi — vertaile Helsingin, Espoon ja Vantaan naapurustoja ja asuinalueita 35+ mittarilla. Tulotaso, asuntohinnat, palvelut, turvallisuus, joukkoliikenne ja paljon muuta interaktiivisella kartalla.');
+      if (desc) desc.setAttribute('content', 'naapurustot.fi — vertaile Helsingin, Espoon, Vantaan ja Turun naapurustoja ja asuinalueita 35+ mittarilla. Tulotaso, asuntohinnat, palvelut, turvallisuus, joukkoliikenne ja paljon muuta interaktiivisella kartalla.');
       if (canonical) canonical.setAttribute('href', 'https://naapurustot.fi/');
       if (ogUrl) ogUrl.setAttribute('content', 'https://naapurustot.fi/');
     }
@@ -484,7 +523,7 @@ const App: React.FC = () => {
         {splitMode ? (
           <Suspense fallback={null}>
             <SplitMapView
-              data={data}
+              data={filteredData}
               leftLayer={activeLayer}
               rightLayer={secondaryLayer}
               colorblind={colorblind}
@@ -492,7 +531,7 @@ const App: React.FC = () => {
           </Suspense>
         ) : (
           <Map
-            data={data}
+            data={filteredData}
             activeLayer={activeLayer}
             onHover={handleHover}
             onClick={handleClick}
@@ -538,8 +577,8 @@ const App: React.FC = () => {
       {/* Error banner */}
       {error && <ErrorBanner message={error} onRetry={retry} />}
 
-      {/* Brand mark — double-click to reset view, hidden on mobile to avoid overlap */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 hidden md:block">
+      {/* Brand mark + city selector — hidden on mobile to avoid overlap */}
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 hidden md:flex items-center gap-2">
         <button
           onClick={handleResetView}
           className="cursor-pointer bg-transparent border-none"
@@ -549,6 +588,7 @@ const App: React.FC = () => {
             naapurustot<span className="text-brand-500 dark:text-brand-400">.fi</span>
           </h1>
         </button>
+        <CitySelector value={cityFilter} onChange={handleCityChange} />
       </div>
 
       {/* Top-right controls — dropdown menus */}
@@ -578,6 +618,7 @@ const App: React.FC = () => {
           fillOpacity={fillOpacity}
           onFillOpacityChange={handleFillOpacityChange}
         />
+        <span className="md:hidden"><CitySelector value={cityFilter} onChange={handleCityChange} /></span>
       </div>
 
       {/* Search */}
@@ -587,7 +628,7 @@ const App: React.FC = () => {
       {showRanking && (
         <Suspense fallback={null}>
           <RankingTable
-            data={data}
+            data={filteredData}
             activeLayer={activeLayer}
             onSelect={handleSearch}
             onClose={handleCloseRanking}
@@ -600,7 +641,7 @@ const App: React.FC = () => {
         <ErrorBoundary>
           <Suspense fallback={null}>
             <FilterPanel
-              data={data}
+              data={filteredData}
               filters={filters}
               onFiltersChange={setFilters}
               onSelect={handleSearch}
@@ -654,7 +695,7 @@ const App: React.FC = () => {
           <Suspense fallback={null}>
           <NeighborhoodPanel
             data={selected}
-            metroAverages={metroAverages}
+            metroAverages={cityAverages}
             onClose={deselect}
             onPin={pin}
             onUnpin={unpin}
@@ -662,7 +703,7 @@ const App: React.FC = () => {
             pinCount={pinned.length}
             onCustomize={handleToggleCustomQuality}
             isCustomWeights={isCustomWeights(qualityWeights)}
-            allFeatures={data?.features}
+            allFeatures={filteredData?.features}
             onFlyTo={handleFlyTo}
             isFavorite={isFavorite(selected.pno)}
             onToggleFavorite={() => toggleFavorite(selected.pno)}
@@ -677,7 +718,7 @@ const App: React.FC = () => {
       {showWizard && (
         <Suspense fallback={null}>
         <NeighborhoodWizard
-          data={data}
+          data={filteredData}
           onSelect={handleSearch}
           onClose={handleCloseWizard}
           onShowOnMap={handleWizardShowOnMap}
@@ -693,12 +734,12 @@ const App: React.FC = () => {
       )}
 
       {/* CF-6: Area summary panel for drawn polygon */}
-      {drawnPolygon && data && (
+      {drawnPolygon && filteredData && (
         <Suspense fallback={null}>
           <AreaSummaryPanel
             polygon={drawnPolygon}
-            data={data}
-            metroAverages={metroAverages}
+            data={filteredData}
+            metroAverages={cityAverages}
             onClose={handleClearDraw}
             selectedPnos={selectedAreaPnos.length > 0 ? selectedAreaPnos : undefined}
           />
