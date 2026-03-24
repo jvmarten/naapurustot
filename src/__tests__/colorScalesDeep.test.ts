@@ -222,7 +222,7 @@ describe('buildFillColorExpression', () => {
     const interpolation = expr[2] as unknown[];
     expect(interpolation[0]).toBe('interpolate');
     expect(interpolation[1]).toEqual(['linear']);
-    expect(interpolation[2]).toEqual(['get', 'hr_mtu']);
+    expect(interpolation[2]).toEqual(['to-number', ['get', 'hr_mtu']]);
     // Should have 3 stop-color pairs
     expect(interpolation[3]).toBe(10);
     expect(interpolation[4]).toBe('#aaa');

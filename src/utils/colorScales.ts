@@ -740,7 +740,7 @@ export function getColorForValue(layer: LayerConfig, value: number | null | unde
  */
 export function buildFillColorExpression(layer: LayerConfig, propertyOverride?: string): ExpressionSpecification {
   const prop = propertyOverride ?? layer.property;
-  const interpolation: unknown[] = ['interpolate', ['linear'], ['get', prop]];
+  const interpolation: unknown[] = ['interpolate', ['linear'], ['to-number', ['get', prop]]];
   for (let i = 0; i < layer.stops.length; i++) {
     interpolation.push(layer.stops[i], layer.colors[i]);
   }
