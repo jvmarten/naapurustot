@@ -58,12 +58,11 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((v) => !v)}
-        className={`flex px-3 py-2.5 rounded-xl backdrop-blur-md
-                   border shadow-2xl text-xs font-semibold transition-all items-center justify-center
+        className={`flex px-2.5 py-2 rounded-lg text-xs font-semibold transition-all items-center justify-center
                    min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0
                    ${open || anyActive
-                     ? 'bg-brand-500/15 dark:bg-brand-600/20 border-brand-500/30 dark:border-brand-500/30 text-brand-600 dark:text-brand-300'
-                     : 'bg-white/90 dark:bg-surface-900/90 border-surface-200 dark:border-surface-700/40 text-surface-600 dark:text-surface-300 hover:text-surface-900 dark:hover:text-white hover:bg-white dark:hover:bg-surface-800/80'
+                     ? 'bg-brand-500/20 text-brand-300 border border-brand-500/30'
+                     : 'text-white/70 hover:text-white hover:bg-white/10 border border-transparent'
                    }`}
         aria-label={t('tools.title')}
         title={t('tools.title')}

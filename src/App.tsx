@@ -577,49 +577,51 @@ const App: React.FC = () => {
       {/* Error banner */}
       {error && <ErrorBanner message={error} onRetry={retry} />}
 
-      {/* Brand mark + city selector — hidden on mobile to avoid overlap */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 hidden md:flex items-center gap-2">
+      {/* Header bar */}
+      <header className="absolute top-0 left-0 right-0 z-10 h-12 flex items-center justify-between px-3 md:px-4 bg-surface-900/80 dark:bg-surface-950/80 backdrop-blur-md border-b border-white/10">
+        {/* Left: tools & settings */}
+        <div className="flex items-center gap-2">
+          <ToolsDropdown
+            showFilter={showFilter}
+            showRanking={showRanking}
+            onToggleFilter={toggleFilter}
+            onToggleRanking={toggleRanking}
+            onOpenWizard={handleOpenWizard}
+            wizardHighlightActive={wizardResultPnos.length > 0}
+            onClearWizardHighlight={handleClearWizardHighlight}
+            splitMode={splitMode}
+            onToggleSplitMode={handleToggleSplitMode}
+            drawMode={drawMode}
+            hasPolygon={!!drawnPolygon}
+            onToggleDraw={handleToggleDraw}
+            onClearDraw={handleClearDraw}
+            selectMode={selectMode}
+            onToggleSelectMode={handleToggleSelectMode}
+          />
+          <SettingsDropdown
+            colorblind={colorblind}
+            onColorblindChange={handleColorblindChange}
+            lang={lang}
+            onToggleLang={toggleLang}
+            fillOpacity={fillOpacity}
+            onFillOpacityChange={handleFillOpacityChange}
+          />
+        </div>
+
+        {/* Center: brand */}
         <button
           onClick={handleResetView}
-          className="cursor-pointer bg-transparent border-none"
+          className="absolute left-1/2 -translate-x-1/2 cursor-pointer bg-transparent border-none"
           title={t('map.reset_view')}
         >
-          <h1 className="text-lg font-display font-bold text-surface-800/90 dark:text-white/90 tracking-tight">
-            naapurustot<span className="text-brand-500 dark:text-brand-400">.fi</span>
+          <h1 className="text-lg font-display font-bold text-white/90 tracking-tight">
+            naapurustot<span className="text-brand-400">.fi</span>
           </h1>
         </button>
-        <CitySelector value={cityFilter} onChange={handleCityChange} />
-      </div>
 
-      {/* Top-right controls — dropdown menus */}
-      <div className="absolute top-3 md:top-4 right-3 md:right-[17rem] z-10 flex items-center gap-2">
-        <ToolsDropdown
-          showFilter={showFilter}
-          showRanking={showRanking}
-          onToggleFilter={toggleFilter}
-          onToggleRanking={toggleRanking}
-          onOpenWizard={handleOpenWizard}
-          wizardHighlightActive={wizardResultPnos.length > 0}
-          onClearWizardHighlight={handleClearWizardHighlight}
-          splitMode={splitMode}
-          onToggleSplitMode={handleToggleSplitMode}
-          drawMode={drawMode}
-          hasPolygon={!!drawnPolygon}
-          onToggleDraw={handleToggleDraw}
-          onClearDraw={handleClearDraw}
-          selectMode={selectMode}
-          onToggleSelectMode={handleToggleSelectMode}
-        />
-        <SettingsDropdown
-          colorblind={colorblind}
-          onColorblindChange={handleColorblindChange}
-          lang={lang}
-          onToggleLang={toggleLang}
-          fillOpacity={fillOpacity}
-          onFillOpacityChange={handleFillOpacityChange}
-        />
-        <span className="md:hidden"><CitySelector value={cityFilter} onChange={handleCityChange} /></span>
-      </div>
+        {/* Right: city selector */}
+        <CitySelector value={cityFilter} onChange={handleCityChange} />
+      </header>
 
       {/* Search */}
       <SearchBar data={data} onSelect={handleSearch} recent={recent} />
