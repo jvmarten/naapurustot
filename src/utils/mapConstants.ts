@@ -29,5 +29,6 @@ export function getInitialZoom(): number {
 /** Per-city viewport configurations. */
 export const CITY_VIEWPORTS: Record<string, { center: [number, number]; zoom: number }> = {
   helsinki_metro: { center: [24.94, 60.17], zoom: 9.2 },
-  turku: { center: [22.27, 60.45], zoom: 11 },
+  turku: { center: [22.27, 60.45], zoom: 9.8 },
+  all: { center: [23.5, 60.3], zoom: 7 },
 };

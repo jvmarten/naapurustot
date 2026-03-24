@@ -108,9 +108,9 @@ const App: React.FC = () => {
   const handleCityChange = useCallback((city: CityFilter) => {
     setCityFilter(city);
     deselect();
-    if (city !== 'all') {
-      const vp = CITY_VIEWPORTS[city];
-      if (vp) setFlyTarget({ center: vp.center, zoom: vp.zoom });
+    const vp = CITY_VIEWPORTS[city];
+    if (vp) {
+      setFlyTarget({ center: vp.center, zoom: vp.zoom });
     } else {
       setFlyTarget({ center: DEFAULT_CENTER, zoom: getInitialZoom() });
     }
@@ -578,9 +578,17 @@ const App: React.FC = () => {
       {error && <ErrorBanner message={error} onRetry={retry} />}
 
       {/* Header bar */}
-      <header className="absolute top-0 left-0 right-0 z-20 h-12 flex items-center justify-between px-3 md:px-4 bg-surface-900/80 dark:bg-surface-950/80 backdrop-blur-md border-b border-white/10">
-        {/* Left: tools & settings */}
+      <header className="absolute top-0 left-0 right-0 z-20 h-12 flex items-center justify-between px-3 md:px-4 bg-white/80 dark:bg-surface-950/80 backdrop-blur-md border-b border-surface-200/50 dark:border-white/10">
+        {/* Left: settings & tools */}
         <div className="flex items-center gap-2">
+          <SettingsDropdown
+            colorblind={colorblind}
+            onColorblindChange={handleColorblindChange}
+            lang={lang}
+            onToggleLang={toggleLang}
+            fillOpacity={fillOpacity}
+            onFillOpacityChange={handleFillOpacityChange}
+          />
           <ToolsDropdown
             showFilter={showFilter}
             showRanking={showRanking}
@@ -598,14 +606,6 @@ const App: React.FC = () => {
             selectMode={selectMode}
             onToggleSelectMode={handleToggleSelectMode}
           />
-          <SettingsDropdown
-            colorblind={colorblind}
-            onColorblindChange={handleColorblindChange}
-            lang={lang}
-            onToggleLang={toggleLang}
-            fillOpacity={fillOpacity}
-            onFillOpacityChange={handleFillOpacityChange}
-          />
         </div>
 
         {/* Center: brand */}
@@ -614,8 +614,8 @@ const App: React.FC = () => {
           className="absolute left-1/2 -translate-x-1/2 cursor-pointer bg-transparent border-none"
           title={t('map.reset_view')}
         >
-          <h1 className="text-lg font-display font-bold text-white/90 tracking-tight">
-            naapurustot<span className="text-brand-400">.fi</span>
+          <h1 className="text-lg font-display font-bold text-surface-900 dark:text-white/90 tracking-tight">
+            naapurustot<span className="text-brand-600 dark:text-brand-400">.fi</span>
           </h1>
         </button>
 
