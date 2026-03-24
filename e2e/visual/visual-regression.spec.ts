@@ -37,8 +37,8 @@ test.describe('visual regression', () => {
     const darkButton = page.locator('button[title="Tumma"], button[title="Dark"]').first();
     await darkButton.click();
 
-    // Close dropdown by clicking elsewhere
-    await page.locator('.maplibregl-canvas').click({ position: { x: 10, y: 10 } });
+    // Close dropdown by clicking elsewhere (avoid header bar at top)
+    await page.locator('.maplibregl-canvas').click({ position: { x: 10, y: 100 } });
     await page.waitForTimeout(500);
 
     // Verify dark class is applied
@@ -121,12 +121,12 @@ test.describe('visual regression', () => {
     const settingsButton = page.locator(`button[aria-label="${await getSettingsLabel(page)}"]`);
     await settingsButton.click();
 
-    // Select protanopia from the colorblind dropdown
-    const cbSelect = page.locator('select').first();
+    // Select protanopia from the colorblind dropdown (skip CitySelector in header)
+    const cbSelect = page.locator('.z-50 select').first();
     await cbSelect.selectOption('protanopia');
 
-    // Close dropdown
-    await page.locator('.maplibregl-canvas').click({ position: { x: 10, y: 10 } });
+    // Close dropdown (avoid header bar at top)
+    await page.locator('.maplibregl-canvas').click({ position: { x: 10, y: 100 } });
     await page.waitForTimeout(500);
 
     await waitForMapIdle(page);

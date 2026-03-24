@@ -578,7 +578,7 @@ const App: React.FC = () => {
       {error && <ErrorBanner message={error} onRetry={retry} />}
 
       {/* Header bar */}
-      <header className="absolute top-0 left-0 right-0 z-10 h-12 flex items-center justify-between px-3 md:px-4 bg-surface-900/80 dark:bg-surface-950/80 backdrop-blur-md border-b border-white/10">
+      <header className="absolute top-0 left-0 right-0 z-20 h-12 flex items-center justify-between px-3 md:px-4 bg-surface-900/80 dark:bg-surface-950/80 backdrop-blur-md border-b border-white/10">
         {/* Left: tools & settings */}
         <div className="flex items-center gap-2">
           <ToolsDropdown
