@@ -88,11 +88,14 @@ export const DonateButton: React.FC<DonateButtonProps> = ({ variant = 'button' }
   );
 
   const donateContent = (
-    <>
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+      onClick={() => setOpen(false)}
+    >
       <div
-        className="absolute right-0 top-full mt-2 w-72 rounded-xl bg-white dark:bg-surface-900
-                   border border-surface-200 dark:border-surface-700/40 shadow-2xl backdrop-blur-md
-                   p-4 z-50"
+        className="w-80 max-w-[calc(100vw-2rem)] rounded-xl bg-white dark:bg-surface-900
+                   border border-surface-200 dark:border-surface-700/40 shadow-2xl p-4"
+        onClick={(e) => e.stopPropagation()}
       >
           <h3 className="text-sm font-semibold text-surface-800 dark:text-white mb-1">
             {t('donate.title')}
@@ -133,7 +136,7 @@ export const DonateButton: React.FC<DonateButtonProps> = ({ variant = 'button' }
             {t('donate.hint')}
           </p>
       </div>
-    </>
+    </div>
   );
 
   if (variant === 'menu-item') {
@@ -169,7 +172,7 @@ export const DonateButton: React.FC<DonateButtonProps> = ({ variant = 'button' }
   }
 
   return (
-    <div className="relative" ref={popupRef}>
+    <div ref={popupRef}>
       <button
         onClick={() => setOpen((v) => !v)}
         className="px-3 py-2 md:py-1.5 rounded-lg bg-white/90 dark:bg-surface-900/90 backdrop-blur-md
