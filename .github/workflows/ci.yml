@@ -47,3 +47,110 @@ jobs:
             echo "::error::JS bundle size exceeds 150KB gzipped budget ($JS_SIZE bytes)"
             exit 1
           fi
+
+      - name: Measure bundle sizes (IN-4)
+        id: bundle-size
+        run: |
+          JS_SIZE=$(find dist/assets -name '*.js' ! -name 'maplibre-*' -exec gzip -c {} \; | wc -c)
+          CSS_SIZE=$(find dist/assets -name '*.css' -exec gzip -c {} \; | wc -c)
+          TOTAL=$((JS_SIZE + CSS_SIZE))
+          echo "js_size=$JS_SIZE" >> "$GITHUB_OUTPUT"
+          echo "css_size=$CSS_SIZE" >> "$GITHUB_OUTPUT"
+          echo "total_size=$TOTAL" >> "$GITHUB_OUTPUT"
+          # Persist for main branch caching
+          printf '{"js":%d,"css":%d,"total":%d}\n' "$JS_SIZE" "$CSS_SIZE" "$TOTAL" > bundle-size.json
+          # Human-readable helper
+          fmt_kb() { echo "scale=2; $1 / 1024" | bc | sed 's/^\./0./'; }
+          JS_KB=$(fmt_kb "$JS_SIZE")
+          CSS_KB=$(fmt_kb "$CSS_SIZE")
+          TOTAL_KB=$(fmt_kb "$TOTAL")
+          # Step summary (always visible)
+          {
+            echo "### 📦 Bundle Size Report"
+            echo "| Asset | Gzipped |"
+            echo "|-------|---------|"
+            echo "| JS (excl. maplibre) | ${JS_KB} KB |"
+            echo "| CSS | ${CSS_KB} KB |"
+            echo "| **Total** | **${TOTAL_KB} KB** |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Restore base branch bundle size
+        if: github.event_name == 'pull_request'
+        id: base-size
+        uses: actions/cache/restore@v4
+        with:
+          path: base-bundle-size.json
+          key: bundle-size-main-dummy
+          restore-keys: bundle-size-main-
+
+      - name: Comment bundle size delta on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const current = JSON.parse(fs.readFileSync('bundle-size.json', 'utf8'));
+            const fmtKB = (b) => (b / 1024).toFixed(2);
+
+            let body = '## 📦 Bundle Size Report\n\n';
+            let hasBase = false;
+            try {
+              if (fs.existsSync('base-bundle-size.json')) {
+                const base = JSON.parse(fs.readFileSync('base-bundle-size.json', 'utf8'));
+                hasBase = true;
+                const delta = (cur, prev) => {
+                  const diff = cur - prev;
+                  const sign = diff > 0 ? '+' : '';
+                  const pct = prev > 0 ? ` (${sign}${((diff / prev) * 100).toFixed(1)}%)` : '';
+                  return `${sign}${(diff / 1024).toFixed(2)} KB${pct}`;
+                };
+                body += '| Asset | This PR | main | Delta |\n';
+                body += '|-------|---------|------|-------|\n';
+                body += `| JS (excl. maplibre) | ${fmtKB(current.js)} KB | ${fmtKB(base.js)} KB | ${delta(current.js, base.js)} |\n`;
+                body += `| CSS | ${fmtKB(current.css)} KB | ${fmtKB(base.css)} KB | ${delta(current.css, base.css)} |\n`;
+                body += `| **Total** | **${fmtKB(current.total)} KB** | **${fmtKB(base.total)} KB** | **${delta(current.total, base.total)}** |\n`;
+              }
+            } catch (e) {
+              // no base data available
+            }
+
+            if (!hasBase) {
+              body += '| Asset | Gzipped |\n';
+              body += '|-------|---------|\n';
+              body += `| JS (excl. maplibre) | ${fmtKB(current.js)} KB |\n`;
+              body += `| CSS | ${fmtKB(current.css)} KB |\n`;
+              body += `| **Total** | **${fmtKB(current.total)} KB** |\n`;
+              body += '\n> _No baseline from main yet — delta will appear on future PRs._\n';
+            }
+
+            // Upsert: find existing comment by bot, update or create
+            const marker = '<!-- bundle-size-report -->';
+            body = marker + '\n' + body;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c => c.body?.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+      - name: Cache bundle size on main
+        if: github.ref == 'refs/heads/main'
+        uses: actions/cache/save@v4
+        with:
+          path: bundle-size.json
+          key: bundle-size-main-${{ github.sha }}
