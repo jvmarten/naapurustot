@@ -27,22 +27,19 @@ const CB_OPTIONS: { value: ColorblindType; labelKey: string }[] = [
   { value: 'tritanopia', labelKey: 'settings.cb_tritanopia' },
 ];
 
-/** Debounced opacity slider — local state for smooth drag, parent callback after 150ms pause. */
+/** Opacity slider — local state for smooth drag, parent callback on every change. */
 const OpacitySlider: React.FC<{ fillOpacity: number; onFillOpacityChange: (v: number) => void }> = ({
   fillOpacity,
   onFillOpacityChange,
 }) => {
   const [local, setLocal] = useState(() => Math.round(fillOpacity * 100));
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => { setLocal(Math.round(fillOpacity * 100)); }, [fillOpacity]);
-  useEffect(() => () => clearTimeout(debounceRef.current), []);
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const v = Number(e.target.value);
     setLocal(v);
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => onFillOpacityChange(v / 100), 150);
+    onFillOpacityChange(v / 100);
   }, [onFillOpacityChange]);
 
   return (
