@@ -82,7 +82,7 @@ const RADIUS = 95;
 const LABEL_RADIUS = RADIUS + 28;
 
 function normalize(value: number | null, min: number, max: number, inverted: boolean): number {
-  if (value == null) return 0;
+  if (value == null || Number.isNaN(value)) return 0;
   const clamped = Math.max(min, Math.min(max, value));
   const ratio = (clamped - min) / (max - min);
   const score = inverted ? 1 - ratio : ratio;
@@ -174,6 +174,7 @@ export default function RadarChart({ data, metroAverages }: RadarChartProps) {
 
         {/* Data points */}
         {dataValues.map((v, i) => {
+          if (!Number.isFinite(v)) return null;
           const [x, y] = pointOnAxis(i, v);
           return <circle key={i} cx={x} cy={y} r={3} fill="#6366f1" />;
         })}
