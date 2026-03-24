@@ -39,7 +39,7 @@ import { computeQualityIndices, getDefaultWeights, isCustomWeights, type Quality
 const initialUrl = readInitialUrlState();
 
 const App: React.FC = () => {
-  const { data, loading, error, metroAverages, retry } = useMapData();
+  const { data, loading, error, metroAverages, metadata, retry } = useMapData();
   const { selected, select, deselect, pinned, pin, unpin, clearPinned } = useSelectedNeighborhood();
   const [activeLayer, setActiveLayer] = useState<LayerId>(initialUrl.layer ?? 'quality_index');
   const { gridData } = useGridData(activeLayer);
@@ -445,6 +445,7 @@ const App: React.FC = () => {
           onToggleLang={toggleLang}
           fillOpacity={fillOpacity}
           onFillOpacityChange={handleFillOpacityChange}
+          metadata={metadata}
         />
       </div>
 

@@ -15,11 +15,17 @@ try {
   prefetchedResponse = fetch(topoUrl);
 } catch { /* fetch unavailable in SSR */ }
 
+export interface DataMetadata {
+  updated: string;    // e.g. "2026-03"
+  builtAt: string;    // full ISO timestamp
+}
+
 interface MapDataState {
   data: FeatureCollection | null;
   loading: boolean;
   error: string | null;
   metroAverages: Record<string, number>;
+  metadata: DataMetadata | null;
   retry: () => void;
 }
 
@@ -38,12 +44,13 @@ export function useMapData(): MapDataState {
     loading: true,
     error: null,
     metroAverages: {},
+    metadata: null,
   });
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
-    setState({ data: null, loading: true, error: null, metroAverages: {} });
+    setState({ data: null, loading: true, error: null, metroAverages: {}, metadata: null });
     // Use prefetched response on first load, fresh fetch on retries.
     // Clone the prefetched response so the original can be reused
     // (e.g., if React StrictMode double-mounts the component).
@@ -62,21 +69,22 @@ export function useMapData(): MapDataState {
         if (!res.ok) throw new Error(`Failed to load data: ${res.status}`);
         return res.json();
       })
-      .then((topo: Topology) => {
+      .then((topo: Topology & { metadata?: DataMetadata }) => {
         if (cancelled) return;
         const objectName = Object.keys(topo.objects ?? {})[0];
         if (!objectName) throw new Error('Invalid TopoJSON: no objects found');
+        const metadata = topo.metadata ?? null;
         const geojson = feature(topo, topo.objects[objectName]) as FeatureCollection;
         geojson.features = filterSmallIslands(geojson.features);
         computeQualityIndices(geojson.features);
         computeChangeMetrics(geojson.features);
         computeQuickWinMetrics(geojson.features);
         const metroAverages = computeMetroAverages(geojson.features);
-        setState({ data: geojson, loading: false, error: null, metroAverages });
+        setState({ data: geojson, loading: false, error: null, metroAverages, metadata });
       })
       .catch((err) => {
         if (cancelled) return;
-        setState({ data: null, loading: false, error: err.message, metroAverages: {} });
+        setState({ data: null, loading: false, error: err.message, metroAverages: {}, metadata: null });
       });
     return () => { cancelled = true; };
   }, [attempt]);

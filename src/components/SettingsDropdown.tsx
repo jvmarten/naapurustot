@@ -6,6 +6,7 @@ import { t, type Lang } from '../utils/i18n';
 // It only renders when the settings dropdown is open.
 const DonateButton = lazy(() => import('./DonateButton').then(m => ({ default: m.DonateButton })));
 import type { ColorblindType } from '../utils/colorScales';
+import type { DataMetadata } from '../hooks/useMapData';
 
 interface SettingsDropdownProps {
   colorblind: ColorblindType;
@@ -14,6 +15,7 @@ interface SettingsDropdownProps {
   onToggleLang: () => void;
   fillOpacity: number;
   onFillOpacityChange: (value: number) => void;
+  metadata?: DataMetadata | null;
 }
 
 const CB_OPTIONS: { value: ColorblindType; labelKey: string }[] = [
@@ -64,6 +66,14 @@ const OpacitySlider: React.FC<{ fillOpacity: number; onFillOpacityChange: (v: nu
   );
 };
 
+/** Format "2026-03" as a localized month+year string. */
+function formatUpdatedDate(ym: string, lang: Lang): string {
+  const [year, month] = ym.split('-').map(Number);
+  if (!year || !month) return ym;
+  const date = new Date(year, month - 1);
+  return date.toLocaleDateString(lang === 'fi' ? 'fi-FI' : 'en-US', { year: 'numeric', month: 'long' });
+}
+
 export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
   colorblind,
   onColorblindChange,
@@ -71,6 +81,7 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
   onToggleLang,
   fillOpacity,
   onFillOpacityChange,
+  metadata,
 }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -196,10 +207,11 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
             <DonateButton variant="menu-item" />
           </Suspense>
 
-          {/* PO-6: Data freshness indicator */}
+          {/* Data freshness indicator */}
           <div className="border-t border-surface-100 dark:border-surface-700/40 my-1" />
-          <div className="px-4 py-2 text-[10px] text-surface-400 dark:text-surface-500">
-            {t('data.last_updated')}: 2026-03
+          <div className="px-4 py-2 text-[10px] text-surface-400 dark:text-surface-500"
+               title={metadata?.builtAt ? new Date(metadata.builtAt).toLocaleString() : undefined}>
+            {t('data.last_updated')}: {metadata?.updated ? formatUpdatedDate(metadata.updated, lang) : '–'}
           </div>
         </div>
       )}
