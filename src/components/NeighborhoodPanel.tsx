@@ -6,6 +6,7 @@ import { t, getLang } from '../utils/i18n';
 import { getQualityCategory, QUALITY_CATEGORIES } from '../utils/qualityIndex';
 import { exportCsv, exportPdf } from '../utils/export';
 import { TrendSection } from './TrendChart';
+import Sparkline from './Sparkline';
 import RadarChart from './RadarChart';
 import { findSimilarNeighborhoods } from '../utils/similarity';
 import { useAnimatedValue } from '../hooks/useAnimatedValue';
@@ -38,7 +39,9 @@ const StatRow: React.FC<{
   diffClass?: string;
   /** GeoJSON property name — used to look up data source attribution */
   property?: string;
-}> = ({ label, value, diff, diffClass, property }) => {
+  /** Optional trend data to render an inline sparkline */
+  sparkline?: { data: import('../utils/metrics').TrendDataPoint[]; color?: string } | null;
+}> = ({ label, value, diff, diffClass, property, sparkline }) => {
   const source = property ? METRIC_SOURCES[property] : undefined;
   return (
     <div className="flex items-center justify-between py-2.5 md:py-2">
@@ -55,10 +58,13 @@ const StatRow: React.FC<{
           </span>
         )}
       </span>
-      <div className="text-right">
+      <div className="flex items-center gap-2 text-right">
+        {sparkline?.data && sparkline.data.length >= 2 && (
+          <Sparkline data={sparkline.data} color={sparkline.color} />
+        )}
         <span className="text-surface-900 dark:text-white font-medium">{value}</span>
         {diff && (
-          <span className={`ml-2 text-xs ${diffClass}`}>
+          <span className={`ml-0 text-xs ${diffClass}`}>
             {diff} {t('panel.vs_metro')}
           </span>
         )}
@@ -366,13 +372,19 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
       {/* Key stats */}
       <div>
         <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
-          <StatRow label={t('panel.population')} value={formatNumber(animatedPopulation)} property="he_vakiy" />
+          <StatRow
+            label={t('panel.population')}
+            value={formatNumber(animatedPopulation)}
+            property="he_vakiy"
+            sparkline={populationHistory ? { data: populationHistory, color: '#6366f1' } : null}
+          />
           <StatRow
             label={t('panel.median_income')}
             value={formatEuro(animatedIncome)}
             diff={formatDiff(d.hr_mtu, avg.hr_mtu)}
             diffClass={diffColor(d.hr_mtu, avg.hr_mtu)}
             property="hr_mtu"
+            sparkline={incomeHistory ? { data: incomeHistory, color: '#10b981' } : null}
           />
           <StatRow
             label={t('panel.unemployment')}
@@ -380,6 +392,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             diff={formatDiff(d.unemployment_rate, avg.unemployment_rate)}
             diffClass={diffColor(d.unemployment_rate, avg.unemployment_rate, false)}
             property="unemployment_rate"
+            sparkline={unemploymentHistory ? { data: unemploymentHistory, color: '#f43f5e' } : null}
           />
           <StatRow
             label={t('panel.foreign_lang')}
