@@ -435,6 +435,7 @@ const METRIC_DEFS: MetricDef[] = [
   { property: 'ra_as_kpa', weight: 'population', precision: 1, requirePositive: true },
 
   // Quality of life
+  { property: 'quality_index', weight: 'population', precision: 1 },
   { property: 'transit_stop_density', weight: 'population', precision: 1 },
   { property: 'air_quality_index', weight: 'population', precision: 1 },
   { property: 'crime_index', weight: 'population', precision: 1 },
