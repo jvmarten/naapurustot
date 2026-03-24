@@ -8,6 +8,8 @@ on:
 
 jobs:
   ci:
+    # Skip CI on PRs from claude/* branches — auto-merge.yml already runs the full suite
+    if: github.event_name == 'push' || !startsWith(github.head_ref, 'claude/')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
