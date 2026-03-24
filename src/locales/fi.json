@@ -310,5 +310,7 @@
   "draw.selected_area": "Valittu alue",
   "draw.included_areas": "Sisältyvät alueet",
   "draw.no_neighborhoods": "Piirretyllä alueella ei ole naapurustoja",
-  "draw.hint": "Klikkaa lisätäksesi pisteitä, tuplaklikkaa lopettaaksesi"
+  "draw.hint": "Klikkaa lisätäksesi pisteitä, tuplaklikkaa lopettaaksesi",
+  "share.title": "naapurustot.fi",
+  "share.text": "Katso {name} naapurustot.fi:ssä"
 }

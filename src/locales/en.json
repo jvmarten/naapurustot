@@ -310,5 +310,7 @@
   "draw.selected_area": "Selected Area",
   "draw.included_areas": "Included neighborhoods",
   "draw.no_neighborhoods": "No neighborhoods in drawn area",
-  "draw.hint": "Click to add points, double-click to finish"
+  "draw.hint": "Click to add points, double-click to finish",
+  "share.title": "naapurustot.fi",
+  "share.text": "Check out {name} on naapurustot.fi"
 }
