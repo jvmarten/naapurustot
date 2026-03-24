@@ -687,6 +687,7 @@ const App: React.FC = () => {
             data={data}
             metroAverages={metroAverages}
             onClose={handleClearDraw}
+            selectedPnos={selectedAreaPnos.length > 0 ? selectedAreaPnos : undefined}
           />
         </Suspense>
       )}

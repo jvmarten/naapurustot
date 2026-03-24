@@ -11,6 +11,8 @@ interface AreaSummaryPanelProps {
   data: FeatureCollection;
   metroAverages: Record<string, number>;
   onClose: () => void;
+  /** When provided, filter neighborhoods by these postal codes instead of polygon intersection */
+  selectedPnos?: string[];
 }
 
 interface StatDef {
@@ -60,7 +62,7 @@ const STAT_SECTIONS: { title: string; stats: StatDef[] }[] = [
   },
 ];
 
-function computeAreaStats(polygon: Feature<Polygon>, data: FeatureCollection) {
+function computeAreaStats(polygon: Feature<Polygon>, data: FeatureCollection, selectedPnos?: string[]) {
   const intersecting: NeighborhoodProperties[] = [];
 
   for (const feature of data.features) {
@@ -69,7 +71,12 @@ function computeAreaStats(polygon: Feature<Polygon>, data: FeatureCollection) {
     if (geom.type !== 'Polygon' && geom.type !== 'MultiPolygon') continue;
 
     try {
-      if (booleanIntersects(polygon, feature as Feature<Polygon | MultiPolygon>)) {
+      // When selectedPnos is provided (click-to-select mode), use exact PNO match
+      // instead of polygon intersection to avoid the convex hull catching extra areas
+      const matches = selectedPnos
+        ? feature.properties?.pno && selectedPnos.includes(feature.properties.pno)
+        : booleanIntersects(polygon, feature as Feature<Polygon | MultiPolygon>);
+      if (matches) {
         if (feature.properties) {
           intersecting.push(feature.properties as NeighborhoodProperties);
         }
@@ -117,8 +124,8 @@ function computeAreaStats(polygon: Feature<Polygon>, data: FeatureCollection) {
   return { intersecting, stats };
 }
 
-export const AreaSummaryPanel: React.FC<AreaSummaryPanelProps> = ({ polygon, data, metroAverages, onClose }) => {
-  const { intersecting, stats } = useMemo(() => computeAreaStats(polygon, data), [polygon, data]);
+export const AreaSummaryPanel: React.FC<AreaSummaryPanelProps> = ({ polygon, data, metroAverages, onClose, selectedPnos }) => {
+  const { intersecting, stats } = useMemo(() => computeAreaStats(polygon, data, selectedPnos), [polygon, data, selectedPnos]);
 
   const drawnArea = useMemo(() => {
     const a = area(polygon);
