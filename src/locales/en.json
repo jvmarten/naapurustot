@@ -166,7 +166,7 @@
   "filter.add": "Add criterion",
   "filter.remove": "Remove",
   "filter.matches": "matches",
-  "filter.no_match": "No matches \u2014 try wider ranges",
+  "filter.no_match": "No neighborhoods match \u2014 try adjusting criteria",
   "filter.empty": "Add criteria to filter neighborhoods",
   "filter.show_results": "Show results",
   "filter.hide_results": "Hide results",
@@ -218,7 +218,7 @@
   "favorites.title": "Favorites",
   "favorites.add": "Add to favorites",
   "favorites.remove": "Remove from favorites",
-  "favorites.empty": "No favorites yet",
+  "favorites.empty": "Star neighborhoods to save them here",
   "wizard.title": "Neighborhood Finder",
   "wizard.next": "Next",
   "wizard.back": "Back",
@@ -312,5 +312,7 @@
   "draw.no_neighborhoods": "No neighborhoods in drawn area",
   "draw.hint": "Click to add points, double-click to finish",
   "share.title": "naapurustot.fi",
-  "share.text": "Check out {name} on naapurustot.fi"
+  "share.text": "Check out {name} on naapurustot.fi",
+  "empty.click_to_explore": "Click any area to explore",
+  "empty.compare_hint": "Pin one more neighborhood to compare"
 }

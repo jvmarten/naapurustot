@@ -7,6 +7,7 @@ import { useBottomSheet } from '../hooks/useBottomSheet';
 
 import { type FilterCriterion, computeMatchingPnos } from '../utils/filterUtils';
 import { getFeatureCenter } from '../utils/geometryFilter';
+import { FilterEmptyIllustration } from './EmptyStateIllustrations';
 
 type SortKey = 'score' | 'name' | LayerId;
 type SortDir = 'asc' | 'desc';
@@ -489,8 +490,11 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
       ))}
 
       {filters.length > 0 && ranked.length === 0 && (
-        <div className="px-4 py-8 text-center text-sm text-surface-400 dark:text-surface-500">
-          {t('filter.no_match')}
+        <div className="px-4 py-8 text-center flex flex-col items-center gap-3">
+          <FilterEmptyIllustration className="opacity-60" />
+          <p className="text-sm text-surface-400 dark:text-surface-500">
+            {t('filter.no_match')}
+          </p>
         </div>
       )}
 
