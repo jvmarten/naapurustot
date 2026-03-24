@@ -2,11 +2,13 @@ import React, { useState } from 'react';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { formatNumber, formatEuro, formatPct } from '../utils/formatting';
 import { t, getLang } from '../utils/i18n';
+import { RadarChartOverlay } from './RadarChart';
 
 interface ComparisonPanelProps {
   pinned: NeighborhoodProperties[];
   onUnpin: (pno: string) => void;
   onClear: () => void;
+  metroAverages: Record<string, number>;
 }
 
 interface StatDef {
@@ -125,7 +127,7 @@ const CHART_METRICS: { label: string; key: string; higherIsBetter: boolean; max?
   { label: 'panel.crime_rate', key: 'crime_index', higherIsBetter: false },
 ];
 
-const BAR_COLORS = ['#6366f1', '#10b981', '#f59e0b'];
+const BAR_COLORS = ['#6366f1', '#10b981', '#f59e0b'] as const;
 
 const ComparisonChart: React.FC<{ pinned: NeighborhoodProperties[] }> = ({ pinned }) => {
   return (
@@ -163,9 +165,9 @@ const ComparisonChart: React.FC<{ pinned: NeighborhoodProperties[] }> = ({ pinne
   );
 };
 
-export const ComparisonPanel: React.FC<ComparisonPanelProps> = ({ pinned, onUnpin, onClear }) => {
+export const ComparisonPanel: React.FC<ComparisonPanelProps> = ({ pinned, onUnpin, onClear, metroAverages }) => {
   // PO-4: Tab state for chart vs table view
-  const [view, setView] = useState<'table' | 'chart'>('table');
+  const [view, setView] = useState<'table' | 'chart' | 'radar'>('table');
 
   if (pinned.length < 2) return null;
 
@@ -200,6 +202,14 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = ({ pinned, onUnpi
               >
                 {t('compare.chart')}
               </button>
+              <button
+                onClick={() => setView('radar')}
+                className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-colors ${
+                  view === 'radar' ? 'bg-white dark:bg-surface-700 text-surface-900 dark:text-white shadow-sm' : 'text-surface-500 dark:text-surface-400'
+                }`}
+              >
+                {t('compare.radar')}
+              </button>
             </div>
           </div>
           <button
@@ -212,6 +222,20 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = ({ pinned, onUnpi
 
         {/* PO-4: Chart view */}
         {view === 'chart' && <ComparisonChart pinned={pinned} />}
+
+        {/* PO-6: Radar overlay view */}
+        {view === 'radar' && (
+          <div className="flex justify-center py-4">
+            <RadarChartOverlay
+              datasets={pinned.map((n, i) => ({
+                data: n,
+                label: n.nimi,
+                color: BAR_COLORS[i],
+              }))}
+              metroAverages={metroAverages}
+            />
+          </div>
+        )}
 
         {/* Table view */}
         {view === 'table' && (

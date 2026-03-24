@@ -555,7 +555,7 @@ const App: React.FC = () => {
       {/* Comparison panel */}
       {pinned.length >= 2 && (
         <Suspense fallback={null}>
-          <ComparisonPanel pinned={pinned} onUnpin={unpin} onClear={clearPinned} />
+          <ComparisonPanel pinned={pinned} onUnpin={unpin} onClear={clearPinned} metroAverages={metroAverages} />
         </Suspense>
       )}
 

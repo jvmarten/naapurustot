@@ -2,8 +2,19 @@ import { useMemo } from 'react';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { t } from '../utils/i18n';
 
+interface RadarChartDataset {
+  data: NeighborhoodProperties;
+  label: string;
+  color: string;
+}
+
 interface RadarChartProps {
   data: NeighborhoodProperties;
+  metroAverages: Record<string, number>;
+}
+
+interface RadarChartOverlayProps {
+  datasets: RadarChartDataset[];
   metroAverages: Record<string, number>;
 }
 
@@ -97,6 +108,143 @@ function pointOnAxis(axisIndex: number, value: number): [number, number] {
 
 function polygonPoints(values: number[]): string {
   return values.map((v, i) => pointOnAxis(i, v).join(',')).join(' ');
+}
+
+export function RadarChartOverlay({ datasets, metroAverages }: RadarChartOverlayProps) {
+  const allValues = useMemo(
+    () =>
+      datasets.map((ds) =>
+        AXES.map((a) => normalize(a.extract(ds.data), a.min, a.max, a.inverted)),
+      ),
+    [datasets],
+  );
+
+  const avgValues = useMemo(
+    () => AXES.map((a) => normalize(a.extractAvg(metroAverages), a.min, a.max, a.inverted)),
+    [metroAverages],
+  );
+
+  const gridLevels = [20, 40, 60, 80, 100];
+
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <h3 className="text-xs font-semibold text-surface-600 dark:text-surface-300 uppercase tracking-wide">
+        {t('compare.radar')}
+      </h3>
+      <svg
+        width={SIZE}
+        height={SIZE}
+        viewBox={`0 0 ${SIZE} ${SIZE}`}
+        className="overflow-visible"
+        role="img"
+        aria-label={t('compare.radar')}
+      >
+        {/* Grid rings */}
+        {gridLevels.map((level) => (
+          <polygon
+            key={level}
+            points={Array.from({ length: NUM_AXES }, (_, i) =>
+              pointOnAxis(i, level).join(','),
+            ).join(' ')}
+            fill="none"
+            className="stroke-surface-200 dark:stroke-surface-700"
+            strokeWidth={level === 100 ? 1 : 0.5}
+          />
+        ))}
+
+        {/* Axis lines */}
+        {AXES.map((_, i) => {
+          const [x, y] = pointOnAxis(i, 100);
+          return (
+            <line
+              key={i}
+              x1={CENTER}
+              y1={CENTER}
+              x2={x}
+              y2={y}
+              className="stroke-surface-300 dark:stroke-surface-600"
+              strokeWidth={0.5}
+            />
+          );
+        })}
+
+        {/* Metro average polygon (dashed) */}
+        <polygon
+          points={polygonPoints(avgValues)}
+          fill="none"
+          className="stroke-surface-400 dark:stroke-surface-500"
+          strokeWidth={1.5}
+          strokeDasharray="4 3"
+        />
+
+        {/* Overlaid data polygons */}
+        {allValues.map((values, dsIdx) => {
+          const color = datasets[dsIdx].color;
+          return (
+            <g key={dsIdx}>
+              <polygon
+                points={polygonPoints(values)}
+                fill={color}
+                fillOpacity={0.15}
+                stroke={color}
+                strokeWidth={2}
+              />
+              {values.map((v, i) => {
+                const [x, y] = pointOnAxis(i, v);
+                return <circle key={i} cx={x} cy={y} r={3} fill={color} />;
+              })}
+            </g>
+          );
+        })}
+
+        {/* Axis labels */}
+        {AXES.map((axis, i) => {
+          const angle = (2 * Math.PI * i) / NUM_AXES - Math.PI / 2;
+          const lx = CENTER + LABEL_RADIUS * Math.cos(angle);
+          const ly = CENTER + LABEL_RADIUS * Math.sin(angle);
+
+          let textAnchor: 'start' | 'middle' | 'end' = 'middle';
+          if (Math.cos(angle) < -0.1) textAnchor = 'end';
+          else if (Math.cos(angle) > 0.1) textAnchor = 'start';
+
+          let dy = '0.35em';
+          if (Math.sin(angle) < -0.5) dy = '0em';
+          else if (Math.sin(angle) > 0.5) dy = '0.7em';
+
+          return (
+            <text
+              key={i}
+              x={lx}
+              y={ly}
+              textAnchor={textAnchor}
+              dy={dy}
+              className="fill-surface-600 dark:fill-surface-300 text-[10px]"
+              style={{ fontSize: 10 }}
+            >
+              {t(axis.key)}
+            </text>
+          );
+        })}
+      </svg>
+
+      {/* Legend */}
+      <div className="flex flex-wrap justify-center gap-3 mt-1">
+        {datasets.map((ds, i) => (
+          <div key={i} className="flex items-center gap-1.5">
+            <span
+              className="inline-block w-3 h-3 rounded-sm"
+              style={{ backgroundColor: ds.color, opacity: 0.7 }}
+            />
+            <span className="text-[10px] text-surface-600 dark:text-surface-300">{ds.label}</span>
+          </div>
+        ))}
+        <div className="flex items-center gap-1.5">
+          <span className="inline-block w-3 border-t-2 border-dashed border-surface-400 dark:border-surface-500" />
+          <span className="text-[10px] text-surface-600 dark:text-surface-300">{t('panel.vs_metro')}</span>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function RadarChart({ data, metroAverages }: RadarChartProps) {
