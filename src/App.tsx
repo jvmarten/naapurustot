@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { Map } from './components/Map';
-import { DEFAULT_CENTER, DEFAULT_ZOOM } from './utils/mapConstants';
+import { DEFAULT_CENTER, getInitialZoom } from './utils/mapConstants';
 import { LayerSelector } from './components/LayerSelector';
 import { SearchBar } from './components/SearchBar';
 import { Tooltip } from './components/Tooltip';
@@ -325,7 +325,7 @@ const App: React.FC = () => {
 
   const handleResetView = useCallback(() => {
     deselect();
-    setFlyTarget({ center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM });
+    setFlyTarget({ center: DEFAULT_CENTER, zoom: getInitialZoom() });
   }, [deselect]);
 
   const toggleLang = useCallback(() => {

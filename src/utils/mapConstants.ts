@@ -20,3 +20,13 @@ export const DEFAULT_CENTER: [number, number] = [MAP_CENTER_LNG, MAP_CENTER_LAT]
 
 /** Initial map zoom level. */
 export const DEFAULT_ZOOM = MAP_ZOOM;
+
+/** Initial map zoom level for mobile devices (narrower viewport needs lower zoom). */
+export const DEFAULT_MOBILE_ZOOM = envNum('VITE_MAP_MOBILE_ZOOM', 9.2);
+
+/** Returns the appropriate initial zoom based on viewport width. */
+export function getInitialZoom(): number {
+  return typeof window !== 'undefined' && window.innerWidth < 768
+    ? DEFAULT_MOBILE_ZOOM
+    : DEFAULT_ZOOM;
+}
