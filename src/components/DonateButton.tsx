@@ -44,6 +44,49 @@ export const DonateButton: React.FC<DonateButtonProps> = ({ variant = 'button' }
     }
   };
 
+  const menuItemContent = (
+    <div className="px-4 pb-3">
+      <h3 className="text-sm font-semibold text-surface-800 dark:text-white mb-1">
+        {t('donate.title')}
+      </h3>
+      <p className="text-xs text-surface-500 dark:text-surface-400 mb-3">
+        {t('donate.description')}
+      </p>
+
+      {/* QR Code */}
+      <div className="flex justify-center mb-3">
+        <div className="bg-white p-2 rounded-lg">
+          <QRCodeSVG
+            value={BOLT12_OFFER}
+            size={160}
+            level="L"
+          />
+        </div>
+      </div>
+
+      {/* Copyable offer string */}
+      <div className="flex items-center gap-2 bg-surface-50 dark:bg-surface-800 rounded-lg p-2.5 mb-2">
+        <svg className="w-4 h-4 text-amber-500 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
+        <span className="text-[10px] font-mono text-surface-700 dark:text-surface-300 truncate flex-1">
+          {BOLT12_OFFER}
+        </span>
+        <button
+          onClick={handleCopy}
+          className="shrink-0 text-xs font-medium text-brand-500 hover:text-brand-600
+                     dark:text-brand-400 dark:hover:text-brand-300 transition-colors"
+        >
+          {copied ? t('donate.copied') : t('donate.copy')}
+        </button>
+      </div>
+
+      <p className="text-[10px] text-surface-400 dark:text-surface-500">
+        {t('donate.hint')}
+      </p>
+    </div>
+  );
+
   const donateContent = (
     <>
       <div
@@ -95,7 +138,7 @@ export const DonateButton: React.FC<DonateButtonProps> = ({ variant = 'button' }
 
   if (variant === 'menu-item') {
     return (
-      <div className="relative" ref={popupRef}>
+      <div ref={popupRef}>
         <button
           onClick={() => setOpen((v) => !v)}
           className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200
@@ -106,7 +149,7 @@ export const DonateButton: React.FC<DonateButtonProps> = ({ variant = 'button' }
           </svg>
           <span>{t('donate.button')}</span>
         </button>
-        {open && donateContent}
+        {open && menuItemContent}
       </div>
     );
   }
