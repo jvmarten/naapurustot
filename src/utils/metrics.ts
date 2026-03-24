@@ -7,6 +7,9 @@
  *
  * The index signature allows dynamic property access by layer config `property` keys.
  */
+/** Supported city/region identifiers. */
+export type CityId = 'helsinki_metro' | 'turku';
+
 export interface NeighborhoodProperties {
   /** 5-digit Finnish postal code (e.g., "00100") */
   pno: string;
@@ -14,6 +17,10 @@ export interface NeighborhoodProperties {
   nimi: string;
   /** Neighborhood name in Swedish */
   namn: string;
+  /** Municipality code (e.g., "091" for Helsinki, "853" for Turku) */
+  kunta: string | null;
+  /** City/region this neighborhood belongs to */
+  city: CityId | null;
 
   // --- Paavo fields (Statistics Finland) ---
   // Prefix key: he_ = population, ko_ = education, hr_ = income,

@@ -33,7 +33,7 @@ export default defineConfig({
       manifest: {
         name: 'naapurustot.fi',
         short_name: 'naapurustot',
-        description: 'Helsinki metro neighborhoods on a map',
+        description: 'Finnish neighborhoods on a map',
         theme_color: '#6366f1',
         background_color: '#ffffff',
         display: 'standalone',

@@ -1,6 +1,6 @@
 {
   "app.title": "naapurustot",
-  "app.subtitle": "Helsingin seutu",
+  "app.subtitle": "Suomen kaupungit",
   "search.placeholder": "Hae osoitteella, kadulla tai alueella\u2026",
   "search.placeholder_short": "Hae alue\u2026",
   "search.moreResults": "tulosta lis\u00e4\u00e4\u2026",
@@ -318,5 +318,9 @@
   "share.title": "naapurustot.fi",
   "share.text": "Katso {name} naapurustot.fi:ssä",
   "empty.click_to_explore": "Klikkaa aluetta tutkiaksesi sitä",
-  "empty.compare_hint": "Kiinnitä vielä yksi naapurusto vertaillaksesi"
+  "empty.compare_hint": "Kiinnitä vielä yksi naapurusto vertaillaksesi",
+  "city.select": "Valitse kaupunki",
+  "city.all": "Kaikki kaupungit",
+  "city.helsinki_metro": "Helsingin seutu",
+  "city.turku": "Turku"
 }
