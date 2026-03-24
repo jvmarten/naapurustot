@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Fetch Paavo statistics + postal code boundaries from Statistics Finland WFS,
-filter to supported regions (Helsinki metro, Turku), reproject, calculate derived metrics,
+filter to supported regions (Helsinki metro, Turku, Tampere), reproject, calculate derived metrics,
 join foreign-language speaker data and external quality-of-life data, and output GeoJSON.
 """
 
@@ -35,9 +35,10 @@ logger = logging.getLogger(__name__)
 # Municipality codes per city/region
 HELSINKI_METRO_CODES = {"091", "049", "092", "235"}
 TURKU_CODES = {"853"}
+TAMPERE_CODES = {"837"}
 
 # All supported municipality codes (union of all regions)
-METRO_CODES = HELSINKI_METRO_CODES | TURKU_CODES
+METRO_CODES = HELSINKI_METRO_CODES | TURKU_CODES | TAMPERE_CODES
 
 # City label for each municipality code
 MUNICIPALITY_CITY = {
@@ -46,6 +47,7 @@ MUNICIPALITY_CITY = {
     "092": "helsinki_metro",
     "235": "helsinki_metro",
     "853": "turku",
+    "837": "tampere",
 }
 
 # Pinned API versions — bump these explicitly when upgrading
@@ -107,9 +109,10 @@ OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 # Bounding boxes for Overpass queries (per region)
 HELSINKI_METRO_BBOX = "60.10,24.50,60.40,25.25"
 TURKU_BBOX = "60.35,22.05,60.55,22.45"
+TAMPERE_BBOX = "61.40,23.55,61.58,23.90"
 
 # All bounding boxes for Overpass queries
-ALL_BBOXES = [HELSINKI_METRO_BBOX, TURKU_BBOX]
+ALL_BBOXES = [HELSINKI_METRO_BBOX, TURKU_BBOX, TAMPERE_BBOX]
 
 # THL Sotkanet API for social/health indicators
 SOTKANET_URL = "https://sotkanet.fi/sotkanet/fi/taulukko"

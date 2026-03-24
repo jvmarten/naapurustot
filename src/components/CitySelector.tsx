@@ -13,6 +13,7 @@ const CITY_OPTIONS: { id: CityFilter; labelKey: string }[] = [
   { id: 'all', labelKey: 'city.all' },
   { id: 'helsinki_metro', labelKey: 'city.helsinki_metro' },
   { id: 'turku', labelKey: 'city.turku' },
+  { id: 'tampere', labelKey: 'city.tampere' },
 ];
 
 export const CitySelector: React.FC<CitySelectorProps> = ({ value, onChange }) => (

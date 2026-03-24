@@ -9,7 +9,7 @@ interface UrlState {
   city: string | null;
 }
 
-const VALID_CITIES = new Set(['all', 'helsinki_metro', 'turku']);
+const VALID_CITIES = new Set(['all', 'helsinki_metro', 'turku', 'tampere']);
 
 const VALID_LAYER_IDS = new Set<string>(LAYERS.map((l) => l.id));
 
