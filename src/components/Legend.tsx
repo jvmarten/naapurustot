@@ -16,7 +16,7 @@ export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: 
   const tickIndices = [0, n - 1];
 
   return (
-    <div className="fixed md:absolute bottom-5 md:bottom-8 left-3 md:left-4 z-10">
+    <div className="fixed md:absolute bottom-5 md:bottom-8 left-3 md:left-4 z-10 print-legend">
       <div className="rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl px-4 py-3">
         <div className="text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-2">
           {t(layer.labelKey)}

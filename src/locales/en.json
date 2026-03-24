@@ -158,6 +158,7 @@
   "map.reset_view": "Back to overview",
   "export.csv": "Export CSV",
   "export.pdf": "Export PDF",
+  "export.print": "Print",
   "export.field": "Field",
   "export.value": "Value",
   "footer.attribution": "Data: Statistics Finland, HSL, HSY, Police, Kela, THL, Tax Admin, Traficom, Min. of Justice, OpenStreetMap (CC BY 4.0)",

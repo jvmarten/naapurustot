@@ -275,6 +275,18 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
         </svg>
         {t('share.image')}
       </button>
+      {/* QW-4: Print button */}
+      <button
+        onClick={() => window.print()}
+        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 md:py-1.5 rounded-lg text-xs font-medium min-h-[44px] md:min-h-0
+                   bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300
+                   hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors print-hide-btn"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+        </svg>
+        {t('export.print')}
+      </button>
     </div>
   );
 
@@ -764,7 +776,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
     <>
       {/* Desktop: side panel */}
       <div className="hidden md:block absolute top-0 left-0 z-20 h-full w-[380px] max-w-[90vw] overflow-y-auto
-                      bg-white/95 dark:bg-surface-950/95 backdrop-blur-xl border-r border-surface-200 dark:border-surface-800/50 shadow-2xl">
+                      bg-white/95 dark:bg-surface-950/95 backdrop-blur-xl border-r border-surface-200 dark:border-surface-800/50 shadow-2xl print-panel">
         {/* Header */}
         <div className="sticky top-0 bg-white/95 dark:bg-surface-950/95 backdrop-blur-xl border-b border-surface-200 dark:border-surface-800/50 px-6 py-5">
           <div className="flex items-start justify-between">
@@ -816,7 +828,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
         className="md:hidden fixed bottom-0 left-0 right-0 z-20
                    bg-white/95 dark:bg-surface-950/95 backdrop-blur-xl
                    border-t border-surface-200 dark:border-surface-800/50
-                   shadow-[0_-4px_30px_rgba(0,0,0,0.15)] rounded-t-2xl"
+                   shadow-[0_-4px_30px_rgba(0,0,0,0.15)] rounded-t-2xl print-hide"
         style={{
           height: sheetHeight,
           transition: isDragging ? 'none' : 'height 0.3s cubic-bezier(0.25, 1, 0.5, 1)',

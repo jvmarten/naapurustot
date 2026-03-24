@@ -136,39 +136,71 @@ body,
   }
 }
 
-/* QW-4: Print mode — show only map + legend */
+/* QW-4: Print-optimized layout */
 @media print {
   body, html, #root {
     overflow: visible !important;
     height: auto !important;
+    width: 100% !important;
   }
 
-  /* Hide everything except the map and legend */
-  .absolute:not([data-print="keep"]),
-  .fixed {
+  /* Hide UI chrome: search, toolbars, layer selector, floating controls, tooltips */
+  .print-hide {
     display: none !important;
-  }
-
-  /* Keep the map container visible */
-  div[class*="absolute inset-0"] {
-    display: block !important;
-    position: relative !important;
-    width: 100vw !important;
-    height: 100vh !important;
-  }
-
-  /* Keep the legend visible */
-  .print-keep {
-    display: block !important;
-    position: fixed !important;
-    bottom: 20px !important;
-    left: 20px !important;
-    z-index: 10 !important;
   }
 
   /* Hide map controls in print */
   .maplibregl-ctrl-group,
   .maplibregl-ctrl-attrib {
     display: none !important;
+  }
+
+  /* Map: expand to fill available width, fixed height for the print page */
+  .print-map {
+    position: relative !important;
+    width: 100% !important;
+    height: 60vh !important;
+  }
+
+  /* Neighborhood panel: print-friendly layout beside/below map */
+  .print-panel {
+    position: relative !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: white !important;
+    backdrop-filter: none !important;
+    page-break-inside: avoid;
+  }
+
+  .print-panel * {
+    color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Legend: inline, no fixed positioning */
+  .print-legend {
+    position: relative !important;
+    display: block !important;
+    margin: 8px 0 !important;
+    box-shadow: none !important;
+  }
+
+  /* Hide print buttons and close buttons inside the panel */
+  .print-panel button[title],
+  .print-panel .print-hide-btn {
+    display: none !important;
+  }
+
+  /* Force light backgrounds for readability */
+  .dark .print-panel {
+    background: white !important;
+  }
+  .dark .print-panel * {
+    color: #1e293b !important;
   }
 }

@@ -158,6 +158,7 @@
   "map.reset_view": "Palaa yleiskuvaan",
   "export.csv": "Lataa CSV",
   "export.pdf": "Lataa PDF",
+  "export.print": "Tulosta",
   "export.field": "Kentt\u00e4",
   "export.value": "Arvo",
   "footer.attribution": "Aineisto: Tilastokeskus, HSL, HSY, Poliisi, Kela, THL, Verohallinto, Traficom, Oikeusministeriö, OpenStreetMap (CC BY 4.0)",

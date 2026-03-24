@@ -389,7 +389,7 @@ const App: React.FC = () => {
 
       {/* Skeleton / shimmer loading overlay */}
       {loading && (
-        <div data-testid="loading-overlay" className="absolute inset-0 z-50 flex items-center justify-center bg-white/80 dark:bg-surface-950/80 backdrop-blur-sm">
+        <div data-testid="loading-overlay" className="absolute inset-0 z-50 flex items-center justify-center bg-white/80 dark:bg-surface-950/80 backdrop-blur-sm print-hide">
           <div className="text-center space-y-4">
             {/* Shimmer placeholder blocks */}
             <div className="flex flex-col items-center gap-3">
@@ -407,7 +407,7 @@ const App: React.FC = () => {
       {error && <ErrorBanner message={error} onRetry={retry} />}
 
       {/* Brand mark — double-click to reset view, hidden on mobile to avoid overlap */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 hidden md:block">
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 hidden md:block print-hide">
         <button
           onClick={handleResetView}
           className="cursor-pointer bg-transparent border-none"
@@ -420,7 +420,7 @@ const App: React.FC = () => {
       </div>
 
       {/* Top-right controls — dropdown menus and draw tool */}
-      <div className="absolute top-3 md:top-4 right-3 md:right-[17rem] z-10 flex items-center gap-2">
+      <div className="absolute top-3 md:top-4 right-3 md:right-[17rem] z-10 flex items-center gap-2 print-hide">
         <DrawTool
           active={drawMode}
           hasPolygon={!!drawnPolygon}
@@ -449,7 +449,9 @@ const App: React.FC = () => {
       </div>
 
       {/* Search */}
-      <SearchBar data={data} onSelect={handleSearch} recent={recent} />
+      <div className="print-hide">
+        <SearchBar data={data} onSelect={handleSearch} recent={recent} />
+      </div>
 
       {/* Ranking table */}
       {showRanking && (
@@ -482,12 +484,14 @@ const App: React.FC = () => {
       )}
 
       {/* Layer selector */}
-      <LayerSelector
-        activeLayer={activeLayer}
-        onLayerChange={setActiveLayer}
-        onCustomizeQuality={handleToggleCustomQuality}
-        isCustomWeights={isCustomWeights(qualityWeights)}
-      />
+      <div className="print-hide">
+        <LayerSelector
+          activeLayer={activeLayer}
+          onLayerChange={setActiveLayer}
+          onCustomizeQuality={handleToggleCustomQuality}
+          isCustomWeights={isCustomWeights(qualityWeights)}
+        />
+      </div>
 
       {/* Legend — repositioned for mobile */}
       <Legend layerId={activeLayer} colorblind={colorblind} />
@@ -574,7 +578,7 @@ const App: React.FC = () => {
       {/* CF-6: Draw mode hint */}
       {drawMode && (
         <div className="absolute bottom-20 md:bottom-8 left-1/2 -translate-x-1/2 z-10 px-4 py-2 rounded-xl
-                       bg-violet-500/90 text-white text-xs font-medium backdrop-blur-sm shadow-lg">
+                       bg-violet-500/90 text-white text-xs font-medium backdrop-blur-sm shadow-lg print-hide">
           {t('draw.hint')}
         </div>
       )}
@@ -582,13 +586,13 @@ const App: React.FC = () => {
       {/* IN-6: Offline indicator */}
       {isOffline && (
         <div className="absolute top-12 left-1/2 -translate-x-1/2 z-50 px-3 py-1.5 rounded-lg
-                       bg-amber-500/90 text-white text-xs font-medium backdrop-blur-sm">
+                       bg-amber-500/90 text-white text-xs font-medium backdrop-blur-sm print-hide">
           {t('offline.indicator')}
         </div>
       )}
 
       {/* Attribution footer */}
-      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 hidden md:block">
+      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 hidden md:block print-hide">
         <p className="text-[10px] text-surface-600/70 dark:text-surface-500/70">{t('footer.attribution')}</p>
       </div>
 
