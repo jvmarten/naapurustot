@@ -145,7 +145,7 @@ export const LAYERS: LayerConfig[] = [
     labelKey: 'layer.unemployment',
     property: 'unemployment_rate',
     unit: '%',
-    colors: ['#d9ed92', '#b5e48c', '#99d98c', '#76c893', '#52b69a', '#34a0a4', '#168aad', '#1a759f', '#1e6091', '#184e77'],
+    colors: ['#1a9850', '#66bd63', '#a6d96a', '#d9ef8b', '#ffffbf', '#fee08b', '#fdae61', '#f46d43', '#d73027', '#a50026'],
     stops: [2, 4, 6, 8, 10, 12, 15, 18, 22, 28],
     format: pct,
     higherIsBetter: false,
