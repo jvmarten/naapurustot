@@ -39,7 +39,7 @@ const AXES: AxisDef[] = [
     extract: (p) => p.transit_stop_density,
     extractAvg: (a) => a.transit_stop_density,
     min: 5,
-    max: 200,
+    max: 65,
     inverted: false,
   },
   {
