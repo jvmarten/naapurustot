@@ -48,6 +48,12 @@ interface MapProps {
   drawVertices?: Position[];
   /** CF-6: Completed drawn polygon to render on the map */
   drawnPolygon?: Feature<Polygon> | null;
+  /** Select-areas mode — tap neighborhoods to multi-select */
+  selectMode?: boolean;
+  /** Currently selected area PNOs in select mode */
+  selectedAreaPnos?: string[];
+  /** Callback when a neighborhood is tapped in select mode */
+  onSelectAreaClick?: (props: NeighborhoodProperties) => void;
 }
 
 // Stable empty defaults to avoid creating new references on every render
@@ -85,6 +91,7 @@ const LINE_LAYER = 'neighborhoods-line';
 const HIGHLIGHT_LAYER = 'neighborhoods-highlight';
 
 const PINNED_LAYER = 'neighborhoods-pinned';
+const SELECT_AREA_LAYER = 'neighborhoods-select-area';
 
 const FILTER_HIGHLIGHT_LAYER = 'neighborhoods-filter-highlight';
 const WIZARD_HIGHLIGHT_LAYER = 'neighborhoods-wizard-highlight';
@@ -127,7 +134,7 @@ function buildFillOpacity(o: number, overrides?: { matchExpr?: unknown[]; matchV
   return base;
 }
 
-export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1, gridData = null, drawMode = false, onDrawClick, onDrawDoubleClick, drawVertices, drawnPolygon = null }) => {
+export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1, gridData = null, drawMode = false, onDrawClick, onDrawDoubleClick, drawVertices, drawnPolygon = null, selectMode = false, selectedAreaPnos = EMPTY_ARRAY, onSelectAreaClick }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const hoveredIdRef = useRef<string | null>(null);
@@ -551,7 +558,12 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       }
       const features = map.queryRenderedFeatures(e.point, { layers: [FILL_LAYER] });
       if (features.length > 0) {
-        onClick(features[0].properties as NeighborhoodProperties);
+        const props = features[0].properties as NeighborhoodProperties;
+        if (selectMode && onSelectAreaClick) {
+          onSelectAreaClick(props);
+          return;
+        }
+        onClick(props);
       }
     };
 
@@ -573,7 +585,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       map.off('click', onMapClick);
       map.off('dblclick', onMapDblClick);
     };
-  }, [data, onHover, onClick, drawMode, onDrawClick, onDrawDoubleClick]);
+  }, [data, onHover, onClick, drawMode, onDrawClick, onDrawDoubleClick, selectMode, onSelectAreaClick]);
 
   // FlyTo / fitBounds
   useEffect(() => {
@@ -638,6 +650,39 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     }
   }, [pinnedPnos, data, theme]);
 
+  // Select-areas mode highlight layer
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !data) return;
+    if (!map.isStyleLoaded() || !map.getSource(SOURCE_ID)) return;
+
+    if (selectedAreaPnos.length === 0) {
+      if (map.getLayer(SELECT_AREA_LAYER)) {
+        map.setLayoutProperty(SELECT_AREA_LAYER, 'visibility', 'none');
+      }
+      return;
+    }
+
+    const filter = ['in', ['get', 'pno'], ['literal', selectedAreaPnos]] as unknown as maplibregl.ExpressionSpecification;
+
+    if (map.getLayer(SELECT_AREA_LAYER)) {
+      map.setFilter(SELECT_AREA_LAYER, filter);
+      map.setLayoutProperty(SELECT_AREA_LAYER, 'visibility', 'visible');
+    } else {
+      map.addLayer({
+        id: SELECT_AREA_LAYER,
+        type: 'line',
+        source: SOURCE_ID,
+        filter: filter,
+        paint: {
+          'line-color': theme === 'dark' ? '#a78bfa' : '#7c3aed',
+          'line-width': 3,
+          'line-opacity': 1,
+        },
+      });
+    }
+  }, [selectedAreaPnos, data, theme]);
+
   // PO-4: Wizard results highlight layer — uses setFilter on existing layer to avoid recreation.
   useEffect(() => {
     const map = mapRef.current;
@@ -684,7 +729,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     }
   }, [wizardHighlightPnos, data, theme, fillOpacity]);
 
-  // CF-6: Draw mode cursor
+  // CF-6: Draw/select mode cursor
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -692,11 +737,14 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       map.getCanvas().style.cursor = 'crosshair';
       // Disable double-click zoom in draw mode
       map.doubleClickZoom.disable();
+    } else if (selectMode) {
+      map.getCanvas().style.cursor = 'pointer';
+      map.doubleClickZoom.enable();
     } else {
       map.getCanvas().style.cursor = '';
       map.doubleClickZoom.enable();
     }
-  }, [drawMode]);
+  }, [drawMode, selectMode]);
 
   // CF-6: Render draw preview (vertices being drawn)
   useEffect(() => {
