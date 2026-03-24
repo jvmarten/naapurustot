@@ -1511,8 +1511,12 @@ def fetch_rental_prices():
             # All room counts
             query_items.append({"code": code, "selection": {"filter": "all", "values": ["*"]}})
         elif code_lower in ("tiedot", "information"):
-            # Select "Keskivuokra per neliö" / average rent per sqm
-            query_items.append({"code": code, "selection": {"filter": "all", "values": ["*"]}})
+            # Only "keskivuokra" = rent per sqm, not "lkm_ptno" = count
+            keskivuokra = [v for v in values if "keskivuokra" in v.lower() or "vuokra" in v.lower()]
+            if keskivuokra:
+                query_items.append({"code": code, "selection": {"filter": "item", "values": keskivuokra}})
+            else:
+                query_items.append({"code": code, "selection": {"filter": "item", "values": [values[-1]]}})
         else:
             query_items.append({"code": code, "selection": {"filter": "all", "values": ["*"]}})
 
@@ -1533,6 +1537,9 @@ def fetch_rental_prices():
 
     result = {}
     try:
+        from collections import defaultdict
+        pno_rents = defaultdict(list)
+
         pno_idx = None
         for i, col in enumerate(columns):
             code_lower = col.get("code", "").lower()
@@ -1551,11 +1558,13 @@ def fetch_rental_prices():
                     try:
                         rent = float(val)
                         if rent > 0:
-                            # Keep the value (could be averaged later)
-                            if pno not in result or rent > 0:
-                                result[pno] = rent
+                            pno_rents[pno].append(rent)
                     except (ValueError, TypeError):
                         pass
+
+        # Average across room types per postal code
+        for pno, rents in pno_rents.items():
+            result[pno] = round(sum(rents) / len(rents), 2)
 
         logger.info("  Parsed rental prices for %s postal codes", len(result))
     except Exception as e:
