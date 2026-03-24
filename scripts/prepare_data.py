@@ -1890,12 +1890,10 @@ def calculate_single_person_hh(gdf):
     """Calculate single-person household percentage from Paavo te_ fields."""
     logger.info("Calculating single-person household share...")
     for idx, row in gdf.iterrows():
-        te_takk = safe_val(row.get("te_takk"))
+        te_yks = safe_val(row.get("te_yks"))
         te_taly = safe_val(row.get("te_taly"))
-        # te_takk represents 1-person households in some Paavo versions
-        # If available, use it; otherwise set to None
-        if te_takk is not None and te_taly is not None and te_taly > 0:
-            gdf.at[idx, "single_person_hh_pct"] = round(te_takk / te_taly * 100, 1)
+        if te_yks is not None and te_taly is not None and te_taly > 0:
+            gdf.at[idx, "single_person_hh_pct"] = round(te_yks / te_taly * 100, 1)
         else:
             gdf.at[idx, "single_person_hh_pct"] = None
     return gdf
