@@ -102,7 +102,7 @@ describe('computeQuickWinMetrics', () => {
   describe('tech_sector_pct', () => {
     it('computes tech sector job percentage', () => {
       const f = makeFeature({
-        tp_jk_info: 30,
+        tp_j_info: 30,
         tp_tyopy: 300,
       });
       computeQuickWinMetrics([f]);
@@ -112,7 +112,7 @@ describe('computeQuickWinMetrics', () => {
 
     it('skips when total jobs is zero', () => {
       const f = makeFeature({
-        tp_jk_info: 30,
+        tp_j_info: 30,
         tp_tyopy: 0,
       });
       computeQuickWinMetrics([f]);
@@ -123,7 +123,7 @@ describe('computeQuickWinMetrics', () => {
   describe('healthcare_workers_pct', () => {
     it('computes healthcare worker percentage', () => {
       const f = makeFeature({
-        tp_qr_terv: 50,
+        tp_q_terv: 50,
         tp_tyopy: 500,
       });
       computeQuickWinMetrics([f]);

@@ -436,14 +436,14 @@ def calculate_metrics(gdf):
 
         # Tech sector jobs (information/communication sector / total jobs)
         tp_tyopy = safe_val(row.get("tp_tyopy"))
-        tp_jk_info = safe_val(row.get("tp_jk_info"))
+        tp_jk_info = safe_val(row.get("tp_j_info"))
         if tp_jk_info is not None and tp_tyopy is not None and tp_tyopy > 0:
             gdf.at[idx, "tech_sector_pct"] = round(tp_jk_info / tp_tyopy * 100, 1)
         else:
             gdf.at[idx, "tech_sector_pct"] = None
 
         # Healthcare workers (health/social services sector / total jobs)
-        tp_qr_terv = safe_val(row.get("tp_qr_terv"))
+        tp_qr_terv = safe_val(row.get("tp_q_terv"))
         if tp_qr_terv is not None and tp_tyopy is not None and tp_tyopy > 0:
             gdf.at[idx, "healthcare_workers_pct"] = round(tp_qr_terv / tp_tyopy * 100, 1)
         else:
