@@ -39,17 +39,37 @@ YTL_BASE_URL = "https://tiedostot.ylioppilastutkinto.fi/ext/data"
 EXAM_PERIODS = ["2025K", "2024K", "2023K"]
 
 # Opintopolku organization API for school addresses
-OPINTOPOLKU_URL = (
-    "https://virkailija.opintopolku.fi/organisaatio-service/rest/organisaatio/v4/hae"
-    "?aktiiviset=true&organisaatiotyyppi=organisaatiotyyppi_02"
-    "&oppilaitostyyppi=oppilaitostyyppi_15%231"
-)
+# Search all educational institutions (not just lukio type) to also catch
+# yhteiskoulu, normaalikoulu, and other schools with lukio divisions
+OPINTOPOLKU_URLS = [
+    # All educational institutions (no oppilaitostyyppi filter).
+    # This catches lukio, yhteiskoulu, normaalikoulu, and others that may
+    # have lukio divisions but are registered under different types.
+    (
+        "https://virkailija.opintopolku.fi/organisaatio-service/rest/organisaatio/v4/hae"
+        "?aktiiviset=true&organisaatiotyyppi=organisaatiotyyppi_02"
+    ),
+]
 
 # Helsinki metro municipality codes
 METRO_MUNICIPALITY_CODES = {"091", "049", "092", "235"}
 
 # Output file
 OUTPUT_FILE = Path(__file__).parent / "school_quality.json"
+
+# Manual postal code overrides for schools not found in Opintopolku
+# (closed, merged, or renamed schools that still appear in recent YTL data)
+MANUAL_POSTAL_CODES = {
+    "1095": "00800",   # Herttoniemen yhteiskoulun lukio (Herttoniemi)
+    "1513": "00330",   # Munkkiniemen yhteiskoulun lukio (Munkkiniemi)
+    "1844": "00260",   # Töölön yhteiskoulun lukio (Töölö)
+    "1090": "00350",   # Helsingin Uuden yhteiskoulun lukio (Munkkivuori)
+    "1916": "02230",   # Kaitaan lukio (renamed to Matinkylän lukio, Espoo)
+    "1854": "02100",   # Espoon aikuislukio (Tapiola)
+    "1791": "01300",   # Vantaan aikuislukio (Tikkurila)
+    "1994": "80100",   # Itä-Suomen suomalais-venäläisen koulun lukio (Joensuu)
+    "1831": "90500",   # Merikosken lukio (Oulu, merged into Oulun lyseo)
+}
 
 # Grade scale: YTL grades are 0-7 (0=improbatur, 2=approbatur, ..., 7=laudatur)
 # We normalize to 0-100 by: (mean_grade / 7) * 100
@@ -82,8 +102,14 @@ def _get_with_retry(url, label, retries=3, **kwargs):
 # ---------------------------------------------------------------------------
 
 def fetch_ytl_results():
-    """Fetch and parse YTL CSV files. Returns list of (school_number, grades) tuples."""
+    """Fetch and parse YTL CSV files.
+
+    Returns:
+        school_scores: dict of {school_nro: normalized_score (0-100)}
+        school_names: dict of {school_nro: school_name}
+    """
     all_school_grades = defaultdict(list)  # school_nro -> list of mean grades
+    school_names = {}  # school_nro -> school_name
 
     for period in EXAM_PERIODS:
         url = f"{YTL_BASE_URL}/FT{period}D4001.csv"
@@ -115,6 +141,11 @@ def fetch_ytl_results():
             if not school_nro:
                 continue
 
+            # Track school names for name-based matching
+            school_name = row.get("koulun_nimi", "").strip()
+            if school_name:
+                school_names[school_nro] = school_name
+
             # Collect grades for this candidate
             grades = []
             for col in subject_cols:
@@ -143,37 +174,61 @@ def fetch_ytl_results():
             school_scores[school_nro] = round(avg / MAX_GRADE * 100, 1)
 
     logger.info("Computed quality scores for %d schools", len(school_scores))
-    return school_scores
+    return school_scores, school_names
 
 
 # ---------------------------------------------------------------------------
 # Step 2: Geocode schools to postal codes via Opintopolku
 # ---------------------------------------------------------------------------
 
-def fetch_school_postal_codes():
-    """Fetch school registry from Opintopolku and extract postal codes.
+def _normalize_name(name):
+    """Normalize school name for fuzzy matching."""
+    n = name.lower().strip()
+    # Normalize separators: "ja" and "-" and "–" between parts
+    n = re.sub(r"\s*[-–]\s*", " ", n)
+    n = re.sub(r"\s+ja\s+", " ", n)
+    # Remove punctuation
+    n = re.sub(r"[,.]", "", n)
+    # Normalize whitespace
+    n = re.sub(r"\s+", " ", n)
+    return n
+
+
+def fetch_school_postal_codes(ytl_school_names):
+    """Fetch school registry from Opintopolku and match to YTL schools by name.
 
     Uses a two-step approach:
-    1. /hae to list all upper secondary schools (lukio) and get OIDs
+    1. /hae to list educational institutions and get OIDs
     2. /findbyoids POST to fetch full details including addresses
+    3. Match Opintopolku schools to YTL schools by normalized name
 
-    Returns dict: school_number -> postal_code (5-digit string)
+    Args:
+        ytl_school_names: dict of {school_nro: school_name} from YTL CSV data
+
+    Returns dict: ytl_school_number -> postal_code (5-digit string)
     """
     logger.info("Fetching school registry from Opintopolku...")
     headers = {"Caller-Id": "naapurustot.fi"}
 
-    try:
-        r = _get_with_retry(OPINTOPOLKU_URL, "Opintopolku schools", headers=headers)
-        data = r.json()
-    except Exception as e:
-        logger.error("Could not fetch school registry: %s", e)
-        return {}
+    # Fetch from multiple school type APIs to catch yhteiskoulu, normaalikoulu, etc.
+    all_organisations = []
+    seen_oids = set()
+    for api_url in OPINTOPOLKU_URLS:
+        try:
+            r = _get_with_retry(api_url, "Opintopolku schools", headers=headers)
+            data = r.json()
+            for org in data.get("organisaatiot", []):
+                oid = org.get("oid")
+                if oid and oid not in seen_oids:
+                    seen_oids.add(oid)
+                    all_organisations.append(org)
+        except Exception as e:
+            logger.warning("Could not fetch from %s: %s", api_url[:80], e)
 
-    organisations = data.get("organisaatiot", [])
-    logger.info("  Found %d organisations", len(organisations))
+    logger.info("  Found %d unique organisations", len(all_organisations))
 
     # Collect OIDs for bulk detail fetch
-    oids = [org["oid"] for org in organisations if org.get("oid")]
+    oids = [org["oid"] for org in all_organisations if org.get("oid")]
 
     # Fetch full details in batches of 100 via findbyoids
     BATCH_SIZE = 100
@@ -200,12 +255,9 @@ def fetch_school_postal_codes():
 
     logger.info("  Fetched details for %d organisations", len(all_details))
 
-    school_postcodes = {}
+    # Build name -> postal_code lookup from Opintopolku data
+    op_name_to_postal = {}
     for org in all_details:
-        koodi = org.get("oppilaitosKoodi", "")
-        if not koodi:
-            continue
-
         # Extract postal code from address
         postal_code = None
         for addr_field in ["postiosoite", "kayntiosoite"]:
@@ -213,21 +265,106 @@ def fetch_school_postal_codes():
             if isinstance(addr, dict):
                 pno_uri = addr.get("postinumeroUri", "")
                 if pno_uri:
-                    # Format: "posti_00100" -> "00100"
                     match = re.search(r"(\d{5})", pno_uri)
                     if match:
                         postal_code = match.group(1)
                         break
 
-        if postal_code:
-            # Map oppilaitosKoodi to YTL school number format:
-            # YTL uses "1" + stripped leading zeros, e.g., "00093" -> "1093"
-            ytl_nro = "1" + koodi.lstrip("0")
-            school_postcodes[ytl_nro] = postal_code
-            school_postcodes[koodi] = postal_code
+        if not postal_code:
+            continue
 
-    unique_count = len({v for v in school_postcodes.values()})
-    logger.info("  Mapped %d schools to %d unique postal codes", len(school_postcodes) // 2, unique_count)
+        # Store under all name variants (fi, sv, en)
+        names = org.get("nimi", {})
+        for lang_name in names.values():
+            if lang_name:
+                op_name_to_postal[_normalize_name(lang_name)] = postal_code
+
+    # Match YTL schools to Opintopolku by normalized name
+    school_postcodes = {}
+    matched = 0
+    unmatched = []
+    for ytl_nro, ytl_name in ytl_school_names.items():
+        norm_name = _normalize_name(ytl_name)
+        postal_code = op_name_to_postal.get(norm_name)
+        if postal_code:
+            school_postcodes[ytl_nro] = postal_code
+            matched += 1
+        else:
+            unmatched.append((ytl_nro, ytl_name))
+
+    logger.info("  Matched %d/%d YTL schools to postal codes by name",
+                matched, len(ytl_school_names))
+
+    # Fallback: search Opintopolku by name for unmatched schools
+    if unmatched:
+        logger.info("  Searching Opintopolku for %d unmatched schools...", len(unmatched))
+        search_base = (
+            "https://virkailija.opintopolku.fi/organisaatio-service/"
+            "rest/organisaatio/v4/hae"
+            "?aktiiviset=true&organisaatiotyyppi=organisaatiotyyppi_02"
+        )
+        fallback_matched = 0
+        for ytl_nro, ytl_name in unmatched:
+            # Use first 2-3 words as search term
+            words = ytl_name.split()[:3]
+            search_term = " ".join(words)
+            try:
+                search_url = f"{search_base}&searchStr={requests.utils.quote(search_term)}"
+                r = requests.get(search_url, headers=headers, timeout=30)
+                r.raise_for_status()
+                results = r.json().get("organisaatiot", [])
+                for org in results:
+                    oid = org.get("oid")
+                    if not oid:
+                        continue
+                    # Fetch details for this org
+                    detail_url = (
+                        "https://virkailija.opintopolku.fi/organisaatio-service/"
+                        f"rest/organisaatio/v4/{oid}"
+                    )
+                    dr = requests.get(detail_url, headers=headers, timeout=30)
+                    dr.raise_for_status()
+                    detail = dr.json()
+                    postal_code = None
+                    for addr_field in ["postiosoite", "kayntiosoite"]:
+                        addr = detail.get(addr_field, {})
+                        if isinstance(addr, dict):
+                            pno_uri = addr.get("postinumeroUri", "")
+                            if pno_uri:
+                                m = re.search(r"(\d{5})", pno_uri)
+                                if m:
+                                    postal_code = m.group(1)
+                                    break
+                    if postal_code:
+                        school_postcodes[ytl_nro] = postal_code
+                        fallback_matched += 1
+                        logger.info("    Fallback match: %s -> %s", ytl_name, postal_code)
+                        break
+            except Exception as e:
+                logger.debug("    Fallback search failed for %s: %s", ytl_name, e)
+
+        logger.info("  Fallback matched %d additional schools", fallback_matched)
+
+    # Apply manual postal code overrides for closed/renamed schools
+    manual_applied = 0
+    for ytl_nro, postal_code in MANUAL_POSTAL_CODES.items():
+        if ytl_nro not in school_postcodes and ytl_nro in ytl_school_names:
+            school_postcodes[ytl_nro] = postal_code
+            manual_applied += 1
+            logger.info("    Manual override: %s -> %s",
+                        ytl_school_names[ytl_nro], postal_code)
+    if manual_applied:
+        logger.info("  Applied %d manual postal code overrides", manual_applied)
+
+    still_unmatched = [
+        (nro, name) for nro, name in ytl_school_names.items()
+        if nro not in school_postcodes
+    ]
+    if still_unmatched:
+        logger.info("  Still unmatched (%d): %s",
+                    len(still_unmatched),
+                    ", ".join(f"{n}({nro})" for nro, n in still_unmatched[:15]))
+
     return school_postcodes
 
 
@@ -266,13 +403,13 @@ def aggregate_to_postal_codes(school_scores, school_postcodes):
 
 def main():
     # Step 1: Fetch YTL exam results
-    school_scores = fetch_ytl_results()
+    school_scores, school_names = fetch_ytl_results()
     if not school_scores:
         logger.error("No school scores fetched, exiting")
         sys.exit(1)
 
-    # Step 2: Geocode schools to postal codes
-    school_postcodes = fetch_school_postal_codes()
+    # Step 2: Geocode schools to postal codes (using name-based matching)
+    school_postcodes = fetch_school_postal_codes(school_names)
     if not school_postcodes:
         logger.error("No school postal codes fetched, exiting")
         sys.exit(1)
