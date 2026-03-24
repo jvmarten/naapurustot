@@ -87,11 +87,30 @@ const App: React.FC = () => {
   const [drawVertices, setDrawVertices] = useState<Position[]>([]);
   const [drawnPolygon, setDrawnPolygon] = useState<Feature<Polygon> | null>(null);
 
+  // Select-areas mode: tap neighborhoods to multi-select them
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedAreaPnos, setSelectedAreaPnos] = useState<string[]>([]);
+
   const handleToggleDraw = useCallback(() => {
+    // Exit select mode if entering draw mode
+    setSelectMode(false);
+    setSelectedAreaPnos([]);
     setDrawMode((v) => {
       if (v) {
         // Exiting draw mode — clear in-progress vertices
         setDrawVertices([]);
+      }
+      return !v;
+    });
+  }, []);
+
+  const handleToggleSelectMode = useCallback(() => {
+    // Exit draw mode if entering select mode
+    setDrawMode(false);
+    setDrawVertices([]);
+    setSelectMode((v) => {
+      if (v) {
+        setSelectedAreaPnos([]);
       }
       return !v;
     });
@@ -120,10 +139,97 @@ const App: React.FC = () => {
     });
   }, []);
 
+  // Finish draw with explicit button (mobile-friendly alternative to double-click)
+  const handleFinishDraw = useCallback(() => {
+    handleDrawDoubleClick();
+  }, [handleDrawDoubleClick]);
+
+  // Build union polygon from selected neighborhoods for AreaSummaryPanel
+  const selectedAreasPolygon = useMemo<Feature<Polygon> | null>(() => {
+    if (selectedAreaPnos.length === 0 || !data) return null;
+    // Collect all coordinates from selected neighborhoods and create a convex hull-like polygon
+    // For the AreaSummaryPanel, we create a bounding polygon that contains all selected areas
+    const selectedFeatures = data.features.filter(
+      (f) => f.properties?.pno && selectedAreaPnos.includes(f.properties.pno)
+    );
+    if (selectedFeatures.length === 0) return null;
+
+    // Collect all exterior ring coordinates from selected features
+    const allCoords: Position[] = [];
+    for (const f of selectedFeatures) {
+      const geom = f.geometry;
+      if (geom.type === 'Polygon') {
+        allCoords.push(...geom.coordinates[0]);
+      } else if (geom.type === 'MultiPolygon') {
+        for (const poly of geom.coordinates) {
+          allCoords.push(...poly[0]);
+        }
+      }
+    }
+    if (allCoords.length < 3) return null;
+
+    // Use convex hull to create a bounding polygon
+    // Simple Graham scan for convex hull
+    const points = allCoords.map(([x, y]) => [x, y] as [number, number]);
+    // Find bottom-most point (min y, then min x)
+    let pivot = 0;
+    for (let i = 1; i < points.length; i++) {
+      if (points[i][1] < points[pivot][1] || (points[i][1] === points[pivot][1] && points[i][0] < points[pivot][0])) {
+        pivot = i;
+      }
+    }
+    [points[0], points[pivot]] = [points[pivot], points[0]];
+    const p0 = points[0];
+    const rest = points.slice(1).sort((a, b) => {
+      const cross = (a[0] - p0[0]) * (b[1] - p0[1]) - (b[0] - p0[0]) * (a[1] - p0[1]);
+      if (Math.abs(cross) < 1e-10) {
+        const da = (a[0] - p0[0]) ** 2 + (a[1] - p0[1]) ** 2;
+        const db = (b[0] - p0[0]) ** 2 + (b[1] - p0[1]) ** 2;
+        return da - db;
+      }
+      return -cross;
+    });
+    const hull: [number, number][] = [p0];
+    for (const pt of rest) {
+      while (hull.length >= 2) {
+        const a = hull[hull.length - 2];
+        const b = hull[hull.length - 1];
+        const cross = (b[0] - a[0]) * (pt[1] - a[1]) - (b[1] - a[1]) * (pt[0] - a[0]);
+        if (cross <= 0) hull.pop();
+        else break;
+      }
+      hull.push(pt);
+    }
+    if (hull.length < 3) return null;
+    hull.push(hull[0]); // Close the ring
+
+    return {
+      type: 'Feature',
+      properties: {},
+      geometry: { type: 'Polygon', coordinates: [hull] },
+    };
+  }, [selectedAreaPnos, data]);
+
+  const handleSelectAreaClick = useCallback((props: NeighborhoodProperties) => {
+    const pno = props.pno;
+    setSelectedAreaPnos((prev) =>
+      prev.includes(pno) ? prev.filter((p) => p !== pno) : [...prev, pno]
+    );
+  }, []);
+
+  const handleFinishSelect = useCallback(() => {
+    if (selectedAreasPolygon) {
+      setDrawnPolygon(selectedAreasPolygon);
+      setSelectMode(false);
+    }
+  }, [selectedAreasPolygon]);
+
   const handleClearDraw = useCallback(() => {
     setDrawnPolygon(null);
     setDrawVertices([]);
     setDrawMode(false);
+    setSelectMode(false);
+    setSelectedAreaPnos([]);
   }, []);
 
   // Restore neighborhood selection and pinned comparisons from URL once data is loaded
@@ -338,6 +444,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
+      if (selectMode) { setSelectMode(false); setSelectedAreaPnos([]); return; }
       if (drawMode) { setDrawMode(false); setDrawVertices([]); return; }
       if (drawnPolygon) { handleClearDraw(); return; }
       if (showWizard) { setShowWizard(false); return; }
@@ -348,7 +455,7 @@ const App: React.FC = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selected, showCustomQuality, showFilter, showRanking, showWizard, deselect, drawMode, drawnPolygon, handleClearDraw]);
+  }, [selected, showCustomQuality, showFilter, showRanking, showWizard, deselect, drawMode, drawnPolygon, handleClearDraw, selectMode]);
 
   return (
     <div className="h-screen w-screen overflow-hidden relative" data-testid="app-root" data-loaded={!loading}>
@@ -384,6 +491,9 @@ const App: React.FC = () => {
             onDrawDoubleClick={handleDrawDoubleClick}
             drawVertices={drawVertices}
             drawnPolygon={drawnPolygon}
+            selectMode={selectMode}
+            selectedAreaPnos={selectedAreaPnos}
+            onSelectAreaClick={handleSelectAreaClick}
           />
         )}
       </ErrorBoundary>
@@ -420,14 +530,17 @@ const App: React.FC = () => {
         </button>
       </div>
 
-      {/* Top-right controls — dropdown menus and draw tool */}
+      {/* Top-right controls — dropdown menus */}
       <div className="absolute top-3 md:top-4 right-3 md:right-[17rem] z-10 flex items-center gap-2">
-        <DrawTool
-          active={drawMode}
-          hasPolygon={!!drawnPolygon}
-          onToggle={handleToggleDraw}
-          onClear={handleClearDraw}
-        />
+        {/* Draw tool — visible on desktop only, on mobile it lives inside the Tools dropdown */}
+        <div className="hidden md:block">
+          <DrawTool
+            active={drawMode}
+            hasPolygon={!!drawnPolygon}
+            onToggle={handleToggleDraw}
+            onClear={handleClearDraw}
+          />
+        </div>
         <ToolsDropdown
           showFilter={showFilter}
           showRanking={showRanking}
@@ -438,6 +551,12 @@ const App: React.FC = () => {
           onClearWizardHighlight={handleClearWizardHighlight}
           splitMode={splitMode}
           onToggleSplitMode={handleToggleSplitMode}
+          drawMode={drawMode}
+          hasPolygon={!!drawnPolygon}
+          onToggleDraw={handleToggleDraw}
+          onClearDraw={handleClearDraw}
+          selectMode={selectMode}
+          onToggleSelectMode={handleToggleSelectMode}
         />
         <SettingsDropdown
           colorblind={colorblind}
@@ -585,11 +704,39 @@ const App: React.FC = () => {
         </Suspense>
       )}
 
-      {/* CF-6: Draw mode hint */}
+      {/* CF-6: Draw mode hint with Done button */}
       {drawMode && (
-        <div className="absolute bottom-20 md:bottom-8 left-1/2 -translate-x-1/2 z-10 px-4 py-2 rounded-xl
+        <div className="absolute bottom-20 md:bottom-8 left-1/2 -translate-x-1/2 z-10 flex items-center gap-3 px-4 py-2 rounded-xl
                        bg-violet-500/90 text-white text-xs font-medium backdrop-blur-sm shadow-lg">
-          {t('draw.hint')}
+          <span className="hidden md:inline">{t('draw.hint_desktop')}</span>
+          <span className="md:hidden">{t('draw.hint')}</span>
+          {drawVertices.length >= 3 && (
+            <button
+              onClick={handleFinishDraw}
+              className="px-3 py-1 rounded-lg bg-white/25 hover:bg-white/40 transition-colors font-semibold text-xs"
+            >
+              {t('draw.finish')}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Select areas mode hint with Done button */}
+      {selectMode && (
+        <div className="absolute bottom-20 md:bottom-8 left-1/2 -translate-x-1/2 z-10 flex items-center gap-3 px-4 py-2 rounded-xl
+                       bg-violet-500/90 text-white text-xs font-medium backdrop-blur-sm shadow-lg">
+          <span>{t('draw.select_hint')}</span>
+          {selectedAreaPnos.length > 0 && (
+            <>
+              <span className="px-1.5 py-0.5 rounded-md bg-white/25 tabular-nums">{selectedAreaPnos.length}</span>
+              <button
+                onClick={handleFinishSelect}
+                className="px-3 py-1 rounded-lg bg-white/25 hover:bg-white/40 transition-colors font-semibold text-xs"
+              >
+                {t('draw.finish')}
+              </button>
+            </>
+          )}
         </div>
       )}
 

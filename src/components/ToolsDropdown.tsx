@@ -12,6 +12,12 @@ interface ToolsDropdownProps {
   onClearWizardHighlight?: () => void;
   splitMode?: boolean;
   onToggleSplitMode?: () => void;
+  drawMode?: boolean;
+  hasPolygon?: boolean;
+  onToggleDraw?: () => void;
+  onClearDraw?: () => void;
+  selectMode?: boolean;
+  onToggleSelectMode?: () => void;
 }
 
 export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
@@ -25,6 +31,12 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
   onClearWizardHighlight,
   splitMode,
   onToggleSplitMode,
+  drawMode,
+  hasPolygon,
+  onToggleDraw,
+  onClearDraw,
+  selectMode,
+  onToggleSelectMode,
 }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -40,7 +52,7 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
-  const anyActive = showFilter || showRanking;
+  const anyActive = showFilter || showRanking || drawMode || selectMode;
 
   return (
     <div className="relative" ref={ref}>
@@ -77,6 +89,58 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
             </svg>
             <span>{t('wizard.open')}</span>
           </button>
+
+          {/* CF-6: Draw area */}
+          {onToggleDraw && (
+            <button
+              onClick={() => { onToggleDraw(); setOpen(false); }}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200
+                         hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-1a1 1 0 01-1-1v-4zM5 10v4a1 1 0 001 1h4M15 14v-4a1 1 0 00-1-1h-4" />
+              </svg>
+              <span>{t('draw.toggle')}</span>
+              {drawMode && (
+                <svg className="w-4 h-4 ml-auto text-violet-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </button>
+          )}
+
+          {/* Select areas (tap neighborhoods) */}
+          {onToggleSelectMode && (
+            <button
+              onClick={() => { onToggleSelectMode(); setOpen(false); }}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200
+                         hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
+              </svg>
+              <span>{t('draw.select_areas')}</span>
+              {selectMode && (
+                <svg className="w-4 h-4 ml-auto text-violet-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </button>
+          )}
+
+          {/* Clear drawn/selected area */}
+          {hasPolygon && onClearDraw && (
+            <button
+              onClick={() => { onClearDraw(); setOpen(false); }}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-rose-500 dark:text-rose-400
+                         hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              <span>{t('draw.clear')}</span>
+            </button>
+          )}
 
           {/* Clear wizard highlights */}
           {wizardHighlightActive && onClearWizardHighlight && (
