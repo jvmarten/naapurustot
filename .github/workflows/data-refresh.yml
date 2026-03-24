@@ -28,7 +28,7 @@ jobs:
       - name: Run data pipeline
         run: python scripts/prepare_data.py --validate
 
-      - name: Validate output
+      - name: Validate output (basic)
         run: |
           GEOJSON="public/data/metro_neighborhoods.geojson"
 
@@ -63,6 +63,9 @@ jobs:
               sys.exit(1)
           ")
           echo "GeoJSON contains $FEATURE_COUNT features"
+
+      - name: Validate data quality
+        run: python scripts/validate_data.py
 
       - name: Check for changes
         id: diff
