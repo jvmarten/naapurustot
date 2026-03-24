@@ -337,7 +337,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
                        bg-white/95 dark:bg-surface-950/95 backdrop-blur-xl
                        border-t border-surface-200 dark:border-surface-800/50
                        shadow-[0_-4px_30px_rgba(0,0,0,0.15)] rounded-t-2xl
-                       max-h-[70vh] overflow-hidden"
+                       h-[70vh] flex flex-col overflow-hidden"
             style={{
               transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
             }}
@@ -366,7 +366,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
               </button>
             </div>
 
-            <div className="overflow-y-auto max-h-[calc(70vh-5rem)] pb-safe">
+            <div className="overflow-y-auto flex-1 min-h-0 pb-safe">
               {layerList}
             </div>
           </div>
