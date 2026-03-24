@@ -51,19 +51,35 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return () => mq.removeEventListener('change', handler);
   }, [mode]);
 
-  // Apply dark class and persist
+  // Apply dark class and persist, with smooth transition
+  const hasInitialized = React.useRef(false);
   useEffect(() => {
     const root = document.documentElement;
+
+    // Enable transition class only after initial render (skip first paint)
+    if (hasInitialized.current) {
+      root.classList.add('theme-transition');
+    }
+    hasInitialized.current = true;
+
     if (resolved === 'dark') {
       root.classList.add('dark');
     } else {
       root.classList.remove('dark');
     }
+
+    // Remove transition class after animation completes
+    const timer = setTimeout(() => {
+      root.classList.remove('theme-transition');
+    }, 350);
+
     try {
       localStorage.setItem(STORAGE_KEY, mode);
     } catch {
       // localStorage may be unavailable
     }
+
+    return () => clearTimeout(timer);
   }, [resolved, mode]);
 
   const setMode = useCallback((m: ThemeMode) => setModeState(m), []);

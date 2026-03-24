@@ -70,6 +70,8 @@ describe('Tooltip', () => {
 describe('LayerSelector', () => {
   it('renders all layer group headers', () => {
     render(<LayerSelector activeLayer="quality_index" onLayerChange={() => {}} />);
+    // Expand the minimized panel first
+    fireEvent.click(screen.getAllByText('layers.title')[0]);
     expect(screen.getAllByText('layers.quality').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('layers.demographics').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('layers.economy').length).toBeGreaterThanOrEqual(1);
@@ -78,6 +80,8 @@ describe('LayerSelector', () => {
 
   it('renders layer buttons', () => {
     render(<LayerSelector activeLayer="quality_index" onLayerChange={() => {}} />);
+    // Expand the minimized panel first
+    fireEvent.click(screen.getAllByText('layers.title')[0]);
     // Should have buttons for layers
     const buttons = screen.getAllByRole('button');
     expect(buttons.length).toBeGreaterThan(5);
@@ -86,6 +90,8 @@ describe('LayerSelector', () => {
   it('calls onLayerChange when a layer button is clicked', () => {
     const onLayerChange = vi.fn();
     render(<LayerSelector activeLayer="quality_index" onLayerChange={onLayerChange} />);
+    // Expand the minimized panel first
+    fireEvent.click(screen.getAllByText('layers.title')[0]);
     // First expand a group by clicking a group header, then click a layer
     const buttons = screen.getAllByRole('button');
     // Click all buttons — group headers first, then layer buttons
@@ -106,6 +112,8 @@ describe('LayerSelector', () => {
     const { container } = render(
       <LayerSelector activeLayer="median_income" onLayerChange={() => {}} />
     );
+    // Expand the minimized panel first
+    fireEvent.click(screen.getAllByText('layers.title')[0]);
     // The active layer group should have a brand-colored indicator
     const brandElements = Array.from(container.querySelectorAll('[class*="brand"]'));
     expect(brandElements.length).toBeGreaterThan(0);
