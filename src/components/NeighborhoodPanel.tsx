@@ -159,15 +159,34 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
   const animatedPopulation = useAnimatedValue(d.he_vakiy);
   const animatedPropertyPrice = useAnimatedValue(d.property_price_sqm);
 
-  // Copy link state
+  // Copy link / share state
   const [copied, setCopied] = useState(false);
-  const handleCopyLink = useCallback(() => {
+  const handleCopyLink = useCallback(async () => {
+    const url = window.location.href;
+
+    // On mobile, prefer the native Web Share API when available
+    if (typeof navigator.share === 'function') {
+      try {
+        await navigator.share({
+          title: t('share.title'),
+          text: t('share.text').replace('{name}', d.nimi ?? d.pno),
+          url,
+        });
+        return; // Native share sheet handled it
+      } catch (e) {
+        // User cancelled or share failed — fall through to clipboard copy
+        if (e instanceof Error && e.name === 'AbortError') return;
+      }
+    }
+
+    // Fallback: copy URL to clipboard
     if (!navigator.clipboard?.writeText) return;
-    navigator.clipboard.writeText(window.location.href).then(() => {
+    try {
+      await navigator.clipboard.writeText(url);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    }).catch(() => { /* clipboard access denied or unavailable */ });
-  }, []);
+    } catch { /* clipboard access denied or unavailable */ }
+  }, [d.nimi, d.pno]);
 
   // QW-3: Bottom sheet state (mobile only) — uses shared useBottomSheet hook
   const sheetRef = useRef<HTMLDivElement>(null);
@@ -897,6 +916,15 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
           </div>
         </div>
       </div>
+
+      {/* QW-2: Toast notification for clipboard copy */}
+      {copied && (
+        <div className="fixed bottom-24 md:bottom-6 left-1/2 -translate-x-1/2 z-50
+                       px-4 py-2 rounded-xl bg-surface-900 dark:bg-white text-white dark:text-surface-900
+                       text-sm font-medium shadow-lg animate-fade-in">
+          {t('panel.copied')}
+        </div>
+      )}
     </>
   );
 };
