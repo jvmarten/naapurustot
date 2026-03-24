@@ -84,6 +84,43 @@ describe('readInitialUrlState (query params)', () => {
   });
 });
 
+describe('readInitialUrlState (city param)', () => {
+  beforeEach(() => {
+    window.location.hash = '';
+    setSearch('');
+  });
+
+  it('returns null city when no city param (defaults to helsinki_metro in App)', () => {
+    setSearch('');
+    const state = readInitialUrlState();
+    expect(state.city).toBeNull();
+  });
+
+  it('accepts helsinki_metro as explicit city param', () => {
+    setSearch('?city=helsinki_metro');
+    const state = readInitialUrlState();
+    expect(state.city).toBe('helsinki_metro');
+  });
+
+  it('accepts turku as city param', () => {
+    setSearch('?city=turku');
+    const state = readInitialUrlState();
+    expect(state.city).toBe('turku');
+  });
+
+  it('accepts all as city param', () => {
+    setSearch('?city=all');
+    const state = readInitialUrlState();
+    expect(state.city).toBe('all');
+  });
+
+  it('rejects invalid city param', () => {
+    setSearch('?city=tampere');
+    const state = readInitialUrlState();
+    expect(state.city).toBeNull();
+  });
+});
+
 describe('readInitialUrlState (legacy hash fallback)', () => {
   beforeEach(() => {
     window.location.hash = '';
