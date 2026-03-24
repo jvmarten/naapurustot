@@ -138,7 +138,7 @@ export const DonateButton: React.FC<DonateButtonProps> = ({ variant = 'button' }
 
   if (variant === 'menu-item') {
     return (
-      <div ref={popupRef}>
+      <>
         <button
           onClick={() => setOpen((v) => !v)}
           className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200
@@ -149,8 +149,22 @@ export const DonateButton: React.FC<DonateButtonProps> = ({ variant = 'button' }
           </svg>
           <span>{t('donate.button')}</span>
         </button>
-        {open && menuItemContent}
-      </div>
+        {open && (
+          <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+            onClick={() => setOpen(false)}
+          >
+            <div
+              ref={popupRef}
+              className="w-80 rounded-xl bg-white dark:bg-surface-900 border border-surface-200
+                         dark:border-surface-700/40 shadow-2xl p-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {menuItemContent}
+            </div>
+          </div>
+        )}
+      </>
     );
   }
 
