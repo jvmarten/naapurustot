@@ -42,7 +42,7 @@ const initialUrl = readInitialUrlState();
 
 const App: React.FC = () => {
   const { data, loading, error, metroAverages, retry } = useMapData();
-  const { selected, select, deselect, pinned, pin, unpin, clearPinned } = useSelectedNeighborhood();
+  const { selected, select, deselect, pinned, pin, unpin, clearPinned, refreshPinned } = useSelectedNeighborhood();
   const [activeLayer, setActiveLayer] = useState<LayerId>(initialUrl.layer ?? 'quality_index');
   const { gridData } = useGridData(activeLayer);
   const [wizardResultPnos, setWizardResultPnos] = useState<string[]>([]);
@@ -98,12 +98,15 @@ const App: React.FC = () => {
     } as typeof data;
   }, [data, cityFilter]);
 
-  // Recompute metro averages for the selected city
+  // Recompute metro averages for the selected city.
+  // qualityVersion is included so that averages are recalculated after custom quality weight changes
+  // (computeQualityIndices mutates features in-place, so we need this signal to trigger recomputation).
   const cityAverages = useMemo(() => {
     if (!filteredData) return metroAverages;
-    if (cityFilter === 'all') return metroAverages;
+    if (cityFilter === 'all') return computeMetroAverages(filteredData.features);
     return computeMetroAverages(filteredData.features);
-  }, [filteredData, cityFilter, metroAverages]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- qualityVersion signals in-place data mutation
+  }, [filteredData, cityFilter, qualityVersion]);
 
   const handleCityChange = useCallback((city: CityFilter) => {
     setCityFilter(city);
@@ -155,22 +158,25 @@ const App: React.FC = () => {
   }, []);
 
   const handleDrawDoubleClick = useCallback(() => {
+    // Read current vertices via a ref-like pattern: use the updater to capture
+    // current state, then perform side effects outside the updater.
+    let captured: Position[] = [];
     setDrawVertices((prev) => {
-      if (prev.length >= 3) {
-        // Close the polygon
-        const closed = [...prev, prev[0]];
-        setDrawnPolygon({
-          type: 'Feature',
-          properties: {},
-          geometry: {
-            type: 'Polygon',
-            coordinates: [closed],
-          },
-        });
-        setDrawMode(false);
-      }
+      captured = prev;
       return [];
     });
+    if (captured.length >= 3) {
+      const closed = [...captured, captured[0]];
+      setDrawnPolygon({
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'Polygon',
+          coordinates: [closed],
+        },
+      });
+      setDrawMode(false);
+    }
   }, []);
 
   // Finish draw with explicit button (mobile-friendly alternative to double-click)
@@ -330,9 +336,16 @@ const App: React.FC = () => {
             select(feature.properties as NeighborhoodProperties);
           }
         }
+        // Update pinned neighborhoods so comparison panel reflects new quality indices
+        if (pinned.length > 0) {
+          const updated = pinned
+            .map((p) => data.features.find((f) => f.properties?.pno === p.pno)?.properties as NeighborhoodProperties | undefined)
+            .filter((p): p is NeighborhoodProperties => p != null);
+          refreshPinned(updated);
+        }
       }
     },
-    [data, selected, select],
+    [data, selected, select, pinned, refreshPinned],
   );
 
   const handleHover = useCallback(

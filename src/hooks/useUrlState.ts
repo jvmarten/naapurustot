@@ -31,11 +31,12 @@ function parseUrl(): UrlState {
     city = hashParams.get('city');
 
     // Migrate hash to query params silently
-    if (pno || layer || compare) {
+    if (pno || layer || compare || city) {
       const newParams = new URLSearchParams();
       if (pno) newParams.set('pno', pno);
       if (layer) newParams.set('layer', layer);
       if (compare) newParams.set('compare', compare);
+      if (city) newParams.set('city', city);
       const newUrl = `${window.location.pathname}?${newParams.toString()}`;
       window.history.replaceState(null, '', newUrl);
     }
