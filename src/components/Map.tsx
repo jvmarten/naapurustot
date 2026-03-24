@@ -134,6 +134,11 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   const selectedIdRef = useRef<string | null>(null);
   const { theme } = useTheme();
 
+  // PO-2: Track previous active layer to detect layer switches (skip animation on initial render)
+  const prevActiveLayerRef = useRef<LayerId | null>(null);
+  // PO-2: Track pending layer transition timeout for cleanup
+  const layerTransitionRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Initialize map
   useEffect(() => {
     if (!containerRef.current) return;
@@ -364,14 +369,22 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   // eslint-disable-next-line react-hooks/exhaustive-deps -- data/filterActive/filterMatchPnos/wizardHighlightPnos are guards, not triggers
   }, [fillOpacity]);
 
-  // Smoothly transition fill color when active layer or colorblind mode changes
+  // PO-2: Smoothly transition fill color when active layer or colorblind mode changes.
+  // Fades opacity to 0, switches the fill-color expression, then fades back up.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !data) return;
     if (!map.getLayer(FILL_LAYER)) return;
 
     const layer = getLayerById(activeLayer);
-    map.setPaintProperty(FILL_LAYER, 'fill-color', buildFillColorExpression(layer));
+    const isLayerSwitch = prevActiveLayerRef.current !== null && prevActiveLayerRef.current !== activeLayer;
+    prevActiveLayerRef.current = activeLayer;
+
+    // Clear any in-flight transition from a previous rapid switch
+    if (layerTransitionRef.current) {
+      clearTimeout(layerTransitionRef.current);
+      layerTransitionRef.current = null;
+    }
 
     // QW-2: Update no-data layer filter for new active layer
     if (map.getLayer(NO_DATA_LAYER)) {
@@ -380,7 +393,66 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         ['==', ['get', layer.property], null],
       ] as unknown as maplibregl.FilterSpecification);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- data is a guard, not a trigger
+
+    if (isLayerSwitch) {
+      // PO-2: Animated transition — fade out, swap color, fade back in
+      // Temporarily shorten the opacity transition for a snappy fade-out
+      map.setPaintProperty(FILL_LAYER, 'fill-opacity-transition', { duration: 150, delay: 0 });
+      map.setPaintProperty(FILL_LAYER, 'fill-opacity', 0);
+
+      // Also fade grid layer if present
+      if (map.getLayer(GRID_FILL_LAYER)) {
+        map.setPaintProperty(GRID_FILL_LAYER, 'fill-opacity-transition', { duration: 150, delay: 0 });
+        map.setPaintProperty(GRID_FILL_LAYER, 'fill-opacity', 0);
+      }
+
+      layerTransitionRef.current = setTimeout(() => {
+        layerTransitionRef.current = null;
+        if (!mapRef.current || !mapRef.current.getLayer(FILL_LAYER)) return;
+
+        // Swap the color expression while fully transparent
+        mapRef.current.setPaintProperty(FILL_LAYER, 'fill-color', buildFillColorExpression(layer));
+
+        // Update grid layer color if present
+        if (mapRef.current.getLayer(GRID_FILL_LAYER) && layer.gridProperty) {
+          mapRef.current.setPaintProperty(GRID_FILL_LAYER, 'fill-color', buildFillColorExpression(layer, layer.gridProperty));
+        }
+
+        // Restore transition duration and fade back in
+        mapRef.current.setPaintProperty(FILL_LAYER, 'fill-opacity-transition', { duration: 200, delay: 0 });
+        const layerMeta = getLayerById(activeLayer);
+        const useGrid = !!gridData && !!layerMeta.gridProperty;
+        if (useGrid) {
+          mapRef.current.setPaintProperty(FILL_LAYER, 'fill-opacity', 0);
+          if (mapRef.current.getLayer(GRID_FILL_LAYER)) {
+            mapRef.current.setPaintProperty(GRID_FILL_LAYER, 'fill-opacity-transition', { duration: 200, delay: 0 });
+            mapRef.current.setPaintProperty(GRID_FILL_LAYER, 'fill-opacity', 0.8 * fillOpacity);
+          }
+        } else {
+          mapRef.current.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(fillOpacity) as maplibregl.ExpressionSpecification);
+        }
+
+        // Reset transition to default after fade-in completes
+        setTimeout(() => {
+          if (!mapRef.current || !mapRef.current.getLayer(FILL_LAYER)) return;
+          mapRef.current.setPaintProperty(FILL_LAYER, 'fill-opacity-transition', { duration: 300, delay: 0 });
+          if (mapRef.current.getLayer(GRID_FILL_LAYER)) {
+            mapRef.current.setPaintProperty(GRID_FILL_LAYER, 'fill-opacity-transition', { duration: 300, delay: 0 });
+          }
+        }, 250);
+      }, 180);
+    } else {
+      // Initial render or colorblind toggle — apply immediately (no fade)
+      map.setPaintProperty(FILL_LAYER, 'fill-color', buildFillColorExpression(layer));
+    }
+
+    return () => {
+      if (layerTransitionRef.current) {
+        clearTimeout(layerTransitionRef.current);
+        layerTransitionRef.current = null;
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- data/gridData/fillOpacity are guards, not triggers
   }, [activeLayer, colorblind]);
 
   // Filter-aware rendering: dim non-matching neighborhoods and highlight matching ones.
