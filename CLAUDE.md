@@ -60,6 +60,10 @@ npm run build:data # Rebuild TopoJSON from GeoJSON (after data pipeline changes)
 
 We want the lowest-level data possible. The minimum acceptable granularity is **postal code level**, but whenever a data source offers finer resolution (e.g., 250 m × 250 m grid cells, building-level, block-level, or coordinate-level data), prefer and integrate that instead. When evaluating new data sources or extending existing ones, always check whether a sub-postal-code breakdown is available.
 
+## Git workflow
+
+**Do not create pull requests.** Push your changes to a `claude/*` branch and let the auto-merge workflow (`.github/workflows/auto-merge.yml`) handle merging to main after CI passes. Never open a PR manually or via API.
+
 ## Code style
 
 - TypeScript strict mode
