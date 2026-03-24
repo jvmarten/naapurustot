@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense, useCallback } from 'react';
+import React, { useState, useRef, useEffect, lazy, Suspense, useCallback } from 'react';
 import { useTheme } from '../hooks/useTheme';
 import { t, type Lang } from '../utils/i18n';
 
