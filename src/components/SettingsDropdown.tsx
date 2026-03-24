@@ -91,8 +91,8 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
         className={`flex px-2.5 py-2 rounded-lg text-xs font-semibold transition-all items-center justify-center
                    min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0
                    ${open
-                     ? 'bg-brand-500/20 text-brand-300 border border-brand-500/30'
-                     : 'text-white/70 hover:text-white hover:bg-white/10 border border-transparent'
+                     ? 'bg-brand-500/20 text-brand-600 dark:text-brand-300 border border-brand-500/30'
+                     : 'text-surface-600 dark:text-white/70 hover:text-surface-900 dark:hover:text-white hover:bg-surface-100 dark:hover:bg-white/10 border border-transparent'
                    }`}
         aria-label={t('settings.title')}
         title={t('settings.title')}

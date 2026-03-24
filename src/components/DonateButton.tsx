@@ -156,6 +156,7 @@ export const DonateButton: React.FC<DonateButtonProps> = ({ variant = 'button' }
           <div
             className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm"
             onClick={() => setOpen(false)}
+            onMouseDown={(e) => e.stopPropagation()}
           >
             <div
               ref={popupRef}
