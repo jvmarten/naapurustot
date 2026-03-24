@@ -74,7 +74,7 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-56 rounded-xl bg-white dark:bg-surface-900
+        <div className="absolute left-0 top-full mt-2 w-56 rounded-xl bg-white dark:bg-surface-900
                        border border-surface-200 dark:border-surface-700/40 shadow-2xl backdrop-blur-md
                        py-1 z-50">
           {/* Neighborhood Wizard */}
