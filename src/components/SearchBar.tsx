@@ -155,7 +155,7 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, onSelect,
           ref={inputRef}
           type="text"
           role="combobox"
-          aria-expanded={isOpen && results.length > 0}
+          aria-expanded={isOpen && (results.length > 0 || addressResults.length > 0)}
           aria-activedescendant={highlightedIndex >= 0 ? `search-result-${highlightedIndex}` : undefined}
           aria-controls="search-results-list"
           aria-autocomplete="list"
