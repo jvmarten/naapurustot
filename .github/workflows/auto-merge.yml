@@ -43,6 +43,7 @@ jobs:
 
       - name: E2E tests
         run: npm run test:e2e
+        timeout-minutes: 5
 
   merge-to-main:
     needs: ci
