@@ -36,6 +36,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
   // PO-3: Layer search filter
   const [layerSearch, setLayerSearch] = useState('');
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [minimized, setMinimized] = useState(false);
   const sheetRef = useRef<HTMLDivElement>(null);
 
   // QW-3: Unified bottom sheet drag behavior
@@ -98,16 +99,27 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
   const layerList = (
     <div className="p-2 space-y-1" ref={listRef} role="listbox" aria-label={t('layers.title')}>
       {/* PO-3: Search input */}
-      <div className="px-2 pb-2">
+      <div className="px-2 pb-2 relative">
         <input
           type="text"
           value={layerSearch}
           onChange={(e) => setLayerSearch(e.target.value)}
           placeholder={t('layers.search_placeholder')}
           className="w-full rounded-lg bg-surface-100 dark:bg-surface-800/60 border border-surface-200 dark:border-surface-700/40
-                     px-3 py-2 md:py-1.5 text-xs text-surface-900 dark:text-white placeholder-surface-400 dark:placeholder-surface-500
+                     px-3 pr-7 py-2 md:py-1.5 text-xs text-surface-900 dark:text-white placeholder-surface-400 dark:placeholder-surface-500
                      focus:outline-none focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/30"
         />
+        {layerSearch && (
+          <button
+            onClick={() => setLayerSearch('')}
+            className="absolute right-4 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-surface-400 dark:text-surface-500 hover:text-surface-600 dark:hover:text-surface-300 hover:bg-surface-200 dark:hover:bg-surface-700/60 transition-colors"
+            aria-label="Clear search"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
       </div>
       {/* Standalone quality index — always visible at the top */}
       {(() => {
@@ -262,14 +274,26 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
   return (
     <>
       {/* Desktop: top-right dropdown */}
-      <div className="hidden md:block absolute top-4 right-4 z-10 w-52 max-h-[80vh] overflow-y-auto">
+      <div className={`hidden md:block absolute top-4 right-4 z-10 ${minimized ? 'w-auto' : 'w-52 max-h-[80vh] overflow-y-auto'}`}>
         <div className="rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-surface-200 dark:border-surface-700/40">
+          <button
+            onClick={() => setMinimized((prev) => !prev)}
+            className="w-full px-4 py-3 flex items-center justify-between gap-2 cursor-pointer hover:bg-surface-100/50 dark:hover:bg-surface-800/30 transition-colors"
+          >
             <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400">
               {t('layers.title')}
             </h3>
-          </div>
-          {layerList}
+            <svg
+              className={`w-3 h-3 text-surface-400 dark:text-surface-500 transition-transform duration-200 ${minimized ? '-rotate-90' : ''}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          {!minimized && layerList}
         </div>
       </div>
 
