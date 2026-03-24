@@ -38,6 +38,7 @@ jobs:
 
       - name: E2E tests
         run: npx playwright test --project=e2e
+        timeout-minutes: 5
 
       - name: Visual regression tests
         run: npm run test:visual
