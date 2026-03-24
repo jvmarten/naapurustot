@@ -37,7 +37,21 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: E2E tests
-        run: npm run test:e2e
+        run: npx playwright test --project=e2e
+
+      - name: Visual regression tests
+        run: npm run test:visual
+
+      - name: Upload visual diff artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-regression-diffs
+          path: |
+            test-results/
+            e2e/visual/visual-regression.spec.ts-snapshots/*-diff.png
+            e2e/visual/visual-regression.spec.ts-snapshots/*-actual.png
+          retention-days: 14
 
       - name: Check bundle size (IN-3)
         run: |
