@@ -577,10 +577,6 @@ const App: React.FC = () => {
           onToggleLang={toggleLang}
           fillOpacity={fillOpacity}
           onFillOpacityChange={handleFillOpacityChange}
-          drawMode={drawMode}
-          hasPolygon={!!drawnPolygon}
-          onToggleDraw={handleToggleDraw}
-          onClearDraw={handleClearDraw}
         />
       </div>
 
