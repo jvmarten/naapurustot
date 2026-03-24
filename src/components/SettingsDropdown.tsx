@@ -14,10 +14,6 @@ interface SettingsDropdownProps {
   onToggleLang: () => void;
   fillOpacity: number;
   onFillOpacityChange: (value: number) => void;
-  drawMode: boolean;
-  hasPolygon: boolean;
-  onToggleDraw: () => void;
-  onClearDraw: () => void;
 }
 
 const CB_OPTIONS: { value: ColorblindType; labelKey: string }[] = [
@@ -72,10 +68,6 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
   onToggleLang,
   fillOpacity,
   onFillOpacityChange,
-  drawMode,
-  hasPolygon,
-  onToggleDraw,
-  onClearDraw,
 }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -192,39 +184,6 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
 
           {/* Layer opacity — debounced to avoid Map paint updates + localStorage writes on every drag tick */}
           <OpacitySlider fillOpacity={fillOpacity} onFillOpacityChange={onFillOpacityChange} />
-
-          {/* Draw area — desktop only (mobile has it in ToolsDropdown) */}
-          <div className="hidden md:block">
-            <div className="border-t border-surface-100 dark:border-surface-700/40 my-1" />
-            <div className="flex items-center gap-2 px-4 py-1">
-              <button
-                onClick={onToggleDraw}
-                className={`flex-1 flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm transition-colors
-                  ${drawMode
-                    ? 'bg-violet-500/15 dark:bg-violet-600/20 text-violet-600 dark:text-violet-300'
-                    : 'text-surface-700 dark:text-surface-200 hover:bg-surface-50 dark:hover:bg-surface-800'
-                  }`}
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-1a1 1 0 01-1-1v-4zM5 10v4a1 1 0 001 1h4M15 14v-4a1 1 0 00-1-1h-4" />
-                </svg>
-                <span>{drawMode ? t('draw.drawing') : t('draw.toggle')}</span>
-              </button>
-              {hasPolygon && (
-                <button
-                  onClick={onClearDraw}
-                  className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold
-                             text-rose-500 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors"
-                  aria-label={t('draw.clear')}
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                  <span>{t('draw.clear')}</span>
-                </button>
-              )}
-            </div>
-          </div>
 
           {/* Divider */}
           <div className="border-t border-surface-100 dark:border-surface-700/40 my-1" />
