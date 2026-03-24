@@ -8,6 +8,10 @@ test.describe('layer switching and legend updates', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
     await waitForDataLoaded(page);
+    // Layer panel is minimized by default — expand it
+    const layerHeader = page.locator('text=Aineistot').first();
+    await expect(layerHeader).toBeVisible({ timeout: 5000 });
+    await layerHeader.click();
   });
 
   test('switching layer updates the legend title', async ({ page }) => {

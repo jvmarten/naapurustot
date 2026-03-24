@@ -36,7 +36,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
   // PO-3: Layer search filter
   const [layerSearch, setLayerSearch] = useState('');
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [minimized, setMinimized] = useState(false);
+  const [minimized, setMinimized] = useState(true);
   const sheetRef = useRef<HTMLDivElement>(null);
 
   // QW-3: Unified bottom sheet drag behavior

@@ -17,7 +17,7 @@ function envNum(key: string, fallback: number): number {
   return isFinite(n) ? n : fallback;
 }
 
-const MAP_MIN_ZOOM = envNum('VITE_MAP_MIN_ZOOM', 8);
+const MAP_MIN_ZOOM = envNum('VITE_MAP_MIN_ZOOM', 4);
 const MAP_MAX_ZOOM = envNum('VITE_MAP_MAX_ZOOM', 16);
 
 const SOURCE_ID = 'neighborhoods';

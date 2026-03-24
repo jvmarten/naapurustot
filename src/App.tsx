@@ -84,7 +84,7 @@ const App: React.FC = () => {
   const [isOffline, setIsOffline] = useState(() => typeof navigator !== 'undefined' && !navigator.onLine);
 
   // City filter
-  const [cityFilter, setCityFilter] = useState<CityFilter>((initialUrl.city as CityFilter) ?? 'all');
+  const [cityFilter, setCityFilter] = useState<CityFilter>((initialUrl.city as CityFilter) ?? 'helsinki_metro');
 
   // Filter data by selected city
   const filteredData = useMemo(() => {
