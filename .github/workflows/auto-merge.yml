@@ -11,7 +11,7 @@ permissions:
 
 concurrency:
   group: auto-merge-to-main
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   ci:
