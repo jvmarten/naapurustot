@@ -16,12 +16,12 @@ export const ComparisonScopeToggle: React.FC<ComparisonScopeToggleProps> = ({ sc
     <button
       onClick={() => onChange(isRegion ? 'all' : 'region')}
       disabled={disabled}
-      className={`text-sm font-medium rounded-lg px-2.5 py-1.5 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-400
+      className={`text-sm font-medium rounded-lg md:rounded-xl px-2.5 py-1.5 md:px-3 md:py-3 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-400
         ${disabled
           ? 'bg-surface-300/60 text-surface-400 cursor-not-allowed dark:bg-surface-700/40 dark:text-surface-500'
           : isRegion
             ? 'bg-amber-500/90 hover:bg-amber-600/90 text-white'
-            : 'bg-surface-200/80 hover:bg-surface-300/80 text-surface-600 dark:bg-surface-700/60 dark:hover:bg-surface-600/60 dark:text-surface-300'
+            : 'md:bg-transparent md:hover:bg-surface-100/50 md:dark:hover:bg-surface-800/30 bg-surface-200/80 hover:bg-surface-300/80 text-surface-600 dark:bg-surface-700/60 dark:hover:bg-surface-600/60 dark:text-surface-300 md:dark:bg-transparent'
         }`}
       title={disabled ? t('scope.all') : isRegion ? t('scope.active_hint') : t('scope.label')}
       aria-label={t('scope.label')}
