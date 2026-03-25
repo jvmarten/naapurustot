@@ -34,8 +34,8 @@ logger = logging.getLogger(__name__)
 
 # Municipality codes per city/region
 HELSINKI_METRO_CODES = {"091", "049", "092", "235"}
-TURKU_CODES = {"853"}
-TAMPERE_CODES = {"837"}
+TURKU_CODES = {"853", "202", "680", "529", "423", "704", "481", "577"}  # Turku, Kaarina, Raisio, Naantali, Lieto, Rusko, Masku, Paimio
+TAMPERE_CODES = {"837", "536", "980", "211", "418", "604"}  # Tampere, Nokia, Ylöjärvi, Kangasala, Lempäälä, Pirkkala
 
 # All supported municipality codes (union of all regions)
 METRO_CODES = HELSINKI_METRO_CODES | TURKU_CODES | TAMPERE_CODES
@@ -47,7 +47,19 @@ MUNICIPALITY_CITY = {
     "092": "helsinki_metro",
     "235": "helsinki_metro",
     "853": "turku",
+    "202": "turku",
+    "680": "turku",
+    "529": "turku",
+    "423": "turku",
+    "704": "turku",
+    "481": "turku",
+    "577": "turku",
     "837": "tampere",
+    "536": "tampere",
+    "980": "tampere",
+    "211": "tampere",
+    "418": "tampere",
+    "604": "tampere",
 }
 
 # Pinned API versions — bump these explicitly when upgrading
@@ -108,8 +120,8 @@ OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 
 # Bounding boxes for Overpass queries (per region)
 HELSINKI_METRO_BBOX = "60.10,24.50,60.40,25.25"
-TURKU_BBOX = "60.35,22.05,60.55,22.45"
-TAMPERE_BBOX = "61.40,23.55,61.58,23.90"
+TURKU_BBOX = "60.20,21.80,60.60,22.70"
+TAMPERE_BBOX = "61.20,23.30,61.70,24.10"
 
 # All bounding boxes for Overpass queries
 ALL_BBOXES = [HELSINKI_METRO_BBOX, TURKU_BBOX, TAMPERE_BBOX]

@@ -322,6 +322,6 @@
   "city.select": "Select city",
   "city.all": "All cities",
   "city.helsinki_metro": "Helsinki Metro",
-  "city.turku": "Turku",
-  "city.tampere": "Tampere"
+  "city.turku": "Turku Metro",
+  "city.tampere": "Tampere Metro"
 }
