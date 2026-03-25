@@ -691,7 +691,12 @@ const App: React.FC = () => {
       </div>
 
       {/* Comparison scope toggle — mobile only (desktop rendered inside LayerSelector via headerSlot) */}
-      <div className="absolute top-[3.5rem] right-3 z-10 md:hidden">
+      <div className="absolute top-[3.5rem] right-3 z-10 md:hidden flex items-center gap-1.5">
+        {comparisonScope === 'region' && cityFilter !== 'all' && (
+          <div className="px-2.5 py-1 rounded-lg bg-amber-500/90 text-white text-[10px] font-semibold backdrop-blur-sm">
+            {t('scope.active_hint')}
+          </div>
+        )}
         <ComparisonScopeToggle
           scope={comparisonScope}
           onChange={setComparisonScope}
@@ -867,9 +872,9 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Region scope indicator */}
+      {/* Region scope indicator — desktop only (mobile version is inline next to toggle above) */}
       {comparisonScope === 'region' && cityFilter !== 'all' && (
-        <div className="absolute top-12 left-3 md:left-auto md:right-4 z-10 px-2.5 py-1 rounded-lg
+        <div className="hidden md:block absolute top-12 right-4 z-10 px-2.5 py-1 rounded-lg
                        bg-amber-500/90 text-white text-[10px] font-semibold backdrop-blur-sm">
           {t('scope.active_hint')}
         </div>
