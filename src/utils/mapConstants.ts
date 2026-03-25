@@ -29,7 +29,7 @@ export function getInitialZoom(): number {
 /** Per-city viewport configurations. All use `bounds` so the view adapts to any screen size. */
 export const CITY_VIEWPORTS: Record<string, { center: [number, number]; zoom: number; bounds: [number, number, number, number] }> = {
   helsinki_metro: { center: [24.94, 60.17], zoom: 9.2, bounds: [24.5, 60.05, 25.4, 60.4] },
-  turku: { center: [22.27, 60.43], zoom: 9.5, bounds: [21.8, 60.2, 22.7, 60.6] },
-  tampere: { center: [23.70, 61.48], zoom: 10, bounds: [23.3, 61.2, 24.1, 61.7] },
+  turku: { center: [22.20, 60.50], zoom: 9, bounds: [21.5, 60.25, 22.9, 60.75] },
+  tampere: { center: [23.85, 61.55], zoom: 8.5, bounds: [23.1, 61.2, 25.0, 62.2] },
   all: { center: [24.0, 61.0], zoom: 6, bounds: [20.5, 59.5, 26.5, 62.5] },
 };

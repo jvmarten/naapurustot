@@ -118,8 +118,8 @@ OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 
 # Bounding boxes for Overpass queries (per region)
 HELSINKI_METRO_BBOX = "60.10,24.50,60.40,25.25"
-TURKU_BBOX = "60.20,21.80,60.60,22.70"
-TAMPERE_BBOX = "61.20,23.30,61.70,24.10"
+TURKU_BBOX = "60.25,21.50,60.75,22.90"
+TAMPERE_BBOX = "61.20,23.10,62.20,25.00"
 
 # All bounding boxes for Overpass queries
 ALL_BBOXES = [HELSINKI_METRO_BBOX, TURKU_BBOX, TAMPERE_BBOX]
@@ -300,6 +300,8 @@ def _detect_latest_paavo_year() -> int:
     """Query WFS GetCapabilities to find the latest pno_tilasto_YYYY layer.
 
     Returns the year as an integer, or WFS_FALLBACK_YEAR if detection fails.
+    Tries years in descending order since the newest advertised layer may not
+    be queryable yet.
     """
     import re
 
@@ -308,11 +310,19 @@ def _detect_latest_paavo_year() -> int:
             "GET", WFS_CAPABILITIES_URL, label="WFS GetCapabilities", timeout=30,
         )
         text = r.text
-        years = [int(m) for m in re.findall(r"pno_tilasto_(\d{4})", text)]
+        years = sorted(set(int(m) for m in re.findall(r"pno_tilasto_(\d{4})", text)), reverse=True)
         if years:
-            latest = max(years)
-            logger.info("Auto-detected latest Paavo year: %d (available: %s)", latest, sorted(set(years)))
-            return latest
+            logger.info("Detected Paavo years: %s", years)
+            for year in years:
+                test_url = WFS_FEATURE_TEMPLATE.format(year=year) + "&count=1"
+                try:
+                    _request_with_retry("GET", test_url, label=f"Paavo probe {year}", timeout=30)
+                    logger.info("Using Paavo year: %d", year)
+                    return year
+                except Exception:
+                    logger.warning("  Paavo year %d not queryable, trying older...", year)
+            logger.warning("  No Paavo year was queryable, using fallback: %d", WFS_FALLBACK_YEAR)
+            return WFS_FALLBACK_YEAR
     except Exception as e:
         _record_error("detect_paavo_year", e)
 
