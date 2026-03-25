@@ -606,7 +606,8 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   useEffect(() => {
     if (!mapRef.current || !flyTo) return;
     if (flyTo.bounds) {
-      mapRef.current.fitBounds(flyTo.bounds, { padding: 100, duration: 1200, maxZoom: 14.5 });
+      const isMobile = window.innerWidth < 768;
+      mapRef.current.fitBounds(flyTo.bounds, { padding: isMobile ? 40 : 80, duration: 1200, maxZoom: 14.5 });
     } else {
       mapRef.current.flyTo({ center: flyTo.center, zoom: flyTo.zoom ?? 13.5, duration: 1200 });
     }
