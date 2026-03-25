@@ -275,3 +275,5 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, onSelect,
     </div>
   );
 });
+
+SearchBar.displayName = 'SearchBar';

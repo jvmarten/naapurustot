@@ -167,6 +167,9 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
 
   // Copy link / share state
   const [copied, setCopied] = useState(false);
+  const copiedTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  // Clean up the "copied" feedback timer on unmount to prevent state updates after unmount
+  React.useEffect(() => () => clearTimeout(copiedTimerRef.current), []);
   const handleCopyLink = useCallback(async () => {
     const url = window.location.href;
 
@@ -190,7 +193,8 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      clearTimeout(copiedTimerRef.current);
+      copiedTimerRef.current = setTimeout(() => setCopied(false), 2000);
     } catch { /* clipboard access denied or unavailable */ }
   }, [d.nimi, d.pno]);
 

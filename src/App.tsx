@@ -112,10 +112,9 @@ const App: React.FC = () => {
   // (computeQualityIndices mutates features in-place, so we need this signal to trigger recomputation).
   const cityAverages = useMemo(() => {
     if (!filteredData) return metroAverages;
-    if (cityFilter === 'all') return computeMetroAverages(filteredData.features);
     return computeMetroAverages(filteredData.features);
   // eslint-disable-next-line react-hooks/exhaustive-deps -- qualityVersion signals in-place data mutation
-  }, [filteredData, cityFilter, qualityVersion]);
+  }, [filteredData, qualityVersion]);
 
   // Rescale layer stops when comparison scope is 'region' and a specific city is selected
   const effectiveLayer = useMemo(() => {
@@ -140,6 +139,7 @@ const App: React.FC = () => {
   // CF-6: Draw polygon state
   const [drawMode, setDrawMode] = useState(false);
   const [drawVertices, setDrawVertices] = useState<Position[]>([]);
+  const drawVerticesRef = useRef<Position[]>([]);
   const [drawnPolygon, setDrawnPolygon] = useState<Feature<Polygon> | null>(null);
 
   // Select-areas mode: tap neighborhoods to multi-select them
@@ -154,6 +154,7 @@ const App: React.FC = () => {
       if (v) {
         // Exiting draw mode — clear in-progress vertices
         setDrawVertices([]);
+        drawVerticesRef.current = [];
       }
       return !v;
     });
@@ -163,6 +164,7 @@ const App: React.FC = () => {
     // Exit draw mode if entering select mode
     setDrawMode(false);
     setDrawVertices([]);
+    drawVerticesRef.current = [];
     setSelectMode((v) => {
       if (v) {
         setSelectedAreaPnos([]);
@@ -172,19 +174,22 @@ const App: React.FC = () => {
   }, []);
 
   const handleDrawClick = useCallback((lngLat: [number, number]) => {
-    setDrawVertices((prev) => [...prev, lngLat]);
+    setDrawVertices((prev) => {
+      const next = [...prev, lngLat];
+      drawVerticesRef.current = next;
+      return next;
+    });
   }, []);
 
   const handleDrawDoubleClick = useCallback(() => {
-    // Read current vertices via a ref-like pattern: use the updater to capture
-    // current state, then perform side effects outside the updater.
-    let captured: Position[] = [];
-    setDrawVertices((prev) => {
-      captured = prev;
-      return [];
-    });
-    if (captured.length >= 3) {
-      const closed = [...captured, captured[0]];
+    // Read current vertices from the ref (avoids impure side-effects inside
+    // a state updater, which violates React's contract and can break under
+    // concurrent rendering).
+    const vertices = drawVerticesRef.current;
+    setDrawVertices([]);
+    drawVerticesRef.current = [];
+    if (vertices.length >= 3) {
+      const closed = [...vertices, vertices[0]];
       setDrawnPolygon({
         type: 'Feature',
         properties: {},
@@ -306,6 +311,7 @@ const App: React.FC = () => {
   const handleClearDraw = useCallback(() => {
     setDrawnPolygon(null);
     setDrawVertices([]);
+    drawVerticesRef.current = [];
     setDrawMode(false);
     setSelectMode(false);
     setSelectedAreaPnos([]);
