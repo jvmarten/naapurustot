@@ -51,15 +51,20 @@ export const CitySelector: React.FC<CitySelectorProps> = ({ value, onChange, lan
       <div ref={ref} className="relative md:hidden">
         <button
           onClick={() => setOpen((prev) => !prev)}
-          className={`min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-400 ${
-            open
-              ? 'bg-brand-500/20 border border-brand-500/30 text-brand-600 dark:text-brand-400'
-              : 'bg-brand-500/90 hover:bg-brand-600/90 text-white'
-          }`}
+          className={`flex px-2.5 py-2 rounded-lg text-xs font-semibold transition-all items-center justify-center
+                     min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 cursor-pointer
+                     ${open
+                       ? 'bg-brand-500/20 text-brand-600 dark:text-brand-300 border border-brand-500/30'
+                       : 'text-surface-600 dark:text-white/70 hover:text-surface-900 dark:hover:text-white hover:bg-surface-100 dark:hover:bg-white/10 border border-transparent'
+                     }`}
           aria-label={t('city.select')}
+          title={t('city.select')}
         >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-1.5 0a6.5 6.5 0 11-11-4.58v.09c0 .72.37 1.39.97 1.76l.32.2a1.25 1.25 0 01.57 1.05v.27c0 .69.56 1.25 1.25 1.25h.09c.32 0 .62.13.84.36l.18.18c.21.21.5.34.8.34h.28a.6.6 0 00.6-.6v-.14a1.4 1.4 0 01.98-1.33l.06-.02a1.25 1.25 0 00.86-1.19V7.28c0-.42-.21-.8-.56-1.03l-.52-.35a1.25 1.25 0 00-1.08-.13l-.2.07a1.25 1.25 0 01-1.37-.38l-.08-.1A1.25 1.25 0 008.37 5h-.12a1.25 1.25 0 00-.98.48l-.01.01A6.48 6.48 0 0116.5 10z" clipRule="evenodd" />
+          {/* Simple globe icon (stroke) */}
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9 9 0 100-18 9 9 0 000 18z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3.6 9h16.8M3.6 15h16.8" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 3a15 15 0 014 9 15 15 0 01-4 9 15 15 0 01-4-9 15 15 0 014-9z" />
           </svg>
         </button>
 
