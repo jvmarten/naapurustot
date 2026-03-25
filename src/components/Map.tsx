@@ -150,8 +150,9 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
 
   // PO-2: Track previous active layer to detect layer switches (skip animation on initial render)
   const prevActiveLayerRef = useRef<LayerId | null>(null);
-  // PO-2: Track pending layer transition timeout for cleanup
+  // PO-2: Track pending layer transition timeouts for cleanup
   const layerTransitionRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const layerTransitionResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Initialize map
   useEffect(() => {
@@ -409,6 +410,10 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       clearTimeout(layerTransitionRef.current);
       layerTransitionRef.current = null;
     }
+    if (layerTransitionResetRef.current) {
+      clearTimeout(layerTransitionResetRef.current);
+      layerTransitionResetRef.current = null;
+    }
 
     // QW-2: Update no-data layer filter for new active layer
     if (map.getLayer(NO_DATA_LAYER)) {
@@ -457,7 +462,8 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         }
 
         // Reset transition to default after fade-in completes
-        setTimeout(() => {
+        layerTransitionResetRef.current = setTimeout(() => {
+          layerTransitionResetRef.current = null;
           if (!mapRef.current || !mapRef.current.getLayer(FILL_LAYER)) return;
           mapRef.current.setPaintProperty(FILL_LAYER, 'fill-opacity-transition', { duration: 300, delay: 0 });
           if (mapRef.current.getLayer(GRID_FILL_LAYER)) {
@@ -474,6 +480,10 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       if (layerTransitionRef.current) {
         clearTimeout(layerTransitionRef.current);
         layerTransitionRef.current = null;
+      }
+      if (layerTransitionResetRef.current) {
+        clearTimeout(layerTransitionResetRef.current);
+        layerTransitionResetRef.current = null;
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- data/gridData/fillOpacity are guards, not triggers
@@ -949,3 +959,5 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
 
   return <div ref={containerRef} className="absolute inset-0" />;
 });
+
+Map.displayName = 'Map';
