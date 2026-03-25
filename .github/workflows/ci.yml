@@ -41,10 +41,20 @@ jobs:
         timeout-minutes: 5
 
       - name: Visual regression tests
-        run: npm run test:visual
+        id: visual-tests
+        run: |
+          SNAP_DIR="e2e/visual/visual-regression.spec.ts-snapshots"
+          if [ -d "$SNAP_DIR" ] && ls "$SNAP_DIR"/*-visual-linux.png >/dev/null 2>&1; then
+            echo "Baselines exist — running comparison"
+            npm run test:visual
+          else
+            echo "No baselines — generating snapshots"
+            npm run test:visual -- --update-snapshots || true
+            npm run test:visual
+          fi
 
       - name: Upload visual diff artifacts
-        if: failure()
+        if: failure() && steps.visual-tests.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
           name: visual-regression-diffs

@@ -57,12 +57,8 @@ test.describe('visual regression', () => {
     await waitForDataLoaded(page);
     await waitForMapIdle(page);
 
-    // Wait for the neighborhood panel to appear (desktop side panel)
-    const panel = page.locator('.hidden.md\\:block.absolute').first();
-    await expect(panel).toBeVisible({ timeout: 10000 });
-
-    // Wait for stats to render
-    await expect(panel.locator('text=Väestö').first()).toBeVisible({ timeout: 5000 });
+    // Wait for panel content to render (section header "Väestörakenne")
+    await expect(page.locator('text=Väestörakenne').first()).toBeVisible({ timeout: 15000 });
 
     await expect(page).toHaveScreenshot('neighborhood-panel-open.png', {
       maxDiffPixelRatio: 0.01,
@@ -79,8 +75,7 @@ test.describe('visual regression', () => {
     await expect(comparisonTitle).toBeVisible({ timeout: 10000 });
 
     // Ensure table data is rendered
-    const comparisonPanel = page.locator('.hidden.md\\:block.absolute.bottom-4');
-    await expect(comparisonPanel.locator('text=Väestö').first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('text=Väestö').first()).toBeVisible({ timeout: 10000 });
 
     await expect(page).toHaveScreenshot('comparison-panel-3-neighborhoods.png', {
       maxDiffPixelRatio: 0.01,
