@@ -637,7 +637,7 @@ const App: React.FC = () => {
       {/* Header bar */}
       <header className="absolute top-0 left-0 right-0 z-20 h-12 flex items-center justify-between px-3 md:px-4 bg-white/80 dark:bg-surface-950/80 backdrop-blur-md border-b border-surface-200/50 dark:border-white/10">
         {/* Left: settings & tools */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <SettingsDropdown
             colorblind={colorblind}
             onColorblindChange={handleColorblindChange}
@@ -666,29 +666,35 @@ const App: React.FC = () => {
         </div>
 
         {/* Center: brand */}
-        <button
-          onClick={handleResetView}
-          className="absolute left-1/2 -translate-x-1/2 cursor-pointer bg-transparent border-none"
-          title={t('map.reset_view')}
-        >
-          <h1 className="text-lg font-display font-bold text-surface-900 dark:text-white/90 tracking-tight">
-            naapurustot<span className="text-brand-600 dark:text-brand-400">.fi</span>
-          </h1>
-        </button>
+        <div className="flex-1 flex justify-center min-w-0">
+          <button
+            onClick={handleResetView}
+            className="cursor-pointer bg-transparent border-none truncate"
+            title={t('map.reset_view')}
+          >
+            <h1 className="text-lg font-display font-bold text-surface-900 dark:text-white/90 tracking-tight whitespace-nowrap">
+              naapurustot<span className="text-brand-600 dark:text-brand-400">.fi</span>
+            </h1>
+          </button>
+        </div>
 
-        {/* Right: city selector + comparison scope */}
-        <div className="flex items-center gap-1.5">
-          <ComparisonScopeToggle
-            scope={comparisonScope}
-            onChange={setComparisonScope}
-            disabled={cityFilter === 'all'}
-          />
+        {/* Right: city selector */}
+        <div className="flex items-center gap-1.5 shrink-0">
           <CitySelector value={cityFilter} onChange={handleCityChange} />
         </div>
       </header>
 
-      {/* Search */}
-      <SearchBar data={data} onSelect={handleSearch} recent={recent} />
+      {/* Search + comparison scope */}
+      <div className="absolute top-[3.5rem] left-3 md:left-4 z-10 flex items-start gap-1.5">
+        <div className="w-52 md:w-72">
+          <SearchBar data={data} onSelect={handleSearch} recent={recent} />
+        </div>
+        <ComparisonScopeToggle
+          scope={comparisonScope}
+          onChange={setComparisonScope}
+          disabled={cityFilter === 'all'}
+        />
+      </div>
 
       {/* Ranking table */}
       {showRanking && (

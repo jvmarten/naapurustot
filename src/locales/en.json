@@ -3,6 +3,7 @@
   "app.subtitle": "Finnish Cities",
   "search.placeholder": "Search by address, street, or area\u2026",
   "search.placeholder_short": "Search area\u2026",
+  "search.clear": "Clear search",
   "search.moreResults": "more results\u2026",
   "layer.quality_index": "Quality Index",
   "panel.quality_index": "Quality Index",

@@ -144,7 +144,7 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, onSelect,
   }
 
   return (
-    <div ref={containerRef} className="absolute top-[3.5rem] left-3 md:left-4 z-10 w-[calc(100%-1.5rem)] md:w-72">
+    <div ref={containerRef} className="w-full">
       <div className="relative">
         <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
           <svg className="w-4 h-4 text-surface-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -168,10 +168,21 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, onSelect,
           onKeyDown={handleKeyDown}
           placeholder={window.innerWidth < 768 ? t('search.placeholder_short') : t('search.placeholder')}
           className="w-full rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40
-                     pl-10 pr-4 py-3 md:py-2.5 text-base md:text-sm text-surface-900 dark:text-white placeholder-surface-400 dark:placeholder-surface-500
+                     pl-10 pr-8 py-3 md:py-2.5 text-base md:text-sm text-surface-900 dark:text-white placeholder-surface-400 dark:placeholder-surface-500
                      focus:outline-none focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/30
                      shadow-2xl transition-all"
         />
+        {query && (
+          <button
+            onClick={() => { setQuery(''); setIsOpen(false); setAddressResults([]); inputRef.current?.focus(); }}
+            className="absolute inset-y-0 right-0 flex items-center pr-3 text-surface-400 hover:text-surface-600 dark:hover:text-surface-300"
+            aria-label={t('search.clear')}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
       </div>
 
       {/* PO-5: Recent neighborhoods when input is empty/focused */}
