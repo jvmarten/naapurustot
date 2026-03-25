@@ -1,12 +1,14 @@
 import React from 'react';
 import type { CityId } from '../utils/metrics';
-import { t } from '../utils/i18n';
+import { t, type Lang } from '../utils/i18n';
 
 export type CityFilter = CityId | 'all';
 
 interface CitySelectorProps {
   value: CityFilter;
   onChange: (city: CityFilter) => void;
+  /** Pass current language to trigger re-render on language change */
+  lang?: Lang;
 }
 
 const CITY_OPTIONS: { id: CityFilter; labelKey: string }[] = [
@@ -16,7 +18,7 @@ const CITY_OPTIONS: { id: CityFilter; labelKey: string }[] = [
   { id: 'tampere', labelKey: 'city.tampere' },
 ];
 
-export const CitySelector: React.FC<CitySelectorProps> = ({ value, onChange }) => (
+export const CitySelector: React.FC<CitySelectorProps> = ({ value, onChange, lang: _lang }) => (
   <select
     value={value}
     onChange={(e) => onChange(e.target.value as CityFilter)}

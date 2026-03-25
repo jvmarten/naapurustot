@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { t } from '../utils/i18n';
+import { t, type Lang } from '../utils/i18n';
 
 interface ToolsDropdownProps {
   showFilter: boolean;
@@ -18,6 +18,8 @@ interface ToolsDropdownProps {
   onClearDraw?: () => void;
   selectMode?: boolean;
   onToggleSelectMode?: () => void;
+  /** Pass current language to trigger re-render on language change */
+  lang?: Lang;
 }
 
 export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
@@ -37,6 +39,7 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
   onClearDraw,
   selectMode,
   onToggleSelectMode,
+  lang: _lang,
 }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);

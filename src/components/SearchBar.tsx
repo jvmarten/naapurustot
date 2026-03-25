@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import type { FeatureCollection } from 'geojson';
-import { t } from '../utils/i18n';
+import { t, type Lang } from '../utils/i18n';
 import type { RecentEntry } from '../hooks/useRecentNeighborhoods';
 import { geocodeAddress, type GeocodeResult } from '../utils/geocode';
 import { booleanPointInPolygon } from '@turf/boolean-point-in-polygon';
@@ -11,9 +11,11 @@ interface SearchBarProps {
   data: FeatureCollection | null;
   onSelect: (pno: string, center: [number, number]) => void;
   recent?: RecentEntry[];
+  /** Pass current language to trigger re-render on language change */
+  lang?: Lang;
 }
 
-export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, onSelect, recent = [] }) => {
+export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, onSelect, recent = [], lang: _lang }) => {
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);

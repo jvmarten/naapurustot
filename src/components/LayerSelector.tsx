@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { LAYERS, type LayerId } from '../utils/colorScales';
-import { t } from '../utils/i18n';
+import { t, type Lang } from '../utils/i18n';
 import { useBottomSheet } from '../hooks/useBottomSheet';
 
 interface LayerSelectorProps {
@@ -9,6 +9,8 @@ interface LayerSelectorProps {
   onCustomizeQuality?: () => void;
   isCustomWeights?: boolean;
   headerSlot?: React.ReactNode;
+  /** Pass current language to trigger re-render on language change */
+  lang?: Lang;
 }
 
 type LayerGroup = {
@@ -30,7 +32,7 @@ const LAYER_GROUPS: LayerGroup[] = [
   { labelKey: 'layers.connectivity', ids: ['broadband_coverage'] },
 ];
 
-export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeLayer, onLayerChange, onCustomizeQuality, isCustomWeights = false, headerSlot }) => {
+export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeLayer, onLayerChange, onCustomizeQuality, isCustomWeights = false, headerSlot, lang: _lang }) => {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(
     Object.fromEntries(LAYER_GROUPS.map((g) => [g.labelKey, true]))
   );
