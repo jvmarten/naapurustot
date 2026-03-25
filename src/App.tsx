@@ -51,7 +51,14 @@ const App: React.FC = () => {
     x: number;
     y: number;
   } | null>(null);
-  const [flyTarget, setFlyTarget] = useState<{ center: [number, number]; zoom?: number; bounds?: [number, number, number, number] } | null>(null);
+  const [flyTarget, setFlyTarget] = useState<{ center: [number, number]; zoom?: number; bounds?: [number, number, number, number] } | null>(() => {
+    const city = (initialUrl.city as CityFilter) ?? 'helsinki_metro';
+    const vp = CITY_VIEWPORTS[city];
+    if (vp?.bounds) {
+      return { center: vp.center, zoom: vp.zoom, bounds: vp.bounds };
+    }
+    return null;
+  });
   const [lang, setLangState] = useState<Lang>(getLang());
   const [showRanking, setShowRanking] = useState(false);
   const [showFilter, setShowFilter] = useState(false);

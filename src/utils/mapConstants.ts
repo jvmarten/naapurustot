@@ -26,10 +26,10 @@ export function getInitialZoom(): number {
   return DEFAULT_ZOOM;
 }
 
-/** Per-city viewport configurations. Use `bounds` for views that should fit to an area. */
-export const CITY_VIEWPORTS: Record<string, { center: [number, number]; zoom: number; bounds?: [number, number, number, number] }> = {
-  helsinki_metro: { center: [24.94, 60.17], zoom: 9.2 },
-  turku: { center: [22.27, 60.45], zoom: 9.8 },
-  tampere: { center: [23.76, 61.50], zoom: 11 },
-  all: { center: [23.5, 60.4], zoom: 7, bounds: [21.5, 59.9, 25.5, 61.8] },
+/** Per-city viewport configurations. All use `bounds` so the view adapts to any screen size. */
+export const CITY_VIEWPORTS: Record<string, { center: [number, number]; zoom: number; bounds: [number, number, number, number] }> = {
+  helsinki_metro: { center: [24.94, 60.17], zoom: 9.2, bounds: [24.5, 60.05, 25.4, 60.4] },
+  turku: { center: [22.27, 60.45], zoom: 9.8, bounds: [22.0, 60.3, 22.55, 60.6] },
+  tampere: { center: [23.76, 61.50], zoom: 11, bounds: [23.5, 61.35, 24.05, 61.65] },
+  all: { center: [24.0, 61.0], zoom: 6, bounds: [20.5, 59.5, 26.5, 62.5] },
 };
