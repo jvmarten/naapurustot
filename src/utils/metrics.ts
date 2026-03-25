@@ -8,7 +8,7 @@
  * The index signature allows dynamic property access by layer config `property` keys.
  */
 /** Supported city/region identifiers. */
-export type CityId = 'helsinki_metro' | 'turku';
+export type CityId = 'helsinki_metro' | 'turku' | 'tampere';
 
 export interface NeighborhoodProperties {
   /** 5-digit Finnish postal code (e.g., "00100") */

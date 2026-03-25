@@ -322,5 +322,6 @@
   "city.select": "Valitse kaupunki",
   "city.all": "Kaikki kaupungit",
   "city.helsinki_metro": "Helsingin seutu",
-  "city.turku": "Turku"
+  "city.turku": "Turku",
+  "city.tampere": "Tampere"
 }
