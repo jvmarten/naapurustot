@@ -662,14 +662,15 @@ const App: React.FC = () => {
             onClearDraw={handleClearDraw}
             selectMode={selectMode}
             onToggleSelectMode={handleToggleSelectMode}
+            lang={lang}
           />
         </div>
 
-        {/* Center: brand */}
-        <div className="flex-1 flex justify-center min-w-0">
+        {/* Center: brand — absolutely positioned for true centering */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <button
             onClick={handleResetView}
-            className="cursor-pointer bg-transparent border-none truncate"
+            className="cursor-pointer bg-transparent border-none truncate pointer-events-auto"
             title={t('map.reset_view')}
           >
             <h1 className="text-lg font-display font-bold text-surface-900 dark:text-white/90 tracking-tight whitespace-nowrap">
@@ -680,13 +681,13 @@ const App: React.FC = () => {
 
         {/* Right: city selector */}
         <div className="flex items-center gap-1.5 shrink-0">
-          <CitySelector value={cityFilter} onChange={handleCityChange} />
+          <CitySelector value={cityFilter} onChange={handleCityChange} lang={lang} />
         </div>
       </header>
 
       {/* Search bar */}
       <div className="absolute top-[3.5rem] left-3 md:left-4 z-10 w-52 md:w-72">
-        <SearchBar data={data} onSelect={handleSearch} recent={recent} />
+        <SearchBar data={data} onSelect={handleSearch} recent={recent} lang={lang} />
       </div>
 
       {/* Comparison scope toggle — mobile only (desktop rendered inside LayerSelector via headerSlot) */}
@@ -741,10 +742,11 @@ const App: React.FC = () => {
             disabled={cityFilter === 'all'}
           />
         }
+        lang={lang}
       />
 
       {/* Legend — repositioned for mobile */}
-      <Legend layerId={activeLayer} colorblind={colorblind} layerConfig={effectiveLayer} />
+      <Legend layerId={activeLayer} colorblind={colorblind} layerConfig={effectiveLayer} lang={lang} />
 
       {/* Tooltip — hidden on touch devices via CSS */}
       {tooltip && !selected && (
