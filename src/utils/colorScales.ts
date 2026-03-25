@@ -738,6 +738,30 @@ export function getColorForValue(layer: LayerConfig, value: number | null | unde
  * Build a MapLibre style expression for interpolated fill color.
  * Returns gray (#d1d5db) for features where the property is null/missing.
  */
+/**
+ * Rescale a layer's color stops to the actual min/max range found in the given features.
+ * Colors stay the same; only stop breakpoints shift to span the data range.
+ * Returns the original layer unchanged if no valid values are found or min === max.
+ */
+export function rescaleLayerToData(
+  layer: LayerConfig,
+  features: GeoJSON.Feature[],
+): LayerConfig {
+  let min = Infinity;
+  let max = -Infinity;
+  for (const f of features) {
+    const v = f.properties?.[layer.property];
+    if (typeof v === 'number' && isFinite(v)) {
+      if (v < min) min = v;
+      if (v > max) max = v;
+    }
+  }
+  if (!isFinite(min) || !isFinite(max) || min === max) return layer;
+  const n = layer.stops.length;
+  const newStops = layer.stops.map((_, i) => min + (i / (n - 1)) * (max - min));
+  return { ...layer, stops: newStops };
+}
+
 export function buildFillColorExpression(layer: LayerConfig, propertyOverride?: string): ExpressionSpecification {
   const prop = propertyOverride ?? layer.property;
   const interpolation: unknown[] = ['interpolate', ['linear'], ['get', prop]];

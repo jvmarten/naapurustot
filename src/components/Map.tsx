@@ -2,7 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { Feature, FeatureCollection, Polygon, Position } from 'geojson';
-import { buildFillColorExpression, type LayerId, getLayerById } from '../utils/colorScales';
+import { buildFillColorExpression, type LayerId, type LayerConfig, getLayerById } from '../utils/colorScales';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { useTheme } from '../hooks/useTheme';
 import { DEFAULT_CENTER, getInitialZoom } from '../utils/mapConstants';
@@ -56,6 +56,8 @@ interface MapProps {
   selectedAreaPnos?: string[];
   /** Callback when a neighborhood is tapped in select mode */
   onSelectAreaClick?: (props: NeighborhoodProperties) => void;
+  /** Override for layer config (used for region-scoped color scales) */
+  layerConfig?: LayerConfig;
 }
 
 // Stable empty defaults to avoid creating new references on every render
@@ -139,7 +141,7 @@ function buildFillOpacity(o: number, overrides?: { matchExpr?: unknown[]; matchV
   return base;
 }
 
-export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1, gridData = null, drawMode = false, onDrawClick, onDrawDoubleClick, drawVertices, drawnPolygon = null, drawnAreaPnos = EMPTY_ARRAY, selectMode = false, selectedAreaPnos = EMPTY_ARRAY, onSelectAreaClick }) => {
+export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1, gridData = null, drawMode = false, onDrawClick, onDrawDoubleClick, drawVertices, drawnPolygon = null, drawnAreaPnos = EMPTY_ARRAY, selectMode = false, selectedAreaPnos = EMPTY_ARRAY, onSelectAreaClick, layerConfig }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const hoveredIdRef = useRef<string | null>(null);
@@ -225,7 +227,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         promoteId: 'pno',
       });
 
-      const layer = getLayerById(activeLayer);
+      const layer = layerConfig ?? getLayerById(activeLayer);
 
       map.addLayer({
         id: FILL_LAYER,
@@ -306,7 +308,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     const map = mapRef.current;
     if (!map) return;
 
-    const layer = getLayerById(activeLayer);
+    const layer = layerConfig ?? getLayerById(activeLayer);
     const useGrid = !!gridData && !!layer.gridProperty;
 
     const addGridLayer = () => {
@@ -349,7 +351,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     if (!map || !data) return;
     if (!map.getLayer(FILL_LAYER)) return;
 
-    const layer = getLayerById(activeLayer);
+    const layer = layerConfig ?? getLayerById(activeLayer);
     const useGrid = !!gridData && !!layer.gridProperty;
 
     if (useGrid) {
@@ -366,7 +368,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       if (map.getSource(GRID_SOURCE_ID)) map.removeSource(GRID_SOURCE_ID);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when layer changes to toggle modes
-  }, [activeLayer, gridData, colorblind]);
+  }, [activeLayer, gridData, colorblind, layerConfig]);
 
   // Update fill opacity when user adjusts the slider
   useEffect(() => {
@@ -378,7 +380,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     if (filterActive && filterMatchPnos.size > 0) return;
     if (wizardHighlightPnos.length > 0) return;
 
-    const layer = getLayerById(activeLayer);
+    const layer = layerConfig ?? getLayerById(activeLayer);
     const useGrid = !!gridData && !!layer.gridProperty;
     if (useGrid) {
       map.setPaintProperty(FILL_LAYER, 'fill-opacity', 0);
@@ -398,7 +400,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     if (!map || !data) return;
     if (!map.getLayer(FILL_LAYER)) return;
 
-    const layer = getLayerById(activeLayer);
+    const layer = layerConfig ?? getLayerById(activeLayer);
     const isLayerSwitch = prevActiveLayerRef.current !== null && prevActiveLayerRef.current !== activeLayer;
     prevActiveLayerRef.current = activeLayer;
 
@@ -442,7 +444,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
 
         // Restore transition duration and fade back in
         mapRef.current.setPaintProperty(FILL_LAYER, 'fill-opacity-transition', { duration: 200, delay: 0 });
-        const layerMeta = getLayerById(activeLayer);
+        const layerMeta = layerConfig ?? getLayerById(activeLayer);
         const useGrid = !!gridData && !!layerMeta.gridProperty;
         if (useGrid) {
           mapRef.current.setPaintProperty(FILL_LAYER, 'fill-opacity', 0);
@@ -475,7 +477,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- data/gridData/fillOpacity are guards, not triggers
-  }, [activeLayer, colorblind]);
+  }, [activeLayer, colorblind, layerConfig]);
 
   // Filter-aware rendering: dim non-matching neighborhoods and highlight matching ones.
   // Uses setFilter on an existing layer instead of remove/add to avoid layer recreation overhead.

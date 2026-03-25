@@ -323,5 +323,9 @@
   "city.all": "Kaikki kaupungit",
   "city.helsinki_metro": "Helsingin seutu",
   "city.turku": "Turun seutu",
-  "city.tampere": "Tampereen seutu"
+  "city.tampere": "Tampereen seutu",
+  "scope.all": "Kaikki alueet",
+  "scope.region": "Valittu alue",
+  "scope.label": "Vertailualue",
+  "scope.active_hint": "Skaalattu valittuun alueeseen"
 }

@@ -4,6 +4,7 @@ import { DEFAULT_CENTER, getInitialZoom, CITY_VIEWPORTS } from './utils/mapConst
 import { LayerSelector } from './components/LayerSelector';
 import { SearchBar } from './components/SearchBar';
 import { CitySelector, type CityFilter } from './components/CitySelector';
+import { ComparisonScopeToggle, type ComparisonScope } from './components/ComparisonScopeToggle';
 import { Tooltip } from './components/Tooltip';
 import { Legend } from './components/Legend';
 import { SettingsDropdown } from './components/SettingsDropdown';
@@ -31,7 +32,7 @@ import { useFavorites } from './hooks/useFavorites';
 import { useNotes } from './hooks/useNotes';
 import { useRecentNeighborhoods } from './hooks/useRecentNeighborhoods';
 import { useSelectedNeighborhood } from './hooks/useSelectedNeighborhood';
-import { type LayerId, type ColorblindType, getLayerById, getColorblindMode, setColorblindMode } from './utils/colorScales';
+import { type LayerId, type ColorblindType, getLayerById, getColorblindMode, setColorblindMode, rescaleLayerToData } from './utils/colorScales';
 import { readInitialUrlState, useSyncUrlState } from './hooks/useUrlState';
 import type { NeighborhoodProperties } from './utils/metrics';
 import { computeMetroAverages } from './utils/metrics';
@@ -92,6 +93,7 @@ const App: React.FC = () => {
 
   // City filter
   const [cityFilter, setCityFilter] = useState<CityFilter>((initialUrl.city as CityFilter) ?? 'helsinki_metro');
+  const [comparisonScope, setComparisonScope] = useState<ComparisonScope>('all');
 
   // Filter data by selected city
   const filteredData = useMemo(() => {
@@ -115,8 +117,17 @@ const App: React.FC = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps -- qualityVersion signals in-place data mutation
   }, [filteredData, cityFilter, qualityVersion]);
 
+  // Rescale layer stops when comparison scope is 'region' and a specific city is selected
+  const effectiveLayer = useMemo(() => {
+    const base = getLayerById(activeLayer);
+    if (comparisonScope !== 'region' || cityFilter === 'all' || !filteredData) return base;
+    return rescaleLayerToData(base, filteredData.features);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- qualityVersion signals in-place data mutation for quality_index layer
+  }, [activeLayer, comparisonScope, cityFilter, filteredData, qualityVersion]);
+
   const handleCityChange = useCallback((city: CityFilter) => {
     setCityFilter(city);
+    if (city === 'all') setComparisonScope('all');
     deselect();
     const vp = CITY_VIEWPORTS[city];
     if (vp) {
@@ -300,6 +311,28 @@ const App: React.FC = () => {
     setSelectedAreaPnos([]);
   }, []);
 
+  // Recompute quality indices when comparison scope changes
+  useEffect(() => {
+    if (!data) return;
+    const features = comparisonScope === 'region' && cityFilter !== 'all' && filteredData
+      ? filteredData.features
+      : data.features;
+    computeQualityIndices(features, qualityWeights);
+    setQualityVersion((v) => v + 1);
+    // Refresh selected/pinned with updated quality index values
+    if (selected) {
+      const feature = data.features.find((f) => f.properties?.pno === selected.pno);
+      if (feature?.properties) select(feature.properties as NeighborhoodProperties);
+    }
+    if (pinned.length > 0) {
+      const updated = pinned
+        .map((p) => data.features.find((f) => f.properties?.pno === p.pno)?.properties as NeighborhoodProperties | undefined)
+        .filter((p): p is NeighborhoodProperties => p != null);
+      refreshPinned(updated);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- only trigger on scope/city changes
+  }, [comparisonScope, cityFilter]);
+
   // Restore neighborhood selection and pinned comparisons from URL once data is loaded
   useEffect(() => {
     if (!data || restoredPno.current) return;
@@ -334,7 +367,10 @@ const App: React.FC = () => {
     (newWeights: QualityWeights) => {
       setQualityWeights(newWeights);
       if (data) {
-        computeQualityIndices(data.features, newWeights);
+        const features = comparisonScope === 'region' && cityFilter !== 'all' && filteredData
+          ? filteredData.features
+          : data.features;
+        computeQualityIndices(features, newWeights);
         setQualityVersion((v) => v + 1);
         // Update selected neighborhood if it exists
         if (selected) {
@@ -352,7 +388,7 @@ const App: React.FC = () => {
         }
       }
     },
-    [data, selected, select, pinned, refreshPinned],
+    [data, selected, select, pinned, refreshPinned, comparisonScope, cityFilter, filteredData],
   );
 
   const handleHover = useCallback(
@@ -574,6 +610,7 @@ const App: React.FC = () => {
             selectMode={selectMode}
             selectedAreaPnos={selectedAreaPnos}
             onSelectAreaClick={handleSelectAreaClick}
+            layerConfig={effectiveLayer}
           />
         )}
       </ErrorBoundary>
@@ -639,8 +676,15 @@ const App: React.FC = () => {
           </h1>
         </button>
 
-        {/* Right: city selector */}
-        <CitySelector value={cityFilter} onChange={handleCityChange} />
+        {/* Right: city selector + comparison scope */}
+        <div className="flex items-center gap-1.5">
+          <ComparisonScopeToggle
+            scope={comparisonScope}
+            onChange={setComparisonScope}
+            disabled={cityFilter === 'all'}
+          />
+          <CitySelector value={cityFilter} onChange={handleCityChange} />
+        </div>
       </header>
 
       {/* Search */}
@@ -685,7 +729,7 @@ const App: React.FC = () => {
       />
 
       {/* Legend — repositioned for mobile */}
-      <Legend layerId={activeLayer} colorblind={colorblind} />
+      <Legend layerId={activeLayer} colorblind={colorblind} layerConfig={effectiveLayer} />
 
       {/* Tooltip — hidden on touch devices via CSS */}
       {tooltip && !selected && (
@@ -693,9 +737,9 @@ const App: React.FC = () => {
           x={tooltip.x}
           y={tooltip.y}
           name={tooltip.props.nimi || tooltip.props.pno}
-          value={tooltip.props[getLayerById(activeLayer).property] as number | null}
+          value={tooltip.props[effectiveLayer.property] as number | null}
           layerId={activeLayer}
-          metroAverage={metroAverages[getLayerById(activeLayer).property]}
+          metroAverage={(comparisonScope === 'region' ? cityAverages : metroAverages)[effectiveLayer.property]}
         />
       )}
 
@@ -801,6 +845,14 @@ const App: React.FC = () => {
               </button>
             </>
           )}
+        </div>
+      )}
+
+      {/* Region scope indicator */}
+      {comparisonScope === 'region' && cityFilter !== 'all' && (
+        <div className="absolute top-12 right-3 z-10 px-2.5 py-1 rounded-lg
+                       bg-amber-500/90 text-white text-[10px] font-semibold backdrop-blur-sm">
+          {t('scope.active_hint')}
         </div>
       )}
 

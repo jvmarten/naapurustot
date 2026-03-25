@@ -1,15 +1,17 @@
 import React from 'react';
-import { getLayerById, type LayerId } from '../utils/colorScales';
+import { getLayerById, type LayerId, type LayerConfig } from '../utils/colorScales';
 import { t } from '../utils/i18n';
 
 interface LegendProps {
   layerId: LayerId;
   colorblind?: string;
+  /** When provided, overrides the static layer config (used for region-scoped color scales) */
+  layerConfig?: LayerConfig;
 }
 
 // colorblind prop triggers re-render when mode changes (getLayerById reads global state)
-export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: _colorblind }) => {
-  const layer = getLayerById(layerId);
+export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: _colorblind, layerConfig }) => {
+  const layer = layerConfig ?? getLayerById(layerId);
 
   // Show only first and last tick values
   const n = layer.stops.length;

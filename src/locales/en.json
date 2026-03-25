@@ -323,5 +323,9 @@
   "city.all": "All cities",
   "city.helsinki_metro": "Helsinki Metro",
   "city.turku": "Turku Metro",
-  "city.tampere": "Tampere Metro"
+  "city.tampere": "Tampere Metro",
+  "scope.all": "All regions",
+  "scope.region": "Selected region",
+  "scope.label": "Comparison scope",
+  "scope.active_hint": "Scaled to selected region"
 }
