@@ -685,7 +685,7 @@ const App: React.FC = () => {
       </header>
 
       {/* Search + comparison scope */}
-      <div className="absolute top-[3.5rem] left-3 md:left-4 z-10 flex items-start gap-1.5">
+      <div className="absolute top-[3.5rem] left-3 right-3 md:left-4 md:right-auto z-10 flex items-start justify-between md:justify-start gap-1.5">
         <div className="w-52 md:w-72">
           <SearchBar data={data} onSelect={handleSearch} recent={recent} />
         </div>
