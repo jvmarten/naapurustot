@@ -168,7 +168,7 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, onSelect,
           onKeyDown={handleKeyDown}
           placeholder={window.innerWidth < 768 ? t('search.placeholder_short') : t('search.placeholder')}
           className="w-full rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40
-                     pl-10 pr-8 py-3 md:py-2.5 text-base md:text-sm text-surface-900 dark:text-white placeholder-surface-400 dark:placeholder-surface-500
+                     pl-10 pr-8 py-1.5 md:py-2.5 text-sm md:text-sm text-surface-900 dark:text-white placeholder-surface-400 dark:placeholder-surface-500
                      focus:outline-none focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/30
                      shadow-2xl transition-all"
         />
