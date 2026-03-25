@@ -31,5 +31,5 @@ export const CITY_VIEWPORTS: Record<string, { center: [number, number]; zoom: nu
   helsinki_metro: { center: [24.94, 60.17], zoom: 9.2, bounds: [24.5, 60.05, 25.4, 60.4] },
   turku: { center: [22.20, 60.50], zoom: 9, bounds: [21.5, 60.25, 22.9, 60.75] },
   tampere: { center: [23.85, 61.55], zoom: 8.5, bounds: [23.1, 61.2, 25.0, 62.2] },
-  all: { center: [24.0, 61.0], zoom: 6, bounds: [20.5, 59.5, 26.5, 62.5] },
+  all: { center: [24.0, 60.8], zoom: 5.5, bounds: [19.5, 59.0, 27.5, 63.0] },
 };
