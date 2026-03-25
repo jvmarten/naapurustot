@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { t } from '../utils/i18n';
 
@@ -152,7 +153,7 @@ export const DonateButton: React.FC<DonateButtonProps> = ({ variant = 'button' }
           </svg>
           <span>{t('donate.button')}</span>
         </button>
-        {open && (
+        {open && createPortal(
           <div
             className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm"
             onClick={() => setOpen(false)}
@@ -166,7 +167,8 @@ export const DonateButton: React.FC<DonateButtonProps> = ({ variant = 'button' }
             >
               {menuItemContent}
             </div>
-          </div>
+          </div>,
+          document.body
         )}
       </>
     );
@@ -188,7 +190,7 @@ export const DonateButton: React.FC<DonateButtonProps> = ({ variant = 'button' }
           <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
         </svg>
       </button>
-      {open && donateContent}
+      {open && createPortal(donateContent, document.body)}
     </div>
   );
 };
