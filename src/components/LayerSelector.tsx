@@ -8,6 +8,7 @@ interface LayerSelectorProps {
   onLayerChange: (id: LayerId) => void;
   onCustomizeQuality?: () => void;
   isCustomWeights?: boolean;
+  headerSlot?: React.ReactNode;
 }
 
 type LayerGroup = {
@@ -29,7 +30,7 @@ const LAYER_GROUPS: LayerGroup[] = [
   { labelKey: 'layers.connectivity', ids: ['broadband_coverage'] },
 ];
 
-export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeLayer, onLayerChange, onCustomizeQuality, isCustomWeights = false }) => {
+export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeLayer, onLayerChange, onCustomizeQuality, isCustomWeights = false, headerSlot }) => {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(
     Object.fromEntries(LAYER_GROUPS.map((g) => [g.labelKey, true]))
   );
@@ -274,8 +275,9 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
   return (
     <>
       {/* Desktop: top-right dropdown */}
-      <div className={`hidden md:block absolute top-[3.5rem] right-4 z-10 ${minimized ? 'w-auto' : 'w-52 max-h-[80vh] overflow-y-auto'}`}>
-        <div className="rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden">
+      <div className={`hidden md:flex items-start gap-1.5 absolute top-[3.5rem] right-4 z-10 ${minimized ? 'w-auto' : ''}`}>
+        {headerSlot}
+        <div className={`rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden ${minimized ? 'w-auto' : 'w-52 max-h-[80vh] overflow-y-auto'}`}>
           <button
             onClick={() => setMinimized((prev) => !prev)}
             className="w-full px-4 py-3 flex items-center justify-between gap-2 cursor-pointer hover:bg-surface-100/50 dark:hover:bg-surface-800/30 transition-colors"

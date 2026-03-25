@@ -684,11 +684,13 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      {/* Search + comparison scope */}
-      <div className="absolute top-[3.5rem] left-3 right-3 md:left-4 md:right-auto z-10 flex items-start justify-between md:justify-start gap-1.5">
-        <div className="w-52 md:w-72">
-          <SearchBar data={data} onSelect={handleSearch} recent={recent} />
-        </div>
+      {/* Search bar */}
+      <div className="absolute top-[3.5rem] left-3 md:left-4 z-10 w-52 md:w-72">
+        <SearchBar data={data} onSelect={handleSearch} recent={recent} />
+      </div>
+
+      {/* Comparison scope toggle — mobile only (desktop rendered inside LayerSelector via headerSlot) */}
+      <div className="absolute top-[3.5rem] right-3 z-10 md:hidden">
         <ComparisonScopeToggle
           scope={comparisonScope}
           onChange={setComparisonScope}
@@ -732,6 +734,13 @@ const App: React.FC = () => {
         onLayerChange={setActiveLayer}
         onCustomizeQuality={handleToggleCustomQuality}
         isCustomWeights={isCustomWeights(qualityWeights)}
+        headerSlot={
+          <ComparisonScopeToggle
+            scope={comparisonScope}
+            onChange={setComparisonScope}
+            disabled={cityFilter === 'all'}
+          />
+        }
       />
 
       {/* Legend — repositioned for mobile */}
