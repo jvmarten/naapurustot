@@ -1,7 +1,7 @@
 {
   "app.title": "Neighborhoods",
   "app.subtitle": "Finnish Cities",
-  "search.placeholder": "Search by address, street, or area\u2026",
+  "search.placeholder": "Search by area\u2026",
   "search.placeholder_short": "Search area\u2026",
   "search.clear": "Clear search",
   "search.moreResults": "more results\u2026",
