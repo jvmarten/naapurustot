@@ -62,22 +62,20 @@ MUNICIPALITY_CITY = {
     "604": "tampere",
 }
 
-# Pinned API versions — bump these explicitly when upgrading
-WFS_URL = (
-    "https://geo.stat.fi/geoserver/postialue/wfs"
-    "?service=WFS&version=2.0.0&request=GetFeature"
-    "&typeNames=postialue:pno_tilasto_2024"
-    "&outputFormat=application/json"
-)
-
-# Historical Paavo data years for time-series trends
-HISTORICAL_YEARS = [2019, 2020, 2021, 2022, 2023, 2024]
-HISTORICAL_WFS_TEMPLATE = (
-    "https://geo.stat.fi/geoserver/postialue/wfs"
-    "?service=WFS&version=2.0.0&request=GetFeature"
+# WFS base URL and capabilities endpoint for auto-detecting the latest year
+WFS_BASE = "https://geo.stat.fi/geoserver/postialue/wfs"
+WFS_CAPABILITIES_URL = f"{WFS_BASE}?service=WFS&version=2.0.0&request=GetCapabilities"
+WFS_FEATURE_TEMPLATE = (
+    f"{WFS_BASE}?service=WFS&version=2.0.0&request=GetFeature"
     "&typeNames=postialue:pno_tilasto_{year}"
     "&outputFormat=application/json"
 )
+
+# Fallback year if auto-detection fails
+WFS_FALLBACK_YEAR = 2024
+
+# Number of historical years to fetch for time-series trends
+HISTORICAL_YEARS_COUNT = 6
 
 # Local fallback for historical time-series data
 HISTORICAL_TRENDS_FILE = Path(__file__).parent / "historical_trends.json"
@@ -220,6 +218,40 @@ def _print_error_report():
 
 
 # ---------------------------------------------------------------------------
+# Cache directory
+# ---------------------------------------------------------------------------
+
+CACHE_DIR = Path(__file__).parent / "cache"
+
+
+def _cache_path(key: str) -> Path:
+    """Return the cache file path for a given key."""
+    # Sanitise key for safe filenames
+    safe = key.replace("/", "_").replace(":", "_").replace("?", "_").replace("&", "_")
+    return CACHE_DIR / f"{safe}.json"
+
+
+def _save_cache(key: str, data):
+    """Save data to the cache directory."""
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    path = _cache_path(key)
+    with open(path, "w") as f:
+        json.dump(data, f)
+    logger.info("  Cached response → %s", path.name)
+
+
+def _load_cache(key: str):
+    """Load data from cache. Returns None if not found."""
+    path = _cache_path(key)
+    if path.exists():
+        with open(path) as f:
+            data = json.load(f)
+        logger.info("  Loaded from cache: %s", path.name)
+        return data
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Retry helper
 # ---------------------------------------------------------------------------
 
@@ -242,6 +274,50 @@ def _request_with_retry(method, url, *, label, retries=MAX_RETRIES, **kwargs):
                 logger.warning("Retry %d/%d for %s in %ds (%s)", attempt, retries, label, wait, exc)
                 time.sleep(wait)
     raise last_exc  # type: ignore[misc]
+
+
+def _fetch_cached(method, url, *, cache_key, label, **kwargs):
+    """Fetch from URL with retry; on success cache the JSON, on failure load from cache.
+
+    Returns the parsed JSON data, or None if both fetch and cache miss.
+    """
+    try:
+        r = _request_with_retry(method, url, label=label, **kwargs)
+        data = r.json()
+        _save_cache(cache_key, data)
+        return data
+    except Exception as e:
+        _record_error(label, e)
+        logger.warning("  Fetch failed for %s, trying cache...", label)
+        cached = _load_cache(cache_key)
+        if cached is not None:
+            return cached
+        logger.warning("  No cache available for %s", label)
+        return None
+
+
+def _detect_latest_paavo_year() -> int:
+    """Query WFS GetCapabilities to find the latest pno_tilasto_YYYY layer.
+
+    Returns the year as an integer, or WFS_FALLBACK_YEAR if detection fails.
+    """
+    import re
+
+    try:
+        r = _request_with_retry(
+            "GET", WFS_CAPABILITIES_URL, label="WFS GetCapabilities", timeout=30,
+        )
+        text = r.text
+        years = [int(m) for m in re.findall(r"pno_tilasto_(\d{4})", text)]
+        if years:
+            latest = max(years)
+            logger.info("Auto-detected latest Paavo year: %d (available: %s)", latest, sorted(set(years)))
+            return latest
+    except Exception as e:
+        _record_error("detect_paavo_year", e)
+
+    logger.warning("  Could not detect latest Paavo year, using fallback: %d", WFS_FALLBACK_YEAR)
+    return WFS_FALLBACK_YEAR
 
 
 def _rate_limit():
@@ -336,10 +412,16 @@ def safe_div(a, b):
 # Data fetching (with retry, validation, rate limiting)
 # ---------------------------------------------------------------------------
 
-def fetch_paavo():
-    logger.info("Fetching Paavo WFS data...")
-    r = _request_with_retry("GET", WFS_URL, label="Paavo WFS", timeout=120)
-    body = r.json()
+def fetch_paavo(year: int):
+    """Fetch Paavo WFS data for the given year, with local cache fallback."""
+    url = WFS_FEATURE_TEMPLATE.format(year=year)
+    cache_key = f"paavo_wfs_{year}"
+    logger.info("Fetching Paavo WFS data (year=%d)...", year)
+
+    body = _fetch_cached("GET", url, cache_key=cache_key, label="Paavo WFS", timeout=120)
+    if body is None:
+        raise RuntimeError(f"Paavo WFS data unavailable (year={year}) and no cache exists")
+
     features = _validate_geojson_features(body, "Paavo WFS")
     gdf = gpd.GeoDataFrame.from_features(features, crs="EPSG:3067")
     logger.info("Received %d features", len(gdf))
@@ -641,13 +723,9 @@ def fetch_property_prices():
         variables = _validate_pxweb_meta(meta, "property price metadata")
     except Exception as e:
         _record_error("fetch_property_prices/meta", e)
-        # Fall back to local file
-        if PROPERTY_PRICE_FILE.exists():
-            logger.info("  Falling back to local file: %s", PROPERTY_PRICE_FILE.name)
-            with open(PROPERTY_PRICE_FILE) as f:
-                data = json.load(f)
-            logger.info("  Loaded %s postal codes from %s", len(data), PROPERTY_PRICE_FILE.name)
-            return {k: float(v) for k, v in data.items()}
+        cached = _load_cache("property_prices")
+        if cached is not None:
+            return {k: float(v) for k, v in cached.items()}
         return {}
 
     query_items = []
@@ -681,6 +759,9 @@ def fetch_property_prices():
         columns, rows = _validate_pxweb_data(data, "property price data")
     except Exception as e:
         _record_error("fetch_property_prices/data", e)
+        cached = _load_cache("property_prices")
+        if cached is not None:
+            return {k: float(v) for k, v in cached.items()}
         return {}
 
     result = {}
@@ -709,6 +790,8 @@ def fetch_property_prices():
                         pass
 
         logger.info("  Parsed property prices for %s postal codes", len(result))
+        if result:
+            _save_cache("property_prices", result)
     except Exception as e:
         _record_error("fetch_property_prices/parse", e)
 
@@ -758,9 +841,14 @@ def fetch_hsl_transit_stops():
         data = r.json()
         stops = _validate_graphql_stops(data, "HSL Digitransit")
         logger.info("  Fetched %s transit stops", len(stops))
+        _save_cache("hsl_transit_stops", stops)
         return stops
     except Exception as e:
         _record_error("fetch_hsl_transit_stops", e)
+        cached = _load_cache("hsl_transit_stops")
+        if cached is not None:
+            logger.info("  Using cached transit stops (%s stops)", len(cached))
+            return cached
         return []
 
 
@@ -823,23 +911,20 @@ def join_transit_data(gdf, stops):
 
 def fetch_air_quality():
     """
-    Fetch air quality index data from HSY.
-    Returns a dict of postal_code -> annual average air quality index.
+    Fetch air quality index data from HSY, with cache fallback.
+    Returns a list of station records or empty list.
     """
     logger.info("Fetching air quality data from HSY...")
 
-    try:
-        r = _request_with_retry(
-            "GET", HSY_AIR_QUALITY_URL, label="HSY air quality", timeout=30,
-        )
-        data = r.json()
-        if not isinstance(data, list):
-            raise ValueError(f"expected JSON array, got {type(data).__name__}")
-        logger.info("  Fetched air quality data: %s records", len(data))
-        return data
-    except Exception as e:
-        _record_error("fetch_air_quality", e)
+    data = _fetch_cached("GET", HSY_AIR_QUALITY_URL, cache_key="hsy_air_quality",
+                         label="HSY air quality", timeout=30)
+    if data is None:
         return []
+    if not isinstance(data, list):
+        logger.warning("  HSY air quality: expected JSON array, got %s", type(data).__name__)
+        return []
+    logger.info("  Air quality data: %s records", len(data))
+    return data
 
 
 def join_air_quality(gdf, aq_data):
@@ -906,7 +991,9 @@ def join_air_quality(gdf, aq_data):
 # ---------------------------------------------------------------------------
 
 def _overpass_query(query: str, label: str) -> list:
-    """Execute an Overpass API query and return elements."""
+    """Execute an Overpass API query and return elements, with cache fallback."""
+    # Build a stable cache key from the label
+    cache_key = f"overpass_{label.replace(' ', '_').replace('(', '').replace(')', '').replace(',', '')}"
     try:
         r = _request_with_retry(
             "POST", OVERPASS_URL, label=label,
@@ -916,9 +1003,14 @@ def _overpass_query(query: str, label: str) -> list:
         data = r.json()
         elements = data.get("elements", [])
         logger.info("  Fetched %s elements for %s", len(elements), label)
+        _save_cache(cache_key, elements)
         return elements
     except Exception as e:
         _record_error(label, e)
+        cached = _load_cache(cache_key)
+        if cached is not None:
+            logger.info("  Using cached data for %s (%s elements)", label, len(cached))
+            return cached
         return []
 
 
@@ -1411,7 +1503,7 @@ def _join_simple_data(gdf, data: dict, column: str, label: str):
     return gdf
 
 
-def fetch_historical_paavo():
+def fetch_historical_paavo(latest_year: int):
     """Fetch multi-year Paavo data for time-series trends.
 
     Fetches income (hr_mtu), population (he_vakiy), and unemployment (pt_tyott)
@@ -1421,16 +1513,22 @@ def fetch_historical_paavo():
     """
     logger.info("Fetching historical Paavo data for time-series trends...")
 
+    historical_years = list(range(latest_year - HISTORICAL_YEARS_COUNT + 1, latest_year + 1))
+    logger.info("  Historical years: %s", historical_years)
+
     # Structure: { pno: { "hr_mtu": {2019: val, ...}, "he_vakiy": {...}, "unemployment_rate": {...} } }
     history = {}
     trend_fields = ["hr_mtu", "he_vakiy", "pt_tyott", "ko_ika18y"]
 
-    for year in HISTORICAL_YEARS:
-        url = HISTORICAL_WFS_TEMPLATE.format(year=year)
+    for year in historical_years:
+        url = WFS_FEATURE_TEMPLATE.format(year=year)
+        cache_key = f"paavo_wfs_{year}"
         try:
             _rate_limit()
-            r = _request_with_retry("GET", url, label=f"Paavo WFS {year}", timeout=120)
-            body = r.json()
+            body = _fetch_cached("GET", url, cache_key=cache_key, label=f"Paavo WFS {year}", timeout=120)
+            if body is None:
+                logger.warning("  No data available for year %s (API down, no cache)", year)
+                continue
             features = _validate_geojson_features(body, f"Paavo WFS {year}")
             logger.info("  Year %s: %s features", year, len(features))
 
@@ -1546,12 +1644,9 @@ def fetch_rental_prices():
         variables = _validate_pxweb_meta(meta, "rental price metadata")
     except Exception as e:
         _record_error("fetch_rental_prices/meta", e)
-        if RENTAL_PRICE_FILE.exists():
-            logger.info("  Falling back to local file: %s", RENTAL_PRICE_FILE.name)
-            with open(RENTAL_PRICE_FILE) as f:
-                data = json.load(f)
-            logger.info("  Loaded %s postal codes from %s", len(data), RENTAL_PRICE_FILE.name)
-            return {k: float(v) for k, v in data.items()}
+        cached = _load_cache("rental_prices")
+        if cached is not None:
+            return {k: float(v) for k, v in cached.items()}
         return {}
 
     query_items = []
@@ -1591,6 +1686,9 @@ def fetch_rental_prices():
         columns, rows = _validate_pxweb_data(data, "rental price data")
     except Exception as e:
         _record_error("fetch_rental_prices/data", e)
+        cached = _load_cache("rental_prices")
+        if cached is not None:
+            return {k: float(v) for k, v in cached.items()}
         return {}
 
     result = {}
@@ -1625,6 +1723,8 @@ def fetch_rental_prices():
             result[pno] = round(sum(rents) / len(rents), 2)
 
         logger.info("  Parsed rental prices for %s postal codes", len(result))
+        if result:
+            _save_cache("rental_prices", result)
     except Exception as e:
         _record_error("fetch_rental_prices/parse", e)
 
@@ -1776,12 +1876,9 @@ def fetch_property_price_change():
         variables = _validate_pxweb_meta(meta, "property price history metadata")
     except Exception as e:
         _record_error("fetch_property_price_change/meta", e)
-        if PROPERTY_PRICE_CHANGE_FILE.exists():
-            logger.info("  Falling back to local file: %s", PROPERTY_PRICE_CHANGE_FILE.name)
-            with open(PROPERTY_PRICE_CHANGE_FILE) as f:
-                data = json.load(f)
-            logger.info("  Loaded %s postal codes from %s", len(data), PROPERTY_PRICE_CHANGE_FILE.name)
-            return {k: float(v) for k, v in data.items()}
+        cached = _load_cache("property_price_change")
+        if cached is not None:
+            return {k: float(v) for k, v in cached.items()}
         return {}
 
     # Find year variable and select two years 5 apart
@@ -1824,6 +1921,9 @@ def fetch_property_price_change():
         columns, rows = _validate_pxweb_data(data, "property price history data")
     except Exception as e:
         _record_error("fetch_property_price_change/data", e)
+        cached = _load_cache("property_price_change")
+        if cached is not None:
+            return {k: float(v) for k, v in cached.items()}
         return {}
 
     # Parse: collect price per postal code per year, then compute change
@@ -1871,6 +1971,8 @@ def fetch_property_price_change():
                     result[pno] = change_pct
 
         logger.info("  Computed property price change for %s postal codes", len(result))
+        if result:
+            _save_cache("property_price_change", result)
         return result
 
     except Exception as e:
@@ -2019,9 +2121,12 @@ def main():
     # Load previous output so we can backfill any metrics that fail this run
     previous = _load_previous_output(out_path)
 
+    # --- Detect latest available Paavo year ---
+    latest_year = _detect_latest_paavo_year()
+
     # --- Core data (fatal on failure) ---
     try:
-        gdf = fetch_paavo()
+        gdf = fetch_paavo(latest_year)
     except Exception as e:
         _record_error("fetch_paavo", e, fatal=True)
         _print_error_report()
@@ -2138,7 +2243,7 @@ def main():
 
     # --- Phase 4: Historical time-series data ---
     _rate_limit()
-    historical = fetch_historical_paavo()
+    historical = fetch_historical_paavo(latest_year)
     gdf = join_historical_trends(gdf, historical)
 
     # --- Backfill nulls from previous output ---
