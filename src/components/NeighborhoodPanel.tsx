@@ -947,7 +947,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             className="flex h-full"
             style={{
               transform: `translateX(calc(-${activeSection * 100}% + ${dragOffset}px))`,
-              transition: isSnapping ? 'transform 300ms cubic-bezier(0.25, 1, 0.5, 1)' : 'none',
+              transition: isSnapping ? 'transform 400ms cubic-bezier(0.33, 1, 0.68, 1)' : 'none',
               willChange: 'transform',
             }}
             onTransitionEnd={onTransitionEnd}
