@@ -242,10 +242,13 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         },
       });
 
+      // Hide postal code borders for metro area features (all-cities view)
+      // to avoid showing internal postal code grid lines
       map.addLayer({
         id: LINE_LAYER,
         type: 'line',
         source: SOURCE_ID,
+        filter: ['!=', ['get', '_isMetroArea'], true],
         paint: {
           'line-color': theme === 'dark' ? '#1e293b' : '#475569',
           'line-width': theme === 'dark' ? 0.8 : 1,
@@ -265,13 +268,17 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       });
 
       // QW-2: Hatched pattern overlay for neighborhoods with null data
+      // Also exclude metro area features (no individual postal code borders in all-cities view)
       map.addLayer({
         id: NO_DATA_LAYER,
         type: 'line',
         source: SOURCE_ID,
-        filter: ['any',
-          ['!', ['has', layer.property]],
-          ['==', ['get', layer.property], null],
+        filter: ['all',
+          ['!=', ['get', '_isMetroArea'], true],
+          ['any',
+            ['!', ['has', layer.property]],
+            ['==', ['get', layer.property], null],
+          ],
         ] as unknown as maplibregl.ExpressionSpecification,
         paint: {
           'line-color': theme === 'dark' ? '#475569' : '#94a3b8',
