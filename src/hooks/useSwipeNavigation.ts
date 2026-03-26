@@ -35,8 +35,8 @@ interface UseSwipeNavigationReturn {
 export function useSwipeNavigation(options: UseSwipeNavigationOptions): UseSwipeNavigationReturn {
   const {
     sectionCount,
-    commitThreshold = 0.3,
-    velocityThreshold = 0.4,
+    commitThreshold = 0.2,
+    velocityThreshold = 0.3,
   } = options;
 
   const [activeSection, setActiveSection] = useState(0);
