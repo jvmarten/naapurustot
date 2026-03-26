@@ -1,4 +1,5 @@
 import type { Feature, FeatureCollection, Polygon, MultiPolygon } from 'geojson';
+import union from '@turf/union';
 import type { CityId, NeighborhoodProperties, TrendDataPoint } from './metrics';
 import { computeMetroAverages, parseTrendSeries } from './metrics';
 import { t } from './i18n';
@@ -128,22 +129,12 @@ export function buildMetroAreaFeatures(
 
     if (polyFeatures.length === 0) continue;
 
-    // Combine all polygons into a single MultiPolygon feature
-    const polygons: number[][][][] = [];
-    for (const f of polyFeatures) {
-      if (f.geometry.type === 'Polygon') {
-        polygons.push(f.geometry.coordinates);
-      } else {
-        for (const poly of f.geometry.coordinates) {
-          polygons.push(poly);
-        }
-      }
-    }
-    const merged: Feature<MultiPolygon> = {
-      type: 'Feature',
-      properties: {},
-      geometry: { type: 'MultiPolygon', coordinates: polygons },
+    // Dissolve all polygons into a single outer boundary (removes internal borders)
+    const fc: FeatureCollection<Polygon | MultiPolygon> = {
+      type: 'FeatureCollection',
+      features: polyFeatures,
     };
+    const merged = union(fc);
 
     if (!merged) continue;
 
