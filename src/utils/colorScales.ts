@@ -30,6 +30,7 @@ export type LayerId =
   | 'cycling_infra'
   | 'restaurant_density'
   | 'grocery_access'
+  | 'sports_facilities'
   | 'income_change'
   | 'population_change'
   | 'unemployment_change'
@@ -332,6 +333,15 @@ export const LAYERS: LayerConfig[] = [
     property: 'grocery_density',
     unit: '/km²',
     colors: ['#f7fcf0', '#e0f3db', '#ccebc5', '#a8ddb5', '#7bccc4', '#4eb3d3', '#2b8cbe', '#08589e'],
+    stops: [0.5, 1, 2, 4, 6, 10, 15, 25],
+    format: density,
+  },
+  {
+    id: 'sports_facilities',
+    labelKey: 'layer.sports_facilities',
+    property: 'sports_facility_density',
+    unit: '/km²',
+    colors: ['#f7fcf5', '#d5efcf', '#a1d99b', '#74c476', '#41ab5d', '#238b45', '#006d2c', '#00441b'],
     stops: [0.5, 1, 2, 4, 6, 10, 15, 25],
     format: density,
   },

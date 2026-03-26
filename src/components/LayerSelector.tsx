@@ -24,7 +24,7 @@ const LAYER_GROUPS: LayerGroup[] = [
   { labelKey: 'layers.demographics', ids: ['avg_age', 'population_density', 'child_ratio', 'youth_ratio', 'elderly_ratio', 'gender_ratio', 'student_share', 'foreign_lang', 'pensioners', 'single_person_hh', 'single_parent_hh', 'families_with_children', 'avg_household_size'] },
   { labelKey: 'layers.economy', ids: ['median_income', 'unemployment', 'employment_rate', 'education', 'property_price', 'tech_sector_jobs', 'healthcare_workers', 'manufacturing_jobs', 'public_sector_jobs', 'service_sector_jobs'] },
   { labelKey: 'layers.housing', ids: ['ownership', 'rental', 'apt_size', 'detached_houses', 'new_construction', 'rental_price', 'price_to_rent'] },
-  { labelKey: 'layers.services', ids: ['restaurant_density', 'grocery_access', 'daycare_density', 'school_density', 'healthcare_access', 'school_quality'] },
+  { labelKey: 'layers.services', ids: ['restaurant_density', 'grocery_access', 'daycare_density', 'school_density', 'healthcare_access', 'school_quality', 'sports_facilities'] },
   { labelKey: 'layers.safety', ids: ['crime_rate', 'traffic_accidents'] },
   { labelKey: 'layers.mobility', ids: ['cycling_infra', 'ev_charging_density'] },
   { labelKey: 'layers.environment', ids: ['tree_canopy', 'light_pollution', 'noise_pollution'] },

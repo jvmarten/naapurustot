@@ -700,6 +700,13 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             property="school_quality_score"
           />
           <StatRow
+            label={t('panel.sports_facilities')}
+            value={d.sports_facility_density != null ? `${Number(d.sports_facility_density).toFixed(1)} /km²` : '—'}
+            diff={formatDiff(d.sports_facility_density, avg.sports_facility_density)}
+            diffClass={diffColor(d.sports_facility_density, avg.sports_facility_density)}
+            property="sports_facility_density"
+          />
+          <StatRow
             label={t('panel.healthcare_access')}
             value={formatStopDensity(animated.healthcare_density)}
             diff={formatDiff(d.healthcare_density, avg.healthcare_density)}

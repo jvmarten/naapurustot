@@ -71,6 +71,7 @@ function makeProps(overrides: Partial<NeighborhoodProperties> = {}): Neighborhoo
     cycling_density: 45.0,
     restaurant_density: 250.0,
     grocery_density: 12.0,
+    sports_facility_density: null,
     income_history: null,
     population_history: null,
     unemployment_history: null,
