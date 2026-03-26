@@ -2,7 +2,6 @@ import type { Feature, FeatureCollection, Polygon, MultiPolygon } from 'geojson'
 import type { CityId, NeighborhoodProperties, TrendDataPoint } from './metrics';
 import { computeMetroAverages, parseTrendSeries } from './metrics';
 import { t } from './i18n';
-import union from '@turf/union';
 
 /**
  * Aggregate trend history series across neighborhoods for a metro area.
@@ -129,32 +128,22 @@ export function buildMetroAreaFeatures(
 
     if (polyFeatures.length === 0) continue;
 
-    // Dissolve all polygons into a single outer boundary
-    let merged: Feature<Polygon | MultiPolygon> | null = null;
-    try {
-      const fc: FeatureCollection<Polygon | MultiPolygon> = {
-        type: 'FeatureCollection',
-        features: polyFeatures,
-      };
-      merged = union(fc);
-    } catch {
-      // Fallback: use raw MultiPolygon if union fails
-      const polygons: number[][][][] = [];
-      for (const f of polyFeatures) {
-        if (f.geometry.type === 'Polygon') {
-          polygons.push(f.geometry.coordinates);
-        } else {
-          for (const poly of f.geometry.coordinates) {
-            polygons.push(poly);
-          }
+    // Combine all polygons into a single MultiPolygon feature
+    const polygons: number[][][][] = [];
+    for (const f of polyFeatures) {
+      if (f.geometry.type === 'Polygon') {
+        polygons.push(f.geometry.coordinates);
+      } else {
+        for (const poly of f.geometry.coordinates) {
+          polygons.push(poly);
         }
       }
-      merged = {
-        type: 'Feature',
-        properties: {},
-        geometry: { type: 'MultiPolygon', coordinates: polygons },
-      };
     }
+    const merged: Feature<MultiPolygon> = {
+      type: 'Feature',
+      properties: {},
+      geometry: { type: 'MultiPolygon', coordinates: polygons },
+    };
 
     if (!merged) continue;
 
