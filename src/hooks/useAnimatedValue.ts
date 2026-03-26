@@ -1,4 +1,87 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+
+/**
+ * Batch-animate a record of numeric values using a single requestAnimationFrame loop.
+ * Far more efficient than calling useAnimatedValue 30+ times individually.
+ */
+export function useAnimatedValues(
+  targets: Record<string, number | null | undefined>,
+  duration = 300,
+): Record<string, number | null> {
+  // Stable serialization for change detection
+  const keyStr = Object.keys(targets).sort().join(',');
+  const keys = useMemo(() => keyStr.split(','), [keyStr]);
+  const serialized = keys.map(k => `${k}:${targets[k] ?? '_'}`).join('|');
+
+  const displayRef = useRef<Record<string, number | null>>({});
+  const fromRef = useRef<Record<string, number | null>>({});
+  const rafRef = useRef<number>(0);
+  const startRef = useRef<number | null>(null);
+  const [display, setDisplay] = useState<Record<string, number | null>>(() => {
+    const init: Record<string, number | null> = {};
+    for (const key of keys) {
+      const v = targets[key];
+      init[key] = v != null && isFinite(Number(v)) ? Number(v) : null;
+    }
+    displayRef.current = init;
+    return init;
+  });
+
+  useEffect(() => {
+    const targetMap: Record<string, number | null> = {};
+    const fromMap: Record<string, number | null> = {};
+
+    for (const key of keys) {
+      const v = targets[key];
+      const num = v != null && isFinite(Number(v)) ? Number(v) : null;
+      targetMap[key] = num;
+      fromMap[key] = displayRef.current[key] ?? num;
+    }
+
+    fromRef.current = fromMap;
+    startRef.current = null;
+
+    if (duration <= 0) {
+      displayRef.current = targetMap;
+      setDisplay(targetMap);
+      return;
+    }
+
+    const animate = (timestamp: number) => {
+      if (startRef.current == null) startRef.current = timestamp;
+      const elapsed = timestamp - startRef.current;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
+
+      const current: Record<string, number | null> = {};
+      for (const key of keys) {
+        const t = targetMap[key];
+        const f = fromRef.current[key];
+        if (t == null || f == null) {
+          current[key] = t;
+        } else {
+          current[key] = Math.round((f + (t - f) * eased) * 10) / 10;
+        }
+      }
+
+      displayRef.current = current;
+      setDisplay(current);
+
+      if (progress < 1) {
+        rafRef.current = requestAnimationFrame(animate);
+      } else {
+        displayRef.current = targetMap;
+        setDisplay(targetMap);
+      }
+    };
+
+    rafRef.current = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(rafRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serialized, duration]);
+
+  return display;
+}
 
 /**
  * PO-1: Animate a numeric value with a count-up/count-down transition.

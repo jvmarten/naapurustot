@@ -163,7 +163,7 @@ export default function RadarChart({ data, metroAverages }: RadarChartProps) {
           strokeDasharray="4 3"
         />
 
-        {/* Data polygon */}
+        {/* Data polygon — animated via interpolated values from parent */}
         <polygon
           points={polygonPoints(dataValues)}
           fill="#6366f1"
@@ -172,7 +172,7 @@ export default function RadarChart({ data, metroAverages }: RadarChartProps) {
           strokeWidth={2}
         />
 
-        {/* Data points */}
+        {/* Data points — positions update smoothly via animated values */}
         {dataValues.map((v, i) => {
           if (!Number.isFinite(v)) return null;
           const [x, y] = pointOnAxis(i, v);
