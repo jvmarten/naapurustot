@@ -91,7 +91,7 @@ describe('buildFillColorExpression', () => {
     const interpolation = expr[2] as unknown[];
     expect(interpolation[0]).toBe('interpolate');
     expect(interpolation[1]).toEqual(['linear']);
-    expect(interpolation[2]).toEqual(['get', 'hr_mtu']);
+    expect(interpolation[2]).toEqual(['to-number', ['get', 'hr_mtu'], 0]);
     // Fallback gray
     expect(expr[3]).toBe('#d1d5db');
   });

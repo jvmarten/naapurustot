@@ -67,6 +67,21 @@ export function useMapData(): MapDataState {
         const objectName = Object.keys(topo.objects ?? {})[0];
         if (!objectName) throw new Error('Invalid TopoJSON: no objects found');
         const geojson = feature(topo, topo.objects[objectName]) as FeatureCollection;
+        // Coerce string-typed numeric properties to actual numbers.
+        // Some properties (e.g. school_quality_score, property_price_sqm) are
+        // serialised as strings in the GeoJSON; downstream code expects numbers.
+        // We skip known identifier fields that look numeric (pno, kunta, etc.).
+        const ID_FIELDS = new Set(['pno', 'postinumeroalue', 'kunta']);
+        for (const feat of geojson.features) {
+          if (!feat.properties) continue;
+          for (const key of Object.keys(feat.properties)) {
+            if (ID_FIELDS.has(key)) continue;
+            const v = feat.properties[key];
+            if (typeof v === 'string' && v !== '' && !isNaN(Number(v))) {
+              feat.properties[key] = Number(v);
+            }
+          }
+        }
         geojson.features = filterSmallIslands(geojson.features);
         computeQualityIndices(geojson.features);
         computeChangeMetrics(geojson.features);
