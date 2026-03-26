@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import type { TrendDataPoint } from '../utils/metrics';
 import { t } from '../utils/i18n';
 
@@ -21,6 +21,9 @@ const PLOT_W = CHART_W - PAD_L - PAD_R;
 const PLOT_H = CHART_H - PAD_T - PAD_B;
 
 export const TrendChart: React.FC<TrendChartProps> = ({ title, data, color, formatValue, unit }) => {
+  // Stable key for crossfade animation when data changes
+  const dataKey = useMemo(() => data?.map(d => `${d[0]}:${d[1]}`).join(',') ?? '', [data]);
+
   if (!data || data.length < 2) return null;
 
   const years = data.map(d => d[0]);
@@ -68,8 +71,9 @@ export const TrendChart: React.FC<TrendChartProps> = ({ title, data, color, form
         )}
       </div>
       <svg
+        key={dataKey}
         viewBox={`0 0 ${CHART_W} ${CHART_H}`}
-        className="w-full"
+        className="w-full animate-chart-fade"
         style={{ maxHeight: 80 }}
       >
         {/* Area fill */}
