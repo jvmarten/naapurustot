@@ -807,7 +807,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
                   <span className="text-xs text-emerald-500 font-medium animate-fade-in">{t('panel.copied')}</span>
                 )}
               </div>
-              <p className="text-surface-500 dark:text-surface-400 text-sm mt-0.5">{d.pno}</p>
+              {!d._isMetroArea && <p className="text-surface-500 dark:text-surface-400 text-sm mt-0.5">{d.pno}</p>}
             </div>
             <div className="flex items-center gap-1">
               {favoriteButton}
@@ -873,7 +873,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
                 <span className="text-xs text-emerald-500 font-medium">{t('panel.copied')}</span>
               )}
             </div>
-            <p className="text-surface-500 dark:text-surface-400 text-xs">{d.pno}</p>
+            {!d._isMetroArea && <p className="text-surface-500 dark:text-surface-400 text-xs">{d.pno}</p>}
           </div>
           <div className="flex items-center gap-1">
             {favoriteButton}

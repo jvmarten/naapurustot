@@ -38,6 +38,7 @@ import type { NeighborhoodProperties } from './utils/metrics';
 import { computeMetroAverages } from './utils/metrics';
 import { t, getLang, setLang, type Lang } from './utils/i18n';
 import { computeQualityIndices, getDefaultWeights, isCustomWeights, type QualityWeights } from './utils/qualityIndex';
+import { buildMetroAreaFeatures } from './utils/metroAreas';
 
 const initialUrl = readInitialUrlState();
 
@@ -95,10 +96,10 @@ const App: React.FC = () => {
   const [cityFilter, setCityFilter] = useState<CityFilter>((initialUrl.city as CityFilter) ?? 'helsinki_metro');
   const [comparisonScope, setComparisonScope] = useState<ComparisonScope>('all');
 
-  // Filter data by selected city
+  // Filter data by selected city — when 'all' is chosen, show merged metro area polygons
   const filteredData = useMemo(() => {
     if (!data) return null;
-    if (cityFilter === 'all') return data;
+    if (cityFilter === 'all') return buildMetroAreaFeatures(data.features) as typeof data;
     return {
       ...data,
       features: data.features.filter(

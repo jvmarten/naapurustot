@@ -173,7 +173,9 @@ export interface NeighborhoodProperties {
   school_quality_score: number | null;
   light_pollution: number | null;
   noise_pollution: number | null;
-  [key: string]: string | number | null;
+  /** Marker for merged metro area features (not real postal code areas) */
+  _isMetroArea?: boolean;
+  [key: string]: string | number | boolean | null | undefined;
 }
 
 /** A single data point in a time series: [year, value] */
