@@ -3,11 +3,9 @@ import { useState, useCallback, useRef } from 'react';
 interface UseSwipeNavigationOptions {
   /** Total number of sections */
   sectionCount: number;
-  /** Minimum horizontal distance (px) to trigger a swipe. Default 50. */
-  threshold?: number;
-  /** Max vertical distance (px) before gesture is considered vertical scroll. Default 30. */
-  maxVertical?: number;
-  /** Velocity threshold (px/ms) for flick gestures. Default 0.3. */
+  /** Fraction of container width needed to commit a swipe (0–1). Default 0.3. */
+  commitThreshold?: number;
+  /** Velocity threshold (px/ms) for flick gestures. Default 0.4. */
   velocityThreshold?: number;
 }
 
@@ -18,6 +16,8 @@ interface UseSwipeNavigationReturn {
   dragOffset: number;
   /** Whether the carousel is animating to a snap position */
   isSnapping: boolean;
+  /** Whether a horizontal swipe is in progress (used to lock scroll) */
+  isSwiping: boolean;
   handlers: {
     onTouchStart: (e: React.TouchEvent) => void;
     onTouchMove: (e: React.TouchEvent) => void;
@@ -35,14 +35,14 @@ interface UseSwipeNavigationReturn {
 export function useSwipeNavigation(options: UseSwipeNavigationOptions): UseSwipeNavigationReturn {
   const {
     sectionCount,
-    threshold = 50,
-    maxVertical = 30,
-    velocityThreshold = 0.3,
+    commitThreshold = 0.3,
+    velocityThreshold = 0.4,
   } = options;
 
   const [activeSection, setActiveSection] = useState(0);
   const [dragOffset, setDragOffset] = useState(0);
   const [isSnapping, setIsSnapping] = useState(false);
+  const [isSwiping, setIsSwiping] = useState(false);
 
   const startXRef = useRef(0);
   const startYRef = useRef(0);
@@ -51,6 +51,7 @@ export function useSwipeNavigation(options: UseSwipeNavigationOptions): UseSwipe
   const trackingRef = useRef(false);
   // null = undecided, 'horizontal' = swiping tabs, 'vertical' = scrolling
   const directionRef = useRef<'horizontal' | 'vertical' | null>(null);
+  const containerWidthRef = useRef(0);
 
   const onTouchStart = useCallback((e: React.TouchEvent) => {
     // If still snapping, finish immediately
@@ -63,6 +64,10 @@ export function useSwipeNavigation(options: UseSwipeNavigationOptions): UseSwipe
     lastXRef.current = touch.clientX;
     trackingRef.current = true;
     directionRef.current = null;
+
+    // Measure container width for proportional threshold
+    const el = e.currentTarget as HTMLElement;
+    containerWidthRef.current = el.clientWidth || 375;
   }, []);
 
   const onTouchMove = useCallback((e: React.TouchEvent) => {
@@ -71,45 +76,67 @@ export function useSwipeNavigation(options: UseSwipeNavigationOptions): UseSwipe
     const touch = e.touches[0];
     const dx = touch.clientX - startXRef.current;
     const dy = touch.clientY - startYRef.current;
+    const absDx = Math.abs(dx);
+    const absDy = Math.abs(dy);
 
     // Decide direction on first significant move
     if (directionRef.current === null) {
-      const absDx = Math.abs(dx);
-      const absDy = Math.abs(dy);
-      if (absDx < 5 && absDy < 5) return; // too small to decide
-      if (absDy > maxVertical && absDy > absDx) {
+      // Wait for enough movement to decide
+      if (absDx < 8 && absDy < 8) return;
+
+      if (absDy > absDx) {
+        // More vertical than horizontal → it's a scroll
         directionRef.current = 'vertical';
         trackingRef.current = false;
         return;
       }
+      // More horizontal → it's a swipe
       directionRef.current = 'horizontal';
+      setIsSwiping(true);
     }
 
     if (directionRef.current !== 'horizontal') return;
 
+    // Prevent vertical scrolling while swiping horizontally
+    e.preventDefault();
+
     lastXRef.current = touch.clientX;
-    setDragOffset(dx);
-  }, [maxVertical]);
+
+    // Add rubber-band resistance at edges
+    let offset = dx;
+    const isAtStart = activeSection === 0 && dx > 0;
+    const isAtEnd = activeSection === sectionCount - 1 && dx < 0;
+    if (isAtStart || isAtEnd) {
+      offset = dx * 0.3; // rubber-band
+    }
+
+    setDragOffset(offset);
+  }, [activeSection, sectionCount]);
 
   const onTouchEnd = useCallback(() => {
     if (!trackingRef.current || directionRef.current !== 'horizontal') {
       trackingRef.current = false;
+      setIsSwiping(false);
       return;
     }
     trackingRef.current = false;
+    setIsSwiping(false);
 
     const dx = lastXRef.current - startXRef.current;
     const dt = Date.now() - startTimeRef.current;
     const velocity = Math.abs(dx) / Math.max(dt, 1); // px/ms
+    const width = containerWidthRef.current;
 
     let newSection = activeSection;
 
-    if (Math.abs(dx) > threshold || velocity > velocityThreshold) {
+    // Commit the swipe only if dragged past 30% of width OR flicked fast enough
+    const draggedEnough = Math.abs(dx) > width * commitThreshold;
+    const flickedFast = velocity > velocityThreshold;
+
+    if (draggedEnough || flickedFast) {
       if (dx < 0) {
-        // Swipe left → next
         newSection = Math.min(activeSection + 1, sectionCount - 1);
       } else {
-        // Swipe right → previous
         newSection = Math.max(activeSection - 1, 0);
       }
     }
@@ -118,7 +145,7 @@ export function useSwipeNavigation(options: UseSwipeNavigationOptions): UseSwipe
     setDragOffset(0);
     setIsSnapping(true);
     setActiveSection(newSection);
-  }, [activeSection, sectionCount, threshold, velocityThreshold]);
+  }, [activeSection, sectionCount, commitThreshold, velocityThreshold]);
 
   const onTransitionEnd = useCallback(() => {
     setIsSnapping(false);
@@ -133,6 +160,7 @@ export function useSwipeNavigation(options: UseSwipeNavigationOptions): UseSwipe
     }, []),
     dragOffset,
     isSnapping,
+    isSwiping,
     handlers: {
       onTouchStart,
       onTouchMove,
