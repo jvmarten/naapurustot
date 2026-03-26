@@ -448,9 +448,8 @@ const App: React.FC = () => {
   );
 
   const handleResetView = useCallback(() => {
-    deselect();
-    setFlyTarget({ center: DEFAULT_CENTER, zoom: getInitialZoom() });
-  }, [deselect]);
+    handleCityChange('helsinki_metro');
+  }, [handleCityChange]);
 
   const toggleLang = useCallback(() => {
     const next = lang === 'fi' ? 'en' : 'fi';
