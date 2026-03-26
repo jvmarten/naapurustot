@@ -214,7 +214,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
     t('panel.tab.trends'),
     t('panel.tab.similar'),
   ] as const;
-  const { activeSection, setActiveSection, handlers: swipeHandlers } = useSwipeNavigation({
+  const { activeSection, setActiveSection, dragOffset, isSnapping, handlers: swipeHandlers, onTransitionEnd } = useSwipeNavigation({
     sectionCount: MOBILE_SECTIONS.length,
   });
 
@@ -935,16 +935,34 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
           ))}
         </div>
 
-        {/* PO-3: Swipeable section content */}
+        {/* PO-3: Swipeable section content — horizontal carousel */}
         <div
-          className="overflow-y-auto"
+          className="overflow-hidden"
           style={{ height: `calc(100% - 12rem)` }}
           onTouchStart={swipeHandlers.onTouchStart}
           onTouchMove={swipeHandlers.onTouchMove}
           onTouchEnd={swipeHandlers.onTouchEnd}
         >
-          <div className="px-6 py-4 space-y-6">
-            {mobileSections[activeSection]}
+          <div
+            className="flex h-full"
+            style={{
+              transform: `translateX(calc(-${activeSection * 100}% + ${dragOffset}px))`,
+              transition: isSnapping ? 'transform 300ms cubic-bezier(0.25, 1, 0.5, 1)' : 'none',
+              willChange: 'transform',
+            }}
+            onTransitionEnd={onTransitionEnd}
+          >
+            {mobileSections.map((section, i) => (
+              <div
+                key={i}
+                className="w-full flex-shrink-0 overflow-y-auto"
+                style={{ minWidth: '100%' }}
+              >
+                <div className="px-6 py-4 space-y-6">
+                  {section}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
