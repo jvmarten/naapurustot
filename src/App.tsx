@@ -421,7 +421,9 @@ const App: React.FC = () => {
   const handleSearch = useCallback(
     (pno: string, center: [number, number]) => {
       if (data) {
-        const feature = data.features.find((f) => f.properties?.pno === pno);
+        // Look up in raw data first, then in filteredData (for synthetic metro area features)
+        const feature = data.features.find((f) => f.properties?.pno === pno)
+          ?? filteredData?.features.find((f) => f.properties?.pno === pno);
         if (feature?.properties) {
           const props = feature.properties as NeighborhoodProperties;
           // Auto-switch city filter if the searched neighborhood is in a different city
@@ -444,7 +446,7 @@ const App: React.FC = () => {
         setFlyTarget({ center });
       }
     },
-    [data, select, addRecent, cityFilter],
+    [data, filteredData, select, addRecent, cityFilter],
   );
 
   const handleResetView = useCallback(() => {
