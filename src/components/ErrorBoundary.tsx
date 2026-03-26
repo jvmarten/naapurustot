@@ -24,10 +24,11 @@ export class ErrorBoundary extends React.Component<Props, State> {
     console.error('ErrorBoundary caught:', error, errorInfo);
   }
 
-  componentDidUpdate(prevProps: Props) {
-    if (this.state.hasError && prevProps.children !== this.props.children) {
-      this.setState({ hasError: false, error: null });
-    }
+  componentDidUpdate(_prevProps: Props) {
+    // Error state is only cleared by the user clicking Reload.
+    // Previously this auto-reset when children references changed,
+    // but JSX elements create new references on every render,
+    // which caused the error UI to flash and immediately disappear.
   }
 
   render() {
