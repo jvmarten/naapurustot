@@ -92,24 +92,39 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
             <span>{t('wizard.open')}</span>
           </button>
 
-          {/* CF-6: Draw area */}
-          {onToggleDraw && (
-            <button
-              onClick={() => { onToggleDraw(); setOpen(false); }}
-              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200
-                         hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-1a1 1 0 01-1-1v-4zM5 10v4a1 1 0 001 1h4M15 14v-4a1 1 0 00-1-1h-4" />
+          {/* Filter */}
+          <button
+            onClick={() => { onToggleFilter(); setOpen(false); }}
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200
+                       hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+            </svg>
+            <span>{t('filter.toggle')}</span>
+            {showFilter && (
+              <svg className="w-4 h-4 ml-auto text-brand-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
               </svg>
-              <span>{t('draw.toggle')}</span>
-              {drawMode && (
-                <svg className="w-4 h-4 ml-auto text-violet-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-              )}
-            </button>
-          )}
+            )}
+          </button>
+
+          {/* Ranking */}
+          <button
+            onClick={() => { onToggleRanking(); setOpen(false); }}
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200
+                       hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 4h13M3 8h9M3 12h5m4 0l4-4m0 0l4 4m-4-4v12" />
+            </svg>
+            <span>{t('ranking.toggle')}</span>
+            {showRanking && (
+              <svg className="w-4 h-4 ml-auto text-brand-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            )}
+          </button>
 
           {/* Select areas (tap neighborhoods) */}
           {onToggleSelectMode && (
@@ -123,6 +138,25 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
               </svg>
               <span>{t('draw.select_areas')}</span>
               {selectMode && (
+                <svg className="w-4 h-4 ml-auto text-violet-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </button>
+          )}
+
+          {/* CF-6: Draw area */}
+          {onToggleDraw && (
+            <button
+              onClick={() => { onToggleDraw(); setOpen(false); }}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200
+                         hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-1a1 1 0 01-1-1v-4zM5 10v4a1 1 0 001 1h4M15 14v-4a1 1 0 00-1-1h-4" />
+              </svg>
+              <span>{t('draw.toggle')}</span>
+              {drawMode && (
                 <svg className="w-4 h-4 ml-auto text-violet-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                 </svg>
@@ -157,40 +191,6 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
               <span>{t('wizard.clear_highlights')}</span>
             </button>
           )}
-
-          {/* Filter */}
-          <button
-            onClick={() => { onToggleFilter(); setOpen(false); }}
-            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200
-                       hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-            </svg>
-            <span>{t('filter.toggle')}</span>
-            {showFilter && (
-              <svg className="w-4 h-4 ml-auto text-brand-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
-            )}
-          </button>
-
-          {/* Ranking */}
-          <button
-            onClick={() => { onToggleRanking(); setOpen(false); }}
-            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200
-                       hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 4h13M3 8h9M3 12h5m4 0l4-4m0 0l4 4m-4-4v12" />
-            </svg>
-            <span>{t('ranking.toggle')}</span>
-            {showRanking && (
-              <svg className="w-4 h-4 ml-auto text-brand-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
-            )}
-          </button>
 
           {/* QW-4: Compare layers (split map) */}
           {onToggleSplitMode && (
