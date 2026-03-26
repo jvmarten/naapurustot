@@ -749,12 +749,19 @@ const App: React.FC = () => {
         onCustomizeQuality={handleToggleCustomQuality}
         isCustomWeights={isCustomWeights(qualityWeights)}
         headerSlot={
-          <div className="rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden">
-            <ComparisonScopeToggle
-              scope={comparisonScope}
-              onChange={setComparisonScope}
-              disabled={cityFilter === 'all'}
-            />
+          <div className="flex items-center gap-1.5">
+            {comparisonScope === 'region' && cityFilter !== 'all' && (
+              <div className="px-2.5 py-1 rounded-lg bg-amber-500/90 text-white text-[10px] font-semibold backdrop-blur-sm whitespace-nowrap">
+                {t('scope.active_hint')}
+              </div>
+            )}
+            <div className="rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden">
+              <ComparisonScopeToggle
+                scope={comparisonScope}
+                onChange={setComparisonScope}
+                disabled={cityFilter === 'all'}
+              />
+            </div>
           </div>
         }
         lang={lang}
@@ -881,13 +888,6 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Region scope indicator — desktop only (mobile version is inline next to toggle above) */}
-      {comparisonScope === 'region' && cityFilter !== 'all' && (
-        <div className="hidden md:block absolute top-12 right-4 z-10 px-2.5 py-1 rounded-lg
-                       bg-amber-500/90 text-white text-[10px] font-semibold backdrop-blur-sm">
-          {t('scope.active_hint')}
-        </div>
-      )}
 
       {/* IN-6: Offline indicator */}
       {isOffline && (
