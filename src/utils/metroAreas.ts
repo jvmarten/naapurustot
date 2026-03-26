@@ -131,7 +131,9 @@ export function buildMetroAreaFeatures(
 
     // Dissolve all postal code polygons into a single outer boundary
     // so internal postal code borders are eliminated
-    const merged = union({ type: 'FeatureCollection', features: polyFeatures });
+    const merged = polyFeatures.length === 1
+      ? polyFeatures[0]
+      : union({ type: 'FeatureCollection', features: polyFeatures });
     if (!merged) continue;
 
     // Compute aggregated stats
