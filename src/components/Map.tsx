@@ -175,6 +175,15 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     // partial rendering when the layout isn't settled at init time (mobile first-load bug).
     map.once('load', () => { map.resize(); });
 
+    // When navigating from an external page (e.g. Google search results) on
+    // mobile, the browser viewport may still be animating (address bar
+    // collapsing, scroll restoration) after the map initialises, causing a
+    // stretched / skewed render.  A series of delayed resize() calls covers
+    // the window during which the viewport settles.
+    const earlyResizeTimers = [100, 300, 1000].map(ms =>
+      setTimeout(() => { if (mapRef.current) mapRef.current.resize(); }, ms),
+    );
+
     mapRef.current = map;
 
     // Keep map in sync when the container element is resized (e.g., mobile
@@ -182,7 +191,14 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     const ro = new ResizeObserver(() => { map.resize(); });
     ro.observe(containerRef.current);
 
+    // On mobile, the visual viewport can change (address bar show/hide)
+    // without triggering a container resize.  Listen for that too.
+    const vvResize = () => { if (mapRef.current) mapRef.current.resize(); };
+    window.visualViewport?.addEventListener('resize', vvResize);
+
     return () => {
+      earlyResizeTimers.forEach(clearTimeout);
+      window.visualViewport?.removeEventListener('resize', vvResize);
       ro.disconnect();
       map.remove();
       mapRef.current = null;
