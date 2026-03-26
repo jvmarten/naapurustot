@@ -855,13 +855,13 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
                       bg-white/95 dark:bg-surface-950/95 backdrop-blur-xl border-r border-surface-200 dark:border-surface-800/50 shadow-2xl">
         {/* Header */}
         <div className="sticky top-0 z-10 bg-white/95 dark:bg-surface-950/95 backdrop-blur-xl border-b border-surface-200 dark:border-surface-800/50 px-6 py-5">
-          <div className="flex items-start justify-between">
-            <div>
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h2 className="text-xl font-display font-bold text-surface-900 dark:text-white">{d.nimi}</h2>
+                <h2 className="text-xl font-display font-bold text-surface-900 dark:text-white truncate">{d.nimi}</h2>
                 <button
                   onClick={handleCopyLink}
-                  className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-surface-400 hover:text-surface-600 dark:hover:text-surface-200"
+                  className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-surface-400 hover:text-surface-600 dark:hover:text-surface-200 flex-shrink-0"
                   title={t('panel.copy_link')}
                 >
                   {copied ? (
@@ -880,7 +880,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
               </div>
               {!d._isMetroArea && <p className="text-surface-500 dark:text-surface-400 text-sm mt-0.5">{d.pno}</p>}
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 flex-shrink-0">
               {favoriteButton}
               {pinButton}
               <button
@@ -946,7 +946,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             </div>
             {!d._isMetroArea && <p className="text-surface-500 dark:text-surface-400 text-xs">{d.pno}</p>}
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 flex-shrink-0">
             {favoriteButton}
             {pinButton}
             <button
