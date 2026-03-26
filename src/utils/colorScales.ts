@@ -750,7 +750,8 @@ export function rescaleLayerToData(
   let min = Infinity;
   let max = -Infinity;
   for (const f of features) {
-    const v = f.properties?.[layer.property];
+    const raw = f.properties?.[layer.property];
+    const v = typeof raw === 'string' ? Number(raw) : raw;
     if (typeof v === 'number' && isFinite(v)) {
       if (v < min) min = v;
       if (v > max) max = v;
@@ -764,7 +765,9 @@ export function rescaleLayerToData(
 
 export function buildFillColorExpression(layer: LayerConfig, propertyOverride?: string): ExpressionSpecification {
   const prop = propertyOverride ?? layer.property;
-  const interpolation: unknown[] = ['interpolate', ['linear'], ['get', prop]];
+  // Use to-number to coerce string values (some properties are stored as strings in GeoJSON)
+  const numericValue = ['to-number', ['get', prop], 0];
+  const interpolation: unknown[] = ['interpolate', ['linear'], numericValue];
   for (let i = 0; i < layer.stops.length; i++) {
     interpolation.push(layer.stops[i], layer.colors[i]);
   }
