@@ -26,8 +26,8 @@ export const RankingTable: React.FC<RankingTableProps> = ({ data, activeLayer, o
   const layer = getLayerById(activeLayer);
   const [reversed, setReversed] = useState(false);
 
-  const { items, minVal, maxVal } = useMemo(() => {
-    if (!data) return { items: [], minVal: 0, maxVal: 1 };
+  const { items, maxVal } = useMemo(() => {
+    if (!data) return { items: [], maxVal: 1 };
 
     const property = layer.property;
     const bestFirst = layer.higherIsBetter !== false;
@@ -44,10 +44,8 @@ export const RankingTable: React.FC<RankingTableProps> = ({ data, activeLayer, o
     // Always sort "best first" to assign stable ranks
     entries.sort((a, b) => bestFirst ? b.value - a.value : a.value - b.value);
 
-    let mn = Infinity;
     let mx = -Infinity;
     for (const e of entries) {
-      if (e.value < mn) mn = e.value;
       if (e.value > mx) mx = e.value;
     }
 
@@ -62,10 +60,9 @@ export const RankingTable: React.FC<RankingTableProps> = ({ data, activeLayer, o
     // Reverse display order if toggled, but keep rank numbers stable
     if (reversed) ranked.reverse();
 
-    return { items: ranked, minVal: mn === Infinity ? 0 : mn, maxVal: mx === -Infinity ? 1 : mx };
+    return { items: ranked, maxVal: mx === -Infinity ? 1 : mx };
   }, [data, layer.property, layer.higherIsBetter, reversed]);
 
-  const range = maxVal - minVal || 1;
 
   return (
     <div className="absolute top-14 left-4 z-20 w-80 max-h-[calc(100vh-7rem)] flex flex-col
@@ -108,7 +105,7 @@ export const RankingTable: React.FC<RankingTableProps> = ({ data, activeLayer, o
       {/* List */}
       <div className="overflow-y-auto flex-1 min-h-0">
         {items.map((item) => {
-          const barWidth = ((item.value - minVal) / range) * 100;
+          const barWidth = maxVal !== 0 ? (item.value / maxVal) * 100 : 0;
           const color = getColorForValue(layer, item.value);
 
           return (
