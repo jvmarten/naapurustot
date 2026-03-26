@@ -62,7 +62,7 @@ describe('buildMetroAreaFeatures', () => {
     expect(result.features).toHaveLength(2);
   });
 
-  it('uses MultiPolygon geometry type', () => {
+  it('uses Polygon or MultiPolygon geometry type', () => {
     const features = [
       makeFeature('helsinki_metro', '00100', square1),
       makeFeature('helsinki_metro', '00200', square2),
@@ -70,6 +70,21 @@ describe('buildMetroAreaFeatures', () => {
 
     const result = buildMetroAreaFeatures(features);
 
-    expect(result.features[0].geometry.type).toBe('MultiPolygon');
+    expect(['Polygon', 'MultiPolygon']).toContain(result.features[0].geometry.type);
+  });
+
+  it('dissolves internal borders between adjacent polygons', () => {
+    // square1 and square2 share an edge at x=25
+    const features = [
+      makeFeature('helsinki_metro', '00100', square1),
+      makeFeature('helsinki_metro', '00200', square2),
+    ];
+
+    const result = buildMetroAreaFeatures(features);
+    const geom = result.features[0].geometry;
+
+    // After union, adjacent squares should merge into a single polygon
+    // (not a MultiPolygon with 2 separate polygons)
+    expect(geom.type).toBe('Polygon');
   });
 });
