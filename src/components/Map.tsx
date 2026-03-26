@@ -440,9 +440,12 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
 
     // QW-2: Update no-data layer filter for new active layer
     if (map.getLayer(NO_DATA_LAYER)) {
-      map.setFilter(NO_DATA_LAYER, ['any',
-        ['!', ['has', layer.property]],
-        ['==', ['get', layer.property], null],
+      map.setFilter(NO_DATA_LAYER, ['all',
+        ['!=', ['get', '_isMetroArea'], true],
+        ['any',
+          ['!', ['has', layer.property]],
+          ['==', ['get', layer.property], null],
+        ],
       ] as unknown as maplibregl.FilterSpecification);
     }
 
