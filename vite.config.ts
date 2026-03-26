@@ -15,8 +15,21 @@ export default defineConfig({
       registerType: 'autoUpdate',
       workbox: {
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // 4 MiB
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,json,topojson}'],
+        // Exclude HTML from precache — navigation requests use NetworkFirst
+        // so users always get the latest index.html after deployment.
+        globPatterns: ['**/*.{js,css,ico,png,svg,json,topojson}'],
+        navigateFallback: null,
         runtimeCaching: [
+          {
+            // Always fetch fresh HTML from the network; fall back to cache
+            // only when offline. This prevents stale index.html after deploys.
+            urlPattern: ({ request }) => request.mode === 'navigate',
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'html-navigation',
+              networkTimeoutSeconds: 3,
+            },
+          },
           {
             // Cache map tiles
             urlPattern: /^https:\/\/basemaps\.cartocdn\.com\//,
