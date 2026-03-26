@@ -131,13 +131,8 @@ export function buildMetroAreaFeatures(
 
     // Dissolve all postal code polygons into a single outer boundary
     // so internal postal code borders are eliminated
-    let merged: Feature<Polygon | MultiPolygon> = polyFeatures[0];
-    for (let i = 1; i < polyFeatures.length; i++) {
-      const result = union(
-        { type: 'FeatureCollection', features: [merged, polyFeatures[i]] },
-      );
-      if (result) merged = result;
-    }
+    const merged = union({ type: 'FeatureCollection', features: polyFeatures });
+    if (!merged) continue;
 
     // Compute aggregated stats
     const averages = computeMetroAverages(cityFeatures);
