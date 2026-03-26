@@ -214,7 +214,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
     t('panel.tab.trends'),
     t('panel.tab.similar'),
   ] as const;
-  const { activeSection, setActiveSection, dragOffset, isSnapping, handlers: swipeHandlers, onTransitionEnd } = useSwipeNavigation({
+  const { activeSection, setActiveSection, dragOffset, isSnapping, isSwiping, handlers: swipeHandlers, onTransitionEnd } = useSwipeNavigation({
     sectionCount: MOBILE_SECTIONS.length,
   });
 
@@ -955,7 +955,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
             {mobileSections.map((section, i) => (
               <div
                 key={i}
-                className="w-full flex-shrink-0 overflow-y-auto"
+                className={`w-full flex-shrink-0 ${isSwiping ? 'overflow-hidden' : 'overflow-y-auto'}`}
                 style={{ minWidth: '100%' }}
               >
                 <div className="px-6 py-4 space-y-6">
