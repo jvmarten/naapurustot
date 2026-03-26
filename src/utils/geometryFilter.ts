@@ -24,7 +24,7 @@ function polygonArea(rings: number[][][]): number {
   for (let i = 1; i < rings.length; i++) {
     area -= ringArea(rings[i]);
   }
-  return Math.abs(area);
+  return Math.max(0, area);
 }
 
 /**

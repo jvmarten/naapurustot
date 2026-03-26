@@ -604,7 +604,7 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
 
   // Add special ratio-based metrics
   result.he_vakiy = totalPop;
-  result.unemployment_rate = totalPop > 0 ? roundTo((totalUnemployed / totalPop) * 100, 1) : 0;
+  result.unemployment_rate = totalActPop > 0 ? roundTo((totalUnemployed / totalActPop) * 100, 1) : 0;
   result.higher_education_rate = totalAdultPop > 0 ? roundTo((totalHigherEd / totalAdultPop) * 100, 1) : 0;
   result.ownership_rate = totalHouseholds > 0 ? roundTo((totalOwnerOcc / totalHouseholds) * 100, 1) : 0;
   result.rental_rate = totalHouseholds > 0 ? roundTo((totalRental / totalHouseholds) * 100, 1) : 0;

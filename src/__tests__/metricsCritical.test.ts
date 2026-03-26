@@ -21,29 +21,29 @@ function makeFeature(props: Partial<NeighborhoodProperties>): GeoJSON.Feature {
 
 describe('computeMetroAverages — ratio-based metrics', () => {
   it('unemployment_rate is computed from raw counts, not averaged percentages', () => {
-    // Area A: 100 unemployed, total pop 1200
-    // Area B: 50 unemployed, total pop 600
-    // Correct weighted = 150/1800 ≈ 8.3%
-    // (denominator matches data pipeline: pt_tyott / he_vakiy)
+    // Area A: 100 unemployed, working-age pop 1000
+    // Area B: 50 unemployed, working-age pop 500
+    // Correct weighted = 150/1500 = 10.0%
+    // (denominator is working-age population pt_vakiy, not total population)
     const features = [
       makeFeature({ he_vakiy: 1200, pt_tyott: 100, pt_vakiy: 1000 }),
       makeFeature({ pno: '00200', he_vakiy: 600, pt_tyott: 50, pt_vakiy: 500 }),
     ];
     const avg = computeMetroAverages(features);
-    expect(avg.unemployment_rate).toBeCloseTo(8.3, 1);
+    expect(avg.unemployment_rate).toBeCloseTo(10.0, 1);
   });
 
   it('unemployment_rate correctly handles different rates per area', () => {
-    // Area A: 200 unemployed, total pop 2500
-    // Area B: 50 unemployed, total pop 150
-    // Weighted: 250/2650 ≈ 9.4%
-    // (denominator matches data pipeline: pt_tyott / he_vakiy)
+    // Area A: 200 unemployed, working-age pop 2000
+    // Area B: 50 unemployed, working-age pop 100
+    // Weighted: 250/2100 ≈ 11.9%
+    // (denominator is working-age population pt_vakiy, not total population)
     const features = [
       makeFeature({ he_vakiy: 2500, pt_tyott: 200, pt_vakiy: 2000 }),
       makeFeature({ pno: '00200', he_vakiy: 150, pt_tyott: 50, pt_vakiy: 100 }),
     ];
     const avg = computeMetroAverages(features);
-    expect(avg.unemployment_rate).toBeCloseTo(9.4, 1);
+    expect(avg.unemployment_rate).toBeCloseTo(11.9, 1);
   });
 
   it('higher_education_rate sums both ko_yl_kork and ko_al_kork', () => {
