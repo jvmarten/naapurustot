@@ -13,6 +13,7 @@ Format: {"00100": 12.5, "00120": 3.2, ...}  (stations per km²)
 import json
 import logging
 import sys
+import time
 from pathlib import Path
 
 import geopandas as gpd
@@ -24,8 +25,12 @@ logger = logging.getLogger(__name__)
 
 OUT_DIR = Path(__file__).parent
 
-# Helsinki metro bounding box (south, west, north, east)
-METRO_BBOX = (60.05, 24.50, 60.45, 25.30)
+# Regional bounding boxes (south, west, north, east)
+REGION_BBOXES = [
+    (60.05, 24.50, 60.45, 25.30),   # Helsinki metro
+    (60.25, 21.50, 60.75, 22.90),   # Turku metro
+    (61.20, 23.10, 62.20, 25.00),   # Tampere metro
+]
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 
@@ -40,31 +45,53 @@ def load_postal_boundaries() -> gpd.GeoDataFrame:
 
 
 def fetch_ev_stations() -> list[dict]:
-    """Fetch EV charging stations from Overpass API."""
+    """Fetch EV charging stations from Overpass API for all metro regions."""
     logger.info("Fetching EV charging stations from Overpass API...")
 
-    south, west, north, east = METRO_BBOX
-    query = f"""
-    [out:json][timeout:60];
-    (
-      node["amenity"="charging_station"]({south},{west},{north},{east});
-      way["amenity"="charging_station"]({south},{west},{north},{east});
-    );
-    out center;
-    """
-
-    resp = requests.post(OVERPASS_URL, data={"data": query}, timeout=120)
-    resp.raise_for_status()
-    data = resp.json()
-
     stations = []
-    for element in data.get("elements", []):
-        lat = element.get("lat") or element.get("center", {}).get("lat")
-        lon = element.get("lon") or element.get("center", {}).get("lon")
-        if lat and lon:
-            stations.append({"lat": lat, "lon": lon})
+    seen = set()
 
-    logger.info("  Found %d charging stations", len(stations))
+    for i, bbox in enumerate(REGION_BBOXES):
+        south, west, north, east = bbox
+        logger.info("  Querying region %d bbox: %.2f,%.2f,%.2f,%.2f", i + 1, south, west, north, east)
+
+        query = f"""
+        [out:json][timeout:60];
+        (
+          node["amenity"="charging_station"]({south},{west},{north},{east});
+          way["amenity"="charging_station"]({south},{west},{north},{east});
+        );
+        out center;
+        """
+
+        for attempt in range(1, 5):
+            try:
+                resp = requests.post(OVERPASS_URL, data={"data": query}, timeout=120)
+                resp.raise_for_status()
+                data = resp.json()
+                break
+            except Exception as e:
+                wait = 15 * attempt
+                logger.warning("  Attempt %d failed: %s. Retrying in %ds...", attempt, e, wait)
+                time.sleep(wait)
+                data = {"elements": []}
+
+        for element in data.get("elements", []):
+            lat = element.get("lat") or element.get("center", {}).get("lat")
+            lon = element.get("lon") or element.get("center", {}).get("lon")
+            if lat and lon:
+                key = (round(lat, 6), round(lon, 6))
+                if key not in seen:
+                    seen.add(key)
+                    stations.append({"lat": lat, "lon": lon})
+
+        logger.info("  Region %d: %d total stations so far", i + 1, len(stations))
+
+        # Rate limit between Overpass queries
+        if i < len(REGION_BBOXES) - 1:
+            time.sleep(15)
+
+    logger.info("  Found %d charging stations total", len(stations))
     return stations
 
 

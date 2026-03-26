@@ -34,8 +34,8 @@ logger = logging.getLogger(__name__)
 
 # Municipality codes per city/region
 HELSINKI_METRO_CODES = {"091", "049", "092", "235"}
-TURKU_CODES = {"853", "202", "680", "529", "423", "704", "481", "577"}  # Turku, Kaarina, Raisio, Naantali, Lieto, Rusko, Masku, Paimio
-TAMPERE_CODES = {"837", "536", "980", "211", "418", "604"}  # Tampere, Nokia, Ylöjärvi, Kangasala, Lempäälä, Pirkkala
+TURKU_CODES = {"853", "202", "680", "529", "423", "704", "481", "577", "019"}  # Turku, Kaarina, Raisio, Naantali, Lieto, Rusko, Masku, Paimio, Aura
+TAMPERE_CODES = {"837", "536", "980", "211", "418", "604", "562"}  # Tampere, Nokia, Ylöjärvi, Kangasala, Lempäälä, Pirkkala, Orivesi
 
 # All supported municipality codes (union of all regions)
 METRO_CODES = HELSINKI_METRO_CODES | TURKU_CODES | TAMPERE_CODES
@@ -54,12 +54,14 @@ MUNICIPALITY_CITY = {
     "704": "turku",
     "481": "turku",
     "577": "turku",
+    "019": "turku",
     "837": "tampere",
     "536": "tampere",
     "980": "tampere",
     "211": "tampere",
     "418": "tampere",
     "604": "tampere",
+    "562": "tampere",
 }
 
 # WFS base URL and capabilities endpoint for auto-detecting the latest year
@@ -1134,32 +1136,48 @@ def join_green_spaces(gdf, elements):
         return gdf
     logger.info("  Parsed %s green space polygons", len(green_polys))
 
-    from shapely.geometry import MultiPolygon
+    from shapely import STRtree
     from shapely.ops import unary_union
 
-    # Build a GeoDataFrame of green spaces and union overlapping areas
+    # Build a GeoDataFrame of green spaces
     green_gdf = gpd.GeoDataFrame(geometry=green_polys, crs="EPSG:4326")
 
     # Reproject both to EPSG:3067 (Finnish metre-based CRS) for area calculation
     gdf_proj = gdf[["geometry"]].to_crs("EPSG:3067")
     green_gdf_proj = green_gdf.to_crs("EPSG:3067")
 
-    # Spatial join: intersect green polygons with postal code boundaries
-    green_union = unary_union(green_gdf_proj.geometry)
+    # Use spatial index to find candidate green spaces per postal code,
+    # then union only the relevant ones (much faster than global unary_union)
+    green_geoms = list(green_gdf_proj.geometry)
+    tree = STRtree(green_geoms)
 
     green_pct = {}
-    for idx, row in gdf_proj.iterrows():
+    for i, (idx, row) in enumerate(gdf_proj.iterrows()):
         postal_geom = row.geometry
         if postal_geom is None or postal_geom.is_empty:
             continue
         postal_area = postal_geom.area
         if postal_area <= 0:
             continue
-        intersection = postal_geom.intersection(green_union)
-        if intersection.is_empty:
+
+        # Find green spaces that intersect this postal code
+        candidates = tree.query(postal_geom)
+        if len(candidates) == 0:
             green_pct[idx] = 0.0
-        else:
-            green_pct[idx] = round(intersection.area / postal_area * 100, 1)
+            continue
+
+        # Clip candidate green spaces to the postal code boundary and compute area
+        clipped_areas = 0.0
+        candidate_geoms = [green_geoms[c] for c in candidates]
+        local_union = unary_union(candidate_geoms)
+        intersection = postal_geom.intersection(local_union)
+        if not intersection.is_empty:
+            clipped_areas = intersection.area
+
+        green_pct[idx] = round(clipped_areas / postal_area * 100, 1)
+
+        if (i + 1) % 50 == 0:
+            logger.info("  Green space: processed %d/%d postal codes...", i + 1, len(gdf_proj))
 
     gdf["green_space_pct"] = gdf.index.map(lambda i: green_pct.get(i))
 

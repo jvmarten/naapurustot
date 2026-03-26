@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Fetch voter turnout and party diversity data for Helsinki metro postal codes.
+Fetch voter turnout and party diversity data for metro area postal codes.
 
 Data sources:
 - Statistics Finland PxWeb API — 2025 municipal election (kuntavaalit) results
@@ -36,12 +36,28 @@ GEOJSON_PATH = OUT_DIR.parent / "public" / "data" / "metro_neighborhoods.geojson
 TURNOUT_TABLE = "https://pxdata.stat.fi/PxWeb/api/v1/fi/StatFin/kvaa/statfin_kvaa_pxt_14vl.px"
 PARTY_TABLE = "https://pxdata.stat.fi/PxWeb/api/v1/fi/StatFin/kvaa/statfin_kvaa_pxt_14vm.px"
 
-# Metro municipalities and their PxWeb polling district prefixes
-MUNI_PREFIXES = {"091": "01091", "049": "02049", "092": "02092", "235": "02235"}
+# All supported municipality codes (Helsinki metro + Turku + Tampere)
+ALL_MUNICIPALITY_CODES = {
+    # Helsinki metro
+    "091", "049", "092", "235",
+    # Turku metro
+    "853", "202", "680", "529", "423", "704", "481", "577", "019",
+    # Tampere metro
+    "837", "536", "980", "211", "418", "604", "562",
+}
+
+# Will be auto-detected from PxWeb metadata
+MUNI_PREFIXES: dict[str, str] = {}
 
 
 def get_metro_polling_districts(table_url: str) -> list[str]:
-    """Get polling district codes for metro area from PxWeb metadata."""
+    """Get polling district codes for metro area from PxWeb metadata.
+
+    Auto-detects the vaalipiiri+municipality prefix for each municipality
+    by scanning polling district codes (positions 2-4 = municipality code).
+    """
+    global MUNI_PREFIXES
+
     resp = requests.get(table_url, timeout=30)
     resp.raise_for_status()
     meta = resp.json()
@@ -51,6 +67,19 @@ def get_metro_polling_districts(table_url: str) -> list[str]:
         if var["code"] == "Äänestysalue":
             all_areas = var["values"]
             break
+
+    # Auto-detect prefixes: polling district codes are formatted as
+    # {vaalipiiri 2 digits}{municipality 3 digits}{district number}
+    detected_prefixes: dict[str, str] = {}
+    for area in all_areas:
+        if len(area) >= 5:
+            muni_code = area[2:5]
+            if muni_code in ALL_MUNICIPALITY_CODES and muni_code not in detected_prefixes:
+                detected_prefixes[muni_code] = area[:5]
+
+    MUNI_PREFIXES = detected_prefixes
+    logger.info("  Auto-detected prefixes for %d municipalities: %s",
+                len(detected_prefixes), detected_prefixes)
 
     return [
         a
