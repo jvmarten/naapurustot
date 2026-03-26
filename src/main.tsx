@@ -7,7 +7,14 @@ import './index.css';
 
 // Auto-reload when a new service worker is activated after deployment.
 // This prevents users from being stuck on a stale cached version.
+// Check for updates every 60 seconds so returning tabs pick up deploys fast.
 registerSW({
+  immediate: true,
+  onRegisteredSW(_swUrl, registration) {
+    if (registration) {
+      setInterval(() => { registration.update(); }, 60_000);
+    }
+  },
   onNeedRefresh() {
     // New content available — reload immediately so the user always
     // gets the latest version without manual intervention.
