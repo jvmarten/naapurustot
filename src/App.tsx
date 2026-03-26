@@ -370,34 +370,42 @@ const App: React.FC = () => {
   // Keep URL in sync with current state (including pinned comparisons)
   useSyncUrlState(selected?.pno ?? null, activeLayer, pinnedPnos, cityFilter);
 
-  // Recompute quality indices when custom weights change
+  // Recompute quality indices when custom weights change.
+  // The slider state updates immediately for responsiveness, but the expensive
+  // recomputation (iterates all features) is debounced to avoid jank during drags.
+  const qualityDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const handleQualityWeightsChange = useCallback(
     (newWeights: QualityWeights) => {
       setQualityWeights(newWeights);
-      if (data) {
-        const features = comparisonScope === 'region' && cityFilter !== 'all' && filteredData
-          ? filteredData.features
-          : data.features;
-        computeQualityIndices(features, newWeights);
-        setQualityVersion((v) => v + 1);
-        // Update selected neighborhood if it exists
-        if (selected) {
-          const feature = data.features.find((f) => f.properties?.pno === selected.pno);
-          if (feature?.properties) {
-            select(feature.properties as NeighborhoodProperties);
+      if (qualityDebounceRef.current) clearTimeout(qualityDebounceRef.current);
+      qualityDebounceRef.current = setTimeout(() => {
+        if (data) {
+          const features = comparisonScope === 'region' && cityFilter !== 'all' && filteredData
+            ? filteredData.features
+            : data.features;
+          computeQualityIndices(features, newWeights);
+          setQualityVersion((v) => v + 1);
+          // Update selected neighborhood if it exists
+          if (selected) {
+            const feature = data.features.find((f) => f.properties?.pno === selected.pno);
+            if (feature?.properties) {
+              select(feature.properties as NeighborhoodProperties);
+            }
+          }
+          // Update pinned neighborhoods so comparison panel reflects new quality indices
+          if (pinned.length > 0) {
+            const updated = pinned
+              .map((p) => data.features.find((f) => f.properties?.pno === p.pno)?.properties as NeighborhoodProperties | undefined)
+              .filter((p): p is NeighborhoodProperties => p != null);
+            refreshPinned(updated);
           }
         }
-        // Update pinned neighborhoods so comparison panel reflects new quality indices
-        if (pinned.length > 0) {
-          const updated = pinned
-            .map((p) => data.features.find((f) => f.properties?.pno === p.pno)?.properties as NeighborhoodProperties | undefined)
-            .filter((p): p is NeighborhoodProperties => p != null);
-          refreshPinned(updated);
-        }
-      }
+      }, 150);
     },
     [data, selected, select, pinned, refreshPinned, comparisonScope, cityFilter, filteredData],
   );
+  // Clean up debounce timer on unmount
+  useEffect(() => () => { if (qualityDebounceRef.current) clearTimeout(qualityDebounceRef.current); }, []);
 
   const handleHover = useCallback(
     (props: NeighborhoodProperties | null, x: number, y: number) => {
@@ -564,22 +572,30 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // QW-4: Escape to close topmost panel
+  // QW-4: Escape to close topmost panel.
+  // Uses a ref to avoid re-subscribing the listener on every state change
+  // (the previous version had a 10-item dependency array that churned constantly).
+  const escapeStateRef = useRef({ selectMode, drawMode, drawnPolygon, showWizard, showCustomQuality, selected, showFilter, showRanking });
+  escapeStateRef.current = { selectMode, drawMode, drawnPolygon, showWizard, showCustomQuality, selected, showFilter, showRanking };
+  const escapeActionsRef = useRef({ deselect, handleClearDraw });
+  escapeActionsRef.current = { deselect, handleClearDraw };
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      if (selectMode) { setSelectMode(false); setSelectedAreaPnos([]); return; }
-      if (drawMode) { setDrawMode(false); setDrawVertices([]); return; }
-      if (drawnPolygon) { handleClearDraw(); return; }
-      if (showWizard) { setShowWizard(false); return; }
-      if (showCustomQuality) { setShowCustomQuality(false); return; }
-      if (selected) { deselect(); return; }
-      if (showFilter) { setShowFilter(false); return; }
-      if (showRanking) { setShowRanking(false); return; }
+      const s = escapeStateRef.current;
+      const a = escapeActionsRef.current;
+      if (s.selectMode) { setSelectMode(false); setSelectedAreaPnos([]); return; }
+      if (s.drawMode) { setDrawMode(false); setDrawVertices([]); return; }
+      if (s.drawnPolygon) { a.handleClearDraw(); return; }
+      if (s.showWizard) { setShowWizard(false); return; }
+      if (s.showCustomQuality) { setShowCustomQuality(false); return; }
+      if (s.selected) { a.deselect(); return; }
+      if (s.showFilter) { setShowFilter(false); return; }
+      if (s.showRanking) { setShowRanking(false); return; }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selected, showCustomQuality, showFilter, showRanking, showWizard, deselect, drawMode, drawnPolygon, handleClearDraw, selectMode]);
+  }, []);
 
   return (
     <div className="h-screen w-screen overflow-hidden relative" data-testid="app-root" data-loaded={!loading}>

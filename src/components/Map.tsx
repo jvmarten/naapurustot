@@ -171,34 +171,39 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
 
+    // Debounced resize — collapses rapid resize events (ResizeObserver,
+    // visualViewport, and early layout settle timers) into a single call.
+    let resizeTimer: ReturnType<typeof setTimeout> | undefined;
+    const debouncedResize = () => {
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => { if (mapRef.current) mapRef.current.resize(); }, 50);
+    };
+
     // Recalculate container size once the map is fully loaded to prevent
     // partial rendering when the layout isn't settled at init time (mobile first-load bug).
     map.once('load', () => { map.resize(); });
 
-    // When navigating from an external page (e.g. Google search results) on
-    // mobile, the browser viewport may still be animating (address bar
-    // collapsing, scroll restoration) after the map initialises, causing a
-    // stretched / skewed render.  A series of delayed resize() calls covers
-    // the window during which the viewport settles.
+    // When navigating from an external page on mobile, the browser viewport
+    // may still be animating.  Debounced timers cover the settle window.
     const earlyResizeTimers = [100, 300, 1000].map(ms =>
-      setTimeout(() => { if (mapRef.current) mapRef.current.resize(); }, ms),
+      setTimeout(debouncedResize, ms),
     );
 
     mapRef.current = map;
 
     // Keep map in sync when the container element is resized (e.g., mobile
     // address-bar show/hide, orientation change, or late layout shifts).
-    const ro = new ResizeObserver(() => { map.resize(); });
+    const ro = new ResizeObserver(debouncedResize);
     ro.observe(containerRef.current);
 
     // On mobile, the visual viewport can change (address bar show/hide)
     // without triggering a container resize.  Listen for that too.
-    const vvResize = () => { if (mapRef.current) mapRef.current.resize(); };
-    window.visualViewport?.addEventListener('resize', vvResize);
+    window.visualViewport?.addEventListener('resize', debouncedResize);
 
     return () => {
+      if (resizeTimer) clearTimeout(resizeTimer);
       earlyResizeTimers.forEach(clearTimeout);
-      window.visualViewport?.removeEventListener('resize', vvResize);
+      window.visualViewport?.removeEventListener('resize', debouncedResize);
       ro.disconnect();
       map.remove();
       mapRef.current = null;

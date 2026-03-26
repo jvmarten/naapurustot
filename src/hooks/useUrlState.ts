@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { LayerId } from '../utils/colorScales';
 import { LAYERS } from '../utils/colorScales';
 
@@ -72,10 +72,13 @@ export function readInitialUrlState(): UrlState {
   return parseUrl();
 }
 
-/** Keep the browser URL in sync with the current selection, layer, pinned comparisons, and city. */
+/** Keep the browser URL in sync with the current selection, layer, pinned comparisons, and city.
+ *  Debounced to avoid redundant replaceState calls when multiple values change in the same tick. */
 export function useSyncUrlState(pno: string | null, layer: LayerId, comparePnos: string[] = [], city: string = 'helsinki_metro') {
-  // Write state changes to URL
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => {
-    writeUrl(pno, layer, comparePnos, city);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => writeUrl(pno, layer, comparePnos, city), 100);
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, [pno, layer, comparePnos, city]);
 }

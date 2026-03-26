@@ -75,6 +75,10 @@ export default defineConfig({
         manualChunks(id: string) {
           if (id.includes('maplibre-gl')) return 'maplibre';
           if (id.includes('node_modules/react-dom') || id.includes('node_modules/react/')) return 'vendor';
+          // Turf.js geospatial utilities — used for specific interactions (polygon
+          // intersection, point-in-polygon, bbox), not on every page load.
+          // Splitting into its own chunk avoids blocking initial parse/render.
+          if (id.includes('node_modules/@turf/')) return 'turf';
         },
       },
     },
