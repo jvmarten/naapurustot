@@ -13,7 +13,12 @@ interface DonateButtonProps {
 export const DonateButton: React.FC<DonateButtonProps> = ({ variant = 'button' }) => {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showQr, setShowQr] = useState(false);
   const popupRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) setShowQr(false);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -51,19 +56,8 @@ export const DonateButton: React.FC<DonateButtonProps> = ({ variant = 'button' }
         {t('donate.title')}
       </h3>
       <p className="text-xs text-surface-500 dark:text-surface-400 mb-3">
-        {t('donate.description')}
+        {t('donate.descriptionShort')}
       </p>
-
-      {/* QR Code */}
-      <div className="flex justify-center mb-3">
-        <div className="bg-white p-2 rounded-lg">
-          <QRCodeSVG
-            value={BOLT12_OFFER}
-            size={160}
-            level="L"
-          />
-        </div>
-      </div>
 
       {/* Copyable offer string */}
       <div className="flex items-center gap-2 bg-surface-50 dark:bg-surface-800 rounded-lg p-2.5 mb-2">
@@ -81,6 +75,26 @@ export const DonateButton: React.FC<DonateButtonProps> = ({ variant = 'button' }
           {copied ? t('donate.copied') : t('donate.copy')}
         </button>
       </div>
+
+      {/* QR Code toggle */}
+      <button
+        onClick={() => setShowQr((v) => !v)}
+        className="text-xs font-medium text-brand-500 hover:text-brand-600
+                   dark:text-brand-400 dark:hover:text-brand-300 transition-colors mb-2"
+      >
+        {showQr ? t('donate.hideQr') : t('donate.showQr')}
+      </button>
+      {showQr && (
+        <div className="flex justify-center mb-2">
+          <div className="bg-white p-2 rounded-lg">
+            <QRCodeSVG
+              value={BOLT12_OFFER}
+              size={160}
+              level="L"
+            />
+          </div>
+        </div>
+      )}
 
       <p className="text-[10px] text-surface-400 dark:text-surface-500">
         {t('donate.hint')}
@@ -102,19 +116,8 @@ export const DonateButton: React.FC<DonateButtonProps> = ({ variant = 'button' }
             {t('donate.title')}
           </h3>
           <p className="text-xs text-surface-500 dark:text-surface-400 mb-3">
-            {t('donate.description')}
+            {t('donate.descriptionShort')}
           </p>
-
-          {/* QR Code */}
-          <div className="flex justify-center mb-3">
-            <div className="bg-white p-2 rounded-lg">
-              <QRCodeSVG
-                value={BOLT12_OFFER}
-                size={180}
-                level="L"
-              />
-            </div>
-          </div>
 
           {/* Copyable offer string */}
           <div className="flex items-center gap-2 bg-surface-50 dark:bg-surface-800 rounded-lg p-2.5 mb-2">
@@ -132,6 +135,26 @@ export const DonateButton: React.FC<DonateButtonProps> = ({ variant = 'button' }
               {copied ? t('donate.copied') : t('donate.copy')}
             </button>
           </div>
+
+          {/* QR Code toggle */}
+          <button
+            onClick={() => setShowQr((v) => !v)}
+            className="text-xs font-medium text-brand-500 hover:text-brand-600
+                       dark:text-brand-400 dark:hover:text-brand-300 transition-colors mb-2"
+          >
+            {showQr ? t('donate.hideQr') : t('donate.showQr')}
+          </button>
+          {showQr && (
+            <div className="flex justify-center mb-2">
+              <div className="bg-white p-2 rounded-lg">
+                <QRCodeSVG
+                  value={BOLT12_OFFER}
+                  size={180}
+                  level="L"
+                />
+              </div>
+            </div>
+          )}
 
           <p className="text-[10px] text-surface-400 dark:text-surface-500">
             {t('donate.hint')}
