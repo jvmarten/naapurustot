@@ -1,26 +1,15 @@
 import type { Feature, FeatureCollection, Polygon, MultiPolygon } from 'geojson';
 import type { CityId, NeighborhoodProperties } from './metrics';
 import { computeMetroAverages } from './metrics';
-
-/** City display names (Finnish) — used as `nimi` for metro area features. */
-const CITY_NAMES_FI: Record<CityId, string> = {
-  helsinki_metro: 'Helsingin seutu',
-  turku: 'Turun seutu',
-  tampere: 'Tampereen seutu',
-};
-
-const CITY_NAMES_SV: Record<CityId, string> = {
-  helsinki_metro: 'Helsingforsregionen',
-  turku: 'Åboregionen',
-  tampere: 'Tammerforsregionen',
-};
+import { t } from './i18n';
+import union from '@turf/union';
 
 /**
  * Build merged metro area features for the "all cities" view.
  *
- * Groups neighborhoods by their `city` property, merges their geometries into
- * a single MultiPolygon per city, and attaches population-weighted average
- * statistics as properties so the panel and tooltip work seamlessly.
+ * Groups neighborhoods by their `city` property, dissolves their geometries
+ * into a single outer boundary per city (no internal postal code borders),
+ * and attaches population-weighted average statistics as properties.
  */
 export function buildMetroAreaFeatures(
   allFeatures: Feature[],
@@ -39,35 +28,59 @@ export function buildMetroAreaFeatures(
     }
   }
 
-  const features: Feature<MultiPolygon>[] = [];
+  const features: Feature<Polygon | MultiPolygon>[] = [];
 
   for (const cityId of cityIds) {
     const cityFeatures = grouped[cityId];
     if (cityFeatures.length === 0) continue;
 
-    // Collect all polygon rings into a MultiPolygon
-    const polygons: number[][][][] = [];
-    for (const f of cityFeatures) {
-      const geom = f.geometry;
-      if (!geom) continue;
-      if (geom.type === 'Polygon') {
-        polygons.push((geom as Polygon).coordinates);
-      } else if (geom.type === 'MultiPolygon') {
-        for (const poly of (geom as MultiPolygon).coordinates) {
-          polygons.push(poly);
+    // Collect valid polygon features for union
+    const polyFeatures = cityFeatures.filter((f) => {
+      const t = f.geometry?.type;
+      return t === 'Polygon' || t === 'MultiPolygon';
+    }) as Feature<Polygon | MultiPolygon>[];
+
+    if (polyFeatures.length === 0) continue;
+
+    // Dissolve all polygons into a single outer boundary
+    let merged: Feature<Polygon | MultiPolygon> | null = null;
+    try {
+      const fc: FeatureCollection<Polygon | MultiPolygon> = {
+        type: 'FeatureCollection',
+        features: polyFeatures,
+      };
+      merged = union(fc);
+    } catch {
+      // Fallback: use raw MultiPolygon if union fails
+      const polygons: number[][][][] = [];
+      for (const f of polyFeatures) {
+        if (f.geometry.type === 'Polygon') {
+          polygons.push(f.geometry.coordinates);
+        } else {
+          for (const poly of f.geometry.coordinates) {
+            polygons.push(poly);
+          }
         }
       }
+      merged = {
+        type: 'Feature',
+        properties: {},
+        geometry: { type: 'MultiPolygon', coordinates: polygons },
+      };
     }
+
+    if (!merged) continue;
 
     // Compute aggregated stats
     const averages = computeMetroAverages(cityFeatures);
 
     // Build NeighborhoodProperties-compatible object
+    // Use i18n keys for names so they respect language setting
     const props: Record<string, unknown> = {
       ...averages,
       pno: cityId, // Used as feature ID by MapLibre (promoteId)
-      nimi: CITY_NAMES_FI[cityId],
-      namn: CITY_NAMES_SV[cityId],
+      nimi: t(`city.${cityId}`),
+      namn: t(`city.${cityId}`),
       kunta: null,
       city: cityId,
       _isMetroArea: true, // Marker to distinguish from postal code features
@@ -76,10 +89,7 @@ export function buildMetroAreaFeatures(
     features.push({
       type: 'Feature',
       properties: props,
-      geometry: {
-        type: 'MultiPolygon',
-        coordinates: polygons,
-      },
+      geometry: merged.geometry,
     });
   }
 

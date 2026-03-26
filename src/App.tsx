@@ -106,7 +106,8 @@ const App: React.FC = () => {
         (f) => f.properties?.city === cityFilter,
       ),
     } as typeof data;
-  }, [data, cityFilter]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- lang triggers rebuild so metro area names respect language
+  }, [data, cityFilter, lang]);
 
   // Recompute metro averages for the selected city.
   // qualityVersion is included so that averages are recalculated after custom quality weight changes
@@ -806,6 +807,7 @@ const App: React.FC = () => {
             onToggleFavorite={() => toggleFavorite(selected.pno)}
             note={getNote(selected.pno)}
             onNoteChange={(text) => setNote(selected.pno, text)}
+            onExploreCity={(cityId) => handleCityChange(cityId as CityFilter)}
           />
           </Suspense>
         </ErrorBoundary>
