@@ -151,6 +151,9 @@ TREE_CANOPY_FILE = Path(__file__).parent / "tree_canopy.json"
 # Transit reachability score (0-100, jobs/services within 30 min) — HSL
 TRANSIT_REACHABILITY_FILE = Path(__file__).parent / "transit_reachability.json"
 
+# LIPAS sports facility density (facilities/km²)
+SPORTS_FACILITY_FILE = Path(__file__).parent / "sports_facility_density.json"
+
 # --- Phase 9: Real open data layers ---
 
 # Statistics Finland rental price data by postal code — PxWeb API v1
@@ -2269,6 +2272,9 @@ def main():
     reach_data = _load_json_data(TRANSIT_REACHABILITY_FILE, "transit reachability")
     gdf = _join_simple_data(gdf, reach_data, "transit_reachability_score", "transit reachability")
 
+    sports_data = _load_json_data(SPORTS_FACILITY_FILE, "sports facility density")
+    gdf = _join_simple_data(gdf, sports_data, "sports_facility_density", "sports facility density")
+
     # --- Phase 4: Historical time-series data ---
     _rate_limit()
     historical = fetch_historical_paavo(latest_year)
@@ -2292,6 +2298,7 @@ def main():
         "voter_turnout_pct", "party_diversity_index",
         "broadband_coverage_pct", "ev_charging_density",
         "tree_canopy_pct", "transit_reachability_score",
+        "sports_facility_density",
         # Phase 9: real open data
         "rental_price_sqm", "price_to_rent_ratio",
         "walkability_index", "traffic_accident_rate",

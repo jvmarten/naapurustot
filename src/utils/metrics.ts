@@ -95,6 +95,7 @@ export interface NeighborhoodProperties {
   cycling_density: number | null;
   restaurant_density: number | null;
   grocery_density: number | null;
+  sports_facility_density: number | null;
   // Historical time-series data (JSON-encoded arrays of [year, value] pairs)
   income_history: string | null;
   population_history: string | null;
@@ -391,6 +392,7 @@ export const METRIC_SOURCES: Record<string, MetricSource> = {
   daycare_density: { source: 'OpenStreetMap', year: 2024 },
   school_density: { source: 'OpenStreetMap', year: 2024 },
   healthcare_density: { source: 'OpenStreetMap', year: 2024 },
+  sports_facility_density: { source: 'LIPAS (Jyväskylän yliopisto)', year: 2025 },
   // Mobility
   cycling_density: { source: 'OpenStreetMap', year: 2024 },
 
@@ -455,6 +457,7 @@ const METRIC_DEFS: MetricDef[] = [
   { property: 'healthcare_density', weight: 'population', precision: 1 },
   { property: 'restaurant_density', weight: 'population', precision: 1 },
   { property: 'grocery_density', weight: 'population', precision: 1 },
+  { property: 'sports_facility_density', weight: 'population', precision: 1 },
 
   // Demographics
   { property: 'foreign_language_pct', weight: 'population', precision: 1, pctOfPop: true },
