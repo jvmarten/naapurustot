@@ -457,7 +457,7 @@ export const LAYERS: LayerConfig[] = [
     labelKey: 'layer.gender_ratio',
     property: 'gender_ratio',
     unit: '',
-    colors: ['#b2182b', '#d6604d', '#f4a582', '#fddbc7', '#d1e5f0', '#92c5de', '#4393c3', '#2166ac'],
+    colors: ['#2166ac', '#4393c3', '#92c5de', '#d1e5f0', '#fddbc7', '#f4a582', '#d6604d', '#b2182b'],
     stops: [0.8, 0.85, 0.9, 0.95, 1.0, 1.05, 1.1, 1.2],
     format: (v: number) => `${v.toFixed(2)}`,
   },
