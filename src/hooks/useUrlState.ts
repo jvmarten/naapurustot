@@ -73,12 +73,15 @@ export function readInitialUrlState(): UrlState {
 }
 
 /** Keep the browser URL in sync with the current selection, layer, pinned comparisons, and city.
- *  Debounced to avoid redundant replaceState calls when multiple values change in the same tick. */
-export function useSyncUrlState(pno: string | null, layer: LayerId, comparePnos: string[] = [], city: string = 'helsinki_metro') {
+ *  Debounced to avoid redundant replaceState calls when multiple values change in the same tick.
+ *  When `ready` is false, URL writes are suppressed to avoid clearing params from the initial
+ *  URL before the restoration effect has consumed them (e.g., pinned neighborhoods). */
+export function useSyncUrlState(pno: string | null, layer: LayerId, comparePnos: string[] = [], city: string = 'helsinki_metro', ready = true) {
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
+    if (!ready) return;
     timerRef.current = setTimeout(() => writeUrl(pno, layer, comparePnos, city), 100);
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-  }, [pno, layer, comparePnos, city]);
+  }, [pno, layer, comparePnos, city, ready]);
 }

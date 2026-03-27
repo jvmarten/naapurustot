@@ -775,16 +775,24 @@ export function rescaleLayerToData(
 
 export function buildFillColorExpression(layer: LayerConfig, propertyOverride?: string): ExpressionSpecification {
   const prop = propertyOverride ?? layer.property;
-  // Use to-number to coerce string values (some properties are stored as strings in GeoJSON)
-  const numericValue = ['to-number', ['get', prop], 0];
+  // The typeof guard below ensures we only reach the interpolation for actual numbers,
+  // so no coercion fallback is needed. String-encoded numeric properties are converted
+  // to real numbers by useMapData at load time.
+  const numericValue = ['get', prop];
   const interpolation: unknown[] = ['interpolate', ['linear'], numericValue];
   for (let i = 0; i < layer.stops.length; i++) {
     interpolation.push(layer.stops[i], layer.colors[i]);
   }
-  // Show gray for features where the property is null/missing
+  // Show gray for features where the property is null/missing/non-numeric.
+  // The typeof check prevents non-numeric strings (e.g. "N/A") from being
+  // silently coerced to 0 by the to-number fallback.
   return [
     'case',
-    ['all', ['has', prop], ['!=', ['get', prop], null]],
+    ['all',
+      ['has', prop],
+      ['!=', ['get', prop], null],
+      ['==', ['typeof', ['get', prop]], 'number'],
+    ],
     interpolation,
     '#d1d5db',
   ] as unknown as ExpressionSpecification;
