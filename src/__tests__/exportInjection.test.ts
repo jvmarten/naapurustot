@@ -83,10 +83,7 @@ describe('CSV injection prevention — formula characters', () => {
 
   it('includes UTF-8 BOM for Excel compatibility', async () => {
     const props = makeProps();
-    const csv = await getCsvContent(props);
-    // The BOM \uFEFF may appear as UTF-8 BOM bytes or as the codepoint depending on environment
-    // Check that the CSV content starts with BOM or the first header field
-    const _bomOrContent = csv.charCodeAt(0) === 0xFEFF || csv.includes('\uFEFF');
+    await getCsvContent(props);
     // In jsdom, Blob.text() decodes the UTF-8 BOM bytes (EF BB BF) — verify they're present
     const raw = new Uint8Array(await capturedBlob!.arrayBuffer());
     expect(raw[0]).toBe(0xEF);

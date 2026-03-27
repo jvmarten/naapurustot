@@ -146,8 +146,9 @@ describe('full data pipeline integration', () => {
     const getQI = (pno: string) =>
       (features.find(f => (f.properties as NeighborhoodProperties).pno === pno)!.properties as NeighborhoodProperties).quality_index!;
 
-    const _defaultKruununhaka = getQI('00100');
-    const _defaultMellunmaki = getQI('01600');
+    // Verify default weights produce valid scores before switching
+    expect(getQI('00100')).toBeGreaterThanOrEqual(0);
+    expect(getQI('01600')).toBeGreaterThanOrEqual(0);
 
     // Now recompute with only safety weight (crime_index inverted)
     const safetyOnly: QualityWeights = {};
@@ -214,7 +215,8 @@ describe('full data pipeline integration', () => {
     }
 
     // Check no NaN in metro averages
-    for (const [_key, value] of Object.entries(avg)) {
+    for (const entry of Object.entries(avg)) {
+      const value = entry[1];
       expect(Number.isNaN(value)).toBe(false);
     }
   });
