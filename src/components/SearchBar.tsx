@@ -26,6 +26,7 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, onSelect,
   // CF-1: Address geocoding state
   const [addressResults, setAddressResults] = useState<GeocodeResult[]>([]);
   const geocodeTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const geocodeAbortRef = useRef<AbortController | null>(null);
 
   const { results, totalCount } = useMemo(() => {
     if (!data || query.length < 2) return { results: [], totalCount: 0 };
@@ -42,19 +43,26 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, onSelect,
     return { results: matched.slice(0, 8), totalCount: matched.length };
   }, [data, query]);
 
-  // CF-1: Debounced address geocoding — always search for streets/addresses alongside neighborhoods
+  // CF-1: Debounced address geocoding — always search for streets/addresses alongside neighborhoods.
+  // Uses AbortController to cancel in-flight HTTP requests when the query changes,
+  // preventing wasted bandwidth and stale responses from slower earlier requests.
   useEffect(() => {
     if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current);
+    if (geocodeAbortRef.current) geocodeAbortRef.current.abort();
     if (query.length < 3 || /^\d{5}$/.test(query.trim())) {
       setAddressResults([]);
       return;
     }
-    let stale = false;
+    const abortController = new AbortController();
+    geocodeAbortRef.current = abortController;
     geocodeTimerRef.current = setTimeout(async () => {
-      const res = await geocodeAddress(query);
-      if (!stale) setAddressResults(res);
+      const res = await geocodeAddress(query, abortController.signal);
+      if (!abortController.signal.aborted) setAddressResults(res);
     }, 300);
-    return () => { stale = true; if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current); };
+    return () => {
+      if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current);
+      abortController.abort();
+    };
   }, [query]);
 
   // CF-1: Find which neighborhood contains a geocoded point

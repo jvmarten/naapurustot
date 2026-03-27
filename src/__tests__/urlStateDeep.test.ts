@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock i18n to prevent issues
 vi.mock('../utils/i18n', () => ({
@@ -122,6 +122,7 @@ describe('useSyncUrlState', () => {
   let replaceStateSpy: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
+    vi.useFakeTimers();
     replaceStateSpy = vi.fn();
     Object.defineProperty(window, 'location', {
       value: { search: '', hash: '', pathname: '/' },
@@ -135,9 +136,14 @@ describe('useSyncUrlState', () => {
     });
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('writes pno to URL', () => {
     replaceStateSpy.mockClear();
     renderHook(() => useSyncUrlState('00100', 'quality_index'));
+    vi.advanceTimersByTime(150);
     const lastCall = replaceStateSpy.mock.calls[replaceStateSpy.mock.calls.length - 1];
     expect(lastCall[2]).toBe('/?pno=00100');
   });
@@ -145,6 +151,7 @@ describe('useSyncUrlState', () => {
   it('writes layer to URL when not quality_index', () => {
     replaceStateSpy.mockClear();
     renderHook(() => useSyncUrlState(null, 'median_income'));
+    vi.advanceTimersByTime(150);
     const lastCall = replaceStateSpy.mock.calls[replaceStateSpy.mock.calls.length - 1];
     expect(lastCall[2]).toBe('/?layer=median_income');
   });
@@ -152,6 +159,7 @@ describe('useSyncUrlState', () => {
   it('omits layer from URL when it is quality_index (default)', () => {
     replaceStateSpy.mockClear();
     renderHook(() => useSyncUrlState('00100', 'quality_index'));
+    vi.advanceTimersByTime(150);
     const lastCall = replaceStateSpy.mock.calls[replaceStateSpy.mock.calls.length - 1];
     const url = lastCall[2] as string;
     expect(url).not.toContain('layer=');
@@ -160,6 +168,7 @@ describe('useSyncUrlState', () => {
   it('writes compare PNOs to URL', () => {
     replaceStateSpy.mockClear();
     renderHook(() => useSyncUrlState(null, 'quality_index', ['00200', '00300']));
+    vi.advanceTimersByTime(150);
     const lastCall = replaceStateSpy.mock.calls[replaceStateSpy.mock.calls.length - 1];
     expect(lastCall[2]).toBe('/?compare=00200%2C00300');
   });
@@ -173,6 +182,7 @@ describe('useSyncUrlState', () => {
     });
     replaceStateSpy.mockClear();
     renderHook(() => useSyncUrlState(null, 'quality_index', [], 'helsinki_metro'));
+    vi.advanceTimersByTime(150);
     const lastCall = replaceStateSpy.mock.calls[replaceStateSpy.mock.calls.length - 1];
     const url = lastCall[2] as string;
     expect(url).not.toContain('city=');
@@ -181,6 +191,7 @@ describe('useSyncUrlState', () => {
   it('writes city to URL when set to turku', () => {
     replaceStateSpy.mockClear();
     renderHook(() => useSyncUrlState(null, 'quality_index', [], 'turku'));
+    vi.advanceTimersByTime(150);
     const lastCall = replaceStateSpy.mock.calls[replaceStateSpy.mock.calls.length - 1];
     expect(lastCall[2]).toBe('/?city=turku');
   });
@@ -188,6 +199,7 @@ describe('useSyncUrlState', () => {
   it('writes city to URL when set to all', () => {
     replaceStateSpy.mockClear();
     renderHook(() => useSyncUrlState(null, 'quality_index', [], 'all'));
+    vi.advanceTimersByTime(150);
     const lastCall = replaceStateSpy.mock.calls[replaceStateSpy.mock.calls.length - 1];
     expect(lastCall[2]).toBe('/?city=all');
   });
@@ -201,6 +213,7 @@ describe('useSyncUrlState', () => {
     });
     replaceStateSpy.mockClear();
     renderHook(() => useSyncUrlState(null, 'quality_index', []));
+    vi.advanceTimersByTime(150);
     const lastCall = replaceStateSpy.mock.calls[replaceStateSpy.mock.calls.length - 1];
     expect(lastCall[2]).toBe('/');
   });

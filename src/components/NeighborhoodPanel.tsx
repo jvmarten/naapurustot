@@ -43,7 +43,7 @@ const StatRow: React.FC<{
   property?: string;
   /** Optional trend data to render an inline sparkline */
   sparkline?: { data: import('../utils/metrics').TrendDataPoint[]; color?: string } | null;
-}> = ({ label, value, diff, diffClass, property, sparkline }) => {
+}> = React.memo(({ label, value, diff, diffClass, property, sparkline }) => {
   const source = property ? METRIC_SOURCES[property] : undefined;
   return (
     <div className="flex items-center justify-between py-2.5 md:py-2">
@@ -73,7 +73,8 @@ const StatRow: React.FC<{
       </div>
     </div>
   );
-};
+});
+StatRow.displayName = 'StatRow';
 
 const BarSegment: React.FC<{ label: string; value: number; total: number; color: string }> = ({
   label,

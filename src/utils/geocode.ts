@@ -12,8 +12,9 @@ export interface GeocodeResult {
   coordinates: [number, number]; // [lng, lat]
 }
 
-/** Geocode a street address or place name. Returns up to 5 results within supported city bboxes. */
-export async function geocodeAddress(query: string): Promise<GeocodeResult[]> {
+/** Geocode a street address or place name. Returns up to 5 results within supported city bboxes.
+ *  Pass an AbortSignal to cancel in-flight requests when the query changes. */
+export async function geocodeAddress(query: string, signal?: AbortSignal): Promise<GeocodeResult[]> {
   if (query.length < 3) return [];
 
   const cacheKey = query.toLowerCase().trim();
@@ -37,7 +38,7 @@ export async function geocodeAddress(query: string): Promise<GeocodeResult[]> {
       lang: 'fi',
     });
 
-    const response = await fetch(`${DIGITRANSIT_URL}?${params}`);
+    const response = await fetch(`${DIGITRANSIT_URL}?${params}`, { signal });
     if (!response.ok) return [];
 
     const data = await response.json();
