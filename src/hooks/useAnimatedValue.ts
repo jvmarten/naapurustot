@@ -10,7 +10,7 @@ export function useAnimatedValues(
 ): Record<string, number | null> {
   // Stable serialization for change detection
   const keyStr = Object.keys(targets).sort().join(',');
-  const keys = useMemo(() => keyStr.split(','), [keyStr]);
+  const keys = useMemo(() => (keyStr === '' ? [] : keyStr.split(',')), [keyStr]);
   const serialized = keys.map(k => `${k}:${targets[k] ?? '_'}`).join('|');
 
   const displayRef = useRef<Record<string, number | null>>({});

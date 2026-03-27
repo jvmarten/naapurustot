@@ -374,27 +374,42 @@ const App: React.FC = () => {
   // The slider state updates immediately for responsiveness, but the expensive
   // recomputation (iterates all features) is debounced to avoid jank during drags.
   const qualityDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  // Use refs for values read inside the debounced timeout to avoid stale closures.
+  // Without this, selecting a new neighborhood during the 150ms debounce window
+  // would cause the timeout to overwrite the new selection with the old one.
+  const selectedRef = useRef(selected);
+  selectedRef.current = selected;
+  const pinnedRef = useRef(pinned);
+  pinnedRef.current = pinned;
+  const comparisonScopeRef = useRef(comparisonScope);
+  comparisonScopeRef.current = comparisonScope;
+  const cityFilterRef = useRef(cityFilter);
+  cityFilterRef.current = cityFilter;
+  const filteredDataRef = useRef(filteredData);
+  filteredDataRef.current = filteredData;
   const handleQualityWeightsChange = useCallback(
     (newWeights: QualityWeights) => {
       setQualityWeights(newWeights);
       if (qualityDebounceRef.current) clearTimeout(qualityDebounceRef.current);
       qualityDebounceRef.current = setTimeout(() => {
         if (data) {
-          const features = comparisonScope === 'region' && cityFilter !== 'all' && filteredData
-            ? filteredData.features
+          const features = comparisonScopeRef.current === 'region' && cityFilterRef.current !== 'all' && filteredDataRef.current
+            ? filteredDataRef.current.features
             : data.features;
           computeQualityIndices(features, newWeights);
           setQualityVersion((v) => v + 1);
           // Update selected neighborhood if it exists
-          if (selected) {
-            const feature = data.features.find((f) => f.properties?.pno === selected.pno);
+          const sel = selectedRef.current;
+          if (sel) {
+            const feature = data.features.find((f) => f.properties?.pno === sel.pno);
             if (feature?.properties) {
               select(feature.properties as NeighborhoodProperties);
             }
           }
           // Update pinned neighborhoods so comparison panel reflects new quality indices
-          if (pinned.length > 0) {
-            const updated = pinned
+          const pins = pinnedRef.current;
+          if (pins.length > 0) {
+            const updated = pins
               .map((p) => data.features.find((f) => f.properties?.pno === p.pno)?.properties as NeighborhoodProperties | undefined)
               .filter((p): p is NeighborhoodProperties => p != null);
             refreshPinned(updated);
@@ -402,7 +417,7 @@ const App: React.FC = () => {
         }
       }, 150);
     },
-    [data, selected, select, pinned, refreshPinned, comparisonScope, cityFilter, filteredData],
+    [data, select, refreshPinned],
   );
   // Clean up debounce timer on unmount
   useEffect(() => () => { if (qualityDebounceRef.current) clearTimeout(qualityDebounceRef.current); }, []);

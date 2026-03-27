@@ -27,14 +27,14 @@ export async function geocodeAddress(query: string, signal?: AbortSignal): Promi
   }
 
   try {
-    // Bounding box covering Helsinki metro + Turku
+    // Bounding box covering Helsinki metro, Turku, and Tampere
     const params = new URLSearchParams({
       text: query,
       size: '5',
-      'boundary.rect.min_lon': '22.0',
+      'boundary.rect.min_lon': '21.5',
       'boundary.rect.min_lat': '60.1',
-      'boundary.rect.max_lon': '25.3',
-      'boundary.rect.max_lat': '60.6',
+      'boundary.rect.max_lon': '25.4',
+      'boundary.rect.max_lat': '62.0',
       lang: 'fi',
     });
 

@@ -110,10 +110,10 @@ describe('geocodeAddress — deep edge cases', () => {
     await geocodeAddress('Mannerheimintie');
 
     const url = (fetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
-    expect(url).toContain('boundary.rect.min_lon=22.0');
-    expect(url).toContain('boundary.rect.max_lon=25.3');
+    expect(url).toContain('boundary.rect.min_lon=21.5');
+    expect(url).toContain('boundary.rect.max_lon=25.4');
     expect(url).toContain('boundary.rect.min_lat=60.1');
-    expect(url).toContain('boundary.rect.max_lat=60.6');
+    expect(url).toContain('boundary.rect.max_lat=62.0');
     expect(url).toContain('size=5');
     expect(url).toContain('lang=fi');
   });

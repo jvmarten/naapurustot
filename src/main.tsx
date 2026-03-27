@@ -16,9 +16,17 @@ registerSW({
     }
   },
   onNeedRefresh() {
-    // New content available — reload immediately so the user always
-    // gets the latest version without manual intervention.
-    window.location.reload();
+    // New content available — defer the reload until the user isn't actively
+    // interacting with the page (tab hidden/blurred) to avoid losing unsaved
+    // state like draw polygons, notes, or mid-comparison work.
+    if (document.hidden) {
+      window.location.reload();
+    } else {
+      const reload = () => { window.location.reload(); };
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) reload();
+      }, { once: true });
+    }
   },
   onOfflineReady() {
     // Silently ready for offline use, no action needed.
