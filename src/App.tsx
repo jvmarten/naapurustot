@@ -368,7 +368,10 @@ const App: React.FC = () => {
   const pinnedPnos = useMemo(() => pinned.map((p) => p.pno), [pinned]);
 
   // Keep URL in sync with current state (including pinned comparisons)
-  useSyncUrlState(selected?.pno ?? null, activeLayer, pinnedPnos, cityFilter);
+  // Suppress URL writes until data is loaded and initial URL state (pno, compare) has been consumed
+  // by the restoration effect. Without this, the debounced write fires with empty values during
+  // loading and clears the initial URL params before they can be restored.
+  useSyncUrlState(selected?.pno ?? null, activeLayer, pinnedPnos, cityFilter, !!data);
 
   // Recompute quality indices when custom weights change.
   // The slider state updates immediately for responsiveness, but the expensive
