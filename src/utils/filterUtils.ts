@@ -14,12 +14,17 @@ function getLayerRange(layer: LayerConfig): [number, number] {
   return [layer.stops[0], layer.stops[layer.stops.length - 1]];
 }
 
+// Stable empty set to avoid creating new references on every call with no filters.
+// Without this, Map.tsx receives a new Set identity each time and re-runs its
+// filter highlight effect unnecessarily.
+const EMPTY_SET: Set<string> = new Set();
+
 /** Compute the set of matching PNOs given data and filters. Used by Map.tsx. */
 export function computeMatchingPnos(
   data: FeatureCollection | null,
   filters: FilterCriterion[],
 ): Set<string> {
-  if (!data || filters.length === 0) return new Set();
+  if (!data || filters.length === 0) return EMPTY_SET;
 
   const pnos = new Set<string>();
   for (const f of data.features) {
