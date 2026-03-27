@@ -156,7 +156,7 @@ const CollapsibleSection: React.FC<{
   );
 };
 
-export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, allFeatures, onFlyTo, isFavorite = false, onToggleFavorite, note = '', onNoteChange, onExploreCity }) => {
+export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, allFeatures, onFlyTo, isFavorite = false, onToggleFavorite, note = '', onNoteChange, onExploreCity }) => {
   const eduTotal = [d.ko_yl_kork, d.ko_al_kork, d.ko_ammat, d.ko_perus]
     .filter((v): v is number => v != null && v > 0)
     .reduce((a, b) => a + b, 0) || 1;
@@ -1040,4 +1040,6 @@ export const NeighborhoodPanel: React.FC<PanelProps> = ({ data: d, metroAverages
       )}
     </>
   );
-};
+});
+
+NeighborhoodPanel.displayName = 'NeighborhoodPanel';

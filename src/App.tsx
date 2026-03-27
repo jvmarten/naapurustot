@@ -5,7 +5,8 @@ import { LayerSelector } from './components/LayerSelector';
 import { SearchBar } from './components/SearchBar';
 import { CitySelector, type CityFilter } from './components/CitySelector';
 import { ComparisonScopeToggle, type ComparisonScope } from './components/ComparisonScopeToggle';
-import { Tooltip } from './components/Tooltip';
+import { TooltipOverlay } from './components/TooltipOverlay';
+import { setTooltipData } from './utils/tooltipStore';
 import { Legend } from './components/Legend';
 import { SettingsDropdown } from './components/SettingsDropdown';
 import { ToolsDropdown } from './components/ToolsDropdown';
@@ -48,11 +49,6 @@ const App: React.FC = () => {
   const [activeLayer, setActiveLayer] = useState<LayerId>(initialUrl.layer ?? 'quality_index');
   const { gridData } = useGridData(activeLayer);
   const [wizardResultPnos, setWizardResultPnos] = useState<string[]>([]);
-  const [tooltip, setTooltip] = useState<{
-    props: NeighborhoodProperties;
-    x: number;
-    y: number;
-  } | null>(null);
   const [flyTarget, setFlyTarget] = useState<{ center: [number, number]; zoom?: number; bounds?: [number, number, number, number] } | null>(() => {
     const city = (initialUrl.city as CityFilter) ?? 'helsinki_metro';
     const vp = CITY_VIEWPORTS[city];
@@ -427,11 +423,7 @@ const App: React.FC = () => {
 
   const handleHover = useCallback(
     (props: NeighborhoodProperties | null, x: number, y: number) => {
-      if (props) {
-        setTooltip({ props, x, y });
-      } else {
-        setTooltip(null);
-      }
+      setTooltipData(props ? { props, x, y } : null);
     },
     [],
   );
@@ -495,9 +487,11 @@ const App: React.FC = () => {
     setFillOpacity(v);
   }, []);
 
-  // Compute matching neighborhood PNOs for filter-aware map rendering
+  // Compute matching neighborhood PNOs for filter-aware map rendering.
+  // computeMatchingPnos returns a stable empty Set when filters are empty,
+  // so Map's filter effect won't re-run unnecessarily.
   const filterMatchPnos = useMemo(
-    () => (showFilter ? computeMatchingPnos(filteredData, filters) : new Set<string>()),
+    () => computeMatchingPnos(showFilter ? filteredData : null, filters),
     [filteredData, filters, showFilter],
   );
 
@@ -530,6 +524,17 @@ const App: React.FC = () => {
     setShowWizard(false);
   }, []);
   const handleFlyTo = useCallback((center: [number, number]) => setFlyTarget({ center }), []);
+  // Stable callbacks for NeighborhoodPanel props — prevents new closures on every render
+  // which would defeat React.memo on the panel.
+  const handleToggleFavorite = useCallback(() => {
+    if (selected) toggleFavorite(selected.pno);
+  }, [selected, toggleFavorite]);
+  const handleNoteChange = useCallback((text: string) => {
+    if (selected) setNote(selected.pno, text);
+  }, [selected, setNote]);
+  const handleExploreCity = useCallback((cityId: string) => {
+    handleCityChange(cityId as CityFilter);
+  }, [handleCityChange]);
 
   // IN-5: Dynamic SEO — update document title, meta, and canonical when neighborhood selected
   useEffect(() => {
@@ -805,17 +810,14 @@ const App: React.FC = () => {
       {/* Legend — repositioned for mobile */}
       <Legend layerId={activeLayer} colorblind={colorblind} layerConfig={effectiveLayer} lang={lang} />
 
-      {/* Tooltip — hidden on touch devices via CSS */}
-      {tooltip && !selected && (
-        <Tooltip
-          x={tooltip.x}
-          y={tooltip.y}
-          name={tooltip.props.nimi || tooltip.props.pno}
-          value={tooltip.props[effectiveLayer.property] as number | null}
-          layerId={activeLayer}
-          metroAverage={(comparisonScope === 'region' ? cityAverages : metroAverages)[effectiveLayer.property]}
-        />
-      )}
+      {/* Tooltip — hidden on touch devices via CSS.
+           Reads from external store so mouse-move doesn't re-render App. */}
+      <TooltipOverlay
+        hidden={!!selected}
+        activeLayer={activeLayer}
+        effectiveLayer={effectiveLayer}
+        metroAverage={(comparisonScope === 'region' ? cityAverages : metroAverages)[effectiveLayer.property]}
+      />
 
       {/* Custom quality sliders panel */}
       {showCustomQuality && (
@@ -846,10 +848,10 @@ const App: React.FC = () => {
             allFeatures={filteredData?.features}
             onFlyTo={handleFlyTo}
             isFavorite={isFavorite(selected.pno)}
-            onToggleFavorite={() => toggleFavorite(selected.pno)}
+            onToggleFavorite={handleToggleFavorite}
             note={getNote(selected.pno)}
-            onNoteChange={(text) => setNote(selected.pno, text)}
-            onExploreCity={(cityId) => handleCityChange(cityId as CityFilter)}
+            onNoteChange={handleNoteChange}
+            onExploreCity={handleExploreCity}
           />
           </Suspense>
         </ErrorBoundary>

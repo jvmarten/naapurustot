@@ -91,72 +91,102 @@ function aggregateTrendHistories(
   return result;
 }
 
+// Cache for expensive polygon union results.
+// The geometry of metro areas never changes — only the display names change
+// when the user toggles language. By caching geometry, stats, and trend data
+// per dataset identity, we avoid re-running @turf/union (~100ms per city)
+// on every language toggle.
+interface MetroAreaCache {
+  sourceFeatures: Feature[];
+  perCity: Map<CityId, {
+    geometry: Polygon | MultiPolygon;
+    averages: Record<string, number>;
+    trendHistories: Record<string, string>;
+  }>;
+}
+let metroAreaCache: MetroAreaCache | null = null;
+
 /**
  * Build merged metro area features for the "all cities" view.
  *
  * Groups neighborhoods by their `city` property, dissolves their geometries
  * into a single outer boundary per city (no internal postal code borders),
  * and attaches population-weighted average statistics as properties.
+ *
+ * Geometry unions and statistical aggregations are cached per dataset identity.
+ * On language change, only the display name properties are refreshed — the
+ * expensive @turf/union calls are skipped entirely.
  */
 export function buildMetroAreaFeatures(
   allFeatures: Feature[],
 ): FeatureCollection {
   const cityIds: CityId[] = ['helsinki_metro', 'turku', 'tampere'];
-  const grouped: Record<CityId, Feature[]> = {
-    helsinki_metro: [],
-    turku: [],
-    tampere: [],
-  };
 
-  for (const f of allFeatures) {
-    const city = (f.properties as NeighborhoodProperties)?.city;
-    if (city && grouped[city]) {
-      grouped[city].push(f);
+  // Reuse cached geometry and stats when the underlying dataset hasn't changed
+  if (!metroAreaCache || metroAreaCache.sourceFeatures !== allFeatures) {
+    const grouped: Record<CityId, Feature[]> = {
+      helsinki_metro: [],
+      turku: [],
+      tampere: [],
+    };
+
+    for (const f of allFeatures) {
+      const city = (f.properties as NeighborhoodProperties)?.city;
+      if (city && grouped[city]) {
+        grouped[city].push(f);
+      }
     }
+
+    const perCity = new Map<CityId, MetroAreaCache['perCity'] extends Map<CityId, infer V> ? V : never>();
+
+    for (const cityId of cityIds) {
+      const cityFeatures = grouped[cityId];
+      if (cityFeatures.length === 0) continue;
+
+      const polyFeatures = cityFeatures.filter((f) => {
+        const tp = f.geometry?.type;
+        return tp === 'Polygon' || tp === 'MultiPolygon';
+      }) as Feature<Polygon | MultiPolygon>[];
+
+      if (polyFeatures.length === 0) continue;
+
+      const merged = polyFeatures.length === 1
+        ? polyFeatures[0]
+        : union({ type: 'FeatureCollection', features: polyFeatures });
+      if (!merged) continue;
+
+      perCity.set(cityId, {
+        geometry: merged.geometry,
+        averages: computeMetroAverages(cityFeatures),
+        trendHistories: aggregateTrendHistories(cityFeatures),
+      });
+    }
+
+    metroAreaCache = { sourceFeatures: allFeatures, perCity };
   }
 
+  // Build features using cached geometry + current-language names
   const features: Feature<Polygon | MultiPolygon>[] = [];
 
   for (const cityId of cityIds) {
-    const cityFeatures = grouped[cityId];
-    if (cityFeatures.length === 0) continue;
+    const cached = metroAreaCache.perCity.get(cityId);
+    if (!cached) continue;
 
-    // Collect valid polygon features for union
-    const polyFeatures = cityFeatures.filter((f) => {
-      const t = f.geometry?.type;
-      return t === 'Polygon' || t === 'MultiPolygon';
-    }) as Feature<Polygon | MultiPolygon>[];
-
-    if (polyFeatures.length === 0) continue;
-
-    // Dissolve all postal code polygons into a single outer boundary
-    // so internal postal code borders are eliminated
-    const merged = polyFeatures.length === 1
-      ? polyFeatures[0]
-      : union({ type: 'FeatureCollection', features: polyFeatures });
-    if (!merged) continue;
-
-    // Compute aggregated stats
-    const averages = computeMetroAverages(cityFeatures);
-    const trendHistories = aggregateTrendHistories(cityFeatures);
-
-    // Build NeighborhoodProperties-compatible object
-    // Use i18n keys for names so they respect language setting
     const props: Record<string, unknown> = {
-      ...averages,
-      ...trendHistories,
-      pno: cityId, // Used as feature ID by MapLibre (promoteId)
+      ...cached.averages,
+      ...cached.trendHistories,
+      pno: cityId,
       nimi: t(`city.${cityId}`),
       namn: t(`city.${cityId}`),
       kunta: null,
       city: cityId,
-      _isMetroArea: true, // Marker to distinguish from postal code features
+      _isMetroArea: true,
     };
 
     features.push({
       type: 'Feature',
       properties: props,
-      geometry: merged.geometry,
+      geometry: cached.geometry,
     });
   }
 
