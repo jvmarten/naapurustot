@@ -96,7 +96,7 @@ describe('formatDiff — deep edge cases', () => {
   });
 
   it('handles equal values', () => {
-    expect(formatDiff(5, 5)).toBe('+0.0');
+    expect(formatDiff(5, 5)).toBe('0.0');
   });
 
   it('handles large negative difference', () => {

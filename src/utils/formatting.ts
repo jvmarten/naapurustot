@@ -39,7 +39,7 @@ export function formatDiff(value: number | string | null, avg: number | string |
   const b = toNum(avg);
   if (a == null || b == null) return '';
   const diff = a - b;
-  const sign = diff >= 0 ? '+' : '';
+  const sign = diff > 0 ? '+' : '';
   return `${sign}${diff.toFixed(1)}`;
 }
 
