@@ -3,8 +3,6 @@ import type { FeatureCollection } from 'geojson';
 import { t, type Lang } from '../utils/i18n';
 import type { RecentEntry } from '../hooks/useRecentNeighborhoods';
 import { geocodeAddress, type GeocodeResult } from '../utils/geocode';
-import { booleanPointInPolygon } from '@turf/boolean-point-in-polygon';
-import { point } from '@turf/helpers';
 import { getFeatureCenter } from '../utils/geometryFilter';
 
 interface SearchBarProps {
@@ -65,9 +63,19 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, onSelect,
     };
   }, [query]);
 
-  // CF-1: Find which neighborhood contains a geocoded point
-  function findNeighborhoodForPoint(coords: [number, number]): GeoJSON.Feature | null {
+  // CF-1: Find which neighborhood contains a geocoded point.
+  // Uses lazy-loaded turf modules — cached after first import.
+  const turfRef = useRef<{ booleanPointInPolygon: typeof import('@turf/boolean-point-in-polygon').booleanPointInPolygon; point: typeof import('@turf/helpers').point } | null>(null);
+  async function findNeighborhoodForPoint(coords: [number, number]): Promise<GeoJSON.Feature | null> {
     if (!data) return null;
+    if (!turfRef.current) {
+      const [pipMod, helpersMod] = await Promise.all([
+        import('@turf/boolean-point-in-polygon'),
+        import('@turf/helpers'),
+      ]);
+      turfRef.current = { booleanPointInPolygon: pipMod.booleanPointInPolygon, point: helpersMod.point };
+    }
+    const { booleanPointInPolygon, point } = turfRef.current;
     const pt = point(coords);
     for (const feature of data.features) {
       try {
@@ -103,8 +111,8 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, onSelect,
     setHighlightedIndex(-1);
   }
 
-  function selectAddressResult(addr: GeocodeResult) {
-    const neighborhood = findNeighborhoodForPoint(addr.coordinates);
+  async function selectAddressResult(addr: GeocodeResult) {
+    const neighborhood = await findNeighborhoodForPoint(addr.coordinates);
     if (neighborhood?.properties) {
       onSelect(neighborhood.properties.pno, addr.coordinates);
       setQuery(neighborhood.properties.nimi || addr.label);

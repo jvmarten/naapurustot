@@ -15,7 +15,6 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { computeMatchingPnos, type FilterCriterion } from './utils/filterUtils';
 import { useFilterPresets } from './hooks/useFilterPresets';
 import type { Feature, Polygon, MultiPolygon, Position } from 'geojson';
-import { booleanIntersects } from '@turf/boolean-intersects';
 
 // IN-6: Lazy load heavy conditionally-rendered components
 const NeighborhoodPanel = lazy(() => import('./components/NeighborhoodPanel').then(m => ({ default: m.NeighborhoodPanel })));
@@ -26,7 +25,6 @@ const CustomQualityPanel = lazy(() => import('./components/CustomQualityPanel').
 const NeighborhoodWizard = lazy(() => import('./components/NeighborhoodWizard').then(m => ({ default: m.NeighborhoodWizard })));
 const SplitMapView = lazy(() => import('./components/SplitMapView').then(m => ({ default: m.SplitMapView })));
 const AreaSummaryPanel = lazy(() => import('./components/AreaSummaryPanel').then(m => ({ default: m.AreaSummaryPanel })));
-import { bbox } from '@turf/bbox';
 import { useMapData } from './hooks/useMapData';
 import { useGridData } from './hooks/useGridData';
 import { useFavorites } from './hooks/useFavorites';
@@ -271,25 +269,29 @@ const App: React.FC = () => {
     };
   }, [selectedAreaPnos, filteredData]);
 
-  // Compute PNOs of neighborhoods intersecting with drawn polygon (for boundary snapping)
-  const drawnAreaPnos = useMemo<string[]>(() => {
-    if (!drawnPolygon || !filteredData) return [];
-    // If we came from select mode, use the selectedAreaPnos directly
-    if (selectedAreaPnos.length > 0) return selectedAreaPnos;
-    const pnos: string[] = [];
-    for (const feature of filteredData.features) {
-      if (!feature.geometry || !feature.properties?.pno) continue;
-      const geom = feature.geometry as Polygon | MultiPolygon;
-      if (geom.type !== 'Polygon' && geom.type !== 'MultiPolygon') continue;
-      try {
-        if (booleanIntersects(drawnPolygon, feature as Feature<Polygon | MultiPolygon>)) {
-          pnos.push(feature.properties.pno as string);
-        }
-      } catch {
-        // Skip features with invalid geometry
+  // Compute PNOs of neighborhoods intersecting with drawn polygon (for boundary snapping).
+  // booleanIntersects is lazily imported to keep @turf/boolean-intersects out of the main bundle.
+  const [drawnAreaPnos, setDrawnAreaPnos] = useState<string[]>([]);
+  useEffect(() => {
+    if (!drawnPolygon || !filteredData) { setDrawnAreaPnos([]); return; }
+    if (selectedAreaPnos.length > 0) { setDrawnAreaPnos(selectedAreaPnos); return; }
+    let cancelled = false;
+    import('@turf/boolean-intersects').then(({ booleanIntersects }) => {
+      if (cancelled) return;
+      const pnos: string[] = [];
+      for (const feature of filteredData.features) {
+        if (!feature.geometry || !feature.properties?.pno) continue;
+        const geom = feature.geometry as Polygon | MultiPolygon;
+        if (geom.type !== 'Polygon' && geom.type !== 'MultiPolygon') continue;
+        try {
+          if (booleanIntersects(drawnPolygon, feature as Feature<Polygon | MultiPolygon>)) {
+            pnos.push(feature.properties.pno as string);
+          }
+        } catch { /* Skip features with invalid geometry */ }
       }
-    }
-    return pnos;
+      setDrawnAreaPnos(pnos);
+    });
+    return () => { cancelled = true; };
   }, [drawnPolygon, filteredData, selectedAreaPnos]);
 
   const handleSelectAreaClick = useCallback((props: NeighborhoodProperties) => {
@@ -362,6 +364,10 @@ const App: React.FC = () => {
   // Without this, Map's pinnedPnos useEffect fires on every App re-render,
   // recreating the pinned highlight layer unnecessarily.
   const pinnedPnos = useMemo(() => pinned.map((p) => p.pno), [pinned]);
+
+  // Memoize isPinned to avoid creating a new boolean on every render,
+  // which would defeat React.memo on NeighborhoodPanel.
+  const isPinned = useMemo(() => pinned.some((p) => p.pno === selected?.pno), [pinned, selected?.pno]);
 
   // Keep URL in sync with current state (including pinned comparisons)
   // Suppress URL writes until data is loaded and initial URL state (pno, compare) has been consumed
@@ -450,10 +456,12 @@ const App: React.FC = () => {
           }
           select(props);
           addRecent({ pno: props.pno, name: props.nimi || props.pno, center });
-          // Use feature bounding box for better zoom fit
+          // Use feature bounding box for better zoom fit (lazy-load @turf/bbox)
           if (feature.geometry) {
-            const [minLng, minLat, maxLng, maxLat] = bbox(feature);
-            setFlyTarget({ center, bounds: [minLng, minLat, maxLng, maxLat] });
+            import('@turf/bbox').then(({ bbox }) => {
+              const [minLng, minLat, maxLng, maxLat] = bbox(feature);
+              setFlyTarget({ center, bounds: [minLng, minLat, maxLng, maxLat] });
+            });
           } else {
             setFlyTarget({ center });
           }
@@ -841,7 +849,7 @@ const App: React.FC = () => {
             onClose={deselect}
             onPin={pin}
             onUnpin={unpin}
-            isPinned={pinned.some((p) => p.pno === selected.pno)}
+            isPinned={isPinned}
             pinCount={pinned.length}
             onCustomize={handleToggleCustomQuality}
             isCustomWeights={isCustomWeights(qualityWeights)}
