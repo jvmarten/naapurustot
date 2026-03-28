@@ -80,7 +80,7 @@ export async function generateScoreCard(
     const { toPng } = await import('html-to-image');
     const dataUrl = await toPng(container, { quality: 0.95, pixelRatio: 2 });
     const link = document.createElement('a');
-    link.download = `${data.nimi.replace(/[/\\:*?"<>|]/g, '_')}-${data.pno}-naapurustot.png`;
+    link.download = `${(data.nimi || data.pno).replace(/[/\\:*?"<>|]/g, '_')}-${data.pno}-naapurustot.png`;
     link.href = dataUrl;
     link.click();
   } finally {

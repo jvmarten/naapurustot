@@ -69,6 +69,7 @@ export function useGridData(activeLayer: LayerId): GridDataState {
       .then((json: unknown) => {
         if (cancelled) return;
         const geojson = parseGridResponse(path, json);
+        fetchedRef.current.add(activeLayer); // mark as complete so cleanup won't cause re-fetch
         setCache((prev) => ({ ...prev, [activeLayer]: geojson }));
         setLoading(false);
       })
@@ -81,7 +82,11 @@ export function useGridData(activeLayer: LayerId): GridDataState {
         setLoading(false);
       });
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      // Allow retry on re-visit if the fetch didn't complete
+      fetchedRef.current.delete(activeLayer);
+    };
   }, [activeLayer]);
 
   const path = GRID_PATHS[activeLayer];

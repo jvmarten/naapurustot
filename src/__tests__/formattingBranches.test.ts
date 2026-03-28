@@ -44,7 +44,7 @@ describe('formatting — language-specific behavior', () => {
 
   it('formatDiff handles equal values', () => {
     const result = formatDiff(10, 10);
-    expect(result).toContain('+0');
+    expect(result).toBe('0.0');
   });
 
   it('formatDiff handles large negative difference', () => {

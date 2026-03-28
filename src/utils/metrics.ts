@@ -563,7 +563,7 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
     // Data-driven weighted metrics
     for (const def of METRIC_DEFS) {
       const value = p[def.property] as number | null;
-      if (value == null) continue;
+      if (value == null || !isFinite(value as number)) continue;
       if (def.requirePositive && value <= 0) continue;
 
       const w = def.weight === 'household' ? (p.te_taly ?? 0) : pop;

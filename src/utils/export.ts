@@ -79,7 +79,7 @@ export function exportCsv(d: NeighborhoodProperties, _avg: Record<string, number
   try {
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${d.nimi.replace(/[/\\:*?"<>|]/g, '_')}_${d.pno}.csv`;
+    a.download = `${(d.nimi || d.pno).replace(/[/\\:*?"<>|]/g, '_')}_${d.pno}.csv`;
     a.click();
   } finally {
     setTimeout(() => URL.revokeObjectURL(url), 1000);

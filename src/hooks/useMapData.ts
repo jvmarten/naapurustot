@@ -77,8 +77,9 @@ export function useMapData(): MapDataState {
           for (const key of Object.keys(feat.properties)) {
             if (ID_FIELDS.has(key)) continue;
             const v = feat.properties[key];
-            if (typeof v === 'string' && v.trim() !== '' && !isNaN(Number(v))) {
-              feat.properties[key] = Number(v);
+            if (typeof v === 'string' && v.trim() !== '') {
+              const num = Number(v);
+              if (isFinite(num)) feat.properties[key] = num;
             }
           }
         }

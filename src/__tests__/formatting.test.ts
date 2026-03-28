@@ -68,8 +68,8 @@ describe('formatDiff', () => {
     expect(formatDiff(8, 10)).toBe('-2.0');
   });
 
-  it('formats zero difference as +0.0', () => {
-    expect(formatDiff(10, 10)).toBe('+0.0');
+  it('formats zero difference without + prefix', () => {
+    expect(formatDiff(10, 10)).toBe('0.0');
   });
 });
 

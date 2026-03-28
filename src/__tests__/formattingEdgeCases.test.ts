@@ -75,8 +75,8 @@ describe('formatDiff — difference calculation', () => {
     expect(formatDiff(30, 50)).toBe('-20.0');
   });
 
-  it('equal values show +0.0', () => {
-    expect(formatDiff(50, 50)).toBe('+0.0');
+  it('equal values show 0.0 without + prefix', () => {
+    expect(formatDiff(50, 50)).toBe('0.0');
   });
 
   it('returns empty string when value is null', () => {

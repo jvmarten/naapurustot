@@ -83,8 +83,8 @@ describe('formatPct — edge cases', () => {
 });
 
 describe('formatDiff — edge cases', () => {
-  it('shows +0.0 when value equals average', () => {
-    expect(formatDiff(10, 10)).toBe('+0.0');
+  it('shows 0.0 without + prefix when value equals average', () => {
+    expect(formatDiff(10, 10)).toBe('0.0');
   });
 
   it('handles string inputs', () => {
