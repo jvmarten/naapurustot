@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { buildMetroAreaFeatures } from '../utils/metroAreas';
 import type { Feature } from 'geojson';
 
