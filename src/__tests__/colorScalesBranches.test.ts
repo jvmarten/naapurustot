@@ -33,6 +33,8 @@ describe('getColorForValue', () => {
     id: 'test' as any,
     labelKey: 'test',
     property: 'test',
+    unit: '',
+    format: (v: number) => String(v),
     stops: [0, 25, 50, 75, 100],
     colors: ['#a', '#b', '#c', '#d', '#e'],
   };
@@ -75,6 +77,8 @@ describe('rescaleLayerToData', () => {
     id: 'test' as any,
     labelKey: 'test',
     property: 'value',
+    unit: '',
+    format: (v: number) => String(v),
     stops: [0, 50, 100],
     colors: ['#a', '#b', '#c'],
   };
