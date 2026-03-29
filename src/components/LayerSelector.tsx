@@ -43,10 +43,9 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
   const sheetRef = useRef<HTMLDivElement>(null);
 
   // QW-3: Unified bottom sheet drag behavior
-  const { sheetHeight, isDragging, handlers: sheetHandlers } = useBottomSheet({
-    peekHeight: 0,
-    halfRatio: 0.7,
+  const { sheetHeight, isDragging, snap, handlers: sheetHandlers } = useBottomSheet({
     initialSnap: 'half',
+    halfRatio: 0.7,
     onClose: () => setMobileOpen(false),
   });
 
@@ -325,8 +324,8 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
           </button>
         )}
 
-        {/* Backdrop */}
-        {mobileOpen && (
+        {/* Backdrop — hidden in peek mode so the map stays interactive */}
+        {mobileOpen && snap !== 'peek' && (
           <div
             className="fixed inset-0 z-30 bg-black/20 dark:bg-black/40"
             onClick={() => setMobileOpen(false)}
