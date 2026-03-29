@@ -1,16 +1,7 @@
 import type { NeighborhoodProperties } from './metrics';
-import { formatEuro, formatPct } from './formatting';
+import { formatEuro, formatPct, escapeHtml } from './formatting';
 import { t, getLang } from './i18n';
 import { getQualityCategory } from './qualityIndex';
-
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 const METRICS = [
   { key: 'hr_mtu', label: 'panel.median_income', format: formatEuro, higherIsBetter: true },

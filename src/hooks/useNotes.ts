@@ -11,7 +11,7 @@ function loadNotes(): Record<string, string> {
         // Validate that all values are strings to guard against tampered localStorage
         const result: Record<string, string> = {};
         for (const [key, val] of Object.entries(parsed)) {
-          if (typeof val === 'string') result[key] = val;
+          if (/^\d{5}$/.test(key) && typeof val === 'string') result[key] = val;
         }
         return result;
       }
@@ -31,6 +31,8 @@ export function useNotes() {
   const getNote = useCallback((pno: string): string => notes[pno] ?? '', [notes]);
 
   const setNote = useCallback((pno: string, text: string) => {
+    // Only accept valid 5-digit postal codes as keys
+    if (!/^\d{5}$/.test(pno)) return;
     // Limit note length to prevent localStorage quota exhaustion
     const trimmed = text.slice(0, 5000);
     setNotes((prev) => {

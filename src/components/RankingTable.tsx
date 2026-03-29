@@ -36,7 +36,7 @@ export const RankingTable: React.FC<RankingTableProps> = ({ data, activeLayer, o
     for (const f of data.features) {
       const p = f.properties as NeighborhoodProperties;
       const v = p[property];
-      if (typeof v === 'number' && v != null && p.he_vakiy != null && p.he_vakiy > 0) {
+      if (typeof v === 'number' && isFinite(v) && p.he_vakiy != null && p.he_vakiy > 0) {
         entries.push({ feature: f, value: v });
       }
     }

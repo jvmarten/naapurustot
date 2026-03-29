@@ -34,7 +34,7 @@ export function computeMatchingPnos(
     const matches = filters.every((criterion) => {
       const layer = getLayerById(criterion.layerId);
       const value = p[layer.property];
-      if (typeof value !== 'number' || value == null) return false;
+      if (typeof value !== 'number' || !isFinite(value)) return false;
       const [rangeMin, rangeMax] = getLayerRange(layer);
       // When slider is at its extreme position, include all values beyond the stop range
       // so neighborhoods with outlier values (e.g. 1.4% when stops start at 2%) aren't excluded

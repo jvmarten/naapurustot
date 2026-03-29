@@ -1,5 +1,5 @@
 import type { NeighborhoodProperties } from './metrics';
-import { formatNumber, formatEuro, formatPct } from './formatting';
+import { formatNumber, formatEuro, formatPct, escapeHtml } from './formatting';
 import { t, getLang } from './i18n';
 import { getQualityCategory } from './qualityIndex';
 
@@ -58,15 +58,6 @@ function escapeCsvField(field: string): string {
   return escaped;
 }
 
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 /** Export neighborhood stats as a CSV file download (UTF-8 BOM for Excel compatibility). */
 export function exportCsv(d: NeighborhoodProperties, _avg: Record<string, number>): void {
   const stats = collectStats(d);
@@ -82,7 +73,9 @@ export function exportCsv(d: NeighborhoodProperties, _avg: Record<string, number
     a.download = `${(d.nimi || d.pno).replace(/[/\\:*?"<>|]/g, '_')}_${d.pno}.csv`;
     a.click();
   } finally {
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    // Revoke after a generous delay to ensure the browser has initiated the download.
+    // 1s is too short on slow devices; 60s is safe and the blob is small.
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
   }
 }
 
@@ -155,6 +148,7 @@ export function exportPdf(d: NeighborhoodProperties, _avg: Record<string, number
   let printed = false;
   const doPrint = () => { if (!printed) { printed = true; w.print(); } };
   w.addEventListener('load', doPrint);
-  // Fallback for browsers that don't fire 'load' on document.write()
-  setTimeout(doPrint, 300);
+  // Fallback for browsers that don't fire 'load' on document.write().
+  // Use requestAnimationFrame to ensure the browser has painted before printing.
+  setTimeout(() => w.requestAnimationFrame(() => doPrint()), 500);
 }

@@ -17,9 +17,15 @@ function isValidPreset(v: unknown): v is SavedPreset {
   if (typeof p.name !== 'string') return false;
   if (!Array.isArray(p.criteria)) return false;
   return p.criteria.every(
-    (c: unknown) => c && typeof c === 'object' && typeof (c as Record<string, unknown>).layerId === 'string'
-      && VALID_LAYER_IDS.has((c as Record<string, unknown>).layerId as string)
-      && typeof (c as Record<string, unknown>).min === 'number' && typeof (c as Record<string, unknown>).max === 'number',
+    (c: unknown) => {
+      if (!c || typeof c !== 'object') return false;
+      const r = c as Record<string, unknown>;
+      if (typeof r.layerId !== 'string' || !VALID_LAYER_IDS.has(r.layerId)) return false;
+      if (typeof r.min !== 'number' || typeof r.max !== 'number') return false;
+      if (!isFinite(r.min) || !isFinite(r.max)) return false;
+      if (r.min > r.max) return false;
+      return true;
+    },
   );
 }
 

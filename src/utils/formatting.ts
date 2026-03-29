@@ -43,6 +43,16 @@ export function formatDiff(value: number | string | null, avg: number | string |
   return `${sign}${diff.toFixed(1)}`;
 }
 
+/** Escape a string for safe HTML embedding. */
+export function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 /** Return a Tailwind text color class (green or red) based on whether the value beats the average. */
 export function diffColor(value: number | string | null, avg: number | string | null, higherIsBetter = true): string {
   const a = toNum(value);
