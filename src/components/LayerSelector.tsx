@@ -43,7 +43,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
   const sheetRef = useRef<HTMLDivElement>(null);
 
   // QW-3: Unified bottom sheet drag behavior
-  const { isDragging, handlers: sheetHandlers } = useBottomSheet({
+  const { sheetHeight, isDragging, handlers: sheetHandlers } = useBottomSheet({
     peekHeight: 0,
     halfRatio: 0.7,
     initialSnap: 'half',
@@ -341,9 +341,10 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
                        bg-white/95 dark:bg-surface-950/95 backdrop-blur-xl
                        border-t border-surface-200 dark:border-surface-800/50
                        shadow-[0_-4px_30px_rgba(0,0,0,0.15)] rounded-t-2xl
-                       h-[70vh] flex flex-col overflow-hidden"
+                       flex flex-col overflow-hidden"
             style={{
-              transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
+              height: `${sheetHeight}px`,
+              transition: isDragging ? 'none' : 'height 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
             }}
           >
             {/* Drag handle */}
