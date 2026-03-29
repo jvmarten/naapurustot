@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { buildMetroAreaFeatures } from '../utils/metroAreas';
+import { describe, it, expect, beforeAll } from 'vitest';
+import { buildMetroAreaFeatures, preloadUnion } from '../utils/metroAreas';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import type { Feature } from 'geojson';
 
@@ -21,6 +21,9 @@ function makeFeature(overrides: Partial<NeighborhoodProperties>, coords: number[
 }
 
 describe('buildMetroAreaFeatures — trend aggregation', () => {
+  // @turf/union is lazy-loaded; pre-load it before tests run
+  beforeAll(() => preloadUnion());
+
   it('aggregates population history by summing per year', () => {
     const features = [
       makeFeature({
@@ -35,7 +38,7 @@ describe('buildMetroAreaFeatures — trend aggregation', () => {
       }, [[[2,0],[3,0],[3,1],[2,1],[2,0]]]),
     ];
 
-    const result = buildMetroAreaFeatures(features);
+    const result = buildMetroAreaFeatures(features)!;
     const helsinki = result.features.find((f) => f.properties?.pno === 'helsinki_metro');
     expect(helsinki).toBeDefined();
 
@@ -58,7 +61,7 @@ describe('buildMetroAreaFeatures — trend aggregation', () => {
       }, [[[2,0],[3,0],[3,1],[2,1],[2,0]]]),
     ];
 
-    const result = buildMetroAreaFeatures(features);
+    const result = buildMetroAreaFeatures(features)!;
     const helsinki = result.features.find((f) => f.properties?.pno === 'helsinki_metro');
     const incomeHistory = JSON.parse(helsinki!.properties!.income_history as string);
     // 2020: (30000*1000 + 50000*3000) / 4000 = 45000
@@ -69,7 +72,7 @@ describe('buildMetroAreaFeatures — trend aggregation', () => {
 
   it('marks metro area features with _isMetroArea: true', () => {
     const features = [makeFeature({ pno: '00100' })];
-    const result = buildMetroAreaFeatures(features);
+    const result = buildMetroAreaFeatures(features)!;
     for (const f of result.features) {
       expect(f.properties?._isMetroArea).toBe(true);
     }
@@ -80,7 +83,7 @@ describe('buildMetroAreaFeatures — trend aggregation', () => {
       makeFeature({ pno: '00100', city: 'helsinki_metro' }),
       makeFeature({ pno: '20100', city: 'turku' }, [[[4,0],[5,0],[5,1],[4,1],[4,0]]]),
     ];
-    const result = buildMetroAreaFeatures(features);
+    const result = buildMetroAreaFeatures(features)!;
     const cityIds = result.features.map((f) => f.properties?.pno);
     expect(cityIds).toContain('helsinki_metro');
     expect(cityIds).toContain('turku');
@@ -90,7 +93,7 @@ describe('buildMetroAreaFeatures — trend aggregation', () => {
 
   it('returns empty collection when no features have a city property', () => {
     const features = [makeFeature({ city: null })];
-    const result = buildMetroAreaFeatures(features);
+    const result = buildMetroAreaFeatures(features)!;
     expect(result.features.length).toBe(0);
   });
 
@@ -107,7 +110,7 @@ describe('buildMetroAreaFeatures — trend aggregation', () => {
         population_history: JSON.stringify([[2020, 500], [2021, 600]]),
       }, [[[2,0],[3,0],[3,1],[2,1],[2,0]]]),
     ];
-    const result = buildMetroAreaFeatures(features);
+    const result = buildMetroAreaFeatures(features)!;
     const helsinki = result.features.find((f) => f.properties?.pno === 'helsinki_metro');
     // Only the second neighborhood should contribute
     const popHistory = JSON.parse(helsinki!.properties!.population_history as string);

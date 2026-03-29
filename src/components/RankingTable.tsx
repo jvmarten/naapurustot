@@ -26,8 +26,11 @@ export const RankingTable: React.FC<RankingTableProps> = ({ data, activeLayer, o
   const layer = getLayerById(activeLayer);
   const [reversed, setReversed] = useState(false);
 
-  const { items, maxVal } = useMemo(() => {
-    if (!data) return { items: [], maxVal: 1 };
+  // Separate the expensive ranking computation (sorting, center extraction) from
+  // the cheap display-order reversal. Before this change, toggling the sort direction
+  // recomputed getFeatureCenter for every feature (~200 bounding box scans).
+  const { rankedItems, maxVal } = useMemo(() => {
+    if (!data) return { rankedItems: [], maxVal: 1 };
 
     const property = layer.property;
     const bestFirst = layer.higherIsBetter !== false;
@@ -57,11 +60,14 @@ export const RankingTable: React.FC<RankingTableProps> = ({ data, activeLayer, o
       center: getFeatureCenter(e.feature),
     }));
 
-    // Reverse display order if toggled, but keep rank numbers stable
-    if (reversed) ranked.reverse();
+    return { rankedItems: ranked, maxVal: mx === -Infinity ? 1 : mx };
+  }, [data, layer.property, layer.higherIsBetter]);
 
-    return { items: ranked, maxVal: mx === -Infinity ? 1 : mx };
-  }, [data, layer.property, layer.higherIsBetter, reversed]);
+  // Reverse display order without recomputing centers
+  const items = useMemo(
+    () => reversed ? [...rankedItems].reverse() : rankedItems,
+    [rankedItems, reversed],
+  );
 
 
   return (

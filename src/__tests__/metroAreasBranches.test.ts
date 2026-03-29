@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { buildMetroAreaFeatures } from '../utils/metroAreas';
+import { describe, it, expect, beforeAll } from 'vitest';
+import { buildMetroAreaFeatures, preloadUnion } from '../utils/metroAreas';
 import type { Feature } from 'geojson';
 
 function makeFeature(city: string, props: Record<string, unknown> = {}): Feature {
@@ -22,8 +22,11 @@ function makeFeature(city: string, props: Record<string, unknown> = {}): Feature
 }
 
 describe('buildMetroAreaFeatures', () => {
+  // @turf/union is lazy-loaded; pre-load it before tests run
+  beforeAll(() => preloadUnion());
+
   it('returns empty features for empty input', () => {
-    const result = buildMetroAreaFeatures([]);
+    const result = buildMetroAreaFeatures([])!;
     expect(result.type).toBe('FeatureCollection');
     expect(result.features).toHaveLength(0);
   });
@@ -34,7 +37,7 @@ describe('buildMetroAreaFeatures', () => {
       makeFeature('helsinki_metro', { pno: '00200' }),
       makeFeature('turku', { pno: '20100' }),
     ];
-    const result = buildMetroAreaFeatures(features);
+    const result = buildMetroAreaFeatures(features)!;
     // Should have helsinki_metro and turku, not tampere (no features)
     const cities = result.features.map((f) => (f.properties as any).city);
     expect(cities).toContain('helsinki_metro');
@@ -47,7 +50,7 @@ describe('buildMetroAreaFeatures', () => {
       makeFeature('helsinki_metro', { pno: '00100' }),
       makeFeature('turku', { pno: '20100' }),
     ];
-    const result = buildMetroAreaFeatures(features);
+    const result = buildMetroAreaFeatures(features)!;
     for (const f of result.features) {
       expect((f.properties as any)._isMetroArea).toBe(true);
     }
@@ -57,7 +60,7 @@ describe('buildMetroAreaFeatures', () => {
     const features = [
       makeFeature('tampere', { pno: '33100' }),
     ];
-    const result = buildMetroAreaFeatures(features);
+    const result = buildMetroAreaFeatures(features)!;
     expect(result.features).toHaveLength(1);
     expect((result.features[0].properties as any).pno).toBe('tampere');
   });
@@ -70,7 +73,7 @@ describe('buildMetroAreaFeatures', () => {
         properties: { pno: '00100', nimi: 'Test', city: 'helsinki_metro', he_vakiy: 1000 },
       },
     ];
-    const result = buildMetroAreaFeatures(features);
+    const result = buildMetroAreaFeatures(features)!;
     // Point geometry is not Polygon/MultiPolygon, so city has 0 poly features → no metro area
     expect(result.features).toHaveLength(0);
   });
@@ -84,7 +87,7 @@ describe('buildMetroAreaFeatures', () => {
         pno: '00200', he_vakiy: 3000, hr_mtu: 40000,
       }),
     ];
-    const result = buildMetroAreaFeatures(features);
+    const result = buildMetroAreaFeatures(features)!;
     const hki = result.features.find((f) => (f.properties as any).city === 'helsinki_metro');
     expect(hki).toBeDefined();
     // (30000*1000 + 40000*3000) / 4000 = 37500
@@ -96,8 +99,8 @@ describe('buildMetroAreaFeatures', () => {
     const features = [
       makeFeature('helsinki_metro', { pno: '00100' }),
     ];
-    const result1 = buildMetroAreaFeatures(features);
-    const result2 = buildMetroAreaFeatures(features);
+    const result1 = buildMetroAreaFeatures(features)!;
+    const result2 = buildMetroAreaFeatures(features)!;
     // Same input array reference → cached
     expect(result2.features[0].geometry).toBe(result1.features[0].geometry);
   });
@@ -106,12 +109,12 @@ describe('buildMetroAreaFeatures', () => {
     const features1 = [
       makeFeature('helsinki_metro', { pno: '00100', he_vakiy: 1000 }),
     ];
-    const result1 = buildMetroAreaFeatures(features1);
+    const result1 = buildMetroAreaFeatures(features1)!;
 
     const features2 = [
       makeFeature('helsinki_metro', { pno: '00100', he_vakiy: 2000 }),
     ];
-    const result2 = buildMetroAreaFeatures(features2);
+    const result2 = buildMetroAreaFeatures(features2)!;
 
     // Population should reflect the new data
     expect((result2.features[0].properties as any).he_vakiy).toBe(2000);
@@ -132,7 +135,7 @@ describe('buildMetroAreaFeatures', () => {
         income_history: '[[2018, 30000], [2020, 32000]]',
       }),
     ];
-    const result = buildMetroAreaFeatures(features);
+    const result = buildMetroAreaFeatures(features)!;
     const turku = result.features.find((f) => (f.properties as any).city === 'turku');
     expect(turku).toBeDefined();
 
@@ -153,7 +156,7 @@ describe('buildMetroAreaFeatures', () => {
     const features = [
       makeFeature('unknown_city', { pno: '99999' }),
     ];
-    const result = buildMetroAreaFeatures(features);
+    const result = buildMetroAreaFeatures(features)!;
     expect(result.features).toHaveLength(0);
   });
 });

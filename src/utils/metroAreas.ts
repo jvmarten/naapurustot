@@ -1,8 +1,27 @@
 import type { Feature, FeatureCollection, Polygon, MultiPolygon } from 'geojson';
-import union from '@turf/union';
 import type { CityId, NeighborhoodProperties, TrendDataPoint } from './metrics';
 import { computeMetroAverages, parseTrendSeries } from './metrics';
 import { t } from './i18n';
+
+// Lazy-load @turf/union (~40KB) — only needed when user views "all cities" mode.
+// Other @turf modules (bbox, boolean-intersects, boolean-point-in-polygon) are
+// already lazy-loaded; this follows the same pattern to keep the main bundle small.
+let unionFn: typeof import('@turf/union').default | null = null;
+let unionPromise: Promise<void> | null = null;
+
+function ensureUnionLoaded(): Promise<void> {
+  if (unionFn) return Promise.resolve();
+  if (!unionPromise) {
+    unionPromise = import('@turf/union').then((m) => { unionFn = m.default; });
+  }
+  return unionPromise;
+}
+
+/** Pre-warm the union import. Call this when user is likely to need it soon.
+ *  Returns a Promise that resolves when the module is loaded. */
+export function preloadUnion(): Promise<void> {
+  return ensureUnionLoaded();
+}
 
 /**
  * Aggregate trend history series across neighborhoods for a metro area.
@@ -116,10 +135,13 @@ let metroAreaCache: MetroAreaCache | null = null;
  * Geometry unions and statistical aggregations are cached per dataset identity.
  * On language change, only the display name properties are refreshed — the
  * expensive @turf/union calls are skipped entirely.
+ *
+ * Returns null if the @turf/union module hasn't been loaded yet. The caller
+ * should trigger a load (via the returned onReady callback) and retry.
  */
 export function buildMetroAreaFeatures(
   allFeatures: Feature[],
-): FeatureCollection {
+): FeatureCollection | null {
   const cityIds: CityId[] = ['helsinki_metro', 'turku', 'tampere'];
 
   // Reuse cached geometry and stats when the underlying dataset hasn't changed
@@ -137,6 +159,18 @@ export function buildMetroAreaFeatures(
       }
     }
 
+    // Check if any city has multiple polygons that need unioning
+    const needsUnion = cityIds.some((id) => {
+      const polys = grouped[id].filter((f) => {
+        const tp = f.geometry?.type;
+        return tp === 'Polygon' || tp === 'MultiPolygon';
+      });
+      return polys.length > 1;
+    });
+
+    // @turf/union is lazy-loaded — if needed but not yet available, return null
+    if (needsUnion && !unionFn) return null;
+
     const perCity = new Map<CityId, MetroAreaCache['perCity'] extends Map<CityId, infer V> ? V : never>();
 
     for (const cityId of cityIds) {
@@ -152,7 +186,7 @@ export function buildMetroAreaFeatures(
 
       const merged = polyFeatures.length === 1
         ? polyFeatures[0]
-        : union({ type: 'FeatureCollection', features: polyFeatures });
+        : unionFn!({ type: 'FeatureCollection', features: polyFeatures });
       if (!merged) continue;
 
       perCity.set(cityId, {

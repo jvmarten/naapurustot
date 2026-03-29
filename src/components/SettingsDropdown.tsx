@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, lazy, Suspense, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, lazy, Suspense } from 'react';
 import { useTheme } from '../hooks/useTheme';
 import { t, type Lang } from '../utils/i18n';
 
@@ -23,19 +23,23 @@ const CB_OPTIONS: { value: ColorblindType; labelKey: string }[] = [
   { value: 'tritanopia', labelKey: 'settings.cb_tritanopia' },
 ];
 
-/** Opacity slider — local state for smooth drag, parent callback on every change. */
+/** Opacity slider — local state for smooth drag, debounced parent callback to avoid
+ *  App re-renders + localStorage writes on every tick (30–60/s during a drag). */
 const OpacitySlider: React.FC<{ fillOpacity: number; onFillOpacityChange: (v: number) => void }> = ({
   fillOpacity,
   onFillOpacityChange,
 }) => {
   const [local, setLocal] = useState(() => Math.round(fillOpacity * 100));
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => { setLocal(Math.round(fillOpacity * 100)); }, [fillOpacity]);
+  useEffect(() => () => clearTimeout(debounceRef.current), []);
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const v = Number(e.target.value);
     setLocal(v);
-    onFillOpacityChange(v / 100);
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => onFillOpacityChange(v / 100), 100);
   }, [onFillOpacityChange]);
 
   return (
