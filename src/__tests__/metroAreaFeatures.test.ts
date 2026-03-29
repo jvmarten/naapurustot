@@ -5,8 +5,8 @@
  * The Map component's line layer filters out features with _isMetroArea: true,
  * so this property MUST be set on all metro area features.
  */
-import { describe, it, expect } from 'vitest';
-import { buildMetroAreaFeatures } from '../utils/metroAreas';
+import { describe, it, expect, beforeAll } from 'vitest';
+import { buildMetroAreaFeatures, preloadUnion } from '../utils/metroAreas';
 import type { NeighborhoodProperties } from '../utils/metrics';
 
 function makeFeature(
@@ -31,6 +31,9 @@ const square1: number[][][] = [[[24, 60], [25, 60], [25, 61], [24, 61], [24, 60]
 const square2: number[][][] = [[[25, 60], [26, 60], [26, 61], [25, 61], [25, 60]]];
 
 describe('buildMetroAreaFeatures', () => {
+  // @turf/union is lazy-loaded; pre-load it before tests run
+  beforeAll(() => preloadUnion());
+
   it('sets _isMetroArea: true on every metro area feature', () => {
     const features = [
       makeFeature('helsinki_metro', '00100', square1),
@@ -38,7 +41,7 @@ describe('buildMetroAreaFeatures', () => {
       makeFeature('tampere', '33100', square1),
     ];
 
-    const result = buildMetroAreaFeatures(features);
+    const result = buildMetroAreaFeatures(features)!;
 
     expect(result.features.length).toBeGreaterThan(0);
     for (const f of result.features) {
@@ -53,7 +56,7 @@ describe('buildMetroAreaFeatures', () => {
       makeFeature('turku', '20100', square1),
     ];
 
-    const result = buildMetroAreaFeatures(features);
+    const result = buildMetroAreaFeatures(features)!;
 
     const cities = result.features.map((f) => f.properties?.city);
     expect(cities).toContain('helsinki_metro');
@@ -68,7 +71,7 @@ describe('buildMetroAreaFeatures', () => {
       makeFeature('helsinki_metro', '00200', square2),
     ];
 
-    const result = buildMetroAreaFeatures(features);
+    const result = buildMetroAreaFeatures(features)!;
 
     expect(['Polygon', 'MultiPolygon']).toContain(result.features[0].geometry.type);
   });
@@ -80,7 +83,7 @@ describe('buildMetroAreaFeatures', () => {
       makeFeature('helsinki_metro', '00200', square2),
     ];
 
-    const result = buildMetroAreaFeatures(features);
+    const result = buildMetroAreaFeatures(features)!;
     const geom = result.features[0].geometry;
 
     // After union, adjacent squares should merge into a single polygon

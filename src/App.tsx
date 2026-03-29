@@ -37,7 +37,7 @@ import type { NeighborhoodProperties } from './utils/metrics';
 import { computeMetroAverages } from './utils/metrics';
 import { t, getLang, setLang, type Lang } from './utils/i18n';
 import { computeQualityIndices, getDefaultWeights, isCustomWeights, type QualityWeights } from './utils/qualityIndex';
-import { buildMetroAreaFeatures } from './utils/metroAreas';
+import { buildMetroAreaFeatures, preloadUnion } from './utils/metroAreas';
 
 const initialUrl = readInitialUrlState();
 
@@ -83,6 +83,8 @@ const App: React.FC = () => {
   const restoredPno = useRef(false);
   // Monotonic version counter to force re-renders when quality indices change
   const [qualityVersion, setQualityVersion] = useState(0);
+  // Version counter to trigger re-render after @turf/union lazy-loads for metro areas
+  const [unionReady, setUnionReady] = useState(0);
   const [ariaAnnouncement, setAriaAnnouncement] = useState('');
   const [isOffline, setIsOffline] = useState(() => typeof navigator !== 'undefined' && !navigator.onLine);
 
@@ -90,18 +92,28 @@ const App: React.FC = () => {
   const [cityFilter, setCityFilter] = useState<CityFilter>((initialUrl.city as CityFilter) ?? 'helsinki_metro');
   const [comparisonScope, setComparisonScope] = useState<ComparisonScope>('all');
 
+  // Lazy-load @turf/union when user switches to "all cities" view.
+  // Once loaded, bump unionReady to trigger filteredData recomputation.
+  useEffect(() => {
+    if (cityFilter !== 'all' || !data) return;
+    preloadUnion().then(() => setUnionReady((v) => v + 1));
+  }, [cityFilter, data]);
+
   // Filter data by selected city — when 'all' is chosen, show merged metro area polygons
   const filteredData = useMemo(() => {
     if (!data) return null;
-    if (cityFilter === 'all') return buildMetroAreaFeatures(data.features) as typeof data;
+    if (cityFilter === 'all') {
+      // buildMetroAreaFeatures returns null while @turf/union is loading
+      return (buildMetroAreaFeatures(data.features) as typeof data) ?? null;
+    }
     return {
       ...data,
       features: data.features.filter(
         (f) => f.properties?.city === cityFilter,
       ),
     } as typeof data;
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- lang triggers rebuild so metro area names respect language
-  }, [data, cityFilter, lang]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- lang triggers rebuild so metro area names respect language; unionReady signals @turf/union loaded
+  }, [data, cityFilter, lang, unionReady]);
 
   // Recompute metro averages for the selected city.
   // qualityVersion is included so that averages are recalculated after custom quality weight changes

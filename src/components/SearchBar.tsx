@@ -20,6 +20,9 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, onSelect,
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  // Read breakpoint once at mount instead of calling window.innerWidth on every render
+  // (which can trigger layout reflow in some browsers).
+  const isMobileRef = useRef(typeof window !== 'undefined' && window.innerWidth < 768);
 
   // CF-1: Address geocoding state
   const [addressResults, setAddressResults] = useState<GeocodeResult[]>([]);
@@ -190,7 +193,7 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, onSelect,
           }}
           onFocus={() => setIsOpen(true)}
           onKeyDown={handleKeyDown}
-          placeholder={window.innerWidth < 768 ? t('search.placeholder_short') : t('search.placeholder')}
+          placeholder={isMobileRef.current ? t('search.placeholder_short') : t('search.placeholder')}
           className="w-full rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40
                      pl-10 pr-8 py-1.5 md:py-2.5 text-sm md:text-sm text-surface-900 dark:text-white placeholder-surface-400 dark:placeholder-surface-500
                      focus:outline-none focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/30

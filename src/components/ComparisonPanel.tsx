@@ -164,7 +164,7 @@ const ComparisonChart: React.FC<{ pinned: NeighborhoodProperties[] }> = ({ pinne
   );
 };
 
-export const ComparisonPanel: React.FC<ComparisonPanelProps> = ({ pinned, onUnpin, onClear }) => {
+export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pinned, onUnpin, onClear }) => {
   // PO-4: Tab state for chart vs table view
   const [view, setView] = useState<'table' | 'chart'>('table');
 
@@ -332,4 +332,6 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = ({ pinned, onUnpi
       </div>
     </>
   );
-};
+});
+
+ComparisonPanel.displayName = 'ComparisonPanel';
