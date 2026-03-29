@@ -55,8 +55,9 @@ export function useGridData(activeLayer: LayerId): GridDataState {
   useEffect(() => {
     const path = GRID_PATHS[activeLayer];
     if (!path) return;
-    if (fetchedRef.current.has(activeLayer)) return;
-    fetchedRef.current.add(activeLayer);
+    const fetched = fetchedRef.current;
+    if (fetched.has(activeLayer)) return;
+    fetched.add(activeLayer);
 
     let cancelled = false;
     setLoading(true);
@@ -69,7 +70,6 @@ export function useGridData(activeLayer: LayerId): GridDataState {
       .then((json: unknown) => {
         if (cancelled) return;
         const geojson = parseGridResponse(path, json);
-        fetchedRef.current.add(activeLayer); // mark as complete so cleanup won't cause re-fetch
         setCache((prev) => ({ ...prev, [activeLayer]: geojson }));
         setLoading(false);
       })
@@ -77,7 +77,7 @@ export function useGridData(activeLayer: LayerId): GridDataState {
         if (cancelled) return;
         // Grid data is optional — silently fall back to postal choropleth.
         // Remove from fetched set so a retry is possible on next layer switch.
-        fetchedRef.current.delete(activeLayer);
+        fetched.delete(activeLayer);
         console.warn(`Grid data not available for ${activeLayer}:`, err.message);
         setLoading(false);
       });
@@ -85,7 +85,7 @@ export function useGridData(activeLayer: LayerId): GridDataState {
     return () => {
       cancelled = true;
       // Allow retry on re-visit if the fetch didn't complete
-      fetchedRef.current.delete(activeLayer);
+      fetched.delete(activeLayer);
     };
   }, [activeLayer]);
 

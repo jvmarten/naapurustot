@@ -195,7 +195,9 @@ export function parseTrendSeries(raw: string | null | undefined): TrendDataPoint
           Array.isArray(p) &&
           p.length === 2 &&
           typeof p[0] === 'number' &&
-          typeof p[1] === 'number',
+          typeof p[1] === 'number' &&
+          isFinite(p[0]) &&
+          isFinite(p[1]),
       )
     ) {
       return parsed as TrendDataPoint[];
@@ -298,7 +300,7 @@ export function computeQuickWinMetrics(features: GeoJSON.Feature[]): void {
 
     // New construction (buildings under construction / total buildings %)
     const ra_raky = p.ra_raky as number | null;
-    const ra_asunn = (p as Record<string, unknown>).ra_asunn as number | null;
+    const ra_asunn = p.ra_asunn;
     if (ra_raky != null && ra_asunn != null && ra_asunn > 0) {
       p.new_construction_pct = Math.round((ra_raky / ra_asunn) * 1000) / 10;
     }

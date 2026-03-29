@@ -78,7 +78,7 @@ function getOrComputeRanges(allFeatures: GeoJSON.Feature[]): { mins: Record<stri
     let max = -Infinity;
     for (const feature of allFeatures) {
       const val = (feature.properties as NeighborhoodProperties)?.[metric];
-      if (typeof val === 'number' && val != null) {
+      if (typeof val === 'number' && isFinite(val)) {
         if (val < min) min = val;
         if (val > max) max = val;
       }
@@ -136,9 +136,9 @@ export function findSimilarNeighborhoods(
       const targetVal = target[key];
       const candidateVal = props[key];
 
-      // Skip metrics where either side is null/undefined/non-numeric
-      if (typeof targetVal !== 'number' || targetVal == null) continue;
-      if (typeof candidateVal !== 'number' || candidateVal == null) continue;
+      // Skip metrics where either side is null/undefined/non-numeric/NaN
+      if (typeof targetVal !== 'number' || !isFinite(targetVal)) continue;
+      if (typeof candidateVal !== 'number' || !isFinite(candidateVal)) continue;
 
       const range = maxs[key] - mins[key];
       const normalizedTarget = (targetVal - mins[key]) / range;

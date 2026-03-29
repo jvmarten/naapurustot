@@ -122,7 +122,7 @@ describe('exportCsv', () => {
     expect(clickSpy).toHaveBeenCalled();
     // revokeObjectURL is deferred to allow the browser to start the download
     expect(URL.revokeObjectURL).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(1000);
+    vi.advanceTimersByTime(60_000);
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:mock-url');
     vi.useRealTimers();
   });

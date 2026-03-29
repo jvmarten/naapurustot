@@ -112,11 +112,17 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, onSelect,
   }
 
   async function selectAddressResult(addr: GeocodeResult) {
-    const neighborhood = await findNeighborhoodForPoint(addr.coordinates);
-    if (neighborhood?.properties) {
-      onSelect(neighborhood.properties.pno, addr.coordinates);
-      setQuery(neighborhood.properties.nimi || addr.label);
-    } else {
+    try {
+      const neighborhood = await findNeighborhoodForPoint(addr.coordinates);
+      if (neighborhood?.properties) {
+        onSelect(neighborhood.properties.pno, addr.coordinates);
+        setQuery(neighborhood.properties.nimi || addr.label);
+      } else {
+        onSelect('', addr.coordinates);
+        setQuery(addr.label);
+      }
+    } catch {
+      // Fallback: fly to the address coordinates even if point-in-polygon lookup fails
       onSelect('', addr.coordinates);
       setQuery(addr.label);
     }
