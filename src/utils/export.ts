@@ -52,7 +52,7 @@ function escapeCsvField(field: string): string {
   // so Excel/LibreOffice treat the cell as text, not a formula.
   const needsPrefix = /^[=+\-@\t\r]/.test(field);
   const escaped = needsPrefix ? `'${field}` : field;
-  if (escaped.includes(',') || escaped.includes('"') || escaped.includes('\n')) {
+  if (escaped.includes(',') || escaped.includes('"') || escaped.includes('\n') || escaped.includes('\r')) {
     return `"${escaped.replace(/"/g, '""')}"`;
   }
   return escaped;

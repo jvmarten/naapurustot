@@ -133,6 +133,11 @@ interface MetroAreaCache {
 }
 let metroAreaCache: MetroAreaCache | null = null;
 
+/** Invalidate the metro area cache (e.g., after in-place quality index recomputation). */
+export function clearMetroAreaCache(): void {
+  metroAreaCache = null;
+}
+
 /**
  * Build merged metro area features for the "all cities" view.
  *

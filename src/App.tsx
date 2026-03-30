@@ -37,7 +37,7 @@ import type { NeighborhoodProperties } from './utils/metrics';
 import { computeMetroAverages } from './utils/metrics';
 import { t, getLang, setLang, type Lang } from './utils/i18n';
 import { computeQualityIndices, getDefaultWeights, isCustomWeights, type QualityWeights } from './utils/qualityIndex';
-import { buildMetroAreaFeatures, preloadUnion } from './utils/metroAreas';
+import { buildMetroAreaFeatures, preloadUnion, clearMetroAreaCache } from './utils/metroAreas';
 
 const initialUrl = readInitialUrlState();
 
@@ -112,8 +112,8 @@ const App: React.FC = () => {
         (f) => f.properties?.city === cityFilter,
       ),
     } as typeof data;
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- lang triggers rebuild so metro area names respect language; unionReady signals @turf/union loaded
-  }, [data, cityFilter, lang, unionReady]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- lang triggers rebuild so metro area names respect language; unionReady signals @turf/union loaded; qualityVersion signals in-place data mutation
+  }, [data, cityFilter, lang, unionReady, qualityVersion]);
 
   // Recompute metro averages for the selected city.
   // qualityVersion is included so that averages are recalculated after custom quality weight changes
@@ -302,6 +302,9 @@ const App: React.FC = () => {
         } catch { /* Skip features with invalid geometry */ }
       }
       setDrawnAreaPnos(pnos);
+    }).catch(() => {
+      // If @turf/boolean-intersects fails to load, clear drawn area PNOs
+      if (!cancelled) setDrawnAreaPnos([]);
     });
     return () => { cancelled = true; };
   }, [drawnPolygon, filteredData, selectedAreaPnos]);
@@ -336,6 +339,7 @@ const App: React.FC = () => {
       ? filteredData.features
       : data.features;
     computeQualityIndices(features, qualityWeights);
+    clearMetroAreaCache(); // bust cached metro area averages after in-place mutation
     setQualityVersion((v) => v + 1);
     // Refresh selected/pinned with updated quality index values
     if (selected) {
@@ -414,6 +418,7 @@ const App: React.FC = () => {
             ? filteredDataRef.current.features
             : data.features;
           computeQualityIndices(features, newWeights);
+          clearMetroAreaCache(); // bust cached metro area averages after in-place mutation
           setQualityVersion((v) => v + 1);
           // Update selected neighborhood if it exists
           const sel = selectedRef.current;
@@ -473,6 +478,8 @@ const App: React.FC = () => {
             import('@turf/bbox').then(({ bbox }) => {
               const [minLng, minLat, maxLng, maxLat] = bbox(feature);
               setFlyTarget({ center, bounds: [minLng, minLat, maxLng, maxLat] });
+            }).catch(() => {
+              setFlyTarget({ center });
             });
           } else {
             setFlyTarget({ center });
