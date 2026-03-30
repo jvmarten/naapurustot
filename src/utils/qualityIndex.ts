@@ -24,6 +24,7 @@ import type { NeighborhoodProperties } from './metrics';
 interface MinMax {
   min: number;
   max: number;
+  avg: number;
 }
 
 function normalize(value: number, { min, max }: MinMax): number {
@@ -169,79 +170,38 @@ function collectRange(features: GeoJSON.Feature[], prop: keyof NeighborhoodPrope
 
   let min = Infinity;
   let max = -Infinity;
+  let sum = 0;
+  let count = 0;
   for (const f of features) {
     const v = (f.properties as NeighborhoodProperties)[prop];
     if (typeof v === 'number' && v != null && isFinite(v)) {
       if (prop === 'hr_mtu' && v <= 0) continue;
       if (v < min) min = v;
       if (v > max) max = v;
+      sum += v;
+      count++;
     }
   }
-  const result = min < max ? { min, max } : { min: 0, max: 0 };
+  const avg = count > 0 ? sum / count : NaN;
+  const result = min < max ? { min, max, avg } : { min: 0, max: 0, avg };
   rangeCache!.set(prop as string, result);
   return result;
-}
-
-/** Compute the metro-wide average for each property (for missing data fallback) */
-function computePropertyAverages(
-  features: GeoJSON.Feature[],
-  props: Set<string>,
-): Map<string, number> {
-  const sums = new Map<string, number>();
-  const counts = new Map<string, number>();
-
-  for (const prop of props) {
-    sums.set(prop, 0);
-    counts.set(prop, 0);
-  }
-
-  for (const f of features) {
-    const p = f.properties as NeighborhoodProperties;
-    for (const prop of props) {
-      const v = p[prop as keyof NeighborhoodProperties];
-      if (typeof v !== 'number' || !isFinite(v)) continue;
-      if (prop === 'hr_mtu' && v <= 0) continue;
-      sums.set(prop, sums.get(prop)! + v);
-      counts.set(prop, counts.get(prop)! + 1);
-    }
-  }
-
-  const averages = new Map<string, number>();
-  for (const prop of props) {
-    const count = counts.get(prop)!;
-    if (count > 0) {
-      averages.set(prop, sums.get(prop)! / count);
-    }
-  }
-
-  return averages;
 }
 
 function getFactorScore(
   p: NeighborhoodProperties,
   factor: QualityFactor,
   ranges: Map<string, MinMax>,
-  metroAverages: Map<string, number>,
 ): number | null {
   const scores: number[] = [];
   for (const prop of factor.properties) {
     const raw = p[prop];
-    let v: number;
-    const isMissing =
-      typeof raw !== 'number' || !isFinite(raw) || (prop === 'hr_mtu' && raw <= 0);
-
-    if (isMissing) {
-      // Use metro-wide average as fallback so missing data doesn't crush the score
-      const avg = metroAverages.get(prop as string);
-      if (avg == null) continue;
-      v = avg;
-    } else {
-      v = raw;
-    }
-
     const range = ranges.get(prop as string);
     if (!range) continue;
-    scores.push(normalize(v, range));
+    const isMissing =
+      typeof raw !== 'number' || !isFinite(raw) || (prop === 'hr_mtu' && raw <= 0);
+    if (isMissing && !isFinite(range.avg)) continue;
+    scores.push(normalize(isMissing ? range.avg : raw, range));
   }
   if (scores.length === 0) return null;
   const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
@@ -254,21 +214,16 @@ export function computeQualityIndices(
 ): void {
   const w = weights ?? getDefaultWeights();
 
-  // Collect all needed ranges and property names
+  // Collect all needed ranges (includes metro averages for missing data fallback)
   const ranges = new Map<string, MinMax>();
-  const allProps = new Set<string>();
   for (const factor of QUALITY_FACTORS) {
     if ((w[factor.id] ?? 0) <= 0) continue;
     for (const prop of factor.properties) {
-      allProps.add(prop as string);
       if (!ranges.has(prop as string)) {
         ranges.set(prop as string, collectRange(features, prop));
       }
     }
   }
-
-  // Compute metro-wide averages for missing data fallback
-  const metroAverages = computePropertyAverages(features, allProps);
 
   for (const f of features) {
     const p = f.properties as NeighborhoodProperties;
@@ -277,7 +232,7 @@ export function computeQualityIndices(
     for (const factor of QUALITY_FACTORS) {
       const factorWeight = w[factor.id] ?? 0;
       if (factorWeight <= 0) continue;
-      const score = getFactorScore(p, factor, ranges, metroAverages);
+      const score = getFactorScore(p, factor, ranges);
       if (score != null) {
         scores.push({ value: score, weight: factorWeight });
       }

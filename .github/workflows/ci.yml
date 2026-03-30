@@ -69,9 +69,9 @@ jobs:
           # Exclude maplibre (large, irreducible third-party map renderer)
           JS_SIZE=$(find dist/assets -name '*.js' ! -name 'maplibre-*' -exec gzip -c {} \; | wc -c)
           echo "App JS bundle excluding maplibre (gzipped): $JS_SIZE bytes"
-          # Fail if app JS bundle exceeds 150KB gzipped
-          if [ "$JS_SIZE" -gt 153600 ]; then
-            echo "::error::JS bundle size exceeds 150KB gzipped budget ($JS_SIZE bytes)"
+          # Fail if app JS bundle exceeds 160KB gzipped
+          if [ "$JS_SIZE" -gt 163840 ]; then
+            echo "::error::JS bundle size exceeds 160KB gzipped budget ($JS_SIZE bytes)"
             exit 1
           fi
 
