@@ -124,6 +124,8 @@ function makeProps(overrides: Partial<NeighborhoodProperties> = {}): Neighborhoo
     school_quality_score: null,
     light_pollution: null,
     noise_pollution: null,
+    water_proximity_m: null,
+    avg_construction_year: null,
     ...overrides,
   };
 }

@@ -64,7 +64,10 @@ export type LayerId =
   | 'property_price_change'
   | 'school_quality'
   | 'light_pollution'
-  | 'noise_pollution';
+  | 'noise_pollution'
+  // Phase 10: Water proximity & building age
+  | 'water_proximity'
+  | 'building_age';
 
 /**
  * Configuration for a single data layer displayed on the map.
@@ -121,6 +124,8 @@ const score = (v: number) => `${v.toFixed(0)}/100`;
 const radiance = (v: number) => `${v.toFixed(1)} nW/cm²/sr`;
 const decibel = (v: number) => `${v.toFixed(1)} dB`;
 const years = (v: number) => `${v.toFixed(1)} v`;
+const meters = (v: number) => `${v.toLocaleString(locale())} m`;
+const yearFmt = (v: number) => `${v.toFixed(0)}`;
 
 export const LAYERS: LayerConfig[] = [
   {
@@ -648,6 +653,26 @@ export const LAYERS: LayerConfig[] = [
     stops: [40, 43, 46, 49, 52, 55, 58, 62],
     format: decibel,
     higherIsBetter: false,
+  },
+  // Phase 10: Water proximity & building age
+  {
+    id: 'water_proximity',
+    labelKey: 'layer.water_proximity',
+    property: 'water_proximity_m',
+    unit: 'm',
+    colors: ['#08519c', '#3182bd', '#6baed6', '#9ecae1', '#c6dbef', '#fee0d2', '#fc9272', '#de2d26'],
+    stops: [0, 50, 150, 350, 600, 1000, 1500, 2500],
+    format: meters,
+    higherIsBetter: false,
+  },
+  {
+    id: 'building_age',
+    labelKey: 'layer.building_age',
+    property: 'avg_construction_year',
+    unit: '',
+    colors: ['#67000d', '#a50f15', '#cb181d', '#ef3b2c', '#fb6a4a', '#fc9272', '#fcbba1', '#fee0d2'],
+    stops: [1940, 1955, 1965, 1975, 1985, 1995, 2005, 2015],
+    format: yearFmt,
   },
 ];
 

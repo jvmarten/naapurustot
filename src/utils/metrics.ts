@@ -174,6 +174,11 @@ export interface NeighborhoodProperties {
   school_quality_score: number | null;
   light_pollution: number | null;
   noise_pollution: number | null;
+  // Phase 10: Water proximity & building age
+  /** Minimum distance to nearest water body (meters) */
+  water_proximity_m: number | null;
+  /** Estimated weighted average construction year of dwellings */
+  avg_construction_year: number | null;
   /** Marker for merged metro area features (not real postal code areas) */
   _isMetroArea?: boolean;
   [key: string]: string | number | boolean | null | undefined;
@@ -432,6 +437,10 @@ export const METRIC_SOURCES: Record<string, MetricSource> = {
   light_pollution: { source: 'NASA VIIRS Black Marble (VNP46A4)', year: 2024 },
   noise_pollution: { source: 'Helsinki meluselvitys 2022 / HRI pks liikennemelu 2012', year: '2012–2022' },
 
+  // Phase 10: Water proximity & building age
+  water_proximity_m: { source: 'OpenStreetMap', year: 2025 },
+  avg_construction_year: { source: 'Tilastokeskus (rakennuskanta)', year: 2025 },
+
   // Quick wins (from existing Paavo data)
   youth_ratio_pct: { source: 'Tilastokeskus (Paavo)', year: 2024 },
   gender_ratio: { source: 'Tilastokeskus (Paavo)', year: 2024 },
@@ -498,6 +507,9 @@ const METRIC_DEFS: MetricDef[] = [
   { property: 'school_quality_score', weight: 'population', precision: 0 },
   { property: 'light_pollution', weight: 'population', precision: 1 },
   { property: 'noise_pollution', weight: 'population', precision: 1 },
+  // Phase 10: Water proximity & building age
+  { property: 'water_proximity_m', weight: 'population', precision: 0 },
+  { property: 'avg_construction_year', weight: 'population', precision: 0 },
 ];
 
 function roundTo(value: number, precision: number): number {

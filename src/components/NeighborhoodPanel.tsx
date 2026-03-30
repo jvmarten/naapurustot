@@ -198,6 +198,8 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
     walkability_index: d.walkability_index,
     traffic_accident_rate: d.traffic_accident_rate,
     light_pollution: d.light_pollution,
+    water_proximity_m: d.water_proximity_m,
+    avg_construction_year: d.avg_construction_year,
     restaurant_density: d.restaurant_density,
     grocery_density: d.grocery_density,
     daycare_density: d.daycare_density,
@@ -547,6 +549,13 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
             diffClass={diffColor(d.price_to_rent_ratio, avg.price_to_rent_ratio, false)}
             property="price_to_rent_ratio"
           />
+          <StatRow
+            label={t('panel.building_age')}
+            value={animated.avg_construction_year != null ? `${Math.round(Number(animated.avg_construction_year))}` : '—'}
+            diff={formatDiff(d.avg_construction_year, avg.avg_construction_year)}
+            diffClass={diffColor(d.avg_construction_year, avg.avg_construction_year)}
+            property="avg_construction_year"
+          />
           <StatRow label={t('panel.dwellings')} value={formatNumber(animated.ra_asunn)} />
           <StatRow label={t('panel.households')} value={formatNumber(animated.te_taly)} />
         </div>
@@ -658,6 +667,13 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
             diff={formatDiff(d.light_pollution, avg.light_pollution)}
             diffClass={diffColor(d.light_pollution, avg.light_pollution, false)}
             property="light_pollution"
+          />
+          <StatRow
+            label={t('panel.water_proximity')}
+            value={animated.water_proximity_m != null ? `${Number(animated.water_proximity_m).toLocaleString('fi-FI')} m` : '—'}
+            diff={formatDiff(d.water_proximity_m, avg.water_proximity_m)}
+            diffClass={diffColor(d.water_proximity_m, avg.water_proximity_m, false)}
+            property="water_proximity_m"
           />
         </div>
       </CollapsibleSection>

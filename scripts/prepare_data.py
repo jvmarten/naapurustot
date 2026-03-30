@@ -182,6 +182,10 @@ SCHOOL_QUALITY_FILE = Path(__file__).parent / "school_quality.json"
 LIGHT_POLLUTION_FILE = Path(__file__).parent / "light_pollution.json"
 NOISE_POLLUTION_FILE = Path(__file__).parent / "noise_pollution.json"
 
+# Phase 10: Water proximity & building age
+WATER_PROXIMITY_FILE = Path(__file__).parent / "water_proximity.json"
+BUILDING_AGE_FILE = Path(__file__).parent / "building_age.json"
+
 # ---------------------------------------------------------------------------
 # Retry & rate-limit settings
 # ---------------------------------------------------------------------------
@@ -814,7 +818,23 @@ def fetch_property_prices():
 
 
 def join_property_prices(gdf, price_data):
-    """Join property price (€/m²) data to the GeoDataFrame."""
+    """Join property price (€/m²) data to the GeoDataFrame.
+
+    Merges API result with local fallback file for best coverage.
+    """
+    # Merge with local file if it exists
+    if PROPERTY_PRICE_FILE.exists():
+        try:
+            with open(PROPERTY_PRICE_FILE) as f:
+                local = json.load(f)
+            if local and isinstance(local, dict):
+                merged = {k: float(v) for k, v in local.items()}
+                merged.update(price_data or {})  # API data takes priority
+                price_data = merged
+                logger.info("  Merged with local file: %d total entries", len(price_data))
+        except Exception:
+            pass
+
     if not price_data:
         gdf["property_price_sqm"] = None
         return gdf
@@ -897,7 +917,7 @@ def join_transit_data(gdf, stops):
     logger.info("Joining transit stop data...")
     from shapely.geometry import Point
 
-    # Count stops per postal code polygon
+    tree, geoms, valid_rows = _build_spatial_index(gdf)
     stop_counts = {}
     for stop in stops:
         lat = stop.get("lat")
@@ -905,11 +925,9 @@ def join_transit_data(gdf, stops):
         if lat is None or lon is None:
             continue
         point = Point(lon, lat)
-        for idx, row in gdf.iterrows():
-            if row.geometry and row.geometry.contains(point):
-                pno = row.get("pno", "")
-                stop_counts[pno] = stop_counts.get(pno, 0) + 1
-                break
+        pno = _point_to_pno(point, tree, geoms, valid_rows)
+        if pno:
+            stop_counts[pno] = stop_counts.get(pno, 0) + 1
 
     for idx, row in gdf.iterrows():
         pno = row.get("pno", "")
@@ -1218,6 +1236,8 @@ def join_daycares(gdf, elements):
     logger.info("Joining daycare data...")
     from shapely.geometry import Point
 
+    tree, geoms, valid_rows = _build_spatial_index(gdf)
+
     counts = {}
     for el in elements:
         lat = el.get("lat") or (el.get("center", {}) or {}).get("lat")
@@ -1225,11 +1245,9 @@ def join_daycares(gdf, elements):
         if lat is None or lon is None:
             continue
         point = Point(float(lon), float(lat))
-        for idx, row in gdf.iterrows():
-            if row.geometry and row.geometry.contains(point):
-                pno = row.get("pno", "")
-                counts[pno] = counts.get(pno, 0) + 1
-                break
+        pno = _point_to_pno(point, tree, geoms, valid_rows)
+        if pno is not None:
+            counts[pno] = counts.get(pno, 0) + 1
 
     for idx, row in gdf.iterrows():
         pno = row.get("pno", "")
@@ -1267,6 +1285,8 @@ def join_schools(gdf, elements):
     logger.info("Joining school data...")
     from shapely.geometry import Point
 
+    tree, geoms, valid_rows = _build_spatial_index(gdf)
+
     counts = {}
     for el in elements:
         lat = el.get("lat") or (el.get("center", {}) or {}).get("lat")
@@ -1274,11 +1294,9 @@ def join_schools(gdf, elements):
         if lat is None or lon is None:
             continue
         point = Point(float(lon), float(lat))
-        for idx, row in gdf.iterrows():
-            if row.geometry and row.geometry.contains(point):
-                pno = row.get("pno", "")
-                counts[pno] = counts.get(pno, 0) + 1
-                break
+        pno = _point_to_pno(point, tree, geoms, valid_rows)
+        if pno is not None:
+            counts[pno] = counts.get(pno, 0) + 1
 
     for idx, row in gdf.iterrows():
         pno = row.get("pno", "")
@@ -1322,6 +1340,8 @@ def join_healthcare(gdf, elements):
     logger.info("Joining healthcare data...")
     from shapely.geometry import Point
 
+    tree, geoms, valid_rows = _build_spatial_index(gdf)
+
     counts = {}
     for el in elements:
         lat = el.get("lat") or (el.get("center", {}) or {}).get("lat")
@@ -1329,11 +1349,9 @@ def join_healthcare(gdf, elements):
         if lat is None or lon is None:
             continue
         point = Point(float(lon), float(lat))
-        for idx, row in gdf.iterrows():
-            if row.geometry and row.geometry.contains(point):
-                pno = row.get("pno", "")
-                counts[pno] = counts.get(pno, 0) + 1
-                break
+        pno = _point_to_pno(point, tree, geoms, valid_rows)
+        if pno is not None:
+            counts[pno] = counts.get(pno, 0) + 1
 
     for idx, row in gdf.iterrows():
         pno = row.get("pno", "")
@@ -1373,6 +1391,8 @@ def join_restaurants(gdf, elements):
     logger.info("Joining restaurant data...")
     from shapely.geometry import Point
 
+    tree, geoms, valid_rows = _build_spatial_index(gdf)
+
     counts = {}
     for el in elements:
         lat = el.get("lat")
@@ -1380,11 +1400,9 @@ def join_restaurants(gdf, elements):
         if lat is None or lon is None:
             continue
         point = Point(float(lon), float(lat))
-        for idx, row in gdf.iterrows():
-            if row.geometry and row.geometry.contains(point):
-                pno = row.get("pno", "")
-                counts[pno] = counts.get(pno, 0) + 1
-                break
+        pno = _point_to_pno(point, tree, geoms, valid_rows)
+        if pno is not None:
+            counts[pno] = counts.get(pno, 0) + 1
 
     for idx, row in gdf.iterrows():
         pno = row.get("pno", "")
@@ -1424,6 +1442,8 @@ def join_groceries(gdf, elements):
     logger.info("Joining grocery store data...")
     from shapely.geometry import Point
 
+    tree, geoms, valid_rows = _build_spatial_index(gdf)
+
     counts = {}
     for el in elements:
         lat = el.get("lat") or (el.get("center", {}) or {}).get("lat")
@@ -1431,11 +1451,9 @@ def join_groceries(gdf, elements):
         if lat is None or lon is None:
             continue
         point = Point(float(lon), float(lat))
-        for idx, row in gdf.iterrows():
-            if row.geometry and row.geometry.contains(point):
-                pno = row.get("pno", "")
-                counts[pno] = counts.get(pno, 0) + 1
-                break
+        pno = _point_to_pno(point, tree, geoms, valid_rows)
+        if pno is not None:
+            counts[pno] = counts.get(pno, 0) + 1
 
     for idx, row in gdf.iterrows():
         pno = row.get("pno", "")
@@ -1467,13 +1485,23 @@ def fetch_osm_cycling():
 
 
 def join_cycling(gdf, elements):
-    """Calculate cycling infrastructure density per postal code area."""
+    """Calculate cycling infrastructure density per postal code area.
+
+    Uses a spatial index (STRtree) for fast point-in-polygon lookups
+    instead of brute-force nested loops.
+    """
     if not elements:
         gdf["cycling_density"] = None
         return gdf
 
     logger.info("Joining cycling infrastructure data...")
     from shapely.geometry import Point
+    from shapely.strtree import STRtree
+
+    # Build spatial index over postal code polygons
+    valid_rows = [(idx, row) for idx, row in gdf.iterrows() if row.geometry and not row.geometry.is_empty]
+    geoms = [row.geometry for _, row in valid_rows]
+    tree = STRtree(geoms)
 
     counts = {}
     for el in elements:
@@ -1482,8 +1510,12 @@ def join_cycling(gdf, elements):
         if lat is None or lon is None:
             continue
         point = Point(float(lon), float(lat))
-        for idx, row in gdf.iterrows():
-            if row.geometry and row.geometry.contains(point):
+        # Query spatial index for candidate polygons
+        candidates = tree.query(point)
+        for ci in candidates:
+            geom = geoms[ci]
+            if geom.contains(point):
+                idx, row = valid_rows[ci]
                 pno = row.get("pno", "")
                 counts[pno] = counts.get(pno, 0) + 1
                 break
@@ -1515,6 +1547,24 @@ def _load_json_data(filepath: Path, label: str) -> dict:
         return data
     logger.warning(" %s not found — column will be null", filepath)
     return {}
+
+
+def _build_spatial_index(gdf):
+    """Build a spatial index (STRtree) over the GeoDataFrame for fast point-in-polygon lookups."""
+    from shapely.strtree import STRtree
+    valid_rows = [(idx, row) for idx, row in gdf.iterrows() if row.geometry and not row.geometry.is_empty]
+    geoms = [row.geometry for _, row in valid_rows]
+    tree = STRtree(geoms)
+    return tree, geoms, valid_rows
+
+
+def _point_to_pno(point, tree, geoms, valid_rows):
+    """Find the postal code containing a point using a spatial index."""
+    candidates = tree.query(point)
+    for ci in candidates:
+        if geoms[ci].contains(point):
+            return valid_rows[ci][1].get("pno", "")
+    return None
 
 
 def _join_simple_data(gdf, data: dict, column: str, label: str):
@@ -1763,7 +1813,23 @@ def fetch_rental_prices():
 
 
 def join_rental_prices(gdf, rental_data):
-    """Join rental price (€/m²/month) data to the GeoDataFrame."""
+    """Join rental price (€/m²/month) data to the GeoDataFrame.
+
+    Merges API result with local fallback file for best coverage.
+    """
+    # Merge with local file if it exists (for postal codes the API didn't cover)
+    if RENTAL_PRICE_FILE.exists():
+        try:
+            with open(RENTAL_PRICE_FILE) as f:
+                local = json.load(f)
+            if local and isinstance(local, dict):
+                merged = {k: float(v) for k, v in local.items()}
+                merged.update(rental_data or {})  # API data takes priority
+                rental_data = merged
+                logger.info("  Merged with local file: %d total entries", len(rental_data))
+        except Exception:
+            pass
+
     if not rental_data:
         gdf["rental_price_sqm"] = None
         return gdf
@@ -2090,6 +2156,114 @@ def calculate_single_person_hh(gdf):
     return gdf
 
 
+def backfill_tp_from_previous_year(gdf, latest_year: int):
+    """Backfill workplace (tp_) fields from the previous year if current year has all zeros.
+
+    Paavo sometimes publishes a new year before workplace statistics are ready,
+    resulting in all tp_ fields being 0. In that case, fall back to the most
+    recent year that has valid data.
+    """
+    tp_fields = [
+        "tp_tyopy", "tp_alku_a", "tp_jalo_bf", "tp_palv_gu",
+        "tp_a_maat", "tp_b_kaiv", "tp_c_teol", "tp_d_ener", "tp_e_vesi",
+        "tp_f_rake", "tp_g_kaup", "tp_h_kulj", "tp_i_majo", "tp_j_info",
+        "tp_k_raho", "tp_l_kiin", "tp_m_erik", "tp_n_hall", "tp_o_julk",
+        "tp_p_koul", "tp_q_terv", "tp_r_taid", "tp_s_muup", "tp_t_koti",
+        "tp_u_kans", "tp_x_tunt",
+    ]
+
+    # Check if current data has valid tp_ values (tp_tyopy > 0 for at least one row)
+    has_tp = any(safe_val(row.get("tp_tyopy")) not in (None, 0) for _, row in gdf.iterrows())
+    if has_tp:
+        logger.info("Workplace (tp_) data present in current year — no backfill needed.")
+        return gdf
+
+    logger.warning("Workplace (tp_) fields are all zero in year %d — backfilling from older year...", latest_year)
+
+    # Try previous years in descending order
+    for fallback_year in range(latest_year - 1, latest_year - 4, -1):
+        cache_key = f"paavo_wfs_{fallback_year}"
+        cached = _load_cache(cache_key)
+        if cached is None:
+            continue
+
+        try:
+            features = _validate_geojson_features(cached, f"Paavo WFS {fallback_year}")
+        except Exception:
+            continue
+
+        # Build lookup: pno -> tp_ fields
+        tp_lookup = {}
+        for feat in features:
+            props = feat.get("properties", {})
+            pno = props.get("postinumeroalue", "")
+            tp_tyopy = safe_val(props.get("tp_tyopy"))
+            if pno and tp_tyopy not in (None, 0):
+                tp_lookup[pno] = {f: props.get(f) for f in tp_fields}
+
+        if not tp_lookup:
+            continue
+
+        logger.info("  Using tp_ data from year %d (%d postal codes)", fallback_year, len(tp_lookup))
+        backfilled = 0
+        for idx, row in gdf.iterrows():
+            pno = row.get("pno", "") or row.get("postinumeroalue", "")
+            if pno in tp_lookup:
+                for field in tp_fields:
+                    val = tp_lookup[pno].get(field)
+                    if val is not None:
+                        gdf.at[idx, field] = val
+                backfilled += 1
+        logger.info("  Backfilled tp_ fields for %d postal codes", backfilled)
+        return gdf
+
+    logger.warning("  Could not find valid tp_ data in any previous year cache.")
+    return gdf
+
+
+def calculate_change_metrics(gdf):
+    """Calculate percentage change metrics from historical trend arrays.
+
+    Computes income_change_pct, population_change_pct, and unemployment_change_pct
+    from the respective _history JSON arrays stored in the GeoDataFrame.
+    """
+    logger.info("Calculating change metrics from historical trends...")
+
+    metrics = [
+        ("income_history", "income_change_pct"),
+        ("population_history", "population_change_pct"),
+        ("unemployment_history", "unemployment_change_pct"),
+    ]
+
+    for history_col, change_col in metrics:
+        count = 0
+        for idx, row in gdf.iterrows():
+            raw = row.get(history_col)
+            if raw is None:
+                gdf.at[idx, change_col] = None
+                continue
+
+            try:
+                series = json.loads(raw) if isinstance(raw, str) else raw
+                if isinstance(series, list) and len(series) >= 2:
+                    first_val = series[0][1]
+                    last_val = series[-1][1]
+                    if first_val and first_val != 0:
+                        change = round((last_val - first_val) / first_val * 100, 1)
+                        gdf.at[idx, change_col] = change
+                        count += 1
+                    else:
+                        gdf.at[idx, change_col] = None
+                else:
+                    gdf.at[idx, change_col] = None
+            except (json.JSONDecodeError, TypeError, IndexError, KeyError):
+                gdf.at[idx, change_col] = None
+
+        logger.info("  %s: computed for %d/%d postal codes", change_col, count, len(gdf))
+
+    return gdf
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -2166,6 +2340,10 @@ def main():
     gdf = filter_metro(gdf)
     gdf = reproject(gdf)
     gdf = clean_properties(gdf)
+
+    # Backfill workplace (tp_) fields if current year has zeros
+    gdf = backfill_tp_from_previous_year(gdf, latest_year)
+
     gdf = calculate_metrics(gdf)
 
     lang_data = load_foreign_language()
@@ -2275,10 +2453,20 @@ def main():
     sports_data = _load_json_data(SPORTS_FACILITY_FILE, "sports facility density")
     gdf = _join_simple_data(gdf, sports_data, "sports_facility_density", "sports facility density")
 
+    # --- Phase 10: Water proximity & building age ---
+    water_data = _load_json_data(WATER_PROXIMITY_FILE, "water proximity")
+    gdf = _join_simple_data(gdf, water_data, "water_proximity_m", "water proximity")
+
+    building_age_data = _load_json_data(BUILDING_AGE_FILE, "building age")
+    gdf = _join_simple_data(gdf, building_age_data, "avg_construction_year", "building age")
+
     # --- Phase 4: Historical time-series data ---
     _rate_limit()
     historical = fetch_historical_paavo(latest_year)
     gdf = join_historical_trends(gdf, historical)
+
+    # --- Change metrics derived from historical trends ---
+    gdf = calculate_change_metrics(gdf)
 
     # --- Backfill nulls from previous output ---
     # If any data source failed this run, preserve the values from the last
@@ -2305,6 +2493,13 @@ def main():
         "property_price_change_pct", "school_quality_score",
         "light_pollution",
         "noise_pollution",
+        # Phase 10: Water proximity & building age
+        "water_proximity_m",
+        "avg_construction_year",
+        # Change metrics (derived from historical trends)
+        "income_change_pct",
+        "population_change_pct",
+        "unemployment_change_pct",
     ]
     gdf = _backfill_nulls(gdf, previous, backfill_columns)
 
