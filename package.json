@@ -21,7 +21,6 @@
     "@turf/boolean-intersects": "^7.3.4",
     "@turf/boolean-point-in-polygon": "^7.3.4",
     "@turf/helpers": "^7.3.4",
-    "@turf/union": "^7.3.4",
     "html-to-image": "^1.11.13",
     "maplibre-gl": "^5.20.1",
     "qrcode.react": "^4.2.0",

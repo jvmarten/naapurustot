@@ -6,13 +6,18 @@ import { t } from './i18n';
 // Lazy-load @turf/union (~40KB) — only needed when user views "all cities" mode.
 // Other @turf modules (bbox, boolean-intersects, boolean-point-in-polygon) are
 // already lazy-loaded; this follows the same pattern to keep the main bundle small.
-let unionFn: typeof import('@turf/union').default | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let unionFn: ((...args: any[]) => any) | null = null;
 let unionPromise: Promise<void> | null = null;
 
 function ensureUnionLoaded(): Promise<void> {
   if (unionFn) return Promise.resolve();
   if (!unionPromise) {
-    unionPromise = import('@turf/union').then((m) => { unionFn = m.default; });
+    // @turf/union is optional — if not installed, we fall back to MultiPolygon concatenation
+    // @ts-expect-error -- optional dependency, may not be installed
+    unionPromise = import(/* @vite-ignore */ '@turf/union')
+      .then((m: { default: typeof unionFn }) => { unionFn = m.default; })
+      .catch(() => { /* package not installed, union stays null */ });
   }
   return unionPromise;
 }
