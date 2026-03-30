@@ -22,10 +22,6 @@ function makeMultiPolygonFeature(coords: number[][][][]): Feature<MultiPolygon> 
 const unitSquare = [[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]];
 // Small square: area ~= 0.01 (1% of unit square → below 15% threshold)
 const tinySquare = [[10, 10], [10.1, 10], [10.1, 10.1], [10, 10.1], [10, 10]];
-// Medium square: area ~= 0.04 (4% of unit square → below 15% threshold)
-const smallSquare = [[20, 20], [20.2, 20], [20.2, 20.2], [20, 20.2], [20, 20]];
-// Large enough: area ~= 0.16 (16% of unit square → above 15% threshold)
-const mediumSquare = [[30, 30], [30.4, 30], [30.4, 30.4], [30, 30.4], [30, 30]];
 
 describe('filterSmallIslands — threshold behavior', () => {
   it('keeps all polygons when only one exists in MultiPolygon', () => {

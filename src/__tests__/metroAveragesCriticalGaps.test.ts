@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeMetroAverages, computeQuickWinMetrics, computeChangeMetrics, parseTrendSeries } from '../utils/metrics';
+import { computeMetroAverages } from '../utils/metrics';
 import type { Feature } from 'geojson';
 
 function makeFeature(props: Record<string, unknown>): Feature {

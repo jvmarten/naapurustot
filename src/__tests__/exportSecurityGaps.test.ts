@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { escapeHtml } from '../utils/formatting';
 
 describe('escapeHtml — comprehensive security tests', () => {
