@@ -63,6 +63,7 @@ function addDataLayers(
   layerId: LayerId,
   theme: 'dark' | 'light',
 ) {
+  if (map.getLayer('neighborhoods-metro-line')) map.removeLayer('neighborhoods-metro-line');
   if (map.getLayer(LINE_LAYER)) map.removeLayer(LINE_LAYER);
   if (map.getLayer(FILL_LAYER)) map.removeLayer(FILL_LAYER);
   if (map.getSource(SOURCE_ID)) map.removeSource(SOURCE_ID);
@@ -91,10 +92,24 @@ function addDataLayers(
     id: LINE_LAYER,
     type: 'line',
     source: SOURCE_ID,
+    filter: ['!', ['boolean', ['get', '_isMetroArea'], false]],
     paint: {
       'line-color': theme === 'dark' ? '#1e293b' : '#475569',
       'line-width': theme === 'dark' ? 0.8 : 1,
       'line-opacity': 0.6,
+    },
+  });
+
+  // Show outer borders for metro area features
+  map.addLayer({
+    id: 'neighborhoods-metro-line',
+    type: 'line',
+    source: SOURCE_ID,
+    filter: ['boolean', ['get', '_isMetroArea'], false],
+    paint: {
+      'line-color': theme === 'dark' ? '#1e293b' : '#475569',
+      'line-width': 1.5,
+      'line-opacity': 0.7,
     },
   });
 }
