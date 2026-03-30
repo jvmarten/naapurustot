@@ -42,8 +42,8 @@ PUUSTO_LAYER = "asuminen_ja_maankaytto:puusto"
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 
 # Bounding boxes for OSM queries (south,west,north,east)
-TAMPERE_BBOX = "61.10,22.90,62.00,24.70"
-TURKU_BBOX = "60.25,21.50,60.75,22.90"
+TAMPERE_BBOX = "61.15,23.05,62.25,25.05"
+TURKU_BBOX = "60.22,21.42,60.79,22.97"
 
 
 def compute_tree_pct(postal_proj, tree_gdf, label=""):
@@ -89,26 +89,28 @@ def compute_tree_pct(postal_proj, tree_gdf, label=""):
 def fetch_osm_forest(bbox, label):
     """Fetch forest/wood polygons from OSM Overpass API for a bounding box.
 
+    Uses ``out geom`` to get inline coordinates for both ways and relation
+    members, so multipolygon relations (which make up the vast majority of
+    forest area in rural Finland) are properly captured.
+
     Returns a GeoDataFrame in EPSG:3067 with forest polygons, or an empty
     GeoDataFrame if the fetch fails.
     """
     logger.info("Fetching %s forest data from OSM Overpass...", label)
 
     query = f"""
-    [out:json][timeout:120];
+    [out:json][timeout:180];
     (
       way["natural"="wood"]({bbox});
       way["landuse"="forest"]({bbox});
       relation["natural"="wood"]({bbox});
       relation["landuse"="forest"]({bbox});
     );
-    out body;
-    >;
-    out skel qt;
+    out geom;
     """
 
     try:
-        resp = requests.post(OVERPASS_URL, data={"data": query}, timeout=180)
+        resp = requests.post(OVERPASS_URL, data={"data": query}, timeout=300)
         resp.raise_for_status()
         data = resp.json()
         elements = data.get("elements", [])
@@ -117,22 +119,31 @@ def fetch_osm_forest(bbox, label):
         logger.warning("  Could not fetch %s forest data: %s", label, e)
         return gpd.GeoDataFrame(geometry=[], crs="EPSG:3067")
 
-    nodes = {}
-    ways = {}
-    for el in elements:
-        if el["type"] == "node":
-            nodes[el["id"]] = (el["lon"], el["lat"])
-        elif el["type"] == "way":
-            ways[el["id"]] = el.get("nodes", [])
-
     polys = []
-    for way_id, node_ids in ways.items():
-        coords = [nodes[nid] for nid in node_ids if nid in nodes]
-        if len(coords) >= 4 and coords[0] == coords[-1]:
-            try:
-                polys.append(Polygon(coords))
-            except Exception:
-                pass
+
+    for el in elements:
+        if el["type"] == "way" and "geometry" in el:
+            coords = [(p["lon"], p["lat"]) for p in el["geometry"]]
+            if len(coords) >= 4 and coords[0] == coords[-1]:
+                try:
+                    polys.append(Polygon(coords))
+                except Exception:
+                    pass
+        elif el["type"] == "relation":
+            # Assemble outer rings from multipolygon relation members
+            for member in el.get("members", []):
+                if member["type"] == "way" and "geometry" in member:
+                    role = member.get("role", "outer")
+                    if role != "outer":
+                        continue
+                    coords = [(p["lon"], p["lat"]) for p in member["geometry"]]
+                    if len(coords) >= 4:
+                        if coords[0] != coords[-1]:
+                            coords.append(coords[0])
+                        try:
+                            polys.append(Polygon(coords))
+                        except Exception:
+                            pass
 
     if not polys:
         logger.warning("  No valid forest polygons for %s", label)
