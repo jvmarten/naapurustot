@@ -212,7 +212,11 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   // eslint-disable-next-line react-hooks/exhaustive-deps -- init once; theme changes handled by separate effect
   }, []);
 
-  // Switch basemap on theme change
+  // Switch basemap and update theme-dependent paint properties on theme change.
+  // Only updates paint properties in-place — does NOT destroy/recreate the GeoJSON
+  // source, which would clear all feature states (hover, selected, pinned) and force
+  // expensive layer re-creation.
+  const themeRef = useRef(theme);
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -222,9 +226,28 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       const tiles = theme === 'dark' ? BASEMAP_DARK : BASEMAP_LIGHT;
       source.setTiles([tiles]);
     }
+
+    // Skip paint updates on initial mount — the data effect handles initial setup
+    if (themeRef.current === theme) return;
+    themeRef.current = theme;
+
+    // Update theme-dependent paint properties in-place
+    if (map.getLayer(LINE_LAYER)) {
+      map.setPaintProperty(LINE_LAYER, 'line-color', theme === 'dark' ? '#1e293b' : '#475569');
+      map.setPaintProperty(LINE_LAYER, 'line-width', theme === 'dark' ? 0.8 : 1);
+    }
+    if (map.getLayer(METRO_LINE_LAYER)) {
+      map.setPaintProperty(METRO_LINE_LAYER, 'line-color', theme === 'dark' ? '#1e293b' : '#475569');
+    }
+    if (map.getLayer(HIGHLIGHT_LAYER)) {
+      map.setPaintProperty(HIGHLIGHT_LAYER, 'line-color', theme === 'dark' ? '#f8fafc' : '#0f172a');
+    }
+    if (map.getLayer(NO_DATA_LAYER)) {
+      map.setPaintProperty(NO_DATA_LAYER, 'line-color', theme === 'dark' ? '#475569' : '#94a3b8');
+    }
   }, [theme]);
 
-  // Add/update data source and layers
+  // Add/update data source and layers when data changes (city switch, initial load)
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !data) return;
@@ -244,6 +267,8 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       // Reset feature state refs — the old source (and its states) is gone
       hoveredIdRef.current = null;
       selectedIdRef.current = null;
+
+      const currentTheme = themeRef.current;
 
       map.addSource(SOURCE_ID, {
         type: 'geojson',
@@ -273,8 +298,8 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         source: SOURCE_ID,
         filter: ['!', ['boolean', ['get', '_isMetroArea'], false]],
         paint: {
-          'line-color': theme === 'dark' ? '#1e293b' : '#475569',
-          'line-width': theme === 'dark' ? 0.8 : 1,
+          'line-color': currentTheme === 'dark' ? '#1e293b' : '#475569',
+          'line-width': currentTheme === 'dark' ? 0.8 : 1,
           'line-opacity': 0.6,
         },
       });
@@ -286,7 +311,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         source: SOURCE_ID,
         filter: ['boolean', ['get', '_isMetroArea'], false],
         paint: {
-          'line-color': theme === 'dark' ? '#1e293b' : '#475569',
+          'line-color': currentTheme === 'dark' ? '#1e293b' : '#475569',
           'line-width': 1.5,
           'line-opacity': 0.7,
         },
@@ -297,7 +322,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         type: 'line',
         source: SOURCE_ID,
         paint: {
-          'line-color': theme === 'dark' ? '#f8fafc' : '#0f172a',
+          'line-color': currentTheme === 'dark' ? '#f8fafc' : '#0f172a',
           'line-width': 2.5,
           'line-opacity': ['case', ['any', ['boolean', ['feature-state', 'hover'], false], ['boolean', ['feature-state', 'selected'], false]], 1, 0],
         },
@@ -317,7 +342,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
           ],
         ] as unknown as maplibregl.ExpressionSpecification,
         paint: {
-          'line-color': theme === 'dark' ? '#475569' : '#94a3b8',
+          'line-color': currentTheme === 'dark' ? '#475569' : '#94a3b8',
           'line-width': 1.5,
           'line-dasharray': [2, 2],
           'line-opacity': 0.8,
@@ -335,7 +360,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       map.off('load', addLayers);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- activeLayer/fillOpacity changes handled by dedicated effects
-  }, [data, theme]);
+  }, [data]);
 
   // Refresh GeoJSON source data when quality indices are recomputed
   useEffect(() => {
@@ -387,7 +412,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       map.off('load', addGridLayer);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- activeLayer/fillOpacity handled by dedicated effects
-  }, [gridData, data, theme]);
+  }, [gridData, data]);
 
   // Toggle postal fill visibility: hide when grid data is shown, show otherwise
   useEffect(() => {
@@ -561,7 +586,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
           source: SOURCE_ID,
           filter: filterExpr,
           paint: {
-            'line-color': theme === 'dark' ? '#34d399' : '#059669',
+            'line-color': themeRef.current === 'dark' ? '#34d399' : '#059669',
             'line-width': 2,
             'line-opacity': 0.8,
           },
@@ -573,7 +598,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         map.setLayoutProperty(FILTER_HIGHLIGHT_LAYER, 'visibility', 'none');
       }
     }
-  }, [filterActive, filterMatchPnos, data, theme, fillOpacity]);
+  }, [filterActive, filterMatchPnos, data, fillOpacity]);
 
   // Hover/click handler — uses refs for mode flags and callbacks to avoid
   // re-attaching 4 map event listeners on every drawMode/selectMode change.
@@ -702,9 +727,9 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       map.setFeatureState({ source: SOURCE_ID, id: selectedPno }, { selected: true });
     }
     selectedIdRef.current = selectedPno;
-  // theme is included because the data/theme effect destroys and recreates the source,
-  // which clears all feature states — without this, the selection highlight is lost on theme change.
-  }, [selectedPno, data, theme]);
+  // theme removed — data effect no longer destroys source on theme change,
+  // so feature states are preserved across theme toggles.
+  }, [selectedPno, data]);
 
   // Highlight pinned neighborhoods — uses setFilter on existing layer to avoid layer recreation.
   useEffect(() => {
@@ -731,13 +756,13 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         source: SOURCE_ID,
         filter: filter,
         paint: {
-          'line-color': theme === 'dark' ? '#facc15' : '#d97706',
+          'line-color': themeRef.current === 'dark' ? '#facc15' : '#d97706',
           'line-width': 3,
           'line-opacity': 1,
         },
       });
     }
-  }, [pinnedPnos, data, theme]);
+  }, [pinnedPnos, data]);
 
   // Select-areas mode highlight layer
   useEffect(() => {
@@ -764,13 +789,13 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         source: SOURCE_ID,
         filter: filter,
         paint: {
-          'line-color': theme === 'dark' ? '#a78bfa' : '#7c3aed',
+          'line-color': themeRef.current === 'dark' ? '#a78bfa' : '#7c3aed',
           'line-width': 3,
           'line-opacity': 1,
         },
       });
     }
-  }, [selectedAreaPnos, data, theme]);
+  }, [selectedAreaPnos, data]);
 
   // PO-4: Wizard results highlight layer — uses setFilter on existing layer to avoid recreation.
   useEffect(() => {
@@ -810,13 +835,13 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         source: SOURCE_ID,
         filter: filter,
         paint: {
-          'line-color': theme === 'dark' ? '#60a5fa' : '#2563eb',
+          'line-color': themeRef.current === 'dark' ? '#60a5fa' : '#2563eb',
           'line-width': 3,
           'line-opacity': 1,
         },
       });
     }
-  }, [wizardHighlightPnos, data, theme, fillOpacity]);
+  }, [wizardHighlightPnos, data, fillOpacity]);
 
   // CF-6: Draw/select mode cursor
   useEffect(() => {
@@ -941,7 +966,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
           source: SOURCE_ID,
           filter: filter,
           paint: {
-            'line-color': theme === 'dark' ? '#a78bfa' : '#7c3aed',
+            'line-color': themeRef.current === 'dark' ? '#a78bfa' : '#7c3aed',
             'line-width': 3,
             'line-opacity': 1,
           },
@@ -992,7 +1017,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       if (map.getLayer(DRAW_SNAP_LINE_LAYER)) map.removeLayer(DRAW_SNAP_LINE_LAYER);
       if (map.getLayer(DRAW_SNAP_FILL_LAYER)) map.removeLayer(DRAW_SNAP_FILL_LAYER);
     };
-  }, [drawnPolygon, drawnAreaPnos, theme]);
+  }, [drawnPolygon, drawnAreaPnos]);
 
   return <div ref={containerRef} className="absolute inset-0" />;
 });

@@ -376,6 +376,17 @@ const App: React.FC = () => {
     }
   }, [data, select, pin]);
 
+  // Stable features array for NeighborhoodPanel's similarity computation.
+  // filteredData changes identity on qualityVersion bump (in-place mutation signal),
+  // but the features themselves don't change — similarity doesn't use quality indices.
+  // Without this, findSimilarNeighborhoods recomputes (~200 features × 10 metrics)
+  // and busts its min/max range cache on every quality weight slider drag.
+  const stableFeatures = useMemo(
+    () => filteredData?.features ?? null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- exclude qualityVersion/lang to keep reference stable
+    [data, cityFilter, unionReady],
+  );
+
   // Memoize pinned PNO array to avoid new references on every render.
   // Without this, Map's pinnedPnos useEffect fires on every App re-render,
   // recreating the pinned highlight layer unnecessarily.
@@ -872,7 +883,7 @@ const App: React.FC = () => {
             pinCount={pinned.length}
             onCustomize={handleToggleCustomQuality}
             isCustomWeights={isCustomWeights(qualityWeights)}
-            allFeatures={filteredData?.features}
+            allFeatures={stableFeatures ?? undefined}
             onFlyTo={handleFlyTo}
             isFavorite={isFavorite(selected.pno)}
             onToggleFavorite={handleToggleFavorite}

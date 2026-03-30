@@ -64,19 +64,31 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
     [collapsed],
   );
 
+  // Use refs for values read inside the keyboard handler to avoid re-registering
+  // the listener on every arrow key press (focusedIndex changes on each keystroke).
+  const focusedIndexRef = useRef(focusedIndex);
+  const visibleLayersRef = useRef(visibleLayers);
+  const onLayerChangeRef = useRef(onLayerChange);
+  useEffect(() => {
+    focusedIndexRef.current = focusedIndex;
+    visibleLayersRef.current = visibleLayers;
+    onLayerChangeRef.current = onLayerChange;
+  });
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!listRef.current?.contains(document.activeElement)) return;
+      const vl = visibleLayersRef.current;
 
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        setFocusedIndex((prev) => Math.min(prev + 1, visibleLayers.length - 1));
+        setFocusedIndex((prev) => Math.min(prev + 1, vl.length - 1));
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         setFocusedIndex((prev) => Math.max(prev - 1, 0));
-      } else if (e.key === 'Enter' && focusedIndex >= 0 && focusedIndex < visibleLayers.length) {
+      } else if (e.key === 'Enter' && focusedIndexRef.current >= 0 && focusedIndexRef.current < vl.length) {
         e.preventDefault();
-        onLayerChange(visibleLayers[focusedIndex]);
+        onLayerChangeRef.current(vl[focusedIndexRef.current]);
         setMobileOpen(false);
       } else if (e.key === 'Escape') {
         e.preventDefault();
@@ -86,7 +98,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [visibleLayers, focusedIndex, onLayerChange]);
+  }, []);
 
   // Scroll focused item into view
   useEffect(() => {
