@@ -76,8 +76,8 @@ describe('computeQualityIndices — critical edge cases', () => {
 
     computeQualityIndices(features, weights);
 
-    // Zero-income feature should have null quality (no valid data)
-    expect((zero.properties as NeighborhoodProperties).quality_index).toBeNull();
+    // Zero-income feature falls back to metro average ((30000+50000)/2=40000) → normalized to 50
+    expect((zero.properties as NeighborhoodProperties).quality_index).toBe(50);
     // Valid features should have scores
     expect((valid1.properties as NeighborhoodProperties).quality_index).toBe(0);
     expect((valid2.properties as NeighborhoodProperties).quality_index).toBe(100);
@@ -124,10 +124,11 @@ describe('computeQualityIndices — critical edge cases', () => {
 
     computeQualityIndices(features, weights);
 
-    // Feature a should still get a score (from income alone, reweighted)
+    // Feature a: income=100 (max), safety falls back to metro avg (crime_index=5, range {5,5}) → 50
+    // quality_index = (100*50 + 50*50) / 100 = 75
     const scoreA = (a.properties as NeighborhoodProperties).quality_index;
     expect(scoreA).not.toBeNull();
-    expect(scoreA).toBe(100); // highest income → 100 from only contributing factor
+    expect(scoreA).toBe(75);
   });
 
   it('all features missing data for a factor → factor is skipped', () => {

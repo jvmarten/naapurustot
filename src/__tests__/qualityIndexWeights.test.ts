@@ -161,15 +161,15 @@ describe('Quality index — normalization edge cases', () => {
 
     computeQualityIndices(features, weights);
 
-    // First feature: income is null, so only safety contributes
+    // First feature: income is null but falls back to metro average
     const qi1 = getProp(features[0]).quality_index;
     expect(qi1).not.toBeNull();
     expect(Number.isNaN(qi1)).toBe(false);
   });
 
-  it('hr_mtu with value <= 0 is excluded from normalization range', () => {
+  it('hr_mtu with value <= 0 is excluded from normalization range and uses metro average', () => {
     const features = [
-      makeFeature({ hr_mtu: -1 }), // should be excluded
+      makeFeature({ hr_mtu: -1 }), // invalid → falls back to metro average
       makeFeature({ hr_mtu: 20000 }),
       makeFeature({ hr_mtu: 40000 }),
     ];
@@ -180,8 +180,8 @@ describe('Quality index — normalization edge cases', () => {
 
     computeQualityIndices(features, weights);
 
-    // First feature should have null quality_index (no valid income data)
-    expect(getProp(features[0]).quality_index).toBeNull();
+    // First feature uses metro average (30000) → normalize to 50
+    expect(getProp(features[0]).quality_index).toBe(50);
     // Others should have valid scores (0 and 100)
     expect(getProp(features[1]).quality_index).toBe(0);
     expect(getProp(features[2]).quality_index).toBe(100);

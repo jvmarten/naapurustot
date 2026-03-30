@@ -182,16 +182,63 @@ function collectRange(features: GeoJSON.Feature[], prop: keyof NeighborhoodPrope
   return result;
 }
 
+/** Compute the metro-wide average for each property (for missing data fallback) */
+function computePropertyAverages(
+  features: GeoJSON.Feature[],
+  props: Set<string>,
+): Map<string, number> {
+  const sums = new Map<string, number>();
+  const counts = new Map<string, number>();
+
+  for (const prop of props) {
+    sums.set(prop, 0);
+    counts.set(prop, 0);
+  }
+
+  for (const f of features) {
+    const p = f.properties as NeighborhoodProperties;
+    for (const prop of props) {
+      const v = p[prop as keyof NeighborhoodProperties];
+      if (typeof v !== 'number' || !isFinite(v)) continue;
+      if (prop === 'hr_mtu' && v <= 0) continue;
+      sums.set(prop, sums.get(prop)! + v);
+      counts.set(prop, counts.get(prop)! + 1);
+    }
+  }
+
+  const averages = new Map<string, number>();
+  for (const prop of props) {
+    const count = counts.get(prop)!;
+    if (count > 0) {
+      averages.set(prop, sums.get(prop)! / count);
+    }
+  }
+
+  return averages;
+}
+
 function getFactorScore(
   p: NeighborhoodProperties,
   factor: QualityFactor,
   ranges: Map<string, MinMax>,
+  metroAverages: Map<string, number>,
 ): number | null {
   const scores: number[] = [];
   for (const prop of factor.properties) {
-    const v = p[prop];
-    if (typeof v !== 'number' || v == null || !isFinite(v)) continue;
-    if (prop === 'hr_mtu' && v <= 0) continue;
+    const raw = p[prop];
+    let v: number;
+    const isMissing =
+      typeof raw !== 'number' || !isFinite(raw) || (prop === 'hr_mtu' && raw <= 0);
+
+    if (isMissing) {
+      // Use metro-wide average as fallback so missing data doesn't crush the score
+      const avg = metroAverages.get(prop as string);
+      if (avg == null) continue;
+      v = avg;
+    } else {
+      v = raw;
+    }
+
     const range = ranges.get(prop as string);
     if (!range) continue;
     scores.push(normalize(v, range));
@@ -207,16 +254,21 @@ export function computeQualityIndices(
 ): void {
   const w = weights ?? getDefaultWeights();
 
-  // Collect all needed ranges
+  // Collect all needed ranges and property names
   const ranges = new Map<string, MinMax>();
+  const allProps = new Set<string>();
   for (const factor of QUALITY_FACTORS) {
     if ((w[factor.id] ?? 0) <= 0) continue;
     for (const prop of factor.properties) {
+      allProps.add(prop as string);
       if (!ranges.has(prop as string)) {
         ranges.set(prop as string, collectRange(features, prop));
       }
     }
   }
+
+  // Compute metro-wide averages for missing data fallback
+  const metroAverages = computePropertyAverages(features, allProps);
 
   for (const f of features) {
     const p = f.properties as NeighborhoodProperties;
@@ -225,7 +277,7 @@ export function computeQualityIndices(
     for (const factor of QUALITY_FACTORS) {
       const factorWeight = w[factor.id] ?? 0;
       if (factorWeight <= 0) continue;
-      const score = getFactorScore(p, factor, ranges);
+      const score = getFactorScore(p, factor, ranges, metroAverages);
       if (score != null) {
         scores.push({ value: score, weight: factorWeight });
       }

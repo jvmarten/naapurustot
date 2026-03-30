@@ -156,8 +156,8 @@ describe('computeQualityIndices — untested branches', () => {
     weights.income = 100;
 
     computeQualityIndices(features, weights);
-    // Feature 0 has no valid income, so quality_index = null
-    expect(features[0].properties!.quality_index).toBeNull();
+    // Feature 0 falls back to metro average income ((30000+50000)/2=40000) → normalized to 50
+    expect(features[0].properties!.quality_index).toBe(50);
     // Features 1 and 2 should be scored
     expect(features[1].properties!.quality_index).toBe(0);
     expect(features[2].properties!.quality_index).toBe(100);

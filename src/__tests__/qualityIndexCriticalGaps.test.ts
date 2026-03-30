@@ -125,12 +125,11 @@ describe('quality index — multi-property factor averaging', () => {
 
     computeQualityIndices(features, weights);
 
-    // Feature 0: healthcare=0%, daycare=0%, avg=0; but school_density and grocery_density
-    // have only one valid value each across the dataset → min===max → normalize returns 50
-    // So feature 1 gets avg of (100+50+100+50)/4 = 75, not 100
-    // Feature 0 gets avg of (0+0)/2 = 0
-    expect(features[0].properties!.quality_index).toBe(0);
-    // Feature 1: avg includes school/grocery at 50 because min===max (only feature 1 has values)
+    // Feature 0: healthcare=0, school=fallback to avg(10)→50, daycare=0, grocery=fallback to avg(10)→50
+    // avg = (0+50+0+50)/4 = 25
+    expect(features[0].properties!.quality_index).toBe(25);
+    // Feature 1: healthcare=100, school=50(min===max), daycare=100, grocery=50(min===max)
+    // avg = (100+50+100+50)/4 = 75
     expect(features[1].properties!.quality_index).toBe(75);
   });
 

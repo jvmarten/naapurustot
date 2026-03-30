@@ -86,14 +86,35 @@ describe('computeQualityIndices', () => {
     expect(features[1].properties!.quality_index).toBe(50);
   });
 
-  it('treats hr_mtu of 0 as missing', () => {
+  it('treats hr_mtu of 0 as missing and uses metro average', () => {
     const features = [
       makeFeature({ hr_mtu: 0, unemployment_rate: 5, higher_education_rate: 30 }),
       makeFeature({ hr_mtu: 30000, unemployment_rate: 10, higher_education_rate: 50 }),
     ];
     computeQualityIndices(features);
-    // Feature 0 has no income data, so quality_index computed from unemployment + education only
+    // Feature 0 income falls back to metro average (30000) instead of being skipped
     expect(features[0].properties!.quality_index).not.toBeNull();
+  });
+
+  it('uses metro average for missing data instead of crushing the score', () => {
+    // Feature 0 is missing income; features 1 and 2 have income data
+    const features = [
+      makeFeature({ hr_mtu: null, unemployment_rate: 5, higher_education_rate: 50 }),
+      makeFeature({ hr_mtu: 20000, unemployment_rate: 10, higher_education_rate: 40 }),
+      makeFeature({ hr_mtu: 40000, unemployment_rate: 15, higher_education_rate: 60 }),
+    ];
+
+    const weights: Record<string, number> = {
+      safety: 0, employment: 0, income: 50, education: 50,
+      transit: 0, services: 0, air_quality: 0,
+      cycling: 0, grocery_access: 0, restaurants: 0,
+    };
+
+    computeQualityIndices(features, weights);
+
+    // Metro average income = (20000+40000)/2 = 30000 → normalized to 50
+    // Feature 0: income=50 (from avg), education=(50-40)/(60-40)*100=50 → weighted avg = 50
+    expect(features[0].properties!.quality_index).toBe(50);
   });
 });
 

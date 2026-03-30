@@ -151,8 +151,8 @@ describe('computeQualityIndices — robustness', () => {
     for (const f of QUALITY_FACTORS) weights[f.id] = 0;
     weights['income'] = 100;
     computeQualityIndices(features, weights);
-    // Feature 0 should have null (hr_mtu=0 excluded)
-    expect((features[0].properties as NeighborhoodProperties).quality_index).toBeNull();
+    // Feature 0 falls back to metro average ((20000+40000)/2=30000) → normalized to 50
+    expect((features[0].properties as NeighborhoodProperties).quality_index).toBe(50);
     expect((features[1].properties as NeighborhoodProperties).quality_index).toBe(0);
     expect((features[2].properties as NeighborhoodProperties).quality_index).toBe(100);
   });

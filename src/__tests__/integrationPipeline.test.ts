@@ -185,8 +185,8 @@ describe('full data pipeline integration', () => {
     computeQualityIndices(features);
     const averages = computeMetroAverages(features);
 
-    // Null feature should have null quality index
-    expect(features[0].properties!.quality_index).toBeNull();
+    // Null feature falls back to metro averages (from feature 1), gets a valid score
+    expect(features[0].properties!.quality_index).not.toBeNull();
     // Valid feature should have a quality index
     expect(features[1].properties!.quality_index).not.toBeNull();
     // Metro averages should only reflect the valid feature
