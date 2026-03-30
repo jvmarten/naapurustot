@@ -60,6 +60,7 @@ export function useGridData(activeLayer: LayerId): GridDataState {
     fetched.add(activeLayer);
 
     let cancelled = false;
+    let completed = false;
     setLoading(true);
 
     fetch(path)
@@ -72,6 +73,7 @@ export function useGridData(activeLayer: LayerId): GridDataState {
         const geojson = parseGridResponse(path, json);
         setCache((prev) => ({ ...prev, [activeLayer]: geojson }));
         setLoading(false);
+        completed = true;
       })
       .catch((err) => {
         if (cancelled) return;
@@ -84,8 +86,8 @@ export function useGridData(activeLayer: LayerId): GridDataState {
 
     return () => {
       cancelled = true;
-      // Allow retry on re-visit if the fetch didn't complete
-      fetched.delete(activeLayer);
+      // Allow retry on re-visit only if the fetch didn't complete successfully
+      if (!completed) fetched.delete(activeLayer);
     };
   }, [activeLayer]);
 
