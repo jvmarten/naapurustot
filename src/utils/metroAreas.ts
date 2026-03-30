@@ -10,13 +10,16 @@ import { t } from './i18n';
 let unionFn: ((...args: any[]) => any) | null = null;
 let unionPromise: Promise<void> | null = null;
 
+// Indirection prevents Vite/Vitest static analysis from resolving the specifier
+// at transform time, so the import only fails at runtime (where we catch it).
+const _turfUnionId = '@turf/' + 'union';
+
 function ensureUnionLoaded(): Promise<void> {
   if (unionFn) return Promise.resolve();
   if (!unionPromise) {
     // @turf/union is optional — if not installed, we fall back to MultiPolygon concatenation
-    // @ts-expect-error -- optional dependency, may not be installed
-    unionPromise = import(/* @vite-ignore */ '@turf/union')
-      .then((m: { default: typeof unionFn }) => { unionFn = m.default; })
+    unionPromise = import(_turfUnionId)
+      .then((m) => { unionFn = m.default; })
       .catch(() => { /* package not installed, union stays null */ });
   }
   return unionPromise;
@@ -164,18 +167,6 @@ export function buildMetroAreaFeatures(
       }
     }
 
-    // Check if any city has multiple polygons that need unioning
-    const needsUnion = cityIds.some((id) => {
-      const polys = grouped[id].filter((f) => {
-        const tp = f.geometry?.type;
-        return tp === 'Polygon' || tp === 'MultiPolygon';
-      });
-      return polys.length > 1;
-    });
-
-    // @turf/union is lazy-loaded — if needed but not yet available, return null
-    if (needsUnion && !unionFn) return null;
-
     const perCity = new Map<CityId, MetroAreaCache['perCity'] extends Map<CityId, infer V> ? V : never>();
 
     for (const cityId of cityIds) {
@@ -189,9 +180,25 @@ export function buildMetroAreaFeatures(
 
       if (polyFeatures.length === 0) continue;
 
-      const merged = polyFeatures.length === 1
-        ? polyFeatures[0]
-        : unionFn!({ type: 'FeatureCollection', features: polyFeatures });
+      let merged: Feature<Polygon | MultiPolygon> | null;
+      if (polyFeatures.length === 1) {
+        merged = polyFeatures[0];
+      } else if (unionFn) {
+        merged = unionFn({ type: 'FeatureCollection', features: polyFeatures });
+      } else {
+        // Fallback: concatenate into a MultiPolygon (no border dissolve)
+        const polygons: number[][][][] = [];
+        for (const f of polyFeatures) {
+          if (f.geometry.type === 'Polygon') {
+            polygons.push(f.geometry.coordinates);
+          } else {
+            for (const poly of f.geometry.coordinates) {
+              polygons.push(poly);
+            }
+          }
+        }
+        merged = { type: 'Feature', properties: {}, geometry: { type: 'MultiPolygon', coordinates: polygons } };
+      }
       if (!merged) continue;
 
       perCity.set(cityId, {
