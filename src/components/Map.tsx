@@ -92,6 +92,7 @@ function makeStyle(theme: 'dark' | 'light'): maplibregl.StyleSpecification {
 const SOURCE_ID = 'neighborhoods';
 const FILL_LAYER = 'neighborhoods-fill';
 const LINE_LAYER = 'neighborhoods-line';
+const METRO_LINE_LAYER = 'neighborhoods-metro-line';
 const HIGHLIGHT_LAYER = 'neighborhoods-highlight';
 
 const PINNED_LAYER = 'neighborhoods-pinned';
@@ -235,6 +236,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       if (map.getLayer(WIZARD_HIGHLIGHT_LAYER)) map.removeLayer(WIZARD_HIGHLIGHT_LAYER);
       if (map.getLayer(PINNED_LAYER)) map.removeLayer(PINNED_LAYER);
       if (map.getLayer(HIGHLIGHT_LAYER)) map.removeLayer(HIGHLIGHT_LAYER);
+      if (map.getLayer(METRO_LINE_LAYER)) map.removeLayer(METRO_LINE_LAYER);
       if (map.getLayer(LINE_LAYER)) map.removeLayer(LINE_LAYER);
       if (map.getLayer(FILL_LAYER)) map.removeLayer(FILL_LAYER);
       if (map.getSource(SOURCE_ID)) map.removeSource(SOURCE_ID);
@@ -269,11 +271,24 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         id: LINE_LAYER,
         type: 'line',
         source: SOURCE_ID,
-        filter: ['!=', ['get', '_isMetroArea'], true],
+        filter: ['!', ['boolean', ['get', '_isMetroArea'], false]],
         paint: {
           'line-color': theme === 'dark' ? '#1e293b' : '#475569',
           'line-width': theme === 'dark' ? 0.8 : 1,
           'line-opacity': 0.6,
+        },
+      });
+
+      // Show only outer borders for metro area features (all-cities view)
+      map.addLayer({
+        id: METRO_LINE_LAYER,
+        type: 'line',
+        source: SOURCE_ID,
+        filter: ['boolean', ['get', '_isMetroArea'], false],
+        paint: {
+          'line-color': theme === 'dark' ? '#1e293b' : '#475569',
+          'line-width': 1.5,
+          'line-opacity': 0.7,
         },
       });
 
@@ -295,7 +310,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         type: 'line',
         source: SOURCE_ID,
         filter: ['all',
-          ['!=', ['get', '_isMetroArea'], true],
+          ['!', ['boolean', ['get', '_isMetroArea'], false]],
           ['any',
             ['!', ['has', layer.property]],
             ['==', ['get', layer.property], null],
