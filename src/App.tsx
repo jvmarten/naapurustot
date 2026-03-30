@@ -99,21 +99,27 @@ const App: React.FC = () => {
     preloadUnion().then(() => setUnionReady((v) => v + 1));
   }, [cityFilter, data]);
 
-  // Filter data by selected city — when 'all' is chosen, show merged metro area polygons
-  const filteredData = useMemo(() => {
-    if (!data) return null;
-    if (cityFilter === 'all') {
-      // buildMetroAreaFeatures returns null while @turf/union is loading
-      return (buildMetroAreaFeatures(data.features) as typeof data) ?? null;
-    }
+  // Filter data by selected city — split into two memos so that lang/unionReady
+  // changes (which only affect the "all cities" metro area view) don't trigger a
+  // full Map layer teardown for single-city views.
+  const singleCityData = useMemo(() => {
+    if (!data || cityFilter === 'all') return null;
     return {
       ...data,
       features: data.features.filter(
         (f) => f.properties?.city === cityFilter,
       ),
     } as typeof data;
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- qualityVersion signals in-place data mutation
+  }, [data, cityFilter, qualityVersion]);
+
+  const allCitiesData = useMemo(() => {
+    if (!data || cityFilter !== 'all') return null;
+    return (buildMetroAreaFeatures(data.features) as typeof data) ?? null;
   // eslint-disable-next-line react-hooks/exhaustive-deps -- lang triggers rebuild so metro area names respect language; unionReady signals @turf/union loaded; qualityVersion signals in-place data mutation
   }, [data, cityFilter, lang, unionReady, qualityVersion]);
+
+  const filteredData = cityFilter === 'all' ? allCitiesData : singleCityData;
 
   // Recompute metro averages for the selected city.
   // qualityVersion is included so that averages are recalculated after custom quality weight changes
@@ -124,11 +130,25 @@ const App: React.FC = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps -- qualityVersion signals in-place data mutation
   }, [filteredData, qualityVersion]);
 
-  // Rescale layer stops when comparison scope is 'region' and a specific city is selected
+  // Rescale layer stops when comparison scope is 'region' and a specific city is selected.
+  // Uses a ref to return the same object identity when stops haven't changed,
+  // avoiding unnecessary Map layer color transition effects.
+  const prevEffectiveLayerRef = useRef<ReturnType<typeof getLayerById> | null>(null);
   const effectiveLayer = useMemo(() => {
     const base = getLayerById(activeLayer);
-    if (comparisonScope !== 'region' || cityFilter === 'all' || !filteredData) return base;
-    return rescaleLayerToData(base, filteredData.features);
+    if (comparisonScope !== 'region' || cityFilter === 'all' || !filteredData) {
+      prevEffectiveLayerRef.current = base;
+      return base;
+    }
+    const rescaled = rescaleLayerToData(base, filteredData.features);
+    const prev = prevEffectiveLayerRef.current;
+    // Return previous object if stops are identical to preserve referential equality
+    if (prev && prev.id === rescaled.id && prev.stops.length === rescaled.stops.length &&
+        prev.stops.every((s, i) => s === rescaled.stops[i])) {
+      return prev;
+    }
+    prevEffectiveLayerRef.current = rescaled;
+    return rescaled;
   // eslint-disable-next-line react-hooks/exhaustive-deps -- qualityVersion signals in-place data mutation for quality_index layer
   }, [activeLayer, comparisonScope, cityFilter, filteredData, qualityVersion]);
 
@@ -385,6 +405,14 @@ const App: React.FC = () => {
   // which would defeat React.memo on NeighborhoodPanel.
   const isPinned = useMemo(() => pinned.some((p) => p.pno === selected?.pno), [pinned, selected?.pno]);
 
+  // Stable features array for similarity computation in NeighborhoodPanel.
+  // filteredData?.features changes reference on every qualityVersion/lang bump,
+  // but similarity only depends on structural metrics (income, unemployment, etc.)
+  // that don't change. Without this, findSimilarNeighborhoods (O(n×m)) re-runs
+  // on every quality weight adjustment.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally keyed on data/cityFilter, not filteredData, to avoid re-running similarity on qualityVersion bumps
+  const allFeatures = useMemo(() => filteredData?.features ?? undefined, [data, cityFilter]);
+
   // Keep URL in sync with current state (including pinned comparisons)
   // Suppress URL writes until data is loaded and initial URL state (pno, compare) has been consumed
   // by the restoration effect. Without this, the debounced write fires with empty values during
@@ -459,16 +487,23 @@ const App: React.FC = () => {
     [select],
   );
 
+  // Refs for values read inside handleSearch — avoids recreating the callback
+  // when filteredData/cityFilter change (which would defeat React.memo on SearchBar).
+  const dataRef = useRef(data);
+  dataRef.current = data;
   const handleSearch = useCallback(
     (pno: string, center: [number, number]) => {
-      if (data) {
+      const currentData = dataRef.current;
+      const currentFiltered = filteredDataRef.current;
+      const currentCity = cityFilterRef.current;
+      if (currentData) {
         // Look up in raw data first, then in filteredData (for synthetic metro area features)
-        const feature = data.features.find((f) => f.properties?.pno === pno)
-          ?? filteredData?.features.find((f) => f.properties?.pno === pno);
+        const feature = currentData.features.find((f) => f.properties?.pno === pno)
+          ?? currentFiltered?.features.find((f) => f.properties?.pno === pno);
         if (feature?.properties) {
           const props = feature.properties as NeighborhoodProperties;
           // Auto-switch city filter if the searched neighborhood is in a different city
-          if (props.city && cityFilter !== 'all' && props.city !== cityFilter) {
+          if (props.city && currentCity !== 'all' && props.city !== currentCity) {
             setCityFilter(props.city);
           }
           select(props);
@@ -491,7 +526,7 @@ const App: React.FC = () => {
         setFlyTarget({ center });
       }
     },
-    [data, filteredData, select, addRecent, cityFilter],
+    [select, addRecent],
   );
 
   const handleResetView = useCallback(() => {
@@ -872,7 +907,7 @@ const App: React.FC = () => {
             pinCount={pinned.length}
             onCustomize={handleToggleCustomQuality}
             isCustomWeights={isCustomWeights(qualityWeights)}
-            allFeatures={filteredData?.features}
+            allFeatures={allFeatures}
             onFlyTo={handleFlyTo}
             isFavorite={isFavorite(selected.pno)}
             onToggleFavorite={handleToggleFavorite}
