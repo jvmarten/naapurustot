@@ -54,12 +54,22 @@ TURKU_BBOX = "60.25,21.50,60.75,22.90"
 
 
 def compute_tree_pct(postal_proj, tree_gdf, label=""):
-    """Compute tree canopy % for each postal code using spatial index."""
+    """Compute tree canopy % for each postal code using spatial index.
+
+    Only postal codes that overlap the tree data coverage area get a value.
+    Postal codes outside the coverage area are excluded (not set to 0.0)
+    so they appear as null/no-data rather than falsely showing 0% canopy.
+    """
     if tree_gdf.empty:
         return {}
 
     tree_geoms = list(tree_gdf.geometry)
     tree = STRtree(tree_geoms)
+
+    # Build a convex hull of all tree data to determine coverage area
+    coverage_area = unary_union(tree_geoms).convex_hull
+    # Buffer by 500m to include nearby postal codes at the edges
+    coverage_area = coverage_area.buffer(500)
 
     result = {}
     total = len(postal_proj)
@@ -71,6 +81,10 @@ def compute_tree_pct(postal_proj, tree_gdf, label=""):
 
         postal_area = geom.area
         if postal_area <= 0:
+            continue
+
+        # Skip postal codes outside the tree data coverage area
+        if not geom.intersects(coverage_area):
             continue
 
         candidates = tree.query(geom)

@@ -245,7 +245,7 @@ def _save_cache(key: str, data):
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     path = _cache_path(key)
     with open(path, "w") as f:
-        json.dump(data, f)
+        json.dump(data, f, ensure_ascii=False)
     logger.info("  Cached response → %s", path.name)
 
 
