@@ -27,4 +27,5 @@ playwright-report/
 coverage/
 
 # Data pipeline cache (auto-generated, not committed)
+cache/
 scripts/cache/
