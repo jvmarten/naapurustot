@@ -120,8 +120,14 @@ describe('readInitialUrlState (city param)', () => {
     expect(state.city).toBe('tampere');
   });
 
-  it('rejects invalid city param', () => {
+  it('accepts valid region city param', () => {
     setSearch('?city=oulu');
+    const state = readInitialUrlState();
+    expect(state.city).toBe('oulu');
+  });
+
+  it('rejects invalid city param', () => {
+    setSearch('?city=invalid_city');
     const state = readInitialUrlState();
     expect(state.city).toBeNull();
   });

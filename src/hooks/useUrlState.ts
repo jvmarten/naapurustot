@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { LayerId } from '../utils/colorScales';
 import { LAYERS } from '../utils/colorScales';
+import { REGION_IDS } from '../utils/regions';
 
 interface UrlState {
   pno: string | null;
@@ -9,7 +10,7 @@ interface UrlState {
   city: string | null;
 }
 
-const VALID_CITIES = new Set(['all', 'helsinki_metro', 'turku', 'tampere']);
+const VALID_CITIES = new Set<string>(['all', ...REGION_IDS]);
 
 const VALID_LAYER_IDS = new Set<string>(LAYERS.map((l) => l.id));
 

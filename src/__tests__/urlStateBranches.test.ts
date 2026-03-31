@@ -67,8 +67,13 @@ describe('readInitialUrlState — URL parsing', () => {
     expect(readInitialUrlState().city).toBe('tampere');
   });
 
-  it('rejects invalid city', () => {
+  it('accepts valid region city', () => {
     window.history.replaceState(null, '', '/?city=oulu');
+    expect(readInitialUrlState().city).toBe('oulu');
+  });
+
+  it('rejects invalid city', () => {
+    window.history.replaceState(null, '', '/?city=invalid_city');
     expect(readInitialUrlState().city).toBeNull();
   });
 
