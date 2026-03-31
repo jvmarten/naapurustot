@@ -338,5 +338,19 @@
   "scope.all": "Kaikki alueet",
   "scope.region": "Valittu alue",
   "scope.label": "Vertailualue",
-  "scope.active_hint": "Skaalattu valittuun alueeseen"
+  "scope.active_hint": "Skaalattu valittuun alueeseen",
+  "profile.postal_code": "Postinumero",
+  "profile.avg": "Ka.",
+  "profile.demographics": "Väestö",
+  "profile.housing": "Asuminen",
+  "profile.services": "Palvelut",
+  "profile.environment": "Ympäristö",
+  "profile.similar": "Samankaltaiset alueet",
+  "profile.quality_short": "indeksi",
+  "profile.explore_on_map": "Tutustu kartalla",
+  "profile.data_sources": "Lähteet",
+  "profile.population": "Väkiluku",
+  "notfound.message": "Sivua ei löytynyt",
+  "notfound.back_to_map": "Takaisin kartalle",
+  "loading": "Ladataan…"
 }
