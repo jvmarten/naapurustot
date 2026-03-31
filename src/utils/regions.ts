@@ -46,6 +46,8 @@ export interface RegionConfig {
   municipalityCodes: string[];
   /** TopoJSON file path (relative to src/data/regions/) */
   dataFile: string;
+  /** Whether this region has populated data and should appear in the selector */
+  hasData?: boolean;
 }
 
 /**
@@ -62,6 +64,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     bounds: [24.5, 60.05, 25.4, 60.4],
     municipalityCodes: ['091', '049', '092', '235'],
     dataFile: 'helsinki_metro.topojson',
+    hasData: true,
   },
   turku: {
     labelKey: 'city.turku',
@@ -70,6 +73,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     bounds: [21.5, 60.25, 22.9, 60.75],
     municipalityCodes: ['853', '202', '680', '529', '423', '704', '481', '577', '019'],
     dataFile: 'turku.topojson',
+    hasData: true,
   },
   tampere: {
     labelKey: 'city.tampere',
@@ -78,6 +82,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     bounds: [23.1, 61.2, 25.0, 62.2],
     municipalityCodes: ['837', '536', '980', '211', '418', '604', '562'],
     dataFile: 'tampere.topojson',
+    hasData: true,
   },
   oulu: {
     labelKey: 'city.oulu',
@@ -235,6 +240,9 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
 
 /** All region IDs in display order. */
 export const REGION_IDS = Object.keys(REGIONS) as RegionId[];
+
+/** Region IDs that have populated data and should appear in the selector. */
+export const REGION_IDS_WITH_DATA = REGION_IDS.filter(id => REGIONS[id].hasData);
 
 /** The "all" view viewport showing all of Finland. */
 export const ALL_FINLAND_VIEWPORT = {

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { REGION_IDS, type RegionId } from '../utils/regions';
+import { REGION_IDS_WITH_DATA, type RegionId } from '../utils/regions';
 import { t, type Lang } from '../utils/i18n';
 
 export type CityFilter = RegionId | 'all';
@@ -15,7 +15,7 @@ interface CitySelectorProps {
 function buildOptions(): { id: CityFilter; labelKey: string }[] {
   return [
     { id: 'all', labelKey: 'city.all' },
-    ...REGION_IDS.map((id) => ({ id: id as CityFilter, labelKey: `city.${id}` })),
+    ...REGION_IDS_WITH_DATA.map((id) => ({ id: id as CityFilter, labelKey: `city.${id}` })),
   ];
 }
 
