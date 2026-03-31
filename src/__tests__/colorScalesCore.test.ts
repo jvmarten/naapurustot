@@ -101,7 +101,7 @@ describe('rescaleLayerToData', () => {
       { type: 'Feature' as const, properties: { hr_mtu: 20000 }, geometry: null },
       { type: 'Feature' as const, properties: { hr_mtu: 50000 }, geometry: null },
     ];
-    const rescaled = rescaleLayerToData(baseLayer, features as GeoJSON.Feature[]);
+    const rescaled = rescaleLayerToData(baseLayer, features as unknown as GeoJSON.Feature[]);
     expect(rescaled.stops[0]).toBe(20000);
     expect(rescaled.stops[rescaled.stops.length - 1]).toBe(50000);
   });
@@ -111,7 +111,7 @@ describe('rescaleLayerToData', () => {
       { type: 'Feature' as const, properties: { hr_mtu: 30000 }, geometry: null },
       { type: 'Feature' as const, properties: { hr_mtu: 30000 }, geometry: null },
     ];
-    const result = rescaleLayerToData(baseLayer, features as GeoJSON.Feature[]);
+    const result = rescaleLayerToData(baseLayer, features as unknown as GeoJSON.Feature[]);
     expect(result).toBe(baseLayer); // same reference
   });
 
@@ -120,7 +120,7 @@ describe('rescaleLayerToData', () => {
       { type: 'Feature' as const, properties: { hr_mtu: null }, geometry: null },
       { type: 'Feature' as const, properties: {}, geometry: null },
     ];
-    const result = rescaleLayerToData(baseLayer, features as GeoJSON.Feature[]);
+    const result = rescaleLayerToData(baseLayer, features as unknown as GeoJSON.Feature[]);
     expect(result).toBe(baseLayer);
   });
 
@@ -129,7 +129,7 @@ describe('rescaleLayerToData', () => {
       { type: 'Feature' as const, properties: { hr_mtu: '10000' }, geometry: null },
       { type: 'Feature' as const, properties: { hr_mtu: '60000' }, geometry: null },
     ];
-    const rescaled = rescaleLayerToData(baseLayer, features as GeoJSON.Feature[]);
+    const rescaled = rescaleLayerToData(baseLayer, features as unknown as GeoJSON.Feature[]);
     expect(rescaled.stops[0]).toBe(10000);
     expect(rescaled.stops[rescaled.stops.length - 1]).toBe(60000);
   });
@@ -139,7 +139,7 @@ describe('rescaleLayerToData', () => {
       { type: 'Feature' as const, properties: { hr_mtu: 15000 }, geometry: null },
       { type: 'Feature' as const, properties: { hr_mtu: 45000 }, geometry: null },
     ];
-    const rescaled = rescaleLayerToData(baseLayer, features as GeoJSON.Feature[]);
+    const rescaled = rescaleLayerToData(baseLayer, features as unknown as GeoJSON.Feature[]);
     expect(rescaled.colors).toEqual(baseLayer.colors);
   });
 
@@ -148,7 +148,7 @@ describe('rescaleLayerToData', () => {
       { type: 'Feature' as const, properties: { hr_mtu: 0 }, geometry: null },
       { type: 'Feature' as const, properties: { hr_mtu: 100 }, geometry: null },
     ];
-    const rescaled = rescaleLayerToData(baseLayer, features as GeoJSON.Feature[]);
+    const rescaled = rescaleLayerToData(baseLayer, features as unknown as GeoJSON.Feature[]);
     const n = rescaled.stops.length;
     const step = 100 / (n - 1);
     for (let i = 0; i < n; i++) {
