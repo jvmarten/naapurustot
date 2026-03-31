@@ -83,6 +83,15 @@ export const NeighborhoodProfilePage: React.FC = () => {
     setLangState(next);
   };
 
+  const similar = useMemo(() => {
+    if (!state) return [];
+    return findSimilarNeighborhoods(
+      state.feature.properties as NeighborhoodProperties,
+      state.allFeatures,
+      5,
+    );
+  }, [state]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white dark:bg-surface-950">
@@ -110,14 +119,6 @@ export const NeighborhoodProfilePage: React.FC = () => {
     : d.city === 'turku' ? t('city.turku')
     : d.city === 'tampere' ? t('city.tampere')
     : '';
-
-  const similar = useMemo(() => {
-    return findSimilarNeighborhoods(
-      state.feature.properties as NeighborhoodProperties,
-      state.allFeatures,
-      5,
-    );
-  }, [state.feature, state.allFeatures]);
 
   const canonicalUrl = `https://naapurustot.fi/alue/${toSlug(d.pno, d.nimi)}`;
 
