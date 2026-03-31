@@ -125,6 +125,7 @@ function aggregateTrendHistories(
 // on every language toggle.
 interface MetroAreaCache {
   sourceFeatures: Feature[];
+  usedUnion: boolean;
   perCity: Map<CityId, {
     geometry: Polygon | MultiPolygon;
     averages: Record<string, number>;
@@ -153,7 +154,10 @@ export function buildMetroAreaFeatures(
   const cityIds: CityId[] = ['helsinki_metro', 'turku', 'tampere'];
 
   // Reuse cached geometry and stats when the underlying dataset hasn't changed
-  if (!metroAreaCache || metroAreaCache.sourceFeatures !== allFeatures) {
+  // AND @turf/union availability hasn't changed (fallback cache must be invalidated
+  // once union loads so geometries are properly dissolved).
+  const hasUnion = !!unionFn;
+  if (!metroAreaCache || metroAreaCache.sourceFeatures !== allFeatures || (!metroAreaCache.usedUnion && hasUnion)) {
     const grouped: Record<CityId, Feature[]> = {
       helsinki_metro: [],
       turku: [],
@@ -208,7 +212,7 @@ export function buildMetroAreaFeatures(
       });
     }
 
-    metroAreaCache = { sourceFeatures: allFeatures, perCity };
+    metroAreaCache = { sourceFeatures: allFeatures, usedUnion: hasUnion, perCity };
   }
 
   // Build features using cached geometry + current-language names
