@@ -1,7 +1,10 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { registerSW } from 'virtual:pwa-register';
 import App from './App';
+import { NeighborhoodProfilePage } from './pages/NeighborhoodProfilePage';
+import { NotFoundPage } from './pages/NotFoundPage';
 import { ThemeProvider } from './hooks/useTheme';
 import './index.css';
 
@@ -52,7 +55,14 @@ if (SENTRY_DSN) {
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ThemeProvider>
-      <App />
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<App />} />
+          <Route path="/alue/:slug" element={<NeighborhoodProfilePage />} />
+          <Route path="/en/area/:slug" element={<NeighborhoodProfilePage />} />
+          <Route path="*" element={<NotFoundPage />} />
+        </Routes>
+      </BrowserRouter>
     </ThemeProvider>
   </React.StrictMode>,
 );

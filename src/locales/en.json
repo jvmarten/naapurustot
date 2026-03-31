@@ -338,5 +338,19 @@
   "scope.all": "All regions",
   "scope.region": "Selected region",
   "scope.label": "Comparison scope",
-  "scope.active_hint": "Scaled to selected region"
+  "scope.active_hint": "Scaled to selected region",
+  "profile.postal_code": "Postal code",
+  "profile.avg": "Avg",
+  "profile.demographics": "Demographics",
+  "profile.housing": "Housing",
+  "profile.services": "Services",
+  "profile.environment": "Environment",
+  "profile.similar": "Similar neighborhoods",
+  "profile.quality_short": "index",
+  "profile.explore_on_map": "Explore on the map",
+  "profile.data_sources": "Sources",
+  "profile.population": "Population",
+  "notfound.message": "Page not found",
+  "notfound.back_to_map": "Back to the map",
+  "loading": "Loading…"
 }
