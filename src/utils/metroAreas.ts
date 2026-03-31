@@ -71,15 +71,24 @@ function aggregateTrendHistories(
     }
     const years = [...yearSet].sort((a, b) => a - b);
 
+    // Pre-build year→value Maps per entry to replace O(series_length) .find() lookups
+    // in the inner loop. For 5 cities × ~50 neighborhoods × ~10 years this eliminates
+    // thousands of linear scans.
+    const entryMaps = sd.entries.map((e) => {
+      const m = new Map<number, number>();
+      for (const [y, v] of e.series) m.set(y, v);
+      return { map: m, pop: e.pop };
+    });
+
     const aggregated: TrendDataPoint[] = [];
     for (const year of years) {
       if (sd.mode === 'sum') {
         let total = 0;
         let count = 0;
-        for (const e of sd.entries) {
-          const point = e.series.find(([y]) => y === year);
-          if (point) {
-            total += point[1];
+        for (const em of entryMaps) {
+          const val = em.map.get(year);
+          if (val !== undefined) {
+            total += val;
             count++;
           }
         }
@@ -91,11 +100,11 @@ function aggregateTrendHistories(
         // Weighted average
         let weightedSum = 0;
         let totalWeight = 0;
-        for (const e of sd.entries) {
-          const point = e.series.find(([y]) => y === year);
-          if (point) {
-            weightedSum += point[1] * e.pop;
-            totalWeight += e.pop;
+        for (const em of entryMaps) {
+          const val = em.map.get(year);
+          if (val !== undefined) {
+            weightedSum += val * em.pop;
+            totalWeight += em.pop;
           }
         }
         if (totalWeight > 0) {

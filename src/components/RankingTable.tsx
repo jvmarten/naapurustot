@@ -17,7 +17,7 @@ interface RankedItem {
   name: string;
   pno: string;
   value: number;
-  center: [number, number];
+  feature: GeoJSON.Feature;
 }
 
 // Removed hardcoded LOWER_IS_BETTER set — now uses layer.higherIsBetter from LayerConfig
@@ -52,12 +52,14 @@ export const RankingTable: React.FC<RankingTableProps> = ({ data, activeLayer, o
       if (e.value > mx) mx = e.value;
     }
 
+    // Defer getFeatureCenter to click-time instead of computing it for all ~200 features.
+    // Before: ~200 bounding box scans on every open/layer change. After: O(1) on click.
     const ranked: RankedItem[] = entries.map((e, i) => ({
       rank: i + 1,
       name: (e.feature.properties as NeighborhoodProperties).nimi || (e.feature.properties as NeighborhoodProperties).pno,
       pno: (e.feature.properties as NeighborhoodProperties).pno,
       value: e.value,
-      center: getFeatureCenter(e.feature),
+      feature: e.feature,
     }));
 
     return { rankedItems: ranked, maxVal: mx === -Infinity ? 1 : mx };
@@ -117,7 +119,7 @@ export const RankingTable: React.FC<RankingTableProps> = ({ data, activeLayer, o
           return (
             <button
               key={item.pno}
-              onClick={() => onSelect(item.pno, item.center)}
+              onClick={() => onSelect(item.pno, getFeatureCenter(item.feature))}
               className="w-full text-left px-4 py-2 flex items-center gap-3
                          hover:bg-surface-100 dark:hover:bg-surface-800/60 transition-colors
                          border-b border-surface-100 dark:border-surface-800/30 last:border-0"

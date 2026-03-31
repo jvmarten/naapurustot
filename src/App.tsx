@@ -47,6 +47,20 @@ const App: React.FC = () => {
 
   // Load only the selected region's data (or combined data for "all" view)
   const { data, loading, error, metroAverages, retry } = useMapData(cityFilter);
+
+  // Build a PNO→Feature lookup Map for O(1) feature access.
+  // Replaces multiple O(n) .find() scans after quality index recomputation
+  // and URL restoration (~200 features × 4+ lookups = ~800 iterations saved).
+  const pnoFeatureMap = useMemo(() => {
+    if (!data) return new globalThis.Map<string, GeoJSON.Feature>();
+    const m = new globalThis.Map<string, GeoJSON.Feature>();
+    for (const f of data.features) {
+      const pno = f.properties?.pno;
+      if (pno) m.set(pno as string, f);
+    }
+    return m;
+  }, [data]);
+
   const { selected, select, deselect, pinned, pin, unpin, clearPinned, refreshPinned } = useSelectedNeighborhood();
   const [activeLayer, setActiveLayer] = useState<LayerId>(initialUrl.layer ?? 'quality_index');
   const { gridData } = useGridData(activeLayer);
@@ -65,6 +79,9 @@ const App: React.FC = () => {
   const [showCustomQuality, setShowCustomQuality] = useState(false);
   const [filters, setFilters] = useState<FilterCriterion[]>([]);
   const [qualityWeights, setQualityWeights] = useState<QualityWeights>(getDefaultWeights);
+  // Memoize isCustomWeights to avoid iterating all QUALITY_FACTORS on every App render
+  // (called twice in JSX: LayerSelector + NeighborhoodPanel).
+  const customWeights = useMemo(() => isCustomWeights(qualityWeights), [qualityWeights]);
   const [colorblind, setColorblind] = useState(getColorblindMode);
   const [showWizard, setShowWizard] = useState(false);
   const { presets: savedPresets, addPreset: saveFilterPreset, removePreset: removeFilterPreset } = useFilterPresets();
@@ -357,14 +374,14 @@ const App: React.FC = () => {
     computeQualityIndices(features, qualityWeights);
     clearMetroAreaCache(); // bust cached metro area averages after in-place mutation
     setQualityVersion((v) => v + 1);
-    // Refresh selected/pinned with updated quality index values
+    // Refresh selected/pinned with updated quality index values (O(1) Map lookups)
     if (selected) {
-      const feature = data.features.find((f) => f.properties?.pno === selected.pno);
+      const feature = pnoFeatureMap.get(selected.pno);
       if (feature?.properties) select(feature.properties as NeighborhoodProperties);
     }
     if (pinned.length > 0) {
       const updated = pinned
-        .map((p) => data.features.find((f) => f.properties?.pno === p.pno)?.properties as NeighborhoodProperties | undefined)
+        .map((p) => pnoFeatureMap.get(p.pno)?.properties as NeighborhoodProperties | undefined)
         .filter((p): p is NeighborhoodProperties => p != null);
       refreshPinned(updated);
     }
@@ -376,7 +393,7 @@ const App: React.FC = () => {
     if (!data || restoredPno.current) return;
     restoredPno.current = true;
     if (initialUrl.pno) {
-      const feature = data.features.find((f) => f.properties?.pno === initialUrl.pno);
+      const feature = pnoFeatureMap.get(initialUrl.pno);
       if (feature?.properties) {
         select(feature.properties as NeighborhoodProperties);
       }
@@ -384,13 +401,13 @@ const App: React.FC = () => {
     // QW-3: Restore pinned comparisons from URL
     if (initialUrl.compare && initialUrl.compare.length > 0) {
       for (const pno of initialUrl.compare) {
-        const feature = data.features.find((f) => f.properties?.pno === pno);
+        const feature = pnoFeatureMap.get(pno);
         if (feature?.properties) {
           pin(feature.properties as NeighborhoodProperties);
         }
       }
     }
-  }, [data, select, pin]);
+  }, [data, select, pin, pnoFeatureMap]);
 
   // Memoize pinned PNO array to avoid new references on every render.
   // Without this, Map's pinnedPnos useEffect fires on every App re-render,
@@ -432,6 +449,8 @@ const App: React.FC = () => {
   cityFilterRef.current = cityFilter;
   const filteredDataRef = useRef(filteredData);
   filteredDataRef.current = filteredData;
+  const pnoFeatureMapRef = useRef(pnoFeatureMap);
+  pnoFeatureMapRef.current = pnoFeatureMap;
   const handleQualityWeightsChange = useCallback(
     (newWeights: QualityWeights) => {
       setQualityWeights(newWeights);
@@ -444,10 +463,11 @@ const App: React.FC = () => {
           computeQualityIndices(features, newWeights);
           clearMetroAreaCache(); // bust cached metro area averages after in-place mutation
           setQualityVersion((v) => v + 1);
-          // Update selected neighborhood if it exists
+          // Update selected neighborhood if it exists (O(1) Map lookup)
           const sel = selectedRef.current;
+          const lookup = pnoFeatureMapRef.current;
           if (sel) {
-            const feature = data.features.find((f) => f.properties?.pno === sel.pno);
+            const feature = lookup.get(sel.pno);
             if (feature?.properties) {
               select(feature.properties as NeighborhoodProperties);
             }
@@ -456,7 +476,7 @@ const App: React.FC = () => {
           const pins = pinnedRef.current;
           if (pins.length > 0) {
             const updated = pins
-              .map((p) => data.features.find((f) => f.properties?.pno === p.pno)?.properties as NeighborhoodProperties | undefined)
+              .map((p) => lookup.get(p.pno)?.properties as NeighborhoodProperties | undefined)
               .filter((p): p is NeighborhoodProperties => p != null);
             refreshPinned(updated);
           }
@@ -489,12 +509,12 @@ const App: React.FC = () => {
   dataRef.current = data;
   const handleSearch = useCallback(
     (pno: string, center: [number, number]) => {
-      const currentData = dataRef.current;
       const currentFiltered = filteredDataRef.current;
       const currentCity = cityFilterRef.current;
-      if (currentData) {
-        // Look up in raw data first, then in filteredData (for synthetic metro area features)
-        const feature = currentData.features.find((f) => f.properties?.pno === pno)
+      const lookup = pnoFeatureMapRef.current;
+      if (lookup.size > 0) {
+        // O(1) lookup in raw data, then fall back to filteredData (for synthetic metro area features)
+        const feature = lookup.get(pno)
           ?? currentFiltered?.features.find((f) => f.properties?.pno === pno);
         if (feature?.properties) {
           const props = feature.properties as NeighborhoodProperties;
@@ -847,7 +867,7 @@ const App: React.FC = () => {
         activeLayer={activeLayer}
         onLayerChange={setActiveLayer}
         onCustomizeQuality={handleToggleCustomQuality}
-        isCustomWeights={isCustomWeights(qualityWeights)}
+        isCustomWeights={customWeights}
         headerSlot={
           <div className="flex items-center gap-1.5">
             {comparisonScope === 'region' && cityFilter !== 'all' && (
@@ -904,7 +924,7 @@ const App: React.FC = () => {
             isPinned={isPinned}
             pinCount={pinned.length}
             onCustomize={handleToggleCustomQuality}
-            isCustomWeights={isCustomWeights(qualityWeights)}
+            isCustomWeights={customWeights}
             allFeatures={allFeatures}
             onFlyTo={handleFlyTo}
             isFavorite={isFavorite(selected.pno)}
