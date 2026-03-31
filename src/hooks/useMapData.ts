@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { FeatureCollection } from 'geojson';
-import { loadNeighborhoodData, resetDataCache } from '../utils/dataLoader';
+import { loadAllData, loadRegionData, resetDataCache } from '../utils/dataLoader';
+import type { RegionId } from '../utils/regions';
 
 interface MapDataState {
   data: FeatureCollection | null;
@@ -11,16 +12,15 @@ interface MapDataState {
 }
 
 /**
- * Fetches and processes the neighborhood TopoJSON data.
+ * Fetches and processes neighborhood data.
  *
- * Data loading is eager: a fetch starts at module evaluation time (via dataLoader)
- * and the prefetched response is consumed on first render. On retries, the cache
- * is reset and a fresh fetch is made.
+ * When `regionId` is provided, loads only that region's TopoJSON file (lazy).
+ * When `regionId` is undefined (i.e. "all" view), loads the combined dataset.
  *
  * Processing pipeline: TopoJSON → GeoJSON → filter islands → compute quality indices →
  * compute change metrics → compute quick-win metrics → compute metro averages.
  */
-export function useMapData(): MapDataState {
+export function useMapData(regionId?: RegionId | 'all'): MapDataState {
   const [state, setState] = useState<Omit<MapDataState, 'retry'>>({
     data: null,
     loading: true,
@@ -35,7 +35,11 @@ export function useMapData(): MapDataState {
 
     if (attempt > 0) resetDataCache();
 
-    loadNeighborhoodData()
+    const loadFn = regionId && regionId !== 'all'
+      ? () => loadRegionData(regionId)
+      : () => loadAllData();
+
+    loadFn()
       .then((result) => {
         if (cancelled) return;
         setState({ data: result.data, loading: false, error: null, metroAverages: result.metroAverages });
@@ -45,7 +49,7 @@ export function useMapData(): MapDataState {
         setState({ data: null, loading: false, error: err.message, metroAverages: {} });
       });
     return () => { cancelled = true; };
-  }, [attempt]);
+  }, [regionId, attempt]);
 
   const retry = useCallback(() => setAttempt((a) => a + 1), []);
 

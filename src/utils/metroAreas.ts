@@ -1,6 +1,7 @@
 import type { Feature, FeatureCollection, Polygon, MultiPolygon } from 'geojson';
 import type { CityId, NeighborhoodProperties, TrendDataPoint } from './metrics';
 import { computeMetroAverages, parseTrendSeries } from './metrics';
+import { REGIONS } from './regions';
 import { t } from './i18n';
 
 // Lazy-load @turf/union (~17KB gzipped) — only needed when user views "all cities" mode.
@@ -149,18 +150,22 @@ export function clearMetroAreaCache(): void {
 export function buildMetroAreaFeatures(
   allFeatures: Feature[],
 ): FeatureCollection | null {
-  const cityIds: CityId[] = ['helsinki_metro', 'turku', 'tampere'];
+  // Discover city IDs dynamically from data, but only include known regions
+  const knownRegions = new Set(Object.keys(REGIONS));
+  const cityIdSet = new Set<CityId>();
+  for (const f of allFeatures) {
+    const city = (f.properties as NeighborhoodProperties)?.city;
+    if (city && knownRegions.has(city)) cityIdSet.add(city);
+  }
+  const cityIds = [...cityIdSet];
 
   // Reuse cached geometry and stats when the underlying dataset hasn't changed
   // AND @turf/union availability hasn't changed (fallback cache must be invalidated
   // once union loads so geometries are properly dissolved).
   const hasUnion = !!unionFn;
   if (!metroAreaCache || metroAreaCache.sourceFeatures !== allFeatures || (!metroAreaCache.usedUnion && hasUnion)) {
-    const grouped: Record<CityId, Feature[]> = {
-      helsinki_metro: [],
-      turku: [],
-      tampere: [],
-    };
+    const grouped: Record<string, Feature[]> = {};
+    for (const id of cityIds) grouped[id] = [];
 
     for (const f of allFeatures) {
       const city = (f.properties as NeighborhoodProperties)?.city;
