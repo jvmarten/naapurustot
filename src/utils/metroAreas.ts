@@ -3,24 +3,17 @@ import type { CityId, NeighborhoodProperties, TrendDataPoint } from './metrics';
 import { computeMetroAverages, parseTrendSeries } from './metrics';
 import { t } from './i18n';
 
-// Lazy-load @turf/union (~40KB) — only needed when user views "all cities" mode.
-// Other @turf modules (bbox, boolean-intersects, boolean-point-in-polygon) are
-// already lazy-loaded; this follows the same pattern to keep the main bundle small.
+// Lazy-load @turf/union (~17KB gzipped) — only needed when user views "all cities" mode.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let unionFn: ((...args: any[]) => any) | null = null;
 let unionPromise: Promise<void> | null = null;
 
-// Indirection prevents Vite/Vitest static analysis from resolving the specifier
-// at transform time, so the import only fails at runtime (where we catch it).
-const _turfUnionId = '@turf/' + 'union';
-
 function ensureUnionLoaded(): Promise<void> {
   if (unionFn) return Promise.resolve();
   if (!unionPromise) {
-    // @turf/union is optional — if not installed, we fall back to MultiPolygon concatenation
-    unionPromise = import(_turfUnionId)
+    unionPromise = import('@turf/union')
       .then((m) => { unionFn = m.default; })
-      .catch(() => { /* package not installed, union stays null */ });
+      .catch(() => { /* fallback to MultiPolygon concatenation */ });
   }
   return unionPromise;
 }
