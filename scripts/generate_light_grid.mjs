@@ -123,6 +123,11 @@ function generateFromPixels(pixels, neighborhoods, minLng, minLat, maxLng, maxLa
 
       const radiance = round2(pixelData.sum / pixelData.count);
 
+      // Skip zero-radiance cells — they render as the darkest color which is
+      // indistinguishable from having no cell, and omitting them significantly
+      // reduces file size.
+      if (radiance <= 0) continue;
+
       gridFeatures.push({
         type: 'Feature',
         geometry: {
