@@ -52,12 +52,17 @@ const StatRow: React.FC<{
         {label}
         {source && (
           <span
-            className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full text-[8px] font-bold
+            className="relative inline-flex items-center justify-center w-3.5 h-3.5 rounded-full text-[8px] font-bold
                        text-surface-400 dark:text-surface-500 border border-surface-300 dark:border-surface-600
-                       cursor-help flex-shrink-0"
-            title={`${source.source} (${source.year})`}
+                       cursor-help flex-shrink-0 group/src"
           >
             i
+            <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1
+                             whitespace-nowrap rounded bg-surface-800 dark:bg-surface-700 px-2 py-1
+                             text-[10px] font-normal text-white
+                             opacity-0 group-hover/src:opacity-100 transition-opacity duration-100 z-50">
+              {source.source} ({source.year})
+            </span>
           </span>
         )}
       </span>
