@@ -9,6 +9,7 @@ import { TrendSection } from './TrendChart';
 import Sparkline from './Sparkline';
 import RadarChart from './RadarChart';
 import { findSimilarNeighborhoods } from '../utils/similarity';
+import { toSlug } from '../utils/slug';
 import { useAnimatedValues } from '../hooks/useAnimatedValue';
 import { useBottomSheet } from '../hooks/useBottomSheet';
 import { useSwipeNavigation } from '../hooks/useSwipeNavigation';
@@ -866,6 +867,20 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
         </button>
       )}
       {sectionOverview}
+      {/* Profile page link */}
+      {!d._isMetroArea && (
+        <a
+          href={`/alue/${toSlug(d.pno, d.nimi)}`}
+          className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl
+                     bg-surface-100 dark:bg-surface-900/60 hover:bg-surface-200 dark:hover:bg-surface-800
+                     text-sm font-medium text-surface-600 dark:text-surface-300 transition-colors"
+        >
+          {t('profile.view_full')}
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+          </svg>
+        </a>
+      )}
       {sectionTrends}
       {sectionStats}
       {sectionSimilar}

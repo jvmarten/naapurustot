@@ -13,7 +13,8 @@
     "test:e2e": "playwright test --project=e2e",
     "test:visual": "playwright test --project=visual",
     "test:visual:update": "playwright test --project=visual --update-snapshots",
-    "build:data": "node scripts/build_region_data.mjs && node scripts/build_grid_data.mjs"
+    "build:data": "node scripts/build_region_data.mjs && node scripts/build_grid_data.mjs",
+    "build:pages": "node scripts/prerender.mjs && node scripts/generate-sitemap.mjs"
   },
   "dependencies": {
     "@turf/area": "^7.3.4",

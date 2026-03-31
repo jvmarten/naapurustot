@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, lazy, Suspense } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import type { Feature, Polygon, MultiPolygon } from 'geojson';
 import { loadNeighborhoodData } from '../utils/dataLoader';
@@ -10,6 +10,8 @@ import { getQualityCategory, QUALITY_CATEGORIES } from '../utils/qualityIndex';
 import { findSimilarNeighborhoods } from '../utils/similarity';
 import { StatCard } from '../components/profile/StatCard';
 import { JsonLd } from '../components/profile/JsonLd';
+
+const MiniMap = lazy(() => import('../components/profile/MiniMap').then(m => ({ default: m.MiniMap })));
 
 /** Compute the center of a feature's bounding box. */
 function featureCenter(feat: Feature<Polygon | MultiPolygon>): [number, number] {
@@ -68,11 +70,47 @@ export const NeighborhoodProfilePage: React.FC = () => {
       });
   }, [pno]);
 
-  // Update document title
+  // Update document title + hreflang + meta description
   useEffect(() => {
     if (state?.feature.properties) {
       const d = state.feature.properties as NeighborhoodProperties;
+      const slug = toSlug(d.pno, d.nimi);
       document.title = `${d.nimi} (${d.pno}) – naapurustot.fi`;
+
+      // Meta description
+      const meta = document.createElement('meta');
+      meta.name = 'description';
+      meta.content = d.quality_index != null
+        ? `${d.nimi} (${d.pno}) – ${t('panel.quality_index')}: ${Math.round(d.quality_index)}/100`
+        : `${d.nimi} (${d.pno})`;
+      document.head.appendChild(meta);
+
+      // Canonical
+      const canonical = document.createElement('link');
+      canonical.rel = 'canonical';
+      canonical.href = `https://naapurustot.fi/alue/${slug}`;
+      document.head.appendChild(canonical);
+
+      // Hreflang
+      const hrefFi = document.createElement('link');
+      hrefFi.rel = 'alternate';
+      hrefFi.hreflang = 'fi';
+      hrefFi.href = `https://naapurustot.fi/alue/${slug}`;
+      document.head.appendChild(hrefFi);
+
+      const hrefEn = document.createElement('link');
+      hrefEn.rel = 'alternate';
+      hrefEn.hreflang = 'en';
+      hrefEn.href = `https://naapurustot.fi/en/area/${slug}`;
+      document.head.appendChild(hrefEn);
+
+      return () => {
+        document.title = 'naapurustot.fi';
+        meta.remove();
+        canonical.remove();
+        hrefFi.remove();
+        hrefEn.remove();
+      };
     }
     return () => { document.title = 'naapurustot.fi'; };
   }, [state]);
@@ -161,12 +199,22 @@ export const NeighborhoodProfilePage: React.FC = () => {
           <span className="text-surface-900 dark:text-white">{d.nimi}</span>
         </nav>
 
-        {/* Title + Quality Index */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">{d.nimi}</h1>
-          <p className="text-surface-500 dark:text-surface-400">
-            {d.namn && d.namn !== d.nimi ? `${d.namn} · ` : ''}{t('profile.postal_code')} {d.pno} · {cityName}
-          </p>
+        {/* Title + Mini Map */}
+        <div className="mb-8 md:flex md:gap-8 md:items-start">
+          <div className="md:flex-1">
+            <h1 className="text-3xl font-bold mb-2">{d.nimi}</h1>
+            <p className="text-surface-500 dark:text-surface-400 mb-4 md:mb-0">
+              {d.namn && d.namn !== d.nimi ? `${d.namn} · ` : ''}{t('profile.postal_code')} {d.pno} · {cityName}
+            </p>
+          </div>
+          <div className="md:w-80 md:flex-shrink-0">
+            <Suspense fallback={<div className="w-full h-64 md:h-80 rounded-xl bg-surface-100 dark:bg-surface-900/60 animate-pulse" />}>
+              <MiniMap
+                feature={state.feature as Feature<Polygon | MultiPolygon>}
+                allFeatures={state.allFeatures}
+              />
+            </Suspense>
+          </div>
         </div>
 
         {/* Quality Index Banner */}
