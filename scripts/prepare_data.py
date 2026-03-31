@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """
 Fetch Paavo statistics + postal code boundaries from Statistics Finland WFS,
-filter to supported regions (Helsinki metro, Turku, Tampere), reproject, calculate derived metrics,
+filter to supported regions, reproject, calculate derived metrics,
 join foreign-language speaker data and external quality-of-life data, and output GeoJSON.
+
+Supports two modes:
+  --all-finland   Fetch all Finnish postal codes (for full Finland coverage)
+  (default)       Fetch only the configured metro area municipalities
 """
 
 import argparse
@@ -34,35 +38,62 @@ logger = logging.getLogger(__name__)
 
 # Municipality codes per city/region
 HELSINKI_METRO_CODES = {"091", "049", "092", "235"}
-TURKU_CODES = {"853", "202", "680", "529", "423", "704", "481", "577", "019"}  # Turku, Kaarina, Raisio, Naantali, Lieto, Rusko, Masku, Paimio, Aura
-TAMPERE_CODES = {"837", "536", "980", "211", "418", "604", "562"}  # Tampere, Nokia, Ylöjärvi, Kangasala, Lempäälä, Pirkkala, Orivesi
+TURKU_CODES = {"853", "202", "680", "529", "423", "704", "481", "577", "019"}
+TAMPERE_CODES = {"837", "536", "980", "211", "418", "604", "562"}
+OULU_CODES = {"564", "244", "425", "494", "859"}
+JYVASKYLA_CODES = {"179", "500", "592"}
+LAHTI_CODES = {"398", "111", "098"}
+KUOPIO_CODES = {"297", "749"}
+PORI_CODES = {"609", "886"}
+JOENSUU_CODES = {"167", "426"}
+LAPPEENRANTA_CODES = {"405"}
+VAASA_CODES = {"905", "499"}
+KOUVOLA_CODES = {"286"}
+ROVANIEMI_CODES = {"698"}
+SEINAJOKI_CODES = {"743"}
+MIKKELI_CODES = {"491"}
+KOTKA_CODES = {"285", "075"}
+SALO_CODES = {"734"}
+PORVOO_CODES = {"638"}
+KOKKOLA_CODES = {"272"}
+HYVINKAA_CODES = {"106"}
+KAJAANI_CODES = {"205"}
+RAUMA_CODES = {"684"}
+
+# Region → municipality codes mapping
+REGION_MUNICIPALITY_CODES = {
+    "helsinki_metro": HELSINKI_METRO_CODES,
+    "turku": TURKU_CODES,
+    "tampere": TAMPERE_CODES,
+    "oulu": OULU_CODES,
+    "jyvaskyla": JYVASKYLA_CODES,
+    "lahti": LAHTI_CODES,
+    "kuopio": KUOPIO_CODES,
+    "pori": PORI_CODES,
+    "joensuu": JOENSUU_CODES,
+    "lappeenranta": LAPPEENRANTA_CODES,
+    "vaasa": VAASA_CODES,
+    "kouvola": KOUVOLA_CODES,
+    "rovaniemi": ROVANIEMI_CODES,
+    "seinajoki": SEINAJOKI_CODES,
+    "mikkeli": MIKKELI_CODES,
+    "kotka": KOTKA_CODES,
+    "salo": SALO_CODES,
+    "porvoo": PORVOO_CODES,
+    "kokkola": KOKKOLA_CODES,
+    "hyvinkaa": HYVINKAA_CODES,
+    "kajaani": KAJAANI_CODES,
+    "rauma": RAUMA_CODES,
+}
+
+# Build flattened municipality → city mapping from region config
+MUNICIPALITY_CITY = {}
+for region_id, codes in REGION_MUNICIPALITY_CODES.items():
+    for code in codes:
+        MUNICIPALITY_CITY[code] = region_id
 
 # All supported municipality codes (union of all regions)
-METRO_CODES = HELSINKI_METRO_CODES | TURKU_CODES | TAMPERE_CODES
-
-# City label for each municipality code
-MUNICIPALITY_CITY = {
-    "091": "helsinki_metro",
-    "049": "helsinki_metro",
-    "092": "helsinki_metro",
-    "235": "helsinki_metro",
-    "853": "turku",
-    "202": "turku",
-    "680": "turku",
-    "529": "turku",
-    "423": "turku",
-    "704": "turku",
-    "481": "turku",
-    "577": "turku",
-    "019": "turku",
-    "837": "tampere",
-    "536": "tampere",
-    "980": "tampere",
-    "211": "tampere",
-    "418": "tampere",
-    "604": "tampere",
-    "562": "tampere",
-}
+METRO_CODES = set(MUNICIPALITY_CITY.keys())
 
 # WFS base URL and capabilities endpoint for auto-detecting the latest year
 WFS_BASE = "https://geo.stat.fi/geoserver/postialue/wfs"
@@ -119,12 +150,38 @@ AIR_QUALITY_FILE = Path(__file__).parent / "air_quality.json"
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 
 # Bounding boxes for Overpass queries (per region)
-HELSINKI_METRO_BBOX = "60.10,24.50,60.40,25.25"
-TURKU_BBOX = "60.25,21.50,60.75,22.90"
-TAMPERE_BBOX = "61.20,23.10,62.20,25.00"
+REGION_BBOXES = {
+    "helsinki_metro": "60.05,24.50,60.40,25.40",
+    "turku": "60.25,21.50,60.75,22.90",
+    "tampere": "61.20,23.10,62.20,25.00",
+    "oulu": "64.80,25.00,65.20,26.10",
+    "jyvaskyla": "62.00,25.20,62.50,26.30",
+    "lahti": "60.80,25.20,61.20,26.10",
+    "kuopio": "62.70,27.20,63.10,28.20",
+    "pori": "61.30,21.30,61.70,22.30",
+    "joensuu": "62.40,29.30,62.80,30.20",
+    "lappeenranta": "60.90,27.70,61.20,28.70",
+    "vaasa": "62.90,21.10,63.30,22.10",
+    "kouvola": "60.70,26.20,61.10,27.20",
+    "rovaniemi": "66.20,25.00,66.80,26.50",
+    "seinajoki": "62.60,22.30,63.00,23.40",
+    "mikkeli": "61.50,26.80,61.90,27.80",
+    "kotka": "60.30,26.50,60.60,27.40",
+    "salo": "60.20,22.60,60.60,23.60",
+    "porvoo": "60.20,25.30,60.60,26.00",
+    "kokkola": "63.60,22.60,64.00,23.60",
+    "hyvinkaa": "60.50,24.50,60.80,25.20",
+    "kajaani": "64.00,27.20,64.40,28.20",
+    "rauma": "61.00,21.10,61.30,21.90",
+}
+
+# Legacy aliases for backward compat
+HELSINKI_METRO_BBOX = REGION_BBOXES["helsinki_metro"]
+TURKU_BBOX = REGION_BBOXES["turku"]
+TAMPERE_BBOX = REGION_BBOXES["tampere"]
 
 # All bounding boxes for Overpass queries
-ALL_BBOXES = [HELSINKI_METRO_BBOX, TURKU_BBOX, TAMPERE_BBOX]
+ALL_BBOXES = list(REGION_BBOXES.values())
 
 # THL Sotkanet API for social/health indicators
 SOTKANET_URL = "https://sotkanet.fi/sotkanet/fi/taulukko"
@@ -455,11 +512,12 @@ def filter_metro(gdf):
             col = c
             break
     if col is None:
-        # Try to derive from pno (first 3 digits map to municipality in some cases)
-        # Actually, look at all columns to find it
         logger.info("  Available columns: %s", list(gdf.columns))
+        if METRO_CODES is None:
+            # All-Finland mode with no municipality column — keep everything
+            logger.info("  All-Finland mode: keeping all %s postal codes", len(gdf))
+            return gdf.copy()
         # Fall back: check if 'pno' starts with metro prefixes
-        # Helsinki 00xxx, Espoo 02xxx, Vantaa 01xxx, Kauniainen 02700, Turku 20xxx
         metro = gdf[
             gdf["pno"].str.startswith("00")
             | gdf["pno"].str.startswith("01")
@@ -468,6 +526,14 @@ def filter_metro(gdf):
         ].copy()
         logger.info("  Filtered to %s postal codes by prefix", len(metro))
         return metro
+
+    if METRO_CODES is None:
+        # All-Finland mode: keep all postal codes, assign city labels where known
+        result = gdf.copy()
+        result["city"] = result[col].astype(str).map(MUNICIPALITY_CITY).fillna("other")
+        logger.info("  All-Finland mode: keeping all %s postal codes (%s with known regions)",
+                     len(result), (result["city"] != "other").sum())
+        return result
 
     metro = gdf[gdf[col].astype(str).isin(METRO_CODES)].copy()
     # Add city label based on municipality code
@@ -2312,14 +2378,25 @@ def _backfill_nulls(gdf, previous: dict, columns: list[str]):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Prepare Helsinki metro neighborhood GeoJSON data."
+        description="Prepare neighborhood GeoJSON data for Finnish cities."
     )
     parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Validate API connectivity and response schemas without writing output.",
     )
+    parser.add_argument(
+        "--all-finland",
+        action="store_true",
+        help="Fetch all Finnish postal codes instead of only configured metro areas.",
+    )
     args = parser.parse_args()
+
+    # When --all-finland is set, override METRO_CODES to accept all municipalities
+    if args.all_finland:
+        global METRO_CODES
+        logger.info("All-Finland mode: fetching all postal codes (no municipality filter)")
+        METRO_CODES = None  # sentinel: skip filtering
 
     out_path = Path(__file__).parent.parent / "public" / "data" / "metro_neighborhoods.geojson"
 

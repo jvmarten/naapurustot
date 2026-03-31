@@ -1,7 +1,11 @@
 /**
  * Map initial viewport defaults, configurable via VITE_MAP_* environment variables.
  * Fallback values center on the Helsinki metropolitan area.
+ *
+ * Per-region viewports are derived from the region configuration in regions.ts.
  */
+
+import { REGIONS, REGION_IDS, ALL_FINLAND_VIEWPORT, type RegionId } from './regions';
 
 /** Read a numeric env var at build time, returning `fallback` if unset or non-numeric. */
 function envNum(key: string, fallback: number): number {
@@ -26,10 +30,11 @@ export function getInitialZoom(): number {
   return DEFAULT_ZOOM;
 }
 
-/** Per-city viewport configurations. All use `bounds` so the view adapts to any screen size. */
-export const CITY_VIEWPORTS: Record<string, { center: [number, number]; zoom: number; bounds: [number, number, number, number] }> = {
-  helsinki_metro: { center: [24.94, 60.17], zoom: 9.2, bounds: [24.5, 60.05, 25.4, 60.4] },
-  turku: { center: [22.20, 60.50], zoom: 9, bounds: [21.5, 60.25, 22.9, 60.75] },
-  tampere: { center: [23.85, 61.55], zoom: 8.5, bounds: [23.1, 61.2, 25.0, 62.2] },
-  all: { center: [24.0, 60.8], zoom: 5.5, bounds: [19.5, 59.0, 27.5, 63.0] },
-};
+/** Per-city/region viewport configurations, derived from REGIONS config. */
+export const CITY_VIEWPORTS: Record<string, { center: [number, number]; zoom: number; bounds: [number, number, number, number] }> = Object.fromEntries([
+  ...REGION_IDS.map((id: RegionId) => [
+    id,
+    { center: REGIONS[id].center, zoom: REGIONS[id].zoom, bounds: REGIONS[id].bounds },
+  ]),
+  ['all', { center: ALL_FINLAND_VIEWPORT.center, zoom: ALL_FINLAND_VIEWPORT.zoom, bounds: ALL_FINLAND_VIEWPORT.bounds }],
+]);

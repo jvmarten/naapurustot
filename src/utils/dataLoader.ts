@@ -1,9 +1,12 @@
 /**
- * Shared data loading module.
+ * Shared data loading module with per-region lazy loading.
  *
- * Both the map SPA and neighborhood profile pages need the same processed
- * GeoJSON. This module provides a singleton promise so the data is fetched
- * and processed exactly once, regardless of which entry point loads first.
+ * Supports two modes:
+ * 1. Load a single region's TopoJSON on demand (for city/region views)
+ * 2. Load the combined dataset (for "all" view and cross-region search)
+ *
+ * Each region file is fetched only when needed and cached. Processing
+ * (TopoJSON → GeoJSON, quality indices, metro averages) runs once per load.
  */
 
 import type { FeatureCollection } from 'geojson';
@@ -12,8 +15,17 @@ import type { Topology } from 'topojson-specification';
 import { computeMetroAverages, computeChangeMetrics, computeQuickWinMetrics } from './metrics';
 import { computeQualityIndices } from './qualityIndex';
 import { filterSmallIslands } from './geometryFilter';
+import type { RegionId } from './regions';
 
-import topoUrl from '../data/metro_neighborhoods.topojson?url';
+// Vite resolves these glob imports at build time into lazy asset URLs.
+// Each region file becomes a separate chunk loaded on demand.
+const regionModules = import.meta.glob<string>(
+  '../data/regions/*.topojson',
+  { query: '?url', import: 'default', eager: false },
+);
+
+// Combined file for "all" view (backward compat)
+import combinedTopoUrl from '../data/metro_neighborhoods.topojson?url';
 
 export interface ProcessedData {
   data: FeatureCollection;
@@ -49,34 +61,94 @@ function processTopology(topo: Topology): ProcessedData {
   return { data: geojson, metroAverages };
 }
 
-// Start fetching immediately at module load time.
+async function fetchAndProcess(url: string): Promise<ProcessedData> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Failed to load data: ${res.status}`);
+  const topo: Topology = await res.json();
+  return processTopology(topo);
+}
+
+// --- Per-region loading ---
+
+/** Resolve the Vite glob key for a region's data file. */
+function getRegionGlobKey(regionId: RegionId): string {
+  return `../data/regions/${regionId}.topojson`;
+}
+
+const regionCache = new Map<RegionId, Promise<ProcessedData>>();
+
+/**
+ * Load a single region's data. Returns cached promise if already loading/loaded.
+ */
+export function loadRegionData(regionId: RegionId): Promise<ProcessedData> {
+  const cached = regionCache.get(regionId);
+  if (cached) return cached;
+
+  const key = getRegionGlobKey(regionId);
+  const loader = regionModules[key];
+
+  let promise: Promise<ProcessedData>;
+  if (loader) {
+    promise = loader().then((url) => fetchAndProcess(url));
+  } else {
+    // Fallback: load from combined file and filter
+    promise = loadAllData().then((all) => ({
+      data: {
+        ...all.data,
+        features: all.data.features.filter(
+          (f) => f.properties?.city === regionId,
+        ),
+      },
+      metroAverages: computeMetroAverages(
+        all.data.features.filter((f) => f.properties?.city === regionId),
+      ),
+    }));
+  }
+
+  regionCache.set(regionId, promise);
+  return promise;
+}
+
+// --- Combined "all" data loading ---
+
+// Prefetch combined data at module load (same behavior as before)
 let prefetchedResponse: Promise<Response> | null = null;
 try {
-  prefetchedResponse = fetch(topoUrl);
+  prefetchedResponse = fetch(combinedTopoUrl);
 } catch { /* fetch unavailable in SSR */ }
 
-let cachedResult: Promise<ProcessedData> | null = null;
+let combinedCache: Promise<ProcessedData> | null = null;
 
-/** Returns a singleton promise for the processed neighborhood data. */
-export function loadNeighborhoodData(): Promise<ProcessedData> {
-  if (cachedResult) return cachedResult;
+/**
+ * Load the combined dataset (all regions). Used for "all" view and cross-region search.
+ * Backward-compatible: same as the old loadNeighborhoodData().
+ */
+export function loadAllData(): Promise<ProcessedData> {
+  if (combinedCache) return combinedCache;
 
   const responsePromise = prefetchedResponse
-    ? prefetchedResponse.then(res => res.clone()).catch(() => fetch(topoUrl))
-    : fetch(topoUrl);
+    ? prefetchedResponse.then(res => res.clone()).catch(() => fetch(combinedTopoUrl))
+    : fetch(combinedTopoUrl);
 
-  cachedResult = responsePromise
+  combinedCache = responsePromise
     .then(res => {
       if (!res.ok) throw new Error(`Failed to load data: ${res.status}`);
       return res.json();
     })
     .then((topo: Topology) => processTopology(topo));
 
-  return cachedResult;
+  return combinedCache;
 }
 
-/** Reset the cache (used for retry logic in useMapData). */
+/**
+ * Legacy alias — loadNeighborhoodData() still works for any code that hasn't
+ * been migrated to region-aware loading yet.
+ */
+export const loadNeighborhoodData = loadAllData;
+
+/** Reset all caches (used for retry logic in useMapData). */
 export function resetDataCache(): void {
-  cachedResult = null;
+  combinedCache = null;
   prefetchedResponse = null;
+  regionCache.clear();
 }

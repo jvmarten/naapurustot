@@ -42,7 +42,11 @@ import { buildMetroAreaFeatures, preloadUnion, clearMetroAreaCache } from './uti
 const initialUrl = readInitialUrlState();
 
 const App: React.FC = () => {
-  const { data, loading, error, metroAverages, retry } = useMapData();
+  // City filter — declared before useMapData so the hook can load the right region
+  const [cityFilter, setCityFilter] = useState<CityFilter>((initialUrl.city as CityFilter) ?? 'helsinki_metro');
+
+  // Load only the selected region's data (or combined data for "all" view)
+  const { data, loading, error, metroAverages, retry } = useMapData(cityFilter);
   const { selected, select, deselect, pinned, pin, unpin, clearPinned, refreshPinned } = useSelectedNeighborhood();
   const [activeLayer, setActiveLayer] = useState<LayerId>(initialUrl.layer ?? 'quality_index');
   const { gridData } = useGridData(activeLayer);
@@ -88,8 +92,6 @@ const App: React.FC = () => {
   const [ariaAnnouncement, setAriaAnnouncement] = useState('');
   const [isOffline, setIsOffline] = useState(() => typeof navigator !== 'undefined' && !navigator.onLine);
 
-  // City filter
-  const [cityFilter, setCityFilter] = useState<CityFilter>((initialUrl.city as CityFilter) ?? 'helsinki_metro');
   const [comparisonScope, setComparisonScope] = useState<ComparisonScope>('all');
 
   // Lazy-load @turf/union when user switches to "all cities" view.
@@ -99,17 +101,11 @@ const App: React.FC = () => {
     preloadUnion().then(() => setUnionReady((v) => v + 1));
   }, [cityFilter, data]);
 
-  // Filter data by selected city — split into two memos so that lang/unionReady
-  // changes (which only affect the "all cities" metro area view) don't trigger a
-  // full Map layer teardown for single-city views.
+  // With per-region loading, single-region data is already scoped — no client-side filter needed.
+  // Only the "all" view needs metro area aggregation.
   const singleCityData = useMemo(() => {
     if (!data || cityFilter === 'all') return null;
-    return {
-      ...data,
-      features: data.features.filter(
-        (f) => f.properties?.city === cityFilter,
-      ),
-    } as typeof data;
+    return data;
   // eslint-disable-next-line react-hooks/exhaustive-deps -- qualityVersion signals in-place data mutation
   }, [data, cityFilter, qualityVersion]);
 

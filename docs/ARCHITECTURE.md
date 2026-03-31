@@ -2,7 +2,7 @@
 
 ## Overview
 
-naapurustot is a single-page React application that visualizes neighborhood statistics on an interactive map. It has no backend — all data is bundled as a static TopoJSON file and all computation happens client-side.
+naapurustot is a single-page React application that visualizes neighborhood statistics on an interactive map. It has no backend — all data is bundled as static TopoJSON files (one per region) and all computation happens client-side. Data is lazy-loaded per region to keep initial page loads fast.
 
 ```
 Browser
@@ -23,8 +23,10 @@ Browser
 ## Data flow
 
 ```
-1. Module load → useMapData prefetches TopoJSON (before React mounts)
-2. useMapData converts TopoJSON → GeoJSON via topojson-client
+1. Region selection → useMapData loads per-region TopoJSON (lazy, cached)
+   - Single region: loads src/data/regions/{regionId}.topojson
+   - "All" view: loads combined metro_neighborhoods.topojson (prefetched)
+2. TopoJSON → GeoJSON conversion via topojson-client
 3. filterSmallIslands() removes tiny island polygons
 4. computeQualityIndices() calculates composite scores (mutates feature properties)
 5. computeChangeMetrics() derives trend change percentages from history arrays
