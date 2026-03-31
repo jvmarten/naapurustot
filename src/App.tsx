@@ -76,7 +76,7 @@ const App: React.FC = () => {
   });
   // QW-4: Split map view state
   const [splitMode, setSplitMode] = useState(false);
-  const [secondaryLayer] = useState<LayerId>('median_income');
+  const [secondaryLayer, setSecondaryLayer] = useState<LayerId>('median_income');
   const { isFavorite, toggleFavorite } = useFavorites();
   const { getNote, setNote } = useNotes();
   const { recent, addRecent } = useRecentNeighborhoods();
@@ -692,6 +692,8 @@ const App: React.FC = () => {
               data={filteredData}
               leftLayer={activeLayer}
               rightLayer={secondaryLayer}
+              onLeftLayerChange={setActiveLayer}
+              onRightLayerChange={setSecondaryLayer}
               colorblind={colorblind}
             />
           </Suspense>

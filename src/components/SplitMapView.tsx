@@ -2,10 +2,31 @@ import React, { useRef, useEffect, useCallback } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { FeatureCollection } from 'geojson';
-import { buildFillColorExpression, type LayerId, getLayerById } from '../utils/colorScales';
+import { buildFillColorExpression, LAYERS, type LayerId, getLayerById } from '../utils/colorScales';
 import { useTheme } from '../hooks/useTheme';
 import { t } from '../utils/i18n';
 import { DEFAULT_CENTER, getInitialZoom } from '../utils/mapConstants';
+
+/**
+ * Compact dropdown for choosing a data layer on one side of the split view.
+ */
+const SplitLayerPicker: React.FC<{
+  value: LayerId;
+  onChange: (id: LayerId) => void;
+}> = ({ value, onChange }) => (
+  <select
+    value={value}
+    onChange={(e) => onChange(e.target.value as LayerId)}
+    className="block w-full max-w-[200px] rounded bg-white/90 dark:bg-surface-900/90 text-xs font-medium px-2 py-1 border border-slate-300 dark:border-slate-600 shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 truncate"
+    aria-label={t(getLayerById(value).labelKey)}
+  >
+    {LAYERS.map((layer) => (
+      <option key={layer.id} value={layer.id}>
+        {t(layer.labelKey)}
+      </option>
+    ))}
+  </select>
+);
 
 const BASEMAP_LIGHT = (import.meta.env.VITE_BASEMAP_LIGHT_URL as string) || 'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png';
 const BASEMAP_DARK = (import.meta.env.VITE_BASEMAP_DARK_URL as string) || 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png';
@@ -28,6 +49,8 @@ interface SplitMapViewProps {
   data: FeatureCollection | null;
   leftLayer: LayerId;
   rightLayer: LayerId;
+  onLeftLayerChange?: (id: LayerId) => void;
+  onRightLayerChange?: (id: LayerId) => void;
   colorblind?: string;
 }
 
@@ -118,6 +141,8 @@ export const SplitMapView: React.FC<SplitMapViewProps> = ({
   data,
   leftLayer,
   rightLayer,
+  onLeftLayerChange,
+  onRightLayerChange,
   colorblind = false,
 }) => {
   const leftContainerRef = useRef<HTMLDivElement>(null);
@@ -243,8 +268,14 @@ export const SplitMapView: React.FC<SplitMapViewProps> = ({
       {/* Left map */}
       <div className="relative h-full w-1/2">
         <div ref={leftContainerRef} className="absolute inset-0" />
-        <div className="absolute top-2 left-2 z-10 px-2 py-1 rounded bg-white/80 dark:bg-surface-900/80 text-xs font-medium">
-          {t(getLayerById(leftLayer).labelKey)}
+        <div className="absolute top-2 left-2 z-10">
+          {onLeftLayerChange ? (
+            <SplitLayerPicker value={leftLayer} onChange={onLeftLayerChange} />
+          ) : (
+            <div className="px-2 py-1 rounded bg-white/80 dark:bg-surface-900/80 text-xs font-medium">
+              {t(getLayerById(leftLayer).labelKey)}
+            </div>
+          )}
         </div>
       </div>
 
@@ -254,8 +285,14 @@ export const SplitMapView: React.FC<SplitMapViewProps> = ({
       {/* Right map */}
       <div className="relative h-full w-1/2">
         <div ref={rightContainerRef} className="absolute inset-0" />
-        <div className="absolute top-2 left-2 z-10 px-2 py-1 rounded bg-white/80 dark:bg-surface-900/80 text-xs font-medium">
-          {t(getLayerById(rightLayer).labelKey)}
+        <div className="absolute top-2 left-2 z-10">
+          {onRightLayerChange ? (
+            <SplitLayerPicker value={rightLayer} onChange={onRightLayerChange} />
+          ) : (
+            <div className="px-2 py-1 rounded bg-white/80 dark:bg-surface-900/80 text-xs font-medium">
+              {t(getLayerById(rightLayer).labelKey)}
+            </div>
+          )}
         </div>
       </div>
     </div>
