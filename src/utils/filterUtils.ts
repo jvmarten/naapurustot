@@ -26,22 +26,30 @@ export function computeMatchingPnos(
 ): Set<string> {
   if (!data || filters.length === 0) return EMPTY_SET;
 
+  // Pre-resolve layer configs and ranges once, outside the feature loop.
+  // Before this fix, getLayerById() (linear LAYERS scan) and getLayerRange()
+  // were called per-filter per-feature (~200 features × N filters).
+  const resolved = filters.map((criterion) => {
+    const layer = getLayerById(criterion.layerId);
+    const [rangeMin, rangeMax] = getLayerRange(layer);
+    return { property: layer.property, min: criterion.min, max: criterion.max, rangeMin, rangeMax };
+  });
+
   const pnos = new Set<string>();
   for (const f of data.features) {
     const p = f.properties as NeighborhoodProperties;
     if (!p.he_vakiy || p.he_vakiy <= 0) continue;
 
-    const matches = filters.every((criterion) => {
-      const layer = getLayerById(criterion.layerId);
-      const value = p[layer.property];
-      if (typeof value !== 'number' || !isFinite(value)) return false;
-      const [rangeMin, rangeMax] = getLayerRange(layer);
+    let matches = true;
+    for (const r of resolved) {
+      const value = p[r.property];
+      if (typeof value !== 'number' || !isFinite(value)) { matches = false; break; }
       // When slider is at its extreme position, include all values beyond the stop range
       // so neighborhoods with outlier values (e.g. 1.4% when stops start at 2%) aren't excluded
-      const minOk = criterion.min <= rangeMin ? true : value >= criterion.min;
-      const maxOk = criterion.max >= rangeMax ? true : value <= criterion.max;
-      return minOk && maxOk;
-    });
+      const minOk = r.min <= r.rangeMin || value >= r.min;
+      const maxOk = r.max >= r.rangeMax || value <= r.max;
+      if (!minOk || !maxOk) { matches = false; break; }
+    }
 
     if (matches) pnos.add(p.pno);
   }
