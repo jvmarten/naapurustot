@@ -70,3 +70,14 @@ We want the lowest-level data possible. The minimum acceptable granularity is **
 - ESLint with typescript-eslint and React Hooks rules
 - Functional components with hooks (no class components)
 - Tailwind utility classes for styling
+
+## Known pitfalls
+
+### All-cities view: metro area border dissolution
+
+The "All cities" view (`?city=all`) merges postal code polygons into single metro area outlines using `@turf/union` (lazy-loaded in `src/utils/metroAreas.ts`). This has broken repeatedly — do not re-introduce any of these issues:
+
+1. **`@turf/union` must stay in `package.json` as a real dependency.** Without it, the fallback MultiPolygon concatenation preserves internal postal code borders. Do not remove it to save bundle size — it is lazy-loaded into a separate chunk and does not affect the main bundle.
+2. **Use a direct `import('@turf/union')` — never obfuscate the import path** (e.g., `'@turf/' + 'union'`). Vite cannot resolve obfuscated dynamic imports, so the module silently fails to load at runtime and the catch handler swallows the error.
+3. **The `metroAreaCache` must invalidate when `unionFn` becomes available.** The cache key includes a `usedUnion` flag — if the cache was built with the fallback (before union loaded), it must be rebuilt once union is ready. Do not remove or simplify this check.
+4. **Both `Map.tsx` and `SplitMapView.tsx` must filter out postal code borders for metro area features** using the `_isMetroArea` property. The `METRO_LINE_LAYER` draws only the outer metro boundary; the regular `LINE_LAYER` must exclude `_isMetroArea: true` features.
