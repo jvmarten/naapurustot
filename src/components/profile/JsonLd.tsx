@@ -1,5 +1,6 @@
 import React from 'react';
 import type { NeighborhoodProperties } from '../../utils/metrics';
+import { t } from '../../utils/i18n';
 
 interface JsonLdProps {
   properties: NeighborhoodProperties;
@@ -8,10 +9,7 @@ interface JsonLdProps {
 }
 
 export const JsonLd: React.FC<JsonLdProps> = ({ properties, center, url }) => {
-  const cityName = properties.city === 'helsinki_metro' ? 'Helsinki'
-    : properties.city === 'turku' ? 'Turku'
-    : properties.city === 'tampere' ? 'Tampere'
-    : 'Finland';
+  const cityName = properties.city ? t(`city.${properties.city}`) : 'Finland';
 
   const schema = {
     '@context': 'https://schema.org',

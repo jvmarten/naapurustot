@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, lazy, Suspense } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useLocation, Link } from 'react-router-dom';
 import type { Feature, Polygon, MultiPolygon } from 'geojson';
 import { loadNeighborhoodData } from '../utils/dataLoader';
 import { parseSlug, toSlug } from '../utils/slug';
@@ -40,10 +40,18 @@ interface LoadedState {
 
 export const NeighborhoodProfilePage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
+  const location = useLocation();
   const [state, setState] = useState<LoadedState | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [lang, setLangState] = useState<Lang>(getLang());
+
+  // Detect language from URL path: /en/area/… → English, /alue/… → Finnish
+  const pathLang: Lang = location.pathname.startsWith('/en/') ? 'en' : 'fi';
+  useEffect(() => {
+    if (getLang() !== pathLang) setLang(pathLang);
+  }, [pathLang]);
+
+  const [lang, setLangState] = useState<Lang>(pathLang);
 
   const pno = slug ? parseSlug(slug) : null;
 
@@ -70,28 +78,47 @@ export const NeighborhoodProfilePage: React.FC = () => {
       });
   }, [pno]);
 
-  // Update document title + hreflang + meta description
+  // Update document title + hreflang + meta description.
+  // Reuse existing elements from index.html where possible to avoid duplicates.
   useEffect(() => {
     if (state?.feature.properties) {
       const d = state.feature.properties as NeighborhoodProperties;
       const slug = toSlug(d.pno, d.nimi);
       document.title = `${d.nimi} (${d.pno}) – naapurustot.fi`;
 
-      // Meta description
-      const meta = document.createElement('meta');
-      meta.name = 'description';
-      meta.content = d.quality_index != null
+      // Meta description — update existing or create
+      const existingMeta = document.querySelector('meta[name="description"]');
+      const descContent = d.quality_index != null
         ? `${d.nimi} (${d.pno}) – ${t('panel.quality_index')}: ${Math.round(d.quality_index)}/100`
         : `${d.nimi} (${d.pno})`;
-      document.head.appendChild(meta);
+      let prevMetaContent: string | null = null;
+      let createdMeta: HTMLMetaElement | null = null;
+      if (existingMeta) {
+        prevMetaContent = existingMeta.getAttribute('content');
+        existingMeta.setAttribute('content', descContent);
+      } else {
+        createdMeta = document.createElement('meta');
+        createdMeta.name = 'description';
+        createdMeta.content = descContent;
+        document.head.appendChild(createdMeta);
+      }
 
-      // Canonical
-      const canonical = document.createElement('link');
-      canonical.rel = 'canonical';
-      canonical.href = `https://naapurustot.fi/alue/${slug}`;
-      document.head.appendChild(canonical);
+      // Canonical — update existing or create
+      const existingCanonical = document.querySelector('link[rel="canonical"]');
+      let prevCanonicalHref: string | null = null;
+      let createdCanonical: HTMLLinkElement | null = null;
+      const canonicalHref = `https://naapurustot.fi/alue/${slug}`;
+      if (existingCanonical) {
+        prevCanonicalHref = existingCanonical.getAttribute('href');
+        existingCanonical.setAttribute('href', canonicalHref);
+      } else {
+        createdCanonical = document.createElement('link');
+        createdCanonical.rel = 'canonical';
+        createdCanonical.href = canonicalHref;
+        document.head.appendChild(createdCanonical);
+      }
 
-      // Hreflang
+      // Hreflang — always created (not in index.html)
       const hrefFi = document.createElement('link');
       hrefFi.rel = 'alternate';
       hrefFi.hreflang = 'fi';
@@ -106,8 +133,15 @@ export const NeighborhoodProfilePage: React.FC = () => {
 
       return () => {
         document.title = 'naapurustot.fi';
-        meta.remove();
-        canonical.remove();
+        // Restore previous values for existing elements, remove created ones
+        if (existingMeta && prevMetaContent != null) {
+          existingMeta.setAttribute('content', prevMetaContent);
+        }
+        createdMeta?.remove();
+        if (existingCanonical && prevCanonicalHref != null) {
+          existingCanonical.setAttribute('href', prevCanonicalHref);
+        }
+        createdCanonical?.remove();
         hrefFi.remove();
         hrefEn.remove();
       };
@@ -153,10 +187,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
   const qi = d.quality_index != null ? Math.round(d.quality_index) : null;
   const qiCat = getQualityCategory(qi);
 
-  const cityName = d.city === 'helsinki_metro' ? t('city.helsinki_metro')
-    : d.city === 'turku' ? t('city.turku')
-    : d.city === 'tampere' ? t('city.tampere')
-    : '';
+  const cityName = d.city ? t(`city.${d.city}`) : '';
 
   const canonicalUrl = `https://naapurustot.fi/alue/${toSlug(d.pno, d.nimi)}`;
 
@@ -360,7 +391,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
               {similar.map(s => (
                 <Link
                   key={s.properties.pno}
-                  to={`/alue/${toSlug(s.properties.pno, s.properties.nimi)}`}
+                  to={`${lang === 'en' ? '/en/area' : '/alue'}/${toSlug(s.properties.pno, s.properties.nimi)}`}
                   className="rounded-xl bg-surface-100 dark:bg-surface-900/60 p-4 hover:bg-surface-200 dark:hover:bg-surface-800 transition-colors"
                 >
                   <div className="font-medium text-sm mb-1">{s.properties.nimi}</div>

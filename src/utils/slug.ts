@@ -11,11 +11,13 @@
 function slugify(text: string): string {
   return text
     .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '') // remove combining diacritical marks
+    // Replace Finnish characters before NFD decomposition, as NFD may not
+    // decompose all characters identically across environments.
     .replace(/ä/g, 'a')
     .replace(/ö/g, 'o')
     .replace(/å/g, 'a')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // remove combining diacritical marks
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '');
 }

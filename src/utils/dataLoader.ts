@@ -111,26 +111,19 @@ export function loadRegionData(regionId: RegionId): Promise<ProcessedData> {
 
 // --- Combined "all" data loading ---
 
-// Prefetch combined data at module load (same behavior as before)
-let prefetchedResponse: Promise<Response> | null = null;
-try {
-  prefetchedResponse = fetch(combinedTopoUrl);
-} catch { /* fetch unavailable in SSR */ }
-
 let combinedCache: Promise<ProcessedData> | null = null;
 
 /**
  * Load the combined dataset (all regions). Used for "all" view and cross-region search.
  * Backward-compatible: same as the old loadNeighborhoodData().
+ *
+ * Fetches on first call rather than at module load, so users viewing a single
+ * region don't download the full combined file (~1.1 MB) unnecessarily.
  */
 export function loadAllData(): Promise<ProcessedData> {
   if (combinedCache) return combinedCache;
 
-  const responsePromise = prefetchedResponse
-    ? prefetchedResponse.then(res => res.clone()).catch(() => fetch(combinedTopoUrl))
-    : fetch(combinedTopoUrl);
-
-  combinedCache = responsePromise
+  combinedCache = fetch(combinedTopoUrl)
     .then(res => {
       if (!res.ok) throw new Error(`Failed to load data: ${res.status}`);
       return res.json();
@@ -149,6 +142,5 @@ export const loadNeighborhoodData = loadAllData;
 /** Reset all caches (used for retry logic in useMapData). */
 export function resetDataCache(): void {
   combinedCache = null;
-  prefetchedResponse = null;
   regionCache.clear();
 }
