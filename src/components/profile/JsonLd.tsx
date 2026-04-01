@@ -52,15 +52,21 @@ export const JsonLd: React.FC<JsonLdProps> = ({ properties, center, url }) => {
     ],
   };
 
+  // Escape closing script tags in JSON output to prevent XSS.
+  // A literal "</script>" inside the JSON would close the <script> element
+  // and allow arbitrary HTML injection. Replacing "</" with "<\/" is safe
+  // JSON (the backslash is ignored by JSON parsers) and blocks the attack.
+  const safeJson = (obj: object) => JSON.stringify(obj).replace(/</g, '\\u003c');
+
   return (
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+        dangerouslySetInnerHTML={{ __html: safeJson(schema) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: safeJson(breadcrumb) }}
       />
     </>
   );
