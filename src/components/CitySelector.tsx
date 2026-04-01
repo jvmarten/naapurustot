@@ -11,18 +11,16 @@ interface CitySelectorProps {
   lang?: Lang;
 }
 
-/** Build options list: "All" first, then regions in config order. */
-function buildOptions(): { id: CityFilter; labelKey: string }[] {
-  return [
-    { id: 'all', labelKey: 'city.all' },
-    ...REGION_IDS_WITH_DATA.map((id) => ({ id: id as CityFilter, labelKey: `city.${id}` })),
-  ];
-}
+/** Options list: "All" first, then regions in config order. Computed once at module level. */
+const OPTIONS: { id: CityFilter; labelKey: string }[] = [
+  { id: 'all', labelKey: 'city.all' },
+  ...REGION_IDS_WITH_DATA.map((id) => ({ id: id as CityFilter, labelKey: `city.${id}` })),
+];
 
 export const CitySelector: React.FC<CitySelectorProps> = ({ value, onChange, lang: _lang }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const options = buildOptions();
+  const options = OPTIONS;
 
   useEffect(() => {
     if (!open) return;

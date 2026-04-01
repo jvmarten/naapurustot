@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 
 type SnapPosition = 'peek' | 'half' | 'full';
 
@@ -64,6 +64,15 @@ export function useBottomSheet(options: UseBottomSheetOptions = {}): UseBottomSh
   const startTimeRef = useRef(0);
   const startHeightRef = useRef(0);
 
+  // Read frequently-changing state from refs inside callbacks to avoid
+  // recreating onTouchStart/onTouchEnd ~60 times/second during drags.
+  const dragHeightRef = useRef(dragHeight);
+  const snapRef = useRef(snap);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { dragHeightRef.current = dragHeight; }, [dragHeight]);
+  useEffect(() => { snapRef.current = snap; }, [snap]);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+
   const resolveHeight = useCallback(
     (s: SnapPosition) => getSnapHeight(s, peekHeight, halfRatio, fullRatio),
     [peekHeight, halfRatio, fullRatio],
@@ -74,10 +83,10 @@ export function useBottomSheet(options: UseBottomSheetOptions = {}): UseBottomSh
       const touch = e.touches[0];
       startYRef.current = touch.clientY;
       startTimeRef.current = Date.now();
-      startHeightRef.current = dragHeight ?? resolveHeight(snap);
+      startHeightRef.current = dragHeightRef.current ?? resolveHeight(snapRef.current);
       setIsDragging(true);
     },
-    [dragHeight, snap, resolveHeight],
+    [resolveHeight],
   );
 
   const onTouchMove = useCallback(
@@ -94,7 +103,7 @@ export function useBottomSheet(options: UseBottomSheetOptions = {}): UseBottomSh
   const onTouchEnd = useCallback(() => {
     setIsDragging(false);
 
-    const currentHeight = dragHeight ?? resolveHeight(snap);
+    const currentHeight = dragHeightRef.current ?? resolveHeight(snapRef.current);
     const elapsed = Date.now() - startTimeRef.current;
     const distancePx = currentHeight - startHeightRef.current;
     // Positive velocity = upward movement
@@ -114,7 +123,7 @@ export function useBottomSheet(options: UseBottomSheetOptions = {}): UseBottomSh
       if (currentHeight < peekH) {
         setDragHeight(null);
         setSnap('peek');
-        onClose?.();
+        onCloseRef.current?.();
         return;
       }
       nextSnap = 'peek';
@@ -123,7 +132,7 @@ export function useBottomSheet(options: UseBottomSheetOptions = {}): UseBottomSh
       if (currentHeight < peekH) {
         setDragHeight(null);
         setSnap('peek');
-        onClose?.();
+        onCloseRef.current?.();
         return;
       }
 
@@ -138,7 +147,7 @@ export function useBottomSheet(options: UseBottomSheetOptions = {}): UseBottomSh
 
     setSnap(nextSnap);
     setDragHeight(null);
-  }, [dragHeight, snap, peekHeight, resolveHeight, onClose]);
+  }, [peekHeight, resolveHeight]);
 
   const sheetHeight = isDragging && dragHeight !== null ? dragHeight : resolveHeight(snap);
 

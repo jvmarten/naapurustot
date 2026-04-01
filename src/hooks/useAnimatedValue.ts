@@ -11,7 +11,10 @@ export function useAnimatedValues(
   // Stable serialization for change detection
   const keyStr = Object.keys(targets).sort().join(',');
   const keys = useMemo(() => (keyStr === '' ? [] : keyStr.split(',')), [keyStr]);
-  const serialized = keys.map(k => `${k}:${targets[k] ?? '_'}`).join('|');
+  // Memoize serialized string — without this, the join runs on every render
+  // even when targets haven't changed (30+ keys × string concat is measurable).
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- keys + targets values are the real deps
+  const serialized = useMemo(() => keys.map(k => `${k}:${targets[k] ?? '_'}`).join('|'), [keyStr, targets]);
 
   const displayRef = useRef<Record<string, number | null>>({});
   const fromRef = useRef<Record<string, number | null>>({});
@@ -28,6 +31,9 @@ export function useAnimatedValues(
   });
 
   useEffect(() => {
+    // Cancel any in-flight animation before processing new targets or early returns.
+    cancelAnimationFrame(rafRef.current);
+
     const targetMap: Record<string, number | null> = {};
     const fromMap: Record<string, number | null> = {};
 
@@ -95,6 +101,10 @@ export function useAnimatedValue(target: number | null, duration = 300): number 
   const rafRef = useRef<number>(0);
 
   useEffect(() => {
+    // Cancel any in-flight animation from the previous render before early returns.
+    // Without this, the old RAF loop keeps running and calling setDisplay with stale values.
+    cancelAnimationFrame(rafRef.current);
+
     if (target == null) {
       setDisplay(null);
       displayRef.current = null;

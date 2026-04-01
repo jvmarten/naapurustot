@@ -114,6 +114,9 @@ export function removePOILayers(map: maplibregl.Map): void {
   if (map.getLayer(POI_UNCLUSTERED_LAYER)) map.removeLayer(POI_UNCLUSTERED_LAYER);
   if (map.getLayer(POI_COUNT_LAYER)) map.removeLayer(POI_COUNT_LAYER);
   if (map.getLayer(POI_CLUSTER_LAYER)) map.removeLayer(POI_CLUSTER_LAYER);
+  // Remove the source too — without this, the GeoJSON + cluster data stays in
+  // MapLibre's memory even when POI visibility is toggled off.
+  if (map.getSource(POI_SOURCE)) map.removeSource(POI_SOURCE);
 }
 
 export { CATEGORY_COLORS };
