@@ -105,8 +105,15 @@ export function loadRegionData(regionId: RegionId): Promise<ProcessedData> {
     }));
   }
 
-  regionCache.set(regionId, promise);
-  return promise;
+  // Evict from cache on failure so the next navigation attempt retries
+  // instead of returning the same rejected promise.
+  const tracked = promise.catch((err) => {
+    regionCache.delete(regionId);
+    throw err;
+  });
+
+  regionCache.set(regionId, tracked);
+  return tracked;
 }
 
 // --- Combined "all" data loading ---
@@ -128,7 +135,12 @@ export function loadAllData(): Promise<ProcessedData> {
       if (!res.ok) throw new Error(`Failed to load data: ${res.status}`);
       return res.json();
     })
-    .then((topo: Topology) => processTopology(topo));
+    .then((topo: Topology) => processTopology(topo))
+    .catch((err) => {
+      // Evict from cache on failure so the next call retries
+      combinedCache = null;
+      throw err;
+    });
 
   return combinedCache;
 }

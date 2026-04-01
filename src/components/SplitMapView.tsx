@@ -235,6 +235,8 @@ export const SplitMapView: React.FC<SplitMapViewProps> = ({
   useEffect(() => {
     if (!data) return;
 
+    const pendingListeners: { map: maplibregl.Map; fn: () => void }[] = [];
+
     const setupMap = (map: maplibregl.Map | null, layerId: LayerId) => {
       if (!map) return;
       const apply = () => addDataLayers(map, data, layerId, theme);
@@ -242,11 +244,18 @@ export const SplitMapView: React.FC<SplitMapViewProps> = ({
         apply();
       } else {
         map.on('load', apply);
+        pendingListeners.push({ map, fn: apply });
       }
     };
 
     setupMap(leftMapRef.current, leftLayer);
     setupMap(rightMapRef.current, rightLayer);
+
+    return () => {
+      for (const { map, fn } of pendingListeners) {
+        map.off('load', fn);
+      }
+    };
   }, [data, theme]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Update fill color when active layers or colorblind mode change
