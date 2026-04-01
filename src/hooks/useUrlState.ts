@@ -81,7 +81,7 @@ export function useSyncUrlState(pno: string | null, layer: LayerId, comparePnos:
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
-    if (!ready) return;
+    if (!ready) return () => { if (timerRef.current) clearTimeout(timerRef.current); };
     timerRef.current = setTimeout(() => writeUrl(pno, layer, comparePnos, city), 100);
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, [pno, layer, comparePnos, city, ready]);
