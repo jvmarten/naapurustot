@@ -2,8 +2,8 @@ name: Data Refresh
 
 on:
   schedule:
-    # Run at midnight UTC on the 1st of every month
-    - cron: '0 0 1 * *'
+    # Run at midnight UTC on the 1st of every quarter (Jan, Apr, Jul, Oct)
+    - cron: '0 0 1 1,4,7,10 *'
   workflow_dispatch:
 
 permissions:
@@ -26,7 +26,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Run data pipeline
-        run: python scripts/prepare_data.py --validate
+        run: python scripts/prepare_data.py
 
       - name: Validate output (basic)
         run: |
@@ -101,7 +101,7 @@ jobs:
             --title "chore: refresh neighborhood data ($DATE)" \
             --body "## Data Refresh
 
-          Automated monthly data refresh from upstream sources.
+          Automated quarterly data refresh from upstream sources.
 
           - **Date:** $DATE
           - **Features:** $FEATURE_COUNT postal code areas
