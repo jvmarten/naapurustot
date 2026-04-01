@@ -84,7 +84,6 @@ describe('exportCsv', () => {
     const props = makeProps({ nimi: 'Test/Area:Name' });
     exportCsv(props, {});
     // The download filename should have special chars replaced with _
-    const createElement = document.createElement as any;
     // Verify no crash — the method completed
     expect(clickSpy).toHaveBeenCalled();
   });

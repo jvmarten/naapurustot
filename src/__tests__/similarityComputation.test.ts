@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { findSimilarNeighborhoods, type SimilarNeighborhood } from '../utils/similarity';
+import { findSimilarNeighborhoods } from '../utils/similarity';
 import type { NeighborhoodProperties } from '../utils/metrics';
 
 function makeFeature(pno: string, props: Partial<NeighborhoodProperties> = {}): GeoJSON.Feature {
