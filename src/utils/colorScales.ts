@@ -794,6 +794,7 @@ export function rescaleLayerToData(
   }
   if (!isFinite(min) || !isFinite(max) || min === max) return layer;
   const n = layer.stops.length;
+  if (n <= 1) return layer;
   const newStops = layer.stops.map((_, i) => min + (i / (n - 1)) * (max - min));
   return { ...layer, stops: newStops };
 }
