@@ -64,6 +64,8 @@ const STAT_SECTIONS: { title: string; stats: StatDef[] }[] = [
 
 function computeAreaStats(polygon: Feature<Polygon>, data: FeatureCollection, selectedPnos?: string[]) {
   const intersecting: NeighborhoodProperties[] = [];
+  // Use a Set for O(1) PNO lookups instead of O(n) Array.includes() per feature
+  const pnoSet = selectedPnos ? new Set(selectedPnos) : null;
 
   for (const feature of data.features) {
     if (!feature.geometry) continue;
@@ -73,8 +75,8 @@ function computeAreaStats(polygon: Feature<Polygon>, data: FeatureCollection, se
     try {
       // When selectedPnos is provided (click-to-select mode), use exact PNO match
       // instead of polygon intersection to avoid the convex hull catching extra areas
-      const matches = selectedPnos
-        ? feature.properties?.pno && selectedPnos.includes(feature.properties.pno)
+      const matches = pnoSet
+        ? feature.properties?.pno && pnoSet.has(feature.properties.pno as string)
         : booleanIntersects(polygon, feature as Feature<Polygon | MultiPolygon>);
       if (matches) {
         if (feature.properties) {
