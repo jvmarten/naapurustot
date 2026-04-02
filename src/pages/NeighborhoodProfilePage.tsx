@@ -52,6 +52,10 @@ export const NeighborhoodProfilePage: React.FC = () => {
   }, [pathLang]);
 
   const [lang, setLangState] = useState<Lang>(pathLang);
+  // Sync local lang state when the URL language changes (e.g., navigating from /alue/ to /en/area/)
+  useEffect(() => {
+    setLangState(pathLang);
+  }, [pathLang]);
 
   const pno = slug ? parseSlug(slug) : null;
 

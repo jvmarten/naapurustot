@@ -154,6 +154,11 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   // PO-2: Track pending layer transition timeouts for cleanup
   const layerTransitionRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const layerTransitionResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Refs for values read inside layer transition timeouts to avoid stale closures
+  const fillOpacityRef = useRef(fillOpacity);
+  fillOpacityRef.current = fillOpacity;
+  const gridDataRef = useRef(gridData);
+  gridDataRef.current = gridData;
 
   // Initialize map
   useEffect(() => {
@@ -494,17 +499,20 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         }
 
         // Restore transition duration and fade back in
+        // Read current values from refs to avoid stale closures (gridData/fillOpacity
+        // can change during the 180ms fade-out delay)
         mapRef.current.setPaintProperty(FILL_LAYER, 'fill-opacity-transition', { duration: 200, delay: 0 });
-        const layerMeta = layerConfig ?? getLayerById(activeLayer);
-        const useGrid = !!gridData && !!layerMeta.gridProperty;
+        const currentGridData = gridDataRef.current;
+        const currentFillOpacity = fillOpacityRef.current;
+        const useGrid = !!currentGridData && !!layer.gridProperty;
         if (useGrid) {
           mapRef.current.setPaintProperty(FILL_LAYER, 'fill-opacity', 0);
           if (mapRef.current.getLayer(GRID_FILL_LAYER)) {
             mapRef.current.setPaintProperty(GRID_FILL_LAYER, 'fill-opacity-transition', { duration: 200, delay: 0 });
-            mapRef.current.setPaintProperty(GRID_FILL_LAYER, 'fill-opacity', 0.8 * fillOpacity);
+            mapRef.current.setPaintProperty(GRID_FILL_LAYER, 'fill-opacity', 0.8 * currentFillOpacity);
           }
         } else {
-          mapRef.current.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(fillOpacity) as maplibregl.ExpressionSpecification);
+          mapRef.current.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(currentFillOpacity) as maplibregl.ExpressionSpecification);
         }
 
         // Reset transition to default after fade-in completes

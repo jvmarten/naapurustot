@@ -114,7 +114,7 @@ function scoreNeighborhoods(
     let max = -Infinity;
     for (const f of features) {
       const v = (f.properties as NeighborhoodProperties)[key] as number | null;
-      if (v != null) {
+      if (typeof v === 'number' && isFinite(v)) {
         if (v < min) min = v;
         if (v > max) max = v;
       }
@@ -174,9 +174,13 @@ function scoreNeighborhoods(
     const bMax = Math.max(answers.budgetMin, answers.budgetMax);
     if (price != null) {
       if (price >= bMin && price <= bMax) {
-        const midBudget = (bMin + bMax) / 2;
-        const budgetFit = 1 - Math.abs(price - midBudget) / (bMax - bMin + 1);
-        score += budgetFit * 2;
+        const budgetRange = bMax - bMin;
+        // When range is 0 (min===max), exact match gets full score.
+        // Otherwise compute how close the price is to the midpoint (0–1).
+        const budgetFit = budgetRange === 0
+          ? 1
+          : 1 - Math.abs(price - (bMin + bMax) / 2) / (budgetRange / 2);
+        score += Math.max(0, budgetFit) * 2;
         totalWeight += 2;
         reasons.push(t('wizard.reason_budget'));
       } else {
