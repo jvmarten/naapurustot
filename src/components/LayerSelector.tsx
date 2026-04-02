@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { LAYERS, type LayerId } from '../utils/colorScales';
+import { LAYER_MAP, type LayerId } from '../utils/colorScales';
 import { t, type Lang } from '../utils/i18n';
 import { useBottomSheet } from '../hooks/useBottomSheet';
 
@@ -136,7 +136,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
       </div>
       {/* Standalone quality index — always visible at the top */}
       {(() => {
-        const qLayer = LAYERS.find((l) => l.id === 'quality_index');
+        const qLayer = LAYER_MAP.get('quality_index');
         if (!qLayer) return null;
         if (searchQuery && !t(qLayer.labelKey).toLowerCase().includes(searchQuery)) return null;
         const isActive = qLayer.id === activeLayer;
@@ -190,7 +190,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
       })()}
       {LAYER_GROUPS.map((group) => {
         const groupLayers = group.ids
-          .map((id) => LAYERS.find((l) => l.id === id))
+          .map((id) => LAYER_MAP.get(id))
           .filter(Boolean)
           .filter((layer) => !searchQuery || t(layer!.labelKey).toLowerCase().includes(searchQuery));
         if (groupLayers.length === 0) return null;

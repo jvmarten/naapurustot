@@ -251,10 +251,10 @@ const App: React.FC = () => {
   // Build union polygon from selected neighborhoods for AreaSummaryPanel
   const selectedAreasPolygon = useMemo<Feature<Polygon> | null>(() => {
     if (selectedAreaPnos.length === 0 || !filteredData) return null;
-    // Collect all coordinates from selected neighborhoods and create a convex hull-like polygon
-    // For the AreaSummaryPanel, we create a bounding polygon that contains all selected areas
+    // Use a Set for O(1) lookups instead of O(n) Array.includes() per feature.
+    const pnoSet = new Set(selectedAreaPnos);
     const selectedFeatures = filteredData.features.filter(
-      (f) => f.properties?.pno && selectedAreaPnos.includes(f.properties.pno)
+      (f) => f.properties?.pno && pnoSet.has(f.properties.pno as string)
     );
     if (selectedFeatures.length === 0) return null;
 
@@ -602,6 +602,25 @@ const App: React.FC = () => {
     setShowWizard(false);
   }, []);
   const handleFlyTo = useCallback((center: [number, number]) => setFlyTarget({ center }), []);
+
+  // Memoize the headerSlot to avoid creating new React elements on every App render.
+  // Without this, LayerSelector (React.memo) re-renders on every unrelated state change.
+  const layerSelectorHeaderSlot = useMemo(() => (
+    <div className="flex items-center gap-1.5">
+      {comparisonScope === 'region' && cityFilter !== 'all' && (
+        <div className="px-2.5 py-1 rounded-lg bg-amber-500/90 text-white text-[10px] font-semibold backdrop-blur-sm whitespace-nowrap">
+          {t('scope.active_hint')}
+        </div>
+      )}
+      <div className="rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden">
+        <ComparisonScopeToggle
+          scope={comparisonScope}
+          onChange={setComparisonScope}
+          disabled={cityFilter === 'all'}
+        />
+      </div>
+    </div>
+  ), [comparisonScope, cityFilter]);
   // Stable callbacks for NeighborhoodPanel props — prevents new closures on every render
   // which would defeat React.memo on the panel.
   const handleToggleFavorite = useCallback(() => {
@@ -868,22 +887,7 @@ const App: React.FC = () => {
         onLayerChange={setActiveLayer}
         onCustomizeQuality={handleToggleCustomQuality}
         isCustomWeights={customWeights}
-        headerSlot={
-          <div className="flex items-center gap-1.5">
-            {comparisonScope === 'region' && cityFilter !== 'all' && (
-              <div className="px-2.5 py-1 rounded-lg bg-amber-500/90 text-white text-[10px] font-semibold backdrop-blur-sm whitespace-nowrap">
-                {t('scope.active_hint')}
-              </div>
-            )}
-            <div className="rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden">
-              <ComparisonScopeToggle
-                scope={comparisonScope}
-                onChange={setComparisonScope}
-                disabled={cityFilter === 'all'}
-              />
-            </div>
-          </div>
-        }
+        headerSlot={layerSelectorHeaderSlot}
         lang={lang}
       />
 

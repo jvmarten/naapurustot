@@ -1,7 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
-import { QRCodeSVG } from 'qrcode.react';
 import { t } from '../utils/i18n';
+
+// Lazy-load qrcode.react (~13KB gzipped) — only needed when user clicks "Show QR"
+const QRCodeSVG = lazy(() => import('qrcode.react').then(m => ({ default: m.QRCodeSVG })));
 
 const BOLT12_OFFER =
   'lno1zrxq8pjw7qjlm68mtp7e3yvxee4y5xrgjhhyf2fxhlphpckrvevh50u0qw9y07wzkqlq5yek7g53xhyrjfsqhyz7dygu0srtfagh8jyws0umjqszkt849v9ad3afkf8x6kllvg7ch9detyux8u8hg7f80wdurc8s4ycqqv622dhrd8t0xcehufgj7ckgfw80fhmlfqs8j2nvzdwf04g9x3s5syxkcfwkearq326z8xkcklcmztsyvw5sqd97wsh2sgl7vtng75japckt6dcmanjcssdp96c052j3cfxa8r68wqqs6q8rgxe6m4jgnusl2348zng7ky';
@@ -87,11 +89,13 @@ export const DonateButton: React.FC<DonateButtonProps> = ({ variant = 'button' }
       {showQr && (
         <div className="flex justify-center mb-2">
           <div className="bg-white p-2 rounded-lg">
-            <QRCodeSVG
-              value={BOLT12_OFFER}
-              size={160}
-              level="L"
-            />
+            <Suspense fallback={<div className="w-[160px] h-[160px] bg-surface-100 dark:bg-surface-800 animate-pulse rounded" />}>
+              <QRCodeSVG
+                value={BOLT12_OFFER}
+                size={160}
+                level="L"
+              />
+            </Suspense>
           </div>
         </div>
       )}
@@ -147,11 +151,13 @@ export const DonateButton: React.FC<DonateButtonProps> = ({ variant = 'button' }
           {showQr && (
             <div className="flex justify-center mb-2">
               <div className="bg-white p-2 rounded-lg">
-                <QRCodeSVG
-                  value={BOLT12_OFFER}
-                  size={180}
-                  level="L"
-                />
+                <Suspense fallback={<div className="w-[180px] h-[180px] bg-surface-100 dark:bg-surface-800 animate-pulse rounded" />}>
+                  <QRCodeSVG
+                    value={BOLT12_OFFER}
+                    size={180}
+                    level="L"
+                  />
+                </Suspense>
               </div>
             </div>
           )}

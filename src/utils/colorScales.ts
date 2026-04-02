@@ -691,6 +691,7 @@ const CB_PALETTES: Record<Exclude<ColorblindType, 'off'>, string[]> = {
 let colorblindMode: ColorblindType = 'off';
 
 export function setColorblindMode(mode: ColorblindType) {
+  if (colorblindMode !== mode) cbLayerCache.clear();
   colorblindMode = mode;
   try { localStorage.setItem('naapurustot-colorblind', mode); } catch { /* localStorage unavailable */ }
 }
@@ -738,7 +739,7 @@ function resamplePalette(palette: string[], count: number): string[] {
 
 // O(1) layer lookup instead of O(n) Array.find() on every call.
 // getLayerById is called on every hover (tooltip), layer switch, and map paint update.
-const LAYER_MAP = new Map<LayerId, LayerConfig>();
+export const LAYER_MAP = new Map<LayerId, LayerConfig>();
 for (const layer of LAYERS) {
   LAYER_MAP.set(layer.id, layer);
 }
@@ -747,17 +748,27 @@ for (const layer of LAYERS) {
 // Key: "mode:colorCount", e.g. "protanopia:8"
 const cbPaletteCache = new Map<string, string[]>();
 
+// Cache colorblind-substituted LayerConfig objects to return stable references.
+// Without this, every getLayerById call in colorblind mode created a new object,
+// defeating React.memo in Legend, TooltipOverlay, and the effectiveLayer comparison in App.
+const cbLayerCache = new Map<string, LayerConfig>();
+
 /** Look up a layer config by ID, applying colorblind palette substitution if active. */
 export function getLayerById(id: LayerId): LayerConfig {
   const layer = LAYER_MAP.get(id) ?? LAYERS[0];
   if (colorblindMode === 'off') return layer;
-  const cacheKey = `${colorblindMode}:${layer.colors.length}`;
-  let cbColors = cbPaletteCache.get(cacheKey);
+  const layerKey = `${colorblindMode}:${id}`;
+  const cached = cbLayerCache.get(layerKey);
+  if (cached) return cached;
+  const paletteKey = `${colorblindMode}:${layer.colors.length}`;
+  let cbColors = cbPaletteCache.get(paletteKey);
   if (!cbColors) {
     cbColors = resamplePalette(CB_PALETTES[colorblindMode], layer.colors.length);
-    cbPaletteCache.set(cacheKey, cbColors);
+    cbPaletteCache.set(paletteKey, cbColors);
   }
-  return { ...layer, colors: cbColors };
+  const result = { ...layer, colors: cbColors };
+  cbLayerCache.set(layerKey, result);
+  return result;
 }
 
 /** Map a numeric value to a color from the layer's scale. Returns gray for null/undefined. */
