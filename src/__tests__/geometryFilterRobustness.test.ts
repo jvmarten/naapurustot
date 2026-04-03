@@ -17,7 +17,7 @@ describe('getFeatureCenter', () => {
     expect(getFeatureCenter(f)).toEqual([24.9, 60.2]);
   });
 
-  it('computes center of a simple Polygon (average of vertices)', () => {
+  it('computes center of a simple Polygon (bbox midpoint)', () => {
     const f: Feature = {
       type: 'Feature',
       properties: {},
@@ -27,12 +27,12 @@ describe('getFeatureCenter', () => {
       },
     };
     const center = getFeatureCenter(f);
-    // Average of 5 points: (0+10+10+0+0)/5=4, (0+0+10+10+0)/5=4
-    expect(center[0]).toBeCloseTo(4);
-    expect(center[1]).toBeCloseTo(4);
+    // Bbox midpoint: lng [0,10] → 5, lat [0,10] → 5
+    expect(center[0]).toBeCloseTo(5);
+    expect(center[1]).toBeCloseTo(5);
   });
 
-  it('computes center of MultiPolygon', () => {
+  it('computes center of MultiPolygon (bbox midpoint)', () => {
     const f: Feature = {
       type: 'Feature',
       properties: {},
@@ -45,9 +45,9 @@ describe('getFeatureCenter', () => {
       },
     };
     const center = getFeatureCenter(f);
-    // Average of all 10 vertices: (0+2+2+0+0+10+12+12+10+10)/10=5.8, (0+0+2+2+0+10+10+12+12+10)/10=5.8
-    expect(center[0]).toBeCloseTo(5.8);
-    expect(center[1]).toBeCloseTo(5.8);
+    // Bbox midpoint: lng [0,12] → 6, lat [0,12] → 6
+    expect(center[0]).toBeCloseTo(6);
+    expect(center[1]).toBeCloseTo(6);
   });
 
   it('handles LineString geometry', () => {

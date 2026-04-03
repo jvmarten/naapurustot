@@ -11,6 +11,7 @@ import './index.css';
 // Auto-reload when a new service worker is activated after deployment.
 // This prevents users from being stuck on a stale cached version.
 // Check for updates every 60 seconds so returning tabs pick up deploys fast.
+let pendingRefresh = false;
 registerSW({
   immediate: true,
   onRegisteredSW(_swUrl, registration) {
@@ -24,10 +25,11 @@ registerSW({
     // state like draw polygons, notes, or mid-comparison work.
     if (document.hidden) {
       window.location.reload();
-    } else {
-      const reload = () => { window.location.reload(); };
+    } else if (!pendingRefresh) {
+      // Guard against duplicate listeners from rapid successive SW activations.
+      pendingRefresh = true;
       document.addEventListener('visibilitychange', () => {
-        if (document.hidden) reload();
+        if (document.hidden) window.location.reload();
       }, { once: true });
     }
   },

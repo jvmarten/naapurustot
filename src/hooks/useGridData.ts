@@ -13,9 +13,11 @@ import type { LayerId } from '../utils/colorScales';
  * grid layer. If the file doesn't exist (grid data not yet built),
  * the fetch silently fails and the map falls back to the postal choropleth.
  */
+const BASE = import.meta.env.BASE_URL ?? '/';
+
 const GRID_PATHS: Partial<Record<LayerId, string>> = {
-  transit_reachability: '/data/transit_reachability_grid.topojson',
-  light_pollution: '/data/light_pollution_grid.geojson',
+  transit_reachability: `${BASE}data/transit_reachability_grid.topojson`,
+  light_pollution: `${BASE}data/light_pollution_grid.geojson`,
 };
 
 /** Returns true if the layer has a registered grid data source. */

@@ -58,24 +58,40 @@ export function filterSmallIslands(features: Feature[]): Feature[] {
 }
 
 /**
- * Compute the approximate center of a GeoJSON feature by averaging all
- * vertex coordinates. Returns [lng, lat]. Falls back to [0, 0] for
- * unsupported geometry types or features with no coordinates.
+ * Compute the center of a GeoJSON feature as the midpoint of its bounding box.
+ * Returns [lng, lat]. Falls back to [0, 0] for unsupported geometry types
+ * or features with no coordinates.
+ *
+ * Uses bbox midpoint rather than vertex centroid because GeoJSON rings include
+ * a duplicate closing vertex, which biases a naive vertex average toward the
+ * first/last point.
  */
 export function getFeatureCenter(feature: Feature): [number, number] {
   const geom = feature.geometry;
   if (!geom) return [0, 0];
   if (geom.type === 'Point') return geom.coordinates as [number, number];
-  const coords: Position[] = [];
-  function extract(c: Position | Position[] | Position[][] | Position[][][]) {
-    if (typeof c[0] === 'number') coords.push(c as Position);
-    else (c as Position[][]).forEach(extract);
+
+  let minLng = Infinity;
+  let maxLng = -Infinity;
+  let minLat = Infinity;
+  let maxLat = -Infinity;
+
+  function scan(c: Position | Position[] | Position[][] | Position[][][]) {
+    if (typeof c[0] === 'number') {
+      const [lng, lat] = c as Position;
+      if (lng < minLng) minLng = lng;
+      if (lng > maxLng) maxLng = lng;
+      if (lat < minLat) minLat = lat;
+      if (lat > maxLat) maxLat = lat;
+    } else {
+      (c as Position[][]).forEach(scan);
+    }
   }
+
   if ('coordinates' in geom) {
-    extract(geom.coordinates as Position[]);
+    scan(geom.coordinates as Position[]);
   }
-  if (coords.length === 0) return [0, 0];
-  const lng = coords.reduce((s, c) => s + c[0], 0) / coords.length;
-  const lat = coords.reduce((s, c) => s + c[1], 0) / coords.length;
-  return [lng, lat];
+
+  if (!isFinite(minLng)) return [0, 0];
+  return [(minLng + maxLng) / 2, (minLat + maxLat) / 2];
 }

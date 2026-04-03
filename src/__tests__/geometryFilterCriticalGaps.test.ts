@@ -107,27 +107,22 @@ describe('getFeatureCenter — edge cases', () => {
     expect(getFeatureCenter(feature)).toEqual([0, 0]);
   });
 
-  it('averages all vertices of Polygon', () => {
+  it('computes bbox midpoint of Polygon', () => {
     const feature = makePolygonFeature([[[0, 0], [4, 0], [4, 4], [0, 4], [0, 0]]]);
     const center = getFeatureCenter(feature);
-    // Average of 5 points: [0+4+4+0+0]/5=1.6, [0+0+4+4+0]/5=1.6
-    expect(center[0]).toBeCloseTo(1.6, 5);
-    expect(center[1]).toBeCloseTo(1.6, 5);
+    // Bbox midpoint: lng [0,4] → 2, lat [0,4] → 2
+    expect(center[0]).toBeCloseTo(2, 5);
+    expect(center[1]).toBeCloseTo(2, 5);
   });
 
-  it('handles MultiPolygon by averaging all vertices', () => {
-    // getFeatureCenter uses a recursive extract that flattens all coordinates
+  it('computes bbox midpoint for MultiPolygon', () => {
     const feature = makeMultiPolygonFeature([
       [[[0, 0], [2, 0], [2, 2], [0, 0]]],   // 4 vertices in ring
       [[[10, 10], [12, 10], [12, 12], [10, 10]]], // 4 vertices in ring
     ]);
     const center = getFeatureCenter(feature);
-    // Average of 8 coordinate pairs (4 from each polygon ring, including closing points)
-    const allLng = [0, 2, 2, 0, 10, 12, 12, 10];
-    const allLat = [0, 0, 2, 0, 10, 10, 12, 10];
-    const lngAvg = allLng.reduce((a, b) => a + b, 0) / allLng.length;
-    const latAvg = allLat.reduce((a, b) => a + b, 0) / allLat.length;
-    expect(center[0]).toBeCloseTo(lngAvg, 5);
-    expect(center[1]).toBeCloseTo(latAvg, 5);
+    // Bbox midpoint: lng [0,12] → 6, lat [0,12] → 6
+    expect(center[0]).toBeCloseTo(6, 5);
+    expect(center[1]).toBeCloseTo(6, 5);
   });
 });
