@@ -113,10 +113,9 @@ describe('getFeatureCenter', () => {
       geometry: { type: 'Polygon', coordinates: [square(0, 0, 10)] },
     };
     const center = getFeatureCenter(feature);
-    // Average of vertices: (0,0), (10,0), (10,10), (0,10), (0,0) = [4, 4]
-    // (0+10+10+0+0)/5 = 4, (0+0+10+10+0)/5 = 4
-    expect(center[0]).toBeCloseTo(4, 1);
-    expect(center[1]).toBeCloseTo(4, 1);
+    // Bbox midpoint: lng [0,10] → 5, lat [0,10] → 5
+    expect(center[0]).toBeCloseTo(5, 1);
+    expect(center[1]).toBeCloseTo(5, 1);
   });
 
   it('computes center of a MultiPolygon', () => {

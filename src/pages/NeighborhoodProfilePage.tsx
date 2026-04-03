@@ -8,29 +8,11 @@ import { t, getLang, setLang, type Lang } from '../utils/i18n';
 import { formatNumber, formatEuro, formatPct, formatDiff } from '../utils/formatting';
 import { getQualityCategory, QUALITY_CATEGORIES } from '../utils/qualityIndex';
 import { findSimilarNeighborhoods } from '../utils/similarity';
+import { getFeatureCenter } from '../utils/geometryFilter';
 import { StatCard } from '../components/profile/StatCard';
 import { JsonLd } from '../components/profile/JsonLd';
 
 const MiniMap = lazy(() => import('../components/profile/MiniMap').then(m => ({ default: m.MiniMap })));
-
-/** Compute the center of a feature's bounding box. */
-function featureCenter(feat: Feature<Polygon | MultiPolygon>): [number, number] {
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  const coords = feat.geometry.type === 'Polygon'
-    ? [feat.geometry.coordinates]
-    : feat.geometry.coordinates;
-  for (const poly of coords) {
-    for (const ring of poly) {
-      for (const [x, y] of ring) {
-        if (x < minX) minX = x;
-        if (x > maxX) maxX = x;
-        if (y < minY) minY = y;
-        if (y > maxY) maxY = y;
-      }
-    }
-  }
-  return [(minX + maxX) / 2, (minY + maxY) / 2];
-}
 
 interface LoadedState {
   feature: Feature;
@@ -66,8 +48,10 @@ export const NeighborhoodProfilePage: React.FC = () => {
       return;
     }
 
+    let cancelled = false;
     loadNeighborhoodData()
       .then(({ data, metroAverages }) => {
+        if (cancelled) return;
         const feat = data.features.find(f => f.properties?.pno === pno);
         if (!feat) {
           setError('Neighborhood not found');
@@ -77,9 +61,11 @@ export const NeighborhoodProfilePage: React.FC = () => {
         setLoading(false);
       })
       .catch(err => {
+        if (cancelled) return;
         setError(err.message);
         setLoading(false);
       });
+    return () => { cancelled = true; };
   }, [pno]);
 
   // Update document title + hreflang + meta description.
@@ -187,7 +173,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
 
   const d = state.feature.properties as NeighborhoodProperties;
   const avg = state.metroAverages;
-  const center = featureCenter(state.feature as Feature<Polygon | MultiPolygon>);
+  const center = getFeatureCenter(state.feature);
   const qi = d.quality_index != null ? Math.round(d.quality_index) : null;
   const qiCat = getQualityCategory(qi);
 

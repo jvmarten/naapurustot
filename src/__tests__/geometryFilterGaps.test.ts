@@ -123,7 +123,7 @@ describe('getFeatureCenter', () => {
     expect(center).toEqual([24.9, 60.2]);
   });
 
-  it('returns center of a Polygon (average of vertices)', () => {
+  it('returns center of a Polygon (bbox midpoint)', () => {
     const poly: Feature = {
       type: 'Feature',
       geometry: {
@@ -133,12 +133,12 @@ describe('getFeatureCenter', () => {
       properties: {},
     };
     const center = getFeatureCenter(poly);
-    // Average of 5 points: (0+4+4+0+0)/5=1.6, (0+0+4+4+0)/5=1.6
-    expect(center[0]).toBeCloseTo(1.6, 5);
-    expect(center[1]).toBeCloseTo(1.6, 5);
+    // Bbox midpoint: lng [0,4] → 2, lat [0,4] → 2
+    expect(center[0]).toBeCloseTo(2, 5);
+    expect(center[1]).toBeCloseTo(2, 5);
   });
 
-  it('returns center of a MultiPolygon (average of all vertices)', () => {
+  it('returns center of a MultiPolygon (bbox midpoint)', () => {
     const multi: Feature = {
       type: 'Feature',
       geometry: {
@@ -151,13 +151,9 @@ describe('getFeatureCenter', () => {
       properties: {},
     };
     const center = getFeatureCenter(multi);
-    // All 10 vertices averaged
-    const lngs = [0, 2, 2, 0, 0, 10, 12, 12, 10, 10];
-    const lats = [0, 0, 2, 2, 0, 10, 10, 12, 12, 10];
-    const expectedLng = lngs.reduce((a, b) => a + b) / lngs.length;
-    const expectedLat = lats.reduce((a, b) => a + b) / lats.length;
-    expect(center[0]).toBeCloseTo(expectedLng, 5);
-    expect(center[1]).toBeCloseTo(expectedLat, 5);
+    // Bbox midpoint: lng [0,12] → 6, lat [0,12] → 6
+    expect(center[0]).toBeCloseTo(6, 5);
+    expect(center[1]).toBeCloseTo(6, 5);
   });
 
   it('returns [0,0] for feature with null geometry', () => {

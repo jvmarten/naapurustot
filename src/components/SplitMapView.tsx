@@ -143,7 +143,7 @@ export const SplitMapView: React.FC<SplitMapViewProps> = ({
   rightLayer,
   onLeftLayerChange,
   onRightLayerChange,
-  colorblind = false,
+  colorblind = 'off',
 }) => {
   const leftContainerRef = useRef<HTMLDivElement>(null);
   const rightContainerRef = useRef<HTMLDivElement>(null);

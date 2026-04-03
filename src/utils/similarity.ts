@@ -1,4 +1,5 @@
 import type { NeighborhoodProperties } from '../utils/metrics';
+import { getFeatureCenter } from '../utils/geometryFilter';
 
 export interface SimilarNeighborhood {
   properties: NeighborhoodProperties;
@@ -22,44 +23,6 @@ const SIMILARITY_METRICS: (keyof NeighborhoodProperties)[] = [
   'population_density',
   'child_ratio',
 ];
-
-/**
- * Compute the center of a GeoJSON feature's geometry by taking the midpoint
- * of its bounding box.
- */
-function featureCenter(feature: GeoJSON.Feature): [number, number] {
-  const geometry = feature.geometry;
-  if (!geometry) return [0, 0];
-
-  let minLng = Infinity;
-  let maxLng = -Infinity;
-  let minLat = Infinity;
-  let maxLat = -Infinity;
-
-  let coords: number[][][] = [];
-
-  if (geometry.type === 'Polygon') {
-    coords = (geometry as GeoJSON.Polygon).coordinates;
-  } else if (geometry.type === 'MultiPolygon') {
-    for (const poly of (geometry as GeoJSON.MultiPolygon).coordinates) {
-      coords.push(...poly);
-    }
-  }
-
-  for (const ring of coords) {
-    for (const [lng, lat] of ring) {
-      if (lng < minLng) minLng = lng;
-      if (lng > maxLng) maxLng = lng;
-      if (lat < minLat) minLat = lat;
-      if (lat > maxLat) maxLat = lat;
-    }
-  }
-
-  // If no coordinates were found (e.g. unsupported geometry type), return [0, 0]
-  if (!isFinite(minLng)) return [0, 0];
-
-  return [(minLng + maxLng) / 2, (minLat + maxLat) / 2];
-}
 
 // Cache min/max ranges per dataset to avoid recomputing on every panel open.
 // The dataset reference doesn't change after initial load, so we can key on identity.
@@ -165,6 +128,6 @@ export function findSimilarNeighborhoods(
   return candidates.slice(0, count).map((c) => ({
     properties: c.properties,
     distance: c.distance,
-    center: featureCenter(c.feature),
+    center: getFeatureCenter(c.feature),
   }));
 }

@@ -455,6 +455,7 @@ export const METRIC_SOURCES: Record<string, MetricSource> = {
 const METRIC_DEFS: MetricDef[] = [
   // Economy
   { property: 'hr_mtu', weight: 'population', precision: 0, requirePositive: true },
+  { property: 'hr_ktu', weight: 'population', precision: 0, requirePositive: true },
   { property: 'property_price_sqm', weight: 'population', precision: 0, requirePositive: true },
   { property: 'ra_as_kpa', weight: 'population', precision: 1, requirePositive: true },
 

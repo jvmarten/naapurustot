@@ -109,23 +109,23 @@ describe('getFeatureCenter — geometry types', () => {
     expect(getFeatureCenter(feature)).toEqual([24.95, 60.17]);
   });
 
-  it('averages all vertices for Polygon', () => {
+  it('computes bbox midpoint for Polygon', () => {
     const feature = makePolygon([[[0, 0], [4, 0], [4, 4], [0, 4], [0, 0]]]);
     const [lng, lat] = getFeatureCenter(feature);
-    // 5 vertices (including closing): avg of [0,4,4,0,0]/5 = 1.6, [0,0,4,4,0]/5 = 1.6
-    expect(lng).toBeCloseTo(1.6, 5);
-    expect(lat).toBeCloseTo(1.6, 5);
+    // Bbox midpoint: lng [0,4] → 2, lat [0,4] → 2
+    expect(lng).toBeCloseTo(2, 5);
+    expect(lat).toBeCloseTo(2, 5);
   });
 
-  it('averages all vertices across MultiPolygon parts', () => {
+  it('computes bbox midpoint across MultiPolygon parts', () => {
     const feature = makeMultiPolygon([
       [[[0, 0], [2, 0], [2, 2], [0, 2], [0, 0]]],
       [[[10, 10], [12, 10], [12, 12], [10, 12], [10, 10]]],
     ]);
     const [lng, lat] = getFeatureCenter(feature);
-    // Average of all 10 vertices
-    expect(lng).toBeCloseTo(5.8, 1);
-    expect(lat).toBeCloseTo(5.8, 1);
+    // Bbox midpoint: lng [0,12] → 6, lat [0,12] → 6
+    expect(lng).toBeCloseTo(6, 1);
+    expect(lat).toBeCloseTo(6, 1);
   });
 
   it('returns [0, 0] for null geometry', () => {
