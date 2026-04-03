@@ -32,16 +32,17 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, onSelect,
   const { results, totalCount } = useMemo(() => {
     if (!data || query.length < 2) return { results: [], totalCount: 0 };
     const q = query.toLowerCase();
-    const matched = data.features.filter((f) => {
+    const top: GeoJSON.Feature[] = [];
+    let count = 0;
+    for (const f of data.features) {
       const p = f.properties;
-      if (!p) return false;
-      return (
-        p.nimi?.toLowerCase().includes(q) ||
-        p.namn?.toLowerCase().includes(q) ||
-        p.pno?.startsWith(q)
-      );
-    });
-    return { results: matched.slice(0, 8), totalCount: matched.length };
+      if (!p) continue;
+      if (p.nimi?.toLowerCase().includes(q) || p.namn?.toLowerCase().includes(q) || p.pno?.startsWith(q)) {
+        count++;
+        if (top.length < 8) top.push(f);
+      }
+    }
+    return { results: top, totalCount: count };
   }, [data, query]);
 
   // CF-1: Debounced address geocoding — always search for streets/addresses alongside neighborhoods.

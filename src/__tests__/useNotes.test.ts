@@ -35,11 +35,16 @@ describe('useNotes', () => {
   });
 
   it('persists notes to localStorage', () => {
+    vi.useFakeTimers();
     const { result } = renderHook(() => useNotes());
     act(() => result.current.setNote('00100', 'Persisted note'));
 
+    // localStorage write is debounced (500ms) to avoid jank during fast typing
+    act(() => { vi.advanceTimersByTime(500); });
+
     const stored = JSON.parse(localStorage.getItem('naapurustot-notes')!);
     expect(stored['00100']).toBe('Persisted note');
+    vi.useRealTimers();
   });
 
   it('loads notes from localStorage on mount', () => {

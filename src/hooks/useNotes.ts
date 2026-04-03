@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 
 const STORAGE_KEY = 'naapurustot-notes';
 
@@ -27,6 +27,10 @@ function saveNotes(notes: Record<string, string>): void {
 /** Manage per-neighborhood user notes (free text), persisted to localStorage. */
 export function useNotes() {
   const [notes, setNotes] = useState<Record<string, string>>(loadNotes);
+  // Debounce localStorage writes — typing in the textarea triggers setNote on every
+  // keystroke, and JSON.stringify + localStorage.setItem is synchronous main-thread work.
+  // Batching saves to every 500ms prevents jank during fast typing.
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const getNote = useCallback((pno: string): string => notes[pno] ?? '', [notes]);
 
@@ -42,7 +46,8 @@ export function useNotes() {
       } else {
         delete next[pno];
       }
-      saveNotes(next);
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(() => saveNotes(next), 500);
       return next;
     });
   }, []);

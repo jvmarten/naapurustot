@@ -1,12 +1,18 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { registerSW } from 'virtual:pwa-register';
 import App from './App';
-import { NeighborhoodProfilePage } from './pages/NeighborhoodProfilePage';
-import { NotFoundPage } from './pages/NotFoundPage';
 import { ThemeProvider } from './hooks/useTheme';
 import './index.css';
+
+// Lazy-load route-specific pages — most users only interact with the main map.
+// NeighborhoodProfilePage (~21KB source) imports dataLoader, similarity, qualityIndex,
+// formatting, etc. Deferring it avoids downloading & parsing that code on initial load.
+// eslint-disable-next-line react-refresh/only-export-components
+const NeighborhoodProfilePage = lazy(() => import('./pages/NeighborhoodProfilePage').then(m => ({ default: m.NeighborhoodProfilePage })));
+// eslint-disable-next-line react-refresh/only-export-components
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage').then(m => ({ default: m.NotFoundPage })));
 
 // Auto-reload when a new service worker is activated after deployment.
 // This prevents users from being stuck on a stale cached version.
@@ -58,12 +64,14 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ThemeProvider>
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<App />} />
-          <Route path="/alue/:slug" element={<NeighborhoodProfilePage />} />
-          <Route path="/en/area/:slug" element={<NeighborhoodProfilePage />} />
-          <Route path="*" element={<NotFoundPage />} />
-        </Routes>
+        <Suspense fallback={null}>
+          <Routes>
+            <Route path="/" element={<App />} />
+            <Route path="/alue/:slug" element={<NeighborhoodProfilePage />} />
+            <Route path="/en/area/:slug" element={<NeighborhoodProfilePage />} />
+            <Route path="*" element={<NotFoundPage />} />
+          </Routes>
+        </Suspense>
       </BrowserRouter>
     </ThemeProvider>
   </React.StrictMode>,
