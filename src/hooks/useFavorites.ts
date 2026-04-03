@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 
 const STORAGE_KEY = "naapurustot-favorites";
 
@@ -25,9 +25,12 @@ function writeFavorites(favorites: string[]): void {
 export function useFavorites() {
   const [favorites, setFavorites] = useState<string[]>(readFavorites);
 
+  // O(1) lookup via Set instead of O(n) Array.includes per call.
+  const favoriteSet = useMemo(() => new Set(favorites), [favorites]);
+
   const isFavorite = useCallback(
-    (pno: string): boolean => favorites.includes(pno),
-    [favorites],
+    (pno: string): boolean => favoriteSet.has(pno),
+    [favoriteSet],
   );
 
   const toggleFavorite = useCallback((pno: string): void => {
