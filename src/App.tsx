@@ -137,11 +137,13 @@ const App: React.FC = () => {
   // Recompute metro averages for the selected city.
   // qualityVersion is included so that averages are recalculated after custom quality weight changes
   // (computeQualityIndices mutates features in-place, so we need this signal to trigger recomputation).
+  // For single-city views with no in-place mutations yet (qualityVersion === 0),
+  // reuse the pre-computed averages from useMapData — saves iterating ~200 features × ~30 metrics.
   const cityAverages = useMemo(() => {
     if (!filteredData) return metroAverages;
+    if (cityFilter !== 'all' && qualityVersion === 0) return metroAverages;
     return computeMetroAverages(filteredData.features);
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- qualityVersion signals in-place data mutation
-  }, [filteredData, qualityVersion]);
+  }, [filteredData, qualityVersion, cityFilter, metroAverages]);
 
   // Rescale layer stops when comparison scope is 'region' and a specific city is selected.
   // Uses a ref to return the same object identity when stops haven't changed,
