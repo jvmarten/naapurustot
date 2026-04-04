@@ -705,7 +705,7 @@ const App: React.FC = () => {
       const s = escapeStateRef.current;
       const a = escapeActionsRef.current;
       if (s.selectMode) { setSelectMode(false); setSelectedAreaPnos([]); return; }
-      if (s.drawMode) { setDrawMode(false); setDrawVertices([]); return; }
+      if (s.drawMode) { setDrawMode(false); setDrawVertices([]); drawVerticesRef.current = []; return; }
       if (s.drawnPolygon) { a.handleClearDraw(); return; }
       if (s.showWizard) { setShowWizard(false); return; }
       if (s.showCustomQuality) { setShowCustomQuality(false); return; }

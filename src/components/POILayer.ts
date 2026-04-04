@@ -1,5 +1,6 @@
 import type maplibregl from 'maplibre-gl';
 
+const BASE = import.meta.env.BASE_URL ?? '/';
 const POI_SOURCE = 'pois';
 const POI_CLUSTER_LAYER = 'poi-clusters';
 const POI_COUNT_LAYER = 'poi-cluster-count';
@@ -32,7 +33,7 @@ export function addPOILayers({ map, categories, visible }: POILayerOptions): voi
     // Attempt to load POI data
     map.addSource(POI_SOURCE, {
       type: 'geojson',
-      data: '/data/pois.geojson',
+      data: `${BASE}data/pois.geojson`,
       cluster: true,
       clusterMaxZoom: 14,
       clusterRadius: 50,
