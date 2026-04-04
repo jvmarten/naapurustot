@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 
 const STORAGE_KEY = 'naapurustot-notes';
 
@@ -31,6 +31,12 @@ export function useNotes() {
   // keystroke, and JSON.stringify + localStorage.setItem is synchronous main-thread work.
   // Batching saves to every 500ms prevents jank during fast typing.
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  // Track latest notes for the debounced save callback (avoids side effects in state updaters)
+  const notesRef = useRef(notes);
+  useEffect(() => { notesRef.current = notes; }, [notes]);
+
+  // Clean up pending save timer on unmount to prevent stale writes
+  useEffect(() => () => { clearTimeout(saveTimerRef.current); }, []);
 
   const getNote = useCallback((pno: string): string => notes[pno] ?? '', [notes]);
 
@@ -46,10 +52,13 @@ export function useNotes() {
       } else {
         delete next[pno];
       }
-      clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = setTimeout(() => saveNotes(next), 500);
       return next;
     });
+    // Debounce localStorage writes outside the state updater — state updaters
+    // must be pure (no side effects). React StrictMode double-invokes updaters,
+    // which would schedule duplicate timers if setTimeout lived inside.
+    clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => saveNotes(notesRef.current), 500);
   }, []);
 
   return { getNote, setNote };

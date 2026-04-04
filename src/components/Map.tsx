@@ -236,6 +236,12 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
 
     const addLayers = () => {
       // Remove existing layers (must be removed before source)
+      // Remove ALL layers that reference SOURCE_ID before removing the source.
+      // Missing any layer here causes "Cannot remove source while layers reference it"
+      // (e.g., toggling theme while draw/select layers are active).
+      if (map.getLayer(DRAW_SNAP_LINE_LAYER)) map.removeLayer(DRAW_SNAP_LINE_LAYER);
+      if (map.getLayer(DRAW_SNAP_FILL_LAYER)) map.removeLayer(DRAW_SNAP_FILL_LAYER);
+      if (map.getLayer(SELECT_AREA_LAYER)) map.removeLayer(SELECT_AREA_LAYER);
       if (map.getLayer(NO_DATA_LAYER)) map.removeLayer(NO_DATA_LAYER);
       if (map.getLayer(FILTER_HIGHLIGHT_LAYER)) map.removeLayer(FILTER_HIGHLIGHT_LAYER);
       if (map.getLayer(WIZARD_HIGHLIGHT_LAYER)) map.removeLayer(WIZARD_HIGHLIGHT_LAYER);
