@@ -120,7 +120,6 @@ describe('readInitialUrlState — query params', () => {
 
 describe('readInitialUrlState — legacy hash format', () => {
   const originalLocation = window.location;
-  const originalHistory = window.history;
 
   beforeEach(() => {
     // Mock replaceState so we can verify migration

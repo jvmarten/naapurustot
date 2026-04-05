@@ -5,7 +5,7 @@
  * Without these tests, corrupt/malicious localStorage could crash the app
  * or produce invalid filter state. These branches had 73% coverage.
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useFilterPresets } from '../hooks/useFilterPresets';
 import type { FilterCriterion } from '../utils/filterUtils';

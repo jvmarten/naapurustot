@@ -9,7 +9,7 @@
  * A bug in color scale logic would silently miscolor the entire map
  * without any error being thrown — making these tests critical.
  */
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import {
   LAYERS,
   LAYER_MAP,
