@@ -47,9 +47,12 @@ export const RankingTable: React.FC<RankingTableProps> = ({ data, activeLayer, o
     // Always sort "best first" to assign stable ranks
     entries.sort((a, b) => bestFirst ? b.value - a.value : a.value - b.value);
 
-    let mx = -Infinity;
+    // Use max absolute value so bar widths are meaningful for layers with
+    // negative values (e.g. income_change with values from -15% to +25%).
+    let mx = 0;
     for (const e of entries) {
-      if (e.value > mx) mx = e.value;
+      const abs = Math.abs(e.value);
+      if (abs > mx) mx = abs;
     }
 
     // Defer getFeatureCenter to click-time instead of computing it for all ~200 features.
@@ -62,7 +65,7 @@ export const RankingTable: React.FC<RankingTableProps> = ({ data, activeLayer, o
       feature: e.feature,
     }));
 
-    return { rankedItems: ranked, maxVal: mx === -Infinity ? 1 : mx };
+    return { rankedItems: ranked, maxVal: mx === 0 ? 1 : mx };
   }, [data, layer.property, layer.higherIsBetter]);
 
   // Reverse display order without recomputing centers
@@ -113,7 +116,7 @@ export const RankingTable: React.FC<RankingTableProps> = ({ data, activeLayer, o
       {/* List */}
       <div className="overflow-y-auto flex-1 min-h-0">
         {items.map((item) => {
-          const barWidth = maxVal !== 0 ? (item.value / maxVal) * 100 : 0;
+          const barWidth = maxVal !== 0 ? (Math.abs(item.value) / maxVal) * 100 : 0;
           const color = getColorForValue(layer, item.value);
 
           return (

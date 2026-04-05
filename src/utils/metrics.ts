@@ -459,6 +459,9 @@ const METRIC_DEFS: MetricDef[] = [
   { property: 'property_price_sqm', weight: 'population', precision: 0, requirePositive: true },
   { property: 'ra_as_kpa', weight: 'population', precision: 1, requirePositive: true },
 
+  // Demographics
+  { property: 'he_kika', weight: 'population', precision: 1 },
+
   // Quality of life
   { property: 'quality_index', weight: 'population', precision: 1 },
   { property: 'transit_stop_density', weight: 'population', precision: 1 },

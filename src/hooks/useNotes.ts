@@ -35,8 +35,14 @@ export function useNotes() {
   const notesRef = useRef(notes);
   useEffect(() => { notesRef.current = notes; }, [notes]);
 
-  // Clean up pending save timer on unmount to prevent stale writes
-  useEffect(() => () => { clearTimeout(saveTimerRef.current); }, []);
+  // Flush any pending save and clean up on unmount to prevent data loss.
+  // Without the flush, a note typed within the last 500ms before navigation would be lost.
+  useEffect(() => () => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveNotes(notesRef.current);
+    }
+  }, []);
 
   const getNote = useCallback((pno: string): string => notes[pno] ?? '', [notes]);
 
