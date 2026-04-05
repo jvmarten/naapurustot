@@ -80,7 +80,8 @@ const MobileCard: React.FC<{
   color: string;
   onUnpin: (pno: string) => void;
   allPinned: NeighborhoodProperties[];
-}> = ({ n, color, onUnpin, allPinned }) => (
+  bestByKey: Record<string, string | null>;
+}> = ({ n, color, onUnpin, allPinned, bestByKey }) => (
   <div className="bg-surface-50 dark:bg-surface-900/60 rounded-xl p-4 relative">
     <div className="flex items-center justify-between mb-3">
       <div>
@@ -100,8 +101,7 @@ const MobileCard: React.FC<{
       {STAT_SECTIONS.flatMap((section) =>
         section.stats.map((stat) => {
           const val = n[stat.key] as number | null;
-          const bestPno = findBest(allPinned, stat.key, stat.higherIsBetter);
-          const isBest = allPinned.length > 1 && n.pno === bestPno;
+          const isBest = allPinned.length > 1 && n.pno === bestByKey[stat.key];
           return (
             <div key={stat.key} className="flex justify-between text-xs">
               <span className="text-surface-500 dark:text-surface-400">{t(stat.label)}</span>
@@ -167,6 +167,19 @@ const ComparisonChart: React.FC<{ pinned: NeighborhoodProperties[] }> = ({ pinne
 export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pinned, onUnpin, onClear }) => {
   // PO-4: Tab state for chart vs table view
   const [view, setView] = useState<'table' | 'chart'>('table');
+
+  // Pre-compute "best" PNO for each stat once, instead of calling findBest()
+  // per stat-row inside the render loop. Before: 13 stats × 3 pinned = 39 iterations
+  // inside the render path. After: single pass over stats builds a lookup map.
+  const bestByKey = React.useMemo(() => {
+    const map: Record<string, string | null> = {};
+    for (const section of STAT_SECTIONS) {
+      for (const stat of section.stats) {
+        map[stat.key] = findBest(pinned, stat.key, stat.higherIsBetter);
+      }
+    }
+    return map;
+  }, [pinned]);
 
   if (pinned.length === 0) return null;
 
@@ -270,7 +283,6 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pin
                     </tr>
                   )}
                   {section.stats.map((stat) => {
-                    const bestPno = findBest(pinned, stat.key, stat.higherIsBetter);
                     return (
                       <tr key={stat.key} className="border-t border-surface-100 dark:border-surface-800/30">
                         <td className="px-4 py-2 text-surface-500 dark:text-surface-400 text-xs">
@@ -278,7 +290,7 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pin
                         </td>
                         {pinned.map((n) => {
                           const val = n[stat.key] as number | null;
-                          const isBest = pinned.length > 1 && n.pno === bestPno;
+                          const isBest = pinned.length > 1 && n.pno === bestByKey[stat.key];
                           return (
                             <td
                               key={n.pno}
@@ -326,7 +338,7 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pin
         </div>
         <div className="overflow-y-auto p-4 space-y-3" style={{ maxHeight: 'calc(60vh - 52px)' }}>
           {pinned.map((n, i) => (
-            <MobileCard key={n.pno} n={n} color={COLUMN_COLORS[i]} onUnpin={onUnpin} allPinned={pinned} />
+            <MobileCard key={n.pno} n={n} color={COLUMN_COLORS[i]} onUnpin={onUnpin} allPinned={pinned} bestByKey={bestByKey} />
           ))}
         </div>
       </div>
