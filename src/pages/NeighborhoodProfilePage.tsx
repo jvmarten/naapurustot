@@ -45,8 +45,14 @@ export const NeighborhoodProfilePage: React.FC = () => {
     if (!pno) {
       setError('Invalid neighborhood URL');
       setLoading(false);
+      setState(null);
       return;
     }
+
+    // Reset state when pno changes so stale data/errors from the previous
+    // neighborhood don't remain visible while the new data loads.
+    setLoading(true);
+    setError(null);
 
     let cancelled = false;
     loadNeighborhoodData()
