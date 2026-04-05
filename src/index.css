@@ -16,6 +16,12 @@ body,
   touch-action: manipulation;
 }
 
+@supports (height: 100dvh) {
+  html, body, #root {
+    height: 100dvh;
+  }
+}
+
 /* Smooth theme transition */
 html.theme-transition,
 html.theme-transition *,
