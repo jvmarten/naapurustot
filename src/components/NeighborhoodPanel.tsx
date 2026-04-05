@@ -168,11 +168,6 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
     .reduce((a, b) => a + b, 0) || 1;
 
   // Animate only the quality index badge (the prominent number users notice).
-  // Previously animated all 40+ stat values via useAnimatedValues, causing ~18
-  // re-renders over 300ms — each creating a new 40-key object and re-rendering
-  // every StatRow child (despite React.memo) because string props like
-  // formatEuro(d.hr_mtu) changed on every frame.
-  // Now only one number animates; all StatRow values use stable `d.xxx` props.
   const animatedQi = useAnimatedValue(d.quality_index);
 
   // Copy link / share state
@@ -454,18 +449,8 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
         </div>
       </div>
 
-      {/* CF-4: Radar chart — pass animated values for smooth polygon morphing */}
-      <RadarChart data={{
-        ...d,
-        hr_mtu: d.hr_mtu as number,
-        crime_index: d.crime_index as number,
-        transit_stop_density: d.transit_stop_density as number,
-        higher_education_rate: d.higher_education_rate as number,
-        grocery_density: d.grocery_density as number,
-        healthcare_density: d.healthcare_density as number,
-        school_density: d.school_density as number,
-        property_price_sqm: d.property_price_sqm as number,
-      }} metroAverages={avg} />
+      {/* CF-4: Radar chart */}
+      <RadarChart data={d} metroAverages={avg} />
     </>
   );
 

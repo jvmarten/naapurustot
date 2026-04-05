@@ -203,7 +203,9 @@ const AddFilterDropdown: React.FC<{
 }> = ({ filters, onAdd }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const available = availableLayers(filters);
+  // Memoize available layers — filters 70+ LAYERS entries, was recalculated
+  // on every render (any state change in the parent) without memoization.
+  const available = useMemo(() => availableLayers(filters), [filters]);
 
   // Close dropdown on outside click
   React.useEffect(() => {
