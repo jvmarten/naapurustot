@@ -175,10 +175,12 @@ describe('colorScales — rescaleLayerToData', () => {
     format: (v: number) => `${v}`,
   };
 
+  const poly = { type: 'Polygon' as const, coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]] };
+
   it('rescales stops to actual data range', () => {
     const features = [
-      { type: 'Feature', properties: { hr_mtu: 5000 }, geometry: null },
-      { type: 'Feature', properties: { hr_mtu: 15000 }, geometry: null },
+      { type: 'Feature', properties: { hr_mtu: 5000 }, geometry: poly },
+      { type: 'Feature', properties: { hr_mtu: 15000 }, geometry: poly },
     ] as GeoJSON.Feature[];
 
     const result = rescaleLayerToData(baseLayer, features);
@@ -189,8 +191,8 @@ describe('colorScales — rescaleLayerToData', () => {
 
   it('returns original layer when all values are the same', () => {
     const features = [
-      { type: 'Feature', properties: { hr_mtu: 30000 }, geometry: null },
-      { type: 'Feature', properties: { hr_mtu: 30000 }, geometry: null },
+      { type: 'Feature', properties: { hr_mtu: 30000 }, geometry: poly },
+      { type: 'Feature', properties: { hr_mtu: 30000 }, geometry: poly },
     ] as GeoJSON.Feature[];
 
     const result = rescaleLayerToData(baseLayer, features);
@@ -204,8 +206,8 @@ describe('colorScales — rescaleLayerToData', () => {
 
   it('coerces string property values to numbers during rescale', () => {
     const features = [
-      { type: 'Feature', properties: { hr_mtu: '5000' }, geometry: null },
-      { type: 'Feature', properties: { hr_mtu: '15000' }, geometry: null },
+      { type: 'Feature', properties: { hr_mtu: '5000' }, geometry: poly },
+      { type: 'Feature', properties: { hr_mtu: '15000' }, geometry: poly },
     ] as GeoJSON.Feature[];
 
     const result = rescaleLayerToData(baseLayer, features);
@@ -215,9 +217,9 @@ describe('colorScales — rescaleLayerToData', () => {
 
   it('skips features with null/undefined property', () => {
     const features = [
-      { type: 'Feature', properties: { hr_mtu: null }, geometry: null },
-      { type: 'Feature', properties: { hr_mtu: 5000 }, geometry: null },
-      { type: 'Feature', properties: { hr_mtu: 15000 }, geometry: null },
+      { type: 'Feature', properties: { hr_mtu: null }, geometry: poly },
+      { type: 'Feature', properties: { hr_mtu: 5000 }, geometry: poly },
+      { type: 'Feature', properties: { hr_mtu: 15000 }, geometry: poly },
     ] as GeoJSON.Feature[];
 
     const result = rescaleLayerToData(baseLayer, features);
@@ -233,8 +235,8 @@ describe('colorScales — rescaleLayerToData', () => {
       colors: ['#a', '#b', '#c', '#d', '#e'],
     };
     const features = [
-      { type: 'Feature', properties: { some_metric: -10 }, geometry: null },
-      { type: 'Feature', properties: { some_metric: -5 }, geometry: null },
+      { type: 'Feature', properties: { some_metric: -10 }, geometry: poly },
+      { type: 'Feature', properties: { some_metric: -5 }, geometry: poly },
     ] as GeoJSON.Feature[];
 
     const result = rescaleLayerToData(layer, features);
