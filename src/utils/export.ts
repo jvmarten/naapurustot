@@ -150,5 +150,6 @@ export function exportPdf(d: NeighborhoodProperties, _avg: Record<string, number
   w.addEventListener('load', doPrint);
   // Fallback for browsers that don't fire 'load' on document.write().
   // Use requestAnimationFrame to ensure the browser has painted before printing.
-  setTimeout(() => w.requestAnimationFrame(() => doPrint()), 500);
+  // Guard against the window being closed before the timer fires.
+  setTimeout(() => { if (!w.closed) w.requestAnimationFrame(() => doPrint()); }, 500);
 }

@@ -66,12 +66,16 @@ export function useBottomSheet(options: UseBottomSheetOptions = {}): UseBottomSh
 
   // Read frequently-changing state from refs inside callbacks to avoid
   // recreating onTouchStart/onTouchEnd ~60 times/second during drags.
+  // Consolidated into a single effect (no deps) so all three refs are
+  // updated atomically after every render, before the next touch event.
   const dragHeightRef = useRef(dragHeight);
   const snapRef = useRef(snap);
   const onCloseRef = useRef(onClose);
-  useEffect(() => { dragHeightRef.current = dragHeight; }, [dragHeight]);
-  useEffect(() => { snapRef.current = snap; }, [snap]);
-  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+  useEffect(() => {
+    dragHeightRef.current = dragHeight;
+    snapRef.current = snap;
+    onCloseRef.current = onClose;
+  });
 
   const resolveHeight = useCallback(
     (s: SnapPosition) => getSnapHeight(s, peekHeight, halfRatio, fullRatio),

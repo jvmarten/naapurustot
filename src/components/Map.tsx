@@ -621,7 +621,9 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
 
       if (features.length > 0) {
         const feat = features[0];
-        const pno = feat.properties?.pno;
+        const pno = feat.properties?.pno as string | undefined;
+
+        if (!pno) return; // Guard against features with missing pno (e.g. malformed data)
 
         if (hoveredIdRef.current && hoveredIdRef.current !== pno) {
           map.setFeatureState({ source: SOURCE_ID, id: hoveredIdRef.current }, { hover: false });
@@ -661,6 +663,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       const features = map.queryRenderedFeatures(e.point, { layers: [FILL_LAYER] });
       if (features.length > 0) {
         const props = features[0].properties as NeighborhoodProperties;
+        if (!props?.pno) return; // Guard against features with missing pno
         if (selectModeRef.current && onSelectAreaClickRef.current) {
           onSelectAreaClickRef.current(props);
           return;
