@@ -106,16 +106,25 @@ export interface LayerConfig {
 
 import { getLang } from './i18n';
 
-function locale(): string {
-  return getLang() === 'en' ? 'en-US' : 'fi-FI';
+// Cache Intl.NumberFormat per locale to avoid recreating on every format call.
+// These format functions run on the tooltip hot path (~60Hz mousemove).
+let _fmtLocale = '';
+let _fmtNum: Intl.NumberFormat | null = null;
+
+function numFmt(): Intl.NumberFormat {
+  const loc = getLang() === 'en' ? 'en-US' : 'fi-FI';
+  if (_fmtNum && _fmtLocale === loc) return _fmtNum;
+  _fmtLocale = loc;
+  _fmtNum = new Intl.NumberFormat(loc);
+  return _fmtNum;
 }
 
-const euro = (v: number) => `${v.toLocaleString(locale())} €`;
+const euro = (v: number) => `${numFmt().format(v)} €`;
 const pct = (v: number) => `${v.toFixed(1)} %`;
 const age = (v: number) => `${v.toFixed(1)}`;
-const density = (v: number) => `${v.toLocaleString(locale())} /km²`;
+const density = (v: number) => `${numFmt().format(v)} /km²`;
 const sqm = (v: number) => `${v.toFixed(1)} m²`;
-const euroSqm = (v: number) => `${v.toLocaleString(locale())} €/m²`;
+const euroSqm = (v: number) => `${numFmt().format(v)} €/m²`;
 const euroSqmMonth = (v: number) => `${v.toFixed(2)} €/m²/kk`;
 const stops = (v: number) => `${v.toFixed(1)} /km²`;
 const perThousand = (v: number) => `${v.toFixed(1)} /1000`;
@@ -124,7 +133,7 @@ const score = (v: number) => `${v.toFixed(0)}/100`;
 const radiance = (v: number) => `${v.toFixed(1)} nW/cm²/sr`;
 const decibel = (v: number) => `${v.toFixed(1)} dB`;
 const years = (v: number) => `${v.toFixed(1)} v`;
-const meters = (v: number) => `${v.toLocaleString(locale())} m`;
+const meters = (v: number) => `${numFmt().format(v)} m`;
 const yearFmt = (v: number) => `${v.toFixed(0)}`;
 
 export const LAYERS: LayerConfig[] = [

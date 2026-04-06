@@ -107,11 +107,22 @@ const toNum = (v: unknown): number | null => {
   return isFinite(n) ? n : null;
 };
 
+// Cache Intl.NumberFormat per locale — avoids creating a new formatter on every
+// stat row render (~30+ calls per panel open). Invalidated on language change.
+let _panelFmtLocale = '';
+let _panelFmt: Intl.NumberFormat | null = null;
+function panelNumFmt(): Intl.NumberFormat {
+  const loc = getLang() === 'en' ? 'en-US' : 'fi-FI';
+  if (_panelFmt && _panelFmtLocale === loc) return _panelFmt;
+  _panelFmtLocale = loc;
+  _panelFmt = new Intl.NumberFormat(loc);
+  return _panelFmt;
+}
+
 const formatDensity = (v: number | string | null | undefined): string => {
   const n = toNum(v);
   if (n == null) return '—';
-  const loc = getLang() === 'en' ? 'en-US' : 'fi-FI';
-  return `${n.toLocaleString(loc)} /km²`;
+  return `${panelNumFmt().format(n)} /km²`;
 };
 
 const formatSqm = (v: number | string | null | undefined): string => {
@@ -123,8 +134,7 @@ const formatSqm = (v: number | string | null | undefined): string => {
 const formatEuroSqm = (v: number | string | null | undefined): string => {
   const n = toNum(v);
   if (n == null) return '—';
-  const loc = getLang() === 'en' ? 'en-US' : 'fi-FI';
-  return `${n.toLocaleString(loc)} €/m²`;
+  return `${panelNumFmt().format(n)} €/m²`;
 };
 
 const formatStopDensity = (v: number | string | null | undefined): string => {

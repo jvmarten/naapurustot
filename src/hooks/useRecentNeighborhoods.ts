@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 
 const MAX_RECENT = 10;
 const STORAGE_KEY = 'naapurustot-recent';
@@ -36,12 +36,14 @@ function saveRecent(entries: RecentEntry[]): void {
 export function useRecentNeighborhoods() {
   const [recent, setRecent] = useState<RecentEntry[]>(loadRecent);
 
+  // Persist to sessionStorage outside state updaters (updaters must be pure —
+  // React StrictMode double-invokes them, which would trigger redundant writes).
+  useEffect(() => { saveRecent(recent); }, [recent]);
+
   const addRecent = useCallback((entry: RecentEntry) => {
     setRecent((prev) => {
       const filtered = prev.filter((e) => e.pno !== entry.pno);
-      const next = [entry, ...filtered].slice(0, MAX_RECENT);
-      saveRecent(next);
-      return next;
+      return [entry, ...filtered].slice(0, MAX_RECENT);
     });
   }, []);
 
