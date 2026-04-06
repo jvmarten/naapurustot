@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import type { FilterCriterion } from '../utils/filterUtils';
 import { LAYERS } from '../utils/colorScales';
 
@@ -52,19 +52,21 @@ export function useFilterPresets() {
 
   const addPreset = useCallback((name: string, criteria: FilterCriterion[]) => {
     setPresets((prev) => {
-      const next = [...prev, { name, criteria }];
-      savePresets(next);
-      return next;
+      return [...prev, { name, criteria }];
     });
   }, []);
 
   const removePreset = useCallback((index: number) => {
     setPresets((prev) => {
-      const next = prev.filter((_, i) => i !== index);
-      savePresets(next);
-      return next;
+      return prev.filter((_, i) => i !== index);
     });
   }, []);
+
+  // Persist to localStorage outside state updaters (updaters must be pure —
+  // React StrictMode double-invokes them, which would write twice).
+  useEffect(() => {
+    savePresets(presets);
+  }, [presets]);
 
   return { presets, addPreset, removePreset };
 }

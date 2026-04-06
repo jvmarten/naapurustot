@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 
 const STORAGE_KEY = "naapurustot-favorites";
 
@@ -25,6 +25,10 @@ function writeFavorites(favorites: string[]): void {
 export function useFavorites() {
   const [favorites, setFavorites] = useState<string[]>(readFavorites);
 
+  // Persist to localStorage outside state updaters (updaters must be pure —
+  // React StrictMode double-invokes them).
+  useEffect(() => { writeFavorites(favorites); }, [favorites]);
+
   // O(1) lookup via Set instead of O(n) Array.includes per call.
   const favoriteSet = useMemo(() => new Set(favorites), [favorites]);
 
@@ -34,17 +38,12 @@ export function useFavorites() {
   );
 
   const toggleFavorite = useCallback((pno: string): void => {
-    setFavorites((prev) => {
-      const next = prev.includes(pno)
-        ? prev.filter((p) => p !== pno)
-        : [...prev, pno];
-      writeFavorites(next);
-      return next;
-    });
+    setFavorites((prev) =>
+      prev.includes(pno) ? prev.filter((p) => p !== pno) : [...prev, pno]
+    );
   }, []);
 
   const clearFavorites = useCallback((): void => {
-    writeFavorites([]);
     setFavorites([]);
   }, []);
 
