@@ -9,7 +9,7 @@
  * The key requirement: features must use a valid RegionId as `city` and have
  * Polygon geometries for the union to work.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { buildMetroAreaFeatures, clearMetroAreaCache } from '../utils/metroAreas';
 import type { NeighborhoodProperties, TrendDataPoint } from '../utils/metrics';
 import type { Feature, Polygon } from 'geojson';
