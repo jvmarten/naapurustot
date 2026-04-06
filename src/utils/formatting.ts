@@ -8,22 +8,33 @@ function toNum(v: unknown): number | null {
   return isFinite(n) ? n : null;
 }
 
-function locale(): string {
-  return getLang() === 'en' ? 'en-US' : 'fi-FI';
+// Cache Intl.NumberFormat instances per locale to avoid recreating them on every
+// format call. Construction is ~10-50x more expensive than calling .format().
+// This matters on the tooltip hot path (mousemove at ~60Hz) and panel renders
+// (~20+ format calls per panel). The cache is invalidated on language change.
+let cachedLocale = '';
+let cachedNumberFmt: Intl.NumberFormat | null = null;
+
+function getNumberFormatter(): Intl.NumberFormat {
+  const loc = getLang() === 'en' ? 'en-US' : 'fi-FI';
+  if (cachedNumberFmt && cachedLocale === loc) return cachedNumberFmt;
+  cachedLocale = loc;
+  cachedNumberFmt = new Intl.NumberFormat(loc);
+  return cachedNumberFmt;
 }
 
 /** Format a number with locale-appropriate thousand separators. Returns '—' for null/undefined. */
 export function formatNumber(v: number | string | null | undefined): string {
   const n = toNum(v);
   if (n == null) return '—';
-  return n.toLocaleString(locale());
+  return getNumberFormatter().format(n);
 }
 
 /** Format a number as euros with locale-appropriate formatting. Returns '—' for null/undefined. */
 export function formatEuro(v: number | string | null | undefined): string {
   const n = toNum(v);
   if (n == null) return '—';
-  return `${n.toLocaleString(locale())} €`;
+  return `${getNumberFormatter().format(n)} €`;
 }
 
 /** Format a number as a percentage (e.g., "12.3 %"). Returns '—' for null/undefined. */
