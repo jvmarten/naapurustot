@@ -4,14 +4,13 @@
  * Tests the most dangerous code paths where a bug silently corrupts
  * user-visible data across the entire map.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   computeQualityIndices,
   getQualityCategory,
   getDefaultWeights,
   isCustomWeights,
   QUALITY_FACTORS,
-  QUALITY_CATEGORIES,
   type QualityWeights,
 } from '../utils/qualityIndex';
 import type { NeighborhoodProperties } from '../utils/metrics';
@@ -68,7 +67,6 @@ describe('Quality Index — weighted computation integrity', () => {
 
     // Default weights: safety=25%, first neighborhood has high crime → penalized
     computeQualityIndices(features);
-    const defaultScore1 = (features[0].properties as NeighborhoodProperties).quality_index!;
 
     // Now set safety weight to 0, only keep income (first neighborhood is rich)
     const customWeights: QualityWeights = {};
