@@ -970,7 +970,7 @@ const App: React.FC = () => {
             data={filteredData}
             metroAverages={cityAverages}
             onClose={handleClearDraw}
-            selectedPnos={selectedAreaPnos.length > 0 ? selectedAreaPnos : undefined}
+            selectedPnos={selectedAreaPnos.length > 0 ? selectedAreaPnos : drawnAreaPnos.length > 0 ? drawnAreaPnos : undefined}
           />
         </Suspense>
       )}

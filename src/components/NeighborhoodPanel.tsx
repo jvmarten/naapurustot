@@ -82,7 +82,7 @@ const StatRow: React.FC<{
 });
 StatRow.displayName = 'StatRow';
 
-const BarSegment: React.FC<{ label: string; value: number; total: number; color: string }> = ({
+const BarSegment: React.FC<{ label: string; value: number; total: number; color: string }> = React.memo(({
   label,
   value,
   total,
@@ -99,7 +99,8 @@ const BarSegment: React.FC<{ label: string; value: number; total: number; color:
       <div className="w-12 text-xs text-surface-600 dark:text-surface-300 text-right">{pct.toFixed(0)}%</div>
     </div>
   );
-};
+});
+BarSegment.displayName = 'BarSegment';
 
 const toNum = (v: unknown): number | null => {
   if (v == null) return null;
@@ -818,8 +819,24 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
     </>
   );
 
-  // PO-3: Array of mobile section content fragments
-  const mobileSections = [sectionOverview, sectionStats, sectionTrends, sectionSimilar];
+  // PO-3: Array of mobile section content fragments.
+  // Only mount sections that have been visited (active or previously swiped to).
+  // This defers rendering ~60+ DOM elements for hidden tabs until the user actually
+  // swipes to them, cutting panel open time significantly on mobile.
+  const [visitedSections, setVisitedSections] = useState<Set<number>>(() => new Set([0]));
+  // biome-ignore lint: activeSection tracked via effect
+  React.useEffect(() => {
+    setVisitedSections((prev) => {
+      if (prev.has(activeSection)) return prev;
+      const next = new Set(prev);
+      next.add(activeSection);
+      return next;
+    });
+  }, [activeSection]);
+  const mobileSectionDefs = [sectionOverview, sectionStats, sectionTrends, sectionSimilar];
+  const mobileSections = mobileSectionDefs.map((section, i) =>
+    visitedSections.has(i) ? section : null
+  );
 
   const panelContent = (
     <div className="px-6 py-4 space-y-6">

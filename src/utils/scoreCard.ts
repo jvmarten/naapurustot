@@ -1,12 +1,12 @@
 import type { NeighborhoodProperties } from './metrics';
-import { formatEuro, formatPct, escapeHtml } from './formatting';
-import { t, getLang } from './i18n';
+import { formatEuro, formatPct, formatEuroSqm, escapeHtml } from './formatting';
+import { t } from './i18n';
 import { getQualityCategory } from './qualityIndex';
 
 const METRICS = [
   { key: 'hr_mtu', label: 'panel.median_income', format: formatEuro, higherIsBetter: true },
   { key: 'unemployment_rate', label: 'panel.unemployment', format: (v: number | null) => formatPct(v), higherIsBetter: false },
-  { key: 'property_price_sqm', label: 'panel.property_price', format: (v: number | null) => v != null ? `${v.toLocaleString(getLang() === 'en' ? 'en-US' : 'fi-FI')} €/m²` : '—', higherIsBetter: true },
+  { key: 'property_price_sqm', label: 'panel.property_price', format: formatEuroSqm, higherIsBetter: true },
   { key: 'transit_stop_density', label: 'panel.transit_access', format: (v: number | null) => v != null ? `${v.toFixed(1)} /km²` : '—', higherIsBetter: true },
 ] as const;
 

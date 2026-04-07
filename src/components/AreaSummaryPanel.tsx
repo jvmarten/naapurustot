@@ -1,10 +1,8 @@
-import React, { useMemo } from 'react';
-import type { Feature, FeatureCollection, Polygon, MultiPolygon } from 'geojson';
-import { booleanIntersects } from '@turf/boolean-intersects';
-import { area } from '@turf/area';
+import React, { useMemo, useState, useEffect } from 'react';
+import type { Feature, FeatureCollection, Polygon } from 'geojson';
 import type { NeighborhoodProperties } from '../utils/metrics';
-import { formatNumber, formatEuro, formatPct } from '../utils/formatting';
-import { t, getLang } from '../utils/i18n';
+import { formatNumber, formatEuro, formatPct, formatDensity, formatEuroSqm } from '../utils/formatting';
+import { t } from '../utils/i18n';
 
 interface AreaSummaryPanelProps {
   polygon: Feature<Polygon>;
@@ -41,13 +39,13 @@ const STAT_SECTIONS: { title: string; stats: StatDef[] }[] = [
       { label: 'panel.ownership_rate', key: 'ownership_rate', format: (v) => formatPct(v as number | null), weightKey: 'te_taly' },
       { label: 'panel.rental_rate', key: 'rental_rate', format: (v) => formatPct(v as number | null), weightKey: 'te_taly' },
       { label: 'panel.avg_apt_size', key: 'ra_as_kpa', format: (v) => v != null ? `${(v as number).toFixed(1)} m²` : '—', weightKey: 'ra_asunn' },
-      { label: 'panel.property_price', key: 'property_price_sqm', format: (v) => v != null ? `${(v as number).toLocaleString(getLang() === 'en' ? 'en-US' : 'fi-FI')} €/m²` : '—' },
+      { label: 'panel.property_price', key: 'property_price_sqm', format: formatEuroSqm },
     ],
   },
   {
     title: 'panel.demographics',
     stats: [
-      { label: 'panel.population_density', key: 'population_density', format: (v) => v != null ? `${Math.round(v as number).toLocaleString(getLang() === 'en' ? 'en-US' : 'fi-FI')} /km²` : '—' },
+      { label: 'panel.population_density', key: 'population_density', format: formatDensity },
       { label: 'panel.child_ratio', key: 'child_ratio', format: (v) => formatPct(v as number | null) },
       { label: 'panel.student_share', key: 'student_share', format: (v) => formatPct(v as number | null) },
     ],
@@ -62,29 +60,19 @@ const STAT_SECTIONS: { title: string; stats: StatDef[] }[] = [
   },
 ];
 
-function computeAreaStats(polygon: Feature<Polygon>, data: FeatureCollection, selectedPnos?: string[]) {
+function computeAreaStats(data: FeatureCollection, selectedPnos?: string[]) {
   const intersecting: NeighborhoodProperties[] = [];
-  // Use a Set for O(1) PNO lookups instead of O(n) Array.includes() per feature
+  // App.tsx now always passes selectedPnos (either from select-mode or from the
+  // drawnAreaPnos computed via dynamic import of @turf/boolean-intersects).
+  // This removes the static @turf/boolean-intersects import from this chunk,
+  // saving ~15KB from the lazy-loaded bundle.
   const pnoSet = selectedPnos ? new Set(selectedPnos) : null;
+  if (!pnoSet) return { intersecting, stats: {} as Record<string, number | null> };
 
   for (const feature of data.features) {
-    if (!feature.geometry) continue;
-    const geom = feature.geometry as Polygon | MultiPolygon;
-    if (geom.type !== 'Polygon' && geom.type !== 'MultiPolygon') continue;
-
-    try {
-      // When selectedPnos is provided (click-to-select mode), use exact PNO match
-      // instead of polygon intersection to avoid the convex hull catching extra areas
-      const matches = pnoSet
-        ? feature.properties?.pno && pnoSet.has(feature.properties.pno as string)
-        : booleanIntersects(polygon, feature as Feature<Polygon | MultiPolygon>);
-      if (matches) {
-        if (feature.properties) {
-          intersecting.push(feature.properties as NeighborhoodProperties);
-        }
-      }
-    } catch {
-      // Skip features with invalid geometry
+    if (!feature.properties?.pno) continue;
+    if (pnoSet.has(feature.properties.pno as string)) {
+      intersecting.push(feature.properties as NeighborhoodProperties);
     }
   }
 
@@ -127,11 +115,19 @@ function computeAreaStats(polygon: Feature<Polygon>, data: FeatureCollection, se
 }
 
 export const AreaSummaryPanel: React.FC<AreaSummaryPanelProps> = ({ polygon, data, metroAverages, onClose, selectedPnos }) => {
-  const { intersecting, stats } = useMemo(() => computeAreaStats(polygon, data, selectedPnos), [polygon, data, selectedPnos]);
+  const { intersecting, stats } = useMemo(() => computeAreaStats(data, selectedPnos), [data, selectedPnos]);
 
-  const drawnArea = useMemo(() => {
-    const a = area(polygon);
-    return a >= 1_000_000 ? `${(a / 1_000_000).toFixed(1)} km²` : `${Math.round(a).toLocaleString()} m²`;
+  // Lazy-load @turf/area (~8KB) — only needed for the area display string.
+  // Shows neighborhood count immediately, area fills in once the module loads.
+  const [drawnArea, setDrawnArea] = useState<string>('');
+  useEffect(() => {
+    let cancelled = false;
+    import('@turf/area').then(({ area: turfArea }) => {
+      if (cancelled) return;
+      const a = turfArea(polygon);
+      setDrawnArea(a >= 1_000_000 ? `${(a / 1_000_000).toFixed(1)} km²` : `${formatNumber(Math.round(a))} m²`);
+    }).catch(() => { /* area display is non-critical */ });
+    return () => { cancelled = true; };
   }, [polygon]);
 
   return (
@@ -147,7 +143,7 @@ export const AreaSummaryPanel: React.FC<AreaSummaryPanelProps> = ({ polygon, dat
               {t('draw.area_summary')}
             </h2>
             <span className="text-xs text-surface-400 dark:text-surface-500">
-              {intersecting.length} {t('draw.neighborhoods')} · {drawnArea}
+              {intersecting.length} {t('draw.neighborhoods')}{drawnArea && ` · ${drawnArea}`}
             </span>
           </div>
           <button
@@ -236,7 +232,7 @@ export const AreaSummaryPanel: React.FC<AreaSummaryPanelProps> = ({ polygon, dat
               {t('draw.area_summary')}
             </h2>
             <span className="text-xs text-surface-400 dark:text-surface-500">
-              {intersecting.length} {t('draw.neighborhoods')} · {drawnArea}
+              {intersecting.length} {t('draw.neighborhoods')}{drawnArea && ` · ${drawnArea}`}
             </span>
           </div>
           <button

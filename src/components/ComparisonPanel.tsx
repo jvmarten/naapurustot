@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import type { NeighborhoodProperties } from '../utils/metrics';
-import { formatNumber, formatEuro, formatPct } from '../utils/formatting';
-import { t, getLang } from '../utils/i18n';
+import { formatNumber, formatEuro, formatPct, formatDensity, formatEuroSqm } from '../utils/formatting';
+import { t } from '../utils/i18n';
 import { CompareIllustration } from './EmptyStateIllustrations';
 
 interface ComparisonPanelProps {
@@ -39,7 +39,7 @@ const STAT_SECTIONS: { title: string; stats: StatDef[] }[] = [
   {
     title: 'panel.demographics',
     stats: [
-      { label: 'panel.population_density', key: 'population_density', format: (v) => v != null ? `${(v as number).toLocaleString(getLang() === 'en' ? 'en-US' : 'fi-FI')} /km²` : '—', higherIsBetter: true },
+      { label: 'panel.population_density', key: 'population_density', format: formatDensity, higherIsBetter: true },
       { label: 'panel.child_ratio', key: 'child_ratio', format: (v) => formatPct(v as number | null), higherIsBetter: true },
       { label: 'panel.student_share', key: 'student_share', format: (v) => formatPct(v as number | null), higherIsBetter: true },
     ],
@@ -47,7 +47,7 @@ const STAT_SECTIONS: { title: string; stats: StatDef[] }[] = [
   {
     title: 'panel.quality_of_life',
     stats: [
-      { label: 'panel.property_price', key: 'property_price_sqm', format: (v) => v != null ? `${(v as number).toLocaleString(getLang() === 'en' ? 'en-US' : 'fi-FI')} €/m²` : '—', higherIsBetter: true },
+      { label: 'panel.property_price', key: 'property_price_sqm', format: formatEuroSqm, higherIsBetter: true },
       { label: 'panel.transit_access', key: 'transit_stop_density', format: (v) => v != null ? `${(v as number).toFixed(1)} /km²` : '—', higherIsBetter: true },
       { label: 'panel.air_quality', key: 'air_quality_index', format: (v) => v != null ? (v as number).toFixed(1) : '—', higherIsBetter: false },
     ],
@@ -128,7 +128,7 @@ const CHART_METRICS: { label: string; key: string; higherIsBetter: boolean; max?
 
 const BAR_COLORS = ['#6366f1', '#10b981', '#f59e0b'];
 
-const ComparisonChart: React.FC<{ pinned: NeighborhoodProperties[] }> = ({ pinned }) => {
+const ComparisonChart: React.FC<{ pinned: NeighborhoodProperties[] }> = React.memo(({ pinned }) => {
   return (
     <div className="px-5 py-4 space-y-5">
       {CHART_METRICS.map((metric) => {
@@ -151,7 +151,7 @@ const ComparisonChart: React.FC<{ pinned: NeighborhoodProperties[] }> = ({ pinne
                       />
                     </div>
                     <span className="w-16 text-[10px] text-surface-700 dark:text-surface-300 text-right tabular-nums">
-                      {typeof val === 'number' ? val.toLocaleString(getLang() === 'en' ? 'en-US' : 'fi-FI') : '—'}
+                      {formatNumber(val)}
                     </span>
                   </div>
                 );
@@ -162,7 +162,8 @@ const ComparisonChart: React.FC<{ pinned: NeighborhoodProperties[] }> = ({ pinne
       })}
     </div>
   );
-};
+});
+ComparisonChart.displayName = 'ComparisonChart';
 
 export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pinned, onUnpin, onClear }) => {
   // PO-4: Tab state for chart vs table view
