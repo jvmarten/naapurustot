@@ -250,7 +250,7 @@ describe('QUALITY_CATEGORIES — full range coverage', () => {
     expect(sorted[sorted.length - 1].max).toBe(100);
 
     for (let i = 1; i < sorted.length; i++) {
-      expect(sorted[i].min).toBe(sorted[i - 1].max + 1);
+      expect(sorted[i].min).toBe(sorted[i - 1].max);
     }
   });
 

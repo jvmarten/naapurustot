@@ -257,13 +257,22 @@ export interface QualityCategory {
 
 export const QUALITY_CATEGORIES: QualityCategory[] = [
   { label: { fi: 'Vältä', en: 'Avoid' }, min: 0, max: 20, color: '#a855f7' },
-  { label: { fi: 'Huono', en: 'Bad' }, min: 21, max: 40, color: '#ef4444' },
-  { label: { fi: 'OK', en: 'Okay' }, min: 41, max: 60, color: '#f97316' },
-  { label: { fi: 'Hyvä', en: 'Good' }, min: 61, max: 80, color: '#eab308' },
-  { label: { fi: 'Erinomainen', en: 'Excellent' }, min: 81, max: 100, color: '#22c55e' },
+  { label: { fi: 'Huono', en: 'Bad' }, min: 20, max: 40, color: '#ef4444' },
+  { label: { fi: 'OK', en: 'Okay' }, min: 40, max: 60, color: '#f97316' },
+  { label: { fi: 'Hyvä', en: 'Good' }, min: 60, max: 80, color: '#eab308' },
+  { label: { fi: 'Erinomainen', en: 'Excellent' }, min: 80, max: 100, color: '#22c55e' },
 ];
 
 export function getQualityCategory(index: number | null): QualityCategory | null {
   if (index == null) return null;
-  return QUALITY_CATEGORIES.find((c) => index >= c.min && index <= c.max) ?? null;
+  // Categories use half-open intervals: first category is [min, max],
+  // subsequent categories are (min, max]. This eliminates gaps between
+  // categories (e.g., 20.5 was previously unmapped).
+  for (let i = QUALITY_CATEGORIES.length - 1; i >= 0; i--) {
+    const c = QUALITY_CATEGORIES[i];
+    if (index > c.min || (i === 0 && index >= c.min)) {
+      if (index <= c.max) return c;
+    }
+  }
+  return null;
 }

@@ -100,7 +100,7 @@ export function exportPdf(d: NeighborhoodProperties, _avg: Record<string, number
   const safeNamn = escapeHtml(d.namn ?? '');
 
   const html = `<!DOCTYPE html>
-<html lang="${lang}">
+<html lang="${escapeHtml(lang)}">
 <head>
 <meta charset="utf-8">
 <title>${safeNimi} – ${safePno}</title>
