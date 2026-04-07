@@ -235,11 +235,11 @@ describe('getQualityCategory — edge cases', () => {
   });
 
   it('handles non-integer values correctly', () => {
-    // 20.5 is between 20 (Avoid max) and 21 (Bad min) — falls in the gap
-    // QUALITY_CATEGORIES use integer boundaries, so 20.5 doesn't match any category
-    expect(getQualityCategory(20.5)).toBeNull();
-    // 80.9 is between 80 (Good max) and 81 (Excellent min) — also in the gap
-    expect(getQualityCategory(80.9)).toBeNull();
+    // Categories use continuous boundaries — no gaps between them
+    // 20.5 is > 20 (Bad min) and <= 40 (Bad max), so it falls in Bad
+    expect(getQualityCategory(20.5)!.label.en).toBe('Bad');
+    // 80.9 is > 80 (Excellent min) and <= 100, so it falls in Excellent
+    expect(getQualityCategory(80.9)!.label.en).toBe('Excellent');
     // Values within integer ranges still work
     expect(getQualityCategory(50)!.label.en).toBe('Okay');
   });

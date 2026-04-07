@@ -174,8 +174,8 @@ describe('getQualityCategory boundary precision', () => {
   });
 
   it('handles fractional values (quality_index is always rounded to integer)', () => {
-    // 20.5 falls between Avoid (max 20) and Bad (min 21)
-    // In practice quality_index is always Math.round()'d, but test the category lookup
-    expect(getQualityCategory(20.5)).toBeNull(); // gap between 20 and 21
+    // Categories use continuous boundaries — no gaps between them
+    // 20.5 is > 20 (Bad min) and <= 40 (Bad max), so it falls in Bad
+    expect(getQualityCategory(20.5)!.label.en).toBe('Bad');
   });
 });

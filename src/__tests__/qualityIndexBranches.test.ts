@@ -209,7 +209,8 @@ describe('getQualityCategory — edge cases', () => {
   });
 
   it('handles exact boundary at 20.5 (between Avoid and Bad)', () => {
-    // 20.5 is >= 0 and <= 20? No, 20.5 > 20 and < 21, so no category matches
-    expect(getQualityCategory(20.5)).toBeNull();
+    // 20.5 is > 20 (Bad min) and <= 40 (Bad max), so it falls in Bad
+    // Categories use continuous boundaries: no gaps between them
+    expect(getQualityCategory(20.5)!.label.en).toBe('Bad');
   });
 });

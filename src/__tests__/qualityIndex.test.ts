@@ -147,7 +147,7 @@ describe('QUALITY_CATEGORIES', () => {
     expect(QUALITY_CATEGORIES[0].min).toBe(0);
     expect(QUALITY_CATEGORIES[QUALITY_CATEGORIES.length - 1].max).toBe(100);
     for (let i = 1; i < QUALITY_CATEGORIES.length; i++) {
-      expect(QUALITY_CATEGORIES[i].min).toBe(QUALITY_CATEGORIES[i - 1].max + 1);
+      expect(QUALITY_CATEGORIES[i].min).toBe(QUALITY_CATEGORIES[i - 1].max);
     }
   });
 });

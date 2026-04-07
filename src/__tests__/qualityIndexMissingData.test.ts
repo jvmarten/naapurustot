@@ -148,9 +148,13 @@ describe('qualityIndex — getQualityCategory boundaries', () => {
     expect(getQualityCategory(null)).toBeNull();
   });
 
-  it('returns null for values outside all category ranges', () => {
-    // Values like 20.5 fall in the gap between Avoid (0-20) and Bad (21-40)
-    expect(getQualityCategory(20.5)).toBeNull();
+  it('returns non-null for fractional values within category ranges', () => {
+    // Categories use continuous boundaries — no gaps between them
+    // 20.5 is > 20 (Bad min) and <= 40 (Bad max), so it falls in Bad
+    expect(getQualityCategory(20.5)!.label.en).toBe('Bad');
+    // Values truly outside the range still return null
+    expect(getQualityCategory(-1)).toBeNull();
+    expect(getQualityCategory(101)).toBeNull();
   });
 
   it('QUALITY_CATEGORIES covers all 5 bands', () => {

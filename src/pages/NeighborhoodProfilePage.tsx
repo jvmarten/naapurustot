@@ -143,7 +143,9 @@ export const NeighborhoodProfilePage: React.FC = () => {
       };
     }
     return () => { document.title = 'naapurustot.fi'; };
-  }, [state]);
+  // lang is included so meta description updates when the user toggles language
+  // (t() reads the current global language, which changes when lang state changes)
+  }, [state, lang]);
 
   const toggleLang = () => {
     const next = lang === 'fi' ? 'en' : 'fi';

@@ -204,9 +204,9 @@ describe('getQualityCategory edge cases', () => {
   });
 
   it('handles fractional values within range', () => {
-    // 20.5 falls in Avoid (0-20)? No, Avoid max is 20, Bad min is 21
-    // 20.5 is between 20 and 21 — should fall in gap
-    expect(getQualityCategory(20.5)).toBeNull();
+    // Categories use continuous boundaries — no gaps between them
+    // 20.5 is > 20 (Bad min) and <= 40 (Bad max), so it falls in Bad
+    expect(getQualityCategory(20.5)!.label.en).toBe('Bad');
   });
 });
 
