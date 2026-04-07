@@ -64,6 +64,20 @@ export function escapeHtml(str: string): string {
     .replace(/'/g, '&#39;');
 }
 
+/** Format a number as density (e.g., "1 234 /km²"). Uses cached Intl.NumberFormat. */
+export function formatDensity(v: number | string | null | undefined): string {
+  const n = toNum(v);
+  if (n == null) return '—';
+  return `${getNumberFormatter().format(Math.round(n))} /km²`;
+}
+
+/** Format a number as €/m² (e.g., "3 500 €/m²"). Uses cached Intl.NumberFormat. */
+export function formatEuroSqm(v: number | string | null | undefined): string {
+  const n = toNum(v);
+  if (n == null) return '—';
+  return `${getNumberFormatter().format(n)} €/m²`;
+}
+
 /** Return a Tailwind text color class (green or red) based on whether the value beats the average. */
 export function diffColor(value: number | string | null, avg: number | string | null, higherIsBetter = true): string {
   const a = toNum(value);

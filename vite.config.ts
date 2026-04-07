@@ -75,10 +75,12 @@ export default defineConfig({
         manualChunks(id: string) {
           if (id.includes('maplibre-gl')) return 'maplibre';
           if (id.includes('node_modules/react-dom') || id.includes('node_modules/react/') || id.includes('node_modules/react-router')) return 'vendor';
-          // Turf.js geospatial utilities — used for specific interactions (polygon
-          // intersection, point-in-polygon, bbox), not on every page load.
-          // Splitting into its own chunk avoids blocking initial parse/render.
-          if (id.includes('node_modules/@turf/')) return 'turf';
+          // Turf.js: do NOT group all @turf/* into one chunk.
+          // Each module is dynamically imported by different features (union for
+          // "all cities", bbox for search, boolean-intersects for draw, etc.).
+          // Grouping them forces the entire turf bundle (~50-70KB) to load when
+          // ANY single module is needed, defeating the lazy-loading pattern.
+          // Rollup's natural code splitting creates per-module chunks instead.
         },
       },
     },
