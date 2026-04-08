@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { Map } from './components/Map';
 import { DEFAULT_CENTER, getInitialZoom, CITY_VIEWPORTS } from './utils/mapConstants';
+import { REGION_IDS } from './utils/regions';
 import { LayerSelector } from './components/LayerSelector';
 import { SearchBar } from './components/SearchBar';
 import { CitySelector, type CityFilter } from './components/CitySelector';
@@ -648,22 +649,59 @@ const App: React.FC = () => {
   }, [handleCityChange]);
 
   // Build favorite entries with names for UserMenu
+  // Look up in pnoFeatureMap (neighborhoods) first, then fall back to filteredData
+  // (for synthetic metro area features), and finally resolve region IDs by translation key.
+  const regionIdSet = useMemo(() => new Set<string>(REGION_IDS), []);
   const favoriteEntries: FavoriteEntry[] = useMemo(() => {
     return favorites
       .map(pno => {
-        const feature = pnoFeatureMap.get(pno);
-        const name = (feature?.properties?.nimi as string) ?? pno;
-        return { pno, name };
+        const feature = pnoFeatureMap.get(pno)
+          ?? filteredData?.features.find(f => f.properties?.pno === pno);
+        if (feature) {
+          const name = (feature.properties?.nimi as string) ?? pno;
+          return { pno, name };
+        }
+        // Metro area favorite when not in "all" view — resolve name from i18n
+        if (regionIdSet.has(pno)) {
+          return { pno, name: t(`city.${pno}`) };
+        }
+        return null;
       })
-      .filter(e => pnoFeatureMap.has(e.pno));
-  }, [favorites, pnoFeatureMap]);
+      .filter((e): e is FavoriteEntry => e !== null);
+  }, [favorites, pnoFeatureMap, filteredData, regionIdSet]);
 
+  const pendingFavoritePno = useRef<string | null>(null);
   const handleSelectFavorite = useCallback((pno: string) => {
-    const feature = pnoFeatureMap.get(pno);
+    // Neighborhood lookup
+    const feature = pnoFeatureMap.get(pno)
+      ?? filteredData?.features.find(f => f.properties?.pno === pno);
     if (feature?.properties) {
+      const city = feature.properties.city as string | undefined;
+      if (city && feature.properties._isMetroArea) {
+        setCityFilter('all');
+      } else if (city && cityFilter !== 'all' && city !== cityFilter) {
+        setCityFilter(city as CityFilter);
+      }
+      select(feature.properties as NeighborhoodProperties);
+      return;
+    }
+    // Metro area favorite when not currently in "all" view — switch and defer selection
+    if (regionIdSet.has(pno)) {
+      pendingFavoritePno.current = pno;
+      setCityFilter('all');
+    }
+  }, [pnoFeatureMap, filteredData, select, cityFilter, setCityFilter, regionIdSet]);
+
+  // Resolve pending metro area favorite after allCitiesData becomes available
+  useEffect(() => {
+    if (!pendingFavoritePno.current || !filteredData) return;
+    const pno = pendingFavoritePno.current;
+    const feature = filteredData.features.find(f => f.properties?.pno === pno);
+    if (feature?.properties) {
+      pendingFavoritePno.current = null;
       select(feature.properties as NeighborhoodProperties);
     }
-  }, [pnoFeatureMap, select]);
+  }, [filteredData, select]);
 
   // IN-5: Dynamic SEO — update document title, meta, and canonical when neighborhood selected
   useEffect(() => {
