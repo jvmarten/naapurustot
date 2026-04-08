@@ -5,6 +5,7 @@ import type { Feature, FeatureCollection, Polygon, Position } from 'geojson';
 import { buildFillColorExpression, type LayerId, type LayerConfig, getLayerById } from '../utils/colorScales';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { useTheme } from '../hooks/useTheme';
+import { trackEvent } from '../utils/analytics';
 import { DEFAULT_CENTER, getInitialZoom } from '../utils/mapConstants';
 
 const BASEMAP_LIGHT = (import.meta.env.VITE_BASEMAP_LIGHT_URL as string) || 'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png';
@@ -668,6 +669,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
           onSelectAreaClickRef.current(props);
           return;
         }
+        trackEvent('map-click-neighborhood', { pno: props.pno });
         onClickRef.current(props);
       }
     };

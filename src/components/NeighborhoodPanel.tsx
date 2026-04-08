@@ -188,6 +188,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
   // Clean up the "copied" feedback timer on unmount to prevent state updates after unmount
   React.useEffect(() => () => clearTimeout(copiedTimerRef.current), []);
   const handleCopyLink = useCallback(async () => {
+    trackEvent('share-link');
     const url = window.location.href;
 
     // On mobile, prefer the native Web Share API when available

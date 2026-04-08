@@ -544,7 +544,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
               {FILTER_PRESETS.map((preset) => (
                 <button
                   key={preset.labelKey}
-                  onClick={() => onFiltersChange(preset.criteria)}
+                  onClick={() => { trackEvent('apply-preset', { preset: preset.labelKey }); onFiltersChange(preset.criteria); }}
                   className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium
                              bg-brand-500/10 dark:bg-brand-600/15 text-brand-600 dark:text-brand-300
                              hover:bg-brand-500/20 dark:hover:bg-brand-600/25 transition-colors"
@@ -555,7 +555,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
               {savedPresets.map((preset, i) => (
                 <div key={`saved-${i}`} className="flex items-center gap-0.5">
                   <button
-                    onClick={() => onFiltersChange(preset.criteria)}
+                    onClick={() => { trackEvent('apply-saved-preset'); onFiltersChange(preset.criteria); }}
                     className="px-2.5 py-1.5 rounded-l-lg text-[11px] font-medium
                                bg-surface-100 dark:bg-surface-800/60 text-surface-700 dark:text-surface-200
                                hover:bg-surface-200 dark:hover:bg-surface-700/60 transition-colors"
@@ -675,7 +675,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
                 {FILTER_PRESETS.map((preset) => (
                   <button
                     key={preset.labelKey}
-                    onClick={() => onFiltersChange(preset.criteria)}
+                    onClick={() => { trackEvent('apply-preset', { preset: preset.labelKey }); onFiltersChange(preset.criteria); }}
                     className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium
                                bg-brand-500/10 dark:bg-brand-600/15 text-brand-600 dark:text-brand-300
                                hover:bg-brand-500/20 dark:hover:bg-brand-600/25 transition-colors"
@@ -686,7 +686,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
                 {savedPresets.map((preset, i) => (
                   <div key={`saved-m-${i}`} className="flex items-center gap-0.5">
                     <button
-                      onClick={() => onFiltersChange(preset.criteria)}
+                      onClick={() => { trackEvent('apply-saved-preset'); onFiltersChange(preset.criteria); }}
                       className="px-2.5 py-1.5 rounded-l-lg text-[11px] font-medium
                                  bg-surface-100 dark:bg-surface-800/60 text-surface-700 dark:text-surface-200
                                  hover:bg-surface-200 dark:hover:bg-surface-700/60 transition-colors"

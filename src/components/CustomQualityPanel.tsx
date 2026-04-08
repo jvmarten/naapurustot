@@ -2,6 +2,7 @@ import React, { useCallback, useRef, useEffect, useState, useMemo } from 'react'
 import { QUALITY_FACTORS, getDefaultWeights, isCustomWeights, type QualityWeights } from '../utils/qualityIndex';
 import { getLang } from '../utils/i18n';
 import { t } from '../utils/i18n';
+import { trackEvent } from '../utils/analytics';
 
 interface Props {
   weights: QualityWeights;
@@ -108,6 +109,7 @@ export const CustomQualityPanel: React.FC<Props> = ({ weights, onChange, onClose
 
   const handleChange = useCallback(
     (factorId: string, value: number) => {
+      trackEvent('adjust-quality-weight', { factor: factorId });
       onChange({ ...weights, [factorId]: value });
     },
     [weights, onChange],
