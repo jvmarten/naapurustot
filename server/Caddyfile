@@ -1,0 +1,7 @@
+analytics.naapurustot.fi {
+	reverse_proxy umami:3000
+}
+
+api.naapurustot.fi {
+	respond "OK" 200
+}
