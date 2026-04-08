@@ -380,13 +380,13 @@
   "auth.username_placeholder": "esim. matti_m",
   "auth.password": "Salasana",
   "auth.password_placeholder": "Vähintään 8 merkkiä",
-  "auth.display_name": "Näyttönimi",
-  "auth.display_name_placeholder": "Nimesi (valinnainen)",
+  "auth.confirm_password": "Vahvista salasana",
+  "auth.confirm_password_placeholder": "Syötä salasana uudelleen",
+  "auth.passwords_no_match": "Salasanat eivät täsmää",
   "auth.email": "Sähköposti",
   "auth.email_placeholder": "nimi@esimerkki.fi",
   "auth.email_hint": "Vain tilin palautukseen — ei pakollinen",
   "auth.optional": "valinnainen",
   "auth.submitting": "Odota…",
-  "auth.no_account": "Ei tiliä?",
-  "auth.has_account": "Onko sinulla jo tili?"
+  "auth.register": "Rekisteröidy"
 }
