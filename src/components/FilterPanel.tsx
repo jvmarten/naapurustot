@@ -8,6 +8,7 @@ import { useBottomSheet } from '../hooks/useBottomSheet';
 import { type FilterCriterion, computeMatchingPnos } from '../utils/filterUtils';
 import { getFeatureCenter } from '../utils/geometryFilter';
 import { FilterEmptyIllustration } from './EmptyStateIllustrations';
+import { trackEvent } from '../utils/analytics';
 
 type SortKey = 'score' | 'name' | LayerId;
 type SortDir = 'asc' | 'desc';
@@ -241,6 +242,7 @@ const AddFilterDropdown: React.FC<{
             <button
               key={layer.id}
               onClick={() => {
+                trackEvent('add-filter', { metric: layer.id });
                 onAdd(layer.id);
                 setOpen(false);
               }}
@@ -585,7 +587,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
             <button
               onClick={() => {
                 const name = prompt(t('filter.preset_name'));
-                if (name?.trim()) onSavePreset(name.trim(), filters);
+                if (name?.trim()) { trackEvent('save-filter-preset'); onSavePreset(name.trim(), filters); }
               }}
               className="text-[10px] font-medium text-brand-500 dark:text-brand-400
                          hover:text-brand-600 dark:hover:text-brand-300 transition-colors"
@@ -716,7 +718,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
               <button
                 onClick={() => {
                   const name = prompt(t('filter.preset_name'));
-                  if (name?.trim()) onSavePreset(name.trim(), filters);
+                  if (name?.trim()) { trackEvent('save-filter-preset'); onSavePreset(name.trim(), filters); }
                 }}
                 className="text-[10px] font-medium text-brand-500 dark:text-brand-400
                            hover:text-brand-600 dark:hover:text-brand-300 transition-colors"

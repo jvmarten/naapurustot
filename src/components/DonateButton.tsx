@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { t } from '../utils/i18n';
+import { trackEvent } from '../utils/analytics';
 
 // Lazy-load qrcode.react (~13KB gzipped) — only needed when user clicks "Show QR"
 const QRCodeSVG = lazy(() => import('qrcode.react').then(m => ({ default: m.QRCodeSVG })));
@@ -173,7 +174,7 @@ export const DonateButton: React.FC<DonateButtonProps> = ({ variant = 'button' }
     return (
       <>
         <button
-          onClick={() => setOpen((v) => !v)}
+          onClick={() => { setOpen((v) => { if (!v) trackEvent('open-donate'); return !v; }); }}
           className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200
                      hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors"
         >
