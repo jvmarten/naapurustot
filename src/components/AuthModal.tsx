@@ -14,12 +14,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [email, setEmail] = useState('');
-  const [displayName, setDisplayName] = useState('');
   const [turnstileToken, setTurnstileToken] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const overlayRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -35,11 +36,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    if (mode === 'signup' && password !== confirmPassword) {
+      setError(t('auth.passwords_no_match'));
+      return;
+    }
+
     setSubmitting(true);
 
     const err = mode === 'login'
       ? await onLogin(username, password)
-      : await onSignup(username, password, turnstileToken, email || undefined, displayName || undefined);
+      : await onSignup(username, password, turnstileToken, email || undefined);
 
     setSubmitting(false);
     if (err) {
@@ -47,10 +54,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
     } else {
       onClose();
     }
-  }, [mode, username, password, email, displayName, turnstileToken, onLogin, onSignup, onClose]);
+  }, [mode, username, password, confirmPassword, email, turnstileToken, onLogin, onSignup, onClose]);
 
-  const switchMode = useCallback(() => {
-    setMode(m => m === 'login' ? 'signup' : 'login');
+  const switchMode = useCallback((newMode: 'login' | 'signup') => {
+    setMode(newMode);
     setError(null);
   }, []);
 
@@ -61,14 +68,37 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
     >
       <div className="w-full max-w-sm mx-4 bg-white dark:bg-surface-900 rounded-2xl shadow-2xl border border-surface-200 dark:border-surface-700/40 overflow-hidden max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 pt-5 pb-2">
-          <h2 className="text-lg font-display font-bold text-surface-900 dark:text-white">
-            {mode === 'login' ? t('auth.login') : t('auth.signup')}
-          </h2>
+        {/* Tab header */}
+        <div className="flex items-center border-b border-surface-200 dark:border-surface-700/40">
+          <button
+            type="button"
+            onClick={() => switchMode('login')}
+            className={`flex-1 py-3.5 text-sm font-semibold text-center transition-colors relative
+              ${mode === 'login'
+                ? 'text-surface-900 dark:text-white'
+                : 'text-surface-400 dark:text-surface-500 hover:text-surface-600 dark:hover:text-surface-300'}`}
+          >
+            {t('auth.login')}
+            {mode === 'login' && (
+              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-500" />
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => switchMode('signup')}
+            className={`flex-1 py-3.5 text-sm font-semibold text-center transition-colors relative
+              ${mode === 'signup'
+                ? 'text-surface-900 dark:text-white'
+                : 'text-surface-400 dark:text-surface-500 hover:text-surface-600 dark:hover:text-surface-300'}`}
+          >
+            {t('auth.signup')}
+            {mode === 'signup' && (
+              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-500" />
+            )}
+          </button>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-surface-400 hover:text-surface-600 dark:hover:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors"
+            className="px-3 py-3.5 text-surface-400 hover:text-surface-600 dark:hover:text-surface-300 transition-colors"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -77,14 +107,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="px-6 pb-6 pt-2 space-y-4">
+        <form onSubmit={handleSubmit} className="px-6 pb-6 pt-5 space-y-4">
           {/* Username */}
           <div>
             <label className="block text-xs font-semibold text-surface-600 dark:text-surface-400 mb-1.5">
               {t('auth.username')}
             </label>
             <input
-
               type="text"
               required
               minLength={3}
@@ -118,17 +147,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
           {/* Signup-only fields */}
           {mode === 'signup' && (
             <>
-              {/* Display name */}
+              {/* Confirm password */}
               <div>
                 <label className="block text-xs font-semibold text-surface-600 dark:text-surface-400 mb-1.5">
-                  {t('auth.display_name')}
+                  {t('auth.confirm_password')}
                 </label>
                 <input
-                  type="text"
-                  value={displayName}
-                  onChange={e => setDisplayName(e.target.value)}
+                  type="password"
+                  required
+                  minLength={8}
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
                   className={INPUT_CLASS}
-                  placeholder={t('auth.display_name_placeholder')}
+                  placeholder={t('auth.confirm_password_placeholder')}
+                  autoComplete="new-password"
                 />
               </div>
 
@@ -165,17 +197,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
               ? t('auth.submitting')
               : mode === 'login' ? t('auth.login') : t('auth.signup')}
           </button>
-
-          <p className="text-center text-xs text-surface-500 dark:text-surface-400">
-            {mode === 'login' ? t('auth.no_account') : t('auth.has_account')}{' '}
-            <button
-              type="button"
-              onClick={switchMode}
-              className="text-brand-600 dark:text-brand-400 font-semibold hover:underline"
-            >
-              {mode === 'login' ? t('auth.signup') : t('auth.login')}
-            </button>
-          </p>
         </form>
       </div>
     </div>
