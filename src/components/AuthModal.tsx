@@ -1,24 +1,29 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { t } from '../utils/i18n';
+import { Turnstile } from './Turnstile';
 
 interface AuthModalProps {
   onClose: () => void;
-  onLogin: (email: string, password: string) => Promise<string | null>;
-  onSignup: (email: string, password: string, name?: string) => Promise<string | null>;
+  onLogin: (username: string, password: string) => Promise<string | null>;
+  onSignup: (username: string, password: string, turnstileToken: string, email?: string, displayName?: string) => Promise<string | null>;
 }
+
+const INPUT_CLASS = 'w-full px-3 py-2.5 rounded-lg border border-surface-300 dark:border-surface-600 bg-white dark:bg-surface-800 text-surface-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-shadow';
 
 export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup }) => {
   const [mode, setMode] = useState<'login' | 'signup'>('login');
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [turnstileToken, setTurnstileToken] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const overlayRef = useRef<HTMLDivElement>(null);
-  const emailRef = useRef<HTMLInputElement>(null);
+  const usernameRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    emailRef.current?.focus();
+    usernameRef.current?.focus();
   }, [mode]);
 
   useEffect(() => {
@@ -39,8 +44,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
     setSubmitting(true);
 
     const err = mode === 'login'
-      ? await onLogin(email, password)
-      : await onSignup(email, password, name || undefined);
+      ? await onLogin(username, password)
+      : await onSignup(username, password, turnstileToken, email || undefined, displayName || undefined);
 
     setSubmitting(false);
     if (err) {
@@ -48,7 +53,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
     } else {
       onClose();
     }
-  }, [mode, email, password, name, onLogin, onSignup, onClose]);
+  }, [mode, username, password, email, displayName, turnstileToken, onLogin, onSignup, onClose]);
 
   const switchMode = useCallback(() => {
     setMode(m => m === 'login' ? 'signup' : 'login');
@@ -61,7 +66,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
       onClick={handleOverlayClick}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
     >
-      <div className="w-full max-w-sm mx-4 bg-white dark:bg-surface-900 rounded-2xl shadow-2xl border border-surface-200 dark:border-surface-700/40 overflow-hidden">
+      <div className="w-full max-w-sm mx-4 bg-white dark:bg-surface-900 rounded-2xl shadow-2xl border border-surface-200 dark:border-surface-700/40 overflow-hidden max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-5 pb-2">
           <h2 className="text-lg font-display font-bold text-surface-900 dark:text-white">
@@ -79,34 +84,27 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="px-6 pb-6 pt-2 space-y-4">
-          {mode === 'signup' && (
-            <div>
-              <label className="block text-xs font-semibold text-surface-600 dark:text-surface-400 mb-1.5">
-                {t('auth.name')}
-              </label>
-              <input
-                type="text"
-                value={name}
-                onChange={e => setName(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-lg border border-surface-300 dark:border-surface-600 bg-white dark:bg-surface-800 text-surface-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-shadow"
-                placeholder={t('auth.name_placeholder')}
-              />
-            </div>
-          )}
+          {/* Username */}
           <div>
             <label className="block text-xs font-semibold text-surface-600 dark:text-surface-400 mb-1.5">
-              {t('auth.email')}
+              {t('auth.username')}
             </label>
             <input
-              ref={emailRef}
-              type="email"
+              ref={usernameRef}
+              type="text"
               required
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-lg border border-surface-300 dark:border-surface-600 bg-white dark:bg-surface-800 text-surface-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-shadow"
-              placeholder={t('auth.email_placeholder')}
+              minLength={3}
+              maxLength={40}
+              pattern="[a-zA-Z0-9_\-]+"
+              value={username}
+              onChange={e => setUsername(e.target.value)}
+              className={INPUT_CLASS}
+              placeholder={t('auth.username_placeholder')}
+              autoComplete="username"
             />
           </div>
+
+          {/* Password */}
           <div>
             <label className="block text-xs font-semibold text-surface-600 dark:text-surface-400 mb-1.5">
               {t('auth.password')}
@@ -117,10 +115,48 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
               minLength={8}
               value={password}
               onChange={e => setPassword(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-lg border border-surface-300 dark:border-surface-600 bg-white dark:bg-surface-800 text-surface-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-shadow"
+              className={INPUT_CLASS}
               placeholder={t('auth.password_placeholder')}
+              autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
             />
           </div>
+
+          {/* Signup-only fields */}
+          {mode === 'signup' && (
+            <>
+              {/* Display name */}
+              <div>
+                <label className="block text-xs font-semibold text-surface-600 dark:text-surface-400 mb-1.5">
+                  {t('auth.display_name')}
+                </label>
+                <input
+                  type="text"
+                  value={displayName}
+                  onChange={e => setDisplayName(e.target.value)}
+                  className={INPUT_CLASS}
+                  placeholder={t('auth.display_name_placeholder')}
+                />
+              </div>
+
+              {/* Optional email */}
+              <div>
+                <label className="block text-xs font-semibold text-surface-600 dark:text-surface-400 mb-1.5">
+                  {t('auth.email')} <span className="font-normal text-surface-400 dark:text-surface-500">({t('auth.optional')})</span>
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  className={INPUT_CLASS}
+                  placeholder={t('auth.email_placeholder')}
+                />
+                <p className="mt-1 text-[11px] text-surface-400 dark:text-surface-500">{t('auth.email_hint')}</p>
+              </div>
+
+              {/* Turnstile */}
+              <Turnstile onToken={setTurnstileToken} />
+            </>
+          )}
 
           {error && (
             <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
