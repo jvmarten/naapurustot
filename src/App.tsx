@@ -825,6 +825,24 @@ const App: React.FC = () => {
             onToggleSelectMode={handleToggleSelectMode}
             lang={lang}
           />
+        </div>
+
+        {/* Center: brand — absolutely positioned for true centering */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <button
+            onClick={handleResetView}
+            className="cursor-pointer bg-transparent border-none truncate pointer-events-auto"
+            title={t('map.reset_view')}
+          >
+            <h1 className="text-lg font-display font-bold text-surface-900 dark:text-white/90 tracking-tight whitespace-nowrap">
+              naapurustot<span className="text-brand-600 dark:text-brand-400">.fi</span>
+            </h1>
+          </button>
+        </div>
+
+        {/* Right: city selector & auth */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <CitySelector value={cityFilter} onChange={handleCityChange} lang={lang} />
           {user ? (
             <UserMenu user={user} onLogout={logout} />
           ) : (
@@ -844,24 +862,6 @@ const App: React.FC = () => {
               <span className="hidden md:inline">{t('auth.login')}</span>
             </button>
           )}
-        </div>
-
-        {/* Center: brand — absolutely positioned for true centering */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <button
-            onClick={handleResetView}
-            className="cursor-pointer bg-transparent border-none truncate pointer-events-auto"
-            title={t('map.reset_view')}
-          >
-            <h1 className="text-lg font-display font-bold text-surface-900 dark:text-white/90 tracking-tight whitespace-nowrap">
-              naapurustot<span className="text-brand-600 dark:text-brand-400">.fi</span>
-            </h1>
-          </button>
-        </div>
-
-        {/* Right: city selector */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          <CitySelector value={cityFilter} onChange={handleCityChange} lang={lang} />
         </div>
       </header>
 
