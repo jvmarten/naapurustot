@@ -117,7 +117,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
               type="text"
               required
               minLength={3}
-              maxLength={40}
+              maxLength={20}
               pattern="[a-zA-Z0-9_\-]+"
               value={username}
               onChange={e => setUsername(e.target.value)}
@@ -135,7 +135,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
             <input
               type="password"
               required
-              minLength={8}
+              minLength={12}
               value={password}
               onChange={e => setPassword(e.target.value)}
               className={INPUT_CLASS}
@@ -155,7 +155,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
                 <input
                   type="password"
                   required
-                  minLength={8}
+                  minLength={12}
                   value={confirmPassword}
                   onChange={e => setConfirmPassword(e.target.value)}
                   className={INPUT_CLASS}

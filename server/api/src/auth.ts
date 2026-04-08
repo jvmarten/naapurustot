@@ -10,7 +10,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
 const SALT_ROUNDS = 12;
 const COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days
 
-const USERNAME_RE = /^[a-zA-Z0-9_-]{3,40}$/;
+const USERNAME_RE = /^[a-zA-Z0-9_-]{3,20}$/;
 
 function setTokenCookie(res: Response, token: string): void {
   res.cookie('token', token, {
@@ -43,12 +43,12 @@ router.post('/signup', rateLimit(3, 24 * 60 * 60 * 1000, 'signup'), async (req: 
   }
 
   if (!USERNAME_RE.test(username)) {
-    res.status(400).json({ error: 'Username must be 3-40 characters (letters, numbers, _ or -)' });
+    res.status(400).json({ error: 'Username must be 3-20 characters (letters, numbers, _ or -)' });
     return;
   }
 
-  if (password.length < 8) {
-    res.status(400).json({ error: 'Password must be at least 8 characters' });
+  if (password.length < 12) {
+    res.status(400).json({ error: 'Password must be at least 12 characters' });
     return;
   }
 
