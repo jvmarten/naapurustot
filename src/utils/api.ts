@@ -2,8 +2,10 @@ const API_BASE = import.meta.env.VITE_API_URL || 'https://api.naapurustot.fi';
 
 export interface ApiUser {
   id: string;
-  email: string;
-  name: string | null;
+  username: string;
+  email: string | null;
+  displayName: string | null;
+  trustLevel: number;
   createdAt: string;
 }
 
@@ -33,16 +35,16 @@ async function request<T>(path: string, options?: RequestInit): Promise<ApiRespo
 }
 
 export const api = {
-  signup: (email: string, password: string, name?: string) =>
+  signup: (username: string, password: string, turnstileToken: string, email?: string, displayName?: string) =>
     request<{ user: ApiUser }>('/auth/signup', {
       method: 'POST',
-      body: JSON.stringify({ email, password, name }),
+      body: JSON.stringify({ username, password, turnstileToken, email, displayName }),
     }),
 
-  login: (email: string, password: string) =>
+  login: (username: string, password: string) =>
     request<{ user: ApiUser }>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ username, password }),
     }),
 
   logout: () =>

@@ -15,8 +15,8 @@ export function useAuth() {
     });
   }, []);
 
-  const login = useCallback(async (email: string, password: string): Promise<string | null> => {
-    const { data, error } = await api.login(email, password);
+  const login = useCallback(async (username: string, password: string): Promise<string | null> => {
+    const { data, error } = await api.login(username, password);
     if (data?.user) {
       setState({ user: data.user, loading: false });
       return null;
@@ -24,8 +24,14 @@ export function useAuth() {
     return error ?? 'Login failed';
   }, []);
 
-  const signup = useCallback(async (email: string, password: string, name?: string): Promise<string | null> => {
-    const { data, error } = await api.signup(email, password, name);
+  const signup = useCallback(async (
+    username: string,
+    password: string,
+    turnstileToken: string,
+    email?: string,
+    displayName?: string,
+  ): Promise<string | null> => {
+    const { data, error } = await api.signup(username, password, turnstileToken, email, displayName);
     if (data?.user) {
       setState({ user: data.user, loading: false });
       return null;
