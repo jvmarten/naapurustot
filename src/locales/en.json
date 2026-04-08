@@ -377,7 +377,7 @@
   "auth.signup": "Sign up",
   "auth.logout": "Log out",
   "auth.username": "Username",
-  "auth.username_placeholder": "e.g. matti_m",
+  "auth.username_placeholder": "Enter your username",
   "auth.password": "Password",
   "auth.password_placeholder": "At least 8 characters",
   "auth.confirm_password": "Confirm password",

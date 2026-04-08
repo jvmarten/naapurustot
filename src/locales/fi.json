@@ -377,7 +377,7 @@
   "auth.signup": "Luo tili",
   "auth.logout": "Kirjaudu ulos",
   "auth.username": "Käyttäjänimi",
-  "auth.username_placeholder": "esim. matti_m",
+  "auth.username_placeholder": "Syötä käyttäjänimesi",
   "auth.password": "Salasana",
   "auth.password_placeholder": "Vähintään 8 merkkiä",
   "auth.confirm_password": "Vahvista salasana",
