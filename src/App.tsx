@@ -797,7 +797,7 @@ const App: React.FC = () => {
 
       {/* Header bar */}
       <header className="absolute top-0 left-0 right-0 z-20 h-12 flex items-center justify-between px-3 md:px-4 bg-white/80 dark:bg-surface-950/80 backdrop-blur-md border-b border-surface-200/50 dark:border-white/10">
-        {/* Left: settings & tools */}
+        {/* Left: settings, tools & auth */}
         <div className="flex items-center gap-2 shrink-0">
           <SettingsDropdown
             colorblind={colorblind}
@@ -825,6 +825,22 @@ const App: React.FC = () => {
             onToggleSelectMode={handleToggleSelectMode}
             lang={lang}
           />
+          {user ? (
+            <UserMenu user={user} onLogout={logout} />
+          ) : (
+            <button
+              onClick={() => setShowAuth(true)}
+              className="flex px-2.5 py-2 rounded-lg text-xs font-semibold transition-all items-center justify-center
+                         min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0
+                         text-surface-600 dark:text-white/70 hover:text-surface-900 dark:hover:text-white hover:bg-surface-100 dark:hover:bg-white/10 border border-transparent"
+              aria-label={t('auth.login')}
+              title={t('auth.login')}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+              </svg>
+            </button>
+          )}
         </div>
 
         {/* Center: brand — absolutely positioned for true centering */}
@@ -840,19 +856,9 @@ const App: React.FC = () => {
           </button>
         </div>
 
-        {/* Right: city selector + auth */}
+        {/* Right: city selector */}
         <div className="flex items-center gap-1.5 shrink-0">
           <CitySelector value={cityFilter} onChange={handleCityChange} lang={lang} />
-          {user ? (
-            <UserMenu user={user} onLogout={logout} />
-          ) : (
-            <button
-              onClick={() => setShowAuth(true)}
-              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-brand-600 hover:bg-brand-700 text-white transition-colors min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 md:py-1.5"
-            >
-              {t('auth.login')}
-            </button>
-          )}
         </div>
       </header>
 
