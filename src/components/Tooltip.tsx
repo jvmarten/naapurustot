@@ -26,7 +26,7 @@ export const Tooltip: React.FC<TooltipProps> = ({ x, y, name, value, layerId, me
     const diffPct = ((value - metroAverage) / Math.abs(metroAverage)) * 100;
     if (Math.abs(diffPct) >= 1) {
       const sign = diffPct > 0 ? '+' : '';
-      comparisonText = `${diffPct > 0 ? '\u25B2' : '\u25BC'} ${sign}${diffPct.toFixed(0)}% vs. avg`;
+      comparisonText = `${diffPct > 0 ? '\u25B2' : '\u25BC'} ${sign}${diffPct.toFixed(0)}% ${t('tooltip.vs_avg')}`;
       // For "lower is better" metrics (crime, pollution, unemployment), flip the color logic
       const higherIsBetter = layer.higherIsBetter !== false;
       const isPositive = higherIsBetter ? diffPct > 0 : diffPct < 0;

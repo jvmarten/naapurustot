@@ -34,6 +34,11 @@ function ensureScript(): Promise<void> {
     const s = document.createElement('script');
     s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoad';
     s.async = true;
+    s.onerror = () => {
+      scriptLoading = false;
+      const cbs = loadCallbacks.splice(0);
+      for (const cb of cbs) cb();
+    };
     document.head.appendChild(s);
   });
 }
@@ -58,6 +63,9 @@ export const Turnstile: React.FC<TurnstileProps> = ({ onToken }) => {
 
     ensureScript().then(() => {
       if (!window.turnstile) return;
+      // Guard against rendering into a detached DOM node if the component
+      // unmounted while the script was loading.
+      if (!container.isConnected) return;
       activeWidgetId = window.turnstile.render(container, {
         sitekey: SITE_KEY,
         callback: (token: string) => onTokenRef.current(token),

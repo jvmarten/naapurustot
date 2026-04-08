@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, lazy, Suspense } from 'react';
-import { useParams, useLocation, Link } from 'react-router-dom';
+import { useParams, useLocation, useNavigate, Link } from 'react-router-dom';
 import type { Feature, Polygon, MultiPolygon } from 'geojson';
 import { loadNeighborhoodData } from '../utils/dataLoader';
 import { parseSlug, toSlug } from '../utils/slug';
@@ -23,6 +23,7 @@ interface LoadedState {
 export const NeighborhoodProfilePage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
   const location = useLocation();
+  const navigate = useNavigate();
   const [state, setState] = useState<LoadedState | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -151,6 +152,12 @@ export const NeighborhoodProfilePage: React.FC = () => {
     const next = lang === 'fi' ? 'en' : 'fi';
     setLang(next);
     setLangState(next);
+    // Navigate to the correct URL path so the language matches the route
+    // and survives page refreshes.
+    if (slug) {
+      const newPath = next === 'en' ? `/en/area/${slug}` : `/alue/${slug}`;
+      navigate(newPath, { replace: true });
+    }
   };
 
   const similar = useMemo(() => {
@@ -350,7 +357,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
             <StatItem label={t('layer.apt_size')} value={d.ra_as_kpa != null ? `${d.ra_as_kpa.toFixed(1)} m²` : '—'} />
             <StatItem label={t('layer.detached_houses')} value={formatPct(d.detached_house_share)} />
             {d.rental_price_sqm != null && (
-              <StatItem label={t('layer.rental_price')} value={`${formatNumber(d.rental_price_sqm)} €/m²`} />
+              <StatItem label={t('layer.rental_price')} value={`${d.rental_price_sqm.toFixed(2)} €/m²/kk`} />
             )}
             {d.avg_construction_year != null && (
               <StatItem label={t('layer.building_age')} value={String(Math.round(d.avg_construction_year))} />
