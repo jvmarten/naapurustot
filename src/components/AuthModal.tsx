@@ -20,15 +20,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const overlayRef = useRef<HTMLDivElement>(null);
-  const usernameRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    // Only focus on desktop — on mobile it triggers the keyboard which is jarring
-    if (window.matchMedia('(min-width: 768px)').matches) {
-      usernameRef.current?.focus();
-    }
-  }, [mode]);
-
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -93,7 +84,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
               {t('auth.username')}
             </label>
             <input
-              ref={usernameRef}
+
               type="text"
               required
               minLength={3}
