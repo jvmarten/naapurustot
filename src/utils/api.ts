@@ -20,7 +20,7 @@ interface ApiResponse<T> {
 const SERVER_ERROR_KEYS: Record<string, string> = {
   'Username and password are required': 'auth.error.fields_required',
   'Username must be 3-20 characters (letters, numbers, _ or -)': 'auth.error.invalid_username',
-  'Password must be at least 8 characters': 'auth.error.password_too_short',
+  'Password must be at least 12 characters': 'auth.error.password_too_short',
   'Invalid email format': 'auth.error.invalid_email',
   'Bot verification failed. Please try again.': 'auth.error.bot_check_failed',
   'Username already taken': 'auth.error.username_taken',
