@@ -170,6 +170,7 @@ const App: React.FC = () => {
   }, [activeLayer, comparisonScope, cityFilter, filteredData, qualityVersion]);
 
   const handleCityChange = useCallback((city: CityFilter) => {
+    trackEvent('switch-city', { city });
     setCityFilter(city);
     if (city === 'all') setComparisonScope('all');
     deselect();
@@ -556,6 +557,7 @@ const App: React.FC = () => {
 
   const toggleLang = useCallback(() => {
     const next = lang === 'fi' ? 'en' : 'fi';
+    trackEvent('switch-language', { lang: next });
     setLang(next);
     setLangState(next);
   }, [lang]);
@@ -632,7 +634,7 @@ const App: React.FC = () => {
     if (selected) toggleFavorite(selected.pno);
   }, [selected, toggleFavorite]);
   const handleNoteChange = useCallback((text: string) => {
-    if (selected) setNote(selected.pno, text);
+    if (selected) { trackEvent('add-note'); setNote(selected.pno, text); }
   }, [selected, setNote]);
   const handleExploreCity = useCallback((cityId: string) => {
     handleCityChange(cityId as CityFilter);

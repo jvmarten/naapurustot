@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import type { FeatureCollection } from 'geojson';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { t } from '../utils/i18n';
+import { trackEvent } from '../utils/analytics';
 
 interface WizardProps {
   data: FeatureCollection | null;
@@ -680,7 +681,7 @@ export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onCl
 
           {step === STEP_COUNT - 1 ? (
             <button
-              onClick={onClose}
+              onClick={() => { trackEvent('wizard-complete'); onClose(); }}
               className="px-5 py-2 rounded-xl text-sm font-medium bg-blue-500 text-white
                          hover:bg-blue-600 transition-colors shadow-md"
             >
@@ -688,7 +689,7 @@ export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onCl
             </button>
           ) : (
             <button
-              onClick={() => setStep((s) => s + 1)}
+              onClick={() => setStep((s) => { trackEvent('wizard-step', { step: s + 2 }); return s + 1; })}
               disabled={!canNext}
               className="px-5 py-2 rounded-xl text-sm font-medium bg-blue-500 text-white
                          hover:bg-blue-600 transition-colors shadow-md"
