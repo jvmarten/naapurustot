@@ -117,7 +117,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
               type="text"
               required
               minLength={3}
-              maxLength={40}
+              maxLength={20}
               pattern="[a-zA-Z0-9_\-]+"
               value={username}
               onChange={e => setUsername(e.target.value)}
