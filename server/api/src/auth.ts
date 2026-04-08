@@ -6,7 +6,10 @@ import { rateLimit } from './rateLimit.js';
 import { verifyTurnstile } from './turnstile.js';
 
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
+const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' ? '' : 'dev-secret-change-me');
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable must be set in production');
+}
 const SALT_ROUNDS = 12;
 const COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days
 
