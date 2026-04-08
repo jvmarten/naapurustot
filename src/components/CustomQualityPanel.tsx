@@ -109,7 +109,7 @@ export const CustomQualityPanel: React.FC<Props> = ({ weights, onChange, onClose
 
   const handleChange = useCallback(
     (factorId: string, value: number) => {
-      trackEvent('adjust-quality-weight', { factor: factorId });
+      trackEvent('adjust-quality-weight', { factor: factorId, value: String(value) });
       onChange({ ...weights, [factorId]: value });
     },
     [weights, onChange],
