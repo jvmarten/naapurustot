@@ -47,8 +47,8 @@ router.post('/signup', rateLimit(3, 24 * 60 * 60 * 1000, 'signup'), async (req: 
     return;
   }
 
-  if (password.length < 8) {
-    res.status(400).json({ error: 'Password must be at least 8 characters' });
+  if (password.length < 12) {
+    res.status(400).json({ error: 'Password must be at least 12 characters' });
     return;
   }
 
