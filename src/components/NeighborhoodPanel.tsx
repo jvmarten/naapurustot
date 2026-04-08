@@ -13,6 +13,7 @@ import { toSlug } from '../utils/slug';
 import { useAnimatedValue } from '../hooks/useAnimatedValue';
 import { useBottomSheet } from '../hooks/useBottomSheet';
 import { useSwipeNavigation } from '../hooks/useSwipeNavigation';
+import { trackEvent } from '../utils/analytics';
 import { generateScoreCard } from '../utils/scoreCard';
 
 interface PanelProps {
@@ -234,7 +235,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
 
   const favoriteButton = onToggleFavorite && (
     <button
-      onClick={onToggleFavorite}
+      onClick={() => { trackEvent(isFavorite ? 'unfavorite' : 'favorite'); onToggleFavorite(); }}
       className={`p-1.5 rounded-lg transition-colors min-h-[44px] md:min-h-0 ${
         isFavorite
           ? 'text-amber-500 hover:text-amber-600'
@@ -250,7 +251,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
 
   const pinButton = onPin && (
     <button
-      onClick={() => isPinned && onUnpin ? onUnpin(d.pno) : onPin(d)}
+      onClick={() => { trackEvent(isPinned ? 'unpin-compare' : 'pin-compare'); isPinned && onUnpin ? onUnpin(d.pno) : onPin(d); }}
       disabled={!isPinned && pinCount >= 3}
       className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors min-h-[44px] md:min-h-0 ${
         isPinned
@@ -268,7 +269,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
   const exportButtons = (
     <div className="flex items-center justify-center gap-3 px-6 py-4 border-t border-surface-200 dark:border-surface-800/50">
       <button
-        onClick={() => exportCsv(d, avg)}
+        onClick={() => { trackEvent('export-csv'); exportCsv(d, avg); }}
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium min-h-[44px] md:min-h-0
                    text-surface-500 dark:text-surface-400
                    hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-surface-700 dark:hover:text-surface-200 transition-colors"
@@ -279,7 +280,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
         {t('export.csv')}
       </button>
       <button
-        onClick={() => exportPdf(d, avg)}
+        onClick={() => { trackEvent('export-pdf'); exportPdf(d, avg); }}
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium min-h-[44px] md:min-h-0
                    text-surface-500 dark:text-surface-400
                    hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-surface-700 dark:hover:text-surface-200 transition-colors"
@@ -291,7 +292,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
       </button>
       {/* CF-2: Share as image */}
       <button
-        onClick={() => generateScoreCard(d, avg).catch(() => { /* html-to-image load failed */ })}
+        onClick={() => { trackEvent('export-image'); generateScoreCard(d, avg).catch(() => { /* html-to-image load failed */ }); }}
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium min-h-[44px] md:min-h-0
                    text-brand-600 dark:text-brand-300
                    hover:bg-brand-500/10 dark:hover:bg-brand-600/15 transition-colors"
@@ -782,7 +783,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
       {allFeatures && allFeatures.length > 0 && (
         <div>
           <button
-            onClick={() => setSimilarExpanded((v) => !v)}
+            onClick={() => { setSimilarExpanded((v) => { if (!v) trackEvent('similar-neighborhoods'); return !v; }); }}
             className="w-full flex items-center justify-between py-2 cursor-pointer group"
           >
             <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400 group-hover:text-surface-700 dark:group-hover:text-surface-200 transition-colors">

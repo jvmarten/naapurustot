@@ -4,6 +4,7 @@ import { t, type Lang } from '../utils/i18n';
 import type { RecentEntry } from '../hooks/useRecentNeighborhoods';
 import { geocodeAddress, type GeocodeResult } from '../utils/geocode';
 import { getFeatureCenter } from '../utils/geometryFilter';
+import { trackEvent } from '../utils/analytics';
 
 interface SearchBarProps {
   data: FeatureCollection | null;
@@ -109,6 +110,7 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, onSelect,
   }, [results]);
 
   function selectResult(feature: GeoJSON.Feature) {
+    trackEvent('search-neighborhood');
     onSelect(feature.properties!.pno, getFeatureCenter(feature));
     setQuery(feature.properties!.nimi || feature.properties!.pno);
     setIsOpen(false);
@@ -116,6 +118,7 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, onSelect,
   }
 
   async function selectAddressResult(addr: GeocodeResult) {
+    trackEvent('search-address');
     try {
       const neighborhood = await findNeighborhoodForPoint(addr.coordinates);
       if (neighborhood?.properties) {

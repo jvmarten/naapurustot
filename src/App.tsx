@@ -14,6 +14,7 @@ import { ErrorBanner } from './components/ErrorBanner';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { computeMatchingPnos, type FilterCriterion } from './utils/filterUtils';
 import { useFilterPresets } from './hooks/useFilterPresets';
+import { trackEvent } from './utils/analytics';
 import type { Feature, Polygon, MultiPolygon, Position } from 'geojson';
 
 // IN-6: Lazy load heavy conditionally-rendered components
@@ -578,22 +579,22 @@ const App: React.FC = () => {
   // Close ranking when opening filter and vice versa
   const toggleFilter = useCallback(() => {
     setShowFilter((v) => {
-      if (!v) setShowRanking(false);
+      if (!v) { setShowRanking(false); trackEvent('open-filter'); }
       return !v;
     });
   }, []);
 
   const toggleRanking = useCallback(() => {
     setShowRanking((v) => {
-      if (!v) setShowFilter(false);
+      if (!v) { setShowFilter(false); trackEvent('open-ranking'); }
       return !v;
     });
   }, []);
 
   // Stable callbacks for memoized children (avoids new refs on every App re-render)
-  const handleOpenWizard = useCallback(() => setShowWizard(true), []);
+  const handleOpenWizard = useCallback(() => { trackEvent('open-wizard'); setShowWizard(true); }, []);
   const handleClearWizardHighlight = useCallback(() => setWizardResultPnos([]), []);
-  const handleToggleSplitMode = useCallback(() => setSplitMode((v) => !v), []);
+  const handleToggleSplitMode = useCallback(() => { trackEvent('toggle-split-view'); setSplitMode((v) => !v); }, []);
   const handleToggleCustomQuality = useCallback(() => setShowCustomQuality((v) => !v), []);
   const handleCloseRanking = useCallback(() => setShowRanking(false), []);
   const handleCloseFilter = useCallback(() => setShowFilter(false), []);
