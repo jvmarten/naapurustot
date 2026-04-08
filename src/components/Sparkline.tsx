@@ -8,7 +8,7 @@ interface SparklineProps {
   color?: string;
 }
 
-const Sparkline: React.FC<SparklineProps> = ({
+const Sparkline: React.FC<SparklineProps> = React.memo(({
   data,
   width = 30,
   height = 12,
@@ -49,6 +49,8 @@ const Sparkline: React.FC<SparklineProps> = ({
       />
     </svg>
   );
-};
+});
+
+Sparkline.displayName = 'Sparkline';
 
 export default Sparkline;

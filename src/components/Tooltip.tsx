@@ -1,5 +1,5 @@
 import React, { useRef, useLayoutEffect } from 'react';
-import { getLayerById, type LayerId } from '../utils/colorScales';
+import type { LayerConfig } from '../utils/colorScales';
 import { t } from '../utils/i18n';
 
 interface TooltipProps {
@@ -7,15 +7,15 @@ interface TooltipProps {
   y: number;
   name: string;
   value: number | null;
-  layerId: LayerId;
+  /** Pre-resolved layer config — avoids calling getLayerById at 60Hz on every mousemove */
+  layer: LayerConfig;
   metroAverage?: number;
 }
 
 const OFFSET = 12;
 const PADDING = 8;
 
-export const Tooltip: React.FC<TooltipProps> = ({ x, y, name, value, layerId, metroAverage }) => {
-  const layer = getLayerById(layerId);
+export const Tooltip: React.FC<TooltipProps> = ({ x, y, name, value, layer, metroAverage }) => {
   const formatted = value != null ? layer.format(value) : t('tooltip.no_data');
   const ref = useRef<HTMLDivElement>(null);
 

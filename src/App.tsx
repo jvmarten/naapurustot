@@ -987,7 +987,6 @@ const App: React.FC = () => {
            Reads from external store so mouse-move doesn't re-render App. */}
       <TooltipOverlay
         hidden={!!selected}
-        activeLayer={activeLayer}
         effectiveLayer={effectiveLayer}
         metroAverage={(comparisonScope === 'region' ? cityAverages : metroAverages)[effectiveLayer.property]}
       />

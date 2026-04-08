@@ -3,7 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { Legend } from '../components/Legend';
 import { Tooltip } from '../components/Tooltip';
 import { LayerSelector } from '../components/LayerSelector';
-import { LAYERS } from '../utils/colorScales';
+import { LAYERS, getLayerById } from '../utils/colorScales';
 
 // Mock i18n to return the key for predictable testing
 vi.mock('../utils/i18n', () => ({
@@ -39,18 +39,20 @@ describe('Legend', () => {
 });
 
 describe('Tooltip', () => {
+  const qualityLayer = getLayerById('quality_index');
+
   it('renders neighborhood name', () => {
-    render(<Tooltip x={100} y={200} name="Kallio" value={75} layerId="quality_index" />);
+    render(<Tooltip x={100} y={200} name="Kallio" value={75} layer={qualityLayer} />);
     expect(screen.getByText('Kallio')).toBeInTheDocument();
   });
 
   it('renders formatted value', () => {
-    render(<Tooltip x={100} y={200} name="Kallio" value={75} layerId="quality_index" />);
+    render(<Tooltip x={100} y={200} name="Kallio" value={75} layer={qualityLayer} />);
     expect(screen.getByText('75')).toBeInTheDocument();
   });
 
   it('renders no data text for null value', () => {
-    render(<Tooltip x={100} y={200} name="Kallio" value={null} layerId="quality_index" />);
+    render(<Tooltip x={100} y={200} name="Kallio" value={null} layer={qualityLayer} />);
     // t('tooltip.no_data') renders either the translation or the key itself in test env
     const noDataEl = screen.queryByText('Ei tietoja') || screen.queryByText('tooltip.no_data');
     expect(noDataEl).toBeInTheDocument();
@@ -58,7 +60,7 @@ describe('Tooltip', () => {
 
   it('positions tooltip based on x and y props', () => {
     const { container } = render(
-      <Tooltip x={150} y={250} name="Test" value={50} layerId="quality_index" />
+      <Tooltip x={150} y={250} name="Test" value={50} layer={qualityLayer} />
     );
     const tooltip = container.firstChild as HTMLElement;
     // Tooltip uses useLayoutEffect for positioning, initial state is 0,0
