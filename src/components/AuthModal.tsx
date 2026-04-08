@@ -23,7 +23,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
   const usernameRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    usernameRef.current?.focus();
+    // Only focus on desktop — on mobile it triggers the keyboard which is jarring
+    if (window.matchMedia('(min-width: 768px)').matches) {
+      usernameRef.current?.focus();
+    }
   }, [mode]);
 
   useEffect(() => {
