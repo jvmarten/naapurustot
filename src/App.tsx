@@ -842,7 +842,6 @@ const App: React.FC = () => {
 
         {/* Right: city selector & auth */}
         <div className="flex items-center gap-1.5 shrink-0">
-          <CitySelector value={cityFilter} onChange={handleCityChange} lang={lang} />
           {user ? (
             <UserMenu user={user} onLogout={logout} />
           ) : (
@@ -862,6 +861,7 @@ const App: React.FC = () => {
               <span className="hidden md:inline">{t('auth.login')}</span>
             </button>
           )}
+          <CitySelector value={cityFilter} onChange={handleCityChange} lang={lang} />
         </div>
       </header>
 
