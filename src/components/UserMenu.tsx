@@ -2,12 +2,19 @@ import React, { useState, useRef, useEffect } from 'react';
 import { t } from '../utils/i18n';
 import type { ApiUser } from '../utils/api';
 
+export interface FavoriteEntry {
+  pno: string;
+  name: string;
+}
+
 interface UserMenuProps {
   user: ApiUser;
   onLogout: () => void;
+  favorites?: FavoriteEntry[];
+  onSelectFavorite?: (pno: string) => void;
 }
 
-export const UserMenu: React.FC<UserMenuProps> = ({ user, onLogout }) => {
+export const UserMenu: React.FC<UserMenuProps> = ({ user, onLogout, favorites = [], onSelectFavorite }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -44,13 +51,43 @@ export const UserMenu: React.FC<UserMenuProps> = ({ user, onLogout }) => {
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full mt-2 w-56 bg-white dark:bg-surface-900 rounded-xl shadow-xl border border-surface-200 dark:border-surface-700/40 overflow-hidden">
-          <div className="px-4 py-3 border-b border-surface-100 dark:border-surface-800">
-            {user.displayName && (
-              <p className="text-sm font-semibold text-surface-900 dark:text-white truncate">{user.displayName}</p>
-            )}
-            <p className="text-xs text-surface-500 dark:text-surface-400 truncate">@{user.username}</p>
-          </div>
+        <div className="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-surface-900 rounded-xl shadow-xl border border-surface-200 dark:border-surface-700/40 overflow-hidden">
+          {/* Favorites section */}
+          {favorites.length > 0 && (
+            <div className="border-b border-surface-100 dark:border-surface-800">
+              <p className="px-4 pt-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500">
+                {t('favorites.title')}
+              </p>
+              <div className="px-1.5 pb-1.5 max-h-48 overflow-y-auto">
+                {favorites.map(f => (
+                  <button
+                    key={f.pno}
+                    onClick={() => { setOpen(false); onSelectFavorite?.(f.pno); }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-surface-700 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-left"
+                  >
+                    <svg className="w-4 h-4 shrink-0 text-amber-500" viewBox="0 0 24 24" fill="currentColor">
+                      <path fillRule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.007 5.404.433c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.433 2.082-5.006z" clipRule="evenodd" />
+                    </svg>
+                    <span className="truncate">{f.name}</span>
+                    <span className="text-xs text-surface-400 dark:text-surface-500 shrink-0">{f.pno}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {favorites.length === 0 && (
+            <div className="border-b border-surface-100 dark:border-surface-800">
+              <p className="px-4 pt-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500">
+                {t('favorites.title')}
+              </p>
+              <p className="px-4 pb-3 text-xs text-surface-400 dark:text-surface-500">
+                {t('favorites.empty')}
+              </p>
+            </div>
+          )}
+
+          {/* Logout */}
           <div className="p-1.5">
             <button
               onClick={() => { setOpen(false); onLogout(); }}
