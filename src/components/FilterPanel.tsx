@@ -242,6 +242,7 @@ const AddFilterDropdown: React.FC<{
             <button
               key={layer.id}
               onClick={() => {
+                trackEvent('add-filter', { metric: layer.id });
                 onAdd(layer.id);
                 setOpen(false);
               }}
