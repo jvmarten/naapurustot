@@ -26,18 +26,21 @@ export const UserMenu: React.FC<UserMenuProps> = ({ user, onLogout }) => {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(o => !o)}
-        className={`flex px-2.5 py-2 rounded-lg text-xs font-semibold transition-all items-center justify-center
+        className={`flex px-2.5 py-2 rounded-lg text-xs font-semibold transition-all items-center justify-center gap-1.5
                    min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0
                    ${open
                      ? 'bg-brand-500/20 text-brand-600 dark:text-brand-300 border border-brand-500/30'
-                     : 'text-surface-600 dark:text-white/70 hover:text-surface-900 dark:hover:text-white hover:bg-surface-100 dark:hover:bg-white/10 border border-transparent'
+                     : 'text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 hover:bg-surface-100 dark:hover:bg-white/10 border border-transparent'
                    }`}
-        title={user.username}
-        aria-label={user.username}
+        title={user.displayName || user.username}
+        aria-label={user.displayName || user.username}
       >
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+        {/* Mobile: filled user icon — signals logged-in state */}
+        <svg className="w-4 h-4 md:hidden" viewBox="0 0 24 24" fill="currentColor">
+          <path fillRule="evenodd" d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z" clipRule="evenodd" />
         </svg>
+        {/* Desktop: username text only */}
+        <span className="hidden md:inline">{user.displayName || user.username}</span>
       </button>
 
       {open && (
