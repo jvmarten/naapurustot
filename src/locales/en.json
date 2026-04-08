@@ -380,13 +380,13 @@
   "auth.username_placeholder": "e.g. matti_m",
   "auth.password": "Password",
   "auth.password_placeholder": "At least 8 characters",
-  "auth.display_name": "Display name",
-  "auth.display_name_placeholder": "Your name (optional)",
+  "auth.confirm_password": "Confirm password",
+  "auth.confirm_password_placeholder": "Re-enter your password",
+  "auth.passwords_no_match": "Passwords do not match",
   "auth.email": "Email",
   "auth.email_placeholder": "name@example.com",
   "auth.email_hint": "For account recovery only — not required",
   "auth.optional": "optional",
   "auth.submitting": "Please wait…",
-  "auth.no_account": "No account?",
-  "auth.has_account": "Already have an account?"
+  "auth.register": "Register"
 }

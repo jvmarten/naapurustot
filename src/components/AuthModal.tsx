@@ -14,8 +14,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [email, setEmail] = useState('');
-  const [displayName, setDisplayName] = useState('');
   const [turnstileToken, setTurnstileToken] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -36,11 +36,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    if (mode === 'signup' && password !== confirmPassword) {
+      setError(t('auth.passwords_no_match'));
+      return;
+    }
+
     setSubmitting(true);
 
     const err = mode === 'login'
       ? await onLogin(username, password)
-      : await onSignup(username, password, turnstileToken, email || undefined, displayName || undefined);
+      : await onSignup(username, password, turnstileToken, email || undefined);
 
     setSubmitting(false);
     if (err) {
@@ -48,7 +54,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
     } else {
       onClose();
     }
-  }, [mode, username, password, email, displayName, turnstileToken, onLogin, onSignup, onClose]);
+  }, [mode, username, password, confirmPassword, email, turnstileToken, onLogin, onSignup, onClose]);
 
   const switchMode = useCallback((newMode: 'login' | 'signup') => {
     setMode(newMode);
@@ -141,17 +147,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
           {/* Signup-only fields */}
           {mode === 'signup' && (
             <>
-              {/* Display name */}
+              {/* Confirm password */}
               <div>
                 <label className="block text-xs font-semibold text-surface-600 dark:text-surface-400 mb-1.5">
-                  {t('auth.display_name')}
+                  {t('auth.confirm_password')}
                 </label>
                 <input
-                  type="text"
-                  value={displayName}
-                  onChange={e => setDisplayName(e.target.value)}
+                  type="password"
+                  required
+                  minLength={8}
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
                   className={INPUT_CLASS}
-                  placeholder={t('auth.display_name_placeholder')}
+                  placeholder={t('auth.confirm_password_placeholder')}
+                  autoComplete="new-password"
                 />
               </div>
 
