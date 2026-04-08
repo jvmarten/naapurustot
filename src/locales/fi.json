@@ -388,5 +388,16 @@
   "auth.email_hint": "Vain tilin palautukseen — ei pakollinen",
   "auth.optional": "valinnainen",
   "auth.submitting": "Odota…",
-  "auth.register": "Rekisteröidy"
+  "auth.register": "Rekisteröidy",
+  "auth.error.network": "Palvelimeen ei saada yhteyttä — yritä myöhemmin uudelleen",
+  "auth.error.server_error": "Palvelinvirhe — yritä myöhemmin uudelleen",
+  "auth.error.fields_required": "Käyttäjänimi ja salasana vaaditaan",
+  "auth.error.invalid_username": "Käyttäjänimen tulee olla 3–40 merkkiä (kirjaimet, numerot, _ tai -)",
+  "auth.error.password_too_short": "Salasanan tulee olla vähintään 8 merkkiä",
+  "auth.error.invalid_email": "Virheellinen sähköpostiosoite",
+  "auth.error.bot_check_failed": "Bottitarkistus epäonnistui — yritä uudelleen",
+  "auth.error.username_taken": "Käyttäjänimi on jo varattu",
+  "auth.error.email_taken": "Sähköpostiosoite on jo rekisteröity",
+  "auth.error.invalid_credentials": "Virheellinen käyttäjänimi tai salasana",
+  "auth.error.rate_limited": "Liian monta yritystä — yritä myöhemmin uudelleen"
 }

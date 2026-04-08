@@ -388,5 +388,16 @@
   "auth.email_hint": "For account recovery only — not required",
   "auth.optional": "optional",
   "auth.submitting": "Please wait…",
-  "auth.register": "Register"
+  "auth.register": "Register",
+  "auth.error.network": "Cannot connect to server — please try again later",
+  "auth.error.server_error": "Server error — please try again later",
+  "auth.error.fields_required": "Username and password are required",
+  "auth.error.invalid_username": "Username must be 3–40 characters (letters, numbers, _ or -)",
+  "auth.error.password_too_short": "Password must be at least 8 characters",
+  "auth.error.invalid_email": "Invalid email address",
+  "auth.error.bot_check_failed": "Bot verification failed — please try again",
+  "auth.error.username_taken": "Username is already taken",
+  "auth.error.email_taken": "Email is already registered",
+  "auth.error.invalid_credentials": "Invalid username or password",
+  "auth.error.rate_limited": "Too many attempts — please try again later"
 }
