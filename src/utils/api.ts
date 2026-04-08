@@ -1,3 +1,5 @@
+import { t } from './i18n';
+
 const API_BASE = import.meta.env.VITE_API_URL || 'https://api.naapurustot.fi';
 
 export interface ApiUser {
@@ -14,23 +16,46 @@ interface ApiResponse<T> {
   error?: string;
 }
 
+/** Map known server error messages to i18n keys for localised display. */
+const SERVER_ERROR_KEYS: Record<string, string> = {
+  'Username and password are required': 'auth.error.fields_required',
+  'Username must be 3-40 characters (letters, numbers, _ or -)': 'auth.error.invalid_username',
+  'Password must be at least 8 characters': 'auth.error.password_too_short',
+  'Invalid email format': 'auth.error.invalid_email',
+  'Bot verification failed. Please try again.': 'auth.error.bot_check_failed',
+  'Username already taken': 'auth.error.username_taken',
+  'Email already registered': 'auth.error.email_taken',
+  'Invalid username or password': 'auth.error.invalid_credentials',
+  'Too many requests. Please try again later.': 'auth.error.rate_limited',
+  'Internal server error': 'auth.error.server_error',
+};
+
+function localiseError(message: string): string {
+  const key = SERVER_ERROR_KEYS[message];
+  return key ? t(key) : message;
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<ApiResponse<T>> {
+  let res: Response;
   try {
-    const res = await fetch(`${API_BASE}${path}`, {
+    res = await fetch(`${API_BASE}${path}`, {
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       ...options,
     });
+  } catch {
+    return { error: t('auth.error.network') };
+  }
 
+  try {
     const body = await res.json();
-
     if (!res.ok) {
-      return { error: body.error || `Request failed (${res.status})` };
+      return { error: localiseError(body.error || `${res.status}`) };
     }
-
     return { data: body };
   } catch {
-    return { error: 'Network error' };
+    // Server returned a non-JSON response (e.g. HTML error page from reverse proxy)
+    return { error: t('auth.error.server_error') };
   }
 }
 
