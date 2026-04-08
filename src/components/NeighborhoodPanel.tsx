@@ -251,7 +251,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
 
   const pinButton = onPin && (
     <button
-      onClick={() => { trackEvent(isPinned ? 'unpin-compare' : 'pin-compare'); isPinned && onUnpin ? onUnpin(d.pno) : onPin(d); }}
+      onClick={() => { trackEvent(isPinned ? 'unpin-compare' : 'pin-compare'); if (isPinned && onUnpin) { onUnpin(d.pno); } else { onPin(d); } }}
       disabled={!isPinned && pinCount >= 3}
       className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors min-h-[44px] md:min-h-0 ${
         isPinned
