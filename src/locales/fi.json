@@ -372,5 +372,17 @@
   "profile.population": "Väkiluku",
   "notfound.message": "Sivua ei löytynyt",
   "notfound.back_to_map": "Takaisin kartalle",
-  "loading": "Ladataan…"
+  "loading": "Ladataan…",
+  "auth.login": "Kirjaudu",
+  "auth.signup": "Luo tili",
+  "auth.logout": "Kirjaudu ulos",
+  "auth.email": "Sähköposti",
+  "auth.email_placeholder": "nimi@esimerkki.fi",
+  "auth.password": "Salasana",
+  "auth.password_placeholder": "Vähintään 8 merkkiä",
+  "auth.name": "Nimi",
+  "auth.name_placeholder": "Nimesi (valinnainen)",
+  "auth.submitting": "Odota…",
+  "auth.no_account": "Ei tiliä?",
+  "auth.has_account": "Onko sinulla jo tili?"
 }

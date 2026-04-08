@@ -372,5 +372,17 @@
   "profile.population": "Population",
   "notfound.message": "Page not found",
   "notfound.back_to_map": "Back to the map",
-  "loading": "Loading…"
+  "loading": "Loading…",
+  "auth.login": "Log in",
+  "auth.signup": "Sign up",
+  "auth.logout": "Log out",
+  "auth.email": "Email",
+  "auth.email_placeholder": "name@example.com",
+  "auth.password": "Password",
+  "auth.password_placeholder": "At least 8 characters",
+  "auth.name": "Name",
+  "auth.name_placeholder": "Your name (optional)",
+  "auth.submitting": "Please wait…",
+  "auth.no_account": "No account?",
+  "auth.has_account": "Already have an account?"
 }
