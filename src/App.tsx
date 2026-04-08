@@ -32,6 +32,9 @@ import { useFavorites } from './hooks/useFavorites';
 import { useNotes } from './hooks/useNotes';
 import { useRecentNeighborhoods } from './hooks/useRecentNeighborhoods';
 import { useSelectedNeighborhood } from './hooks/useSelectedNeighborhood';
+import { useAuth } from './hooks/useAuth';
+const AuthModal = lazy(() => import('./components/AuthModal').then(m => ({ default: m.AuthModal })));
+import { UserMenu } from './components/UserMenu';
 import { type LayerId, type ColorblindType, getLayerById, getColorblindMode, setColorblindMode, rescaleLayerToData } from './utils/colorScales';
 import { readInitialUrlState, useSyncUrlState } from './hooks/useUrlState';
 import type { NeighborhoodProperties } from './utils/metrics';
@@ -48,6 +51,10 @@ const App: React.FC = () => {
 
   // Load only the selected region's data (or combined data for "all" view)
   const { data, loading, error, metroAverages, retry } = useMapData(cityFilter);
+
+  // Auth
+  const { user, login, signup, logout } = useAuth();
+  const [showAuth, setShowAuth] = useState(false);
 
   // Build a PNO→Feature lookup Map for O(1) feature access.
   // Replaces multiple O(n) .find() scans after quality index recomputation
@@ -833,9 +840,19 @@ const App: React.FC = () => {
           </button>
         </div>
 
-        {/* Right: city selector */}
+        {/* Right: city selector + auth */}
         <div className="flex items-center gap-1.5 shrink-0">
           <CitySelector value={cityFilter} onChange={handleCityChange} lang={lang} />
+          {user ? (
+            <UserMenu user={user} onLogout={logout} />
+          ) : (
+            <button
+              onClick={() => setShowAuth(true)}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-brand-600 hover:bg-brand-700 text-white transition-colors min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 md:py-1.5"
+            >
+              {t('auth.login')}
+            </button>
+          )}
         </div>
       </header>
 
@@ -1029,6 +1046,17 @@ const App: React.FC = () => {
       <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 hidden md:block">
         <p className="text-[10px] text-surface-600/70 dark:text-surface-500/70">{t('footer.attribution')}</p>
       </div>
+
+      {/* Auth modal */}
+      {showAuth && (
+        <Suspense fallback={null}>
+          <AuthModal
+            onClose={() => setShowAuth(false)}
+            onLogin={login}
+            onSignup={signup}
+          />
+        </Suspense>
+      )}
 
       {/* ARIA live region for screen readers */}
       <div aria-live="polite" aria-atomic="true" className="sr-only">

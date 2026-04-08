@@ -3,5 +3,5 @@ analytics.naapurustot.fi {
 }
 
 api.naapurustot.fi {
-	respond "OK" 200
+	reverse_proxy api:3001
 }
