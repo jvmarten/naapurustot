@@ -63,7 +63,8 @@ const App: React.FC = () => {
   }, [data]);
 
   const { selected, select, deselect, pinned, pin, unpin, clearPinned, refreshPinned } = useSelectedNeighborhood();
-  const [activeLayer, setActiveLayer] = useState<LayerId>(initialUrl.layer ?? 'quality_index');
+  const [activeLayer, setActiveLayerRaw] = useState<LayerId>(initialUrl.layer ?? 'quality_index');
+  const setActiveLayer = useCallback((layer: LayerId) => { trackEvent('change-layer', { layer }); setActiveLayerRaw(layer); }, []);
   const { gridData } = useGridData(activeLayer);
   const [wizardResultPnos, setWizardResultPnos] = useState<string[]>([]);
   const [flyTarget, setFlyTarget] = useState<{ center: [number, number]; zoom?: number; bounds?: [number, number, number, number] } | null>(() => {
@@ -526,6 +527,7 @@ const App: React.FC = () => {
             setCityFilter(props.city);
           }
           select(props);
+          trackEvent('view-neighborhood', { pno: props.pno, name: props.nimi || props.pno });
           addRecent({ pno: props.pno, name: props.nimi || props.pno, center });
           // Use feature bounding box for better zoom fit (lazy-load @turf/bbox)
           if (feature.geometry) {
