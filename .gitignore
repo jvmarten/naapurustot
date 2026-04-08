@@ -29,3 +29,6 @@ coverage/
 # Data pipeline cache (auto-generated, not committed)
 cache/
 scripts/cache/
+
+# Server environment (contains secrets)
+server/.env
