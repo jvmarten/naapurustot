@@ -34,7 +34,7 @@ import { useRecentNeighborhoods } from './hooks/useRecentNeighborhoods';
 import { useSelectedNeighborhood } from './hooks/useSelectedNeighborhood';
 import { useAuth } from './hooks/useAuth';
 const AuthModal = lazy(() => import('./components/AuthModal').then(m => ({ default: m.AuthModal })));
-import { UserMenu } from './components/UserMenu';
+import { UserMenu, type FavoriteEntry } from './components/UserMenu';
 import { type LayerId, type ColorblindType, getLayerById, getColorblindMode, setColorblindMode, rescaleLayerToData } from './utils/colorScales';
 import { readInitialUrlState, useSyncUrlState } from './hooks/useUrlState';
 import type { NeighborhoodProperties } from './utils/metrics';
@@ -107,7 +107,7 @@ const App: React.FC = () => {
   // QW-4: Split map view state
   const [splitMode, setSplitMode] = useState(false);
   const [secondaryLayer, setSecondaryLayer] = useState<LayerId>('median_income');
-  const { isFavorite, toggleFavorite } = useFavorites();
+  const { favorites, isFavorite, toggleFavorite } = useFavorites();
   const { getNote, setNote } = useNotes();
   const { recent, addRecent } = useRecentNeighborhoods();
   const restoredPno = useRef(false);
@@ -647,6 +647,24 @@ const App: React.FC = () => {
     handleCityChange(cityId as CityFilter);
   }, [handleCityChange]);
 
+  // Build favorite entries with names for UserMenu
+  const favoriteEntries: FavoriteEntry[] = useMemo(() => {
+    return favorites
+      .map(pno => {
+        const feature = pnoFeatureMap.get(pno);
+        const name = (feature?.properties?.nimi as string) ?? pno;
+        return { pno, name };
+      })
+      .filter(e => pnoFeatureMap.has(e.pno));
+  }, [favorites, pnoFeatureMap]);
+
+  const handleSelectFavorite = useCallback((pno: string) => {
+    const feature = pnoFeatureMap.get(pno);
+    if (feature?.properties) {
+      select(feature.properties as NeighborhoodProperties);
+    }
+  }, [pnoFeatureMap, select]);
+
   // IN-5: Dynamic SEO — update document title, meta, and canonical when neighborhood selected
   useEffect(() => {
     const canonical = document.querySelector('link[rel="canonical"]');
@@ -843,7 +861,7 @@ const App: React.FC = () => {
         {/* Right: city selector & auth */}
         <div className="flex items-center gap-1.5 shrink-0">
           {user ? (
-            <UserMenu user={user} onLogout={logout} />
+            <UserMenu user={user} onLogout={logout} favorites={favoriteEntries} onSelectFavorite={handleSelectFavorite} />
           ) : (
             <button
               onClick={() => setShowAuth(true)}
