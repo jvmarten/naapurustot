@@ -20,7 +20,7 @@ const PAD_B = 18;
 const PLOT_W = CHART_W - PAD_L - PAD_R;
 const PLOT_H = CHART_H - PAD_T - PAD_B;
 
-export const TrendChart: React.FC<TrendChartProps> = ({ title, data, color, formatValue, unit }) => {
+export const TrendChart: React.FC<TrendChartProps> = React.memo(({ title, data, color, formatValue, unit }) => {
   // Stable key for crossfade animation when data changes
   const dataKey = useMemo(() => data?.map(d => `${d[0]}:${d[1]}`).join(',') ?? '', [data]);
 
@@ -163,7 +163,9 @@ export const TrendChart: React.FC<TrendChartProps> = ({ title, data, color, form
       )}
     </div>
   );
-};
+});
+
+TrendChart.displayName = 'TrendChart';
 
 interface TrendSectionProps {
   incomeData: TrendDataPoint[] | null;
@@ -171,7 +173,13 @@ interface TrendSectionProps {
   unemploymentData: TrendDataPoint[] | null;
 }
 
-export const TrendSection: React.FC<TrendSectionProps> = ({
+// Stable formatter references so TrendChart (React.memo) doesn't re-render
+// when TrendSection re-renders with the same data.
+const fmtIncome = (v: number) => `${Math.round(v / 1000)}k`;
+const fmtPopulation = (v: number) => v.toLocaleString('fi-FI');
+const fmtUnemployment = (v: number) => `${v.toFixed(1)}%`;
+
+export const TrendSection: React.FC<TrendSectionProps> = React.memo(({
   incomeData,
   populationData,
   unemploymentData,
@@ -190,7 +198,7 @@ export const TrendSection: React.FC<TrendSectionProps> = ({
             title={t('panel.trend_income')}
             data={incomeData}
             color="#10b981"
-            formatValue={(v) => `${Math.round(v / 1000)}k`}
+            formatValue={fmtIncome}
             unit={t('panel.trend_unit_euro')}
           />
         )}
@@ -199,7 +207,7 @@ export const TrendSection: React.FC<TrendSectionProps> = ({
             title={t('panel.trend_population')}
             data={populationData}
             color="#6366f1"
-            formatValue={(v) => v.toLocaleString('fi-FI')}
+            formatValue={fmtPopulation}
           />
         )}
         {unemploymentData && (
@@ -207,10 +215,12 @@ export const TrendSection: React.FC<TrendSectionProps> = ({
             title={t('panel.trend_unemployment')}
             data={unemploymentData}
             color="#f43f5e"
-            formatValue={(v) => `${v.toFixed(1)}%`}
+            formatValue={fmtUnemployment}
           />
         )}
       </div>
     </div>
   );
-};
+});
+
+TrendSection.displayName = 'TrendSection';

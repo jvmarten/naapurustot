@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import React, { useMemo } from 'react';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { t } from '../utils/i18n';
 
@@ -99,7 +99,7 @@ function polygonPoints(values: number[]): string {
   return values.map((v, i) => pointOnAxis(i, v).join(',')).join(' ');
 }
 
-export default function RadarChart({ data, metroAverages }: RadarChartProps) {
+const RadarChart: React.FC<RadarChartProps> = React.memo(function RadarChart({ data, metroAverages }) {
   const dataValues = useMemo(
     () => AXES.map((a) => normalize(a.extract(data), a.min, a.max, a.inverted)),
     [data],
@@ -210,4 +210,6 @@ export default function RadarChart({ data, metroAverages }: RadarChartProps) {
       </svg>
     </div>
   );
-}
+});
+
+export default RadarChart;
