@@ -12,11 +12,25 @@ interface UserMenuProps {
   onLogout: () => void;
   favorites?: FavoriteEntry[];
   onSelectFavorite?: (pno: string) => void;
+  onToggleFavorite?: (pno: string) => void;
 }
 
-export const UserMenu: React.FC<UserMenuProps> = ({ user, onLogout, favorites = [], onSelectFavorite }) => {
+export const UserMenu: React.FC<UserMenuProps> = ({ user, onLogout, favorites = [], onSelectFavorite, onToggleFavorite }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  // Snapshot favorites when dropdown opens so items stay visible after unfavoriting
+  const [snapshotFavorites, setSnapshotFavorites] = useState<FavoriteEntry[]>([]);
+
+  useEffect(() => {
+    if (open) {
+      setSnapshotFavorites(favorites);
+    }
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps -- snapshot only on open
+
+  // Display items: snapshot when open (so unfavorited items stay visible), otherwise current
+  const displayFavorites = open ? snapshotFavorites : favorites;
+  // Track which are currently favorited (for star fill state)
+  const currentPnos = new Set(favorites.map(f => f.pno));
 
   useEffect(() => {
     if (!open) return;
@@ -53,30 +67,44 @@ export const UserMenu: React.FC<UserMenuProps> = ({ user, onLogout, favorites = 
       {open && (
         <div className="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-surface-900 rounded-xl shadow-xl border border-surface-200 dark:border-surface-700/40 overflow-hidden">
           {/* Favorites section */}
-          {favorites.length > 0 && (
+          {displayFavorites.length > 0 && (
             <div className="border-b border-surface-100 dark:border-surface-800">
               <p className="px-4 pt-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500">
                 {t('favorites.title')}
               </p>
               <div className="px-1.5 pb-1.5 max-h-48 overflow-y-auto">
-                {favorites.map(f => (
-                  <button
-                    key={f.pno}
-                    onClick={() => { setOpen(false); onSelectFavorite?.(f.pno); }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-surface-700 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-left"
-                  >
-                    <svg className="w-4 h-4 shrink-0 text-amber-500" viewBox="0 0 24 24" fill="currentColor">
-                      <path fillRule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.007 5.404.433c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.433 2.082-5.006z" clipRule="evenodd" />
-                    </svg>
-                    <span className="truncate">{f.name}</span>
-                    <span className="text-xs text-surface-400 dark:text-surface-500 shrink-0">{f.pno}</span>
-                  </button>
-                ))}
+                {displayFavorites.map(f => {
+                  const isFav = currentPnos.has(f.pno);
+                  return (
+                    <div
+                      key={f.pno}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-surface-700 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-left"
+                    >
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onToggleFavorite?.(f.pno); }}
+                        className={`shrink-0 transition-colors ${isFav ? 'text-amber-500 hover:text-amber-600' : 'text-surface-300 dark:text-surface-600 hover:text-amber-500'}`}
+                        title={isFav ? t('favorites.remove') : t('favorites.add')}
+                        aria-label={isFav ? t('favorites.remove') : t('favorites.add')}
+                      >
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill={isFav ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={isFav ? 0 : 2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" fillRule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.007 5.404.433c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.433 2.082-5.006z" clipRule="evenodd" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => { setOpen(false); onSelectFavorite?.(f.pno); }}
+                        className="flex-1 flex items-center gap-2.5 min-w-0"
+                      >
+                        <span className="truncate">{f.name}</span>
+                        <span className="text-xs text-surface-400 dark:text-surface-500 shrink-0">{f.pno}</span>
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
 
-          {favorites.length === 0 && (
+          {displayFavorites.length === 0 && (
             <div className="border-b border-surface-100 dark:border-surface-800">
               <p className="px-4 pt-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500">
                 {t('favorites.title')}
