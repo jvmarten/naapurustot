@@ -611,7 +611,19 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     const map = mapRef.current;
     if (!map || !data) return;
 
-    const onMouseMove = (e: maplibregl.MapMouseEvent) => {
+    // Throttle mousemove processing to once per animation frame.
+    // Without this, queryRenderedFeatures + setFeatureState fire on every
+    // pixel of movement (potentially >60 Hz on high-refresh-rate input).
+    // Only the last event per frame matters for visual output.
+    let pendingMouseEvent: maplibregl.MapMouseEvent | null = null;
+    let rafId: number | null = null;
+
+    const processMouseMove = () => {
+      rafId = null;
+      const e = pendingMouseEvent;
+      if (!e) return;
+      pendingMouseEvent = null;
+
       if (drawModeRef.current) {
         map.getCanvas().style.cursor = 'crosshair';
         onHoverRef.current(null, 0, 0);
@@ -626,12 +638,16 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
 
         if (!pno) return; // Guard against features with missing pno (e.g. malformed data)
 
-        if (hoveredIdRef.current && hoveredIdRef.current !== pno) {
-          map.setFeatureState({ source: SOURCE_ID, id: hoveredIdRef.current }, { hover: false });
+        // Only update feature state when the hovered feature actually changes.
+        // Before: setFeatureState({hover: true}) fired on every pixel even for
+        // the same polygon (~60 redundant GPU state updates/second).
+        if (hoveredIdRef.current !== pno) {
+          if (hoveredIdRef.current) {
+            map.setFeatureState({ source: SOURCE_ID, id: hoveredIdRef.current }, { hover: false });
+          }
+          hoveredIdRef.current = pno;
+          map.setFeatureState({ source: SOURCE_ID, id: pno }, { hover: true });
         }
-
-        hoveredIdRef.current = pno;
-        map.setFeatureState({ source: SOURCE_ID, id: pno }, { hover: true });
         map.getCanvas().style.cursor = 'pointer';
 
         onHoverRef.current(feat.properties as NeighborhoodProperties, e.point.x, e.point.y);
@@ -645,7 +661,17 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       }
     };
 
+    const onMouseMove = (e: maplibregl.MapMouseEvent) => {
+      pendingMouseEvent = e;
+      if (rafId === null) {
+        rafId = requestAnimationFrame(processMouseMove);
+      }
+    };
+
     const onMouseLeave = () => {
+      // Cancel any pending mousemove — we're leaving the map
+      pendingMouseEvent = null;
+      if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
       if (hoveredIdRef.current) {
         map.setFeatureState({ source: SOURCE_ID, id: hoveredIdRef.current }, { hover: false });
         hoveredIdRef.current = null;
@@ -687,6 +713,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     map.on('dblclick', onMapDblClick);
 
     return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
       map.off('mousemove', onMouseMove);
       map.off('mouseleave', FILL_LAYER, onMouseLeave);
       map.off('click', onMapClick);

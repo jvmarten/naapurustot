@@ -24,6 +24,9 @@ interface FilterPanelProps {
   savedPresets?: SavedPreset[];
   onSavePreset?: (name: string, criteria: FilterCriterion[]) => void;
   onRemovePreset?: (index: number) => void;
+  /** Pre-computed matching PNOs from parent — avoids running computeMatchingPnos twice
+   *  (App already computes this for the Map's filter highlight layer). */
+  matchingPnos?: Set<string>;
 }
 
 /** Get the data range (min stop, max stop) for a layer from its color stops. */
@@ -315,6 +318,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   savedPresets = [],
   onSavePreset,
   onRemovePreset,
+  matchingPnos: externalMatchingPnos,
 }) => {
   // QW-3: Unified bottom sheet drag behavior
   const sheetRef = useRef<HTMLDivElement>(null);
@@ -327,8 +331,14 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   const [sortKey, setSortKey] = useState<SortKey>('score');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
 
-  // Compute matching neighborhoods — use the same logic as the map highlighting
-  const matchingPnos = useMemo(() => computeMatchingPnos(data, filters), [data, filters]);
+  // Reuse matching PNOs from parent (App already computes this for the Map's
+  // filter highlight layer) to avoid running O(n × filters) twice.
+  // Falls back to local computation if prop not provided (backwards compat).
+  const localMatchingPnos = useMemo(
+    () => externalMatchingPnos ?? computeMatchingPnos(data, filters),
+    [externalMatchingPnos, data, filters],
+  );
+  const matchingPnos = localMatchingPnos;
   const matchingFeatures = useMemo(() => {
     if (!data || matchingPnos.size === 0) return [];
     return data.features.filter((f) => matchingPnos.has((f.properties as NeighborhoodProperties).pno));

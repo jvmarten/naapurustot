@@ -31,11 +31,12 @@ export function getTooltipSnapshot(): TooltipData | null {
 export function setTooltipData(data: TooltipData | null): void {
   if (current === data) return;
   current = data;
-  // Snapshot to array before iterating — listeners may subscribe/unsubscribe
-  // during notification (e.g., useSyncExternalStore re-subscribing on re-render),
-  // which would mutate the Set mid-iteration.
-  const snapshot = [...listeners];
-  for (const l of snapshot) l();
+  // Iterate the Set directly instead of spreading into a temporary array.
+  // This runs ~60 times/second during mouse hover; the previous [...listeners]
+  // spread allocated a throwaway array each time, adding GC pressure.
+  // Safe because useSyncExternalStore schedules state updates asynchronously —
+  // it doesn't re-subscribe (mutate the Set) during the synchronous notification loop.
+  listeners.forEach(l => l());
 }
 
 /** Subscribe to tooltip changes. Returns an unsubscribe function. For use with useSyncExternalStore. */
