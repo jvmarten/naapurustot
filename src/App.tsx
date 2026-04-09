@@ -961,6 +961,7 @@ const App: React.FC = () => {
             <FilterPanel
               data={filteredData}
               filters={filters}
+              matchingPnos={filterMatchPnos}
               onFiltersChange={setFilters}
               onSelect={handleSearch}
               onClose={handleCloseFilter}
