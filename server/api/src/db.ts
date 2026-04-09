@@ -1,9 +1,16 @@
+/**
+ * Database connection pool and schema initialization.
+ *
+ * Tables are created with IF NOT EXISTS on startup, so the schema is
+ * always up to date without requiring a separate migration step.
+ */
 import pg from 'pg';
 
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
+/** Create tables if they don't exist. Safe to call on every startup. */
 export async function initDb(): Promise<void> {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
