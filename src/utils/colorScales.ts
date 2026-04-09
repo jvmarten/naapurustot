@@ -73,10 +73,13 @@ export type LayerId =
  * Configuration for a single data layer displayed on the map.
  *
  * Each layer defines how a GeoJSON property is visualized as a choropleth:
+ * - `id` is a unique LayerId used in URL state and layer switching
  * - `property` is the key on NeighborhoodProperties to read
  * - `colors` and `stops` define the interpolated color scale (must be same length)
  * - `format` converts raw values to display strings (e.g., "25 000 €")
  * - `labelKey` is a translation key resolved via `t()` from i18n
+ * - `category` groups layers in the LayerSelector UI
+ * - `gridProperty` (optional) maps to a sub-postal-code grid data layer
  */
 export interface LayerConfig {
   id: LayerId;

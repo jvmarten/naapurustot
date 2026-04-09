@@ -10,25 +10,31 @@ import type { NeighborhoodProperties } from './metrics';
  * like NeighborhoodPanel, ComparisonPanel, and FilterPanel.
  */
 
+/** Current tooltip state: the hovered neighborhood's properties and cursor position. */
 export interface TooltipData {
   props: NeighborhoodProperties;
+  /** Cursor X position (viewport pixels). */
   x: number;
+  /** Cursor Y position (viewport pixels). */
   y: number;
 }
 
 let current: TooltipData | null = null;
 const listeners = new Set<() => void>();
 
+/** Get the current tooltip state. For use with useSyncExternalStore's getSnapshot. */
 export function getTooltipSnapshot(): TooltipData | null {
   return current;
 }
 
+/** Update tooltip state and notify all subscribers. Pass null to hide the tooltip. */
 export function setTooltipData(data: TooltipData | null): void {
   if (current === data) return;
   current = data;
   for (const l of listeners) l();
 }
 
+/** Subscribe to tooltip changes. Returns an unsubscribe function. For use with useSyncExternalStore. */
 export function subscribeTooltip(listener: () => void): () => void {
   listeners.add(listener);
   return () => { listeners.delete(listener); };

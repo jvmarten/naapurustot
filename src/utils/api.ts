@@ -1,12 +1,22 @@
+/**
+ * API client for the optional naapurustot backend (auth + favorites sync).
+ *
+ * All requests use credentials: 'include' for cross-origin cookie-based JWT auth.
+ * Server error messages are mapped to i18n keys for localized display.
+ * When the server is unreachable, errors are returned as ApiResponse.error strings.
+ */
+
 import { t } from './i18n';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://api.naapurustot.fi';
 
+/** User profile returned by the auth API. */
 export interface ApiUser {
   id: string;
   username: string;
   email: string | null;
   displayName: string | null;
+  /** Trust level for future moderation features (0 = default). */
   trustLevel: number;
   createdAt: string;
 }

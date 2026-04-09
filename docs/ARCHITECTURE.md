@@ -2,37 +2,57 @@
 
 ## Overview
 
-naapurustot is a single-page React application that visualizes neighborhood statistics on an interactive map. It has no backend — all data is bundled as static TopoJSON files (one per region) and all computation happens client-side. Data is lazy-loaded per region to keep initial page loads fast.
+naapurustot is a React + TypeScript SPA that visualizes neighborhood statistics across 22 Finnish city regions on an interactive MapLibre GL map. The frontend is fully static — all data is bundled as TopoJSON files (one per region) and all computation happens client-side. An optional Express backend handles user accounts and favorites sync.
+
+Data is lazy-loaded per region to keep initial page loads fast. The app also has SEO-friendly neighborhood profile pages pre-rendered at build time.
 
 ```
 Browser
-┌─────────────────────────────────────────────────────┐
-│  index.html                                         │
-│  ├── main.tsx (entry: ThemeProvider → App)           │
-│  ├── App.tsx (top-level state orchestration)         │
-│  │   ├── Map.tsx (MapLibre GL)                      │
-│  │   ├── LayerSelector / Legend / SearchBar          │
-│  │   ├── NeighborhoodPanel (lazy)                   │
-│  │   ├── ComparisonPanel / RankingTable (lazy)       │
-│  │   ├── FilterPanel / NeighborhoodWizard (lazy)     │
-│  │   └── Tooltip / SettingsDropdown / ToolsDropdown  │
-│  └── metro_neighborhoods.topojson (static data)      │
-└─────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│  index.html                                                 │
+│  ├── main.tsx (entry: ThemeProvider → BrowserRouter → Routes)│
+│  ├── / → App.tsx (main map application)                      │
+│  │   ├── Map.tsx (MapLibre GL)                               │
+│  │   ├── LayerSelector / Legend / SearchBar / CitySelector    │
+│  │   ├── NeighborhoodPanel (lazy)                            │
+│  │   ├── ComparisonPanel / RankingTable (lazy)               │
+│  │   ├── FilterPanel / NeighborhoodWizard (lazy)             │
+│  │   ├── DrawTool + AreaSummaryPanel / SplitMapView (lazy)   │
+│  │   ├── AuthModal / UserMenu (lazy, optional)               │
+│  │   └── TooltipOverlay / SettingsDropdown / ToolsDropdown   │
+│  ├── /alue/:slug → NeighborhoodProfilePage (lazy)            │
+│  └── per-region TopoJSON files (lazy-loaded on navigation)   │
+└─────────────────────────────────────────────────────────────┘
+
+Server (optional)
+┌─────────────────────────────────────────────────────────────┐
+│  Caddy (reverse proxy, auto-HTTPS)                           │
+│  ├── api.naapurustot.fi → Express API (auth, favorites)      │
+│  ├── analytics.naapurustot.fi → Umami                        │
+│  └── PostgreSQL (shared by API + Umami)                      │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ## Data flow
 
 ```
-1. Region selection → useMapData loads per-region TopoJSON (lazy, cached)
-   - Single region: loads src/data/regions/{regionId}.topojson
-   - "All" view: loads combined metro_neighborhoods.topojson (prefetched)
-2. TopoJSON → GeoJSON conversion via topojson-client
-3. filterSmallIslands() removes tiny island polygons
-4. computeQualityIndices() calculates composite scores (mutates feature properties)
-5. computeChangeMetrics() derives trend change percentages from history arrays
-6. computeQuickWinMetrics() derives demographic ratios from raw Paavo fields
-7. computeMetroAverages() produces population-weighted averages for comparison
-8. GeoJSON + averages flow down to Map and panel components via props
+1. User selects a region (CitySelector) or navigates to a URL with ?city=
+2. useMapData(regionId) loads the appropriate TopoJSON (via dataLoader.ts):
+   - Single region: fetches src/data/regions/{regionId}.topojson (Vite glob import)
+   - "All" view: fetches combined metro_neighborhoods.topojson
+   - Each file is fetched once and cached (Promise-level dedup)
+3. dataLoader.processTopology() runs the processing pipeline:
+   a. TopoJSON → GeoJSON conversion (topojson-client)
+   b. String-to-number coercion for numeric properties
+   c. filterSmallIslands() removes tiny island polygons (<15% of largest)
+   d. computeQualityIndices() calculates composite 0-100 scores (mutates in place)
+   e. computeChangeMetrics() derives trend change % from history arrays
+   f. computeQuickWinMetrics() derives demographic ratios from raw Paavo fields
+   g. computeMetroAverages() produces population-weighted averages
+4. GeoJSON + metroAverages flow to App.tsx via the useMapData return value
+5. App passes data down to Map, panels, and tools via props
+6. "All cities" view: buildMetroAreaFeatures() dissolves postal polygons into
+   city outlines using @turf/union (lazy-loaded, ~17KB), with cached geometry
 ```
 
 ### Key design choice: mutable feature properties
@@ -45,17 +65,25 @@ There is no external state library. All state lives in `App.tsx` via `useState` 
 
 | State | Location | Persistence |
 |-------|----------|-------------|
-| GeoJSON data + metro averages | `useMapData` hook | Fetched once, held in memory |
+| GeoJSON data + metro averages | `useMapData(regionId)` hook | Fetched per region, cached in memory |
 | Selected neighborhood | `useSelectedNeighborhood` hook | URL query param (`?pno=`) |
 | Pinned comparisons (max 3) | `useSelectedNeighborhood` hook | URL query param (`?compare=`) |
 | Active layer | `useState` in App | URL query param (`?layer=`) |
+| Active region/city | `useState` in App | URL query param (`?city=`) |
 | Theme (dark/light/system) | `useTheme` Context | `localStorage` |
 | Language (fi/en) | `useState` in App + `i18n.ts` module | `localStorage` |
-| Favorites, notes, filter presets | Dedicated hooks | `localStorage` |
+| Auth (user session) | `useAuth` hook | JWT in httpOnly cookie (server-side) |
+| Favorites | `useFavorites` hook | `localStorage` + optional server sync |
+| Notes, filter presets | `useNotes`, `useFilterPresets` hooks | `localStorage` |
 | Recent searches | `useRecentNeighborhoods` hook | `sessionStorage` |
 | Colorblind mode | Module-level var in `colorScales.ts` | `localStorage` |
+| Tooltip (hover) | External store (`tooltipStore.ts`) | Memory only |
 
-URL state is read once at startup (`readInitialUrlState`) and kept in sync via `useSyncUrlState`, which writes to `history.replaceState` on every change.
+URL state is read once at startup (`readInitialUrlState`) and kept in sync via `useSyncUrlState`, which writes to `history.replaceState` on every change. The debounced write (100ms) avoids redundant replaceState calls when multiple values change in the same tick.
+
+### Tooltip performance pattern
+
+Tooltip state uses an external store (`tooltipStore.ts`) instead of React state to avoid re-rendering the entire App tree on every mousemove (~60Hz). The `TooltipOverlay` component subscribes via `useSyncExternalStore` and is the only component that re-renders on hover.
 
 ## Map architecture (MapLibre GL)
 
@@ -118,16 +146,18 @@ Translation is handled by a minimal custom system in `src/utils/i18n.ts`:
 
 | Hook | Purpose | Persistence |
 |------|---------|-------------|
-| `useMapData()` | Fetch + process TopoJSON. Returns `{ data, loading, error, metroAverages, retry }`. Eager prefetch at module load time. | Memory |
+| `useMapData(regionId?)` | Fetch + process TopoJSON for a specific region or all. Returns `{ data, loading, error, metroAverages, retry }`. | Memory (per-region cache) |
 | `useSelectedNeighborhood()` | Manages selected neighborhood + up to 3 pinned comparisons. | React state (synced to URL) |
 | `useTheme()` | Dark/light/system theme via React Context. | `localStorage` |
-| `useFavorites()` | Toggle-able list of favorited PNOs. | `localStorage` |
+| `useAuth()` | JWT-based auth state. Returns `{ user, login, signup, logout }`. | httpOnly cookie |
+| `useFavorites(userId?)` | Toggle-able list of favorited PNOs. Syncs to server when logged in. | `localStorage` + server |
 | `useNotes()` | Free-text notes per neighborhood (5000 char limit). | `localStorage` |
 | `useFilterPresets()` | Named sets of filter criteria. | `localStorage` |
 | `useRecentNeighborhoods()` | Recently searched neighborhoods (max 10). | `sessionStorage` |
 | `useUrlState` | `readInitialUrlState()` reads URL once at startup; `useSyncUrlState()` writes changes via `history.replaceState`. | URL query params |
 | `useGridData(layerId)` | Lazy-loads fine-grained grid data (250m cells) when a grid layer is active. Falls back silently if file doesn't exist. | Memory cache |
 | `useBottomSheet(opts)` | Touch drag with velocity-based snapping between peek/half/full positions. | React state |
+| `useSwipeNavigation()` | Horizontal swipe gesture for mobile panel section navigation. | React state |
 | `useAnimatedValue(target)` | Animates numeric values with 300ms ease-out cubic via `requestAnimationFrame`. | React state |
 
 ## Code splitting
@@ -141,8 +171,50 @@ Heavy components that render conditionally are lazy-loaded via `React.lazy()`:
 - `CustomQualityPanel` — only when customizing quality weights
 - `NeighborhoodWizard` — only when wizard is open
 - `SplitMapView` — only in split-map mode
+- `AreaSummaryPanel` — only when a freeform polygon is drawn
+- `AuthModal` — only when user opens login/signup
+- `NeighborhoodProfilePage` — route-level split (only on `/alue/:slug`)
 
-Vendor code is split into separate chunks: `maplibre` and `vendor` (React + React DOM).
+Vendor code is split into separate chunks: `maplibre` and `vendor` (React + React DOM + React Router).
+
+Data is also code-split per region: each region's TopoJSON is a separate Vite asset chunk, loaded on demand via `import.meta.glob`. The combined dataset is only fetched for the "all cities" view.
+
+Turf.js modules are intentionally **not** grouped into a single chunk — each is dynamically imported by different features (`@turf/union` for metro area dissolve, `@turf/bbox` for search, etc.) and Rollup's natural splitting keeps them lazy.
+
+## Authentication & Server (optional)
+
+The backend is fully optional — the app works without it. When available, it provides:
+
+1. **User accounts** — signup/login with username + password (bcrypt, 12 rounds)
+2. **Favorites sync** — server-side persistence so favorites survive device/browser changes
+3. **Bot protection** — Cloudflare Turnstile on signup
+
+### Auth flow
+
+```
+Client                          Server (api.naapurustot.fi)
+  │                                  │
+  ├─ POST /auth/signup ──────────────► bcrypt hash → INSERT users → JWT
+  │  (username, password, turnstile)  │
+  ◄── Set-Cookie: token (httpOnly) ──┤
+  │                                  │
+  ├─ GET /auth/me ───────────────────► Verify JWT from cookie → return user
+  │                                  │
+  ├─ PUT /auth/favorites ────────────► UPSERT user_favorites
+  │  (array of PNOs)                 │
+```
+
+- JWT tokens expire after 7 days, stored in httpOnly secure cookies (SameSite=none for cross-origin)
+- Rate limiting: 3 signups/IP/day, 10 logins/IP/15min (in-memory buckets)
+- The client (`useAuth` hook) checks `/auth/me` on mount to restore sessions
+- `useFavorites` merges local and server favorites on login, then debounce-syncs changes
+
+### Database schema
+
+```sql
+users (id UUID PK, username UNIQUE, email UNIQUE, password, display_name, trust_level, timestamps)
+user_favorites (user_id UUID PK FK→users, favorites JSONB, updated_at)
+```
 
 ## Build pipeline
 
@@ -189,13 +261,27 @@ npm run build:data
 
 A GitHub Actions workflow (`data-refresh.yml`) runs this pipeline monthly and creates a PR if data changes.
 
+## Routing
+
+```
+main.tsx
+├── / → App (main map application)
+├── /alue/:slug → NeighborhoodProfilePage (Finnish, lazy)
+├── /en/area/:slug → NeighborhoodProfilePage (English, lazy)
+└── * → NotFoundPage (lazy)
+```
+
+Slug format: `{pno}-{slugified-name}` (e.g., `00100-helsinki-keskusta-etu-toolo`). The 5-digit postal code prefix guarantees uniqueness and enables O(1) lookup via `parseSlug()`.
+
+Profile pages are pre-rendered to static HTML at build time by `scripts/prerender.mjs` for SEO. A sitemap is generated by `scripts/generate-sitemap.mjs`.
+
 ## CI/CD
 
 | Workflow | Trigger | What it does |
 |----------|---------|-------------|
-| `ci.yml` | Push/PR to main | Lint → type check → test → build → bundle size check (250 KB gzip budget) |
-| `deploy.yml` | Push to main | Build + deploy to GitHub Pages |
+| `ci.yml` | Push/PR to main | Lint → type check → test → build → E2E → visual regression → bundle size (160 KB gzip budget) |
+| `deploy.yml` | CI success on main | Build + pre-render + sitemap → deploy to GitHub Pages |
+| `deploy-server.yml` | Manual | Deploy backend to DigitalOcean droplet |
 | `data-refresh.yml` | Monthly cron / manual | Re-run data pipeline, create PR if changed |
-| `auto-merge.yml` | On PR | Auto-merge approved PRs |
+| `auto-merge.yml` | `claude/*` branch push | Run CI suite, then auto-merge to main if passing |
 | `issue-to-pr.yml` | On issue | Create branch from issue |
-| `fix-failures.yml` | On CI failure | Attempt automated fixes |

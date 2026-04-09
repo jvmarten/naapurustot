@@ -244,7 +244,7 @@ export const REGION_IDS = Object.keys(REGIONS) as RegionId[];
 /** Region IDs that have populated data and should appear in the selector. */
 export const REGION_IDS_WITH_DATA = REGION_IDS.filter(id => REGIONS[id].hasData);
 
-/** The "all" view viewport showing all of Finland. */
+/** Viewport for the "all cities" view, showing the full extent of Finland. */
 export const ALL_FINLAND_VIEWPORT = {
   center: [25.0, 64.0] as [number, number],
   zoom: 4.8,
