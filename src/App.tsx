@@ -378,7 +378,9 @@ const App: React.FC = () => {
     setSelectedAreaPnos([]);
   }, []);
 
-  // Recompute quality indices when comparison scope changes
+  // Recompute quality indices when comparison scope changes or new data loads.
+  // Without `data` in the dependency array, switching regions would use quality indices
+  // computed with default weights in processTopology, ignoring custom user weights.
   useEffect(() => {
     if (!data) return;
     const features = comparisonScope === 'region' && cityFilter !== 'all' && filteredData
@@ -398,8 +400,8 @@ const App: React.FC = () => {
         .filter((p): p is NeighborhoodProperties => p != null);
       refreshPinned(updated);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- only trigger on scope/city changes
-  }, [comparisonScope, cityFilter]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- qualityWeights changes are handled by the debounced handleQualityWeightsChange; selected/pinned/pnoFeatureMap are read from current render values
+  }, [comparisonScope, cityFilter, data]);
 
   // Restore neighborhood selection and pinned comparisons from URL once data is loaded
   useEffect(() => {

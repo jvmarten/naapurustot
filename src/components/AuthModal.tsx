@@ -23,7 +23,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        e.stopImmediatePropagation();
+        onClose();
+      }
     };
     document.addEventListener('keydown', handleEsc);
     return () => document.removeEventListener('keydown', handleEsc);
