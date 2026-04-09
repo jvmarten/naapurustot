@@ -808,30 +808,54 @@ def main():
     existing = load_existing_data()
     results: dict[str, float] = {}
 
-    # --- Phase 1: Helsinki metro from HSY ---
-    hsy_stations = fetch_hsy_stations()
-    if hsy_stations:
-        hsy_results = assign_hsy_to_postal_codes(areas, hsy_stations)
-        if len(hsy_results) >= hki_count * 0.5:
-            results.update(hsy_results)
+    # --- Phase 1: Helsinki metro ---
+    # Prefer ENFUSER-based postal averages (spatially modeled at ~250 m)
+    # over nearest-station assignment (only ~13 stations).
+    enfuser_file = SCRIPT_DIR / "air_quality_enfuser.json"
+    enfuser_results: dict[str, float] = {}
+    if enfuser_file.exists():
+        try:
+            with open(enfuser_file, encoding="utf-8") as f:
+                enfuser_results = {k: float(v) for k, v in json.load(f).items()}
             logger.info(
-                "Helsinki metro: %d postal codes from HSY live data",
-                len(hsy_results),
+                "Loaded ENFUSER postal averages: %d postal codes",
+                len(enfuser_results),
             )
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.warning("Could not read ENFUSER data: %s", e)
+
+    if len(enfuser_results) >= hki_count * 0.5:
+        results.update(enfuser_results)
+        logger.info(
+            "Helsinki metro: %d postal codes from ENFUSER model",
+            len(enfuser_results),
+        )
+    else:
+        # Fall back to HSY nearest-station assignment
+        logger.info("ENFUSER data insufficient, falling back to HSY stations")
+        hsy_stations = fetch_hsy_stations()
+        if hsy_stations:
+            hsy_results = assign_hsy_to_postal_codes(areas, hsy_stations)
+            if len(hsy_results) >= hki_count * 0.5:
+                results.update(hsy_results)
+                logger.info(
+                    "Helsinki metro: %d postal codes from HSY live data",
+                    len(hsy_results),
+                )
+            else:
+                logger.warning(
+                    "HSY covered only %d/%d Helsinki postal codes -- "
+                    "using existing data as fallback",
+                    len(hsy_results), hki_count,
+                )
+                for pno, val in existing.items():
+                    if pno[:2] in HELSINKI_METRO_PREFIXES:
+                        results[pno] = val
         else:
-            logger.warning(
-                "HSY covered only %d/%d Helsinki postal codes -- "
-                "using existing data as fallback",
-                len(hsy_results), hki_count,
-            )
+            logger.warning("HSY unavailable -- preserving existing Helsinki data")
             for pno, val in existing.items():
                 if pno[:2] in HELSINKI_METRO_PREFIXES:
                     results[pno] = val
-    else:
-        logger.warning("HSY unavailable -- preserving existing Helsinki data")
-        for pno, val in existing.items():
-            if pno[:2] in HELSINKI_METRO_PREFIXES:
-                results[pno] = val
 
     # --- Phase 2: FMI nationwide background ---
     fmi_stations = fetch_fmi_stations()
