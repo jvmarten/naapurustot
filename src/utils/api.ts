@@ -77,4 +77,13 @@ export const api = {
 
   me: () =>
     request<{ user: ApiUser }>('/auth/me'),
+
+  getFavorites: () =>
+    request<{ favorites: string[] }>('/auth/favorites'),
+
+  saveFavorites: (favorites: string[]) =>
+    request<{ favorites: string[] }>('/auth/favorites', {
+      method: 'PUT',
+      body: JSON.stringify({ favorites }),
+    }),
 };
