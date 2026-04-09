@@ -42,8 +42,12 @@ docker compose logs -f
 1. Open `https://analytics.naapurustot.fi` in your browser
 2. Log in with the default Umami credentials: `admin` / `umami`
 3. **Change the admin password immediately**
-4. Add a new website: name `naapurustot.fi`, domain `naapurustot.fi`
-5. Copy the Website ID and replace `UMAMI_WEBSITE_ID` in `index.html`
+4. Seed the website entry (matches the ID already in `index.html`):
+   ```bash
+   docker compose cp seed-umami.sh db:/seed-umami.sh
+   docker compose exec db bash /seed-umami.sh
+   ```
+   This is safe to re-run — it skips if the website already exists.
 
 ## Custom event tracking
 
@@ -76,5 +80,5 @@ cat backup.sql | docker compose exec -T db psql -U umami umami
 > **Warning:** The `postgres_data` volume is marked as `external` to protect it
 > from accidental deletion. `docker compose down -v` will NOT remove it. To
 > truly delete the database, run `docker volume rm postgres_data` explicitly.
-> If the database is ever lost, you will need to re-add the website in Umami
-> and update the `data-website-id` in `index.html`.
+> If the database is ever lost, re-run `seed-umami.sh` to recreate the website
+> entry with the correct ID (no need to update `index.html`).
