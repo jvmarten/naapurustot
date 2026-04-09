@@ -10,7 +10,13 @@ const METRICS = [
   { key: 'transit_stop_density', label: 'panel.transit_access', format: (v: number | null) => v != null ? `${v.toFixed(1)} /km²` : '—', higherIsBetter: true },
 ] as const;
 
-/** Render a neighborhood score card as an off-screen HTML element, convert to PNG, and trigger download. */
+/**
+ * Render a neighborhood score card as an off-screen HTML element, convert to PNG, and trigger download.
+ *
+ * Lazy-loads html-to-image (~30KB) only when invoked, keeping it out of the initial bundle.
+ * The card shows the neighborhood name, quality index badge, and key metrics compared
+ * against metro averages with color-coded +/- indicators.
+ */
 export async function generateScoreCard(
   data: NeighborhoodProperties,
   metroAverages: Record<string, number>,

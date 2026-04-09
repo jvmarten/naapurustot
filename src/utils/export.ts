@@ -58,7 +58,11 @@ function escapeCsvField(field: string): string {
   return escaped;
 }
 
-/** Export neighborhood stats as a CSV file download (UTF-8 BOM for Excel compatibility). */
+/**
+ * Export neighborhood stats as a CSV file download.
+ * Includes UTF-8 BOM for Excel compatibility and CSV injection protection
+ * (formula-triggering characters are prefixed with a single quote).
+ */
 export function exportCsv(d: NeighborhoodProperties, _avg: Record<string, number>): void {
   const stats = collectStats(d);
   const header = `${escapeCsvField(t('export.field'))},${escapeCsvField(t('export.value'))}`;
@@ -79,7 +83,11 @@ export function exportCsv(d: NeighborhoodProperties, _avg: Record<string, number
   }
 }
 
-/** Generate a styled HTML report in a new window and trigger the browser's print dialog. */
+/**
+ * Generate a styled HTML report in a new popup window and trigger the browser's print dialog.
+ * The user can then "Save as PDF" from the browser's print dialog.
+ * Handles popup blockers and defers print() until the document is fully rendered.
+ */
 export function exportPdf(d: NeighborhoodProperties, _avg: Record<string, number>): void {
   const stats = collectStats(d);
   const lang = getLang();

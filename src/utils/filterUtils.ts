@@ -2,7 +2,12 @@ import type { FeatureCollection } from 'geojson';
 import { type LayerId, type LayerConfig, getLayerById } from './colorScales';
 import type { NeighborhoodProperties } from './metrics';
 
-/** A single range filter: only neighborhoods where the layer's value falls within [min, max]. */
+/**
+ * A single range filter criterion.
+ * Only neighborhoods where the layer's value falls within [min, max] pass the filter.
+ * When min/max are at the layer's stop extremes, values beyond the range are included
+ * to avoid excluding outliers.
+ */
 export interface FilterCriterion {
   layerId: LayerId;
   min: number;

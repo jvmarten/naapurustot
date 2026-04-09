@@ -19,6 +19,17 @@ interface AuthState {
   loading: boolean;
 }
 
+/**
+ * Manages authentication state via the optional backend API.
+ *
+ * Uses a localStorage flag (`has_session`) to avoid a network call on mount
+ * when the user has never logged in. On mount with a flag, calls GET /auth/me
+ * to restore the session from the httpOnly JWT cookie.
+ *
+ * Returns `{ user, loading, login, signup, logout }`.
+ * - `login` / `signup` return null on success or an error string on failure.
+ * - Auth is fully optional — when the server is unreachable, the app works normally.
+ */
 export function useAuth() {
   // If no session flag, skip the network call entirely — user never logged in
   const [state, setState] = useState<AuthState>({ user: null, loading: hasSession() });

@@ -1,4 +1,10 @@
-/** Formatting utilities for displaying numbers, currencies, and percentages. */
+/**
+ * Formatting utilities for displaying numbers, currencies, and percentages.
+ *
+ * All functions accept null/undefined/string inputs and return '—' for missing values.
+ * Intl.NumberFormat instances are cached per locale to avoid reconstruction on the
+ * tooltip hot path (~60Hz mousemove).
+ */
 
 import { getLang } from './i18n';
 

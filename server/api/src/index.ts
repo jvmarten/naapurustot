@@ -1,3 +1,10 @@
+/**
+ * Express API server for naapurustot.fi.
+ *
+ * Provides user authentication (signup/login/logout) and favorites sync.
+ * Runs behind Caddy reverse proxy at api.naapurustot.fi.
+ * Database tables are auto-created on startup via initDb().
+ */
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';

@@ -53,6 +53,7 @@ function parseUrl(): UrlState {
   };
 }
 
+/** Write current app state to URL query params. Default values are omitted to keep URLs short. */
 function writeUrl(pno: string | null, layer: LayerId, comparePnos: string[], city: string = 'helsinki_metro') {
   const params = new URLSearchParams();
   if (pno) params.set('pno', pno);

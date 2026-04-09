@@ -27,12 +27,17 @@ const regionModules = import.meta.glob<string>(
 // Combined file for "all" view (backward compat)
 import combinedTopoUrl from '../data/metro_neighborhoods.topojson?url';
 
+/** Result of loading and processing a TopoJSON dataset. */
 export interface ProcessedData {
+  /** GeoJSON FeatureCollection with computed properties (quality index, change metrics, etc.) */
   data: FeatureCollection;
+  /** Population-weighted averages across all neighborhoods in the dataset. */
   metroAverages: Record<string, number>;
 }
 
-// Coerce string-typed numeric properties to actual numbers.
+// TopoJSON quantization can produce string-typed numeric values (e.g., "12345"
+// instead of 12345). Coerce them back to numbers for all properties except
+// identifier fields that must remain strings (postal codes, municipality codes).
 const ID_FIELDS = new Set(['pno', 'postinumeroalue', 'kunta']);
 
 function processTopology(topo: Topology): ProcessedData {
