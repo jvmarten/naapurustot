@@ -31,7 +31,11 @@ export function getTooltipSnapshot(): TooltipData | null {
 export function setTooltipData(data: TooltipData | null): void {
   if (current === data) return;
   current = data;
-  for (const l of listeners) l();
+  // Snapshot to array before iterating — listeners may subscribe/unsubscribe
+  // during notification (e.g., useSyncExternalStore re-subscribing on re-render),
+  // which would mutate the Set mid-iteration.
+  const snapshot = [...listeners];
+  for (const l of snapshot) l();
 }
 
 /** Subscribe to tooltip changes. Returns an unsubscribe function. For use with useSyncExternalStore. */
