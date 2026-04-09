@@ -26,10 +26,13 @@ cp .env.example .env
 # openssl rand -hex 32   (run twice, once for each secret)
 nano .env
 
-# 4. Start services
+# 4. Create the persistent database volume (one-time, survives docker compose down -v)
+docker volume create postgres_data
+
+# 5. Start services
 docker compose up -d
 
-# 5. Check everything is running
+# 6. Check everything is running
 docker compose ps
 docker compose logs -f
 ```
@@ -65,4 +68,13 @@ docker compose up -d
 
 # Backup database
 docker compose exec db pg_dump -U umami umami > backup.sql
+
+# Restore from backup
+cat backup.sql | docker compose exec -T db psql -U umami umami
 ```
+
+> **Warning:** The `postgres_data` volume is marked as `external` to protect it
+> from accidental deletion. `docker compose down -v` will NOT remove it. To
+> truly delete the database, run `docker volume rm postgres_data` explicitly.
+> If the database is ever lost, you will need to re-add the website in Umami
+> and update the `data-website-id` in `index.html`.
