@@ -18,6 +18,7 @@ const BASE = import.meta.env.BASE_URL ?? '/';
 const GRID_PATHS: Partial<Record<LayerId, string>> = {
   transit_reachability: `${BASE}data/transit_reachability_grid.topojson`,
   light_pollution: `${BASE}data/light_pollution_grid.geojson`,
+  air_quality: `${BASE}data/air_quality_grid.topojson`,
 };
 
 /** Returns true if the layer has a registered grid data source. */
