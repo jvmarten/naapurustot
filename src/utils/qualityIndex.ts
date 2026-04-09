@@ -29,7 +29,7 @@ interface MinMax {
 
 function normalize(value: number, { min, max }: MinMax): number {
   if (max === min) return 50;
-  return ((value - min) / (max - min)) * 100;
+  return Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100));
 }
 
 /** Definition of a single quality factor */
