@@ -17,6 +17,13 @@ export async function initDb(): Promise<void> {
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS user_favorites (
+      user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      favorites JSONB NOT NULL DEFAULT '[]',
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
   console.log('Database initialized');
 }
 

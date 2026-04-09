@@ -12,6 +12,18 @@ const COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 const USERNAME_RE = /^[a-zA-Z0-9_-]{3,40}$/;
 
+/** Extract and verify JWT from cookie; returns userId or null. */
+function authenticateToken(req: Request): string | null {
+  const token = req.cookies?.token;
+  if (!token) return null;
+  try {
+    const payload = jwt.verify(token, JWT_SECRET) as { userId: string };
+    return payload.userId;
+  } catch {
+    return null;
+  }
+}
+
 function setTokenCookie(res: Response, token: string): void {
   res.cookie('token', token, {
     httpOnly: true,
@@ -169,6 +181,55 @@ router.get('/me', async (req: Request, res: Response): Promise<void> => {
   } catch {
     res.clearCookie('token', { httpOnly: true, secure: true, sameSite: 'none', path: '/' });
     res.status(401).json({ error: 'Invalid token' });
+  }
+});
+
+// ── Favorites sync ──
+
+router.get('/favorites', async (req: Request, res: Response): Promise<void> => {
+  const userId = authenticateToken(req);
+  if (!userId) {
+    res.status(401).json({ error: 'Not authenticated' });
+    return;
+  }
+
+  try {
+    const result = await pool.query(
+      'SELECT favorites FROM user_favorites WHERE user_id = $1',
+      [userId]
+    );
+    const favorites: string[] = result.rows.length > 0 ? result.rows[0].favorites : [];
+    res.json({ favorites });
+  } catch (err) {
+    console.error('Get favorites error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.put('/favorites', async (req: Request, res: Response): Promise<void> => {
+  const userId = authenticateToken(req);
+  if (!userId) {
+    res.status(401).json({ error: 'Not authenticated' });
+    return;
+  }
+
+  const { favorites } = req.body;
+  if (!Array.isArray(favorites) || !favorites.every((v: unknown) => typeof v === 'string')) {
+    res.status(400).json({ error: 'favorites must be an array of strings' });
+    return;
+  }
+
+  try {
+    await pool.query(
+      `INSERT INTO user_favorites (user_id, favorites, updated_at)
+       VALUES ($1, $2, NOW())
+       ON CONFLICT (user_id) DO UPDATE SET favorites = $2, updated_at = NOW()`,
+      [userId, JSON.stringify(favorites)]
+    );
+    res.json({ favorites });
+  } catch (err) {
+    console.error('Put favorites error:', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
