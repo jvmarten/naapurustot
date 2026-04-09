@@ -293,6 +293,7 @@ export const LAYERS: LayerConfig[] = [
     stops: [18, 22, 26, 30, 34, 38, 42, 48],
     format: age,
     higherIsBetter: false,
+    gridProperty: 'air_quality',
   },
   {
     id: 'crime_rate',
