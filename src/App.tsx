@@ -899,7 +899,7 @@ const App: React.FC = () => {
         {/* Right: city selector & auth */}
         <div className="flex items-center gap-1.5 shrink-0">
           {user ? (
-            <UserMenu user={user} onLogout={logout} favorites={favoriteEntries} onSelectFavorite={handleSelectFavorite} />
+            <UserMenu user={user} onLogout={logout} favorites={favoriteEntries} onSelectFavorite={handleSelectFavorite} onToggleFavorite={toggleFavorite} />
           ) : (
             <button
               onClick={() => setShowAuth(true)}
