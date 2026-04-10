@@ -48,10 +48,11 @@ function localiseError(message: string): string {
 async function request<T>(path: string, options?: RequestInit): Promise<ApiResponse<T>> {
   let res: Response;
   try {
+    const { headers: extraHeaders, ...rest } = options ?? {};
     res = await fetch(`${API_BASE}${path}`, {
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      ...options,
+      ...rest,
+      headers: { 'Content-Type': 'application/json', ...extraHeaders as Record<string, string> },
     });
   } catch {
     return { error: t('auth.error.network') };
