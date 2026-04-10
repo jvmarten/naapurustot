@@ -35,7 +35,9 @@ export const Tooltip: React.FC<TooltipProps> = ({ x, y, name, value, layer, metr
   }
 
   // Position via direct DOM mutation to avoid a second React render per mousemove.
-  // The old approach (useState + useLayoutEffect) caused a double render on every move.
+  // Uses transform instead of left/top so the write doesn't invalidate layout.
+  // At 60Hz hover updates, dirtying layout with left/top causes forced reflows
+  // when anything else in the frame reads geometry; transform is compositor-only.
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -62,8 +64,7 @@ export const Tooltip: React.FC<TooltipProps> = ({ x, y, name, value, layer, metr
       top = vh - height - PADDING;
     }
 
-    el.style.left = `${left}px`;
-    el.style.top = `${top}px`;
+    el.style.transform = `translate(${left}px,${top}px)`;
   }, [x, y]);
 
   return (
@@ -73,6 +74,7 @@ export const Tooltip: React.FC<TooltipProps> = ({ x, y, name, value, layer, metr
       style={{
         left: 0,
         top: 0,
+        willChange: 'transform',
       }}
     >
       <div className="font-semibold text-surface-900 dark:text-white">{name}</div>

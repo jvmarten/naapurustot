@@ -17,7 +17,11 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // 4 MiB
         // Exclude HTML from precache — navigation requests use NetworkFirst
         // so users always get the latest index.html after deployment.
-        globPatterns: ['**/*.{js,css,ico,png,svg,json,topojson}'],
+        // Exclude data files (.topojson, .geojson) from precache.
+        // These are lazy-loaded per region/layer — precaching all of them
+        // wastes ~10MB of bandwidth on first visit when the user only needs
+        // one region (~200KB). Data files are runtime-cached on first fetch.
+        globPatterns: ['**/*.{js,css,ico,png,svg}'],
         navigateFallback: null,
         runtimeCaching: [
           {
@@ -38,6 +42,20 @@ export default defineConfig({
               cacheName: 'map-tiles',
               expiration: {
                 maxEntries: 500,
+                maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
+              },
+            },
+          },
+          {
+            // Cache data files (TopoJSON, GeoJSON) on first fetch.
+            // Region files, grid files, and the combined dataset are all
+            // lazy-loaded — cache them when accessed so they're available offline.
+            urlPattern: /\.(topojson|geojson)(\?|$)/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'geodata',
+              expiration: {
+                maxEntries: 20,
                 maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
               },
             },
