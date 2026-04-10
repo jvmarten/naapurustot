@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { formatNumber, formatEuro, formatPct, formatDiff, diffColor } from '../utils/formatting';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { formatNumber, formatEuro, formatPct, formatDiff, diffColor, formatDensity, formatEuroSqm } from '../utils/formatting';
+import { setLang } from '../utils/i18n';
 
 describe('formatNumber — edge cases', () => {
   it('handles string numeric input', () => {
@@ -153,5 +154,130 @@ describe('diffColor — comprehensive', () => {
 
   it('defaults higherIsBetter to true', () => {
     expect(diffColor(60, 50)).toBe('text-emerald-400');
+  });
+});
+
+// --- NEW: formatDensity and formatEuroSqm (previously untested) ---
+
+describe('formatDensity', () => {
+  beforeEach(() => setLang('fi'));
+
+  it('formats a number with /km² suffix', () => {
+    const result = formatDensity(1234);
+    expect(result).toContain('/km²');
+    // Should round and include locale-formatted number
+    expect(result.replace(/[\s\u00a0]/g, '')).toContain('1234');
+  });
+
+  it('rounds to nearest integer', () => {
+    const result = formatDensity(1234.7);
+    expect(result.replace(/[\s\u00a0]/g, '')).toContain('1235');
+  });
+
+  it('returns dash for null', () => {
+    expect(formatDensity(null)).toBe('—');
+  });
+
+  it('returns dash for undefined', () => {
+    expect(formatDensity(undefined)).toBe('—');
+  });
+
+  it('returns dash for non-numeric string', () => {
+    expect(formatDensity('abc' as unknown as number)).toBe('—');
+  });
+
+  it('handles zero', () => {
+    expect(formatDensity(0)).toContain('/km²');
+    expect(formatDensity(0)).toContain('0');
+  });
+
+  it('handles very large values', () => {
+    const result = formatDensity(20000);
+    expect(result).toContain('/km²');
+    expect(result.replace(/[\s\u00a0]/g, '')).toContain('20000');
+  });
+
+  it('returns dash for NaN', () => {
+    expect(formatDensity(NaN)).toBe('—');
+  });
+
+  it('returns dash for Infinity', () => {
+    expect(formatDensity(Infinity)).toBe('—');
+  });
+
+  it('formats with English locale', () => {
+    setLang('en');
+    const result = formatDensity(1234);
+    expect(result).toContain('/km²');
+    // English uses comma separator
+    expect(result).toMatch(/1[,]234/);
+  });
+});
+
+describe('formatEuroSqm', () => {
+  beforeEach(() => setLang('fi'));
+
+  it('formats a number with €/m² suffix', () => {
+    const result = formatEuroSqm(3500);
+    expect(result).toContain('€/m²');
+    expect(result.replace(/[\s\u00a0]/g, '')).toContain('3500');
+  });
+
+  it('returns dash for null', () => {
+    expect(formatEuroSqm(null)).toBe('—');
+  });
+
+  it('returns dash for undefined', () => {
+    expect(formatEuroSqm(undefined)).toBe('—');
+  });
+
+  it('handles zero', () => {
+    expect(formatEuroSqm(0)).toContain('€/m²');
+  });
+
+  it('returns dash for NaN string', () => {
+    expect(formatEuroSqm('NaN' as unknown as number)).toBe('—');
+  });
+
+  it('returns dash for Infinity', () => {
+    expect(formatEuroSqm(Infinity)).toBe('—');
+  });
+
+  it('handles decimal values', () => {
+    const result = formatEuroSqm(3500.5);
+    expect(result).toContain('€/m²');
+  });
+
+  it('formats with English locale', () => {
+    setLang('en');
+    const result = formatEuroSqm(3500);
+    expect(result).toContain('€/m²');
+    expect(result).toMatch(/3[,]500/);
+  });
+});
+
+describe('formatting locale cache invalidation', () => {
+  it('switches format when language changes from fi to en', () => {
+    setLang('fi');
+    const fiFmt = formatNumber(1000);
+    setLang('en');
+    const enFmt = formatNumber(1000);
+    // fi-FI uses non-breaking space, en-US uses comma
+    expect(fiFmt).toMatch(/1[\s\u00a0]000/);
+    expect(enFmt).toMatch(/1[,]000/);
+    expect(fiFmt).not.toBe(enFmt);
+  });
+
+  it('formatEuro uses correct locale after language switch', () => {
+    setLang('fi');
+    const fi = formatEuro(30000);
+    setLang('en');
+    const en = formatEuro(30000);
+    // Both contain € but with different thousand separators
+    expect(fi).toContain('€');
+    expect(en).toContain('€');
+    // Finnish uses space, English uses comma
+    expect(fi).toMatch(/30[\s\u00a0]000/);
+    expect(en).toMatch(/30[,]000/);
   });
 });
