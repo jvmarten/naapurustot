@@ -138,7 +138,7 @@ const App: React.FC = () => {
 
   const allCitiesData = useMemo(() => {
     if (!data || cityFilter !== 'all') return null;
-    return (buildMetroAreaFeatures(data.features) as typeof data) ?? null;
+    return buildMetroAreaFeatures(data.features) as typeof data;
   // eslint-disable-next-line react-hooks/exhaustive-deps -- lang triggers rebuild so metro area names respect language; unionReady signals @turf/union loaded; qualityVersion signals in-place data mutation
   }, [data, cityFilter, lang, unionReady, qualityVersion]);
 

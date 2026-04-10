@@ -55,7 +55,7 @@ function cleanupWidget() {
 
 export const Turnstile: React.FC<TurnstileProps> = ({ onToken }) => {
   const onTokenRef = useRef(onToken);
-  useEffect(() => { onTokenRef.current = onToken; });
+  useEffect(() => { onTokenRef.current = onToken; }, [onToken]);
 
   const callbackRef = useCallback((container: HTMLDivElement | null) => {
     cleanupWidget();

@@ -111,7 +111,19 @@ router.post('/signup', rateLimit(3, 24 * 60 * 60 * 1000, 'signup'), async (req: 
     setTokenCookie(res, token);
 
     res.status(201).json({ user: formatUser(user) });
-  } catch (err) {
+  } catch (err: unknown) {
+    // Handle unique constraint violations from concurrent signups (TOCTOU race
+    // between the SELECT check and INSERT). The username/email UNIQUE constraints
+    // in the database are the actual guarantees; the SELECT checks above are just
+    // for better error messages under normal conditions.
+    const pgErr = err as { code?: string; constraint?: string };
+    if (pgErr.code === '23505') {
+      const msg = pgErr.constraint?.includes('email')
+        ? 'Email already registered'
+        : 'Username already taken';
+      res.status(409).json({ error: msg });
+      return;
+    }
     console.error('Signup error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -219,6 +231,14 @@ router.put('/favorites', async (req: Request, res: Response): Promise<void> => {
   const { favorites } = req.body;
   if (!Array.isArray(favorites) || !favorites.every((v: unknown) => typeof v === 'string')) {
     res.status(400).json({ error: 'favorites must be an array of strings' });
+    return;
+  }
+  if (favorites.length > 200) {
+    res.status(400).json({ error: 'Too many favorites (max 200)' });
+    return;
+  }
+  if (favorites.some((v: string) => v.length > 50)) {
+    res.status(400).json({ error: 'Favorite entry too long (max 50 characters)' });
     return;
   }
 
