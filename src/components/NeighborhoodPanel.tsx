@@ -631,7 +631,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
           />
           <StatRow
             label={t('panel.water_proximity')}
-            value={d.water_proximity_m != null ? `${Number(d.water_proximity_m).toLocaleString('fi-FI')} m` : '—'}
+            value={d.water_proximity_m != null ? `${panelNumFmt().format(Number(d.water_proximity_m))} m` : '—'}
             diff={formatDiff(d.water_proximity_m, avg.water_proximity_m)}
             diffClass={diffColor(d.water_proximity_m, avg.water_proximity_m, false)}
             property="water_proximity_m"
