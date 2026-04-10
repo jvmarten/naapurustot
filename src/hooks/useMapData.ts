@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { FeatureCollection } from 'geojson';
 import { loadAllData, loadRegionData, resetDataCache } from '../utils/dataLoader';
 import type { RegionId } from '../utils/regions';
@@ -28,12 +28,18 @@ export function useMapData(regionId?: RegionId | 'all'): MapDataState {
     metroAverages: {},
   });
   const [attempt, setAttempt] = useState(0);
+  // Track last attempt that triggered a cache reset, so region switches with
+  // a stale attempt > 0 don't unnecessarily clear cached data for other regions.
+  const lastResetAttemptRef = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
     setState({ data: null, loading: true, error: null, metroAverages: {} });
 
-    if (attempt > 0) resetDataCache();
+    if (attempt > lastResetAttemptRef.current) {
+      resetDataCache();
+      lastResetAttemptRef.current = attempt;
+    }
 
     const loadFn = regionId && regionId !== 'all'
       ? () => loadRegionData(regionId)

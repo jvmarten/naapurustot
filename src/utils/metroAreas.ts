@@ -153,12 +153,13 @@ export function clearMetroAreaCache(): void {
  * On language change, only the display name properties are refreshed — the
  * expensive @turf/union calls are skipped entirely.
  *
- * Returns null if the @turf/union module hasn't been loaded yet. The caller
- * should trigger a load (via the returned onReady callback) and retry.
+ * Always returns a FeatureCollection. When @turf/union hasn't loaded yet,
+ * falls back to MultiPolygon concatenation (internal postal code borders
+ * are visible, but the feature set is complete).
  */
 export function buildMetroAreaFeatures(
   allFeatures: Feature[],
-): FeatureCollection | null {
+): FeatureCollection {
   // Discover city IDs dynamically from data, but only include known regions
   const knownRegions = new Set(Object.keys(REGIONS));
   const cityIdSet = new Set<CityId>();

@@ -36,10 +36,13 @@ export function useAuth() {
 
   useEffect(() => {
     if (!hasSession()) return;
+    let cancelled = false;
     api.me().then(({ data }) => {
+      if (cancelled) return;
       if (!data?.user) setSessionFlag(false);
       setState({ user: data?.user ?? null, loading: false });
     });
+    return () => { cancelled = true; };
   }, []);
 
   const login = useCallback(async (username: string, password: string): Promise<string | null> => {
