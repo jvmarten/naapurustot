@@ -15,6 +15,7 @@ import { useBottomSheet } from '../hooks/useBottomSheet';
 import { useSwipeNavigation } from '../hooks/useSwipeNavigation';
 import { trackEvent } from '../utils/analytics';
 import { generateScoreCard } from '../utils/scoreCard';
+import { useNotes } from '../hooks/useNotes';
 
 interface PanelProps {
   data: NeighborhoodProperties;
@@ -30,8 +31,6 @@ interface PanelProps {
   onFlyTo?: (center: [number, number]) => void;
   isFavorite?: boolean;
   onToggleFavorite?: () => void;
-  note?: string;
-  onNoteChange?: (text: string) => void;
   /** Callback to navigate to postal code view for a metro area */
   onExploreCity?: (cityId: string) => void;
 }
@@ -174,7 +173,41 @@ const CollapsibleSection: React.FC<{
   );
 };
 
-export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, allFeatures, onFlyTo, isFavorite = false, onToggleFavorite, note = '', onNoteChange, onExploreCity }) => {
+/**
+ * Self-contained notes editor that owns its own useNotes subscription.
+ * Isolates typing-induced re-renders from the rest of NeighborhoodPanel.
+ * Without this, every keystroke re-renders ~1000 lines of JSX (30+ StatRow
+ * components, RadarChart, TrendCharts) just to update a single textarea.
+ */
+const NotesEditor: React.FC<{ pno: string }> = React.memo(({ pno }) => {
+  const { getNote, setNote } = useNotes();
+  const note = getNote(pno);
+  // Track once per focus session, not on every keystroke — avoids
+  // flooding the analytics endpoint during typing.
+  const trackedRef = useRef(false);
+  return (
+    <div>
+      <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 mb-3">
+        {t('notes.title')}
+      </h3>
+      <textarea
+        value={note}
+        onChange={(e) => {
+          if (!trackedRef.current) { trackEvent('add-note'); trackedRef.current = true; }
+          setNote(pno, e.target.value);
+        }}
+        onBlur={() => { trackedRef.current = false; }}
+        placeholder={t('notes.placeholder')}
+        className="w-full rounded-lg bg-surface-100 dark:bg-surface-900/60 border border-surface-200 dark:border-surface-800/50
+                   p-3 text-sm text-surface-900 dark:text-white placeholder-surface-400 dark:placeholder-surface-500
+                   focus:outline-none focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/30 resize-y min-h-[80px]"
+      />
+    </div>
+  );
+});
+NotesEditor.displayName = 'NotesEditor';
+
+export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, allFeatures, onFlyTo, isFavorite = false, onToggleFavorite, onExploreCity }) => {
   const eduTotal = [d.ko_yl_kork, d.ko_al_kork, d.ko_ammat, d.ko_perus]
     .filter((v): v is number => v != null && v > 0)
     .reduce((a, b) => a + b, 0) || 1;
@@ -763,22 +796,8 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
 
   const sectionSimilar = (
     <>
-      {/* CF-4: Neighborhood Notes */}
-      {onNoteChange && (
-        <div>
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 mb-3">
-            {t('notes.title')}
-          </h3>
-          <textarea
-            value={note}
-            onChange={(e) => onNoteChange(e.target.value)}
-            placeholder={t('notes.placeholder')}
-            className="w-full rounded-lg bg-surface-100 dark:bg-surface-900/60 border border-surface-200 dark:border-surface-800/50
-                       p-3 text-sm text-surface-900 dark:text-white placeholder-surface-400 dark:placeholder-surface-500
-                       focus:outline-none focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/30 resize-y min-h-[80px]"
-          />
-        </div>
-      )}
+      {/* CF-4: Neighborhood Notes — self-contained to isolate keystroke re-renders */}
+      <NotesEditor pno={d.pno} />
 
       {/* CF-1: Similar neighborhoods — on-demand computation */}
       {allFeatures && allFeatures.length > 0 && (

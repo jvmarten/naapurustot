@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 
 type SnapPosition = 'peek' | 'half' | 'full';
 
@@ -154,14 +154,19 @@ export function useBottomSheet(options: UseBottomSheetOptions = {}): UseBottomSh
 
   const sheetHeight = isDragging && dragHeight !== null ? dragHeight : resolveHeight(snap);
 
+  // Memoize the handlers object so consumers that pass it as a prop or destructure it
+  // don't get a new object reference on every render. The individual callbacks are
+  // already stable via useCallback; this prevents the wrapper from churning.
+  const handlers = useMemo(() => ({
+    onTouchStart,
+    onTouchMove,
+    onTouchEnd,
+  }), [onTouchStart, onTouchMove, onTouchEnd]);
+
   return {
     sheetHeight,
     isDragging,
     snap,
-    handlers: {
-      onTouchStart,
-      onTouchMove,
-      onTouchEnd,
-    },
+    handlers,
   };
 }
