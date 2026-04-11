@@ -801,11 +801,19 @@ export function getColorForValue(layer: LayerConfig, value: number | null | unde
  * Rescale a layer's color stops to the actual min/max range found in the given features.
  * Colors stay the same; only stop breakpoints shift to span the data range.
  * Returns the original layer unchanged if no valid values are found or min === max.
+ *
+ * Caches the result per (layerId, features identity) so repeated calls during React
+ * re-renders skip the O(n) min/max scan. The cache is invalidated when a different
+ * layer or dataset is passed.
  */
+let _rescaleCache: { layerId: string; features: GeoJSON.Feature[]; result: LayerConfig } | null = null;
 export function rescaleLayerToData(
   layer: LayerConfig,
   features: GeoJSON.Feature[],
 ): LayerConfig {
+  if (_rescaleCache && _rescaleCache.layerId === layer.id && _rescaleCache.features === features) {
+    return _rescaleCache.result;
+  }
   let min = Infinity;
   let max = -Infinity;
   for (const f of features) {
@@ -816,11 +824,19 @@ export function rescaleLayerToData(
       if (v > max) max = v;
     }
   }
-  if (!isFinite(min) || !isFinite(max) || min === max) return layer;
+  if (!isFinite(min) || !isFinite(max) || min === max) {
+    _rescaleCache = { layerId: layer.id, features, result: layer };
+    return layer;
+  }
   const n = layer.stops.length;
-  if (n <= 1) return layer;
+  if (n <= 1) {
+    _rescaleCache = { layerId: layer.id, features, result: layer };
+    return layer;
+  }
   const newStops = layer.stops.map((_, i) => min + (i / (n - 1)) * (max - min));
-  return { ...layer, stops: newStops };
+  const result = { ...layer, stops: newStops };
+  _rescaleCache = { layerId: layer.id, features, result };
+  return result;
 }
 
 export function buildFillColorExpression(layer: LayerConfig, propertyOverride?: string): ExpressionSpecification {

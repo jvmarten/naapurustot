@@ -364,11 +364,14 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
       }
       score /= filters.length;
 
+      // Defer getFeatureCenter to click-time instead of computing it for all
+      // matching features on every filter change. During slider drags (~7 updates/sec),
+      // this avoids O(n) coordinate bbox scans for features the user never clicks.
       return {
         pno: p.pno,
         name: p.nimi || p.pno,
         score,
-        center: getFeatureCenter(f),
+        feature: f,
         properties: p,
       };
     });
@@ -471,7 +474,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
       {ranked.map((item, i) => (
         <button
           key={item.pno}
-          onClick={() => onSelect(item.pno, item.center)}
+          onClick={() => onSelect(item.pno, getFeatureCenter(item.feature))}
           className="w-full text-left px-4 py-2 flex items-center gap-3
                      hover:bg-surface-100 dark:hover:bg-surface-800/60 transition-colors
                      border-b border-surface-100 dark:border-surface-800/30 last:border-0"
