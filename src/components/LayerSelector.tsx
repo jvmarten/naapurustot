@@ -91,6 +91,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
         setMobileOpen(false);
       } else if (e.key === 'Escape') {
         e.preventDefault();
+        e.stopPropagation();
         setMobileOpen(false);
       }
     };
