@@ -38,7 +38,7 @@ export interface ProcessedData {
 // TopoJSON quantization can produce string-typed numeric values (e.g., "12345"
 // instead of 12345). Coerce them back to numbers for all properties except
 // identifier fields that must remain strings (postal codes, municipality codes).
-const ID_FIELDS = new Set(['pno', 'postinumeroalue', 'kunta']);
+const ID_FIELDS = new Set(['pno', 'postinumeroalue', 'kunta', 'nimi', 'namn', 'city']);
 
 function processTopology(topo: Topology): ProcessedData {
   const objectName = Object.keys(topo.objects ?? {})[0];
