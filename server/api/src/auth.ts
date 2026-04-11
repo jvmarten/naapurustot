@@ -52,7 +52,7 @@ function formatUser(row: Record<string, unknown>) {
 router.post('/signup', rateLimit(3, 24 * 60 * 60 * 1000, 'signup'), async (req: Request, res: Response): Promise<void> => {
   const { username, password, email, displayName, turnstileToken } = req.body;
 
-  if (!username || !password) {
+  if (!username || !password || typeof username !== 'string' || typeof password !== 'string') {
     res.status(400).json({ error: 'Username and password are required' });
     return;
   }
@@ -64,6 +64,14 @@ router.post('/signup', rateLimit(3, 24 * 60 * 60 * 1000, 'signup'), async (req: 
 
   if (password.length < 12) {
     res.status(400).json({ error: 'Password must be at least 12 characters' });
+    return;
+  }
+
+  // Cap password length to prevent bcrypt DoS — hashing a multi-MB string
+  // can take minutes of CPU time. 1000 chars is far beyond any realistic
+  // password while still blocking abuse.
+  if (password.length > 1000) {
+    res.status(400).json({ error: 'Password must be at most 1000 characters' });
     return;
   }
 
@@ -133,8 +141,15 @@ router.post('/signup', rateLimit(3, 24 * 60 * 60 * 1000, 'signup'), async (req: 
 router.post('/login', rateLimit(10, 15 * 60 * 1000, 'login'), async (req: Request, res: Response): Promise<void> => {
   const { username, password } = req.body;
 
-  if (!username || !password) {
+  if (!username || !password || typeof username !== 'string' || typeof password !== 'string') {
     res.status(400).json({ error: 'Username and password are required' });
+    return;
+  }
+
+  // Same bcrypt DoS protection as signup — reject absurdly long passwords
+  // before calling bcrypt.compare().
+  if (password.length > 1000) {
+    res.status(401).json({ error: 'Invalid username or password' });
     return;
   }
 
@@ -237,8 +252,13 @@ router.put('/favorites', async (req: Request, res: Response): Promise<void> => {
     res.status(400).json({ error: 'Too many favorites (max 200)' });
     return;
   }
-  if (favorites.some((v: string) => v.length > 50)) {
-    res.status(400).json({ error: 'Favorite entry too long (max 50 characters)' });
+  // Validate that each entry is a plausible identifier (5-digit postal code
+  // or region ID like "helsinki_metro"). Reject arbitrary strings to prevent
+  // storing XSS payloads or other junk data that might be rendered by
+  // future features.
+  const FAVORITE_RE = /^[a-z0-9_]{1,30}$/;
+  if (favorites.some((v: string) => !FAVORITE_RE.test(v))) {
+    res.status(400).json({ error: 'Invalid favorite entry format' });
     return;
   }
 

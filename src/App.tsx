@@ -312,7 +312,10 @@ const App: React.FC = () => {
         const a = hull[hull.length - 2];
         const b = hull[hull.length - 1];
         const cross = (b[0] - a[0]) * (pt[1] - a[1]) - (b[1] - a[1]) * (pt[0] - a[0]);
-        if (cross <= 0) hull.pop();
+        // Use strict < 0 (not <= 0) to keep collinear points on the hull.
+        // With <= 0, selecting neighborhoods in a near-linear arrangement
+        // would collapse the hull below 3 points, returning null.
+        if (cross < 0) hull.pop();
         else break;
       }
       hull.push(pt);

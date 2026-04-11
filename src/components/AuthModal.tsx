@@ -25,6 +25,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopImmediatePropagation();
+        // Also stop propagation to prevent the App-level Escape handler
+        // (registered on window) from closing the selected neighborhood
+        // panel or other UI underneath the modal.
+        e.stopPropagation();
         onClose();
       }
     };
