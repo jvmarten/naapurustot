@@ -30,7 +30,7 @@ const AreaSummaryPanel = lazy(() => import('./components/AreaSummaryPanel').then
 import { useMapData } from './hooks/useMapData';
 import { useGridData } from './hooks/useGridData';
 import { useFavorites } from './hooks/useFavorites';
-import { useNotes } from './hooks/useNotes';
+
 import { useRecentNeighborhoods } from './hooks/useRecentNeighborhoods';
 import { useSelectedNeighborhood } from './hooks/useSelectedNeighborhood';
 import { useAuth } from './hooks/useAuth';
@@ -109,7 +109,6 @@ const App: React.FC = () => {
   const [splitMode, setSplitMode] = useState(false);
   const [secondaryLayer, setSecondaryLayer] = useState<LayerId>('median_income');
   const { favorites, isFavorite, toggleFavorite } = useFavorites(user?.id);
-  const { getNote, setNote } = useNotes();
   const { recent, addRecent } = useRecentNeighborhoods();
   const restoredPno = useRef(false);
   // Monotonic version counter to force re-renders when quality indices change
@@ -646,9 +645,6 @@ const App: React.FC = () => {
   const handleToggleFavorite = useCallback(() => {
     if (selected) toggleFavorite(selected.pno);
   }, [selected, toggleFavorite]);
-  const handleNoteChange = useCallback((text: string) => {
-    if (selected) { trackEvent('add-note'); setNote(selected.pno, text); }
-  }, [selected, setNote]);
   const handleExploreCity = useCallback((cityId: string) => {
     handleCityChange(cityId as CityFilter);
   }, [handleCityChange]);
@@ -1027,8 +1023,6 @@ const App: React.FC = () => {
             onFlyTo={handleFlyTo}
             isFavorite={isFavorite(selected.pno)}
             onToggleFavorite={handleToggleFavorite}
-            note={getNote(selected.pno)}
-            onNoteChange={handleNoteChange}
             onExploreCity={handleExploreCity}
           />
           </Suspense>
