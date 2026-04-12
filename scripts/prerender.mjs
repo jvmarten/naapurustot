@@ -132,7 +132,11 @@ function buildJsonLd(props, center, url) {
     ],
   };
 
-  return `<script type="application/ld+json">${JSON.stringify(place)}</script>\n    <script type="application/ld+json">${JSON.stringify(breadcrumb)}</script>`;
+  // Escape `<` to `\u003c` so a literal `</script>` in a neighborhood name
+  // (or any other string field) cannot break out of the <script> element.
+  // This matches the in-app <JsonLd /> component in src/components/profile/JsonLd.tsx.
+  const safeJson = (obj) => JSON.stringify(obj).replace(/</g, '\\u003c');
+  return `<script type="application/ld+json">${safeJson(place)}</script>\n    <script type="application/ld+json">${safeJson(breadcrumb)}</script>`;
 }
 
 function buildNoscriptContent(props, lang) {

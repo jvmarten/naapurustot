@@ -45,10 +45,16 @@ export function useFavorites(userId?: string | null) {
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Track whether the current change came from a server fetch (to avoid echoing it back)
   const fromServerRef = useRef(false);
+  // Mirror of favorites so async callbacks can read the latest value without
+  // doing impure work inside a state updater (StrictMode double-invokes updaters).
+  const favoritesRef = useRef(favorites);
 
   // Persist to localStorage outside state updaters (updaters must be pure —
   // React StrictMode double-invokes them).
-  useEffect(() => { writeFavorites(favorites); }, [favorites]);
+  useEffect(() => {
+    favoritesRef.current = favorites;
+    writeFavorites(favorites);
+  }, [favorites]);
 
   // Debounced server save
   useEffect(() => {
@@ -74,16 +80,18 @@ export function useFavorites(userId?: string | null) {
     let cancelled = false;
     api.getFavorites().then(({ data }) => {
       if (cancelled || !data) return;
-      setFavorites((local) => {
-        const serverFavs = data.favorites;
-        const merged = mergeFavorites(local, serverFavs);
-        // If merged differs from server, push the merged result back
-        if (merged.length !== serverFavs.length || !merged.every((v, i) => v === serverFavs[i])) {
-          api.saveFavorites(merged);
-        }
-        fromServerRef.current = true;
-        return merged;
-      });
+      // Read the latest local state from a ref instead of a state updater — the
+      // updater must be pure, and StrictMode double-invokes it which would
+      // double-save to the server. The ref is synced by the writeFavorites effect.
+      const serverFavs = data.favorites;
+      const merged = mergeFavorites(favoritesRef.current, serverFavs);
+      // Suppress the debounced re-save for this particular change
+      fromServerRef.current = true;
+      setFavorites(merged);
+      // If merged differs from server, push the merged result back once (outside any updater).
+      if (merged.length !== serverFavs.length || !merged.every((v, i) => v === serverFavs[i])) {
+        api.saveFavorites(merged);
+      }
     });
     return () => { cancelled = true; };
   }, [userId]);

@@ -27,8 +27,10 @@ export function toSlug(pno: string, nimi: string): string {
   return `${pno}-${slugify(nimi)}`;
 }
 
-/** Extract postal code from a slug (first 5 characters). Returns null if invalid. */
+/** Extract postal code from a slug. Returns null if it does not match the
+ *  `{pno}-{slugified-name}` shape (optionally just `{pno}`). Previously this
+ *  accepted any 5-digit prefix (e.g. "12345abcde"), silently stripping garbage. */
 export function parseSlug(slug: string): string | null {
-  const pno = slug.slice(0, 5);
-  return /^\d{5}$/.test(pno) ? pno : null;
+  if (!/^\d{5}(?:-[a-z0-9-]*)?$/.test(slug)) return null;
+  return slug.slice(0, 5);
 }
