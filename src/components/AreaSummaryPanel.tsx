@@ -114,7 +114,7 @@ function computeAreaStats(data: FeatureCollection, selectedPnos?: string[]) {
   return { intersecting, stats };
 }
 
-export const AreaSummaryPanel: React.FC<AreaSummaryPanelProps> = ({ polygon, data, metroAverages, onClose, selectedPnos }) => {
+export const AreaSummaryPanel: React.FC<AreaSummaryPanelProps> = React.memo(({ polygon, data, metroAverages, onClose, selectedPnos }) => {
   const { intersecting, stats } = useMemo(() => computeAreaStats(data, selectedPnos), [data, selectedPnos]);
 
   // Lazy-load @turf/area (~8KB) — only needed for the area display string.
@@ -278,4 +278,5 @@ export const AreaSummaryPanel: React.FC<AreaSummaryPanelProps> = ({ polygon, dat
       </div>
     </>
   );
-};
+});
+AreaSummaryPanel.displayName = 'AreaSummaryPanel';

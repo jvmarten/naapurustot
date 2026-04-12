@@ -309,7 +309,7 @@ const FILTER_PRESETS: FilterPreset[] = [
 /* ------------------------------------------------------------------ */
 /* Main FilterPanel                                                   */
 /* ------------------------------------------------------------------ */
-export const FilterPanel: React.FC<FilterPanelProps> = ({
+export const FilterPanel: React.FC<FilterPanelProps> = React.memo(({
   data,
   filters,
   onFiltersChange,
@@ -777,5 +777,6 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
       </div>
     </>
   );
-};
+});
+FilterPanel.displayName = 'FilterPanel';
 

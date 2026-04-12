@@ -22,7 +22,7 @@ interface RankedItem {
 
 // Removed hardcoded LOWER_IS_BETTER set — now uses layer.higherIsBetter from LayerConfig
 
-export const RankingTable: React.FC<RankingTableProps> = ({ data, activeLayer, onSelect, onClose }) => {
+export const RankingTable: React.FC<RankingTableProps> = React.memo(({ data, activeLayer, onSelect, onClose }) => {
   const layer = getLayerById(activeLayer);
   const [reversed, setReversed] = useState(false);
 
@@ -169,4 +169,5 @@ export const RankingTable: React.FC<RankingTableProps> = ({ data, activeLayer, o
       </div>
     </div>
   );
-};
+});
+RankingTable.displayName = 'RankingTable';

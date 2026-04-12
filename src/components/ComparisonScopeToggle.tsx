@@ -9,7 +9,7 @@ interface ComparisonScopeToggleProps {
   disabled: boolean;
 }
 
-export const ComparisonScopeToggle: React.FC<ComparisonScopeToggleProps> = ({ scope, onChange, disabled }) => {
+export const ComparisonScopeToggle: React.FC<ComparisonScopeToggleProps> = React.memo(({ scope, onChange, disabled }) => {
   const isRegion = scope === 'region';
 
   return (
@@ -31,4 +31,5 @@ export const ComparisonScopeToggle: React.FC<ComparisonScopeToggleProps> = ({ sc
       </svg>
     </button>
   );
-};
+});
+ComparisonScopeToggle.displayName = 'ComparisonScopeToggle';
