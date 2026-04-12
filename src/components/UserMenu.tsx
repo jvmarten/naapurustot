@@ -15,7 +15,7 @@ interface UserMenuProps {
   onToggleFavorite?: (pno: string) => void;
 }
 
-export const UserMenu: React.FC<UserMenuProps> = ({ user, onLogout, favorites = [], onSelectFavorite, onToggleFavorite }) => {
+export const UserMenu: React.FC<UserMenuProps> = React.memo(({ user, onLogout, favorites = [], onSelectFavorite, onToggleFavorite }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   // Snapshot favorites when dropdown opens so items stay visible after unfavoriting
@@ -131,4 +131,5 @@ export const UserMenu: React.FC<UserMenuProps> = ({ user, onLogout, favorites = 
       )}
     </div>
   );
-};
+});
+UserMenu.displayName = 'UserMenu';

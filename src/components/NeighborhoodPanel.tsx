@@ -343,6 +343,22 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
   const populationHistory = useMemo(() => parseTrendSeries(d.population_history), [d.population_history]);
   const unemploymentHistory = useMemo(() => parseTrendSeries(d.unemployment_history), [d.unemployment_history]);
 
+  // Memoize sparkline prop objects so StatRow (React.memo) doesn't re-render
+  // on every panel re-render. Without this, `{ data: ..., color: '#...' }`
+  // creates a new object literal each render, defeating the memo.
+  const populationSparkline = useMemo(
+    () => (populationHistory ? { data: populationHistory, color: '#6366f1' } : null),
+    [populationHistory],
+  );
+  const incomeSparkline = useMemo(
+    () => (incomeHistory ? { data: incomeHistory, color: '#10b981' } : null),
+    [incomeHistory],
+  );
+  const unemploymentSparkline = useMemo(
+    () => (unemploymentHistory ? { data: unemploymentHistory, color: '#f43f5e' } : null),
+    [unemploymentHistory],
+  );
+
   // CF-1: Similar neighborhoods — computed on demand when section is expanded.
   // Before: ran O(n×m) similarity (200 features × 10 metrics + sort) on every
   // neighborhood selection. The Similar section is collapsed by default, so most
@@ -435,7 +451,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
             label={t('panel.population')}
             value={formatNumber(d.he_vakiy)}
             property="he_vakiy"
-            sparkline={populationHistory ? { data: populationHistory, color: '#6366f1' } : null}
+            sparkline={populationSparkline}
           />
           <StatRow
             label={t('panel.median_income')}
@@ -443,7 +459,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
             diff={formatDiff(d.hr_mtu, avg.hr_mtu)}
             diffClass={diffColor(d.hr_mtu, avg.hr_mtu)}
             property="hr_mtu"
-            sparkline={incomeHistory ? { data: incomeHistory, color: '#10b981' } : null}
+            sparkline={incomeSparkline}
           />
           <StatRow
             label={t('panel.unemployment')}
@@ -451,7 +467,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
             diff={formatDiff(d.unemployment_rate, avg.unemployment_rate)}
             diffClass={diffColor(d.unemployment_rate, avg.unemployment_rate, false)}
             property="unemployment_rate"
-            sparkline={unemploymentHistory ? { data: unemploymentHistory, color: '#f43f5e' } : null}
+            sparkline={unemploymentSparkline}
           />
           <StatRow
             label={t('panel.foreign_lang')}

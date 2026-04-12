@@ -16,6 +16,11 @@ interface SearchBarProps {
 
 export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, onSelect, recent = [], lang: _lang }) => {
   const [query, setQuery] = useState('');
+  // Debounced copy of `query` used for the dataset scan. The input field still
+  // updates synchronously (via `query`) so typing feels instant, but the O(n)
+  // linear scan over ~1000 features (combined "all" view) only runs after the
+  // user pauses for 80ms. Avoids scanning on every keystroke during fast typing.
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -30,9 +35,16 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, onSelect,
   const geocodeTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const geocodeAbortRef = useRef<AbortController | null>(null);
 
+  // Debounce the query used for the feature scan. Short delay (80ms) keeps
+  // results feeling responsive while collapsing rapid keystrokes into a single scan.
+  useEffect(() => {
+    const handle = setTimeout(() => setDebouncedQuery(query), 80);
+    return () => clearTimeout(handle);
+  }, [query]);
+
   const { results, totalCount } = useMemo(() => {
-    if (!data || query.length < 2) return { results: [], totalCount: 0 };
-    const q = query.toLowerCase();
+    if (!data || debouncedQuery.length < 2) return { results: [], totalCount: 0 };
+    const q = debouncedQuery.toLowerCase();
     const top: GeoJSON.Feature[] = [];
     let count = 0;
     for (const f of data.features) {
@@ -44,7 +56,7 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, onSelect,
       }
     }
     return { results: top, totalCount: count };
-  }, [data, query]);
+  }, [data, debouncedQuery]);
 
   // CF-1: Debounced address geocoding — always search for streets/addresses alongside neighborhoods.
   // Uses AbortController to cancel in-flight HTTP requests when the query changes,
