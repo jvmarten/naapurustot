@@ -37,9 +37,14 @@ export function useAuth() {
   useEffect(() => {
     if (!hasSession()) return;
     let cancelled = false;
-    api.me().then(({ data }) => {
+    api.me().then(({ data, error }) => {
       if (cancelled) return;
-      if (!data?.user) setSessionFlag(false);
+      // Only clear the session flag when the server authoritatively says the
+      // user is not logged in (response with no user). A transient network
+      // error (error present, no data) should leave the flag intact so the
+      // next mount can retry — otherwise a brief offline blip effectively
+      // logs the user out until they log in again.
+      if (!error && !data?.user) setSessionFlag(false);
       setState({ user: data?.user ?? null, loading: false });
     });
     return () => { cancelled = true; };
