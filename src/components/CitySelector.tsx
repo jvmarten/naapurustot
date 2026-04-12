@@ -17,7 +17,7 @@ const OPTIONS: { id: CityFilter; labelKey: string }[] = [
   ...REGION_IDS_WITH_DATA.map((id) => ({ id: id as CityFilter, labelKey: `city.${id}` })),
 ];
 
-export const CitySelector: React.FC<CitySelectorProps> = ({ value, onChange, lang: _lang }) => {
+export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, onChange, lang: _lang }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const options = OPTIONS;
@@ -91,4 +91,5 @@ export const CitySelector: React.FC<CitySelectorProps> = ({ value, onChange, lan
       </div>
     </>
   );
-};
+});
+CitySelector.displayName = 'CitySelector';

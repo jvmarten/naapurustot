@@ -137,7 +137,7 @@ function addDataLayers(
   });
 }
 
-export const SplitMapView: React.FC<SplitMapViewProps> = ({
+export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
   data,
   leftLayer,
   rightLayer,
@@ -306,4 +306,5 @@ export const SplitMapView: React.FC<SplitMapViewProps> = ({
       </div>
     </div>
   );
-};
+});
+SplitMapView.displayName = 'SplitMapView';
