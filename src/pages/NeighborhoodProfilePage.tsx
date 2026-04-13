@@ -81,6 +81,9 @@ export const NeighborhoodProfilePage: React.FC = () => {
     if (state?.feature.properties) {
       const d = state.feature.properties as NeighborhoodProperties;
       const slug = toSlug(d.pno, d.nimi);
+      // Save the previous title so unmount restores the user's actual context
+      // (e.g. the App's main title) instead of clobbering it with a hardcoded value.
+      const prevTitle = document.title;
       document.title = `${d.nimi} (${d.pno}) – naapurustot.fi`;
 
       // Meta description — update existing or create
@@ -129,7 +132,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
       document.head.appendChild(hrefEn);
 
       return () => {
-        document.title = 'naapurustot.fi';
+        document.title = prevTitle;
         // Restore previous values for existing elements, remove created ones
         if (existingMeta && prevMetaContent != null) {
           existingMeta.setAttribute('content', prevMetaContent);
@@ -143,7 +146,8 @@ export const NeighborhoodProfilePage: React.FC = () => {
         hrefEn.remove();
       };
     }
-    return () => { document.title = 'naapurustot.fi'; };
+    // No state yet → no head mutations happened, so no cleanup needed.
+    return undefined;
   // lang is included so meta description updates when the user toggles language
   // (t() reads the current global language, which changes when lang state changes)
   }, [state, lang]);

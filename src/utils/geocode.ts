@@ -42,12 +42,25 @@ export async function geocodeAddress(query: string, signal?: AbortSignal): Promi
     if (!response.ok) return [];
 
     const data = await response.json();
-    const results: GeocodeResult[] = (data.features ?? []).map(
-      (f: { properties: { label: string }; geometry: { coordinates: [number, number] } }) => ({
-        label: f.properties.label,
-        coordinates: f.geometry.coordinates as [number, number],
-      }),
-    );
+    // Validate each feature shape before casting — a malformed Digitransit
+    // response (null coordinates, non-numeric values, missing label) would
+    // otherwise propagate invalid values into booleanPointInPolygon and
+    // the map flyTo target, causing downstream crashes or silent wrong fits.
+    const rawFeatures: unknown = Array.isArray(data?.features) ? data.features : [];
+    const results: GeocodeResult[] = [];
+    for (const rf of rawFeatures as unknown[]) {
+      if (!rf || typeof rf !== 'object') continue;
+      const props = (rf as { properties?: unknown }).properties;
+      const geom = (rf as { geometry?: unknown }).geometry;
+      const label = props && typeof props === 'object' ? (props as { label?: unknown }).label : undefined;
+      const coords = geom && typeof geom === 'object' ? (geom as { coordinates?: unknown }).coordinates : undefined;
+      if (typeof label !== 'string' || !label) continue;
+      if (!Array.isArray(coords) || coords.length < 2) continue;
+      const lng = coords[0];
+      const lat = coords[1];
+      if (typeof lng !== 'number' || typeof lat !== 'number' || !isFinite(lng) || !isFinite(lat)) continue;
+      results.push({ label, coordinates: [lng, lat] });
+    }
 
     if (CACHE.size >= MAX_CACHE_SIZE) {
       const oldest = CACHE.keys().next().value;
