@@ -55,32 +55,55 @@ const RangeSlider: React.FC<{
   valueMax: number;
   step: number;
   color: string;
-  onMinChange: (v: number) => void;
-  onMaxChange: (v: number) => void;
-}> = ({ min, max, valueMin, valueMax, step, color, onMinChange, onMaxChange }) => {
+  /** Atomic update of both thumbs. Debounced inside the slider so the
+   *  parent only sees one update per drag session, with both values in sync. */
+  onChange: (next: { min: number; max: number }) => void;
+}> = ({ min, max, valueMin, valueMax, step, color, onChange }) => {
   // Local state for smooth visual feedback during drag.
   // Parent callback is debounced to avoid recomputing filter matches + map layers on every tick.
   const [localMin, setLocalMin] = useState(valueMin);
   const [localMax, setLocalMax] = useState(valueMax);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
+  // Refs so the debounced flush always reads the latest dragged values and
+  // the current onChange prop. Previously the slider had two separate
+  // debounce callbacks (onMinChange/onMaxChange) sharing one timer. Dragging
+  // one thumb then the other within 150ms cancelled the first timer, so the
+  // first thumb's change was dropped and the second call's `{...criterion}`
+  // spread wrote back a stale sibling value — silently losing user input.
+  const latestMinRef = useRef(localMin);
+  const latestMaxRef = useRef(localMax);
+  const onChangeRef = useRef(onChange);
+  // Update the onChange ref inside an effect (react-hooks/refs forbids writing
+  // to refs during render). The ref is only read inside a setTimeout callback,
+  // so the effect ordering is safe: if the prop changes, the effect runs
+  // before any user interaction that could trigger a flush.
+  useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
+
   // Sync from parent when values change externally (e.g. preset loaded)
-  useEffect(() => { setLocalMin(valueMin); }, [valueMin]);
-  useEffect(() => { setLocalMax(valueMax); }, [valueMax]);
+  useEffect(() => { setLocalMin(valueMin); latestMinRef.current = valueMin; }, [valueMin]);
+  useEffect(() => { setLocalMax(valueMax); latestMaxRef.current = valueMax; }, [valueMax]);
   useEffect(() => () => clearTimeout(debounceRef.current), []);
+
+  const scheduleFlush = () => {
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      onChangeRef.current({ min: latestMinRef.current, max: latestMaxRef.current });
+    }, 150);
+  };
 
   const handleMinChange = (v: number) => {
     const clamped = Math.min(v, localMax - step);
     setLocalMin(clamped);
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => onMinChange(clamped), 150);
+    latestMinRef.current = clamped;
+    scheduleFlush();
   };
 
   const handleMaxChange = (v: number) => {
     const clamped = Math.max(v, localMin + step);
     setLocalMax(clamped);
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => onMaxChange(clamped), 150);
+    latestMaxRef.current = clamped;
+    scheduleFlush();
   };
 
   const range = max - min || 1;
@@ -186,8 +209,7 @@ const FilterRow: React.FC<{
         valueMax={criterion.max}
         step={step}
         color={color}
-        onMinChange={(v) => onChange({ ...criterion, min: v })}
-        onMaxChange={(v) => onChange({ ...criterion, max: v })}
+        onChange={(next) => onChange({ ...criterion, min: next.min, max: next.max })}
       />
       <div className="flex justify-between mt-1 text-[10px] text-surface-500 dark:text-surface-400 tabular-nums">
         {/* Values reflect the RangeSlider's debounced local state via controlled inputs */}

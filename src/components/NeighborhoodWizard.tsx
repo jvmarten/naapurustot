@@ -134,7 +134,9 @@ function scoreNeighborhoods(
   const ownershipRange = range('ownership_rate');
   const rentalRange = range('rental_rate');
 
-  const results: ScoredNeighborhood[] = [];
+  // Hold candidates with their feature reference so we can compute centroids
+  // only for the final top 5 after sorting.
+  const scored: (Omit<ScoredNeighborhood, 'center'> & { feature: GeoJSON.Feature })[] = [];
 
   for (const feature of features) {
     const p = feature.properties as NeighborhoodProperties;
@@ -251,18 +253,28 @@ function scoreNeighborhoods(
     // Deduplicate reasons
     const uniqueReasons = [...new Set(reasons)];
 
-    results.push({
+    // Defer centroid computation to after sort+slice — it iterates every
+    // coordinate of the polygon (~100 points × 200 features = 20k ops) and
+    // only the top 5 centers are ever used for flyTo targets.
+    scored.push({
+      feature,
       pno: p.pno,
       name: p.nimi,
       qualityIndex: p.quality_index,
       score: Math.round(finalScore * 100),
       reasons: uniqueReasons.slice(0, 3),
-      center: feature.geometry ? computeCentroid(feature.geometry) : [24.94, 60.17],
     });
   }
 
-  results.sort((a, b) => b.score - a.score);
-  return results.slice(0, 5);
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, 5).map((s) => ({
+    pno: s.pno,
+    name: s.name,
+    qualityIndex: s.qualityIndex,
+    score: s.score,
+    reasons: s.reasons,
+    center: s.feature.geometry ? computeCentroid(s.feature.geometry) : [24.94, 60.17],
+  }));
 }
 
 const STEP_COUNT = 4;
