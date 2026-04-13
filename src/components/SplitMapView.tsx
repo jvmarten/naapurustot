@@ -176,24 +176,28 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
   useEffect(() => {
     if (!leftContainerRef.current || !rightContainerRef.current) return;
 
-    const mapOptions: Partial<maplibregl.MapOptions> = {
-      style: makeStyle(theme),
+    // Each map needs its own freshly-constructed style object. MapLibre mutates
+    // style internals after construction; sharing one reference between two Map
+    // instances causes intermittent cross-contamination of source/layer state.
+    const commonOptions = {
       center: DEFAULT_CENTER,
       zoom: getInitialZoom(),
       minZoom: MAP_MIN_ZOOM,
       maxZoom: MAP_MAX_ZOOM,
-      attributionControl: false,
+      attributionControl: false as const,
     };
 
     const leftMap = new maplibregl.Map({
       container: leftContainerRef.current,
-      ...mapOptions,
-    } as maplibregl.MapOptions);
+      style: makeStyle(theme),
+      ...commonOptions,
+    });
 
     const rightMap = new maplibregl.Map({
       container: rightContainerRef.current,
-      ...mapOptions,
-    } as maplibregl.MapOptions);
+      style: makeStyle(theme),
+      ...commonOptions,
+    });
 
     leftMap.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-left');
     rightMap.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
