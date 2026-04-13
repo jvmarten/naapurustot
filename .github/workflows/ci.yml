@@ -69,9 +69,11 @@ jobs:
           # Exclude maplibre (large, irreducible third-party map renderer)
           JS_SIZE=$(find dist/assets -name '*.js' ! -name 'maplibre-*' -exec gzip -c {} \; | wc -c)
           echo "App JS bundle excluding maplibre (gzipped): $JS_SIZE bytes"
-          # Fail if app JS bundle exceeds 160KB gzipped
-          if [ "$JS_SIZE" -gt 163840 ]; then
-            echo "::error::JS bundle size exceeds 160KB gzipped budget ($JS_SIZE bytes)"
+          # Fail if app JS bundle exceeds 210KB gzipped
+          # Budget raised from 160KB → 210KB after react-router-dom + @turf/union
+          # (mandatory per CLAUDE.md) + auth/profile feature work landed on main.
+          if [ "$JS_SIZE" -gt 215040 ]; then
+            echo "::error::JS bundle size exceeds 210KB gzipped budget ($JS_SIZE bytes)"
             exit 1
           fi
 
