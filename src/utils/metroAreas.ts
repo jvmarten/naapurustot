@@ -126,20 +126,31 @@ function aggregateTrendHistories(
 // when the user toggles language. By caching geometry, stats, and trend data
 // per dataset identity, we avoid re-running @turf/union (~100ms per city)
 // on every language toggle.
+//
+// Averages are stored separately from geometry so that an in-place mutation
+// of feature properties (quality weight recomputation) can invalidate just
+// the averages without forcing a re-run of @turf/union — which would freeze
+// the map for ~500ms (5 cities × ~100ms) after every slider tick.
 interface MetroAreaCache {
   sourceFeatures: Feature[];
   usedUnion: boolean;
   perCity: Map<CityId, {
     geometry: Polygon | MultiPolygon;
-    averages: Record<string, number>;
+    features: Feature[];
     trendHistories: Record<string, string>;
   }>;
+  /** Per-city averages — recomputed when clearMetroAreaCache() is called. */
+  averages: Map<CityId, Record<string, number>> | null;
 }
 let metroAreaCache: MetroAreaCache | null = null;
 
-/** Invalidate the metro area cache (e.g., after in-place quality index recomputation). */
+/**
+ * Invalidate cached metro area averages (e.g., after in-place quality index
+ * recomputation). Geometry and trend histories remain cached — only the
+ * weighted averages are recomputed on the next buildMetroAreaFeatures call.
+ */
 export function clearMetroAreaCache(): void {
-  metroAreaCache = null;
+  if (metroAreaCache) metroAreaCache.averages = null;
 }
 
 /**
@@ -220,12 +231,23 @@ export function buildMetroAreaFeatures(
 
       perCity.set(cityId, {
         geometry: merged.geometry,
-        averages: computeMetroAverages(cityFeatures),
+        features: cityFeatures,
         trendHistories: aggregateTrendHistories(cityFeatures),
       });
     }
 
-    metroAreaCache = { sourceFeatures: allFeatures, usedUnion: hasUnion, perCity };
+    metroAreaCache = { sourceFeatures: allFeatures, usedUnion: hasUnion, perCity, averages: null };
+  }
+
+  // Recompute per-city averages only when invalidated (e.g., after quality
+  // weight change). The expensive polygon unions and trend aggregations are
+  // reused — only the weighted averages pass (cheap) runs.
+  if (!metroAreaCache.averages) {
+    const avg = new Map<CityId, Record<string, number>>();
+    for (const [cityId, cached] of metroAreaCache.perCity) {
+      avg.set(cityId, computeMetroAverages(cached.features));
+    }
+    metroAreaCache.averages = avg;
   }
 
   // Build features using cached geometry + current-language names
@@ -234,9 +256,10 @@ export function buildMetroAreaFeatures(
   for (const cityId of cityIds) {
     const cached = metroAreaCache.perCity.get(cityId);
     if (!cached) continue;
+    const averages = metroAreaCache.averages.get(cityId) ?? {};
 
     const props: Record<string, unknown> = {
-      ...cached.averages,
+      ...averages,
       ...cached.trendHistories,
       pno: cityId,
       nimi: t(`city.${cityId}`),
