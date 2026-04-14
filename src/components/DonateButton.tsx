@@ -18,6 +18,11 @@ export const DonateButton: React.FC<DonateButtonProps> = ({ variant = 'button' }
   const [copied, setCopied] = useState(false);
   const [showQr, setShowQr] = useState(false);
   const popupRef = useRef<HTMLDivElement>(null);
+  // Track the "copied" feedback timer so it can be cleared on unmount or on
+  // rapid successive clicks. Without this, unmounting within the 2s window
+  // triggered setState-after-unmount warnings, and a second click before the
+  // timer fired would let the stale timer reset `copied` to false mid-feedback.
+  const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!open) setShowQr(false);
@@ -34,11 +39,13 @@ export const DonateButton: React.FC<DonateButtonProps> = ({ variant = 'button' }
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
+  useEffect(() => () => {
+    if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+  }, []);
+
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(BOLT12_OFFER);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
     } catch {
       const textarea = document.createElement('textarea');
       textarea.value = BOLT12_OFFER;
@@ -48,9 +55,10 @@ export const DonateButton: React.FC<DonateButtonProps> = ({ variant = 'button' }
       textarea.select();
       document.execCommand('copy');
       document.body.removeChild(textarea);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
     }
+    setCopied(true);
+    if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+    copiedTimerRef.current = setTimeout(() => setCopied(false), 2000);
   };
 
   const menuItemContent = (
