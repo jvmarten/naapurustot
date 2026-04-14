@@ -230,30 +230,25 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     }
   }, [theme]);
 
-  // Add/update data source and layers
+  // Add source + layers once. On subsequent `data` changes we call setData on
+  // the existing source instead of tearing down and recreating ~8 layers every
+  // time — quality-weight sliders in "all cities" view used to rebuild the map
+  // (and re-run @turf/union on the dataset level) on every debounced tick.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !data) return;
 
-    const addLayers = () => {
-      // Remove existing layers (must be removed before source)
-      // Remove ALL layers that reference SOURCE_ID before removing the source.
-      // Missing any layer here causes "Cannot remove source while layers reference it"
-      // (e.g., toggling theme while draw/select layers are active).
-      if (map.getLayer(DRAW_SNAP_LINE_LAYER)) map.removeLayer(DRAW_SNAP_LINE_LAYER);
-      if (map.getLayer(DRAW_SNAP_FILL_LAYER)) map.removeLayer(DRAW_SNAP_FILL_LAYER);
-      if (map.getLayer(SELECT_AREA_LAYER)) map.removeLayer(SELECT_AREA_LAYER);
-      if (map.getLayer(NO_DATA_LAYER)) map.removeLayer(NO_DATA_LAYER);
-      if (map.getLayer(FILTER_HIGHLIGHT_LAYER)) map.removeLayer(FILTER_HIGHLIGHT_LAYER);
-      if (map.getLayer(WIZARD_HIGHLIGHT_LAYER)) map.removeLayer(WIZARD_HIGHLIGHT_LAYER);
-      if (map.getLayer(PINNED_LAYER)) map.removeLayer(PINNED_LAYER);
-      if (map.getLayer(HIGHLIGHT_LAYER)) map.removeLayer(HIGHLIGHT_LAYER);
-      if (map.getLayer(METRO_LINE_LAYER)) map.removeLayer(METRO_LINE_LAYER);
-      if (map.getLayer(LINE_LAYER)) map.removeLayer(LINE_LAYER);
-      if (map.getLayer(FILL_LAYER)) map.removeLayer(FILL_LAYER);
-      if (map.getSource(SOURCE_ID)) map.removeSource(SOURCE_ID);
+    const ensureLayers = () => {
+      // Source already exists (region switch, qualityVersion bump, etc.):
+      // just refresh the data in-place. MapLibre preserves feature-state keyed
+      // by promoteId, and the existing layers already reference SOURCE_ID.
+      if (map.getSource(SOURCE_ID)) {
+        const source = map.getSource(SOURCE_ID) as maplibregl.GeoJSONSource | undefined;
+        if (source) source.setData(data);
+        return;
+      }
 
-      // Reset feature state refs — the old source (and its states) is gone
+      // Reset feature state refs — fresh source, no prior states to track.
       hoveredIdRef.current = null;
       selectedIdRef.current = null;
 
@@ -338,18 +333,63 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     };
 
     if (map.isStyleLoaded()) {
-      addLayers();
+      ensureLayers();
     } else {
-      map.on('load', addLayers);
+      map.on('load', ensureLayers);
     }
 
     return () => {
-      map.off('load', addLayers);
+      map.off('load', ensureLayers);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- activeLayer/fillOpacity changes handled by dedicated effects
-  }, [data, theme]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- activeLayer/fillOpacity/theme changes handled by dedicated effects
+  }, [data]);
 
-  // Refresh GeoJSON source data when quality indices are recomputed
+  // Update theme-dependent line colors in place. Previously changing theme
+  // tore down the whole data source and all ~8 choropleth layers; now we just
+  // repaint the border colors, which is effectively free.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const apply = () => {
+      const border = theme === 'dark' ? '#1e293b' : '#475569';
+      if (map.getLayer(LINE_LAYER)) {
+        map.setPaintProperty(LINE_LAYER, 'line-color', border);
+        map.setPaintProperty(LINE_LAYER, 'line-width', theme === 'dark' ? 0.8 : 1);
+      }
+      if (map.getLayer(METRO_LINE_LAYER)) {
+        map.setPaintProperty(METRO_LINE_LAYER, 'line-color', border);
+      }
+      if (map.getLayer(HIGHLIGHT_LAYER)) {
+        map.setPaintProperty(HIGHLIGHT_LAYER, 'line-color', theme === 'dark' ? '#f8fafc' : '#0f172a');
+      }
+      if (map.getLayer(NO_DATA_LAYER)) {
+        map.setPaintProperty(NO_DATA_LAYER, 'line-color', theme === 'dark' ? '#475569' : '#94a3b8');
+      }
+      if (map.getLayer(PINNED_LAYER)) {
+        map.setPaintProperty(PINNED_LAYER, 'line-color', theme === 'dark' ? '#facc15' : '#d97706');
+      }
+      if (map.getLayer(FILTER_HIGHLIGHT_LAYER)) {
+        map.setPaintProperty(FILTER_HIGHLIGHT_LAYER, 'line-color', theme === 'dark' ? '#34d399' : '#059669');
+      }
+      if (map.getLayer(WIZARD_HIGHLIGHT_LAYER)) {
+        map.setPaintProperty(WIZARD_HIGHLIGHT_LAYER, 'line-color', theme === 'dark' ? '#60a5fa' : '#2563eb');
+      }
+      if (map.getLayer(SELECT_AREA_LAYER)) {
+        map.setPaintProperty(SELECT_AREA_LAYER, 'line-color', theme === 'dark' ? '#a78bfa' : '#7c3aed');
+      }
+      if (map.getLayer(DRAW_SNAP_LINE_LAYER)) {
+        map.setPaintProperty(DRAW_SNAP_LINE_LAYER, 'line-color', theme === 'dark' ? '#a78bfa' : '#7c3aed');
+      }
+    };
+    if (map.isStyleLoaded()) apply();
+    else map.on('load', apply);
+    return () => { map.off('load', apply); };
+  }, [theme]);
+
+  // Refresh GeoJSON source data when quality indices are recomputed in place.
+  // The main `[data]` effect already calls setData when `data` identity changes
+  // (e.g., metro area view rebuild), so this covers the in-place mutation case
+  // where `data` identity stays stable but feature properties changed.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !data || qualityVersion === 0) return;

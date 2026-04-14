@@ -80,16 +80,26 @@ function makeStyle(theme: 'dark' | 'light'): maplibregl.StyleSpecification {
   };
 }
 
+const METRO_LINE_LAYER = 'neighborhoods-metro-line';
+
 function addDataLayers(
   map: maplibregl.Map,
   data: FeatureCollection,
   layerId: LayerId,
   theme: 'dark' | 'light',
 ) {
-  if (map.getLayer('neighborhoods-metro-line')) map.removeLayer('neighborhoods-metro-line');
-  if (map.getLayer(LINE_LAYER)) map.removeLayer(LINE_LAYER);
-  if (map.getLayer(FILL_LAYER)) map.removeLayer(FILL_LAYER);
-  if (map.getSource(SOURCE_ID)) map.removeSource(SOURCE_ID);
+  // If the source already exists, just refresh its data — rebuilding the
+  // source + 3 layers on every data change (e.g., quality weight adjustment
+  // with two maps mounted) doubles the MapLibre work unnecessarily.
+  if (map.getSource(SOURCE_ID)) {
+    const source = map.getSource(SOURCE_ID) as maplibregl.GeoJSONSource | undefined;
+    if (source) source.setData(data);
+    const layer = getLayerById(layerId);
+    if (map.getLayer(FILL_LAYER)) {
+      map.setPaintProperty(FILL_LAYER, 'fill-color', buildFillColorExpression(layer));
+    }
+    return;
+  }
 
   map.addSource(SOURCE_ID, {
     type: 'geojson',
@@ -125,7 +135,7 @@ function addDataLayers(
 
   // Show outer borders for metro area features
   map.addLayer({
-    id: 'neighborhoods-metro-line',
+    id: METRO_LINE_LAYER,
     type: 'line',
     source: SOURCE_ID,
     filter: ['boolean', ['get', '_isMetroArea'], false],
@@ -135,6 +145,17 @@ function addDataLayers(
       'line-opacity': 0.7,
     },
   });
+}
+
+function updateThemeColors(map: maplibregl.Map, theme: 'dark' | 'light') {
+  const border = theme === 'dark' ? '#1e293b' : '#475569';
+  if (map.getLayer(LINE_LAYER)) {
+    map.setPaintProperty(LINE_LAYER, 'line-color', border);
+    map.setPaintProperty(LINE_LAYER, 'line-width', theme === 'dark' ? 0.8 : 1);
+  }
+  if (map.getLayer(METRO_LINE_LAYER)) {
+    map.setPaintProperty(METRO_LINE_LAYER, 'line-color', border);
+  }
 }
 
 export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
@@ -222,7 +243,8 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Switch basemap on theme change
+  // Switch basemap on theme change, and repaint the border colors in place.
+  // Previously theme change rebuilt source + 3 layers on BOTH maps.
   useEffect(() => {
     const tiles = theme === 'dark' ? BASEMAP_DARK : BASEMAP_LIGHT;
     for (const mapRef of [leftMapRef, rightMapRef]) {
@@ -232,10 +254,15 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
       if (source) {
         source.setTiles([tiles]);
       }
+      const apply = () => updateThemeColors(map, theme);
+      if (map.isStyleLoaded()) apply();
+      else map.on('load', apply);
     }
   }, [theme]);
 
-  // Add/update data layers when data or theme changes
+  // Add/update data layers when data changes. addDataLayers uses setData in
+  // place on existing sources, so this only does the full layer setup on the
+  // first data load.
   useEffect(() => {
     if (!data) return;
 
@@ -260,7 +287,7 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
         map.off('load', fn);
       }
     };
-  }, [data, theme]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Update fill color when active layers or colorblind mode change
   useEffect(() => {
