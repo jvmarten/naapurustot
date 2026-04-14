@@ -140,12 +140,18 @@ describe('useMapData', () => {
       result.current.retry();
     });
 
+    // Wait until the retried load has actually resolved. Previously the test
+    // waited for error===null, which is reached synchronously as soon as the
+    // effect resets state for the new attempt — before loadAllData's promise
+    // resolves — so the metroAverages assertion that followed raced with the
+    // async resolution and was flaky.
     await waitFor(() => {
-      expect(result.current.error).toBeNull();
+      expect(result.current.loading).toBe(false);
+      expect(result.current.metroAverages).toEqual({ hr_mtu: 35000 });
     });
+    expect(result.current.error).toBeNull();
     expect(resetDataCacheMock).toHaveBeenCalledTimes(1);
     expect(loadAllDataMock).toHaveBeenCalledTimes(2);
-    expect(result.current.metroAverages).toEqual({ hr_mtu: 35000 });
   });
 
   it('ignores a cancelled load so a rapid region switch does not flash stale data', async () => {
