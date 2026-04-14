@@ -3,6 +3,7 @@ import type { FeatureCollection } from 'geojson';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { t } from '../utils/i18n';
 import { trackEvent } from '../utils/analytics';
+import { getFeatureCenter } from '../utils/geometryFilter';
 
 interface WizardProps {
   data: FeatureCollection | null;
@@ -43,57 +44,6 @@ const defaultAnswers: WizardAnswers = {
   schoolImportance: 3,
   healthcareImportance: 3,
 };
-
-/** Compute a simple centroid from a GeoJSON geometry */
-function computeCentroid(geometry: GeoJSON.Geometry): [number, number] {
-  const coords: number[][] = [];
-
-  function extract(g: GeoJSON.Geometry) {
-    switch (g.type) {
-      case 'Polygon':
-        for (const ring of g.coordinates) {
-          for (const c of ring) coords.push(c);
-        }
-        break;
-      case 'MultiPolygon':
-        for (const poly of g.coordinates) {
-          for (const ring of poly) {
-            for (const c of ring) coords.push(c);
-          }
-        }
-        break;
-      case 'Point':
-        coords.push(g.coordinates);
-        break;
-      case 'MultiPoint':
-        for (const c of g.coordinates) coords.push(c);
-        break;
-      case 'LineString':
-        for (const c of g.coordinates) coords.push(c);
-        break;
-      case 'MultiLineString':
-        for (const line of g.coordinates) {
-          for (const c of line) coords.push(c);
-        }
-        break;
-      case 'GeometryCollection':
-        for (const child of g.geometries) extract(child);
-        break;
-    }
-  }
-
-  extract(geometry);
-
-  if (coords.length === 0) return [24.94, 60.17]; // fallback Helsinki center
-
-  let sumLng = 0;
-  let sumLat = 0;
-  for (const c of coords) {
-    sumLng += c[0];
-    sumLat += c[1];
-  }
-  return [sumLng / coords.length, sumLat / coords.length];
-}
 
 /** Normalize a value within a range to 0-1 */
 function normalize(value: number | null, min: number, max: number): number {
@@ -273,7 +223,11 @@ function scoreNeighborhoods(
     qualityIndex: s.qualityIndex,
     score: s.score,
     reasons: s.reasons,
-    center: s.feature.geometry ? computeCentroid(s.feature.geometry) : [24.94, 60.17],
+    // getFeatureCenter uses bbox midpoint, which is unbiased by the duplicate
+    // closing vertex in GeoJSON rings. The previous custom centroid averaged
+    // every vertex, pulling the result toward the first/last point of each
+    // ring — noticeable on elongated or C-shaped postal code areas.
+    center: getFeatureCenter(s.feature),
   }));
 }
 
