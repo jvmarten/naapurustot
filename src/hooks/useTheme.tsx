@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 
 type ThemeMode = 'system' | 'dark' | 'light';
 type ResolvedTheme = 'dark' | 'light';
@@ -84,8 +84,13 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const setMode = useCallback((m: ThemeMode) => setModeState(m), []);
 
+  // Stable context value — without useMemo, every ThemeProvider render would
+  // produce a new object reference, forcing every consumer (Map, SplitMapView,
+  // SettingsDropdown, etc.) to re-render even when mode/resolved didn't change.
+  const value = useMemo(() => ({ mode, theme: resolved, setMode }), [mode, resolved, setMode]);
+
   return (
-    <ThemeContext.Provider value={{ mode, theme: resolved, setMode }}>
+    <ThemeContext.Provider value={value}>
       {children}
     </ThemeContext.Provider>
   );

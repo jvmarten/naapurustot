@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { parseTrendSeries, METRIC_SOURCES } from '../utils/metrics';
 import { formatNumber, formatEuro, formatPct, formatDiff, diffColor } from '../utils/formatting';
@@ -208,6 +208,22 @@ const NotesEditor: React.FC<{ pno: string }> = React.memo(({ pno }) => {
 NotesEditor.displayName = 'NotesEditor';
 
 export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, allFeatures, onFlyTo, isFavorite = false, onToggleFavorite, onExploreCity }) => {
+  // Render only the panel variant matching the current viewport. Before this
+  // gate, both the desktop side panel and the mobile bottom sheet were always
+  // mounted (one hidden via CSS `hidden md:block` / `md:hidden`), so the heavy
+  // overview section — RadarChart, StatRows, BarSegments — was rendered twice
+  // on every panel open. Conditional mounting roughly halves the work here.
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches,
+  );
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(max-width: 767px)');
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
   const eduTotal = [d.ko_yl_kork, d.ko_al_kork, d.ko_ammat, d.ko_perus]
     .filter((v): v is number => v != null && v > 0)
     .reduce((a, b) => a + b, 0) || 1;
@@ -913,8 +929,11 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
 
   return (
     <>
-      {/* Desktop: side panel */}
-      <div className="hidden md:block absolute top-0 left-0 z-20 h-full w-[380px] max-w-[90vw] overflow-y-auto
+      {/* Desktop: side panel — only mount when the viewport is desktop-sized.
+          Keeping it mounted on mobile via CSS alone doubled the render cost
+          of the heaviest section (overview: RadarChart + StatRows). */}
+      {!isMobile && (
+      <div className="absolute top-0 left-0 z-20 h-full w-[380px] max-w-[90vw] overflow-y-auto
                       bg-white/95 dark:bg-surface-950/95 backdrop-blur-xl border-r border-surface-200 dark:border-surface-800/50 shadow-2xl">
         {/* Header */}
         <div className="sticky top-0 z-10 bg-white/95 dark:bg-surface-950/95 backdrop-blur-xl border-b border-surface-200 dark:border-surface-800/50 px-6 py-5">
@@ -960,11 +979,13 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
         {panelContent}
         {exportButtons}
       </div>
+      )}
 
       {/* Mobile: bottom sheet */}
+      {isMobile && (
       <div
         ref={sheetRef}
-        className="md:hidden fixed bottom-0 left-0 right-0 z-20
+        className="fixed bottom-0 left-0 right-0 z-20
                    bg-white/95 dark:bg-surface-950/95 backdrop-blur-xl
                    border-t border-surface-200 dark:border-surface-800/50
                    shadow-[0_-4px_30px_rgba(0,0,0,0.15)] rounded-t-2xl"
@@ -1084,6 +1105,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
           </div>
         </div>
       </div>
+      )}
 
       {/* QW-2: Toast notification for clipboard copy */}
       {copied && (
