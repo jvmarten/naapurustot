@@ -46,16 +46,16 @@ describe('computeMetroAverages — all pctOfPop metrics', () => {
     expect(avg.elderly_ratio_pct).toBe(14.0);
   });
 
-  it('employment_rate is weighted by population', () => {
-    // Area A: pop 3000, employment 90% → 2700
-    // Area B: pop 1000, employment 50% → 500
-    // Total: 3200 / 4000 = 80%
+  it('employment_rate is computed from raw counts (pt_tyoll / pt_vakiy)', () => {
+    // Area A: working-age 2000, employed 1800 → 90%
+    // Area B: working-age 1000, employed 500 → 50%
+    // Total: 2300 / 3000 = 76.7%
     const features = [
-      makeFeature({ he_vakiy: 3000, employment_rate: 90 }),
-      makeFeature({ he_vakiy: 1000, employment_rate: 50 }),
+      makeFeature({ he_vakiy: 3000, pt_vakiy: 2000, pt_tyoll: 1800 }),
+      makeFeature({ he_vakiy: 1000, pt_vakiy: 1000, pt_tyoll: 500 }),
     ];
     const avg = computeMetroAverages(features);
-    expect(avg.employment_rate).toBe(80.0);
+    expect(avg.employment_rate).toBe(76.7);
   });
 });
 
