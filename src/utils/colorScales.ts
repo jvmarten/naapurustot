@@ -807,6 +807,11 @@ export function getColorForValue(layer: LayerConfig, value: number | null | unde
  * layer or dataset is passed.
  */
 let _rescaleCache: { layerId: string; features: GeoJSON.Feature[]; result: LayerConfig } | null = null;
+
+export function clearRescaleCache(): void {
+  _rescaleCache = null;
+}
+
 export function rescaleLayerToData(
   layer: LayerConfig,
   features: GeoJSON.Feature[],

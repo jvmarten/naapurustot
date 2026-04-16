@@ -315,15 +315,15 @@ describe('computeMetroAverages — untested branches', () => {
     expect(avg.hr_mtu).toBe(0);
   });
 
-  it('handles pctOfPop conversion for employment_rate', () => {
+  it('computes employment_rate from raw counts (pt_tyoll / pt_vakiy)', () => {
     const features = [
-      makeFeature({ he_vakiy: 1000, employment_rate: 70 }),
-      makeFeature({ he_vakiy: 3000, employment_rate: 80 }),
+      makeFeature({ he_vakiy: 1000, pt_vakiy: 800, pt_tyoll: 560 }),
+      makeFeature({ he_vakiy: 3000, pt_vakiy: 2400, pt_tyoll: 1920 }),
     ];
     const avg = computeMetroAverages(features);
-    // count = (70/100)*1000 + (80/100)*3000 = 700 + 2400 = 3100
-    // weight = 1000 + 3000 = 4000
-    // result = (3100/4000)*100 = 77.5
+    // totalEmployed = 560 + 1920 = 2480
+    // totalActPop = 800 + 2400 = 3200
+    // result = (2480/3200)*100 = 77.5
     expect(avg.employment_rate).toBe(77.5);
   });
 });
