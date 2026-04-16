@@ -8,7 +8,7 @@
 import { REGIONS, REGION_IDS, ALL_FINLAND_VIEWPORT, type RegionId } from './regions';
 
 /** Read a numeric env var at build time, returning `fallback` if unset or non-numeric. */
-function envNum(key: string, fallback: number): number {
+export function envNum(key: string, fallback: number): number {
   const raw = import.meta.env[key];
   if (raw == null || raw === '') return fallback;
   const n = Number(raw);
@@ -24,6 +24,9 @@ export const DEFAULT_CENTER: [number, number] = [MAP_CENTER_LNG, MAP_CENTER_LAT]
 
 /** Initial map zoom level. */
 export const DEFAULT_ZOOM = MAP_ZOOM;
+
+export const MAP_MIN_ZOOM = envNum('VITE_MAP_MIN_ZOOM', 2);
+export const MAP_MAX_ZOOM = envNum('VITE_MAP_MAX_ZOOM', 16);
 
 /** Returns the initial zoom level. */
 export function getInitialZoom(): number {

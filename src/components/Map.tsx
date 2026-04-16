@@ -6,20 +6,10 @@ import { buildFillColorExpression, type LayerId, type LayerConfig, getLayerById 
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { useTheme } from '../hooks/useTheme';
 import { trackEvent } from '../utils/analytics';
-import { DEFAULT_CENTER, getInitialZoom } from '../utils/mapConstants';
+import { DEFAULT_CENTER, getInitialZoom, MAP_MIN_ZOOM, MAP_MAX_ZOOM } from '../utils/mapConstants';
 
 const BASEMAP_LIGHT = (import.meta.env.VITE_BASEMAP_LIGHT_URL as string) || 'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png';
 const BASEMAP_DARK = (import.meta.env.VITE_BASEMAP_DARK_URL as string) || 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png';
-
-function envNum(key: string, fallback: number): number {
-  const raw = import.meta.env[key];
-  if (raw == null || raw === '') return fallback;
-  const n = Number(raw);
-  return isFinite(n) ? n : fallback;
-}
-
-const MAP_MIN_ZOOM = envNum('VITE_MAP_MIN_ZOOM', 2);
-const MAP_MAX_ZOOM = envNum('VITE_MAP_MAX_ZOOM', 16);
 
 interface MapProps {
   data: FeatureCollection | null;

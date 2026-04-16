@@ -36,7 +36,7 @@ import { useSelectedNeighborhood } from './hooks/useSelectedNeighborhood';
 import { useAuth } from './hooks/useAuth';
 const AuthModal = lazy(() => import('./components/AuthModal').then(m => ({ default: m.AuthModal })));
 import { UserMenu, type FavoriteEntry } from './components/UserMenu';
-import { type LayerId, type ColorblindType, getLayerById, getColorblindMode, setColorblindMode, rescaleLayerToData } from './utils/colorScales';
+import { type LayerId, type ColorblindType, getLayerById, getColorblindMode, setColorblindMode, rescaleLayerToData, clearRescaleCache } from './utils/colorScales';
 import { readInitialUrlState, useSyncUrlState } from './hooks/useUrlState';
 import type { NeighborhoodProperties } from './utils/metrics';
 import { computeMetroAverages } from './utils/metrics';
@@ -389,7 +389,8 @@ const App: React.FC = () => {
       ? filteredData.features
       : data.features;
     computeQualityIndices(features, qualityWeights);
-    clearMetroAreaCache(); // bust cached metro area averages after in-place mutation
+    clearMetroAreaCache();
+    clearRescaleCache();
     setQualityVersion((v) => v + 1);
     // Refresh selected/pinned with updated quality index values (O(1) Map lookups)
     if (selected) {
@@ -478,7 +479,8 @@ const App: React.FC = () => {
             ? filteredDataRef.current.features
             : data.features;
           computeQualityIndices(features, newWeights);
-          clearMetroAreaCache(); // bust cached metro area averages after in-place mutation
+          clearMetroAreaCache();
+          clearRescaleCache();
           setQualityVersion((v) => v + 1);
           // Update selected neighborhood if it exists (O(1) Map lookup)
           const sel = selectedRef.current;

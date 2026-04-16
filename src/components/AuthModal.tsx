@@ -42,6 +42,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
     setError(null);
 
     if (mode === 'signup' && password !== confirmPassword) {
@@ -61,7 +62,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
     } else {
       onClose();
     }
-  }, [mode, username, password, confirmPassword, email, turnstileToken, onLogin, onSignup, onClose]);
+  }, [mode, username, password, confirmPassword, email, turnstileToken, submitting, onLogin, onSignup, onClose]);
 
   const switchMode = useCallback((newMode: 'login' | 'signup') => {
     setMode(newMode);

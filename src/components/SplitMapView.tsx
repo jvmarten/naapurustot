@@ -5,7 +5,7 @@ import type { FeatureCollection } from 'geojson';
 import { buildFillColorExpression, LAYERS, type LayerId, getLayerById } from '../utils/colorScales';
 import { useTheme } from '../hooks/useTheme';
 import { t } from '../utils/i18n';
-import { DEFAULT_CENTER, getInitialZoom } from '../utils/mapConstants';
+import { DEFAULT_CENTER, getInitialZoom, MAP_MAX_ZOOM, envNum } from '../utils/mapConstants';
 
 /**
  * Compact dropdown for choosing a data layer on one side of the split view.
@@ -31,15 +31,7 @@ const SplitLayerPicker: React.FC<{
 const BASEMAP_LIGHT = (import.meta.env.VITE_BASEMAP_LIGHT_URL as string) || 'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png';
 const BASEMAP_DARK = (import.meta.env.VITE_BASEMAP_DARK_URL as string) || 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png';
 
-function envNum(key: string, fallback: number): number {
-  const raw = import.meta.env[key];
-  if (raw == null || raw === '') return fallback;
-  const n = Number(raw);
-  return isFinite(n) ? n : fallback;
-}
-
-const MAP_MIN_ZOOM = envNum('VITE_MAP_MIN_ZOOM', 4);
-const MAP_MAX_ZOOM = envNum('VITE_MAP_MAX_ZOOM', 16);
+const SPLIT_MIN_ZOOM = envNum('VITE_MAP_MIN_ZOOM', 4);
 
 const SOURCE_ID = 'neighborhoods';
 const FILL_LAYER = 'neighborhoods-fill';
@@ -203,7 +195,7 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
     const commonOptions = {
       center: DEFAULT_CENTER,
       zoom: getInitialZoom(),
-      minZoom: MAP_MIN_ZOOM,
+      minZoom: SPLIT_MIN_ZOOM,
       maxZoom: MAP_MAX_ZOOM,
       attributionControl: false as const,
     };

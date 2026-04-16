@@ -497,7 +497,6 @@ const METRIC_DEFS: MetricDef[] = [
   { property: 'tech_sector_pct', weight: 'population', precision: 1 },
   { property: 'healthcare_workers_pct', weight: 'population', precision: 1 },
   // Phase 8: More demographic detail + trends
-  { property: 'employment_rate', weight: 'population', precision: 1, pctOfPop: true },
   { property: 'elderly_ratio_pct', weight: 'population', precision: 1, pctOfPop: true },
   { property: 'avg_household_size', weight: 'population', precision: 2 },
   { property: 'manufacturing_jobs_pct', weight: 'population', precision: 1 },
@@ -554,6 +553,7 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
   let totalDetached = 0;
   let totalDwellings = 0;
   let totalPensioners = 0;
+  let totalEmployed = 0;
 
   for (const f of features) {
     const p = f.properties as NeighborhoodProperties;
@@ -563,6 +563,7 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
     totalPop += pop;
 
     // Count-based special metrics
+    if (p.pt_tyoll != null) totalEmployed += p.pt_tyoll;
     if (p.pt_tyott != null) totalUnemployed += p.pt_tyott;
     if (p.ko_yl_kork != null) totalHigherEd += p.ko_yl_kork;
     if (p.ko_al_kork != null) totalHigherEd += p.ko_al_kork;
@@ -633,6 +634,7 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
   result.child_ratio = totalPop > 0 ? roundTo((totalChildren / totalPop) * 100, 1) : 0;
   result.detached_house_share = totalDwellings > 0 ? roundTo((totalDetached / totalDwellings) * 100, 1) : 0;
   result.pensioner_share = totalPop > 0 ? roundTo((totalPensioners / totalPop) * 100, 1) : 0;
+  result.employment_rate = totalActPop > 0 ? roundTo((totalEmployed / totalActPop) * 100, 1) : 0;
 
   return result;
 }

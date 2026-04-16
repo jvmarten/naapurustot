@@ -22,13 +22,13 @@ describe('computeMetroAverages — pctOfPop conversion', () => {
     expect(avg.foreign_language_pct).toBe(20);
   });
 
-  it('correctly converts employment_rate (pctOfPop)', () => {
+  it('correctly computes employment_rate from raw counts', () => {
     const features = [
-      makeFeature({ he_vakiy: 1000, employment_rate: 70 }), // 700 employed
-      makeFeature({ he_vakiy: 1000, employment_rate: 50 }), // 500 employed
+      makeFeature({ he_vakiy: 1000, pt_vakiy: 800, pt_tyoll: 560 }), // 70%
+      makeFeature({ he_vakiy: 1000, pt_vakiy: 800, pt_tyoll: 400 }), // 50%
     ];
     const avg = computeMetroAverages(features);
-    // count = 700+500=1200, weight = 2000, pct = (1200/2000)*100 = 60
+    // totalEmployed = 960, totalActPop = 1600, pct = (960/1600)*100 = 60
     expect(avg.employment_rate).toBe(60);
   });
 
