@@ -174,6 +174,88 @@ const CollapsibleSection: React.FC<{
 };
 
 /**
+ * Self-contained quality index badge with animated count-up.
+ * Isolates ~18 animation re-renders (300ms × 60Hz) from the rest of
+ * NeighborhoodPanel. Without this, each animation frame re-evaluates
+ * ~1000 lines of JSX just to update a single number.
+ */
+const QualityBadge: React.FC<{
+  qualityIndex: number;
+  isCustomWeights: boolean;
+  onCustomize?: () => void;
+}> = React.memo(({ qualityIndex, isCustomWeights, onCustomize }) => {
+  const animatedQi = useAnimatedValue(qualityIndex);
+  const qi = animatedQi != null ? Math.round(animatedQi) : qualityIndex;
+  const cat = getQualityCategory(qi);
+  const lang = getLang();
+  return (
+    <div className="rounded-xl bg-surface-100 dark:bg-surface-900/60 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400">
+          {t('panel.quality_index')}
+          {isCustomWeights && (
+            <span className="ml-1.5 text-brand-500 dark:text-brand-400">
+              ({t('custom_quality.custom_label')})
+            </span>
+          )}
+        </h3>
+        {onCustomize && (
+          <button
+            onClick={onCustomize}
+            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold transition-colors
+              ${isCustomWeights
+                ? 'bg-brand-500/15 text-brand-600 dark:text-brand-400 hover:bg-brand-500/25'
+                : 'bg-surface-200/60 dark:bg-surface-800/60 text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-200'
+              }`}
+          >
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+            </svg>
+            {t('custom_quality.button')}
+          </button>
+        )}
+      </div>
+      <div className="flex items-center gap-3 mb-3">
+        <div
+          className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm"
+          style={{ backgroundColor: cat?.color ?? '#6b7280' }}
+        >
+          {qi}
+        </div>
+        <span className="text-surface-900 dark:text-white font-semibold text-lg">
+          {cat?.label[lang] ?? '—'}
+        </span>
+        <span className="text-surface-500 dark:text-surface-400 text-sm">
+          ({cat?.min}–{cat?.max})
+        </span>
+      </div>
+      <div className="relative">
+        <div className="flex gap-0.5">
+          {QUALITY_CATEGORIES.map((c) => (
+            <div key={c.min} className="flex-1 flex flex-col items-center gap-1">
+              <div
+                className="w-full h-2 rounded-full"
+                style={{ backgroundColor: c.color }}
+              />
+              <span className="text-[9px] text-surface-500 dark:text-surface-400">{c.label[lang]}</span>
+            </div>
+          ))}
+        </div>
+        <div
+          className="absolute top-0 w-4 h-4 -mt-1 rounded-full border-2 border-white dark:border-surface-300 shadow-md"
+          style={{
+            left: `${qi}%`,
+            transform: 'translateX(-50%)',
+            backgroundColor: cat?.color ?? '#6b7280',
+          }}
+        />
+      </div>
+    </div>
+  );
+});
+QualityBadge.displayName = 'QualityBadge';
+
+/**
  * Self-contained notes editor that owns its own useNotes subscription.
  * Isolates typing-induced re-renders from the rest of NeighborhoodPanel.
  * Without this, every keystroke re-renders ~1000 lines of JSX (30+ StatRow
@@ -211,9 +293,6 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
   const eduTotal = [d.ko_yl_kork, d.ko_al_kork, d.ko_ammat, d.ko_perus]
     .filter((v): v is number => v != null && v > 0)
     .reduce((a, b) => a + b, 0) || 1;
-
-  // Animate only the quality index badge (the prominent number users notice).
-  const animatedQi = useAnimatedValue(d.quality_index);
 
   // Copy link / share state
   const [copied, setCopied] = useState(false);
@@ -372,77 +451,14 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
   // PO-3: Shared section content — used by both desktop and mobile
   const sectionOverview = (
     <>
-      {/* Quality Index */}
-      {d.quality_index != null && (() => {
-        const qi = animatedQi != null ? Math.round(animatedQi) : d.quality_index!;
-        const cat = getQualityCategory(qi);
-        const lang = getLang();
-        return (
-          <div className="rounded-xl bg-surface-100 dark:bg-surface-900/60 p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400">
-                {t('panel.quality_index')}
-                {isCustomWeights && (
-                  <span className="ml-1.5 text-brand-500 dark:text-brand-400">
-                    ({t('custom_quality.custom_label')})
-                  </span>
-                )}
-              </h3>
-              {onCustomize && (
-                <button
-                  onClick={onCustomize}
-                  className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold transition-colors
-                    ${isCustomWeights
-                      ? 'bg-brand-500/15 text-brand-600 dark:text-brand-400 hover:bg-brand-500/25'
-                      : 'bg-surface-200/60 dark:bg-surface-800/60 text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-200'
-                    }`}
-                >
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-                  </svg>
-                  {t('custom_quality.button')}
-                </button>
-              )}
-            </div>
-            <div className="flex items-center gap-3 mb-3">
-              <div
-                className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm"
-                style={{ backgroundColor: cat?.color ?? '#6b7280' }}
-              >
-                {qi}
-              </div>
-              <span className="text-surface-900 dark:text-white font-semibold text-lg">
-                {cat?.label[lang] ?? '—'}
-              </span>
-              <span className="text-surface-500 dark:text-surface-400 text-sm">
-                ({cat?.min}–{cat?.max})
-              </span>
-            </div>
-            <div className="relative">
-              <div className="flex gap-0.5">
-                {QUALITY_CATEGORIES.map((c) => (
-                  <div key={c.min} className="flex-1 flex flex-col items-center gap-1">
-                    <div
-                      className="w-full h-2 rounded-full"
-                      style={{ backgroundColor: c.color }}
-                    />
-                    <span className="text-[9px] text-surface-500 dark:text-surface-400">{c.label[lang]}</span>
-                  </div>
-                ))}
-              </div>
-              {/* Dot indicator */}
-              <div
-                className="absolute top-0 w-4 h-4 -mt-1 rounded-full border-2 border-white dark:border-surface-300 shadow-md"
-                style={{
-                  left: `${qi}%`,
-                  transform: 'translateX(-50%)',
-                  backgroundColor: cat?.color ?? '#6b7280',
-                }}
-              />
-            </div>
-          </div>
-        );
-      })()}
+      {/* Quality Index — extracted into QualityBadge to isolate animation re-renders */}
+      {d.quality_index != null && (
+        <QualityBadge
+          qualityIndex={d.quality_index}
+          isCustomWeights={isCustomWeights}
+          onCustomize={onCustomize}
+        />
+      )}
 
       {/* Key stats */}
       <div>

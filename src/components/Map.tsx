@@ -145,6 +145,14 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   // PO-2: Track pending layer transition timeouts for cleanup
   const layerTransitionRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const layerTransitionResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Track previous data identity to deduplicate setData calls.
+  // When data identity AND qualityVersion both change in the same render (e.g.,
+  // "all cities" view after quality weight change), only the [data] effect
+  // needs to call setData — the [qualityVersion] effect can skip.
+  const prevDataRef = useRef<FeatureCollection | null>(null);
+  const dataChangedThisRender = prevDataRef.current !== null && prevDataRef.current !== data;
+  prevDataRef.current = data;
+
   // Refs for values read inside layer transition timeouts to avoid stale closures
   const fillOpacityRef = useRef(fillOpacity);
   fillOpacityRef.current = fillOpacity;
@@ -378,11 +386,16 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
 
   // Refresh GeoJSON source data when quality indices are recomputed in place.
   // The main `[data]` effect already calls setData when `data` identity changes
-  // (e.g., metro area view rebuild), so this covers the in-place mutation case
+  // (e.g., metro area view rebuild), so this only runs for in-place mutations
   // where `data` identity stays stable but feature properties changed.
+  // `dataChangedThisRender` (computed during render, before effects) detects
+  // the overlap case and skips the redundant setData.
+  const dataChangedRef = useRef(false);
+  dataChangedRef.current = dataChangedThisRender;
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !data || qualityVersion === 0) return;
+    if (dataChangedRef.current) return;
     const source = map.getSource(SOURCE_ID) as maplibregl.GeoJSONSource | undefined;
     if (source) {
       source.setData(data);
