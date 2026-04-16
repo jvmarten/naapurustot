@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useMemo } from 'react';
 
 interface UseSwipeNavigationOptions {
   /** Total number of sections */
@@ -151,21 +151,25 @@ export function useSwipeNavigation(options: UseSwipeNavigationOptions): UseSwipe
     setIsSnapping(false);
   }, []);
 
+  const stableSetActiveSection = useCallback((index: number) => {
+    setIsSnapping(true);
+    setDragOffset(0);
+    setActiveSection(index);
+  }, []);
+
+  const handlers = useMemo(() => ({
+    onTouchStart,
+    onTouchMove,
+    onTouchEnd,
+  }), [onTouchStart, onTouchMove, onTouchEnd]);
+
   return {
     activeSection,
-    setActiveSection: useCallback((index: number) => {
-      setIsSnapping(true);
-      setDragOffset(0);
-      setActiveSection(index);
-    }, []),
+    setActiveSection: stableSetActiveSection,
     dragOffset,
     isSnapping,
     isSwiping,
-    handlers: {
-      onTouchStart,
-      onTouchMove,
-      onTouchEnd,
-    },
+    handlers,
     onTransitionEnd,
   };
 }
