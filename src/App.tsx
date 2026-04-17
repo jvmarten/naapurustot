@@ -274,6 +274,7 @@ const App: React.FC = () => {
     const allCoords: Position[] = [];
     for (const f of selectedFeatures) {
       const geom = f.geometry;
+      if (!geom) continue;
       if (geom.type === 'Polygon') {
         allCoords.push(...geom.coordinates[0]);
       } else if (geom.type === 'MultiPolygon') {
@@ -945,14 +946,16 @@ const App: React.FC = () => {
 
       {/* Ranking table */}
       {showRanking && (
-        <Suspense fallback={null}>
-          <RankingTable
-            data={filteredData}
-            activeLayer={activeLayer}
-            onSelect={handleSearch}
-            onClose={handleCloseRanking}
-          />
-        </Suspense>
+        <ErrorBoundary>
+          <Suspense fallback={null}>
+            <RankingTable
+              data={filteredData}
+              activeLayer={activeLayer}
+              onSelect={handleSearch}
+              onClose={handleCloseRanking}
+            />
+          </Suspense>
+        </ErrorBoundary>
       )}
 
       {/* Filter panel */}
@@ -997,13 +1000,15 @@ const App: React.FC = () => {
 
       {/* Custom quality sliders panel */}
       {showCustomQuality && (
-        <Suspense fallback={null}>
-          <CustomQualityPanel
-            weights={qualityWeights}
-            onChange={handleQualityWeightsChange}
-            onClose={handleCloseCustomQuality}
-          />
-        </Suspense>
+        <ErrorBoundary>
+          <Suspense fallback={null}>
+            <CustomQualityPanel
+              weights={qualityWeights}
+              onChange={handleQualityWeightsChange}
+              onClose={handleCloseCustomQuality}
+            />
+          </Suspense>
+        </ErrorBoundary>
       )}
 
 
@@ -1033,34 +1038,40 @@ const App: React.FC = () => {
 
       {/* Neighborhood wizard */}
       {showWizard && (
-        <Suspense fallback={null}>
-        <NeighborhoodWizard
-          data={filteredData}
-          onSelect={handleSearch}
-          onClose={handleCloseWizard}
-          onShowOnMap={handleWizardShowOnMap}
-        />
-        </Suspense>
+        <ErrorBoundary>
+          <Suspense fallback={null}>
+            <NeighborhoodWizard
+              data={filteredData}
+              onSelect={handleSearch}
+              onClose={handleCloseWizard}
+              onShowOnMap={handleWizardShowOnMap}
+            />
+          </Suspense>
+        </ErrorBoundary>
       )}
 
       {/* Comparison panel (shows hint at 1 pinned, full panel at 2+) */}
       {pinned.length >= 1 && (
-        <Suspense fallback={null}>
-          <ComparisonPanel pinned={pinned} onUnpin={unpin} onClear={clearPinned} />
-        </Suspense>
+        <ErrorBoundary>
+          <Suspense fallback={null}>
+            <ComparisonPanel pinned={pinned} onUnpin={unpin} onClear={clearPinned} />
+          </Suspense>
+        </ErrorBoundary>
       )}
 
       {/* CF-6: Area summary panel for drawn polygon */}
       {drawnPolygon && filteredData && (
-        <Suspense fallback={null}>
-          <AreaSummaryPanel
-            polygon={drawnPolygon}
-            data={filteredData}
-            metroAverages={cityAverages}
-            onClose={handleClearDraw}
-            selectedPnos={selectedAreaPnos.length > 0 ? selectedAreaPnos : drawnAreaPnos.length > 0 ? drawnAreaPnos : undefined}
-          />
-        </Suspense>
+        <ErrorBoundary>
+          <Suspense fallback={null}>
+            <AreaSummaryPanel
+              polygon={drawnPolygon}
+              data={filteredData}
+              metroAverages={cityAverages}
+              onClose={handleClearDraw}
+              selectedPnos={selectedAreaPnos.length > 0 ? selectedAreaPnos : drawnAreaPnos.length > 0 ? drawnAreaPnos : undefined}
+            />
+          </Suspense>
+        </ErrorBoundary>
       )}
 
       {/* CF-6: Draw mode hint with Done button */}
@@ -1115,13 +1126,15 @@ const App: React.FC = () => {
 
       {/* Auth modal */}
       {showAuth && (
-        <Suspense fallback={null}>
-          <AuthModal
-            onClose={() => setShowAuth(false)}
-            onLogin={login}
-            onSignup={signup}
-          />
-        </Suspense>
+        <ErrorBoundary>
+          <Suspense fallback={null}>
+            <AuthModal
+              onClose={() => setShowAuth(false)}
+              onLogin={login}
+              onSignup={signup}
+            />
+          </Suspense>
+        </ErrorBoundary>
       )}
 
       {/* ARIA live region for screen readers */}

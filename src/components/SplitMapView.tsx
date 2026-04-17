@@ -239,6 +239,7 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
   // Previously theme change rebuilt source + 3 layers on BOTH maps.
   useEffect(() => {
     const tiles = theme === 'dark' ? BASEMAP_DARK : BASEMAP_LIGHT;
+    const pendingListeners: { map: maplibregl.Map; fn: () => void }[] = [];
     for (const mapRef of [leftMapRef, rightMapRef]) {
       const map = mapRef.current;
       if (!map) continue;
@@ -248,8 +249,16 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
       }
       const apply = () => updateThemeColors(map, theme);
       if (map.isStyleLoaded()) apply();
-      else map.on('load', apply);
+      else {
+        map.on('load', apply);
+        pendingListeners.push({ map, fn: apply });
+      }
     }
+    return () => {
+      for (const { map, fn } of pendingListeners) {
+        map.off('load', fn);
+      }
+    };
   }, [theme]);
 
   // Add/update data layers when data changes. addDataLayers uses setData in
