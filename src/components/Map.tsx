@@ -100,7 +100,6 @@ const GRID_FILL_LAYER = 'grid-fill';
 const DRAW_SOURCE_ID = 'draw-polygon';
 const DRAW_FILL_LAYER = 'draw-fill';
 const DRAW_LINE_LAYER = 'draw-line';
-const DRAW_VERTEX_LAYER = 'draw-vertices';
 const DRAW_PREVIEW_SOURCE_ID = 'draw-preview';
 const DRAW_PREVIEW_LINE_LAYER = 'draw-preview-line';
 const DRAW_PREVIEW_VERTEX_LAYER = 'draw-preview-vertices';
@@ -997,11 +996,9 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
 
     const addDrawnPolygon = () => {
       // Clean up old raw polygon layers
-      if (map.getLayer(DRAW_VERTEX_LAYER)) map.removeLayer(DRAW_VERTEX_LAYER);
       if (map.getLayer(DRAW_LINE_LAYER)) map.removeLayer(DRAW_LINE_LAYER);
       if (map.getLayer(DRAW_FILL_LAYER)) map.removeLayer(DRAW_FILL_LAYER);
       if (map.getSource(DRAW_SOURCE_ID)) map.removeSource(DRAW_SOURCE_ID);
-      if (map.getSource(DRAW_SOURCE_ID + '-pts')) map.removeSource(DRAW_SOURCE_ID + '-pts');
 
       // Clean up snapped boundary layers
       if (map.getLayer(DRAW_SNAP_LINE_LAYER)) map.removeLayer(DRAW_SNAP_LINE_LAYER);
@@ -1073,8 +1070,6 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     }
 
     return () => {
-      if (map.getLayer(DRAW_VERTEX_LAYER)) map.removeLayer(DRAW_VERTEX_LAYER);
-      if (map.getSource(DRAW_SOURCE_ID + '-pts')) map.removeSource(DRAW_SOURCE_ID + '-pts');
       if (map.getLayer(DRAW_LINE_LAYER)) map.removeLayer(DRAW_LINE_LAYER);
       if (map.getLayer(DRAW_FILL_LAYER)) map.removeLayer(DRAW_FILL_LAYER);
       if (map.getSource(DRAW_SOURCE_ID)) map.removeSource(DRAW_SOURCE_ID);
