@@ -189,9 +189,16 @@ export interface NeighborhoodProperties {
 /** A single data point in a time series: [year, value] */
 export type TrendDataPoint = [number, number];
 
-/** Parse a JSON-encoded trend series from GeoJSON properties */
+const trendParseCache = new Map<string, TrendDataPoint[] | null>();
+
+/** Parse a JSON-encoded trend series from GeoJSON properties.
+ *  Results are cached by string value — same JSON string returns the same array reference. */
 export function parseTrendSeries(raw: string | null | undefined): TrendDataPoint[] | null {
   if (!raw) return null;
+  if (typeof raw === 'string') {
+    const cached = trendParseCache.get(raw);
+    if (cached !== undefined) return cached;
+  }
   try {
     const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
     if (
@@ -207,11 +214,13 @@ export function parseTrendSeries(raw: string | null | undefined): TrendDataPoint
           isFinite(p[1]),
       )
     ) {
+      if (typeof raw === 'string') trendParseCache.set(raw, parsed as TrendDataPoint[]);
       return parsed as TrendDataPoint[];
     }
   } catch {
     // invalid JSON
   }
+  if (typeof raw === 'string') trendParseCache.set(raw, null);
   return null;
 }
 

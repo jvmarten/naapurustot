@@ -510,6 +510,7 @@ const App: React.FC = () => {
 
   const handleHover = useCallback(
     (props: NeighborhoodProperties | null, x: number, y: number) => {
+      if (selectedRef.current) return;
       setTooltipData(props ? { props, x, y } : null);
     },
     [],
@@ -518,6 +519,7 @@ const App: React.FC = () => {
   const handleClick = useCallback(
     (props: NeighborhoodProperties) => {
       select(props);
+      setTooltipData(null);
       setAriaAnnouncement(`${t('aria.neighborhood_selected')}: ${props.nimi}`);
     },
     [select],
