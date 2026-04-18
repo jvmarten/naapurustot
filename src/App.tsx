@@ -709,14 +709,23 @@ const App: React.FC = () => {
     }
   }, [filteredData, select]);
 
-  // IN-5: Dynamic SEO — update document title, meta, and canonical when neighborhood selected
+  // IN-5: Dynamic SEO — update document title, meta, and canonical when neighborhood selected.
+  // Cache meta element refs once to avoid 5 × document.querySelector on every selection change.
+  const seoRefs = useRef<{ canonical: Element | null; ogUrl: Element | null; desc: Element | null; ogTitle: Element | null; ogDesc: Element | null } | null>(null);
   useEffect(() => {
-    const canonical = document.querySelector('link[rel="canonical"]');
-    const ogUrl = document.querySelector('meta[property="og:url"]');
+    if (!seoRefs.current) {
+      seoRefs.current = {
+        canonical: document.querySelector('link[rel="canonical"]'),
+        ogUrl: document.querySelector('meta[property="og:url"]'),
+        desc: document.querySelector('meta[name="description"]'),
+        ogTitle: document.querySelector('meta[property="og:title"]'),
+        ogDesc: document.querySelector('meta[property="og:description"]'),
+      };
+    }
+    const { canonical, ogUrl, desc, ogTitle, ogDesc } = seoRefs.current;
     if (selected) {
       const qi = selected.quality_index != null ? ` — ${t('panel.quality_index')}: ${selected.quality_index}` : '';
       document.title = `${selected.nimi} (${selected.pno})${qi} | naapurustot.fi`;
-      const desc = document.querySelector('meta[name="description"]');
       if (desc) {
         desc.setAttribute('content',
           lang === 'fi'
@@ -724,16 +733,13 @@ const App: React.FC = () => {
             : `${selected.nimi} (${selected.pno}): median income, unemployment, property prices, services and 35+ metrics for neighborhood comparison.`
         );
       }
-      const ogTitle = document.querySelector('meta[property="og:title"]');
       if (ogTitle) ogTitle.setAttribute('content', `${selected.nimi} — naapurustot.fi`);
-      const ogDesc = document.querySelector('meta[property="og:description"]');
       if (ogDesc) ogDesc.setAttribute('content', `${selected.nimi} (${selected.pno}) — ${t('panel.quality_index')}: ${selected.quality_index ?? '—'}`);
       const pnoUrl = `https://naapurustot.fi/?pno=${selected.pno}`;
       if (canonical) canonical.setAttribute('href', pnoUrl);
       if (ogUrl) ogUrl.setAttribute('content', pnoUrl);
     } else {
       document.title = 'naapurustot — naapurustot kartalla | naapurustot.fi';
-      const desc = document.querySelector('meta[name="description"]');
       if (desc) desc.setAttribute('content', 'naapurustot.fi — vertaile Helsingin, Espoon, Vantaan ja Turun naapurustoja ja asuinalueita 35+ mittarilla. Tulotaso, asuntohinnat, palvelut, turvallisuus, joukkoliikenne ja paljon muuta interaktiivisella kartalla.');
       if (canonical) canonical.setAttribute('href', 'https://naapurustot.fi/');
       if (ogUrl) ogUrl.setAttribute('content', 'https://naapurustot.fi/');

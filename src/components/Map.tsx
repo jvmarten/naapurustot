@@ -680,25 +680,25 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
 
         if (!pno) return; // Guard against features with missing pno (e.g. malformed data)
 
-        // Only update feature state when the hovered feature actually changes.
-        // Before: setFeatureState({hover: true}) fired on every pixel even for
-        // the same polygon (~60 redundant GPU state updates/second).
+        // Only update feature state and cursor when the hovered feature changes.
+        // Skipping redundant setFeatureState + cursor writes saves ~60 GPU state
+        // updates and DOM style writes per second during steady-state hover.
         if (hoveredIdRef.current !== pno) {
           if (hoveredIdRef.current) {
             map.setFeatureState({ source: SOURCE_ID, id: hoveredIdRef.current }, { hover: false });
           }
           hoveredIdRef.current = pno;
           map.setFeatureState({ source: SOURCE_ID, id: pno }, { hover: true });
+          map.getCanvas().style.cursor = 'pointer';
         }
-        map.getCanvas().style.cursor = 'pointer';
 
         onHoverRef.current(feat.properties as NeighborhoodProperties, e.point.x, e.point.y);
       } else {
         if (hoveredIdRef.current) {
           map.setFeatureState({ source: SOURCE_ID, id: hoveredIdRef.current }, { hover: false });
           hoveredIdRef.current = null;
+          map.getCanvas().style.cursor = '';
         }
-        map.getCanvas().style.cursor = '';
         onHoverRef.current(null, 0, 0);
       }
     };
