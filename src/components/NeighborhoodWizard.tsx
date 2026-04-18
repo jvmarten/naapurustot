@@ -59,30 +59,37 @@ function scoreNeighborhoods(
     (f) => f.properties && (f.properties as NeighborhoodProperties).he_vakiy != null,
   );
 
-  // Collect ranges for normalization
-  const range = (key: keyof NeighborhoodProperties) => {
-    let min = Infinity;
-    let max = -Infinity;
-    for (const f of features) {
-      const v = (f.properties as NeighborhoodProperties)[key] as number | null;
+  // Collect all property ranges in a single pass over features instead of
+  // iterating once per property (was 9 × ~200 = 1800 iterations, now ~200).
+  const RANGE_KEYS: (keyof NeighborhoodProperties)[] = [
+    'transit_stop_density', 'restaurant_density', 'ra_as_kpa', 'child_ratio',
+    'daycare_density', 'school_density', 'healthcare_density', 'ownership_rate', 'rental_rate',
+  ];
+  const mins: Record<string, number> = {};
+  const maxs: Record<string, number> = {};
+  for (const k of RANGE_KEYS) { mins[k as string] = Infinity; maxs[k as string] = -Infinity; }
+  for (const f of features) {
+    const p = f.properties as NeighborhoodProperties;
+    for (const k of RANGE_KEYS) {
+      const v = p[k] as number | null;
       if (typeof v === 'number' && isFinite(v)) {
-        if (v < min) min = v;
-        if (v > max) max = v;
+        const key = k as string;
+        if (v < mins[key]) mins[key] = v;
+        if (v > maxs[key]) maxs[key] = v;
       }
     }
-    if (min > max) return { min: 0, max: 1 };
-    return { min, max };
-  };
+  }
+  const toRange = (k: string) => mins[k] < maxs[k] ? { min: mins[k], max: maxs[k] } : { min: 0, max: 1 };
 
-  const transitRange = range('transit_stop_density');
-  const restaurantRange = range('restaurant_density');
-  const aptSizeRange = range('ra_as_kpa');
-  const childRange = range('child_ratio');
-  const daycareRange = range('daycare_density');
-  const schoolRange = range('school_density');
-  const healthcareRange = range('healthcare_density');
-  const ownershipRange = range('ownership_rate');
-  const rentalRange = range('rental_rate');
+  const transitRange = toRange('transit_stop_density');
+  const restaurantRange = toRange('restaurant_density');
+  const aptSizeRange = toRange('ra_as_kpa');
+  const childRange = toRange('child_ratio');
+  const daycareRange = toRange('daycare_density');
+  const schoolRange = toRange('school_density');
+  const healthcareRange = toRange('healthcare_density');
+  const ownershipRange = toRange('ownership_rate');
+  const rentalRange = toRange('rental_rate');
 
   // Hold candidates with their feature reference so we can compute centroids
   // only for the final top 5 after sorting.

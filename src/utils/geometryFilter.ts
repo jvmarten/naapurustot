@@ -1,4 +1,4 @@
-import type { Feature, MultiPolygon, Polygon, Position } from 'geojson';
+import type { Feature, MultiPolygon, Polygon } from 'geojson';
 
 /**
  * Calculate the area of a polygon ring using the shoelace formula.
@@ -70,26 +70,30 @@ export function getFeatureCenter(feature: Feature): [number, number] {
   const geom = feature.geometry;
   if (!geom) return [0, 0];
   if (geom.type === 'Point') return geom.coordinates as [number, number];
+  if (!('coordinates' in geom)) return [0, 0];
 
   let minLng = Infinity;
   let maxLng = -Infinity;
   let minLat = Infinity;
   let maxLat = -Infinity;
 
-  function scan(c: Position | Position[] | Position[][] | Position[][][]) {
-    if (typeof c[0] === 'number') {
-      const [lng, lat] = c as Position;
+  // Iterative coordinate scanning using an explicit stack instead of recursive
+  // forEach calls. Avoids closure allocation and function call overhead per
+  // coordinate ring (matters when called for many features, e.g. ranking).
+  const stack: unknown[] = [geom.coordinates];
+  while (stack.length > 0) {
+    const item = stack.pop()!;
+    const arr = item as unknown[];
+    if (typeof arr[0] === 'number') {
+      const lng = arr[0] as number;
+      const lat = arr[1] as number;
       if (lng < minLng) minLng = lng;
       if (lng > maxLng) maxLng = lng;
       if (lat < minLat) minLat = lat;
       if (lat > maxLat) maxLat = lat;
     } else {
-      (c as Position[][]).forEach(scan);
+      for (let i = arr.length - 1; i >= 0; i--) stack.push(arr[i]);
     }
-  }
-
-  if ('coordinates' in geom) {
-    scan(geom.coordinates as Position[]);
   }
 
   if (!isFinite(minLng)) return [0, 0];

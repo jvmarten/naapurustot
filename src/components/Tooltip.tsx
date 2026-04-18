@@ -1,4 +1,4 @@
-import React, { useRef, useLayoutEffect } from 'react';
+import React, { useRef, useLayoutEffect, useMemo } from 'react';
 import type { LayerConfig } from '../utils/colorScales';
 import { t } from '../utils/i18n';
 
@@ -16,23 +16,24 @@ const OFFSET = 12;
 const PADDING = 8;
 
 export const Tooltip: React.FC<TooltipProps> = ({ x, y, name, value, layer, metroAverage }) => {
-  const formatted = value != null ? layer.format(value) : t('tooltip.no_data');
   const ref = useRef<HTMLDivElement>(null);
 
-  // PO-3: Mini comparison to metro average
-  let comparisonText = '';
-  let comparisonClass = '';
-  if (value != null && metroAverage != null && metroAverage !== 0) {
-    const diffPct = ((value - metroAverage) / Math.abs(metroAverage)) * 100;
-    if (Math.abs(diffPct) >= 1) {
-      const sign = diffPct > 0 ? '+' : '';
-      comparisonText = `${diffPct > 0 ? '\u25B2' : '\u25BC'} ${sign}${diffPct.toFixed(0)}% ${t('tooltip.vs_avg')}`;
-      // For "lower is better" metrics (crime, pollution, unemployment), flip the color logic
-      const higherIsBetter = layer.higherIsBetter !== false;
-      const isPositive = higherIsBetter ? diffPct > 0 : diffPct < 0;
-      comparisonClass = isPositive ? 'text-emerald-500' : 'text-rose-400';
+  const { formatted, comparisonText, comparisonClass } = useMemo(() => {
+    const fmt = value != null ? layer.format(value) : t('tooltip.no_data');
+    let cmpText = '';
+    let cmpClass = '';
+    if (value != null && metroAverage != null && metroAverage !== 0) {
+      const diffPct = ((value - metroAverage) / Math.abs(metroAverage)) * 100;
+      if (Math.abs(diffPct) >= 1) {
+        const sign = diffPct > 0 ? '+' : '';
+        cmpText = `${diffPct > 0 ? '\u25B2' : '\u25BC'} ${sign}${diffPct.toFixed(0)}% ${t('tooltip.vs_avg')}`;
+        const higherIsBetter = layer.higherIsBetter !== false;
+        const isPositive = higherIsBetter ? diffPct > 0 : diffPct < 0;
+        cmpClass = isPositive ? 'text-emerald-500' : 'text-rose-400';
+      }
     }
-  }
+    return { formatted: fmt, comparisonText: cmpText, comparisonClass: cmpClass };
+  }, [value, layer, metroAverage]);
 
   // Position via direct DOM mutation to avoid a second React render per mousemove.
   // Uses transform instead of left/top so the write doesn't invalidate layout.
