@@ -584,9 +584,13 @@ const App: React.FC = () => {
     setColorblind(mode);
   }, []);
 
+  const opacityPersistRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const handleFillOpacityChange = useCallback((v: number) => {
-    try { localStorage.setItem('naapurustot-fill-opacity', String(v)); } catch { /* unavailable */ }
     setFillOpacity(v);
+    if (opacityPersistRef.current) clearTimeout(opacityPersistRef.current);
+    opacityPersistRef.current = setTimeout(() => {
+      try { localStorage.setItem('naapurustot-fill-opacity', String(v)); } catch { /* unavailable */ }
+    }, 300);
   }, []);
 
   // Compute matching neighborhood PNOs for filter-aware map rendering.
