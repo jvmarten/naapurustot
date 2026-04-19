@@ -401,7 +401,12 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     }
   }, [qualityVersion, data]);
 
-  // Add/update fine-grained grid layer when grid data is available
+  // Add/update fine-grained grid layer when grid data changes.
+  // Previously depended on [gridData, data, theme], which tore down and recreated
+  // the grid source+layer on every data refresh (quality version bump) and theme
+  // toggle — even though data and theme have their own dedicated effects.
+  // Now depends only on [gridData], which changes only when the user switches to
+  // a grid-capable layer for the first time (lazy fetch completes).
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -410,7 +415,6 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     const useGrid = !!gridData && !!layer.gridProperty;
 
     const addGridLayer = () => {
-      // Remove old grid layer/source
       if (map.getLayer(GRID_FILL_LAYER)) map.removeLayer(GRID_FILL_LAYER);
       if (map.getSource(GRID_SOURCE_ID)) map.removeSource(GRID_SOURCE_ID);
 
@@ -418,7 +422,6 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
 
       map.addSource(GRID_SOURCE_ID, { type: 'geojson', data: gridData });
 
-      // Insert grid fill layer just above the basemap tiles, below the postal borders
       map.addLayer({
         id: GRID_FILL_LAYER,
         type: 'fill',
@@ -428,7 +431,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
           'fill-opacity': 0.8 * fillOpacity,
           'fill-opacity-transition': { duration: 300, delay: 0 },
         },
-      }, FILL_LAYER); // insert below the postal fill layer
+      }, FILL_LAYER);
     };
 
     if (map.isStyleLoaded()) {
@@ -440,8 +443,8 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     return () => {
       map.off('load', addGridLayer);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- activeLayer/fillOpacity handled by dedicated effects
-  }, [gridData, data, theme]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- activeLayer/fillOpacity/layerConfig handled by dedicated effects; data/theme no longer needed
+  }, [gridData]);
 
   // Toggle postal fill visibility: hide when grid data is shown, show otherwise
   useEffect(() => {
@@ -632,8 +635,14 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     }
   }, [filterActive, filterMatchPnos, data, theme, fillOpacity]);
 
-  // Hover/click handler — uses refs for mode flags and callbacks to avoid
-  // re-attaching 4 map event listeners on every drawMode/selectMode change.
+  // Hover/click handler — registered once and never re-attached.
+  // All callbacks and mode flags are read from refs so the handlers stay
+  // stable across data changes, quality weight adjustments, and layer switches.
+  // Previously depended on [data], which tore down and re-registered 4 event
+  // listeners on every data refresh (quality version bumps, metro area rebuilds,
+  // city switches after initial setup). This caused hover state to flash
+  // (hoveredIdRef cleared during cleanup) and wasted ~8 addEventListener/
+  // removeEventListener calls per data change.
   const drawModeRef = useRef(drawMode);
   drawModeRef.current = drawMode;
   const selectModeRef = useRef(selectMode);
@@ -648,10 +657,12 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   onDrawDoubleClickRef.current = onDrawDoubleClick;
   const onSelectAreaClickRef = useRef(onSelectAreaClick);
   onSelectAreaClickRef.current = onSelectAreaClick;
+  const handlersAttachedRef = useRef(false);
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !data) return;
+    if (!map || !data || handlersAttachedRef.current) return;
+    handlersAttachedRef.current = true;
 
     // Throttle mousemove processing to once per animation frame.
     // Without this, queryRenderedFeatures + setFeatureState fire on every
@@ -672,17 +683,15 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         return;
       }
 
+      if (!map.getSource(SOURCE_ID)) return;
       const features = map.queryRenderedFeatures(e.point, { layers: [FILL_LAYER] });
 
       if (features.length > 0) {
         const feat = features[0];
         const pno = feat.properties?.pno as string | undefined;
 
-        if (!pno) return; // Guard against features with missing pno (e.g. malformed data)
+        if (!pno) return;
 
-        // Only update feature state and cursor when the hovered feature changes.
-        // Skipping redundant setFeatureState + cursor writes saves ~60 GPU state
-        // updates and DOM style writes per second during steady-state hover.
         if (hoveredIdRef.current !== pno) {
           if (hoveredIdRef.current) {
             map.setFeatureState({ source: SOURCE_ID, id: hoveredIdRef.current }, { hover: false });
@@ -711,7 +720,6 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     };
 
     const onMouseLeave = () => {
-      // Cancel any pending mousemove — we're leaving the map
       pendingMouseEvent = null;
       if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
       if (hoveredIdRef.current) {
@@ -729,10 +737,11 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         onDrawClickRef.current?.([e.lngLat.lng, e.lngLat.lat]);
         return;
       }
+      if (!map.getSource(SOURCE_ID)) return;
       const features = map.queryRenderedFeatures(e.point, { layers: [FILL_LAYER] });
       if (features.length > 0) {
         const props = features[0].properties as NeighborhoodProperties;
-        if (!props?.pno) return; // Guard against features with missing pno
+        if (!props?.pno) return;
         if (selectModeRef.current && onSelectAreaClickRef.current) {
           onSelectAreaClickRef.current(props);
           return;
@@ -755,6 +764,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     map.on('dblclick', onMapDblClick);
 
     return () => {
+      handlersAttachedRef.current = false;
       if (rafId !== null) cancelAnimationFrame(rafId);
       map.off('mousemove', onMouseMove);
       map.off('mouseleave', FILL_LAYER, onMouseLeave);
