@@ -6,13 +6,15 @@ export async function verifyTurnstile(token: string, ip?: string): Promise<boole
   if (!TURNSTILE_SECRET) return true;
 
   try {
-    const body: Record<string, string> = { secret: TURNSTILE_SECRET, response: token };
-    if (ip) body.remoteip = ip;
+    const params = new URLSearchParams();
+    params.set('secret', TURNSTILE_SECRET);
+    params.set('response', token);
+    if (ip) params.set('remoteip', ip);
 
     const res = await fetch(VERIFY_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
     });
 
     const data = await res.json() as { success: boolean };

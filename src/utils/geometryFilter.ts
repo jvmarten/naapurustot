@@ -69,7 +69,10 @@ export function filterSmallIslands(features: Feature[]): Feature[] {
 export function getFeatureCenter(feature: Feature): [number, number] {
   const geom = feature.geometry;
   if (!geom) return [0, 0];
-  if (geom.type === 'Point') return geom.coordinates as [number, number];
+  if (geom.type === 'Point') {
+    const [lng, lat] = geom.coordinates;
+    return isFinite(lng) && isFinite(lat) ? [lng, lat] : [0, 0];
+  }
   if (!('coordinates' in geom)) return [0, 0];
 
   let minLng = Infinity;

@@ -407,14 +407,22 @@ const App: React.FC = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps -- qualityWeights changes are handled by the debounced handleQualityWeightsChange; selected/pinned/pnoFeatureMap are read from current render values
   }, [comparisonScope, cityFilter, data]);
 
-  // Restore neighborhood selection and pinned comparisons from URL once data is loaded
+  // Restore neighborhood selection and pinned comparisons from URL once data is loaded.
+  // Metro area PNOs (e.g., "helsinki_metro") require the "all" view — if we detect one
+  // and aren't already in "all" view, switch to it and defer selection until allCitiesData loads.
   useEffect(() => {
     if (!data || restoredPno.current) return;
     restoredPno.current = true;
     if (initialUrl.pno) {
-      const feature = pnoFeatureMap.get(initialUrl.pno);
-      if (feature?.properties) {
-        select(feature.properties as NeighborhoodProperties);
+      if (regionIdSet.has(initialUrl.pno) && cityFilter !== 'all') {
+        pendingFavoritePno.current = initialUrl.pno;
+        setCityFilter('all');
+      } else {
+        const feature = pnoFeatureMap.get(initialUrl.pno)
+          ?? filteredData?.features.find(f => f.properties?.pno === initialUrl.pno);
+        if (feature?.properties) {
+          select(feature.properties as NeighborhoodProperties);
+        }
       }
     }
     // QW-3: Restore pinned comparisons from URL
@@ -426,7 +434,7 @@ const App: React.FC = () => {
         }
       }
     }
-  }, [data, select, pin, pnoFeatureMap]);
+  }, [data, select, pin, pnoFeatureMap, cityFilter, filteredData, regionIdSet]);
 
   // Memoize pinned PNO array to avoid new references on every render.
   // Without this, Map's pinnedPnos useEffect fires on every App re-render,
@@ -644,7 +652,7 @@ const App: React.FC = () => {
         />
       </div>
     </div>
-  ), [comparisonScope, cityFilter]);
+  ), [comparisonScope, cityFilter, lang]);
   // Stable callbacks for NeighborhoodPanel props — prevents new closures on every render
   // which would defeat React.memo on the panel.
   const handleToggleFavorite = useCallback(() => {

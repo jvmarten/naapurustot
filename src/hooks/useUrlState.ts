@@ -11,8 +11,13 @@ interface UrlState {
 }
 
 const VALID_CITIES = new Set<string>(['all', ...REGION_IDS]);
+const VALID_REGION_IDS = new Set<string>(REGION_IDS);
 
 const VALID_LAYER_IDS = new Set<string>(LAYERS.map((l) => l.id));
+
+function isValidPno(value: string): boolean {
+  return /^\d{5}$/.test(value) || VALID_REGION_IDS.has(value);
+}
 
 function parseUrl(): UrlState {
   // Support both query params (?pno=) and legacy hash (#pno=) for backwards compat
@@ -44,10 +49,10 @@ function parseUrl(): UrlState {
   }
 
   return {
-    pno: pno && /^\d{5}$/.test(pno) ? pno : null,
+    pno: pno && isValidPno(pno) ? pno : null,
     layer: layer && VALID_LAYER_IDS.has(layer) ? (layer as LayerId) : null,
     compare: compare
-      ? compare.split(',').filter((p) => /^\d{5}$/.test(p))
+      ? compare.split(',').filter((p) => isValidPno(p))
       : [],
     city: city && VALID_CITIES.has(city) ? city : null,
   };

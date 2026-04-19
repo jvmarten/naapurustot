@@ -75,8 +75,13 @@ router.post('/signup', rateLimit(3, 24 * 60 * 60 * 1000, 'signup'), async (req: 
     return;
   }
 
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  if (email != null && (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
     res.status(400).json({ error: 'Invalid email format' });
+    return;
+  }
+
+  if (displayName != null && (typeof displayName !== 'string' || displayName.length > 100)) {
+    res.status(400).json({ error: 'Display name must be at most 100 characters' });
     return;
   }
 

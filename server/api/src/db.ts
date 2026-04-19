@@ -10,6 +10,10 @@ const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
+pool.on('error', (err) => {
+  console.error('Unexpected idle client error:', err.message);
+});
+
 /** Create tables if they don't exist. Safe to call on every startup. */
 export async function initDb(): Promise<void> {
   await pool.query(`
