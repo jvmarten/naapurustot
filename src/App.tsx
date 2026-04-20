@@ -260,13 +260,16 @@ const App: React.FC = () => {
     handleDrawDoubleClick();
   }, [handleDrawDoubleClick]);
 
-  // Build union polygon from selected neighborhoods for AreaSummaryPanel
+  const selectedAreaPnoSet = useMemo(() => new Set(selectedAreaPnos), [selectedAreaPnos]);
+
+  // Build union polygon from selected neighborhoods for AreaSummaryPanel.
+  // Depends on `data` (not `filteredData`) because geometry doesn't change on
+  // quality weight adjustments — avoids re-running the Graham scan convex hull
+  // on every quality slider tick.
   const selectedAreasPolygon = useMemo<Feature<Polygon> | null>(() => {
-    if (selectedAreaPnos.length === 0 || !filteredData) return null;
-    // Use a Set for O(1) lookups instead of O(n) Array.includes() per feature.
-    const pnoSet = new Set(selectedAreaPnos);
-    const selectedFeatures = filteredData.features.filter(
-      (f) => f.properties?.pno && pnoSet.has(f.properties.pno as string)
+    if (selectedAreaPnos.length === 0 || !data) return null;
+    const selectedFeatures = data.features.filter(
+      (f) => f.properties?.pno && selectedAreaPnoSet.has(f.properties.pno as string)
     );
     if (selectedFeatures.length === 0) return null;
 
@@ -285,10 +288,8 @@ const App: React.FC = () => {
     }
     if (allCoords.length < 3) return null;
 
-    // Use convex hull to create a bounding polygon
     // Simple Graham scan for convex hull
     const points = allCoords.map(([x, y]) => [x, y] as [number, number]);
-    // Find bottom-most point (min y, then min x)
     let pivot = 0;
     for (let i = 1; i < points.length; i++) {
       if (points[i][1] < points[pivot][1] || (points[i][1] === points[pivot][1] && points[i][0] < points[pivot][0])) {
@@ -313,34 +314,33 @@ const App: React.FC = () => {
         const b = hull[hull.length - 1];
         const cross = (b[0] - a[0]) * (pt[1] - a[1]) - (b[1] - a[1]) * (pt[0] - a[0]);
         // Use strict < 0 (not <= 0) to keep collinear points on the hull.
-        // With <= 0, selecting neighborhoods in a near-linear arrangement
-        // would collapse the hull below 3 points, returning null.
         if (cross < 0) hull.pop();
         else break;
       }
       hull.push(pt);
     }
     if (hull.length < 3) return null;
-    hull.push(hull[0]); // Close the ring
+    hull.push(hull[0]);
 
     return {
       type: 'Feature',
       properties: {},
       geometry: { type: 'Polygon', coordinates: [hull] },
     };
-  }, [selectedAreaPnos, filteredData]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- uses data (geometry only) instead of filteredData to avoid recomputing hull on quality weight changes
+  }, [selectedAreaPnoSet, data]);
 
   // Compute PNOs of neighborhoods intersecting with drawn polygon (for boundary snapping).
   // booleanIntersects is lazily imported to keep @turf/boolean-intersects out of the main bundle.
   const [drawnAreaPnos, setDrawnAreaPnos] = useState<string[]>([]);
   useEffect(() => {
-    if (!drawnPolygon || !filteredData) { setDrawnAreaPnos([]); return; }
+    if (!drawnPolygon || !data) { setDrawnAreaPnos([]); return; }
     if (selectedAreaPnos.length > 0) { setDrawnAreaPnos(selectedAreaPnos); return; }
     let cancelled = false;
     import('@turf/boolean-intersects').then(({ booleanIntersects }) => {
       if (cancelled) return;
       const pnos: string[] = [];
-      for (const feature of filteredData.features) {
+      for (const feature of data.features) {
         if (!feature.geometry || !feature.properties?.pno) continue;
         const geom = feature.geometry as Polygon | MultiPolygon;
         if (geom.type !== 'Polygon' && geom.type !== 'MultiPolygon') continue;
@@ -352,17 +352,22 @@ const App: React.FC = () => {
       }
       setDrawnAreaPnos(pnos);
     }).catch(() => {
-      // If @turf/boolean-intersects fails to load, clear drawn area PNOs
       if (!cancelled) setDrawnAreaPnos([]);
     });
     return () => { cancelled = true; };
-  }, [drawnPolygon, filteredData, selectedAreaPnos]);
+  }, [drawnPolygon, data, selectedAreaPnos]);
 
   const handleSelectAreaClick = useCallback((props: NeighborhoodProperties) => {
     const pno = props.pno;
-    setSelectedAreaPnos((prev) =>
-      prev.includes(pno) ? prev.filter((p) => p !== pno) : [...prev, pno]
-    );
+    setSelectedAreaPnos((prev) => {
+      const idx = prev.indexOf(pno);
+      if (idx >= 0) {
+        const next = prev.slice();
+        next.splice(idx, 1);
+        return next;
+      }
+      return [...prev, pno];
+    });
   }, []);
 
   const handleFinishSelect = useCallback(() => {
@@ -658,38 +663,39 @@ const App: React.FC = () => {
     handleCityChange(cityId as CityFilter);
   }, [handleCityChange]);
 
-  // Build favorite entries with names for UserMenu
-  // Look up in pnoFeatureMap (neighborhoods) first, then fall back to filteredData
-  // (for synthetic metro area features), and finally resolve region IDs by translation key.
+  // Build favorite entries with names for UserMenu.
+  // Uses pnoFeatureMap for real neighborhoods and i18n for metro area region IDs.
+  // Does NOT depend on filteredData/qualityVersion since favorites only need names.
   const regionIdSet = useMemo(() => new Set<string>(REGION_IDS), []);
   const favoriteEntries: FavoriteEntry[] = useMemo(() => {
     return favorites
       .map(pno => {
-        const feature = pnoFeatureMap.get(pno)
-          ?? filteredData?.features.find(f => f.properties?.pno === pno);
+        const feature = pnoFeatureMap.get(pno);
         if (feature) {
           const name = (feature.properties?.nimi as string) ?? pno;
           return { pno, name };
         }
-        // Metro area favorite when not in "all" view — resolve name from i18n
+        // Metro area or region ID — resolve name from i18n
         if (regionIdSet.has(pno)) {
           return { pno, name: t(`city.${pno}`) };
         }
         return null;
       })
       .filter((e): e is FavoriteEntry => e !== null);
-  }, [favorites, pnoFeatureMap, filteredData, regionIdSet]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- lang triggers name refresh; pnoFeatureMap covers real neighborhoods
+  }, [favorites, pnoFeatureMap, regionIdSet, lang]);
 
   const pendingFavoritePno = useRef<string | null>(null);
   const handleSelectFavorite = useCallback((pno: string) => {
-    // Neighborhood lookup
-    const feature = pnoFeatureMap.get(pno)
-      ?? filteredData?.features.find(f => f.properties?.pno === pno);
+    // Neighborhood lookup — use pnoFeatureMap for real neighborhoods,
+    // then fall back to filteredData (via ref) for synthetic metro area features
+    const feature = pnoFeatureMapRef.current.get(pno)
+      ?? filteredDataRef.current?.features.find(f => f.properties?.pno === pno);
     if (feature?.properties) {
       const city = feature.properties.city as string | undefined;
       if (city && feature.properties._isMetroArea) {
         setCityFilter('all');
-      } else if (city && cityFilter !== 'all' && city !== cityFilter) {
+      } else if (city && cityFilterRef.current !== 'all' && city !== cityFilterRef.current) {
         setCityFilter(city as CityFilter);
       }
       select(feature.properties as NeighborhoodProperties);
@@ -700,7 +706,7 @@ const App: React.FC = () => {
       pendingFavoritePno.current = pno;
       setCityFilter('all');
     }
-  }, [pnoFeatureMap, filteredData, select, cityFilter, setCityFilter, regionIdSet]);
+  }, [select, setCityFilter, regionIdSet]);
 
   // Resolve pending metro area favorite after allCitiesData becomes available
   useEffect(() => {
