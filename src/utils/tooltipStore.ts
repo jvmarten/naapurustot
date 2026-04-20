@@ -31,11 +31,6 @@ export function getTooltipSnapshot(): TooltipData | null {
 export function setTooltipData(data: TooltipData | null): void {
   if (current === data) return;
   current = data;
-  // Iterate the Set directly instead of spreading into a temporary array.
-  // This runs ~60 times/second during mouse hover; the previous [...listeners]
-  // spread allocated a throwaway array each time, adding GC pressure.
-  // Safe because useSyncExternalStore schedules state updates asynchronously —
-  // it doesn't re-subscribe (mutate the Set) during the synchronous notification loop.
   listeners.forEach(l => l());
 }
 

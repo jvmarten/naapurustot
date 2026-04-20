@@ -82,6 +82,8 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, onSelect,
 
   // CF-1: Find which neighborhood contains a geocoded point.
   // Uses lazy-loaded turf modules — cached after first import.
+  // Filters candidates by bbox first to avoid running the expensive
+  // booleanPointInPolygon on all ~200-1000 features.
   const turfRef = useRef<{ booleanPointInPolygon: typeof import('@turf/boolean-point-in-polygon').booleanPointInPolygon; point: typeof import('@turf/helpers').point } | null>(null);
   async function findNeighborhoodForPoint(coords: [number, number]): Promise<GeoJSON.Feature | null> {
     if (!data) return null;
@@ -94,7 +96,15 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, onSelect,
     }
     const { booleanPointInPolygon, point } = turfRef.current;
     const pt = point(coords);
+    const [lng, lat] = coords;
     for (const feature of data.features) {
+      if (!feature.geometry) continue;
+      // Quick bbox rejection: skip features whose bounding box doesn't contain the point.
+      // This avoids the expensive polygon test for ~95% of features.
+      const bbox = feature.bbox;
+      if (bbox) {
+        if (lng < bbox[0] || lng > bbox[2] || lat < bbox[1] || lat > bbox[3]) continue;
+      }
       try {
         if (booleanPointInPolygon(pt, feature as GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.MultiPolygon>)) {
           return feature;
