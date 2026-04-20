@@ -24,6 +24,7 @@ export interface ApiUser {
 interface ApiResponse<T> {
   data?: T;
   error?: string;
+  status?: number;
 }
 
 /** Map known server error messages to i18n keys for localised display. */
@@ -61,7 +62,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<ApiRespo
   try {
     const body = await res.json();
     if (!res.ok) {
-      return { error: localiseError(body.error || `${res.status}`) };
+      return { error: localiseError(body.error || `${res.status}`), status: res.status };
     }
     return { data: body };
   } catch {

@@ -506,6 +506,7 @@ const METRIC_DEFS: MetricDef[] = [
   { property: 'tech_sector_pct', weight: 'population', precision: 1 },
   { property: 'healthcare_workers_pct', weight: 'population', precision: 1 },
   // Phase 8: More demographic detail + trends
+  // employment_rate is handled as a special ratio below (totalEmployed / totalActPop)
   { property: 'elderly_ratio_pct', weight: 'population', precision: 1, pctOfPop: true },
   { property: 'avg_household_size', weight: 'population', precision: 2 },
   { property: 'manufacturing_jobs_pct', weight: 'population', precision: 1 },

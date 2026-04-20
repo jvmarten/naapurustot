@@ -8,6 +8,8 @@ import pg from 'pg';
 
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
+  connectionTimeoutMillis: 5000,
+  idleTimeoutMillis: 30000,
 });
 
 /** Create tables if they don't exist. Safe to call on every startup. */

@@ -44,10 +44,10 @@ function parseUrl(): UrlState {
   }
 
   return {
-    pno: pno && /^\d{5}$/.test(pno) ? pno : null,
+    pno: pno && (VALID_CITIES.has(pno) || /^\d{5}$/.test(pno)) ? pno : null,
     layer: layer && VALID_LAYER_IDS.has(layer) ? (layer as LayerId) : null,
     compare: compare
-      ? compare.split(',').filter((p) => /^\d{5}$/.test(p))
+      ? compare.split(',').filter((p) => /^\d{5}$/.test(p) || VALID_CITIES.has(p))
       : [],
     city: city && VALID_CITIES.has(city) ? city : null,
   };

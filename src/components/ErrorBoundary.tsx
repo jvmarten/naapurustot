@@ -44,12 +44,20 @@ export class ErrorBoundary extends React.Component<Props, State> {
           <p className="text-sm text-surface-500 dark:text-surface-400 mb-4 max-w-sm">
             {this.state.error?.message || t('error.boundary_description')}
           </p>
-          <button
-            onClick={() => window.location.reload()}
-            className="px-4 py-2 rounded-xl text-sm font-medium bg-brand-500 text-white hover:bg-brand-600 transition-colors"
-          >
-            {t('error.reload')}
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={() => this.setState({ hasError: false, error: null })}
+              className="px-4 py-2 rounded-xl text-sm font-medium bg-surface-200 dark:bg-surface-700 text-surface-900 dark:text-white hover:bg-surface-300 dark:hover:bg-surface-600 transition-colors"
+            >
+              {t('error.retry')}
+            </button>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 rounded-xl text-sm font-medium bg-brand-500 text-white hover:bg-brand-600 transition-colors"
+            >
+              {t('error.reload')}
+            </button>
+          </div>
         </div>
       );
     }
