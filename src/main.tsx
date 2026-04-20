@@ -32,11 +32,14 @@ registerSW({
     if (document.hidden) {
       window.location.reload();
     } else if (!pendingRefresh) {
-      // Guard against duplicate listeners from rapid successive SW activations.
       pendingRefresh = true;
-      document.addEventListener('visibilitychange', () => {
-        if (document.hidden) window.location.reload();
-      }, { once: true });
+      const onVisChange = () => {
+        if (document.hidden) {
+          document.removeEventListener('visibilitychange', onVisChange);
+          window.location.reload();
+        }
+      };
+      document.addEventListener('visibilitychange', onVisChange);
     }
   },
   onOfflineReady() {

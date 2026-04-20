@@ -34,6 +34,6 @@ export function toSlug(pno: string, nimi: string): string {
  *  permitted consecutive/trailing dashes ("00100---foo", "00100-foo--bar"),
  *  silently stripping garbage after the first five chars. */
 export function parseSlug(slug: string): string | null {
-  if (!/^\d{5}(?:-(?:[a-z0-9]+(?:-[a-z0-9]+)*)?)?$/.test(slug)) return null;
+  if (!/^\d{5}(?:-(?:[a-z0-9]+(?:-[a-z0-9]+)*)?)?$/.test(slug.toLowerCase())) return null;
   return slug.slice(0, 5);
 }

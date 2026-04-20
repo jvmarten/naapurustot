@@ -202,6 +202,7 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, onSelect,
           aria-activedescendant={highlightedIndex >= 0 ? `search-result-${highlightedIndex}` : undefined}
           aria-controls="search-results-list"
           aria-autocomplete="list"
+          aria-label={t('search.placeholder')}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
