@@ -8,11 +8,21 @@ interface StatEntry {
   value: string;
 }
 
-function collectStats(d: NeighborhoodProperties): StatEntry[] {
+let _exportFmtLocale = '';
+let _exportFmt: Intl.NumberFormat | null = null;
+function exportNumFmt(): Intl.NumberFormat {
   const loc = getLang() === 'en' ? 'en-US' : 'fi-FI';
-  const fmtDensity = (v: number | null | undefined) => (v == null ? '—' : `${v.toLocaleString(loc)} /km²`);
+  if (_exportFmt && _exportFmtLocale === loc) return _exportFmt;
+  _exportFmtLocale = loc;
+  _exportFmt = new Intl.NumberFormat(loc);
+  return _exportFmt;
+}
+
+function collectStats(d: NeighborhoodProperties): StatEntry[] {
+  const fmt = exportNumFmt();
+  const fmtDensity = (v: number | null | undefined) => (v == null ? '—' : `${fmt.format(v)} /km²`);
   const fmtSqm = (v: number | null | undefined) => (v == null ? '—' : `${v.toFixed(1)} m²`);
-  const fmtEuroSqm = (v: number | null | undefined) => (v == null ? '—' : `${v.toLocaleString(loc)} €/m²`);
+  const fmtEuroSqm = (v: number | null | undefined) => (v == null ? '—' : `${fmt.format(v)} €/m²`);
   const fmtStopDensity = (v: number | null | undefined) => (v == null ? '—' : `${v.toFixed(1)} /km²`);
 
   const rows: StatEntry[] = [
