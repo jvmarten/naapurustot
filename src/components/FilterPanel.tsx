@@ -500,6 +500,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = React.memo(({
           className="w-full text-left px-4 py-2 flex items-center gap-3
                      hover:bg-surface-100 dark:hover:bg-surface-800/60 transition-colors
                      border-b border-surface-100 dark:border-surface-800/30 last:border-0"
+          style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 52px' }}
         >
           <span className="text-xs font-mono text-surface-400 dark:text-surface-500 w-6 text-right flex-shrink-0">
             {sortDir === 'asc' ? ranked.length - i : i + 1}

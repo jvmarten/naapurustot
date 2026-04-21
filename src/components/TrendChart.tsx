@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import type { TrendDataPoint } from '../utils/metrics';
-import { t } from '../utils/i18n';
+import { t, getLang } from '../utils/i18n';
 
 interface TrendChartProps {
   title: string;
@@ -175,8 +175,20 @@ interface TrendSectionProps {
 
 // Stable formatter references so TrendChart (React.memo) doesn't re-render
 // when TrendSection re-renders with the same data.
+// fmtPopulation uses a cached Intl.NumberFormat that respects the app language.
+// Previously hardcoded 'fi-FI', which produced Finnish formatting even in English mode.
+let _trendFmtLocale = '';
+let _trendFmt: Intl.NumberFormat | null = null;
+function trendNumFmt(): Intl.NumberFormat {
+  const loc = getLang() === 'en' ? 'en-US' : 'fi-FI';
+  if (_trendFmt && _trendFmtLocale === loc) return _trendFmt;
+  _trendFmtLocale = loc;
+  _trendFmt = new Intl.NumberFormat(loc);
+  return _trendFmt;
+}
+
 const fmtIncome = (v: number) => `${Math.round(v / 1000)}k`;
-const fmtPopulation = (v: number) => v.toLocaleString('fi-FI');
+const fmtPopulation = (v: number) => trendNumFmt().format(v);
 const fmtUnemployment = (v: number) => `${v.toFixed(1)}%`;
 
 export const TrendSection: React.FC<TrendSectionProps> = React.memo(({

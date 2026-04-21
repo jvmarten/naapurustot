@@ -1093,7 +1093,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
               >
                 <div className="px-6 py-4 space-y-6">
                   {section}
-                  {exportButtons}
+                  {section && exportButtons}
                 </div>
               </div>
             ))}
