@@ -21,7 +21,7 @@ export async function generateScoreCard(
   data: NeighborhoodProperties,
   metroAverages: Record<string, number>,
 ): Promise<void> {
-  const qi = data.quality_index;
+  const qi = typeof data.quality_index === 'number' && isFinite(data.quality_index) ? data.quality_index : null;
   const cat = qi != null ? getQualityCategory(qi) : null;
 
   // Build the card HTML
@@ -77,7 +77,7 @@ export async function generateScoreCard(
     const { toPng } = await import('html-to-image');
     const dataUrl = await toPng(container, { quality: 0.95, pixelRatio: 2 });
     const link = document.createElement('a');
-    link.download = `${(data.nimi || data.pno).replace(/[/\\:*?"<>|]/g, '_')}-${data.pno}-naapurustot.png`;
+    link.download = `${(data.nimi || data.pno).replace(/[/\\:*?"<>|\x00-\x1f]/g, '_')}-${data.pno}-naapurustot.png`;
     link.href = dataUrl;
     link.click();
   } finally {

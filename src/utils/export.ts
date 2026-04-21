@@ -48,10 +48,12 @@ function collectStats(d: NeighborhoodProperties): StatEntry[] {
 }
 
 function escapeCsvField(field: string): string {
+  // Strip null bytes — they truncate cell content in some CSV readers.
+  const clean = field.replace(/\0/g, '');
   // Prevent CSV injection: prefix formula-triggering characters with a single quote
   // so Excel/LibreOffice treat the cell as text, not a formula.
-  const needsPrefix = /^[=+\-@\t\r]/.test(field);
-  const escaped = needsPrefix ? `'${field}` : field;
+  const needsPrefix = /^[=+\-@\t\r]/.test(clean);
+  const escaped = needsPrefix ? `'${clean}` : clean;
   if (escaped.includes(',') || escaped.includes('"') || escaped.includes('\n') || escaped.includes('\r')) {
     return `"${escaped.replace(/"/g, '""')}"`;
   }
@@ -74,7 +76,7 @@ export function exportCsv(d: NeighborhoodProperties, _avg: Record<string, number
   try {
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${(d.nimi || d.pno).replace(/[/\\:*?"<>|]/g, '_')}_${d.pno}.csv`;
+    a.download = `${(d.nimi || d.pno).replace(/[/\\:*?"<>|\x00-\x1f]/g, '_')}_${d.pno}.csv`;
     a.click();
   } finally {
     // Revoke after a generous delay to ensure the browser has initiated the download.
@@ -91,7 +93,7 @@ export function exportCsv(d: NeighborhoodProperties, _avg: Record<string, number
 export function exportPdf(d: NeighborhoodProperties, _avg: Record<string, number>): void {
   const stats = collectStats(d);
   const lang = getLang();
-  const qi = d.quality_index;
+  const qi = typeof d.quality_index === 'number' && isFinite(d.quality_index) ? d.quality_index : null;
   const cat = qi != null ? getQualityCategory(qi) : null;
   const catLabel = cat?.label[lang] ?? '—';
 

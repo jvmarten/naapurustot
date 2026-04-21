@@ -41,7 +41,10 @@ export interface ProcessedData {
 const ID_FIELDS = new Set(['pno', 'postinumeroalue', 'kunta', 'nimi', 'namn', 'city']);
 
 function processTopology(topo: Topology): ProcessedData {
-  const objectName = Object.keys(topo.objects ?? {})[0];
+  if (!topo || typeof topo !== 'object' || !topo.objects) {
+    throw new Error('Invalid TopoJSON: expected an object with "objects" property');
+  }
+  const objectName = Object.keys(topo.objects)[0];
   if (!objectName) throw new Error('Invalid TopoJSON: no objects found');
   const geojson = feature(topo, topo.objects[objectName]) as FeatureCollection;
 

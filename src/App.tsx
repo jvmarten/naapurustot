@@ -749,7 +749,7 @@ const App: React.FC = () => {
       if (canonical) canonical.setAttribute('href', pnoUrl);
       if (ogUrl) ogUrl.setAttribute('content', pnoUrl);
     } else {
-      document.title = 'naapurustot — naapurustot kartalla | naapurustot.fi';
+      document.title = 'naapurustot — asuinalueet kartalla | naapurustot.fi';
       if (desc) desc.setAttribute('content', 'naapurustot.fi — vertaile Helsingin, Espoon, Vantaan ja Turun naapurustoja ja asuinalueita 35+ mittarilla. Tulotaso, asuntohinnat, palvelut, turvallisuus, joukkoliikenne ja paljon muuta interaktiivisella kartalla.');
       if (canonical) canonical.setAttribute('href', 'https://naapurustot.fi/');
       if (ogUrl) ogUrl.setAttribute('content', 'https://naapurustot.fi/');

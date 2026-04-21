@@ -22,9 +22,9 @@ export const Tooltip: React.FC<TooltipProps> = ({ x, y, name, value, layer, metr
     const fmt = value != null ? layer.format(value) : t('tooltip.no_data');
     let cmpText = '';
     let cmpClass = '';
-    if (value != null && metroAverage != null && metroAverage !== 0) {
+    if (value != null && metroAverage != null && Math.abs(metroAverage) > 0.1) {
       const diffPct = ((value - metroAverage) / Math.abs(metroAverage)) * 100;
-      if (Math.abs(diffPct) >= 1) {
+      if (Math.abs(diffPct) >= 1 && Math.abs(diffPct) <= 999) {
         const sign = diffPct > 0 ? '+' : '';
         cmpText = `${diffPct > 0 ? '\u25B2' : '\u25BC'} ${sign}${diffPct.toFixed(0)}% ${t('tooltip.vs_avg')}`;
         const higherIsBetter = layer.higherIsBetter !== false;

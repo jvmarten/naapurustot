@@ -34,11 +34,18 @@ interface GridDataState {
 function parseGridResponse(path: string, json: unknown): FeatureCollection {
   if (path.endsWith('.topojson')) {
     const topo = json as Topology;
-    const objectName = Object.keys(topo.objects ?? {})[0];
+    if (!topo || typeof topo !== 'object' || !topo.objects) {
+      throw new Error('Invalid grid TopoJSON: missing objects');
+    }
+    const objectName = Object.keys(topo.objects)[0];
     if (!objectName) throw new Error('Invalid grid TopoJSON: no objects');
     return feature(topo, topo.objects[objectName]) as FeatureCollection;
   }
-  return json as FeatureCollection;
+  const fc = json as FeatureCollection;
+  if (!fc || typeof fc !== 'object' || !Array.isArray(fc.features)) {
+    throw new Error('Invalid grid GeoJSON: missing features array');
+  }
+  return fc;
 }
 
 /**

@@ -70,7 +70,12 @@ export function getFeatureCenter(feature: Feature): [number, number] {
   const geom = feature.geometry;
   if (!geom) return [0, 0];
   if (geom.type === 'Point') return geom.coordinates as [number, number];
-  if (!('coordinates' in geom)) return [0, 0];
+  if (!('coordinates' in geom)) {
+    if (geom.type === 'GeometryCollection' && geom.geometries?.length) {
+      return getFeatureCenter({ ...feature, geometry: geom.geometries[0] });
+    }
+    return [0, 0];
+  }
 
   let minLng = Infinity;
   let maxLng = -Infinity;
