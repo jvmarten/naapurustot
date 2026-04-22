@@ -145,12 +145,15 @@ const formatStopDensity = (v: number | string | null | undefined): string => {
 };
 
 
-// PO-2: Collapsible section component
+// PO-2: Collapsible section component.
+// React.memo prevents re-rendering collapsed sections when the parent re-renders
+// (e.g., quality weight slider drag). With 6 collapsible sections in the panel,
+// 5 are typically collapsed — skipping their subtree avoids ~60 StatRow evaluations.
 const CollapsibleSection: React.FC<{
   title: string;
   defaultOpen?: boolean;
   children: React.ReactNode;
-}> = ({ title, defaultOpen = false, children }) => {
+}> = React.memo(({ title, defaultOpen = false, children }) => {
   const [open, setOpen] = useState(defaultOpen);
   return (
     <div>
@@ -171,7 +174,8 @@ const CollapsibleSection: React.FC<{
       {open && children}
     </div>
   );
-};
+});
+CollapsibleSection.displayName = 'CollapsibleSection';
 
 /**
  * Self-contained quality index badge with animated count-up.

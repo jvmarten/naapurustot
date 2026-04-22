@@ -366,6 +366,14 @@ export const FilterPanel: React.FC<FilterPanelProps> = React.memo(({
     return data.features.filter((f) => matchingPnos.has((f.properties as NeighborhoodProperties).pno));
   }, [data, matchingPnos]);
 
+  // Pre-resolve layer configs once per filter change — avoids calling getLayerById
+  // per-feature per-filter in the ranked computation (~200 features × 4 filters = 800
+  // redundant Map lookups per slider drag tick). Also reused in the result list JSX.
+  const resolvedFilters = useMemo(
+    () => filters.map((c) => ({ ...c, layer: getLayerById(c.layerId) })),
+    [filters],
+  );
+
   // Sort matching neighborhoods by how many criteria they score well on
   // Use a simple score: for each criterion, how far into the range (normalized 0-1)
   const ranked = useMemo(() => {
@@ -374,21 +382,17 @@ export const FilterPanel: React.FC<FilterPanelProps> = React.memo(({
     const items = matchingFeatures.map((f) => {
       const p = f.properties as NeighborhoodProperties;
       let score = 0;
-      for (const criterion of filters) {
-        const layer = getLayerById(criterion.layerId);
-        const value = p[layer.property] as number;
-        const range = criterion.max - criterion.min;
+      for (const rf of resolvedFilters) {
+        const value = p[rf.layer.property] as number;
+        const range = rf.max - rf.min;
         if (range > 0) {
-          score += (value - criterion.min) / range;
+          score += (value - rf.min) / range;
         } else {
           score += 1;
         }
       }
-      score /= filters.length;
+      score /= resolvedFilters.length;
 
-      // Defer getFeatureCenter to click-time instead of computing it for all
-      // matching features on every filter change. During slider drags (~7 updates/sec),
-      // this avoids O(n) coordinate bbox scans for features the user never clicks.
       return {
         pno: p.pno,
         name: p.nimi || p.pno,
@@ -399,18 +403,19 @@ export const FilterPanel: React.FC<FilterPanelProps> = React.memo(({
     });
 
     const dir = sortDir === 'asc' ? 1 : -1;
+    const sortLayer = sortKey !== 'score' && sortKey !== 'name'
+      ? getLayerById(sortKey as LayerId)
+      : null;
     items.sort((a, b) => {
       if (sortKey === 'score') return dir * (a.score - b.score);
       if (sortKey === 'name') return dir * a.name.localeCompare(b.name, 'fi');
-      // Sort by a specific layer property
-      const layer = getLayerById(sortKey as LayerId);
-      const va = (a.properties[layer.property] as number) ?? 0;
-      const vb = (b.properties[layer.property] as number) ?? 0;
+      const va = (a.properties[sortLayer!.property] as number) ?? 0;
+      const vb = (b.properties[sortLayer!.property] as number) ?? 0;
       return dir * (va - vb);
     });
 
     return items;
-  }, [matchingFeatures, filters, sortKey, sortDir]);
+  }, [matchingFeatures, resolvedFilters, sortKey, sortDir]);
 
   // Add a new filter criterion
   const handleAddFilter = useCallback(
@@ -470,14 +475,11 @@ export const FilterPanel: React.FC<FilterPanelProps> = React.memo(({
       >
         <option value="score">{t('filter.sort_best_match')}</option>
         <option value="name">{t('filter.sort_name')}</option>
-        {filters.map((criterion) => {
-          const layer = getLayerById(criterion.layerId);
-          return (
-            <option key={criterion.layerId} value={criterion.layerId}>
-              {t(layer.labelKey)}
+        {resolvedFilters.map((rf) => (
+            <option key={rf.layerId} value={rf.layerId}>
+              {t(rf.layer.labelKey)}
             </option>
-          );
-        })}
+        ))}
       </select>
       <button
         onClick={() => setSortDir(sortDir === 'asc' ? 'desc' : 'asc')}
@@ -511,16 +513,15 @@ export const FilterPanel: React.FC<FilterPanelProps> = React.memo(({
             </div>
             {/* Show key filter values */}
             <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
-              {filters.map((criterion) => {
-                const layer = getLayerById(criterion.layerId);
-                const value = item.properties[layer.property] as number | null;
+              {resolvedFilters.map((rf) => {
+                const value = item.properties[rf.layer.property] as number | null;
                 if (value == null) return null;
                 return (
                   <span
-                    key={criterion.layerId}
+                    key={rf.layerId}
                     className="text-[10px] text-surface-500 dark:text-surface-400 tabular-nums"
                   >
-                    {t(layer.labelKey)}: {layer.format(value)}
+                    {t(rf.layer.labelKey)}: {rf.layer.format(value)}
                   </span>
                 );
               })}
