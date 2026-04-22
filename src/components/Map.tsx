@@ -471,27 +471,48 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when layer changes to toggle modes
   }, [activeLayer, gridData, colorblind, layerConfig]);
 
-  // Update fill opacity when user adjusts the slider
+  // Update fill opacity when user adjusts the slider.
+  // Handles ALL rendering modes (default, filter, wizard, grid) so that the
+  // filter/wizard effects don't need fillOpacity in their dep arrays — which
+  // previously caused them to re-run their full filter expression logic
+  // (~Array.from, setFilter, addLayer) on every pixel of the opacity slider drag.
+  const filterActiveRef = useRef(filterActive);
+  filterActiveRef.current = filterActive;
+  const filterMatchPnosRef = useRef(filterMatchPnos);
+  filterMatchPnosRef.current = filterMatchPnos;
+  const wizardHighlightPnosRef = useRef(wizardHighlightPnos);
+  wizardHighlightPnosRef.current = wizardHighlightPnos;
+
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !data) return;
     if (!map.getLayer(FILL_LAYER)) return;
 
-    // Only update if no filter/wizard override is active (those effects handle their own opacity)
-    if (filterActive && filterMatchPnos.size > 0) return;
-    if (wizardHighlightPnos.length > 0) return;
-
     const layer = layerConfig ?? getLayerById(activeLayer);
     const useGrid = !!gridData && !!layer.gridProperty;
+
     if (useGrid) {
       map.setPaintProperty(FILL_LAYER, 'fill-opacity', 0);
       if (map.getLayer(GRID_FILL_LAYER)) {
         map.setPaintProperty(GRID_FILL_LAYER, 'fill-opacity', 0.8 * fillOpacity);
       }
+    } else if (filterActiveRef.current && filterMatchPnosRef.current.size > 0) {
+      const matchPnoArray = Array.from(filterMatchPnosRef.current);
+      map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(fillOpacity, {
+        matchExpr: ['in', ['get', 'pno'], ['literal', matchPnoArray]],
+        matchVal: 0.8,
+        dimVal: 0.15,
+      }));
+    } else if (wizardHighlightPnosRef.current.length > 0) {
+      map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(fillOpacity, {
+        matchExpr: ['in', ['get', 'pno'], ['literal', wizardHighlightPnosRef.current]],
+        matchVal: 0.8,
+        dimVal: 0.2,
+      }));
     } else {
       map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(fillOpacity));
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- data/filterActive/filterMatchPnos/wizardHighlightPnos are guards, not triggers
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- filter/wizard state read from refs
   }, [fillOpacity]);
 
   // PO-2: Smoothly transition fill color when active layer or colorblind mode changes.
@@ -597,14 +618,18 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
 
   // Filter-aware rendering: dim non-matching neighborhoods and highlight matching ones.
   // Uses setFilter on an existing layer instead of remove/add to avoid layer recreation overhead.
+  // Opacity is handled by the dedicated fillOpacity effect above — this effect only manages
+  // the filter expression and highlight layer visibility.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !data) return;
     if (!map.getLayer(FILL_LAYER)) return;
 
+    const currentOpacity = fillOpacityRef.current;
+
     if (filterActive && filterMatchPnos.size > 0) {
       const matchPnoArray = Array.from(filterMatchPnos);
-      map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(fillOpacity, {
+      map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(currentOpacity, {
         matchExpr: ['in', ['get', 'pno'], ['literal', matchPnoArray]],
         matchVal: 0.8,
         dimVal: 0.15,
@@ -628,12 +653,12 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         });
       }
     } else {
-      map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(fillOpacity));
+      map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(currentOpacity));
       if (map.getLayer(FILTER_HIGHLIGHT_LAYER)) {
         map.setLayoutProperty(FILTER_HIGHLIGHT_LAYER, 'visibility', 'none');
       }
     }
-  }, [filterActive, filterMatchPnos, data, theme, fillOpacity]);
+  }, [filterActive, filterMatchPnos, data, theme]);
 
   // Hover/click handler — registered once and never re-attached.
   // All callbacks and mode flags are read from refs so the handlers stay
@@ -871,25 +896,27 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   }, [selectedAreaPnos, data, theme]);
 
   // PO-4: Wizard results highlight layer — uses setFilter on existing layer to avoid recreation.
+  // Opacity is handled by the dedicated fillOpacity effect — this only manages the
+  // highlight layer and the initial opacity expression when wizard results change.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !data) return;
     if (!map.isStyleLoaded() || !map.getSource(SOURCE_ID)) return;
 
+    const currentOpacity = fillOpacityRef.current;
+
     if (wizardHighlightPnos.length === 0) {
       if (map.getLayer(WIZARD_HIGHLIGHT_LAYER)) {
         map.setLayoutProperty(WIZARD_HIGHLIGHT_LAYER, 'visibility', 'none');
       }
-      // Restore default opacity
       if (map.getLayer(FILL_LAYER)) {
-        map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(fillOpacity));
+        map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(currentOpacity));
       }
       return;
     }
 
-    // Dim non-highlighted neighborhoods
     if (map.getLayer(FILL_LAYER)) {
-      map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(fillOpacity, {
+      map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(currentOpacity, {
         matchExpr: ['in', ['get', 'pno'], ['literal', wizardHighlightPnos]],
         matchVal: 0.8,
         dimVal: 0.2,
@@ -914,7 +941,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         },
       });
     }
-  }, [wizardHighlightPnos, data, theme, fillOpacity]);
+  }, [wizardHighlightPnos, data, theme]);
 
   // CF-6: Draw/select mode cursor
   useEffect(() => {
