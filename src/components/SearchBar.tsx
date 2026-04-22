@@ -304,7 +304,7 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, onSelect,
                 const globalIndex = results.length + i;
                 return (
                   <button
-                    key={i}
+                    key={`${addr.coordinates[0]},${addr.coordinates[1]}`}
                     id={`search-result-${globalIndex}`}
                     role="option"
                     aria-selected={globalIndex === highlightedIndex}

@@ -42,7 +42,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
             {t('error.boundary_title')}
           </h2>
           <p className="text-sm text-surface-500 dark:text-surface-400 mb-4 max-w-sm">
-            {this.state.error?.message || t('error.boundary_description')}
+            {t('error.boundary_description')}
           </p>
           <div className="flex gap-3">
             <button

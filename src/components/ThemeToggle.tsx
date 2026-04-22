@@ -1,5 +1,6 @@
 import React from 'react';
 import { useTheme } from '../hooks/useTheme';
+import { t } from '../utils/i18n';
 
 export const ThemeToggle: React.FC = () => {
   const { theme, setMode } = useTheme();
@@ -8,7 +9,7 @@ export const ThemeToggle: React.FC = () => {
   return (
     <button
       onClick={toggle}
-      aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+      aria-label={theme === 'dark' ? t('aria.switch_to_light') : t('aria.switch_to_dark')}
       className="px-3 py-2 md:py-1.5 rounded-lg bg-white/90 dark:bg-surface-900/90 backdrop-blur-md
                  border border-surface-200 dark:border-surface-700/40 text-surface-600 dark:text-surface-300
                  hover:text-surface-900 dark:hover:text-white hover:bg-white dark:hover:bg-surface-800/80

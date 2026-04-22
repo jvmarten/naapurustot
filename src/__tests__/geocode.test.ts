@@ -97,9 +97,9 @@ describe('geocodeAddress', () => {
 
     await geocodeAddress('boundary_test_query');
     const url = fetchSpy.mock.calls[0][0] as string;
-    expect(url).toContain('boundary.rect.min_lon=21.5');
-    expect(url).toContain('boundary.rect.max_lon=25.4');
-    expect(url).toContain('boundary.rect.min_lat=60.1');
-    expect(url).toContain('boundary.rect.max_lat=62.0');
+    expect(url).toContain('boundary.rect.min_lon=19.5');
+    expect(url).toContain('boundary.rect.max_lon=31.5');
+    expect(url).toContain('boundary.rect.min_lat=59.5');
+    expect(url).toContain('boundary.rect.max_lat=70.5');
   });
 });

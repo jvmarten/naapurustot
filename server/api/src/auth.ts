@@ -81,8 +81,7 @@ router.post('/signup', rateLimit(3, 24 * 60 * 60 * 1000, 'signup'), async (req: 
   }
 
   // Verify Turnstile (skipped in dev when no secret is configured)
-  const ip = req.headers['x-forwarded-for']?.toString().split(',')[0].trim() || req.ip;
-  const turnstileOk = await verifyTurnstile(turnstileToken || '', ip);
+  const turnstileOk = await verifyTurnstile(turnstileToken || '', req.ip);
   if (!turnstileOk) {
     res.status(403).json({ error: 'Bot verification failed. Please try again.' });
     return;
