@@ -14,6 +14,10 @@ import { initDb } from './db.js';
 const app = express();
 const PORT = parseInt(process.env.PORT || '3001', 10);
 
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
 const ALLOWED_ORIGINS = [
   'https://naapurustot.fi',
   'https://www.naapurustot.fi',
@@ -35,7 +39,7 @@ app.use(cors({
   credentials: true,
 }));
 
-app.use(express.json());
+app.use(express.json({ limit: '16kb' }));
 app.use(cookieParser());
 
 app.get('/health', (_req, res) => {

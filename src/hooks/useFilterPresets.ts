@@ -52,6 +52,7 @@ export function useFilterPresets() {
 
   const addPreset = useCallback((name: string, criteria: FilterCriterion[]) => {
     setPresets((prev) => {
+      if (prev.length >= 50) return prev;
       return [...prev, { name, criteria }];
     });
   }, []);

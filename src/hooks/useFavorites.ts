@@ -64,10 +64,22 @@ export function useFavorites(userId?: string | null) {
     }
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
+      saveTimerRef.current = null;
       api.saveFavorites(favorites);
     }, 1000);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
   }, [favorites, userId]);
+
+  // Flush pending server save on unmount to prevent data loss.
+  // Without this, a favorite toggled within the last 1s before navigation would be lost.
+  const userIdRef = useRef(userId);
+  useEffect(() => { userIdRef.current = userId; }, [userId]);
+  useEffect(() => () => {
+    if (saveTimerRef.current && userIdRef.current) {
+      clearTimeout(saveTimerRef.current);
+      api.saveFavorites(favoritesRef.current);
+    }
+  }, []);
 
   // On login (userId becomes truthy): fetch server favorites and merge with local
   useEffect(() => {

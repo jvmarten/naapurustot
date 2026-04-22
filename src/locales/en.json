@@ -293,6 +293,8 @@
   "aria.layer_changed": "Layer changed to",
   "aria.neighborhood_selected": "Neighborhood selected",
   "aria.filter_results": "Filter results",
+  "aria.switch_to_light": "Switch to light mode",
+  "aria.switch_to_dark": "Switch to dark mode",
   "tools.compare_layers": "Compare layers",
   "layers.search_placeholder": "Search layers\u2026",
   "panel.section.demographics": "Demographics",

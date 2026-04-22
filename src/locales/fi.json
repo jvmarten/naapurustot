@@ -293,6 +293,8 @@
   "aria.layer_changed": "Aineisto vaihdettu",
   "aria.neighborhood_selected": "Alue valittu",
   "aria.filter_results": "Suodatustuloksia",
+  "aria.switch_to_light": "Vaihda vaaleaan teemaan",
+  "aria.switch_to_dark": "Vaihda tummaan teemaan",
   "tools.compare_layers": "Vertaa aineistoja",
   "layers.search_placeholder": "Hae aineistoa\u2026",
   "panel.section.demographics": "Väestörakenne",
