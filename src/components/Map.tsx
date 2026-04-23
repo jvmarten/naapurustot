@@ -480,6 +480,14 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   filterActiveRef.current = filterActive;
   const filterMatchPnosRef = useRef(filterMatchPnos);
   filterMatchPnosRef.current = filterMatchPnos;
+  // Cache the Array.from conversion so fillOpacity slider drags don't recreate
+  // it on every tick (~60Hz) from the same underlying Set.
+  const filterMatchPnoArrayRef = useRef<string[]>([]);
+  const filterMatchPnoSetRef = useRef<Set<string>>(EMPTY_SET);
+  if (filterMatchPnoSetRef.current !== filterMatchPnos) {
+    filterMatchPnoSetRef.current = filterMatchPnos;
+    filterMatchPnoArrayRef.current = filterMatchPnos.size > 0 ? Array.from(filterMatchPnos) : [];
+  }
   const wizardHighlightPnosRef = useRef(wizardHighlightPnos);
   wizardHighlightPnosRef.current = wizardHighlightPnos;
 
@@ -496,10 +504,9 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       if (map.getLayer(GRID_FILL_LAYER)) {
         map.setPaintProperty(GRID_FILL_LAYER, 'fill-opacity', 0.8 * fillOpacity);
       }
-    } else if (filterActiveRef.current && filterMatchPnosRef.current.size > 0) {
-      const matchPnoArray = Array.from(filterMatchPnosRef.current);
+    } else if (filterActiveRef.current && filterMatchPnoArrayRef.current.length > 0) {
       map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(fillOpacity, {
-        matchExpr: ['in', ['get', 'pno'], ['literal', matchPnoArray]],
+        matchExpr: ['in', ['get', 'pno'], ['literal', filterMatchPnoArrayRef.current]],
         matchVal: 0.8,
         dimVal: 0.15,
       }));
@@ -628,7 +635,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     const currentOpacity = fillOpacityRef.current;
 
     if (filterActive && filterMatchPnos.size > 0) {
-      const matchPnoArray = Array.from(filterMatchPnos);
+      const matchPnoArray = filterMatchPnoArrayRef.current;
       map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(currentOpacity, {
         matchExpr: ['in', ['get', 'pno'], ['literal', matchPnoArray]],
         matchVal: 0.8,

@@ -13,7 +13,7 @@ import { DEFAULT_CENTER, DEFAULT_ZOOM, MAP_MAX_ZOOM, envNum } from '../utils/map
 const SplitLayerPicker: React.FC<{
   value: LayerId;
   onChange: (id: LayerId) => void;
-}> = ({ value, onChange }) => (
+}> = React.memo(({ value, onChange }) => (
   <select
     value={value}
     onChange={(e) => onChange(e.target.value as LayerId)}
@@ -26,7 +26,7 @@ const SplitLayerPicker: React.FC<{
       </option>
     ))}
   </select>
-);
+));
 
 const BASEMAP_LIGHT = (import.meta.env.VITE_BASEMAP_LIGHT_URL as string) || 'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png';
 const BASEMAP_DARK = (import.meta.env.VITE_BASEMAP_DARK_URL as string) || 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png';

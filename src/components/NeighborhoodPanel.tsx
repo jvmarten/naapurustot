@@ -294,9 +294,11 @@ const NotesEditor: React.FC<{ pno: string }> = React.memo(({ pno }) => {
 NotesEditor.displayName = 'NotesEditor';
 
 export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, allFeatures, onFlyTo, isFavorite = false, onToggleFavorite, onExploreCity }) => {
-  const eduTotal = [d.ko_yl_kork, d.ko_al_kork, d.ko_ammat, d.ko_perus]
-    .filter((v): v is number => v != null && v > 0)
-    .reduce((a, b) => a + b, 0) || 1;
+  const eduTotal = useMemo(() =>
+    [d.ko_yl_kork, d.ko_al_kork, d.ko_ammat, d.ko_perus]
+      .filter((v): v is number => v != null && v > 0)
+      .reduce((a, b) => a + b, 0) || 1,
+    [d.ko_yl_kork, d.ko_al_kork, d.ko_ammat, d.ko_perus]);
 
   // Copy link / share state
   const [copied, setCopied] = useState(false);
@@ -340,12 +342,12 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
   });
 
   // PO-3: Swipe navigation for mobile sections
-  const MOBILE_SECTIONS = [
+  const MOBILE_SECTIONS = useMemo(() => [
     t('panel.tab.overview'),
     t('panel.tab.stats'),
     t('panel.tab.trends'),
     t('panel.tab.similar'),
-  ] as const;
+  ] as const, []);
   const { activeSection, setActiveSection, dragOffset, isSnapping, isSwiping, handlers: swipeHandlers, onTransitionEnd } = useSwipeNavigation({
     sectionCount: MOBILE_SECTIONS.length,
   });
