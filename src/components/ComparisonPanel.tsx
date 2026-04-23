@@ -54,6 +54,8 @@ const STAT_SECTIONS: { title: string; stats: StatDef[] }[] = [
   },
 ];
 
+const ALL_STATS = STAT_SECTIONS.flatMap((s) => s.stats);
+
 const COLUMN_COLORS = [
   'text-brand-500 dark:text-brand-400',
   'text-emerald-500 dark:text-emerald-400',
@@ -98,21 +100,19 @@ const MobileCard: React.FC<{
       </button>
     </div>
     <div className="space-y-1.5">
-      {STAT_SECTIONS.flatMap((section) =>
-        section.stats.map((stat) => {
-          const val = n[stat.key] as number | null;
-          const isBest = allPinned.length > 1 && n.pno === bestByKey[stat.key];
-          return (
-            <div key={stat.key} className="flex justify-between text-xs">
-              <span className="text-surface-500 dark:text-surface-400">{t(stat.label)}</span>
-              <span className={isBest ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-surface-900 dark:text-white font-medium'}>
-                {stat.format(val)}
-                {isBest && <span className="ml-1 text-[9px] uppercase text-emerald-500">{t('compare.best')}</span>}
-              </span>
-            </div>
-          );
-        }),
-      )}
+      {ALL_STATS.map((stat) => {
+        const val = n[stat.key] as number | null;
+        const isBest = allPinned.length > 1 && n.pno === bestByKey[stat.key];
+        return (
+          <div key={stat.key} className="flex justify-between text-xs">
+            <span className="text-surface-500 dark:text-surface-400">{t(stat.label)}</span>
+            <span className={isBest ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-surface-900 dark:text-white font-medium'}>
+              {stat.format(val)}
+              {isBest && <span className="ml-1 text-[9px] uppercase text-emerald-500">{t('compare.best')}</span>}
+            </span>
+          </div>
+        );
+      })}
     </div>
   </div>
 );

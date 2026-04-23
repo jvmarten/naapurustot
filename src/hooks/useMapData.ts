@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import type { FeatureCollection } from 'geojson';
 import { loadAllData, loadRegionData, resetDataCache } from '../utils/dataLoader';
 import type { RegionId } from '../utils/regions';
@@ -60,5 +60,5 @@ export function useMapData(regionId?: RegionId | 'all'): MapDataState {
 
   const retry = useCallback(() => setAttempt((a) => a + 1), []);
 
-  return { ...state, retry };
+  return useMemo(() => ({ ...state, retry }), [state, retry]);
 }

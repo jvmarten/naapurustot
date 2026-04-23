@@ -389,12 +389,25 @@ const App: React.FC = () => {
   // Recompute quality indices when comparison scope changes or new data loads.
   // Without `data` in the dependency array, switching regions would use quality indices
   // computed with default weights in processTopology, ignoring custom user weights.
+  const prevScopeRef = useRef(comparisonScope);
+  const prevCityFilterRef = useRef(cityFilter);
   useEffect(() => {
     if (!data) return;
-    const features = comparisonScope === 'region' && cityFilter !== 'all' && filteredData
-      ? filteredData.features
-      : data.features;
-    computeQualityIndices(features, qualityWeights);
+    // Skip the expensive recomputation on initial data load when scope is 'all'
+    // and weights are default — processTopology already computed identical indices.
+    // Only recompute when scope/city actually changed, or when custom weights are active.
+    const scopeChanged = prevScopeRef.current !== comparisonScope;
+    const cityChanged = prevCityFilterRef.current !== cityFilter;
+    prevScopeRef.current = comparisonScope;
+    prevCityFilterRef.current = cityFilter;
+    const needsRecompute = scopeChanged || cityChanged || customWeights;
+
+    if (needsRecompute) {
+      const features = comparisonScope === 'region' && cityFilter !== 'all' && filteredData
+        ? filteredData.features
+        : data.features;
+      computeQualityIndices(features, qualityWeights);
+    }
     clearMetroAreaCache();
     clearRescaleCache();
     setQualityVersion((v) => v + 1);
