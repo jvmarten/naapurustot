@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { Map } from './components/Map';
-import { DEFAULT_CENTER, getInitialZoom, CITY_VIEWPORTS } from './utils/mapConstants';
+import { DEFAULT_CENTER, DEFAULT_ZOOM, CITY_VIEWPORTS } from './utils/mapConstants';
 import { REGION_IDS } from './utils/regions';
 import { LayerSelector } from './components/LayerSelector';
 import { SearchBar } from './components/SearchBar';
@@ -185,7 +185,7 @@ const App: React.FC = () => {
     if (vp) {
       setFlyTarget({ center: vp.center, zoom: vp.zoom, bounds: vp.bounds });
     } else {
-      setFlyTarget({ center: DEFAULT_CENTER, zoom: getInitialZoom() });
+      setFlyTarget({ center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM });
     }
   }, [deselect]);
 

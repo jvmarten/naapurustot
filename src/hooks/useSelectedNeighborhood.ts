@@ -37,7 +37,7 @@ export function useSelectedNeighborhood() {
 
   /** Replace all pinned entries with fresh property snapshots (e.g., after quality index recomputation). */
   const refreshPinned = useCallback((updatedProps: NeighborhoodProperties[]) => {
-    setPinned(updatedProps);
+    setPinned(updatedProps.slice(0, MAX_PINNED));
   }, []);
 
   return { selected, select, deselect, pinned, pin, unpin, clearPinned, refreshPinned };

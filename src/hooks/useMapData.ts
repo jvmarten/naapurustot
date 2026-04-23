@@ -50,9 +50,10 @@ export function useMapData(regionId?: RegionId | 'all'): MapDataState {
         if (cancelled) return;
         setState({ data: result.data, loading: false, error: null, metroAverages: result.metroAverages });
       })
-      .catch((err) => {
+      .catch((err: unknown) => {
         if (cancelled) return;
-        setState({ data: null, loading: false, error: err.message, metroAverages: {} });
+        const message = err instanceof Error ? err.message : String(err);
+        setState({ data: null, loading: false, error: message, metroAverages: {} });
       });
     return () => { cancelled = true; };
   }, [regionId, attempt]);

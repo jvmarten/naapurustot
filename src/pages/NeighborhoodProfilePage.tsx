@@ -67,9 +67,9 @@ export const NeighborhoodProfilePage: React.FC = () => {
         }
         setLoading(false);
       })
-      .catch(err => {
+      .catch((err: unknown) => {
         if (cancelled) return;
-        setError(err.message);
+        setError(err instanceof Error ? err.message : String(err));
         setLoading(false);
       });
     return () => { cancelled = true; };

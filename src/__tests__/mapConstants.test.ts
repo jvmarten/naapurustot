@@ -7,7 +7,7 @@
  * has a viewport, plus sanity bounds.
  */
 import { describe, it, expect } from 'vitest';
-import { CITY_VIEWPORTS, DEFAULT_CENTER, DEFAULT_ZOOM, getInitialZoom } from '../utils/mapConstants';
+import { CITY_VIEWPORTS, DEFAULT_CENTER, DEFAULT_ZOOM } from '../utils/mapConstants';
 import { REGION_IDS, REGIONS } from '../utils/regions';
 
 describe('CITY_VIEWPORTS', () => {
@@ -69,6 +69,5 @@ describe('DEFAULT_CENTER / DEFAULT_ZOOM', () => {
   it('DEFAULT_ZOOM is a sensible city-level zoom', () => {
     expect(DEFAULT_ZOOM).toBeGreaterThan(5);
     expect(DEFAULT_ZOOM).toBeLessThan(20);
-    expect(getInitialZoom()).toBe(DEFAULT_ZOOM);
   });
 });
