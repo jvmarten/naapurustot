@@ -6,7 +6,7 @@ import { buildFillColorExpression, type LayerId, type LayerConfig, getLayerById 
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { useTheme } from '../hooks/useTheme';
 import { trackEvent } from '../utils/analytics';
-import { DEFAULT_CENTER, getInitialZoom, MAP_MIN_ZOOM, MAP_MAX_ZOOM } from '../utils/mapConstants';
+import { DEFAULT_CENTER, DEFAULT_ZOOM, MAP_MIN_ZOOM, MAP_MAX_ZOOM } from '../utils/mapConstants';
 
 const BASEMAP_LIGHT = (import.meta.env.VITE_BASEMAP_LIGHT_URL as string) || 'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png';
 const BASEMAP_DARK = (import.meta.env.VITE_BASEMAP_DARK_URL as string) || 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png';
@@ -166,7 +166,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       container: containerRef.current,
       style: makeStyle(theme),
       center: DEFAULT_CENTER,
-      zoom: getInitialZoom(),
+      zoom: DEFAULT_ZOOM,
       minZoom: MAP_MIN_ZOOM,
       maxZoom: MAP_MAX_ZOOM,
       attributionControl: false,

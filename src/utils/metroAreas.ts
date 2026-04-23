@@ -14,7 +14,7 @@ function ensureUnionLoaded(): Promise<void> {
   if (!unionPromise) {
     unionPromise = import('@turf/union')
       .then((m) => { unionFn = m.default; })
-      .catch(() => { /* fallback to MultiPolygon concatenation */ });
+      .catch(() => { unionPromise = null; });
   }
   return unionPromise;
 }

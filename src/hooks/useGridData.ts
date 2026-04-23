@@ -78,12 +78,12 @@ export function useGridData(activeLayer: LayerId): GridDataState {
         setLoading(false);
         completed = true;
       })
-      .catch((err) => {
+      .catch((err: unknown) => {
         if (cancelled) return;
         // Grid data is optional — silently fall back to postal choropleth.
         // Remove from fetched set so a retry is possible on next layer switch.
         fetched.delete(activeLayer);
-        console.warn(`Grid data not available for ${activeLayer}:`, err.message);
+        console.warn(`Grid data not available for ${activeLayer}:`, err instanceof Error ? err.message : err);
         setLoading(false);
       });
 

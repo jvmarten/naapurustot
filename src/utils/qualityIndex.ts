@@ -183,7 +183,7 @@ function collectRange(features: GeoJSON.Feature[], prop: keyof NeighborhoodPrope
     }
   }
   const avg = count > 0 ? sum / count : NaN;
-  const result = min < max ? { min, max, avg } : { min: 0, max: 0, avg };
+  const result = count > 0 ? { min, max, avg } : { min: 0, max: 0, avg: NaN };
   rangeCache!.set(prop as string, result);
   return result;
 }

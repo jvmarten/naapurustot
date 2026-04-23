@@ -28,11 +28,6 @@ export const DEFAULT_ZOOM = MAP_ZOOM;
 export const MAP_MIN_ZOOM = envNum('VITE_MAP_MIN_ZOOM', 2);
 export const MAP_MAX_ZOOM = envNum('VITE_MAP_MAX_ZOOM', 16);
 
-/** Returns the initial zoom level. */
-export function getInitialZoom(): number {
-  return DEFAULT_ZOOM;
-}
-
 /** Per-city/region viewport configurations, derived from REGIONS config. */
 export const CITY_VIEWPORTS: Record<string, { center: [number, number]; zoom: number; bounds: [number, number, number, number] }> = Object.fromEntries([
   ...REGION_IDS.map((id: RegionId) => [

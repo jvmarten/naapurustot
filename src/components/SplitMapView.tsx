@@ -5,7 +5,7 @@ import type { FeatureCollection } from 'geojson';
 import { buildFillColorExpression, LAYERS, type LayerId, getLayerById } from '../utils/colorScales';
 import { useTheme } from '../hooks/useTheme';
 import { t } from '../utils/i18n';
-import { DEFAULT_CENTER, getInitialZoom, MAP_MAX_ZOOM, envNum } from '../utils/mapConstants';
+import { DEFAULT_CENTER, DEFAULT_ZOOM, MAP_MAX_ZOOM, envNum } from '../utils/mapConstants';
 
 /**
  * Compact dropdown for choosing a data layer on one side of the split view.
@@ -194,7 +194,7 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
     // instances causes intermittent cross-contamination of source/layer state.
     const commonOptions = {
       center: DEFAULT_CENTER,
-      zoom: getInitialZoom(),
+      zoom: DEFAULT_ZOOM,
       minZoom: SPLIT_MIN_ZOOM,
       maxZoom: MAP_MAX_ZOOM,
       attributionControl: false as const,
