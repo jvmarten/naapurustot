@@ -36,13 +36,21 @@ function normalize(value: number, { min, max }: MinMax): number {
 export interface QualityFactor {
   id: string;
   label: { fi: string; en: string };
-  defaultWeight: number; // 0–100 slider default
+  defaultWeight: number; // 0–100 (or -100–100 if bipolar) slider default
   /** Property key(s) on NeighborhoodProperties to read */
   properties: (keyof NeighborhoodProperties)[];
-  /** If true, lower raw values = higher quality score */
+  /** If true, lower raw values = higher quality score. Ignored when `bipolar` is true. */
   invert: boolean;
   /** If true, shown by default in the panel. Factors with defaultWeight > 0 are always primary. */
   primary: boolean;
+  /**
+   * If true, the slider ranges from -100 to +100 and the user picks direction via sign:
+   *   positive weight → higher raw values score higher;
+   *   negative weight → lower raw values score higher.
+   * Used for metrics with no objective "better" direction (demographics, housing
+   * composition, sectoral employment, etc.).
+   */
+  bipolar?: boolean;
 }
 
 export const QUALITY_FACTORS: QualityFactor[] = [
@@ -132,7 +140,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     invert: false,
     primary: false,
   },
-  // Demographics
+  // Demographics — bipolar (no objective "better" direction)
   {
     id: 'avg_age',
     label: { fi: 'Keski-ikä', en: 'Average Age' },
@@ -140,6 +148,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['he_kika'],
     invert: false,
     primary: false,
+    bipolar: true,
   },
   {
     id: 'youth_ratio',
@@ -148,6 +157,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['youth_ratio_pct'],
     invert: false,
     primary: false,
+    bipolar: true,
   },
   {
     id: 'elderly_ratio',
@@ -156,6 +166,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['elderly_ratio_pct'],
     invert: false,
     primary: false,
+    bipolar: true,
   },
   {
     id: 'child_ratio',
@@ -164,6 +175,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['child_ratio'],
     invert: false,
     primary: false,
+    bipolar: true,
   },
   {
     id: 'pensioner_share',
@@ -172,6 +184,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['pensioner_share'],
     invert: false,
     primary: false,
+    bipolar: true,
   },
   {
     id: 'student_share',
@@ -180,6 +193,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['student_share'],
     invert: false,
     primary: false,
+    bipolar: true,
   },
   {
     id: 'gender_ratio',
@@ -188,6 +202,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['gender_ratio'],
     invert: false,
     primary: false,
+    bipolar: true,
   },
   {
     id: 'foreign_language',
@@ -196,6 +211,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['foreign_language_pct'],
     invert: false,
     primary: false,
+    bipolar: true,
   },
   {
     id: 'single_parent_hh',
@@ -204,6 +220,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['single_parent_hh_pct'],
     invert: false,
     primary: false,
+    bipolar: true,
   },
   {
     id: 'families_with_children',
@@ -212,6 +229,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['families_with_children_pct'],
     invert: false,
     primary: false,
+    bipolar: true,
   },
   {
     id: 'single_person_hh',
@@ -220,6 +238,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['single_person_hh_pct'],
     invert: false,
     primary: false,
+    bipolar: true,
   },
   {
     id: 'household_size',
@@ -228,6 +247,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['avg_household_size'],
     invert: false,
     primary: false,
+    bipolar: true,
   },
   {
     id: 'population_density',
@@ -236,8 +256,9 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['population_density'],
     invert: false,
     primary: false,
+    bipolar: true,
   },
-  // Housing
+  // Housing — bipolar (composition/preference, not quality)
   {
     id: 'ownership_rate',
     label: { fi: 'Omistusasuminen', en: 'Ownership Rate' },
@@ -245,6 +266,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['ownership_rate'],
     invert: false,
     primary: false,
+    bipolar: true,
   },
   {
     id: 'rental_rate',
@@ -253,6 +275,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['rental_rate'],
     invert: false,
     primary: false,
+    bipolar: true,
   },
   {
     id: 'apartment_size',
@@ -261,6 +284,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['ra_as_kpa'],
     invert: false,
     primary: false,
+    bipolar: true,
   },
   {
     id: 'detached_house_share',
@@ -269,6 +293,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['detached_house_share'],
     invert: false,
     primary: false,
+    bipolar: true,
   },
   {
     id: 'property_price',
@@ -277,6 +302,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['property_price_sqm'],
     invert: false,
     primary: false,
+    bipolar: true,
   },
   {
     id: 'rental_price',
@@ -285,6 +311,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['rental_price_sqm'],
     invert: false,
     primary: false,
+    bipolar: true,
   },
   {
     id: 'price_to_rent',
@@ -293,6 +320,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['price_to_rent_ratio'],
     invert: false,
     primary: false,
+    bipolar: true,
   },
   {
     id: 'construction_year',
@@ -301,6 +329,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['avg_construction_year'],
     invert: false,
     primary: false,
+    bipolar: true,
   },
   {
     id: 'new_construction',
@@ -309,8 +338,9 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['new_construction_pct'],
     invert: false,
     primary: false,
+    bipolar: true,
   },
-  // Employment (sectoral)
+  // Employment — employment_rate is directional, sectoral mix is bipolar
   {
     id: 'employment_rate',
     label: { fi: 'Työllisyysaste', en: 'Employment Rate' },
@@ -326,6 +356,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['tech_sector_pct'],
     invert: false,
     primary: false,
+    bipolar: true,
   },
   {
     id: 'healthcare_sector',
@@ -334,6 +365,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['healthcare_workers_pct'],
     invert: false,
     primary: false,
+    bipolar: true,
   },
   {
     id: 'manufacturing_sector',
@@ -342,6 +374,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['manufacturing_jobs_pct'],
     invert: false,
     primary: false,
+    bipolar: true,
   },
   {
     id: 'public_sector',
@@ -350,6 +383,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['public_sector_jobs_pct'],
     invert: false,
     primary: false,
+    bipolar: true,
   },
   {
     id: 'service_sector',
@@ -358,6 +392,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['service_sector_jobs_pct'],
     invert: false,
     primary: false,
+    bipolar: true,
   },
   // Environment & mobility
   {
@@ -448,6 +483,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['voter_turnout_pct'],
     invert: false,
     primary: false,
+    bipolar: true,
   },
   {
     id: 'party_diversity',
@@ -456,6 +492,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['party_diversity_index'],
     invert: false,
     primary: false,
+    bipolar: true,
   },
   // Education
   {
@@ -482,6 +519,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['population_change_pct'],
     invert: false,
     primary: false,
+    bipolar: true,
   },
   {
     id: 'unemployment_change',
@@ -575,10 +613,11 @@ export function computeQualityIndices(
 ): void {
   const w = weights ?? getDefaultWeights();
 
-  // Collect all needed ranges (includes metro averages for missing data fallback)
+  // Collect all needed ranges (includes metro averages for missing data fallback).
+  // Bipolar factors with negative weight are still active, so use abs.
   const ranges = new Map<string, MinMax>();
   for (const factor of QUALITY_FACTORS) {
-    if ((w[factor.id] ?? 0) <= 0) continue;
+    if (Math.abs(w[factor.id] ?? 0) <= 0) continue;
     for (const prop of factor.properties) {
       if (!ranges.has(prop as string)) {
         ranges.set(prop as string, collectRange(features, prop));
@@ -592,11 +631,13 @@ export function computeQualityIndices(
     const scores: { value: number; weight: number }[] = [];
     for (const factor of QUALITY_FACTORS) {
       const factorWeight = w[factor.id] ?? 0;
-      if (factorWeight <= 0) continue;
-      const score = getFactorScore(p, factor, ranges);
-      if (score != null) {
-        scores.push({ value: score, weight: factorWeight });
-      }
+      const absWeight = Math.abs(factorWeight);
+      if (absWeight <= 0) continue;
+      let score = getFactorScore(p, factor, ranges);
+      if (score == null) continue;
+      // Bipolar factor with negative weight: user prefers lower values, so flip score.
+      if (factor.bipolar && factorWeight < 0) score = 100 - score;
+      scores.push({ value: score, weight: absWeight });
     }
 
     if (scores.length === 0) {
