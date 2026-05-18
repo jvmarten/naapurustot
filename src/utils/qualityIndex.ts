@@ -12,10 +12,10 @@ import type { NeighborhoodProperties } from './metrics';
  *   - Services (healthcare, school, daycare, grocery) — 5%
  *   - Air quality (inverted) — 3%
  *
- * Additional factors available via "Show more":
- *   - Cycling infrastructure
- *   - Grocery access
- *   - Restaurant density
+ * Additional factors available via "Show more" (defaultWeight: 0):
+ * every other available metric — demographics, housing, sectoral employment,
+ * environment, mobility, connectivity, politics, and trends — so users can
+ * fully customize the index. They have no effect unless the user activates them.
  *
  * Each metric is min-max normalized across all neighborhoods,
  * then combined using the (custom) weights.
@@ -46,7 +46,7 @@ export interface QualityFactor {
 }
 
 export const QUALITY_FACTORS: QualityFactor[] = [
-  // --- Primary factors (9): shown by default ---
+  // --- Primary factors (7): shown by default ---
   // Socioeconomic factors (80%) correlate and drive score differentiation.
   // Environmental factors (20%) add nuance without flattening the spread.
   {
@@ -106,6 +106,8 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     primary: true,
   },
   // --- Secondary factors: hidden by default, available via "Show more" ---
+  // All defaultWeight: 0 so they don't affect the index unless the user activates them.
+  // `invert: true` means lower raw values score higher (e.g., pollution, accidents).
   {
     id: 'cycling',
     label: { fi: 'Pyöräilyinfra', en: 'Cycling Infrastructure' },
@@ -128,6 +130,365 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     defaultWeight: 0,
     properties: ['restaurant_density'],
     invert: false,
+    primary: false,
+  },
+  // Demographics
+  {
+    id: 'avg_age',
+    label: { fi: 'Keski-ikä', en: 'Average Age' },
+    defaultWeight: 0,
+    properties: ['he_kika'],
+    invert: false,
+    primary: false,
+  },
+  {
+    id: 'youth_ratio',
+    label: { fi: 'Nuorten osuus', en: 'Youth Ratio' },
+    defaultWeight: 0,
+    properties: ['youth_ratio_pct'],
+    invert: false,
+    primary: false,
+  },
+  {
+    id: 'elderly_ratio',
+    label: { fi: 'Ikääntyneiden osuus', en: 'Elderly Ratio' },
+    defaultWeight: 0,
+    properties: ['elderly_ratio_pct'],
+    invert: false,
+    primary: false,
+  },
+  {
+    id: 'child_ratio',
+    label: { fi: 'Lasten osuus', en: 'Child Ratio' },
+    defaultWeight: 0,
+    properties: ['child_ratio'],
+    invert: false,
+    primary: false,
+  },
+  {
+    id: 'pensioner_share',
+    label: { fi: 'Eläkeläisten osuus', en: 'Pensioner Share' },
+    defaultWeight: 0,
+    properties: ['pensioner_share'],
+    invert: false,
+    primary: false,
+  },
+  {
+    id: 'student_share',
+    label: { fi: 'Opiskelijoiden osuus', en: 'Student Share' },
+    defaultWeight: 0,
+    properties: ['student_share'],
+    invert: false,
+    primary: false,
+  },
+  {
+    id: 'gender_ratio',
+    label: { fi: 'Sukupuolijakauma', en: 'Gender Ratio' },
+    defaultWeight: 0,
+    properties: ['gender_ratio'],
+    invert: false,
+    primary: false,
+  },
+  {
+    id: 'foreign_language',
+    label: { fi: 'Vieraskielisten osuus', en: 'Foreign Language %' },
+    defaultWeight: 0,
+    properties: ['foreign_language_pct'],
+    invert: false,
+    primary: false,
+  },
+  {
+    id: 'single_parent_hh',
+    label: { fi: 'Yksinhuoltajataloudet', en: 'Single-Parent Households' },
+    defaultWeight: 0,
+    properties: ['single_parent_hh_pct'],
+    invert: false,
+    primary: false,
+  },
+  {
+    id: 'families_with_children',
+    label: { fi: 'Lapsiperheet', en: 'Families with Children' },
+    defaultWeight: 0,
+    properties: ['families_with_children_pct'],
+    invert: false,
+    primary: false,
+  },
+  {
+    id: 'single_person_hh',
+    label: { fi: 'Yhden hengen taloudet', en: 'Single-Person Households' },
+    defaultWeight: 0,
+    properties: ['single_person_hh_pct'],
+    invert: false,
+    primary: false,
+  },
+  {
+    id: 'household_size',
+    label: { fi: 'Kotitalouden koko', en: 'Average Household Size' },
+    defaultWeight: 0,
+    properties: ['avg_household_size'],
+    invert: false,
+    primary: false,
+  },
+  {
+    id: 'population_density',
+    label: { fi: 'Asukastiheys', en: 'Population Density' },
+    defaultWeight: 0,
+    properties: ['population_density'],
+    invert: false,
+    primary: false,
+  },
+  // Housing
+  {
+    id: 'ownership_rate',
+    label: { fi: 'Omistusasuminen', en: 'Ownership Rate' },
+    defaultWeight: 0,
+    properties: ['ownership_rate'],
+    invert: false,
+    primary: false,
+  },
+  {
+    id: 'rental_rate',
+    label: { fi: 'Vuokra-asuminen', en: 'Rental Rate' },
+    defaultWeight: 0,
+    properties: ['rental_rate'],
+    invert: false,
+    primary: false,
+  },
+  {
+    id: 'apartment_size',
+    label: { fi: 'Asuntojen keskikoko', en: 'Average Apartment Size' },
+    defaultWeight: 0,
+    properties: ['ra_as_kpa'],
+    invert: false,
+    primary: false,
+  },
+  {
+    id: 'detached_house_share',
+    label: { fi: 'Omakotitalojen osuus', en: 'Detached House Share' },
+    defaultWeight: 0,
+    properties: ['detached_house_share'],
+    invert: false,
+    primary: false,
+  },
+  {
+    id: 'property_price',
+    label: { fi: 'Asuntojen neliöhinta', en: 'Property Price (€/m²)' },
+    defaultWeight: 0,
+    properties: ['property_price_sqm'],
+    invert: false,
+    primary: false,
+  },
+  {
+    id: 'rental_price',
+    label: { fi: 'Vuokrien neliöhinta', en: 'Rental Price (€/m²)' },
+    defaultWeight: 0,
+    properties: ['rental_price_sqm'],
+    invert: false,
+    primary: false,
+  },
+  {
+    id: 'price_to_rent',
+    label: { fi: 'Hinta/vuokra-suhde', en: 'Price-to-Rent Ratio' },
+    defaultWeight: 0,
+    properties: ['price_to_rent_ratio'],
+    invert: false,
+    primary: false,
+  },
+  {
+    id: 'construction_year',
+    label: { fi: 'Rakennusten keski-ikä', en: 'Average Construction Year' },
+    defaultWeight: 0,
+    properties: ['avg_construction_year'],
+    invert: false,
+    primary: false,
+  },
+  {
+    id: 'new_construction',
+    label: { fi: 'Uudisrakentaminen', en: 'New Construction' },
+    defaultWeight: 0,
+    properties: ['new_construction_pct'],
+    invert: false,
+    primary: false,
+  },
+  // Employment (sectoral)
+  {
+    id: 'employment_rate',
+    label: { fi: 'Työllisyysaste', en: 'Employment Rate' },
+    defaultWeight: 0,
+    properties: ['employment_rate'],
+    invert: false,
+    primary: false,
+  },
+  {
+    id: 'tech_sector',
+    label: { fi: 'Tekniikan ala', en: 'Tech Sector' },
+    defaultWeight: 0,
+    properties: ['tech_sector_pct'],
+    invert: false,
+    primary: false,
+  },
+  {
+    id: 'healthcare_sector',
+    label: { fi: 'Terveydenhuoltoala', en: 'Healthcare Sector' },
+    defaultWeight: 0,
+    properties: ['healthcare_workers_pct'],
+    invert: false,
+    primary: false,
+  },
+  {
+    id: 'manufacturing_sector',
+    label: { fi: 'Teollisuus', en: 'Manufacturing Sector' },
+    defaultWeight: 0,
+    properties: ['manufacturing_jobs_pct'],
+    invert: false,
+    primary: false,
+  },
+  {
+    id: 'public_sector',
+    label: { fi: 'Julkinen sektori', en: 'Public Sector' },
+    defaultWeight: 0,
+    properties: ['public_sector_jobs_pct'],
+    invert: false,
+    primary: false,
+  },
+  {
+    id: 'service_sector',
+    label: { fi: 'Palvelusektori', en: 'Service Sector' },
+    defaultWeight: 0,
+    properties: ['service_sector_jobs_pct'],
+    invert: false,
+    primary: false,
+  },
+  // Environment & mobility
+  {
+    id: 'walkability',
+    label: { fi: 'Kävelyindeksi', en: 'Walkability' },
+    defaultWeight: 0,
+    properties: ['walkability_index'],
+    invert: false,
+    primary: false,
+  },
+  {
+    id: 'sports_facilities',
+    label: { fi: 'Liikuntapaikat', en: 'Sports Facilities' },
+    defaultWeight: 0,
+    properties: ['sports_facility_density'],
+    invert: false,
+    primary: false,
+  },
+  {
+    id: 'traffic_accidents',
+    label: { fi: 'Liikenneonnettomuudet', en: 'Traffic Accidents' },
+    defaultWeight: 0,
+    properties: ['traffic_accident_rate'],
+    invert: true,
+    primary: false,
+  },
+  {
+    id: 'transit_reachability',
+    label: { fi: 'Joukkoliikenteen saavutettavuus', en: 'Transit Reachability' },
+    defaultWeight: 0,
+    properties: ['transit_reachability_score'],
+    invert: false,
+    primary: false,
+  },
+  {
+    id: 'ev_charging',
+    label: { fi: 'Sähköautojen latauspisteet', en: 'EV Charging' },
+    defaultWeight: 0,
+    properties: ['ev_charging_density'],
+    invert: false,
+    primary: false,
+  },
+  {
+    id: 'tree_canopy',
+    label: { fi: 'Puuston peittävyys', en: 'Tree Canopy' },
+    defaultWeight: 0,
+    properties: ['tree_canopy_pct'],
+    invert: false,
+    primary: false,
+  },
+  {
+    id: 'light_pollution',
+    label: { fi: 'Valosaaste', en: 'Light Pollution' },
+    defaultWeight: 0,
+    properties: ['light_pollution'],
+    invert: true,
+    primary: false,
+  },
+  {
+    id: 'noise_pollution',
+    label: { fi: 'Melu', en: 'Noise Pollution' },
+    defaultWeight: 0,
+    properties: ['noise_pollution'],
+    invert: true,
+    primary: false,
+  },
+  {
+    id: 'water_proximity',
+    label: { fi: 'Veden läheisyys', en: 'Water Proximity' },
+    defaultWeight: 0,
+    properties: ['water_proximity_m'],
+    invert: true,
+    primary: false,
+  },
+  // Connectivity & politics
+  {
+    id: 'broadband',
+    label: { fi: 'Laajakaistan kattavuus', en: 'Broadband Coverage' },
+    defaultWeight: 0,
+    properties: ['broadband_coverage_pct'],
+    invert: false,
+    primary: false,
+  },
+  {
+    id: 'voter_turnout',
+    label: { fi: 'Äänestysaktiivisuus', en: 'Voter Turnout' },
+    defaultWeight: 0,
+    properties: ['voter_turnout_pct'],
+    invert: false,
+    primary: false,
+  },
+  {
+    id: 'party_diversity',
+    label: { fi: 'Puoluekirjon monimuotoisuus', en: 'Party Diversity' },
+    defaultWeight: 0,
+    properties: ['party_diversity_index'],
+    invert: false,
+    primary: false,
+  },
+  // Education
+  {
+    id: 'school_quality',
+    label: { fi: 'Koulujen laatu', en: 'School Quality' },
+    defaultWeight: 0,
+    properties: ['school_quality_score'],
+    invert: false,
+    primary: false,
+  },
+  // Trends
+  {
+    id: 'income_change',
+    label: { fi: 'Tulokehitys', en: 'Income Change' },
+    defaultWeight: 0,
+    properties: ['income_change_pct'],
+    invert: false,
+    primary: false,
+  },
+  {
+    id: 'population_change',
+    label: { fi: 'Väestönkehitys', en: 'Population Change' },
+    defaultWeight: 0,
+    properties: ['population_change_pct'],
+    invert: false,
+    primary: false,
+  },
+  {
+    id: 'unemployment_change',
+    label: { fi: 'Työttömyyden muutos', en: 'Unemployment Change' },
+    defaultWeight: 0,
+    properties: ['unemployment_change_pct'],
+    invert: true,
     primary: false,
   },
 ];
