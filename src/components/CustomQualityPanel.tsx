@@ -82,7 +82,7 @@ const WeightSlider: React.FC<{
                      [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2
                      [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:shadow-md
                      [&::-moz-range-thumb]:cursor-pointer`}
-          style={{ background }}
+          style={{ background, touchAction: 'pan-y' }}
         />
         <style>{`
           .slider-${sliderId}::-webkit-slider-thumb { background-color: ${color}; }
@@ -178,14 +178,18 @@ export const CustomQualityPanel: React.FC<Props> = ({ weights, onChange, onClose
           {t('custom_quality.title')}
         </h3>
         <div className="flex items-center gap-2">
-          {isCustom && (
-            <button
-              onClick={handleReset}
-              className="text-xs text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-200 transition-colors"
-            >
-              {t('custom_quality.reset')}
-            </button>
-          )}
+          <button
+            onClick={handleReset}
+            disabled={!isCustom}
+            className="text-xs px-2 py-1 rounded-md border border-surface-200 dark:border-surface-700
+                       text-surface-600 dark:text-surface-300
+                       enabled:hover:bg-surface-100 enabled:dark:hover:bg-surface-800
+                       enabled:hover:text-surface-900 enabled:dark:hover:text-white
+                       disabled:opacity-40 disabled:cursor-not-allowed
+                       transition-colors"
+          >
+            {t('custom_quality.reset')}
+          </button>
           <button
             onClick={onClose}
             className="w-7 h-7 flex items-center justify-center rounded-lg
