@@ -16,7 +16,8 @@ const WeightSlider: React.FC<{
   onChange: (v: number) => void;
   color: string;
   sliderId: string;
-}> = ({ label, value, onChange, color, sliderId }) => {
+  bipolar?: boolean;
+}> = ({ label, value, onChange, color, sliderId, bipolar = false }) => {
   // Local state for smooth drag; debounce the expensive parent callback
   // (quality index recomputation across ~200 features + Map source update).
   const [localValue, setLocalValue] = useState(value);
@@ -31,24 +32,48 @@ const WeightSlider: React.FC<{
     debounceRef.current = setTimeout(() => onChange(v), 200);
   };
 
-  const pct = `${localValue}%`;
+  const min = bipolar ? -100 : 0;
+  const max = 100;
+  // Thumb position as % of track width
+  const thumbPct = bipolar ? ((localValue + 100) / 2) : localValue;
+  const trackBg = 'rgb(var(--color-surface-200))';
+  let background: string;
+  if (bipolar) {
+    // Fill from center (50%) outward to thumb position
+    if (localValue >= 0) {
+      background = `linear-gradient(to right, ${trackBg} 0%, ${trackBg} 50%, ${color} 50%, ${color} ${thumbPct}%, ${trackBg} ${thumbPct}%, ${trackBg} 100%)`;
+    } else {
+      background = `linear-gradient(to right, ${trackBg} 0%, ${trackBg} ${thumbPct}%, ${color} ${thumbPct}%, ${color} 50%, ${trackBg} 50%, ${trackBg} 100%)`;
+    }
+  } else {
+    background = `linear-gradient(to right, ${color} ${thumbPct}%, ${trackBg} ${thumbPct}%)`;
+  }
+
+  const displayValue = bipolar && localValue > 0 ? `+${localValue}` : `${localValue}`;
+
   return (
     <div className="py-2">
       <div className="flex items-center justify-between mb-1.5">
         <span className="text-sm text-surface-700 dark:text-surface-300">{label}</span>
-        <span className="text-xs font-semibold text-surface-500 dark:text-surface-400 tabular-nums w-8 text-right">
-          {localValue}
+        <span className="text-xs font-semibold text-surface-500 dark:text-surface-400 tabular-nums w-10 text-right">
+          {displayValue}
         </span>
       </div>
       <div className="relative">
+        {bipolar && (
+          <div
+            aria-hidden
+            className="absolute top-1/2 left-1/2 w-px h-3 -translate-x-1/2 -translate-y-1/2 bg-surface-400 dark:bg-surface-500 pointer-events-none"
+          />
+        )}
         <input
           type="range"
-          min={0}
-          max={100}
+          min={min}
+          max={max}
           step={1}
           value={localValue}
           onChange={(e) => handleChange(Number(e.target.value))}
-          className={`slider-${sliderId} w-full h-2 rounded-full appearance-none cursor-pointer
+          className={`slider-${sliderId} relative w-full h-2 rounded-full appearance-none cursor-pointer
                      [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4
                      [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2
                      [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow-md
@@ -57,9 +82,7 @@ const WeightSlider: React.FC<{
                      [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2
                      [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:shadow-md
                      [&::-moz-range-thumb]:cursor-pointer`}
-          style={{
-            background: `linear-gradient(to right, ${color} ${pct}, rgb(var(--color-surface-200)) ${pct})`,
-          }}
+          style={{ background }}
         />
         <style>{`
           .slider-${sliderId}::-webkit-slider-thumb { background-color: ${color}; }
@@ -103,7 +126,7 @@ export const CustomQualityPanel: React.FC<Props> = ({ weights, onChange, onClose
 
   // Auto-expand secondary section if any secondary factor has non-zero weight
   useEffect(() => {
-    const hasActiveSecondary = secondaryFactors.some((f) => (weights[f.id] ?? 0) > 0);
+    const hasActiveSecondary = secondaryFactors.some((f) => (weights[f.id] ?? 0) !== 0);
     if (hasActiveSecondary) setShowMore(true);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -122,24 +145,26 @@ export const CustomQualityPanel: React.FC<Props> = ({ weights, onChange, onClose
 
   const isCustom = isCustomWeights(weights);
 
-  // Calculate effective weight percentages for display
+  // Calculate effective weight percentages for display (bipolar factors use abs value)
   const totalWeight = useMemo(
-    () => QUALITY_FACTORS.reduce((sum, f) => sum + (weights[f.id] ?? 0), 0),
+    () => QUALITY_FACTORS.reduce((sum, f) => sum + Math.abs(weights[f.id] ?? 0), 0),
     [weights],
   );
 
   const renderFactorSliders = (factors: typeof QUALITY_FACTORS) =>
     factors.map((factor) => {
       const w = weights[factor.id] ?? 0;
-      const effectivePct = totalWeight > 0 ? ((w / totalWeight) * 100).toFixed(0) : '0';
+      const absW = Math.abs(w);
+      const effectivePct = totalWeight > 0 ? ((absW / totalWeight) * 100).toFixed(0) : '0';
       return (
         <div key={factor.id}>
           <WeightSlider
-            label={`${factor.label[lang]}${w > 0 ? ` (${effectivePct}%)` : ''}`}
+            label={`${factor.label[lang]}${absW > 0 ? ` (${effectivePct}%)` : ''}`}
             value={w}
             onChange={(v) => handleChange(factor.id, v)}
             color={FACTOR_COLORS[factor.id] ?? '#6b7280'}
             sliderId={factor.id}
+            bipolar={factor.bipolar}
           />
         </div>
       );
@@ -216,12 +241,12 @@ export const CustomQualityPanel: React.FC<Props> = ({ weights, onChange, onClose
       {totalWeight > 0 && (
         <div className="px-5 pb-4">
           <div className="flex gap-0.5 h-2 rounded-full overflow-hidden">
-            {QUALITY_FACTORS.filter((f) => (weights[f.id] ?? 0) > 0).map((f) => (
+            {QUALITY_FACTORS.filter((f) => (weights[f.id] ?? 0) !== 0).map((f) => (
               <div
                 key={f.id}
                 className="h-full transition-all duration-300"
                 style={{
-                  width: `${((weights[f.id] ?? 0) / totalWeight) * 100}%`,
+                  width: `${(Math.abs(weights[f.id] ?? 0) / totalWeight) * 100}%`,
                   backgroundColor: FACTOR_COLORS[f.id] ?? '#6b7280',
                 }}
               />

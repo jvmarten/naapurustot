@@ -139,6 +139,70 @@ describe('secondary factors — mixed with primary factors', () => {
   });
 });
 
+describe('bipolar factors — negative weight inverts direction', () => {
+  it('positive weight: higher raw value scores higher', () => {
+    const a = makeFeature({ pno: '00100', foreign_language_pct: 30 });
+    const b = makeFeature({ pno: '00200', foreign_language_pct: 5 });
+    const features = [a, b];
+
+    const weights: QualityWeights = {};
+    for (const f of QUALITY_FACTORS) weights[f.id] = 0;
+    weights.foreign_language = 50;
+
+    computeQualityIndices(features, weights);
+    expect(getQI(a)).toBe(100);
+    expect(getQI(b)).toBe(0);
+  });
+
+  it('negative weight: lower raw value scores higher (direction flipped)', () => {
+    const a = makeFeature({ pno: '00100', foreign_language_pct: 30 });
+    const b = makeFeature({ pno: '00200', foreign_language_pct: 5 });
+    const features = [a, b];
+
+    const weights: QualityWeights = {};
+    for (const f of QUALITY_FACTORS) weights[f.id] = 0;
+    weights.foreign_language = -50;
+
+    computeQualityIndices(features, weights);
+    // B has lower foreign_language_pct, so with negative weight B should win
+    expect(getQI(a)).toBe(0);
+    expect(getQI(b)).toBe(100);
+  });
+
+  it('bipolar weight magnitude (not sign) determines contribution to total', () => {
+    const a = makeFeature({ pno: '00100', hr_mtu: 60000, foreign_language_pct: 30 });
+    const b = makeFeature({ pno: '00200', hr_mtu: 20000, foreign_language_pct: 5 });
+    const features = [a, b];
+
+    // income=50, foreign_language=-50 → both contribute equally with abs(50)
+    const weights: QualityWeights = {};
+    for (const f of QUALITY_FACTORS) weights[f.id] = 0;
+    weights.income = 50;
+    weights.foreign_language = -50;
+
+    computeQualityIndices(features, weights);
+    // A: income=100 (high), foreign_lang score flipped = 0 (high raw) → (100*50 + 0*50)/100 = 50
+    // B: income=0 (low), foreign_lang score flipped = 100 (low raw) → (0*50 + 100*50)/100 = 50
+    expect(getQI(a)).toBe(50);
+    expect(getQI(b)).toBe(50);
+  });
+
+  it('bipolar weight 0 excludes factor from computation', () => {
+    const a = makeFeature({ pno: '00100', hr_mtu: 40000, foreign_language_pct: 30 });
+    const b = makeFeature({ pno: '00200', hr_mtu: 40000, foreign_language_pct: 5 });
+    const features = [a, b];
+
+    const weights: QualityWeights = {};
+    for (const f of QUALITY_FACTORS) weights[f.id] = 0;
+    weights.income = 100;
+    weights.foreign_language = 0;
+
+    computeQualityIndices(features, weights);
+    // foreign_language is 0, so both should have same score
+    expect(getQI(a)).toBe(getQI(b));
+  });
+});
+
 describe('isCustomWeights — secondary factor detection', () => {
   it('default weights are not custom', () => {
     expect(isCustomWeights(getDefaultWeights())).toBe(false);
