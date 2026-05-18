@@ -9,27 +9,40 @@ interface Props {
 interface State {
   hasError: boolean;
   error: Error | null;
+  remountKey: number;
+}
+
+// React's commit-phase `removeChild` can throw a DOMException when the live
+// DOM has been mutated out from under it (typically by browser translation
+// extensions like Google Translate wrapping text nodes in <font> tags).
+// The error is fully recoverable: bumping a key on the children subtree
+// forces React to rebuild from a clean fiber tree.
+function isRecoverableReconciliationError(error: Error): boolean {
+  if (error.name !== 'NotFoundError') return false;
+  const msg = error.message || '';
+  return msg.includes('removeChild') || msg.includes('insertBefore');
 }
 
 export class ErrorBoundary extends React.Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, remountKey: 0 };
   }
 
-  static getDerivedStateFromError(error: Error): State {
+  static getDerivedStateFromError(error: Error): Partial<State> {
     return { hasError: true, error };
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('ErrorBoundary caught:', error, errorInfo);
-  }
-
-  componentDidUpdate(_prevProps: Props) {
-    // Error state is only cleared by the user clicking Reload.
-    // Previously this auto-reset when children references changed,
-    // but JSX elements create new references on every render,
-    // which caused the error UI to flash and immediately disappear.
+    if (isRecoverableReconciliationError(error)) {
+      // Auto-recover: clear the error and bump the remount key so the
+      // children get a fresh fiber tree. Deferred to the next microtask
+      // to avoid setState-during-error-handling warnings.
+      queueMicrotask(() => {
+        this.setState((s) => ({ hasError: false, error: null, remountKey: s.remountKey + 1 }));
+      });
+    }
   }
 
   render() {
@@ -46,7 +59,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
           </p>
           <div className="flex gap-3">
             <button
-              onClick={() => this.setState({ hasError: false, error: null })}
+              onClick={() => this.setState((s) => ({ hasError: false, error: null, remountKey: s.remountKey + 1 }))}
               className="px-4 py-2 rounded-xl text-sm font-medium bg-surface-200 dark:bg-surface-700 text-surface-900 dark:text-white hover:bg-surface-300 dark:hover:bg-surface-600 transition-colors"
             >
               {t('error.retry')}
@@ -61,6 +74,6 @@ export class ErrorBoundary extends React.Component<Props, State> {
         </div>
       );
     }
-    return this.props.children;
+    return <React.Fragment key={this.state.remountKey}>{this.props.children}</React.Fragment>;
   }
 }
