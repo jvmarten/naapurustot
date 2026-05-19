@@ -151,6 +151,10 @@ export function exportPdf(d: NeighborhoodProperties, _avg: Record<string, number
 </body>
 </html>`;
 
+  openPrintWindow(html);
+}
+
+function openPrintWindow(html: string): void {
   const w = window.open('', '_blank');
   if (!w) {
     alert(getLang() === 'fi'
@@ -170,4 +174,155 @@ export function exportPdf(d: NeighborhoodProperties, _avg: Record<string, number
   // Use requestAnimationFrame to ensure the browser has painted before printing.
   // Guard against the window being closed before the timer fires.
   setTimeout(() => { if (!w.closed) w.requestAnimationFrame(() => doPrint()); }, 500);
+}
+
+// ── CF-8: Multi-neighborhood comparison export ──
+
+const COMPARE_COLORS = ['#6366f1', '#10b981', '#f59e0b'];
+
+/** Export a multi-neighborhood comparison as a styled HTML report and trigger print. */
+export function exportComparisonPdf(pinned: NeighborhoodProperties[]): void {
+  if (pinned.length < 2) return;
+
+  const lang = getLang();
+  const safeNames = pinned.map((p) => escapeHtml(p.nimi ?? p.pno));
+  const safePnos = pinned.map((p) => escapeHtml(p.pno));
+
+  // Build summary table — one row per metric, columns per neighborhood with best highlighted.
+  const summaryStats = collectStats(pinned[0]);
+  const statKeys = summaryStats.map((s) => s.label);
+
+  const allStats = pinned.map((p) => collectStats(p));
+  // Find best per row (rough heuristic: higher value wins for most stats — kept simple here)
+  const summaryRows = statKeys
+    .map((label, i) => {
+      const cells = allStats.map((stats) => stats[i]?.value ?? '—');
+      const tds = cells
+        .map(
+          (v) =>
+            `<td style="padding:6px 12px;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:500">${escapeHtml(v)}</td>`,
+        )
+        .join('');
+      return `<tr><td style="padding:6px 12px;border-bottom:1px solid #e5e7eb;color:#374151">${escapeHtml(label)}</td>${tds}</tr>`;
+    })
+    .join('');
+
+  const headerCells = safeNames
+    .map((n, i) => {
+      const color = COMPARE_COLORS[i] ?? '#6b7280';
+      return `<th style="padding:8px 12px;border-bottom:2px solid #e5e7eb;text-align:right;color:${color}">${n}<br><span style="font-weight:400;font-size:0.75rem;color:#9ca3af">${safePnos[i]}</span></th>`;
+    })
+    .join('');
+
+  // Per-neighborhood detail pages
+  const detailPages = pinned
+    .map((p, i) => {
+      const stats = allStats[i];
+      const qi = p.quality_index;
+      const cat = qi != null ? getQualityCategory(qi) : null;
+      const catLabel = cat?.label[lang] ?? '—';
+      const color = COMPARE_COLORS[i] ?? '#6366f1';
+      const rows = stats
+        .map(
+          (s) =>
+            `<tr><td style="padding:6px 12px;border-bottom:1px solid #e5e7eb;color:#374151">${escapeHtml(s.label)}</td>` +
+            `<td style="padding:6px 12px;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:500">${escapeHtml(s.value)}</td></tr>`,
+        )
+        .join('');
+      return `<section class="page" style="page-break-before:always">
+        <div class="card">
+          <div class="header" style="background:linear-gradient(135deg,${color},#8b5cf6)">
+            <h1>${safeNames[i]}</h1>
+            <p>${safePnos[i]}${p.namn && p.namn !== p.nimi ? ` · ${escapeHtml(p.namn)}` : ''}</p>
+            ${qi != null ? `<div class="qi"><span class="qi-score">${qi}</span><span>${escapeHtml(catLabel)}</span></div>` : ''}
+          </div>
+          <table>${rows}</table>
+        </div>
+      </section>`;
+    })
+    .join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="${escapeHtml(lang)}">
+<head>
+<meta charset="utf-8">
+<title>${escapeHtml(t('compare.title'))} – ${safeNames.join(' · ')}</title>
+<style>
+  @media print {
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .page { page-break-after: always; }
+    .page:last-child { page-break-after: auto; }
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 2rem auto; color: #111827; padding: 0 1rem; }
+  h1 { margin: 0 0 4px 0; font-size: 1.5rem; }
+  h2 { font-size: 1.15rem; margin: 0 0 12px 0; color: #1f2937; }
+  .card { border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; }
+  .header { color: white; padding: 24px; }
+  .header p { margin: 0; opacity: 0.85; font-size: 0.9rem; }
+  .qi { display: inline-flex; align-items: center; gap: 8px; margin-top: 12px; background: rgba(255,255,255,0.2); border-radius: 8px; padding: 6px 12px; }
+  .qi-score { font-weight: 700; font-size: 1.2rem; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  .footer { padding: 12px; font-size: 0.75rem; color: #9ca3af; text-align: center; }
+  .summary-header { padding: 8px 12px; color: white; background: linear-gradient(135deg,#6366f1,#8b5cf6); }
+  .summary-header h1 { margin: 0; }
+  .summary-header p { margin: 4px 0 0 0; font-size: 0.85rem; opacity: 0.9; }
+</style>
+</head>
+<body>
+<section class="page">
+  <div class="card">
+    <div class="summary-header">
+      <h1>${escapeHtml(t('compare.title'))}</h1>
+      <p>${safeNames.join(' · ')}</p>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th style="padding:8px 12px;border-bottom:2px solid #e5e7eb;text-align:left;color:#6b7280">${escapeHtml(t('export.field'))}</th>
+          ${headerCells}
+        </tr>
+      </thead>
+      <tbody>
+        ${summaryRows}
+      </tbody>
+    </table>
+    <div class="footer">${escapeHtml(t('footer.attribution'))}</div>
+  </div>
+</section>
+${detailPages}
+</body>
+</html>`;
+
+  openPrintWindow(html);
+}
+
+/** Export a multi-neighborhood comparison as a single CSV file. */
+export function exportComparisonCsv(pinned: NeighborhoodProperties[]): void {
+  if (pinned.length === 0) return;
+
+  // Row 0: header with neighborhood names; Row 1+: one row per metric across all neighborhoods.
+  const allStats = pinned.map((p) => collectStats(p));
+  const labels = allStats[0].map((s) => s.label);
+  const headerRow = [t('export.field'), ...pinned.map((p) => `${p.nimi ?? p.pno} (${p.pno})`)]
+    .map(escapeCsvField)
+    .join(',');
+  const rows = labels.map((label, i) => {
+    const cells = allStats.map((stats) => stats[i]?.value ?? '');
+    return [label, ...cells].map(escapeCsvField).join(',');
+  });
+  const csv = [headerRow, ...rows].join('\n');
+
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  try {
+    const a = document.createElement('a');
+    a.href = url;
+    const slug = pinned
+      .map((p) => (p.nimi || p.pno).replace(/[/\\:*?"<>|]/g, '_'))
+      .join('_vs_');
+    a.download = `comparison_${slug}.csv`;
+    a.click();
+  } finally {
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  }
 }

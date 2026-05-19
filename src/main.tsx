@@ -62,6 +62,13 @@ if (SENTRY_DSN) {
   });
 }
 
+// IN-2: Core Web Vitals — LCP, INP, CLS, FCP, TTFB.
+// In dev: console.debug for quick local feedback.
+// In prod: route through trackEvent → Umami so we can correlate UX regressions
+// to deploys. Lazy-loaded so the metrics library never appears on the critical
+// path of the initial render.
+void import('./utils/webVitals').then((m) => m.reportWebVitals());
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ThemeProvider>

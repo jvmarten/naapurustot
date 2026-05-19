@@ -229,7 +229,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 py-8">
+      <main id="main" tabIndex={-1} className="max-w-5xl mx-auto px-4 py-8 focus:outline-none">
         {/* Breadcrumb */}
         <nav className="text-sm text-surface-500 dark:text-surface-400 mb-6">
           <Link to="/" className="hover:text-brand-500">{t('app.title')}</Link>
@@ -421,7 +421,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
         <div className="text-center py-8 border-t border-surface-200 dark:border-surface-800">
           <Link
             to={`/?pno=${d.pno}`}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors font-medium"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-brand-700 text-white rounded-lg hover:bg-brand-800 transition-colors font-medium"
           >
             {t('profile.explore_on_map')}
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

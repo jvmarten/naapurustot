@@ -98,4 +98,22 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ favorites }),
     }),
+
+  getNotes: () =>
+    request<{ notes: Record<string, string> }>('/auth/notes'),
+
+  saveNotes: (notes: Record<string, string>) =>
+    request<{ notes: Record<string, string> }>('/auth/notes', {
+      method: 'PUT',
+      body: JSON.stringify({ notes }),
+    }),
+
+  getPreferences: () =>
+    request<{ filterPresets: unknown[]; qualityWeights: Record<string, number> }>('/auth/preferences'),
+
+  savePreferences: (data: { filterPresets?: unknown[]; qualityWeights?: Record<string, number> }) =>
+    request<{ filterPresets: unknown[]; qualityWeights: Record<string, number> }>('/auth/preferences', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
 };
