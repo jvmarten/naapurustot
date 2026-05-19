@@ -38,7 +38,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
       ? 'en'
       : 'fi';
   useEffect(() => {
-    if (getLang() !== pathLang) setLang(pathLang);
+    if (getLang() !== pathLang) void setLang(pathLang);
   }, [pathLang]);
 
   // Path prefix per language for building neighborhood links from this page.
@@ -182,13 +182,9 @@ export const NeighborhoodProfilePage: React.FC = () => {
 
   const changeLang = (next: Lang) => {
     if (next === lang) return;
-    setLang(next);
+    void setLang(next);
     setLangState(next);
-    // Navigate to the correct URL path so the language matches the route
-    // and survives page refreshes.
-    if (slug) {
-      navigate(`${langPathPrefix[next]}/${slug}`, { replace: true });
-    }
+    if (slug) navigate(`${langPathPrefix[next]}/${slug}`, { replace: true });
   };
 
   const similar = useMemo(() => {
@@ -252,22 +248,13 @@ export const NeighborhoodProfilePage: React.FC = () => {
           <Link to="/" className="text-lg font-bold text-brand-500 hover:text-brand-600 transition-colors">
             naapurustot.fi
           </Link>
-          <div className="flex items-center gap-1" role="group" aria-label="Language">
-            {(['fi', 'en', 'sv'] as const).map((l) => (
-              <button
-                key={l}
-                onClick={() => changeLang(l)}
-                aria-pressed={lang === l}
-                className={`text-xs font-semibold uppercase px-2 py-1 rounded transition-colors ${
-                  lang === l
-                    ? 'text-brand-500 bg-brand-50 dark:bg-brand-900/30'
-                    : 'text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-200'
-                }`}
-              >
-                {l}
-              </button>
-            ))}
-          </div>
+          <button
+            onClick={() => changeLang(lang === 'fi' ? 'en' : lang === 'en' ? 'sv' : 'fi')}
+            className="text-sm text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-200 transition-colors"
+            aria-label="Language"
+          >
+            {lang === 'fi' ? 'EN' : lang === 'en' ? 'SV' : 'FI'}
+          </button>
         </div>
       </header>
 

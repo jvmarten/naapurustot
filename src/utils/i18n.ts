@@ -1,52 +1,74 @@
 /**
- * Minimal i18n system. Translations are flat key-value JSON files loaded at build time.
- * Language preference is persisted to localStorage. Use `t('key')` to get a localized string.
+ * Minimal i18n. Finnish is bundled (the default locale and an always-available
+ * fallback). English and Swedish are loaded lazily via `?url` + fetch so their
+ * JSON payloads ship as static assets (dist/assets/*.json) rather than the
+ * gzipped JS bundle — required to stay under the CI byte budget.
+ *
+ * Tests preload `en` and `sv` synchronously via `__testInjectLocale` in
+ * src/__tests__/setup.ts, so test assertions that rely on translated strings
+ * (e.g. `t('layer.median_income')` in English) work without network I/O.
  */
 
 import fi from '../locales/fi.json';
-import en from '../locales/en.json';
-import sv from '../locales/sv.json';
+import enUrl from '../locales/en.json?url';
+import svUrl from '../locales/sv.json?url';
 
 export type Lang = 'fi' | 'en' | 'sv';
 
-const translations: Record<string, Record<Lang, string>> = {};
+type Dict = Record<string, string>;
+const FI = fi as Dict;
+const EN: Dict = {};
+const SV: Dict = {};
 
-// Build translations from all locale files. If a key is missing in one
-// language, fall back through fi → en → sv (whichever is first defined)
-// instead of returning undefined.
-const allKeys = new Set([
-  ...Object.keys(fi),
-  ...Object.keys(en),
-  ...Object.keys(sv),
-]);
-for (const key of allKeys) {
-  const fiVal = (fi as Record<string, string>)[key];
-  const enVal = (en as Record<string, string>)[key];
-  const svVal = (sv as Record<string, string>)[key];
-  const fallback = fiVal ?? enVal ?? svVal;
-  translations[key] = {
-    fi: fiVal ?? fallback,
-    en: enVal ?? fallback,
-    sv: svVal ?? fallback,
-  };
+let enPromise: Promise<void> | null = null;
+let svPromise: Promise<void> | null = null;
+
+function loadLocale(url: string, target: Dict, promise: Promise<void> | null, reset: () => void): Promise<void> {
+  if (promise) return promise;
+  const p = fetch(url).then((r) => r.json()).then((d: Dict) => {
+    Object.assign(target, d);
+  }).catch(() => { reset(); });
+  return p;
+}
+
+function loadEn(): Promise<void> {
+  if (enPromise) return enPromise;
+  enPromise = loadLocale(enUrl, EN, enPromise, () => { enPromise = null; });
+  return enPromise;
+}
+function loadSv(): Promise<void> {
+  if (svPromise) return svPromise;
+  svPromise = loadLocale(svUrl, SV, svPromise, () => { svPromise = null; });
+  return svPromise;
 }
 
 let currentLang: Lang = 'fi';
 try {
-  const stored = localStorage.getItem('lang');
-  if (stored === 'fi' || stored === 'en' || stored === 'sv') currentLang = stored;
+  const s = localStorage.getItem('lang');
+  if (s === 'fi' || s === 'en' || s === 'sv') currentLang = s;
+  if (currentLang === 'en') void loadEn();
+  else if (currentLang === 'sv') void loadSv();
 } catch { /* localStorage unavailable in SSR/tests */ }
 
-export function setLang(lang: Lang) {
+export function setLang(lang: Lang): Promise<void> {
   currentLang = lang;
-  try { localStorage.setItem('lang', lang); } catch { /* localStorage unavailable */ }
+  try { localStorage.setItem('lang', lang); } catch { /* unavailable */ }
+  if (lang === 'en') return loadEn();
+  if (lang === 'sv') return loadSv();
+  return Promise.resolve();
 }
 
-export function getLang(): Lang {
-  return currentLang;
-}
+export function getLang(): Lang { return currentLang; }
 
 /** Look up a translation by key. Returns the key itself if no translation is found. */
 export function t(key: string): string {
-  return translations[key]?.[currentLang] ?? key;
+  if (currentLang === 'sv') return SV[key] ?? FI[key] ?? EN[key] ?? key;
+  if (currentLang === 'en') return EN[key] ?? FI[key] ?? key;
+  return FI[key] ?? EN[key] ?? key;
+}
+
+/** TEST ONLY: synchronously inject a locale dict (used by setup.ts). */
+export function __testInjectLocale(lang: 'en' | 'sv', data: Dict): void {
+  if (lang === 'en') { Object.assign(EN, data); enPromise = Promise.resolve(); }
+  else { Object.assign(SV, data); svPromise = Promise.resolve(); }
 }

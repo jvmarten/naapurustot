@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import enStatic from '../locales/en.json';
+import svStatic from '../locales/sv.json';
 
 // We need a fresh module for each test to reset state
 describe('i18n deep tests', () => {
@@ -12,6 +14,10 @@ describe('i18n deep tests', () => {
     const mod = await import('../utils/i18n');
     t = mod.t;
     setLang = mod.setLang;
+    // Re-inject lazy-loaded locales after the module reset, since production
+    // loads them via fetch (unavailable in jsdom).
+    mod.__testInjectLocale('en', enStatic as Record<string, string>);
+    mod.__testInjectLocale('sv', svStatic as Record<string, string>);
   });
 
   it('returns the key for missing translation in Finnish', () => {

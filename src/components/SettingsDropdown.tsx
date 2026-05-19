@@ -20,12 +20,6 @@ interface SettingsDropdownProps {
   onCopyEmbed?: () => Promise<boolean>;
 }
 
-const LANG_OPTIONS: { value: Lang; label: string }[] = [
-  { value: 'fi', label: 'Suomi' },
-  { value: 'en', label: 'English' },
-  { value: 'sv', label: 'Svenska' },
-];
-
 const CB_OPTIONS: { value: ColorblindType; labelKey: string }[] = [
   { value: 'off', labelKey: 'settings.cb_off' },
   { value: 'protanopia', labelKey: 'settings.cb_protanopia' },
@@ -173,27 +167,17 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
 
           {/* Language picker (FI / EN / SV) */}
           <div className="px-4 py-2.5">
-            <div className="flex items-center gap-3 mb-2">
-              <svg className="w-4 h-4 text-surface-500 dark:text-surface-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
-              </svg>
-              <span className="text-xs font-medium text-surface-500 dark:text-surface-400">{LANG_OPTIONS.find(o => o.value === lang)?.label ?? 'Suomi'}</span>
-            </div>
             <div className="flex rounded-lg border border-surface-200 dark:border-surface-700/40 overflow-hidden">
-              {LANG_OPTIONS.map((opt) => (
+              {(['fi', 'en', 'sv'] as const).map((l) => (
                 <button
-                  key={opt.value}
-                  onClick={() => onLangChange(opt.value)}
-                  title={opt.label}
-                  aria-label={opt.label}
-                  aria-pressed={lang === opt.value}
-                  className={`flex-1 flex items-center justify-center py-2 text-xs font-semibold uppercase transition-colors
-                    ${lang === opt.value
-                      ? 'bg-brand-500/15 dark:bg-brand-600/20 text-brand-600 dark:text-brand-300'
-                      : 'text-surface-500 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-800'
-                    }`}
+                  key={l}
+                  onClick={() => onLangChange(l)}
+                  aria-pressed={lang === l}
+                  className={`flex-1 py-2 text-xs font-semibold uppercase transition-colors ${lang === l
+                    ? 'bg-brand-500/15 dark:bg-brand-600/20 text-brand-600 dark:text-brand-300'
+                    : 'text-surface-500 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-800'}`}
                 >
-                  {opt.value}
+                  {l}
                 </button>
               ))}
             </div>
