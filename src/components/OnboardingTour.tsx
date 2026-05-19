@@ -9,8 +9,11 @@ interface OnboardingTourProps {
 }
 
 interface Step {
-  /** Anchor's data-tour-id, or null for a centered welcome step. */
-  anchor: string | null;
+  /** data-tour-ids to spotlight. Empty array = centered welcome step.
+   *  Popover positions relative to the union bounding box of all anchors,
+   *  so two anchors on opposite sides of the header get a popover centered
+   *  between them rather than skewed to one side. */
+  anchors: string[];
   titleKey: string;
   bodyKey: string;
   /** Optional extra body line (e.g. the click-hint on the welcome step). */
@@ -18,16 +21,17 @@ interface Step {
 }
 
 const ALL_STEPS: Step[] = [
-  { anchor: null, titleKey: 'onboarding.welcome.title', bodyKey: 'onboarding.welcome.body', hintKey: 'onboarding.click_hint' },
-  { anchor: 'layers', titleKey: 'onboarding.layers.title', bodyKey: 'onboarding.layers.body' },
-  { anchor: 'search', titleKey: 'onboarding.search.title', bodyKey: 'onboarding.search.body' },
-  { anchor: 'tools', titleKey: 'onboarding.tools.title', bodyKey: 'onboarding.tools.body' },
-  { anchor: 'auth', titleKey: 'onboarding.auth.title', bodyKey: 'onboarding.auth.body' },
+  { anchors: [], titleKey: 'onboarding.welcome.title', bodyKey: 'onboarding.welcome.body', hintKey: 'onboarding.click_hint' },
+  { anchors: ['layers'], titleKey: 'onboarding.layers.title', bodyKey: 'onboarding.layers.body' },
+  { anchors: ['search', 'cities'], titleKey: 'onboarding.search.title', bodyKey: 'onboarding.search.body' },
+  { anchors: ['tools'], titleKey: 'onboarding.tools.title', bodyKey: 'onboarding.tools.body' },
+  { anchors: ['auth'], titleKey: 'onboarding.auth.title', bodyKey: 'onboarding.auth.body' },
 ];
 
 const POPOVER_W = 320;
 const POPOVER_PAD = 16;
 const SPOTLIGHT_PAD = 6;
+const SPOTLIGHT_RADIUS = 14;
 
 /** Picks the first visible element matching the tour-id (the chrome has duplicate
  *  anchors for desktop vs mobile breakpoints; one is hidden via CSS). */
@@ -46,12 +50,12 @@ function clamp(v: number, lo: number, hi: number) {
 
 export const OnboardingTour: React.FC<OnboardingTourProps> = ({ onComplete, skipAuthStep = false }) => {
   const steps = useMemo(
-    () => (skipAuthStep ? ALL_STEPS.filter((s) => s.anchor !== 'auth') : ALL_STEPS),
+    () => (skipAuthStep ? ALL_STEPS.filter((s) => !s.anchors.includes('auth')) : ALL_STEPS),
     [skipAuthStep],
   );
 
   const [stepIndex, setStepIndex] = useState(0);
-  const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
+  const [targetRects, setTargetRects] = useState<DOMRect[]>([]);
   const [viewport, setViewport] = useState(() => ({
     w: typeof window !== 'undefined' ? window.innerWidth : 1024,
     h: typeof window !== 'undefined' ? window.innerHeight : 768,
@@ -74,11 +78,13 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({ onComplete, skip
     onComplete();
   }, [onComplete, stepIndex]);
 
-  // Resolve target rect when step or viewport changes. The chrome may not be
-  // mounted on the first paint of step 1, so retry briefly via rAF.
+  // Resolve target rects for all anchors. The chrome may not be mounted on
+  // the first paint of step 1, so retry briefly via rAF. Bail after 30 frames
+  // with whatever resolved — better than blocking the tour entirely if one
+  // anchor is missing (e.g. a future viewport-conditional anchor).
   useEffect(() => {
-    if (!step.anchor) {
-      setTargetRect(null);
+    if (step.anchors.length === 0) {
+      setTargetRects([]);
       return;
     }
     let cancelled = false;
@@ -86,19 +92,20 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({ onComplete, skip
     let attempts = 0;
     const tryFind = () => {
       if (cancelled) return;
-      const el = findVisibleAnchor(step.anchor!);
-      if (el) {
-        setTargetRect(el.getBoundingClientRect());
-      } else if (attempts++ < 30) {
-        raf = requestAnimationFrame(tryFind);
+      const rects: DOMRect[] = [];
+      for (const id of step.anchors) {
+        const el = findVisibleAnchor(id);
+        if (el) rects.push(el.getBoundingClientRect());
+      }
+      if (rects.length === step.anchors.length || attempts++ >= 30) {
+        setTargetRects(rects);
       } else {
-        // Anchor never appeared — fall through with no spotlight rather than blocking the tour.
-        setTargetRect(null);
+        raf = requestAnimationFrame(tryFind);
       }
     };
     tryFind();
     return () => { cancelled = true; cancelAnimationFrame(raf); };
-  }, [step.anchor, viewport.w, viewport.h]);
+  }, [step.anchors, viewport.w, viewport.h]);
 
   // Track viewport changes (resize, orientation) so the spotlight + popover follow.
   useEffect(() => {
@@ -135,30 +142,49 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({ onComplete, skip
 
   const popoverWidth = Math.min(POPOVER_W, viewport.w - POPOVER_PAD * 2);
 
-  // Position the popover near the target, or center it when there's no anchor.
+  // Union bbox of all anchors — popover positions relative to this so that
+  // multi-anchor steps (search + cities) get a popover centered between the
+  // highlights rather than skewed to one side.
+  const unionRect = useMemo(() => {
+    if (targetRects.length === 0) return null;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const r of targetRects) {
+      if (r.left < minX) minX = r.left;
+      if (r.top < minY) minY = r.top;
+      if (r.right > maxX) maxX = r.right;
+      if (r.bottom > maxY) maxY = r.bottom;
+    }
+    return { left: minX, top: minY, right: maxX, bottom: maxY, width: maxX - minX, height: maxY - minY };
+  }, [targetRects]);
+
+  // Position the popover near the target union, or center it when there's no anchor.
   // Vertical placement: prefer below the target, flip above when there isn't room.
   const popoverPos = useMemo(() => {
-    if (!targetRect) {
+    if (!unionRect) {
       return {
         top: viewport.h / 2,
         left: viewport.w / 2 - popoverWidth / 2,
         translateY: '-50%',
       };
     }
-    const centerX = targetRect.left + targetRect.width / 2;
+    const centerX = unionRect.left + unionRect.width / 2;
     const left = clamp(centerX - popoverWidth / 2, POPOVER_PAD, viewport.w - popoverWidth - POPOVER_PAD);
-    const spaceBelow = viewport.h - targetRect.bottom;
-    const spaceAbove = targetRect.top;
+    const spaceBelow = viewport.h - unionRect.bottom;
+    const spaceAbove = unionRect.top;
     // Need ~220px for the card. If below has room, prefer it; else flip.
     if (spaceBelow >= 240 || spaceBelow > spaceAbove) {
-      return { top: targetRect.bottom + POPOVER_PAD, left, translateY: '0' };
+      return { top: unionRect.bottom + POPOVER_PAD, left, translateY: '0' };
     }
-    return { top: targetRect.top - POPOVER_PAD, left, translateY: '-100%' };
-  }, [targetRect, viewport.w, viewport.h, popoverWidth]);
+    return { top: unionRect.top - POPOVER_PAD, left, translateY: '-100%' };
+  }, [unionRect, viewport.w, viewport.h, popoverWidth]);
 
   const stepCounter = t('onboarding.step_of')
     .replace('{n}', String(stepIndex + 1))
     .replace('{total}', String(steps.length));
+
+  // SVG mask id needs to change per step so multiple steps don't share state
+  // across remounts. Using stepIndex is sufficient since only one mask is live.
+  const maskId = `onboarding-mask-${stepIndex}`;
 
   return (
     <div
@@ -167,22 +193,35 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({ onComplete, skip
       aria-modal="true"
       aria-labelledby="onboarding-title"
     >
-      {/* Spotlight: a positioned element whose huge outset box-shadow dims everything outside the target.
-          When there is no target (welcome step), fall back to a uniform backdrop. */}
-      {targetRect ? (
-        <div
+      {/* SVG mask cuts rounded holes through the dark backdrop for every anchor.
+          Stacked box-shadow spotlights would overlap-dim each other's holes; an
+          SVG mask is the only clean way to support N cutouts in one backdrop. */}
+      {targetRects.length > 0 ? (
+        <svg
           aria-hidden="true"
-          style={{
-            position: 'fixed',
-            top: targetRect.top - SPOTLIGHT_PAD,
-            left: targetRect.left - SPOTLIGHT_PAD,
-            width: targetRect.width + SPOTLIGHT_PAD * 2,
-            height: targetRect.height + SPOTLIGHT_PAD * 2,
-            borderRadius: 14,
-            boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.65)',
-            transition: 'top 200ms ease, left 200ms ease, width 200ms ease, height 200ms ease',
-          }}
-        />
+          className="absolute top-0 left-0 pointer-events-none"
+          width={viewport.w}
+          height={viewport.h}
+        >
+          <defs>
+            <mask id={maskId}>
+              <rect width="100%" height="100%" fill="white" />
+              {targetRects.map((r, i) => (
+                <rect
+                  key={i}
+                  x={r.left - SPOTLIGHT_PAD}
+                  y={r.top - SPOTLIGHT_PAD}
+                  width={r.width + SPOTLIGHT_PAD * 2}
+                  height={r.height + SPOTLIGHT_PAD * 2}
+                  rx={SPOTLIGHT_RADIUS}
+                  ry={SPOTLIGHT_RADIUS}
+                  fill="black"
+                />
+              ))}
+            </mask>
+          </defs>
+          <rect width="100%" height="100%" fill="rgba(0, 0, 0, 0.65)" mask={`url(#${maskId})`} />
+        </svg>
       ) : (
         <div aria-hidden="true" className="absolute inset-0 bg-black/65" />
       )}
