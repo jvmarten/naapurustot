@@ -288,7 +288,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
   return (
     <>
       {/* Desktop: top-right dropdown */}
-      <div className={`hidden md:flex items-start gap-1.5 absolute top-[3.5rem] right-4 z-10 ${minimized ? 'w-auto' : ''}`}>
+      <div data-tour-id="layers" className={`hidden md:flex items-start gap-1.5 absolute top-[3.5rem] right-4 z-10 ${minimized ? 'w-auto' : ''}`}>
         {headerSlot}
         <div className={`rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden ${minimized ? 'w-auto' : 'w-52 max-h-[80vh] overflow-y-auto'}`}>
           <button
@@ -317,6 +317,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
         {/* FAB trigger */}
         {!mobileOpen && (
           <button
+            data-tour-id="layers"
             onClick={() => setMobileOpen(true)}
             className="fixed bottom-8 right-3 z-30 w-14 h-14 rounded-2xl
                        bg-white/95 dark:bg-surface-900/95 backdrop-blur-md

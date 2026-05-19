@@ -14,6 +14,8 @@ interface SettingsDropdownProps {
   onToggleLang: () => void;
   fillOpacity: number;
   onFillOpacityChange: (value: number) => void;
+  /** QW-1: Re-launches the onboarding tour. */
+  onShowTour?: () => void;
 }
 
 const CB_OPTIONS: { value: ColorblindType; labelKey: string }[] = [
@@ -72,6 +74,7 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
   onToggleLang,
   fillOpacity,
   onFillOpacityChange,
+  onShowTour,
 }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -195,6 +198,23 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
           <Suspense fallback={null}>
             <DonateButton variant="menu-item" />
           </Suspense>
+
+          {/* QW-1: Re-launch the onboarding tour */}
+          {onShowTour && (
+            <>
+              <div className="border-t border-surface-100 dark:border-surface-700/40 my-1" />
+              <button
+                onClick={() => { onShowTour(); setOpen(false); }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200
+                           hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                </svg>
+                <span>{t('settings.show_tour')}</span>
+              </button>
+            </>
+          )}
 
           {/* PO-6: Data freshness indicator */}
           <div className="border-t border-surface-100 dark:border-surface-700/40 my-1" />

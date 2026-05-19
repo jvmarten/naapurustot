@@ -375,6 +375,30 @@ export interface MetricSource {
 }
 
 /**
+ * QW-5: Properties with a plain-language explanation under the `metric_explanation.*`
+ * i18n key. NeighborhoodPanel uses this to decide whether to show an explanation
+ * in the info popover alongside the source attribution.
+ */
+export const METRIC_EXPLANATIONS: ReadonlySet<string> = new Set([
+  'he_vakiy', 'hr_mtu', 'hr_ktu', 'unemployment_rate', 'employment_rate',
+  'higher_education_rate', 'property_price_sqm', 'foreign_language_pct',
+  'population_density', 'child_ratio', 'student_share', 'single_person_hh_pct',
+  'youth_ratio_pct', 'elderly_ratio_pct', 'gender_ratio', 'avg_household_size',
+  'single_parent_hh_pct', 'families_with_children_pct', 'ownership_rate',
+  'rental_rate', 'ra_as_kpa', 'detached_house_share', 'avg_construction_year',
+  'new_construction_pct', 'rental_price_sqm', 'price_to_rent_ratio',
+  'transit_stop_density', 'transit_reachability_score', 'air_quality_index',
+  'crime_index', 'walkability_index', 'traffic_accident_rate', 'light_pollution',
+  'noise_pollution', 'water_proximity_m', 'tree_canopy_pct', 'restaurant_density',
+  'grocery_density', 'daycare_density', 'school_density', 'school_quality_score',
+  'healthcare_density', 'sports_facility_density', 'cycling_density',
+  'ev_charging_density', 'voter_turnout_pct', 'party_diversity_index',
+  'broadband_coverage_pct', 'tech_sector_pct', 'healthcare_workers_pct',
+  'manufacturing_jobs_pct', 'public_sector_jobs_pct', 'service_sector_jobs_pct',
+  'property_price_change_pct',
+]);
+
+/**
  * Maps GeoJSON property names (or panel label keys) to their data source and year.
  * Used by NeighborhoodPanel to show attribution per stat row.
  */
