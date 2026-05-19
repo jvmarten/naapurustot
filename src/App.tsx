@@ -623,8 +623,8 @@ const App: React.FC = () => {
     handleCityChange('helsinki_metro');
   }, [handleCityChange]);
 
-  const toggleLang = useCallback(() => {
-    const next = lang === 'fi' ? 'en' : 'fi';
+  const handleLangChange = useCallback((next: Lang) => {
+    if (next === lang) return;
     trackEvent('switch-language', { lang: next });
     setLang(next);
     setLangState(next);
@@ -783,11 +783,12 @@ const App: React.FC = () => {
       const qi = selected.quality_index != null ? ` — ${t('panel.quality_index')}: ${selected.quality_index}` : '';
       document.title = `${selected.nimi} (${selected.pno})${qi} | naapurustot.fi`;
       if (desc) {
-        desc.setAttribute('content',
-          lang === 'fi'
-            ? `${selected.nimi} (${selected.pno}): mediaanitulo, työttömyys, asuntohinnat, palvelut ja 35+ mittaria Helsingin seudun asuinalueen vertailuun.`
-            : `${selected.nimi} (${selected.pno}): median income, unemployment, property prices, services and 35+ metrics for neighborhood comparison.`
-        );
+        const descByLang: Record<Lang, string> = {
+          fi: `${selected.nimi} (${selected.pno}): mediaanitulo, työttömyys, asuntohinnat, palvelut ja 35+ mittaria Helsingin seudun asuinalueen vertailuun.`,
+          en: `${selected.nimi} (${selected.pno}): median income, unemployment, property prices, services and 35+ metrics for neighborhood comparison.`,
+          sv: `${selected.namn ?? selected.nimi} (${selected.pno}): medianinkomst, arbetslöshet, bostadspriser, tjänster och 35+ mätare för jämförelse av Helsingforsregionens bostadsområden.`,
+        };
+        desc.setAttribute('content', descByLang[lang]);
       }
       if (ogTitle) ogTitle.setAttribute('content', `${selected.nimi} — naapurustot.fi`);
       if (ogDesc) ogDesc.setAttribute('content', `${selected.nimi} (${selected.pno}) — ${t('panel.quality_index')}: ${selected.quality_index ?? '—'}`);
@@ -970,7 +971,7 @@ const App: React.FC = () => {
             colorblind={colorblind}
             onColorblindChange={handleColorblindChange}
             lang={lang}
-            onToggleLang={toggleLang}
+            onLangChange={handleLangChange}
             fillOpacity={fillOpacity}
             onFillOpacityChange={handleFillOpacityChange}
             onShowTour={handleShowTour}

@@ -35,7 +35,7 @@ function normalize(value: number, { min, max }: MinMax): number {
 /** Definition of a single quality factor */
 export interface QualityFactor {
   id: string;
-  label: { fi: string; en: string };
+  label: { fi: string; en: string; sv: string };
   defaultWeight: number; // 0–100 (or -100–100 if bipolar) slider default
   /** Property key(s) on NeighborhoodProperties to read */
   properties: (keyof NeighborhoodProperties)[];
@@ -59,7 +59,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   // Environmental factors (20%) add nuance without flattening the spread.
   {
     id: 'safety',
-    label: { fi: 'Turvallisuus', en: 'Safety' },
+    label: { fi: 'Turvallisuus', en: 'Safety', sv: 'Säkerhet' },
     defaultWeight: 25,
     properties: ['crime_index'],
     invert: true,
@@ -67,7 +67,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'income',
-    label: { fi: 'Tulotaso', en: 'Income' },
+    label: { fi: 'Tulotaso', en: 'Income', sv: 'Inkomst' },
     defaultWeight: 20,
     properties: ['hr_mtu'],
     invert: false,
@@ -75,7 +75,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'employment',
-    label: { fi: 'Työllisyys', en: 'Employment' },
+    label: { fi: 'Työllisyys', en: 'Employment', sv: 'Sysselsättning' },
     defaultWeight: 20,
     properties: ['unemployment_rate'],
     invert: true,
@@ -83,7 +83,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'education',
-    label: { fi: 'Koulutus', en: 'Education' },
+    label: { fi: 'Koulutus', en: 'Education', sv: 'Utbildning' },
     defaultWeight: 15,
     properties: ['higher_education_rate'],
     invert: false,
@@ -91,7 +91,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'transit',
-    label: { fi: 'Joukkoliikenne', en: 'Transit' },
+    label: { fi: 'Joukkoliikenne', en: 'Transit', sv: 'Kollektivtrafik' },
     defaultWeight: 7,
     properties: ['transit_stop_density'],
     invert: false,
@@ -99,7 +99,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'services',
-    label: { fi: 'Palvelut', en: 'Services' },
+    label: { fi: 'Palvelut', en: 'Services', sv: 'Tjänster' },
     defaultWeight: 5,
     properties: ['healthcare_density', 'school_density', 'daycare_density', 'grocery_density'],
     invert: false,
@@ -107,7 +107,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'air_quality',
-    label: { fi: 'Ilmanlaatu', en: 'Air Quality' },
+    label: { fi: 'Ilmanlaatu', en: 'Air Quality', sv: 'Luftkvalitet' },
     defaultWeight: 3,
     properties: ['air_quality_index'],
     invert: true,
@@ -118,7 +118,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   // `invert: true` means lower raw values score higher (e.g., pollution, accidents).
   {
     id: 'cycling',
-    label: { fi: 'Pyöräilyinfra', en: 'Cycling Infrastructure' },
+    label: { fi: 'Pyöräilyinfra', en: 'Cycling Infrastructure', sv: 'Cykelinfrastruktur' },
     defaultWeight: 0,
     properties: ['cycling_density'],
     invert: false,
@@ -126,7 +126,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'grocery_access',
-    label: { fi: 'Ruokakaupat', en: 'Grocery Access' },
+    label: { fi: 'Ruokakaupat', en: 'Grocery Access', sv: 'Mataffärer' },
     defaultWeight: 0,
     properties: ['grocery_density'],
     invert: false,
@@ -134,7 +134,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'restaurants',
-    label: { fi: 'Ravintolat', en: 'Restaurants' },
+    label: { fi: 'Ravintolat', en: 'Restaurants', sv: 'Restauranger' },
     defaultWeight: 0,
     properties: ['restaurant_density'],
     invert: false,
@@ -143,7 +143,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   // Demographics — bipolar (no objective "better" direction)
   {
     id: 'avg_age',
-    label: { fi: 'Keski-ikä', en: 'Average Age' },
+    label: { fi: 'Keski-ikä', en: 'Average Age', sv: 'Medelålder' },
     defaultWeight: 0,
     properties: ['he_kika'],
     invert: false,
@@ -152,7 +152,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'youth_ratio',
-    label: { fi: 'Nuorten osuus', en: 'Youth Ratio' },
+    label: { fi: 'Nuorten osuus', en: 'Youth Ratio', sv: 'Andel unga' },
     defaultWeight: 0,
     properties: ['youth_ratio_pct'],
     invert: false,
@@ -161,7 +161,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'elderly_ratio',
-    label: { fi: 'Ikääntyneiden osuus', en: 'Elderly Ratio' },
+    label: { fi: 'Ikääntyneiden osuus', en: 'Elderly Ratio', sv: 'Andel äldre' },
     defaultWeight: 0,
     properties: ['elderly_ratio_pct'],
     invert: false,
@@ -170,7 +170,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'child_ratio',
-    label: { fi: 'Lasten osuus', en: 'Child Ratio' },
+    label: { fi: 'Lasten osuus', en: 'Child Ratio', sv: 'Andel barn' },
     defaultWeight: 0,
     properties: ['child_ratio'],
     invert: false,
@@ -179,7 +179,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'pensioner_share',
-    label: { fi: 'Eläkeläisten osuus', en: 'Pensioner Share' },
+    label: { fi: 'Eläkeläisten osuus', en: 'Pensioner Share', sv: 'Andel pensionärer' },
     defaultWeight: 0,
     properties: ['pensioner_share'],
     invert: false,
@@ -188,7 +188,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'student_share',
-    label: { fi: 'Opiskelijoiden osuus', en: 'Student Share' },
+    label: { fi: 'Opiskelijoiden osuus', en: 'Student Share', sv: 'Andel studerande' },
     defaultWeight: 0,
     properties: ['student_share'],
     invert: false,
@@ -197,7 +197,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'gender_ratio',
-    label: { fi: 'Sukupuolijakauma', en: 'Gender Ratio' },
+    label: { fi: 'Sukupuolijakauma', en: 'Gender Ratio', sv: 'Könsfördelning' },
     defaultWeight: 0,
     properties: ['gender_ratio'],
     invert: false,
@@ -206,7 +206,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'foreign_language',
-    label: { fi: 'Vieraskielisten osuus', en: 'Foreign Language %' },
+    label: { fi: 'Vieraskielisten osuus', en: 'Foreign Language %', sv: 'Andel främmande språk' },
     defaultWeight: 0,
     properties: ['foreign_language_pct'],
     invert: false,
@@ -215,7 +215,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'single_parent_hh',
-    label: { fi: 'Yksinhuoltajataloudet', en: 'Single-Parent Households' },
+    label: { fi: 'Yksinhuoltajataloudet', en: 'Single-Parent Households', sv: 'Ensamförsörjarhushåll' },
     defaultWeight: 0,
     properties: ['single_parent_hh_pct'],
     invert: false,
@@ -224,7 +224,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'families_with_children',
-    label: { fi: 'Lapsiperheet', en: 'Families with Children' },
+    label: { fi: 'Lapsiperheet', en: 'Families with Children', sv: 'Barnfamiljer' },
     defaultWeight: 0,
     properties: ['families_with_children_pct'],
     invert: false,
@@ -233,7 +233,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'single_person_hh',
-    label: { fi: 'Yhden hengen taloudet', en: 'Single-Person Households' },
+    label: { fi: 'Yhden hengen taloudet', en: 'Single-Person Households', sv: 'Enpersonshushåll' },
     defaultWeight: 0,
     properties: ['single_person_hh_pct'],
     invert: false,
@@ -242,7 +242,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'household_size',
-    label: { fi: 'Kotitalouden koko', en: 'Average Household Size' },
+    label: { fi: 'Kotitalouden koko', en: 'Average Household Size', sv: 'Hushållsstorlek' },
     defaultWeight: 0,
     properties: ['avg_household_size'],
     invert: false,
@@ -251,7 +251,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'population_density',
-    label: { fi: 'Asukastiheys', en: 'Population Density' },
+    label: { fi: 'Asukastiheys', en: 'Population Density', sv: 'Befolkningstäthet' },
     defaultWeight: 0,
     properties: ['population_density'],
     invert: false,
@@ -261,7 +261,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   // Housing — bipolar (composition/preference, not quality)
   {
     id: 'ownership_rate',
-    label: { fi: 'Omistusasuminen', en: 'Ownership Rate' },
+    label: { fi: 'Omistusasuminen', en: 'Ownership Rate', sv: 'Ägarboende' },
     defaultWeight: 0,
     properties: ['ownership_rate'],
     invert: false,
@@ -270,7 +270,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'rental_rate',
-    label: { fi: 'Vuokra-asuminen', en: 'Rental Rate' },
+    label: { fi: 'Vuokra-asuminen', en: 'Rental Rate', sv: 'Hyresboende' },
     defaultWeight: 0,
     properties: ['rental_rate'],
     invert: false,
@@ -279,7 +279,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'apartment_size',
-    label: { fi: 'Asuntojen keskikoko', en: 'Average Apartment Size' },
+    label: { fi: 'Asuntojen keskikoko', en: 'Average Apartment Size', sv: 'Genomsnittlig bostadsstorlek' },
     defaultWeight: 0,
     properties: ['ra_as_kpa'],
     invert: false,
@@ -288,7 +288,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'detached_house_share',
-    label: { fi: 'Omakotitalojen osuus', en: 'Detached House Share' },
+    label: { fi: 'Omakotitalojen osuus', en: 'Detached House Share', sv: 'Andel egnahemshus' },
     defaultWeight: 0,
     properties: ['detached_house_share'],
     invert: false,
@@ -297,7 +297,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'property_price',
-    label: { fi: 'Asuntojen neliöhinta', en: 'Property Price (€/m²)' },
+    label: { fi: 'Asuntojen neliöhinta', en: 'Property Price (€/m²)', sv: 'Bostadspris (€/m²)' },
     defaultWeight: 0,
     properties: ['property_price_sqm'],
     invert: false,
@@ -306,7 +306,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'rental_price',
-    label: { fi: 'Vuokrien neliöhinta', en: 'Rental Price (€/m²)' },
+    label: { fi: 'Vuokrien neliöhinta', en: 'Rental Price (€/m²)', sv: 'Hyrespris (€/m²)' },
     defaultWeight: 0,
     properties: ['rental_price_sqm'],
     invert: false,
@@ -315,7 +315,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'price_to_rent',
-    label: { fi: 'Hinta/vuokra-suhde', en: 'Price-to-Rent Ratio' },
+    label: { fi: 'Hinta/vuokra-suhde', en: 'Price-to-Rent Ratio', sv: 'Pris/hyra-förhållande' },
     defaultWeight: 0,
     properties: ['price_to_rent_ratio'],
     invert: false,
@@ -324,7 +324,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'construction_year',
-    label: { fi: 'Rakennusten keski-ikä', en: 'Average Construction Year' },
+    label: { fi: 'Rakennusten keski-ikä', en: 'Average Construction Year', sv: 'Genomsnittligt byggår' },
     defaultWeight: 0,
     properties: ['avg_construction_year'],
     invert: false,
@@ -333,7 +333,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'new_construction',
-    label: { fi: 'Uudisrakentaminen', en: 'New Construction' },
+    label: { fi: 'Uudisrakentaminen', en: 'New Construction', sv: 'Nybyggnation' },
     defaultWeight: 0,
     properties: ['new_construction_pct'],
     invert: false,
@@ -343,7 +343,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   // Employment — employment_rate is directional, sectoral mix is bipolar
   {
     id: 'employment_rate',
-    label: { fi: 'Työllisyysaste', en: 'Employment Rate' },
+    label: { fi: 'Työllisyysaste', en: 'Employment Rate', sv: 'Sysselsättningsgrad' },
     defaultWeight: 0,
     properties: ['employment_rate'],
     invert: false,
@@ -351,7 +351,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'tech_sector',
-    label: { fi: 'Tekniikan ala', en: 'Tech Sector' },
+    label: { fi: 'Tekniikan ala', en: 'Tech Sector', sv: 'IT-bransch' },
     defaultWeight: 0,
     properties: ['tech_sector_pct'],
     invert: false,
@@ -360,7 +360,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'healthcare_sector',
-    label: { fi: 'Terveydenhuoltoala', en: 'Healthcare Sector' },
+    label: { fi: 'Terveydenhuoltoala', en: 'Healthcare Sector', sv: 'Vårdbransch' },
     defaultWeight: 0,
     properties: ['healthcare_workers_pct'],
     invert: false,
@@ -369,7 +369,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'manufacturing_sector',
-    label: { fi: 'Teollisuus', en: 'Manufacturing Sector' },
+    label: { fi: 'Teollisuus', en: 'Manufacturing Sector', sv: 'Industri' },
     defaultWeight: 0,
     properties: ['manufacturing_jobs_pct'],
     invert: false,
@@ -378,7 +378,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'public_sector',
-    label: { fi: 'Julkinen sektori', en: 'Public Sector' },
+    label: { fi: 'Julkinen sektori', en: 'Public Sector', sv: 'Offentlig sektor' },
     defaultWeight: 0,
     properties: ['public_sector_jobs_pct'],
     invert: false,
@@ -387,7 +387,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'service_sector',
-    label: { fi: 'Palvelusektori', en: 'Service Sector' },
+    label: { fi: 'Palvelusektori', en: 'Service Sector', sv: 'Servicesektor' },
     defaultWeight: 0,
     properties: ['service_sector_jobs_pct'],
     invert: false,
@@ -397,7 +397,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   // Environment & mobility
   {
     id: 'walkability',
-    label: { fi: 'Kävelyindeksi', en: 'Walkability' },
+    label: { fi: 'Kävelyindeksi', en: 'Walkability', sv: 'Gångvänlighet' },
     defaultWeight: 0,
     properties: ['walkability_index'],
     invert: false,
@@ -405,7 +405,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'sports_facilities',
-    label: { fi: 'Liikuntapaikat', en: 'Sports Facilities' },
+    label: { fi: 'Liikuntapaikat', en: 'Sports Facilities', sv: 'Idrottsanläggningar' },
     defaultWeight: 0,
     properties: ['sports_facility_density'],
     invert: false,
@@ -413,7 +413,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'traffic_accidents',
-    label: { fi: 'Liikenneonnettomuudet', en: 'Traffic Accidents' },
+    label: { fi: 'Liikenneonnettomuudet', en: 'Traffic Accidents', sv: 'Trafikolyckor' },
     defaultWeight: 0,
     properties: ['traffic_accident_rate'],
     invert: true,
@@ -421,7 +421,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'transit_reachability',
-    label: { fi: 'Joukkoliikenteen saavutettavuus', en: 'Transit Reachability' },
+    label: { fi: 'Joukkoliikenteen saavutettavuus', en: 'Transit Reachability', sv: 'Kollektivtrafikens tillgänglighet' },
     defaultWeight: 0,
     properties: ['transit_reachability_score'],
     invert: false,
@@ -429,7 +429,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'ev_charging',
-    label: { fi: 'Sähköautojen latauspisteet', en: 'EV Charging' },
+    label: { fi: 'Sähköautojen latauspisteet', en: 'EV Charging', sv: 'Elbilsladdning' },
     defaultWeight: 0,
     properties: ['ev_charging_density'],
     invert: false,
@@ -437,7 +437,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'tree_canopy',
-    label: { fi: 'Puuston peittävyys', en: 'Tree Canopy' },
+    label: { fi: 'Puuston peittävyys', en: 'Tree Canopy', sv: 'Trädtäckning' },
     defaultWeight: 0,
     properties: ['tree_canopy_pct'],
     invert: false,
@@ -445,7 +445,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'light_pollution',
-    label: { fi: 'Valosaaste', en: 'Light Pollution' },
+    label: { fi: 'Valosaaste', en: 'Light Pollution', sv: 'Ljusförorening' },
     defaultWeight: 0,
     properties: ['light_pollution'],
     invert: true,
@@ -453,7 +453,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'noise_pollution',
-    label: { fi: 'Melu', en: 'Noise Pollution' },
+    label: { fi: 'Melu', en: 'Noise Pollution', sv: 'Buller' },
     defaultWeight: 0,
     properties: ['noise_pollution'],
     invert: true,
@@ -461,7 +461,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'water_proximity',
-    label: { fi: 'Veden läheisyys', en: 'Water Proximity' },
+    label: { fi: 'Veden läheisyys', en: 'Water Proximity', sv: 'Närhet till vatten' },
     defaultWeight: 0,
     properties: ['water_proximity_m'],
     invert: true,
@@ -470,7 +470,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   // Connectivity & politics
   {
     id: 'broadband',
-    label: { fi: 'Laajakaistan kattavuus', en: 'Broadband Coverage' },
+    label: { fi: 'Laajakaistan kattavuus', en: 'Broadband Coverage', sv: 'Bredbandstäckning' },
     defaultWeight: 0,
     properties: ['broadband_coverage_pct'],
     invert: false,
@@ -478,7 +478,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'voter_turnout',
-    label: { fi: 'Äänestysaktiivisuus', en: 'Voter Turnout' },
+    label: { fi: 'Äänestysaktiivisuus', en: 'Voter Turnout', sv: 'Valdeltagande' },
     defaultWeight: 0,
     properties: ['voter_turnout_pct'],
     invert: false,
@@ -487,7 +487,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'party_diversity',
-    label: { fi: 'Puoluekirjon monimuotoisuus', en: 'Party Diversity' },
+    label: { fi: 'Puoluekirjon monimuotoisuus', en: 'Party Diversity', sv: 'Politisk mångfald' },
     defaultWeight: 0,
     properties: ['party_diversity_index'],
     invert: false,
@@ -497,7 +497,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   // Education
   {
     id: 'school_quality',
-    label: { fi: 'Koulujen laatu', en: 'School Quality' },
+    label: { fi: 'Koulujen laatu', en: 'School Quality', sv: 'Skolornas kvalitet' },
     defaultWeight: 0,
     properties: ['school_quality_score'],
     invert: false,
@@ -506,7 +506,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   // Trends
   {
     id: 'income_change',
-    label: { fi: 'Tulokehitys', en: 'Income Change' },
+    label: { fi: 'Tulokehitys', en: 'Income Change', sv: 'Inkomstutveckling' },
     defaultWeight: 0,
     properties: ['income_change_pct'],
     invert: false,
@@ -514,7 +514,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'population_change',
-    label: { fi: 'Väestönkehitys', en: 'Population Change' },
+    label: { fi: 'Väestönkehitys', en: 'Population Change', sv: 'Befolkningsutveckling' },
     defaultWeight: 0,
     properties: ['population_change_pct'],
     invert: false,
@@ -523,7 +523,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   },
   {
     id: 'unemployment_change',
-    label: { fi: 'Työttömyyden muutos', en: 'Unemployment Change' },
+    label: { fi: 'Työttömyyden muutos', en: 'Unemployment Change', sv: 'Arbetslöshetsförändring' },
     defaultWeight: 0,
     properties: ['unemployment_change_pct'],
     invert: true,
@@ -651,18 +651,18 @@ export function computeQualityIndices(
 }
 
 export interface QualityCategory {
-  label: { fi: string; en: string };
+  label: { fi: string; en: string; sv: string };
   min: number;
   max: number;
   color: string;
 }
 
 export const QUALITY_CATEGORIES: QualityCategory[] = [
-  { label: { fi: 'Vältä', en: 'Avoid' }, min: 0, max: 20, color: '#a855f7' },
-  { label: { fi: 'Huono', en: 'Bad' }, min: 20, max: 40, color: '#ef4444' },
-  { label: { fi: 'OK', en: 'Okay' }, min: 40, max: 60, color: '#f97316' },
-  { label: { fi: 'Hyvä', en: 'Good' }, min: 60, max: 80, color: '#eab308' },
-  { label: { fi: 'Erinomainen', en: 'Excellent' }, min: 80, max: 100, color: '#22c55e' },
+  { label: { fi: 'Vältä', en: 'Avoid', sv: 'Undvik' }, min: 0, max: 20, color: '#a855f7' },
+  { label: { fi: 'Huono', en: 'Bad', sv: 'Dåligt' }, min: 20, max: 40, color: '#ef4444' },
+  { label: { fi: 'OK', en: 'Okay', sv: 'Okej' }, min: 40, max: 60, color: '#f97316' },
+  { label: { fi: 'Hyvä', en: 'Good', sv: 'Bra' }, min: 60, max: 80, color: '#eab308' },
+  { label: { fi: 'Erinomainen', en: 'Excellent', sv: 'Utmärkt' }, min: 80, max: 100, color: '#22c55e' },
 ];
 
 export function getQualityCategory(index: number | null): QualityCategory | null {

@@ -14,7 +14,12 @@ interface SearchBarProps {
   lang?: Lang;
 }
 
-export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, onSelect, recent = [], lang: _lang }) => {
+export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, onSelect, recent = [], lang }) => {
+  const displayName = (p: GeoJSON.GeoJsonProperties): string => {
+    if (!p) return '';
+    if (lang === 'sv') return (p.namn as string) || (p.nimi as string) || (p.pno as string);
+    return (p.nimi as string) || (p.namn as string) || (p.pno as string);
+  };
   const [query, setQuery] = useState('');
   // Debounced copy of `query` used for the dataset scan. The input field still
   // updates synchronously (via `query`) so typing feels instant, but the O(n)
@@ -134,7 +139,7 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, onSelect,
   function selectResult(feature: GeoJSON.Feature) {
     trackEvent('search-neighborhood');
     onSelect(feature.properties!.pno, getFeatureCenter(feature));
-    setQuery(feature.properties!.nimi || feature.properties!.pno);
+    setQuery(displayName(feature.properties) || feature.properties!.pno);
     setIsOpen(false);
     setHighlightedIndex(-1);
   }
@@ -145,7 +150,7 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, onSelect,
       const neighborhood = await findNeighborhoodForPoint(addr.coordinates);
       if (neighborhood?.properties) {
         onSelect(neighborhood.properties.pno, addr.coordinates);
-        setQuery(neighborhood.properties.nimi || addr.label);
+        setQuery(displayName(neighborhood.properties) || addr.label);
       } else {
         onSelect('', addr.coordinates);
         setQuery(addr.label);
@@ -285,7 +290,7 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, onSelect,
               onMouseEnter={() => setHighlightedIndex(index)}
               onClick={() => selectResult(f)}
             >
-              <span className="text-surface-900 dark:text-white font-medium">{f.properties!.nimi}</span>
+              <span className="text-surface-900 dark:text-white font-medium">{displayName(f.properties)}</span>
               <span className="text-surface-500 dark:text-surface-400 ml-2">{f.properties!.pno}</span>
             </button>
           ))}

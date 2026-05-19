@@ -11,7 +11,7 @@ interface SettingsDropdownProps {
   colorblind: ColorblindType;
   onColorblindChange: (mode: ColorblindType) => void;
   lang: Lang;
-  onToggleLang: () => void;
+  onLangChange: (lang: Lang) => void;
   fillOpacity: number;
   onFillOpacityChange: (value: number) => void;
   /** QW-1: Re-launches the onboarding tour. */
@@ -19,6 +19,12 @@ interface SettingsDropdownProps {
   /** QW-7: Copy an iframe embed snippet for the current map state to the clipboard. */
   onCopyEmbed?: () => Promise<boolean>;
 }
+
+const LANG_OPTIONS: { value: Lang; label: string }[] = [
+  { value: 'fi', label: 'Suomi' },
+  { value: 'en', label: 'English' },
+  { value: 'sv', label: 'Svenska' },
+];
 
 const CB_OPTIONS: { value: ColorblindType; labelKey: string }[] = [
   { value: 'off', labelKey: 'settings.cb_off' },
@@ -73,7 +79,7 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
   colorblind,
   onColorblindChange,
   lang,
-  onToggleLang,
+  onLangChange,
   fillOpacity,
   onFillOpacityChange,
   onShowTour,
@@ -165,20 +171,33 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
             </div>
           </div>
 
-          {/* Language toggle */}
-          <button
-            onClick={onToggleLang}
-            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200
-                       hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
-            </svg>
-            <span>{lang === 'fi' ? 'English' : 'Suomi'}</span>
-            <span className="ml-auto text-xs font-semibold uppercase text-surface-400 dark:text-surface-500">
-              {lang === 'fi' ? 'EN' : 'FI'}
-            </span>
-          </button>
+          {/* Language picker (FI / EN / SV) */}
+          <div className="px-4 py-2.5">
+            <div className="flex items-center gap-3 mb-2">
+              <svg className="w-4 h-4 text-surface-500 dark:text-surface-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
+              </svg>
+              <span className="text-xs font-medium text-surface-500 dark:text-surface-400">{LANG_OPTIONS.find(o => o.value === lang)?.label ?? 'Suomi'}</span>
+            </div>
+            <div className="flex rounded-lg border border-surface-200 dark:border-surface-700/40 overflow-hidden">
+              {LANG_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => onLangChange(opt.value)}
+                  title={opt.label}
+                  aria-label={opt.label}
+                  aria-pressed={lang === opt.value}
+                  className={`flex-1 flex items-center justify-center py-2 text-xs font-semibold uppercase transition-colors
+                    ${lang === opt.value
+                      ? 'bg-brand-500/15 dark:bg-brand-600/20 text-brand-600 dark:text-brand-300'
+                      : 'text-surface-500 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-800'
+                    }`}
+                >
+                  {opt.value}
+                </button>
+              ))}
+            </div>
+          </div>
 
           {/* Colorblind mode */}
           <div className="px-4 py-2.5">

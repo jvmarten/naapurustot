@@ -78,6 +78,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="/" element={<App />} />
             <Route path="/alue/:slug" element={<NeighborhoodProfilePage />} />
             <Route path="/en/area/:slug" element={<NeighborhoodProfilePage />} />
+            <Route path="/sv/omrade/:slug" element={<NeighborhoodProfilePage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </Suspense>

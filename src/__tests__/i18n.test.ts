@@ -17,6 +17,11 @@ describe('i18n', () => {
       expect(getLang()).toBe('en');
     });
 
+    it('switches to Swedish', () => {
+      setLang('sv');
+      expect(getLang()).toBe('sv');
+    });
+
     it('switches back to Finnish', () => {
       setLang('en');
       setLang('fi');
@@ -44,6 +49,16 @@ describe('i18n', () => {
       const en = t('layer.quality_index');
       // Finnish and English translations should differ
       expect(fi).not.toBe(en);
+    });
+
+    it('returns Swedish translation when language is Swedish', () => {
+      setLang('sv');
+      const sv = t('layer.quality_index');
+      expect(sv).toBeTruthy();
+      expect(sv).not.toBe('layer.quality_index');
+      // Swedish translation should differ from Finnish
+      setLang('fi');
+      expect(sv).not.toBe(t('layer.quality_index'));
     });
 
     it('returns the key itself for unknown translation keys', () => {
