@@ -3,6 +3,12 @@ import react from '@vitejs/plugin-react'
 import viteCompression from 'vite-plugin-compression'
 import { VitePWA } from 'vite-plugin-pwa'
 import { visualizer } from 'rollup-plugin-visualizer'
+import { sentryVitePlugin } from '@sentry/vite-plugin'
+
+const SENTRY_AUTH_TOKEN = process.env.SENTRY_AUTH_TOKEN
+const SENTRY_ORG = process.env.SENTRY_ORG
+const SENTRY_PROJECT = process.env.SENTRY_PROJECT
+const SENTRY_RELEASE = process.env.VITE_SENTRY_RELEASE
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -85,9 +91,20 @@ export default defineConfig({
       brotliSize: true,
       open: false,
     }),
+    // Source maps are emitted as 'hidden' (no //# sourceMappingURL=…) so they
+    // get uploaded to Sentry but are deleted from dist/ before deploy — clients
+    // never download them. Only active when an auth token is provided.
+    SENTRY_AUTH_TOKEN ? sentryVitePlugin({
+      org: SENTRY_ORG,
+      project: SENTRY_PROJECT,
+      authToken: SENTRY_AUTH_TOKEN,
+      release: SENTRY_RELEASE ? { name: SENTRY_RELEASE } : undefined,
+      sourcemaps: { filesToDeleteAfterUpload: ['./dist/**/*.map'] },
+    }) : null,
   ],
   build: {
     assetsInlineLimit: 0, // Never inline data files — always emit as hashed assets
+    sourcemap: SENTRY_AUTH_TOKEN ? 'hidden' : false,
     rollupOptions: {
       output: {
         manualChunks(id: string) {

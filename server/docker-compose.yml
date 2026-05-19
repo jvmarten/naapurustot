@@ -18,6 +18,8 @@ services:
       DATABASE_URL: postgresql://naapurustot_api:${API_DB_PASSWORD}@db:5432/naapurustot
       JWT_SECRET: ${JWT_SECRET}
       TURNSTILE_SECRET: ${TURNSTILE_SECRET}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_RELEASE: ${SENTRY_RELEASE:-}
       NODE_ENV: production
       PORT: "3001"
     depends_on:
