@@ -13,6 +13,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
+import { useLayoutEffect } from 'react';
 
 vi.mock('../utils/dataLoader', () => {
   return {
@@ -152,6 +153,58 @@ describe('useMapData', () => {
     expect(result.current.error).toBeNull();
     expect(resetDataCacheMock).toHaveBeenCalledTimes(1);
     expect(loadAllDataMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('no committed render between regionId change and effect cleanup exposes previous data', async () => {
+    // Bug repro: switching from a specific region to "all" used to leak the
+    // previous region's data on the render that first sees the new regionId,
+    // because useMapData's data-clearing setState only ran inside useEffect
+    // (which fires AFTER commit). During that interim commit, App.tsx passed
+    // the stale data to buildMetroAreaFeatures and the map briefly rendered
+    // a single-region metro outline.
+    //
+    // We tap useLayoutEffect — which runs synchronously after EVERY commit,
+    // before browser paint — to capture every value the consumer actually
+    // sees committed. The fix uses a render-phase setState so the very first
+    // commit after a regionId change shows data: null.
+    const helsinkiData = { type: 'FeatureCollection' as const, features: [] };
+    loadRegionDataMock.mockResolvedValueOnce({ data: helsinkiData, metroAverages: { hr_mtu: 30000 } });
+    let resolveAll: ((v: unknown) => void) | null = null;
+    loadAllDataMock.mockReturnValueOnce(new Promise((r) => { resolveAll = r; }));
+
+    const commits: Array<{ region: string; data: unknown; loading: boolean }> = [];
+    const { result, rerender } = renderHook(({ r }) => {
+      const v = useMapData(r);
+      useLayoutEffect(() => {
+        commits.push({ region: r, data: v.data, loading: v.loading });
+      });
+      return v;
+    }, {
+      initialProps: { r: 'helsinki_metro' as 'helsinki_metro' | 'all' },
+    });
+    await waitFor(() => {
+      expect(result.current.data).toBe(helsinkiData);
+    });
+    commits.length = 0;
+
+    // Switch to 'all' — combined load stays pending.
+    rerender({ r: 'all' });
+
+    // No committed render under regionId='all' may carry the previous helsinki
+    // dataset. Without the fix, the first commit after the rerender has
+    // region='all' and data=helsinkiData, which is exactly the bug.
+    for (const c of commits) {
+      if (c.region === 'all') {
+        expect(c.data, `commit for region='all' must not contain previous region data: ${JSON.stringify(c)}`).not.toBe(helsinkiData);
+      }
+    }
+    expect(result.current.data).toBeNull();
+
+    const allData = { type: 'FeatureCollection' as const, features: [] };
+    act(() => { resolveAll!({ data: allData, metroAverages: { hr_mtu: 35000 } }); });
+    await waitFor(() => {
+      expect(result.current.data).toBe(allData);
+    });
   });
 
   it('ignores a cancelled load so a rapid region switch does not flash stale data', async () => {
