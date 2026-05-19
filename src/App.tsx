@@ -623,10 +623,12 @@ const App: React.FC = () => {
     handleCityChange('helsinki_metro');
   }, [handleCityChange]);
 
-  const toggleLang = useCallback(() => {
-    const next = lang === 'fi' ? 'en' : 'fi';
+  const handleLangChange = useCallback((next: Lang) => {
+    if (next === lang) return;
     trackEvent('switch-language', { lang: next });
-    setLang(next);
+    // For Swedish, setLang kicks off the lazy fetch; we update React state
+    // immediately and a brief Finnish fallback may flash for ~50ms.
+    void setLang(next);
     setLangState(next);
   }, [lang]);
 
@@ -783,11 +785,13 @@ const App: React.FC = () => {
       const qi = selected.quality_index != null ? ` — ${t('panel.quality_index')}: ${selected.quality_index}` : '';
       document.title = `${selected.nimi} (${selected.pno})${qi} | naapurustot.fi`;
       if (desc) {
-        desc.setAttribute('content',
-          lang === 'fi'
-            ? `${selected.nimi} (${selected.pno}): mediaanitulo, työttömyys, asuntohinnat, palvelut ja 35+ mittaria Helsingin seudun asuinalueen vertailuun.`
-            : `${selected.nimi} (${selected.pno}): median income, unemployment, property prices, services and 35+ metrics for neighborhood comparison.`
-        );
+        const name = lang === 'sv' ? (selected.namn ?? selected.nimi) : selected.nimi;
+        const tail = lang === 'fi'
+          ? 'mediaanitulo, työttömyys, asuntohinnat, palvelut ja 35+ mittaria Helsingin seudun asuinalueen vertailuun.'
+          : lang === 'sv'
+            ? 'medianinkomst, arbetslöshet, bostadspriser, tjänster och 35+ mätare för jämförelse av Helsingforsregionens bostadsområden.'
+            : 'median income, unemployment, property prices, services and 35+ metrics for neighborhood comparison.';
+        desc.setAttribute('content', `${name} (${selected.pno}): ${tail}`);
       }
       if (ogTitle) ogTitle.setAttribute('content', `${selected.nimi} — naapurustot.fi`);
       if (ogDesc) ogDesc.setAttribute('content', `${selected.nimi} (${selected.pno}) — ${t('panel.quality_index')}: ${selected.quality_index ?? '—'}`);
@@ -970,7 +974,7 @@ const App: React.FC = () => {
             colorblind={colorblind}
             onColorblindChange={handleColorblindChange}
             lang={lang}
-            onToggleLang={toggleLang}
+            onLangChange={handleLangChange}
             fillOpacity={fillOpacity}
             onFillOpacityChange={handleFillOpacityChange}
             onShowTour={handleShowTour}

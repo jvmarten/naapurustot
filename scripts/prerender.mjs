@@ -49,9 +49,9 @@ function escapeHtml(str) {
 
 function getCityName(city, lang) {
   const names = {
-    helsinki_metro: { fi: 'Helsingin seutu', en: 'Helsinki Metro' },
-    turku: { fi: 'Turun seutu', en: 'Turku Metro' },
-    tampere: { fi: 'Tampereen seutu', en: 'Tampere Metro' },
+    helsinki_metro: { fi: 'Helsingin seutu', en: 'Helsinki Metro', sv: 'Helsingforsregionen' },
+    turku: { fi: 'Turun seutu', en: 'Turku Metro', sv: 'Åboregionen' },
+    tampere: { fi: 'Tampereen seutu', en: 'Tampere Metro', sv: 'Tammerforsregionen' },
   };
   return names[city]?.[lang] ?? '';
 }
@@ -59,14 +59,20 @@ function getCityName(city, lang) {
 function getQualityLabel(qi, lang) {
   if (qi == null) return null;
   const cats = [
-    { min: 0, max: 20, fi: 'Vältä', en: 'Avoid' },
-    { min: 21, max: 40, fi: 'Huono', en: 'Bad' },
-    { min: 41, max: 60, fi: 'OK', en: 'Okay' },
-    { min: 61, max: 80, fi: 'Hyvä', en: 'Good' },
-    { min: 81, max: 100, fi: 'Erinomainen', en: 'Excellent' },
+    { min: 0, max: 20, fi: 'Vältä', en: 'Avoid', sv: 'Undvik' },
+    { min: 21, max: 40, fi: 'Huono', en: 'Bad', sv: 'Dåligt' },
+    { min: 41, max: 60, fi: 'OK', en: 'Okay', sv: 'Okej' },
+    { min: 61, max: 80, fi: 'Hyvä', en: 'Good', sv: 'Bra' },
+    { min: 81, max: 100, fi: 'Erinomainen', en: 'Excellent', sv: 'Utmärkt' },
   ];
   const cat = cats.find(c => qi >= c.min && qi <= c.max);
   return cat?.[lang] ?? null;
+}
+
+/** Display name varies by language: Swedish prefers `namn`, falls back to `nimi`. */
+function getDisplayName(props, lang) {
+  if (lang === 'sv' && props.namn) return props.namn;
+  return props.nimi;
 }
 
 function featureCenter(feature) {
@@ -143,21 +149,52 @@ function buildNoscriptContent(props, lang) {
   const cityName = getCityName(props.city, lang);
   const qi = props.quality_index != null ? Math.round(props.quality_index) : null;
   const qiLabel = getQualityLabel(qi, lang);
+  const displayName = getDisplayName(props, lang);
 
-  const lines = [`<h1>${escapeHtml(props.nimi)} (${props.pno})</h1>`];
+  const labels = {
+    fi: {
+      qi: 'Laatuindeksi',
+      median_income: 'Mediaanitulo',
+      unemployment: 'Työttömyysaste',
+      population: 'Väkiluku',
+      property_price: 'Asuntohinnat',
+      higher_education: 'Korkeakoulutus',
+      back: 'Takaisin kartalle',
+    },
+    en: {
+      qi: 'Quality Index',
+      median_income: 'Median income',
+      unemployment: 'Unemployment',
+      population: 'Population',
+      property_price: 'Property price',
+      higher_education: 'Higher education',
+      back: 'Back to the map',
+    },
+    sv: {
+      qi: 'Kvalitetsindex',
+      median_income: 'Medianinkomst',
+      unemployment: 'Arbetslöshet',
+      population: 'Folkmängd',
+      property_price: 'Bostadspriser',
+      higher_education: 'Högre utbildning',
+      back: 'Tillbaka till kartan',
+    },
+  };
+  const L = labels[lang] ?? labels.en;
+
+  const lines = [`<h1>${escapeHtml(displayName)} (${props.pno})</h1>`];
   lines.push(`<p>${cityName}</p>`);
 
   if (qi != null && qiLabel) {
-    const heading = lang === 'fi' ? 'Laatuindeksi' : 'Quality Index';
-    lines.push(`<h2>${heading}: ${qi}/100 (${qiLabel})</h2>`);
+    lines.push(`<h2>${L.qi}: ${qi}/100 (${qiLabel})</h2>`);
   }
 
   const stats = [];
-  if (props.hr_mtu != null) stats.push(`${lang === 'fi' ? 'Mediaanitulo' : 'Median income'}: ${Math.round(props.hr_mtu).toLocaleString()} €`);
-  if (props.unemployment_rate != null) stats.push(`${lang === 'fi' ? 'Työttömyysaste' : 'Unemployment'}: ${props.unemployment_rate.toFixed(1)} %`);
-  if (props.he_vakiy != null) stats.push(`${lang === 'fi' ? 'Väkiluku' : 'Population'}: ${Math.round(props.he_vakiy).toLocaleString()}`);
-  if (props.property_price_sqm != null) stats.push(`${lang === 'fi' ? 'Asuntohinnat' : 'Property price'}: ${Math.round(props.property_price_sqm).toLocaleString()} €/m²`);
-  if (props.higher_education_rate != null) stats.push(`${lang === 'fi' ? 'Korkeakoulutus' : 'Higher education'}: ${props.higher_education_rate.toFixed(1)} %`);
+  if (props.hr_mtu != null) stats.push(`${L.median_income}: ${Math.round(props.hr_mtu).toLocaleString()} €`);
+  if (props.unemployment_rate != null) stats.push(`${L.unemployment}: ${props.unemployment_rate.toFixed(1)} %`);
+  if (props.he_vakiy != null) stats.push(`${L.population}: ${Math.round(props.he_vakiy).toLocaleString()}`);
+  if (props.property_price_sqm != null) stats.push(`${L.property_price}: ${Math.round(props.property_price_sqm).toLocaleString()} €/m²`);
+  if (props.higher_education_rate != null) stats.push(`${L.higher_education}: ${props.higher_education_rate.toFixed(1)} %`);
 
   if (stats.length > 0) {
     lines.push('<ul>');
@@ -165,7 +202,7 @@ function buildNoscriptContent(props, lang) {
     lines.push('</ul>');
   }
 
-  lines.push(`<p><a href="/">${lang === 'fi' ? 'Takaisin kartalle' : 'Back to the map'}</a></p>`);
+  lines.push(`<p><a href="/">${L.back}</a></p>`);
 
   return lines.join('\n        ');
 }
@@ -177,22 +214,33 @@ function generatePage(feature, lang) {
   const cityName = getCityName(props.city, lang);
   const qi = props.quality_index != null ? Math.round(props.quality_index) : null;
   const qiLabel = getQualityLabel(qi, lang);
+  const displayName = getDisplayName(props, lang);
 
-  const title = lang === 'fi'
-    ? `${props.nimi} (${props.pno}) – naapurustot.fi`
-    : `${props.nimi} (${props.pno}) – naapurustot.fi`;
+  const title = `${displayName} (${props.pno}) – naapurustot.fi`;
 
-  const description = qi != null
-    ? lang === 'fi'
-      ? `${props.nimi} (${props.pno}), ${cityName}. Laatuindeksi: ${qi}/100 (${qiLabel}). Tutustu alueen tilastoihin.`
-      : `${props.nimi} (${props.pno}), ${cityName}. Quality index: ${qi}/100 (${qiLabel}). Explore neighborhood statistics.`
-    : lang === 'fi'
-      ? `${props.nimi} (${props.pno}), ${cityName}. Tutustu alueen tilastoihin naapurustot.fi:ssä.`
-      : `${props.nimi} (${props.pno}), ${cityName}. Explore neighborhood statistics on naapurustot.fi.`;
+  let description;
+  if (qi != null) {
+    if (lang === 'fi') {
+      description = `${displayName} (${props.pno}), ${cityName}. Laatuindeksi: ${qi}/100 (${qiLabel}). Tutustu alueen tilastoihin.`;
+    } else if (lang === 'sv') {
+      description = `${displayName} (${props.pno}), ${cityName}. Kvalitetsindex: ${qi}/100 (${qiLabel}). Utforska områdets statistik.`;
+    } else {
+      description = `${displayName} (${props.pno}), ${cityName}. Quality index: ${qi}/100 (${qiLabel}). Explore neighborhood statistics.`;
+    }
+  } else {
+    if (lang === 'fi') {
+      description = `${displayName} (${props.pno}), ${cityName}. Tutustu alueen tilastoihin naapurustot.fi:ssä.`;
+    } else if (lang === 'sv') {
+      description = `${displayName} (${props.pno}), ${cityName}. Utforska områdets statistik på naapurustot.fi.`;
+    } else {
+      description = `${displayName} (${props.pno}), ${cityName}. Explore neighborhood statistics on naapurustot.fi.`;
+    }
+  }
 
   const fiUrl = `https://naapurustot.fi/alue/${slug}`;
   const enUrl = `https://naapurustot.fi/en/area/${slug}`;
-  const canonicalUrl = lang === 'fi' ? fiUrl : enUrl;
+  const svUrl = `https://naapurustot.fi/sv/omrade/${slug}`;
+  const canonicalUrl = lang === 'fi' ? fiUrl : lang === 'sv' ? svUrl : enUrl;
   const jsonLd = buildJsonLd(props, center, canonicalUrl);
   const noscriptContent = buildNoscriptContent(props, lang);
 
@@ -225,6 +273,10 @@ function generatePage(feature, lang) {
   html = html.replace(
     /<link rel="alternate" hreflang="en" href="[^"]*" \/>/,
     `<link rel="alternate" hreflang="en" href="${enUrl}" />`
+  );
+  html = html.replace(
+    /<link rel="alternate" hreflang="sv" href="[^"]*" \/>/,
+    `<link rel="alternate" hreflang="sv" href="${svUrl}" />`
   );
   html = html.replace(
     /<link rel="alternate" hreflang="x-default" href="[^"]*" \/>/,
@@ -286,7 +338,12 @@ for (const feature of features) {
   mkdirSync(enDir, { recursive: true });
   writeFileSync(join(enDir, 'index.html'), generatePage(feature, 'en'));
 
+  // Swedish page
+  const svDir = join(DIST, 'sv', 'omrade', slug);
+  mkdirSync(svDir, { recursive: true });
+  writeFileSync(join(svDir, 'index.html'), generatePage(feature, 'sv'));
+
   count++;
 }
 
-console.log(`Prerendered ${count} neighborhoods (${count * 2} HTML files).`);
+console.log(`Prerendered ${count} neighborhoods (${count * 3} HTML files).`);

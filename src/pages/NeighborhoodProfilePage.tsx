@@ -28,11 +28,25 @@ export const NeighborhoodProfilePage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Detect language from URL path: /en/area/… → English, /alue/… → Finnish
-  const pathLang: Lang = location.pathname.startsWith('/en/') ? 'en' : 'fi';
+  // Detect language from URL path:
+  //   /sv/omrade/… → Swedish
+  //   /en/area/…   → English
+  //   /alue/…      → Finnish (default)
+  const pathLang: Lang = location.pathname.startsWith('/sv/')
+    ? 'sv'
+    : location.pathname.startsWith('/en/')
+      ? 'en'
+      : 'fi';
   useEffect(() => {
-    if (getLang() !== pathLang) setLang(pathLang);
+    if (getLang() !== pathLang) void setLang(pathLang);
   }, [pathLang]);
+
+  // Path prefix per language for building neighborhood links from this page.
+  const langPathPrefix: Record<Lang, string> = {
+    fi: '/alue',
+    en: '/en/area',
+    sv: '/sv/omrade',
+  };
 
   const [lang, setLangState] = useState<Lang>(pathLang);
   // Sync local lang state when the URL language changes (e.g., navigating from /alue/ to /en/area/)
@@ -81,16 +95,18 @@ export const NeighborhoodProfilePage: React.FC = () => {
     if (state?.feature.properties) {
       const d = state.feature.properties as NeighborhoodProperties;
       const slug = toSlug(d.pno, d.nimi);
+      // Use Swedish name in title when viewing on the Swedish route (falls back to nimi).
+      const titleName = lang === 'sv' && d.namn ? d.namn : d.nimi;
       // Save the previous title so unmount restores the user's actual context
       // (e.g. the App's main title) instead of clobbering it with a hardcoded value.
       const prevTitle = document.title;
-      document.title = `${d.nimi} (${d.pno}) – naapurustot.fi`;
+      document.title = `${titleName} (${d.pno}) – naapurustot.fi`;
 
       // Meta description — update existing or create
       const existingMeta = document.querySelector('meta[name="description"]');
       const descContent = d.quality_index != null
-        ? `${d.nimi} (${d.pno}) – ${t('panel.quality_index')}: ${Math.round(d.quality_index)}/100`
-        : `${d.nimi} (${d.pno})`;
+        ? `${titleName} (${d.pno}) – ${t('panel.quality_index')}: ${Math.round(d.quality_index)}/100`
+        : `${titleName} (${d.pno})`;
       let prevMetaContent: string | null = null;
       let createdMeta: HTMLMetaElement | null = null;
       if (existingMeta) {
@@ -107,7 +123,12 @@ export const NeighborhoodProfilePage: React.FC = () => {
       const existingCanonical = document.querySelector('link[rel="canonical"]');
       let prevCanonicalHref: string | null = null;
       let createdCanonical: HTMLLinkElement | null = null;
-      const canonicalHref = `https://naapurustot.fi/alue/${slug}`;
+      const canonicalByLang: Record<Lang, string> = {
+        fi: `https://naapurustot.fi/alue/${slug}`,
+        en: `https://naapurustot.fi/en/area/${slug}`,
+        sv: `https://naapurustot.fi/sv/omrade/${slug}`,
+      };
+      const canonicalHref = canonicalByLang[lang];
       if (existingCanonical) {
         prevCanonicalHref = existingCanonical.getAttribute('href');
         existingCanonical.setAttribute('href', canonicalHref);
@@ -122,14 +143,20 @@ export const NeighborhoodProfilePage: React.FC = () => {
       const hrefFi = document.createElement('link');
       hrefFi.rel = 'alternate';
       hrefFi.hreflang = 'fi';
-      hrefFi.href = `https://naapurustot.fi/alue/${slug}`;
+      hrefFi.href = canonicalByLang.fi;
       document.head.appendChild(hrefFi);
 
       const hrefEn = document.createElement('link');
       hrefEn.rel = 'alternate';
       hrefEn.hreflang = 'en';
-      hrefEn.href = `https://naapurustot.fi/en/area/${slug}`;
+      hrefEn.href = canonicalByLang.en;
       document.head.appendChild(hrefEn);
+
+      const hrefSv = document.createElement('link');
+      hrefSv.rel = 'alternate';
+      hrefSv.hreflang = 'sv';
+      hrefSv.href = canonicalByLang.sv;
+      document.head.appendChild(hrefSv);
 
       return () => {
         document.title = prevTitle;
@@ -144,6 +171,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
         createdCanonical?.remove();
         hrefFi.remove();
         hrefEn.remove();
+        hrefSv.remove();
       };
     }
     // No state yet → no head mutations happened, so no cleanup needed.
@@ -152,16 +180,11 @@ export const NeighborhoodProfilePage: React.FC = () => {
   // (t() reads the current global language, which changes when lang state changes)
   }, [state, lang]);
 
-  const toggleLang = () => {
-    const next = lang === 'fi' ? 'en' : 'fi';
-    setLang(next);
+  const changeLang = (next: Lang) => {
+    if (next === lang) return;
+    void setLang(next);
     setLangState(next);
-    // Navigate to the correct URL path so the language matches the route
-    // and survives page refreshes.
-    if (slug) {
-      const newPath = next === 'en' ? `/en/area/${slug}` : `/alue/${slug}`;
-      navigate(newPath, { replace: true });
-    }
+    if (slug) navigate(`${langPathPrefix[next]}/${slug}`, { replace: true });
   };
 
   const similar = useMemo(() => {
@@ -198,7 +221,14 @@ export const NeighborhoodProfilePage: React.FC = () => {
 
   const cityName = d.city ? t(`city.${d.city}`) : '';
 
-  const canonicalUrl = `https://naapurustot.fi/alue/${toSlug(d.pno, d.nimi)}`;
+  // SearchBar/NeighborhoodProfilePage display Swedish name when on the Swedish route.
+  const displayName = lang === 'sv' && d.namn ? d.namn : d.nimi;
+  const altName = lang === 'sv'
+    ? (d.nimi && d.nimi !== displayName ? d.nimi : '')
+    : (d.namn && d.namn !== displayName ? d.namn : '');
+
+  const profileSlug = toSlug(d.pno, d.nimi);
+  const canonicalUrl = `https://naapurustot.fi${langPathPrefix[lang]}/${profileSlug}`;
 
   /** Format a comparison string: "avg: X" with color. */
   const avgStr = (val: number | null, key: string, formatter: (v: number | null) => string) => {
@@ -218,14 +248,13 @@ export const NeighborhoodProfilePage: React.FC = () => {
           <Link to="/" className="text-lg font-bold text-brand-500 hover:text-brand-600 transition-colors">
             naapurustot.fi
           </Link>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={toggleLang}
-              className="text-sm text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-200 transition-colors"
-            >
-              {lang === 'fi' ? 'EN' : 'FI'}
-            </button>
-          </div>
+          <button
+            onClick={() => changeLang(lang === 'fi' ? 'en' : lang === 'en' ? 'sv' : 'fi')}
+            className="text-sm text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-200 transition-colors"
+            aria-label="Language"
+          >
+            {lang === 'fi' ? 'EN' : lang === 'en' ? 'SV' : 'FI'}
+          </button>
         </div>
       </header>
 
@@ -236,15 +265,15 @@ export const NeighborhoodProfilePage: React.FC = () => {
           <span className="mx-2">/</span>
           <Link to={`/?city=${d.city ?? 'helsinki_metro'}`} className="hover:text-brand-500">{cityName}</Link>
           <span className="mx-2">/</span>
-          <span className="text-surface-900 dark:text-white">{d.nimi}</span>
+          <span className="text-surface-900 dark:text-white">{displayName}</span>
         </nav>
 
         {/* Title + Mini Map */}
         <div className="mb-8 md:flex md:gap-8 md:items-start">
           <div className="md:flex-1">
-            <h1 className="text-3xl font-bold mb-2">{d.nimi}</h1>
+            <h1 className="text-3xl font-bold mb-2">{displayName}</h1>
             <p className="text-surface-500 dark:text-surface-400 mb-4 md:mb-0">
-              {d.namn && d.namn !== d.nimi ? `${d.namn} · ` : ''}{t('profile.postal_code')} {d.pno} · {cityName}
+              {altName ? `${altName} · ` : ''}{t('profile.postal_code')} {d.pno} · {cityName}
             </p>
           </div>
           <div className="md:w-80 md:flex-shrink-0">
@@ -400,10 +429,10 @@ export const NeighborhoodProfilePage: React.FC = () => {
               {similar.map(s => (
                 <Link
                   key={s.properties.pno}
-                  to={`${lang === 'en' ? '/en/area' : '/alue'}/${toSlug(s.properties.pno, s.properties.nimi)}`}
+                  to={`${langPathPrefix[lang]}/${toSlug(s.properties.pno, s.properties.nimi)}`}
                   className="rounded-xl bg-surface-100 dark:bg-surface-900/60 p-4 hover:bg-surface-200 dark:hover:bg-surface-800 transition-colors"
                 >
-                  <div className="font-medium text-sm mb-1">{s.properties.nimi}</div>
+                  <div className="font-medium text-sm mb-1">{lang === 'sv' && s.properties.namn ? s.properties.namn : s.properties.nimi}</div>
                   <div className="text-xs text-surface-500 dark:text-surface-400">{s.properties.pno}</div>
                   {s.properties.quality_index != null && (
                     <div className="text-xs mt-2">
