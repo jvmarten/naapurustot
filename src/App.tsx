@@ -845,7 +845,7 @@ const App: React.FC = () => {
   }, []);
 
   return (
-    <div className="h-dvh w-screen overflow-hidden relative" data-testid="app-root" data-loaded={!loading}>
+    <div id="main" tabIndex={-1} className="h-dvh w-screen overflow-hidden relative focus:outline-none" data-testid="app-root" data-loaded={!loading}>
       {/* Map — QW-4: Conditional split view */}
       <ErrorBoundary>
         {splitMode ? (

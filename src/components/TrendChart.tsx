@@ -57,6 +57,16 @@ export const TrendChart: React.FC<TrendChartProps> = React.memo(({ title, data, 
   const changePct = firstVal !== 0 ? ((lastVal - firstVal) / Math.abs(firstVal) * 100) : null;
   const changeSign = changePct != null && changePct >= 0 ? '+' : '';
 
+  // QW-4: Accessibility - describe the trend so screen readers can convey
+  // start year, end year, start value, end value, and percentage change.
+  const firstYear = years[0];
+  const lastYear = years[years.length - 1];
+  const unitSuffix = unit ? ` ${unit}` : '';
+  const changeText = changePct != null
+    ? ` ${t('aria.trend_change')}: ${changePct >= 0 ? '+' : ''}${changePct.toFixed(1)}%.`
+    : '';
+  const ariaLabel = `${title}: ${firstYear}\u2013${lastYear}, ${formatValue(firstVal)}${unitSuffix} \u2192 ${formatValue(lastVal)}${unitSuffix}.${changeText}`;
+
   return (
     <div className="mt-1">
       <div className="flex items-center justify-between mb-1">
@@ -75,6 +85,8 @@ export const TrendChart: React.FC<TrendChartProps> = React.memo(({ title, data, 
         viewBox={`0 0 ${CHART_W} ${CHART_H}`}
         className="w-full animate-chart-fade"
         style={{ maxHeight: 80 }}
+        role="img"
+        aria-label={ariaLabel}
       >
         {/* Area fill */}
         <path d={areaPath} fill={color} opacity={0.1} />
