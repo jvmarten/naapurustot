@@ -1,0 +1,14 @@
+{
+  "helsinki_metro": {
+    "present": 163,
+    "total": 163
+  },
+  "turku": {
+    "present": 159,
+    "total": 163
+  },
+  "tampere": {
+    "present": 159,
+    "total": 163
+  }
+}

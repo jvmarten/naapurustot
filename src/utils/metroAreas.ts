@@ -1,28 +1,61 @@
 import type { Feature, FeatureCollection, Polygon, MultiPolygon } from 'geojson';
+import { feature } from 'topojson-client';
+import type { Topology } from 'topojson-specification';
 import type { CityId, NeighborhoodProperties, TrendDataPoint } from './metrics';
 import { computeMetroAverages, parseTrendSeries } from './metrics';
 import { REGIONS } from './regions';
 import { t } from './i18n';
 
-// Lazy-load @turf/union (~17KB gzipped) — only needed when user views "all cities" mode.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let unionFn: ((...args: any[]) => any) | null = null;
-let unionPromise: Promise<void> | null = null;
+// CF-5 Phase B: outer outlines for the "all cities" view are pre-baked at
+// build time by scripts/build_region_data.mjs into src/data/region_outlines.topojson.
+// This eliminates the runtime @turf/union path that has regressed multiple
+// times (see CLAUDE.md pitfalls #1-#4). The outlines file is small (~60 KB)
+// and lazy-loaded the first time the user enters the all-cities view.
+import outlinesUrl from '../data/region_outlines.topojson?url';
 
-function ensureUnionLoaded(): Promise<void> {
-  if (unionFn) return Promise.resolve();
-  if (!unionPromise) {
-    unionPromise = import('@turf/union')
-      .then((m) => { unionFn = m.default; })
-      .catch(() => { unionPromise = null; });
+type OutlineGeometry = Polygon | MultiPolygon;
+
+const outlinesByCity = new Map<string, OutlineGeometry>();
+let outlinesPromise: Promise<void> | null = null;
+
+function ensureOutlinesLoaded(): Promise<void> {
+  if (outlinesByCity.size > 0) return Promise.resolve();
+  if (!outlinesPromise) {
+    outlinesPromise = fetch(outlinesUrl)
+      .then((res) => {
+        if (!res.ok) throw new Error(`Failed to load region outlines: ${res.status}`);
+        return res.json() as Promise<Topology>;
+      })
+      .then((topo) => {
+        const objectName = Object.keys(topo.objects ?? {})[0];
+        if (!objectName) return;
+        const fc = feature(topo, topo.objects[objectName]) as FeatureCollection<OutlineGeometry>;
+        for (const f of fc.features) {
+          const city = (f.properties as { city?: string } | null)?.city;
+          if (city && f.geometry) outlinesByCity.set(city, f.geometry);
+        }
+      })
+      .catch((err) => {
+        // Don't propagate — the MultiPolygon concat fallback in
+        // buildMetroAreaFeatures handles the degraded case (test environments
+        // without a real fetch, transient network failures). Surface to
+        // console so production issues remain visible to Sentry / logs.
+        console.warn('[metroAreas] failed to load region outlines, falling back to runtime concat', err);
+        outlinesPromise = null;
+      });
   }
-  return unionPromise;
+  return outlinesPromise;
 }
 
-/** Pre-warm the union import. Call this when user is likely to need it soon.
- *  Returns a Promise that resolves when the module is loaded. */
+/**
+ * Pre-warm the region outlines fetch. Call this when the user is likely to
+ * enter the all-cities view soon (e.g., when cityFilter becomes "all").
+ * Returns a Promise that resolves when outlines are loaded and cached.
+ *
+ * Name retained for backward compatibility with `useAllCitiesUnionPreload`.
+ */
 export function preloadUnion(): Promise<void> {
-  return ensureUnionLoaded();
+  return ensureOutlinesLoaded();
 }
 
 /**
@@ -121,33 +154,44 @@ function aggregateTrendHistories(
   return result;
 }
 
-// Cache for expensive polygon union results.
-// The geometry of metro areas never changes — only the display names change
-// when the user toggles language. By caching geometry, stats, and trend data
-// per dataset identity, we avoid re-running @turf/union (~100ms per city)
-// on every language toggle.
-//
-// Averages are stored separately from geometry so that an in-place mutation
-// of feature properties (quality weight recomputation) can invalidate just
-// the averages without forcing a re-run of @turf/union — which would freeze
-// the map for ~500ms (5 cities × ~100ms) after every slider tick.
+function concatPolygonsFallback(cityFeatures: Feature[]): MultiPolygon | Polygon | null {
+  const polygons: number[][][][] = [];
+  for (const f of cityFeatures) {
+    const g = f.geometry;
+    if (!g) continue;
+    if (g.type === 'Polygon') {
+      polygons.push(g.coordinates);
+    } else if (g.type === 'MultiPolygon') {
+      for (const poly of g.coordinates) polygons.push(poly);
+    }
+  }
+  if (polygons.length === 0) return null;
+  if (polygons.length === 1) return { type: 'Polygon', coordinates: polygons[0] };
+  return { type: 'MultiPolygon', coordinates: polygons };
+}
+
+// Cache for per-city features / stats / trends / geometry. Geometry comes from
+// the pre-baked outlines map when available, otherwise from a runtime
+// MultiPolygon concat fallback. Test for outline-arrival happens via the
+// `usedOutlines` flag: if the cache was populated before outlines loaded, it
+// is invalidated on the next call once outlines become available.
 interface MetroAreaCache {
   sourceFeatures: Feature[];
-  usedUnion: boolean;
+  usedOutlines: boolean;
   perCity: Map<CityId, {
-    geometry: Polygon | MultiPolygon;
     features: Feature[];
     trendHistories: Record<string, string>;
+    geometry: Polygon | MultiPolygon;
   }>;
-  /** Per-city averages — recomputed when clearMetroAreaCache() is called. */
   averages: Map<CityId, Record<string, number>> | null;
 }
 let metroAreaCache: MetroAreaCache | null = null;
 
 /**
  * Invalidate cached metro area averages (e.g., after in-place quality index
- * recomputation). Geometry and trend histories remain cached — only the
- * weighted averages are recomputed on the next buildMetroAreaFeatures call.
+ * recomputation). Per-city feature grouping and trend histories remain cached
+ * — only the weighted averages are recomputed on the next buildMetroAreaFeatures
+ * call.
  */
 export function clearMetroAreaCache(): void {
   if (metroAreaCache) metroAreaCache.averages = null;
@@ -156,17 +200,15 @@ export function clearMetroAreaCache(): void {
 /**
  * Build merged metro area features for the "all cities" view.
  *
- * Groups neighborhoods by their `city` property, dissolves their geometries
- * into a single outer boundary per city (no internal postal code borders),
- * and attaches population-weighted average statistics as properties.
+ * Groups neighborhoods by their `city` property, attaches the pre-baked
+ * outer-boundary geometry from `src/data/region_outlines.topojson`, and
+ * attaches population-weighted average statistics + aggregated trend
+ * histories as properties.
  *
- * Geometry unions and statistical aggregations are cached per dataset identity.
- * On language change, only the display name properties are refreshed — the
- * expensive @turf/union calls are skipped entirely.
- *
- * Always returns a FeatureCollection. When @turf/union hasn't loaded yet,
- * falls back to MultiPolygon concatenation (internal postal code borders
- * are visible, but the feature set is complete).
+ * Returns a FeatureCollection. If outlines haven't been loaded yet (the
+ * preloadUnion fetch hasn't resolved), returns an empty FeatureCollection;
+ * callers should ensure preloadUnion() is awaited before relying on output.
+ * The `useAllCitiesUnionPreload` hook handles this in practice.
  */
 export function buildMetroAreaFeatures(
   allFeatures: Feature[],
@@ -180,11 +222,16 @@ export function buildMetroAreaFeatures(
   }
   const cityIds = [...cityIdSet];
 
-  // Reuse cached geometry and stats when the underlying dataset hasn't changed
-  // AND @turf/union availability hasn't changed (fallback cache must be invalidated
-  // once union loads so geometries are properly dissolved).
-  const hasUnion = !!unionFn;
-  if (!metroAreaCache || metroAreaCache.sourceFeatures !== allFeatures || (!metroAreaCache.usedUnion && hasUnion)) {
+  // Reuse cached grouping and stats when the underlying dataset hasn't changed
+  // AND the outline-availability state hasn't changed. If outlines became
+  // available since the cache was built with fallback geometry, rebuild so
+  // every city upgrades to its dissolved outline.
+  const hasOutlines = outlinesByCity.size > 0;
+  if (
+    !metroAreaCache ||
+    metroAreaCache.sourceFeatures !== allFeatures ||
+    (!metroAreaCache.usedOutlines && hasOutlines)
+  ) {
     const grouped: Record<string, Feature[]> = {};
     for (const id of cityIds) grouped[id] = [];
 
@@ -201,47 +248,22 @@ export function buildMetroAreaFeatures(
       const cityFeatures = grouped[cityId];
       if (cityFeatures.length === 0) continue;
 
-      const polyFeatures = cityFeatures.filter((f) => {
-        const tp = f.geometry?.type;
-        return tp === 'Polygon' || tp === 'MultiPolygon';
-      }) as Feature<Polygon | MultiPolygon>[];
-
-      if (polyFeatures.length === 0) continue;
-
-      let merged: Feature<Polygon | MultiPolygon> | null;
-      if (polyFeatures.length === 1) {
-        merged = polyFeatures[0];
-      } else if (unionFn) {
-        merged = unionFn({ type: 'FeatureCollection', features: polyFeatures });
-      } else {
-        // Fallback: concatenate into a MultiPolygon (no border dissolve)
-        const polygons: number[][][][] = [];
-        for (const f of polyFeatures) {
-          if (f.geometry.type === 'Polygon') {
-            polygons.push(f.geometry.coordinates);
-          } else {
-            for (const poly of f.geometry.coordinates) {
-              polygons.push(poly);
-            }
-          }
-        }
-        merged = { type: 'Feature', properties: {}, geometry: { type: 'MultiPolygon', coordinates: polygons } };
-      }
-      if (!merged) continue;
+      const geometry: Polygon | MultiPolygon | null =
+        outlinesByCity.get(cityId) ?? concatPolygonsFallback(cityFeatures);
+      if (!geometry) continue;
 
       perCity.set(cityId, {
-        geometry: merged.geometry,
         features: cityFeatures,
         trendHistories: aggregateTrendHistories(cityFeatures),
+        geometry,
       });
     }
 
-    metroAreaCache = { sourceFeatures: allFeatures, usedUnion: hasUnion, perCity, averages: null };
+    metroAreaCache = { sourceFeatures: allFeatures, usedOutlines: hasOutlines, perCity, averages: null };
   }
 
   // Recompute per-city averages only when invalidated (e.g., after quality
-  // weight change). The expensive polygon unions and trend aggregations are
-  // reused — only the weighted averages pass (cheap) runs.
+  // weight change). The grouped features and trend aggregations are reused.
   if (!metroAreaCache.averages) {
     const avg = new Map<CityId, Record<string, number>>();
     for (const [cityId, cached] of metroAreaCache.perCity) {
@@ -250,7 +272,7 @@ export function buildMetroAreaFeatures(
     metroAreaCache.averages = avg;
   }
 
-  // Build features using cached geometry + current-language names
+  // Build features using cached geometry + current-language names.
   const features: Feature<Polygon | MultiPolygon>[] = [];
 
   for (const cityId of cityIds) {
@@ -280,4 +302,13 @@ export function buildMetroAreaFeatures(
     type: 'FeatureCollection',
     features,
   };
+}
+
+/**
+ * Test-only: clear the outline-loaded cache so tests can re-prime fetch mocks
+ * and re-run the load path. Not part of the production surface.
+ */
+export function _resetOutlinesForTests(): void {
+  outlinesByCity.clear();
+  outlinesPromise = null;
 }
