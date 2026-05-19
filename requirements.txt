@@ -1,6 +1,6 @@
 # Python dependencies for scripts/prepare_data.py
 geopandas==1.1.3
-pandas==2.2.3
+pandas==3.0.3
 requests==2.34.2
 pyproj==3.7.0
 shapely==2.0.6
