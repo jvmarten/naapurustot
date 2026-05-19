@@ -43,7 +43,8 @@ import type { NeighborhoodProperties } from './utils/metrics';
 import { computeMetroAverages } from './utils/metrics';
 import { t, getLang, setLang, type Lang } from './utils/i18n';
 import { computeQualityIndices, getDefaultWeights, isCustomWeights, type QualityWeights } from './utils/qualityIndex';
-import { buildMetroAreaFeatures, preloadUnion, clearMetroAreaCache } from './utils/metroAreas';
+import { buildMetroAreaFeatures, clearMetroAreaCache } from './utils/metroAreas';
+import { useAllCitiesUnionPreload } from './hooks/useAllCitiesUnionPreload';
 
 const initialUrl = readInitialUrlState();
 
@@ -116,19 +117,13 @@ const App: React.FC = () => {
   const restoredPno = useRef(false);
   // Monotonic version counter to force re-renders when quality indices change
   const [qualityVersion, setQualityVersion] = useState(0);
-  // Version counter to trigger re-render after @turf/union lazy-loads for metro areas
-  const [unionReady, setUnionReady] = useState(0);
+  // Version counter that bumps once @turf/union lazy-loads, triggering a
+  // re-run of buildMetroAreaFeatures with dissolved boundaries.
+  const unionReady = useAllCitiesUnionPreload(cityFilter);
   const [ariaAnnouncement, setAriaAnnouncement] = useState('');
   const [isOffline, setIsOffline] = useState(() => typeof navigator !== 'undefined' && !navigator.onLine);
 
   const [comparisonScope, setComparisonScope] = useState<ComparisonScope>('all');
-
-  // Lazy-load @turf/union when user switches to "all cities" view.
-  // Once loaded, bump unionReady to trigger filteredData recomputation.
-  useEffect(() => {
-    if (cityFilter !== 'all' || !data) return;
-    preloadUnion().then(() => setUnionReady((v) => v + 1));
-  }, [cityFilter, data]);
 
   // With per-region loading, single-region data is already scoped — no client-side filter needed.
   // Only the "all" view needs metro area aggregation.
