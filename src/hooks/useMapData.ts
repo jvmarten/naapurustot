@@ -27,10 +27,21 @@ export function useMapData(regionId?: RegionId | 'all'): MapDataState {
     error: null,
     metroAverages: {},
   });
+  // Track the region this state belongs to. When `regionId` changes, the data
+  // currently held in state is for the previous region — callers that read it
+  // (e.g. App.tsx → buildMetroAreaFeatures in the "all" view) would compute
+  // from stale single-region features. Reset state during render so the next
+  // render sees `data: null` instead of the previous region's data.
+  const [loadedRegion, setLoadedRegion] = useState<typeof regionId>(regionId);
   const [attempt, setAttempt] = useState(0);
   // Track last attempt that triggered a cache reset, so region switches with
   // a stale attempt > 0 don't unnecessarily clear cached data for other regions.
   const lastResetAttemptRef = useRef(0);
+
+  if (loadedRegion !== regionId) {
+    setLoadedRegion(regionId);
+    setState({ data: null, loading: true, error: null, metroAverages: {} });
+  }
 
   useEffect(() => {
     let cancelled = false;
