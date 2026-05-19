@@ -35,6 +35,7 @@ import { useRecentNeighborhoods } from './hooks/useRecentNeighborhoods';
 import { useSelectedNeighborhood } from './hooks/useSelectedNeighborhood';
 import { useAuth } from './hooks/useAuth';
 const AuthModal = lazy(() => import('./components/AuthModal').then(m => ({ default: m.AuthModal })));
+const OnboardingTour = lazy(() => import('./components/OnboardingTour').then(m => ({ default: m.OnboardingTour })));
 import { UserMenu, type FavoriteEntry } from './components/UserMenu';
 import { type LayerId, type ColorblindType, getLayerById, getColorblindMode, setColorblindMode, rescaleLayerToData, clearRescaleCache } from './utils/colorScales';
 import { readInitialUrlState, useSyncUrlState } from './hooks/useUrlState';
@@ -56,6 +57,8 @@ const App: React.FC = () => {
   // Auth
   const { user, login, signup, logout } = useAuth();
   const [showAuth, setShowAuth] = useState(false);
+  // QW-1: Onboarding tour
+  const [showTour, setShowTour] = useState(false);
 
   // Build a PNO→Feature lookup Map for O(1) feature access.
   // Replaces multiple O(n) .find() scans after quality index recomputation
@@ -785,6 +788,27 @@ const App: React.FC = () => {
     setAriaAnnouncement(`${t('aria.layer_changed')} ${t(layer.labelKey)}`);
   }, [activeLayer]);
 
+  // QW-1: Show onboarding tour on first visit, after data has loaded.
+  // Skip when the user deep-linked to a specific neighborhood — they're here
+  // for that area, not for a chrome walkthrough.
+  useEffect(() => {
+    if (loading || !data) return;
+    if (initialUrl.pno) return;
+    try {
+      if (localStorage.getItem('naapurustot-onboarding-seen')) return;
+    } catch { /* localStorage unavailable */ }
+    setShowTour(true);
+  }, [loading, data]);
+
+  const handleCloseTour = useCallback(() => {
+    try { localStorage.setItem('naapurustot-onboarding-seen', '1'); } catch { /* unavailable */ }
+    setShowTour(false);
+  }, []);
+
+  const handleShowTour = useCallback(() => {
+    setShowTour(true);
+  }, []);
+
   // IN-6: Reactive offline detection
   useEffect(() => {
     const goOffline = () => setIsOffline(true);
@@ -897,6 +921,7 @@ const App: React.FC = () => {
             onToggleLang={toggleLang}
             fillOpacity={fillOpacity}
             onFillOpacityChange={handleFillOpacityChange}
+            onShowTour={handleShowTour}
           />
           <ToolsDropdown
             showFilter={showFilter}
@@ -937,6 +962,7 @@ const App: React.FC = () => {
             <UserMenu user={user} onLogout={logout} favorites={favoriteEntries} onSelectFavorite={handleSelectFavorite} onToggleFavorite={toggleFavorite} />
           ) : (
             <button
+              data-tour-id="auth"
               onClick={() => setShowAuth(true)}
               className="flex px-2.5 py-2 rounded-lg text-xs font-semibold transition-all items-center justify-center
                          min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0
@@ -957,7 +983,7 @@ const App: React.FC = () => {
       </header>
 
       {/* Search bar */}
-      <div className="absolute top-[3.5rem] left-3 md:left-4 z-10 w-52 md:w-72">
+      <div data-tour-id="search" className="absolute top-[3.5rem] left-3 md:left-4 z-10 w-52 md:w-72">
         <SearchBar data={data} onSelect={handleSearch} recent={recent} lang={lang} />
       </div>
 
@@ -1166,6 +1192,13 @@ const App: React.FC = () => {
             />
           </Suspense>
         </ErrorBoundary>
+      )}
+
+      {/* QW-1: Onboarding tour */}
+      {showTour && (
+        <Suspense fallback={null}>
+          <OnboardingTour onComplete={handleCloseTour} skipAuthStep={!!user} />
+        </Suspense>
       )}
 
       {/* ARIA live region for screen readers */}

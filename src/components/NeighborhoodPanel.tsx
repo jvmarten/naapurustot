@@ -1,6 +1,6 @@
-import React, { useState, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import type { NeighborhoodProperties } from '../utils/metrics';
-import { parseTrendSeries, METRIC_SOURCES } from '../utils/metrics';
+import { parseTrendSeries, METRIC_SOURCES, METRIC_EXPLANATIONS } from '../utils/metrics';
 import { formatNumber, formatEuro, formatPct, formatDiff, diffColor } from '../utils/formatting';
 import { t, getLang } from '../utils/i18n';
 import { getQualityCategory, QUALITY_CATEGORIES } from '../utils/qualityIndex';
@@ -40,29 +40,66 @@ const StatRow: React.FC<{
   value: string;
   diff?: string;
   diffClass?: string;
-  /** GeoJSON property name — used to look up data source attribution */
+  /** GeoJSON property name — used to look up data source attribution and explanation */
   property?: string;
   /** Optional trend data to render an inline sparkline */
   sparkline?: { data: import('../utils/metrics').TrendDataPoint[]; color?: string } | null;
 }> = React.memo(({ label, value, diff, diffClass, property, sparkline }) => {
   const source = property ? METRIC_SOURCES[property] : undefined;
+  const hasExplanation = !!property && METRIC_EXPLANATIONS.has(property);
+  const [infoOpen, setInfoOpen] = useState(false);
+  const infoRef = useRef<HTMLSpanElement>(null);
+
+  // QW-5: Close click-popover when clicking outside.
+  useEffect(() => {
+    if (!infoOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (infoRef.current && !infoRef.current.contains(e.target as Node)) {
+        setInfoOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [infoOpen]);
+
   return (
     <div className="flex items-center justify-between py-2.5 md:py-2">
       <span className="text-surface-500 dark:text-surface-400 text-sm flex items-center gap-1">
         {label}
         {source && (
-          <span
-            className="relative inline-flex items-center justify-center w-3.5 h-3.5 rounded-full text-[8px] font-bold
-                       text-surface-400 dark:text-surface-500 border border-surface-300 dark:border-surface-600
-                       cursor-help flex-shrink-0 group/src"
-          >
-            i
-            <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1
-                             whitespace-nowrap rounded bg-surface-800 dark:bg-surface-700 px-2 py-1
-                             text-[10px] font-normal text-white
-                             opacity-0 group-hover/src:opacity-100 transition-opacity duration-100 z-50">
-              {source.source} ({source.year})
-            </span>
+          <span ref={infoRef} className="relative inline-flex items-center flex-shrink-0">
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setInfoOpen((v) => !v); }}
+              aria-label={`${source.source} (${source.year})`}
+              aria-expanded={infoOpen}
+              className={`inline-flex items-center justify-center w-3.5 h-3.5 rounded-full text-[8px] font-bold
+                          border transition-colors flex-shrink-0 cursor-pointer
+                          ${infoOpen
+                            ? 'text-brand-500 border-brand-500 bg-brand-500/10'
+                            : 'text-surface-400 dark:text-surface-500 border-surface-300 dark:border-surface-600 hover:text-surface-600 dark:hover:text-surface-300 hover:border-surface-400 dark:hover:border-surface-500'
+                          }`}
+            >
+              i
+            </button>
+            {infoOpen && (
+              <span
+                role="tooltip"
+                className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 max-w-[calc(100vw-2rem)] z-50
+                           rounded-lg bg-surface-900 dark:bg-surface-800 border border-surface-700/60
+                           px-3 py-2 text-left text-[11px] font-normal text-white shadow-xl leading-snug
+                           whitespace-normal"
+              >
+                {hasExplanation && (
+                  <span className="block mb-1.5 text-white">
+                    {t(`metric_explanation.${property}`)}
+                  </span>
+                )}
+                <span className="block text-[10px] italic text-surface-300 dark:text-surface-400">
+                  {source.source} ({source.year})
+                </span>
+              </span>
+            )}
           </span>
         )}
       </span>

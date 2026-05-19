@@ -58,7 +58,7 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
   const anyActive = showFilter || showRanking || drawMode || selectMode;
 
   return (
-    <div className="relative" ref={ref}>
+    <div data-tour-id="tools" className="relative" ref={ref}>
       <button
         onClick={() => setOpen((v) => !v)}
         className={`flex px-2.5 py-2 rounded-lg text-xs font-semibold transition-all items-center justify-center
