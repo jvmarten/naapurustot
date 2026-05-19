@@ -158,16 +158,24 @@ Meaningful additions that make the product more complete.
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### CF-5 Complete Finnish Cities Rollout
+### CF-5 Full Finland Coverage via Canonical Seutukunta Alignment
 
 | | |
 |---|---|
-| **What** | `src/utils/regions.ts` defines 22 regions; only 3 have data (Helsinki metro, Turku, Tampere). Extend the data pipeline (`scripts/prepare_data.py`, `scripts/build_region_data.mjs`) to ingest Oulu, Jyväskylä, Lahti, Kuopio, Pori next (priority by population). Each region requires postal-code geometry (Statistics Finland WFS) + Paavo data + Overpass POIs + HSY/Police/Traficom where available. Prerendering + sitemap automatically pick up new regions. |
-| **Why** | The biggest step-change in addressable users available to the product. The infrastructure (per-region lazy loading, sitemap generation, regional SEO pages) already handles arbitrary regions — this is pure data-pipeline work. Oulu + Jyväskylä alone add ~350 k residents; all 5 together add ~1M. |
-| **Touches** | `scripts/prepare_data.py` (add region configs), `scripts/build_region_data.mjs` (new region outputs), new `src/data/regions/*.topojson` files, sitemap regeneration, per-region bundle size validation |
-| **Complexity** | Large |
-| **Dependencies** | None (but note: some metrics — HSL transit access, HSY air quality — are Helsinki-only and must fall back gracefully via the existing hatched-missing-data pattern) |
-| **Tag** | Manual Setup (data pipeline run for each new city + manual verification that city-specific data sources work) |
+| **What** | Switch the regional model from the current ad-hoc 22 metro clusters to Tilastokeskus's canonical **69 seutukunnat** (`seutukunta_1_20250101`), achieving whole-Finland coverage. Four phases: (A) **realign** existing 22 regions to canonical seutukunta boundaries; (B) **pre-bake** an all-Finland seutukunta outline at build time in `build_region_data.mjs`, eliminating the runtime `@turf/union` path that has broken repeatedly (CLAUDE.md pitfalls #1–#4 area); (C) **coverage score** per region surfaced in CitySelector ("Kainuu — 12 of 54 metrics") so users see data density before clicking in, with the existing hatched-missing-data pattern as graceful fallback; (D) **batched ingestion** of the remaining ~47 seutukunnat in population-tier waves, picked up automatically by prerendering + sitemap. The canonical 69-seutukunta → 308-muni mapping (FI + SV names) is already checked in at `scripts/seutukunnat.json`, sourced from data.stat.fi Classifications API v2. |
+| **Why** | Whole-Finland coverage roughly triples addressable users (~5.5M residents vs ~2M today). Aligning to Tilastokeskus is strategic: it's the canonical regional classification, removes ad-hoc boundary decisions, and matches what Paavo + WFS data are reported against — eliminating a class of mapping bugs. Pre-baking the all-Finland outline kills the most fragile code path in the app (runtime `@turf/union` has regressed multiple times per CLAUDE.md). The coverage score makes the long tail honest rather than misleading — rural seutukunnat have uniform Paavo demographics but thin POI/transit/AQ coverage, and users deserve to know that up front. |
+| **Touches** | `scripts/seutukunnat.json` (source of truth, already added), `src/utils/regions.ts` (full rewrite driven from seutukunnat.json), `scripts/prepare_data.py` (drive region configs from seutukunnat.json), `scripts/build_region_data.mjs` (per-seutukunta outputs + new `all_finland_outline.topojson`), `src/data/regions/*.topojson` (rename existing 3, add up to ~66 new), `src/utils/metroAreas.ts` (replace `@turf/union` runtime path with static outline loader), `src/components/Map.tsx` + `src/components/SplitMapView.tsx` (metro-area line layer source), `src/components/CitySelector.tsx` (coverage score badge), `src/locales/{fi,en}.json` (69 region labels — FI + SV names already in seutukunnat.json) |
+| **Complexity** | Large (multi-phase, pipeline-heavy) |
+| **Dependencies** | None — but Helsinki-specific sources (HSL, HSY) gracefully degrade via existing hatched pattern; CF-3 (Swedish) and PO-2 (OG images) become more valuable once all 69 are live; Åland's three seutukunnat (Mariehamns stad, Ålands landsbygd, Ålands skärgård) may need separate data-source handling since Åland is autonomous |
+| **Tag** | Manual Setup (multi-region pipeline runs + per-batch verification; canonical mapping fetch is reproducible via the URLs in `scripts/seutukunnat.json._meta.fetch_urls`) |
+
+**Realignment delta (current 22 → canonical 69)** — computed from `scripts/seutukunnat.json` against `src/utils/regions.ts`:
+
+- **2 exact 1:1 matches** (keep as-is, rename to seutukunta name): `kuopio` (Kuopio seutukunta), `kouvola` (Kouvola seutukunta).
+- **17 expand to their full seutukunta** (current muni count → seutukunta muni count): `tampere` 7→11, `oulu` 5→7, `jyvaskyla` 3→7, `lahti` 3→10 (adds Loviisa/Kouvola-area munis — verify boundary), `pori` 2→8, `joensuu` 2→8, `lappeenranta` 1→5, `vaasa` 2→6, `rovaniemi` 1→2, `seinajoki` 1→6, `mikkeli` 1→5, `kotka` 1→5 (Kotka-Hamina), `salo` 1→2, `porvoo` 1→4, `kokkola` 1→2, `kajaani` 1→4, `rauma` 1→4.
+- **1 merge**: `helsinki_metro` (PKS — 4 munis: Helsinki, Espoo, Vantaa, Kauniainen) + `hyvinkaa` (1 muni) → `helsinki_seutu` (Helsingin seutukunta — 17 munis: PKS + Hyvinkää, Järvenpää, Karkkila, Kerava, Kirkkonummi, Lohja, Mäntsälä, Nurmijärvi, Pornainen, Sipoo, Siuntio, Tuusula, Vihti). `hyvinkaa` as a standalone region ceases to exist.
+- **1 cross-boundary resolution**: current `turku` (9 munis) includes one muni in Loimaa seutukunta — split out to its own region or merge depending on Phase A decision.
+- **47 net-new seutukunnat** to scaffold (most sub-100k population). Paavo demographic core works uniformly; differentiating layers (POI density, transit, AQ, light pollution) fade gracefully per the existing hatched-missing-data pattern and the new Phase C coverage badge.
 
 ### CF-6 Isochrone / Travel Time Visualization
 
@@ -426,7 +434,7 @@ Depends on Batch 3. Seven items; coordinate across `Map.tsx` edits.
 
 | Item | Category | Complexity | Tag |
 |------|----------|------------|-----|
-| CF-5 Complete Finnish Cities Rollout | Core Feature | Large | Manual Setup |
+| CF-5 Full Finland via Seutukunta Alignment | Core Feature | Large | Manual Setup |
 | CF-6 Isochrone / Travel Time | Core Feature | Large | Manual Setup |
 | CF-7 Email Digest & Alerts | Core Feature | Medium | Manual Setup |
 | PO-3 Real-Time Air Quality Layer | Polish | Medium | Manual Setup |
@@ -436,7 +444,7 @@ Depends on Batch 3. Seven items; coordinate across `Map.tsx` edits.
 > **Why last:** Highest effort, most external dependencies (Statistics Finland WFS for new cities, Digitransit for isochrones, transactional email provider for digests + verification, HSY API for live AQ). All benefit from the stable foundation + monitoring + observability from earlier batches — regressions land softly, errors surface in Sentry.
 >
 > **File map:**
-> - CF-5 → `prepare_data.py`, `build_region_data.mjs`, new `src/data/regions/*.topojson`, `regions.ts` (activate ids), sitemap regen
+> - CF-5 → Phase A: `seutukunnat.json`-driven `regions.ts` rewrite, rename 3 existing topojson files (incl. `helsinki_metro` → `helsinki_seutu`, absorbing `hyvinkaa`), resolve `turku` Loimaa-cross-boundary. Phase B: `build_region_data.mjs` emits `all_finland_outline.topojson`; `metroAreas.ts` switches from runtime `@turf/union` to static load. Phase C: `CitySelector.tsx` coverage badge. Phase D: batched `prepare_data.py` runs for the ~47 new seutukunnat (population-tier waves); sitemap regenerates automatically.
 > - CF-6 → new `isochrone.ts`, new `IsochroneOverlay.tsx`, `Map.tsx` (layer), `NeighborhoodPanel.tsx` (controls)
 > - CF-7 → `server/api/src/db.ts`, new `email.ts`, new `server/workers/send-digests.ts`, `UserMenu.tsx`, email templates
 > - PO-3 → new `airQualityLive.ts`, `Map.tsx` (merge live values), `NeighborhoodPanel.tsx` (badge)
