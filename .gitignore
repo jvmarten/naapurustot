@@ -32,3 +32,6 @@ scripts/cache/
 
 # Server environment (contains secrets)
 server/.env
+
+# Server database backups (generated on the host by db-backup container)
+server/backups/

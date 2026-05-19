@@ -25,6 +25,7 @@ Internet
 | **API** | 3001 (internal) | Express.js auth server |
 | **Umami** | 3000 (internal) | Self-hosted analytics dashboard |
 | **PostgreSQL** | 5432 (internal) | Database for both services |
+| **db-backup** | — | Daily `pg_dump` of both databases into `./backups/` (14-day retention) |
 
 ## API endpoints
 
@@ -82,6 +83,7 @@ docker compose logs -f
 | `API_DB_PASSWORD` | PostgreSQL password for the API database user |
 | `JWT_SECRET` | Secret for signing JWT auth tokens (must be set in production) |
 | `TURNSTILE_SECRET` | Cloudflare Turnstile secret key (skip in dev to disable bot check) |
+| `BACKUP_RETENTION_DAYS` | Optional — days of pg_dumps to keep in `./backups/` (default: 14) |
 
 Generate secrets with: `openssl rand -hex 32`
 
@@ -115,17 +117,97 @@ trackEvent('compare-neighborhoods', { count: 3 });
 # View logs
 docker compose logs -f umami
 docker compose logs -f api
+docker compose logs -f db-backup     # nightly backup status
 
 # Update images
 docker compose pull
 docker compose up -d
 
-# Backup databases
+# Ad-hoc backup (the db-backup container also runs this nightly)
 docker compose exec db pg_dump -U umami umami > backup-umami.sql
 docker compose exec db pg_dump -U naapurustot_api naapurustot > backup-api.sql
+```
 
-# Restore from backup
-cat backup-umami.sql | docker compose exec -T db psql -U umami umami
+## Backups
+
+The `db-backup` sidecar container runs `pg_dump` for both databases once a
+day, writes gzip'd dumps to `server/backups/` on the host, and deletes
+anything older than `BACKUP_RETENTION_DAYS` (default 14). Because the dumps
+live on the host filesystem, DigitalOcean droplet snapshots include them
+automatically — so even between weekly snapshots you have a daily restore
+point on disk.
+
+```bash
+# List available backups
+ls -lh /opt/naapurustot/server/backups/
+
+# Verify the latest dumps are recent
+ls -t /opt/naapurustot/server/backups/umami-*.sql.gz | head -1
+ls -t /opt/naapurustot/server/backups/api-*.sql.gz | head -1
+```
+
+> **Off-droplet copy (recommended):** the `backups/` directory only protects
+> against in-container DB corruption — if the droplet itself is lost between
+> DO snapshots, those backups go with it. Consider periodically `scp`-ing
+> recent dumps off the droplet, or syncing them to object storage.
+
+## Recovery
+
+### Restoring from a `pg_dump` backup (most common)
+
+If the Umami database is empty or corrupted but the host's `backups/`
+directory is intact:
+
+```bash
+cd /opt/naapurustot/server
+
+# Pick the dump you want to restore (latest shown here)
+LATEST_UMAMI=$(ls -t backups/umami-*.sql.gz | head -1)
+LATEST_API=$(ls -t backups/api-*.sql.gz | head -1)
+
+# Stop Umami / API so they don't see a half-restored DB
+docker compose stop umami api
+
+# Drop and recreate the umami DB, then restore. WARNING: this discards the
+# current (empty/corrupted) DB. Make a safety dump first if you're unsure.
+docker compose exec db psql -U umami -d postgres -c "DROP DATABASE umami;"
+docker compose exec db psql -U umami -d postgres -c "CREATE DATABASE umami;"
+gunzip -c "$LATEST_UMAMI" | docker compose exec -T db psql -U umami umami
+
+# Same for the API DB
+docker compose exec db psql -U umami -d postgres -c "DROP DATABASE naapurustot;"
+docker compose exec db psql -U umami -d postgres -c "CREATE DATABASE naapurustot;"
+gunzip -c "$LATEST_API" | docker compose exec -T db psql -U naapurustot_api naapurustot
+
+docker compose start umami api
+```
+
+### When no backup exists ("Websites: No data available")
+
+Historical sessions/pageviews are unrecoverable in this case. You can still
+restore the *website entry* so new analytics start flowing again with the
+existing tracking ID baked into `index.html`:
+
+```bash
+docker compose cp seed-umami.sh db:/seed-umami.sh
+docker compose exec db bash /seed-umami.sh
+```
+
+This is idempotent (`ON CONFLICT DO NOTHING`) and is also re-run on every
+deploy by `.github/workflows/deploy-server.yml`, so the entry will always
+re-appear after a fresh DB.
+
+### Checking whether the old volume still exists
+
+If the database appears empty but you suspect the data is sitting in an
+orphaned volume (e.g. left over from before `postgres_data` was marked
+`external`), check:
+
+```bash
+docker volume ls | grep postgres
+# Look for *_postgres_data alongside postgres_data. If you find one,
+# inspect it before deleting:
+docker run --rm -v server_postgres_data:/old alpine ls -la /old
 ```
 
 > **Warning:** The `postgres_data` volume is marked as `external` to protect it

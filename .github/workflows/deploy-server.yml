@@ -29,5 +29,10 @@ jobs:
             export SENTRY_DSN SENTRY_RELEASE
             docker compose build api
             docker compose up -d
+            # Ensure the Umami website entry exists. Idempotent — uses
+            # ON CONFLICT DO NOTHING, so it's a no-op when already seeded
+            # but restores it after any DB reset.
+            docker compose cp seed-umami.sh db:/seed-umami.sh
+            docker compose exec -T db bash /seed-umami.sh || echo "seed-umami: skipped (umami not ready yet)"
             echo "Deploy complete"
             docker compose ps
