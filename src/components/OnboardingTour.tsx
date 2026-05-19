@@ -247,19 +247,19 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({ onComplete, skip
         }}
       >
         <div className="flex items-center justify-between mb-2">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-brand-500 dark:text-brand-400">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-brand-700 dark:text-brand-400">
             {stepCounter}
           </span>
           <button
             onClick={() => finish('skipped')}
-            className="text-[11px] font-medium text-surface-400 dark:text-surface-500 hover:text-surface-700 dark:hover:text-surface-200 transition-colors"
+            className="text-[11px] font-medium text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-surface-200 transition-colors"
           >
             {t('onboarding.skip')}
           </button>
         </div>
-        <h3 id="onboarding-title" className="text-base font-display font-bold text-surface-900 dark:text-white mb-2">
+        <h2 id="onboarding-title" className="text-base font-display font-bold text-surface-900 dark:text-white mb-2">
           {t(step.titleKey)}
-        </h3>
+        </h2>
         <p className="text-sm text-surface-600 dark:text-surface-300 leading-relaxed">
           {t(step.bodyKey)}
         </p>
@@ -297,7 +297,7 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({ onComplete, skip
               if (isLast) finish('completed');
               else setStepIndex((i) => i + 1);
             }}
-            className="px-4 py-2 rounded-lg text-xs font-semibold bg-brand-500 hover:bg-brand-600 text-white transition-colors"
+            className="px-4 py-2 rounded-lg text-xs font-semibold bg-brand-700 hover:bg-brand-800 text-white transition-colors"
           >
             {isLast ? t('onboarding.finish') : t('onboarding.next')}
           </button>
