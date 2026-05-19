@@ -1,0 +1,1254 @@
+{
+  "_meta": {
+    "source": "Tilastokeskus / Statistics Finland Classifications API v2",
+    "classification": "seutukunta_1_20250101",
+    "correspondence": "kunta_1_20250101#seutukunta_1_20250101",
+    "fetched_at": "2026-05-19",
+    "fetch_urls": [
+      "https://data.stat.fi/api/classifications/v2/classifications/seutukunta_1_20250101/classificationItems?content=data&meta=max&lang=fi",
+      "https://data.stat.fi/api/classifications/v2/classifications/seutukunta_1_20250101/classificationItems?content=data&meta=max&lang=sv",
+      "https://data.stat.fi/api/classifications/v2/correspondenceTables/kunta_1_20250101%23seutukunta_1_20250101/maps?content=data&meta=max"
+    ],
+    "total_seutukunnat": 69,
+    "total_municipalities": 308
+  },
+  "seutukunnat": [
+    {
+      "code": "011",
+      "name_fi": "Helsinki",
+      "name_sv": "Helsingfors",
+      "municipality_codes": [
+        "049",
+        "091",
+        "092",
+        "106",
+        "186",
+        "224",
+        "235",
+        "245",
+        "257",
+        "444",
+        "505",
+        "543",
+        "611",
+        "753",
+        "755",
+        "858",
+        "927"
+      ],
+      "municipality_names_fi": [
+        "Espoo",
+        "Helsinki",
+        "Vantaa",
+        "Hyvinkää",
+        "Järvenpää",
+        "Karkkila",
+        "Kauniainen",
+        "Kerava",
+        "Kirkkonummi",
+        "Lohja",
+        "Mäntsälä",
+        "Nurmijärvi",
+        "Pornainen",
+        "Sipoo",
+        "Siuntio",
+        "Tuusula",
+        "Vihti"
+      ]
+    },
+    {
+      "code": "014",
+      "name_fi": "Raasepori",
+      "name_sv": "Raseborg",
+      "municipality_codes": [
+        "078",
+        "149",
+        "710"
+      ],
+      "municipality_names_fi": [
+        "Hanko",
+        "Inkoo",
+        "Raasepori"
+      ]
+    },
+    {
+      "code": "015",
+      "name_fi": "Porvoo",
+      "name_sv": "Borgå",
+      "municipality_codes": [
+        "018",
+        "504",
+        "616",
+        "638"
+      ],
+      "municipality_names_fi": [
+        "Askola",
+        "Myrskylä",
+        "Pukkila",
+        "Porvoo"
+      ]
+    },
+    {
+      "code": "016",
+      "name_fi": "Loviisa",
+      "name_sv": "Lovisa",
+      "municipality_codes": [
+        "407",
+        "434"
+      ],
+      "municipality_names_fi": [
+        "Lapinjärvi",
+        "Loviisa"
+      ]
+    },
+    {
+      "code": "021",
+      "name_fi": "Åboland-Turunmaa",
+      "name_sv": "Åboland-Turunmaa",
+      "municipality_codes": [
+        "322",
+        "445"
+      ],
+      "municipality_names_fi": [
+        "Kemiönsaari",
+        "Parainen"
+      ]
+    },
+    {
+      "code": "022",
+      "name_fi": "Salo",
+      "name_sv": "Salo",
+      "municipality_codes": [
+        "734",
+        "761"
+      ],
+      "municipality_names_fi": [
+        "Salo",
+        "Somero"
+      ]
+    },
+    {
+      "code": "023",
+      "name_fi": "Turku",
+      "name_sv": "Åbo",
+      "municipality_codes": [
+        "202",
+        "423",
+        "481",
+        "503",
+        "529",
+        "538",
+        "577",
+        "680",
+        "704",
+        "738",
+        "853"
+      ],
+      "municipality_names_fi": [
+        "Kaarina",
+        "Lieto",
+        "Masku",
+        "Mynämäki",
+        "Naantali",
+        "Nousiainen",
+        "Paimio",
+        "Raisio",
+        "Rusko",
+        "Sauvo",
+        "Turku"
+      ]
+    },
+    {
+      "code": "024",
+      "name_fi": "Vakka-Suomi",
+      "name_sv": "Nystadsregionen",
+      "municipality_codes": [
+        "304",
+        "400",
+        "631",
+        "833",
+        "895",
+        "918"
+      ],
+      "municipality_names_fi": [
+        "Kustavi",
+        "Laitila",
+        "Pyhäranta",
+        "Taivassalo",
+        "Uusikaupunki",
+        "Vehmaa"
+      ]
+    },
+    {
+      "code": "025",
+      "name_fi": "Loimaa",
+      "name_sv": "Loimaa",
+      "municipality_codes": [
+        "019",
+        "284",
+        "430",
+        "480",
+        "561",
+        "636"
+      ],
+      "municipality_names_fi": [
+        "Aura",
+        "Koski Tl",
+        "Loimaa",
+        "Marttila",
+        "Oripää",
+        "Pöytyä"
+      ]
+    },
+    {
+      "code": "041",
+      "name_fi": "Rauma",
+      "name_sv": "Raumo",
+      "municipality_codes": [
+        "050",
+        "051",
+        "684",
+        "783"
+      ],
+      "municipality_names_fi": [
+        "Eura",
+        "Eurajoki",
+        "Rauma",
+        "Säkylä"
+      ]
+    },
+    {
+      "code": "043",
+      "name_fi": "Pori",
+      "name_sv": "Björneborg",
+      "municipality_codes": [
+        "079",
+        "102",
+        "271",
+        "484",
+        "531",
+        "608",
+        "609",
+        "886"
+      ],
+      "municipality_names_fi": [
+        "Harjavalta",
+        "Huittinen",
+        "Kokemäki",
+        "Merikarvia",
+        "Nakkila",
+        "Pomarkku",
+        "Pori",
+        "Ulvila"
+      ]
+    },
+    {
+      "code": "044",
+      "name_fi": "Pohjois-Satakunta",
+      "name_sv": "Norra Satakunta",
+      "municipality_codes": [
+        "181",
+        "214",
+        "230",
+        "747"
+      ],
+      "municipality_names_fi": [
+        "Jämijärvi",
+        "Kankaanpää",
+        "Karvia",
+        "Siikainen"
+      ]
+    },
+    {
+      "code": "051",
+      "name_fi": "Hämeenlinna",
+      "name_sv": "Tavastehus",
+      "municipality_codes": [
+        "082",
+        "109",
+        "165"
+      ],
+      "municipality_names_fi": [
+        "Hattula",
+        "Hämeenlinna",
+        "Janakkala"
+      ]
+    },
+    {
+      "code": "052",
+      "name_fi": "Riihimäki",
+      "name_sv": "Riihimäki",
+      "municipality_codes": [
+        "086",
+        "433",
+        "694"
+      ],
+      "municipality_names_fi": [
+        "Hausjärvi",
+        "Loppi",
+        "Riihimäki"
+      ]
+    },
+    {
+      "code": "053",
+      "name_fi": "Forssa",
+      "name_sv": "Forssa",
+      "municipality_codes": [
+        "061",
+        "103",
+        "169",
+        "834",
+        "981"
+      ],
+      "municipality_names_fi": [
+        "Forssa",
+        "Humppila",
+        "Jokioinen",
+        "Tammela",
+        "Ypäjä"
+      ]
+    },
+    {
+      "code": "061",
+      "name_fi": "Luoteis-Pirkanmaa",
+      "name_sv": "Nordvästra Birkaland",
+      "municipality_codes": [
+        "143",
+        "250",
+        "581"
+      ],
+      "municipality_names_fi": [
+        "Ikaalinen",
+        "Kihniö",
+        "Parkano"
+      ]
+    },
+    {
+      "code": "063",
+      "name_fi": "Etelä-Pirkanmaa",
+      "name_sv": "Södra Birkaland",
+      "municipality_codes": [
+        "020",
+        "887",
+        "908"
+      ],
+      "municipality_names_fi": [
+        "Akaa",
+        "Urjala",
+        "Valkeakoski"
+      ]
+    },
+    {
+      "code": "064",
+      "name_fi": "Tampere",
+      "name_sv": "Tammerfors",
+      "municipality_codes": [
+        "108",
+        "211",
+        "291",
+        "418",
+        "536",
+        "562",
+        "604",
+        "635",
+        "837",
+        "922",
+        "980"
+      ],
+      "municipality_names_fi": [
+        "Hämeenkyrö",
+        "Kangasala",
+        "Kuhmoinen",
+        "Lempäälä",
+        "Nokia",
+        "Orivesi",
+        "Pirkkala",
+        "Pälkäne",
+        "Tampere",
+        "Vesilahti",
+        "Ylöjärvi"
+      ]
+    },
+    {
+      "code": "068",
+      "name_fi": "Lounais-Pirkanmaa",
+      "name_sv": "Sydvästra Birkaland",
+      "municipality_codes": [
+        "619",
+        "790"
+      ],
+      "municipality_names_fi": [
+        "Punkalaidun",
+        "Sastamala"
+      ]
+    },
+    {
+      "code": "069",
+      "name_fi": "Ylä-Pirkanmaa",
+      "name_sv": "Övre Birkaland",
+      "municipality_codes": [
+        "177",
+        "508",
+        "702",
+        "936"
+      ],
+      "municipality_names_fi": [
+        "Juupajoki",
+        "Mänttä-Vilppula",
+        "Ruovesi",
+        "Virrat"
+      ]
+    },
+    {
+      "code": "071",
+      "name_fi": "Lahti",
+      "name_sv": "Lahtis",
+      "municipality_codes": [
+        "016",
+        "081",
+        "098",
+        "111",
+        "142",
+        "316",
+        "398",
+        "560",
+        "576",
+        "781"
+      ],
+      "municipality_names_fi": [
+        "Asikkala",
+        "Hartola",
+        "Hollola",
+        "Heinola",
+        "Iitti",
+        "Kärkölä",
+        "Lahti",
+        "Orimattila",
+        "Padasjoki",
+        "Sysmä"
+      ]
+    },
+    {
+      "code": "081",
+      "name_fi": "Kouvola",
+      "name_sv": "Kouvola",
+      "municipality_codes": [
+        "286"
+      ],
+      "municipality_names_fi": [
+        "Kouvola"
+      ]
+    },
+    {
+      "code": "082",
+      "name_fi": "Kotka-Hamina",
+      "name_sv": "Kotka-Fredrikshamn",
+      "municipality_codes": [
+        "075",
+        "285",
+        "489",
+        "624",
+        "935"
+      ],
+      "municipality_names_fi": [
+        "Hamina",
+        "Kotka",
+        "Miehikkälä",
+        "Pyhtää",
+        "Virolahti"
+      ]
+    },
+    {
+      "code": "091",
+      "name_fi": "Lappeenranta",
+      "name_sv": "Villmanstrand",
+      "municipality_codes": [
+        "405",
+        "416",
+        "441",
+        "739",
+        "831"
+      ],
+      "municipality_names_fi": [
+        "Lappeenranta",
+        "Lemi",
+        "Luumäki",
+        "Savitaipale",
+        "Taipalsaari"
+      ]
+    },
+    {
+      "code": "093",
+      "name_fi": "Imatra",
+      "name_sv": "Imatra",
+      "municipality_codes": [
+        "153",
+        "580",
+        "689",
+        "700"
+      ],
+      "municipality_names_fi": [
+        "Imatra",
+        "Parikkala",
+        "Rautjärvi",
+        "Ruokolahti"
+      ]
+    },
+    {
+      "code": "101",
+      "name_fi": "Mikkeli",
+      "name_sv": "S:t Michel",
+      "municipality_codes": [
+        "097",
+        "213",
+        "491",
+        "507",
+        "623"
+      ],
+      "municipality_names_fi": [
+        "Hirvensalmi",
+        "Kangasniemi",
+        "Mikkeli",
+        "Mäntyharju",
+        "Puumala"
+      ]
+    },
+    {
+      "code": "103",
+      "name_fi": "Savonlinna",
+      "name_sv": "Nyslott",
+      "municipality_codes": [
+        "046",
+        "681",
+        "740",
+        "768"
+      ],
+      "municipality_names_fi": [
+        "Enonkoski",
+        "Rantasalmi",
+        "Savonlinna",
+        "Sulkava"
+      ]
+    },
+    {
+      "code": "105",
+      "name_fi": "Pieksämäki",
+      "name_sv": "Pieksämäki",
+      "municipality_codes": [
+        "178",
+        "593"
+      ],
+      "municipality_names_fi": [
+        "Juva",
+        "Pieksämäki"
+      ]
+    },
+    {
+      "code": "111",
+      "name_fi": "Ylä-Savo",
+      "name_sv": "Norra Savolax",
+      "municipality_codes": [
+        "140",
+        "239",
+        "263",
+        "402",
+        "595",
+        "762",
+        "925"
+      ],
+      "municipality_names_fi": [
+        "Iisalmi",
+        "Keitele",
+        "Kiuruvesi",
+        "Lapinlahti",
+        "Pielavesi",
+        "Sonkajärvi",
+        "Vieremä"
+      ]
+    },
+    {
+      "code": "112",
+      "name_fi": "Kuopio",
+      "name_sv": "Kuopio",
+      "municipality_codes": [
+        "297",
+        "749"
+      ],
+      "municipality_names_fi": [
+        "Kuopio",
+        "Siilinjärvi"
+      ]
+    },
+    {
+      "code": "113",
+      "name_fi": "Koillis-Savo",
+      "name_sv": "Nordöstra Savolax",
+      "municipality_codes": [
+        "204",
+        "687",
+        "857"
+      ],
+      "municipality_names_fi": [
+        "Kaavi",
+        "Rautavaara",
+        "Tuusniemi"
+      ]
+    },
+    {
+      "code": "114",
+      "name_fi": "Varkaus",
+      "name_sv": "Varkaus",
+      "municipality_codes": [
+        "171",
+        "420",
+        "915"
+      ],
+      "municipality_names_fi": [
+        "Joroinen",
+        "Leppävirta",
+        "Varkaus"
+      ]
+    },
+    {
+      "code": "115",
+      "name_fi": "Sisä-Savo",
+      "name_sv": "Inre Savolax",
+      "municipality_codes": [
+        "686",
+        "778",
+        "844",
+        "921"
+      ],
+      "municipality_names_fi": [
+        "Rautalampi",
+        "Suonenjoki",
+        "Tervo",
+        "Vesanto"
+      ]
+    },
+    {
+      "code": "122",
+      "name_fi": "Joensuu",
+      "name_sv": "Joensuu",
+      "municipality_codes": [
+        "090",
+        "146",
+        "167",
+        "176",
+        "276",
+        "309",
+        "426",
+        "607"
+      ],
+      "municipality_names_fi": [
+        "Heinävesi",
+        "Ilomantsi",
+        "Joensuu",
+        "Juuka",
+        "Kontiolahti",
+        "Outokumpu",
+        "Liperi",
+        "Polvijärvi"
+      ]
+    },
+    {
+      "code": "124",
+      "name_fi": "Keski-Karjala",
+      "name_sv": "Mellersta Karelen",
+      "municipality_codes": [
+        "260",
+        "707",
+        "848"
+      ],
+      "municipality_names_fi": [
+        "Kitee",
+        "Rääkkylä",
+        "Tohmajärvi"
+      ]
+    },
+    {
+      "code": "125",
+      "name_fi": "Pielisen Karjala",
+      "name_sv": "Pielisen Karjala",
+      "municipality_codes": [
+        "422",
+        "541"
+      ],
+      "municipality_names_fi": [
+        "Lieksa",
+        "Nurmes"
+      ]
+    },
+    {
+      "code": "131",
+      "name_fi": "Jyväskylä",
+      "name_sv": "Jyväskylä",
+      "municipality_codes": [
+        "077",
+        "179",
+        "410",
+        "500",
+        "592",
+        "850",
+        "892"
+      ],
+      "municipality_names_fi": [
+        "Hankasalmi",
+        "Jyväskylä",
+        "Laukaa",
+        "Muurame",
+        "Petäjävesi",
+        "Toivakka",
+        "Uurainen"
+      ]
+    },
+    {
+      "code": "132",
+      "name_fi": "Joutsa",
+      "name_sv": "Joutsa",
+      "municipality_codes": [
+        "172",
+        "435"
+      ],
+      "municipality_names_fi": [
+        "Joutsa",
+        "Luhanka"
+      ]
+    },
+    {
+      "code": "133",
+      "name_fi": "Keuruu",
+      "name_sv": "Keuru",
+      "municipality_codes": [
+        "249",
+        "495"
+      ],
+      "municipality_names_fi": [
+        "Keuruu",
+        "Multia"
+      ]
+    },
+    {
+      "code": "134",
+      "name_fi": "Jämsä",
+      "name_sv": "Jämsä",
+      "municipality_codes": [
+        "182"
+      ],
+      "municipality_names_fi": [
+        "Jämsä"
+      ]
+    },
+    {
+      "code": "135",
+      "name_fi": "Äänekoski",
+      "name_sv": "Äänekoski",
+      "municipality_codes": [
+        "275",
+        "992"
+      ],
+      "municipality_names_fi": [
+        "Konnevesi",
+        "Äänekoski"
+      ]
+    },
+    {
+      "code": "138",
+      "name_fi": "Saarijärvi-Viitasaari",
+      "name_sv": "Saarijärvi-Viitasaari",
+      "municipality_codes": [
+        "216",
+        "226",
+        "256",
+        "265",
+        "312",
+        "601",
+        "729",
+        "931"
+      ],
+      "municipality_names_fi": [
+        "Kannonkoski",
+        "Karstula",
+        "Kinnula",
+        "Kivijärvi",
+        "Kyyjärvi",
+        "Pihtipudas",
+        "Saarijärvi",
+        "Viitasaari"
+      ]
+    },
+    {
+      "code": "141",
+      "name_fi": "Suupohja",
+      "name_sv": "Suupohja",
+      "municipality_codes": [
+        "151",
+        "218",
+        "232",
+        "846"
+      ],
+      "municipality_names_fi": [
+        "Isojoki",
+        "Karijoki",
+        "Kauhajoki",
+        "Teuva"
+      ]
+    },
+    {
+      "code": "142",
+      "name_fi": "Seinäjoki",
+      "name_sv": "Seinäjoki",
+      "municipality_codes": [
+        "145",
+        "152",
+        "233",
+        "301",
+        "408",
+        "743"
+      ],
+      "municipality_names_fi": [
+        "Ilmajoki",
+        "Isokyrö",
+        "Kauhava",
+        "Kurikka",
+        "Lapua",
+        "Seinäjoki"
+      ]
+    },
+    {
+      "code": "144",
+      "name_fi": "Kuusiokunnat",
+      "name_sv": "Kuusiokunnat",
+      "municipality_codes": [
+        "010",
+        "300",
+        "989"
+      ],
+      "municipality_names_fi": [
+        "Alavus",
+        "Kuortane",
+        "Ähtäri"
+      ]
+    },
+    {
+      "code": "146",
+      "name_fi": "Järviseutu",
+      "name_sv": "Järviseutu",
+      "municipality_codes": [
+        "005",
+        "052",
+        "403",
+        "759",
+        "934"
+      ],
+      "municipality_names_fi": [
+        "Alajärvi",
+        "Evijärvi",
+        "Lappajärvi",
+        "Soini",
+        "Vimpeli"
+      ]
+    },
+    {
+      "code": "152",
+      "name_fi": "Vaasa",
+      "name_sv": "Vasa",
+      "municipality_codes": [
+        "280",
+        "399",
+        "475",
+        "499",
+        "905",
+        "946"
+      ],
+      "municipality_names_fi": [
+        "Korsnäs",
+        "Laihia",
+        "Maalahti",
+        "Mustasaari",
+        "Vaasa",
+        "Vöyri"
+      ]
+    },
+    {
+      "code": "153",
+      "name_fi": "Sydösterbotten",
+      "name_sv": "Sydösterbotten",
+      "municipality_codes": [
+        "231",
+        "287",
+        "545"
+      ],
+      "municipality_names_fi": [
+        "Kaskinen",
+        "Kristiinankaupunki",
+        "Närpiö"
+      ]
+    },
+    {
+      "code": "154",
+      "name_fi": "Jakobstadsregionen",
+      "name_sv": "Jakobstadsregionen",
+      "municipality_codes": [
+        "288",
+        "440",
+        "598",
+        "599",
+        "893"
+      ],
+      "municipality_names_fi": [
+        "Kruunupyy",
+        "Luoto",
+        "Pietarsaari",
+        "Pedersören kunta",
+        "Uusikaarlepyy"
+      ]
+    },
+    {
+      "code": "161",
+      "name_fi": "Kaustinen",
+      "name_sv": "Kaustby",
+      "municipality_codes": [
+        "074",
+        "236",
+        "421",
+        "584",
+        "849",
+        "924"
+      ],
+      "municipality_names_fi": [
+        "Halsua",
+        "Kaustinen",
+        "Lestijärvi",
+        "Perho",
+        "Toholampi",
+        "Veteli"
+      ]
+    },
+    {
+      "code": "162",
+      "name_fi": "Kokkola",
+      "name_sv": "Karleby",
+      "municipality_codes": [
+        "217",
+        "272"
+      ],
+      "municipality_names_fi": [
+        "Kannus",
+        "Kokkola"
+      ]
+    },
+    {
+      "code": "171",
+      "name_fi": "Oulu",
+      "name_sv": "Uleåborg",
+      "municipality_codes": [
+        "072",
+        "244",
+        "425",
+        "436",
+        "494",
+        "564",
+        "859"
+      ],
+      "municipality_names_fi": [
+        "Hailuoto",
+        "Kempele",
+        "Liminka",
+        "Lumijoki",
+        "Muhos",
+        "Oulu",
+        "Tyrnävä"
+      ]
+    },
+    {
+      "code": "173",
+      "name_fi": "Oulunkaari",
+      "name_sv": "Oulunkaari",
+      "municipality_codes": [
+        "139",
+        "615",
+        "785",
+        "889"
+      ],
+      "municipality_names_fi": [
+        "Ii",
+        "Pudasjärvi",
+        "Vaala",
+        "Utajärvi"
+      ]
+    },
+    {
+      "code": "174",
+      "name_fi": "Raahe",
+      "name_sv": "Brahestad",
+      "municipality_codes": [
+        "625",
+        "678",
+        "748"
+      ],
+      "municipality_names_fi": [
+        "Pyhäjoki",
+        "Raahe",
+        "Siikajoki"
+      ]
+    },
+    {
+      "code": "175",
+      "name_fi": "Haapavesi-Siikalatva",
+      "name_sv": "Haapavesi-Siikalatva",
+      "municipality_codes": [
+        "071",
+        "630",
+        "791"
+      ],
+      "municipality_names_fi": [
+        "Haapavesi",
+        "Pyhäntä",
+        "Siikalatva"
+      ]
+    },
+    {
+      "code": "176",
+      "name_fi": "Nivala-Haapajärvi",
+      "name_sv": "Nivala-Haapajärvi",
+      "municipality_codes": [
+        "069",
+        "317",
+        "535",
+        "626",
+        "691"
+      ],
+      "municipality_names_fi": [
+        "Haapajärvi",
+        "Kärsämäki",
+        "Nivala",
+        "Pyhäjärvi",
+        "Reisjärvi"
+      ]
+    },
+    {
+      "code": "177",
+      "name_fi": "Ylivieska",
+      "name_sv": "Ylivieska",
+      "municipality_codes": [
+        "009",
+        "208",
+        "483",
+        "563",
+        "746",
+        "977"
+      ],
+      "municipality_names_fi": [
+        "Alavieska",
+        "Kalajoki",
+        "Merijärvi",
+        "Oulainen",
+        "Sievi",
+        "Ylivieska"
+      ]
+    },
+    {
+      "code": "178",
+      "name_fi": "Koillismaa",
+      "name_sv": "Koillismaa",
+      "municipality_codes": [
+        "305",
+        "832"
+      ],
+      "municipality_names_fi": [
+        "Kuusamo",
+        "Taivalkoski"
+      ]
+    },
+    {
+      "code": "181",
+      "name_fi": "Kehys-Kainuu",
+      "name_sv": "Kehys-Kainuu",
+      "municipality_codes": [
+        "105",
+        "290",
+        "620",
+        "777"
+      ],
+      "municipality_names_fi": [
+        "Hyrynsalmi",
+        "Kuhmo",
+        "Puolanka",
+        "Suomussalmi"
+      ]
+    },
+    {
+      "code": "182",
+      "name_fi": "Kajaani",
+      "name_sv": "Kajana",
+      "municipality_codes": [
+        "205",
+        "578",
+        "697",
+        "765"
+      ],
+      "municipality_names_fi": [
+        "Kajaani",
+        "Paltamo",
+        "Ristijärvi",
+        "Sotkamo"
+      ]
+    },
+    {
+      "code": "191",
+      "name_fi": "Rovaniemi",
+      "name_sv": "Rovaniemi",
+      "municipality_codes": [
+        "683",
+        "698"
+      ],
+      "municipality_names_fi": [
+        "Ranua",
+        "Rovaniemi"
+      ]
+    },
+    {
+      "code": "192",
+      "name_fi": "Kemi-Tornio",
+      "name_sv": "Kemi-Torneå",
+      "municipality_codes": [
+        "240",
+        "241",
+        "751",
+        "845",
+        "851"
+      ],
+      "municipality_names_fi": [
+        "Kemi",
+        "Keminmaa",
+        "Simo",
+        "Tervola",
+        "Tornio"
+      ]
+    },
+    {
+      "code": "193",
+      "name_fi": "Torniolaakso",
+      "name_sv": "Tornedalen",
+      "municipality_codes": [
+        "854",
+        "976"
+      ],
+      "municipality_names_fi": [
+        "Pello",
+        "Ylitornio"
+      ]
+    },
+    {
+      "code": "194",
+      "name_fi": "Itä-Lappi",
+      "name_sv": "Östra Lappland",
+      "municipality_codes": [
+        "320",
+        "583",
+        "614",
+        "732",
+        "742"
+      ],
+      "municipality_names_fi": [
+        "Kemijärvi",
+        "Pelkosenniemi",
+        "Posio",
+        "Salla",
+        "Savukoski"
+      ]
+    },
+    {
+      "code": "196",
+      "name_fi": "Tunturi-Lappi",
+      "name_sv": "Tunturi-Lappi",
+      "municipality_codes": [
+        "047",
+        "261",
+        "273",
+        "498"
+      ],
+      "municipality_names_fi": [
+        "Enontekiö",
+        "Kittilä",
+        "Kolari",
+        "Muonio"
+      ]
+    },
+    {
+      "code": "197",
+      "name_fi": "Pohjois-Lappi",
+      "name_sv": "Norra Lappland",
+      "municipality_codes": [
+        "148",
+        "758",
+        "890"
+      ],
+      "municipality_names_fi": [
+        "Inari",
+        "Sodankylä",
+        "Utsjoki"
+      ]
+    },
+    {
+      "code": "211",
+      "name_fi": "Mariehamns stad",
+      "name_sv": "Mariehamns stad",
+      "municipality_codes": [
+        "478"
+      ],
+      "municipality_names_fi": [
+        "Maarianhamina - Mariehamn"
+      ]
+    },
+    {
+      "code": "212",
+      "name_fi": "Ålands landsbygd",
+      "name_sv": "Ålands landsbygd",
+      "municipality_codes": [
+        "043",
+        "060",
+        "065",
+        "076",
+        "170",
+        "417",
+        "438",
+        "736",
+        "771"
+      ],
+      "municipality_names_fi": [
+        "Eckerö",
+        "Finström",
+        "Geta",
+        "Hammarland",
+        "Jomala",
+        "Lemland",
+        "Lumparland",
+        "Saltvik",
+        "Sund"
+      ]
+    },
+    {
+      "code": "213",
+      "name_fi": "Ålands skärgård",
+      "name_sv": "Ålands skärgård",
+      "municipality_codes": [
+        "035",
+        "062",
+        "295",
+        "318",
+        "766",
+        "941"
+      ],
+      "municipality_names_fi": [
+        "Brändö",
+        "Föglö",
+        "Kumlinge",
+        "Kökar",
+        "Sottunga",
+        "Vårdö"
+      ]
+    }
+  ]
+}
