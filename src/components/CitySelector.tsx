@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { REGION_IDS_WITH_DATA, type RegionId } from '../utils/regions';
 import { t, type Lang } from '../utils/i18n';
+import coverageManifest from '../data/region_coverage.json';
 
 export type CityFilter = RegionId | 'all';
 
@@ -16,6 +17,26 @@ const OPTIONS: { id: CityFilter; labelKey: string }[] = [
   { id: 'all', labelKey: 'city.all' },
   ...REGION_IDS_WITH_DATA.map((id) => ({ id: id as CityFilter, labelKey: `city.${id}` })),
 ];
+
+// CF-5 Phase C: coverage-aware labeling. Builds a per-region "(X%)" or
+// "(low data)" suffix when a region's pre-computed metric coverage is below
+// the FULL_COVERAGE_THRESHOLD. Full-coverage regions (and the "all" option)
+// get no badge so the chrome stays quiet on the happy path.
+type CoverageInfo = { present: number; total: number };
+const COVERAGE: Record<string, CoverageInfo> = coverageManifest as Record<string, CoverageInfo>;
+const FULL_COVERAGE_THRESHOLD = 0.95;
+const LOW_COVERAGE_THRESHOLD = 0.5;
+
+function getCoverageBadge(regionId: CityFilter): string {
+  if (regionId === 'all') return '';
+  const c = COVERAGE[regionId];
+  if (!c || c.total === 0) return '';
+  const ratio = c.present / c.total;
+  if (ratio >= FULL_COVERAGE_THRESHOLD) return '';
+  const pct = Math.round(ratio * 100);
+  if (ratio < LOW_COVERAGE_THRESHOLD) return ` (${t('city.coverage.low')})`;
+  return ` (${t('city.coverage.partial').replace('{pct}', String(pct))})`;
+}
 
 export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, onChange, lang: _lang }) => {
   const [open, setOpen] = useState(false);
@@ -43,7 +64,7 @@ export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, on
       >
         {options.map((opt) => (
           <option key={opt.id} value={opt.id}>
-            {t(opt.labelKey)}
+            {t(opt.labelKey)}{getCoverageBadge(opt.id)}
           </option>
         ))}
       </select>
@@ -84,7 +105,7 @@ export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, on
                     : 'text-surface-700 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800/60'
                 }`}
               >
-                {t(opt.labelKey)}
+                {t(opt.labelKey)}{getCoverageBadge(opt.id)}
               </button>
             ))}
           </div>
