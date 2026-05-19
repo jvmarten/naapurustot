@@ -27,7 +27,7 @@ jobs:
             git pull origin main
             cd server
             export SENTRY_DSN SENTRY_RELEASE
-            docker compose pull
+            docker compose build api
             docker compose up -d
             echo "Deploy complete"
             docker compose ps
