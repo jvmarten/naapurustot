@@ -110,6 +110,30 @@ const RadarChart: React.FC<RadarChartProps> = React.memo(function RadarChart({ d
     [metroAverages],
   );
 
+  // QW-4: Accessibility — build descriptive label with all axis values and the
+  // top 2 strongest dimensions so screen readers can convey the chart contents.
+  const { ariaLabel, ariaDescription } = useMemo(() => {
+    const name = (data.nimi || data.pno || '').toString();
+    const items = AXES.map((axis, i) => ({
+      label: t(axis.key),
+      value: Math.round(dataValues[i]),
+    }));
+    const valuesText = items.map((it) => `${it.label} ${it.value}`).join(', ');
+    const top2 = [...items]
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 2)
+      .map((s) => s.label)
+      .join(', ');
+    const title = t('panel.radar_title');
+    const strongest = t('aria.radar_strongest');
+    const label = name
+      ? `${title}: ${name} — ${valuesText}. ${strongest}: ${top2}.`
+      : `${title} — ${valuesText}. ${strongest}: ${top2}.`;
+    return { ariaLabel: label, ariaDescription: `${valuesText}. ${strongest}: ${top2}.` };
+  }, [data, dataValues]);
+
+  const descId = `radar-desc-${data.pno ?? 'na'}`;
+
   const gridLevels = [20, 40, 60, 80, 100];
 
   return (
@@ -123,8 +147,11 @@ const RadarChart: React.FC<RadarChartProps> = React.memo(function RadarChart({ d
         viewBox={`0 0 ${SIZE} ${SIZE}`}
         className="overflow-visible"
         role="img"
-        aria-label={t('panel.radar_title')}
+        aria-label={ariaLabel}
+        aria-describedby={descId}
       >
+        <title>{ariaLabel}</title>
+        <desc id={descId}>{ariaDescription}</desc>
         {/* Grid rings */}
         {gridLevels.map((level) => (
           <polygon
