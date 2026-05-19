@@ -88,7 +88,6 @@ export const TrendChart: React.FC<TrendChartProps> = React.memo(({ title, data, 
         role="img"
         aria-label={ariaLabel}
       >
-        <title>{ariaLabel}</title>
         {/* Area fill */}
         <path d={areaPath} fill={color} opacity={0.1} />
 

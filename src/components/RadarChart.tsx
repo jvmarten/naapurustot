@@ -112,7 +112,7 @@ const RadarChart: React.FC<RadarChartProps> = React.memo(function RadarChart({ d
 
   // QW-4: Accessibility — build descriptive label with all axis values and the
   // top 2 strongest dimensions so screen readers can convey the chart contents.
-  const { ariaLabel, ariaDescription } = useMemo(() => {
+  const ariaLabel = useMemo(() => {
     const name = (data.nimi || data.pno || '').toString();
     const items = AXES.map((axis, i) => ({
       label: t(axis.key),
@@ -126,13 +126,10 @@ const RadarChart: React.FC<RadarChartProps> = React.memo(function RadarChart({ d
       .join(', ');
     const title = t('panel.radar_title');
     const strongest = t('aria.radar_strongest');
-    const label = name
+    return name
       ? `${title}: ${name} — ${valuesText}. ${strongest}: ${top2}.`
       : `${title} — ${valuesText}. ${strongest}: ${top2}.`;
-    return { ariaLabel: label, ariaDescription: `${valuesText}. ${strongest}: ${top2}.` };
   }, [data, dataValues]);
-
-  const descId = `radar-desc-${data.pno ?? 'na'}`;
 
   const gridLevels = [20, 40, 60, 80, 100];
 
@@ -148,10 +145,7 @@ const RadarChart: React.FC<RadarChartProps> = React.memo(function RadarChart({ d
         className="overflow-visible"
         role="img"
         aria-label={ariaLabel}
-        aria-describedby={descId}
       >
-        <title>{ariaLabel}</title>
-        <desc id={descId}>{ariaDescription}</desc>
         {/* Grid rings */}
         {gridLevels.map((level) => (
           <polygon
