@@ -6,7 +6,7 @@
  * Database tables are auto-created on startup via initDb().
  */
 import './instrument.js';
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import * as Sentry from '@sentry/node';
@@ -52,6 +52,16 @@ app.use('/auth', authRouter);
 
 // Must be registered after routes — captures errors thrown from handlers.
 Sentry.setupExpressErrorHandler(app);
+
+// Final fallback: format unhandled errors as JSON. Sentry has already
+// captured them via the handler above. Stack traces and PII stay in
+// Sentry — the client only sees a generic message.
+app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
+  console.error(`${req.method} ${req.url} error:`, err);
+  if (!res.headersSent) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 async function start(): Promise<void> {
   await initDb();

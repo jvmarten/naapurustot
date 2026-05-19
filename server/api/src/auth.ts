@@ -131,8 +131,7 @@ router.post('/signup', rateLimit(3, 24 * 60 * 60 * 1000, 'signup'), async (req: 
       res.status(409).json({ error: msg });
       return;
     }
-    console.error('Signup error:', err);
-    res.status(500).json({ error: 'Internal server error' });
+    throw err;
   }
 });
 
@@ -152,33 +151,28 @@ router.post('/login', rateLimit(10, 15 * 60 * 1000, 'login'), async (req: Reques
     return;
   }
 
-  try {
-    const result = await pool.query(
-      'SELECT id, username, email, password, display_name, trust_level, created_at FROM users WHERE username = $1',
-      [username.toLowerCase()]
-    );
+  const result = await pool.query(
+    'SELECT id, username, email, password, display_name, trust_level, created_at FROM users WHERE username = $1',
+    [username.toLowerCase()]
+  );
 
-    if (result.rows.length === 0) {
-      res.status(401).json({ error: 'Invalid username or password' });
-      return;
-    }
-
-    const user = result.rows[0];
-    const valid = await bcrypt.compare(password, user.password);
-
-    if (!valid) {
-      res.status(401).json({ error: 'Invalid username or password' });
-      return;
-    }
-
-    const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
-    setTokenCookie(res, token);
-
-    res.json({ user: formatUser(user) });
-  } catch (err) {
-    console.error('Login error:', err);
-    res.status(500).json({ error: 'Internal server error' });
+  if (result.rows.length === 0) {
+    res.status(401).json({ error: 'Invalid username or password' });
+    return;
   }
+
+  const user = result.rows[0];
+  const valid = await bcrypt.compare(password, user.password);
+
+  if (!valid) {
+    res.status(401).json({ error: 'Invalid username or password' });
+    return;
+  }
+
+  const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
+  setTokenCookie(res, token);
+
+  res.json({ user: formatUser(user) });
 });
 
 router.post('/logout', (_req: Request, res: Response): void => {
@@ -193,24 +187,28 @@ router.get('/me', async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
+  let userId: string;
   try {
     const payload = jwt.verify(token, JWT_SECRET) as { userId: string };
-    const result = await pool.query(
-      'SELECT id, username, email, display_name, trust_level, created_at FROM users WHERE id = $1',
-      [payload.userId]
-    );
-
-    if (result.rows.length === 0) {
-      res.clearCookie('token', { httpOnly: true, secure: true, sameSite: 'none', path: '/' });
-      res.status(401).json({ error: 'User not found' });
-      return;
-    }
-
-    res.json({ user: formatUser(result.rows[0]) });
+    userId = payload.userId;
   } catch {
     res.clearCookie('token', { httpOnly: true, secure: true, sameSite: 'none', path: '/' });
     res.status(401).json({ error: 'Invalid token' });
+    return;
   }
+
+  const result = await pool.query(
+    'SELECT id, username, email, display_name, trust_level, created_at FROM users WHERE id = $1',
+    [userId]
+  );
+
+  if (result.rows.length === 0) {
+    res.clearCookie('token', { httpOnly: true, secure: true, sameSite: 'none', path: '/' });
+    res.status(401).json({ error: 'User not found' });
+    return;
+  }
+
+  res.json({ user: formatUser(result.rows[0]) });
 });
 
 // ── Favorites sync ──
@@ -222,17 +220,12 @@ router.get('/favorites', async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  try {
-    const result = await pool.query(
-      'SELECT favorites FROM user_favorites WHERE user_id = $1',
-      [userId]
-    );
-    const favorites: string[] = result.rows.length > 0 ? result.rows[0].favorites : [];
-    res.json({ favorites });
-  } catch (err) {
-    console.error('Get favorites error:', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
+  const result = await pool.query(
+    'SELECT favorites FROM user_favorites WHERE user_id = $1',
+    [userId]
+  );
+  const favorites: string[] = result.rows.length > 0 ? result.rows[0].favorites : [];
+  res.json({ favorites });
 });
 
 router.put('/favorites', async (req: Request, res: Response): Promise<void> => {
@@ -261,18 +254,13 @@ router.put('/favorites', async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  try {
-    await pool.query(
-      `INSERT INTO user_favorites (user_id, favorites, updated_at)
-       VALUES ($1, $2, NOW())
-       ON CONFLICT (user_id) DO UPDATE SET favorites = $2, updated_at = NOW()`,
-      [userId, JSON.stringify(favorites)]
-    );
-    res.json({ favorites });
-  } catch (err) {
-    console.error('Put favorites error:', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
+  await pool.query(
+    `INSERT INTO user_favorites (user_id, favorites, updated_at)
+     VALUES ($1, $2, NOW())
+     ON CONFLICT (user_id) DO UPDATE SET favorites = $2, updated_at = NOW()`,
+    [userId, JSON.stringify(favorites)]
+  );
+  res.json({ favorites });
 });
 
 export default router;
