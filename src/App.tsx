@@ -790,10 +790,13 @@ const App: React.FC = () => {
 
   // QW-1: Show onboarding tour on first visit, after data has loaded.
   // Skip when the user deep-linked to a specific neighborhood — they're here
-  // for that area, not for a chrome walkthrough.
+  // for that area, not for a chrome walkthrough. Also skip under browser
+  // automation (Playwright/WebDriver) so e2e tests aren't blocked by the
+  // tour's click-capturing overlay. Manual launch via Settings still works.
   useEffect(() => {
     if (loading || !data) return;
     if (initialUrl.pno) return;
+    if (typeof navigator !== 'undefined' && navigator.webdriver) return;
     try {
       if (localStorage.getItem('naapurustot-onboarding-seen')) return;
     } catch { /* localStorage unavailable */ }
