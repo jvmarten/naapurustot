@@ -167,8 +167,10 @@ All variables are prefixed with `VITE_` and injected at build time by Vite. Copy
 | `VITE_MAP_MAX_ZOOM` | `16` | Maximum allowed zoom |
 | `VITE_BASEMAP_LIGHT_URL` | CARTO light | Raster tile URL for light theme |
 | `VITE_BASEMAP_DARK_URL` | CARTO dark | Raster tile URL for dark theme |
-| `VITE_SENTRY_DSN` | *(unset)* | Optional — enables Sentry error tracking |
+| `VITE_SENTRY_DSN` | *(unset)* | Optional — enables Sentry error tracking. When set at build time, `@sentry/react` is bundled and initialized. |
 | `VITE_API_URL` | `https://api.naapurustot.fi` | Backend API URL for auth/favorites (optional) |
+
+Source map upload to Sentry is gated on `SENTRY_AUTH_TOKEN` being present at build time (CI-only — set as a GitHub Actions secret along with `SENTRY_ORG` and `SENTRY_PROJECT`). When the token is set, hidden source maps are emitted, uploaded to Sentry, and deleted from `dist/` before deploy. The release is tagged with the commit SHA via `VITE_SENTRY_RELEASE`.
 
 ### Server (`server/.env`)
 
@@ -181,6 +183,8 @@ Only needed if running the backend. Copy `server/.env.example` to `server/.env`.
 | `API_DB_PASSWORD` | PostgreSQL password for the API database |
 | `JWT_SECRET` | Secret for signing JWT auth tokens |
 | `TURNSTILE_SECRET` | Cloudflare Turnstile secret key for bot protection |
+| `SENTRY_DSN` | Optional — enables Sentry error tracking for the API. Leave empty to disable. |
+| `SENTRY_RELEASE` | Optional — release identifier (commit SHA) injected by `deploy-server.yml`. |
 
 ## Tech stack
 

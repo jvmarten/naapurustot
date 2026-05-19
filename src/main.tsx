@@ -47,19 +47,18 @@ registerSW({
   },
 });
 
-// IN-4: Error tracking (activate by setting VITE_SENTRY_DSN in .env)
+// Sentry is dynamically imported so that builds without VITE_SENTRY_DSN
+// (e.g. CI bundle-size check, local dev) tree-shake the package out entirely.
 const SENTRY_DSN = import.meta.env.VITE_SENTRY_DSN as string | undefined;
 if (SENTRY_DSN) {
-  // @ts-expect-error — @sentry/browser is an optional dependency, only loaded when DSN is set
-  import('@sentry/browser').then(({ init, browserTracingIntegration }: { init: (opts: Record<string, unknown>) => void; browserTracingIntegration: () => unknown }) => {
-    init({
+  void import('@sentry/react').then((Sentry) => {
+    Sentry.init({
       dsn: SENTRY_DSN,
-      integrations: [browserTracingIntegration()],
+      integrations: [Sentry.browserTracingIntegration()],
       tracesSampleRate: 0.1,
       environment: import.meta.env.MODE,
+      release: import.meta.env.VITE_SENTRY_RELEASE as string | undefined,
     });
-  }).catch(() => {
-    // Sentry not available, skip
   });
 }
 

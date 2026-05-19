@@ -5,9 +5,11 @@
  * Runs behind Caddy reverse proxy at api.naapurustot.fi.
  * Database tables are auto-created on startup via initDb().
  */
+import './instrument.js';
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import * as Sentry from '@sentry/node';
 import authRouter from './auth.js';
 import { initDb } from './db.js';
 
@@ -47,6 +49,9 @@ app.get('/health', (_req, res) => {
 });
 
 app.use('/auth', authRouter);
+
+// Must be registered after routes — captures errors thrown from handlers.
+Sentry.setupExpressErrorHandler(app);
 
 async function start(): Promise<void> {
   await initDb();
