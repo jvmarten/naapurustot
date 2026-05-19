@@ -16,6 +16,8 @@ interface SettingsDropdownProps {
   onFillOpacityChange: (value: number) => void;
   /** QW-1: Re-launches the onboarding tour. */
   onShowTour?: () => void;
+  /** QW-7: Copy an iframe embed snippet for the current map state to the clipboard. */
+  onCopyEmbed?: () => Promise<boolean>;
 }
 
 const CB_OPTIONS: { value: ColorblindType; labelKey: string }[] = [
@@ -75,10 +77,24 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
   fillOpacity,
   onFillOpacityChange,
   onShowTour,
+  onCopyEmbed,
 }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const { mode, setMode } = useTheme();
+  // QW-7: Brief "Copied!" confirmation after clicking the embed-code button
+  const [embedCopied, setEmbedCopied] = useState(false);
+  const embedCopyTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(embedCopyTimerRef.current), []);
+  const handleEmbedClick = useCallback(async () => {
+    if (!onCopyEmbed) return;
+    const ok = await onCopyEmbed();
+    if (ok) {
+      setEmbedCopied(true);
+      clearTimeout(embedCopyTimerRef.current);
+      embedCopyTimerRef.current = setTimeout(() => setEmbedCopied(false), 2000);
+    }
+  }, [onCopyEmbed]);
 
   useEffect(() => {
     if (!open) return;
@@ -214,6 +230,21 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
                 <span>{t('settings.show_tour')}</span>
               </button>
             </>
+          )}
+
+          {/* QW-7: Copy iframe embed snippet for the current map state */}
+          {onCopyEmbed && (
+            <button
+              onClick={handleEmbedClick}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200
+                         hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors"
+              title={t('embed.copy_hint')}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+              </svg>
+              <span>{embedCopied ? t('embed.copied') : t('embed.copy_code')}</span>
+            </button>
           )}
 
           {/* PO-6: Data freshness indicator */}

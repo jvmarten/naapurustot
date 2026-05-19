@@ -263,4 +263,188 @@ router.put('/favorites', async (req: Request, res: Response): Promise<void> => {
   res.json({ favorites });
 });
 
+// ── Notes sync (QW-6) ──
+
+const PNO_RE = /^\d{5}$/;
+const MAX_NOTE_LEN = 5000;
+const MAX_NOTES = 500;
+
+router.get('/notes', async (req: Request, res: Response): Promise<void> => {
+  const userId = authenticateToken(req);
+  if (!userId) {
+    res.status(401).json({ error: 'Not authenticated' });
+    return;
+  }
+
+  const result = await pool.query(
+    'SELECT notes FROM user_notes WHERE user_id = $1',
+    [userId]
+  );
+  const notes: Record<string, string> = result.rows.length > 0 ? result.rows[0].notes : {};
+  res.json({ notes });
+});
+
+router.put('/notes', async (req: Request, res: Response): Promise<void> => {
+  const userId = authenticateToken(req);
+  if (!userId) {
+    res.status(401).json({ error: 'Not authenticated' });
+    return;
+  }
+
+  const { notes } = req.body;
+  if (!notes || typeof notes !== 'object' || Array.isArray(notes)) {
+    res.status(400).json({ error: 'notes must be an object keyed by postal code' });
+    return;
+  }
+  const entries = Object.entries(notes);
+  if (entries.length > MAX_NOTES) {
+    res.status(400).json({ error: 'Too many notes (max 500)' });
+    return;
+  }
+  const sanitized: Record<string, string> = {};
+  for (const [key, val] of entries) {
+    if (!PNO_RE.test(key)) {
+      res.status(400).json({ error: 'Invalid note key (must be 5-digit postal code)' });
+      return;
+    }
+    if (typeof val !== 'string') {
+      res.status(400).json({ error: 'Note values must be strings' });
+      return;
+    }
+    if (val.length > MAX_NOTE_LEN) {
+      res.status(400).json({ error: `Note too long (max ${MAX_NOTE_LEN} chars)` });
+      return;
+    }
+    if (val.trim()) sanitized[key] = val;
+  }
+
+  await pool.query(
+    `INSERT INTO user_notes (user_id, notes, updated_at)
+     VALUES ($1, $2, NOW())
+     ON CONFLICT (user_id) DO UPDATE SET notes = $2, updated_at = NOW()`,
+    [userId, JSON.stringify(sanitized)]
+  );
+  res.json({ notes: sanitized });
+});
+
+// ── Preferences sync (CF-2): filter presets + quality weights ──
+
+const MAX_FILTER_PRESETS = 50;
+const MAX_PRESET_NAME_LEN = 100;
+const MAX_CRITERIA_PER_PRESET = 30;
+const LAYER_ID_RE = /^[a-z0-9_]{1,50}$/;
+const FACTOR_ID_RE = /^[a-z0-9_]{1,50}$/;
+
+function validateFilterPresets(value: unknown): { ok: true; value: unknown[] } | { ok: false; error: string } {
+  if (!Array.isArray(value)) return { ok: false, error: 'filterPresets must be an array' };
+  if (value.length > MAX_FILTER_PRESETS) return { ok: false, error: `Too many filter presets (max ${MAX_FILTER_PRESETS})` };
+  for (const preset of value) {
+    if (!preset || typeof preset !== 'object') return { ok: false, error: 'Each preset must be an object' };
+    const p = preset as Record<string, unknown>;
+    if (typeof p.name !== 'string' || !p.name || p.name.length > MAX_PRESET_NAME_LEN) {
+      return { ok: false, error: 'Each preset must have a non-empty name (max 100 chars)' };
+    }
+    if (!Array.isArray(p.criteria)) return { ok: false, error: 'Each preset must have a criteria array' };
+    if (p.criteria.length > MAX_CRITERIA_PER_PRESET) return { ok: false, error: 'Too many criteria in preset' };
+    for (const c of p.criteria) {
+      if (!c || typeof c !== 'object') return { ok: false, error: 'Each criterion must be an object' };
+      const r = c as Record<string, unknown>;
+      if (typeof r.layerId !== 'string' || !LAYER_ID_RE.test(r.layerId)) {
+        return { ok: false, error: 'Invalid layerId in criterion' };
+      }
+      if (typeof r.min !== 'number' || typeof r.max !== 'number' || !isFinite(r.min) || !isFinite(r.max)) {
+        return { ok: false, error: 'Criterion min/max must be finite numbers' };
+      }
+      if (r.min > r.max) return { ok: false, error: 'Criterion min must be <= max' };
+    }
+  }
+  return { ok: true, value };
+}
+
+function validateQualityWeights(value: unknown): { ok: true; value: Record<string, number> } | { ok: false; error: string } {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return { ok: false, error: 'qualityWeights must be an object' };
+  }
+  const entries = Object.entries(value as Record<string, unknown>);
+  if (entries.length > 200) return { ok: false, error: 'Too many quality factors' };
+  const result: Record<string, number> = {};
+  for (const [k, v] of entries) {
+    if (!FACTOR_ID_RE.test(k)) return { ok: false, error: 'Invalid factor id in quality weights' };
+    if (typeof v !== 'number' || !isFinite(v)) return { ok: false, error: 'Quality weight values must be finite numbers' };
+    if (v < -100 || v > 100) return { ok: false, error: 'Quality weight values must be between -100 and 100' };
+    result[k] = v;
+  }
+  return { ok: true, value: result };
+}
+
+router.get('/preferences', async (req: Request, res: Response): Promise<void> => {
+  const userId = authenticateToken(req);
+  if (!userId) {
+    res.status(401).json({ error: 'Not authenticated' });
+    return;
+  }
+
+  const result = await pool.query(
+    'SELECT filter_presets, quality_weights FROM user_preferences WHERE user_id = $1',
+    [userId]
+  );
+  if (result.rows.length === 0) {
+    res.json({ filterPresets: [], qualityWeights: {} });
+    return;
+  }
+  res.json({
+    filterPresets: result.rows[0].filter_presets ?? [],
+    qualityWeights: result.rows[0].quality_weights ?? {},
+  });
+});
+
+router.put('/preferences', async (req: Request, res: Response): Promise<void> => {
+  const userId = authenticateToken(req);
+  if (!userId) {
+    res.status(401).json({ error: 'Not authenticated' });
+    return;
+  }
+
+  const { filterPresets, qualityWeights } = req.body ?? {};
+
+  // Allow partial updates: only validate fields that were sent.
+  let presetsJson: string | null = null;
+  if (filterPresets !== undefined) {
+    const v = validateFilterPresets(filterPresets);
+    if (!v.ok) { res.status(400).json({ error: v.error }); return; }
+    presetsJson = JSON.stringify(v.value);
+  }
+  let weightsJson: string | null = null;
+  if (qualityWeights !== undefined) {
+    const v = validateQualityWeights(qualityWeights);
+    if (!v.ok) { res.status(400).json({ error: v.error }); return; }
+    weightsJson = JSON.stringify(v.value);
+  }
+
+  if (presetsJson === null && weightsJson === null) {
+    res.status(400).json({ error: 'Provide filterPresets or qualityWeights' });
+    return;
+  }
+
+  // COALESCE keeps unspecified fields at their existing values.
+  await pool.query(
+    `INSERT INTO user_preferences (user_id, filter_presets, quality_weights, updated_at)
+     VALUES ($1, COALESCE($2::jsonb, '[]'::jsonb), COALESCE($3::jsonb, '{}'::jsonb), NOW())
+     ON CONFLICT (user_id) DO UPDATE SET
+       filter_presets = COALESCE($2::jsonb, user_preferences.filter_presets),
+       quality_weights = COALESCE($3::jsonb, user_preferences.quality_weights),
+       updated_at = NOW()`,
+    [userId, presetsJson, weightsJson]
+  );
+
+  const result = await pool.query(
+    'SELECT filter_presets, quality_weights FROM user_preferences WHERE user_id = $1',
+    [userId]
+  );
+  res.json({
+    filterPresets: result.rows[0]?.filter_presets ?? [],
+    qualityWeights: result.rows[0]?.quality_weights ?? {},
+  });
+});
+
 export default router;

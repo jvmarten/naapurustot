@@ -15,6 +15,7 @@ import { ErrorBanner } from './components/ErrorBanner';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { computeMatchingPnos, type FilterCriterion } from './utils/filterUtils';
 import { useFilterPresets } from './hooks/useFilterPresets';
+import { useQualityWeights } from './hooks/useQualityWeights';
 import { trackEvent } from './utils/analytics';
 import type { Feature, Polygon, MultiPolygon, Position } from 'geojson';
 
@@ -42,9 +43,10 @@ import { readInitialUrlState, useSyncUrlState } from './hooks/useUrlState';
 import type { NeighborhoodProperties } from './utils/metrics';
 import { computeMetroAverages } from './utils/metrics';
 import { t, getLang, setLang, type Lang } from './utils/i18n';
-import { computeQualityIndices, getDefaultWeights, isCustomWeights, type QualityWeights } from './utils/qualityIndex';
+import { computeQualityIndices, isCustomWeights, type QualityWeights } from './utils/qualityIndex';
 import { buildMetroAreaFeatures, clearMetroAreaCache } from './utils/metroAreas';
 import { useAllCitiesUnionPreload } from './hooks/useAllCitiesUnionPreload';
+import { IS_EMBED, buildEmbedSnippet } from './utils/embed';
 
 const initialUrl = readInitialUrlState();
 
@@ -92,13 +94,14 @@ const App: React.FC = () => {
   const [showFilter, setShowFilter] = useState(false);
   const [showCustomQuality, setShowCustomQuality] = useState(false);
   const [filters, setFilters] = useState<FilterCriterion[]>([]);
-  const [qualityWeights, setQualityWeights] = useState<QualityWeights>(getDefaultWeights);
+  // CF-2: Quality weights persist to localStorage and (when logged in) sync to the backend.
+  const { weights: qualityWeights, setWeights: setQualityWeights } = useQualityWeights(user?.id ?? null);
   // Memoize isCustomWeights to avoid iterating all QUALITY_FACTORS on every App render
   // (called twice in JSX: LayerSelector + NeighborhoodPanel).
   const customWeights = useMemo(() => isCustomWeights(qualityWeights), [qualityWeights]);
   const [colorblind, setColorblind] = useState(getColorblindMode);
   const [showWizard, setShowWizard] = useState(false);
-  const { presets: savedPresets, addPreset: saveFilterPreset, removePreset: removeFilterPreset } = useFilterPresets();
+  const { presets: savedPresets, addPreset: saveFilterPreset, removePreset: removeFilterPreset } = useFilterPresets(user?.id ?? null);
   const [fillOpacity, setFillOpacity] = useState(() => {
     try {
       const saved = localStorage.getItem('naapurustot-fill-opacity');
@@ -486,8 +489,12 @@ const App: React.FC = () => {
   filteredDataRef.current = filteredData;
   const pnoFeatureMapRef = useRef(pnoFeatureMap);
   pnoFeatureMapRef.current = pnoFeatureMap;
+  // CF-2: track the latest weights set via slider edits so a server-sync update
+  // from useQualityWeights can be detected and routed through the same recompute path.
+  const lastInteractiveWeightsRef = useRef(qualityWeights);
   const handleQualityWeightsChange = useCallback(
     (newWeights: QualityWeights) => {
+      lastInteractiveWeightsRef.current = newWeights;
       setQualityWeights(newWeights);
       if (qualityDebounceRef.current) clearTimeout(qualityDebounceRef.current);
       qualityDebounceRef.current = setTimeout(() => {
@@ -519,10 +526,38 @@ const App: React.FC = () => {
         }
       }, 150);
     },
-    [data, select, refreshPinned],
+    [data, select, refreshPinned, setQualityWeights],
   );
   // Clean up debounce timer on unmount
   useEffect(() => () => { if (qualityDebounceRef.current) clearTimeout(qualityDebounceRef.current); }, []);
+
+  // CF-2: when qualityWeights changes from outside the slider handler
+  // (e.g., adopted from server on login), recompute quality indices.
+  useEffect(() => {
+    if (lastInteractiveWeightsRef.current === qualityWeights) return;
+    lastInteractiveWeightsRef.current = qualityWeights;
+    if (!data) return;
+    const features = comparisonScopeRef.current === 'region' && cityFilterRef.current !== 'all' && filteredDataRef.current
+      ? filteredDataRef.current.features
+      : data.features;
+    computeQualityIndices(features, qualityWeights);
+    clearMetroAreaCache();
+    clearRescaleCache();
+    setQualityVersion((v) => v + 1);
+    const sel = selectedRef.current;
+    const lookup = pnoFeatureMapRef.current;
+    if (sel) {
+      const feature = lookup.get(sel.pno);
+      if (feature?.properties) select(feature.properties as NeighborhoodProperties);
+    }
+    const pins = pinnedRef.current;
+    if (pins.length > 0) {
+      const updated = pins
+        .map((p) => lookup.get(p.pno)?.properties as NeighborhoodProperties | undefined)
+        .filter((p): p is NeighborhoodProperties => p != null);
+      refreshPinned(updated);
+    }
+  }, [qualityWeights, data, select, refreshPinned]);
 
   const handleHover = useCallback(
     (props: NeighborhoodProperties | null, x: number, y: number) => {
@@ -788,7 +823,9 @@ const App: React.FC = () => {
   // for that area, not for a chrome walkthrough. Also skip under browser
   // automation (Playwright/WebDriver) so e2e tests aren't blocked by the
   // tour's click-capturing overlay. Manual launch via Settings still works.
+  // QW-7: Also skip in embed mode — the chrome the tour points at isn't visible.
   useEffect(() => {
+    if (IS_EMBED) return;
     if (loading || !data) return;
     if (initialUrl.pno) return;
     if (typeof navigator !== 'undefined' && navigator.webdriver) return;
@@ -806,6 +843,22 @@ const App: React.FC = () => {
   const handleShowTour = useCallback(() => {
     setShowTour(true);
   }, []);
+
+  // QW-7: Copy an iframe embed snippet for the current map state.
+  const handleCopyEmbed = useCallback(async (): Promise<boolean> => {
+    const snippet = buildEmbedSnippet({
+      pno: selected?.pno ?? null,
+      layer: activeLayer,
+      city: cityFilter,
+    });
+    try {
+      await navigator.clipboard.writeText(snippet);
+      trackEvent('copy-embed', { layer: activeLayer });
+      return true;
+    } catch {
+      return false;
+    }
+  }, [selected?.pno, activeLayer, cityFilter]);
 
   // IN-6: Reactive offline detection
   useEffect(() => {
@@ -908,7 +961,8 @@ const App: React.FC = () => {
       {/* Error banner */}
       {error && <ErrorBanner message={error} onRetry={retry} />}
 
-      {/* Header bar */}
+      {/* QW-7: Header is hidden in embed mode so the map renders edge-to-edge. */}
+      {!IS_EMBED && (
       <header className="absolute top-0 left-0 right-0 z-20 h-12 flex items-center justify-between px-3 md:px-4 bg-white/80 dark:bg-surface-950/80 backdrop-blur-md border-b border-surface-200/50 dark:border-white/10">
         {/* Left: settings, tools & auth */}
         <div className="flex items-center gap-1 md:gap-2 shrink-0">
@@ -920,6 +974,7 @@ const App: React.FC = () => {
             fillOpacity={fillOpacity}
             onFillOpacityChange={handleFillOpacityChange}
             onShowTour={handleShowTour}
+            onCopyEmbed={handleCopyEmbed}
           />
           <ToolsDropdown
             showFilter={showFilter}
@@ -979,25 +1034,30 @@ const App: React.FC = () => {
           <CitySelector value={cityFilter} onChange={handleCityChange} lang={lang} />
         </div>
       </header>
+      )}
 
-      {/* Search bar */}
-      <div data-tour-id="search" className="absolute top-[3.5rem] left-3 md:left-4 z-10 w-52 md:w-72">
-        <SearchBar data={data} onSelect={handleSearch} recent={recent} lang={lang} />
-      </div>
+      {/* Search bar (hidden in embed mode) */}
+      {!IS_EMBED && (
+        <div data-tour-id="search" className="absolute top-[3.5rem] left-3 md:left-4 z-10 w-52 md:w-72">
+          <SearchBar data={data} onSelect={handleSearch} recent={recent} lang={lang} />
+        </div>
+      )}
 
-      {/* Comparison scope toggle — mobile only (desktop rendered inside LayerSelector via headerSlot) */}
-      <div className="absolute top-[3.5rem] right-3 z-10 md:hidden flex items-center gap-1.5">
-        {comparisonScope === 'region' && cityFilter !== 'all' && (
-          <div className="px-2.5 py-1 rounded-lg bg-amber-500/90 text-white text-[10px] font-semibold backdrop-blur-sm">
-            {t('scope.active_hint')}
-          </div>
-        )}
-        <ComparisonScopeToggle
-          scope={comparisonScope}
-          onChange={setComparisonScope}
-          disabled={cityFilter === 'all'}
-        />
-      </div>
+      {/* Comparison scope toggle — mobile only (desktop rendered inside LayerSelector via headerSlot). Hidden in embed mode. */}
+      {!IS_EMBED && (
+        <div className="absolute top-[3.5rem] right-3 z-10 md:hidden flex items-center gap-1.5">
+          {comparisonScope === 'region' && cityFilter !== 'all' && (
+            <div className="px-2.5 py-1 rounded-lg bg-amber-500/90 text-white text-[10px] font-semibold backdrop-blur-sm">
+              {t('scope.active_hint')}
+            </div>
+          )}
+          <ComparisonScopeToggle
+            scope={comparisonScope}
+            onChange={setComparisonScope}
+            disabled={cityFilter === 'all'}
+          />
+        </div>
+      )}
 
       {/* Ranking table */}
       {showRanking && (
@@ -1032,15 +1092,17 @@ const App: React.FC = () => {
         </ErrorBoundary>
       )}
 
-      {/* Layer selector */}
-      <LayerSelector
-        activeLayer={activeLayer}
-        onLayerChange={setActiveLayer}
-        onCustomizeQuality={handleToggleCustomQuality}
-        isCustomWeights={customWeights}
-        headerSlot={layerSelectorHeaderSlot}
-        lang={lang}
-      />
+      {/* Layer selector — hidden in embed mode so the map is uncluttered. */}
+      {!IS_EMBED && (
+        <LayerSelector
+          activeLayer={activeLayer}
+          onLayerChange={setActiveLayer}
+          onCustomizeQuality={handleToggleCustomQuality}
+          isCustomWeights={customWeights}
+          headerSlot={layerSelectorHeaderSlot}
+          lang={lang}
+        />
+      )}
 
       {/* Legend — repositioned for mobile */}
       <Legend layerId={activeLayer} colorblind={colorblind} layerConfig={effectiveLayer} lang={lang} />
@@ -1086,6 +1148,7 @@ const App: React.FC = () => {
             isFavorite={isFavorite(selected.pno)}
             onToggleFavorite={handleToggleFavorite}
             onExploreCity={handleExploreCity}
+            userId={user?.id ?? null}
           />
           </Suspense>
         </ErrorBoundary>
@@ -1105,8 +1168,8 @@ const App: React.FC = () => {
         </ErrorBoundary>
       )}
 
-      {/* Comparison panel (shows hint at 1 pinned, full panel at 2+) */}
-      {pinned.length >= 1 && (
+      {/* Comparison panel (shows hint at 1 pinned, full panel at 2+). Hidden in embed mode. */}
+      {!IS_EMBED && pinned.length >= 1 && (
         <ErrorBoundary>
           <Suspense fallback={null}>
             <ComparisonPanel pinned={pinned} onUnpin={unpin} onClear={clearPinned} />
@@ -1174,13 +1237,34 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Attribution footer */}
-      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 hidden md:block">
-        <p className="text-[10px] text-surface-600/70 dark:text-surface-500/70">{t('footer.attribution')}</p>
-      </div>
+      {/* Attribution footer (full attribution hidden in embed mode) */}
+      {!IS_EMBED && (
+        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 hidden md:block">
+          <p className="text-[10px] text-surface-600/70 dark:text-surface-500/70">{t('footer.attribution')}</p>
+        </div>
+      )}
 
-      {/* Auth modal */}
-      {showAuth && (
+      {/* QW-7: Embed mode watermark — small link back to naapurustot.fi */}
+      {IS_EMBED && (
+        <a
+          href={`https://naapurustot.fi/?${new URLSearchParams({
+            ...(selected ? { pno: selected.pno } : {}),
+            ...(activeLayer !== 'quality_index' ? { layer: activeLayer } : {}),
+            ...(cityFilter !== 'helsinki_metro' ? { city: cityFilter } : {}),
+          }).toString()}`}
+          target="_top"
+          rel="noopener"
+          className="absolute bottom-2 right-2 z-30 px-2.5 py-1 rounded-md text-[11px] font-semibold
+                     bg-white/85 dark:bg-surface-900/85 backdrop-blur-sm border border-surface-200/60 dark:border-surface-700/40
+                     text-surface-700 dark:text-surface-200 hover:text-brand-600 dark:hover:text-brand-300
+                     shadow-md transition-colors"
+        >
+          naapurustot<span className="text-brand-600 dark:text-brand-400">.fi</span>
+        </a>
+      )}
+
+      {/* Auth modal (hidden in embed mode) */}
+      {!IS_EMBED && showAuth && (
         <ErrorBoundary>
           <Suspense fallback={null}>
             <AuthModal
@@ -1192,8 +1276,8 @@ const App: React.FC = () => {
         </ErrorBoundary>
       )}
 
-      {/* QW-1: Onboarding tour */}
-      {showTour && (
+      {/* QW-1: Onboarding tour (hidden in embed mode) */}
+      {!IS_EMBED && showTour && (
         <Suspense fallback={null}>
           <OnboardingTour onComplete={handleCloseTour} skipAuthStep={!!user} />
         </Suspense>

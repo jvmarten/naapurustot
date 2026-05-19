@@ -214,3 +214,38 @@ jobs:
         with:
           path: bundle-size.json
           key: bundle-size-main-${{ github.sha }}
+
+  lighthouse:
+    # IN-3: Lighthouse CI — assert performance/accessibility/best-practices/SEO thresholds.
+    # Skip on PRs from claude/* branches — auto-merge.yml runs an equivalent step.
+    if: github.event_name == 'push' || !startsWith(github.head_ref, 'claude/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Prerender profile pages
+        run: npm run build:pages
+
+      - name: Run Lighthouse CI
+        run: npx --yes @lhci/cli@0.14.x autorun --config=./lighthouserc.cjs
+        env:
+          LHCI_BUILD_CONTEXT__CURRENT_HASH: ${{ github.sha }}
+
+      - name: Upload Lighthouse reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-reports
+          path: lhci-reports/
+          retention-days: 14

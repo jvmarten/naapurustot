@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { formatNumber, formatEuro, formatPct, formatDensity, formatEuroSqm } from '../utils/formatting';
 import { t } from '../utils/i18n';
 import { CompareIllustration } from './EmptyStateIllustrations';
+import { exportComparisonPdf, exportComparisonCsv } from '../utils/export';
+import { trackEvent } from '../utils/analytics';
 
 interface ComparisonPanelProps {
   pinned: NeighborhoodProperties[];
@@ -168,6 +170,15 @@ ComparisonChart.displayName = 'ComparisonChart';
 export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pinned, onUnpin, onClear }) => {
   // PO-4: Tab state for chart vs table view
   const [view, setView] = useState<'table' | 'chart'>('table');
+  // CF-8: Export the entire comparison (table + per-neighborhood detail pages)
+  const handleExportPdf = useCallback(() => {
+    trackEvent('export-comparison-pdf', { count: pinned.length });
+    exportComparisonPdf(pinned);
+  }, [pinned]);
+  const handleExportCsv = useCallback(() => {
+    trackEvent('export-comparison-csv', { count: pinned.length });
+    exportComparisonCsv(pinned);
+  }, [pinned]);
 
   // Pre-compute "best" PNO for each stat once, instead of calling findBest()
   // per stat-row inside the render loop. Before: 13 stats × 3 pinned = 39 iterations
@@ -231,12 +242,34 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pin
               </button>
             </div>
           </div>
-          <button
-            onClick={onClear}
-            className="text-xs text-surface-500 hover:text-rose-500 dark:text-surface-400 dark:hover:text-rose-400 transition-colors"
-          >
-            {t('compare.clear')}
-          </button>
+          <div className="flex items-center gap-2">
+            {/* CF-8: Multi-neighborhood export */}
+            {pinned.length >= 2 && (
+              <>
+                <button
+                  onClick={handleExportCsv}
+                  className="text-xs text-surface-500 hover:text-brand-600 dark:text-surface-400 dark:hover:text-brand-300 transition-colors px-1.5 py-0.5"
+                  title={t('export.csv')}
+                >
+                  {t('export.csv')}
+                </button>
+                <button
+                  onClick={handleExportPdf}
+                  className="text-xs text-surface-500 hover:text-brand-600 dark:text-surface-400 dark:hover:text-brand-300 transition-colors px-1.5 py-0.5"
+                  title={t('export.pdf')}
+                >
+                  {t('export.pdf')}
+                </button>
+                <span className="text-surface-300 dark:text-surface-700" aria-hidden>·</span>
+              </>
+            )}
+            <button
+              onClick={onClear}
+              className="text-xs text-surface-500 hover:text-rose-500 dark:text-surface-400 dark:hover:text-rose-400 transition-colors"
+            >
+              {t('compare.clear')}
+            </button>
+          </div>
         </div>
 
         {/* PO-4: Chart view */}
@@ -330,12 +363,32 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pin
           <h2 className="text-sm font-display font-bold text-surface-900 dark:text-white">
             {t('compare.title')}
           </h2>
-          <button
-            onClick={onClear}
-            className="text-xs text-surface-500 hover:text-rose-500 dark:text-surface-400 dark:hover:text-rose-400 transition-colors"
-          >
-            {t('compare.clear')}
-          </button>
+          <div className="flex items-center gap-2">
+            {/* CF-8: Multi-neighborhood export — mobile */}
+            {pinned.length >= 2 && (
+              <>
+                <button
+                  onClick={handleExportCsv}
+                  className="text-xs text-surface-500 hover:text-brand-600 dark:text-surface-400 dark:hover:text-brand-300 transition-colors px-1.5 py-0.5"
+                >
+                  {t('export.csv')}
+                </button>
+                <button
+                  onClick={handleExportPdf}
+                  className="text-xs text-surface-500 hover:text-brand-600 dark:text-surface-400 dark:hover:text-brand-300 transition-colors px-1.5 py-0.5"
+                >
+                  {t('export.pdf')}
+                </button>
+                <span className="text-surface-300 dark:text-surface-700" aria-hidden>·</span>
+              </>
+            )}
+            <button
+              onClick={onClear}
+              className="text-xs text-surface-500 hover:text-rose-500 dark:text-surface-400 dark:hover:text-rose-400 transition-colors"
+            >
+              {t('compare.clear')}
+            </button>
+          </div>
         </div>
         <div className="overflow-y-auto p-4 space-y-3" style={{ maxHeight: 'calc(60vh - 52px)' }}>
           {pinned.map((n, i) => (

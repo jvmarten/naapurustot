@@ -33,6 +33,8 @@ interface PanelProps {
   onToggleFavorite?: () => void;
   /** Callback to navigate to postal code view for a metro area */
   onExploreCity?: (cityId: string) => void;
+  /** Authenticated user id — enables cloud-synced notes when set */
+  userId?: string | null;
 }
 
 const StatRow: React.FC<{
@@ -302,8 +304,8 @@ QualityBadge.displayName = 'QualityBadge';
  * Without this, every keystroke re-renders ~1000 lines of JSX (30+ StatRow
  * components, RadarChart, TrendCharts) just to update a single textarea.
  */
-const NotesEditor: React.FC<{ pno: string }> = React.memo(({ pno }) => {
-  const { getNote, setNote } = useNotes();
+const NotesEditor: React.FC<{ pno: string; userId?: string | null }> = React.memo(({ pno, userId }) => {
+  const { getNote, setNote } = useNotes(userId);
   const note = getNote(pno);
   // Track once per focus session, not on every keystroke — avoids
   // flooding the analytics endpoint during typing.
@@ -330,7 +332,7 @@ const NotesEditor: React.FC<{ pno: string }> = React.memo(({ pno }) => {
 });
 NotesEditor.displayName = 'NotesEditor';
 
-export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, allFeatures, onFlyTo, isFavorite = false, onToggleFavorite, onExploreCity }) => {
+export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, allFeatures, onFlyTo, isFavorite = false, onToggleFavorite, onExploreCity, userId }) => {
   const eduTotal = useMemo(() =>
     [d.ko_yl_kork, d.ko_al_kork, d.ko_ammat, d.ko_perus]
       .filter((v): v is number => v != null && v > 0)
@@ -872,7 +874,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
   const sectionSimilar = (
     <>
       {/* CF-4: Neighborhood Notes — self-contained to isolate keystroke re-renders */}
-      <NotesEditor pno={d.pno} />
+      <NotesEditor pno={d.pno} userId={userId} />
 
       {/* CF-1: Similar neighborhoods — on-demand computation */}
       {allFeatures && allFeatures.length > 0 && (

@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { api } from '../utils/api';
 
 const STORAGE_KEY = 'naapurustot-notes';
 
@@ -24,25 +25,94 @@ function saveNotes(notes: Record<string, string>): void {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(notes)); } catch { /* quota exceeded or unavailable */ }
 }
 
-/** Manage per-neighborhood user notes (free text), persisted to localStorage. */
-export function useNotes() {
+/** Merge two notes maps. When the same pno exists in both, the longer text wins —
+ *  a proxy for "more recently edited" when we don't have per-note timestamps. */
+function mergeNotes(local: Record<string, string>, server: Record<string, string>): Record<string, string> {
+  const merged: Record<string, string> = { ...local };
+  for (const [pno, serverText] of Object.entries(server)) {
+    const localText = merged[pno];
+    if (!localText) {
+      merged[pno] = serverText;
+    } else if (serverText.length > localText.length) {
+      merged[pno] = serverText;
+    }
+  }
+  return merged;
+}
+
+/**
+ * Manage per-neighborhood user notes (free text).
+ * Persists to localStorage always; syncs to server when `userId` is provided (logged in).
+ */
+export function useNotes(userId?: string | null) {
   const [notes, setNotes] = useState<Record<string, string>>(loadNotes);
   // Debounce localStorage writes — typing in the textarea triggers setNote on every
   // keystroke, and JSON.stringify + localStorage.setItem is synchronous main-thread work.
   // Batching saves to every 500ms prevents jank during fast typing.
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const localSaveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const serverSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Track latest notes for the debounced save callback (avoids side effects in state updaters)
   const notesRef = useRef(notes);
   useEffect(() => { notesRef.current = notes; }, [notes]);
 
+  // Track whether the current change came from a server fetch (to avoid echoing it back)
+  const fromServerRef = useRef(false);
+  const prevUserIdRef = useRef<string | null | undefined>(undefined);
+  const userIdRef = useRef(userId);
+  useEffect(() => { userIdRef.current = userId; }, [userId]);
+
+  // Debounced server save (mirrors useFavorites pattern). 1 s after the last change.
+  useEffect(() => {
+    if (!userId || fromServerRef.current) {
+      fromServerRef.current = false;
+      return;
+    }
+    if (serverSaveTimerRef.current) clearTimeout(serverSaveTimerRef.current);
+    serverSaveTimerRef.current = setTimeout(() => {
+      serverSaveTimerRef.current = null;
+      api.saveNotes(notes);
+    }, 1000);
+    return () => { if (serverSaveTimerRef.current) clearTimeout(serverSaveTimerRef.current); };
+  }, [notes, userId]);
+
   // Flush any pending save and clean up on unmount to prevent data loss.
   // Without the flush, a note typed within the last 500ms before navigation would be lost.
   useEffect(() => () => {
-    if (saveTimerRef.current) {
-      clearTimeout(saveTimerRef.current);
+    if (localSaveTimerRef.current) {
+      clearTimeout(localSaveTimerRef.current);
       saveNotes(notesRef.current);
     }
+    if (serverSaveTimerRef.current && userIdRef.current) {
+      clearTimeout(serverSaveTimerRef.current);
+      api.saveNotes(notesRef.current);
+    }
   }, []);
+
+  // On login: fetch server notes and merge with local
+  useEffect(() => {
+    const prev = prevUserIdRef.current;
+    prevUserIdRef.current = userId;
+    if (!userId || (prev !== undefined && prev === userId)) return;
+
+    let cancelled = false;
+    api.getNotes().then(({ data }) => {
+      if (cancelled || !data) return;
+      const serverNotes = data.notes;
+      const merged = mergeNotes(notesRef.current, serverNotes);
+      fromServerRef.current = true;
+      setNotes(merged);
+      // If merged differs from server, push merged back once.
+      const serverKeys = Object.keys(serverNotes);
+      const mergedKeys = Object.keys(merged);
+      const differs =
+        mergedKeys.length !== serverKeys.length ||
+        mergedKeys.some((k) => merged[k] !== serverNotes[k]);
+      if (differs) {
+        api.saveNotes(merged);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [userId]);
 
   const getNote = useCallback((pno: string): string => notes[pno] ?? '', [notes]);
 
@@ -63,8 +133,8 @@ export function useNotes() {
     // Debounce localStorage writes outside the state updater — state updaters
     // must be pure (no side effects). React StrictMode double-invokes updaters,
     // which would schedule duplicate timers if setTimeout lived inside.
-    clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => saveNotes(notesRef.current), 500);
+    clearTimeout(localSaveTimerRef.current);
+    localSaveTimerRef.current = setTimeout(() => saveNotes(notesRef.current), 500);
   }, []);
 
   return { getNote, setNote };
