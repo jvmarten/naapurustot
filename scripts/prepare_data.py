@@ -264,6 +264,12 @@ def _request_with_retry(method, url, *, label, retries=MAX_RETRIES, **kwargs):
     Returns the Response object or raises on exhaustion.
     """
     kwargs.setdefault("timeout", 60)
+    # Always send a User-Agent. The Overpass API rejects header-less requests
+    # with HTTP 406, and other public APIs increasingly do the same. Merge with
+    # any caller-supplied headers rather than clobbering them.
+    headers = {"User-Agent": "naapurustot.fi data pipeline (+https://naapurustot.fi)"}
+    headers.update(kwargs.get("headers") or {})
+    kwargs["headers"] = headers
     last_exc = None
     for attempt in range(1, retries + 1):
         try:
