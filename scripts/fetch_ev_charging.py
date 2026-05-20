@@ -20,16 +20,19 @@ import geopandas as gpd
 import requests
 from shapely.geometry import Point
 
+from regions_config import ALL_BBOXES
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
 
 OUT_DIR = Path(__file__).parent
 
-# Regional bounding boxes (south, west, north, east)
+# Regional bounding boxes (south, west, north, east) — all 69 Finnish
+# seutukunnat. regions_config.ALL_BBOXES holds "south,west,north,east"
+# strings; parse each into a float tuple to keep the format below unchanged.
 REGION_BBOXES = [
-    (60.05, 24.50, 60.45, 25.30),   # Helsinki metro
-    (60.25, 21.50, 60.75, 22.90),   # Turku metro
-    (61.20, 23.10, 62.20, 25.00),   # Tampere metro
+    tuple(float(coord) for coord in bbox.split(","))
+    for bbox in ALL_BBOXES
 ]
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"

@@ -41,6 +41,8 @@ import requests
 from pyproj import Transformer
 from shapely.geometry import Point
 
+from regions_config import REGION_BBOXES
+
 # ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
@@ -72,13 +74,15 @@ LAYER_NAME = "onnettomuudet"
 YEARS = [2022, 2023, 2024]
 NUM_YEARS = len(YEARS)
 
-# Bounding boxes in WGS84 (lat_min, lon_min, lat_max, lon_max).
-# These are converted to EPSG:3067 for the CQL_FILTER BBOX clause because
-# the WFS layer stores geometries in EPSG:3067.
+# Bounding boxes in WGS84 (lat_min, lon_min, lat_max, lon_max) for all 69
+# Finnish seutukunnat. These are converted to EPSG:3067 for the CQL_FILTER
+# BBOX clause because the WFS layer stores geometries in EPSG:3067.
+# regions_config.REGION_BBOXES maps region id -> "south,west,north,east"
+# strings; that coordinate order is exactly (lat_min, lon_min, lat_max,
+# lon_max), so parse each string into the float tuple expected below.
 REGION_BBOXES_WGS84 = {
-    "helsinki_metro": (60.10, 24.50, 60.40, 25.25),
-    "turku": (60.25, 21.50, 60.75, 22.90),
-    "tampere": (61.20, 23.10, 62.20, 25.00),
+    region_id: tuple(float(coord) for coord in bbox.split(","))
+    for region_id, bbox in REGION_BBOXES.items()
 }
 
 # Minimum postal-code population for computing rates.  Areas below this

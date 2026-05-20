@@ -25,6 +25,8 @@ from shapely.geometry import LineString, MultiPolygon, Polygon
 from shapely.ops import transform as shapely_transform
 from shapely.validation import make_valid
 
+from regions_config import ALL_BBOXES
+
 # ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
@@ -46,13 +48,10 @@ OUTPUT_PATH = SCRIPT_DIR / "water_proximity.json"
 CACHE_DIR = SCRIPT_DIR / "cache"
 
 # ---------------------------------------------------------------------------
-# Bounding boxes (same as prepare_data.py)
+# Bounding boxes — all 69 Finnish seutukunnat (from regions_config)
+# ALL_BBOXES is imported at the top of the file: a list of Overpass bbox
+# strings "south,west,north,east".
 # ---------------------------------------------------------------------------
-
-HELSINKI_METRO_BBOX = "60.10,24.50,60.40,25.25"
-TURKU_BBOX = "60.25,21.50,60.75,22.90"
-TAMPERE_BBOX = "61.20,23.10,62.20,25.00"
-ALL_BBOXES = [HELSINKI_METRO_BBOX, TURKU_BBOX, TAMPERE_BBOX]
 
 # ---------------------------------------------------------------------------
 # Retry & rate-limit settings
