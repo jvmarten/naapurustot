@@ -1202,6 +1202,7 @@ def join_green_spaces(gdf, elements):
 
     from shapely import STRtree
     from shapely.ops import unary_union
+    from shapely.validation import make_valid
 
     # Build a GeoDataFrame of green spaces
     green_gdf = gpd.GeoDataFrame(geometry=green_polys, crs="EPSG:4326")
@@ -1209,6 +1210,13 @@ def join_green_spaces(gdf, elements):
     # Reproject both to EPSG:3067 (Finnish metre-based CRS) for area calculation
     gdf_proj = gdf[["geometry"]].to_crs("EPSG:3067")
     green_gdf_proj = green_gdf.to_crs("EPSG:3067")
+
+    # OSM polygons are repaired at parse time, but the reprojection above can
+    # re-introduce invalidity (a polygon valid in EPSG:4326 can become invalid
+    # in EPSG:3067). Re-validate in the projected CRS so the per-postal-code
+    # unary_union / intersection below cannot raise a GEOS TopologyException.
+    green_gdf_proj["geometry"] = green_gdf_proj.geometry.apply(make_valid)
+    gdf_proj["geometry"] = gdf_proj.geometry.apply(make_valid)
 
     # Use spatial index to find candidate green spaces per postal code,
     # then union only the relevant ones (much faster than global unary_union)
