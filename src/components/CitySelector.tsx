@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { REGION_IDS_WITH_DATA, type RegionId } from '../utils/regions';
+import { REGION_IDS, REGIONS, type RegionId } from '../utils/regions';
 import { t, type Lang } from '../utils/i18n';
 import coverageManifest from '../data/region_coverage.json';
 
@@ -12,16 +12,21 @@ interface CitySelectorProps {
   lang?: Lang;
 }
 
-/** Options list: "All" first, then regions in config order. Computed once at module level. */
+/**
+ * Options list: "All" first, then every region in config order — the 3 with
+ * data, then the scaffolded seutukunnat. CF-5 Phase D: the selector lists all
+ * 69 seutukunnat; regions without data are still selectable (shown gray on the
+ * map) and carry a "(no data)" badge. Computed once at module level.
+ */
 const OPTIONS: { id: CityFilter; labelKey: string }[] = [
   { id: 'all', labelKey: 'city.all' },
-  ...REGION_IDS_WITH_DATA.map((id) => ({ id: id as CityFilter, labelKey: `city.${id}` })),
+  ...REGION_IDS.map((id) => ({ id: id as CityFilter, labelKey: `city.${id}` })),
 ];
 
-// CF-5 Phase C: coverage-aware labeling. Builds a per-region "(X%)" or
-// "(low data)" suffix when a region's pre-computed metric coverage is below
-// the FULL_COVERAGE_THRESHOLD. Full-coverage regions (and the "all" option)
-// get no badge so the chrome stays quiet on the happy path.
+// CF-5 Phase C/D: coverage-aware labeling. A region with no ingested data gets
+// a "(no data)" badge; a region with partial data gets "(X%)" or "(low data)".
+// Full-coverage regions (and the "all" option) get no badge so the chrome
+// stays quiet on the happy path.
 type CoverageInfo = { present: number; total: number };
 const COVERAGE: Record<string, CoverageInfo> = coverageManifest as Record<string, CoverageInfo>;
 const FULL_COVERAGE_THRESHOLD = 0.95;
@@ -29,6 +34,7 @@ const LOW_COVERAGE_THRESHOLD = 0.5;
 
 function getCoverageBadge(regionId: CityFilter): string {
   if (regionId === 'all') return '';
+  if (!REGIONS[regionId]?.hasData) return ` (${t('city.coverage.none')})`;
   const c = COVERAGE[regionId];
   if (!c || c.total === 0) return '';
   const ratio = c.present / c.total;

@@ -342,6 +342,7 @@
   "city.select": "Select city",
   "city.all": "All Finland",
   "city.coverage.low": "low data",
+  "city.coverage.none": "no data",
   "city.coverage.partial": "{pct}%",
   "city.helsinki_metro": "Helsinki Metro",
   "city.turku": "Turku Metro",

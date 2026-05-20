@@ -7,26 +7,21 @@
  * src/data/regions/. Also writes a combined file (metro_neighborhoods.topojson)
  * for backward compatibility and for the "all" view.
  *
- * In addition, pre-bakes a dissolved outer outline per region into
- * src/data/region_outlines.topojson. This is consumed by src/utils/metroAreas.ts
- * to render the "all cities" view without running @turf/union at runtime
- * (CF-5 Phase B; eliminates the most fragile client-side path per CLAUDE.md
- * pitfalls #1-#4).
+ * Also computes per-region metric coverage into src/data/region_coverage.json.
+ *
+ * The "all cities" view geometry comes from src/data/seutukunnat.topojson
+ * (all 69 official seutukunta boundaries) — see scripts/build_seutukunta_boundaries.mjs.
  *
  * Usage: node scripts/build_region_data.mjs
  */
 import { execSync } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdirSync, existsSync, unlinkSync } from 'node:fs';
 import { resolve } from 'node:path';
-import unionPkg from '@turf/union';
-const union = unionPkg.default ?? unionPkg;
 
 const rootDir = resolve(import.meta.dirname, '..');
 const geojsonPath = resolve(rootDir, 'public', 'data', 'metro_neighborhoods.geojson');
 const regionsDir = resolve(rootDir, 'src', 'data', 'regions');
 const combinedOutput = resolve(rootDir, 'src', 'data', 'metro_neighborhoods.topojson');
-const outlinesGeojsonPath = resolve(rootDir, 'src', 'data', 'region_outlines.geojson');
-const outlinesTopojsonPath = resolve(rootDir, 'src', 'data', 'region_outlines.topojson');
 
 // Ensure regions output directory exists
 mkdirSync(regionsDir, { recursive: true });
@@ -82,60 +77,6 @@ execSync(
   `npx -p topojson-server geo2topo neighborhoods=${geojsonPath} > ${combinedOutput}`,
   { stdio: 'inherit' },
 );
-
-// CF-5 Phase B: pre-bake region outer outlines so the "all cities" view does
-// not need to run @turf/union at runtime. Skips the "other" / "unknown" bucket.
-console.log('Pre-baking region outlines (dissolved outer boundaries)...');
-const outlineFeatures = [];
-for (const [regionId, regionFeatures] of byRegion) {
-  if (regionId === 'other' || regionId === 'unknown') continue;
-
-  const polyFeatures = regionFeatures.filter((f) => {
-    const tp = f.geometry?.type;
-    return tp === 'Polygon' || tp === 'MultiPolygon';
-  });
-  if (polyFeatures.length === 0) {
-    console.log(`  ${regionId}: skipped (no polygon features)`);
-    continue;
-  }
-
-  let merged;
-  if (polyFeatures.length === 1) {
-    merged = { type: 'Feature', properties: {}, geometry: polyFeatures[0].geometry };
-  } else {
-    merged = union({ type: 'FeatureCollection', features: polyFeatures });
-  }
-
-  if (!merged) {
-    console.log(`  ${regionId}: union returned null, skipped`);
-    continue;
-  }
-
-  outlineFeatures.push({
-    type: 'Feature',
-    properties: { city: regionId, _isMetroArea: true },
-    geometry: merged.geometry,
-  });
-  console.log(`  ${regionId}: outline baked (${polyFeatures.length} polygons dissolved)`);
-}
-
-const outlinesGeojson = { type: 'FeatureCollection', features: outlineFeatures };
-writeFileSync(outlinesGeojsonPath, JSON.stringify(outlinesGeojson));
-// Pre-quantize to 1e5 grid (sub-meter precision at country scale) and simplify
-// to drop pixel-scale vertices. Region outlines are only used for the all-cities
-// outer-boundary line layer; preserving every postal-code vertex is wasted bytes.
-const tmpQuant = resolve(rootDir, 'src', 'data', '_region_outlines_q.topojson');
-execSync(
-  `npx -p topojson-server geo2topo -q 1e5 outlines=${outlinesGeojsonPath} > ${tmpQuant}`,
-  { stdio: 'inherit' },
-);
-execSync(
-  `npx -p topojson-simplify toposimplify -p 1e-6 -f ${tmpQuant} > ${outlinesTopojsonPath}`,
-  { stdio: 'inherit' },
-);
-unlinkSync(tmpQuant);
-unlinkSync(outlinesGeojsonPath);
-console.log(`  → region_outlines.topojson (${outlineFeatures.length} regions)`);
 
 // CF-5 Phase C: pre-compute per-region metric coverage so the CitySelector can
 // surface honest data-density expectations before users click in. A metric is
@@ -204,4 +145,4 @@ for (const [regionId, { present, total }] of Object.entries(coverageManifest)) {
   console.log(`    ${regionId}: ${present}/${total} metrics`);
 }
 
-console.log('Done! Per-region TopoJSON files written to src/data/regions/, outlines to src/data/region_outlines.topojson, coverage to src/data/region_coverage.json');
+console.log('Done! Per-region TopoJSON files written to src/data/regions/, coverage to src/data/region_coverage.json');
