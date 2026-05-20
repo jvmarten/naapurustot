@@ -2,11 +2,15 @@ import React, { useRef, useEffect } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { Feature, FeatureCollection, Polygon, Position } from 'geojson';
+import { feature as topoFeature } from 'topojson-client';
+import type { Topology } from 'topojson-specification';
 import { buildFillColorExpression, type LayerId, type LayerConfig, getLayerById } from '../utils/colorScales';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { useTheme } from '../hooks/useTheme';
 import { trackEvent } from '../utils/analytics';
 import { DEFAULT_CENTER, DEFAULT_ZOOM, MAP_MIN_ZOOM, MAP_MAX_ZOOM } from '../utils/mapConstants';
+// CF-5 Phase D1: pre-baked boundary outlines of all 69 Finnish seutukunnat.
+import seutukunnatUrl from '../data/seutukunnat.topojson?url';
 
 const BASEMAP_LIGHT = (import.meta.env.VITE_BASEMAP_LIGHT_URL as string) || 'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png';
 const BASEMAP_DARK = (import.meta.env.VITE_BASEMAP_DARK_URL as string) || 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png';
@@ -95,6 +99,34 @@ const NO_DATA_LAYER = 'neighborhoods-no-data-pattern';
 
 const GRID_SOURCE_ID = 'grid-cells';
 const GRID_FILL_LAYER = 'grid-fill';
+
+// CF-5 Phase D1: Finland-wide seutukunta boundary layer
+const SEUTUKUNNAT_SOURCE_ID = 'seutukunnat-boundaries';
+const SEUTUKUNNAT_LINE_LAYER = 'seutukunnat-boundary-line';
+
+// Module-level cache: the seutukunta boundary GeoJSON is fetched + parsed once
+// and shared across map instances (main map + split view).
+let seutukunnatGeoPromise: Promise<FeatureCollection | null> | null = null;
+function loadSeutukunnatBoundaries(): Promise<FeatureCollection | null> {
+  if (!seutukunnatGeoPromise) {
+    seutukunnatGeoPromise = fetch(seutukunnatUrl)
+      .then((res) => {
+        if (!res.ok) throw new Error(`seutukunnat boundaries: ${res.status}`);
+        return res.json() as Promise<Topology>;
+      })
+      .then((topo) => {
+        const objName = Object.keys(topo.objects ?? {})[0];
+        if (!objName) return null;
+        return topoFeature(topo, topo.objects[objName]) as FeatureCollection;
+      })
+      .catch((err) => {
+        console.warn('[Map] failed to load seutukunta boundaries', err);
+        seutukunnatGeoPromise = null;
+        return null;
+      });
+  }
+  return seutukunnatGeoPromise;
+}
 
 // CF-6: Draw polygon layer constants
 const DRAW_SOURCE_ID = 'draw-polygon';
@@ -470,6 +502,48 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when layer changes to toggle modes
   }, [activeLayer, gridData, colorblind, layerConfig]);
+
+  // CF-5 Phase D1: faint Finland-wide seutukunta boundary layer. Provides
+  // structural context — all 69 sub-regions outlined — even where postal-code
+  // data is not yet ingested. Inserted beneath the choropleth fill so it never
+  // occludes data; zoom-faded so it recedes as the user drills into a region.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const lineColor = theme === 'dark' ? '#3f4d63' : '#9aa7b8';
+
+    const addBoundaries = () => {
+      // Layer already present (theme toggle): just repaint.
+      if (map.getLayer(SEUTUKUNNAT_LINE_LAYER)) {
+        map.setPaintProperty(SEUTUKUNNAT_LINE_LAYER, 'line-color', lineColor);
+        return;
+      }
+      void loadSeutukunnatBoundaries().then((geo) => {
+        if (!geo || !mapRef.current) return;
+        if (map.getLayer(SEUTUKUNNAT_LINE_LAYER)) return;
+        if (!map.getSource(SEUTUKUNNAT_SOURCE_ID)) {
+          map.addSource(SEUTUKUNNAT_SOURCE_ID, { type: 'geojson', data: geo });
+        }
+        // Sit below the choropleth fill when it exists; otherwise the fill,
+        // added later, ends up on top anyway.
+        const beforeId = map.getLayer(FILL_LAYER) ? FILL_LAYER : undefined;
+        map.addLayer({
+          id: SEUTUKUNNAT_LINE_LAYER,
+          type: 'line',
+          source: SEUTUKUNNAT_SOURCE_ID,
+          paint: {
+            'line-color': lineColor,
+            'line-width': ['interpolate', ['linear'], ['zoom'], 5, 0.9, 8, 1.2, 12, 0.5],
+            'line-opacity': ['interpolate', ['linear'], ['zoom'], 5, 0.65, 9, 0.4, 12, 0.12],
+          },
+        }, beforeId);
+      });
+    };
+
+    if (map.isStyleLoaded()) addBoundaries();
+    else map.on('load', addBoundaries);
+    return () => { map.off('load', addBoundaries); };
+  }, [theme]);
 
   // Update fill opacity when user adjusts the slider.
   // Handles ALL rendering modes (default, filter, wizard, grid) so that the
