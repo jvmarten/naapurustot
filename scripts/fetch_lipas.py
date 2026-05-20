@@ -20,6 +20,8 @@ import geopandas as gpd
 import requests
 from shapely.geometry import Point
 
+from regions_config import ALL_MUNICIPALITY_CODES
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
 
@@ -30,11 +32,10 @@ OUTPUT_FILE = OUT_DIR / "sports_facility_density.json"
 LIPAS_URL = "https://api.lipas.fi/v2/sports-sites"
 PAGE_SIZE = 100
 
-# Municipality codes for all metro regions — must match prepare_data.py METRO_CODES
-# Helsinki metro: Helsinki=91, Espoo=49, Vantaa=92, Kauniainen=235
-# Turku metro: Turku=853, Kaarina=202, Raisio=680, Naantali=529, Lieto=423, Rusko=704, Masku=481, Paimio=577, Aura=19
-# Tampere metro: Tampere=837, Nokia=536, Ylöjärvi=980, Kangasala=211, Lempäälä=418, Pirkkala=604, Orivesi=562
-CITY_CODES = [91, 49, 92, 235, 853, 202, 680, 529, 423, 704, 481, 577, 19, 837, 536, 980, 211, 418, 604, 562]
+# Municipality codes for all 69 Finnish seutukunnat (from regions_config).
+# LIPAS city-codes are integers, so strip the zero-padding from the 3-digit
+# codes (e.g. "019" -> 19, "091" -> 91).
+CITY_CODES = sorted(int(code) for code in ALL_MUNICIPALITY_CODES)
 
 # Exclude maintenance/service buildings (category 7000) — not user-facing facilities
 EXCLUDE_MAIN_CATEGORIES = {7}

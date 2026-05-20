@@ -22,6 +22,8 @@ from pathlib import Path
 
 import requests
 
+from regions_config import ALL_MUNICIPALITY_CODES as METRO_MUNICIPALITY_CODES
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -51,8 +53,8 @@ OPINTOPOLKU_URLS = [
     ),
 ]
 
-# Helsinki metro municipality codes
-METRO_MUNICIPALITY_CODES = {"091", "049", "092", "235"}
+# Municipality codes — all 69 Finnish seutukunnat
+# (METRO_MUNICIPALITY_CODES is imported from regions_config at the top of the file)
 
 # Output file
 OUTPUT_FILE = Path(__file__).parent / "school_quality.json"

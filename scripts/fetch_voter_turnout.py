@@ -26,6 +26,8 @@ import geopandas as gpd
 import numpy as np
 import requests
 
+from regions_config import ALL_MUNICIPALITY_CODES
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
 
@@ -36,15 +38,8 @@ GEOJSON_PATH = OUT_DIR.parent / "public" / "data" / "metro_neighborhoods.geojson
 TURNOUT_TABLE = "https://pxdata.stat.fi/PxWeb/api/v1/fi/StatFin/kvaa/statfin_kvaa_pxt_14vl.px"
 PARTY_TABLE = "https://pxdata.stat.fi/PxWeb/api/v1/fi/StatFin/kvaa/statfin_kvaa_pxt_14vm.px"
 
-# All supported municipality codes (Helsinki metro + Turku + Tampere)
-ALL_MUNICIPALITY_CODES = {
-    # Helsinki metro
-    "091", "049", "092", "235",
-    # Turku metro
-    "853", "202", "680", "529", "423", "704", "481", "577", "019",
-    # Tampere metro
-    "837", "536", "980", "211", "418", "604", "562",
-}
+# All supported municipality codes — all 69 Finnish seutukunnat
+# (ALL_MUNICIPALITY_CODES is imported from regions_config at the top of the file)
 
 # Will be auto-detected from PxWeb metadata
 MUNI_PREFIXES: dict[str, str] = {}

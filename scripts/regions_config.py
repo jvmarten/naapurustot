@@ -35,3 +35,12 @@ ALL_MUNICIPALITY_CODES = set(MUNICIPALITY_CITY.keys())
 
 # All Overpass bboxes, one per region (69)
 ALL_BBOXES = list(REGION_BBOXES.values())
+
+# Finnish municipality name -> 3-digit code, for data sources (e.g. Traficom)
+# that key their data by municipality name rather than code.
+with open(_DIR / "seutukunnat.json", encoding="utf-8") as _f:
+    MUNICIPALITY_NAME_TO_CODE = {
+        name: code
+        for _s in json.load(_f)["seutukunnat"]
+        for code, name in zip(_s["municipality_codes"], _s["municipality_names_fi"])
+    }

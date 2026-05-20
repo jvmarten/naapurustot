@@ -41,6 +41,8 @@ from pathlib import Path
 
 import requests
 
+from regions_config import ALL_MUNICIPALITY_CODES
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -70,11 +72,8 @@ PXWEB_FALLBACK_URL = (
     "StatFin/rpk/statfin_rpk_pxt_13ex.px"
 )
 
-# Municipality codes by region
-HELSINKI_METRO_CODES = {"091", "049", "092", "235"}
-TAMPERE_CODES = {"837", "536", "980", "211", "418", "604", "562"}
-TURKU_CODES = {"853", "202", "680", "529", "423", "704", "481", "577", "019"}
-ALL_MUNICIPALITY_CODES = HELSINKI_METRO_CODES | TAMPERE_CODES | TURKU_CODES
+# Municipality codes — all 69 Finnish seutukunnat (from regions_config)
+# ALL_MUNICIPALITY_CODES is imported at the top of the file.
 
 # PxWeb municipality code format
 PXWEB_MUNICIPALITY_CODES = [f"KU{code}" for code in sorted(ALL_MUNICIPALITY_CODES)]

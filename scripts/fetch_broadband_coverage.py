@@ -34,6 +34,8 @@ from pathlib import Path
 import pandas as pd
 import requests
 
+from regions_config import ALL_MUNICIPALITY_CODES, MUNICIPALITY_NAME_TO_CODE
+
 # ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
@@ -61,39 +63,9 @@ TRAFICOM_ODS_URL = (
     "Kiintean-verkon-laajakaistasaatavuus-Tillgang-till-fasta-natet.ods"
 )
 
-# Municipality codes per region (same as prepare_data.py)
-HELSINKI_METRO_CODES = {"091", "049", "092", "235"}
-TURKU_CODES = {"853", "202", "680", "529", "423", "704", "481", "577", "019"}
-TAMPERE_CODES = {"837", "536", "980", "211", "418", "604", "562"}
-ALL_MUNICIPALITY_CODES = HELSINKI_METRO_CODES | TURKU_CODES | TAMPERE_CODES
-
-# Mapping from municipality name (Finnish) to municipality code.
-# Only includes municipalities relevant to this project.
-MUNICIPALITY_NAME_TO_CODE = {
-    # Helsinki metro
-    "Helsinki": "091",
-    "Espoo": "049",
-    "Vantaa": "092",
-    "Kauniainen": "235",
-    # Turku region
-    "Turku": "853",
-    "Kaarina": "202",
-    "Raisio": "680",
-    "Naantali": "529",
-    "Lieto": "423",
-    "Rusko": "704",
-    "Masku": "481",
-    "Paimio": "577",
-    "Aura": "019",
-    # Tampere region
-    "Tampere": "837",
-    "Nokia": "536",
-    "Ylöjärvi": "980",
-    "Kangasala": "211",
-    "Lempäälä": "418",
-    "Pirkkala": "604",
-    "Orivesi": "562",
-}
+# Municipality codes (all 69 seutukunnat) and the Finnish name -> code map
+# come from regions_config; both are imported at the top of the file. The
+# Traficom ODS keys its rows by municipality name, hence the name map.
 
 # The speed tier column index we want: >=100 Mbit/s (column index 4 in the ODS)
 # Column layout (0-indexed): FIN name, SVE name, ENG name, >=30, >=100, >=300, >=1000
