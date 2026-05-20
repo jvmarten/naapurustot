@@ -96,8 +96,10 @@ test.describe('neighborhood wizard flow', () => {
     const resultCount = await resultItems.count();
     expect(resultCount).toBeGreaterThan(0);
 
-    // Each result should show a percentage score
-    await expect(page.locator('text=/%/').first()).toBeVisible({ timeout: 3000 });
+    // Each result should show a percentage score. Scope to the wizard modal —
+    // a page-global match also hits the CitySelector's coverage badges
+    // (e.g. "Oulun seutu (90 %)"), which live in a collapsed <select>.
+    await expect(wizardModal.locator('text=/%/').first()).toBeVisible({ timeout: 3000 });
 
     // The "Näytä tulokset" / finish button should be visible
     const finishButton = page.locator('button:has-text("Näytä tulokset")');
