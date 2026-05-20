@@ -936,7 +936,18 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
     visitedSections.has(i) ? section : null
   );
 
-  const panelContent = (
+  const panelContent = d._noData ? (
+    // CF-5 Phase D: a seutukunta with no ingested data — the panel still opens
+    // (consistent with data regions), it just shows a clean empty state.
+    <div className="px-6 py-10 flex flex-col items-center text-center gap-3">
+      <svg className="w-10 h-10 text-surface-300 dark:text-surface-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+      <p className="text-surface-500 dark:text-surface-400 text-sm max-w-[260px]">
+        {t('panel.no_data_region')}
+      </p>
+    </div>
+  ) : (
     <div className="px-6 py-4 space-y-6">
       {d._isMetroArea && onExploreCity && (
         <button

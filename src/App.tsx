@@ -922,7 +922,6 @@ const App: React.FC = () => {
             activeLayer={activeLayer}
             onHover={handleHover}
             onClick={handleClick}
-            onRegionClick={handleExploreCity}
             flyTo={flyTarget}
             selectedPno={selected?.pno ?? null}
             pinnedPnos={pinnedPnos}

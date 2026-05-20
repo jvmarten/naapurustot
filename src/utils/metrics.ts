@@ -183,6 +183,8 @@ export interface NeighborhoodProperties {
   avg_construction_year: number | null;
   /** Marker for merged metro area features (not real postal code areas) */
   _isMetroArea?: boolean;
+  /** Marker for a seutukunta with no ingested data — renders gray, panel is empty (CF-5 Phase D) */
+  _noData?: boolean;
   [key: string]: string | number | boolean | null | undefined;
 }
 

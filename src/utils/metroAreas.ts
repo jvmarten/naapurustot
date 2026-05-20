@@ -201,17 +201,23 @@ export function clearMetroAreaCache(): void {
 }
 
 /**
- * Build merged metro area features for the "all cities" view.
+ * Build seutukunta features for the "all cities" view.
  *
  * Groups neighborhoods by their `city` property, attaches the pre-baked
- * outer-boundary geometry from `src/data/region_outlines.topojson`, and
+ * seutukunta boundary geometry from `src/data/seutukunnat.topojson`, and
  * attaches population-weighted average statistics + aggregated trend
- * histories as properties.
+ * histories for the regions that have ingested data.
  *
- * Returns a FeatureCollection. If outlines haven't been loaded yet (the
- * preloadUnion fetch hasn't resolved), returns an empty FeatureCollection;
- * callers should ensure preloadUnion() is awaited before relying on output.
- * The `useAllCitiesUnionPreload` hook handles this in practice.
+ * CF-5 Phase D: also emits a feature for every seutukunta WITHOUT data, marked
+ * `_noData: true` and carrying no statistics. These render gray (the choropleth
+ * fallback color) and — because they live in the same layer as the data
+ * regions — get identical hover and click behavior: hovering shows a tooltip,
+ * clicking opens the (empty) panel.
+ *
+ * Returns a FeatureCollection. Until the boundary file has loaded (the
+ * preloadUnion fetch), only data regions are emitted; the
+ * `useAllCitiesUnionPreload` hook ensures it is awaited before the all-cities
+ * view is shown.
  */
 export function buildMetroAreaFeatures(
   allFeatures: Feature[],
@@ -298,6 +304,29 @@ export function buildMetroAreaFeatures(
       type: 'Feature',
       properties: props,
       geometry: cached.geometry,
+    });
+  }
+
+  // CF-5 Phase D: emit a feature for every seutukunta WITHOUT ingested data.
+  // They carry no statistics (so the choropleth renders them gray via its
+  // null-value fallback) but live in the same layer as the data regions, so
+  // hover and click behave identically — the panel opens, just empty.
+  const dataRegions = new Set<string>(cityIds);
+  for (const [regionId, geometry] of outlinesByCity) {
+    if (dataRegions.has(regionId)) continue;
+    if (!knownRegions.has(regionId)) continue;
+    features.push({
+      type: 'Feature',
+      properties: {
+        pno: regionId,
+        nimi: t(`city.${regionId}`),
+        namn: t(`city.${regionId}`),
+        kunta: null,
+        city: regionId,
+        _isMetroArea: true,
+        _noData: true,
+      },
+      geometry,
     });
   }
 
