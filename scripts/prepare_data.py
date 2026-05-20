@@ -90,10 +90,13 @@ FOREIGN_LANG_FILE = Path(__file__).parent / "foreign_language_pct.json"
 # Source: Finnish Police (Poliisi) open data
 CRIME_INDEX_FILE = Path(__file__).parent / "crime_index.json"
 
-# Statistics Finland apartment price data by postal code — PxWeb API v1
+# Statistics Finland apartment price data by postal code — PxWeb API v1.
+# Table 13mu: "Prices per square meter of old dwellings in housing companies
+# ... by postal code area, yearly" (1724 postal codes, 2009-2025). Replaces the
+# retired 112p table.
 PROPERTY_PRICE_URL = (
     "https://pxdata.stat.fi/PxWeb/api/v1/en/"
-    "StatFin/ashi/statfin_ashi_pxt_112p.px"
+    "StatFin/ashi/statfin_ashi_pxt_13mu.px"
 )
 # Local fallback for property prices
 PROPERTY_PRICE_FILE = Path(__file__).parent / "property_prices.json"
@@ -150,7 +153,13 @@ SPORTS_FACILITY_FILE = Path(__file__).parent / "sports_facility_density.json"
 
 # --- Phase 9: Real open data layers ---
 
-# Statistics Finland rental price data by postal code — PxWeb API v1
+# Statistics Finland rental prices. NOTE: the postal-code-level rent table
+# (asvu 13eb) has been retired. The current asvu tables (15fa/15fc) only
+# publish rents at region/maakunta level — coarser than this project's
+# postal-code minimum — so postal-code rent data is no longer available from
+# the API. fetch_rental_prices() therefore 400s on this URL and falls back to
+# the last published postal-code snapshot in rental_prices.json. Restore a
+# real fetch here if Statistics Finland republishes postal-code rents.
 RENTAL_PRICE_URL = (
     "https://pxdata.stat.fi/PxWeb/api/v1/en/"
     "StatFin/asvu/statfin_asvu_pxt_13eb.px"
@@ -778,14 +787,24 @@ def fetch_property_prices():
         values = var["values"]
         code_lower = code.lower()
 
+        value_texts = var.get("valueTexts", [])
         if code_lower in ("vuosineljännes", "quarter", "vuosi", "year"):
             # Take latest available
             query_items.append({"code": code, "selection": {"filter": "item", "values": [values[-1]]}})
         elif code_lower in ("postinumero", "postal code", "alue", "postinumeroalue"):
             query_items.append({"code": code, "selection": {"filter": "all", "values": ["*"]}})
-        elif code_lower in ("tiedot", "information", "talotyyppi", "building type"):
-            # All info / all building types
-            query_items.append({"code": code, "selection": {"filter": "all", "values": ["*"]}})
+        elif code_lower in ("tiedot", "information"):
+            # Only the price-per-m² measure, never the transaction count.
+            price_vals = [v for v in values if "hinta" in v.lower() or "price" in v.lower()]
+            query_items.append({"code": code, "selection": {"filter": "item", "values": price_vals or [values[0]]}})
+        elif code_lower in ("talotyyppi", "building type"):
+            # A single representative dwelling type — two-room block of flats,
+            # the standard reference unit for Finnish apartment prices.
+            pick = next(
+                (v for v, txt in zip(values, value_texts) if "two-room" in txt.lower() or "two room" in txt.lower()),
+                None,
+            )
+            query_items.append({"code": code, "selection": {"filter": "item", "values": [pick or values[0]]}})
         else:
             query_items.append({"code": code, "selection": {"filter": "all", "values": ["*"]}})
 
