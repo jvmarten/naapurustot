@@ -166,6 +166,7 @@
   "panel.copy_link": "Kopioi linkki",
   "panel.copied": "Kopioitu!",
   "panel.explore_postal_codes": "Tutki postinumeroalueita",
+  "panel.no_data_region": "Tältä seutukunnalta ei ole vielä kerätty dataa. Tiedot lisätään myöhemmin.",
   "map.reset_view": "Palaa yleiskuvaan",
   "export.csv": "Lataa CSV",
   "export.pdf": "Lataa PDF",

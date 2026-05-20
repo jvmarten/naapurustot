@@ -166,6 +166,7 @@
   "panel.copy_link": "Copy link",
   "panel.copied": "Copied!",
   "panel.explore_postal_codes": "Explore postal code areas",
+  "panel.no_data_region": "No data has been collected for this sub-region yet. It will be added later.",
   "map.reset_view": "Back to overview",
   "export.csv": "Export CSV",
   "export.pdf": "Export PDF",
