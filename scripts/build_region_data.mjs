@@ -4,8 +4,8 @@
  *
  * Reads the main GeoJSON, groups features by their `city` property (which maps
  * to region IDs), and writes a separate TopoJSON file for each region into
- * src/data/regions/. Also writes a combined file (metro_neighborhoods.topojson)
- * for backward compatibility and for the "all" view.
+ * src/data/regions/. Also writes src/data/region_properties.json — a
+ * geometry-stripped properties array used as the all-cities aggregation input.
  *
  * Also computes per-region metric coverage into src/data/region_coverage.json.
  *
@@ -21,7 +21,7 @@ import { resolve } from 'node:path';
 const rootDir = resolve(import.meta.dirname, '..');
 const geojsonPath = resolve(rootDir, 'public', 'data', 'metro_neighborhoods.geojson');
 const regionsDir = resolve(rootDir, 'src', 'data', 'regions');
-const combinedOutput = resolve(rootDir, 'src', 'data', 'metro_neighborhoods.topojson');
+const propertiesOutput = resolve(rootDir, 'src', 'data', 'region_properties.json');
 
 // Ensure regions output directory exists
 mkdirSync(regionsDir, { recursive: true });
@@ -71,12 +71,13 @@ for (const [regionId, regionFeatures] of byRegion) {
   unlinkSync(tempPath);
 }
 
-// Also build the combined TopoJSON (backward compat + "all" view)
-console.log('Building combined metro_neighborhoods.topojson...');
-execSync(
-  `npx -p topojson-server geo2topo neighborhoods=${geojsonPath} > ${combinedOutput}`,
-  { stdio: 'inherit' },
-);
+// CF-5: properties-only dataset for the "all cities" view. That view
+// aggregates per-region stats and takes its geometry from seutukunnat.topojson,
+// so it never needs the ~3000 postal-code polygons — shipping them as a
+// combined TopoJSON was ~35 MB of dead weight. The properties array is a
+// fraction of that.
+console.log('Writing region_properties.json (all-cities aggregation input)...');
+writeFileSync(propertiesOutput, JSON.stringify(features.map((f) => f.properties)));
 
 // CF-5 Phase C: pre-compute per-region metric coverage so the CitySelector can
 // surface honest data-density expectations before users click in. A metric is

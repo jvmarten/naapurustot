@@ -80,10 +80,8 @@ describe('REGION_IDS_WITH_DATA', () => {
     expect(REGION_IDS_WITH_DATA).toContain('helsinki_metro');
   });
 
-  it('only includes regions with hasData: true', () => {
-    for (const id of REGION_IDS_WITH_DATA) {
-      expect(REGIONS[id].hasData).toBe(true);
-    }
+  it('covers every region — all 69 seutukunnat are populated', () => {
+    expect(REGION_IDS_WITH_DATA.length).toBe(REGION_IDS.length);
   });
 });
 

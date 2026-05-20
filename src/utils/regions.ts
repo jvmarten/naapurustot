@@ -9,17 +9,14 @@
  * Each region maps to a set of municipality codes and a per-region TopoJSON file
  * that is lazy-loaded when the user navigates to that region.
  *
- * Municipality memberships are aligned to the canonical
- * `seutukunta_1_20250101` classification (see `scripts/seutukunnat.json`).
- * The 22 currently-scaffolded region IDs cover 21 of Finland's 69 seutukunnat
- * (helsinki_metro absorbed the former standalone hyvinkaa region); the
- * remaining ~47 seutukunnat are added in CF-5 Phase D batches.
+ * All 69 Finnish seutukunnat are configured, with municipality memberships
+ * aligned to the canonical `seutukunta_1_20250101` classification (see
+ * `scripts/seutukunnat.json`). helsinki_metro is the Helsinki seutukunta — it
+ * absorbed the former standalone hyvinkaa region.
  *
- * NOTE on partial coverage: a region's `municipalityCodes` list reflects the
- * canonical seutukunta extent. The current TopoJSON files for regions with
- * `hasData: true` cover only a subset of those munis until the data pipeline
- * is re-run for the expanded muni sets. This is intentional under the
- * partial-coverage stance — gray/hatched fallback handles the gaps.
+ * Per-region data coverage varies — see `src/data/region_coverage.json`. The
+ * CitySelector surfaces a coverage badge, and sparse metrics render via the
+ * gray/hatched fallback under the partial-coverage stance.
  */
 
 /** A region identifier. */
@@ -106,8 +103,6 @@ export interface RegionConfig {
   municipalityCodes: string[];
   /** TopoJSON file path (relative to src/data/regions/) */
   dataFile: string;
-  /** Whether this region has populated data and should appear in the selector */
-  hasData?: boolean;
 }
 
 /**
@@ -128,7 +123,6 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     bounds: [24.5, 60.05, 25.4, 60.4],
     municipalityCodes: ['049', '091', '092', '106', '186', '224', '235', '245', '257', '444', '505', '543', '611', '753', '755', '858', '927'],
     dataFile: 'helsinki_metro.topojson',
-    hasData: true,
   },
   turku: {
     // Turun seutukunta (code 023) — 11 munis. Aura (019) belongs to Loimaa
@@ -139,7 +133,6 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     bounds: [21.5, 60.25, 22.9, 60.75],
     municipalityCodes: ['202', '423', '481', '503', '529', '538', '577', '680', '704', '738', '853'],
     dataFile: 'turku.topojson',
-    hasData: true,
   },
   tampere: {
     // Tampereen seutukunta (code 064) — 11 munis.
@@ -149,7 +142,6 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     bounds: [23.1, 61.2, 25.0, 62.2],
     municipalityCodes: ['108', '211', '291', '418', '536', '562', '604', '635', '837', '922', '980'],
     dataFile: 'tampere.topojson',
-    hasData: true,
   },
   oulu: {
     // Oulun seutukunta (code 171) — 7 munis.
@@ -314,13 +306,11 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'rauma.topojson',
   },
 
-  // --- CF-5 Phase D1: remaining 48 seutukunnat ---
-  // Boundary geometry is drawn (src/data/seutukunnat.topojson) but no
-  // postal-code data is ingested yet. hasData is omitted so they stay out of
-  // the CitySelector until Phase D2 populates them. Viewports are derived
-  // from each seutukunta bounding box (scripts/build_seutukunta_boundaries.mjs).
+  // --- The remaining 48 seutukunnat ---
+  // Viewports are derived from each seutukunta bounding box
+  // (scripts/build_seutukunta_boundaries.mjs).
   aanekoski: {
-    // Äänekoski (seutukunta 135, 2 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Äänekoski (seutukunta 135, 2 munis).
     labelKey: 'city.aanekoski',
     center: [26.03653, 62.69963],
     zoom: 8.9,
@@ -329,7 +319,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'aanekoski.topojson',
   },
   aboland_turunmaa: {
-    // Åboland-Turunmaa (seutukunta 021, 2 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Åboland-Turunmaa (seutukunta 021, 2 munis).
     labelKey: 'city.aboland_turunmaa',
     center: [21.98482, 60.11175],
     zoom: 8.2,
@@ -338,7 +328,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'aboland_turunmaa.topojson',
   },
   alands_landsbygd: {
-    // Ålands landsbygd (seutukunta 212, 9 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Ålands landsbygd (seutukunta 212, 9 munis).
     labelKey: 'city.alands_landsbygd',
     center: [19.80715, 60.1879],
     zoom: 8.6,
@@ -347,7 +337,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'alands_landsbygd.topojson',
   },
   alands_skargard: {
-    // Ålands skärgård (seutukunta 213, 6 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Ålands skärgård (seutukunta 213, 6 munis).
     labelKey: 'city.alands_skargard',
     center: [20.70832, 60.2122],
     zoom: 8.2,
@@ -356,7 +346,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'alands_skargard.topojson',
   },
   etela_pirkanmaa: {
-    // Etelä-Pirkanmaa (seutukunta 063, 3 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Etelä-Pirkanmaa (seutukunta 063, 3 munis).
     labelKey: 'city.etela_pirkanmaa',
     center: [23.76229, 61.14008],
     zoom: 9,
@@ -365,7 +355,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'etela_pirkanmaa.topojson',
   },
   forssa: {
-    // Forssa (seutukunta 053, 5 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Forssa (seutukunta 053, 5 munis).
     labelKey: 'city.forssa',
     center: [23.59944, 60.82897],
     zoom: 9.2,
@@ -374,7 +364,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'forssa.topojson',
   },
   haapavesi_siikalatva: {
-    // Haapavesi-Siikalatva (seutukunta 175, 3 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Haapavesi-Siikalatva (seutukunta 175, 3 munis).
     labelKey: 'city.haapavesi_siikalatva',
     center: [25.86778, 64.23499],
     zoom: 8,
@@ -383,7 +373,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'haapavesi_siikalatva.topojson',
   },
   hameenlinna: {
-    // Hämeenlinna (seutukunta 051, 3 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Hämeenlinna (seutukunta 051, 3 munis).
     labelKey: 'city.hameenlinna',
     center: [24.50831, 61.03473],
     zoom: 8.5,
@@ -392,7 +382,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'hameenlinna.topojson',
   },
   imatra: {
-    // Imatra (seutukunta 093, 4 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Imatra (seutukunta 093, 4 munis).
     labelKey: 'city.imatra',
     center: [29.19806, 61.47179],
     zoom: 8.1,
@@ -401,7 +391,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'imatra.topojson',
   },
   ita_lappi: {
-    // Itä-Lappi (seutukunta 194, 5 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Itä-Lappi (seutukunta 194, 5 munis).
     labelKey: 'city.ita_lappi',
     center: [28.24259, 66.99845],
     zoom: 6.8,
@@ -410,7 +400,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'ita_lappi.topojson',
   },
   jakobstadsregionen: {
-    // Jakobstadsregionen (seutukunta 154, 5 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Jakobstadsregionen (seutukunta 154, 5 munis).
     labelKey: 'city.jakobstadsregionen',
     center: [22.9112, 63.60581],
     zoom: 8.3,
@@ -419,7 +409,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'jakobstadsregionen.topojson',
   },
   jamsa: {
-    // Jämsä (seutukunta 134, 1 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Jämsä (seutukunta 134, 1 munis).
     labelKey: 'city.jamsa',
     center: [25.06053, 61.92073],
     zoom: 8.8,
@@ -428,7 +418,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'jamsa.topojson',
   },
   jarviseutu: {
-    // Järviseutu (seutukunta 146, 5 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Järviseutu (seutukunta 146, 5 munis).
     labelKey: 'city.jarviseutu',
     center: [23.86332, 63.0868],
     zoom: 8.3,
@@ -437,7 +427,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'jarviseutu.topojson',
   },
   joutsa: {
-    // Joutsa (seutukunta 132, 2 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Joutsa (seutukunta 132, 2 munis).
     labelKey: 'city.joutsa',
     center: [26.0154, 61.82583],
     zoom: 9,
@@ -446,7 +436,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'joutsa.topojson',
   },
   kaustinen: {
-    // Kaustinen (seutukunta 161, 6 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Kaustinen (seutukunta 161, 6 munis).
     labelKey: 'city.kaustinen',
     center: [24.22936, 63.5012],
     zoom: 8.4,
@@ -455,7 +445,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'kaustinen.topojson',
   },
   kehys_kainuu: {
-    // Kehys-Kainuu (seutukunta 181, 4 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Kehys-Kainuu (seutukunta 181, 4 munis).
     labelKey: 'city.kehys_kainuu',
     center: [28.836, 64.61212],
     zoom: 7.2,
@@ -464,7 +454,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'kehys_kainuu.topojson',
   },
   kemi_tornio: {
-    // Kemi-Tornio (seutukunta 192, 5 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Kemi-Tornio (seutukunta 192, 5 munis).
     labelKey: 'city.kemi_tornio',
     center: [24.97606, 65.94433],
     zoom: 7.9,
@@ -473,7 +463,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'kemi_tornio.topojson',
   },
   keski_karjala: {
-    // Keski-Karjala (seutukunta 124, 3 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Keski-Karjala (seutukunta 124, 3 munis).
     labelKey: 'city.keski_karjala',
     center: [30.04257, 62.06921],
     zoom: 8.5,
@@ -482,7 +472,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'keski_karjala.topojson',
   },
   keuruu: {
-    // Keuruu (seutukunta 133, 2 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Keuruu (seutukunta 133, 2 munis).
     labelKey: 'city.keuruu',
     center: [24.63246, 62.34399],
     zoom: 8.7,
@@ -491,7 +481,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'keuruu.topojson',
   },
   koillis_savo: {
-    // Koillis-Savo (seutukunta 113, 3 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Koillis-Savo (seutukunta 113, 3 munis).
     labelKey: 'city.koillis_savo',
     center: [28.56767, 63.16742],
     zoom: 7.8,
@@ -500,7 +490,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'koillis_savo.topojson',
   },
   koillismaa: {
-    // Koillismaa (seutukunta 178, 2 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Koillismaa (seutukunta 178, 2 munis).
     labelKey: 'city.koillismaa',
     center: [28.9255, 65.8681],
     zoom: 7.7,
@@ -509,7 +499,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'koillismaa.topojson',
   },
   kuusiokunnat: {
-    // Kuusiokunnat (seutukunta 144, 3 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Kuusiokunnat (seutukunta 144, 3 munis).
     labelKey: 'city.kuusiokunnat',
     center: [23.87277, 62.64148],
     zoom: 8.5,
@@ -518,7 +508,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'kuusiokunnat.topojson',
   },
   loimaa: {
-    // Loimaa (seutukunta 025, 6 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Loimaa (seutukunta 025, 6 munis).
     labelKey: 'city.loimaa',
     center: [22.72712, 60.80616],
     zoom: 8.8,
@@ -527,7 +517,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'loimaa.topojson',
   },
   lounais_pirkanmaa: {
-    // Lounais-Pirkanmaa (seutukunta 068, 2 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Lounais-Pirkanmaa (seutukunta 068, 2 munis).
     labelKey: 'city.lounais_pirkanmaa',
     center: [22.90876, 61.36254],
     zoom: 8.5,
@@ -536,7 +526,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'lounais_pirkanmaa.topojson',
   },
   loviisa: {
-    // Loviisa (seutukunta 016, 2 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Loviisa (seutukunta 016, 2 munis).
     labelKey: 'city.loviisa',
     center: [26.17265, 60.50182],
     zoom: 9,
@@ -545,7 +535,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'loviisa.topojson',
   },
   luoteis_pirkanmaa: {
-    // Luoteis-Pirkanmaa (seutukunta 061, 3 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Luoteis-Pirkanmaa (seutukunta 061, 3 munis).
     labelKey: 'city.luoteis_pirkanmaa',
     center: [23.05824, 62.00465],
     zoom: 8.7,
@@ -554,7 +544,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'luoteis_pirkanmaa.topojson',
   },
   mariehamns_stad: {
-    // Mariehamns stad (seutukunta 211, 1 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Mariehamns stad (seutukunta 211, 1 munis).
     labelKey: 'city.mariehamns_stad',
     center: [19.94116, 60.08874],
     zoom: 11,
@@ -563,7 +553,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'mariehamns_stad.topojson',
   },
   nivala_haapajarvi: {
-    // Nivala-Haapajärvi (seutukunta 176, 5 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Nivala-Haapajärvi (seutukunta 176, 5 munis).
     labelKey: 'city.nivala_haapajarvi',
     center: [25.45526, 63.76988],
     zoom: 8.3,
@@ -572,7 +562,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'nivala_haapajarvi.topojson',
   },
   oulunkaari: {
-    // Oulunkaari (seutukunta 173, 4 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Oulunkaari (seutukunta 173, 4 munis).
     labelKey: 'city.oulunkaari',
     center: [26.48874, 65.11276],
     zoom: 7.3,
@@ -581,7 +571,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'oulunkaari.topojson',
   },
   pieksamaki: {
-    // Pieksämäki (seutukunta 105, 2 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Pieksämäki (seutukunta 105, 2 munis).
     labelKey: 'city.pieksamaki',
     center: [27.44489, 62.03781],
     zoom: 8.1,
@@ -590,7 +580,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'pieksamaki.topojson',
   },
   pielisen_karjala: {
-    // Pielisen Karjala (seutukunta 125, 2 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Pielisen Karjala (seutukunta 125, 2 munis).
     labelKey: 'city.pielisen_karjala',
     center: [29.79971, 63.44041],
     zoom: 7.5,
@@ -599,7 +589,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'pielisen_karjala.topojson',
   },
   pohjois_lappi: {
-    // Pohjois-Lappi (seutukunta 197, 3 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Pohjois-Lappi (seutukunta 197, 3 munis).
     labelKey: 'city.pohjois_lappi',
     center: [27.11983, 68.51779],
     zoom: 6.4,
@@ -608,7 +598,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'pohjois_lappi.topojson',
   },
   pohjois_satakunta: {
-    // Pohjois-Satakunta (seutukunta 044, 4 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Pohjois-Satakunta (seutukunta 044, 4 munis).
     labelKey: 'city.pohjois_satakunta',
     center: [22.2703, 61.9986],
     zoom: 8.7,
@@ -617,7 +607,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'pohjois_satakunta.topojson',
   },
   raahe: {
-    // Raahe (seutukunta 174, 3 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Raahe (seutukunta 174, 3 munis).
     labelKey: 'city.raahe',
     center: [24.75536, 64.60667],
     zoom: 8.4,
@@ -626,7 +616,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'raahe.topojson',
   },
   raasepori: {
-    // Raasepori (seutukunta 014, 3 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Raasepori (seutukunta 014, 3 munis).
     labelKey: 'city.raasepori',
     center: [23.55506, 59.9859],
     zoom: 8.5,
@@ -635,7 +625,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'raasepori.topojson',
   },
   riihimaki: {
-    // Riihimäki (seutukunta 052, 3 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Riihimäki (seutukunta 052, 3 munis).
     labelKey: 'city.riihimaki',
     center: [24.61984, 60.74015],
     zoom: 8.9,
@@ -644,7 +634,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'riihimaki.topojson',
   },
   saarijarvi_viitasaari: {
-    // Saarijärvi-Viitasaari (seutukunta 138, 8 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Saarijärvi-Viitasaari (seutukunta 138, 8 munis).
     labelKey: 'city.saarijarvi_viitasaari',
     center: [25.30316, 63.06656],
     zoom: 7.9,
@@ -653,7 +643,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'saarijarvi_viitasaari.topojson',
   },
   savonlinna: {
-    // Savonlinna (seutukunta 103, 4 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Savonlinna (seutukunta 103, 4 munis).
     labelKey: 'city.savonlinna',
     center: [28.77907, 61.97253],
     zoom: 8.2,
@@ -662,7 +652,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'savonlinna.topojson',
   },
   sisa_savo: {
-    // Sisä-Savo (seutukunta 115, 4 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Sisä-Savo (seutukunta 115, 4 munis).
     labelKey: 'city.sisa_savo',
     center: [26.78966, 62.77772],
     zoom: 8.5,
@@ -671,7 +661,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'sisa_savo.topojson',
   },
   suupohja: {
-    // Suupohja (seutukunta 141, 4 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Suupohja (seutukunta 141, 4 munis).
     labelKey: 'city.suupohja',
     center: [22.09338, 62.3099],
     zoom: 8.6,
@@ -680,7 +670,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'suupohja.topojson',
   },
   sydosterbotten: {
-    // Sydösterbotten (seutukunta 153, 3 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Sydösterbotten (seutukunta 153, 3 munis).
     labelKey: 'city.sydosterbotten',
     center: [21.41622, 62.36075],
     zoom: 8.3,
@@ -689,7 +679,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'sydosterbotten.topojson',
   },
   torniolaakso: {
-    // Torniolaakso (seutukunta 193, 2 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Torniolaakso (seutukunta 193, 2 munis).
     labelKey: 'city.torniolaakso',
     center: [24.34574, 66.58751],
     zoom: 8.3,
@@ -698,7 +688,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'torniolaakso.topojson',
   },
   tunturi_lappi: {
-    // Tunturi-Lappi (seutukunta 196, 4 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Tunturi-Lappi (seutukunta 196, 4 munis).
     labelKey: 'city.tunturi_lappi',
     center: [23.28008, 68.12488],
     zoom: 6.6,
@@ -707,7 +697,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'tunturi_lappi.topojson',
   },
   vakka_suomi: {
-    // Vakka-Suomi (seutukunta 024, 6 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Vakka-Suomi (seutukunta 024, 6 munis).
     labelKey: 'city.vakka_suomi',
     center: [21.56572, 60.76482],
     zoom: 8.7,
@@ -716,7 +706,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'vakka_suomi.topojson',
   },
   varkaus: {
-    // Varkaus (seutukunta 114, 3 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Varkaus (seutukunta 114, 3 munis).
     labelKey: 'city.varkaus',
     center: [28.03341, 62.34678],
     zoom: 8.5,
@@ -725,7 +715,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'varkaus.topojson',
   },
   yla_pirkanmaa: {
-    // Ylä-Pirkanmaa (seutukunta 069, 4 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Ylä-Pirkanmaa (seutukunta 069, 4 munis).
     labelKey: 'city.yla_pirkanmaa',
     center: [23.97437, 62.10494],
     zoom: 8.4,
@@ -734,7 +724,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'yla_pirkanmaa.topojson',
   },
   yla_savo: {
-    // Ylä-Savo (seutukunta 111, 7 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Ylä-Savo (seutukunta 111, 7 munis).
     labelKey: 'city.yla_savo',
     center: [27.11968, 63.5144],
     zoom: 8,
@@ -743,7 +733,7 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
     dataFile: 'yla_savo.topojson',
   },
   ylivieska: {
-    // Ylivieska (seutukunta 177, 6 munis). CF-5 Phase D1 scaffold — boundary drawn, no postal-code data yet.
+    // Ylivieska (seutukunta 177, 6 munis).
     labelKey: 'city.ylivieska',
     center: [24.38213, 64.02191],
     zoom: 8.2,
@@ -756,8 +746,11 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
 /** All region IDs in display order. */
 export const REGION_IDS = Object.keys(REGIONS) as RegionId[];
 
-/** Region IDs that have populated data and should appear in the selector. */
-export const REGION_IDS_WITH_DATA = REGION_IDS.filter(id => REGIONS[id].hasData);
+/**
+ * Region IDs that have ingested data. All 69 seutukunnat are populated, so this
+ * equals REGION_IDS — kept as a named export for existing call sites and tests.
+ */
+export const REGION_IDS_WITH_DATA: RegionId[] = [...REGION_IDS];
 
 /** Viewport for the "all cities" view, showing the full extent of Finland. */
 export const ALL_FINLAND_VIEWPORT = {
