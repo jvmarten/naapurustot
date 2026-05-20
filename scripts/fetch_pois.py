@@ -71,7 +71,7 @@ def main():
     }
 
     output_path = "public/data/pois.geojson"
-    with open(output_path, "w") as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         json.dump(geojson, f)
     print(f"\nWrote {len(all_features)} POIs to {output_path}")
 

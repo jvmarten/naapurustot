@@ -80,7 +80,7 @@ def load_postal_codes():
         sys.exit(1)
 
     logger.info("Loading postal code polygons from %s...", GEOJSON_FILE.name)
-    with open(GEOJSON_FILE) as f:
+    with open(GEOJSON_FILE, encoding="utf-8") as f:
         geojson = json.load(f)
 
     features = geojson.get("features", [])
@@ -497,7 +497,7 @@ def main():
         sys.exit(1)
 
     # Write output
-    with open(OUTPUT_FILE, "w") as f:
+    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2, sort_keys=True)
     logger.info("Wrote %d postal codes to %s", len(results), OUTPUT_FILE.name)
 

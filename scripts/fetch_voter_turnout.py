@@ -230,7 +230,7 @@ def main():
         logger.info("  Municipality %s: %d districts, mean=%.1f%%", muni, len(vals), np.mean(vals))
 
     turnout_result = distribute_to_postal_codes(postal, turnout_data)
-    with open(OUT_DIR / "voter_turnout.json", "w") as f:
+    with open(OUT_DIR / "voter_turnout.json", "w", encoding="utf-8") as f:
         json.dump(turnout_result, f, indent=2)
     logger.info("Wrote voter_turnout.json (%d entries)", len(turnout_result))
 
@@ -241,7 +241,7 @@ def main():
         logger.info("  Municipality %s: %d districts, mean=%.3f", muni, len(vals), np.mean(vals))
 
     diversity_result = distribute_to_postal_codes(postal, diversity_data, invert_income=True)
-    with open(OUT_DIR / "party_diversity.json", "w") as f:
+    with open(OUT_DIR / "party_diversity.json", "w", encoding="utf-8") as f:
         json.dump(diversity_result, f, indent=2)
     logger.info("Wrote party_diversity.json (%d entries)", len(diversity_result))
 
