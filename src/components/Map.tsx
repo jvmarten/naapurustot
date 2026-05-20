@@ -6,6 +6,7 @@ import { feature as topoFeature } from 'topojson-client';
 import type { Topology } from 'topojson-specification';
 import { buildFillColorExpression, type LayerId, type LayerConfig, getLayerById } from '../utils/colorScales';
 import type { NeighborhoodProperties } from '../utils/metrics';
+import { REGION_IDS_WITH_DATA } from '../utils/regions';
 import { useTheme } from '../hooks/useTheme';
 import { trackEvent } from '../utils/analytics';
 import { DEFAULT_CENTER, DEFAULT_ZOOM, MAP_MIN_ZOOM, MAP_MAX_ZOOM } from '../utils/mapConstants';
@@ -20,6 +21,8 @@ interface MapProps {
   activeLayer: LayerId;
   onHover: (props: NeighborhoodProperties | null, x: number, y: number) => void;
   onClick: (props: NeighborhoodProperties) => void;
+  /** CF-5 Phase D: fired when a gray, data-less seutukunta is clicked on the map. */
+  onRegionClick?: (regionId: string) => void;
   flyTo: { center: [number, number]; zoom?: number; bounds?: [number, number, number, number] } | null;
   selectedPno?: string | null;
   pinnedPnos?: string[];
@@ -103,6 +106,13 @@ const GRID_FILL_LAYER = 'grid-fill';
 // CF-5 Phase D1: Finland-wide seutukunta boundary layer
 const SEUTUKUNNAT_SOURCE_ID = 'seutukunnat-boundaries';
 const SEUTUKUNNAT_LINE_LAYER = 'seutukunnat-boundary-line';
+// CF-5 Phase D: gray fill for seutukunnat that have no ingested data yet.
+const SEUTUKUNNAT_FILL_LAYER = 'seutukunnat-nodata-fill';
+// MapLibre filter matching seutukunnat WITHOUT data (everything except the
+// regions whose postal-code data is ingested). These render gray + clickable.
+const DATALESS_SEUTUKUNTA_FILTER: maplibregl.FilterSpecification = [
+  '!', ['in', ['get', 'region'], ['literal', REGION_IDS_WITH_DATA as string[]]],
+];
 
 // Module-level cache: the seutukunta boundary GeoJSON is fetched + parsed once
 // and shared across map instances (main map + split view).
@@ -164,7 +174,7 @@ function buildFillOpacity(o: number, overrides?: { matchExpr?: unknown[]; matchV
   return base;
 }
 
-export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1, gridData = null, drawMode = false, onDrawClick, onDrawDoubleClick, drawVertices, drawnPolygon = null, drawnAreaPnos = EMPTY_ARRAY, selectMode = false, selectedAreaPnos = EMPTY_ARRAY, onSelectAreaClick, layerConfig }) => {
+export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover, onClick, onRegionClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1, gridData = null, drawMode = false, onDrawClick, onDrawDoubleClick, drawVertices, drawnPolygon = null, drawnAreaPnos = EMPTY_ARRAY, selectMode = false, selectedAreaPnos = EMPTY_ARRAY, onSelectAreaClick, layerConfig }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const hoveredIdRef = useRef<string | null>(null);
@@ -503,19 +513,25 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when layer changes to toggle modes
   }, [activeLayer, gridData, colorblind, layerConfig]);
 
-  // CF-5 Phase D1: faint Finland-wide seutukunta boundary layer. Provides
-  // structural context — all 69 sub-regions outlined — even where postal-code
-  // data is not yet ingested. Inserted beneath the choropleth fill so it never
-  // occludes data; zoom-faded so it recedes as the user drills into a region.
+  // CF-5 Phase D1/D: Finland-wide seutukunta layer. Two layers on one source:
+  //  - a gray fill for seutukunnat without ingested data (clickable — clicking
+  //    one enters that region), so "no data" reads as gray rather than blank;
+  //  - a faint boundary line outlining all 69 sub-regions for structural
+  //    context. Both sit beneath the choropleth fill so they never occlude
+  //    postal-code data, and are zoom-faded so they recede when drilling in.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     const lineColor = theme === 'dark' ? '#3f4d63' : '#9aa7b8';
+    const grayFill = theme === 'dark' ? '#2a3344' : '#dfe4ea';
 
     const addBoundaries = () => {
-      // Layer already present (theme toggle): just repaint.
+      // Layers already present (theme toggle): just repaint.
       if (map.getLayer(SEUTUKUNNAT_LINE_LAYER)) {
         map.setPaintProperty(SEUTUKUNNAT_LINE_LAYER, 'line-color', lineColor);
+        if (map.getLayer(SEUTUKUNNAT_FILL_LAYER)) {
+          map.setPaintProperty(SEUTUKUNNAT_FILL_LAYER, 'fill-color', grayFill);
+        }
         return;
       }
       void loadSeutukunnatBoundaries().then((geo) => {
@@ -527,6 +543,17 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         // Sit below the choropleth fill when it exists; otherwise the fill,
         // added later, ends up on top anyway.
         const beforeId = map.getLayer(FILL_LAYER) ? FILL_LAYER : undefined;
+        // Gray fill first; the boundary line (added next) then sits above it.
+        map.addLayer({
+          id: SEUTUKUNNAT_FILL_LAYER,
+          type: 'fill',
+          source: SEUTUKUNNAT_SOURCE_ID,
+          filter: DATALESS_SEUTUKUNTA_FILTER,
+          paint: {
+            'fill-color': grayFill,
+            'fill-opacity': ['interpolate', ['linear'], ['zoom'], 5, 0.55, 9, 0.5, 12, 0.38],
+          },
+        }, beforeId);
         map.addLayer({
           id: SEUTUKUNNAT_LINE_LAYER,
           type: 'line',
@@ -757,6 +784,8 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   onHoverRef.current = onHover;
   const onClickRef = useRef(onClick);
   onClickRef.current = onClick;
+  const onRegionClickRef = useRef(onRegionClick);
+  onRegionClickRef.current = onRegionClick;
   const onDrawClickRef = useRef(onDrawClick);
   onDrawClickRef.current = onDrawClick;
   const onDrawDoubleClickRef = useRef(onDrawDoubleClick);
@@ -843,8 +872,10 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         onDrawClickRef.current?.([e.lngLat.lng, e.lngLat.lat]);
         return;
       }
-      if (!map.getSource(SOURCE_ID)) return;
-      const features = map.queryRenderedFeatures(e.point, { layers: [FILL_LAYER] });
+      const hasNeighborhoods = !!map.getSource(SOURCE_ID);
+      const features = hasNeighborhoods
+        ? map.queryRenderedFeatures(e.point, { layers: [FILL_LAYER] })
+        : [];
       if (features.length > 0) {
         const props = features[0].properties as NeighborhoodProperties;
         if (!props?.pno) return;
@@ -854,6 +885,17 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         }
         trackEvent('map-click-neighborhood', { pno: props.pno });
         onClickRef.current(props);
+        return;
+      }
+      // CF-5 Phase D: a click that missed the choropleth may have landed on a
+      // gray, data-less seutukunta — enter that region.
+      if (!selectModeRef.current && map.getLayer(SEUTUKUNNAT_FILL_LAYER)) {
+        const grayHit = map.queryRenderedFeatures(e.point, { layers: [SEUTUKUNNAT_FILL_LAYER] });
+        const region = grayHit[0]?.properties?.region;
+        if (region) {
+          trackEvent('map-click-region', { region: String(region) });
+          onRegionClickRef.current?.(String(region));
+        }
       }
     };
 

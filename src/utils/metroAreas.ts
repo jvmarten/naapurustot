@@ -6,12 +6,14 @@ import { computeMetroAverages, parseTrendSeries } from './metrics';
 import { REGIONS } from './regions';
 import { t } from './i18n';
 
-// CF-5 Phase B: outer outlines for the "all cities" view are pre-baked at
-// build time by scripts/build_region_data.mjs into src/data/region_outlines.topojson.
-// This eliminates the runtime @turf/union path that has regressed multiple
-// times (see CLAUDE.md pitfalls #1-#4). The outlines file is small (~60 KB)
-// and lazy-loaded the first time the user enters the all-cities view.
-import outlinesUrl from '../data/region_outlines.topojson?url';
+// CF-5 Phase D: the "all cities" view uses the full official seutukunta
+// boundaries (src/data/seutukunnat.topojson, all 69 sub-regions) as the
+// geometry for each metro-area feature. A data region therefore renders at
+// its full seutukunta extent, not just the dissolved outline of the
+// postal codes that happen to be ingested. This also keeps the runtime free
+// of @turf/union (the boundaries are pre-baked at build time — see
+// CLAUDE.md pitfalls #1-#4). Lazy-loaded on first entry to the all-cities view.
+import outlinesUrl from '../data/seutukunnat.topojson?url';
 
 type OutlineGeometry = Polygon | MultiPolygon;
 
@@ -31,8 +33,9 @@ function ensureOutlinesLoaded(): Promise<void> {
         if (!objectName) return;
         const fc = feature(topo, topo.objects[objectName]) as FeatureCollection<OutlineGeometry>;
         for (const f of fc.features) {
-          const city = (f.properties as { city?: string } | null)?.city;
-          if (city && f.geometry) outlinesByCity.set(city, f.geometry);
+          // seutukunnat.topojson keys each boundary by its regions.ts region id.
+          const region = (f.properties as { region?: string } | null)?.region;
+          if (region && f.geometry) outlinesByCity.set(region, f.geometry);
         }
       })
       .catch((err) => {

@@ -342,6 +342,7 @@
   "city.select": "Valitse kaupunki",
   "city.all": "Koko Suomi",
   "city.coverage.low": "vähän dataa",
+  "city.coverage.none": "ei dataa",
   "city.coverage.partial": "{pct} %",
   "city.helsinki_metro": "Helsingin seutu",
   "city.turku": "Turun seutu",
