@@ -1,9 +1,10 @@
 /**
  * Tests for dataLoader.ts caching and retry behavior.
  *
- * These are integration-level tests — the actual data-loading pipeline
- * (TopoJSON fetch → coerce → quality index → metro averages) is exercised
- * via mocked fetch + a minimal inline topology.
+ * These are integration-level tests — the data-loading pipeline (fetch →
+ * coerce → quality index → metro averages) is exercised via mocked fetch.
+ * loadAllData consumes the geometry-stripped region_properties.json; the
+ * per-region loader consumes TopoJSON.
  *
  * Risk targets:
  *  - A failed fetch must evict the cache so the NEXT navigation retries.
@@ -17,8 +18,20 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 type FetchMock = ReturnType<typeof vi.fn>;
 
-// Minimal valid TopoJSON that the pipeline can process end-to-end.
-// 2 features so metro averages produce non-trivial output.
+// region_properties.json shape: a plain array of postal-code property objects
+// (no geometry). 2 entries so metro averages produce non-trivial output.
+const MOCK_PROPERTIES = [
+  {
+    pno: '00100', nimi: 'A', namn: 'A', kunta: '091', city: 'helsinki_metro',
+    he_vakiy: '1000', hr_mtu: '35000',
+  },
+  {
+    pno: '00200', nimi: 'B', namn: 'B', kunta: '091', city: 'helsinki_metro',
+    he_vakiy: '2000', hr_mtu: '40000',
+  },
+];
+
+// Minimal valid TopoJSON for the per-region loader path.
 const MOCK_TOPO = {
   type: 'Topology',
   objects: {
@@ -87,17 +100,17 @@ describe('dataLoader — caching and retry', () => {
     vi.unstubAllGlobals();
   });
 
-  it('processes a TopoJSON into a FeatureCollection with computed quality_index + metroAverages', async () => {
+  it('processes region_properties.json into a FeatureCollection with computed quality_index + metroAverages', async () => {
     const { loadAllData, resetDataCache } = await import('../utils/dataLoader');
     resetDataCache();
 
-    (fetch as FetchMock).mockResolvedValueOnce(okJson(MOCK_TOPO));
+    (fetch as FetchMock).mockResolvedValueOnce(okJson(MOCK_PROPERTIES));
 
     const result = await loadAllData();
     expect(result.data.type).toBe('FeatureCollection');
     expect(result.data.features).toHaveLength(2);
 
-    // Numeric coercion: he_vakiy was a string in MOCK_TOPO, must now be a number.
+    // Numeric coercion: he_vakiy was a string, must now be a number.
     const p0 = result.data.features[0].properties!;
     expect(typeof p0.he_vakiy).toBe('number');
     expect(p0.he_vakiy).toBe(1000);
@@ -121,7 +134,7 @@ describe('dataLoader — caching and retry', () => {
     const { loadAllData, resetDataCache } = await import('../utils/dataLoader');
     resetDataCache();
 
-    (fetch as FetchMock).mockResolvedValueOnce(okJson(MOCK_TOPO));
+    (fetch as FetchMock).mockResolvedValueOnce(okJson(MOCK_PROPERTIES));
     const r1 = await loadAllData();
     const r2 = await loadAllData();
 
@@ -134,7 +147,7 @@ describe('dataLoader — caching and retry', () => {
     const { loadAllData, resetDataCache } = await import('../utils/dataLoader');
     resetDataCache();
 
-    (fetch as FetchMock).mockResolvedValueOnce(okJson(MOCK_TOPO));
+    (fetch as FetchMock).mockResolvedValueOnce(okJson(MOCK_PROPERTIES));
     const [r1, r2] = await Promise.all([loadAllData(), loadAllData()]);
     expect((fetch as FetchMock).mock.calls).toHaveLength(1);
     expect(r1).toBe(r2);
@@ -150,7 +163,7 @@ describe('dataLoader — caching and retry', () => {
 
     // Second attempt: success. If the cache wasn't evicted, this would
     // return the rejected promise again without calling fetch.
-    (fetch as FetchMock).mockResolvedValueOnce(okJson(MOCK_TOPO));
+    (fetch as FetchMock).mockResolvedValueOnce(okJson(MOCK_PROPERTIES));
     const result = await loadAllData();
     expect(result.data.features).toHaveLength(2);
     expect((fetch as FetchMock).mock.calls).toHaveLength(2);
@@ -163,7 +176,7 @@ describe('dataLoader — caching and retry', () => {
     (fetch as FetchMock).mockResolvedValueOnce({ ok: false, status: 500 });
     await expect(loadAllData()).rejects.toThrow(/500/);
 
-    (fetch as FetchMock).mockResolvedValueOnce(okJson(MOCK_TOPO));
+    (fetch as FetchMock).mockResolvedValueOnce(okJson(MOCK_PROPERTIES));
     const result = await loadAllData();
     expect(result.data.features).toHaveLength(2);
   });
@@ -172,12 +185,12 @@ describe('dataLoader — caching and retry', () => {
     const { loadAllData, resetDataCache } = await import('../utils/dataLoader');
     resetDataCache();
 
-    (fetch as FetchMock).mockResolvedValueOnce(okJson(MOCK_TOPO));
+    (fetch as FetchMock).mockResolvedValueOnce(okJson(MOCK_PROPERTIES));
     await loadAllData();
     expect((fetch as FetchMock).mock.calls).toHaveLength(1);
 
     resetDataCache();
-    (fetch as FetchMock).mockResolvedValueOnce(okJson(MOCK_TOPO));
+    (fetch as FetchMock).mockResolvedValueOnce(okJson(MOCK_PROPERTIES));
     await loadAllData();
     expect((fetch as FetchMock).mock.calls).toHaveLength(2);
   });
@@ -187,21 +200,14 @@ describe('dataLoader — caching and retry', () => {
     expect(mod.loadNeighborhoodData).toBe(mod.loadAllData);
   });
 
-  it('loadRegionData falls back to filtering the combined file when no per-region glob match', async () => {
+  it('loadRegionData processes a per-region TopoJSON into a valid FeatureCollection', async () => {
     const { loadRegionData, resetDataCache } = await import('../utils/dataLoader');
     resetDataCache();
 
-    // loadRegionData first tries the per-region glob; for any region that lacks
-    // a matching file, it falls back to loadAllData() + filter. With our mocked
-    // combined topology, both features have city=helsinki_metro.
+    // loadRegionData resolves the per-region glob and fetches that TopoJSON.
     (fetch as FetchMock).mockResolvedValueOnce(okJson(MOCK_TOPO));
-    // Use a region that is unlikely to exist in the glob — filtering will drop
-    // every feature (since MOCK_TOPO has only helsinki_metro features), giving
-    // an empty but well-formed result.
     const result = await loadRegionData('rauma');
     expect(result.data.type).toBe('FeatureCollection');
-    // Either the region glob resolved (rauma has a real file in the project) or
-    // the fallback kicked in. Both paths must produce a valid FeatureCollection.
     expect(Array.isArray(result.data.features)).toBe(true);
   });
 });

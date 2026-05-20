@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { REGION_IDS, REGIONS, type RegionId } from '../utils/regions';
+import { REGION_IDS, type RegionId } from '../utils/regions';
 import { t, type Lang } from '../utils/i18n';
 import coverageManifest from '../data/region_coverage.json';
 
@@ -34,9 +34,9 @@ const LOW_COVERAGE_THRESHOLD = 0.5;
 
 function getCoverageBadge(regionId: CityFilter): string {
   if (regionId === 'all') return '';
-  if (!REGIONS[regionId]?.hasData) return ` (${t('city.coverage.none')})`;
   const c = COVERAGE[regionId];
-  if (!c || c.total === 0) return '';
+  // No coverage entry at all → the region has no ingested data.
+  if (!c || c.total === 0) return ` (${t('city.coverage.none')})`;
   const ratio = c.present / c.total;
   if (ratio >= FULL_COVERAGE_THRESHOLD) return '';
   const pct = Math.round(ratio * 100);

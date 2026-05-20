@@ -9,7 +9,7 @@
  * (TopoJSON → GeoJSON, quality indices, metro averages) runs once per load.
  */
 
-import type { FeatureCollection } from 'geojson';
+import type { Feature, FeatureCollection } from 'geojson';
 import { feature } from 'topojson-client';
 import type { Topology } from 'topojson-specification';
 import { computeMetroAverages, computeChangeMetrics, computeQuickWinMetrics } from './metrics';
@@ -24,8 +24,11 @@ const regionModules = import.meta.glob<string>(
   { query: '?url', import: 'default', eager: false },
 );
 
-// Combined file for "all" view (backward compat)
-import combinedTopoUrl from '../data/metro_neighborhoods.topojson?url';
+// Properties-only dataset for the "all cities" view (CF-5). That view
+// aggregates per-region stats and never renders the postal-code polygons
+// (geometry comes from seutukunnat.topojson), so it loads just the properties
+// rather than the ~35 MB combined TopoJSON.
+import regionPropertiesUrl from '../data/region_properties.json?url';
 
 /** Result of loading and processing a TopoJSON dataset. */
 export interface ProcessedData {
@@ -40,12 +43,10 @@ export interface ProcessedData {
 // identifier fields that must remain strings (postal codes, municipality codes).
 const ID_FIELDS = new Set(['pno', 'postinumeroalue', 'kunta', 'nimi', 'namn', 'city']);
 
-function processTopology(topo: Topology): ProcessedData {
-  const objectName = Object.keys(topo.objects ?? {})[0];
-  if (!objectName) throw new Error('Invalid TopoJSON: no objects found');
-  const geojson = feature(topo, topo.objects[objectName]) as FeatureCollection;
-
-  for (const feat of geojson.features) {
+// TopoJSON quantization can produce string-typed numeric values; coerce them
+// back to numbers for every non-identifier property.
+function coerceNumericProperties(features: Feature[]): void {
+  for (const feat of features) {
     if (!feat.properties) continue;
     for (const key of Object.keys(feat.properties)) {
       if (ID_FIELDS.has(key)) continue;
@@ -56,8 +57,41 @@ function processTopology(topo: Topology): ProcessedData {
       }
     }
   }
+}
 
+function processTopology(topo: Topology): ProcessedData {
+  const objectName = Object.keys(topo.objects ?? {})[0];
+  if (!objectName) throw new Error('Invalid TopoJSON: no objects found');
+  const geojson = feature(topo, topo.objects[objectName]) as FeatureCollection;
+
+  coerceNumericProperties(geojson.features);
   geojson.features = filterSmallIslands(geojson.features);
+  computeQualityIndices(geojson.features);
+  computeChangeMetrics(geojson.features);
+  computeQuickWinMetrics(geojson.features);
+  const metroAverages = computeMetroAverages(geojson.features);
+
+  return { data: geojson, metroAverages };
+}
+
+/**
+ * Process the geometry-stripped region_properties.json (an array of property
+ * objects) into the same ProcessedData shape. Used by the all-cities view,
+ * which aggregates per-region stats and never renders postal-code geometry —
+ * so features carry `geometry: null` and island filtering is skipped.
+ */
+function processProperties(propsArray: Record<string, unknown>[]): ProcessedData {
+  // These features carry geometry: null — the all-cities view aggregates
+  // properties only and never renders the postal codes. GeoJSON permits null
+  // geometry; the cast bridges it to the non-null default FeatureCollection type.
+  const features = propsArray.map((properties) => ({
+    type: 'Feature',
+    properties,
+    geometry: null,
+  }));
+  const geojson = { type: 'FeatureCollection', features } as unknown as FeatureCollection;
+
+  coerceNumericProperties(geojson.features);
   computeQualityIndices(geojson.features);
   computeChangeMetrics(geojson.features);
   computeQuickWinMetrics(geojson.features);
@@ -126,21 +160,22 @@ export function loadRegionData(regionId: RegionId): Promise<ProcessedData> {
 let combinedCache: Promise<ProcessedData> | null = null;
 
 /**
- * Load the combined dataset (all regions). Used for "all" view and cross-region search.
- * Backward-compatible: same as the old loadNeighborhoodData().
+ * Load the all-regions dataset for the "all cities" view and cross-region search.
  *
- * Fetches on first call rather than at module load, so users viewing a single
- * region don't download the full combined file (~1.1 MB) unnecessarily.
+ * Loads the geometry-stripped region_properties.json, not postal-code geometry:
+ * the all-cities view aggregates per-region stats and draws region outlines from
+ * seutukunnat.topojson. Fetched on first call so single-region users never
+ * download it.
  */
 export function loadAllData(): Promise<ProcessedData> {
   if (combinedCache) return combinedCache;
 
-  combinedCache = fetch(combinedTopoUrl)
+  combinedCache = fetch(regionPropertiesUrl)
     .then(res => {
       if (!res.ok) throw new Error(`Failed to load data: ${res.status}`);
       return res.json();
     })
-    .then((topo: Topology) => processTopology(topo))
+    .then((props: Record<string, unknown>[]) => processProperties(props))
     .catch((err) => {
       // Evict from cache on failure so the next call retries
       combinedCache = null;
