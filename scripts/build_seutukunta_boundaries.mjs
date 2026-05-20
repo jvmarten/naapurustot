@@ -100,10 +100,23 @@ function zoomFor(bbox) {
 
 const raw = await getBoundaries();
 
+// Canonical seutukunta → municipality codes (scripts/seutukunnat.json, keyed by
+// seutukunta code). Used to emit a region-id-keyed municipalities file that
+// scripts/prepare_data.py consumes.
+const seutukunnatData = JSON.parse(
+  readFileSync(resolve(rootDir, 'scripts', 'seutukunnat.json'), 'utf-8'),
+);
+const muniCodesBySeutukunta = {};
+for (const s of seutukunnatData.seutukunnat) {
+  muniCodesBySeutukunta[s.code] = s.municipality_codes;
+}
+
 // Assign region IDs; guard against slug collisions.
 const usedIds = new Set(Object.values(EXISTING_REGION_BY_CODE));
 const outFeatures = [];
 const viewports = {};
+const bboxes = {};
+const municipalities = {};
 
 for (const f of raw.features) {
   const code = f.properties.seutukunta;
@@ -131,6 +144,14 @@ for (const f of raw.features) {
     zoom: zoomFor(bbox),
     bounds: bbox.map((v) => Math.round(v * 1e5) / 1e5),
   };
+  // Overpass bbox string: "south,west,north,east" (lat,lon). bbox is
+  // [minLon, minLat, maxLon, maxLat]. Pad slightly so POIs near the edge
+  // are not clipped by boundary generalization.
+  const r = (v) => Math.round(v * 1e4) / 1e4;
+  bboxes[regionId] = [
+    r(bbox[1] - 0.02), r(bbox[0] - 0.02), r(bbox[3] + 0.02), r(bbox[2] + 0.02),
+  ].join(',');
+  municipalities[regionId] = [...(muniCodesBySeutukunta[code] || [])].sort();
 
   outFeatures.push({
     type: 'Feature',
@@ -157,5 +178,15 @@ unlinkSync(tmpQuant);
 // Emit the viewport block for regions.ts scaffolding.
 const viewportsPath = resolve(rootDir, 'scripts', '_seutukunta_viewports.json');
 writeFileSync(viewportsPath, JSON.stringify(viewports, null, 2));
+
+// Emit per-region Overpass bboxes + municipality codes — both region-id-keyed,
+// consumed by scripts/prepare_data.py when ingesting a region's data.
+const bboxesPath = resolve(rootDir, 'scripts', 'seutukunta_bboxes.json');
+writeFileSync(bboxesPath, JSON.stringify(bboxes, null, 2));
+const muniPath = resolve(rootDir, 'scripts', 'seutukunta_municipalities.json');
+writeFileSync(muniPath, JSON.stringify(municipalities, null, 2));
+
 console.log(`Wrote ${outTopojson}`);
 console.log(`Wrote ${viewportsPath} (${Object.keys(viewports).length} region viewports)`);
+console.log(`Wrote ${bboxesPath} (${Object.keys(bboxes).length} region bboxes)`);
+console.log(`Wrote ${muniPath} (${Object.keys(municipalities).length} region municipality sets)`);
