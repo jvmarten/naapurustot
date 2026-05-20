@@ -235,23 +235,38 @@ def _cache_path(key: str) -> Path:
 
 
 def _save_cache(key: str, data):
-    """Save data to the cache directory."""
+    """Save data to the cache directory.
+
+    Writes to a temp file then atomically renames, so a failed write never
+    leaves a corrupt cache file behind. UTF-8 is explicit — the default on
+    Windows is cp1252, which cannot encode international POI names.
+    """
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     path = _cache_path(key)
-    with open(path, "w") as f:
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False)
+    tmp.replace(path)
     logger.info("  Cached response → %s", path.name)
 
 
 def _load_cache(key: str):
-    """Load data from cache. Returns None if not found."""
+    """Load data from cache. Returns None if not found or unreadable.
+
+    A corrupt cache file (e.g. from an interrupted write) is treated as a
+    cache miss rather than crashing the run.
+    """
     path = _cache_path(key)
-    if path.exists():
-        with open(path) as f:
+    if not path.exists():
+        return None
+    try:
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
-        logger.info("  Loaded from cache: %s", path.name)
-        return data
-    return None
+    except (json.JSONDecodeError, UnicodeDecodeError, OSError) as e:
+        logger.warning("  Ignoring unreadable cache file %s (%s)", path.name, e)
+        return None
+    logger.info("  Loaded from cache: %s", path.name)
+    return data
 
 
 # ---------------------------------------------------------------------------
@@ -664,7 +679,7 @@ def load_foreign_language():
     logger.info("Loading foreign-language speaker data...")
 
     if FOREIGN_LANG_FILE.exists():
-        with open(FOREIGN_LANG_FILE) as f:
+        with open(FOREIGN_LANG_FILE, encoding="utf-8") as f:
             data = json.load(f)
         logger.info("  Loaded %s postal codes from %s", len(data), FOREIGN_LANG_FILE.name)
         return data
@@ -698,7 +713,7 @@ def load_crime_index():
     logger.info("Loading crime index data...")
 
     if CRIME_INDEX_FILE.exists():
-        with open(CRIME_INDEX_FILE) as f:
+        with open(CRIME_INDEX_FILE, encoding="utf-8") as f:
             data = json.load(f)
         logger.info("  Loaded %s postal codes from %s", len(data), CRIME_INDEX_FILE.name)
         return data
@@ -834,7 +849,7 @@ def join_property_prices(gdf, price_data):
     # Merge with local file if it exists
     if PROPERTY_PRICE_FILE.exists():
         try:
-            with open(PROPERTY_PRICE_FILE) as f:
+            with open(PROPERTY_PRICE_FILE, encoding="utf-8") as f:
                 local = json.load(f)
             if local and isinstance(local, dict):
                 merged = {k: float(v) for k, v in local.items()}
@@ -900,7 +915,7 @@ def _load_transit_density_fallback():
     """Load pre-computed transit stop density from local JSON file."""
     if TRANSIT_DENSITY_FILE.exists():
         logger.info("  Falling back to local file: %s", TRANSIT_DENSITY_FILE.name)
-        with open(TRANSIT_DENSITY_FILE) as f:
+        with open(TRANSIT_DENSITY_FILE, encoding="utf-8") as f:
             data = json.load(f)
         logger.info("  Loaded %s postal codes from %s", len(data), TRANSIT_DENSITY_FILE.name)
         return {k: float(v) for k, v in data.items()}
@@ -975,7 +990,7 @@ def join_air_quality(gdf, aq_data):
         # Try local fallback
         if AIR_QUALITY_FILE.exists():
             logger.info("  Falling back to local file: %s", AIR_QUALITY_FILE.name)
-            with open(AIR_QUALITY_FILE) as f:
+            with open(AIR_QUALITY_FILE, encoding="utf-8") as f:
                 fallback = json.load(f)
             logger.info("  Loaded %s postal codes from %s", len(fallback), AIR_QUALITY_FILE.name)
             logger.info("Joining air quality data from fallback...")
@@ -1550,7 +1565,7 @@ def _load_json_data(filepath: Path, label: str) -> dict:
     """Load a JSON file containing postal code -> value mapping."""
     logger.info("Loading %s...", label)
     if filepath.exists():
-        with open(filepath) as f:
+        with open(filepath, encoding="utf-8") as f:
             data = json.load(f)
         logger.info("  Loaded %s postal codes from %s", len(data), filepath.name)
         return data
@@ -1689,7 +1704,7 @@ def join_historical_trends(gdf, history: dict):
         # Try local fallback
         if HISTORICAL_TRENDS_FILE.exists():
             logger.info("  Falling back to local file: %s", HISTORICAL_TRENDS_FILE.name)
-            with open(HISTORICAL_TRENDS_FILE) as f:
+            with open(HISTORICAL_TRENDS_FILE, encoding="utf-8") as f:
                 history = json.load(f)
             logger.info("  Loaded historical trends for %s postal codes", len(history))
         else:
@@ -1829,7 +1844,7 @@ def join_rental_prices(gdf, rental_data):
     # Merge with local file if it exists (for postal codes the API didn't cover)
     if RENTAL_PRICE_FILE.exists():
         try:
-            with open(RENTAL_PRICE_FILE) as f:
+            with open(RENTAL_PRICE_FILE, encoding="utf-8") as f:
                 local = json.load(f)
             if local and isinstance(local, dict):
                 merged = {k: float(v) for k, v in local.items()}
@@ -1941,7 +1956,7 @@ def fetch_traffic_accidents():
     """
     logger.info("Loading traffic accident data...")
     if TRAFFIC_ACCIDENTS_FILE.exists():
-        with open(TRAFFIC_ACCIDENTS_FILE) as f:
+        with open(TRAFFIC_ACCIDENTS_FILE, encoding="utf-8") as f:
             data = json.load(f)
         logger.info("  Loaded %s postal codes from %s", len(data), TRAFFIC_ACCIDENTS_FILE.name)
         return data
@@ -2110,7 +2125,7 @@ def fetch_school_quality():
     """
     logger.info("Loading school quality data...")
     if SCHOOL_QUALITY_FILE.exists():
-        with open(SCHOOL_QUALITY_FILE) as f:
+        with open(SCHOOL_QUALITY_FILE, encoding="utf-8") as f:
             data = json.load(f)
         logger.info("  Loaded %s postal codes from %s", len(data), SCHOOL_QUALITY_FILE.name)
         return data
@@ -2127,7 +2142,7 @@ def fetch_light_pollution():
     """
     logger.info("Loading light pollution data...")
     if LIGHT_POLLUTION_FILE.exists():
-        with open(LIGHT_POLLUTION_FILE) as f:
+        with open(LIGHT_POLLUTION_FILE, encoding="utf-8") as f:
             data = json.load(f)
         logger.info("  Loaded %s postal codes from %s", len(data), LIGHT_POLLUTION_FILE.name)
         return data
@@ -2144,7 +2159,7 @@ def fetch_noise_pollution():
     """
     logger.info("Loading noise pollution data...")
     if NOISE_POLLUTION_FILE.exists():
-        with open(NOISE_POLLUTION_FILE) as f:
+        with open(NOISE_POLLUTION_FILE, encoding="utf-8") as f:
             data = json.load(f)
         logger.info("  Loaded %s postal codes from %s", len(data), NOISE_POLLUTION_FILE.name)
         return data
