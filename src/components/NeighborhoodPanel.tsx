@@ -936,6 +936,20 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
     visitedSections.has(i) ? section : null
   );
 
+  const exploreButton = d._isMetroArea && onExploreCity ? (
+    <button
+      onClick={() => onExploreCity(d.city as string)}
+      className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl
+                 bg-brand-500/10 hover:bg-brand-500/20 text-brand-600 dark:text-brand-400
+                 font-medium text-sm transition-colors border border-brand-500/20"
+    >
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+      </svg>
+      {t('panel.explore_postal_codes')}
+    </button>
+  ) : null;
+
   const panelContent = d._noData ? (
     // CF-5 Phase D: a seutukunta with no ingested data — the panel still opens
     // (consistent with data regions), it just shows a clean empty state.
@@ -949,19 +963,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
     </div>
   ) : (
     <div className="px-6 py-4 space-y-6">
-      {d._isMetroArea && onExploreCity && (
-        <button
-          onClick={() => onExploreCity(d.city as string)}
-          className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl
-                     bg-brand-500/10 hover:bg-brand-500/20 text-brand-600 dark:text-brand-400
-                     font-medium text-sm transition-colors border border-brand-500/20"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
-          </svg>
-          {t('panel.explore_postal_codes')}
-        </button>
-      )}
+      {exploreButton}
       {sectionOverview}
       {/* Profile page link */}
       {!d._isMetroArea && (
@@ -1148,6 +1150,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
                 style={{ minWidth: '100%' }}
               >
                 <div className="px-6 py-4 space-y-6">
+                  {i === 0 && exploreButton}
                   {section}
                   {section && exportButtons}
                 </div>
