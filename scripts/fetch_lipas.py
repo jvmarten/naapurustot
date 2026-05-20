@@ -184,7 +184,7 @@ def main():
     density = compute_density(postal, facilities)
     logger.info("Computed density for %d postal codes", len(density))
 
-    with open(OUTPUT_FILE, "w") as f:
+    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         json.dump(density, f, indent=2)
 
     logger.info("Wrote %s (%d entries)", OUTPUT_FILE.name, len(density))

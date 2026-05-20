@@ -109,12 +109,12 @@ def main():
         stations = fetch_ev_stations()
     except Exception as e:
         logger.warning("Could not fetch EV stations: %s", e)
-        (OUT_DIR / "ev_charging.json").write_text("{}\n")
+        (OUT_DIR / "ev_charging.json").write_text("{}\n", encoding="utf-8")
         return
 
     if not stations:
         logger.warning("No stations found, writing empty file")
-        (OUT_DIR / "ev_charging.json").write_text("{}\n")
+        (OUT_DIR / "ev_charging.json").write_text("{}\n", encoding="utf-8")
         return
 
     # Create GeoDataFrame of stations
@@ -151,7 +151,7 @@ def main():
 
     logger.info("Computed EV charging density for %d postal codes", len(result))
 
-    with open(OUT_DIR / "ev_charging.json", "w") as f:
+    with open(OUT_DIR / "ev_charging.json", "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2)
 
     logger.info("Done. Wrote ev_charging.json")

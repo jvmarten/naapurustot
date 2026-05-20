@@ -45,7 +45,7 @@ def load_neighborhoods():
         sys.exit(1)
 
     logger.info("Loading postal code polygons from %s...", GEOJSON_FILE.name)
-    with open(GEOJSON_FILE) as f:
+    with open(GEOJSON_FILE, encoding="utf-8") as f:
         geojson = json.load(f)
 
     features = geojson.get("features", [])
@@ -200,7 +200,7 @@ def main():
 
     logger.info("Computed light pollution for %d postal codes", len(output))
 
-    OUTPUT_FILE.write_text(json.dumps(output, indent=2, ensure_ascii=False))
+    OUTPUT_FILE.write_text(json.dumps(output, indent=2, ensure_ascii=False), encoding="utf-8")
     logger.info("Wrote %d postal codes to %s", len(output), OUTPUT_FILE.name)
 
 

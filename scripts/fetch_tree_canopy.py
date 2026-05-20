@@ -344,7 +344,7 @@ def main():
     existing_file = OUT_DIR / "tree_canopy.json"
     result = {}
     if existing_file.exists():
-        with open(existing_file) as f:
+        with open(existing_file, encoding="utf-8") as f:
             result = json.load(f)
         logger.info("Loaded %d existing entries from %s", len(result), existing_file.name)
 
@@ -378,7 +378,7 @@ def main():
 
     logger.info("Total tree canopy data: %d postal codes", len(result))
 
-    with open(OUT_DIR / "tree_canopy.json", "w") as f:
+    with open(OUT_DIR / "tree_canopy.json", "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2, ensure_ascii=False)
     logger.info("Done. Wrote tree_canopy.json")
 

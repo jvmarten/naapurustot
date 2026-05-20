@@ -420,7 +420,7 @@ def main():
     result = aggregate_to_postal_codes(school_scores, school_postcodes)
 
     # Write output
-    OUTPUT_FILE.write_text(json.dumps(result, indent=2, ensure_ascii=False))
+    OUTPUT_FILE.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
     logger.info("Wrote %d postal codes to %s", len(result), OUTPUT_FILE.name)
 
 

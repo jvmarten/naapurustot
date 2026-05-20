@@ -204,7 +204,7 @@ def main():
 
         result = {}
 
-    with open(OUT_DIR / "transit_reachability.json", "w") as f:
+    with open(OUT_DIR / "transit_reachability.json", "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2)
 
     logger.info("Done. Wrote transit_reachability.json (%d entries)", len(result))

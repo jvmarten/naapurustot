@@ -142,7 +142,7 @@ def main():
     # Load existing Helsinki data
     existing = {}
     if EXISTING_FILE.exists():
-        with open(EXISTING_FILE) as f:
+        with open(EXISTING_FILE, encoding="utf-8") as f:
             existing = json.load(f)
         logger.info("Loaded %d existing entries from %s", len(existing), EXISTING_FILE.name)
 
@@ -164,7 +164,7 @@ def main():
 
     logger.info("Total entries: %d", len(existing))
 
-    with open(EXISTING_FILE, "w") as f:
+    with open(EXISTING_FILE, "w", encoding="utf-8") as f:
         json.dump(existing, f, indent=2)
 
     logger.info("Wrote %s", EXISTING_FILE.name)

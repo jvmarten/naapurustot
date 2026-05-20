@@ -77,7 +77,7 @@ def _save_cache(key: str, data):
     """Save data to the cache directory."""
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     path = _cache_path(key)
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f)
     logger.info("  Cached response -> %s", path.name)
 
@@ -86,7 +86,7 @@ def _load_cache(key: str):
     """Load data from cache. Returns None if not found."""
     path = _cache_path(key)
     if path.exists():
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
         logger.info("  Loaded from cache: %s", path.name)
         return data
@@ -400,7 +400,7 @@ def main():
 
     # Save results
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(OUTPUT_PATH, "w") as f:
+    with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2, sort_keys=True)
     logger.info("Saved results to %s (%d entries)", OUTPUT_PATH, len(results))
 

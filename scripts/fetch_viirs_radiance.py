@@ -254,7 +254,7 @@ def main():
         )
 
     logger.info("Computed radiance for %d postal codes", len(output))
-    OUTPUT_FILE.write_text(json.dumps(output, indent=2, ensure_ascii=False))
+    OUTPUT_FILE.write_text(json.dumps(output, indent=2, ensure_ascii=False), encoding="utf-8")
     logger.info("Wrote %d postal codes to %s", len(output), OUTPUT_FILE.name)
 
     # --- Pixel-level export ---
@@ -262,7 +262,7 @@ def main():
         pixels = extract_pixel_radiance(gdf, token, args.year)
         if pixels:
             PIXEL_OUTPUT_FILE.write_text(
-                json.dumps(pixels, ensure_ascii=False)
+                json.dumps(pixels, ensure_ascii=False), encoding="utf-8"
             )
             logger.info(
                 "Wrote %d pixels to %s", len(pixels), PIXEL_OUTPUT_FILE.name
