@@ -101,6 +101,10 @@ def _load_cache(key: str):
 def _request_with_retry(method, url, *, label, retries=MAX_RETRIES, **kwargs):
     """Execute an HTTP request with exponential-backoff retries."""
     kwargs.setdefault("timeout", 120)
+    # Overpass rejects requests with no User-Agent (HTTP 406). Merge, don't clobber.
+    headers = {"User-Agent": "naapurustot.fi data pipeline (+https://naapurustot.fi)"}
+    headers.update(kwargs.get("headers") or {})
+    kwargs["headers"] = headers
     last_exc = None
     for attempt in range(1, retries + 1):
         try:
