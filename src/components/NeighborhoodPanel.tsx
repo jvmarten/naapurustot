@@ -993,9 +993,9 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
         {/* Header */}
         <div className="sticky top-0 z-10 bg-white/95 dark:bg-surface-950/95 backdrop-blur-xl border-b border-surface-200 dark:border-surface-800/50 px-6 py-5">
           <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h2 className="text-xl font-display font-bold text-surface-900 dark:text-white truncate">{d.nimi}</h2>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-start gap-2">
+                <h2 className="text-xl font-display font-bold text-surface-900 dark:text-white break-words min-w-0">{d.nimi}</h2>
                 <button
                   onClick={handleCopyLink}
                   className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-surface-400 hover:text-surface-600 dark:hover:text-surface-200 flex-shrink-0"
@@ -1017,19 +1017,21 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
               </div>
               {!d._isMetroArea && <p className="text-surface-500 dark:text-surface-400 text-sm mt-0.5">{d.pno}</p>}
             </div>
-            <div className="flex items-center gap-1 flex-shrink-0">
+            <button
+              onClick={onClose}
+              className="p-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-surface-400 hover:text-surface-900 dark:hover:text-white flex-shrink-0"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          {(favoriteButton || pinButton) && (
+            <div className="flex items-center gap-1 mt-3">
               {favoriteButton}
               {pinButton}
-              <button
-                onClick={onClose}
-                className="p-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-surface-400 hover:text-surface-900 dark:hover:text-white"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
             </div>
-          </div>
+          )}
         </div>
         {panelContent}
         {exportButtons}
@@ -1041,7 +1043,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
         className="md:hidden fixed bottom-0 left-0 right-0 z-20
                    bg-white/95 dark:bg-surface-950/95 backdrop-blur-xl
                    border-t border-surface-200 dark:border-surface-800/50
-                   shadow-[0_-4px_30px_rgba(0,0,0,0.15)] rounded-t-2xl"
+                   shadow-[0_-4px_30px_rgba(0,0,0,0.15)] rounded-t-2xl flex flex-col overflow-hidden"
         style={{
           height: sheetHeight,
           transition: isDragging ? 'none' : 'height 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
@@ -1058,43 +1060,47 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
         </div>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 pb-3 border-b border-surface-200 dark:border-surface-800/50">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-display font-bold text-surface-900 dark:text-white truncate">{d.nimi}</h2>
-              <button
-                onClick={handleCopyLink}
-                className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-surface-400 hover:text-surface-600 dark:hover:text-surface-200 flex-shrink-0"
-                title={t('panel.copy_link')}
-              >
-                {copied ? (
-                  <svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                ) : (
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                  </svg>
+        <div className="px-5 pb-3 border-b border-surface-200 dark:border-surface-800/50">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-start gap-2">
+                <h2 className="text-lg font-display font-bold text-surface-900 dark:text-white break-words min-w-0">{d.nimi}</h2>
+                <button
+                  onClick={handleCopyLink}
+                  className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-surface-400 hover:text-surface-600 dark:hover:text-surface-200 flex-shrink-0"
+                  title={t('panel.copy_link')}
+                >
+                  {copied ? (
+                    <svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                    </svg>
+                  )}
+                </button>
+                {copied && (
+                  <span className="text-xs text-emerald-500 font-medium">{t('panel.copied')}</span>
                 )}
-              </button>
-              {copied && (
-                <span className="text-xs text-emerald-500 font-medium">{t('panel.copied')}</span>
-              )}
+              </div>
+              {!d._isMetroArea && <p className="text-surface-500 dark:text-surface-400 text-xs">{d.pno}</p>}
             </div>
-            {!d._isMetroArea && <p className="text-surface-500 dark:text-surface-400 text-xs">{d.pno}</p>}
-          </div>
-          <div className="flex items-center gap-1 flex-shrink-0">
-            {favoriteButton}
-            {pinButton}
             <button
               onClick={onClose}
-              className="p-2.5 -mr-1 rounded-xl hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-surface-400 hover:text-surface-900 dark:hover:text-white"
+              className="p-2.5 -mr-1 rounded-xl hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-surface-400 hover:text-surface-900 dark:hover:text-white flex-shrink-0"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
+          {(favoriteButton || pinButton) && (
+            <div className="flex items-center gap-1 mt-2">
+              {favoriteButton}
+              {pinButton}
+            </div>
+          )}
         </div>
         {/* PO-3: Section tabs */}
         <div className="flex px-5 pt-3 pb-1 gap-1">
@@ -1128,8 +1134,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
 
         {/* PO-3: Swipeable section content — horizontal carousel */}
         <div
-          className="overflow-hidden"
-          style={{ height: `calc(100% - 12rem)` }}
+          className="overflow-hidden flex-1 min-h-0"
           onTouchStart={swipeHandlers.onTouchStart}
           onTouchMove={swipeHandlers.onTouchMove}
           onTouchEnd={swipeHandlers.onTouchEnd}
