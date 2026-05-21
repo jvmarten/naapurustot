@@ -14,7 +14,7 @@
     "test:visual": "playwright test --project=visual",
     "test:visual:update": "playwright test --project=visual --update-snapshots",
     "build:data": "node scripts/build_region_data.mjs && node scripts/build_grid_data.mjs",
-    "build:pages": "node scripts/prerender.mjs && node scripts/generate-sitemap.mjs"
+    "build:pages": "node scripts/prerender.mjs && node scripts/prerender-hubs.mjs && node scripts/generate-sitemap.mjs"
   },
   "dependencies": {
     "@sentry/react": "^10.53.1",

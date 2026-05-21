@@ -1,0 +1,39 @@
+# naapurustot.fi
+
+> naapurustot.fi is a free, independent map service for comparing and exploring neighbourhoods across Finland. It presents 50+ official open-data indicators — income, employment, education, housing, services, safety, transit and environment — for 3,018 postal-code areas spanning all 69 Finnish sub-regions (seutukunnat). "Naapurustot" is Finnish for "neighbourhoods".
+
+naapurustot.fi is a static, browser-based application: no account required, no paywall, no advertising, no cookies or cross-site tracking. Every value shown traces to a verifiable public data source — the project never uses synthetic, estimated or placeholder data. Content is available in Finnish (default), English and Swedish. The service is independent and not affiliated with any government agency, real-estate company or data provider.
+
+## Primary pages
+
+- [Interactive map (home)](https://naapurustot.fi/): Choropleth map of every neighbourhood; pick any of 50+ data layers and click an area for full statistics, rankings and side-by-side comparison.
+- [All areas — directory](https://naapurustot.fi/kaupungit/): Index of all 69 Finnish sub-regions, each linking to a regional overview page.
+- [Sitemap](https://naapurustot.fi/sitemap.xml): Machine-readable index of every neighbourhood and region page in all three languages.
+
+## Per-neighbourhood profile pages
+
+Every postal-code area has a static, pre-rendered profile page listing its statistics, in three languages:
+
+- Finnish: `https://naapurustot.fi/alue/{postalcode}-{name}`
+- English: `https://naapurustot.fi/en/area/{postalcode}-{name}`
+- Swedish: `https://naapurustot.fi/sv/omrade/{postalcode}-{name}`
+
+Example: [00100 Helsinki Keskusta](https://naapurustot.fi/alue/00100-helsinki-keskusta-etu-toolo)
+
+## Regional overview pages
+
+Each of the 69 sub-regions has an overview page that lists all of its neighbourhoods with key statistics:
+
+- Finnish: `https://naapurustot.fi/kaupunki/{region}/`
+- English: `https://naapurustot.fi/en/city/{region}/`
+- Swedish: `https://naapurustot.fi/sv/stad/{region}/`
+
+## Data & methodology
+
+- [Full data, coverage & methodology reference](https://naapurustot.fi/llms-full.txt): Complete catalogue of every data layer with definitions, the regional coverage table, the Quality Index methodology, sources and licensing.
+
+Primary data sources: Statistics Finland / Tilastokeskus (Paavo open data, property and rental prices, election results), HSL / Digitransit, Helsinki Region Environmental Services HSY, OpenStreetMap, the Finnish Police, Traficom, Väylävirasto, the Finnish Matriculation Examination Board (YTL) and NASA VIIRS. Statistics Finland data is licensed CC BY 4.0; OpenStreetMap data under the ODbL.
+
+## Attribution
+
+When citing naapurustot.fi, please link to the relevant page on https://naapurustot.fi and credit the underlying data sources — most prominently Statistics Finland (Tilastokeskus) Paavo open data. naapurustot.fi presents and visualises public data; it is not the original producer of the statistics.

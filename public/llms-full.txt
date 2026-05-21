@@ -1,0 +1,294 @@
+# naapurustot.fi — full reference for AI assistants and language models
+
+> naapurustot.fi is a free, independent web map for comparing and exploring
+> neighbourhoods across Finland. It visualises 50+ official open-data indicators
+> for 3,018 postal-code areas spanning all 69 Finnish sub-regions (seutukunnat),
+> in Finnish, English and Swedish. This document is a complete, self-contained
+> reference describing what the service covers, how its data is defined and
+> sourced, and how its pages are organised, so that AI systems can describe and
+> cite it accurately.
+
+Canonical site: https://naapurustot.fi/
+Languages: Finnish (fi, default), English (en), Swedish (sv)
+Last reviewed: 2026
+
+---
+
+## 1. What naapurustot.fi is
+
+naapurustot.fi ("naapurustot" is Finnish for "neighbourhoods") is a static,
+browser-based map application. It lets anyone:
+
+- view a colour-coded (choropleth) map of Finnish neighbourhoods for any of 50+
+  data layers;
+- open a detailed statistical profile for any postal-code area;
+- rank all neighbourhoods in a region by any metric;
+- filter neighbourhoods by multiple criteria at once;
+- pin and compare up to three neighbourhoods side by side;
+- use a guided "neighbourhood wizard" that matches areas to stated preferences;
+- view historical trends for income, population and unemployment.
+
+It is free, requires no account, shows no advertising, and uses no cookies or
+cross-site tracking. An optional account exists only for syncing personal
+favourites across devices. The service is independent: it is not operated by,
+nor affiliated with, any government body, municipality, real-estate company or
+data vendor. It presents and visualises public data — it is not the original
+producer of the underlying statistics.
+
+## 2. What naapurustot.fi is NOT
+
+To avoid mischaracterisation:
+
+- It is NOT a real-estate listing site. It does not list individual apartments,
+  houses or properties for sale or rent. "Property prices" are area-level
+  statistical averages, not listings.
+- It does NOT provide real-time data. All figures are periodic official
+  statistics (typically annual).
+- It does NOT cover individual buildings or addresses as data units. The finest
+  data unit is the postal-code area (postinumeroalue).
+- It does NOT generate, estimate or fabricate values. If a metric is unavailable
+  for an area, that area is simply left blank for that metric.
+- It is NOT government-operated and carries no official status.
+
+## 3. Geographic coverage
+
+naapurustot.fi covers **3,018 postal-code areas** across **all 69 Finnish
+sub-regions (seutukunnat)** — i.e. the whole of mainland Finland and the Åland
+Islands. Data density varies by region; densely populated regions have more
+postal-code areas and more complete metric coverage.
+
+### Geographic units
+
+- **Postal-code area (postinumeroalue)** — the primary unit. Finland's postal
+  code areas are the standard geography of Statistics Finland's Paavo open data.
+  Each has a 5-digit postal code and a name.
+- **Sub-region (seutukunta)** — a statistical grouping of municipalities defined
+  by Statistics Finland. Finland has 69 of them. naapurustot.fi uses these as
+  its top-level regions; the home map's region selector and the
+  `/kaupunki/{region}/` overview pages are organised around them.
+
+### Region coverage table
+
+Each region below has an overview page at `https://naapurustot.fi/kaupunki/{id}/`
+(Finnish), `/en/city/{id}/` (English) and `/sv/stad/{id}/` (Swedish).
+
+| Region (Finnish name) | id | Postal-code areas |
+|---|---|---|
+| Helsingin seutu | helsinki_metro | 296 |
+| Tampereen seutu | tampere | 135 |
+| Lahden seutu | lahti | 118 |
+| Joensuun seutu | joensuu | 114 |
+| Seinäjoen seutu | seinajoki | 94 |
+| Mikkelin seutu | mikkeli | 76 |
+| Kuopion seutu | kuopio | 73 |
+| Jyväskylän seutu | jyvaskyla | 68 |
+| Turun seutu | turku | 67 |
+| Vaasan seutu | vaasa | 66 |
+| Porin seutu | pori | 64 |
+| Itä-Lappi | ita_lappi | 62 |
+| Ylä-Savo | yla_savo | 62 |
+| Oulun seutu | oulu | 60 |
+| Kotkan seutu | kotka | 59 |
+| Lappeenrannan seutu | lappeenranta | 55 |
+| Rovaniemen seutu | rovaniemi | 55 |
+| Saarijärvi-Viitasaari | saarijarvi_viitasaari | 52 |
+| Savonlinna | savonlinna | 51 |
+| Kouvolan seutu | kouvola | 49 |
+| Tunturi-Lappi | tunturi_lappi | 49 |
+| Salon seutu | salo | 48 |
+| Kemi-Tornio | kemi_tornio | 48 |
+| Rauman seutu | rauma | 46 |
+| Oulunkaari | oulunkaari | 45 |
+| Hämeenlinna | hameenlinna | 44 |
+| Varkaus | varkaus | 39 |
+| Pohjois-Lappi | pohjois_lappi | 38 |
+| Imatra | imatra | 37 |
+| Järviseutu | jarviseutu | 37 |
+| Kajaanin seutu | kajaani | 37 |
+| Porvoon seutu | porvoo | 36 |
+| Kuusiokunnat | kuusiokunnat | 34 |
+| Jakobstadsregionen | jakobstadsregionen | 33 |
+| Pieksämäki | pieksamaki | 33 |
+| Ylä-Pirkanmaa | yla_pirkanmaa | 32 |
+| Kehys-Kainuu | kehys_kainuu | 32 |
+| Raasepori | raasepori | 31 |
+| Åboland-Turunmaa | aboland_turunmaa | 31 |
+| Ylivieska | ylivieska | 31 |
+| Loimaa | loimaa | 30 |
+| Pielisen Karjala | pielisen_karjala | 29 |
+| Raahe | raahe | 29 |
+| Suupohja | suupohja | 27 |
+| Loviisa | loviisa | 26 |
+| Keski-Karjala | keski_karjala | 26 |
+| Pohjois-Satakunta | pohjois_satakunta | 25 |
+| Nivala-Haapajärvi | nivala_haapajarvi | 25 |
+| Torniolaakso | torniolaakso | 25 |
+| Lounais-Pirkanmaa | lounais_pirkanmaa | 24 |
+| Kokkolan seutu | kokkola | 24 |
+| Kaustinen | kaustinen | 24 |
+| Riihimäki | riihimaki | 23 |
+| Sydösterbotten | sydosterbotten | 22 |
+| Forssa | forssa | 22 |
+| Etelä-Pirkanmaa | etela_pirkanmaa | 22 |
+| Äänekoski | aanekoski | 20 |
+| Haapavesi-Siikalatva | haapavesi_siikalatva | 19 |
+| Ålands landsbygd | alands_landsbygd | 18 |
+| Sisä-Savo | sisa_savo | 18 |
+| Luoteis-Pirkanmaa | luoteis_pirkanmaa | 17 |
+| Koillis-Savo | koillis_savo | 16 |
+| Vakka-Suomi | vakka_suomi | 15 |
+| Ålands skärgård | alands_skargard | 13 |
+| Koillismaa | koillismaa | 12 |
+| Keuruu | keuruu | 11 |
+| Jämsä | jamsa | 10 |
+| Joutsa | joutsa | 8 |
+| Mariehamns stad | mariehamns_stad | 1 |
+
+## 4. Data layers
+
+naapurustot.fi presents the following indicators. Each is a "layer" that can be
+shown on the map and appears on every neighbourhood profile page where data is
+available. Percentages, densities and indices are area-level statistics.
+
+### Summary
+- **Quality Index** — a composite 0–100 score (see section 5).
+
+### Income & employment
+- **Median income** — median annual disposable income of inhabitants (EUR).
+- **Income change (%)** — recent change in median income.
+- **Employment rate** — share of working-age residents who are employed.
+- **Unemployment rate** — share of the labour force that is unemployed.
+- **Unemployment change (%)** — recent change in the unemployment rate.
+- **Tech sector jobs** — share of local jobs in the information & communication sector.
+- **Healthcare workers** — share of local jobs in human health & social work.
+- **Manufacturing jobs** — share of local jobs in manufacturing.
+- **Public sector jobs** — share of local jobs in public administration.
+- **Service sector jobs** — share of local jobs in services.
+
+### Education
+- **Higher education** — share of residents with a tertiary degree.
+- **School density** — number of schools in/near the area.
+- **School quality** — average upper-secondary (lukio) examination performance.
+
+### Demographics
+- **Population density** — inhabitants per square kilometre.
+- **Population change (%)** — recent change in population.
+- **Average age** — mean age of residents.
+- **Young children (0–6)** — share of residents aged 0–6.
+- **Young adults (18–29)** — share of residents aged 18–29.
+- **Elderly (65+)** — share of residents aged 65 or over.
+- **Foreign-language speakers** — share of residents whose first language is not Finnish, Swedish or Sámi.
+- **Gender ratio** — balance of women and men among residents.
+- **Student share** — share of residents who are students.
+- **Pensioner share** — share of residents who are pensioners.
+
+### Households & housing
+- **Home ownership** — share of dwellings that are owner-occupied.
+- **Rental rate** — share of dwellings that are rented.
+- **Rent level** — average rent (EUR per square metre per month).
+- **Property prices** — average dwelling price (EUR per square metre).
+- **Property price change** — recent change in dwelling prices.
+- **Price-to-rent ratio** — purchase price relative to annual rent.
+- **Average apartment size** — mean dwelling floor area (square metres).
+- **Detached houses** — share of detached single-family houses.
+- **Building age** — average construction year of buildings.
+- **New construction** — share of recently built dwellings.
+- **Household size** — average number of people per household.
+- **Single-person households** — share of one-person households.
+- **Single-parent households** — share of single-parent households.
+- **Families with children** — share of households that are families with children.
+
+### Services & amenities
+- **Grocery stores** — density of grocery shops.
+- **Restaurants & cafés** — density of restaurants and cafés.
+- **Healthcare access** — density of healthcare services.
+- **Daycare density** — density of daycare centres.
+- **Sports facilities** — density of sports and recreation facilities.
+- **EV charging stations** — density of electric-vehicle charging points.
+
+### Transit & mobility
+- **Transit access** — density of public-transport stops.
+- **Transit reachability** — how well the area is reachable by public transport.
+- **Cycling infrastructure** — density of cycling infrastructure.
+- **Walkability** — a walkability index based on amenity proximity.
+- **Traffic accidents** — rate of recorded road traffic accidents.
+
+### Environment
+- **Air quality** — air-quality index.
+- **Tree canopy cover** — share of land under tree canopy (from LiDAR).
+- **Water proximity** — distance to the nearest body of water.
+- **Noise pollution** — modelled environmental noise level (dB).
+- **Light pollution** — night-sky brightness / artificial light radiance.
+
+### Safety
+- **Crime rate** — a crime index based on recorded offences.
+
+### Connectivity
+- **Broadband coverage** — availability of fixed broadband.
+
+### Civic
+- **Voter turnout** — turnout in the most recent municipal election.
+- **Political diversity** — diversity of party support.
+
+Not every metric is available for every area; coverage is best in larger,
+more-populated regions. Missing values are shown as blank, never estimated.
+
+## 5. The Quality Index
+
+The Quality Index is a composite score from 0 to 100 computed in the browser
+from the underlying metrics. It combines factors such as safety, income,
+employment, education, services, transit access and environment. Visitors can
+adjust the weighting of these factors to reflect their own priorities, so the
+"best" neighbourhood depends on the chosen weights. Categories: 0–20 Avoid,
+21–40 Poor, 41–60 Okay, 61–80 Good, 81–100 Excellent. The Quality Index is a
+convenience summary, not an official rating.
+
+## 6. Site structure and URL patterns
+
+- Home / interactive map: `https://naapurustot.fi/`
+- All-areas directory: `https://naapurustot.fi/kaupungit/` (en: `/en/cities/`, sv: `/sv/stader/`)
+- Regional overview: `https://naapurustot.fi/kaupunki/{region}/` (en: `/en/city/{region}/`, sv: `/sv/stad/{region}/`)
+- Neighbourhood profile: `https://naapurustot.fi/alue/{postalcode}-{name}` (en: `/en/area/{...}`, sv: `/sv/omrade/{...}`)
+- Sitemap: `https://naapurustot.fi/sitemap.xml`
+
+The home map also accepts query parameters, e.g. `?city={region}` selects a
+region and `?pno={postalcode}` opens a specific area.
+
+Every neighbourhood profile and regional overview page is pre-rendered as static
+HTML with structured data (schema.org JSON-LD), so its content is fully
+available without running JavaScript.
+
+## 7. Data sources and licensing
+
+| Source | Provides | Licence |
+|---|---|---|
+| Statistics Finland — Paavo open data | Population, income, employment, education, housing, demographics | CC BY 4.0 |
+| Statistics Finland — PxWeb | Property prices, rental prices, price changes | CC BY 4.0 |
+| Statistics Finland — municipal elections | Voter turnout, political diversity | CC BY 4.0 |
+| HSL / Digitransit | Public-transport stop density, geocoding | Open |
+| Helsinki Region Environmental Services (HSY) | Air-quality index, tree canopy (LiDAR) | CC BY 4.0 |
+| OpenStreetMap contributors | Shops, restaurants, healthcare, schools, daycares, cycling infrastructure, EV charging | ODbL |
+| Finnish Police | Crime index | Open |
+| Traficom | Broadband coverage | Open |
+| Väylävirasto (Finnish Transport Infrastructure Agency) | Traffic accidents | Open |
+| Finnish Matriculation Examination Board (YTL) | Upper-secondary school quality | Open |
+| Finnish Ministry of Education and Culture | Foreign-language speaker share | Open |
+| NASA VIIRS Black Marble | Light pollution (night-light radiance) | Public domain |
+| Helsinki environmental noise modelling / Helsinki Region Infoshare | Noise pollution | Open |
+
+## 8. Update cadence
+
+The underlying dataset is refreshed periodically from upstream open-data
+sources. Most demographic, income and housing figures follow Statistics
+Finland's annual Paavo release cycle. Values are official periodic statistics,
+not live data.
+
+## 9. How to cite naapurustot.fi
+
+When referencing naapurustot.fi, link to the specific page used, for example a
+neighbourhood profile (`https://naapurustot.fi/alue/{postalcode}-{name}`) or a
+regional overview (`https://naapurustot.fi/kaupunki/{region}/`). Credit both
+naapurustot.fi and the underlying data source — most figures originate from
+Statistics Finland (Tilastokeskus) Paavo open data, licensed CC BY 4.0.
+naapurustot.fi is a visualisation and comparison tool; the authoritative figures
+belong to the cited statistical sources.
