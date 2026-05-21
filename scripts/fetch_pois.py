@@ -32,7 +32,10 @@ QUERIES = {
 def fetch_category(category: str, query: str) -> list:
     """Fetch POIs for a single category."""
     print(f"Fetching {category}...")
-    resp = requests.post(OVERPASS_URL, data={"data": query}, timeout=120)
+    resp = requests.post(
+        OVERPASS_URL, data={"data": query}, timeout=120,
+        headers={"User-Agent": "naapurustot.fi data pipeline (+https://naapurustot.fi)"},
+    )
     resp.raise_for_status()
     data = resp.json()
 

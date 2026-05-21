@@ -205,7 +205,10 @@ def fetch_osm_forest(bbox, label):
     """
 
     try:
-        resp = requests.post(OVERPASS_URL, data={"data": query}, timeout=300)
+        resp = requests.post(
+            OVERPASS_URL, data={"data": query}, timeout=300,
+            headers={"User-Agent": "naapurustot.fi data pipeline (+https://naapurustot.fi)"},
+        )
         resp.raise_for_status()
         data = resp.json()
         elements = data.get("elements", [])

@@ -116,6 +116,7 @@ out body;
                 data={"data": query},
                 timeout=300,
                 verify=False,
+                headers={"User-Agent": "naapurustot.fi data pipeline (+https://naapurustot.fi)"},
             )
             r.raise_for_status()
             data = r.json()

@@ -69,7 +69,10 @@ def fetch_ev_stations() -> list[dict]:
 
         for attempt in range(1, 5):
             try:
-                resp = requests.post(OVERPASS_URL, data={"data": query}, timeout=120)
+                resp = requests.post(
+                    OVERPASS_URL, data={"data": query}, timeout=120,
+                    headers={"User-Agent": "naapurustot.fi data pipeline (+https://naapurustot.fi)"},
+                )
                 resp.raise_for_status()
                 data = resp.json()
                 break
