@@ -21,9 +21,14 @@ let pendingRefresh = false;
 registerSW({
   immediate: true,
   onRegisteredSW(_swUrl, registration) {
-    if (registration) {
-      setInterval(() => { registration.update(); }, 60_000);
-    }
+    if (!registration) return;
+    setInterval(() => {
+      // registration.update() rejects with InvalidStateError ("newestWorker
+      // is null") when the registration has no installing/waiting/active
+      // worker. The returned promise is otherwise unhandled, which surfaces
+      // as a noisy error report — swallow it; the next tick recovers.
+      void registration.update().catch(() => {});
+    }, 60_000);
   },
   onNeedRefresh() {
     // New content available — defer the reload until the user isn't actively
@@ -44,6 +49,12 @@ registerSW({
   },
   onOfflineReady() {
     // Silently ready for offline use, no action needed.
+  },
+  onRegisterError(error) {
+    // Registering /sw.js can fail transiently (network error, blocked
+    // request). The app works fine without the service worker, so log
+    // quietly instead of letting it surface as an unhandled error.
+    console.warn('Service worker registration failed:', error);
   },
 });
 
