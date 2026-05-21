@@ -22,7 +22,12 @@ registerSW({
   immediate: true,
   onRegisteredSW(_swUrl, registration) {
     if (registration) {
-      setInterval(() => { registration.update(); }, 60_000);
+      const interval = setInterval(() => {
+        // update() rejects with a TypeError if the registration has been
+        // unregistered (e.g. cleared from another tab or by the browser).
+        // Swallow it and stop polling — there is nothing left to update.
+        registration.update().catch(() => clearInterval(interval));
+      }, 60_000);
     }
   },
   onNeedRefresh() {
