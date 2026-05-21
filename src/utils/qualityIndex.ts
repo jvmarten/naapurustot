@@ -1,4 +1,5 @@
 import type { NeighborhoodProperties } from './metrics';
+import nationalRangesData from '../data/quality_ranges.json';
 
 /**
  * Computes a composite Quality Index (0–100) for each neighborhood.
@@ -17,8 +18,10 @@ import type { NeighborhoodProperties } from './metrics';
  * environment, mobility, connectivity, politics, and trends — so users can
  * fully customize the index. They have no effect unless the user activates them.
  *
- * Each metric is min-max normalized across all neighborhoods,
- * then combined using the (custom) weights.
+ * Each metric is min-max normalized, then combined using the (custom) weights.
+ * Normalization uses nationwide ranges (NATIONAL_QUALITY_RANGES) so scores are
+ * comparable across sub-regions; passing no ranges normalizes within the given
+ * feature set instead (region-relative scope).
  */
 
 interface MinMax {
@@ -31,6 +34,18 @@ function normalize(value: number, { min, max }: MinMax): number {
   if (max === min) return 50;
   return Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100));
 }
+
+/** Precomputed min/max/avg per metric — keyed by NeighborhoodProperties key. */
+export type QualityRanges = Record<string, MinMax>;
+
+/**
+ * Nationwide metric ranges (built by scripts/build_quality_ranges.mjs from the
+ * full national dataset). Passing these to computeQualityIndices normalizes
+ * each postal code against the whole country, so quality scores are comparable
+ * across sub-regions — a single-region data file holds only one seutukunta and
+ * cannot derive national ranges at runtime.
+ */
+export const NATIONAL_QUALITY_RANGES: QualityRanges = nationalRangesData as QualityRanges;
 
 /** Definition of a single quality factor */
 export interface QualityFactor {
@@ -610,18 +625,24 @@ function getFactorScore(
 export function computeQualityIndices(
   features: GeoJSON.Feature[],
   weights?: QualityWeights,
+  nationalRanges?: QualityRanges,
 ): void {
   const w = weights ?? getDefaultWeights();
 
-  // Collect all needed ranges (includes metro averages for missing data fallback).
+  // Collect all needed ranges (includes the average for missing-data fallback).
   // Bipolar factors with negative weight are still active, so use abs.
+  //
+  // When nationalRanges is supplied, normalize against the whole country so
+  // scores are comparable across sub-regions. Otherwise scan the given features
+  // (region-relative scope). A metric absent from nationalRanges falls back to
+  // a feature scan, so a not-yet-rebuilt ranges file degrades gracefully.
   const ranges = new Map<string, MinMax>();
   for (const factor of QUALITY_FACTORS) {
     if (Math.abs(w[factor.id] ?? 0) <= 0) continue;
     for (const prop of factor.properties) {
-      if (!ranges.has(prop as string)) {
-        ranges.set(prop as string, collectRange(features, prop));
-      }
+      const key = prop as string;
+      if (ranges.has(key)) continue;
+      ranges.set(key, nationalRanges?.[key] ?? collectRange(features, prop));
     }
   }
 

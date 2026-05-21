@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeQualityIndices, getQualityCategory, QUALITY_CATEGORIES } from '../utils/qualityIndex';
+import { computeQualityIndices, getQualityCategory, NATIONAL_QUALITY_RANGES, QUALITY_CATEGORIES } from '../utils/qualityIndex';
 import type { Feature } from 'geojson';
 
 function makeFeature(props: Record<string, any>): Feature {
@@ -116,6 +116,46 @@ describe('computeQualityIndices', () => {
     // Feature 0: income=50 (from avg), education=(50-40)/(60-40)*100=50 → weighted avg = 50
     expect(features[0].properties!.quality_index).toBe(50);
   });
+
+  it('normalizes against national ranges when supplied, not the feature set', () => {
+    const nationalRanges = { hr_mtu: { min: 10000, max: 50000, avg: 30000 } };
+    const features = [makeFeature({ hr_mtu: 20000 }), makeFeature({ hr_mtu: 40000 })];
+    computeQualityIndices(features, { income: 100 }, nationalRanges);
+    // (20000-10000)/40000*100 = 25 ; (40000-10000)/40000*100 = 75
+    expect(features[0].properties!.quality_index).toBe(25);
+    expect(features[1].properties!.quality_index).toBe(75);
+  });
+
+  it('keeps scores comparable across separately-computed regions with national ranges', () => {
+    const nationalRanges = { hr_mtu: { min: 10000, max: 50000, avg: 30000 } };
+    const region1 = [makeFeature({ hr_mtu: 25000 }), makeFeature({ hr_mtu: 35000 })];
+    const region2 = [makeFeature({ hr_mtu: 40000 }), makeFeature({ hr_mtu: 48000 })];
+    computeQualityIndices(region1, { income: 100 }, nationalRanges);
+    computeQualityIndices(region2, { income: 100 }, nationalRanges);
+    // Every region-2 postal code outscores every region-1 one — the whole point.
+    const r1 = region1.map((f) => f.properties!.quality_index as number);
+    const r2 = region2.map((f) => f.properties!.quality_index as number);
+    expect(Math.max(...r1)).toBeLessThan(Math.min(...r2));
+  });
+
+  it('without national ranges, region-relative scope makes regions non-comparable', () => {
+    // Each region independently spans 0..100, so region 1's richest postal code
+    // ties region 2's poorest despite being far poorer — what national ranges fix.
+    const region1 = [makeFeature({ hr_mtu: 25000 }), makeFeature({ hr_mtu: 35000 })];
+    const region2 = [makeFeature({ hr_mtu: 40000 }), makeFeature({ hr_mtu: 48000 })];
+    computeQualityIndices(region1, { income: 100 });
+    computeQualityIndices(region2, { income: 100 });
+    expect(region1[1].properties!.quality_index).toBe(100);
+    expect(region2[0].properties!.quality_index).toBe(0);
+  });
+
+  it('falls back to a feature scan for metrics missing from national ranges', () => {
+    const features = [makeFeature({ hr_mtu: 20000 }), makeFeature({ hr_mtu: 40000 })];
+    // hr_mtu absent from the supplied ranges → scan the features instead.
+    computeQualityIndices(features, { income: 100 }, {});
+    expect(features[0].properties!.quality_index).toBe(0);
+    expect(features[1].properties!.quality_index).toBe(100);
+  });
 });
 
 describe('getQualityCategory', () => {
@@ -148,6 +188,17 @@ describe('QUALITY_CATEGORIES', () => {
     expect(QUALITY_CATEGORIES[QUALITY_CATEGORIES.length - 1].max).toBe(100);
     for (let i = 1; i < QUALITY_CATEGORIES.length; i++) {
       expect(QUALITY_CATEGORIES[i].min).toBe(QUALITY_CATEGORIES[i - 1].max);
+    }
+  });
+});
+
+describe('NATIONAL_QUALITY_RANGES', () => {
+  it('provides finite, ordered min/max/avg for the primary quality metrics', () => {
+    for (const key of ['crime_index', 'hr_mtu', 'unemployment_rate', 'higher_education_rate', 'air_quality_index']) {
+      const r = NATIONAL_QUALITY_RANGES[key];
+      expect(r, `missing range for ${key}`).toBeDefined();
+      expect(Number.isFinite(r.min) && Number.isFinite(r.max) && Number.isFinite(r.avg)).toBe(true);
+      expect(r.max).toBeGreaterThanOrEqual(r.min);
     }
   });
 });

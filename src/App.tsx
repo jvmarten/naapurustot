@@ -43,7 +43,7 @@ import { readInitialUrlState, useSyncUrlState } from './hooks/useUrlState';
 import type { NeighborhoodProperties } from './utils/metrics';
 import { computeMetroAverages } from './utils/metrics';
 import { t, getLang, setLang, type Lang } from './utils/i18n';
-import { computeQualityIndices, isCustomWeights, type QualityWeights } from './utils/qualityIndex';
+import { computeQualityIndices, isCustomWeights, NATIONAL_QUALITY_RANGES, type QualityWeights } from './utils/qualityIndex';
 import { buildMetroAreaFeatures, clearMetroAreaCache } from './utils/metroAreas';
 import { useAllCitiesUnionPreload } from './hooks/useAllCitiesUnionPreload';
 import { IS_EMBED, buildEmbedSnippet } from './utils/embed';
@@ -404,10 +404,11 @@ const App: React.FC = () => {
     const needsRecompute = scopeChanged || cityChanged || customWeights;
 
     if (needsRecompute) {
-      const features = comparisonScope === 'region' && cityFilter !== 'all' && filteredData
-        ? filteredData.features
-        : data.features;
-      computeQualityIndices(features, qualityWeights);
+      // Region scope normalizes within the selected sub-region; otherwise the
+      // index is normalized nationwide so scores are comparable across regions.
+      const regionScope = comparisonScope === 'region' && cityFilter !== 'all';
+      const features = regionScope && filteredData ? filteredData.features : data.features;
+      computeQualityIndices(features, qualityWeights, regionScope && filteredData ? undefined : NATIONAL_QUALITY_RANGES);
     }
     clearMetroAreaCache();
     clearRescaleCache();
@@ -499,10 +500,10 @@ const App: React.FC = () => {
       if (qualityDebounceRef.current) clearTimeout(qualityDebounceRef.current);
       qualityDebounceRef.current = setTimeout(() => {
         if (data) {
-          const features = comparisonScopeRef.current === 'region' && cityFilterRef.current !== 'all' && filteredDataRef.current
-            ? filteredDataRef.current.features
-            : data.features;
-          computeQualityIndices(features, newWeights);
+          const regionScope = comparisonScopeRef.current === 'region' && cityFilterRef.current !== 'all';
+          const fd = filteredDataRef.current;
+          const features = regionScope && fd ? fd.features : data.features;
+          computeQualityIndices(features, newWeights, regionScope && fd ? undefined : NATIONAL_QUALITY_RANGES);
           clearMetroAreaCache();
           clearRescaleCache();
           setQualityVersion((v) => v + 1);
@@ -537,10 +538,10 @@ const App: React.FC = () => {
     if (lastInteractiveWeightsRef.current === qualityWeights) return;
     lastInteractiveWeightsRef.current = qualityWeights;
     if (!data) return;
-    const features = comparisonScopeRef.current === 'region' && cityFilterRef.current !== 'all' && filteredDataRef.current
-      ? filteredDataRef.current.features
-      : data.features;
-    computeQualityIndices(features, qualityWeights);
+    const regionScope = comparisonScopeRef.current === 'region' && cityFilterRef.current !== 'all';
+    const fd = filteredDataRef.current;
+    const features = regionScope && fd ? fd.features : data.features;
+    computeQualityIndices(features, qualityWeights, regionScope && fd ? undefined : NATIONAL_QUALITY_RANGES);
     clearMetroAreaCache();
     clearRescaleCache();
     setQualityVersion((v) => v + 1);

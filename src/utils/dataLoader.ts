@@ -13,7 +13,7 @@ import type { Feature, FeatureCollection } from 'geojson';
 import { feature } from 'topojson-client';
 import type { Topology } from 'topojson-specification';
 import { computeMetroAverages, computeChangeMetrics, computeQuickWinMetrics } from './metrics';
-import { computeQualityIndices } from './qualityIndex';
+import { computeQualityIndices, NATIONAL_QUALITY_RANGES } from './qualityIndex';
 import { filterSmallIslands } from './geometryFilter';
 import type { RegionId } from './regions';
 
@@ -66,7 +66,9 @@ function processTopology(topo: Topology): ProcessedData {
 
   coerceNumericProperties(geojson.features);
   geojson.features = filterSmallIslands(geojson.features);
-  computeQualityIndices(geojson.features);
+  // Normalize against nationwide ranges so a postal code's score is comparable
+  // across sub-regions, not just within this region's data file.
+  computeQualityIndices(geojson.features, undefined, NATIONAL_QUALITY_RANGES);
   computeChangeMetrics(geojson.features);
   computeQuickWinMetrics(geojson.features);
   const metroAverages = computeMetroAverages(geojson.features);
@@ -92,7 +94,7 @@ function processProperties(propsArray: Record<string, unknown>[]): ProcessedData
   const geojson = { type: 'FeatureCollection', features } as unknown as FeatureCollection;
 
   coerceNumericProperties(geojson.features);
-  computeQualityIndices(geojson.features);
+  computeQualityIndices(geojson.features, undefined, NATIONAL_QUALITY_RANGES);
   computeChangeMetrics(geojson.features);
   computeQuickWinMetrics(geojson.features);
   const metroAverages = computeMetroAverages(geojson.features);
