@@ -1,11 +1,17 @@
 /**
  * Generate sitemap.xml from the GeoJSON dataset.
  *
- * Outputs to dist/sitemap.xml with all neighborhood profile page URLs
- * plus the root page.
+ * Outputs dist/sitemap.xml covering:
+ *   - the home page
+ *   - the all-areas directory (fi/en/sv)
+ *   - every regional hub page (fi/en/sv)
+ *   - every neighbourhood profile page (fi/en/sv)
  *
- * Run after prerender:
- *   node scripts/generate-sitemap.mjs
+ * Each entry carries xhtml:link hreflang alternates so search engines map the
+ * locales correctly. The slug logic is kept identical to scripts/prerender.mjs
+ * so that every <loc> resolves to a file that prerendering actually wrote.
+ *
+ * Run after prerendering:  node scripts/generate-sitemap.mjs
  */
 
 import { readFileSync, writeFileSync } from 'fs';
@@ -16,18 +22,20 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 const DIST = join(ROOT, 'dist');
 const GEOJSON_PATH = join(ROOT, 'public', 'data', 'metro_neighborhoods.geojson');
+const ORIGIN = 'https://naapurustot.fi';
 
 const geojson = JSON.parse(readFileSync(GEOJSON_PATH, 'utf-8'));
 const today = new Date().toISOString().split('T')[0];
 
+// Slug logic — must stay identical to scripts/prerender.mjs.
 function slugify(text) {
   return text
     .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
     .replace(/ä/g, 'a')
     .replace(/ö/g, 'o')
     .replace(/å/g, 'a')
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '');
 }
@@ -38,31 +46,50 @@ function toSlug(pno, nimi) {
 
 const urls = [];
 
-// Root page — provide hreflang alternates so search engines understand each locale
+// Home page.
 urls.push({
-  loc: 'https://naapurustot.fi/',
+  loc: `${ORIGIN}/`,
   priority: '1.0',
   changefreq: 'weekly',
-  alternates: {
-    fi: 'https://naapurustot.fi/',
-    en: 'https://naapurustot.fi/',
-    sv: 'https://naapurustot.fi/',
-  },
+  alternates: { fi: `${ORIGIN}/`, en: `${ORIGIN}/`, sv: `${ORIGIN}/` },
 });
 
-// Neighborhood profile pages
-const features = geojson.features.filter(f => f.properties?.pno && f.properties?.nimi);
+// All-areas directory.
+const directory = {
+  fi: `${ORIGIN}/kaupungit/`,
+  en: `${ORIGIN}/en/cities/`,
+  sv: `${ORIGIN}/sv/stader/`,
+};
+urls.push({ loc: directory.fi, priority: '0.9', changefreq: 'weekly', alternates: directory });
+urls.push({ loc: directory.en, priority: '0.8', changefreq: 'weekly', alternates: directory });
+urls.push({ loc: directory.sv, priority: '0.8', changefreq: 'weekly', alternates: directory });
 
+const features = geojson.features.filter((f) => f.properties?.pno && f.properties?.nimi);
+
+// Regional hub pages — one per region that has neighbourhood data.
+const regionIds = [...new Set(features.map((f) => f.properties.city).filter(Boolean))].sort();
+for (const id of regionIds) {
+  const alt = {
+    fi: `${ORIGIN}/kaupunki/${id}/`,
+    en: `${ORIGIN}/en/city/${id}/`,
+    sv: `${ORIGIN}/sv/stad/${id}/`,
+  };
+  urls.push({ loc: alt.fi, priority: '0.8', changefreq: 'monthly', alternates: alt });
+  urls.push({ loc: alt.en, priority: '0.7', changefreq: 'monthly', alternates: alt });
+  urls.push({ loc: alt.sv, priority: '0.7', changefreq: 'monthly', alternates: alt });
+}
+
+// Neighbourhood profile pages.
 for (const feature of features) {
   const slug = toSlug(feature.properties.pno, feature.properties.nimi);
-  const fi = `https://naapurustot.fi/alue/${slug}`;
-  const en = `https://naapurustot.fi/en/area/${slug}`;
-  const sv = `https://naapurustot.fi/sv/omrade/${slug}`;
-  const alternates = { fi, en, sv };
-
-  urls.push({ loc: fi, priority: '0.8', changefreq: 'monthly', alternates });
-  urls.push({ loc: en, priority: '0.7', changefreq: 'monthly', alternates });
-  urls.push({ loc: sv, priority: '0.7', changefreq: 'monthly', alternates });
+  const alt = {
+    fi: `${ORIGIN}/alue/${slug}`,
+    en: `${ORIGIN}/en/area/${slug}`,
+    sv: `${ORIGIN}/sv/omrade/${slug}`,
+  };
+  urls.push({ loc: alt.fi, priority: '0.7', changefreq: 'monthly', alternates: alt });
+  urls.push({ loc: alt.en, priority: '0.6', changefreq: 'monthly', alternates: alt });
+  urls.push({ loc: alt.sv, priority: '0.6', changefreq: 'monthly', alternates: alt });
 }
 
 function renderAlternates(alternates) {
@@ -74,7 +101,7 @@ function renderAlternates(alternates) {
 
 const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
-${urls.map(u => `  <url>
+${urls.map((u) => `  <url>
     <loc>${u.loc}</loc>
     <lastmod>${today}</lastmod>
     <changefreq>${u.changefreq}</changefreq>

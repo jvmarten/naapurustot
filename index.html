@@ -75,8 +75,20 @@
       "isAccessibleForFree": true,
       "author": {
         "@type": "Organization",
-        "name": "naapurustot.fi"
+        "name": "naapurustot.fi",
+        "url": "https://naapurustot.fi"
       },
+      "browserRequirements": "Requires JavaScript. Requires HTML5.",
+      "screenshot": "https://naapurustot.fi/og-image.png",
+      "featureList": [
+        "Interaktiivinen kartta Suomen naapurustoista ja kaupunginosista",
+        "Yli 50 datatasoa: tulot, työllisyys, koulutus, asuminen, palvelut, turvallisuus, joukkoliikenne, ympäristö",
+        "Postinumeroaluekohtaiset tilastosivut jokaisesta alueesta",
+        "Laatuindeksi 0–100 omilla painotuksilla",
+        "Jopa kolmen naapuruston vertailu vierekkäin",
+        "Ranking-listat ja monikriteerinen suodatus",
+        "3 018 postinumeroaluetta kaikilla 69 seutukunnalla"
+      ],
       "offers": {
         "@type": "Offer",
         "price": "0",
@@ -114,7 +126,7 @@
           "name": "Miten voin vertailla eri kaupunkien asuinalueita ja kaupunginosia?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "naapurustot.fi tarjoaa ilmaisen interaktiivisen kartan, jolla voit vertailla asuinalueita, kaupunginosia ja lähiöitä useissa Suomen kaupungeissa, kuten Helsingissä, Espoossa, Vantaalla, Tampereella ja Turussa. Valitse haluamasi mittari ja näet naapurustojen erot värikoodattuna kartalla."
+            "text": "naapurustot.fi tarjoaa ilmaisen interaktiivisen kartan, jolla voit vertailla asuinalueita, kaupunginosia ja lähiöitä koko Suomessa — 3 018 postinumeroaluetta kaikilla 69 seutukunnalla, Helsingin seudulta Lappiin ja Ahvenanmaalle. Valitse haluamasi mittari ja näet naapurustojen erot värikoodattuna kartalla."
           }
         },
         {
@@ -132,7 +144,81 @@
             "@type": "Answer",
             "text": "Kyllä, naapurustot.fi on täysin ilmainen palvelu. Voit vertailla Suomen kaupunkien naapurustoja ja asuinalueita rajattomasti ilman rekisteröitymistä."
           }
+        },
+        {
+          "@type": "Question",
+          "name": "Mistä naapurustot.fi:n tiedot tulevat?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Kaikki naapurustot.fi:n tiedot perustuvat avoimeen, julkiseen dataan — palvelu ei käytä keksittyjä tai arvioituja arvoja. Päälähteitä ovat Tilastokeskuksen Paavo-avoindata, asunto- ja vuokrahinnat sekä vaalitulokset, HSL/Digitransit, Helsingin seudun ympäristöpalvelut HSY, OpenStreetMap, poliisi, Traficom ja Väylävirasto. Tilastokeskuksen aineisto on lisensoitu CC BY 4.0 -lisenssillä."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Mikä on naapurustot.fi:n laatuindeksi?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Laatuindeksi on 0–100 -pisteytys, joka yhdistää useita mittareita, kuten turvallisuuden, tulotason, työllisyyden, koulutuksen, palvelut, joukkoliikenteen ja ympäristön. Voit säätää tekijöiden painotuksia omien prioriteettiesi mukaan, joten paras alue riippuu valitsemistasi painotuksista. Luokat: 0–20 vältä, 21–40 huono, 41–60 OK, 61–80 hyvä, 81–100 erinomainen."
+          }
         }
+      ]
+    }
+    </script>
+
+    <!-- Structured Data: Organization -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "naapurustot.fi",
+      "url": "https://naapurustot.fi",
+      "logo": "https://naapurustot.fi/og-image.png",
+      "image": "https://naapurustot.fi/og-image.png",
+      "description": "naapurustot.fi on riippumaton, ilmainen karttapalvelu Suomen asuinalueiden ja naapurustojen vertailuun avoimen datan pohjalta.",
+      "areaServed": {
+        "@type": "Country",
+        "name": "Finland"
+      }
+    }
+    </script>
+
+    <!-- Structured Data: Dataset — describes the underlying open-data dataset -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Dataset",
+      "name": "Suomen naapurustojen tilastot — naapurustot.fi",
+      "alternateName": "Finnish neighbourhood statistics",
+      "description": "Yli 50 datatasoa — tulot, työllisyys, koulutus, väestö, asuminen, palvelut, turvallisuus, joukkoliikenne ja ympäristö — 3 018 postinumeroalueelle kaikilla 69 Suomen seutukunnalla. Koottu avoimista, julkisista lähteistä, ennen kaikkea Tilastokeskuksen Paavo-aineistosta.",
+      "url": "https://naapurustot.fi/",
+      "inLanguage": ["fi", "en", "sv"],
+      "isAccessibleForFree": true,
+      "license": "https://creativecommons.org/licenses/by/4.0/",
+      "creativeWorkStatus": "Published",
+      "keywords": ["naapurustot", "postinumeroalueet", "asuinalueet", "kaupunginosat", "Suomi", "tilastot", "Finland neighbourhoods", "postal code areas"],
+      "spatialCoverage": {
+        "@type": "Place",
+        "name": "Finland",
+        "geo": {
+          "@type": "GeoShape",
+          "box": "59.0 19.5 70.5 31.5"
+        }
+      },
+      "creator": {
+        "@type": "Organization",
+        "name": "naapurustot.fi",
+        "url": "https://naapurustot.fi"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "naapurustot.fi",
+        "url": "https://naapurustot.fi"
+      },
+      "variableMeasured": [
+        "Median income", "Unemployment rate", "Employment rate", "Higher education rate",
+        "Population", "Population density", "Average age", "Property prices", "Rental prices",
+        "Home ownership rate", "Public transport access", "Air quality", "Tree canopy cover",
+        "Crime index", "School quality", "Walkability", "Quality Index"
       ]
     }
     </script>
@@ -196,21 +282,27 @@
     <noscript>
       <div style="max-width:800px;margin:2rem auto;padding:1rem;font-family:sans-serif">
         <h1>naapurustot.fi — vertaile asuinalueita, kaupunginosia ja lähiöitä kartalla</h1>
-        <p>naapurustot.fi on ilmainen interaktiivinen karttapalvelu, jolla voit vertailla Suomen asuinalueita, kaupunginosia ja lähiöitä kymmenillä eri mittareilla.</p>
-        <h2>Vertaile naapurustoja, kaupunginosia ja lähiöitä</h2>
-        <p>Palvelun avulla voit tutkia ja vertailla naapurustoja, kaupunginosia, lähiöitä ja postinumeroalueita kymmenillä eri mittareilla — tulotasosta palveluihin ja joukkoliikenteestä turvallisuuteen. Löydä paras asuinalue itsellesi ja perheellesi.</p>
-        <h2>Kaupungit</h2>
-        <p>Palvelu kattaa asuinalueita, kaupunginosia ja lähiöitä Helsingin seudulla (Helsinki, Espoo, Vantaa, Kauniainen), Tampereella ja Turussa. Lisää kaupunkeja tulossa.</p>
+        <p>naapurustot.fi on ilmainen interaktiivinen karttapalvelu, jolla voit vertailla ja tutkia Suomen asuinalueita, kaupunginosia, lähiöitä ja postinumeroalueita yli 50 eri mittarilla — tulotasosta ja asuntohinnoista palveluihin, turvallisuuteen, joukkoliikenteeseen ja ympäristöön.</p>
+        <h2>Koko Suomen kattava naapurustokartta</h2>
+        <p>Palvelu kattaa 3 018 postinumeroaluetta kaikilla 69 seutukunnalla — koko Manner-Suomen ja Ahvenanmaan. Jokaisesta alueesta on oma tilastosivunsa kolmella kielellä (suomi, englanti, ruotsi).</p>
+        <h2>Selaa alueita</h2>
+        <ul>
+          <li><a href="/kaupungit/">Kaikki alueet — hakemisto kaikista 69 seutukunnasta</a></li>
+          <li><a href="/kaupunki/helsinki_metro/">Helsingin seutu</a></li>
+          <li><a href="/kaupunki/tampere/">Tampereen seutu</a></li>
+          <li><a href="/kaupunki/turku/">Turun seutu</a></li>
+          <li><a href="/kaupunki/oulu/">Oulun seutu</a></li>
+        </ul>
         <h2>Ominaisuudet</h2>
         <ul>
           <li>Interaktiivinen kartta naapurustojen ja kaupunginosien vertailuun</li>
-          <li>Kymmeniä eri mittareita ja tilastoja</li>
-          <li>Naapurustojen ja kaupunginosien ranking-listat</li>
+          <li>Yli 50 eri mittaria ja tilastoa</li>
+          <li>Naapurustojen ja kaupunginosien ranking-listat ja suodattimet</li>
           <li>Asuinalueen ja kaupunginosan hakutyökalu</li>
           <li>Naapurustojen vertailu vierekkäin</li>
-          <li>Suodattimet sopivan naapuruston tai lähiön löytämiseen</li>
+          <li>Laatuindeksi 0–100 omilla painotuksilla</li>
         </ul>
-        <p>Ota JavaScript käyttöön nähdäksesi interaktiivisen kartan.</p>
+        <p>Tiedot pohjautuvat avoimeen dataan: Tilastokeskus (Paavo), HSL, HSY, OpenStreetMap ja muut julkiset lähteet. Ota JavaScript käyttöön nähdäksesi interaktiivisen kartan.</p>
       </div>
     </noscript>
     <script type="module" src="/src/main.tsx"></script>

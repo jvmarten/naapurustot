@@ -1,9 +1,46 @@
+# robots.txt for naapurustot.fi
+#
+# naapurustot.fi is a free, open neighbourhood-data map for Finland.
+# Crawling is welcome. The only disallowed path is /data/ — large raw
+# GeoJSON/TopoJSON machine files that are not meaningful content.
+#
+# Structured guidance for AI assistants and language models is published at:
+#   https://naapurustot.fi/llms.txt
+#   https://naapurustot.fi/llms-full.txt
+
+# --- AI assistants & large language model crawlers are explicitly welcome ---
+# Listed individually so that consent is unambiguous and survives any future
+# tightening of the wildcard group below.
+User-agent: GPTBot
+User-agent: ChatGPT-User
+User-agent: OAI-SearchBot
+User-agent: ClaudeBot
+User-agent: Claude-User
+User-agent: Claude-SearchBot
+User-agent: anthropic-ai
+User-agent: PerplexityBot
+User-agent: Perplexity-User
+User-agent: Google-Extended
+User-agent: Applebot
+User-agent: Applebot-Extended
+User-agent: Amazonbot
+User-agent: meta-externalagent
+User-agent: FacebookBot
+User-agent: Bytespider
+User-agent: cohere-ai
+User-agent: DuckAssistBot
+User-agent: MistralAI-User
+User-agent: YouBot
+Allow: /
+Disallow: /data/
+
+# --- All other crawlers ---
 User-agent: *
 Allow: /
 Disallow: /data/
 
-# Sitemaps
+# Sitemap (regenerated on every deploy with all neighbourhood & region pages)
 Sitemap: https://naapurustot.fi/sitemap.xml
 
-# Host
+# Canonical host
 Host: https://naapurustot.fi
