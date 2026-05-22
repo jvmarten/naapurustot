@@ -19,6 +19,15 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+// The app's data-processing functions, reused at build time so each page can
+// embed a render-ready payload. Both modules have type-only imports, so Node's
+// TypeScript stripping (Node 22.18+/24) loads them without a build step.
+import { computeQualityIndices } from '../src/utils/qualityIndex.ts';
+import {
+  computeMetroAverages,
+  computeChangeMetrics,
+  computeQuickWinMetrics,
+} from '../src/utils/metrics.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -30,6 +39,14 @@ const template = readFileSync(join(DIST, 'index.html'), 'utf-8');
 
 // Read GeoJSON.
 const geojson = JSON.parse(readFileSync(GEOJSON_PATH, 'utf-8'));
+
+// Process every feature exactly as the client's dataLoader does (same order),
+// so each page can embed a payload the React app renders from instantly —
+// avoiding the ~1.7 MB region_properties.json fetch before first paint.
+computeQualityIndices(geojson.features);
+computeChangeMetrics(geojson.features);
+computeQuickWinMetrics(geojson.features);
+const metroAverages = computeMetroAverages(geojson.features);
 
 // UI translations — used to resolve region names and metric labels so that
 // every page uses the same wording as the app, in all three languages.
@@ -474,6 +491,16 @@ function generatePage(feature, lang) {
   html = html.replace(
     /<noscript>[\s\S]*?<\/noscript>/,
     `<noscript>\n    <div style="max-width:820px;margin:2rem auto;padding:1rem;font-family:system-ui,sans-serif;line-height:1.55">\n${noscriptContent}\n    </div>\n  </noscript>`,
+  );
+
+  // Embed this neighbourhood's processed properties + the dataset-wide
+  // averages so NeighborhoodProfilePage renders immediately, without first
+  // fetching the national dataset. `<` is escaped so a literal `</script>` in
+  // any string field cannot break out of the element.
+  const payload = JSON.stringify({ p: props, avg: metroAverages }).replace(/</g, '\\u003c');
+  html = html.replace(
+    '</body>',
+    `    <script id="__naapurustot_profile__" type="application/json">${payload}</script>\n  </body>`,
   );
 
   return html;
