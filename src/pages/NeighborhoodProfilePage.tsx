@@ -15,6 +15,32 @@ import { JsonLd } from '../components/profile/JsonLd';
 
 const MiniMap = lazy(() => import('../components/profile/MiniMap').then(m => ({ default: m.MiniMap })));
 
+/** Render-ready payload embedded in prerendered profile pages (see prerender.mjs). */
+interface EmbeddedProfile {
+  /** This neighbourhood's fully processed properties (quality_index included). */
+  p: NeighborhoodProperties;
+  /** Dataset-wide averages, keyed by property name. */
+  avg: Record<string, number>;
+}
+
+/**
+ * Read the data payload embedded by the prerenderer. Returns null when the page
+ * was not prerendered or — crucially — on client-side navigation, where the
+ * embedded payload still describes the originally loaded neighbourhood. The
+ * `pno` check guards that case so we fall back to fetching instead.
+ */
+function readEmbeddedProfile(pno: string): EmbeddedProfile | null {
+  const el = document.getElementById('__naapurustot_profile__');
+  if (!el?.textContent) return null;
+  try {
+    const data = JSON.parse(el.textContent) as EmbeddedProfile;
+    if (data?.p?.pno === pno) return data;
+  } catch {
+    // Malformed payload — fall back to fetching the dataset.
+  }
+  return null;
+}
+
 interface LoadedState {
   // `feature` holds national-dataset properties: the quality index is
   // dataset-relative, so every displayed stat must come from the national set.
@@ -34,6 +60,9 @@ export const NeighborhoodProfilePage: React.FC = () => {
   const [state, setState] = useState<LoadedState | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // True once the region geometry load has settled (loaded or failed). Until
+  // then the MiniMap slot shows a placeholder so its arrival doesn't shift layout.
+  const [mapResolved, setMapResolved] = useState(false);
 
   // Detect language from URL path:
   //   /sv/omrade/… → Swedish
@@ -75,9 +104,65 @@ export const NeighborhoodProfilePage: React.FC = () => {
     // neighborhood don't remain visible while the new data loads.
     setLoading(true);
     setError(null);
+    setMapResolved(false);
 
     let cancelled = false;
 
+    // Load the neighbourhood's region TopoJSON for the MiniMap geometry and
+    // surrounding polygons, then merge it into state. Runs in the background
+    // so it never blocks first paint; the profile renders fine without a map.
+    const loadGeometry = async (regionId: RegionId | null | undefined) => {
+      if (!regionId) {
+        if (!cancelled) setMapResolved(true);
+        return;
+      }
+      try {
+        const region = await loadRegionData(regionId);
+        if (cancelled) return;
+        const geoFeat = region.data.features.find(
+          f => f.properties?.pno === pno && f.geometry != null,
+        ) as Feature<Polygon | MultiPolygon> | undefined;
+        setState(prev => prev
+          ? { ...prev, geoFeature: geoFeat ?? null, regionFeatures: region.data.features }
+          : prev);
+      } catch {
+        // Region geometry unavailable — render the profile without the map.
+      } finally {
+        if (!cancelled) setMapResolved(true);
+      }
+    };
+
+    // Fast path: prerendered pages embed a render-ready payload. Paint the
+    // profile from it immediately, then hydrate the map geometry and the
+    // national dataset (only needed for "similar neighbourhoods") in the
+    // background — neither blocks the largest contentful paint.
+    const embedded = readEmbeddedProfile(pno);
+    if (embedded) {
+      const feat = { type: 'Feature', properties: embedded.p, geometry: null } as unknown as Feature;
+      setState({
+        feature: feat,
+        geoFeature: null,
+        regionFeatures: [],
+        allFeatures: [],
+        metroAverages: embedded.avg,
+      });
+      setLoading(false);
+
+      void loadGeometry(embedded.p.city);
+      void loadNeighborhoodData()
+        .then(({ data }) => {
+          if (!cancelled) {
+            setState(prev => prev ? { ...prev, allFeatures: data.features } : prev);
+          }
+        })
+        .catch(() => { /* "similar neighbourhoods" stays empty if this fails */ });
+
+      return () => { cancelled = true; };
+    }
+
+    // Fallback: no usable embedded payload (client-side navigation, or a page
+    // that was not prerendered). Load the national dataset, then render — on
+    // client-side navigation this resolves instantly from the in-memory cache.
     void (async () => {
       try {
         const { data, metroAverages } = await loadNeighborhoodData();
@@ -88,31 +173,15 @@ export const NeighborhoodProfilePage: React.FC = () => {
           setLoading(false);
           return;
         }
-
-        // loadNeighborhoodData() returns the geometry-stripped national
-        // dataset. Geometry lives in per-region TopoJSON, so load the
-        // neighborhood's region for the MiniMap; if that fetch fails the
-        // profile still renders, just without the map.
-        let geoFeature: Feature<Polygon | MultiPolygon> | null = null;
-        let regionFeatures: Feature[] = [];
-        const regionId = feat.properties?.city as RegionId | undefined;
-        if (regionId) {
-          try {
-            const region = await loadRegionData(regionId);
-            if (cancelled) return;
-            regionFeatures = region.data.features;
-            const geoFeat = region.data.features.find(
-              f => f.properties?.pno === pno && f.geometry != null,
-            );
-            geoFeature = (geoFeat as Feature<Polygon | MultiPolygon> | undefined) ?? null;
-          } catch {
-            // Region geometry unavailable — render the profile without the map.
-          }
-        }
-
-        if (cancelled) return;
-        setState({ feature: feat, geoFeature, regionFeatures, allFeatures: data.features, metroAverages });
+        setState({
+          feature: feat,
+          geoFeature: null,
+          regionFeatures: [],
+          allFeatures: data.features,
+          metroAverages,
+        });
         setLoading(false);
+        void loadGeometry(feat.properties?.city as RegionId | undefined);
       } catch (err: unknown) {
         if (cancelled) return;
         setError(err instanceof Error ? err.message : String(err));
@@ -310,7 +379,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
               {altName ? `${altName} · ` : ''}{t('profile.postal_code')} {d.pno} · {cityName}
             </p>
           </div>
-          {state.geoFeature && (
+          {state.geoFeature ? (
             <div className="md:w-80 md:flex-shrink-0">
               <Suspense fallback={<div className="w-full h-64 md:h-80 rounded-xl bg-surface-100 dark:bg-surface-900/60 animate-pulse" />}>
                 <MiniMap
@@ -319,7 +388,13 @@ export const NeighborhoodProfilePage: React.FC = () => {
                 />
               </Suspense>
             </div>
-          )}
+          ) : (!mapResolved && d.city != null) ? (
+            // Reserve the map slot while its geometry loads in the background
+            // so the MiniMap's arrival doesn't push page content down (CLS).
+            <div className="md:w-80 md:flex-shrink-0">
+              <div className="w-full h-64 md:h-80 rounded-xl bg-surface-100 dark:bg-surface-900/60 animate-pulse" />
+            </div>
+          ) : null}
         </div>
 
         {/* Quality Index Banner */}
