@@ -25,8 +25,9 @@ registerSW({
     setInterval(() => {
       // registration.update() rejects with InvalidStateError ("newestWorker
       // is null") when the registration has no installing/waiting/active
-      // worker. The returned promise is otherwise unhandled, which surfaces
-      // as a noisy error report — swallow it; the next tick recovers.
+      // worker, or TypeError when it has been unregistered. The returned
+      // promise is otherwise unhandled, which surfaces as a noisy error
+      // report — swallow it; a later tick recovers once a worker is available.
       void registration.update().catch(() => {});
     }, 60_000);
   },
