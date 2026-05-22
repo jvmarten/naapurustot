@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState, lazy, Suspense } from 'react';
 import { useParams, useLocation, useNavigate, Link } from 'react-router-dom';
 import type { Feature, Polygon, MultiPolygon } from 'geojson';
-import { loadNeighborhoodData } from '../utils/dataLoader';
+import { loadNeighborhoodData, loadRegionData } from '../utils/dataLoader';
 import { parseSlug, toSlug } from '../utils/slug';
 import type { NeighborhoodProperties } from '../utils/metrics';
+import type { RegionId } from '../utils/regions';
 import { t, getLang, setLang, type Lang } from '../utils/i18n';
 import { formatNumber, formatEuro, formatPct, formatDiff } from '../utils/formatting';
 import { getQualityCategory, QUALITY_CATEGORIES } from '../utils/qualityIndex';
@@ -15,7 +16,13 @@ import { JsonLd } from '../components/profile/JsonLd';
 const MiniMap = lazy(() => import('../components/profile/MiniMap').then(m => ({ default: m.MiniMap })));
 
 interface LoadedState {
+  // `feature` holds national-dataset properties: the quality index is
+  // dataset-relative, so every displayed stat must come from the national set.
+  // `geoFeature` is the same neighborhood from its region's TopoJSON, loaded
+  // only for the MiniMap's geometry — null when the region file fails to load.
   feature: Feature;
+  geoFeature: Feature<Polygon | MultiPolygon> | null;
+  regionFeatures: Feature[];
   allFeatures: Feature[];
   metroAverages: Record<string, number>;
 }
@@ -70,22 +77,49 @@ export const NeighborhoodProfilePage: React.FC = () => {
     setError(null);
 
     let cancelled = false;
-    loadNeighborhoodData()
-      .then(({ data, metroAverages }) => {
+
+    void (async () => {
+      try {
+        const { data, metroAverages } = await loadNeighborhoodData();
         if (cancelled) return;
         const feat = data.features.find(f => f.properties?.pno === pno);
         if (!feat) {
           setError('Neighborhood not found');
-        } else {
-          setState({ feature: feat, allFeatures: data.features, metroAverages });
+          setLoading(false);
+          return;
         }
+
+        // loadNeighborhoodData() returns the geometry-stripped national
+        // dataset. Geometry lives in per-region TopoJSON, so load the
+        // neighborhood's region for the MiniMap; if that fetch fails the
+        // profile still renders, just without the map.
+        let geoFeature: Feature<Polygon | MultiPolygon> | null = null;
+        let regionFeatures: Feature[] = [];
+        const regionId = feat.properties?.city as RegionId | undefined;
+        if (regionId) {
+          try {
+            const region = await loadRegionData(regionId);
+            if (cancelled) return;
+            regionFeatures = region.data.features;
+            const geoFeat = region.data.features.find(
+              f => f.properties?.pno === pno && f.geometry != null,
+            );
+            geoFeature = (geoFeat as Feature<Polygon | MultiPolygon> | undefined) ?? null;
+          } catch {
+            // Region geometry unavailable — render the profile without the map.
+          }
+        }
+
+        if (cancelled) return;
+        setState({ feature: feat, geoFeature, regionFeatures, allFeatures: data.features, metroAverages });
         setLoading(false);
-      })
-      .catch((err: unknown) => {
+      } catch (err: unknown) {
         if (cancelled) return;
         setError(err instanceof Error ? err.message : String(err));
         setLoading(false);
-      });
+      }
+    })();
+
     return () => { cancelled = true; };
   }, [pno]);
 
@@ -215,7 +249,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
 
   const d = state.feature.properties as NeighborhoodProperties;
   const avg = state.metroAverages;
-  const center = getFeatureCenter(state.feature);
+  const center = getFeatureCenter(state.geoFeature ?? state.feature);
   const qi = d.quality_index != null ? Math.round(d.quality_index) : null;
   const qiCat = getQualityCategory(qi);
 
@@ -276,14 +310,16 @@ export const NeighborhoodProfilePage: React.FC = () => {
               {altName ? `${altName} · ` : ''}{t('profile.postal_code')} {d.pno} · {cityName}
             </p>
           </div>
-          <div className="md:w-80 md:flex-shrink-0">
-            <Suspense fallback={<div className="w-full h-64 md:h-80 rounded-xl bg-surface-100 dark:bg-surface-900/60 animate-pulse" />}>
-              <MiniMap
-                feature={state.feature as Feature<Polygon | MultiPolygon>}
-                allFeatures={state.allFeatures}
-              />
-            </Suspense>
-          </div>
+          {state.geoFeature && (
+            <div className="md:w-80 md:flex-shrink-0">
+              <Suspense fallback={<div className="w-full h-64 md:h-80 rounded-xl bg-surface-100 dark:bg-surface-900/60 animate-pulse" />}>
+                <MiniMap
+                  feature={state.geoFeature}
+                  allFeatures={state.regionFeatures}
+                />
+              </Suspense>
+            </div>
+          )}
         </div>
 
         {/* Quality Index Banner */}
