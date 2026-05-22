@@ -4,7 +4,13 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { registerSW } from 'virtual:pwa-register';
 import App from './App';
 import { ThemeProvider } from './hooks/useTheme';
+import { installChunkReloadHandler } from './utils/chunkReload';
 import './index.css';
+
+// Recover from failed dynamic imports caused by stale chunk references after a
+// deployment — installed before any dynamic import fires so the first failure
+// is caught.
+installChunkReloadHandler();
 
 // Lazy-load route-specific pages — most users only interact with the main map.
 // NeighborhoodProfilePage (~21KB source) imports dataLoader, similarity, qualityIndex,
