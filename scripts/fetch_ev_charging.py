@@ -3,8 +3,8 @@
 Fetch EV charging station data from OpenStreetMap via the Overpass API.
 
 Data source: OpenStreetMap (amenity=charging_station)
-Method: Query all charging stations in the Helsinki metro bounding box,
-        then count stations per postal code area (density = count / area_km2).
+Method: One Overpass query for all charging stations in Finland, then count
+        stations per postal code area (density = count / area_km2).
 
 Output: ev_charging.json
 Format: {"00100": 12.5, "00120": 3.2, ...}  (stations per km²)
@@ -20,20 +20,16 @@ import geopandas as gpd
 import requests
 from shapely.geometry import Point
 
-from regions_config import ALL_BBOXES
-
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
 
 OUT_DIR = Path(__file__).parent
 
-# Regional bounding boxes (south, west, north, east) — all 69 Finnish
-# seutukunnat. regions_config.ALL_BBOXES holds "south,west,north,east"
-# strings; parse each into a float tuple to keep the format below unchanged.
-REGION_BBOXES = [
-    tuple(float(coord) for coord in bbox.split(","))
-    for bbox in ALL_BBOXES
-]
+# Finland bounding box (south, west, north, east). One Overpass query for the
+# whole country is far lighter than 69 per-seutukunta queries — which the
+# public Overpass instance rate-limited into empty results. Charging stations
+# inside the bbox but outside Finland are dropped by the postal-code join.
+FINLAND_BBOX = (59.0, 19.0, 70.2, 31.7)
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 
@@ -48,56 +44,48 @@ def load_postal_boundaries() -> gpd.GeoDataFrame:
 
 
 def fetch_ev_stations() -> list[dict]:
-    """Fetch EV charging stations from Overpass API for all metro regions."""
-    logger.info("Fetching EV charging stations from Overpass API...")
+    """Fetch every EV charging station in Finland from Overpass in one query."""
+    logger.info("Fetching EV charging stations from Overpass API (national query)...")
+
+    south, west, north, east = FINLAND_BBOX
+    query = f"""
+    [out:json][timeout:180];
+    (
+      node["amenity"="charging_station"]({south},{west},{north},{east});
+      way["amenity"="charging_station"]({south},{west},{north},{east});
+    );
+    out center;
+    """
+
+    data = None
+    for attempt in range(1, 5):
+        try:
+            resp = requests.post(
+                OVERPASS_URL, data={"data": query}, timeout=240,
+                headers={"User-Agent": "naapurustot.fi data pipeline (+https://naapurustot.fi)"},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            break
+        except Exception as e:
+            if attempt == 4:
+                raise
+            wait = 20 * attempt
+            logger.warning("  Attempt %d failed: %s. Retrying in %ds...", attempt, e, wait)
+            time.sleep(wait)
 
     stations = []
     seen = set()
+    for element in data.get("elements", []):
+        lat = element.get("lat") or element.get("center", {}).get("lat")
+        lon = element.get("lon") or element.get("center", {}).get("lon")
+        if lat and lon:
+            key = (round(lat, 6), round(lon, 6))
+            if key not in seen:
+                seen.add(key)
+                stations.append({"lat": lat, "lon": lon})
 
-    for i, bbox in enumerate(REGION_BBOXES):
-        south, west, north, east = bbox
-        logger.info("  Querying region %d bbox: %.2f,%.2f,%.2f,%.2f", i + 1, south, west, north, east)
-
-        query = f"""
-        [out:json][timeout:60];
-        (
-          node["amenity"="charging_station"]({south},{west},{north},{east});
-          way["amenity"="charging_station"]({south},{west},{north},{east});
-        );
-        out center;
-        """
-
-        for attempt in range(1, 5):
-            try:
-                resp = requests.post(
-                    OVERPASS_URL, data={"data": query}, timeout=120,
-                    headers={"User-Agent": "naapurustot.fi data pipeline (+https://naapurustot.fi)"},
-                )
-                resp.raise_for_status()
-                data = resp.json()
-                break
-            except Exception as e:
-                wait = 15 * attempt
-                logger.warning("  Attempt %d failed: %s. Retrying in %ds...", attempt, e, wait)
-                time.sleep(wait)
-                data = {"elements": []}
-
-        for element in data.get("elements", []):
-            lat = element.get("lat") or element.get("center", {}).get("lat")
-            lon = element.get("lon") or element.get("center", {}).get("lon")
-            if lat and lon:
-                key = (round(lat, 6), round(lon, 6))
-                if key not in seen:
-                    seen.add(key)
-                    stations.append({"lat": lat, "lon": lon})
-
-        logger.info("  Region %d: %d total stations so far", i + 1, len(stations))
-
-        # Rate limit between Overpass queries
-        if i < len(REGION_BBOXES) - 1:
-            time.sleep(15)
-
-    logger.info("  Found %d charging stations total", len(stations))
+    logger.info("  Found %d charging stations", len(stations))
     return stations
 
 
