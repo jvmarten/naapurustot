@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import type { Feature, FeatureCollection, Polygon, MultiPolygon } from 'geojson';
+import type { Feature, FeatureCollection, Geometry, Polygon, MultiPolygon } from 'geojson';
 import { useTheme } from '../../hooks/useTheme';
 
 const BASEMAP_LIGHT = (import.meta.env.VITE_BASEMAP_LIGHT_URL as string) || 'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png';
@@ -12,11 +12,16 @@ interface MiniMapProps {
   allFeatures?: Feature[];
 }
 
-function computeBbox(feat: Feature<Polygon | MultiPolygon>): [number, number, number, number] {
+/** A GeoJSON Feature may carry null geometry; MiniMap can only frame polygons. */
+function isPolygonal(geom: Geometry | null | undefined): geom is Polygon | MultiPolygon {
+  return geom != null && (geom.type === 'Polygon' || geom.type === 'MultiPolygon');
+}
+
+function computeBbox(geom: Polygon | MultiPolygon): [number, number, number, number] {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  const coords = feat.geometry.type === 'Polygon'
-    ? [feat.geometry.coordinates]
-    : feat.geometry.coordinates;
+  const coords = geom.type === 'Polygon'
+    ? [geom.coordinates]
+    : geom.coordinates;
   for (const poly of coords) {
     for (const ring of poly) {
       for (const [x, y] of ring) {
@@ -37,9 +42,12 @@ export const MiniMap: React.FC<MiniMapProps> = ({ feature, allFeatures }) => {
 
   useEffect(() => {
     if (!containerRef.current) return;
+    // GeoJSON permits a Feature with null geometry — bail rather than crash.
+    const geometry = feature.geometry as Geometry | null;
+    if (!isPolygonal(geometry)) return;
 
     const tiles = theme === 'dark' ? BASEMAP_DARK : BASEMAP_LIGHT;
-    const bbox = computeBbox(feature);
+    const bbox = computeBbox(geometry);
 
     const map = new maplibregl.Map({
       container: containerRef.current,
@@ -110,6 +118,9 @@ export const MiniMap: React.FC<MiniMapProps> = ({ feature, allFeatures }) => {
     mapRef.current = map;
     return () => { map.remove(); };
   }, [feature, allFeatures, theme]);
+
+  // No polygon to draw — render nothing (the effect skips map creation too).
+  if (!isPolygonal(feature.geometry as Geometry | null)) return null;
 
   return (
     <div
