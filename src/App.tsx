@@ -274,16 +274,19 @@ const App: React.FC = () => {
     );
     if (selectedFeatures.length === 0) return null;
 
-    // Collect all exterior ring coordinates from selected features
+    // Collect all exterior ring coordinates from selected features. Append
+    // vertices with a loop, not `push(...ring)` — a postal code's exterior
+    // ring can hold ~11k vertices, and spreading that many call arguments
+    // overflows the stack on iOS WebKit.
     const allCoords: Position[] = [];
     for (const f of selectedFeatures) {
       const geom = f.geometry;
       if (!geom) continue;
       if (geom.type === 'Polygon') {
-        allCoords.push(...geom.coordinates[0]);
+        for (const c of geom.coordinates[0]) allCoords.push(c);
       } else if (geom.type === 'MultiPolygon') {
         for (const poly of geom.coordinates) {
-          allCoords.push(...poly[0]);
+          for (const c of poly[0]) allCoords.push(c);
         }
       }
     }
