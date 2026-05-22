@@ -577,7 +577,10 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
   // Accumulators for special ratio-based metrics that can't be data-driven
   let totalPop = 0;
   let totalUnemployed = 0;
-  let totalHigherEd = 0;
+  let totalKoYlKork = 0;
+  let totalKoAlKork = 0;
+  let totalKoAmmat = 0;
+  let totalKoPerus = 0;
   let totalAdultPop = 0;
   let totalOwnerOcc = 0;
   let totalHouseholds = 0;
@@ -601,8 +604,10 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
     // Count-based special metrics
     if (p.pt_tyoll != null) totalEmployed += p.pt_tyoll;
     if (p.pt_tyott != null) totalUnemployed += p.pt_tyott;
-    if (p.ko_yl_kork != null) totalHigherEd += p.ko_yl_kork;
-    if (p.ko_al_kork != null) totalHigherEd += p.ko_al_kork;
+    if (p.ko_yl_kork != null) totalKoYlKork += p.ko_yl_kork;
+    if (p.ko_al_kork != null) totalKoAlKork += p.ko_al_kork;
+    if (p.ko_ammat != null) totalKoAmmat += p.ko_ammat;
+    if (p.ko_perus != null) totalKoPerus += p.ko_perus;
     if (p.ko_ika18y != null) totalAdultPop += p.ko_ika18y;
     if (p.te_omis_as != null) totalOwnerOcc += p.te_omis_as;
     if (p.te_taly != null) totalHouseholds += p.te_taly;
@@ -662,7 +667,9 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
   // Add special ratio-based metrics
   result.he_vakiy = totalPop;
   result.unemployment_rate = totalActPop > 0 ? roundTo((totalUnemployed / totalActPop) * 100, 1) : 0;
-  result.higher_education_rate = totalAdultPop > 0 ? roundTo((totalHigherEd / totalAdultPop) * 100, 1) : 0;
+  result.higher_education_rate = totalAdultPop > 0
+    ? roundTo(((totalKoYlKork + totalKoAlKork) / totalAdultPop) * 100, 1)
+    : 0;
   result.ownership_rate = totalHouseholds > 0 ? roundTo((totalOwnerOcc / totalHouseholds) * 100, 1) : 0;
   result.rental_rate = totalHouseholds > 0 ? roundTo((totalRental / totalHouseholds) * 100, 1) : 0;
   result.student_share = totalActPop > 0 ? roundTo((totalStudents / totalActPop) * 100, 1) : 0;
@@ -671,6 +678,18 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
   result.detached_house_share = totalDwellings > 0 ? roundTo((totalDetached / totalDwellings) * 100, 1) : 0;
   result.pensioner_share = totalPop > 0 ? roundTo((totalPensioners / totalPop) * 100, 1) : 0;
   result.employment_rate = totalActPop > 0 ? roundTo((totalEmployed / totalActPop) * 100, 1) : 0;
+
+  // Raw counts: the panel's Education Breakdown and Activity Status sections
+  // read these directly (they show counts, not rates), so the metro-area
+  // feature must carry them or those sections render blank.
+  result.ko_yl_kork = totalKoYlKork;
+  result.ko_al_kork = totalKoAlKork;
+  result.ko_ammat = totalKoAmmat;
+  result.ko_perus = totalKoPerus;
+  result.pt_tyoll = totalEmployed;
+  result.pt_tyott = totalUnemployed;
+  result.pt_opisk = totalStudents;
+  result.pt_elakel = totalPensioners;
 
   return result;
 }

@@ -139,6 +139,34 @@ describe('computeMetroAverages — weighted aggregation', () => {
     // (30+50+20+40) / 2000 * 100 = 7%
     expect(avg.child_ratio).toBe(7);
   });
+
+  it('emits raw education counts for the panel Education Breakdown section', () => {
+    // The metro-area panel reads ko_* counts directly; without them the
+    // Education Breakdown bars render blank in the "all cities" view.
+    const features = [
+      makeFeature({ he_vakiy: 1000, ko_yl_kork: 100, ko_al_kork: 80, ko_ammat: 200, ko_perus: 300, pno: '00100' }),
+      makeFeature({ he_vakiy: 2000, ko_yl_kork: 50, ko_al_kork: 40, ko_ammat: 150, ko_perus: 250, pno: '00200' }),
+    ];
+    const avg = computeMetroAverages(features);
+    expect(avg.ko_yl_kork).toBe(150);
+    expect(avg.ko_al_kork).toBe(120);
+    expect(avg.ko_ammat).toBe(350);
+    expect(avg.ko_perus).toBe(550);
+  });
+
+  it('emits raw activity-status counts for the panel Activity Status section', () => {
+    // The metro-area panel reads pt_* counts directly; without them Employed/
+    // Unemployed/Students/Pensioners render as "—" in the "all cities" view.
+    const features = [
+      makeFeature({ he_vakiy: 1000, pt_tyoll: 600, pt_tyott: 50, pt_opisk: 100, pt_elakel: 200, pno: '00100' }),
+      makeFeature({ he_vakiy: 2000, pt_tyoll: 1200, pt_tyott: 80, pt_opisk: 250, pt_elakel: 400, pno: '00200' }),
+    ];
+    const avg = computeMetroAverages(features);
+    expect(avg.pt_tyoll).toBe(1800);
+    expect(avg.pt_tyott).toBe(130);
+    expect(avg.pt_opisk).toBe(350);
+    expect(avg.pt_elakel).toBe(600);
+  });
 });
 
 describe('parseTrendSeries — input validation', () => {
