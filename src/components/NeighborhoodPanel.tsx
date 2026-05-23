@@ -740,6 +740,13 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
             property="light_pollution"
           />
           <StatRow
+            label={t('panel.noise_pollution')}
+            value={d.noise_pollution != null ? `${Number(d.noise_pollution).toFixed(1)} dB` : '—'}
+            diff={formatDiff(d.noise_pollution, avg.noise_pollution)}
+            diffClass={diffColor(d.noise_pollution, avg.noise_pollution, false)}
+            property="noise_pollution"
+          />
+          <StatRow
             label={t('panel.water_proximity')}
             value={d.water_proximity_m != null ? `${panelNumFmt().format(Number(d.water_proximity_m))} m` : '—'}
             diff={formatDiff(d.water_proximity_m, avg.water_proximity_m)}
