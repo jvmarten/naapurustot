@@ -886,6 +886,35 @@ def main():
     if tku_results:
         results.update(tku_results)
 
+    # --- Phase 5: SILAM nationwide fill-in ---
+    # Fill in every postal code outside the three high-resolution regions
+    # using FMI's SILAM Europe forecast (~5-10 km grid). Never overrides
+    # values already set by Phases 1-4.
+    silam_file = SCRIPT_DIR / "air_quality_silam.json"
+    if silam_file.exists():
+        try:
+            with open(silam_file, encoding="utf-8") as f:
+                silam_results = {k: float(v) for k, v in json.load(f).items()}
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.warning("Could not read SILAM data: %s", e)
+            silam_results = {}
+
+        before = len(results)
+        for pno, val in silam_results.items():
+            if pno not in results:
+                results[pno] = val
+        logger.info(
+            "SILAM: filled %d postal codes outside Helsinki/Tampere/Turku "
+            "(of %d available SILAM samples)",
+            len(results) - before, len(silam_results),
+        )
+    else:
+        logger.info(
+            "No %s found -- run scripts/fetch_air_quality_silam.py to add "
+            "nationwide coverage outside Helsinki/Tampere/Turku",
+            silam_file.name,
+        )
+
     # --- Validate ---
     if not results:
         logger.error(
