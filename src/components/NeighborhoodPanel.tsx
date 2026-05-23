@@ -753,6 +753,13 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
             diffClass={diffColor(d.water_proximity_m, avg.water_proximity_m, false)}
             property="water_proximity_m"
           />
+          <StatRow
+            label={t('panel.tree_canopy')}
+            value={d.tree_canopy_pct != null ? `${Number(d.tree_canopy_pct).toFixed(1)} %` : '—'}
+            diff={formatDiff(d.tree_canopy_pct, avg.tree_canopy_pct)}
+            diffClass={diffColor(d.tree_canopy_pct, avg.tree_canopy_pct)}
+            property="tree_canopy_pct"
+          />
         </div>
       </CollapsibleSection>
 
