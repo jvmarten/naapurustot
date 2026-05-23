@@ -1,8 +1,9 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { t } from '../utils/i18n';
+import { t, useI18nVersion } from '../utils/i18n';
 
 export const NotFoundPage: React.FC = () => {
+  useI18nVersion();
   return (
     <div
       id="main"

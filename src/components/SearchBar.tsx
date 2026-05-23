@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import type { FeatureCollection } from 'geojson';
-import { t, type Lang } from '../utils/i18n';
+import { t, useI18nVersion, type Lang } from '../utils/i18n';
 import type { RecentEntry } from '../hooks/useRecentNeighborhoods';
 import { geocodeAddress, type GeocodeResult } from '../utils/geocode';
 import { getFeatureCenter } from '../utils/geometryFilter';
@@ -15,6 +15,7 @@ interface SearchBarProps {
 }
 
 export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, onSelect, recent = [], lang }) => {
+  useI18nVersion();
   const displayName = (p: GeoJSON.GeoJsonProperties): string => {
     if (!p) return '';
     if (lang === 'sv') return (p.namn as string) || (p.nimi as string) || (p.pno as string);

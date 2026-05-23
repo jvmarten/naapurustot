@@ -2,6 +2,7 @@ import React, { useSyncExternalStore } from 'react';
 import { Tooltip } from './Tooltip';
 import { getTooltipSnapshot, subscribeTooltip, type TooltipData } from '../utils/tooltipStore';
 import type { LayerConfig } from '../utils/colorScales';
+import { useI18nVersion } from '../utils/i18n';
 
 // SSR/prerender-safe: useSyncExternalStore requires a server snapshot
 // to avoid crashes during server-side rendering (scripts/prerender.mjs).
@@ -19,6 +20,7 @@ interface TooltipOverlayProps {
  * Only this component re-renders on mouse move — the parent App is unaffected.
  */
 export const TooltipOverlay: React.FC<TooltipOverlayProps> = React.memo(({ hidden, effectiveLayer, metroAverage }) => {
+  useI18nVersion();
   const tooltip = useSyncExternalStore(subscribeTooltip, getTooltipSnapshot, getServerSnapshot);
 
   if (!tooltip || hidden) return null;

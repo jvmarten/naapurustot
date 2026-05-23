@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import type { Feature, FeatureCollection, Polygon } from 'geojson';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { formatNumber, formatEuro, formatPct, formatDensity, formatEuroSqm } from '../utils/formatting';
-import { t } from '../utils/i18n';
+import { t, useI18nVersion } from '../utils/i18n';
 
 interface AreaSummaryPanelProps {
   polygon: Feature<Polygon>;
@@ -115,6 +115,7 @@ function computeAreaStats(data: FeatureCollection, selectedPnos?: string[]) {
 }
 
 export const AreaSummaryPanel: React.FC<AreaSummaryPanelProps> = React.memo(({ polygon, data, metroAverages, onClose, selectedPnos }) => {
+  useI18nVersion();
   const { intersecting, stats } = useMemo(() => computeAreaStats(data, selectedPnos), [data, selectedPnos]);
 
   // Lazy-load @turf/area (~8KB) — only needed for the area display string.

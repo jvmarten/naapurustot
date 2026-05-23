@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { t } from '../utils/i18n';
+import { t, useI18nVersion } from '../utils/i18n';
 import type { ApiUser } from '../utils/api';
 
 export interface FavoriteEntry {
@@ -16,6 +16,7 @@ interface UserMenuProps {
 }
 
 export const UserMenu: React.FC<UserMenuProps> = React.memo(({ user, onLogout, favorites = [], onSelectFavorite, onToggleFavorite }) => {
+  useI18nVersion();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   // Snapshot favorites when dropdown opens so items stay visible after unfavoriting

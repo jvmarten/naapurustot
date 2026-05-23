@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import type { FeatureCollection } from 'geojson';
 import { type LayerId, getLayerById, getColorForValue } from '../utils/colorScales';
 import type { NeighborhoodProperties } from '../utils/metrics';
-import { t } from '../utils/i18n';
+import { t, useI18nVersion } from '../utils/i18n';
 import { getFeatureCenter } from '../utils/geometryFilter';
 
 interface RankingTableProps {
@@ -23,6 +23,7 @@ interface RankedItem {
 // Removed hardcoded LOWER_IS_BETTER set — now uses layer.higherIsBetter from LayerConfig
 
 export const RankingTable: React.FC<RankingTableProps> = React.memo(({ data, activeLayer, onSelect, onClose }) => {
+  useI18nVersion();
   const layer = getLayerById(activeLayer);
   const [reversed, setReversed] = useState(false);
 

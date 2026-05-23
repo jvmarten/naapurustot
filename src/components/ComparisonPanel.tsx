@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { formatNumber, formatEuro, formatPct, formatDensity, formatEuroSqm } from '../utils/formatting';
-import { t } from '../utils/i18n';
+import { t, useI18nVersion } from '../utils/i18n';
 import { CompareIllustration } from './EmptyStateIllustrations';
 import { exportComparisonPdf, exportComparisonCsv } from '../utils/export';
 import { trackEvent } from '../utils/analytics';
@@ -131,6 +131,7 @@ const CHART_METRICS: { label: string; key: string; higherIsBetter: boolean; max?
 const BAR_COLORS = ['#6366f1', '#10b981', '#f59e0b'];
 
 const ComparisonChart: React.FC<{ pinned: NeighborhoodProperties[] }> = React.memo(({ pinned }) => {
+  useI18nVersion();
   return (
     <div className="px-5 py-4 space-y-5">
       {CHART_METRICS.map((metric) => {
@@ -168,6 +169,7 @@ const ComparisonChart: React.FC<{ pinned: NeighborhoodProperties[] }> = React.me
 ComparisonChart.displayName = 'ComparisonChart';
 
 export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pinned, onUnpin, onClear }) => {
+  useI18nVersion();
   // PO-4: Tab state for chart vs table view
   const [view, setView] = useState<'table' | 'chart'>('table');
   // CF-8: Export the entire comparison (table + per-neighborhood detail pages)

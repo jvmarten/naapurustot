@@ -4,7 +4,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import type { FeatureCollection } from 'geojson';
 import { buildFillColorExpression, LAYERS, type LayerId, getLayerById } from '../utils/colorScales';
 import { useTheme } from '../hooks/useTheme';
-import { t } from '../utils/i18n';
+import { t, useI18nVersion } from '../utils/i18n';
 import { DEFAULT_CENTER, DEFAULT_ZOOM, MAP_MAX_ZOOM, envNum } from '../utils/mapConstants';
 
 /**
@@ -13,20 +13,23 @@ import { DEFAULT_CENTER, DEFAULT_ZOOM, MAP_MAX_ZOOM, envNum } from '../utils/map
 const SplitLayerPicker: React.FC<{
   value: LayerId;
   onChange: (id: LayerId) => void;
-}> = React.memo(({ value, onChange }) => (
-  <select
-    value={value}
-    onChange={(e) => onChange(e.target.value as LayerId)}
-    className="block w-full max-w-[200px] rounded bg-white/90 dark:bg-surface-900/90 text-xs font-medium px-2 py-1 border border-slate-300 dark:border-slate-600 shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 truncate"
-    aria-label={t(getLayerById(value).labelKey)}
-  >
-    {LAYERS.map((layer) => (
-      <option key={layer.id} value={layer.id}>
-        {t(layer.labelKey)}
-      </option>
-    ))}
-  </select>
-));
+}> = React.memo(({ value, onChange }) => {
+  useI18nVersion();
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value as LayerId)}
+      className="block w-full max-w-[200px] rounded bg-white/90 dark:bg-surface-900/90 text-xs font-medium px-2 py-1 border border-slate-300 dark:border-slate-600 shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 truncate"
+      aria-label={t(getLayerById(value).labelKey)}
+    >
+      {LAYERS.map((layer) => (
+        <option key={layer.id} value={layer.id}>
+          {t(layer.labelKey)}
+        </option>
+      ))}
+    </select>
+  );
+});
 
 const BASEMAP_LIGHT = (import.meta.env.VITE_BASEMAP_LIGHT_URL as string) || 'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png';
 const BASEMAP_DARK = (import.meta.env.VITE_BASEMAP_DARK_URL as string) || 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png';
@@ -158,6 +161,7 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
   onRightLayerChange,
   colorblind = 'off',
 }) => {
+  useI18nVersion();
   const leftContainerRef = useRef<HTMLDivElement>(null);
   const rightContainerRef = useRef<HTMLDivElement>(null);
   const leftMapRef = useRef<maplibregl.Map | null>(null);

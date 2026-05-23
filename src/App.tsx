@@ -42,7 +42,7 @@ import { type LayerId, type ColorblindType, getLayerById, getColorblindMode, set
 import { readInitialUrlState, useSyncUrlState } from './hooks/useUrlState';
 import type { NeighborhoodProperties } from './utils/metrics';
 import { computeMetroAverages } from './utils/metrics';
-import { t, getLang, setLang, type Lang } from './utils/i18n';
+import { t, getLang, setLang, useI18nVersion, type Lang } from './utils/i18n';
 import { computeQualityIndices, isCustomWeights, type QualityWeights } from './utils/qualityIndex';
 import { buildMetroAreaFeatures, clearMetroAreaCache } from './utils/metroAreas';
 import { useAllCitiesUnionPreload } from './hooks/useAllCitiesUnionPreload';
@@ -89,7 +89,11 @@ const App: React.FC = () => {
     }
     return null;
   });
-  const [lang, setLangState] = useState<Lang>(getLang());
+  // Subscribe to i18n changes (language switch + lazy-loaded dictionary arrivals)
+  // so App and its non-memoized children re-render whenever translations may
+  // have changed. Memoized children call useI18nVersion themselves.
+  useI18nVersion();
+  const lang = getLang();
   const [showRanking, setShowRanking] = useState(false);
   const [showFilter, setShowFilter] = useState(false);
   const [showCustomQuality, setShowCustomQuality] = useState(false);
@@ -629,10 +633,11 @@ const App: React.FC = () => {
   const handleLangChange = useCallback((next: Lang) => {
     if (next === lang) return;
     trackEvent('switch-language', { lang: next });
-    // For Swedish, setLang kicks off the lazy fetch; we update React state
-    // immediately and a brief Finnish fallback may flash for ~50ms.
+    // setLang notifies useI18nVersion subscribers synchronously (so the active
+    // button highlight updates immediately) and again when the lazy-loaded
+    // dictionary arrives (so memoized children re-render with real translations
+    // instead of staying on the Finnish fallback).
     void setLang(next);
-    setLangState(next);
   }, [lang]);
 
   const handleColorblindChange = useCallback((mode: ColorblindType) => {

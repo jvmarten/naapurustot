@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { t, getLang, setLang } from '../utils/i18n';
+import { renderHook, act } from '@testing-library/react';
+import { t, getLang, setLang, useI18nVersion } from '../utils/i18n';
 
 describe('i18n', () => {
   beforeEach(() => {
@@ -82,6 +83,28 @@ describe('i18n', () => {
         expect(typeof result).toBe('string');
         expect(result.length).toBeGreaterThan(0);
       }
+    });
+  });
+
+  // Regression: switching language must re-render subscribed components on the
+  // same tick. The previous implementation only re-rendered on lang-state
+  // changes, which left memoized components (e.g. Legend) showing the Finnish
+  // fallback until the next unrelated state update — visible as "need to click
+  // the language button twice to see it apply".
+  describe('useI18nVersion', () => {
+    it('bumps the version when setLang changes the current language', () => {
+      const { result } = renderHook(() => useI18nVersion());
+      const before = result.current;
+      act(() => { void setLang('en'); });
+      expect(result.current).not.toBe(before);
+    });
+
+    it('does not bump when setLang is called with the same language', () => {
+      setLang('en');
+      const { result } = renderHook(() => useI18nVersion());
+      const before = result.current;
+      act(() => { void setLang('en'); });
+      expect(result.current).toBe(before);
     });
   });
 });

@@ -1,5 +1,5 @@
 import React from 'react';
-import { t } from '../utils/i18n';
+import { t, useI18nVersion } from '../utils/i18n';
 
 interface DrawToolProps {
   active: boolean;
@@ -9,6 +9,7 @@ interface DrawToolProps {
 }
 
 export const DrawTool: React.FC<DrawToolProps> = React.memo(({ active, hasPolygon, onToggle, onClear }) => {
+  useI18nVersion();
   return (
     <div className="flex items-center gap-1.5">
       <button

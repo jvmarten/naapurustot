@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { LAYER_MAP, type LayerId } from '../utils/colorScales';
-import { t, type Lang } from '../utils/i18n';
+import { t, useI18nVersion, type Lang } from '../utils/i18n';
 import { useBottomSheet } from '../hooks/useBottomSheet';
 
 interface LayerSelectorProps {
@@ -33,6 +33,7 @@ const LAYER_GROUPS: LayerGroup[] = [
 ];
 
 export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeLayer, onLayerChange, onCustomizeQuality, isCustomWeights = false, headerSlot, lang: _lang }) => {
+  useI18nVersion();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(
     Object.fromEntries(LAYER_GROUPS.map((g) => [g.labelKey, true]))
   );

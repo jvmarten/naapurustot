@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { t, type Lang } from '../utils/i18n';
+import { t, useI18nVersion, type Lang } from '../utils/i18n';
 
 interface ToolsDropdownProps {
   showFilter: boolean;
@@ -41,6 +41,7 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
   onToggleSelectMode,
   lang: _lang,
 }) => {
+  useI18nVersion();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
