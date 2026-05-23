@@ -150,6 +150,14 @@ const DRAW_SNAP_LINE_LAYER = 'draw-snap-line';
  * 3. Scales all values by the user's opacity slider multiplier `o` (0–1)
  *
  * Returns a MapLibre "case" expression array.
+ *
+ * IMPORTANT: never replace this with a constant via setPaintProperty on a
+ * layer whose fill-opacity was initialized state-dependent. MapLibre's
+ * ProgramConfiguration.updatePaintArrays keeps the stale binder, reassigns
+ * its `.expression` to the new constant value, then calls `.evaluate()` on
+ * it — and constants have no `evaluate`, so the next setFeatureState during
+ * a render frame throws `this.expression.evaluate is not a function`. Pass
+ * `o = 0` here to "hide" the fill while keeping the expression state-dependent.
  */
 function buildFillOpacity(o: number, overrides?: { matchExpr?: unknown[]; matchVal?: number; dimVal?: number }) {
   const base: unknown[] = [
@@ -492,7 +500,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
 
     if (useGrid) {
       // Hide postal fill, show only borders + grid cells
-      map.setPaintProperty(FILL_LAYER, 'fill-opacity', 0);
+      map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(0));
       // Update grid fill color for current layer
       if (map.getLayer(GRID_FILL_LAYER)) {
         map.setPaintProperty(GRID_FILL_LAYER, 'fill-color', buildFillColorExpression(layer, layer.gridProperty));
@@ -578,7 +586,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     const useGrid = !!gridData && !!layer.gridProperty;
 
     if (useGrid) {
-      map.setPaintProperty(FILL_LAYER, 'fill-opacity', 0);
+      map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(0));
       if (map.getLayer(GRID_FILL_LAYER)) {
         map.setPaintProperty(GRID_FILL_LAYER, 'fill-opacity', 0.8 * fillOpacity);
       }
@@ -636,7 +644,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       // PO-2: Animated transition — fade out, swap color, fade back in
       // Temporarily shorten the opacity transition for a snappy fade-out
       map.setPaintProperty(FILL_LAYER, 'fill-opacity-transition', { duration: 150, delay: 0 });
-      map.setPaintProperty(FILL_LAYER, 'fill-opacity', 0);
+      map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(0));
 
       // Also fade grid layer if present
       if (map.getLayer(GRID_FILL_LAYER)) {
@@ -664,7 +672,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         const currentFillOpacity = fillOpacityRef.current;
         const useGrid = !!currentGridData && !!layer.gridProperty;
         if (useGrid) {
-          mapRef.current.setPaintProperty(FILL_LAYER, 'fill-opacity', 0);
+          mapRef.current.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(0));
           if (mapRef.current.getLayer(GRID_FILL_LAYER)) {
             mapRef.current.setPaintProperty(GRID_FILL_LAYER, 'fill-opacity-transition', { duration: 200, delay: 0 });
             mapRef.current.setPaintProperty(GRID_FILL_LAYER, 'fill-opacity', 0.8 * currentFillOpacity);
