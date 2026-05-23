@@ -137,6 +137,105 @@ def sample_tcd_for_postal_codes(postal_4326):
     return result
 
 
+def sample_tcd_batched(postal_4326, batch_size=80):
+    """Nationwide Copernicus TCD sampler using ArcGIS getSamples batch endpoint.
+
+    Generates random points within each postal code polygon, then POSTs them
+    to /getSamples in batches. Much faster than /identify per point (~minutes
+    vs hours for ~2500 postal codes).
+
+    Returns {postal_code: mean_tcd_percent}.
+    """
+    logger.info(
+        "Batched Copernicus TCD sampling for %d postal codes...",
+        len(postal_4326),
+    )
+    postal_proj = postal_4326.to_crs(epsg=3067)
+
+    np.random.seed(42)
+    samples_url = COPERNICUS_TCD_URL.rsplit("/", 1)[0] + "/getSamples"
+
+    # Build a flat list of (pno, lon, lat) samples, one entry per random point.
+    pending: list[tuple[str, float, float]] = []
+    for idx, row in postal_4326.iterrows():
+        pno = row["pno"]
+        geom = row.geometry
+        if geom is None or geom.is_empty:
+            continue
+        area_km2 = postal_proj.loc[idx].geometry.area / 1e6
+        # Fewer samples per postal code than the per-point sampler since each
+        # call is rate-limited by request count, not by point count.
+        n_samples = min(max(int(area_km2 / 20), 5), 20)
+        bounds = geom.bounds
+        added = 0
+        attempts = 0
+        while added < n_samples and attempts < n_samples * 5:
+            attempts += 1
+            lon = np.random.uniform(bounds[0], bounds[2])
+            lat = np.random.uniform(bounds[1], bounds[3])
+            if geom.contains(Point(lon, lat)):
+                pending.append((pno, lon, lat))
+                added += 1
+
+    logger.info("  Built %d sample points across %d postal codes", len(pending), len(postal_4326))
+
+    # Send in batches. Esri ImageServer URL gets too long over ~150 points via
+    # GET, so we POST and stay well under nginx's request size limits.
+    per_pno: dict[str, list[int]] = {}
+    session = requests.Session()
+    total_batches = (len(pending) + batch_size - 1) // batch_size
+
+    for batch_idx in range(total_batches):
+        chunk = pending[batch_idx * batch_size:(batch_idx + 1) * batch_size]
+        if not chunk:
+            continue
+
+        mc_points = [_lonlat_to_webmercator(lon, lat) for _, lon, lat in chunk]
+        data = {
+            "geometry": json.dumps({
+                "points": [list(p) for p in mc_points],
+                "spatialReference": {"wkid": 102100},
+            }),
+            "geometryType": "esriGeometryMultipoint",
+            "returnFirstValueOnly": "true",
+            "f": "json",
+        }
+
+        try:
+            resp = session.post(samples_url, data=data, timeout=120)
+            resp.raise_for_status()
+            samples = resp.json().get("samples", [])
+        except Exception as e:
+            logger.warning("  Batch %d/%d failed: %s", batch_idx + 1, total_batches, e)
+            continue
+
+        for s in samples:
+            try:
+                loc_id = s["locationId"]
+                val_raw = s["value"]
+            except (KeyError, TypeError):
+                continue
+            if not val_raw or val_raw == "NoData":
+                continue
+            try:
+                val = int(val_raw)
+            except (ValueError, TypeError):
+                continue
+            if 0 <= loc_id < len(chunk):
+                pno = chunk[loc_id][0]
+                per_pno.setdefault(pno, []).append(val)
+
+        if (batch_idx + 1) % 10 == 0 or batch_idx + 1 == total_batches:
+            logger.info(
+                "  Batch %d/%d: %d postal codes with values so far",
+                batch_idx + 1, total_batches, len(per_pno),
+            )
+
+    result = {pno: round(float(np.mean(v)), 1) for pno, v in per_pno.items() if v}
+    logger.info("  Batched TCD: %d postal codes have at least one sample", len(result))
+    return result
+
+
 # ---------------------------------------------------------------------------
 # OSM forest helpers
 # ---------------------------------------------------------------------------
@@ -378,6 +477,27 @@ def main():
         logger.info("Turku: %d postal codes", len(turku_result))
     except Exception as e:
         logger.error("Turku tree canopy failed: %s", e)
+
+    # Nationwide fill-in via Copernicus TCD batched sampling.
+    # Never overrides existing high-resolution sources (HSY LiDAR for Helsinki,
+    # OSM+TCD blend for Tampere/Turku) -- only fills postal codes still missing.
+    remaining_4326 = postal_4326[~postal_4326["pno"].isin(result)].copy()
+    if not remaining_4326.empty:
+        logger.info(
+            "Nationwide TCD: %d postal codes still uncovered", len(remaining_4326),
+        )
+        try:
+            nationwide_result = sample_tcd_batched(remaining_4326)
+            before = len(result)
+            for pno, val in nationwide_result.items():
+                if pno not in result:
+                    result[pno] = val
+            logger.info(
+                "Nationwide TCD: filled %d postal codes",
+                len(result) - before,
+            )
+        except Exception as e:
+            logger.warning("Nationwide TCD fill failed: %s", e)
 
     logger.info("Total tree canopy data: %d postal codes", len(result))
 
