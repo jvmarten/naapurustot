@@ -159,13 +159,14 @@ describe('computeMetroAverages — edge cases', () => {
     expect(avg.hr_mtu).toBe(30000);
   });
 
-  it('handles all-null data returning zero', () => {
+  it('omits metrics when all source data is null', () => {
     const features = [
       makeFeature({ he_vakiy: 1000, hr_mtu: null, pt_tyott: null }),
     ];
     const avg = computeMetroAverages(features);
-    expect(avg.hr_mtu).toBe(0);
-    expect(avg.unemployment_rate).toBe(0);
+    // Omitted (not 0) so the all-Finland choropleth renders gray for "no data".
+    expect(avg.hr_mtu).toBeUndefined();
+    expect(avg.unemployment_rate).toBeUndefined();
   });
 
   it('partial child data: only he_0_2 present', () => {

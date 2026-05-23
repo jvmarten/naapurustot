@@ -306,13 +306,13 @@ describe('computeMetroAverages — untested branches', () => {
     expect(avg.single_person_hh_pct).toBe(47.5);
   });
 
-  it('returns 0 for metric when all features have null values', () => {
+  it('omits metric when all features have null values', () => {
     const features = [
       makeFeature({ he_vakiy: 1000, hr_mtu: null }),
       makeFeature({ he_vakiy: 1000, hr_mtu: null }),
     ];
     const avg = computeMetroAverages(features);
-    expect(avg.hr_mtu).toBe(0);
+    expect(avg.hr_mtu).toBeUndefined();
   });
 
   it('computes employment_rate from raw counts (pt_tyoll / pt_vakiy)', () => {

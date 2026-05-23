@@ -84,10 +84,10 @@ describe('computeMetroAverages', () => {
     expect(avg.population_density).toBe(5000);
   });
 
-  it('returns zeros for empty feature list', () => {
+  it('emits empty/zero result for empty feature list — ratio metrics omitted', () => {
     const avg = computeMetroAverages([]);
-    expect(avg.hr_mtu).toBe(0);
-    expect(avg.unemployment_rate).toBe(0);
+    expect(avg.hr_mtu).toBeUndefined();
+    expect(avg.unemployment_rate).toBeUndefined();
     expect(avg.he_vakiy).toBe(0);
   });
 

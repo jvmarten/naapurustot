@@ -122,12 +122,43 @@ describe('computeMetroAverages — weighted aggregation', () => {
     expect(avg.hr_mtu).toBe(40000);
   });
 
-  it('returns 0 for metrics with no valid data', () => {
+  it('omits metrics with no valid data so the all-Finland choropleth renders them gray', () => {
     const features = [
       makeFeature({ he_vakiy: 1000, pno: '00100' }),
     ];
     const avg = computeMetroAverages(features);
-    expect(avg.hr_mtu).toBe(0);
+    expect(avg.hr_mtu).toBeUndefined();
+  });
+
+  it('regions with population but missing layer metric: omits the metric (no fabricated 0)', () => {
+    // Repro for the all-Finland bug where regions with ingested postal codes
+    // but no data for a specific layer (e.g. noise_pollution) were colored as
+    // "0 dB" instead of rendering gray.
+    const features = [
+      makeFeature({ he_vakiy: 5000, hr_mtu: 30000, noise_pollution: null, light_pollution: null, pno: '00100' }),
+      makeFeature({ he_vakiy: 3000, hr_mtu: 32000, noise_pollution: null, light_pollution: null, pno: '00200' }),
+    ];
+    const avg = computeMetroAverages(features);
+    expect(avg.hr_mtu).toBeCloseTo(30750, 0);
+    expect(avg.noise_pollution).toBeUndefined();
+    expect(avg.light_pollution).toBeUndefined();
+  });
+
+  it('ratio metrics with missing source counts are omitted, not zeroed', () => {
+    // Region has population but no employment/education/household data at all.
+    const features = [
+      makeFeature({ he_vakiy: 1000, pno: '00100' }),
+      makeFeature({ he_vakiy: 2000, pno: '00200' }),
+    ];
+    const avg = computeMetroAverages(features);
+    expect(avg.he_vakiy).toBe(3000);
+    expect(avg.unemployment_rate).toBeUndefined();
+    expect(avg.employment_rate).toBeUndefined();
+    expect(avg.higher_education_rate).toBeUndefined();
+    expect(avg.ownership_rate).toBeUndefined();
+    expect(avg.rental_rate).toBeUndefined();
+    expect(avg.population_density).toBeUndefined();
+    expect(avg.detached_house_share).toBeUndefined();
   });
 
   it('child_ratio sums he_0_2 and he_3_6 correctly', () => {
