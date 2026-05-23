@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import type { TrendDataPoint } from '../utils/metrics';
-import { t, getLang } from '../utils/i18n';
+import { t, getLang, useI18nVersion } from '../utils/i18n';
 
 interface TrendChartProps {
   title: string;
@@ -21,6 +21,7 @@ const PLOT_W = CHART_W - PAD_L - PAD_R;
 const PLOT_H = CHART_H - PAD_T - PAD_B;
 
 export const TrendChart: React.FC<TrendChartProps> = React.memo(({ title, data, color, formatValue, unit }) => {
+  useI18nVersion();
   // Stable key for crossfade animation when data changes
   const dataKey = useMemo(() => data?.map(d => `${d[0]}:${d[1]}`).join(',') ?? '', [data]);
 
@@ -208,6 +209,7 @@ export const TrendSection: React.FC<TrendSectionProps> = React.memo(({
   populationData,
   unemploymentData,
 }) => {
+  useI18nVersion();
   const hasAny = incomeData || populationData || unemploymentData;
   if (!hasAny) return null;
 

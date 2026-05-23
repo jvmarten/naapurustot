@@ -5,7 +5,7 @@ import { loadNeighborhoodData, loadRegionData } from '../utils/dataLoader';
 import { parseSlug, toSlug } from '../utils/slug';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import type { RegionId } from '../utils/regions';
-import { t, getLang, setLang, type Lang } from '../utils/i18n';
+import { t, getLang, setLang, useI18nVersion, type Lang } from '../utils/i18n';
 import { formatNumber, formatEuro, formatPct, formatDiff } from '../utils/formatting';
 import { getQualityCategory, QUALITY_CATEGORIES } from '../utils/qualityIndex';
 import { findSimilarNeighborhoods } from '../utils/similarity';
@@ -54,6 +54,7 @@ interface LoadedState {
 }
 
 export const NeighborhoodProfilePage: React.FC = () => {
+  useI18nVersion();
   const { slug } = useParams<{ slug: string }>();
   const location = useLocation();
   const navigate = useNavigate();

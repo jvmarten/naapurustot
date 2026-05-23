@@ -1,5 +1,5 @@
 import React from 'react';
-import { t } from '../utils/i18n';
+import { t, useI18nVersion } from '../utils/i18n';
 
 export type ComparisonScope = 'all' | 'region';
 
@@ -10,6 +10,7 @@ interface ComparisonScopeToggleProps {
 }
 
 export const ComparisonScopeToggle: React.FC<ComparisonScopeToggleProps> = React.memo(({ scope, onChange, disabled }) => {
+  useI18nVersion();
   const isRegion = scope === 'region';
 
   return (

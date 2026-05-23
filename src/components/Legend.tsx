@@ -1,6 +1,6 @@
 import React from 'react';
 import { getLayerById, type LayerId, type LayerConfig } from '../utils/colorScales';
-import { t, type Lang } from '../utils/i18n';
+import { t, useI18nVersion, type Lang } from '../utils/i18n';
 
 interface LegendProps {
   layerId: LayerId;
@@ -13,6 +13,7 @@ interface LegendProps {
 
 // colorblind prop triggers re-render when mode changes (getLayerById reads global state)
 export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: _colorblind, layerConfig, lang: _lang }) => {
+  useI18nVersion();
   const layer = layerConfig ?? getLayerById(layerId);
 
   // Show only first and last tick values

@@ -10,6 +10,7 @@ vi.mock('../utils/i18n', () => ({
   t: (key: string) => key,
   setLang: vi.fn(),
   getLang: () => 'fi' as const,
+  useI18nVersion: () => 0,
 }));
 
 describe('Legend', () => {

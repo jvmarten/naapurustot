@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { REGION_IDS, type RegionId } from '../utils/regions';
-import { t, type Lang } from '../utils/i18n';
+import { t, useI18nVersion, type Lang } from '../utils/i18n';
 import coverageManifest from '../data/region_coverage.json';
 
 export type CityFilter = RegionId | 'all';
@@ -45,6 +45,7 @@ function getCoverageBadge(regionId: CityFilter): string {
 }
 
 export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, onChange, lang: _lang }) => {
+  useI18nVersion();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const options = OPTIONS;

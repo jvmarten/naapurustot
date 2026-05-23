@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, lazy, Suspense } from 'react';
 import { useTheme } from '../hooks/useTheme';
-import { t, type Lang } from '../utils/i18n';
+import { t, useI18nVersion, type Lang } from '../utils/i18n';
 
 // Lazy-load DonateButton to keep qrcode.react (~12KB) out of the initial bundle.
 // It only renders when the settings dropdown is open.
@@ -79,6 +79,7 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
   onShowTour,
   onCopyEmbed,
 }) => {
+  useI18nVersion();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const { mode, setMode } = useTheme();

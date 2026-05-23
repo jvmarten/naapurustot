@@ -2,7 +2,7 @@ import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import type { FeatureCollection } from 'geojson';
 import { LAYERS, type LayerId, type LayerConfig, getLayerById } from '../utils/colorScales';
 import type { NeighborhoodProperties } from '../utils/metrics';
-import { t } from '../utils/i18n';
+import { t, useI18nVersion } from '../utils/i18n';
 import { useBottomSheet } from '../hooks/useBottomSheet';
 
 import { type FilterCriterion, computeMatchingPnos } from '../utils/filterUtils';
@@ -342,6 +342,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = React.memo(({
   onRemovePreset,
   matchingPnos: externalMatchingPnos,
 }) => {
+  useI18nVersion();
   // QW-3: Unified bottom sheet drag behavior
   const sheetRef = useRef<HTMLDivElement>(null);
   const { isDragging, handlers: sheetHandlers } = useBottomSheet({

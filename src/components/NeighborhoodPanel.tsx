@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback, useMemo, useEffect } from 'react'
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { parseTrendSeries, METRIC_SOURCES, METRIC_EXPLANATIONS } from '../utils/metrics';
 import { formatNumber, formatEuro, formatPct, formatDiff, diffColor } from '../utils/formatting';
-import { t, getLang } from '../utils/i18n';
+import { t, getLang, useI18nVersion } from '../utils/i18n';
 import { getQualityCategory, QUALITY_CATEGORIES } from '../utils/qualityIndex';
 import { exportCsv, exportPdf } from '../utils/export';
 import { TrendSection } from './TrendChart';
@@ -47,6 +47,7 @@ const StatRow: React.FC<{
   /** Optional trend data to render an inline sparkline */
   sparkline?: { data: import('../utils/metrics').TrendDataPoint[]; color?: string } | null;
 }> = React.memo(({ label, value, diff, diffClass, property, sparkline }) => {
+  useI18nVersion();
   const source = property ? METRIC_SOURCES[property] : undefined;
   const hasExplanation = !!property && METRIC_EXPLANATIONS.has(property);
   const [infoOpen, setInfoOpen] = useState(false);
@@ -227,6 +228,7 @@ const QualityBadge: React.FC<{
   isCustomWeights: boolean;
   onCustomize?: () => void;
 }> = React.memo(({ qualityIndex, isCustomWeights, onCustomize }) => {
+  useI18nVersion();
   const animatedQi = useAnimatedValue(qualityIndex);
   const qi = animatedQi != null ? Math.round(animatedQi) : qualityIndex;
   const cat = getQualityCategory(qi);
@@ -305,6 +307,7 @@ QualityBadge.displayName = 'QualityBadge';
  * components, RadarChart, TrendCharts) just to update a single textarea.
  */
 const NotesEditor: React.FC<{ pno: string; userId?: string | null }> = React.memo(({ pno, userId }) => {
+  useI18nVersion();
   const { getNote, setNote } = useNotes(userId);
   const note = getNote(pno);
   // Track once per focus session, not on every keystroke — avoids
@@ -333,6 +336,7 @@ const NotesEditor: React.FC<{ pno: string; userId?: string | null }> = React.mem
 NotesEditor.displayName = 'NotesEditor';
 
 export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, allFeatures, onFlyTo, isFavorite = false, onToggleFavorite, onExploreCity, userId }) => {
+  useI18nVersion();
   const eduTotal = useMemo(() =>
     [d.ko_yl_kork, d.ko_al_kork, d.ko_ammat, d.ko_perus]
       .filter((v): v is number => v != null && v > 0)

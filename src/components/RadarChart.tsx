@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import type { NeighborhoodProperties } from '../utils/metrics';
-import { t } from '../utils/i18n';
+import { t, useI18nVersion } from '../utils/i18n';
 
 interface RadarChartProps {
   data: NeighborhoodProperties;
@@ -100,6 +100,7 @@ function polygonPoints(values: number[]): string {
 }
 
 const RadarChart: React.FC<RadarChartProps> = React.memo(function RadarChart({ data, metroAverages }) {
+  useI18nVersion();
   const dataValues = useMemo(
     () => AXES.map((a) => normalize(a.extract(data), a.min, a.max, a.inverted)),
     [data],
