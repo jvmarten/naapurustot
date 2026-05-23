@@ -69,6 +69,13 @@ TAMPERE_LAYER = "ymparisto_ja_terveys:yv_melu_paiva_2022_keskiaani_gsview"
 TURKU_BBOX_3067 = "198000,6690000,274000,6743000"
 TAMPERE_BBOX_3067 = "294000,6792000,392000,6898000"
 
+# Nationwide bbox in EPSG:3067 covering all of mainland Finland + Ahvenanmaa.
+FINLAND_BBOX_3067 = (50_000.0, 6_600_000.0, 750_000.0, 7_800_000.0)
+# Tile grid for nationwide WFS queries (cols, rows). 24 tiles ~= 175x200 km
+# each, well under the WFS server's per-response feature cap.
+FINLAND_GRID_COLS = 4
+FINLAND_GRID_ROWS = 6
+
 # Background noise level (dB) for areas outside any contour
 BACKGROUND_DB = 40.0
 
@@ -285,6 +292,86 @@ def fetch_vayla_noise(bbox_3067: str, label: str):
     return gdf
 
 
+def fetch_vayla_nationwide():
+    """Fetch Väylävirasto noise contours across all of Finland in a tile grid.
+
+    Returns a single GeoDataFrame with deduplicated features from every tile.
+    """
+    logger.info(
+        "Fetching Väylävirasto noise data nationwide (%dx%d tile grid)...",
+        FINLAND_GRID_COLS, FINLAND_GRID_ROWS,
+    )
+
+    x0, y0, x1, y1 = FINLAND_BBOX_3067
+    dx = (x1 - x0) / FINLAND_GRID_COLS
+    dy = (y1 - y0) / FINLAND_GRID_ROWS
+
+    all_features = []
+    seen_ids: set[str] = set()
+    n_tiles = FINLAND_GRID_COLS * FINLAND_GRID_ROWS
+    tile_idx = 0
+
+    for r in range(FINLAND_GRID_ROWS):
+        for c in range(FINLAND_GRID_COLS):
+            tile_idx += 1
+            tx0 = x0 + c * dx
+            ty0 = y0 + r * dy
+            tx1 = tx0 + dx
+            ty1 = ty0 + dy
+            bbox = f"{tx0:.0f},{ty0:.0f},{tx1:.0f},{ty1:.0f}"
+
+            params = {
+                "service": "WFS",
+                "version": "2.0.0",
+                "request": "GetFeature",
+                "typeName": VAYLA_LAYER,
+                "outputFormat": "application/json",
+                "srsName": "EPSG:3067",
+                "bbox": f"{bbox},EPSG:3067",
+            }
+
+            try:
+                resp = requests.get(VAYLA_WFS_URL, params=params, timeout=300)
+                resp.raise_for_status()
+                if not resp.text:
+                    logger.warning("  Tile %d/%d empty", tile_idx, n_tiles)
+                    continue
+                data = resp.json()
+                feats = data.get("features", [])
+                # Deduplicate features that cross tile boundaries
+                new_feats = 0
+                for f in feats:
+                    fid = f.get("id") or json.dumps(f.get("properties", {}), sort_keys=True)
+                    if fid in seen_ids:
+                        continue
+                    seen_ids.add(fid)
+                    all_features.append(f)
+                    new_feats += 1
+                logger.info(
+                    "  Tile %d/%d: %d features (%d new)",
+                    tile_idx, n_tiles, len(feats), new_feats,
+                )
+            except Exception as e:
+                logger.warning("  Tile %d/%d failed: %s", tile_idx, n_tiles, e)
+
+    logger.info("  Total %d unique noise features nationwide", len(all_features))
+
+    if not all_features:
+        return gpd.GeoDataFrame()
+
+    gdf = gpd.GeoDataFrame.from_features(all_features, crs="EPSG:3067")
+    gdf = _add_db_columns(gdf)
+
+    if gdf.empty:
+        return gdf
+
+    logger.info(
+        "  Nationwide noise: %d features, dB range: %.0f–%.0f",
+        len(gdf), gdf["db_lo"].min(), gdf["db_hi"].max(),
+    )
+    return gdf
+
+
 def fetch_tampere_noise():
     """Fetch Tampere city road noise contours from WFS."""
     logger.info("Fetching Tampere city noise data...")
@@ -491,6 +578,45 @@ def main():
                 logger.info("Tampere (Väylävirasto): %d postal codes", len(tampere_results))
         except Exception as e:
             logger.warning("Tampere Väylävirasto noise failed: %s", e)
+
+    # --- Phase 5: Nationwide fill-in via Väylävirasto main-road contours ---
+    # Covers every postal code outside Helsinki metro / Turku / Tampere with
+    # real noise contours where main roads pass through, and the 40 dB
+    # background floor everywhere else.
+    remaining = postal_gdf[~postal_gdf["pno"].isin(results)].copy()
+    if not remaining.empty:
+        logger.info(
+            "Phase 5: %d postal codes still uncovered — fetching nationwide Väylävirasto data",
+            len(remaining),
+        )
+        try:
+            nationwide_noise = fetch_vayla_nationwide()
+            if not nationwide_noise.empty:
+                nationwide_results = compute_noise_per_postal_code(
+                    remaining, nationwide_noise, label="Nationwide (Väylävirasto)",
+                )
+                before = len(results)
+                for pno, val in nationwide_results.items():
+                    if pno not in results:
+                        results[pno] = val
+                logger.info(
+                    "Phase 5: filled %d postal codes nationwide",
+                    len(results) - before,
+                )
+        except Exception as e:
+            logger.warning("Nationwide Väylävirasto fetch failed: %s", e)
+
+        # Any postal codes still missing get the background floor.
+        still_missing = [
+            p for p in remaining["pno"].tolist() if p not in results
+        ]
+        if still_missing:
+            for pno in still_missing:
+                results[pno] = BACKGROUND_DB
+            logger.info(
+                "Phase 5: assigned background %.0f dB to %d remote postal codes",
+                BACKGROUND_DB, len(still_missing),
+            )
 
     if not results:
         logger.error("No noise data computed — aborting")
