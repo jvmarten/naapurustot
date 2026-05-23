@@ -294,12 +294,12 @@ describe('computeMetroAverages', () => {
     expect(avg.population_density).toBe(2000);
   });
 
-  it('returns 0 for metrics with no valid data', () => {
+  it('omits metrics with no valid data', () => {
     const features = [
       makeFeature({ he_vakiy: 1000, hr_mtu: null }),
     ];
     const avg = computeMetroAverages(features);
-    expect(avg.hr_mtu).toBe(0);
+    expect(avg.hr_mtu).toBeUndefined();
   });
 
   it('handles pctOfPop metrics by accumulating counts', () => {

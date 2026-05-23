@@ -325,14 +325,15 @@ describe('computeQuickWinMetrics', () => {
 // ─── computeMetroAverages additional tests ───
 
 describe('computeMetroAverages edge cases', () => {
-  it('returns zero for all metrics when no valid features', () => {
+  it('omits ratio metrics when no features have valid population', () => {
     const features = [
       makeFeature({ he_vakiy: 0 }),
       makeFeature({ he_vakiy: null }),
     ];
     const avg = computeMetroAverages(features);
     expect(avg.he_vakiy).toBe(0);
-    expect(avg.unemployment_rate).toBe(0);
+    // No data → omitted so the all-Finland choropleth renders gray.
+    expect(avg.unemployment_rate).toBeUndefined();
   });
 
   it('computes student_share correctly', () => {

@@ -16,20 +16,21 @@ function makeFeature(props: Record<string, unknown>): Feature {
 }
 
 describe('computeMetroAverages — edge cases', () => {
-  it('returns zeros when all features have zero population', () => {
+  it('omits data-driven metrics when all features have zero population', () => {
     const features = [
       makeFeature({ he_vakiy: 0, hr_mtu: 50000 }),
       makeFeature({ he_vakiy: 0, hr_mtu: 30000 }),
     ];
     const avg = computeMetroAverages(features);
     expect(avg.he_vakiy).toBe(0);
-    expect(avg.hr_mtu).toBe(0);
+    // No usable data → omitted so the all-Finland choropleth renders gray.
+    expect(avg.hr_mtu).toBeUndefined();
   });
 
-  it('returns zeros for empty features array', () => {
+  it('omits ratio metrics for empty features array', () => {
     const avg = computeMetroAverages([]);
     expect(avg.he_vakiy).toBe(0);
-    expect(avg.unemployment_rate).toBe(0);
+    expect(avg.unemployment_rate).toBeUndefined();
   });
 
   it('skips features with null population', () => {

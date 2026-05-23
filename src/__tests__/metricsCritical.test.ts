@@ -124,11 +124,12 @@ describe('computeMetroAverages — ratio-based metrics', () => {
     expect(avg.he_vakiy).toBe(1000);
   });
 
-  it('empty features array returns zero for all metrics', () => {
+  it('empty features array: he_vakiy is 0, ratio/data-driven metrics omitted', () => {
     const avg = computeMetroAverages([]);
     expect(avg.he_vakiy).toBe(0);
-    expect(avg.unemployment_rate).toBe(0);
-    expect(avg.hr_mtu).toBe(0);
+    // Omitted so the all-Finland choropleth renders gray for "no data".
+    expect(avg.unemployment_rate).toBeUndefined();
+    expect(avg.hr_mtu).toBeUndefined();
   });
 
   it('child_ratio sums he_0_2 and he_3_6', () => {

@@ -369,12 +369,12 @@ describe('computeMetroAverages — special ratio metrics', () => {
     expect(avg.single_person_hh_pct).toBeCloseTo(40.0, 0);
   });
 
-  it('returns 0 for metrics with no valid data', () => {
+  it('omits metrics with no valid data', () => {
     const features = [
       makeFeature({ he_vakiy: 5000, hr_mtu: null }),
     ];
 
     const avg = computeMetroAverages(features);
-    expect(avg.hr_mtu).toBe(0);
+    expect(avg.hr_mtu).toBeUndefined();
   });
 });

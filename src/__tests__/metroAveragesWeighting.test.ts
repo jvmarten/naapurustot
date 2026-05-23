@@ -198,7 +198,8 @@ describe('computeMetroAverages — null handling', () => {
       makeFeature({ he_vakiy: 2000, hr_mtu: null }),
     ];
     const avg = computeMetroAverages(features);
-    expect(avg.hr_mtu).toBe(0);
+    // Omitted (not 0) so the all-Finland choropleth renders gray for "no data".
+    expect(avg.hr_mtu).toBeUndefined();
   });
 
   it('handles mix of null and valid values', () => {
@@ -212,10 +213,13 @@ describe('computeMetroAverages — null handling', () => {
     expect(avg.transit_stop_density).toBe(40.0);
   });
 
-  it('returns zero for everything when given empty array', () => {
+  it('emits empty/zero-population result for empty array — ratio metrics omitted', () => {
     const avg = computeMetroAverages([]);
+    // he_vakiy is a population sum, kept at 0 when truly empty.
     expect(avg.he_vakiy).toBe(0);
-    expect(avg.unemployment_rate).toBe(0);
-    expect(avg.hr_mtu).toBe(0);
+    // Ratio and data-driven metrics are omitted when there's no data to compute
+    // them from — the choropleth renders gray rather than fabricating a 0 value.
+    expect(avg.unemployment_rate).toBeUndefined();
+    expect(avg.hr_mtu).toBeUndefined();
   });
 });

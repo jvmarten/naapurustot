@@ -594,6 +594,21 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
   let totalPensioners = 0;
   let totalEmployed = 0;
 
+  // Per-numerator data-presence flags. Without these, a region that has
+  // population but no employment/education/housing counts ingested would
+  // emit a fabricated 0% (because totalActPop falls back to pop and totalX
+  // stays at 0) — making the all-Finland choropleth color it as "0%" instead
+  // of rendering gray for "no data".
+  let hasUnemployedData = false;
+  let hasEmployedData = false;
+  let hasStudentData = false;
+  let hasHigherEdData = false;
+  let hasOwnershipData = false;
+  let hasRentalData = false;
+  let hasChildrenData = false;
+  let hasPensionerData = false;
+  let hasDetachedData = false;
+
   for (const f of features) {
     const p = f.properties as NeighborhoodProperties;
     const pop = p.he_vakiy;
@@ -602,25 +617,25 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
     totalPop += pop;
 
     // Count-based special metrics
-    if (p.pt_tyoll != null) totalEmployed += p.pt_tyoll;
-    if (p.pt_tyott != null) totalUnemployed += p.pt_tyott;
-    if (p.ko_yl_kork != null) totalKoYlKork += p.ko_yl_kork;
-    if (p.ko_al_kork != null) totalKoAlKork += p.ko_al_kork;
+    if (p.pt_tyoll != null) { totalEmployed += p.pt_tyoll; hasEmployedData = true; }
+    if (p.pt_tyott != null) { totalUnemployed += p.pt_tyott; hasUnemployedData = true; }
+    if (p.ko_yl_kork != null) { totalKoYlKork += p.ko_yl_kork; hasHigherEdData = true; }
+    if (p.ko_al_kork != null) { totalKoAlKork += p.ko_al_kork; hasHigherEdData = true; }
     if (p.ko_ammat != null) totalKoAmmat += p.ko_ammat;
     if (p.ko_perus != null) totalKoPerus += p.ko_perus;
     if (p.ko_ika18y != null) totalAdultPop += p.ko_ika18y;
-    if (p.te_omis_as != null) totalOwnerOcc += p.te_omis_as;
+    if (p.te_omis_as != null) { totalOwnerOcc += p.te_omis_as; hasOwnershipData = true; }
     if (p.te_taly != null) totalHouseholds += p.te_taly;
-    if (p.te_vuok_as != null) totalRental += p.te_vuok_as;
-    if (p.pt_opisk != null) totalStudents += p.pt_opisk;
+    if (p.te_vuok_as != null) { totalRental += p.te_vuok_as; hasRentalData = true; }
+    if (p.pt_opisk != null) { totalStudents += p.pt_opisk; hasStudentData = true; }
     if (p.pt_vakiy != null) totalActPop += p.pt_vakiy;
     else totalActPop += pop;
-    if (p.he_0_2 != null) totalChildren += p.he_0_2;
-    if (p.he_3_6 != null) totalChildren += p.he_3_6;
+    if (p.he_0_2 != null) { totalChildren += p.he_0_2; hasChildrenData = true; }
+    if (p.he_3_6 != null) { totalChildren += p.he_3_6; hasChildrenData = true; }
     if (p.pinta_ala != null) totalArea += p.pinta_ala;
-    if (p.ra_pt_as != null) totalDetached += p.ra_pt_as;
+    if (p.ra_pt_as != null) { totalDetached += p.ra_pt_as; hasDetachedData = true; }
     if (p.ra_asunn != null) totalDwellings += p.ra_asunn;
-    if (p.pt_elakel != null) totalPensioners += p.pt_elakel;
+    if (p.pt_elakel != null) { totalPensioners += p.pt_elakel; hasPensionerData = true; }
 
     // Data-driven weighted metrics
     for (const def of METRIC_DEFS) {
@@ -646,38 +661,64 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
     }
   }
 
-  // Build result from data-driven metrics
+  // Build result from data-driven metrics.
+  // Properties with no data (weight === 0 / denominator === 0) are left absent
+  // so the choropleth's `has` check fails and the region renders gray, and
+  // tooltip/panel null-checks show "no data" instead of "0".
   const result: Record<string, number> = {};
 
   for (const def of METRIC_DEFS) {
     const w = weights[def.property];
+    if (w <= 0) continue;
     const precision = def.precision ?? 1;
-    if (w > 0) {
-      if (def.pctOfPop || def.pctOfHh) {
-        // Convert back to percentage
-        result[def.property] = roundTo((totals[def.property] / w) * 100, precision);
-      } else {
-        result[def.property] = roundTo(totals[def.property] / w, precision);
-      }
+    if (def.pctOfPop || def.pctOfHh) {
+      result[def.property] = roundTo((totals[def.property] / w) * 100, precision);
     } else {
-      result[def.property] = 0;
+      result[def.property] = roundTo(totals[def.property] / w, precision);
     }
   }
 
-  // Add special ratio-based metrics
+  // Add special ratio-based metrics. Each ratio is emitted only when both the
+  // denominator > 0 AND at least one feature contributed numerator data —
+  // otherwise the key is left absent so the all-Finland choropleth renders the
+  // region gray instead of as a fabricated 0%.
   result.he_vakiy = totalPop;
-  result.unemployment_rate = totalActPop > 0 ? roundTo((totalUnemployed / totalActPop) * 100, 1) : 0;
-  result.higher_education_rate = totalAdultPop > 0
-    ? roundTo(((totalKoYlKork + totalKoAlKork) / totalAdultPop) * 100, 1)
-    : 0;
-  result.ownership_rate = totalHouseholds > 0 ? roundTo((totalOwnerOcc / totalHouseholds) * 100, 1) : 0;
-  result.rental_rate = totalHouseholds > 0 ? roundTo((totalRental / totalHouseholds) * 100, 1) : 0;
-  result.student_share = totalActPop > 0 ? roundTo((totalStudents / totalActPop) * 100, 1) : 0;
-  result.population_density = totalArea > 0 ? Math.round(totalPop / (totalArea / 1_000_000)) : 0;
-  result.child_ratio = totalPop > 0 ? roundTo((totalChildren / totalPop) * 100, 1) : 0;
-  result.detached_house_share = totalDwellings > 0 ? roundTo((totalDetached / totalDwellings) * 100, 1) : 0;
-  result.pensioner_share = totalPop > 0 ? roundTo((totalPensioners / totalPop) * 100, 1) : 0;
-  result.employment_rate = totalActPop > 0 ? roundTo((totalEmployed / totalActPop) * 100, 1) : 0;
+  if (totalActPop > 0) {
+    if (hasUnemployedData) {
+      result.unemployment_rate = roundTo((totalUnemployed / totalActPop) * 100, 1);
+    }
+    if (hasStudentData) {
+      result.student_share = roundTo((totalStudents / totalActPop) * 100, 1);
+    }
+    if (hasEmployedData) {
+      result.employment_rate = roundTo((totalEmployed / totalActPop) * 100, 1);
+    }
+  }
+  if (totalAdultPop > 0 && hasHigherEdData) {
+    result.higher_education_rate = roundTo(((totalKoYlKork + totalKoAlKork) / totalAdultPop) * 100, 1);
+  }
+  if (totalHouseholds > 0) {
+    if (hasOwnershipData) {
+      result.ownership_rate = roundTo((totalOwnerOcc / totalHouseholds) * 100, 1);
+    }
+    if (hasRentalData) {
+      result.rental_rate = roundTo((totalRental / totalHouseholds) * 100, 1);
+    }
+  }
+  if (totalArea > 0) {
+    result.population_density = Math.round(totalPop / (totalArea / 1_000_000));
+  }
+  if (totalPop > 0) {
+    if (hasChildrenData) {
+      result.child_ratio = roundTo((totalChildren / totalPop) * 100, 1);
+    }
+    if (hasPensionerData) {
+      result.pensioner_share = roundTo((totalPensioners / totalPop) * 100, 1);
+    }
+  }
+  if (totalDwellings > 0 && hasDetachedData) {
+    result.detached_house_share = roundTo((totalDetached / totalDwellings) * 100, 1);
+  }
 
   // Raw counts: the panel's Education Breakdown and Activity Status sections
   // read these directly (they show counts, not rates), so the metro-area

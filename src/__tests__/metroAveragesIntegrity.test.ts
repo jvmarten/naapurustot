@@ -96,13 +96,13 @@ describe('computeMetroAverages — weighted averaging correctness', () => {
     expect(avg.population_density).toBe(2000); // 10000 / 5
   });
 
-  it('all null population → all zeros', () => {
+  it('all null population → data-driven metrics omitted, he_vakiy is 0', () => {
     const features = [
       makeFeature({ he_vakiy: null, hr_mtu: 30000 }),
       makeFeature({ pno: '00200', he_vakiy: null, hr_mtu: 40000 }),
     ];
     const avg = computeMetroAverages(features);
-    expect(avg.hr_mtu).toBe(0);
+    expect(avg.hr_mtu).toBeUndefined();
     expect(avg.he_vakiy).toBe(0);
   });
 });

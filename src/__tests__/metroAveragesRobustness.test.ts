@@ -45,18 +45,19 @@ function makeFeature(overrides: Partial<NeighborhoodProperties>): GeoJSON.Featur
 }
 
 describe('computeMetroAverages', () => {
-  it('returns all zeros for empty features array', () => {
+  it('empty features array: he_vakiy is 0, ratio metrics omitted', () => {
     const result = computeMetroAverages([]);
     expect(result.he_vakiy).toBe(0);
-    expect(result.unemployment_rate).toBe(0);
+    // Omitted so the all-Finland choropleth renders gray for "no data".
+    expect(result.unemployment_rate).toBeUndefined();
   });
 
-  it('skips features with null population', () => {
+  it('skips features with null population and omits dependent metrics', () => {
     const result = computeMetroAverages([
       makeFeature({ he_vakiy: null, hr_mtu: 30000 }),
     ]);
     expect(result.he_vakiy).toBe(0);
-    expect(result.hr_mtu).toBe(0);
+    expect(result.hr_mtu).toBeUndefined();
   });
 
   it('skips features with zero population', () => {
