@@ -13,8 +13,10 @@ Data sources:
 
 Method: Download tree coverage polygons via WFS or OSM, intersect with postal
         code boundaries, compute tree canopy % per postal code.  For Tampere
-        and Turku, supplement with Copernicus TCD point sampling to fill gaps
-        in OSM coverage (rural areas where forests are unmapped).
+        and Turku, supplement with Copernicus TCD as a satellite-based source.
+        TCD values are computed exactly via the ImageServer computeHistograms
+        endpoint, which analyses every 10 m pixel inside each polygon — no
+        random sampling, no estimation.
 
 Output: tree_canopy.json
 Format: {"00100": 15.3, "00120": 42.1, ...}  (% of area covered by trees)
@@ -23,14 +25,12 @@ Format: {"00100": 15.3, "00120": 42.1, ...}  (% of area covered by trees)
 import json
 import logging
 import math
-import sys
 from pathlib import Path
 
 import geopandas as gpd
-import numpy as np
 import requests
 from shapely import STRtree
-from shapely.geometry import Point, Polygon
+from shapely.geometry import Polygon, box
 from shapely.ops import unary_union
 from shapely.validation import make_valid
 
@@ -52,10 +52,11 @@ TAMPERE_BBOX = "61.15,23.05,62.25,25.05"
 TURKU_BBOX = "60.22,21.42,60.79,22.97"
 
 # Copernicus High Resolution Layer — Tree Cover Density 2018 (10 m)
-COPERNICUS_TCD_URL = (
+COPERNICUS_TCD_IMAGESERVER = (
     "https://image.discomap.eea.europa.eu/arcgis/rest/services/"
-    "GioLandPublic/HRL_TreeCoverDensity_2018/ImageServer/identify"
+    "GioLandPublic/HRL_TreeCoverDensity_2018/ImageServer"
 )
+COPERNICUS_TCD_HISTOGRAMS_URL = COPERNICUS_TCD_IMAGESERVER + "/computeHistograms"
 
 
 # ---------------------------------------------------------------------------
@@ -69,170 +70,163 @@ def _lonlat_to_webmercator(lon, lat):
     return x, y
 
 
-def _query_tcd_point(session, lon, lat):
-    """Return tree cover density (0-100) at a single point, or None."""
-    x, y = _lonlat_to_webmercator(lon, lat)
-    params = {
-        "geometry": json.dumps({"x": x, "y": y}),
-        "geometryType": "esriGeometryPoint",
-        "sr": 3857,
-        "returnGeometry": False,
-        "returnCatalogItems": False,
+def _geom_to_esri_rings(geom):
+    """Convert a Shapely (Multi)Polygon in WGS-84 to ESRI ring coords (Web Mercator)."""
+    if geom.geom_type == "Polygon":
+        polys = [geom]
+    elif geom.geom_type == "MultiPolygon":
+        polys = list(geom.geoms)
+    else:
+        return None
+
+    rings = []
+    for p in polys:
+        exterior = [list(_lonlat_to_webmercator(lon, lat)) for lon, lat in p.exterior.coords]
+        if len(exterior) >= 4:
+            rings.append(exterior)
+        for interior in p.interiors:
+            ring = [list(_lonlat_to_webmercator(lon, lat)) for lon, lat in interior.coords]
+            if len(ring) >= 4:
+                rings.append(ring)
+    return rings if rings else None
+
+
+def _histograms_for_geometry(session, geom_4326):
+    """POST a Shapely polygon to computeHistograms; return the counts list or None."""
+    rings = _geom_to_esri_rings(geom_4326)
+    if rings is None:
+        return None
+
+    payload = {
+        "geometry": json.dumps({
+            "rings": rings,
+            "spatialReference": {"wkid": 102100},
+        }),
+        "geometryType": "esriGeometryPolygon",
         "f": "json",
     }
+
     try:
-        resp = session.get(COPERNICUS_TCD_URL, params=params, timeout=15)
-        if resp.status_code == 200:
-            val = resp.json().get("value", "")
-            if val and val != "NoData":
-                return int(val)
-    except Exception:
-        pass
-    return None
+        resp = session.post(COPERNICUS_TCD_HISTOGRAMS_URL, data=payload, timeout=120)
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as e:
+        logger.warning("    computeHistograms request failed: %s", e)
+        return None
+
+    if isinstance(data, dict) and "error" in data:
+        return ("error", data["error"])
+    histograms = data.get("histograms") or []
+    if not histograms:
+        return None
+    return histograms[0].get("counts") or []
 
 
-def sample_tcd_for_postal_codes(postal_4326):
-    """Sample Copernicus TCD for each postal code via random point sampling.
+def _compute_tcd_mean(session, geom_4326, max_depth=3):
+    """Compute mean Tree Cover Density (0-100) for a polygon via computeHistograms.
 
-    Returns a dict of {postal_code: mean_tcd_percent}.
+    Analyses every 10 m pixel inside the polygon — no sampling.  When the
+    polygon is too large for a single ImageServer call (the EEA service caps
+    raster size per request), the polygon is recursively split along its
+    longer bbox axis and the histograms are aggregated; the result is still
+    exact because every pixel is counted exactly once.
+
+    Returns ``None`` if every request fails or no pixels are returned.
     """
-    logger.info("Sampling Copernicus Tree Cover Density for %d postal codes...", len(postal_4326))
-    postal_proj = postal_4326.to_crs(epsg=3067)
+    counts = _aggregate_histogram_counts(session, geom_4326, max_depth=max_depth)
+    if not counts:
+        return None
+    total = sum(counts)
+    if total == 0:
+        return None
+    # Bins are integer TCD values 0..100; mean = sum(value * count) / total.
+    weighted = sum(i * c for i, c in enumerate(counts))
+    return weighted / total
 
-    session = requests.Session()
-    np.random.seed(42)
-    result = {}
 
-    for i, (idx, row) in enumerate(postal_4326.iterrows()):
-        pno = row["pno"]
-        geom = row.geometry
-        if geom is None or geom.is_empty:
-            continue
+def _aggregate_histogram_counts(session, geom_4326, max_depth):
+    """Get histogram counts for a polygon, splitting it if the server rejects it."""
+    result = _histograms_for_geometry(session, geom_4326)
+    if result is None:
+        return None
+    if isinstance(result, tuple) and result[0] == "error":
+        err = result[1]
+        details = " ".join(err.get("details") or []) if isinstance(err, dict) else str(err)
+        if "size limit" in details.lower() and max_depth > 0:
+            # Polygon raster too big — split bbox along the longer axis and recurse.
+            minx, miny, maxx, maxy = geom_4326.bounds
+            if (maxx - minx) >= (maxy - miny):
+                midx = (minx + maxx) / 2
+                left = _clip_box(geom_4326, minx, miny, midx, maxy)
+                right = _clip_box(geom_4326, midx, miny, maxx, maxy)
+            else:
+                midy = (miny + maxy) / 2
+                left = _clip_box(geom_4326, minx, miny, maxx, midy)
+                right = _clip_box(geom_4326, minx, midy, maxx, maxy)
 
-        # Scale sample count with area (km²)
-        proj_row = postal_proj.loc[idx]
-        area_km2 = proj_row.geometry.area / 1e6
-        n_samples = min(max(int(area_km2 / 5), 10), 40)
-
-        bounds = geom.bounds  # minx, miny, maxx, maxy
-        values = []
-        attempts = 0
-        while len(values) < n_samples and attempts < n_samples * 5:
-            attempts += 1
-            lon = np.random.uniform(bounds[0], bounds[2])
-            lat = np.random.uniform(bounds[1], bounds[3])
-            if not geom.contains(Point(lon, lat)):
-                continue
-            val = _query_tcd_point(session, lon, lat)
-            if val is not None:
-                values.append(val)
-
-        if values:
-            result[pno] = round(float(np.mean(values)), 1)
-
-        if (i + 1) % 20 == 0:
-            logger.info("  TCD: %d/%d postal codes", i + 1, len(postal_4326))
-
-    logger.info("  Sampled TCD for %d postal codes", len(result))
+            merged = [0] * 101
+            for part in (left, right):
+                if part is None or part.is_empty:
+                    continue
+                sub = _aggregate_histogram_counts(session, part, max_depth - 1)
+                if sub is None:
+                    return None
+                for i, c in enumerate(sub[:101]):
+                    merged[i] += c
+            return merged
+        logger.warning("    computeHistograms error: %s", err)
+        return None
     return result
 
 
-def sample_tcd_batched(postal_4326, batch_size=80):
-    """Nationwide Copernicus TCD sampler using ArcGIS getSamples batch endpoint.
+def _clip_box(geom, minx, miny, maxx, maxy):
+    """Intersect geom with the given bbox, returning a valid (Multi)Polygon or None."""
+    try:
+        clipped = geom.intersection(box(minx, miny, maxx, maxy))
+    except Exception:
+        return None
+    if clipped.is_empty:
+        return None
+    clipped = make_valid(clipped)
+    # Drop non-areal parts that intersection can produce on polygon edges.
+    if clipped.geom_type == "GeometryCollection":
+        polys = [g for g in clipped.geoms if g.geom_type in ("Polygon", "MultiPolygon")]
+        if not polys:
+            return None
+        clipped = unary_union(polys)
+    if clipped.geom_type not in ("Polygon", "MultiPolygon"):
+        return None
+    return clipped
 
-    Generates random points within each postal code polygon, then POSTs them
-    to /getSamples in batches. Much faster than /identify per point (~minutes
-    vs hours for ~2500 postal codes).
+
+def compute_tcd_for_postal_codes(postal_4326, label="TCD"):
+    """Compute mean Copernicus TCD per postal code via computeHistograms.
+
+    For each postal code, every 10 m TCD pixel inside the polygon is counted
+    and the mean tree cover density is returned.  This is the true canopy
+    density measurement (no sampling, no point estimation).
 
     Returns {postal_code: mean_tcd_percent}.
     """
-    logger.info(
-        "Batched Copernicus TCD sampling for %d postal codes...",
-        len(postal_4326),
-    )
-    postal_proj = postal_4326.to_crs(epsg=3067)
+    logger.info("Computing Copernicus TCD for %d postal codes via histogram...", len(postal_4326))
+    session = requests.Session()
+    result = {}
+    total = len(postal_4326)
 
-    np.random.seed(42)
-    samples_url = COPERNICUS_TCD_URL.rsplit("/", 1)[0] + "/getSamples"
-
-    # Build a flat list of (pno, lon, lat) samples, one entry per random point.
-    pending: list[tuple[str, float, float]] = []
-    for idx, row in postal_4326.iterrows():
+    for i, (_, row) in enumerate(postal_4326.iterrows()):
         pno = row["pno"]
         geom = row.geometry
         if geom is None or geom.is_empty:
             continue
-        area_km2 = postal_proj.loc[idx].geometry.area / 1e6
-        # Fewer samples per postal code than the per-point sampler since each
-        # call is rate-limited by request count, not by point count.
-        n_samples = min(max(int(area_km2 / 20), 5), 20)
-        bounds = geom.bounds
-        added = 0
-        attempts = 0
-        while added < n_samples and attempts < n_samples * 5:
-            attempts += 1
-            lon = np.random.uniform(bounds[0], bounds[2])
-            lat = np.random.uniform(bounds[1], bounds[3])
-            if geom.contains(Point(lon, lat)):
-                pending.append((pno, lon, lat))
-                added += 1
 
-    logger.info("  Built %d sample points across %d postal codes", len(pending), len(postal_4326))
+        mean_tcd = _compute_tcd_mean(session, geom)
+        if mean_tcd is not None:
+            result[pno] = round(float(mean_tcd), 1)
 
-    # Send in batches. Esri ImageServer URL gets too long over ~150 points via
-    # GET, so we POST and stay well under nginx's request size limits.
-    per_pno: dict[str, list[int]] = {}
-    session = requests.Session()
-    total_batches = (len(pending) + batch_size - 1) // batch_size
+        if (i + 1) % 50 == 0 or i + 1 == total:
+            logger.info("  %s: %d/%d postal codes (%d with values)", label, i + 1, total, len(result))
 
-    for batch_idx in range(total_batches):
-        chunk = pending[batch_idx * batch_size:(batch_idx + 1) * batch_size]
-        if not chunk:
-            continue
-
-        mc_points = [_lonlat_to_webmercator(lon, lat) for _, lon, lat in chunk]
-        data = {
-            "geometry": json.dumps({
-                "points": [list(p) for p in mc_points],
-                "spatialReference": {"wkid": 102100},
-            }),
-            "geometryType": "esriGeometryMultipoint",
-            "returnFirstValueOnly": "true",
-            "f": "json",
-        }
-
-        try:
-            resp = session.post(samples_url, data=data, timeout=120)
-            resp.raise_for_status()
-            samples = resp.json().get("samples", [])
-        except Exception as e:
-            logger.warning("  Batch %d/%d failed: %s", batch_idx + 1, total_batches, e)
-            continue
-
-        for s in samples:
-            try:
-                loc_id = s["locationId"]
-                val_raw = s["value"]
-            except (KeyError, TypeError):
-                continue
-            if not val_raw or val_raw == "NoData":
-                continue
-            try:
-                val = int(val_raw)
-            except (ValueError, TypeError):
-                continue
-            if 0 <= loc_id < len(chunk):
-                pno = chunk[loc_id][0]
-                per_pno.setdefault(pno, []).append(val)
-
-        if (batch_idx + 1) % 10 == 0 or batch_idx + 1 == total_batches:
-            logger.info(
-                "  Batch %d/%d: %d postal codes with values so far",
-                batch_idx + 1, total_batches, len(per_pno),
-            )
-
-    result = {pno: round(float(np.mean(v)), 1) for pno, v in per_pno.items() if v}
-    logger.info("  Batched TCD: %d postal codes have at least one sample", len(result))
+    logger.info("  %s: computed for %d postal codes", label, len(result))
     return result
 
 
@@ -389,7 +383,7 @@ def _fetch_osm_with_tcd_supplement(postal_proj, postal_4326, bbox, label, prefix
 
     For each postal code, the final value is the maximum of the OSM-based
     and Copernicus TCD values, compensating for incomplete OSM mapping in
-    rural areas and noisy TCD sampling in small urban areas.
+    rural areas.
     """
     # OSM forest polygons
     tree_gdf = fetch_osm_forest(bbox, label)
@@ -398,11 +392,11 @@ def _fetch_osm_with_tcd_supplement(postal_proj, postal_4326, bbox, label, prefix
     ].copy()
     osm_result = compute_tree_pct(filtered_proj, tree_gdf, label) if not tree_gdf.empty else {}
 
-    # Copernicus TCD sampling
+    # Copernicus TCD — exact mean over every 10 m pixel in each polygon.
     filtered_4326 = postal_4326[
         postal_4326["pno"].str[:2].isin(prefix_filter)
     ].copy()
-    tcd_result = sample_tcd_for_postal_codes(filtered_4326)
+    tcd_result = compute_tcd_for_postal_codes(filtered_4326, label=f"{label} TCD")
 
     # Combine: take max of OSM and TCD for each postal code
     all_pnos = set(osm_result) | set(tcd_result)
@@ -478,23 +472,40 @@ def main():
     except Exception as e:
         logger.error("Turku tree canopy failed: %s", e)
 
-    # Nationwide fill-in via Copernicus TCD batched sampling.
-    # Never overrides existing high-resolution sources (HSY LiDAR for Helsinki,
-    # OSM+TCD blend for Tampere/Turku) -- only fills postal codes still missing.
-    remaining_4326 = postal_4326[~postal_4326["pno"].isin(result)].copy()
+    # Nationwide fill-in via Copernicus TCD computeHistograms (exact, no sampling).
+    # Also re-computes any postal codes where the existing value is 0.0 — those
+    # are almost always artefacts of the previous random-sampling approach (5-20
+    # random points missing every tree pixel by chance) rather than a genuine
+    # absence of trees.  Truly tree-free postal codes are extremely rare in
+    # Finland; if computeHistograms confirms 0.0 we keep it, otherwise we
+    # replace the bogus value with the true mean.
+    suspicious_zeros = {pno for pno, val in result.items() if val == 0.0}
+    needs_fetch = ~postal_4326["pno"].isin(result) | postal_4326["pno"].isin(suspicious_zeros)
+    remaining_4326 = postal_4326[needs_fetch].copy()
     if not remaining_4326.empty:
         logger.info(
-            "Nationwide TCD: %d postal codes still uncovered", len(remaining_4326),
+            "Nationwide TCD: %d postal codes to (re-)compute (%d uncovered, %d zero-valued)",
+            len(remaining_4326),
+            len(remaining_4326) - len(suspicious_zeros & set(remaining_4326["pno"])),
+            len(suspicious_zeros & set(remaining_4326["pno"])),
         )
         try:
-            nationwide_result = sample_tcd_batched(remaining_4326)
-            before = len(result)
+            nationwide_result = compute_tcd_for_postal_codes(
+                remaining_4326, label="Nationwide TCD"
+            )
+            added = 0
+            replaced_zeros = 0
             for pno, val in nationwide_result.items():
-                if pno not in result:
+                if pno in suspicious_zeros:
+                    if val > 0:
+                        result[pno] = val
+                        replaced_zeros += 1
+                elif pno not in result:
                     result[pno] = val
+                    added += 1
             logger.info(
-                "Nationwide TCD: filled %d postal codes",
-                len(result) - before,
+                "Nationwide TCD: filled %d new postal codes, replaced %d zero values",
+                added, replaced_zeros,
             )
         except Exception as e:
             logger.warning("Nationwide TCD fill failed: %s", e)
