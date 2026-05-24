@@ -200,6 +200,12 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   fillOpacityRef.current = fillOpacity;
   const gridDataRef = useRef(gridData);
   gridDataRef.current = gridData;
+  // Tracks whether the map's initial 'load' event has fired. Unlike
+  // map.isStyleLoaded() — which returns false during in-flight setData on the
+  // main source — this flag flips to true once and stays true, so post-init
+  // layer additions can run directly instead of being queued on a 'load' event
+  // that will never fire again. See the [gridData] effect for the race details.
+  const mapStyleLoadedRef = useRef(false);
 
   // Initialize map
   useEffect(() => {
@@ -228,7 +234,10 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
 
     // Recalculate container size once the map is fully loaded to prevent
     // partial rendering when the layout isn't settled at init time (mobile first-load bug).
-    map.once('load', () => { map.resize(); });
+    map.once('load', () => {
+      mapStyleLoadedRef.current = true;
+      map.resize();
+    });
 
     // When navigating from an external page on mobile, the browser viewport
     // may still be animating.  Debounced timers cover the settle window.
@@ -477,7 +486,16 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       }, FILL_LAYER);
     };
 
-    if (map.isStyleLoaded()) {
+    // Use mapStyleLoadedRef (not map.isStyleLoaded()) to gate post-init layer
+    // additions. isStyleLoaded() returns false whenever the main source is
+    // re-parsing tiles after setData — quality-weight recompute, metro-area
+    // rebuild when @turf/union arrives, region switch. If gridData lands inside
+    // that window, queueing addGridLayer on 'load' silently drops it because
+    // 'load' is a one-shot event that already fired at init. That leaves
+    // GRID_FILL_LAYER unadded while Effect 2 hides FILL_LAYER — the map paints
+    // nothing for the chosen layer until a refresh. After the initial load,
+    // Style._loaded stays true, so addSource/addLayer are safe to call directly.
+    if (mapStyleLoadedRef.current) {
       addGridLayer();
     } else {
       map.on('load', addGridLayer);
