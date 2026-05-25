@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatNumber, formatEuro, formatPct, formatDiff, diffColor } from '../utils/formatting';
+import { formatNumber, formatEuro, formatPct, formatDiff, diffColor, formatYtlGrade, formatYtlGradeFull } from '../utils/formatting';
 
 describe('formatNumber', () => {
   it('returns em dash for null', () => {
@@ -104,5 +104,47 @@ describe('diffColor', () => {
 
   it('returns emerald for equal values (higherIsBetter=false)', () => {
     expect(diffColor(10, 10, false)).toBe('text-emerald-400');
+  });
+});
+
+describe('formatYtlGrade', () => {
+  it('returns em dash for null/undefined', () => {
+    expect(formatYtlGrade(null)).toBe('—');
+    expect(formatYtlGrade(undefined)).toBe('—');
+  });
+
+  // Reference table cross-checked against published YTL grade examples
+  // (e.g. 6.71 → L-, 6.50 → E½, 5.14 → M+, 4.88 → M, 3.83 → C-, 3.60 → B½).
+  it.each<[number, string]>([
+    [(6.71 / 7) * 100, 'L-'],
+    [(6.50 / 7) * 100, 'E½'],
+    [(6.20 / 7) * 100, 'E+'],
+    [(5.20 / 7) * 100, 'M+'],
+    [(5.14 / 7) * 100, 'M+'],
+    [(4.88 / 7) * 100, 'M'],
+    [(4.20 / 7) * 100, 'C+'],
+    [(4.14 / 7) * 100, 'C+'],
+    [(3.83 / 7) * 100, 'C-'],
+    [(3.60 / 7) * 100, 'B½'],
+    [73.4, 'M+'], // Otaniemi's actual score
+    [100, 'L'],
+    [0, 'I'],
+  ])('maps score %f to grade %s', (score, expected) => {
+    expect(formatYtlGrade(score)).toBe(expected);
+  });
+
+  it('clamps out-of-range values', () => {
+    expect(formatYtlGrade(150)).toBe('L');
+    expect(formatYtlGrade(-10)).toBe('I');
+  });
+});
+
+describe('formatYtlGradeFull', () => {
+  it('returns em dash for null', () => {
+    expect(formatYtlGradeFull(null)).toBe('—');
+  });
+
+  it('includes letter grade and mean on 0-7 scale', () => {
+    expect(formatYtlGradeFull(73.4)).toBe('M+ (5.14)');
   });
 });

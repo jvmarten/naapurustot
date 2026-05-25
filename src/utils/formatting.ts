@@ -93,3 +93,45 @@ export function diffColor(value: number | string | null, avg: number | string | 
   const positive = higherIsBetter ? diff >= 0 : diff <= 0;
   return positive ? 'text-emerald-400' : 'text-rose-400';
 }
+
+// YTL matriculation grade letters by integer value. The scale skips 1 — it
+// jumps from improbatur (I=0) straight to approbatur (A=2).
+const YTL_GRADE_LETTERS: Record<number, string> = {
+  0: 'I',
+  2: 'A',
+  3: 'B',
+  4: 'C',
+  5: 'M',
+  6: 'E',
+  7: 'L',
+};
+
+function ytlLetter(n: number): string {
+  return YTL_GRADE_LETTERS[n] ?? '—';
+}
+
+/**
+ * Convert a 0-100 school_quality_score back to its YTL matriculation letter
+ * grade with +/-/½ modifier (e.g. 73.4 → "M+", because 73.4/100 × 7 = 5.14,
+ * which is just above magna cum laude).
+ */
+export function formatYtlGrade(value: number | string | null | undefined): string {
+  const n = toNum(value);
+  if (n == null) return '—';
+  const mean = (Math.max(0, Math.min(100, n)) / 100) * 7;
+  const lower = Math.floor(mean);
+  const frac = mean - lower;
+  if (frac < 0.1) return ytlLetter(lower);
+  if (frac < 0.4) return `${ytlLetter(lower)}+`;
+  if (frac < 0.7) return `${ytlLetter(lower)}½`;
+  if (frac < 0.85) return `${ytlLetter(lower + 1)}-`;
+  return ytlLetter(lower + 1);
+}
+
+/** YTL grade with the underlying mean grade on the 0-7 scale, e.g. "M+ (5.14)". */
+export function formatYtlGradeFull(value: number | string | null | undefined): string {
+  const n = toNum(value);
+  if (n == null) return '—';
+  const mean = (Math.max(0, Math.min(100, n)) / 100) * 7;
+  return `${formatYtlGrade(n)} (${mean.toFixed(2)})`;
+}
