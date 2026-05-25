@@ -175,6 +175,44 @@ function buildFillOpacity(o: number, overrides?: { matchExpr?: unknown[]; matchV
   return base;
 }
 
+// Zoom range over which the grid (e.g. 250m VIIRS cells) takes over from the
+// postal choropleth for grid-capable layers. Below GRID_ZOOM_FADE_IN only the
+// smooth choropleth shows; above GRID_ZOOM_FADE_OUT only the grid shows.
+// Centered around zoom 7.75 — between the all-Finland viewport (~4.8) and
+// city defaults (~9), so country views stay smooth and city/postal views
+// show the detailed grid at full opacity.
+const GRID_ZOOM_FADE_IN = 7;
+const GRID_ZOOM_FADE_OUT = 8.5;
+
+/**
+ * Like buildFillOpacity but the values fade linearly to 0 between
+ * GRID_ZOOM_FADE_IN and GRID_ZOOM_FADE_OUT. Use for the postal choropleth
+ * when a grid layer is active — at low zoom the choropleth stays visible,
+ * at high zoom it hands off to the grid.
+ */
+function buildFillOpacityFadeOut(o: number) {
+  const fadeAt = (val: number): unknown[] => [
+    'interpolate', ['linear'], ['zoom'],
+    GRID_ZOOM_FADE_IN, val,
+    GRID_ZOOM_FADE_OUT, 0,
+  ];
+  return [
+    'case',
+    ['boolean', ['feature-state', 'hover'], false], fadeAt(0.85 * o),
+    ['boolean', ['feature-state', 'selected'], false], fadeAt(0.85 * o),
+    fadeAt(0.65 * o),
+  ];
+}
+
+/** Grid opacity that fades in over the same zoom range buildFillOpacityFadeOut fades out. */
+function buildGridFillOpacity(o: number): unknown[] {
+  return [
+    'interpolate', ['linear'], ['zoom'],
+    GRID_ZOOM_FADE_IN, 0,
+    GRID_ZOOM_FADE_OUT, 0.8 * o,
+  ];
+}
+
 export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1, gridData = null, drawMode = false, onDrawClick, onDrawDoubleClick, drawVertices, drawnPolygon = null, drawnAreaPnos = EMPTY_ARRAY, selectMode = false, selectedAreaPnos = EMPTY_ARRAY, onSelectAreaClick, layerConfig }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -482,25 +520,29 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       if (map.getSource(GRID_SOURCE_ID)) map.removeSource(GRID_SOURCE_ID);
 
       if (!useGrid || !gridData) return;
-      // beforeId=FILL_LAYER below requires FILL_LAYER to already exist —
+      // beforeId=LINE_LAYER below requires the line layer to already exist —
       // otherwise MapLibre throws and the grid layer silently never appears.
       // When grid data arrives before the main data has loaded, defer here;
       // ensureLayers will invoke addGridLayerRef.current() the moment it
-      // creates FILL_LAYER, so the deferred add fires automatically.
-      if (!map.getLayer(FILL_LAYER)) return;
+      // creates the line layer, so the deferred add fires automatically.
+      if (!map.getLayer(LINE_LAYER)) return;
 
       map.addSource(GRID_SOURCE_ID, { type: 'geojson', data: gridData });
 
+      // Inserted above FILL_LAYER (postal choropleth) but below LINE_LAYER so
+      // borders, highlights, and the no-data hatch always stay on top. minzoom
+      // skips rendering 13k+ cells at country zoom where they'd just be noise.
       map.addLayer({
         id: GRID_FILL_LAYER,
         type: 'fill',
         source: GRID_SOURCE_ID,
+        minzoom: GRID_ZOOM_FADE_IN,
         paint: {
           'fill-color': buildFillColorExpression(layer, layer.gridProperty),
-          'fill-opacity': 0.8 * fillOpacity,
+          'fill-opacity': buildGridFillOpacity(fillOpacity) as maplibregl.ExpressionSpecification,
           'fill-opacity-transition': { duration: 300, delay: 0 },
         },
-      }, FILL_LAYER);
+      }, LINE_LAYER);
     };
 
     // Expose to ensureLayers so it can flush a deferred grid layer add
@@ -541,12 +583,12 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     const useGrid = !!gridData && !!layer.gridProperty;
 
     if (useGrid) {
-      // Hide postal fill, show only borders + grid cells
-      map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(0));
-      // Update grid fill color for current layer
+      // Postal choropleth stays visible at low zoom (smooth country view) and
+      // fades out as the grid fades in — see GRID_ZOOM_FADE_IN/OUT.
+      map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacityFadeOut(fillOpacity));
       if (map.getLayer(GRID_FILL_LAYER)) {
         map.setPaintProperty(GRID_FILL_LAYER, 'fill-color', buildFillColorExpression(layer, layer.gridProperty));
-        map.setPaintProperty(GRID_FILL_LAYER, 'fill-opacity', 0.8 * fillOpacity);
+        map.setPaintProperty(GRID_FILL_LAYER, 'fill-opacity', buildGridFillOpacity(fillOpacity));
       }
     } else {
       // Remove grid layer if present, restore postal fill
@@ -628,9 +670,9 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     const useGrid = !!gridData && !!layer.gridProperty;
 
     if (useGrid) {
-      map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(0));
+      map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacityFadeOut(fillOpacity));
       if (map.getLayer(GRID_FILL_LAYER)) {
-        map.setPaintProperty(GRID_FILL_LAYER, 'fill-opacity', 0.8 * fillOpacity);
+        map.setPaintProperty(GRID_FILL_LAYER, 'fill-opacity', buildGridFillOpacity(fillOpacity));
       }
     } else if (filterActiveRef.current && filterMatchPnoArrayRef.current.length > 0) {
       map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(fillOpacity, {
@@ -714,10 +756,10 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         const currentFillOpacity = fillOpacityRef.current;
         const useGrid = !!currentGridData && !!layer.gridProperty;
         if (useGrid) {
-          mapRef.current.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(0));
+          mapRef.current.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacityFadeOut(currentFillOpacity));
           if (mapRef.current.getLayer(GRID_FILL_LAYER)) {
             mapRef.current.setPaintProperty(GRID_FILL_LAYER, 'fill-opacity-transition', { duration: 200, delay: 0 });
-            mapRef.current.setPaintProperty(GRID_FILL_LAYER, 'fill-opacity', 0.8 * currentFillOpacity);
+            mapRef.current.setPaintProperty(GRID_FILL_LAYER, 'fill-opacity', buildGridFillOpacity(currentFillOpacity));
           }
         } else {
           mapRef.current.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(currentFillOpacity) as maplibregl.ExpressionSpecification);
