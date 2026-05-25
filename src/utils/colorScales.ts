@@ -1,5 +1,5 @@
 import type { ExpressionSpecification } from '@maplibre/maplibre-gl-style-spec';
-import { formatYtlGrade } from './formatting';
+import { formatYtlGrade, formatYtlGradeFull } from './formatting';
 
 /**
  * Identifier for each data layer available on the map.
@@ -94,6 +94,13 @@ export interface LayerConfig {
   stops: number[];
   /** Format a raw value for display in tooltips, legends, and panels */
   format: (v: number) => string;
+  /**
+   * Optional verbose formatter used by the hover tooltip's aggregate value.
+   * Falls back to `format` when omitted. Used to surface extra detail
+   * (e.g. the 0-7 mean grade alongside the YTL letter) without bloating
+   * legend tick labels.
+   */
+  tooltipFormat?: (v: number) => string;
   /**
    * Whether higher values are "better" for this metric.
    * Used by Tooltip and comparison displays to color differences correctly.
@@ -646,6 +653,7 @@ export const LAYERS: LayerConfig[] = [
     colors: ['#67001f', '#b2182b', '#d6604d', '#f4a582', '#d1e5f0', '#92c5de', '#4393c3', '#2166ac'],
     stops: [30, 40, 50, 55, 60, 65, 70, 80],
     format: formatYtlGrade,
+    tooltipFormat: formatYtlGradeFull,
   },
   {
     id: 'light_pollution',
