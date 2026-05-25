@@ -147,6 +147,22 @@ html.theme-transition *::after {
   .maplibregl-ctrl-attrib {
     display: none !important;
   }
+
+  /* Prevent iOS Safari from auto-zooming on input focus.
+     Safari zooms in (and never zooms back out) when the focused input's
+     font-size is below 16px. Enforce 16px on text-like inputs to disable
+     that behavior while keeping desktop typography unchanged. */
+  input[type="text"],
+  input[type="search"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="url"],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
 }
 
 /* QW-4: Print mode — show only map + legend */
