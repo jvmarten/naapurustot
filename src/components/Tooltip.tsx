@@ -1,6 +1,7 @@
 import React, { useRef, useLayoutEffect, useMemo } from 'react';
 import type { LayerConfig } from '../utils/colorScales';
 import { t } from '../utils/i18n';
+import { formatYtlGrade } from '../utils/formatting';
 
 interface TooltipProps {
   x: number;
@@ -10,12 +11,16 @@ interface TooltipProps {
   /** Pre-resolved layer config — avoids calling getLayerById at 60Hz on every mousemove */
   layer: LayerConfig;
   metroAverage?: number;
+  /** Per-school detail for the school_quality layer; rendered as a small list. */
+  schools?: Array<{ name: string; score: number }> | null;
 }
+
+const MAX_SCHOOLS_IN_TOOLTIP = 5;
 
 const OFFSET = 12;
 const PADDING = 8;
 
-export const Tooltip: React.FC<TooltipProps> = ({ x, y, name, value, layer, metroAverage }) => {
+export const Tooltip: React.FC<TooltipProps> = ({ x, y, name, value, layer, metroAverage, schools }) => {
   const ref = useRef<HTMLDivElement>(null);
 
   const { formatted, comparisonText, comparisonClass } = useMemo(() => {
@@ -86,6 +91,21 @@ export const Tooltip: React.FC<TooltipProps> = ({ x, y, name, value, layer, metr
         <div className={`text-xs mt-0.5 ${comparisonClass}`}>
           {comparisonText}
         </div>
+      )}
+      {schools && schools.length > 0 && (
+        <ul className="mt-1.5 pt-1.5 border-t border-surface-200 dark:border-surface-700/50 space-y-0.5 text-xs text-surface-600 dark:text-surface-300">
+          {schools.slice(0, MAX_SCHOOLS_IN_TOOLTIP).map((s) => (
+            <li key={s.name} className="flex justify-between gap-3">
+              <span className="truncate">{s.name}</span>
+              <span className="font-medium tabular-nums">{formatYtlGrade(s.score)}</span>
+            </li>
+          ))}
+          {schools.length > MAX_SCHOOLS_IN_TOOLTIP && (
+            <li className="text-surface-400 italic">
+              +{schools.length - MAX_SCHOOLS_IN_TOOLTIP} {t('tooltip.more_schools')}
+            </li>
+          )}
+        </ul>
       )}
     </div>
   );

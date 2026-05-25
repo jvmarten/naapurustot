@@ -174,6 +174,11 @@ export interface NeighborhoodProperties {
   traffic_accident_rate: number | null;
   property_price_change_pct: number | null;
   school_quality_score: number | null;
+  /** Individual lukios in this postal code that contributed to the aggregate
+   *  school_quality_score (sorted score-desc). Null if no lukios in the area
+   *  (in which case school_quality_score is either null or interpolated from
+   *  neighbors). */
+  schools?: Array<{ name: string; score: number }> | null;
   light_pollution: number | null;
   noise_pollution: number | null;
   // Phase 10: Water proximity & building age
@@ -185,7 +190,7 @@ export interface NeighborhoodProperties {
   _isMetroArea?: boolean;
   /** Marker for a seutukunta with no ingested data — renders gray, panel is empty (CF-5 Phase D) */
   _noData?: boolean;
-  [key: string]: string | number | boolean | null | undefined;
+  [key: string]: string | number | boolean | null | undefined | Array<{ name: string; score: number }>;
 }
 
 /** A single data point in a time series: [year, value] */
