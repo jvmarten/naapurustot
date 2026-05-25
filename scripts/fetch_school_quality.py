@@ -260,9 +260,13 @@ def fetch_school_postal_codes(ytl_school_names):
     # Build name -> postal_code lookup from Opintopolku data
     op_name_to_postal = {}
     for org in all_details:
-        # Extract postal code from address
+        # Extract postal code from address.
+        # Try kayntiosoite (physical/visiting address) first: postiosoite is
+        # often a PL/PO-Box in a different postal code (e.g. the city's
+        # administrative postcode), which would file the school under the
+        # wrong neighborhood.
         postal_code = None
-        for addr_field in ["postiosoite", "kayntiosoite"]:
+        for addr_field in ["kayntiosoite", "postiosoite"]:
             addr = org.get(addr_field, {})
             if isinstance(addr, dict):
                 pno_uri = addr.get("postinumeroUri", "")
@@ -328,7 +332,7 @@ def fetch_school_postal_codes(ytl_school_names):
                     dr.raise_for_status()
                     detail = dr.json()
                     postal_code = None
-                    for addr_field in ["postiosoite", "kayntiosoite"]:
+                    for addr_field in ["kayntiosoite", "postiosoite"]:
                         addr = detail.get(addr_field, {})
                         if isinstance(addr, dict):
                             pno_uri = addr.get("postinumeroUri", "")
@@ -422,6 +426,16 @@ def main():
     # Write output
     OUTPUT_FILE.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
     logger.info("Wrote %d postal codes to %s", len(result), OUTPUT_FILE.name)
+
+    # Step 4: Extend to postal codes without a lukio via distance-weighted
+    # interpolation from nearest scored neighbors. Reads the same OUTPUT_FILE
+    # we just wrote and overwrites it with the extended dataset.
+    try:
+        import fetch_school_quality_extended  # noqa: WPS433  (sibling script)
+        logger.info("Running spatial interpolation for postal codes without a lukio...")
+        fetch_school_quality_extended.main()
+    except Exception as e:
+        logger.warning("Extended interpolation step failed: %s", e)
 
 
 if __name__ == "__main__":
