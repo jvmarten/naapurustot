@@ -471,11 +471,11 @@ export const METRIC_SOURCES: Record<string, MetricSource> = {
   traffic_accident_rate: { source: 'Väylävirasto', year: 2023 },
   property_price_change_pct: { source: 'Tilastokeskus (PxWeb)', year: '2020–2025' },
   school_quality_score: { source: 'YTL (ylioppilastutkinto)', year: 2024 },
-  light_pollution: { source: 'NASA VIIRS Black Marble (VNP46A4)', year: 2024 },
+  light_pollution: { source: 'OpenStreetMap (street_lamp density)', year: 2026 },
   noise_pollution: { source: 'Helsinki meluselvitys 2022 / HRI pks liikennemelu 2012', year: '2012–2022' },
 
   // Phase 10: Water proximity & building age
-  water_proximity_m: { source: 'OpenStreetMap', year: 2025 },
+  water_proximity_m: { source: 'OpenStreetMap', year: 2026 },
   avg_construction_year: { source: 'Tilastokeskus (rakennuskanta)', year: 2025 },
 
   // Quick wins (from existing Paavo data)

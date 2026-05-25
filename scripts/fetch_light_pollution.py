@@ -3,23 +3,33 @@
 Compute light pollution per postal code area using OpenStreetMap street light
 density as a proxy for nighttime illumination.
 
-Street light density (lamps/km²) correlates strongly with satellite-measured
-radiance and directly reflects the lit environment residents experience.
+Street light density (lamps/km²) correlates with the lit environment that
+residents actually experience.  Coverage of ``highway=street_lamp`` in
+OpenStreetMap varies by region — major cities tend to be reasonably complete,
+while rural municipalities can be undermapped.  Truly dark areas (forests,
+wilderness) genuinely have few or no street lights, so low densities outside
+urban cores still carry useful information.
+
+Iterates every seutukunta bbox in ``regions_config.ALL_BBOXES`` so all 3018
+postal code areas across the country are covered.
 
 Output: scripts/light_pollution.json — { postal_code: lamps_per_km2 }
-
-Data source: OpenStreetMap via Overpass API (highway=street_lamp)
 """
+from __future__ import annotations
 
 import json
 import logging
-import math
-import sys
 import time
 from pathlib import Path
 
+import geopandas as gpd
 import requests
-from shapely.geometry import shape
+from shapely import STRtree
+from shapely.geometry import Point
+from shapely.ops import transform as shapely_transform
+from pyproj import Transformer
+
+from regions_config import ALL_BBOXES
 
 logging.basicConfig(
     level=logging.INFO,
@@ -28,180 +38,241 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-OUTPUT_FILE = Path(__file__).parent / "light_pollution.json"
-GEOJSON_FILE = Path(__file__).parent.parent / "public" / "data" / "metro_neighborhoods.geojson"
+SCRIPT_DIR = Path(__file__).parent
+OUTPUT_FILE = SCRIPT_DIR / "light_pollution.json"
+GEOJSON_FILE = SCRIPT_DIR.parent / "public" / "data" / "metro_neighborhoods.geojson"
+CACHE_DIR = SCRIPT_DIR / "cache"
+
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
-
-# Approximate m² per degree² at Helsinki latitude (~60°N)
-# 1° lat ≈ 111,320 m, 1° lon ≈ 111,320 * cos(60°) ≈ 55,660 m
-LAT_M_PER_DEG = 111_320
-LON_M_PER_DEG = 55_660
+MAX_RETRIES = 5
+RETRY_BACKOFF_BASE = 3  # exponential: 3, 9, 27, 81 s
+RATE_LIMIT_DELAY = 10.0  # seconds between successive API calls
 
 
-def load_neighborhoods():
-    """Load postal code polygons from the project's GeoJSON."""
-    if not GEOJSON_FILE.exists():
-        logger.error("GeoJSON not found: %s", GEOJSON_FILE)
-        sys.exit(1)
-
-    logger.info("Loading postal code polygons from %s...", GEOJSON_FILE.name)
-    with open(GEOJSON_FILE, encoding="utf-8") as f:
-        geojson = json.load(f)
-
-    features = geojson.get("features", [])
-    logger.info("  Loaded %d features", len(features))
-
-    neighborhoods = []
-    for feat in features:
-        props = feat.get("properties", {})
-        pno = props.get("pno", "")
-        geom = feat.get("geometry")
-        if pno and geom:
-            try:
-                shp = shape(geom)
-                neighborhoods.append({
-                    "pno": pno,
-                    "geometry": geom,
-                    "shape": shp,
-                    "bounds": shp.bounds,  # (minx, miny, maxx, maxy) = (lon_min, lat_min, lon_max, lat_max)
-                })
-            except Exception:
-                pass
-
-    return neighborhoods
+# ---------------------------------------------------------------------------
+# Cache helpers (mirrors fetch_water_proximity.py)
+# ---------------------------------------------------------------------------
 
 
-def compute_area_km2(shp):
-    """Approximate area of a Shapely polygon in km², using local projection."""
-    bounds = shp.bounds
-    mid_lat = (bounds[1] + bounds[3]) / 2
-    cos_lat = math.cos(math.radians(mid_lat))
-    # Use rough metric conversion for the area
-    # shapely area is in deg², convert to m²
-    area_deg2 = shp.area
-    area_m2 = area_deg2 * LAT_M_PER_DEG * LON_M_PER_DEG
-    return area_m2 / 1_000_000
+def _cache_path(key: str) -> Path:
+    safe = (
+        key.replace("/", "_")
+        .replace(":", "_")
+        .replace("?", "_")
+        .replace("&", "_")
+    )
+    return CACHE_DIR / f"{safe}.json"
 
 
-def query_street_lamps_batch(neighborhoods):
-    """Query Overpass API for street lamp counts in all postal code areas.
+def _save_cache(key: str, data) -> None:
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    path = _cache_path(key)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f)
+    logger.info("  Cached response -> %s", path.name)
 
-    Uses a single large query covering the entire Helsinki metro bbox,
-    then does point-in-polygon assignment client-side.
+
+def _load_cache(key: str):
+    path = _cache_path(key)
+    if path.exists():
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        logger.info("  Loaded from cache: %s", path.name)
+        return data
+    return None
+
+
+def _request_with_retry(method, url, *, label, retries=MAX_RETRIES, **kwargs):
+    kwargs.setdefault("timeout", 300)
+    headers = {"User-Agent": "naapurustot.fi data pipeline (+https://naapurustot.fi)"}
+    headers.update(kwargs.get("headers") or {})
+    kwargs["headers"] = headers
+    last_exc = None
+    for attempt in range(1, retries + 1):
+        try:
+            r = requests.request(method, url, **kwargs)
+            r.raise_for_status()
+            return r
+        except requests.RequestException as exc:
+            last_exc = exc
+            if attempt < retries:
+                wait = RETRY_BACKOFF_BASE ** attempt
+                logger.warning(
+                    "  Retry %d/%d for %s in %ds (%s)",
+                    attempt, retries, label, wait, exc,
+                )
+                time.sleep(wait)
+    raise last_exc  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------------------
+# Overpass: street lamps per region bbox
+# ---------------------------------------------------------------------------
+
+
+def _query_street_lamps(bbox: str) -> list:
+    """Query Overpass for street_lamp nodes inside ``bbox`` (south,west,north,east).
+
+    Cache-first: if a previous response is on disk, use it.  Otherwise call
+    Overpass and cache the result.
     """
-    # Compute overall bounding box
-    all_lons = []
-    all_lats = []
-    for nb in neighborhoods:
-        minx, miny, maxx, maxy = nb["bounds"]
-        all_lons.extend([minx, maxx])
-        all_lats.extend([miny, maxy])
+    cache_key = f"overpass_OSM_street_lamps_{bbox.replace(',', '')}"
+    cached = _load_cache(cache_key)
+    if cached is not None:
+        return cached
 
-    bbox = (min(all_lats), min(all_lons), max(all_lats), max(all_lons))
-    logger.info("  Metro bbox: %.4f,%.4f,%.4f,%.4f", *bbox)
-
-    # Query all street lamps in the metro area at once
     query = f"""
 [out:json][timeout:300];
 (
-  node["highway"="street_lamp"]({bbox[0]},{bbox[1]},{bbox[2]},{bbox[3]});
+  node["highway"="street_lamp"]({bbox});
 );
 out body;
 """
-    logger.info("Querying Overpass for all street lamps in metro area...")
-    for attempt in range(1, 5):
-        try:
-            r = requests.post(
-                OVERPASS_URL,
-                data={"data": query},
-                timeout=300,
-                verify=False,
-                headers={"User-Agent": "naapurustot.fi data pipeline (+https://naapurustot.fi)"},
-            )
-            r.raise_for_status()
-            data = r.json()
-            elements = data.get("elements", [])
-            logger.info("  Found %d street lamps", len(elements))
-            return elements
-        except Exception as e:
-            wait = 2 ** attempt
-            logger.warning("  Attempt %d failed: %s. Retrying in %ds...", attempt, e, wait)
-            time.sleep(wait)
-
-    logger.error("Failed to query Overpass API after 4 attempts")
-    return []
+    label = f"street lamps ({bbox})"
+    try:
+        r = _request_with_retry(
+            "POST", OVERPASS_URL, label=label, data={"data": query}, timeout=300,
+        )
+        elements = r.json().get("elements", [])
+        logger.info("  Fetched %d street lamps for bbox %s", len(elements), bbox)
+        _save_cache(cache_key, elements)
+        return elements
+    except Exception as exc:
+        logger.warning("  Fetch failed for %s: %s", label, exc)
+        return []
 
 
-def assign_lamps_to_neighborhoods(lamps, neighborhoods):
-    """Assign each street lamp to its postal code area using point-in-polygon."""
-    from shapely.geometry import Point
-    from shapely import STRtree
+def fetch_all_street_lamps() -> list[dict]:
+    """Iterate every seutukunta bbox, accumulate street lamp nodes, dedupe by id."""
+    seen: set = set()
+    all_lamps: list[dict] = []
+    for i, bbox in enumerate(ALL_BBOXES, 1):
+        logger.info("Region %d/%d: bbox %s", i, len(ALL_BBOXES), bbox)
+        lamps = _query_street_lamps(bbox)
+        # Only sleep between *network* calls — cache hits should be fast.
+        cache_key = f"overpass_OSM_street_lamps_{bbox.replace(',', '')}"
+        if not _cache_path(cache_key).exists() and i < len(ALL_BBOXES):
+            time.sleep(RATE_LIMIT_DELAY)
+        for el in lamps:
+            eid = el.get("id")
+            if eid is None or eid in seen:
+                continue
+            seen.add(eid)
+            all_lamps.append(el)
+    logger.info("Total unique street lamps across Finland: %d", len(all_lamps))
+    return all_lamps
 
-    logger.info("Building spatial index for %d neighborhoods...", len(neighborhoods))
-    shapes = [nb["shape"] for nb in neighborhoods]
-    tree = STRtree(shapes)
 
-    # Count lamps per neighborhood
-    counts = {nb["pno"]: 0 for nb in neighborhoods}
-    assigned = 0
+# ---------------------------------------------------------------------------
+# Compute lamps per km² per postal code
+# ---------------------------------------------------------------------------
 
-    logger.info("Assigning %d lamps to neighborhoods...", len(lamps))
-    for i, lamp in enumerate(lamps):
-        if i > 0 and i % 50000 == 0:
-            logger.info("  Processed %d/%d lamps (%d assigned)...", i, len(lamps), assigned)
 
-        pt = Point(lamp["lon"], lamp["lat"])
+def _wgs84_to_3067_transformer():
+    transformer = Transformer.from_crs("EPSG:4326", "EPSG:3067", always_xy=True)
 
-        # Query spatial index for candidate polygons
-        idx_results = tree.query(pt)
-        for idx in idx_results:
-            if shapes[idx].contains(pt):
-                counts[neighborhoods[idx]["pno"]] += 1
-                assigned += 1
+    def fn(x, y, z=None):
+        return transformer.transform(x, y)
+
+    return fn
+
+
+def compute_densities(lamps: list[dict]) -> dict[str, float]:
+    """Return {postal_code: lamps_per_km2} for every postal code in the GeoJSON.
+
+    Areas are computed in EPSG:3067 (Finnish metric CRS), so densities are
+    accurate at every latitude in Finland.
+    """
+    logger.info("Loading postal code polygons from %s", GEOJSON_FILE.name)
+    gdf = gpd.read_file(GEOJSON_FILE)
+    if "pno" not in gdf.columns:
+        logger.error("GeoJSON is missing the 'pno' property")
+        return {}
+
+    gdf_proj = gdf.to_crs("EPSG:3067")
+    logger.info("  Loaded %d postal code polygons", len(gdf_proj))
+
+    # Reproject lamp points to EPSG:3067 in bulk
+    reproject = _wgs84_to_3067_transformer()
+    lamp_points: list[Point] = []
+    for el in lamps:
+        lon = el.get("lon")
+        lat = el.get("lat")
+        if lon is None or lat is None:
+            continue
+        x, y = reproject(lon, lat)
+        lamp_points.append(Point(x, y))
+    logger.info("Reprojected %d lamps to EPSG:3067", len(lamp_points))
+
+    if not lamp_points:
+        logger.error("No lamp points to assign — aborting density computation")
+        return {}
+
+    # Build STRtree over postal code polygons; for each lamp find its container.
+    poly_geoms = list(gdf_proj.geometry)
+    pnos = list(gdf_proj["pno"])
+    tree = STRtree(poly_geoms)
+    counts: dict[str, int] = {pno: 0 for pno in pnos}
+
+    logger.info("Assigning lamps to postal code areas...")
+    for i, pt in enumerate(lamp_points):
+        if i and i % 100_000 == 0:
+            logger.info("  ...processed %d/%d lamps", i, len(lamp_points))
+        candidates = tree.query(pt)
+        for idx in candidates:
+            if poly_geoms[idx].contains(pt):
+                counts[pnos[idx]] += 1
                 break
+    assigned = sum(counts.values())
+    logger.info("  Assigned %d/%d lamps to postal codes", assigned, len(lamp_points))
 
-    logger.info("  Assigned %d/%d lamps to postal codes", assigned, len(lamps))
-    return counts
+    # Convert to lamps/km² using each polygon's true area
+    output: dict[str, float] = {}
+    for pno, geom in zip(pnos, poly_geoms):
+        if geom is None or geom.is_empty:
+            continue
+        area_km2 = geom.area / 1_000_000.0  # EPSG:3067 is metric
+        if area_km2 <= 0:
+            continue
+        density = counts.get(pno, 0) / area_km2
+        output[pno] = round(density, 1)
+
+    vals = [v for v in output.values() if v > 0]
+    if vals:
+        srt = sorted(vals)
+        logger.info(
+            "  Density stats (non-zero only): min=%.1f, median=%.1f, max=%.1f lamps/km², n=%d",
+            srt[0], srt[len(srt) // 2], srt[-1], len(srt),
+        )
+    return output
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
 
 
 def main():
-    neighborhoods = load_neighborhoods()
-    if not neighborhoods:
-        logger.error("No neighborhoods loaded")
-        sys.exit(1)
+    logger.info("=== Light Pollution Calculator (OSM street lamps, national) ===")
+    if not GEOJSON_FILE.exists():
+        logger.error("GeoJSON not found: %s", GEOJSON_FILE)
+        raise SystemExit(1)
 
-    # Compute area for each neighborhood
-    for nb in neighborhoods:
-        nb["area_km2"] = compute_area_km2(nb["shape"])
-
-    # Query all street lamps
-    lamps = query_street_lamps_batch(neighborhoods)
+    lamps = fetch_all_street_lamps()
     if not lamps:
-        logger.error("No street lamp data retrieved")
-        sys.exit(1)
+        logger.error("No street lamps fetched, cannot continue")
+        raise SystemExit(1)
 
-    # Assign to postal codes
-    counts = assign_lamps_to_neighborhoods(lamps, neighborhoods)
-
-    # Compute density (lamps/km²)
-    output = {}
-    for nb in neighborhoods:
-        pno = nb["pno"]
-        count = counts.get(pno, 0)
-        area = nb["area_km2"]
-        if area > 0:
-            density = count / area
-            output[pno] = round(density, 1)
-
-    # Stats
-    vals = [v for v in output.values() if v > 0]
-    if vals:
-        logger.info("Density stats: min=%.1f, median=%.1f, max=%.1f lamps/km²",
-                     min(vals), sorted(vals)[len(vals)//2], max(vals))
+    output = compute_densities(lamps)
+    if not output:
+        logger.error("No densities computed")
+        raise SystemExit(1)
 
     logger.info("Computed light pollution for %d postal codes", len(output))
-
-    OUTPUT_FILE.write_text(json.dumps(output, indent=2, ensure_ascii=False), encoding="utf-8")
+    OUTPUT_FILE.write_text(
+        json.dumps(output, indent=2, sort_keys=True, ensure_ascii=False),
+        encoding="utf-8",
+    )
     logger.info("Wrote %d postal codes to %s", len(output), OUTPUT_FILE.name)
 
 
