@@ -454,16 +454,6 @@ def main():
         SCHOOLS_OUTPUT_FILE.name,
     )
 
-    # Step 4: Extend to postal codes without a lukio via distance-weighted
-    # interpolation from nearest scored neighbors. Reads the same OUTPUT_FILE
-    # we just wrote and overwrites it with the extended dataset.
-    try:
-        import fetch_school_quality_extended  # noqa: WPS433  (sibling script)
-        logger.info("Running spatial interpolation for postal codes without a lukio...")
-        fetch_school_quality_extended.main()
-    except Exception as e:
-        logger.warning("Extended interpolation step failed: %s", e)
-
 
 if __name__ == "__main__":
     main()

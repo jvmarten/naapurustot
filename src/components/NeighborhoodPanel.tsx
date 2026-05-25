@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { parseTrendSeries, METRIC_SOURCES, METRIC_EXPLANATIONS } from '../utils/metrics';
-import { formatNumber, formatEuro, formatPct, formatDiff, diffColor, formatYtlGradeFull, formatYtlGrade, parseSchools } from '../utils/formatting';
+import { formatNumber, formatEuro, formatPct, formatDiff, diffColor, formatYtlGradeFull, parseSchools } from '../utils/formatting';
 import { t, getLang, useI18nVersion } from '../utils/i18n';
 import { getQualityCategory, QUALITY_CATEGORIES } from '../utils/qualityIndex';
 import { exportCsv, exportPdf } from '../utils/export';
@@ -814,7 +814,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
                   <li key={s.name} className="flex justify-between gap-3">
                     <span className="truncate">{s.name}</span>
                     <span className="font-medium tabular-nums text-surface-700 dark:text-surface-300">
-                      {formatYtlGrade(s.score)}
+                      {formatYtlGradeFull(s.score)}
                     </span>
                   </li>
                 ))}

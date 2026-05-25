@@ -1,7 +1,7 @@
 import React, { useRef, useLayoutEffect, useMemo } from 'react';
 import type { LayerConfig } from '../utils/colorScales';
 import { t } from '../utils/i18n';
-import { formatYtlGrade } from '../utils/formatting';
+import { formatYtlGradeFull } from '../utils/formatting';
 
 interface TooltipProps {
   x: number;
@@ -24,7 +24,8 @@ export const Tooltip: React.FC<TooltipProps> = ({ x, y, name, value, layer, metr
   const ref = useRef<HTMLDivElement>(null);
 
   const { formatted, comparisonText, comparisonClass } = useMemo(() => {
-    const fmt = value != null ? layer.format(value) : t('tooltip.no_data');
+    const valueFormatter = layer.tooltipFormat ?? layer.format;
+    const fmt = value != null ? valueFormatter(value) : t('tooltip.no_data');
     let cmpText = '';
     let cmpClass = '';
     if (value != null && metroAverage != null && metroAverage !== 0) {
@@ -97,7 +98,7 @@ export const Tooltip: React.FC<TooltipProps> = ({ x, y, name, value, layer, metr
           {schools.slice(0, MAX_SCHOOLS_IN_TOOLTIP).map((s) => (
             <li key={s.name} className="flex justify-between gap-3">
               <span className="truncate">{s.name}</span>
-              <span className="font-medium tabular-nums">{formatYtlGrade(s.score)}</span>
+              <span className="font-medium tabular-nums">{formatYtlGradeFull(s.score)}</span>
             </li>
           ))}
           {schools.length > MAX_SCHOOLS_IN_TOOLTIP && (
