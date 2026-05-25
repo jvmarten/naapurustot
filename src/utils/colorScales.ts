@@ -650,7 +650,7 @@ export const LAYERS: LayerConfig[] = [
     id: 'light_pollution',
     labelKey: 'layer.light_pollution',
     property: 'light_pollution',
-    unit: 'nW/cm²/sr',
+    unit: '/km²',
     colors: ['#000004', '#1b0c41', '#4a0c6b', '#781c6d', '#a52c60', '#cf4446', '#ed6925', '#fcffa4'],
     stops: [2, 5, 10, 25, 50, 100, 200, 400],
     format: radiance,

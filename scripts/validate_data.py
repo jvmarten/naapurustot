@@ -18,8 +18,10 @@ from pathlib import Path
 GEOJSON_PATH = Path(__file__).resolve().parent.parent / "public" / "data" / "metro_neighborhoods.geojson"
 
 # ── Feature count bounds ─────────────────────────────────────────────
-MIN_FEATURES = 140
-MAX_FEATURES = 200
+# All 69 Finnish seutukunnat: ~3000 postal codes in total. Range allows
+# for Posti additions/removals across refreshes.
+MIN_FEATURES = 2500
+MAX_FEATURES = 3500
 
 # ── Required properties (must exist on every feature) ────────────────
 REQUIRED_PROPERTIES = [
@@ -90,7 +92,7 @@ RANGE_CHECKS = [
     ("air_quality_index", 0, 500),
     # Noise / light
     ("noise_pollution", 0, 120),
-    ("light_pollution", 0, 500),
+    ("light_pollution", 0, 2000),
 ]
 
 

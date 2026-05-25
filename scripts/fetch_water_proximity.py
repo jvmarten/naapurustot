@@ -23,7 +23,6 @@ from pyproj import Transformer
 from shapely import STRtree
 from shapely.geometry import LineString, MultiPolygon, Polygon
 from shapely.ops import transform as shapely_transform
-from shapely.validation import make_valid
 
 from regions_config import ALL_BBOXES
 
@@ -133,9 +132,18 @@ def _rate_limit():
 # ---------------------------------------------------------------------------
 
 
-def _overpass_query(query: str, label: str) -> list:
-    """Execute an Overpass API query and return elements, with cache fallback."""
+def _overpass_query(query: str, label: str) -> tuple[list, bool]:
+    """Execute an Overpass API query and return (elements, used_network).
+
+    Cache-first: if we already have a cached response for this label on disk,
+    use it without hitting the network.  ``used_network`` lets the caller skip
+    rate-limit sleeps for cache hits.
+    """
     cache_key = f"overpass_{label.replace(' ', '_').replace('(', '').replace(')', '').replace(',', '')}"
+    cached = _load_cache(cache_key)
+    if cached is not None:
+        logger.info("  Using cached data for %s (%s elements)", label, len(cached))
+        return cached, False
     try:
         r = _request_with_retry(
             "POST", OVERPASS_URL, label=label,
@@ -146,34 +154,26 @@ def _overpass_query(query: str, label: str) -> list:
         elements = data.get("elements", [])
         logger.info("  Fetched %s elements for %s", len(elements), label)
         _save_cache(cache_key, elements)
-        return elements
+        return elements, True
     except Exception as e:
-        logger.warning("  Fetch failed for %s: %s, trying cache...", label, e)
-        cached = _load_cache(cache_key)
-        if cached is not None:
-            logger.info("  Using cached data for %s (%s elements)", label, len(cached))
-            return cached
-        return []
+        logger.warning("  Fetch failed for %s: %s", label, e)
+        return [], True
 
 
-def _overpass_query_all_regions(query_template: str, label: str) -> list:
-    """Run an Overpass query for all region bounding boxes and combine results."""
-    all_elements: list = []
+def _iter_overpass_elements_by_region(query_template: str, label: str):
+    """Yield (region_bbox, [elements]) one region at a time.
+
+    Streaming the regions instead of accumulating them lets the caller process
+    each region's data and free it before loading the next. With ~350k OSM
+    elements nationally, accumulating then deduplicating doubles peak memory.
+    Deduplication is done by the caller via a seen-set on (type, id).
+    """
     for bbox in ALL_BBOXES:
         query = query_template.replace("{BBOX}", bbox)
-        _rate_limit()
-        elements = _overpass_query(query, f"{label} ({bbox})")
-        all_elements.extend(elements)
-    # Deduplicate by element id
-    seen: set = set()
-    unique: list = []
-    for el in all_elements:
-        eid = (el.get("type", ""), el.get("id", ""))
-        if eid not in seen:
-            seen.add(eid)
-            unique.append(el)
-    logger.info("  Total unique elements for %s: %s", label, len(unique))
-    return unique
+        elements, used_network = _overpass_query(query, f"{label} ({bbox})")
+        yield bbox, elements
+        if used_network:
+            _rate_limit()
 
 
 # ---------------------------------------------------------------------------
@@ -181,25 +181,27 @@ def _overpass_query_all_regions(query_template: str, label: str) -> list:
 # ---------------------------------------------------------------------------
 
 
-def fetch_water_bodies() -> list:
-    """Fetch significant water bodies (sea, lakes) from OSM.
+WATER_QUERY_TEMPLATE = """
+[out:json][timeout:120];
+(
+  way["natural"="water"]({BBOX});
+  relation["natural"="water"]({BBOX});
+  way["natural"="coastline"]({BBOX});
+);
+out geom;
+"""
+
+
+def iter_water_bodies_by_region():
+    """Yield (bbox, elements) for each seutukunta — see _iter_overpass_elements_by_region.
 
     Excludes rivers and small streams which are too ubiquitous to create
     meaningful distance differentiation between postal codes.
     Only fetches: natural=water (lakes, ponds), natural=coastline (sea).
     Small ponds are filtered out by area in the geometry parsing step.
     """
-    logger.info("Fetching significant water bodies from OpenStreetMap...")
-    query = """
-    [out:json][timeout:120];
-    (
-      way["natural"="water"]({BBOX});
-      relation["natural"="water"]({BBOX});
-      way["natural"="coastline"]({BBOX});
-    );
-    out geom;
-    """
-    return _overpass_query_all_regions(query, "OSM water bodies")
+    logger.info("Fetching significant water bodies from OpenStreetMap (streaming by region)...")
+    yield from _iter_overpass_elements_by_region(WATER_QUERY_TEMPLATE, "OSM water bodies")
 
 
 # ---------------------------------------------------------------------------
@@ -207,58 +209,67 @@ def fetch_water_bodies() -> list:
 # ---------------------------------------------------------------------------
 
 
-def _parse_water_geometries(elements: list) -> list:
-    """Parse OSM elements with full geometry into Shapely Polygons or LineStrings.
+def _iter_water_geometries(elements: list):
+    """Yield Shapely geometries in WGS-84 parsed from OSM Overpass elements.
 
-    - Closed ways (lakes, ponds, riverbanks) -> Polygon
-    - Open ways (rivers, coastlines) -> LineString
-    - Relations (large lakes, multipolygon riverbanks) -> MultiPolygon / Polygon
+    Streamed (generator) rather than accumulated into a list so the caller can
+    reproject and filter incrementally — fetching nationally produces ~350k
+    geometries, and keeping a full WGS-84 *and* EPSG:3067 copy in memory at
+    once will OOM on a 16 GB machine.
+
+    Geometry rules:
+    - Closed ways (lakes, ponds, riverbanks)  -> Polygon
+    - Open ways (rivers, coastlines)          -> LineString
+    - Relations (multipolygon lakes/rivers)   -> one Polygon per outer member
+
+    For relations we yield each outer ring as its own simple polygon and drop
+    inner rings entirely. Postal-code-level distance to water doesn't need to
+    distinguish "lake interior" from "island within lake" — and pairing each
+    outer with its containing inners would either require a quadratic point-
+    in-polygon scan or risk attaching every inner to every outer (which on
+    huge relations like Päijänne — 1546 members — turned a 7-second region
+    into a 5-minute hang during the national rollout).
+
+    ``make_valid`` is also skipped: outer ring polygons coming straight from
+    OSM are almost always valid, and the validity check itself is the slow
+    step on multi-thousand-vertex rings. Invalid geometries fall through to
+    a try/except below.
     """
-    geometries = []
     for el in elements:
         try:
             if el.get("type") == "way" and "geometry" in el:
                 coords = [(pt["lon"], pt["lat"]) for pt in el["geometry"]]
                 if len(coords) < 2:
                     continue
-                # Closed way -> Polygon (needs >= 4 coords including closing point)
                 if len(coords) >= 4 and coords[0] == coords[-1]:
                     poly = Polygon(coords)
-                    if not poly.is_valid:
-                        poly = make_valid(poly)
                     if not poly.is_empty:
-                        geometries.append(poly)
+                        yield poly
                 else:
-                    # Open way -> LineString (rivers, coastlines)
                     line = LineString(coords)
                     if not line.is_empty:
-                        geometries.append(line)
+                        yield line
 
             elif el.get("type") == "relation" and "members" in el:
-                outers = []
-                inners = []
                 for m in el["members"]:
                     if "geometry" not in m:
+                        continue
+                    if m.get("role") == "inner":
                         continue
                     coords = [(pt["lon"], pt["lat"]) for pt in m["geometry"]]
                     if len(coords) < 4:
                         continue
-                    if m.get("role") == "inner":
-                        inners.append(coords)
-                    else:
-                        outers.append(coords)
-                for outer in outers:
+                    # Close the ring if needed.
+                    if coords[0] != coords[-1]:
+                        coords.append(coords[0])
                     try:
-                        poly = Polygon(outer, inners)
-                        if not poly.is_valid:
-                            poly = make_valid(poly)
+                        poly = Polygon(coords)
                         if not poly.is_empty:
-                            geometries.append(poly)
+                            yield poly
                     except Exception:
                         continue
         except Exception:
             continue
-    return geometries
 
 
 # ---------------------------------------------------------------------------
@@ -292,46 +303,79 @@ def compute_water_proximity(geojson_path: Path) -> dict[str, float]:
     gdf = gpd.read_file(geojson_path)
     logger.info("  Loaded %d postal code areas", len(gdf))
 
-    # 2. Fetch water bodies
-    elements = fetch_water_bodies()
-    if not elements:
-        logger.error("No water body elements fetched, cannot compute distances")
-        return {}
-
-    # 3. Parse geometries
-    logger.info("Parsing water body geometries...")
-    water_geoms_wgs84 = _parse_water_geometries(elements)
-    if not water_geoms_wgs84:
-        logger.error("No valid water geometries parsed")
-        return {}
-    logger.info("  Parsed %d water geometries", len(water_geoms_wgs84))
-
-    # 4. Reproject everything to EPSG:3067 (Finnish metric CRS)
-    logger.info("Reprojecting to EPSG:3067...")
-    reproject = _build_reprojector()
-
-    # Minimum area threshold: 1 hectare (10,000 m²) for polygons.
-    # Filters out tiny ponds/puddles that don't represent meaningful
-    # "water access". Coastlines (LineStrings) are always kept.
+    # 2+3+4. Fetch, parse, reproject and filter per region in a single pass.
+    #
+    # Two reasons it's done per-region rather than nationally:
+    #  - Holding both raw OSM dicts AND parsed Shapely geometries for all 350k
+    #    national elements at once peaked at >10 GB RSS.
+    #  - Vectorized GeoSeries.to_crs() (used here per region) is ~100× faster
+    #    than calling shapely.ops.transform on each geometry individually,
+    #    because pyproj transforms whole coordinate arrays in one C call.
+    #
+    # Minimum area threshold: 1 hectare (10,000 m²) for polygons. Filters out
+    # tiny ponds/puddles that don't represent meaningful "water access".
+    # Coastlines (LineStrings) are always kept.
     MIN_WATER_AREA_M2 = 10_000
 
-    water_geoms_3067 = []
+    water_geoms_3067: list = []
+    seen_ids: set = set()
+    parsed_count = 0
     skipped_small = 0
-    for geom in water_geoms_wgs84:
-        try:
-            reprojected = shapely_transform(reproject, geom)
-            if reprojected.is_empty:
+    region_count = 0
+
+    for bbox, elements in iter_water_bodies_by_region():
+        region_count += 1
+        # Dedupe across regions: many lakes straddle seutukunta bboxes.
+        unique_elements = []
+        for el in elements:
+            eid = (el.get("type", ""), el.get("id", ""))
+            if eid in seen_ids:
                 continue
-            # Filter small polygons (keep all linestrings — coastlines)
-            if hasattr(reprojected, 'area') and reprojected.area > 0:
-                if reprojected.area < MIN_WATER_AREA_M2:
-                    skipped_small += 1
-                    continue
-            water_geoms_3067.append(reprojected)
-        except Exception:
+            seen_ids.add(eid)
+            unique_elements.append(el)
+        del elements
+
+        # Parse this region's geometries (WGS-84) into a list...
+        region_geoms_wgs = list(_iter_water_geometries(unique_elements))
+        del unique_elements
+        parsed_count += len(region_geoms_wgs)
+        if not region_geoms_wgs:
+            if region_count % 10 == 0:
+                logger.info(
+                    "  After region %d/%d: parsed %d, kept %d (%d small skipped)",
+                    region_count, len(ALL_BBOXES), parsed_count,
+                    len(water_geoms_3067), skipped_small,
+                )
             continue
-    logger.info("  Reprojected %d water geometries (skipped %d small polygons < 1ha)",
-                len(water_geoms_3067), skipped_small)
+
+        # ...then bulk-reproject the whole region in one vectorized C call.
+        region_gs = gpd.GeoSeries(region_geoms_wgs, crs="EPSG:4326").to_crs("EPSG:3067")
+        del region_geoms_wgs
+
+        # Filter: drop empties, drop polygons smaller than 1 ha (keep all lines).
+        for g in region_gs:
+            if g is None or g.is_empty:
+                continue
+            if hasattr(g, "area") and g.area > 0 and g.area < MIN_WATER_AREA_M2:
+                skipped_small += 1
+                continue
+            water_geoms_3067.append(g)
+        del region_gs
+
+        if region_count % 10 == 0:
+            logger.info(
+                "  After region %d/%d: parsed %d, kept %d (%d small skipped)",
+                region_count, len(ALL_BBOXES), parsed_count,
+                len(water_geoms_3067), skipped_small,
+            )
+
+    if not water_geoms_3067:
+        logger.error("No valid water geometries after reprojection")
+        return {}
+    logger.info(
+        "  Kept %d water geometries (skipped %d small polygons < 1ha)",
+        len(water_geoms_3067), skipped_small,
+    )
 
     gdf_proj = gdf.to_crs("EPSG:3067")
 
