@@ -53,11 +53,14 @@ export default defineConfig({
             },
           },
           {
-            // Cache data files (TopoJSON, GeoJSON) on first fetch.
-            // Region files, grid files, and the combined dataset are all
-            // lazy-loaded — cache them when accessed so they're available offline.
+            // Cache data files (TopoJSON, GeoJSON) — stale-while-revalidate so
+            // users get the cached file instantly AND we refresh from the network
+            // in the background. Previously CacheFirst kept users on a stale
+            // grid for up to 30 days after a data update (e.g. extending the
+            // light_pollution grid nationally), with only an incognito tab
+            // showing the new data.
             urlPattern: /\.(topojson|geojson)(\?|$)/,
-            handler: 'CacheFirst',
+            handler: 'StaleWhileRevalidate',
             options: {
               cacheName: 'geodata',
               expiration: {
