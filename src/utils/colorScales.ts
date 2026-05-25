@@ -1,4 +1,5 @@
 import type { ExpressionSpecification } from '@maplibre/maplibre-gl-style-spec';
+import { formatYtlGrade } from './formatting';
 
 /**
  * Identifier for each data layer available on the map.
@@ -641,10 +642,10 @@ export const LAYERS: LayerConfig[] = [
     id: 'school_quality',
     labelKey: 'layer.school_quality',
     property: 'school_quality_score',
-    unit: '/100',
+    unit: '',
     colors: ['#67001f', '#b2182b', '#d6604d', '#f4a582', '#d1e5f0', '#92c5de', '#4393c3', '#2166ac'],
     stops: [30, 40, 50, 55, 60, 65, 70, 80],
-    format: score,
+    format: formatYtlGrade,
   },
   {
     id: 'light_pollution',
