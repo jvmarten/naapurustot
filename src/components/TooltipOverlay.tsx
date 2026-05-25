@@ -3,6 +3,7 @@ import { Tooltip } from './Tooltip';
 import { getTooltipSnapshot, subscribeTooltip, type TooltipData } from '../utils/tooltipStore';
 import type { LayerConfig } from '../utils/colorScales';
 import { useI18nVersion } from '../utils/i18n';
+import { parseSchools } from '../utils/formatting';
 
 // SSR/prerender-safe: useSyncExternalStore requires a server snapshot
 // to avoid crashes during server-side rendering (scripts/prerender.mjs).
@@ -25,6 +26,14 @@ export const TooltipOverlay: React.FC<TooltipOverlayProps> = React.memo(({ hidde
 
   if (!tooltip || hidden) return null;
 
+  // Surface per-school detail when the school_quality layer is active so the
+  // hover preview shows which lukios produced the aggregate score. MapLibre
+  // serializes complex props to JSON strings, so normalize before passing on.
+  const schools =
+    effectiveLayer.property === 'school_quality_score'
+      ? parseSchools(tooltip.props.schools)
+      : null;
+
   return (
     <Tooltip
       x={tooltip.x}
@@ -33,6 +42,7 @@ export const TooltipOverlay: React.FC<TooltipOverlayProps> = React.memo(({ hidde
       value={tooltip.props[effectiveLayer.property] as number | null}
       layer={effectiveLayer}
       metroAverage={metroAverage}
+      schools={schools}
     />
   );
 });

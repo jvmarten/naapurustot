@@ -3,7 +3,9 @@
 Fetch school quality data from YTL matriculation exam results and geocode
 schools to postal codes via the Opintopolku organization API.
 
-Output: scripts/school_quality.json — { postal_code: average_score (0-100) }
+Outputs:
+- scripts/school_quality.json — { postal_code: average_score (0-100) }
+- scripts/school_quality_schools.json — { postal_code: [{name, score}, ...] }
 
 Data sources:
 - YTL exam results: https://tiedostot.ylioppilastutkinto.fi/ext/data/
@@ -56,8 +58,9 @@ OPINTOPOLKU_URLS = [
 # Municipality codes — all 69 Finnish seutukunnat
 # (METRO_MUNICIPALITY_CODES is imported from regions_config at the top of the file)
 
-# Output file
+# Output files
 OUTPUT_FILE = Path(__file__).parent / "school_quality.json"
+SCHOOLS_OUTPUT_FILE = Path(__file__).parent / "school_quality_schools.json"
 
 # Manual postal code overrides for schools not found in Opintopolku
 # (closed, merged, or renamed schools that still appear in recent YTL data)
@@ -378,29 +381,41 @@ def fetch_school_postal_codes(ytl_school_names):
 # Step 3: Combine and aggregate to postal code level
 # ---------------------------------------------------------------------------
 
-def aggregate_to_postal_codes(school_scores, school_postcodes):
+def aggregate_to_postal_codes(school_scores, school_postcodes, school_names):
     """Map school quality scores to postal code areas.
 
-    Returns dict: postal_code -> average_quality_score
+    Returns:
+        postal_scores: dict of postal_code -> average score (0-100)
+        postal_schools: dict of postal_code -> list of {name, score}, sorted by
+                        score descending. Useful for showing the individual
+                        schools that produced the aggregate.
     """
-    postal_scores = defaultdict(list)
+    postal_score_lists = defaultdict(list)
+    postal_school_lists = defaultdict(list)
 
     matched = 0
     for school_nro, score in school_scores.items():
         postal_code = school_postcodes.get(school_nro)
         if postal_code:
-            postal_scores[postal_code].append(score)
+            postal_score_lists[postal_code].append(score)
+            postal_school_lists[postal_code].append({
+                "name": school_names.get(school_nro, f"School {school_nro}"),
+                "score": score,
+            })
             matched += 1
 
     logger.info("Matched %d/%d schools to postal codes", matched, len(school_scores))
 
-    # Average scores per postal code
-    result = {}
-    for pno, scores in postal_scores.items():
-        result[pno] = round(sum(scores) / len(scores), 1)
+    postal_scores = {}
+    for pno, scores in postal_score_lists.items():
+        postal_scores[pno] = round(sum(scores) / len(scores), 1)
 
-    logger.info("School quality data for %d postal codes", len(result))
-    return result
+    postal_schools = {}
+    for pno, schools in postal_school_lists.items():
+        postal_schools[pno] = sorted(schools, key=lambda s: s["score"], reverse=True)
+
+    logger.info("School quality data for %d postal codes", len(postal_scores))
+    return postal_scores, postal_schools
 
 
 # ---------------------------------------------------------------------------
@@ -421,11 +436,23 @@ def main():
         sys.exit(1)
 
     # Step 3: Combine
-    result = aggregate_to_postal_codes(school_scores, school_postcodes)
+    result, schools_by_postcode = aggregate_to_postal_codes(
+        school_scores, school_postcodes, school_names
+    )
 
-    # Write output
+    # Write outputs
     OUTPUT_FILE.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
     logger.info("Wrote %d postal codes to %s", len(result), OUTPUT_FILE.name)
+
+    SCHOOLS_OUTPUT_FILE.write_text(
+        json.dumps(schools_by_postcode, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    logger.info(
+        "Wrote per-school detail for %d postal codes to %s",
+        len(schools_by_postcode),
+        SCHOOLS_OUTPUT_FILE.name,
+    )
 
     # Step 4: Extend to postal codes without a lukio via distance-weighted
     # interpolation from nearest scored neighbors. Reads the same OUTPUT_FILE

@@ -180,6 +180,7 @@ PROPERTY_PRICE_CHANGE_FILE = Path(__file__).parent / "property_price_change.json
 
 # School quality — YTL matriculation exam results (pre-processed)
 SCHOOL_QUALITY_FILE = Path(__file__).parent / "school_quality.json"
+SCHOOL_QUALITY_SCHOOLS_FILE = Path(__file__).parent / "school_quality_schools.json"
 
 # Light pollution — NASA VIIRS nighttime radiance (pre-processed)
 LIGHT_POLLUTION_FILE = Path(__file__).parent / "light_pollution.json"
@@ -2160,6 +2161,50 @@ def fetch_school_quality():
     return {}
 
 
+def fetch_school_quality_schools():
+    """Load per-school detail (one entry per lukio) keyed by postal code.
+
+    Returns dict of postal_code -> list of {name, score} (already sorted
+    score-desc by the producer). Used to render the individual lukios that
+    make up each postcode's aggregate score in the UI.
+    """
+    logger.info("Loading per-school detail...")
+    if SCHOOL_QUALITY_SCHOOLS_FILE.exists():
+        with open(SCHOOL_QUALITY_SCHOOLS_FILE, encoding="utf-8") as f:
+            data = json.load(f)
+        logger.info("  Loaded detail for %s postal codes from %s",
+                    len(data), SCHOOL_QUALITY_SCHOOLS_FILE.name)
+        return data
+    logger.warning(" %s not found — schools column will be null",
+                   SCHOOL_QUALITY_SCHOOLS_FILE)
+    return {}
+
+
+def _join_schools_data(gdf, data: dict, column: str = "schools"):
+    """Join postal_code -> list-of-schools data as an object column.
+
+    Sets the value to a Python list (not stringified) so geopandas writes it
+    out as a real JSON array, not a string.
+    """
+    if not data:
+        gdf[column] = None
+        return gdf
+
+    logger.info("Joining per-school detail...")
+    # Initialize column as object dtype so we can store lists
+    gdf[column] = None
+    gdf[column] = gdf[column].astype(object)
+    matched = 0
+    for idx, row in gdf.iterrows():
+        pno = row.get("pno", "") or row.get("postinumeroalue", "")
+        schools = data.get(pno)
+        if schools:
+            gdf.at[idx, column] = schools
+            matched += 1
+    logger.info("  Attached schools to %s/%s postal codes", matched, len(gdf))
+    return gdf
+
+
 def fetch_light_pollution():
     """Load light pollution data per postal code.
 
@@ -2515,6 +2560,8 @@ def main():
     # School quality (YTL matriculation exam results)
     school_data = fetch_school_quality()
     gdf = _join_simple_data(gdf, school_data, "school_quality_score", "school quality")
+    school_schools_data = fetch_school_quality_schools()
+    gdf = _join_schools_data(gdf, school_schools_data, "schools")
 
     # Light pollution (NASA VIIRS nighttime radiance)
     light_data = fetch_light_pollution()

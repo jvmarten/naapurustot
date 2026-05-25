@@ -135,3 +135,26 @@ export function formatYtlGradeFull(value: number | string | null | undefined): s
   const mean = (Math.max(0, Math.min(100, n)) / 100) * 7;
   return `${formatYtlGrade(n)} (${mean.toFixed(2)})`;
 }
+
+/**
+ * Normalize a `schools` feature property into an array.
+ *
+ * MapLibre's vector-tile pipeline (used when reading feature.properties from
+ * a tile-rendered source like GeoJSON/TopoJSON) only supports scalar values,
+ * so array/object properties come back as JSON-encoded strings. Code that
+ * looks up features directly from the JSON source sees real arrays. This
+ * helper accepts either shape and returns the array (or null).
+ */
+export function parseSchools(value: unknown): Array<{ name: string; score: number }> | null {
+  if (!value) return null;
+  if (Array.isArray(value)) return value as Array<{ name: string; score: number }>;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}

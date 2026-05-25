@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatNumber, formatEuro, formatPct, formatDiff, diffColor, formatYtlGrade, formatYtlGradeFull } from '../utils/formatting';
+import { formatNumber, formatEuro, formatPct, formatDiff, diffColor, formatYtlGrade, formatYtlGradeFull, parseSchools } from '../utils/formatting';
 
 describe('formatNumber', () => {
   it('returns em dash for null', () => {
@@ -146,5 +146,32 @@ describe('formatYtlGradeFull', () => {
 
   it('includes letter grade and mean on 0-7 scale', () => {
     expect(formatYtlGradeFull(73.4)).toBe('M+ (5.14)');
+  });
+});
+
+describe('parseSchools', () => {
+  it('returns null for null/undefined/empty', () => {
+    expect(parseSchools(null)).toBeNull();
+    expect(parseSchools(undefined)).toBeNull();
+    expect(parseSchools('')).toBeNull();
+  });
+
+  it('passes a real array through unchanged', () => {
+    const arr = [{ name: 'Otaniemen lukio', score: 77.6 }];
+    expect(parseSchools(arr)).toBe(arr);
+  });
+
+  it('parses a JSON-encoded string (MapLibre serialization)', () => {
+    const json = '[{"name":"Otaniemen lukio","score":77.6}]';
+    expect(parseSchools(json)).toEqual([{ name: 'Otaniemen lukio', score: 77.6 }]);
+  });
+
+  it('returns null on invalid JSON', () => {
+    expect(parseSchools('not json')).toBeNull();
+  });
+
+  it('returns null when parsed value is not an array', () => {
+    expect(parseSchools('{"not":"array"}')).toBeNull();
+    expect(parseSchools(42)).toBeNull();
   });
 });
