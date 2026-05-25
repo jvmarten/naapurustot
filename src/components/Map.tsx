@@ -206,6 +206,11 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   // layer additions can run directly instead of being queued on a 'load' event
   // that will never fire again. See the [gridData] effect for the race details.
   const mapStyleLoadedRef = useRef(false);
+  // Bridge between the [data] effect (which adds FILL_LAYER) and the [gridData]
+  // effect (which needs FILL_LAYER to exist before it can addLayer below it via
+  // beforeId). When gridData arrives before data, the grid effect's addGridLayer
+  // defers — and ensureLayers calls this ref once FILL_LAYER is in place.
+  const addGridLayerRef = useRef<(() => void) | null>(null);
 
   // Initialize map
   useEffect(() => {
@@ -379,6 +384,12 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
           'line-opacity': 0.8,
         },
       });
+
+      // FILL_LAYER now exists — flush any pending grid layer that arrived
+      // before this effect ran. Without this callback, addGridLayer's
+      // beforeId=FILL_LAYER fails silently when grid data wins the race,
+      // and air_quality/light_pollution paint nothing until refresh.
+      addGridLayerRef.current?.();
     };
 
     if (map.isStyleLoaded()) {
@@ -471,6 +482,12 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       if (map.getSource(GRID_SOURCE_ID)) map.removeSource(GRID_SOURCE_ID);
 
       if (!useGrid || !gridData) return;
+      // beforeId=FILL_LAYER below requires FILL_LAYER to already exist —
+      // otherwise MapLibre throws and the grid layer silently never appears.
+      // When grid data arrives before the main data has loaded, defer here;
+      // ensureLayers will invoke addGridLayerRef.current() the moment it
+      // creates FILL_LAYER, so the deferred add fires automatically.
+      if (!map.getLayer(FILL_LAYER)) return;
 
       map.addSource(GRID_SOURCE_ID, { type: 'geojson', data: gridData });
 
@@ -485,6 +502,10 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         },
       }, FILL_LAYER);
     };
+
+    // Expose to ensureLayers so it can flush a deferred grid layer add
+    // once FILL_LAYER becomes available.
+    addGridLayerRef.current = addGridLayer;
 
     // Use mapStyleLoadedRef (not map.isStyleLoaded()) to gate post-init layer
     // additions. isStyleLoaded() returns false whenever the main source is
@@ -503,6 +524,9 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
 
     return () => {
       map.off('load', addGridLayer);
+      if (addGridLayerRef.current === addGridLayer) {
+        addGridLayerRef.current = null;
+      }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- activeLayer/fillOpacity/layerConfig handled by dedicated effects; data/theme no longer needed
   }, [gridData]);
