@@ -33,12 +33,20 @@ const SplitLayerPicker: React.FC<{
 
 const BASEMAP_LIGHT = (import.meta.env.VITE_BASEMAP_LIGHT_URL as string) || 'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png';
 const BASEMAP_DARK = (import.meta.env.VITE_BASEMAP_DARK_URL as string) || 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png';
+const BASEMAP_LIGHT_LABELS = (import.meta.env.VITE_BASEMAP_LIGHT_LABELS_URL as string) || 'https://basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}@2x.png';
+const BASEMAP_DARK_LABELS = (import.meta.env.VITE_BASEMAP_DARK_LABELS_URL as string) || 'https://basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}@2x.png';
 
 const SPLIT_MIN_ZOOM = envNum('VITE_MAP_MIN_ZOOM', 4);
 
 const SOURCE_ID = 'neighborhoods';
 const FILL_LAYER = 'neighborhoods-fill';
 const LINE_LAYER = 'neighborhoods-line';
+const LABELS_SOURCE_ID = 'carto-labels';
+const LABELS_LAYER = 'carto-labels';
+
+function beforeLabels(map: maplibregl.Map): string | undefined {
+  return map.getLayer(LABELS_LAYER) ? LABELS_LAYER : undefined;
+}
 
 interface SplitMapViewProps {
   data: FeatureCollection | null;
@@ -51,6 +59,7 @@ interface SplitMapViewProps {
 
 function makeStyle(theme: 'dark' | 'light'): maplibregl.StyleSpecification {
   const tiles = theme === 'dark' ? BASEMAP_DARK : BASEMAP_LIGHT;
+  const labelTiles = theme === 'dark' ? BASEMAP_DARK_LABELS : BASEMAP_LIGHT_LABELS;
   return {
     version: 8,
     name: theme === 'dark' ? 'Dark' : 'Light',
@@ -62,12 +71,27 @@ function makeStyle(theme: 'dark' | 'light'): maplibregl.StyleSpecification {
         attribution:
           '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
       },
+      [LABELS_SOURCE_ID]: {
+        type: 'raster',
+        tiles: [labelTiles],
+        tileSize: 256,
+      },
     },
     layers: [
       {
         id: 'carto-tiles',
         type: 'raster',
         source: 'carto',
+        minzoom: 0,
+        maxzoom: 20,
+      },
+      // Labels overlay sits above the choropleth so place names render
+      // on top of the colored fills; choropleth layers are inserted via
+      // beforeId=LABELS_LAYER.
+      {
+        id: LABELS_LAYER,
+        type: 'raster',
+        source: LABELS_SOURCE_ID,
         minzoom: 0,
         maxzoom: 20,
       },
@@ -114,7 +138,7 @@ function addDataLayers(
       'fill-opacity': 0.65,
       'fill-opacity-transition': { duration: 300, delay: 0 },
     },
-  });
+  }, beforeLabels(map));
 
   map.addLayer({
     id: LINE_LAYER,
@@ -126,7 +150,7 @@ function addDataLayers(
       'line-width': theme === 'dark' ? 0.8 : 1,
       'line-opacity': 0.6,
     },
-  });
+  }, beforeLabels(map));
 
   // Show outer borders for metro area features
   map.addLayer({
@@ -139,7 +163,7 @@ function addDataLayers(
       'line-width': 1.5,
       'line-opacity': 0.7,
     },
-  });
+  }, beforeLabels(map));
 }
 
 function updateThemeColors(map: maplibregl.Map, theme: 'dark' | 'light') {
@@ -243,6 +267,7 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
   // Previously theme change rebuilt source + 3 layers on BOTH maps.
   useEffect(() => {
     const tiles = theme === 'dark' ? BASEMAP_DARK : BASEMAP_LIGHT;
+    const labelTiles = theme === 'dark' ? BASEMAP_DARK_LABELS : BASEMAP_LIGHT_LABELS;
     const pendingListeners: { map: maplibregl.Map; fn: () => void }[] = [];
     for (const mapRef of [leftMapRef, rightMapRef]) {
       const map = mapRef.current;
@@ -250,6 +275,10 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
       const source = map.getSource('carto') as maplibregl.RasterTileSource | undefined;
       if (source) {
         source.setTiles([tiles]);
+      }
+      const labelsSource = map.getSource(LABELS_SOURCE_ID) as maplibregl.RasterTileSource | undefined;
+      if (labelsSource) {
+        labelsSource.setTiles([labelTiles]);
       }
       const apply = () => updateThemeColors(map, theme);
       if (map.isStyleLoaded()) apply();
