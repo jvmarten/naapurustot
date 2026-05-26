@@ -116,4 +116,33 @@ describe('buildMetroAreaFeatures — trend aggregation', () => {
     const popHistory = JSON.parse(helsinki!.properties!.population_history as string);
     expect(popHistory).toEqual([[2020, 500], [2021, 600]]);
   });
+
+  it('derives change_pct metrics from aggregated trend histories', () => {
+    const features = [
+      makeFeature({
+        pno: '00100',
+        he_vakiy: 1000,
+        income_history: JSON.stringify([[2020, 30000], [2024, 33000]]),
+        population_history: JSON.stringify([[2020, 1000], [2024, 1100]]),
+        unemployment_history: JSON.stringify([[2020, 10], [2024, 8]]),
+      }),
+      makeFeature({
+        pno: '00200',
+        he_vakiy: 1000,
+        income_history: JSON.stringify([[2020, 40000], [2024, 44000]]),
+        population_history: JSON.stringify([[2020, 1000], [2024, 1100]]),
+        unemployment_history: JSON.stringify([[2020, 10], [2024, 8]]),
+      }, [[[2,0],[3,0],[3,1],[2,1],[2,0]]]),
+    ];
+    const result = buildMetroAreaFeatures(features)!;
+    const helsinki = result.features.find((f) => f.properties?.pno === 'helsinki_metro');
+    expect(helsinki).toBeDefined();
+    const p = helsinki!.properties!;
+    // Population: 2000 → 2200 = +10%
+    expect(p.population_change_pct).toBeCloseTo(10, 5);
+    // Income (pop-weighted avg): 35000 → 38500 = +10%
+    expect(p.income_change_pct).toBeCloseTo(10, 5);
+    // Unemployment: 10 → 8 = -20%
+    expect(p.unemployment_change_pct).toBeCloseTo(-20, 5);
+  });
 });

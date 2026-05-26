@@ -2,7 +2,7 @@ import type { Feature, FeatureCollection, Polygon, MultiPolygon } from 'geojson'
 import { feature } from 'topojson-client';
 import type { Topology } from 'topojson-specification';
 import type { CityId, NeighborhoodProperties, TrendDataPoint } from './metrics';
-import { computeMetroAverages, parseTrendSeries } from './metrics';
+import { computeChangeMetrics, computeMetroAverages, parseTrendSeries } from './metrics';
 import { REGIONS } from './regions';
 import { t } from './i18n';
 
@@ -306,6 +306,12 @@ export function buildMetroAreaFeatures(
       geometry: cached.geometry,
     });
   }
+
+  // Derive change-pct metrics from the aggregated trend histories so the
+  // income_change / population_change / unemployment_change layers have data
+  // at the metro level. Without this they paint gray and the tooltip reads
+  // "No data" even though the histories are present.
+  computeChangeMetrics(features);
 
   // CF-5 Phase D: emit a feature for every seutukunta WITHOUT ingested data.
   // They carry no statistics (so the choropleth renders them gray via its
