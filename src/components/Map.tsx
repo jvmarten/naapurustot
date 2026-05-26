@@ -14,6 +14,11 @@ import seutukunnatUrl from '../data/seutukunnat.topojson?url';
 
 const BASEMAP_LIGHT = (import.meta.env.VITE_BASEMAP_LIGHT_URL as string) || 'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png';
 const BASEMAP_DARK = (import.meta.env.VITE_BASEMAP_DARK_URL as string) || 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png';
+// Labels-only overlay rendered above the choropleth so place names stay
+// readable on top of the colored fills (the baked-in labels in the base
+// raster are hidden under the fill).
+const BASEMAP_LIGHT_LABELS = (import.meta.env.VITE_BASEMAP_LIGHT_LABELS_URL as string) || 'https://basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}@2x.png';
+const BASEMAP_DARK_LABELS = (import.meta.env.VITE_BASEMAP_DARK_LABELS_URL as string) || 'https://basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}@2x.png';
 
 interface MapProps {
   data: FeatureCollection | null;
@@ -59,8 +64,22 @@ interface MapProps {
 const EMPTY_SET = new Set<string>();
 const EMPTY_ARRAY: string[] = [];
 
+const LABELS_SOURCE_ID = 'carto-labels';
+const LABELS_LAYER = 'carto-labels';
+
+/** Resolve a beforeId so the layer is inserted below the labels overlay.
+ *  If the caller already specified one, keep it (those layers — e.g. the
+ *  grid fill below LINE_LAYER, seutukunta lines below FILL_LAYER — sit
+ *  below labels transitively). Falls back to undefined when the labels
+ *  layer is absent (e.g. style not yet loaded) so addLayer never throws. */
+function beforeLabels(map: maplibregl.Map, beforeId?: string): string | undefined {
+  if (beforeId) return beforeId;
+  return map.getLayer(LABELS_LAYER) ? LABELS_LAYER : undefined;
+}
+
 function makeStyle(theme: 'dark' | 'light'): maplibregl.StyleSpecification {
   const tiles = theme === 'dark' ? BASEMAP_DARK : BASEMAP_LIGHT;
+  const labelTiles = theme === 'dark' ? BASEMAP_DARK_LABELS : BASEMAP_LIGHT_LABELS;
   return {
     version: 8,
     name: theme === 'dark' ? 'Dark' : 'Light',
@@ -71,12 +90,26 @@ function makeStyle(theme: 'dark' | 'light'): maplibregl.StyleSpecification {
         tileSize: 256,
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
       },
+      [LABELS_SOURCE_ID]: {
+        type: 'raster',
+        tiles: [labelTiles],
+        tileSize: 256,
+      },
     },
     layers: [
       {
         id: 'carto-tiles',
         type: 'raster',
         source: 'carto',
+        minzoom: 0,
+        maxzoom: 20,
+      },
+      // Last in initial layer stack — choropleth layers are inserted
+      // below this via beforeId=LABELS_LAYER so labels stay on top.
+      {
+        id: LABELS_LAYER,
+        type: 'raster',
+        source: LABELS_SOURCE_ID,
         minzoom: 0,
         maxzoom: 20,
       },
@@ -320,6 +353,11 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       const tiles = theme === 'dark' ? BASEMAP_DARK : BASEMAP_LIGHT;
       source.setTiles([tiles]);
     }
+    const labelsSource = map.getSource(LABELS_SOURCE_ID) as maplibregl.RasterTileSource | undefined;
+    if (labelsSource) {
+      const labelTiles = theme === 'dark' ? BASEMAP_DARK_LABELS : BASEMAP_LIGHT_LABELS;
+      labelsSource.setTiles([labelTiles]);
+    }
   }, [theme]);
 
   // Add source + layers once. On subsequent `data` changes we call setData on
@@ -362,7 +400,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
           'fill-opacity': buildFillOpacity(fillOpacity) as maplibregl.ExpressionSpecification,
           'fill-opacity-transition': { duration: 300, delay: 0 },
         },
-      });
+      }, beforeLabels(map));
 
       // Hide postal code borders for metro area features (all-cities view)
       // to avoid showing internal postal code grid lines
@@ -376,7 +414,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
           'line-width': theme === 'dark' ? 0.8 : 1,
           'line-opacity': 0.6,
         },
-      });
+      }, beforeLabels(map));
 
       // Show only outer borders for metro area features (all-cities view)
       map.addLayer({
@@ -389,7 +427,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
           'line-width': 1.5,
           'line-opacity': 0.7,
         },
-      });
+      }, beforeLabels(map));
 
       map.addLayer({
         id: HIGHLIGHT_LAYER,
@@ -400,7 +438,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
           'line-width': 2.5,
           'line-opacity': ['case', ['any', ['boolean', ['feature-state', 'hover'], false], ['boolean', ['feature-state', 'selected'], false]], 1, 0],
         },
-      });
+      }, beforeLabels(map));
 
       // QW-2: Hatched pattern overlay for neighborhoods with null data
       // Also exclude metro area features (no individual postal code borders in all-cities view)
@@ -421,7 +459,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
           'line-dasharray': [2, 2],
           'line-opacity': 0.8,
         },
-      });
+      }, beforeLabels(map));
 
       // FILL_LAYER now exists — flush any pending grid layer that arrived
       // before this effect ran. Without this callback, addGridLayer's
@@ -621,7 +659,8 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
           map.addSource(SEUTUKUNNAT_SOURCE_ID, { type: 'geojson', data: geo });
         }
         // Sit below the choropleth fill when it exists; otherwise the fill,
-        // added later, ends up on top anyway.
+        // added later, ends up on top anyway. Falls back to the labels overlay
+        // so the boundary never paints above place names.
         const beforeId = map.getLayer(FILL_LAYER) ? FILL_LAYER : undefined;
         map.addLayer({
           id: SEUTUKUNNAT_LINE_LAYER,
@@ -632,7 +671,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
             'line-width': ['interpolate', ['linear'], ['zoom'], 5, 0.9, 8, 1.2, 12, 0.5],
             'line-opacity': ['interpolate', ['linear'], ['zoom'], 5, 0.65, 9, 0.4, 12, 0.12],
           },
-        }, beforeId);
+        }, beforeLabels(map, beforeId));
       });
     };
 
@@ -827,7 +866,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
             'line-width': 2,
             'line-opacity': 0.8,
           },
-        });
+        }, beforeLabels(map));
       }
     } else {
       map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(currentOpacity));
@@ -1035,7 +1074,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
           'line-width': 3,
           'line-opacity': 1,
         },
-      });
+      }, beforeLabels(map));
     }
   }, [pinnedPnos, data, theme]);
 
@@ -1068,7 +1107,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
           'line-width': 3,
           'line-opacity': 1,
         },
-      });
+      }, beforeLabels(map));
     }
   }, [selectedAreaPnos, data, theme]);
 
@@ -1116,7 +1155,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
           'line-width': 3,
           'line-opacity': 1,
         },
-      });
+      }, beforeLabels(map));
     }
   }, [wizardHighlightPnos, data, theme]);
 
@@ -1185,12 +1224,12 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         id: DRAW_PREVIEW_LINE_LAYER, type: 'line', source: DRAW_PREVIEW_SOURCE_ID,
         filter: ['==', '$type', 'LineString'],
         paint: { 'line-color': '#8b5cf6', 'line-width': 2, 'line-dasharray': [3, 2], 'line-opacity': 0.8 },
-      });
+      }, beforeLabels(map));
       map.addLayer({
         id: DRAW_PREVIEW_VERTEX_LAYER, type: 'circle', source: DRAW_PREVIEW_SOURCE_ID,
         filter: ['==', '$type', 'Point'],
         paint: { 'circle-radius': 5, 'circle-color': '#8b5cf6', 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2, 'circle-opacity': 0.9 },
-      });
+      }, beforeLabels(map));
     };
 
     if (map.isStyleLoaded()) {
@@ -1233,7 +1272,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
             'fill-color': '#8b5cf6',
             'fill-opacity': 0.15,
           },
-        });
+        }, beforeLabels(map));
 
         map.addLayer({
           id: DRAW_SNAP_LINE_LAYER,
@@ -1245,7 +1284,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
             'line-width': 3,
             'line-opacity': 1,
           },
-        });
+        }, beforeLabels(map));
       } else {
         // Fallback: show the raw drawn polygon if no PNOs matched
         map.addSource(DRAW_SOURCE_ID, {
@@ -1261,7 +1300,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
             'fill-color': '#8b5cf6',
             'fill-opacity': 0.15,
           },
-        });
+        }, beforeLabels(map));
 
         map.addLayer({
           id: DRAW_LINE_LAYER,
@@ -1272,7 +1311,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
             'line-width': 2.5,
             'line-opacity': 0.9,
           },
-        });
+        }, beforeLabels(map));
       }
     };
 
