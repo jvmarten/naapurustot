@@ -79,7 +79,39 @@ const App: React.FC = () => {
   const { selected, select, deselect, pinned, pin, unpin, clearPinned, refreshPinned } = useSelectedNeighborhood();
   const [activeLayer, setActiveLayerRaw] = useState<LayerId>(initialUrl.layer ?? 'quality_index');
   const setActiveLayer = useCallback((layer: LayerId) => { trackEvent('change-layer', { layer }); setActiveLayerRaw(layer); }, []);
-  const { gridData } = useGridData(activeLayer);
+  const { gridData: rawGridData } = useGridData(activeLayer);
+  // Clip grid cells to the loaded region's bounding box so a region-scoped
+  // view (e.g. Helsinki Metro) doesn't leak grid cells from other regions
+  // (e.g. Turku, Tampere). For the all-cities view this is a no-op because
+  // the bbox covers all of Finland.
+  const gridData = useMemo(() => {
+    if (!rawGridData || !data) return rawGridData;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const feat of data.features) {
+      const g = feat.geometry;
+      if (!g) continue;
+      const polys = g.type === 'MultiPolygon' ? g.coordinates : g.type === 'Polygon' ? [g.coordinates] : null;
+      if (!polys) continue;
+      for (const poly of polys) {
+        for (const ring of poly) {
+          for (const [x, y] of ring) {
+            if (x < minX) minX = x;
+            if (y < minY) minY = y;
+            if (x > maxX) maxX = x;
+            if (y > maxY) maxY = y;
+          }
+        }
+      }
+    }
+    if (!isFinite(minX)) return rawGridData;
+    const features = rawGridData.features.filter((f) => {
+      const ring = (f.geometry as { coordinates?: number[][][] } | undefined)?.coordinates?.[0];
+      if (!ring || ring.length === 0) return false;
+      const [x, y] = ring[0];
+      return x >= minX && x <= maxX && y >= minY && y <= maxY;
+    });
+    return { ...rawGridData, features };
+  }, [rawGridData, data]);
   const [wizardResultPnos, setWizardResultPnos] = useState<string[]>([]);
   const [flyTarget, setFlyTarget] = useState<{ center: [number, number]; zoom?: number; bounds?: [number, number, number, number] } | null>(() => {
     const city = (initialUrl.city as CityFilter) ?? 'helsinki_metro';
