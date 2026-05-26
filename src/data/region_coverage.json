@@ -1,6 +1,6 @@
 {
   "helsinki_metro": {
-    "present": 162,
+    "present": 161,
     "total": 163
   },
   "raasepori": {
@@ -8,7 +8,7 @@
     "total": 163
   },
   "turku": {
-    "present": 161,
+    "present": 160,
     "total": 163
   },
   "riihimaki": {
@@ -260,7 +260,7 @@
     "total": 163
   },
   "oulu": {
-    "present": 159,
+    "present": 158,
     "total": 163
   },
   "koillismaa": {
