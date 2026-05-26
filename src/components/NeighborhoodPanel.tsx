@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useMemo, useEffect, useLayoutEffect } from 'react';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { parseTrendSeries, METRIC_SOURCES, METRIC_EXPLANATIONS } from '../utils/metrics';
 import { formatNumber, formatEuro, formatPct, formatDiff, diffColor, formatYtlGradeFull, parseSchools } from '../utils/formatting';
@@ -52,6 +52,8 @@ const StatRow: React.FC<{
   const hasExplanation = !!property && METRIC_EXPLANATIONS.has(property);
   const [infoOpen, setInfoOpen] = useState(false);
   const infoRef = useRef<HTMLSpanElement>(null);
+  const tooltipRef = useRef<HTMLSpanElement>(null);
+  const [tooltipPos, setTooltipPos] = useState({ shiftX: 0, flipBelow: false });
 
   // QW-5: Close click-popover when clicking outside.
   useEffect(() => {
@@ -63,6 +65,35 @@ const StatRow: React.FC<{
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
+  }, [infoOpen]);
+
+  // Keep tooltip inside the viewport: shift horizontally if it would overflow,
+  // and flip below the icon if there's no room above. Measured from the icon's
+  // position so the shift is independent of the tooltip's current transform.
+  useLayoutEffect(() => {
+    if (!infoOpen) return;
+    const icon = infoRef.current;
+    const tip = tooltipRef.current;
+    if (!icon || !tip) return;
+
+    const iconRect = icon.getBoundingClientRect();
+    const tipRect = tip.getBoundingClientRect();
+    const padding = 8;
+    const gap = 8;
+    const vw = window.innerWidth;
+
+    const iconCenterX = iconRect.left + iconRect.width / 2;
+    const idealLeft = iconCenterX - tipRect.width / 2;
+    const idealRight = idealLeft + tipRect.width;
+    let shiftX = 0;
+    if (idealLeft < padding) shiftX = padding - idealLeft;
+    else if (idealRight > vw - padding) shiftX = vw - padding - idealRight;
+
+    const flipBelow = iconRect.top - tipRect.height - gap < padding;
+
+    setTooltipPos((prev) =>
+      prev.shiftX === shiftX && prev.flipBelow === flipBelow ? prev : { shiftX, flipBelow }
+    );
   }, [infoOpen]);
 
   return (
@@ -87,11 +118,13 @@ const StatRow: React.FC<{
             </button>
             {infoOpen && (
               <span
+                ref={tooltipRef}
                 role="tooltip"
-                className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 max-w-[calc(100vw-2rem)] z-50
+                className={`absolute left-1/2 w-64 max-w-[calc(100vw-2rem)] z-50
                            rounded-lg bg-surface-900 dark:bg-surface-800 border border-surface-700/60
                            px-3 py-2 text-left text-[11px] font-normal text-white shadow-xl leading-snug
-                           whitespace-normal"
+                           whitespace-normal ${tooltipPos.flipBelow ? 'top-full mt-2' : 'bottom-full mb-2'}`}
+                style={{ transform: `translateX(calc(-50% + ${tooltipPos.shiftX}px))` }}
               >
                 {hasExplanation && (
                   <span className="block mb-1.5 text-white">
