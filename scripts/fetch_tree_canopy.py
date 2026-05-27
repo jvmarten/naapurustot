@@ -3,20 +3,19 @@
 Fetch tree canopy coverage data for all metro regions.
 
 Data sources:
-  - Helsinki metro: HSY — Pääkaupunkiseudun maanpeiteaineisto (LiDAR-derived)
+  - Helsinki metro: HSY — Pääkaupunkiseudun maanpeiteaineisto (LiDAR-derived,
+    sub-metre per-tree detection — substantially higher quality than 10 m
+    satellite, worth keeping as a special case for the dense urban core).
     WFS: kartta.hsy.fi/geoserver/wfs
     Layer: asuminen_ja_maankaytto:puusto
-  - Tampere & Turku metro: OSM forest/wood landuse + Copernicus Tree Cover
-    Density (2018) as supplementary satellite-based source
-  - Copernicus HRL Tree Cover Density 2018 — 10 m resolution pan-European
-    satellite raster, queried via EEA ImageServer
+  - Everywhere else: Copernicus HRL Tree Cover Density 2018 (10 m, pan-European),
+    queried via EEA ImageServer. computeHistograms returns the exact pixel
+    distribution per polygon — no random sampling, no estimation.
 
-Method: Download tree coverage polygons via WFS or OSM, intersect with postal
-        code boundaries, compute tree canopy % per postal code.  For Tampere
-        and Turku, supplement with Copernicus TCD as a satellite-based source.
-        TCD values are computed exactly via the ImageServer computeHistograms
-        endpoint, which analyses every 10 m pixel inside each polygon — no
-        random sampling, no estimation.
+Tampere and Turku previously combined OSM forest landuse with Copernicus via
+max(); OSM was dropped because (a) it inflated values where parks/private
+yards were tagged as forest, (b) under-mapping caused arbitrary regional
+variation, and (c) using one methodology nationwide makes regions comparable.
 
 Output: tree_canopy.json
 Format: {"00100": 15.3, "00120": 42.1, ...}  (% of area covered by trees)
@@ -43,13 +42,6 @@ GEOJSON_PATH = OUT_DIR.parent / "public" / "data" / "metro_neighborhoods.geojson
 # HSY (Helsinki metro)
 HSY_WFS_URL = "https://kartta.hsy.fi/geoserver/wfs"
 PUUSTO_LAYER = "asuminen_ja_maankaytto:puusto"
-
-# OSM Overpass API for forest/wood coverage
-OVERPASS_URL = "https://overpass-api.de/api/interpreter"
-
-# Bounding boxes for OSM queries (south,west,north,east)
-TAMPERE_BBOX = "61.15,23.05,62.25,25.05"
-TURKU_BBOX = "60.22,21.42,60.79,22.97"
 
 # Copernicus High Resolution Layer — Tree Cover Density 2018 (10 m)
 COPERNICUS_TCD_IMAGESERVER = (
@@ -274,80 +266,6 @@ def compute_tree_pct(postal_proj, tree_gdf, label=""):
     return result
 
 
-def fetch_osm_forest(bbox, label):
-    """Fetch forest/wood polygons from OSM Overpass API for a bounding box.
-
-    Uses ``out geom`` to get inline coordinates for both ways and relation
-    members, so multipolygon relations (which make up the vast majority of
-    forest area in rural Finland) are properly captured.
-
-    Returns a GeoDataFrame in EPSG:3067 with forest polygons, or an empty
-    GeoDataFrame if the fetch fails.
-    """
-    logger.info("Fetching %s forest data from OSM Overpass...", label)
-
-    query = f"""
-    [out:json][timeout:180];
-    (
-      way["natural"="wood"]({bbox});
-      way["landuse"="forest"]({bbox});
-      relation["natural"="wood"]({bbox});
-      relation["landuse"="forest"]({bbox});
-    );
-    out geom;
-    """
-
-    try:
-        resp = requests.post(
-            OVERPASS_URL, data={"data": query}, timeout=300,
-            headers={"User-Agent": "naapurustot.fi data pipeline (+https://naapurustot.fi)"},
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        elements = data.get("elements", [])
-        logger.info("  Fetched %d OSM elements for %s forests", len(elements), label)
-    except Exception as e:
-        logger.warning("  Could not fetch %s forest data: %s", label, e)
-        return gpd.GeoDataFrame(geometry=[], crs="EPSG:3067")
-
-    polys = []
-
-    for el in elements:
-        if el["type"] == "way" and "geometry" in el:
-            coords = [(p["lon"], p["lat"]) for p in el["geometry"]]
-            if len(coords) >= 4 and coords[0] == coords[-1]:
-                try:
-                    polys.append(Polygon(coords))
-                except Exception:
-                    pass
-        elif el["type"] == "relation":
-            # Assemble outer rings from multipolygon relation members
-            for member in el.get("members", []):
-                if member["type"] == "way" and "geometry" in member:
-                    role = member.get("role", "outer")
-                    if role != "outer":
-                        continue
-                    coords = [(p["lon"], p["lat"]) for p in member["geometry"]]
-                    if len(coords) >= 4:
-                        if coords[0] != coords[-1]:
-                            coords.append(coords[0])
-                        try:
-                            polys.append(Polygon(coords))
-                        except Exception:
-                            pass
-
-    if not polys:
-        logger.warning("  No valid forest polygons for %s", label)
-        return gpd.GeoDataFrame(geometry=[], crs="EPSG:3067")
-
-    tree_gdf = gpd.GeoDataFrame(geometry=polys, crs="EPSG:4326")
-    tree_gdf = tree_gdf.to_crs("EPSG:3067")
-    tree_gdf["geometry"] = tree_gdf.geometry.apply(make_valid)
-    logger.info("  Parsed %d forest polygons for %s", len(tree_gdf), label)
-
-    return tree_gdf
-
-
 # ---------------------------------------------------------------------------
 # Per-metro fetch functions
 # ---------------------------------------------------------------------------
@@ -378,54 +296,23 @@ def fetch_hsy_trees(postal_proj):
     return compute_tree_pct(hki_postal, puusto, "Helsinki")
 
 
-def _fetch_osm_with_tcd_supplement(postal_proj, postal_4326, bbox, label, prefix_filter):
-    """Fetch OSM forest data and supplement with Copernicus TCD.
-
-    For each postal code, the final value is the maximum of the OSM-based
-    and Copernicus TCD values, compensating for incomplete OSM mapping in
-    rural areas.
-    """
-    # OSM forest polygons
-    tree_gdf = fetch_osm_forest(bbox, label)
-    filtered_proj = postal_proj[
-        postal_proj["pno"].str[:2].isin(prefix_filter)
-    ].copy()
-    osm_result = compute_tree_pct(filtered_proj, tree_gdf, label) if not tree_gdf.empty else {}
-
-    # Copernicus TCD — exact mean over every 10 m pixel in each polygon.
-    filtered_4326 = postal_4326[
-        postal_4326["pno"].str[:2].isin(prefix_filter)
-    ].copy()
-    tcd_result = compute_tcd_for_postal_codes(filtered_4326, label=f"{label} TCD")
-
-    # Combine: take max of OSM and TCD for each postal code
-    all_pnos = set(osm_result) | set(tcd_result)
-    combined = {}
-    for pno in all_pnos:
-        osm_val = osm_result.get(pno, 0.0)
-        tcd_val = tcd_result.get(pno, 0.0)
-        combined[pno] = max(osm_val, tcd_val)
-
-    osm_wins = sum(1 for p in all_pnos if osm_result.get(p, 0) >= tcd_result.get(p, 0))
-    tcd_wins = len(all_pnos) - osm_wins
-    logger.info("  %s combined: %d OSM-dominant, %d TCD-dominant", label, osm_wins, tcd_wins)
-
-    return combined
+def _fetch_tcd_for_prefixes(postal_4326, prefix_filter, label):
+    """Compute Copernicus TCD for postal codes whose first 2 chars match a prefix set."""
+    filtered = postal_4326[postal_4326["pno"].str[:2].isin(prefix_filter)].copy()
+    return compute_tcd_for_postal_codes(filtered, label=f"{label} TCD")
 
 
-def fetch_tampere_trees(postal_proj, postal_4326):
-    """Fetch forest coverage for the entire Tampere metro area."""
-    return _fetch_osm_with_tcd_supplement(
-        postal_proj, postal_4326, TAMPERE_BBOX, "Tampere",
-        {"33", "34", "35", "36", "37", "38", "39"},
+def fetch_tampere_trees(postal_4326):
+    """Copernicus TCD for the Tampere metro postal codes."""
+    return _fetch_tcd_for_prefixes(
+        postal_4326, {"33", "34", "35", "36", "37", "38", "39"}, "Tampere",
     )
 
 
-def fetch_turku_trees(postal_proj, postal_4326):
-    """Fetch forest coverage for the Turku metro area."""
-    return _fetch_osm_with_tcd_supplement(
-        postal_proj, postal_4326, TURKU_BBOX, "Turku",
-        {"20", "21", "23", "27"},
+def fetch_turku_trees(postal_4326):
+    """Copernicus TCD for the Turku metro postal codes."""
+    return _fetch_tcd_for_prefixes(
+        postal_4326, {"20", "21", "23", "27"}, "Turku",
     )
 
 
@@ -456,17 +343,17 @@ def main():
     else:
         logger.info("Skipping HSY fetch (already have %d Helsinki entries)", hki_count)
 
-    # Tampere (OSM + Copernicus TCD)
+    # Tampere (Copernicus TCD — was OSM+TCD until we dropped OSM for consistency)
     try:
-        tampere_result = fetch_tampere_trees(postal_proj, postal_4326)
+        tampere_result = fetch_tampere_trees(postal_4326)
         result.update(tampere_result)
         logger.info("Tampere: %d postal codes", len(tampere_result))
     except Exception as e:
         logger.error("Tampere tree canopy failed: %s", e)
 
-    # Turku (OSM + Copernicus TCD)
+    # Turku (Copernicus TCD — was OSM+TCD until we dropped OSM for consistency)
     try:
-        turku_result = fetch_turku_trees(postal_proj, postal_4326)
+        turku_result = fetch_turku_trees(postal_4326)
         result.update(turku_result)
         logger.info("Turku: %d postal codes", len(turku_result))
     except Exception as e:
