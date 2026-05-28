@@ -308,17 +308,39 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       resizeTimer = setTimeout(() => { if (mapRef.current) mapRef.current.resize(); }, 50);
     };
 
+    // Verifies the map canvas dimensions match the container; if not, resize.
+    // Catches iOS Safari cases where ResizeObserver/visualViewport events fire
+    // before layout has fully settled, leaving the canvas stretched.
+    const verifySize = () => {
+      const m = mapRef.current;
+      const c = containerRef.current;
+      if (!m || !c) return;
+      const canvas = m.getCanvas();
+      const cw = c.clientWidth;
+      const ch = c.clientHeight;
+      const pr = window.devicePixelRatio || 1;
+      const expectedW = Math.round(cw * pr);
+      const expectedH = Math.round(ch * pr);
+      if (canvas.width !== expectedW || canvas.height !== expectedH) {
+        m.resize();
+      }
+    };
+
     // Recalculate container size once the map is fully loaded to prevent
     // partial rendering when the layout isn't settled at init time (mobile first-load bug).
     map.once('load', () => {
       mapStyleLoadedRef.current = true;
       map.resize();
+      // After paint, double-check dimensions in case layout was still settling.
+      requestAnimationFrame(() => requestAnimationFrame(verifySize));
     });
 
     // When navigating from an external page on mobile, the browser viewport
     // may still be animating.  Debounced timers cover the settle window.
-    const earlyResizeTimers = [100, 300, 1000].map(ms =>
-      setTimeout(debouncedResize, ms),
+    // Extended schedule catches late iOS Safari address-bar transitions
+    // (which can finish settling well past 1000ms on cold loads).
+    const earlyResizeTimers = [100, 300, 1000, 2000, 3500].map(ms =>
+      setTimeout(() => { debouncedResize(); verifySize(); }, ms),
     );
 
     mapRef.current = map;
@@ -332,10 +354,23 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     // without triggering a container resize.  Listen for that too.
     window.visualViewport?.addEventListener('resize', debouncedResize);
 
+    // iOS Safari fires neither ResizeObserver nor visualViewport resize
+    // reliably when the address bar collapses on first scroll. Catch those
+    // transitions and bfcache restores explicitly.
+    const onOrientationChange = () => {
+      debouncedResize();
+      setTimeout(verifySize, 300);
+    };
+    const onPageShow = () => debouncedResize();
+    window.addEventListener('orientationchange', onOrientationChange);
+    window.addEventListener('pageshow', onPageShow);
+
     return () => {
       if (resizeTimer) clearTimeout(resizeTimer);
       earlyResizeTimers.forEach(clearTimeout);
       window.visualViewport?.removeEventListener('resize', debouncedResize);
+      window.removeEventListener('orientationchange', onOrientationChange);
+      window.removeEventListener('pageshow', onPageShow);
       ro.disconnect();
       map.remove();
       mapRef.current = null;
