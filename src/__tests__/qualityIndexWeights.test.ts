@@ -37,7 +37,7 @@ describe('Quality index — custom weights', () => {
       makeFeature({ pno: 'B', crime_index: 200, hr_mtu: 60000, unemployment_rate: 3, higher_education_rate: 70, transit_stop_density: 50, healthcare_density: 5, daycare_density: 5, school_density: 5, grocery_density: 5, air_quality_index: 40 }),
     ];
 
-    // Default weights: safety=18, income=10
+    // Default weights: safety=26, income=10
     computeQualityIndices(features);
 
     // Now weight ONLY safety at 100
@@ -251,7 +251,8 @@ describe('getDefaultWeights / isCustomWeights', () => {
     const primarySum = QUALITY_FACTORS
       .filter((f) => f.primary)
       .reduce((sum, f) => sum + w[f.id], 0);
-    // Should be 100 (18+10+10+10+17+18+17)
+    // Should be 100 (safety 26 + traffic 4 + air 9 + tree 8 + noise 7 + water 4
+    // + employment 12 + income 10 + education 4 + walk 7 + cycling 3 + transit 3 + services 3)
     expect(primarySum).toBe(100);
   });
 

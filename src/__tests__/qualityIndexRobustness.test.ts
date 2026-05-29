@@ -188,7 +188,7 @@ describe('getDefaultWeights', () => {
   it('total default weights sum to expected value', () => {
     const w = getDefaultWeights();
     const total = Object.values(w).reduce((a, b) => a + b, 0);
-    // Primary weights: 18+10+10+10+17+18+17 = 100, secondary all 0
+    // Primary weights sum to 100 (safety 30 + health 28 + livelihood 26 + everyday 16), secondary all 0
     expect(total).toBe(100);
   });
 });
