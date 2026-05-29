@@ -665,15 +665,11 @@ export interface QualityCategory {
   color: string;
 }
 
-// CF-1: descriptive, non-pejorative category labels. The old wording
-// (Avoid / Bad) stigmatized lower-scoring postal codes where people actually
-// live and told users little they couldn't read off the income layer. Colors
-// are unchanged so the scale still reads at a glance.
 export const QUALITY_CATEGORIES: QualityCategory[] = [
-  { label: { fi: 'Kehittyvä', en: 'Emerging', sv: 'Framväxande' }, min: 0, max: 20, color: '#a855f7' },
-  { label: { fi: 'Kohentuva', en: 'Developing', sv: 'Utvecklande' }, min: 20, max: 40, color: '#ef4444' },
-  { label: { fi: 'Tasapainoinen', en: 'Balanced', sv: 'Balanserad' }, min: 40, max: 60, color: '#f97316' },
-  { label: { fi: 'Vahva', en: 'Strong', sv: 'Stark' }, min: 60, max: 80, color: '#eab308' },
+  { label: { fi: 'Vältä', en: 'Avoid', sv: 'Undvik' }, min: 0, max: 20, color: '#a855f7' },
+  { label: { fi: 'Huono', en: 'Bad', sv: 'Dåligt' }, min: 20, max: 40, color: '#ef4444' },
+  { label: { fi: 'OK', en: 'Okay', sv: 'Okej' }, min: 40, max: 60, color: '#f97316' },
+  { label: { fi: 'Hyvä', en: 'Good', sv: 'Bra' }, min: 60, max: 80, color: '#eab308' },
   { label: { fi: 'Erinomainen', en: 'Excellent', sv: 'Utmärkt' }, min: 80, max: 100, color: '#22c55e' },
 ];
 
@@ -833,7 +829,16 @@ function personaWeights(emphasis: Record<string, number>): QualityWeights {
 }
 
 const PERSONA_WEIGHTS: Record<string, QualityWeights> = {
-  balanced: getDefaultWeights(),
+  // The documented, OECD-anchored default (Prosperity emphasized at 30). This is
+  // the out-of-the-box index — distinct from "Balanced".
+  default: getDefaultWeights(),
+  // Balanced = every evaluative dimension weighted equally (20 each), unlike the
+  // Default which leans into Prosperity. Prosperity's 20 is split across its
+  // three factors (7/7/6).
+  balanced: personaWeights({
+    income: 7, employment: 7, education: 6,
+    safety: 20, services: 20, transit: 20, air_quality: 20,
+  }),
   family: personaWeights({
     income: 6, employment: 6, education: 12, safety: 20,
     services: 24, school_quality: 8, transit: 12, air_quality: 12,
@@ -857,9 +862,12 @@ const PERSONA_WEIGHTS: Record<string, QualityWeights> = {
 };
 
 export const QUALITY_PERSONAS: QualityPersona[] = [
-  { id: 'balanced', isDefault: true,
+  { id: 'default', isDefault: true,
+    label: { fi: 'Oletus', en: 'Default', sv: 'Standard' },
+    description: { fi: 'Suositeltu painotus (hyvinvointi painottuu hieman).', en: 'Recommended weighting (Prosperity leans a little heavier).', sv: 'Rekommenderad viktning (välstånd väger något tyngre).' } },
+  { id: 'balanced',
     label: { fi: 'Tasapainoinen', en: 'Balanced', sv: 'Balanserad' },
-    description: { fi: 'Oletus — kaikki ulottuvuudet tasapainossa.', en: 'Default — all dimensions in balance.', sv: 'Standard — alla dimensioner i balans.' } },
+    description: { fi: 'Kaikki ulottuvuudet täysin yhtä painavia.', en: 'Every dimension weighted exactly equally.', sv: 'Alla dimensioner exakt lika viktade.' } },
   { id: 'family',
     label: { fi: 'Lapsiperhe', en: 'Family with children', sv: 'Barnfamilj' },
     description: { fi: 'Painottaa palveluja, turvallisuutta ja koulutusta.', en: 'Emphasizes services, safety and education.', sv: 'Betonar tjänster, säkerhet och utbildning.' } },
