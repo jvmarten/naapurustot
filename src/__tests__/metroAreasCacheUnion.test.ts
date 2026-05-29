@@ -128,6 +128,48 @@ describe('buildMetroAreaFeatures — fallback and cache', () => {
     expect(pop2).toBe(6000);
   });
 
+  it('qualityIndexOnly invalidation recomputes the population-weighted quality_index average', () => {
+    const features = [
+      makePolygonFeature('helsinki_metro', '00100', [[[24, 60], [25, 60], [25, 61], [24, 60]]], 2000),
+      makePolygonFeature('helsinki_metro', '00200', [[[24.5, 60], [25.5, 60], [25.5, 61], [24.5, 60]]], 1000),
+    ];
+    (features[0].properties as Record<string, unknown>).quality_index = 60;
+    (features[1].properties as Record<string, unknown>).quality_index = 90;
+
+    const result1 = buildMetroAreaFeatures(features);
+    // (60*2000 + 90*1000) / 3000 = 70
+    expect(result1!.features[0].properties!.quality_index).toBe(70);
+
+    // Simulate a Custom Quality weight edit: computeQualityIndices mutates only quality_index.
+    clearMetroAreaCache({ qualityIndexOnly: true });
+    (features[0].properties as Record<string, unknown>).quality_index = 80;
+
+    const result2 = buildMetroAreaFeatures(features);
+    // (80*2000 + 90*1000) / 3000 = 83.33… → precision 1 = 83.3
+    expect(result2!.features[0].properties!.quality_index).toBeCloseTo(83.3, 5);
+  });
+
+  it('qualityIndexOnly invalidation reuses non-quality_index averages (trusts only QI changed)', () => {
+    const features = [
+      makePolygonFeature('helsinki_metro', '00100', [[[24, 60], [25, 60], [25, 61], [24, 60]]], 2000),
+      makePolygonFeature('helsinki_metro', '00200', [[[24.5, 60], [25.5, 60], [25.5, 61], [24.5, 60]]], 1000),
+    ];
+    (features[0].properties as Record<string, unknown>).quality_index = 50;
+    (features[1].properties as Record<string, unknown>).quality_index = 50;
+
+    const result1 = buildMetroAreaFeatures(features);
+    expect(result1!.features[0].properties!.he_vakiy).toBe(3000);
+
+    // Mutate a non-QI input. The qualityIndexOnly flag asserts nothing but
+    // quality_index changed, so the cached he_vakiy total is intentionally NOT
+    // recomputed — unlike a bare clearMetroAreaCache(), which would pick it up.
+    clearMetroAreaCache({ qualityIndexOnly: true });
+    (features[0].properties as Record<string, unknown>).he_vakiy = 5000;
+
+    const result2 = buildMetroAreaFeatures(features);
+    expect(result2!.features[0].properties!.he_vakiy).toBe(3000);
+  });
+
   it('invalidates cache when features array changes', () => {
     const features1 = [
       makePolygonFeature('helsinki_metro', '00100', [[[24, 60], [25, 60], [25, 61], [24, 60]]]),

@@ -448,7 +448,9 @@ const App: React.FC = () => {
         : data.features;
       computeQualityIndices(features, qualityWeights);
     }
-    clearMetroAreaCache();
+    // Only quality_index changed (computeQualityIndices mutates nothing else),
+    // so recompute just the metro-area quality_index averages, not all ~46.
+    clearMetroAreaCache({ qualityIndexOnly: true });
     clearRescaleCache();
     setQualityVersion((v) => v + 1);
     // Refresh selected/pinned with updated quality index values (O(1) Map lookups)
@@ -551,7 +553,7 @@ const App: React.FC = () => {
             ? filteredDataRef.current.features
             : data.features;
           computeQualityIndices(features, newWeights);
-          clearMetroAreaCache();
+          clearMetroAreaCache({ qualityIndexOnly: true });
           clearRescaleCache();
           setQualityVersion((v) => v + 1);
           // Update selected neighborhood if it exists (O(1) Map lookup)
@@ -589,7 +591,7 @@ const App: React.FC = () => {
       ? filteredDataRef.current.features
       : data.features;
     computeQualityIndices(features, qualityWeights);
-    clearMetroAreaCache();
+    clearMetroAreaCache({ qualityIndexOnly: true });
     clearRescaleCache();
     setQualityVersion((v) => v + 1);
     const sel = selectedRef.current;

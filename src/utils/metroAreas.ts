@@ -197,6 +197,13 @@ interface MetroAreaCache {
     geometry: Polygon | MultiPolygon;
   }>;
   averages: Map<CityId, Record<string, number>> | null;
+  /**
+   * Set by clearMetroAreaCache({ qualityIndexOnly: true }) to signal that only
+   * the in-place `quality_index` property changed (a Custom Quality weight
+   * edit). The next build then re-derives just the population-weighted
+   * quality_index per region instead of the full ~46-metric aggregation.
+   */
+  qiDirty: boolean;
 }
 let metroAreaCache: MetroAreaCache | null = null;
 
@@ -205,9 +212,21 @@ let metroAreaCache: MetroAreaCache | null = null;
  * recomputation). Per-city feature grouping and trend histories remain cached
  * — only the weighted averages are recomputed on the next buildMetroAreaFeatures
  * call.
+ *
+ * Pass `{ qualityIndexOnly: true }` when the only thing that changed is the
+ * in-place `quality_index` (i.e. after computeQualityIndices on a weight edit,
+ * which mutates no other property). The next build then recomputes just the
+ * population-weighted quality_index per region and reuses the other ~45 cached
+ * averages — they derive solely from immutable input properties. Without the
+ * flag, ALL averages are recomputed (the safe default for any other mutation).
  */
-export function clearMetroAreaCache(): void {
-  if (metroAreaCache) metroAreaCache.averages = null;
+export function clearMetroAreaCache(opts?: { qualityIndexOnly?: boolean }): void {
+  if (!metroAreaCache) return;
+  if (opts?.qualityIndexOnly && metroAreaCache.averages) {
+    metroAreaCache.qiDirty = true;
+  } else {
+    metroAreaCache.averages = null;
+  }
 }
 
 /**
@@ -278,17 +297,47 @@ export function buildMetroAreaFeatures(
       });
     }
 
-    metroAreaCache = { sourceFeatures: allFeatures, usedOutlines: hasOutlines, perCity, averages: null };
+    metroAreaCache = { sourceFeatures: allFeatures, usedOutlines: hasOutlines, perCity, averages: null, qiDirty: false };
   }
 
-  // Recompute per-city averages only when invalidated (e.g., after quality
-  // weight change). The grouped features and trend aggregations are reused.
+  // Recompute per-city averages only when invalidated.
+  // The grouped features and trend aggregations are always reused.
   if (!metroAreaCache.averages) {
+    // First build for this dataset: derive the full ~46-metric average set.
     const avg = new Map<CityId, Record<string, number>>();
     for (const [cityId, cached] of metroAreaCache.perCity) {
       avg.set(cityId, computeMetroAverages(cached.features));
     }
     metroAreaCache.averages = avg;
+    metroAreaCache.qiDirty = false;
+  } else if (metroAreaCache.qiDirty) {
+    // Quality-weight edit: computeQualityIndices mutates ONLY quality_index, so
+    // every other population/household/job-weighted average and special ratio is
+    // unchanged. Recompute just the population-weighted quality_index per region
+    // (precision 1, matching the METRIC_DEFS quality_index def in metrics.ts)
+    // instead of re-aggregating all ~46 metrics over every feature — that full
+    // re-aggregation was the dominant cost of a Custom Quality slider drag in the
+    // all-cities view (~3000 features × 69 regions per debounced settle).
+    for (const [cityId, cached] of metroAreaCache.perCity) {
+      const existing = metroAreaCache.averages.get(cityId);
+      if (!existing) continue;
+      let total = 0;
+      let weight = 0;
+      for (const f of cached.features) {
+        const p = f.properties as NeighborhoodProperties;
+        const pop = p.he_vakiy;
+        if (pop == null || pop <= 0) continue;
+        const qi = p.quality_index;
+        if (qi == null || !isFinite(qi)) continue;
+        total += qi * pop;
+        weight += pop;
+      }
+      // Mirror computeMetroAverages: absent key (not 0/NaN) when no contributing
+      // data, so the choropleth renders the region gray and panels show "no data".
+      if (weight > 0) existing.quality_index = Math.round((total / weight) * 10) / 10;
+      else delete existing.quality_index;
+    }
+    metroAreaCache.qiDirty = false;
   }
 
   // Build features using cached geometry + current-language names.
