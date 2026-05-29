@@ -1,0 +1,162 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { type LayerId, type LayerConfig, getLayerById, getColorForValue } from '../utils/colorScales';
+import { t, useI18nVersion } from '../utils/i18n';
+import { loadAllData } from '../utils/dataLoader';
+import { REGIONS } from '../utils/regions';
+
+interface Props {
+  activeLayer: LayerId;
+  layerConfig?: LayerConfig;
+  /** Switch the map to a region (does NOT select a neighborhood). */
+  onSelectRegion: (regionId: string) => void;
+  onClose: () => void;
+}
+
+interface RegionAgg {
+  regionId: string;
+  value: number | null;
+  pop: number;
+  count: number;
+}
+
+/**
+ * CF-4: pop-weighted aggregate of the active metric for every region present in
+ * the all-regions dataset. Computed directly (not via METRIC_DEFS) so it works
+ * for any layer property, including quality_index and change metrics.
+ */
+function aggregateByRegion(features: GeoJSON.Feature[], property: string): RegionAgg[] {
+  const groups = new Map<string, { wsum: number; w: number; pop: number; count: number }>();
+  for (const f of features) {
+    const p = f.properties as Record<string, unknown> | null;
+    const region = p?.city as string | undefined;
+    if (!region || region === 'unknown' || region === 'other') continue;
+    let g = groups.get(region);
+    if (!g) { g = { wsum: 0, w: 0, pop: 0, count: 0 }; groups.set(region, g); }
+    g.count++;
+    const pop = p?.he_vakiy;
+    if (typeof pop === 'number' && pop > 0) {
+      g.pop += pop;
+      const v = p?.[property];
+      if (typeof v === 'number' && isFinite(v)) { g.wsum += v * pop; g.w += pop; }
+    }
+  }
+  return [...groups].map(([regionId, g]) => ({
+    regionId,
+    value: g.w > 0 ? g.wsum / g.w : null,
+    pop: g.pop,
+    count: g.count,
+  }));
+}
+
+export const RegionRankingTable: React.FC<Props> = React.memo(({ activeLayer, layerConfig, onSelectRegion, onClose }) => {
+  useI18nVersion();
+  const layer = layerConfig ?? getLayerById(activeLayer);
+  const [reversed, setReversed] = useState(false);
+  const [features, setFeatures] = useState<GeoJSON.Feature[] | null>(null);
+  const [error, setError] = useState(false);
+
+  // Lazy-load the all-regions dataset (geometry-stripped properties).
+  useEffect(() => {
+    let cancelled = false;
+    loadAllData()
+      .then((res) => { if (!cancelled) setFeatures(res.data.features); })
+      .catch(() => { if (!cancelled) setError(true); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const { items, maxVal } = useMemo(() => {
+    if (!features) return { items: [] as RegionAgg[], maxVal: 1 };
+    const aggs = aggregateByRegion(features, layer.property).filter((a) => a.value != null);
+    const bestFirst = layer.higherIsBetter !== false;
+    aggs.sort((a, b) => bestFirst ? (b.value! - a.value!) : (a.value! - b.value!));
+    let mx = 0;
+    for (const a of aggs) { const abs = Math.abs(a.value!); if (abs > mx) mx = abs; }
+    return { items: aggs, maxVal: mx === 0 ? 1 : mx };
+  }, [features, layer.property, layer.higherIsBetter]);
+
+  const displayItems = useMemo(() => reversed ? [...items].reverse() : items, [items, reversed]);
+
+  const regionName = (id: string) => {
+    const cfg = (REGIONS as Record<string, { labelKey: string }>)[id];
+    return cfg ? t(cfg.labelKey) : id;
+  };
+  const muniCount = (id: string) => (REGIONS as Record<string, { municipalityCodes: string[] }>)[id]?.municipalityCodes.length ?? 0;
+
+  return (
+    <div className="absolute top-14 left-4 z-20 w-80 max-h-[calc(100vh-7rem)] flex flex-col
+                    rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md
+                    border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-surface-200 dark:border-surface-700/40 flex-shrink-0">
+        <div>
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400">
+            {t('region.comparison.title')}
+          </h3>
+          <p className="text-sm font-medium text-surface-800 dark:text-surface-200 mt-0.5">
+            {t(layer.labelKey)}
+          </p>
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setReversed((r) => !r)}
+            className="p-1.5 rounded-lg transition-colors bg-surface-100 dark:bg-surface-800/60 text-surface-600 dark:text-surface-300 hover:bg-surface-200 dark:hover:bg-surface-700/60"
+            aria-label={reversed ? t('ranking.worst_first') : t('ranking.best_first')}
+          >
+            <svg className={`w-4 h-4 transition-transform ${reversed ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800/60 transition-colors"
+            aria-label={t('aria.close')}
+          >
+            <svg className="w-4 h-4 text-surface-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div className="overflow-y-auto flex-1 min-h-0">
+        {!features && !error && (
+          <div className="px-4 py-8 text-center text-sm text-surface-400 dark:text-surface-500">{t('loading.title')}</div>
+        )}
+        {error && (
+          <div className="px-4 py-8 text-center text-sm text-surface-400 dark:text-surface-500">{t('region.comparison.no_data')}</div>
+        )}
+        {displayItems.map((item, i) => {
+          const barWidth = maxVal !== 0 ? (Math.abs(item.value!) / maxVal) * 100 : 0;
+          const color = getColorForValue(layer, item.value!);
+          const rank = reversed ? displayItems.length - i : i + 1;
+          return (
+            <button
+              key={item.regionId}
+              onClick={() => onSelectRegion(item.regionId)}
+              className="w-full text-left px-4 py-2 flex items-center gap-3 hover:bg-surface-100 dark:hover:bg-surface-800/60 transition-colors border-b border-surface-100 dark:border-surface-800/30 last:border-0"
+            >
+              <span className="text-xs font-mono text-surface-400 dark:text-surface-500 w-6 text-right flex-shrink-0">{rank}</span>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm text-surface-800 dark:text-surface-200 truncate">{regionName(item.regionId)}</div>
+                <div className="text-[10px] text-surface-400 dark:text-surface-500">
+                  {muniCount(item.regionId)} {t('region.comparison.municipalities')}
+                </div>
+                <div className="mt-1 h-1.5 w-full bg-surface-100 dark:bg-surface-800 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full transition-all duration-300" style={{ width: `${Math.max(barWidth, 2)}%`, backgroundColor: color }} />
+                </div>
+              </div>
+              <span className="text-xs font-medium text-surface-600 dark:text-surface-300 flex-shrink-0 tabular-nums">{layer.format(item.value!)}</span>
+            </button>
+          );
+        })}
+        {features && displayItems.length === 0 && (
+          <div className="px-4 py-8 text-center text-sm text-surface-400 dark:text-surface-500">{t('region.comparison.no_data')}</div>
+        )}
+      </div>
+
+      <div className="px-4 py-2 border-t border-surface-200 dark:border-surface-700/40 flex-shrink-0">
+        <p className="text-[10px] text-surface-400 dark:text-surface-500">{displayItems.length} {t('region.comparison.regions')}</p>
+      </div>
+    </div>
+  );
+});
+RegionRankingTable.displayName = 'RegionRankingTable';

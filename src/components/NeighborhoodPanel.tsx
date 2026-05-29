@@ -8,6 +8,8 @@ import { exportCsv, exportPdf } from '../utils/export';
 import { TrendSection } from './TrendChart';
 import Sparkline from './Sparkline';
 import RadarChart from './RadarChart';
+import { IsochroneControls } from './IsochroneControls';
+import type { IsochroneMode } from '../utils/isochrone';
 import { findSimilarNeighborhoods } from '../utils/similarity';
 import { toSlug } from '../utils/slug';
 import { useAnimatedValue } from '../hooks/useAnimatedValue';
@@ -35,6 +37,14 @@ interface PanelProps {
   onExploreCity?: (cityId: string) => void;
   /** Authenticated user id — enables cloud-synced notes when set */
   userId?: string | null;
+  /** CF-5: travel-time isochrone controls (only when a Digitransit key is configured) */
+  isochroneEnabled?: boolean;
+  isochroneMode?: IsochroneMode;
+  isochroneBudget?: number;
+  isochroneLoading?: boolean;
+  isochroneActive?: boolean;
+  onIsochroneChange?: (mode: IsochroneMode, budget: number) => void;
+  onIsochroneClear?: () => void;
 }
 
 const StatRow: React.FC<{
@@ -424,7 +434,7 @@ const NotesEditor: React.FC<{ pno: string; userId?: string | null }> = React.mem
 });
 NotesEditor.displayName = 'NotesEditor';
 
-export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, allFeatures, onFlyTo, isFavorite = false, onToggleFavorite, onExploreCity, userId }) => {
+export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, allFeatures, onFlyTo, isFavorite = false, onToggleFavorite, onExploreCity, userId, isochroneEnabled = false, isochroneMode = 'walk', isochroneBudget = 20, isochroneLoading = false, isochroneActive = false, onIsochroneChange, onIsochroneClear }) => {
   useI18nVersion();
   const eduTotal = useMemo(() =>
     [d.ko_yl_kork, d.ko_al_kork, d.ko_ammat, d.ko_perus]
@@ -608,6 +618,18 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
           qualityIndex={d.quality_index}
           isCustomWeights={isCustomWeights}
           onCustomize={onCustomize}
+        />
+      )}
+
+      {/* CF-5: travel-time isochrone controls (real neighborhoods only; needs a Digitransit key) */}
+      {isochroneEnabled && !d._isMetroArea && onIsochroneChange && onIsochroneClear && (
+        <IsochroneControls
+          mode={isochroneMode}
+          budget={isochroneBudget}
+          loading={isochroneLoading}
+          active={isochroneActive}
+          onChange={onIsochroneChange}
+          onClear={onIsochroneClear}
         />
       )}
 

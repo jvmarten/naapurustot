@@ -29,6 +29,7 @@ const NeighborhoodWizard = lazy(() => import('./components/NeighborhoodWizard').
 const SplitMapView = lazy(() => import('./components/SplitMapView').then(m => ({ default: m.SplitMapView })));
 const AreaSummaryPanel = lazy(() => import('./components/AreaSummaryPanel').then(m => ({ default: m.AreaSummaryPanel })));
 const CorrelationExplorer = lazy(() => import('./components/CorrelationExplorer').then(m => ({ default: m.CorrelationExplorer })));
+const RegionRankingTable = lazy(() => import('./components/RegionRankingTable').then(m => ({ default: m.RegionRankingTable })));
 import { useMapData } from './hooks/useMapData';
 import { useGridData } from './hooks/useGridData';
 import { useFavorites } from './hooks/useFavorites';
@@ -52,6 +53,7 @@ import { useAllCitiesUnionPreload } from './hooks/useAllCitiesUnionPreload';
 import { IS_EMBED, buildEmbedSnippet } from './utils/embed';
 import { findNeighborhoodForPoint } from './utils/geocode';
 import { getFeatureCenter } from './utils/geometryFilter';
+import { ISOCHRONE_ENABLED, fetchIsochrone, type IsochroneMode } from './utils/isochrone';
 
 const initialUrl = readInitialUrlState();
 
@@ -96,6 +98,14 @@ const App: React.FC = () => {
   // CF-3: correlation / scatter explorer.
   const [showScatter, setShowScatter] = useState(false);
   const handleToggleScatter = useCallback(() => { setShowScatter((v) => { if (!v) trackEvent('open-scatter'); return !v; }); }, []);
+  // CF-4: region comparison & ranking.
+  const [showRegionRanking, setShowRegionRanking] = useState(false);
+  const handleToggleRegionRanking = useCallback(() => { setShowRegionRanking((v) => { if (!v) trackEvent('open-region-ranking'); return !v; }); }, []);
+  // CF-5: travel-time isochrone overlay.
+  const [isochronePolygon, setIsochronePolygon] = useState<Feature<Polygon | MultiPolygon> | null>(null);
+  const [isochroneMode, setIsochroneMode] = useState<IsochroneMode>('walk');
+  const [isochroneBudget, setIsochroneBudget] = useState(20);
+  const [isochroneLoading, setIsochroneLoading] = useState(false);
 
   // Build a PNO→Feature lookup Map for O(1) feature access.
   // Replaces multiple O(n) .find() scans after quality index recomputation
@@ -819,6 +829,28 @@ const App: React.FC = () => {
   }, []);
   const handleToggleTimePlay = useCallback(() => setTimePlaying((p) => !p), []);
 
+  // CF-5: fetch and show a travel-time isochrone for the selected neighborhood.
+  const handleIsochroneChange = useCallback(async (mode: IsochroneMode, budget: number) => {
+    const sel = selectedRef.current;
+    if (!sel) return;
+    const feature = pnoFeatureMapRef.current.get(sel.pno);
+    if (!feature?.geometry) return;
+    const [lng, lat] = getFeatureCenter(feature);
+    setIsochroneMode(mode);
+    setIsochroneBudget(budget);
+    setIsochroneLoading(true);
+    const poly = await fetchIsochrone(sel.pno, lng, lat, mode, budget);
+    // Ignore a stale response if the selection changed mid-request.
+    if (selectedRef.current?.pno !== sel.pno) { setIsochroneLoading(false); return; }
+    setIsochronePolygon(poly);
+    setIsochroneLoading(false);
+  }, []);
+  const handleIsochroneClear = useCallback(() => setIsochronePolygon(null), []);
+
+  // CF-5: clear the isochrone overlay whenever the selected neighborhood changes
+  // (or is deselected) so a stale reachable-area doesn't linger on a new area.
+  useEffect(() => { setIsochronePolygon(null); }, [selected?.pno]);
+
   const handleResetView = useCallback(() => {
     handleCityChange('helsinki_metro');
   }, [handleCityChange]);
@@ -1203,6 +1235,7 @@ const App: React.FC = () => {
             selectedAreaPnos={selectedAreaPnos}
             onSelectAreaClick={handleSelectAreaClick}
             layerConfig={effectiveLayer}
+            isochrone={isochronePolygon}
           />
         )}
       </ErrorBoundary>
@@ -1261,6 +1294,8 @@ const App: React.FC = () => {
             onUseLocation={handleUseLocation}
             showScatter={showScatter}
             onToggleScatter={handleToggleScatter}
+            showRegionRanking={showRegionRanking}
+            onToggleRegionRanking={handleToggleRegionRanking}
             lang={lang}
           />
         </div>
@@ -1432,6 +1467,13 @@ const App: React.FC = () => {
             onToggleFavorite={handleToggleFavorite}
             onExploreCity={handleExploreCity}
             userId={user?.id ?? null}
+            isochroneEnabled={ISOCHRONE_ENABLED}
+            isochroneMode={isochroneMode}
+            isochroneBudget={isochroneBudget}
+            isochroneLoading={isochroneLoading}
+            isochroneActive={isochronePolygon != null}
+            onIsochroneChange={handleIsochroneChange}
+            onIsochroneClear={handleIsochroneClear}
           />
           </Suspense>
         </ErrorBoundary>
@@ -1445,6 +1487,20 @@ const App: React.FC = () => {
               data={filteredData}
               onSelect={handleSearch}
               onClose={() => setShowScatter(false)}
+            />
+          </Suspense>
+        </ErrorBoundary>
+      )}
+
+      {/* CF-4: Region comparison & ranking */}
+      {showRegionRanking && (
+        <ErrorBoundary>
+          <Suspense fallback={null}>
+            <RegionRankingTable
+              activeLayer={activeLayer}
+              layerConfig={getLayerById(activeLayer)}
+              onSelectRegion={handleExploreCity}
+              onClose={() => setShowRegionRanking(false)}
             />
           </Suspense>
         </ErrorBoundary>
