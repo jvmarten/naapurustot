@@ -1,6 +1,15 @@
 const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || '';
 const VERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 
+// Optional, opt-in hostname binding. When set (e.g. "naapurustot.fi,www.naapurustot.fi"),
+// a solved token is only accepted if Cloudflare reports it was issued for one of
+// these hostnames — preventing token reuse from a phishing clone or another page
+// embedding the same public site key. Unset → no hostname check (dev/staging).
+const ALLOWED_HOSTNAMES = (process.env.TURNSTILE_ALLOWED_HOSTNAMES || '')
+  .split(',')
+  .map((h) => h.trim().toLowerCase())
+  .filter(Boolean);
+
 export async function verifyTurnstile(token: string, ip?: string): Promise<boolean> {
   // Skip verification if no secret is configured (dev mode)
   if (!TURNSTILE_SECRET) return true;
@@ -15,8 +24,17 @@ export async function verifyTurnstile(token: string, ip?: string): Promise<boole
       body: body.toString(),
     });
 
-    const data = await res.json() as { success: boolean };
-    return data.success === true;
+    const data = await res.json() as { success: boolean; hostname?: string };
+    if (data.success !== true) return false;
+    // Enforce hostname binding only when an allowlist is configured.
+    if (ALLOWED_HOSTNAMES.length > 0) {
+      const host = (data.hostname || '').toLowerCase();
+      if (!host || !ALLOWED_HOSTNAMES.includes(host)) {
+        console.warn('Turnstile hostname mismatch:', data.hostname);
+        return false;
+      }
+    }
+    return true;
   } catch (err) {
     console.error('Turnstile verification failed:', err);
     return false;

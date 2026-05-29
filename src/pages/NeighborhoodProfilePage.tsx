@@ -60,7 +60,9 @@ export const NeighborhoodProfilePage: React.FC = () => {
   const navigate = useNavigate();
   const [state, setState] = useState<LoadedState | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Hold an error *code*, not a pre-translated string, so the message re-localizes
+  // on language toggle and never leaks a raw English exception to the user.
+  const [error, setError] = useState<'invalid_url' | 'not_found' | 'load_failed' | null>(null);
   // True once the region geometry load has settled (loaded or failed). Until
   // then the MiniMap slot shows a placeholder so its arrival doesn't shift layout.
   const [mapResolved, setMapResolved] = useState(false);
@@ -95,7 +97,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
 
   useEffect(() => {
     if (!pno) {
-      setError('Invalid neighborhood URL');
+      setError('invalid_url');
       setLoading(false);
       setState(null);
       return;
@@ -170,7 +172,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
         if (cancelled) return;
         const feat = data.features.find(f => f.properties?.pno === pno);
         if (!feat) {
-          setError('Neighborhood not found');
+          setError('not_found');
           setLoading(false);
           return;
         }
@@ -183,9 +185,10 @@ export const NeighborhoodProfilePage: React.FC = () => {
         });
         setLoading(false);
         void loadGeometry(feat.properties?.city as RegionId | undefined);
-      } catch (err: unknown) {
+      } catch {
+        // Don't surface the raw exception text (English, unlocalized) to the user.
         if (cancelled) return;
-        setError(err instanceof Error ? err.message : String(err));
+        setError('load_failed');
         setLoading(false);
       }
     })();
@@ -204,7 +207,8 @@ export const NeighborhoodProfilePage: React.FC = () => {
       // Save the previous title so unmount restores the user's actual context
       // (e.g. the App's main title) instead of clobbering it with a hardcoded value.
       const prevTitle = document.title;
-      document.title = `${titleName} (${d.pno}) – naapurustot.fi`;
+      const docTitle = `${titleName} (${d.pno}) – naapurustot.fi`;
+      document.title = docTitle;
 
       // Meta description — update existing or create
       const existingMeta = document.querySelector('meta[name="description"]');
@@ -262,8 +266,30 @@ export const NeighborhoodProfilePage: React.FC = () => {
       hrefSv.href = canonicalByLang.sv;
       document.head.appendChild(hrefSv);
 
+      // OG/Twitter tags: the prerenderer rewrites these per page, but client-side
+      // navigation between profiles (e.g. via "similar neighborhoods") must keep
+      // them in sync too — some social unfurlers/crawlers read the live DOM. Update
+      // existing tags only (never create them), then restore on cleanup. Mirror the
+      // prerender values: titles → docTitle, descriptions → descContent, og:url →
+      // canonicalHref.
+      const metaUpdates: { el: Element; prev: string | null }[] = [];
+      const setMeta = (selector: string, value: string) => {
+        const el = document.querySelector(selector);
+        if (!el) return;
+        metaUpdates.push({ el, prev: el.getAttribute('content') });
+        el.setAttribute('content', value);
+      };
+      setMeta('meta[property="og:title"]', docTitle);
+      setMeta('meta[property="og:description"]', descContent);
+      setMeta('meta[property="og:url"]', canonicalHref);
+      setMeta('meta[name="twitter:title"]', docTitle);
+      setMeta('meta[name="twitter:description"]', descContent);
+
       return () => {
         document.title = prevTitle;
+        for (const { el, prev } of metaUpdates) {
+          if (prev != null) el.setAttribute('content', prev);
+        }
         // Restore previous values for existing elements, remove created ones
         if (existingMeta && prevMetaContent != null) {
           existingMeta.setAttribute('content', prevMetaContent);
@@ -309,9 +335,12 @@ export const NeighborhoodProfilePage: React.FC = () => {
   }
 
   if (error || !state) {
+    // Translate at render time so the heading follows the active language and
+    // re-localizes on toggle (useI18nVersion above forces the re-render).
+    const heading = error ? t(`error.${error}`) : t('error.generic');
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-white dark:bg-surface-950 text-surface-900 dark:text-white px-4">
-        <h1 className="text-2xl font-bold mb-4">{error ?? 'Error'}</h1>
+        <h1 className="text-2xl font-bold mb-4">{heading}</h1>
         <Link to="/" className="text-brand-500 hover:underline">{t('notfound.back_to_map')}</Link>
       </div>
     );
@@ -344,7 +373,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-white dark:bg-surface-950 text-surface-900 dark:text-white">
-      <JsonLd properties={d} center={center} url={canonicalUrl} />
+      <JsonLd properties={d} center={center} url={canonicalUrl} lang={lang} />
 
       {/* Header */}
       <header className="border-b border-surface-200 dark:border-surface-800">

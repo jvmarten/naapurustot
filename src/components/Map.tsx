@@ -503,7 +503,11 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       addGridLayerRef.current?.();
     };
 
-    if (map.isStyleLoaded()) {
+    // Gate on the persistent mapStyleLoadedRef, not map.isStyleLoaded(): the
+    // latter returns false during an in-flight setData re-parse (quality-weight
+    // recompute, metro-area rebuild, region switch), which would re-queue this on
+    // the one-shot 'load' event that already fired — silently dropping the layers.
+    if (mapStyleLoadedRef.current) {
       ensureLayers();
     } else {
       map.on('load', ensureLayers);
@@ -552,7 +556,10 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         map.setPaintProperty(DRAW_SNAP_LINE_LAYER, 'line-color', theme === 'dark' ? '#a78bfa' : '#7c3aed');
       }
     };
-    if (map.isStyleLoaded()) apply();
+    // Gate on mapStyleLoadedRef (not isStyleLoaded()) so a theme toggle during an
+    // in-flight setData still repaints line/highlight colors instead of queuing on
+    // the one-shot 'load' that will never fire again.
+    if (mapStyleLoadedRef.current) apply();
     else map.on('load', apply);
     return () => { map.off('load', apply); };
   }, [theme]);
@@ -688,7 +695,10 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         return;
       }
       void loadSeutukunnatBoundaries().then((geo) => {
-        if (!geo || !mapRef.current) return;
+        // Guard against the captured `map` being a stale (removed) instance after an
+        // unmount/remount: only proceed if it is still the live map. mapRef.current
+        // is nulled (and the map removed) on cleanup, so equality proves liveness.
+        if (!geo || mapRef.current !== map) return;
         if (map.getLayer(SEUTUKUNNAT_LINE_LAYER)) return;
         if (!map.getSource(SEUTUKUNNAT_SOURCE_ID)) {
           map.addSource(SEUTUKUNNAT_SOURCE_ID, { type: 'geojson', data: geo });
@@ -710,7 +720,10 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       });
     };
 
-    if (map.isStyleLoaded()) addBoundaries();
+    // Gate on mapStyleLoadedRef (not isStyleLoaded()) so the seutukunnat boundary
+    // is still added when this runs during an in-flight setData rather than being
+    // queued on the already-fired one-shot 'load' event.
+    if (mapStyleLoadedRef.current) addBoundaries();
     else map.on('load', addBoundaries);
     return () => { map.off('load', addBoundaries); };
   }, [theme]);
@@ -835,6 +848,21 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
             mapRef.current.setPaintProperty(GRID_FILL_LAYER, 'fill-opacity-transition', { duration: 200, delay: 0 });
             mapRef.current.setPaintProperty(GRID_FILL_LAYER, 'fill-opacity', buildGridFillOpacity(currentFillOpacity));
           }
+        } else if (filterActiveRef.current && filterMatchPnoArrayRef.current.length > 0) {
+          // Preserve filter dimming across a layer switch — otherwise non-matching
+          // neighborhoods jump back to full opacity while the match highlight stays.
+          mapRef.current.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(currentFillOpacity, {
+            matchExpr: ['in', ['get', 'pno'], ['literal', filterMatchPnoArrayRef.current]],
+            matchVal: 0.8,
+            dimVal: 0.15,
+          }) as maplibregl.ExpressionSpecification);
+        } else if (wizardHighlightPnosRef.current.length > 0) {
+          // Same for wizard-result dimming.
+          mapRef.current.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(currentFillOpacity, {
+            matchExpr: ['in', ['get', 'pno'], ['literal', wizardHighlightPnosRef.current]],
+            matchVal: 0.8,
+            dimVal: 0.2,
+          }) as maplibregl.ExpressionSpecification);
         } else {
           mapRef.current.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(currentFillOpacity) as maplibregl.ExpressionSpecification);
         }

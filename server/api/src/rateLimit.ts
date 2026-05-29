@@ -16,11 +16,12 @@ setInterval(() => {
 }, 10 * 60 * 1000).unref();
 
 function getClientIp(req: Request): string {
-  // Only trust X-Forwarded-For behind the reverse proxy in production
-  if (process.env.NODE_ENV === 'production') {
-    const forwarded = req.headers['x-forwarded-for'];
-    if (typeof forwarded === 'string') return forwarded.split(',')[0].trim();
-  }
+  // index.ts sets `app.set('trust proxy', 1)` in production, so Express already
+  // derives req.ip as the genuine client IP by trusting exactly one hop (the Caddy
+  // reverse proxy). Caddy APPENDS the connecting peer to X-Forwarded-For rather than
+  // overwriting it, so the leftmost header entry is attacker-controlled — parsing it
+  // by hand (split(',')[0]) let anyone forge a fresh rate-limit bucket per request
+  // and bypass the signup/login limits. Always defer to the trust-proxy-aware req.ip.
   return req.ip || req.socket?.remoteAddress || 'unknown';
 }
 

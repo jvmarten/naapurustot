@@ -164,12 +164,13 @@ console.log(`Assigned region IDs to ${outFeatures.length} seutukunnat`);
 
 // Write intermediate GeoJSON, quantize + simplify into the final topojson.
 writeFileSync(tmpGeojson, JSON.stringify({ type: 'FeatureCollection', features: outFeatures }));
+// Quote paths so spaces in the checkout path don't break the shell command.
 execSync(
-  `npx -p topojson-server geo2topo -q 1e5 seutukunnat=${tmpGeojson} > ${tmpQuant}`,
+  `npx -p topojson-server geo2topo -q 1e5 seutukunnat="${tmpGeojson}" > "${tmpQuant}"`,
   { stdio: 'inherit' },
 );
 execSync(
-  `npx -p topojson-simplify toposimplify -p 1e-6 -f ${tmpQuant} > ${outTopojson}`,
+  `npx -p topojson-simplify toposimplify -p 1e-6 -f "${tmpQuant}" > "${outTopojson}"`,
   { stdio: 'inherit' },
 );
 unlinkSync(tmpGeojson);

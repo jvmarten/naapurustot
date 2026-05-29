@@ -113,7 +113,12 @@ const RadarChart: React.FC<RadarChartProps> = React.memo(function RadarChart({ d
 
   // QW-4: Accessibility — build descriptive label with all axis values and the
   // top 2 strongest dimensions so screen readers can convey the chart contents.
-  const ariaLabel = useMemo(() => {
+  // Computed inline (not memoized) so the t()-built string always reflects the
+  // current language: useI18nVersion() above re-renders on a language change /
+  // lazy dictionary arrival, and the work (a few maps over ~6 axes) is trivial.
+  // A memo keyed on [data, dataValues] went stale because neither identity
+  // changes on a language switch.
+  const ariaLabel = (() => {
     const name = (data.nimi || data.pno || '').toString();
     const items = AXES.map((axis, i) => ({
       label: t(axis.key),
@@ -130,7 +135,7 @@ const RadarChart: React.FC<RadarChartProps> = React.memo(function RadarChart({ d
     return name
       ? `${title}: ${name} — ${valuesText}. ${strongest}: ${top2}.`
       : `${title} — ${valuesText}. ${strongest}: ${top2}.`;
-  }, [data, dataValues]);
+  })();
 
   const gridLevels = [20, 40, 60, 80, 100];
 

@@ -10,7 +10,12 @@ interface State {
   hasError: boolean;
   error: Error | null;
   remountKey: number;
+  recoveryAttempts: number;
 }
+
+/** Cap on silent auto-remounts before showing the fallback, so a persistently
+ *  DOM-mutating extension can't spin an unbounded remount loop. */
+const MAX_AUTO_RECOVERIES = 3;
 
 // React's commit-phase `removeChild` can throw a DOMException when the live
 // DOM has been mutated out from under it (typically by browser translation
@@ -26,7 +31,7 @@ function isRecoverableReconciliationError(error: Error): boolean {
 export class ErrorBoundary extends React.Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false, error: null, remountKey: 0 };
+    this.state = { hasError: false, error: null, remountKey: 0, recoveryAttempts: 0 };
   }
 
   static getDerivedStateFromError(error: Error): Partial<State> {
@@ -35,12 +40,19 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('ErrorBoundary caught:', error, errorInfo);
-    if (isRecoverableReconciliationError(error)) {
+    if (isRecoverableReconciliationError(error) && this.state.recoveryAttempts < MAX_AUTO_RECOVERIES) {
       // Auto-recover: clear the error and bump the remount key so the
       // children get a fresh fiber tree. Deferred to the next microtask
-      // to avoid setState-during-error-handling warnings.
+      // to avoid setState-during-error-handling warnings. Bounded by
+      // recoveryAttempts so a continuously-mutating DOM can't loop forever —
+      // after the cap, the fallback UI (Retry/Reload) renders instead.
       queueMicrotask(() => {
-        this.setState((s) => ({ hasError: false, error: null, remountKey: s.remountKey + 1 }));
+        this.setState((s) => ({
+          hasError: false,
+          error: null,
+          remountKey: s.remountKey + 1,
+          recoveryAttempts: s.recoveryAttempts + 1,
+        }));
       });
     }
   }
@@ -59,7 +71,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
           </p>
           <div className="flex gap-3">
             <button
-              onClick={() => this.setState((s) => ({ hasError: false, error: null, remountKey: s.remountKey + 1 }))}
+              onClick={() => this.setState((s) => ({ hasError: false, error: null, remountKey: s.remountKey + 1, recoveryAttempts: 0 }))}
               className="px-4 py-2 rounded-xl text-sm font-medium bg-surface-200 dark:bg-surface-700 text-surface-900 dark:text-white hover:bg-surface-300 dark:hover:bg-surface-600 transition-colors"
             >
               {t('error.retry')}

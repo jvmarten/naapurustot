@@ -51,17 +51,35 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, onSelect,
   const { results, totalCount } = useMemo(() => {
     if (!data || debouncedQuery.length < 2) return { results: [], totalCount: 0 };
     const q = debouncedQuery.toLowerCase();
-    const top: GeoJSON.Feature[] = [];
-    let count = 0;
+    // Score matches so exact/prefix hits rank above arbitrary substring matches,
+    // then keep the top 8. Previously the first 8 in dataset order won, so an exact
+    // name match could be pushed out of view by earlier incidental substring matches.
+    const scored: { f: GeoJSON.Feature; score: number; idx: number }[] = [];
+    let idx = 0;
     for (const f of data.features) {
       const p = f.properties;
-      if (!p) continue;
-      if (p.nimi?.toLowerCase().includes(q) || p.namn?.toLowerCase().includes(q) || p.pno?.startsWith(q)) {
-        count++;
-        if (top.length < 8) top.push(f);
+      if (!p) { idx++; continue; }
+      const nimi = (p.nimi as string | undefined)?.toLowerCase();
+      const namn = (p.namn as string | undefined)?.toLowerCase();
+      const pno = p.pno as string | undefined;
+      const nimiHit = nimi?.includes(q) ?? false;
+      const namnHit = namn?.includes(q) ?? false;
+      const pnoHit = pno?.startsWith(q) ?? false;
+      if (nimiHit || namnHit || pnoHit) {
+        // lower score = more relevant (same match predicate as before, so totalCount is unchanged)
+        let score = 4; // namn substring fallback
+        if (nimi === q || namn === q) score = 0;                       // exact name
+        else if (nimi?.startsWith(q) || namn?.startsWith(q)) score = 1; // name prefix
+        else if (pno === q) score = 2;                                 // exact pno
+        else if (pnoHit) score = 3;                                    // pno prefix
+        else if (nimiHit) score = 3.5;                                 // nimi substring
+        scored.push({ f, score, idx });
       }
+      idx++;
     }
-    return { results: top, totalCount: count };
+    // Stable tie-break on dataset index keeps ordering deterministic.
+    scored.sort((a, b) => a.score - b.score || a.idx - b.idx);
+    return { results: scored.slice(0, 8).map((s) => s.f), totalCount: scored.length };
   }, [data, debouncedQuery]);
 
   // CF-1: Debounced address geocoding — always search for streets/addresses alongside neighborhoods.
@@ -136,6 +154,13 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, onSelect,
   useEffect(() => {
     setHighlightedIndex(-1);
   }, [results]);
+
+  // Scroll the keyboard-highlighted option into view (the list can exceed its
+  // scroll region with 8 neighborhoods + address results).
+  useEffect(() => {
+    if (highlightedIndex < 0) return;
+    document.getElementById(`search-result-${highlightedIndex}`)?.scrollIntoView({ block: 'nearest' });
+  }, [highlightedIndex]);
 
   function selectResult(feature: GeoJSON.Feature) {
     trackEvent('search-neighborhood');
@@ -275,7 +300,7 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, onSelect,
           ref={listRef}
           id="search-results-list"
           role="listbox"
-          className="mt-1.5 rounded-xl bg-white/95 dark:bg-surface-900/95 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden"
+          className="mt-1.5 rounded-xl bg-white/95 dark:bg-surface-900/95 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl max-h-[60vh] overflow-y-auto"
         >
           {results.map((f, index) => (
             <button

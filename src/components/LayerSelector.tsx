@@ -58,11 +58,25 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
   const listRef = useRef<HTMLDivElement>(null);
   const [focusedIndex, setFocusedIndex] = useState(-1);
 
-  // Build flat list of visible layer IDs for keyboard navigation.
-  // Memoized to avoid re-registering the keyboard listener on every render.
+  // PO-3: normalized search query. Declared above visibleLayers because the
+  // keyboard-nav flat list must mirror the render path's visibility rules.
+  const searchQuery = layerSearch.toLowerCase().trim();
+
+  // Build flat list of visible layer IDs for keyboard navigation. Mirrors the
+  // render path exactly: groups force-expand while searching, and each id must
+  // pass the same label-substring filter — otherwise arrow keys/Enter would walk
+  // rows that aren't rendered (or skip rows that are) during an active search.
   const visibleLayers = useMemo(
-    () => LAYER_GROUPS.flatMap((group) => collapsed[group.labelKey] ? [] : group.ids),
-    [collapsed],
+    () =>
+      LAYER_GROUPS.flatMap((group) => {
+        const isCollapsed = searchQuery ? false : !!collapsed[group.labelKey];
+        if (isCollapsed) return [];
+        return group.ids.filter((id) => {
+          const layer = LAYER_MAP.get(id);
+          return layer ? (!searchQuery || t(layer.labelKey).toLowerCase().includes(searchQuery)) : false;
+        });
+      }),
+    [collapsed, searchQuery],
   );
 
   // Read frequently-changing values from refs to avoid re-registering
@@ -70,9 +84,11 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
   const focusedIndexRef = useRef(focusedIndex);
   const visibleLayersRef = useRef(visibleLayers);
   const onLayerChangeRef = useRef(onLayerChange);
+  const mobileOpenRef = useRef(mobileOpen);
   useEffect(() => { focusedIndexRef.current = focusedIndex; }, [focusedIndex]);
   useEffect(() => { visibleLayersRef.current = visibleLayers; }, [visibleLayers]);
   useEffect(() => { onLayerChangeRef.current = onLayerChange; }, [onLayerChange]);
+  useEffect(() => { mobileOpenRef.current = mobileOpen; }, [mobileOpen]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -91,9 +107,16 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
         onLayerChangeRef.current(vl[fi]);
         setMobileOpen(false);
       } else if (e.key === 'Escape') {
-        e.preventDefault();
-        e.stopPropagation();
-        setMobileOpen(false);
+        // Only consume Escape when the mobile sheet is actually open. stopPropagation
+        // does NOT stop other listeners on the same target (window), so use
+        // stopImmediatePropagation to keep the App-level Escape handler from also
+        // firing on the same press (which would e.g. deselect a neighborhood).
+        // On desktop the sheet is never open, so Escape falls through to App as before.
+        if (mobileOpenRef.current) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          setMobileOpen(false);
+        }
       }
     };
 
@@ -107,9 +130,6 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
     const el = listRef.current?.querySelector(`[data-layer-index="${focusedIndex}"]`);
     el?.scrollIntoView({ block: 'nearest' });
   }, [focusedIndex]);
-
-  // PO-3: Filter layers by search query
-  const searchQuery = layerSearch.toLowerCase().trim();
 
   const layerList = (
     <div className="p-2 space-y-1" ref={listRef} role="listbox" aria-label={t('layers.title')}>
@@ -152,7 +172,10 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
               }}
               role="option"
               aria-selected={isActive}
-              tabIndex={isActive ? 0 : -1}
+              // Always Tab-reachable: quality_index is not part of any LAYER_GROUP,
+              // so it is absent from the arrow-key flat list. Without tabIndex=0 it
+              // is unreachable by keyboard whenever it is not the active layer.
+              tabIndex={0}
               className={`flex-1 text-left px-3 py-2.5 md:py-1.5 rounded-lg text-sm transition-all duration-150 min-h-[44px] md:min-h-0 ${
                 isActive
                   ? 'bg-brand-500/15 dark:bg-brand-600/20 text-brand-600 dark:text-brand-300 font-medium'
@@ -228,7 +251,6 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
             {!isCollapsed && groupLayers.map((layer) => {
               if (!layer) return null;
               const isActive = layer.id === activeLayer;
-              const showEditBtn = layer.id === 'quality_index' && onCustomizeQuality;
               const flatIndex = visibleLayers.indexOf(layer.id);
               const isFocused = flatIndex === focusedIndex;
               return (
@@ -259,24 +281,6 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
                       {t(layer.labelKey)}
                     </div>
                   </button>
-                  {showEditBtn && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onCustomizeQuality!();
-                      }}
-                      className={`flex-shrink-0 p-1.5 rounded-lg transition-colors min-h-[44px] md:min-h-0 min-w-[32px] flex items-center justify-center ${
-                        isCustomWeights
-                          ? 'text-brand-500 dark:text-brand-400 hover:bg-brand-500/15'
-                          : 'text-surface-400 dark:text-surface-500 hover:text-surface-600 dark:hover:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800/60'
-                      }`}
-                      title={t('custom_quality.button')}
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-                      </svg>
-                    </button>
-                  )}
                 </div>
               );
             })}

@@ -59,7 +59,14 @@ export function useGridData(activeLayer: LayerId): GridDataState {
     const path = GRID_PATHS[activeLayer];
     if (!path) return;
     const fetched = fetchedRef.current;
-    if (fetched.has(activeLayer)) return;
+    if (fetched.has(activeLayer)) {
+      // Already fetched/cached (or a prior in-flight fetch for this layer is still
+      // tracked): nothing to load now, so clear any stale loading flag left behind
+      // by a cancelled fetch of a different layer (the cancelled fetch skips its
+      // own setLoading(false) via the `if (cancelled) return` guard).
+      setLoading(false);
+      return;
+    }
     fetched.add(activeLayer);
 
     let cancelled = false;
@@ -90,7 +97,12 @@ export function useGridData(activeLayer: LayerId): GridDataState {
     return () => {
       cancelled = true;
       // Allow retry on re-visit only if the fetch didn't complete successfully
-      if (!completed) fetched.delete(activeLayer);
+      if (!completed) {
+        fetched.delete(activeLayer);
+        // The cancelled fetch will skip its own setLoading(false), so clear it
+        // here to avoid leaving the hook stuck at loading:true.
+        setLoading(false);
+      }
     };
   }, [activeLayer]);
 

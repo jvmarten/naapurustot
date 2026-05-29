@@ -119,13 +119,15 @@ const MobileCard: React.FC<{
   </div>
 );
 
-// PO-4: Chart metrics for bar chart comparison
-const CHART_METRICS: { label: string; key: string; higherIsBetter: boolean; max?: number }[] = [
-  { label: 'panel.median_income', key: 'hr_mtu', higherIsBetter: true },
-  { label: 'panel.unemployment', key: 'unemployment_rate', higherIsBetter: false, max: 30 },
-  { label: 'panel.property_price', key: 'property_price_sqm', higherIsBetter: true },
-  { label: 'panel.transit_access', key: 'transit_stop_density', higherIsBetter: true },
-  { label: 'panel.crime_rate', key: 'crime_index', higherIsBetter: false },
+// PO-4: Chart metrics for bar chart comparison. Each carries a formatter so the
+// value label matches the table view (units restored, missing data shown as '—'
+// rather than a fabricated '0').
+const CHART_METRICS: { label: string; key: string; higherIsBetter: boolean; max?: number; format: (v: number | null) => string }[] = [
+  { label: 'panel.median_income', key: 'hr_mtu', higherIsBetter: true, format: formatEuro },
+  { label: 'panel.unemployment', key: 'unemployment_rate', higherIsBetter: false, max: 30, format: formatPct },
+  { label: 'panel.property_price', key: 'property_price_sqm', higherIsBetter: true, format: formatEuroSqm },
+  { label: 'panel.transit_access', key: 'transit_stop_density', higherIsBetter: true, format: (v) => (v == null ? '—' : `${v.toFixed(1)} /km²`) },
+  { label: 'panel.crime_rate', key: 'crime_index', higherIsBetter: false, format: (v) => (v == null ? '—' : v.toFixed(1)) },
 ];
 
 const BAR_COLORS = ['#6366f1', '#10b981', '#f59e0b'];
@@ -135,14 +137,15 @@ const ComparisonChart: React.FC<{ pinned: NeighborhoodProperties[] }> = React.me
   return (
     <div className="px-5 py-4 space-y-5">
       {CHART_METRICS.map((metric) => {
-        const values = pinned.map((n) => (n[metric.key] as number) ?? 0);
+        const values = pinned.map((n) => (n[metric.key] as number | null) ?? 0); // bar geometry only
         const maxVal = metric.max ?? Math.max(...values, 1);
         return (
           <div key={metric.key}>
             <div className="text-xs text-surface-500 dark:text-surface-400 mb-1.5">{t(metric.label)}</div>
             <div className="space-y-1">
               {pinned.map((n, i) => {
-                const val = (n[metric.key] as number) ?? 0;
+                const raw = n[metric.key] as number | null;
+                const val = raw ?? 0; // bar width basis; missing data → empty bar
                 const pct = Math.min((val / maxVal) * 100, 100);
                 return (
                   <div key={n.pno} className="flex items-center gap-2">
@@ -154,7 +157,7 @@ const ComparisonChart: React.FC<{ pinned: NeighborhoodProperties[] }> = React.me
                       />
                     </div>
                     <span className="w-16 text-[10px] text-surface-700 dark:text-surface-300 text-right tabular-nums">
-                      {formatNumber(val)}
+                      {metric.format(raw)}
                     </span>
                   </div>
                 );

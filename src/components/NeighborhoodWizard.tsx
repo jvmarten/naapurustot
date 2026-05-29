@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import type { FeatureCollection } from 'geojson';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { t } from '../utils/i18n';
@@ -244,6 +244,15 @@ export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onCl
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<WizardAnswers>({ ...defaultAnswers });
 
+  // A11y: move focus into the dialog on open and restore it to the triggering
+  // element on close, so keyboard/screen-reader users aren't left behind the modal.
+  const panelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const trigger = document.activeElement as HTMLElement | null;
+    panelRef.current?.focus();
+    return () => trigger?.focus?.();
+  }, []);
+
   const topMatches = useMemo(() => {
     if (!data || step < 3) return [];
     return scoreNeighborhoods(data, answers);
@@ -368,7 +377,11 @@ export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onCl
             max={15000}
             step={100}
             value={answers.budgetMin}
-            onChange={(e) => setAnswers((a) => ({ ...a, budgetMin: Number(e.target.value) }))}
+            aria-label={`${t('wizard.budget')} (min)`}
+            // Ignore empty/non-finite input (so clearing doesn't silently coerce to
+            // Number('') === 0); clamp into range on blur.
+            onChange={(e) => { const n = Number(e.target.value); if (e.target.value !== '' && Number.isFinite(n)) setAnswers((a) => ({ ...a, budgetMin: n })); }}
+            onBlur={() => setAnswers((a) => ({ ...a, budgetMin: Math.min(15000, Math.max(500, Number.isFinite(a.budgetMin) ? a.budgetMin : defaultAnswers.budgetMin)) }))}
             className="w-24 px-2 py-1.5 text-sm rounded-lg border border-surface-300 dark:border-surface-600
                        bg-white dark:bg-surface-800 text-surface-900 dark:text-white
                        focus:ring-2 focus:ring-blue-500 focus:outline-none"
@@ -380,7 +393,9 @@ export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onCl
             max={15000}
             step={100}
             value={answers.budgetMax}
-            onChange={(e) => setAnswers((a) => ({ ...a, budgetMax: Number(e.target.value) }))}
+            aria-label={`${t('wizard.budget')} (max)`}
+            onChange={(e) => { const n = Number(e.target.value); if (e.target.value !== '' && Number.isFinite(n)) setAnswers((a) => ({ ...a, budgetMax: n })); }}
+            onBlur={() => setAnswers((a) => ({ ...a, budgetMax: Math.min(15000, Math.max(500, Number.isFinite(a.budgetMax) ? a.budgetMax : defaultAnswers.budgetMax)) }))}
             className="w-24 px-2 py-1.5 text-sm rounded-lg border border-surface-300 dark:border-surface-600
                        bg-white dark:bg-surface-800 text-surface-900 dark:text-white
                        focus:ring-2 focus:ring-blue-500 focus:outline-none"
@@ -559,7 +574,7 @@ export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onCl
           {topMatches.map((match, i) => (
             <button
               key={match.pno}
-              onClick={() => onSelect(match.pno, match.center)}
+              onClick={() => { onSelect(match.pno, match.center); onClose(); }}
               className="w-full text-left p-3 rounded-xl transition-colors
                          bg-surface-50 dark:bg-surface-800/60 hover:bg-surface-100 dark:hover:bg-surface-700/60
                          border border-surface-200 dark:border-surface-700/50"
@@ -612,7 +627,13 @@ export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onCl
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="relative w-full max-w-lg mx-4 max-h-[90vh] flex flex-col
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={t('wizard.title')}
+        tabIndex={-1}
+        className="relative w-full max-w-lg mx-4 max-h-[90vh] flex flex-col outline-none
                       bg-white/95 dark:bg-surface-900/95 backdrop-blur-md
                       rounded-2xl shadow-2xl border border-surface-200 dark:border-surface-700/40">
         {/* Header */}
@@ -622,6 +643,7 @@ export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onCl
           </h2>
           <button
             onClick={onClose}
+            aria-label={t('aria.close')}
             className="w-8 h-8 flex items-center justify-center rounded-lg
                        text-surface-400 hover:text-surface-600 dark:hover:text-surface-200
                        hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors"

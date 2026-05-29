@@ -54,8 +54,12 @@ const StatRow: React.FC<{
   const infoRef = useRef<HTMLSpanElement>(null);
   const tooltipRef = useRef<HTMLSpanElement>(null);
   const [tooltipPos, setTooltipPos] = useState({ shiftX: 0, flipBelow: false });
+  // Per-instance id so the trigger's aria-controls can reference its popover
+  // (StatRow renders many times — a hardcoded id would collide).
+  const popoverId = React.useId();
 
-  // QW-5: Close click-popover when clicking outside.
+  // QW-5: Close click-popover when clicking outside, or on Escape (keyboard users
+  // otherwise can't dismiss it without moving focus and clicking away).
   useEffect(() => {
     if (!infoOpen) return;
     const handler = (e: MouseEvent) => {
@@ -63,8 +67,18 @@ const StatRow: React.FC<{
         setInfoOpen(false);
       }
     };
+    const keyHandler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setInfoOpen(false);
+        infoRef.current?.querySelector('button')?.focus();
+      }
+    };
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    document.addEventListener('keydown', keyHandler);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      document.removeEventListener('keydown', keyHandler);
+    };
   }, [infoOpen]);
 
   // Keep tooltip inside the viewport: shift horizontally if it would overflow,
@@ -107,6 +121,7 @@ const StatRow: React.FC<{
               onClick={(e) => { e.stopPropagation(); setInfoOpen((v) => !v); }}
               aria-label={`${source.source} (${source.year})`}
               aria-expanded={infoOpen}
+              aria-controls={infoOpen ? popoverId : undefined}
               className={`inline-flex items-center justify-center w-3.5 h-3.5 rounded-full text-[8px] font-bold
                           border transition-colors flex-shrink-0 cursor-pointer
                           ${infoOpen
@@ -119,6 +134,7 @@ const StatRow: React.FC<{
             {infoOpen && (
               <span
                 ref={tooltipRef}
+                id={popoverId}
                 role="tooltip"
                 className={`absolute left-1/2 w-64 max-w-[calc(100vw-2rem)] z-50
                            rounded-lg bg-surface-900 dark:bg-surface-800 border border-surface-700/60
@@ -427,6 +443,19 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
   const { activeSection, setActiveSection, dragOffset, isSnapping, isSwiping, handlers: swipeHandlers, onTransitionEnd } = useSwipeNavigation({
     sectionCount: MOBILE_SECTIONS.length,
   });
+
+  // React 19 delegates touchmove as a PASSIVE listener, so swipeHandlers.onTouchMove's
+  // e.preventDefault() can't actually lock vertical scroll during a horizontal swipe.
+  // Attach a non-passive native listener that blocks the page scroll only once the
+  // hook has committed to a horizontal swipe (isSwiping).
+  const swipeContainerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = swipeContainerRef.current;
+    if (!el) return;
+    const handler = (e: TouchEvent) => { if (isSwiping) e.preventDefault(); };
+    el.addEventListener('touchmove', handler, { passive: false });
+    return () => el.removeEventListener('touchmove', handler);
+  }, [isSwiping]);
 
   const favoriteButton = onToggleFavorite && (
     <button
@@ -1122,6 +1151,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
           onTouchStart={sheetHandlers.onTouchStart}
           onTouchMove={sheetHandlers.onTouchMove}
           onTouchEnd={sheetHandlers.onTouchEnd}
+          onTouchCancel={sheetHandlers.onTouchCancel}
         >
           <div className="w-10 h-1.5 rounded-full bg-surface-300 dark:bg-surface-600" />
         </div>
@@ -1201,10 +1231,12 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
 
         {/* PO-3: Swipeable section content — horizontal carousel */}
         <div
+          ref={swipeContainerRef}
           className="overflow-hidden flex-1 min-h-0"
           onTouchStart={swipeHandlers.onTouchStart}
           onTouchMove={swipeHandlers.onTouchMove}
           onTouchEnd={swipeHandlers.onTouchEnd}
+          onTouchCancel={swipeHandlers.onTouchCancel}
         >
           <div
             className="flex h-full"

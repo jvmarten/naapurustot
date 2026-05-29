@@ -5,7 +5,7 @@ import type { FeatureCollection } from 'geojson';
 import { buildFillColorExpression, LAYERS, type LayerId, getLayerById } from '../utils/colorScales';
 import { useTheme } from '../hooks/useTheme';
 import { t, useI18nVersion } from '../utils/i18n';
-import { DEFAULT_CENTER, DEFAULT_ZOOM, MAP_MAX_ZOOM, envNum } from '../utils/mapConstants';
+import { DEFAULT_CENTER, DEFAULT_ZOOM, MAP_MAX_ZOOM, MAP_MIN_ZOOM } from '../utils/mapConstants';
 
 /**
  * Compact dropdown for choosing a data layer on one side of the split view.
@@ -35,8 +35,6 @@ const BASEMAP_LIGHT = (import.meta.env.VITE_BASEMAP_LIGHT_URL as string) || 'htt
 const BASEMAP_DARK = (import.meta.env.VITE_BASEMAP_DARK_URL as string) || 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png';
 const BASEMAP_LIGHT_LABELS = (import.meta.env.VITE_BASEMAP_LIGHT_LABELS_URL as string) || 'https://basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}@2x.png';
 const BASEMAP_DARK_LABELS = (import.meta.env.VITE_BASEMAP_DARK_LABELS_URL as string) || 'https://basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}@2x.png';
-
-const SPLIT_MIN_ZOOM = envNum('VITE_MAP_MIN_ZOOM', 4);
 
 const SOURCE_ID = 'neighborhoods';
 const FILL_LAYER = 'neighborhoods-fill';
@@ -190,6 +188,12 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
   const rightContainerRef = useRef<HTMLDivElement>(null);
   const leftMapRef = useRef<maplibregl.Map | null>(null);
   const rightMapRef = useRef<maplibregl.Map | null>(null);
+  // Persistent per-map "style loaded" flags. map.isStyleLoaded() returns false
+  // during an in-flight setData re-parse, not just before the one-shot 'load'
+  // event — so gating on it would re-queue work on a 'load' that already fired
+  // and never fires again (mirrors Map.tsx's mapStyleLoadedRef fix).
+  const leftLoadedRef = useRef(false);
+  const rightLoadedRef = useRef(false);
   const syncingRef = useRef(false);
   const { theme } = useTheme();
 
@@ -223,7 +227,7 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
     const commonOptions = {
       center: DEFAULT_CENTER,
       zoom: DEFAULT_ZOOM,
-      minZoom: SPLIT_MIN_ZOOM,
+      minZoom: MAP_MIN_ZOOM,
       maxZoom: MAP_MAX_ZOOM,
       attributionControl: false as const,
     };
@@ -246,6 +250,11 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
     leftMapRef.current = leftMap;
     rightMapRef.current = rightMap;
 
+    // Flip the persistent loaded flag once each map's style is ready. map.once
+    // auto-removes the listener, so no explicit cleanup is needed for these.
+    leftMap.once('load', () => { leftLoadedRef.current = true; });
+    rightMap.once('load', () => { rightLoadedRef.current = true; });
+
     // Set up sync handlers
     const syncLeftToRight = createSyncHandler(leftMapRef, rightMapRef);
     const syncRightToLeft = createSyncHandler(rightMapRef, leftMapRef);
@@ -260,6 +269,8 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
       rightMap.remove();
       leftMapRef.current = null;
       rightMapRef.current = null;
+      leftLoadedRef.current = false;
+      rightLoadedRef.current = false;
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -269,7 +280,11 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
     const tiles = theme === 'dark' ? BASEMAP_DARK : BASEMAP_LIGHT;
     const labelTiles = theme === 'dark' ? BASEMAP_DARK_LABELS : BASEMAP_LIGHT_LABELS;
     const pendingListeners: { map: maplibregl.Map; fn: () => void }[] = [];
-    for (const mapRef of [leftMapRef, rightMapRef]) {
+    const pairs: [React.RefObject<maplibregl.Map | null>, React.RefObject<boolean>][] = [
+      [leftMapRef, leftLoadedRef],
+      [rightMapRef, rightLoadedRef],
+    ];
+    for (const [mapRef, loadedRef] of pairs) {
       const map = mapRef.current;
       if (!map) continue;
       const source = map.getSource('carto') as maplibregl.RasterTileSource | undefined;
@@ -281,7 +296,10 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
         labelsSource.setTiles([labelTiles]);
       }
       const apply = () => updateThemeColors(map, theme);
-      if (map.isStyleLoaded()) apply();
+      // Gate on the persistent loaded flag, not isStyleLoaded() — a theme toggle
+      // during an in-flight setData would otherwise queue the repaint on the
+      // already-fired 'load' event and the border colors would stay stale.
+      if (loadedRef.current) apply();
       else {
         map.on('load', apply);
         pendingListeners.push({ map, fn: apply });
@@ -302,10 +320,14 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
 
     const pendingListeners: { map: maplibregl.Map; fn: () => void }[] = [];
 
-    const setupMap = (map: maplibregl.Map | null, layerId: LayerId) => {
+    const setupMap = (map: maplibregl.Map | null, layerId: LayerId, loadedRef: React.RefObject<boolean>) => {
       if (!map) return;
       const apply = () => addDataLayers(map, data, layerId, theme);
-      if (map.isStyleLoaded()) {
+      // Gate on the persistent loaded flag. addDataLayers is idempotent
+      // (getSource/getLayer guards + setData refresh), so calling it directly
+      // during an in-flight setData is safe; queuing on the one-shot 'load'
+      // instead would silently drop subsequent data updates.
+      if (loadedRef.current) {
         apply();
       } else {
         map.on('load', apply);
@@ -313,8 +335,8 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
       }
     };
 
-    setupMap(leftMapRef.current, leftLayer);
-    setupMap(rightMapRef.current, rightLayer);
+    setupMap(leftMapRef.current, leftLayer, leftLoadedRef);
+    setupMap(rightMapRef.current, rightLayer, rightLoadedRef);
 
     return () => {
       for (const { map, fn } of pendingListeners) {
