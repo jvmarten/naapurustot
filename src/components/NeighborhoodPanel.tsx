@@ -331,7 +331,7 @@ const QualityBadge: React.FC<{
                 className="w-full h-2 rounded-full"
                 style={{ backgroundColor: c.color }}
               />
-              <span className="text-[9px] text-surface-500 dark:text-surface-400">{c.label[lang]}</span>
+              <span className="text-[9px] text-surface-600 dark:text-surface-400">{c.label[lang]}</span>
             </div>
           ))}
         </div>
@@ -1115,6 +1115,8 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
             </div>
             <button
               onClick={onClose}
+              aria-label={t('aria.close')}
+              title={t('aria.close')}
               className="p-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-surface-400 hover:text-surface-900 dark:hover:text-white flex-shrink-0"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1185,6 +1187,8 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
             </div>
             <button
               onClick={onClose}
+              aria-label={t('aria.close')}
+              title={t('aria.close')}
               className="p-2.5 -mr-1 rounded-xl hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-surface-400 hover:text-surface-900 dark:hover:text-white flex-shrink-0"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

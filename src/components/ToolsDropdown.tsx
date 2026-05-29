@@ -18,6 +18,8 @@ interface ToolsDropdownProps {
   onClearDraw?: () => void;
   selectMode?: boolean;
   onToggleSelectMode?: () => void;
+  /** QW-3: "Show my area" — geolocate and select the containing neighborhood. */
+  onUseLocation?: () => void;
   /** Pass current language to trigger re-render on language change */
   lang?: Lang;
 }
@@ -39,6 +41,7 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
   onClearDraw,
   selectMode,
   onToggleSelectMode,
+  onUseLocation,
   lang: _lang,
 }) => {
   useI18nVersion();
@@ -81,6 +84,21 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
         <div className="absolute left-0 top-full mt-2 w-56 rounded-xl bg-white dark:bg-surface-900
                        border border-surface-200 dark:border-surface-700/40 shadow-2xl backdrop-blur-md
                        py-1 z-50">
+          {/* QW-3: Show my area (geolocation) */}
+          {onUseLocation && (
+            <button
+              onClick={() => { onUseLocation(); setOpen(false); }}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200
+                         hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span>{t('geolocation.button')}</span>
+            </button>
+          )}
+
           {/* Neighborhood Wizard */}
           <button
             onClick={() => { onOpenWizard(); setOpen(false); }}

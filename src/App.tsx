@@ -47,8 +47,28 @@ import { computeQualityIndices, isCustomWeights, type QualityWeights } from './u
 import { buildMetroAreaFeatures, clearMetroAreaCache } from './utils/metroAreas';
 import { useAllCitiesUnionPreload } from './hooks/useAllCitiesUnionPreload';
 import { IS_EMBED, buildEmbedSnippet } from './utils/embed';
+import { findNeighborhoodForPoint } from './utils/geocode';
+import { getFeatureCenter } from './utils/geometryFilter';
 
 const initialUrl = readInitialUrlState();
+
+// QW-3: resolve which region's bounding box contains a coordinate. Region
+// bounds can overlap (irregular seutukunnat → rectangular bboxes), so pick the
+// most specific (smallest-area) containing region. Best-effort: the precise
+// neighborhood is then found via point-in-polygon once that region loads.
+function findRegionForCoords(lng: number, lat: number): CityFilter | null {
+  let best: CityFilter | null = null;
+  let bestArea = Infinity;
+  for (const id of REGION_IDS) {
+    const vp = CITY_VIEWPORTS[id];
+    if (!vp?.bounds) continue;
+    const [minLng, minLat, maxLng, maxLat] = vp.bounds;
+    if (lng < minLng || lng > maxLng || lat < minLat || lat > maxLat) continue;
+    const area = (maxLng - minLng) * (maxLat - minLat);
+    if (area < bestArea) { bestArea = area; best = id as CityFilter; }
+  }
+  return best;
+}
 
 const App: React.FC = () => {
   // City filter — declared before useMapData so the hook can load the right region
@@ -62,6 +82,9 @@ const App: React.FC = () => {
   const [showAuth, setShowAuth] = useState(false);
   // QW-1: Onboarding tour
   const [showTour, setShowTour] = useState(false);
+  // QW-3: "Show my area" geolocation status (transient toast).
+  const [geoStatus, setGeoStatus] = useState<null | 'loading' | 'denied' | 'outside' | 'unavailable'>(null);
+  const pendingGeoRef = useRef<[number, number] | null>(null);
 
   // Build a PNO→Feature lookup Map for O(1) feature access.
   // Replaces multiple O(n) .find() scans after quality index recomputation
@@ -669,6 +692,80 @@ const App: React.FC = () => {
     [select, addRecent],
   );
 
+  // QW-3: "Show my area" — geolocate the visitor, switch to their region if
+  // needed, and select the containing neighborhood. Graceful fallbacks for
+  // denied permission, missing geolocation, and points outside coverage.
+  const handleUseLocation = useCallback(() => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      setGeoStatus('unavailable');
+      return;
+    }
+    trackEvent('use-location');
+    setGeoStatus('loading');
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const coords: [number, number] = [pos.coords.longitude, pos.coords.latitude];
+        const target = findRegionForCoords(coords[0], coords[1]);
+        if (!target) { setGeoStatus('outside'); return; }
+        // Already viewing the right region with geometry loaded → resolve now.
+        const current = dataRef.current;
+        if (cityFilterRef.current === target && current) {
+          const f = await findNeighborhoodForPoint(coords, current.features);
+          if (f?.properties) {
+            const props = f.properties as NeighborhoodProperties;
+            select(props);
+            addRecent({ pno: props.pno, name: props.nimi || props.pno, center: getFeatureCenter(f) });
+            setFlyTarget({ center: getFeatureCenter(f) });
+            setGeoStatus(null);
+            return;
+          }
+        }
+        // Otherwise switch to the user's region; the deferred resolver below
+        // selects the neighborhood once that region's data finishes loading.
+        pendingGeoRef.current = coords;
+        setFlyTarget({ center: coords, zoom: 12 });
+        if (cityFilterRef.current !== target) {
+          setCityFilter(target);
+          deselect();
+        }
+        setGeoStatus(null);
+      },
+      (err) => {
+        setGeoStatus(err.code === err.PERMISSION_DENIED ? 'denied' : 'outside');
+      },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 },
+    );
+  }, [select, addRecent, deselect]);
+
+  // QW-3: resolve a pending geolocation once the target region's data loads.
+  // pendingGeoRef is cleared after the first resolution, so later filteredData
+  // changes (quality recompute, language) re-run this as a no-op.
+  useEffect(() => {
+    if (!pendingGeoRef.current || !filteredData) return;
+    const coords = pendingGeoRef.current;
+    let cancelled = false;
+    findNeighborhoodForPoint(coords, filteredData.features).then((f) => {
+      if (cancelled) return;
+      pendingGeoRef.current = null;
+      if (f?.properties) {
+        const props = f.properties as NeighborhoodProperties;
+        select(props);
+        addRecent({ pno: props.pno, name: props.nimi || props.pno, center: getFeatureCenter(f) });
+        setFlyTarget({ center: getFeatureCenter(f) });
+      } else {
+        setGeoStatus('outside');
+      }
+    }).catch(() => { if (!cancelled) { pendingGeoRef.current = null; } });
+    return () => { cancelled = true; };
+  }, [filteredData, select, addRecent]);
+
+  // QW-3: auto-dismiss transient geolocation status toasts (errors only).
+  useEffect(() => {
+    if (!geoStatus || geoStatus === 'loading') return;
+    const id = setTimeout(() => setGeoStatus(null), 4000);
+    return () => clearTimeout(id);
+  }, [geoStatus]);
+
   const handleResetView = useCallback(() => {
     handleCityChange('helsinki_metro');
   }, [handleCityChange]);
@@ -1047,6 +1144,7 @@ const App: React.FC = () => {
             onClearDraw={handleClearDraw}
             selectMode={selectMode}
             onToggleSelectMode={handleToggleSelectMode}
+            onUseLocation={handleUseLocation}
             lang={lang}
           />
         </div>
@@ -1290,6 +1388,21 @@ const App: React.FC = () => {
         <div className="absolute top-12 left-1/2 -translate-x-1/2 z-50 px-3 py-1.5 rounded-lg
                        bg-amber-500/90 text-white text-xs font-medium backdrop-blur-sm">
           {t('offline.indicator')}
+        </div>
+      )}
+
+      {/* QW-3: Geolocation status toast */}
+      {geoStatus && (
+        <div
+          role="status"
+          className={`absolute top-12 left-1/2 -translate-x-1/2 z-50 px-3 py-1.5 rounded-lg text-white text-xs font-medium backdrop-blur-sm
+                     ${geoStatus === 'loading' ? 'bg-brand-500/90' : 'bg-amber-500/90'}`}
+        >
+          {geoStatus === 'loading'
+            ? t('geolocation.using')
+            : geoStatus === 'outside'
+              ? t('geolocation.outside')
+              : t('geolocation.error')}
         </div>
       )}
 

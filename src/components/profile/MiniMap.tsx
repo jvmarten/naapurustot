@@ -3,6 +3,7 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { Feature, FeatureCollection, Geometry, Polygon, MultiPolygon } from 'geojson';
 import { useTheme } from '../../hooks/useTheme';
+import { t, useI18nVersion } from '../../utils/i18n';
 
 const BASEMAP_LIGHT = (import.meta.env.VITE_BASEMAP_LIGHT_URL as string) || 'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png';
 const BASEMAP_DARK = (import.meta.env.VITE_BASEMAP_DARK_URL as string) || 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png';
@@ -39,6 +40,8 @@ export const MiniMap: React.FC<MiniMapProps> = ({ feature, allFeatures }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const { theme } = useTheme();
+  // QW-4: re-render the accessible label on language switch.
+  useI18nVersion();
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -122,9 +125,17 @@ export const MiniMap: React.FC<MiniMapProps> = ({ feature, allFeatures }) => {
   // No polygon to draw — render nothing (the effect skips map creation too).
   if (!isPolygonal(feature.geometry as Geometry | null)) return null;
 
+  // QW-4: MapLibre renders into a canvas with no accessible name. Expose the
+  // mini-map as a single labelled image so screen readers announce what it
+  // shows (mirrors the role="img" + aria-label pattern on RadarChart/TrendChart).
+  const name = (feature.properties?.nimi as string) || (feature.properties?.pno as string) || '';
+  const ariaLabel = name ? `${t('aria.minimap')}: ${name}` : t('aria.minimap');
+
   return (
     <div
       ref={containerRef}
+      role="img"
+      aria-label={ariaLabel}
       className="w-full h-64 md:h-80 rounded-xl overflow-hidden"
     />
   );

@@ -149,4 +149,14 @@ for (const [regionId, { present, total }] of Object.entries(coverageManifest)) {
   console.log(`    ${regionId}: ${present}/${total} metrics`);
 }
 
+// QW-1: build-derived data-freshness timestamp. Written once per build:data run
+// and committed alongside the other data artifacts (region_coverage.json etc.),
+// so the SettingsDropdown "Data last updated" label reflects the real last data
+// build instead of a hand-edited, drift-prone string. `npm run build` (the deploy
+// build) does not run build:data, so this value stays pinned to the data refresh.
+const metadataPath = resolve(rootDir, 'src', 'data', 'build_metadata.json');
+const buildMetadata = { generated: new Date().toISOString() };
+writeFileSync(metadataPath, JSON.stringify(buildMetadata, null, 2) + '\n');
+console.log(`  → build_metadata.json (generated ${buildMetadata.generated})`);
+
 console.log('Done! Per-region TopoJSON files written to src/data/regions/, coverage to src/data/region_coverage.json');

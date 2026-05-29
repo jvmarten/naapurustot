@@ -72,3 +72,43 @@ export async function geocodeAddress(query: string, signal?: AbortSignal): Promi
     return [];
   }
 }
+
+// QW-3: point-in-polygon lookup of the neighborhood containing a coordinate.
+// Lazy-loads the turf modules (cached after first use) so they stay out of the
+// main bundle, and rejects candidates by their precomputed bbox first to avoid
+// running the expensive polygon test on every feature. Mirrors the inline
+// version in SearchBar so both the address search and "show my area"
+// (geolocation) share one implementation.
+let pipMods: {
+  booleanPointInPolygon: typeof import('@turf/boolean-point-in-polygon').booleanPointInPolygon;
+  point: typeof import('@turf/helpers').point;
+} | null = null;
+
+export async function findNeighborhoodForPoint(
+  coords: [number, number],
+  features: GeoJSON.Feature[],
+): Promise<GeoJSON.Feature | null> {
+  if (!pipMods) {
+    const [pip, helpers] = await Promise.all([
+      import('@turf/boolean-point-in-polygon'),
+      import('@turf/helpers'),
+    ]);
+    pipMods = { booleanPointInPolygon: pip.booleanPointInPolygon, point: helpers.point };
+  }
+  const { booleanPointInPolygon, point } = pipMods;
+  const pt = point(coords);
+  const [lng, lat] = coords;
+  for (const feature of features) {
+    if (!feature.geometry) continue;
+    const bbox = feature.bbox;
+    if (bbox && (lng < bbox[0] || lng > bbox[2] || lat < bbox[1] || lat > bbox[3])) continue;
+    try {
+      if (booleanPointInPolygon(pt, feature as GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.MultiPolygon>)) {
+        return feature;
+      }
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
