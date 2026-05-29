@@ -27,7 +27,7 @@ import type { NeighborhoodProperties } from './metrics';
  * using the (custom) weights.
  */
 
-interface MinMax {
+export interface MinMax {
   min: number;
   max: number;
   avg: number;
@@ -602,10 +602,16 @@ function collectRange(features: GeoJSON.Feature[], prop: keyof NeighborhoodPrope
   return result;
 }
 
+/** Neutral midpoint imputed for a missing metric under national scope: an absent
+ *  value carries no information, so it must neither reward nor penalize.
+ *  (Invert-stable: 100 - 50 === 50.) */
+const NEUTRAL_SCORE = 50;
+
 function getFactorScore(
   p: NeighborhoodProperties,
   factor: QualityFactor,
   ranges: Map<string, MinMax>,
+  neutralizeMissing: boolean,
 ): number | null {
   const scores: number[] = [];
   for (const prop of factor.properties) {
@@ -614,8 +620,19 @@ function getFactorScore(
     if (!range) continue;
     const isMissing =
       typeof raw !== 'number' || !isFinite(raw) || (prop === 'hr_mtu' && raw <= 0);
-    if (isMissing && !isFinite(range.avg)) continue;
-    scores.push(normalize(isMissing ? range.avg : raw, range));
+    if (isMissing) {
+      // National scope: impute the neutral midpoint. A metric that is simply
+      // absent (e.g. transit_stop_density has zero coverage in most regions)
+      // must not drag a whole region up or down — and the raw national mean is
+      // NOT neutral for skewed/zero-inflated metrics (it normalizes well off 50).
+      // Region scope keeps the historical mean-imputation, and still drops the
+      // factor entirely when the loaded region carries no signal for it (NaN avg).
+      if (neutralizeMissing) { scores.push(NEUTRAL_SCORE); continue; }
+      if (!isFinite(range.avg)) continue;
+      scores.push(normalize(range.avg, range));
+    } else {
+      scores.push(normalize(raw, range));
+    }
   }
   if (scores.length === 0) return null;
   const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
@@ -625,18 +642,32 @@ function getFactorScore(
 export function computeQualityIndices(
   features: GeoJSON.Feature[],
   weights?: QualityWeights,
+  nationalRanges?: Map<string, MinMax> | null,
 ): void {
   const w = weights ?? getDefaultWeights();
+  // National scope neutralizes missing metrics (see getFactorScore); region
+  // scope keeps the historical loaded-set mean-imputation.
+  const neutralizeMissing = nationalRanges != null;
 
   // Collect all needed ranges (includes metro averages for missing data fallback).
   // Bipolar factors with negative weight are still active, so use abs.
+  //
+  // When `nationalRanges` is supplied (the default "Whole of Finland" scope),
+  // normalize each metric against the pre-computed national distribution so a
+  // score is comparable across regions — the lazy per-region loader never holds
+  // all ~3018 postal codes, so the range must come from the build-time artifact.
+  // A property absent from the artifact (e.g. a derived field not in
+  // region_properties.json) falls back to the loaded-feature range. When
+  // `nationalRanges` is null/undefined the metric is normalized over `features`
+  // only — the explicit "within region" scope.
   const ranges = new Map<string, MinMax>();
   for (const factor of QUALITY_FACTORS) {
     if (Math.abs(w[factor.id] ?? 0) <= 0) continue;
     for (const prop of factor.properties) {
-      if (!ranges.has(prop as string)) {
-        ranges.set(prop as string, collectRange(features, prop));
-      }
+      const key = prop as string;
+      if (ranges.has(key)) continue;
+      const national = nationalRanges?.get(key);
+      ranges.set(key, national ?? collectRange(features, prop));
     }
   }
 
@@ -648,7 +679,7 @@ export function computeQualityIndices(
       const factorWeight = w[factor.id] ?? 0;
       const absWeight = Math.abs(factorWeight);
       if (absWeight <= 0) continue;
-      let score = getFactorScore(p, factor, ranges);
+      let score = getFactorScore(p, factor, ranges, neutralizeMissing);
       if (score == null) continue;
       // Bipolar factor with negative weight: user prefers lower values, so flip score.
       if (factor.bipolar && factorWeight < 0) score = 100 - score;
