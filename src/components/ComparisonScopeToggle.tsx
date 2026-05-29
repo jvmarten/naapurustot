@@ -24,7 +24,7 @@ export const ComparisonScopeToggle: React.FC<ComparisonScopeToggleProps> = React
             ? 'bg-amber-500/90 hover:bg-amber-600/90 text-white'
             : 'md:bg-transparent md:hover:bg-surface-100/50 md:dark:hover:bg-surface-800/30 bg-surface-200/80 hover:bg-surface-300/80 text-surface-600 dark:bg-surface-700/60 dark:hover:bg-surface-600/60 dark:text-surface-300 md:dark:bg-transparent'
         }`}
-      title={disabled ? t('scope.all') : isRegion ? t('scope.active_hint') : t('scope.label')}
+      title={disabled ? t('scope.all') : isRegion ? t('scope.active_hint') : t('scope.national_hint')}
       aria-label={t('scope.label')}
     >
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">

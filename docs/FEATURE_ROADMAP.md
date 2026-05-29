@@ -22,12 +22,16 @@ a11y + axe-core E2E), CF-1 (quality-index redesign — see below), CF-3
 when unset), PO-2 (time slider / historical playback), IN-3 (deploy artifact
 trimming via a Vite strip plugin).
 
-**CF-1 partial:** phases (A) dimension grouping + rebalanced defaults, (B)
-`docs/QUALITY_INDEX.md`, and (D) persona presets + explainer + softened labels
-shipped. Phase **(C) national-reference normalization** is intentionally
-deferred — it changes the meaning of every published score and is the part the
-roadmap flags for human/editorial review before release. It is documented as
-the next step in `docs/QUALITY_INDEX.md`.
+**CF-1 complete:** phases (A) dimension grouping + rebalanced defaults, (B)
+`docs/QUALITY_INDEX.md`, (D) persona presets + explainer + softened labels, and
+(C) **national-reference normalization** shipped. Phase (C) makes the default
+scope "Whole of Finland": every metric is min–max normalized against
+build-time, winsorized (p2/p98) national ranges
+(`scripts/build_national_ranges.mjs` → `src/data/national_ranges.json`), so
+scores are comparable across regions. The "within region" toggle re-derives
+ranges from the loaded region only. This changed the meaning of every published
+score relative to the earlier region-relative behaviour; the methodology
+remains open to editorial revision (see `docs/QUALITY_INDEX.md`).
 
 ---
 

@@ -23,11 +23,11 @@ type FetchMock = ReturnType<typeof vi.fn>;
 const MOCK_PROPERTIES = [
   {
     pno: '00100', nimi: 'A', namn: 'A', kunta: '091', city: 'helsinki_metro',
-    he_vakiy: '1000', hr_mtu: '35000',
+    he_vakiy: '1000', hr_mtu: '22000',
   },
   {
     pno: '00200', nimi: 'B', namn: 'B', kunta: '091', city: 'helsinki_metro',
-    he_vakiy: '2000', hr_mtu: '40000',
+    he_vakiy: '2000', hr_mtu: '30000',
   },
 ];
 
@@ -114,10 +114,13 @@ describe('dataLoader — caching and retry', () => {
     const p0 = result.data.features[0].properties!;
     expect(typeof p0.he_vakiy).toBe('number');
     expect(p0.he_vakiy).toBe(1000);
-    expect(p0.hr_mtu).toBe(35000);
+    expect(p0.hr_mtu).toBe(22000);
 
-    // Quality index computed from two features — min becomes 0, max becomes 100
-    // because income is the only variant factor with weight > 0.
+    // Quality index is normalized against the national ranges (the default
+    // scope), not the 2-feature loaded set. Both incomes sit inside the national
+    // band, so the richer postal code (30k) still scores above the poorer (22k)
+    // — national normalization preserves the "richer ranks higher" ordering
+    // without min-maxing to the local extremes.
     const qi0 = p0.quality_index as number | null;
     const qi1 = result.data.features[1].properties!.quality_index as number | null;
     expect(qi0).not.toBeNull();
@@ -125,9 +128,9 @@ describe('dataLoader — caching and retry', () => {
     expect(qi1).toBeGreaterThan(qi0!);
 
     // Metro averages: population-weighted income
-    // = (1000*35000 + 2000*40000) / 3000 = 38333.33 → rounded integer
+    // = (1000*22000 + 2000*30000) / 3000 = 27333.33 → rounded integer
     expect(result.metroAverages.he_vakiy).toBe(3000);
-    expect(result.metroAverages.hr_mtu).toBe(38333);
+    expect(result.metroAverages.hr_mtu).toBe(27333);
   });
 
   it('caches the combined loader — a second call does not re-fetch', async () => {

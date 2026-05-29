@@ -114,20 +114,33 @@ The 0–100 score maps to five directional bands (colors unchanged):
 | 60–80 | Good |
 | 80–100 | Excellent |
 
-## Normalization (current & planned)
+## Normalization
 
-Each metric is currently **min–max normalized over the loaded area**, with the
-existing *comparison scope* toggle letting users switch between the whole loaded
-view and a single region. A consequence is that a score's meaning shifts when
-you switch regions — the best postal code in a small region can score ~100 just
-like the best in Helsinki.
+Each metric is **min–max normalized against fixed national reference ranges** —
+the default **"Whole of Finland"** scope — so a score of "72" means the same
+thing in Helsinki and in Oulu and postal codes are directly comparable across
+regions.
 
-**Planned (CF-1 phase C):** compute fixed **national percentile breakpoints**
-once at build time over all ~3 018 postal codes, store them as a data artifact,
-and normalize against them so "72" means the same everywhere — keeping the
-"within region" toggle as an explicit opt-in. This change alters the meaning of
-every published score and is the part of CF-1 that most warrants editorial
-review before release; it is intentionally **not yet enabled by default**.
+Because the map lazy-loads one seutukunta at a time, the client never holds all
+~3 018 postal codes and so cannot derive a nation-wide range at runtime. The
+ranges are therefore pre-computed once at build time
+(`scripts/build_national_ranges.mjs` → `src/data/national_ranges.json`) over
+every postal code. The bounds are **winsorized to the 2nd/98th percentile** so a
+single extreme postal code (e.g. a CBD property price far above everywhere else)
+can't compress the rest of the country into a narrow band; the missing-data
+fallback uses the true national mean. The artifact rebuilds as part of
+`npm run build:data`.
+
+The **comparison-scope toggle** lets users opt into **within-region**
+normalization instead, which re-derives each metric's range from just the loaded
+region's postal codes — useful for asking "which areas are best *within this
+region*?" regardless of how the region compares nationally. The all-cities view
+always uses the national ranges, so a postal code's score is identical whether
+it is reached via its region or via the national aggregate.
+
+> Switching the default to national normalization changed the meaning of every
+> published score relative to the earlier region-relative behaviour. The
+> methodology and its category wording remain open to editorial revision.
 
 ## Data sources
 

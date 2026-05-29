@@ -14,6 +14,7 @@ import { feature } from 'topojson-client';
 import type { Topology } from 'topojson-specification';
 import { computeMetroAverages, computeChangeMetrics, computeQuickWinMetrics, computeTimeSeriesValues } from './metrics';
 import { computeQualityIndices } from './qualityIndex';
+import { getNationalRanges } from './nationalRanges';
 import { filterSmallIslands } from './geometryFilter';
 import type { RegionId } from './regions';
 
@@ -66,7 +67,9 @@ function processTopology(topo: Topology): ProcessedData {
 
   coerceNumericProperties(geojson.features);
   geojson.features = filterSmallIslands(geojson.features);
-  computeQualityIndices(geojson.features);
+  // Default to national normalization so a region's scores are comparable with
+  // every other region (the lazy per-region loader can't see the whole country).
+  computeQualityIndices(geojson.features, undefined, getNationalRanges());
   computeChangeMetrics(geojson.features);
   computeQuickWinMetrics(geojson.features);
   // PO-2: flatten history arrays into per-year numeric props for the time slider.
@@ -94,7 +97,10 @@ function processProperties(propsArray: Record<string, unknown>[]): ProcessedData
   const geojson = { type: 'FeatureCollection', features } as unknown as FeatureCollection;
 
   coerceNumericProperties(geojson.features);
-  computeQualityIndices(geojson.features);
+  // The all-cities view holds every postal code, but still normalize against the
+  // same national ranges as the per-region views so a postal code's score is
+  // identical whether you reach it via its region or the national aggregate.
+  computeQualityIndices(geojson.features, undefined, getNationalRanges());
   computeChangeMetrics(geojson.features);
   computeQuickWinMetrics(geojson.features);
   const metroAverages = computeMetroAverages(geojson.features);
