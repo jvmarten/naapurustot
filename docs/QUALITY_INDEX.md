@@ -7,59 +7,69 @@
 > **This methodology and its category wording are open to editorial revision.**
 > The choices below are defensible defaults, not the last word.
 
-## Why the index was redesigned (CF-1)
+## Why the index looks the way it does
 
-The original index was a flat, hand-tuned blend of seven factors:
+The original index was a flat, hand-tuned blend dominated by income,
+employment, education and crime — all strong proxies for area **affluence**
+(in this dataset `income` and neighbour `education` correlate at **+0.76**).
+Roughly **80 %** of the score was effectively *one* latent variable
+(socioeconomic status) counted several times over: an affluence map relabelled,
+analytically weak and editorially loaded, since it quietly stigmatized
+lower-income areas while telling users little they couldn't read off the income
+layer.
 
-| Factor | Old weight |
-|--------|-----------:|
-| Safety (crime) | 25 |
-| Income | 20 |
-| Employment | 20 |
-| Education | 15 |
-| Transit | 7 |
-| Services | 5 |
-| Air quality | 3 |
-
-Income, employment, education and crime are all strong proxies for area
-**affluence** — they are highly correlated in Finnish neighborhood data. With
-the old weights, roughly **80 %** of the score was effectively *one* latent
-variable (socioeconomic status) counted four times over. The "Quality Index"
-was, in practice, an affluence map relabelled: analytically weak and
-editorially loaded, since it quietly stigmatized lower-income areas while
-telling users little they couldn't read straight off the income layer.
+The current index is built from a different question — **what actually makes a
+place good to live in?** — using what subjective-wellbeing research consistently
+finds: feeling *safe*, a *healthy and calm environment*, *not being unemployed*,
+and an *easy daily life* matter far more to life satisfaction than raw income or
+the density of nearby amenities. So safety and environment lead, money is
+present but mid-weight (with work counting for more than wealth), and service
+density is demoted.
 
 ## The dimension model
 
-The ~50 available factors are grouped into **six conceptual dimensions**. Each
-dimension is scored once, and dimensions are weighted — so each concept counts
-once and genuine liveability factors (services, mobility, environment) actually
-register.
+The ~50 available factors are grouped into **four evaluative dimensions** plus
+two descriptive ones. Each dimension is scored once and then weighted, so each
+concept counts once. The default factor weights within a dimension sum to that
+dimension's target.
 
-| Dimension | Default weight | Factors (default) | OECD / Eurostat anchor |
-|-----------|---------------:|--------------------|------------------------|
-| **Prosperity** | 30 | Income, employment, education (counted **once**, 10 each) | OECD *Income & Wealth*, *Jobs*, *Education* |
-| **Safety** | 18 | Crime rate | OECD *Safety* |
-| **Services & amenities** | 18 | Healthcare, school, daycare, grocery density | Eurostat *Access to services* |
-| **Mobility** | 17 | Transit stop density | OECD/Eurostat *Accessibility* |
-| **Environment** | 17 | Air quality | OECD *Environmental quality* |
-| **Housing context** | 0 | (descriptive — see below) | OECD *Housing* |
+| Dimension | Weight | Factors (default weights) | Why |
+|-----------|-------:|---------------------------|-----|
+| **Safety & peace of mind** | 30 | Crime 26 · traffic safety 4 | Feeling safe is foundational; fear of crime is a large, persistent drag on life satisfaction. |
+| **Health, nature & calm** | 28 | Air 9 · tree canopy 8 · quiet (low noise) 7 · water 4 | Clean air, green and blue space and quiet have robust positive effects on physical and mental health. |
+| **Livelihood & purpose** | 26 | Employment 12 · income 10 · education 4 | Unemployment is one of the largest wellbeing shocks; income matters with steep diminishing returns; education is kept small as it is ~76 % redundant with income. |
+| **Everyday freedom & ease** | 16 | Walkability 7 · cycling 3 · transit 3 · essential services 3 | Getting around easily with essentials within reach reduces daily friction; amenity *density* is deliberately demoted. |
+| **Housing context** | 0 | (descriptive — see below) | No objective "better" direction. |
+| **Demographics & other** | 0 | (descriptive — see below) | No objective "better" direction. |
 
-The weights sum to 100 across the five evaluative dimensions and are anchored to
-the **OECD Better Life Index** and **Eurostat Quality-of-Life** frameworks,
-which both treat material conditions, safety, services, accessibility and
-environment as distinct, comparably-weighted dimensions of well-being.
+The four evaluative weights sum to 100. The ordering — safety first, then a
+healthy environment, then livelihood, then everyday ease — is a deliberate
+editorial stance, not an institutional formula.
+
+### What's deliberately *not* in the default
+
+- **Social connection / belonging** — the single strongest real-world driver of
+  happiness — has no faithful proxy in open neighbourhood data. (Voter turnout
+  is 100 % covered and, usefully, uncorrelated with income, but it measures
+  civic participation, not friendship.) Rather than dress up a weak proxy, the
+  default leaves it out, and the "How is this calculated?" popover says so.
+- **Wealth as a headline.** Money is capped at mid-weight and split so that
+  *employment* outweighs *income*.
+- **Amenity density.** Counts of restaurants, shops or gyms barely predict life
+  satisfaction, so essential-service access is a token 3 and the rest are opt-in.
 
 ### How dimension scoring is implemented
 
 `computeQualityIndices` uses a weighted average of per-factor normalized scores.
 Because the default factor weights within a dimension **sum to that dimension's
-target weight** (e.g. Prosperity = income 10 + employment 10 + education 10 =
-30), this is mathematically equivalent to scoring each dimension once and then
-weighting the dimensions. Grouping income/employment/education into a single
-Prosperity dimension is exactly what removes the multiple-counting: socioeconomic
-status now contributes **30 %** (Prosperity) + **18 %** (Safety) ≈ 48 %, down
-from ~80 %, leaving real room for services (18), mobility (17) and environment (17).
+target weight** (e.g. Health = air 9 + tree canopy 8 + noise 7 + water 4 = 28),
+this is mathematically equivalent to scoring each dimension once and then
+weighting the dimensions. Splitting Livelihood into employment 12 + income 10 +
+education 4 is what stops affluence being counted several times over: pure
+socioeconomic status now contributes ~26 % rather than ~80 %, leaving real room
+for safety (30), a healthy environment (28) and everyday ease (16). Every factor
+that carries default weight has ~97–100 % coverage in all regions except transit
+(patchy outside Helsinki) and traffic safety (~70 %), both small.
 
 ### Housing & demographics
 

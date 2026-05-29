@@ -158,13 +158,13 @@ describe('secondary factors with custom weights', () => {
 
   it('secondary factors are excluded when weight is 0 (default)', () => {
     const features = [
-      makeFeature({ cycling_density: 100, hr_mtu: 30000 }),
-      makeFeature({ cycling_density: 0, hr_mtu: 30000 }),
+      makeFeature({ restaurant_density: 100, hr_mtu: 30000 }),
+      makeFeature({ restaurant_density: 0, hr_mtu: 30000 }),
     ];
-    // Default weights: cycling=0
+    // Default weights: restaurants=0
     computeQualityIndices(features);
 
-    // Both should get same score since cycling is excluded
+    // Both should get same score since restaurants is excluded
     expect(features[0].properties!.quality_index).toBe(
       features[1].properties!.quality_index,
     );

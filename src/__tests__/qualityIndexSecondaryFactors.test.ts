@@ -1,7 +1,7 @@
 /**
  * Tests for qualityIndex secondary factor activation.
  *
- * Secondary factors (cycling, grocery_access, restaurants) have defaultWeight=0
+ * Secondary factors (restaurants, sports_facilities, ev_charging) have defaultWeight=0
  * and are hidden by default. Users can activate them via "Show more" sliders.
  * These tests verify:
  * 1. Secondary factors with weight 0 are excluded from computation
@@ -33,13 +33,13 @@ function getQI(f: GeoJSON.Feature): number | null {
 
 describe('secondary factors — activation and computation', () => {
   it('secondary factors with default weight 0 do not affect scores', () => {
-    const a = makeFeature({ pno: '00100', hr_mtu: 40000, cycling_density: 100 });
-    const b = makeFeature({ pno: '00200', hr_mtu: 40000, cycling_density: 0 });
+    const a = makeFeature({ pno: '00100', hr_mtu: 40000, restaurant_density: 100 });
+    const b = makeFeature({ pno: '00200', hr_mtu: 40000, restaurant_density: 0 });
     const features = [a, b];
 
-    // With default weights, cycling (secondary) should be ignored
+    // With default weights, restaurants (secondary) should be ignored
     computeQualityIndices(features, getDefaultWeights());
-    // Both should have equal scores since cycling is excluded
+    // Both should have equal scores since restaurants is excluded
     expect(getQI(a)).toBe(getQI(b));
   });
 

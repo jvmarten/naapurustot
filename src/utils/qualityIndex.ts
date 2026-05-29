@@ -3,22 +3,28 @@ import type { NeighborhoodProperties } from './metrics';
 /**
  * Computes a composite Quality Index (0–100) for each neighborhood.
  *
- * Default primary factors (7):
- *   - Safety (crime rate, inverted) — 25%
- *   - Income (median income) — 20%
- *   - Employment (unemployment, inverted) — 20%
- *   - Education (higher education rate) — 15%
- *   - Transit access — 7%
- *   - Services (healthcare, school, daycare, grocery) — 5%
- *   - Air quality (inverted) — 3%
+ * The index reflects what makes a neighborhood genuinely good to live in,
+ * grounded in subjective-wellbeing research rather than an institutional
+ * resource inventory. Default factors are grouped into four evaluative
+ * dimensions (see QUALITY_DIMENSIONS):
  *
- * Additional factors available via "Show more" (defaultWeight: 0):
- * every other available metric — demographics, housing, sectoral employment,
- * environment, mobility, connectivity, politics, and trends — so users can
- * fully customize the index. They have no effect unless the user activates them.
+ *   - Safety & peace of mind  — 30  (crime 26, traffic safety 4)
+ *   - Health, nature & calm   — 28  (air 9, tree canopy 8, quiet 7, water 4)
+ *   - Livelihood & purpose    — 26  (employment 12, income 10, education 4)
+ *   - Everyday freedom & ease — 16  (walkability 7, cycling 3, transit 3, services 3)
  *
- * Each metric is min-max normalized across all neighborhoods,
- * then combined using the (custom) weights.
+ * Money is deliberately mid-weight with employment > income, since losing work
+ * harms wellbeing more than the lost euros, and education is kept small because
+ * it is ~76% redundant with income. Amenity/service density is demoted. Social
+ * connection — the strongest real-world driver — is not measurable from open
+ * data and is intentionally left out (see docs/QUALITY_INDEX.md).
+ *
+ * Every other available metric (housing, demographics, sectoral employment,
+ * civic, trends) is available via "Show more" with defaultWeight 0, so users
+ * can fully customize the index. They have no effect unless activated.
+ *
+ * Each metric is min-max normalized across all neighborhoods, then combined
+ * using the (custom) weights.
  */
 
 interface MinMax {
@@ -54,21 +60,22 @@ export interface QualityFactor {
 }
 
 export const QUALITY_FACTORS: QualityFactor[] = [
-  // --- Primary factors (7): shown by default ---
-  // Socioeconomic factors (80%) correlate and drive score differentiation.
-  // Environmental factors (20%) add nuance without flattening the spread.
-  // CF-1: default weights are grouped into ~6 conceptual DIMENSIONS (see
-  // QUALITY_DIMENSIONS below) and rebalanced so socioeconomic status is counted
-  // once (Prosperity = income + employment + education = 30, split 10/10/10)
-  // rather than ~4× as before (old Safety 25 + Income 20 + Employment 20 +
-  // Education 15 = 80%). With the existing weighted-average algorithm, factor
-  // weights that sum to a dimension's target ARE that dimension scored once —
-  // so liveability factors (services, transit, environment) now actually
-  // register. See docs/QUALITY_INDEX.md for the OECD/Eurostat anchoring.
+  // --- Default factors: shown by default, weights sum to 100 ---
+  // The default is a "good life" index, not an affluence map. Factors are
+  // grouped into four evaluative DIMENSIONS (see QUALITY_DIMENSIONS) whose
+  // default factor-weights sum to each dimension's target, so every concept is
+  // counted once:
+  //   Safety 30 · Health & nature 28 · Livelihood 26 · Everyday ease 16.
+  // Money is mid-weight (employment 12 > income 10 > education 4) because
+  // unemployment harms wellbeing far more than the lost income alone, and
+  // education is ~76% redundant with income. Service density is demoted to a
+  // token 3. Every factor used has ~97–100% coverage in all regions except
+  // transit (patchy outside Helsinki) and traffic safety (~70%), both small.
+  // See docs/QUALITY_INDEX.md.
   {
     id: 'safety',
     label: { fi: 'Turvallisuus', en: 'Safety', sv: 'Säkerhet' },
-    defaultWeight: 18,
+    defaultWeight: 26,
     properties: ['crime_index'],
     invert: true,
     primary: true,
@@ -84,7 +91,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   {
     id: 'employment',
     label: { fi: 'Työllisyys', en: 'Employment', sv: 'Sysselsättning' },
-    defaultWeight: 10,
+    defaultWeight: 12,
     properties: ['unemployment_rate'],
     invert: true,
     primary: true,
@@ -92,7 +99,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   {
     id: 'education',
     label: { fi: 'Koulutus', en: 'Education', sv: 'Utbildning' },
-    defaultWeight: 10,
+    defaultWeight: 4,
     properties: ['higher_education_rate'],
     invert: false,
     primary: true,
@@ -100,7 +107,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   {
     id: 'transit',
     label: { fi: 'Joukkoliikenne', en: 'Transit', sv: 'Kollektivtrafik' },
-    defaultWeight: 17,
+    defaultWeight: 3,
     properties: ['transit_stop_density'],
     invert: false,
     primary: true,
@@ -108,7 +115,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   {
     id: 'services',
     label: { fi: 'Palvelut', en: 'Services', sv: 'Tjänster' },
-    defaultWeight: 18,
+    defaultWeight: 3,
     properties: ['healthcare_density', 'school_density', 'daycare_density', 'grocery_density'],
     invert: false,
     primary: true,
@@ -116,7 +123,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   {
     id: 'air_quality',
     label: { fi: 'Ilmanlaatu', en: 'Air Quality', sv: 'Luftkvalitet' },
-    defaultWeight: 17,
+    defaultWeight: 9,
     properties: ['air_quality_index'],
     invert: true,
     primary: true,
@@ -127,10 +134,10 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   {
     id: 'cycling',
     label: { fi: 'Pyöräilyinfra', en: 'Cycling Infrastructure', sv: 'Cykelinfrastruktur' },
-    defaultWeight: 0,
+    defaultWeight: 3,
     properties: ['cycling_density'],
     invert: false,
-    primary: false,
+    primary: true,
   },
   {
     id: 'grocery_access',
@@ -406,10 +413,10 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   {
     id: 'walkability',
     label: { fi: 'Kävelyindeksi', en: 'Walkability', sv: 'Gångvänlighet' },
-    defaultWeight: 0,
+    defaultWeight: 7,
     properties: ['walkability_index'],
     invert: false,
-    primary: false,
+    primary: true,
   },
   {
     id: 'sports_facilities',
@@ -422,10 +429,10 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   {
     id: 'traffic_accidents',
     label: { fi: 'Liikenneonnettomuudet', en: 'Traffic Accidents', sv: 'Trafikolyckor' },
-    defaultWeight: 0,
+    defaultWeight: 4,
     properties: ['traffic_accident_rate'],
     invert: true,
-    primary: false,
+    primary: true,
   },
   {
     id: 'transit_reachability',
@@ -446,10 +453,10 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   {
     id: 'tree_canopy',
     label: { fi: 'Puuston peittävyys', en: 'Tree Canopy', sv: 'Trädtäckning' },
-    defaultWeight: 0,
+    defaultWeight: 8,
     properties: ['tree_canopy_pct'],
     invert: false,
-    primary: false,
+    primary: true,
   },
   {
     id: 'light_pollution',
@@ -462,18 +469,18 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   {
     id: 'noise_pollution',
     label: { fi: 'Melu', en: 'Noise Pollution', sv: 'Buller' },
-    defaultWeight: 0,
+    defaultWeight: 7,
     properties: ['noise_pollution'],
     invert: true,
-    primary: false,
+    primary: true,
   },
   {
     id: 'water_proximity',
     label: { fi: 'Veden läheisyys', en: 'Water Proximity', sv: 'Närhet till vatten' },
-    defaultWeight: 0,
+    defaultWeight: 4,
     properties: ['water_proximity_m'],
     invert: true,
-    primary: false,
+    primary: true,
   },
   // Connectivity & politics
   {
@@ -687,17 +694,21 @@ export function getQualityCategory(index: number | null): QualityCategory | null
   return null;
 }
 
-// ─── CF-1: Dimensions, personas & methodology ──────────────────────────────
+// ─── Dimensions, personas & methodology ────────────────────────────────────
 //
-// The headline Quality Index is framed as ~6 conceptual DIMENSIONS rather than
-// ~50 flat factors. Grouping income/employment/education into a single
-// "Prosperity" dimension stops socioeconomic status being counted several times
-// over, so genuine liveability factors (services, mobility, environment) carry
-// real weight. The default dimension weights are anchored to the OECD Better
-// Life Index / Eurostat Quality-of-Life dimensions — see docs/QUALITY_INDEX.md.
+// The headline Quality Index is framed as four evaluative DIMENSIONS rather
+// than ~50 flat factors, each scored once and then weighted:
+//   Safety & peace of mind 30 · Health, nature & calm 28 ·
+//   Livelihood & purpose 26 · Everyday freedom & ease 16.
+// This is a "good life" lens grounded in subjective-wellbeing research: safety
+// and a healthy, calm environment lead; money is mid-weight (and work counts
+// for more than wealth); amenity density is demoted; and social connection —
+// the strongest real-world driver — is left out because it is not measurable
+// from open data. Housing and demographics are descriptive only (no default
+// weight). See docs/QUALITY_INDEX.md.
 
 export type DimensionId =
-  | 'prosperity' | 'safety' | 'services' | 'mobility' | 'environment' | 'housing' | 'demographics';
+  | 'safety' | 'health' | 'livelihood' | 'everyday' | 'housing' | 'demographics';
 
 export interface QualityDimension {
   id: DimensionId;
@@ -711,48 +722,39 @@ export interface QualityDimension {
  *  (no objective "better" direction) and carries no default weight. */
 export const QUALITY_DIMENSIONS: QualityDimension[] = [
   {
-    id: 'prosperity', defaultWeight: 30,
-    label: { fi: 'Hyvinvointi', en: 'Prosperity', sv: 'Välstånd' },
+    id: 'safety', defaultWeight: 30,
+    label: { fi: 'Turvallisuus ja mielenrauha', en: 'Safety & peace of mind', sv: 'Trygghet och sinnesro' },
     description: {
-      fi: 'Tulotaso, työllisyys ja koulutus — laskettuna yhtenä ulottuvuutena.',
-      en: 'Income, employment and education — counted once as a single dimension.',
-      sv: 'Inkomst, sysselsättning och utbildning — räknas som en dimension.',
+      fi: 'Vähäinen rikollisuus ja liikenneturvallisuus — perusta levolliselle arjelle.',
+      en: 'Low crime and traffic safety — the foundation of feeling at ease where you live.',
+      sv: 'Låg brottslighet och trafiksäkerhet — grunden för en trygg vardag.',
     },
   },
   {
-    id: 'safety', defaultWeight: 18,
-    label: { fi: 'Turvallisuus', en: 'Safety', sv: 'Säkerhet' },
+    id: 'health', defaultWeight: 28,
+    label: { fi: 'Terveys, luonto ja rauha', en: 'Health, nature & calm', sv: 'Hälsa, natur och lugn' },
     description: {
-      fi: 'Rikollisuus ja liikenneturvallisuus.',
-      en: 'Crime rates and traffic safety.',
-      sv: 'Brottslighet och trafiksäkerhet.',
+      fi: 'Puhdas ilma, viheralueet, hiljaisuus ja veden läheisyys.',
+      en: 'Clean air, green space, quiet and nearby water — what keeps body and mind well.',
+      sv: 'Ren luft, grönytor, tystnad och närhet till vatten.',
     },
   },
   {
-    id: 'services', defaultWeight: 18,
-    label: { fi: 'Palvelut', en: 'Services & amenities', sv: 'Tjänster' },
+    id: 'livelihood', defaultWeight: 26,
+    label: { fi: 'Toimeentulo ja työ', en: 'Livelihood & purpose', sv: 'Försörjning och arbete' },
     description: {
-      fi: 'Terveys-, koulu-, päivähoito- ja kauppapalvelujen saatavuus.',
-      en: 'Access to healthcare, schools, daycare, groceries and amenities.',
-      sv: 'Tillgång till vård, skolor, dagis, butiker och service.',
+      fi: 'Työllisyys ja tulot — työ painaa enemmän kuin pelkkä varallisuus.',
+      en: 'Employment and income — work counts for more than wealth alone.',
+      sv: 'Sysselsättning och inkomst — arbete väger tyngre än enbart förmögenhet.',
     },
   },
   {
-    id: 'mobility', defaultWeight: 17,
-    label: { fi: 'Liikkuminen', en: 'Mobility', sv: 'Rörlighet' },
+    id: 'everyday', defaultWeight: 16,
+    label: { fi: 'Arjen sujuvuus', en: 'Everyday freedom & ease', sv: 'Vardagens smidighet' },
     description: {
-      fi: 'Joukkoliikenne, pyöräily, kävely ja saavutettavuus.',
-      en: 'Public transit, cycling, walkability and connectivity.',
-      sv: 'Kollektivtrafik, cykling, gångvänlighet och tillgänglighet.',
-    },
-  },
-  {
-    id: 'environment', defaultWeight: 17,
-    label: { fi: 'Ympäristö', en: 'Environment', sv: 'Miljö' },
-    description: {
-      fi: 'Ilmanlaatu, viheralueet, melu ja veden läheisyys.',
-      en: 'Air quality, green space, noise and water proximity.',
-      sv: 'Luftkvalitet, grönytor, buller och närhet till vatten.',
+      fi: 'Liikkuminen kävellen, pyörällä tai joukkoliikenteellä, palvelut lähellä.',
+      en: 'Getting around on foot, by bike or transit, with everyday essentials within reach.',
+      sv: 'Att röra sig till fots, på cykel eller med kollektivtrafik, med service nära.',
     },
   },
   {
@@ -777,22 +779,21 @@ export const QUALITY_DIMENSIONS: QualityDimension[] = [
 
 /** Map each quality factor id to its conceptual dimension. */
 export const FACTOR_DIMENSION: Record<string, DimensionId> = {
-  // Prosperity
-  income: 'prosperity', employment: 'prosperity', education: 'prosperity',
-  employment_rate: 'prosperity', income_change: 'prosperity', unemployment_change: 'prosperity',
-  tech_sector: 'prosperity', healthcare_sector: 'prosperity', manufacturing_sector: 'prosperity',
-  public_sector: 'prosperity', service_sector: 'prosperity',
-  // Safety
+  // Livelihood & purpose
+  income: 'livelihood', employment: 'livelihood', education: 'livelihood',
+  employment_rate: 'livelihood', income_change: 'livelihood', unemployment_change: 'livelihood',
+  tech_sector: 'livelihood', healthcare_sector: 'livelihood', manufacturing_sector: 'livelihood',
+  public_sector: 'livelihood', service_sector: 'livelihood',
+  // Safety & peace of mind
   safety: 'safety', traffic_accidents: 'safety',
-  // Services & amenities
-  services: 'services', grocery_access: 'services', restaurants: 'services',
-  sports_facilities: 'services', school_quality: 'services',
-  // Mobility
-  transit: 'mobility', cycling: 'mobility', walkability: 'mobility',
-  transit_reachability: 'mobility', ev_charging: 'mobility', broadband: 'mobility',
-  // Environment
-  air_quality: 'environment', tree_canopy: 'environment', light_pollution: 'environment',
-  noise_pollution: 'environment', water_proximity: 'environment',
+  // Health, nature & calm
+  air_quality: 'health', tree_canopy: 'health', light_pollution: 'health',
+  noise_pollution: 'health', water_proximity: 'health',
+  // Everyday freedom & ease (mobility + everyday services)
+  transit: 'everyday', cycling: 'everyday', walkability: 'everyday',
+  transit_reachability: 'everyday', ev_charging: 'everyday', broadband: 'everyday',
+  services: 'everyday', grocery_access: 'everyday', restaurants: 'everyday',
+  sports_facilities: 'everyday', school_quality: 'everyday',
   // Housing context
   ownership_rate: 'housing', rental_rate: 'housing', apartment_size: 'housing',
   detached_house_share: 'housing', property_price: 'housing', rental_price: 'housing',
