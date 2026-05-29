@@ -132,14 +132,14 @@ describe('qualityIndex — missing data branches', () => {
 
 describe('qualityIndex — getQualityCategory boundaries', () => {
   it('returns correct category for each boundary value', () => {
-    expect(getQualityCategory(0)?.label.en).toBe('Avoid');
-    expect(getQualityCategory(20)?.label.en).toBe('Avoid');
-    expect(getQualityCategory(21)?.label.en).toBe('Bad');
-    expect(getQualityCategory(40)?.label.en).toBe('Bad');
-    expect(getQualityCategory(41)?.label.en).toBe('Okay');
-    expect(getQualityCategory(60)?.label.en).toBe('Okay');
-    expect(getQualityCategory(61)?.label.en).toBe('Good');
-    expect(getQualityCategory(80)?.label.en).toBe('Good');
+    expect(getQualityCategory(0)?.label.en).toBe('Emerging');
+    expect(getQualityCategory(20)?.label.en).toBe('Emerging');
+    expect(getQualityCategory(21)?.label.en).toBe('Developing');
+    expect(getQualityCategory(40)?.label.en).toBe('Developing');
+    expect(getQualityCategory(41)?.label.en).toBe('Balanced');
+    expect(getQualityCategory(60)?.label.en).toBe('Balanced');
+    expect(getQualityCategory(61)?.label.en).toBe('Strong');
+    expect(getQualityCategory(80)?.label.en).toBe('Strong');
     expect(getQualityCategory(81)?.label.en).toBe('Excellent');
     expect(getQualityCategory(100)?.label.en).toBe('Excellent');
   });
@@ -150,8 +150,8 @@ describe('qualityIndex — getQualityCategory boundaries', () => {
 
   it('returns non-null for fractional values within category ranges', () => {
     // Categories use continuous boundaries — no gaps between them
-    // 20.5 is > 20 (Bad min) and <= 40 (Bad max), so it falls in Bad
-    expect(getQualityCategory(20.5)!.label.en).toBe('Bad');
+    // 20.5 is > 20 (Developing min) and <= 40 (Developing max), so it falls in Developing
+    expect(getQualityCategory(20.5)!.label.en).toBe('Developing');
     // Values truly outside the range still return null
     expect(getQualityCategory(-1)).toBeNull();
     expect(getQualityCategory(101)).toBeNull();

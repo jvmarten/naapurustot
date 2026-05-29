@@ -18,6 +18,14 @@ interface ToolsDropdownProps {
   onClearDraw?: () => void;
   selectMode?: boolean;
   onToggleSelectMode?: () => void;
+  /** QW-3: "Show my area" — geolocate and select the containing neighborhood. */
+  onUseLocation?: () => void;
+  /** CF-3: Correlation / scatter explorer. */
+  showScatter?: boolean;
+  onToggleScatter?: () => void;
+  /** CF-4: Region comparison & ranking. */
+  showRegionRanking?: boolean;
+  onToggleRegionRanking?: () => void;
   /** Pass current language to trigger re-render on language change */
   lang?: Lang;
 }
@@ -39,6 +47,11 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
   onClearDraw,
   selectMode,
   onToggleSelectMode,
+  onUseLocation,
+  showScatter,
+  onToggleScatter,
+  showRegionRanking,
+  onToggleRegionRanking,
   lang: _lang,
 }) => {
   useI18nVersion();
@@ -56,7 +69,7 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
-  const anyActive = showFilter || showRanking || drawMode || selectMode;
+  const anyActive = showFilter || showRanking || drawMode || selectMode || showScatter || showRegionRanking;
 
   return (
     <div data-tour-id="tools" className="relative" ref={ref}>
@@ -81,6 +94,21 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
         <div className="absolute left-0 top-full mt-2 w-56 rounded-xl bg-white dark:bg-surface-900
                        border border-surface-200 dark:border-surface-700/40 shadow-2xl backdrop-blur-md
                        py-1 z-50">
+          {/* QW-3: Show my area (geolocation) */}
+          {onUseLocation && (
+            <button
+              onClick={() => { onUseLocation(); setOpen(false); }}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200
+                         hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span>{t('geolocation.button')}</span>
+            </button>
+          )}
+
           {/* Neighborhood Wizard */}
           <button
             onClick={() => { onOpenWizard(); setOpen(false); }}
@@ -126,6 +154,45 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
               </svg>
             )}
           </button>
+
+          {/* CF-3: Correlation / scatter explorer */}
+          {onToggleScatter && (
+            <button
+              onClick={() => { onToggleScatter(); setOpen(false); }}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200
+                         hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 3v18h18M7 14l3-3 3 3 4-5" />
+                <circle cx="7" cy="14" r="0.6" fill="currentColor" /><circle cx="10" cy="11" r="0.6" fill="currentColor" /><circle cx="13" cy="14" r="0.6" fill="currentColor" /><circle cx="17" cy="9" r="0.6" fill="currentColor" />
+              </svg>
+              <span>{t('correlation.toggle')}</span>
+              {showScatter && (
+                <svg className="w-4 h-4 ml-auto text-brand-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </button>
+          )}
+
+          {/* CF-4: Region comparison & ranking */}
+          {onToggleRegionRanking && (
+            <button
+              onClick={() => { onToggleRegionRanking(); setOpen(false); }}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200
+                         hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m-6 3l6-3" />
+              </svg>
+              <span>{t('region.comparison.toggle')}</span>
+              {showRegionRanking && (
+                <svg className="w-4 h-4 ml-auto text-brand-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </button>
+          )}
 
           {/* Select areas (tap neighborhoods) */}
           {onToggleSelectMode && (

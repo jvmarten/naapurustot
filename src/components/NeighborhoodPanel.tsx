@@ -3,11 +3,13 @@ import type { NeighborhoodProperties } from '../utils/metrics';
 import { parseTrendSeries, METRIC_SOURCES, METRIC_EXPLANATIONS } from '../utils/metrics';
 import { formatNumber, formatEuro, formatPct, formatDiff, diffColor, formatYtlGradeFull, parseSchools } from '../utils/formatting';
 import { t, getLang, useI18nVersion } from '../utils/i18n';
-import { getQualityCategory, QUALITY_CATEGORIES } from '../utils/qualityIndex';
+import { getQualityCategory, QUALITY_CATEGORIES, QUALITY_DIMENSIONS } from '../utils/qualityIndex';
 import { exportCsv, exportPdf } from '../utils/export';
 import { TrendSection } from './TrendChart';
 import Sparkline from './Sparkline';
 import RadarChart from './RadarChart';
+import { IsochroneControls } from './IsochroneControls';
+import type { IsochroneMode } from '../utils/isochrone';
 import { findSimilarNeighborhoods } from '../utils/similarity';
 import { toSlug } from '../utils/slug';
 import { useAnimatedValue } from '../hooks/useAnimatedValue';
@@ -35,6 +37,14 @@ interface PanelProps {
   onExploreCity?: (cityId: string) => void;
   /** Authenticated user id — enables cloud-synced notes when set */
   userId?: string | null;
+  /** CF-5: travel-time isochrone controls (only when a Digitransit key is configured) */
+  isochroneEnabled?: boolean;
+  isochroneMode?: IsochroneMode;
+  isochroneBudget?: number;
+  isochroneLoading?: boolean;
+  isochroneActive?: boolean;
+  onIsochroneChange?: (mode: IsochroneMode, budget: number) => void;
+  onIsochroneClear?: () => void;
 }
 
 const StatRow: React.FC<{
@@ -282,16 +292,56 @@ const QualityBadge: React.FC<{
   const qi = animatedQi != null ? Math.round(animatedQi) : qualityIndex;
   const cat = getQualityCategory(qi);
   const lang = getLang();
+  // CF-1: "How is this calculated?" explainer popover.
+  const [showHow, setShowHow] = useState(false);
+  const evaluativeDims = QUALITY_DIMENSIONS.filter((d) => d.defaultWeight > 0);
   return (
     <div className="rounded-xl bg-surface-100 dark:bg-surface-900/60 p-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400">
+        <h3 className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400">
           {t('panel.quality_index')}
           {isCustomWeights && (
-            <span className="ml-1.5 text-brand-500 dark:text-brand-400">
+            <span className="ml-1 text-brand-500 dark:text-brand-400">
               ({t('custom_quality.custom_label')})
             </span>
           )}
+          {/* CF-1: explainer popover */}
+          <span className="relative inline-flex">
+            <button
+              type="button"
+              onClick={() => setShowHow((v) => !v)}
+              aria-label={t('quality.how_calculated')}
+              aria-expanded={showHow}
+              className="ml-0.5 w-4 h-4 flex items-center justify-center rounded-full text-surface-400 hover:text-brand-500 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </button>
+            {showHow && (
+              <span
+                role="dialog"
+                aria-label={t('quality.how_calculated')}
+                className="absolute left-0 top-6 z-30 w-64 normal-case tracking-normal rounded-xl bg-white dark:bg-surface-800
+                           border border-surface-200 dark:border-surface-700/50 shadow-2xl p-3 text-left"
+              >
+                <p className="text-[11px] font-normal text-surface-600 dark:text-surface-300 mb-2">
+                  {t('quality.explainer')}
+                </p>
+                <ul className="space-y-0.5">
+                  {evaluativeDims.map((d) => (
+                    <li key={d.id} className="flex items-center justify-between text-[11px] font-normal text-surface-700 dark:text-surface-200">
+                      <span>{d.label[lang]}</span>
+                      <span className="tabular-nums text-surface-400 dark:text-surface-500">{d.defaultWeight}%</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-[10px] font-normal text-surface-400 dark:text-surface-500">
+                  {t('quality.methodology_note')}
+                </p>
+              </span>
+            )}
+          </span>
         </h3>
         {onCustomize && (
           <button
@@ -331,7 +381,7 @@ const QualityBadge: React.FC<{
                 className="w-full h-2 rounded-full"
                 style={{ backgroundColor: c.color }}
               />
-              <span className="text-[9px] text-surface-500 dark:text-surface-400">{c.label[lang]}</span>
+              <span className="text-[9px] text-surface-600 dark:text-surface-400">{c.label[lang]}</span>
             </div>
           ))}
         </div>
@@ -384,7 +434,7 @@ const NotesEditor: React.FC<{ pno: string; userId?: string | null }> = React.mem
 });
 NotesEditor.displayName = 'NotesEditor';
 
-export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, allFeatures, onFlyTo, isFavorite = false, onToggleFavorite, onExploreCity, userId }) => {
+export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, allFeatures, onFlyTo, isFavorite = false, onToggleFavorite, onExploreCity, userId, isochroneEnabled = false, isochroneMode = 'walk', isochroneBudget = 20, isochroneLoading = false, isochroneActive = false, onIsochroneChange, onIsochroneClear }) => {
   useI18nVersion();
   const eduTotal = useMemo(() =>
     [d.ko_yl_kork, d.ko_al_kork, d.ko_ammat, d.ko_perus]
@@ -568,6 +618,18 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
           qualityIndex={d.quality_index}
           isCustomWeights={isCustomWeights}
           onCustomize={onCustomize}
+        />
+      )}
+
+      {/* CF-5: travel-time isochrone controls (real neighborhoods only; needs a Digitransit key) */}
+      {isochroneEnabled && !d._isMetroArea && onIsochroneChange && onIsochroneClear && (
+        <IsochroneControls
+          mode={isochroneMode}
+          budget={isochroneBudget}
+          loading={isochroneLoading}
+          active={isochroneActive}
+          onChange={onIsochroneChange}
+          onClear={onIsochroneClear}
         />
       )}
 
@@ -1115,6 +1177,8 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
             </div>
             <button
               onClick={onClose}
+              aria-label={t('aria.close')}
+              title={t('aria.close')}
               className="p-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-surface-400 hover:text-surface-900 dark:hover:text-white flex-shrink-0"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1185,6 +1249,8 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
             </div>
             <button
               onClick={onClose}
+              aria-label={t('aria.close')}
+              title={t('aria.close')}
               className="p-2.5 -mr-1 rounded-xl hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-surface-400 hover:text-surface-900 dark:hover:text-white flex-shrink-0"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

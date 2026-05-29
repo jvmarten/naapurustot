@@ -228,19 +228,19 @@ describe('getQualityCategory — edge cases', () => {
   });
 
   it('returns correct category for exact boundary values', () => {
-    expect(getQualityCategory(0)!.label.en).toBe('Avoid');
-    expect(getQualityCategory(20)!.label.en).toBe('Avoid');
-    expect(getQualityCategory(21)!.label.en).toBe('Bad');
+    expect(getQualityCategory(0)!.label.en).toBe('Emerging');
+    expect(getQualityCategory(20)!.label.en).toBe('Emerging');
+    expect(getQualityCategory(21)!.label.en).toBe('Developing');
     expect(getQualityCategory(100)!.label.en).toBe('Excellent');
   });
 
   it('handles non-integer values correctly', () => {
     // Categories use continuous boundaries — no gaps between them
-    // 20.5 is > 20 (Bad min) and <= 40 (Bad max), so it falls in Bad
-    expect(getQualityCategory(20.5)!.label.en).toBe('Bad');
+    // 20.5 is > 20 (Developing min) and <= 40 (Developing max), so it falls in Developing
+    expect(getQualityCategory(20.5)!.label.en).toBe('Developing');
     // 80.9 is > 80 (Excellent min) and <= 100, so it falls in Excellent
     expect(getQualityCategory(80.9)!.label.en).toBe('Excellent');
     // Values within integer ranges still work
-    expect(getQualityCategory(50)!.label.en).toBe('Okay');
+    expect(getQualityCategory(50)!.label.en).toBe('Balanced');
   });
 });

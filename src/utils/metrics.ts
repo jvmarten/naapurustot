@@ -355,6 +355,43 @@ export function computeChangeMetrics(features: GeoJSON.Feature[]): void {
   }
 }
 
+// PO-2: history arrays that back the time slider / historical playback.
+export const TIME_SERIES_HISTORY_PROPS = ['income_history', 'population_history', 'unemployment_history'] as const;
+
+/** Property key holding a single year's materialized value, e.g. `income_history__2023`. */
+export function timeSeriesYearProp(historyProp: string, year: number): string {
+  return `${historyProp}__${year}`;
+}
+
+/**
+ * PO-2: Materialize each history array's [year, value] points into flat numeric
+ * properties (`<historyProp>__<year>`) so the MapLibre fill-color expression can
+ * read a single year's value via `['get', key]` — expressions can't index a
+ * JSON-encoded array stored in a string property. Derived only; no new data.
+ */
+export function computeTimeSeriesValues(features: GeoJSON.Feature[]): void {
+  for (const f of features) {
+    const p = f.properties as Record<string, unknown>;
+    for (const hp of TIME_SERIES_HISTORY_PROPS) {
+      const series = parseTrendSeries(p[hp] as string | null);
+      if (!series) continue;
+      for (const [year, value] of series) {
+        p[timeSeriesYearProp(hp, year)] = value;
+      }
+    }
+  }
+}
+
+/** PO-2: Sorted union of years present in a given history property across features. */
+export function getAvailableYears(features: GeoJSON.Feature[], historyProp: string): number[] {
+  const years = new Set<number>();
+  for (const f of features) {
+    const series = parseTrendSeries((f.properties as Record<string, unknown>)[historyProp] as string | null);
+    if (series) for (const [year] of series) years.add(year);
+  }
+  return [...years].sort((a, b) => a - b);
+}
+
 /**
  * IN-1: Data-driven metro average computation.
  * Each metric is defined once with its property name, weighting type, and rounding precision.

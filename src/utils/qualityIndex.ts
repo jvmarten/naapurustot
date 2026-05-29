@@ -57,10 +57,18 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   // --- Primary factors (7): shown by default ---
   // Socioeconomic factors (80%) correlate and drive score differentiation.
   // Environmental factors (20%) add nuance without flattening the spread.
+  // CF-1: default weights are grouped into ~6 conceptual DIMENSIONS (see
+  // QUALITY_DIMENSIONS below) and rebalanced so socioeconomic status is counted
+  // once (Prosperity = income + employment + education = 30, split 10/10/10)
+  // rather than ~4× as before (old Safety 25 + Income 20 + Employment 20 +
+  // Education 15 = 80%). With the existing weighted-average algorithm, factor
+  // weights that sum to a dimension's target ARE that dimension scored once —
+  // so liveability factors (services, transit, environment) now actually
+  // register. See docs/QUALITY_INDEX.md for the OECD/Eurostat anchoring.
   {
     id: 'safety',
     label: { fi: 'Turvallisuus', en: 'Safety', sv: 'Säkerhet' },
-    defaultWeight: 25,
+    defaultWeight: 18,
     properties: ['crime_index'],
     invert: true,
     primary: true,
@@ -68,7 +76,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   {
     id: 'income',
     label: { fi: 'Tulotaso', en: 'Income', sv: 'Inkomst' },
-    defaultWeight: 20,
+    defaultWeight: 10,
     properties: ['hr_mtu'],
     invert: false,
     primary: true,
@@ -76,7 +84,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   {
     id: 'employment',
     label: { fi: 'Työllisyys', en: 'Employment', sv: 'Sysselsättning' },
-    defaultWeight: 20,
+    defaultWeight: 10,
     properties: ['unemployment_rate'],
     invert: true,
     primary: true,
@@ -84,7 +92,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   {
     id: 'education',
     label: { fi: 'Koulutus', en: 'Education', sv: 'Utbildning' },
-    defaultWeight: 15,
+    defaultWeight: 10,
     properties: ['higher_education_rate'],
     invert: false,
     primary: true,
@@ -92,7 +100,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   {
     id: 'transit',
     label: { fi: 'Joukkoliikenne', en: 'Transit', sv: 'Kollektivtrafik' },
-    defaultWeight: 7,
+    defaultWeight: 17,
     properties: ['transit_stop_density'],
     invert: false,
     primary: true,
@@ -100,7 +108,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   {
     id: 'services',
     label: { fi: 'Palvelut', en: 'Services', sv: 'Tjänster' },
-    defaultWeight: 5,
+    defaultWeight: 18,
     properties: ['healthcare_density', 'school_density', 'daycare_density', 'grocery_density'],
     invert: false,
     primary: true,
@@ -108,7 +116,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   {
     id: 'air_quality',
     label: { fi: 'Ilmanlaatu', en: 'Air Quality', sv: 'Luftkvalitet' },
-    defaultWeight: 3,
+    defaultWeight: 17,
     properties: ['air_quality_index'],
     invert: true,
     primary: true,
@@ -657,11 +665,15 @@ export interface QualityCategory {
   color: string;
 }
 
+// CF-1: descriptive, non-pejorative category labels. The old wording
+// (Avoid / Bad) stigmatized lower-scoring postal codes where people actually
+// live and told users little they couldn't read off the income layer. Colors
+// are unchanged so the scale still reads at a glance.
 export const QUALITY_CATEGORIES: QualityCategory[] = [
-  { label: { fi: 'Vältä', en: 'Avoid', sv: 'Undvik' }, min: 0, max: 20, color: '#a855f7' },
-  { label: { fi: 'Huono', en: 'Bad', sv: 'Dåligt' }, min: 20, max: 40, color: '#ef4444' },
-  { label: { fi: 'OK', en: 'Okay', sv: 'Okej' }, min: 40, max: 60, color: '#f97316' },
-  { label: { fi: 'Hyvä', en: 'Good', sv: 'Bra' }, min: 60, max: 80, color: '#eab308' },
+  { label: { fi: 'Kehittyvä', en: 'Emerging', sv: 'Framväxande' }, min: 0, max: 20, color: '#a855f7' },
+  { label: { fi: 'Kohentuva', en: 'Developing', sv: 'Utvecklande' }, min: 20, max: 40, color: '#ef4444' },
+  { label: { fi: 'Tasapainoinen', en: 'Balanced', sv: 'Balanserad' }, min: 40, max: 60, color: '#f97316' },
+  { label: { fi: 'Vahva', en: 'Strong', sv: 'Stark' }, min: 60, max: 80, color: '#eab308' },
   { label: { fi: 'Erinomainen', en: 'Excellent', sv: 'Utmärkt' }, min: 80, max: 100, color: '#22c55e' },
 ];
 
@@ -675,6 +687,210 @@ export function getQualityCategory(index: number | null): QualityCategory | null
     if (index > c.min || (i === 0 && index >= c.min)) {
       if (index <= c.max) return c;
     }
+  }
+  return null;
+}
+
+// ─── CF-1: Dimensions, personas & methodology ──────────────────────────────
+//
+// The headline Quality Index is framed as ~6 conceptual DIMENSIONS rather than
+// ~50 flat factors. Grouping income/employment/education into a single
+// "Prosperity" dimension stops socioeconomic status being counted several times
+// over, so genuine liveability factors (services, mobility, environment) carry
+// real weight. The default dimension weights are anchored to the OECD Better
+// Life Index / Eurostat Quality-of-Life dimensions — see docs/QUALITY_INDEX.md.
+
+export type DimensionId =
+  | 'prosperity' | 'safety' | 'services' | 'mobility' | 'environment' | 'housing' | 'demographics';
+
+export interface QualityDimension {
+  id: DimensionId;
+  label: { fi: string; en: string; sv: string };
+  description: { fi: string; en: string; sv: string };
+  /** Default share of the index (0–100). Sums to 100 across evaluative dimensions. */
+  defaultWeight: number;
+}
+
+/** The conceptual dimensions of the index. `demographics` is descriptive only
+ *  (no objective "better" direction) and carries no default weight. */
+export const QUALITY_DIMENSIONS: QualityDimension[] = [
+  {
+    id: 'prosperity', defaultWeight: 30,
+    label: { fi: 'Hyvinvointi', en: 'Prosperity', sv: 'Välstånd' },
+    description: {
+      fi: 'Tulotaso, työllisyys ja koulutus — laskettuna yhtenä ulottuvuutena.',
+      en: 'Income, employment and education — counted once as a single dimension.',
+      sv: 'Inkomst, sysselsättning och utbildning — räknas som en dimension.',
+    },
+  },
+  {
+    id: 'safety', defaultWeight: 18,
+    label: { fi: 'Turvallisuus', en: 'Safety', sv: 'Säkerhet' },
+    description: {
+      fi: 'Rikollisuus ja liikenneturvallisuus.',
+      en: 'Crime rates and traffic safety.',
+      sv: 'Brottslighet och trafiksäkerhet.',
+    },
+  },
+  {
+    id: 'services', defaultWeight: 18,
+    label: { fi: 'Palvelut', en: 'Services & amenities', sv: 'Tjänster' },
+    description: {
+      fi: 'Terveys-, koulu-, päivähoito- ja kauppapalvelujen saatavuus.',
+      en: 'Access to healthcare, schools, daycare, groceries and amenities.',
+      sv: 'Tillgång till vård, skolor, dagis, butiker och service.',
+    },
+  },
+  {
+    id: 'mobility', defaultWeight: 17,
+    label: { fi: 'Liikkuminen', en: 'Mobility', sv: 'Rörlighet' },
+    description: {
+      fi: 'Joukkoliikenne, pyöräily, kävely ja saavutettavuus.',
+      en: 'Public transit, cycling, walkability and connectivity.',
+      sv: 'Kollektivtrafik, cykling, gångvänlighet och tillgänglighet.',
+    },
+  },
+  {
+    id: 'environment', defaultWeight: 17,
+    label: { fi: 'Ympäristö', en: 'Environment', sv: 'Miljö' },
+    description: {
+      fi: 'Ilmanlaatu, viheralueet, melu ja veden läheisyys.',
+      en: 'Air quality, green space, noise and water proximity.',
+      sv: 'Luftkvalitet, grönytor, buller och närhet till vatten.',
+    },
+  },
+  {
+    id: 'housing', defaultWeight: 0,
+    label: { fi: 'Asuminen', en: 'Housing context', sv: 'Boende' },
+    description: {
+      fi: 'Asuntotyypit, hinnat ja rakennuskanta — kuvaileva, ei oletuspainoa.',
+      en: 'Housing types, prices and building stock — descriptive, no default weight.',
+      sv: 'Bostadstyper, priser och byggnadsbestånd — beskrivande, ingen standardvikt.',
+    },
+  },
+  {
+    id: 'demographics', defaultWeight: 0,
+    label: { fi: 'Väestö ja muut', en: 'Demographics & other', sv: 'Demografi m.m.' },
+    description: {
+      fi: 'Väestörakenne, työn toimialat ja äänestäminen — kuvailevia, ei oletuspainoa.',
+      en: 'Population mix, employment sectors and voting — descriptive, no default weight.',
+      sv: 'Befolkningssammansättning, branscher och röstning — beskrivande.',
+    },
+  },
+];
+
+/** Map each quality factor id to its conceptual dimension. */
+export const FACTOR_DIMENSION: Record<string, DimensionId> = {
+  // Prosperity
+  income: 'prosperity', employment: 'prosperity', education: 'prosperity',
+  employment_rate: 'prosperity', income_change: 'prosperity', unemployment_change: 'prosperity',
+  tech_sector: 'prosperity', healthcare_sector: 'prosperity', manufacturing_sector: 'prosperity',
+  public_sector: 'prosperity', service_sector: 'prosperity',
+  // Safety
+  safety: 'safety', traffic_accidents: 'safety',
+  // Services & amenities
+  services: 'services', grocery_access: 'services', restaurants: 'services',
+  sports_facilities: 'services', school_quality: 'services',
+  // Mobility
+  transit: 'mobility', cycling: 'mobility', walkability: 'mobility',
+  transit_reachability: 'mobility', ev_charging: 'mobility', broadband: 'mobility',
+  // Environment
+  air_quality: 'environment', tree_canopy: 'environment', light_pollution: 'environment',
+  noise_pollution: 'environment', water_proximity: 'environment',
+  // Housing context
+  ownership_rate: 'housing', rental_rate: 'housing', apartment_size: 'housing',
+  detached_house_share: 'housing', property_price: 'housing', rental_price: 'housing',
+  price_to_rent: 'housing', construction_year: 'housing', new_construction: 'housing',
+  population_density: 'housing', population_change: 'housing',
+  // Demographics & other (descriptive)
+  avg_age: 'demographics', youth_ratio: 'demographics', elderly_ratio: 'demographics',
+  child_ratio: 'demographics', pensioner_share: 'demographics', student_share: 'demographics',
+  gender_ratio: 'demographics', foreign_language: 'demographics', single_parent_hh: 'demographics',
+  families_with_children: 'demographics', single_person_hh: 'demographics', household_size: 'demographics',
+  voter_turnout: 'demographics', party_diversity: 'demographics',
+};
+
+export function getFactorDimension(factorId: string): DimensionId {
+  return FACTOR_DIMENSION[factorId] ?? 'demographics';
+}
+
+/** A named quality-index lens (preset weights). Cloud-synced via the existing
+ *  per-factor preferences sync — a persona is just a set of factor weights. */
+export interface QualityPersona {
+  id: string;
+  label: { fi: string; en: string; sv: string };
+  description: { fi: string; en: string; sv: string };
+  /** When true this preset equals the documented default. */
+  isDefault?: boolean;
+}
+
+// Build a full weight map (every factor present) from a sparse emphasis map,
+// so a persona's emphasis isn't diluted by leftover default weights.
+function personaWeights(emphasis: Record<string, number>): QualityWeights {
+  const w: QualityWeights = {};
+  for (const f of QUALITY_FACTORS) w[f.id] = 0;
+  return { ...w, ...emphasis };
+}
+
+const PERSONA_WEIGHTS: Record<string, QualityWeights> = {
+  balanced: getDefaultWeights(),
+  family: personaWeights({
+    income: 6, employment: 6, education: 12, safety: 20,
+    services: 24, school_quality: 8, transit: 12, air_quality: 12,
+  }),
+  professional: personaWeights({
+    income: 14, employment: 10, education: 8, safety: 10,
+    services: 16, transit: 20, walkability: 10, cycling: 8, air_quality: 4,
+  }),
+  student: personaWeights({
+    income: 4, employment: 6, education: 8, safety: 12,
+    services: 16, transit: 20, walkability: 10, restaurants: 8, air_quality: 10, noise_pollution: 6,
+  }),
+  retiree: personaWeights({
+    income: 6, safety: 24, services: 24, transit: 10,
+    walkability: 10, air_quality: 14, tree_canopy: 6, noise_pollution: 6,
+  }),
+  nature: personaWeights({
+    income: 8, education: 6, safety: 14, services: 8, transit: 6,
+    air_quality: 18, tree_canopy: 14, water_proximity: 10, noise_pollution: 10, light_pollution: 6,
+  }),
+};
+
+export const QUALITY_PERSONAS: QualityPersona[] = [
+  { id: 'balanced', isDefault: true,
+    label: { fi: 'Tasapainoinen', en: 'Balanced', sv: 'Balanserad' },
+    description: { fi: 'Oletus — kaikki ulottuvuudet tasapainossa.', en: 'Default — all dimensions in balance.', sv: 'Standard — alla dimensioner i balans.' } },
+  { id: 'family',
+    label: { fi: 'Lapsiperhe', en: 'Family with children', sv: 'Barnfamilj' },
+    description: { fi: 'Painottaa palveluja, turvallisuutta ja koulutusta.', en: 'Emphasizes services, safety and education.', sv: 'Betonar tjänster, säkerhet och utbildning.' } },
+  { id: 'professional',
+    label: { fi: 'Autoton kaupunkilainen', en: 'Young professional (car-free)', sv: 'Bilfri stadsbo' },
+    description: { fi: 'Painottaa joukkoliikennettä, palveluja ja tuloja.', en: 'Emphasizes transit, amenities and prosperity.', sv: 'Betonar kollektivtrafik, service och inkomst.' } },
+  { id: 'student',
+    label: { fi: 'Opiskelija', en: 'Student', sv: 'Studerande' },
+    description: { fi: 'Painottaa liikkumista, palveluja ja rauhaa.', en: 'Emphasizes mobility, amenities and quiet.', sv: 'Betonar rörlighet, service och lugn.' } },
+  { id: 'retiree',
+    label: { fi: 'Eläkeläinen', en: 'Retiree', sv: 'Pensionär' },
+    description: { fi: 'Painottaa turvallisuutta, terveyspalveluja ja ympäristöä.', en: 'Emphasizes safety, healthcare and environment.', sv: 'Betonar säkerhet, vård och miljö.' } },
+  { id: 'nature',
+    label: { fi: 'Luonto ja rauha', en: 'Nature & quiet', sv: 'Natur och lugn' },
+    description: { fi: 'Painottaa ympäristöä, viheralueita ja hiljaisuutta.', en: 'Emphasizes environment, green space and quiet.', sv: 'Betonar miljö, grönska och tystnad.' } },
+];
+
+/** Weights for a persona id (falls back to the default/balanced preset). */
+export function getPersonaWeights(personaId: string): QualityWeights {
+  return { ...(PERSONA_WEIGHTS[personaId] ?? PERSONA_WEIGHTS.balanced) };
+}
+
+/** Identify which persona a weight set matches exactly, if any. */
+export function detectPersona(weights: QualityWeights): string | null {
+  for (const persona of QUALITY_PERSONAS) {
+    const pw = PERSONA_WEIGHTS[persona.id];
+    let match = true;
+    for (const f of QUALITY_FACTORS) {
+      if ((weights[f.id] ?? 0) !== (pw[f.id] ?? 0)) { match = false; break; }
+    }
+    if (match) return persona.id;
   }
   return null;
 }

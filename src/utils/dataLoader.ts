@@ -12,7 +12,7 @@
 import type { Feature, FeatureCollection } from 'geojson';
 import { feature } from 'topojson-client';
 import type { Topology } from 'topojson-specification';
-import { computeMetroAverages, computeChangeMetrics, computeQuickWinMetrics } from './metrics';
+import { computeMetroAverages, computeChangeMetrics, computeQuickWinMetrics, computeTimeSeriesValues } from './metrics';
 import { computeQualityIndices } from './qualityIndex';
 import { filterSmallIslands } from './geometryFilter';
 import type { RegionId } from './regions';
@@ -69,6 +69,8 @@ function processTopology(topo: Topology): ProcessedData {
   computeQualityIndices(geojson.features);
   computeChangeMetrics(geojson.features);
   computeQuickWinMetrics(geojson.features);
+  // PO-2: flatten history arrays into per-year numeric props for the time slider.
+  computeTimeSeriesValues(geojson.features);
   const metroAverages = computeMetroAverages(geojson.features);
 
   return { data: geojson, metroAverages };

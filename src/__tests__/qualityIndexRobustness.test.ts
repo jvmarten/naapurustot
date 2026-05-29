@@ -188,8 +188,8 @@ describe('getDefaultWeights', () => {
   it('total default weights sum to expected value', () => {
     const w = getDefaultWeights();
     const total = Object.values(w).reduce((a, b) => a + b, 0);
-    // Primary weights: 25+20+20+15+7+5+3 = 95, secondary all 0
-    expect(total).toBe(95);
+    // Primary weights: 18+10+10+10+17+18+17 = 100, secondary all 0
+    expect(total).toBe(100);
   });
 });
 
@@ -221,14 +221,14 @@ describe('getQualityCategory', () => {
   });
 
   it('maps boundary values correctly', () => {
-    expect(getQualityCategory(0)?.label.en).toBe('Avoid');
-    expect(getQualityCategory(20)?.label.en).toBe('Avoid');
-    expect(getQualityCategory(21)?.label.en).toBe('Bad');
-    expect(getQualityCategory(40)?.label.en).toBe('Bad');
-    expect(getQualityCategory(41)?.label.en).toBe('Okay');
-    expect(getQualityCategory(60)?.label.en).toBe('Okay');
-    expect(getQualityCategory(61)?.label.en).toBe('Good');
-    expect(getQualityCategory(80)?.label.en).toBe('Good');
+    expect(getQualityCategory(0)?.label.en).toBe('Emerging');
+    expect(getQualityCategory(20)?.label.en).toBe('Emerging');
+    expect(getQualityCategory(21)?.label.en).toBe('Developing');
+    expect(getQualityCategory(40)?.label.en).toBe('Developing');
+    expect(getQualityCategory(41)?.label.en).toBe('Balanced');
+    expect(getQualityCategory(60)?.label.en).toBe('Balanced');
+    expect(getQualityCategory(61)?.label.en).toBe('Strong');
+    expect(getQualityCategory(80)?.label.en).toBe('Strong');
     expect(getQualityCategory(81)?.label.en).toBe('Excellent');
     expect(getQualityCategory(100)?.label.en).toBe('Excellent');
   });

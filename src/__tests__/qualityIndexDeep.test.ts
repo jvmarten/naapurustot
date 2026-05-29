@@ -29,8 +29,8 @@ describe('getDefaultWeights', () => {
   it('has weights summing to a known value', () => {
     const w = getDefaultWeights();
     const sum = Object.values(w).reduce((a, b) => a + b, 0);
-    // Primary weights sum: 25+20+20+15+7+5+3 = 95; secondary are 0
-    expect(sum).toBe(95);
+    // Primary weights sum: 18+10+10+10+17+18+17 = 100; secondary are 0
+    expect(sum).toBe(100);
   });
 });
 
@@ -212,7 +212,7 @@ describe('getQualityCategory — edge cases', () => {
     // 50.5 should fall in the 41-60 range
     const cat = getQualityCategory(50.5);
     expect(cat).not.toBeNull();
-    expect(cat!.label.en).toBe('Okay');
+    expect(cat!.label.en).toBe('Balanced');
   });
 });
 

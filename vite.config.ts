@@ -1,9 +1,57 @@
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import viteCompression from 'vite-plugin-compression'
 import { VitePWA } from 'vite-plugin-pwa'
 import { visualizer } from 'rollup-plugin-visualizer'
 import { sentryVitePlugin } from '@sentry/vite-plugin'
+import { existsSync, readdirSync, rmSync } from 'node:fs'
+import { resolve as resolvePath, join as joinPath } from 'node:path'
+
+// IN-3: Keep build-only pipeline inputs out of the deployed site.
+//
+// `public/data/` holds both runtime data the app fetches AND large GeoJSON
+// inputs that only the build/prerender scripts read (metro_neighborhoods.geojson
+// ~38 MB, *_grid.geojson conversion inputs). Vite copies all of public/ verbatim
+// into dist/, so without this those inputs ship to GitHub Pages on every deploy —
+// ~40 MB of dead weight, plus raw source data needlessly exposed at /data/.
+//
+// We strip them from dist/ after the public-dir copy rather than relocating them
+// in the repo: the files must stay committed (prerender + build:data read them,
+// and the deploy build never re-runs the data pipeline), and moving them would
+// mean touching the data-integrity-sensitive Python pipeline + data-refresh
+// workflow. Rule: always drop metro_neighborhoods.geojson (never fetched at
+// runtime); drop a *_grid.geojson only when its *_grid.topojson sibling exists
+// (the TopoJSON is the runtime form). Raw-GeoJSON grids that are served directly
+// — e.g. light_pollution_grid.geojson, which useGridData fetches as-is — have no
+// TopoJSON sibling and are therefore kept.
+function stripBuildOnlyData(): Plugin {
+  let outDir = 'dist'
+  return {
+    name: 'naapurustot-strip-build-only-data',
+    apply: 'build',
+    configResolved(config) {
+      outDir = resolvePath(config.root, config.build.outDir)
+    },
+    closeBundle() {
+      const dataDir = joinPath(outDir, 'data')
+      if (!existsSync(dataDir)) return
+      const files = readdirSync(dataDir)
+      const removed: string[] = []
+      for (const f of files) {
+        const isMonolith = f === 'metro_neighborhoods.geojson'
+        const isConvertedGrid =
+          f.endsWith('_grid.geojson') && files.includes(f.replace(/\.geojson$/, '.topojson'))
+        if (isMonolith || isConvertedGrid) {
+          rmSync(joinPath(dataDir, f))
+          removed.push(f)
+        }
+      }
+      if (removed.length) {
+        console.log(`[strip-build-only-data] removed build-only inputs from ${outDir}/data: ${removed.join(', ')}`)
+      }
+    },
+  }
+}
 
 const SENTRY_AUTH_TOKEN = process.env.SENTRY_AUTH_TOKEN
 const SENTRY_ORG = process.env.SENTRY_ORG
@@ -94,6 +142,8 @@ export default defineConfig({
       brotliSize: true,
       open: false,
     }),
+    // IN-3: Strip build-only pipeline inputs from the deployed dist/ (see above).
+    stripBuildOnlyData(),
     // Source maps are emitted as 'hidden' (no //# sourceMappingURL=…) so they
     // get uploaded to Sentry but are deleted from dist/ before deploy — clients
     // never download them. Only active when an auth token is provided.

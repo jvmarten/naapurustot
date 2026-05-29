@@ -37,7 +37,7 @@ describe('Quality index — custom weights', () => {
       makeFeature({ pno: 'B', crime_index: 200, hr_mtu: 60000, unemployment_rate: 3, higher_education_rate: 70, transit_stop_density: 50, healthcare_density: 5, daycare_density: 5, school_density: 5, grocery_density: 5, air_quality_index: 40 }),
     ];
 
-    // Default weights: safety=25, income=20
+    // Default weights: safety=18, income=10
     computeQualityIndices(features);
 
     // Now weight ONLY safety at 100
@@ -251,8 +251,8 @@ describe('getDefaultWeights / isCustomWeights', () => {
     const primarySum = QUALITY_FACTORS
       .filter((f) => f.primary)
       .reduce((sum, f) => sum + w[f.id], 0);
-    // Should be 95 (25+20+20+15+7+5+3)
-    expect(primarySum).toBe(95);
+    // Should be 100 (18+10+10+10+17+18+17)
+    expect(primarySum).toBe(100);
   });
 
   it('isCustomWeights returns false for default weights', () => {
@@ -261,7 +261,7 @@ describe('getDefaultWeights / isCustomWeights', () => {
 
   it('isCustomWeights returns true when any weight differs', () => {
     const w = getDefaultWeights();
-    w.safety = 50; // changed from 25
+    w.safety = 50; // changed from 18
     expect(isCustomWeights(w)).toBe(true);
   });
 
@@ -279,14 +279,14 @@ describe('getDefaultWeights / isCustomWeights', () => {
 
 describe('getQualityCategory', () => {
   it('returns correct category for each boundary value', () => {
-    expect(getQualityCategory(0)?.label.en).toBe('Avoid');
-    expect(getQualityCategory(20)?.label.en).toBe('Avoid');
-    expect(getQualityCategory(21)?.label.en).toBe('Bad');
-    expect(getQualityCategory(40)?.label.en).toBe('Bad');
-    expect(getQualityCategory(41)?.label.en).toBe('Okay');
-    expect(getQualityCategory(60)?.label.en).toBe('Okay');
-    expect(getQualityCategory(61)?.label.en).toBe('Good');
-    expect(getQualityCategory(80)?.label.en).toBe('Good');
+    expect(getQualityCategory(0)?.label.en).toBe('Emerging');
+    expect(getQualityCategory(20)?.label.en).toBe('Emerging');
+    expect(getQualityCategory(21)?.label.en).toBe('Developing');
+    expect(getQualityCategory(40)?.label.en).toBe('Developing');
+    expect(getQualityCategory(41)?.label.en).toBe('Balanced');
+    expect(getQualityCategory(60)?.label.en).toBe('Balanced');
+    expect(getQualityCategory(61)?.label.en).toBe('Strong');
+    expect(getQualityCategory(80)?.label.en).toBe('Strong');
     expect(getQualityCategory(81)?.label.en).toBe('Excellent');
     expect(getQualityCategory(100)?.label.en).toBe('Excellent');
   });

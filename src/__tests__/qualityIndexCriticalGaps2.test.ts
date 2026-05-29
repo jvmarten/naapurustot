@@ -44,7 +44,7 @@ describe('isCustomWeights', () => {
 
   it('returns true when any weight differs from default', () => {
     const weights = getDefaultWeights();
-    weights.safety = 50; // default is 25
+    weights.safety = 50; // default is 18
     expect(isCustomWeights(weights)).toBe(true);
   });
 
@@ -205,8 +205,8 @@ describe('getQualityCategory edge cases', () => {
 
   it('handles fractional values within range', () => {
     // Categories use continuous boundaries — no gaps between them
-    // 20.5 is > 20 (Bad min) and <= 40 (Bad max), so it falls in Bad
-    expect(getQualityCategory(20.5)!.label.en).toBe('Bad');
+    // 20.5 is > 20 (Developing min) and <= 40 (Developing max), so it falls in Developing
+    expect(getQualityCategory(20.5)!.label.en).toBe('Developing');
   });
 });
 

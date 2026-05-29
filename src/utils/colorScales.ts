@@ -82,6 +82,14 @@ export type LayerId =
  * - `category` groups layers in the LayerSelector UI
  * - `gridProperty` (optional) maps to a sub-postal-code grid data layer
  */
+// PO-2: layers that carry a 5-year history array and can be scrubbed with the
+// time slider. Maps the active LayerId to the history property whose per-year
+// values share the layer's color scale (so the animation shows real change).
+export const TIME_SERIES_LAYERS: Partial<Record<LayerId, string>> = {
+  median_income: 'income_history',
+  unemployment: 'unemployment_history',
+};
+
 export interface LayerConfig {
   id: LayerId;
   labelKey: string;

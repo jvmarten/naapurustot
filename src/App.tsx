@@ -28,6 +28,8 @@ const CustomQualityPanel = lazy(() => import('./components/CustomQualityPanel').
 const NeighborhoodWizard = lazy(() => import('./components/NeighborhoodWizard').then(m => ({ default: m.NeighborhoodWizard })));
 const SplitMapView = lazy(() => import('./components/SplitMapView').then(m => ({ default: m.SplitMapView })));
 const AreaSummaryPanel = lazy(() => import('./components/AreaSummaryPanel').then(m => ({ default: m.AreaSummaryPanel })));
+const CorrelationExplorer = lazy(() => import('./components/CorrelationExplorer').then(m => ({ default: m.CorrelationExplorer })));
+const RegionRankingTable = lazy(() => import('./components/RegionRankingTable').then(m => ({ default: m.RegionRankingTable })));
 import { useMapData } from './hooks/useMapData';
 import { useGridData } from './hooks/useGridData';
 import { useFavorites } from './hooks/useFavorites';
@@ -37,18 +39,41 @@ import { useSelectedNeighborhood } from './hooks/useSelectedNeighborhood';
 import { useAuth } from './hooks/useAuth';
 const AuthModal = lazy(() => import('./components/AuthModal').then(m => ({ default: m.AuthModal })));
 const OnboardingTour = lazy(() => import('./components/OnboardingTour').then(m => ({ default: m.OnboardingTour })));
+const ShortcutsOverlay = lazy(() => import('./components/ShortcutsOverlay').then(m => ({ default: m.ShortcutsOverlay })));
+const TimeSlider = lazy(() => import('./components/TimeSlider').then(m => ({ default: m.TimeSlider })));
 import { UserMenu, type FavoriteEntry } from './components/UserMenu';
-import { type LayerId, type ColorblindType, getLayerById, getColorblindMode, setColorblindMode, rescaleLayerToData, clearRescaleCache } from './utils/colorScales';
+import { type LayerId, type ColorblindType, getLayerById, getColorblindMode, setColorblindMode, rescaleLayerToData, clearRescaleCache, TIME_SERIES_LAYERS } from './utils/colorScales';
 import { readInitialUrlState, useSyncUrlState } from './hooks/useUrlState';
 import type { NeighborhoodProperties } from './utils/metrics';
-import { computeMetroAverages } from './utils/metrics';
+import { computeMetroAverages, timeSeriesYearProp, getAvailableYears } from './utils/metrics';
 import { t, getLang, setLang, useI18nVersion, type Lang } from './utils/i18n';
 import { computeQualityIndices, isCustomWeights, type QualityWeights } from './utils/qualityIndex';
 import { buildMetroAreaFeatures, clearMetroAreaCache } from './utils/metroAreas';
 import { useAllCitiesUnionPreload } from './hooks/useAllCitiesUnionPreload';
 import { IS_EMBED, buildEmbedSnippet } from './utils/embed';
+import { findNeighborhoodForPoint } from './utils/geocode';
+import { getFeatureCenter } from './utils/geometryFilter';
+import { ISOCHRONE_ENABLED, fetchIsochrone, type IsochroneMode } from './utils/isochrone';
 
 const initialUrl = readInitialUrlState();
+
+// QW-3: resolve which region's bounding box contains a coordinate. Region
+// bounds can overlap (irregular seutukunnat → rectangular bboxes), so pick the
+// most specific (smallest-area) containing region. Best-effort: the precise
+// neighborhood is then found via point-in-polygon once that region loads.
+function findRegionForCoords(lng: number, lat: number): CityFilter | null {
+  let best: CityFilter | null = null;
+  let bestArea = Infinity;
+  for (const id of REGION_IDS) {
+    const vp = CITY_VIEWPORTS[id];
+    if (!vp?.bounds) continue;
+    const [minLng, minLat, maxLng, maxLat] = vp.bounds;
+    if (lng < minLng || lng > maxLng || lat < minLat || lat > maxLat) continue;
+    const area = (maxLng - minLng) * (maxLat - minLat);
+    if (area < bestArea) { bestArea = area; best = id as CityFilter; }
+  }
+  return best;
+}
 
 const App: React.FC = () => {
   // City filter — declared before useMapData so the hook can load the right region
@@ -62,6 +87,25 @@ const App: React.FC = () => {
   const [showAuth, setShowAuth] = useState(false);
   // QW-1: Onboarding tour
   const [showTour, setShowTour] = useState(false);
+  // QW-3: "Show my area" geolocation status (transient toast).
+  const [geoStatus, setGeoStatus] = useState<null | 'loading' | 'denied' | 'outside' | 'unavailable'>(null);
+  const pendingGeoRef = useRef<[number, number] | null>(null);
+  // QW-2: keyboard shortcuts help overlay.
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  // PO-2: time slider / historical playback.
+  const [timeYear, setTimeYear] = useState<number | null>(null);
+  const [timePlaying, setTimePlaying] = useState(false);
+  // CF-3: correlation / scatter explorer.
+  const [showScatter, setShowScatter] = useState(false);
+  const handleToggleScatter = useCallback(() => { setShowScatter((v) => { if (!v) trackEvent('open-scatter'); return !v; }); }, []);
+  // CF-4: region comparison & ranking.
+  const [showRegionRanking, setShowRegionRanking] = useState(false);
+  const handleToggleRegionRanking = useCallback(() => { setShowRegionRanking((v) => { if (!v) trackEvent('open-region-ranking'); return !v; }); }, []);
+  // CF-5: travel-time isochrone overlay.
+  const [isochronePolygon, setIsochronePolygon] = useState<Feature<Polygon | MultiPolygon> | null>(null);
+  const [isochroneMode, setIsochroneMode] = useState<IsochroneMode>('walk');
+  const [isochroneBudget, setIsochroneBudget] = useState(20);
+  const [isochroneLoading, setIsochroneLoading] = useState(false);
 
   // Build a PNO→Feature lookup Map for O(1) feature access.
   // Replaces multiple O(n) .find() scans after quality index recomputation
@@ -194,9 +238,21 @@ const App: React.FC = () => {
   // Rescale layer stops when comparison scope is 'region' and a specific city is selected.
   // Uses a ref to return the same object identity when stops haven't changed,
   // avoiding unnecessary Map layer color transition effects.
+  // PO-2: years available for the active time-series metric (single-region only).
+  const timeHistoryProp = TIME_SERIES_LAYERS[activeLayer];
+  const availableYears = useMemo(() => {
+    if (!timeHistoryProp || cityFilter === 'all' || !filteredData) return [];
+    return getAvailableYears(filteredData.features, timeHistoryProp);
+  }, [timeHistoryProp, cityFilter, filteredData]);
+
   const prevEffectiveLayerRef = useRef<ReturnType<typeof getLayerById> | null>(null);
   const effectiveLayer = useMemo(() => {
     const base = getLayerById(activeLayer);
+    // PO-2: scrub the choropleth to a single year's value while keeping the
+    // metric's fixed color scale (so the animation shows change, not a rescale).
+    if (timeYear != null && timeHistoryProp) {
+      return { ...base, property: timeSeriesYearProp(timeHistoryProp, timeYear) };
+    }
     if (comparisonScope !== 'region' || cityFilter === 'all' || !filteredData) {
       prevEffectiveLayerRef.current = base;
       return base;
@@ -211,7 +267,7 @@ const App: React.FC = () => {
     prevEffectiveLayerRef.current = rescaled;
     return rescaled;
   // eslint-disable-next-line react-hooks/exhaustive-deps -- qualityVersion signals in-place data mutation for quality_index layer
-  }, [activeLayer, comparisonScope, cityFilter, filteredData, qualityVersion]);
+  }, [activeLayer, comparisonScope, cityFilter, filteredData, qualityVersion, timeYear, timeHistoryProp]);
 
   const handleCityChange = useCallback((city: CityFilter) => {
     trackEvent('switch-city', { city });
@@ -669,6 +725,132 @@ const App: React.FC = () => {
     [select, addRecent],
   );
 
+  // QW-3: "Show my area" — geolocate the visitor, switch to their region if
+  // needed, and select the containing neighborhood. Graceful fallbacks for
+  // denied permission, missing geolocation, and points outside coverage.
+  const handleUseLocation = useCallback(() => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      setGeoStatus('unavailable');
+      return;
+    }
+    trackEvent('use-location');
+    setGeoStatus('loading');
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const coords: [number, number] = [pos.coords.longitude, pos.coords.latitude];
+        const target = findRegionForCoords(coords[0], coords[1]);
+        if (!target) { setGeoStatus('outside'); return; }
+        // Already viewing the right region with geometry loaded → resolve now.
+        const current = dataRef.current;
+        if (cityFilterRef.current === target && current) {
+          const f = await findNeighborhoodForPoint(coords, current.features);
+          if (f?.properties) {
+            const props = f.properties as NeighborhoodProperties;
+            select(props);
+            addRecent({ pno: props.pno, name: props.nimi || props.pno, center: getFeatureCenter(f) });
+            setFlyTarget({ center: getFeatureCenter(f) });
+            setGeoStatus(null);
+            return;
+          }
+        }
+        // Otherwise switch to the user's region; the deferred resolver below
+        // selects the neighborhood once that region's data finishes loading.
+        pendingGeoRef.current = coords;
+        setFlyTarget({ center: coords, zoom: 12 });
+        if (cityFilterRef.current !== target) {
+          setCityFilter(target);
+          deselect();
+        }
+        setGeoStatus(null);
+      },
+      (err) => {
+        setGeoStatus(err.code === err.PERMISSION_DENIED ? 'denied' : 'outside');
+      },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 },
+    );
+  }, [select, addRecent, deselect]);
+
+  // QW-3: resolve a pending geolocation once the target region's data loads.
+  // pendingGeoRef is cleared after the first resolution, so later filteredData
+  // changes (quality recompute, language) re-run this as a no-op.
+  useEffect(() => {
+    if (!pendingGeoRef.current || !filteredData) return;
+    const coords = pendingGeoRef.current;
+    let cancelled = false;
+    findNeighborhoodForPoint(coords, filteredData.features).then((f) => {
+      if (cancelled) return;
+      pendingGeoRef.current = null;
+      if (f?.properties) {
+        const props = f.properties as NeighborhoodProperties;
+        select(props);
+        addRecent({ pno: props.pno, name: props.nimi || props.pno, center: getFeatureCenter(f) });
+        setFlyTarget({ center: getFeatureCenter(f) });
+      } else {
+        setGeoStatus('outside');
+      }
+    }).catch(() => { if (!cancelled) { pendingGeoRef.current = null; } });
+    return () => { cancelled = true; };
+  }, [filteredData, select, addRecent]);
+
+  // QW-3: auto-dismiss transient geolocation status toasts (errors only).
+  useEffect(() => {
+    if (!geoStatus || geoStatus === 'loading') return;
+    const id = setTimeout(() => setGeoStatus(null), 4000);
+    return () => clearTimeout(id);
+  }, [geoStatus]);
+
+  // PO-2: when the active time-series metric (or its years) changes, snap the
+  // slider to the most recent year; deactivate (and stop playback) otherwise.
+  useEffect(() => {
+    if (timeHistoryProp && cityFilter !== 'all' && availableYears.length > 1) {
+      setTimeYear(availableYears[availableYears.length - 1]);
+    } else {
+      setTimeYear(null);
+      setTimePlaying(false);
+    }
+  }, [timeHistoryProp, cityFilter, availableYears]);
+
+  // PO-2: playback loop — advance through years while playing.
+  useEffect(() => {
+    if (!timePlaying || availableYears.length < 2) return;
+    const id = setInterval(() => {
+      setTimeYear((y) => {
+        const i = y == null ? -1 : availableYears.indexOf(y);
+        return availableYears[(i + 1) % availableYears.length];
+      });
+    }, 900);
+    return () => clearInterval(id);
+  }, [timePlaying, availableYears]);
+
+  // PO-2: manual scrub pauses playback.
+  const handleScrubYear = useCallback((year: number) => {
+    setTimePlaying(false);
+    setTimeYear(year);
+  }, []);
+  const handleToggleTimePlay = useCallback(() => setTimePlaying((p) => !p), []);
+
+  // CF-5: fetch and show a travel-time isochrone for the selected neighborhood.
+  const handleIsochroneChange = useCallback(async (mode: IsochroneMode, budget: number) => {
+    const sel = selectedRef.current;
+    if (!sel) return;
+    const feature = pnoFeatureMapRef.current.get(sel.pno);
+    if (!feature?.geometry) return;
+    const [lng, lat] = getFeatureCenter(feature);
+    setIsochroneMode(mode);
+    setIsochroneBudget(budget);
+    setIsochroneLoading(true);
+    const poly = await fetchIsochrone(sel.pno, lng, lat, mode, budget);
+    // Ignore a stale response if the selection changed mid-request.
+    if (selectedRef.current?.pno !== sel.pno) { setIsochroneLoading(false); return; }
+    setIsochronePolygon(poly);
+    setIsochroneLoading(false);
+  }, []);
+  const handleIsochroneClear = useCallback(() => setIsochronePolygon(null), []);
+
+  // CF-5: clear the isochrone overlay whenever the selected neighborhood changes
+  // (or is deselected) so a stale reachable-area doesn't linger on a new area.
+  useEffect(() => { setIsochronePolygon(null); }, [selected?.pno]);
+
   const handleResetView = useCallback(() => {
     handleCityChange('helsinki_metro');
   }, [handleCityChange]);
@@ -899,6 +1081,11 @@ const App: React.FC = () => {
     setShowTour(true);
   }, []);
 
+  // QW-2: open the keyboard shortcuts overlay from Settings.
+  const handleShowShortcuts = useCallback(() => {
+    setShowShortcuts(true);
+  }, []);
+
   // QW-7: Copy an iframe embed snippet for the current map state.
   const handleCopyEmbed = useCallback(async (): Promise<boolean> => {
     const snippet = buildEmbedSnippet({
@@ -927,26 +1114,81 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // QW-4: Escape to close topmost panel.
-  // Uses a ref to avoid re-subscribing the listener on every state change
+  // QW-4 / QW-2: global keydown — Escape cascade + power-user shortcuts.
+  // Uses refs to avoid re-subscribing the listener on every state change
   // (the previous version had a 10-item dependency array that churned constantly).
   const escapeStateRef = useRef({ selectMode, drawMode, drawnPolygon, showWizard, showCustomQuality, selected, showFilter, showRanking });
   escapeStateRef.current = { selectMode, drawMode, drawnPolygon, showWizard, showCustomQuality, selected, showFilter, showRanking };
   const escapeActionsRef = useRef({ deselect, handleClearDraw });
   escapeActionsRef.current = { deselect, handleClearDraw };
+  // QW-2: shortcut state + actions, read at keypress time to keep the listener stable.
+  const shortcutsRef = useRef({ showShortcuts, showAuth, toggleFilter, toggleRanking, handleOpenWizard, handleToggleCustomQuality, handleToggleSplitMode, handleUseLocation, select });
+  shortcutsRef.current = { showShortcuts, showAuth, toggleFilter, toggleRanking, handleOpenWizard, handleToggleCustomQuality, handleToggleSplitMode, handleUseLocation, select };
+  const filterMatchPnosRef = useRef(filterMatchPnos);
+  filterMatchPnosRef.current = filterMatchPnos;
   useEffect(() => {
+    // [ / ] step through the current filter-match results (no-op when filter inactive).
+    const stepResults = (dir: number) => {
+      const matches = [...filterMatchPnosRef.current];
+      if (matches.length === 0) return;
+      const cur = selectedRef.current ? matches.indexOf(selectedRef.current.pno) : -1;
+      let next = cur + dir;
+      if (next < 0) next = matches.length - 1;
+      if (next >= matches.length) next = 0;
+      const feat = pnoFeatureMapRef.current.get(matches[next]);
+      if (feat?.properties) {
+        shortcutsRef.current.select(feat.properties as NeighborhoodProperties);
+        setFlyTarget({ center: getFeatureCenter(feat) });
+      }
+    };
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      const s = escapeStateRef.current;
-      const a = escapeActionsRef.current;
-      if (s.selectMode) { setSelectMode(false); setSelectedAreaPnos([]); return; }
-      if (s.drawMode) { setDrawMode(false); setDrawVertices([]); drawVerticesRef.current = []; return; }
-      if (s.drawnPolygon) { a.handleClearDraw(); return; }
-      if (s.showWizard) { setShowWizard(false); return; }
-      if (s.showCustomQuality) { setShowCustomQuality(false); return; }
-      if (s.selected) { a.deselect(); return; }
-      if (s.showFilter) { setShowFilter(false); return; }
-      if (s.showRanking) { setShowRanking(false); return; }
+      const sc = shortcutsRef.current;
+      if (e.key === 'Escape') {
+        const s = escapeStateRef.current;
+        const a = escapeActionsRef.current;
+        if (sc.showShortcuts) { setShowShortcuts(false); return; }
+        if (s.selectMode) { setSelectMode(false); setSelectedAreaPnos([]); return; }
+        if (s.drawMode) { setDrawMode(false); setDrawVertices([]); drawVerticesRef.current = []; return; }
+        if (s.drawnPolygon) { a.handleClearDraw(); return; }
+        if (s.showWizard) { setShowWizard(false); return; }
+        if (s.showCustomQuality) { setShowCustomQuality(false); return; }
+        if (s.selected) { a.deselect(); return; }
+        if (s.showFilter) { setShowFilter(false); return; }
+        if (s.showRanking) { setShowRanking(false); return; }
+        return;
+      }
+
+      // Power-user shortcuts: ignore while typing in a field or holding a chord modifier.
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable) return;
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+
+      if (e.key === '?') { e.preventDefault(); setShowShortcuts((v) => !v); return; }
+      // Remaining shortcuts shouldn't fire behind the auth modal.
+      if (sc.showAuth) return;
+
+      switch (e.key) {
+        case '/':
+          e.preventDefault();
+          (document.querySelector('input[role="combobox"]') as HTMLInputElement | null)?.focus();
+          break;
+        case '[': stepResults(-1); break;
+        case ']': stepResults(1); break;
+        default:
+          switch (e.key.toLowerCase()) {
+            case 'f': sc.toggleFilter(); break;
+            case 'r': sc.toggleRanking(); break;
+            case 'w': sc.handleOpenWizard(); break;
+            case 'c': sc.handleToggleCustomQuality(); break;
+            case 's': sc.handleToggleSplitMode(); break;
+            case 'g': sc.handleUseLocation(); break;
+            case 'l': setShowAuth(true); break;
+            default: return;
+          }
+      }
+      // A handled shortcut dismisses the help overlay so it feels responsive.
+      setShowShortcuts(false);
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -993,6 +1235,7 @@ const App: React.FC = () => {
             selectedAreaPnos={selectedAreaPnos}
             onSelectAreaClick={handleSelectAreaClick}
             layerConfig={effectiveLayer}
+            isochrone={isochronePolygon}
           />
         )}
       </ErrorBoundary>
@@ -1029,6 +1272,7 @@ const App: React.FC = () => {
             fillOpacity={fillOpacity}
             onFillOpacityChange={handleFillOpacityChange}
             onShowTour={handleShowTour}
+            onShowShortcuts={handleShowShortcuts}
             onCopyEmbed={handleCopyEmbed}
           />
           <ToolsDropdown
@@ -1047,6 +1291,11 @@ const App: React.FC = () => {
             onClearDraw={handleClearDraw}
             selectMode={selectMode}
             onToggleSelectMode={handleToggleSelectMode}
+            onUseLocation={handleUseLocation}
+            showScatter={showScatter}
+            onToggleScatter={handleToggleScatter}
+            showRegionRanking={showRegionRanking}
+            onToggleRegionRanking={handleToggleRegionRanking}
             lang={lang}
           />
         </div>
@@ -1163,6 +1412,19 @@ const App: React.FC = () => {
       {/* Legend — repositioned for mobile */}
       <Legend layerId={activeLayer} colorblind={colorblind} layerConfig={effectiveLayer} lang={lang} />
 
+      {/* PO-2: Time slider / historical playback (only when a time-series metric is active) */}
+      {!IS_EMBED && timeYear != null && availableYears.length > 1 && (
+        <Suspense fallback={null}>
+          <TimeSlider
+            years={availableYears}
+            currentYear={timeYear}
+            onYearChange={handleScrubYear}
+            playing={timePlaying}
+            onTogglePlay={handleToggleTimePlay}
+          />
+        </Suspense>
+      )}
+
       {/* Tooltip — hidden on touch devices via CSS.
            Reads from external store so mouse-move doesn't re-render App. */}
       <TooltipOverlay
@@ -1205,7 +1467,41 @@ const App: React.FC = () => {
             onToggleFavorite={handleToggleFavorite}
             onExploreCity={handleExploreCity}
             userId={user?.id ?? null}
+            isochroneEnabled={ISOCHRONE_ENABLED}
+            isochroneMode={isochroneMode}
+            isochroneBudget={isochroneBudget}
+            isochroneLoading={isochroneLoading}
+            isochroneActive={isochronePolygon != null}
+            onIsochroneChange={handleIsochroneChange}
+            onIsochroneClear={handleIsochroneClear}
           />
+          </Suspense>
+        </ErrorBoundary>
+      )}
+
+      {/* CF-3: Correlation / scatter explorer */}
+      {showScatter && (
+        <ErrorBoundary>
+          <Suspense fallback={null}>
+            <CorrelationExplorer
+              data={filteredData}
+              onSelect={handleSearch}
+              onClose={() => setShowScatter(false)}
+            />
+          </Suspense>
+        </ErrorBoundary>
+      )}
+
+      {/* CF-4: Region comparison & ranking */}
+      {showRegionRanking && (
+        <ErrorBoundary>
+          <Suspense fallback={null}>
+            <RegionRankingTable
+              activeLayer={activeLayer}
+              layerConfig={getLayerById(activeLayer)}
+              onSelectRegion={handleExploreCity}
+              onClose={() => setShowRegionRanking(false)}
+            />
           </Suspense>
         </ErrorBoundary>
       )}
@@ -1293,6 +1589,21 @@ const App: React.FC = () => {
         </div>
       )}
 
+      {/* QW-3: Geolocation status toast */}
+      {geoStatus && (
+        <div
+          role="status"
+          className={`absolute top-12 left-1/2 -translate-x-1/2 z-50 px-3 py-1.5 rounded-lg text-white text-xs font-medium backdrop-blur-sm
+                     ${geoStatus === 'loading' ? 'bg-brand-500/90' : 'bg-amber-500/90'}`}
+        >
+          {geoStatus === 'loading'
+            ? t('geolocation.using')
+            : geoStatus === 'outside'
+              ? t('geolocation.outside')
+              : t('geolocation.error')}
+        </div>
+      )}
+
       {/* Attribution footer (full attribution hidden in embed mode) */}
       {!IS_EMBED && (
         <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 hidden md:block">
@@ -1336,6 +1647,13 @@ const App: React.FC = () => {
       {!IS_EMBED && showTour && (
         <Suspense fallback={null}>
           <OnboardingTour onComplete={handleCloseTour} skipAuthStep={!!user} />
+        </Suspense>
+      )}
+
+      {/* QW-2: Keyboard shortcuts overlay (hidden in embed mode) */}
+      {!IS_EMBED && showShortcuts && (
+        <Suspense fallback={null}>
+          <ShortcutsOverlay onClose={() => setShowShortcuts(false)} />
         </Suspense>
       )}
 

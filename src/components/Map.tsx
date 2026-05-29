@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import type { Feature, FeatureCollection, Polygon, Position } from 'geojson';
+import type { Feature, FeatureCollection, Polygon, MultiPolygon, Position } from 'geojson';
 import { feature as topoFeature } from 'topojson-client';
 import type { Topology } from 'topojson-specification';
 import { buildFillColorExpression, type LayerId, type LayerConfig, getLayerById } from '../utils/colorScales';
@@ -58,6 +58,8 @@ interface MapProps {
   onSelectAreaClick?: (props: NeighborhoodProperties) => void;
   /** Override for layer config (used for region-scoped color scales) */
   layerConfig?: LayerConfig;
+  /** CF-5: travel-time isochrone polygon to overlay for the selected neighborhood. */
+  isochrone?: Feature<Polygon | MultiPolygon> | null;
 }
 
 // Stable empty defaults to avoid creating new references on every render
@@ -132,6 +134,12 @@ const NO_DATA_LAYER = 'neighborhoods-no-data-pattern';
 
 const GRID_SOURCE_ID = 'grid-cells';
 const GRID_FILL_LAYER = 'grid-fill';
+
+// CF-5: travel-time isochrone overlay (sits above the choropleth fill, below
+// selection/hover borders and labels).
+const ISOCHRONE_SOURCE_ID = 'isochrone';
+const ISOCHRONE_FILL_LAYER = 'isochrone-fill';
+const ISOCHRONE_LINE_LAYER = 'isochrone-line';
 
 // CF-5 Phase D1: Finland-wide seutukunta boundary line layer. The data-less
 // gray fills are NOT a separate layer — they are emitted as _noData features
@@ -246,7 +254,7 @@ function buildGridFillOpacity(o: number): unknown[] {
   ];
 }
 
-export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1, gridData = null, drawMode = false, onDrawClick, onDrawDoubleClick, drawVertices, drawnPolygon = null, drawnAreaPnos = EMPTY_ARRAY, selectMode = false, selectedAreaPnos = EMPTY_ARRAY, onSelectAreaClick, layerConfig }) => {
+export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1, gridData = null, drawMode = false, onDrawClick, onDrawDoubleClick, drawVertices, drawnPolygon = null, drawnAreaPnos = EMPTY_ARRAY, selectMode = false, selectedAreaPnos = EMPTY_ARRAY, onSelectAreaClick, layerConfig, isochrone = null }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const hoveredIdRef = useRef<string | null>(null);
@@ -677,6 +685,45 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when layer changes to toggle modes
   }, [activeLayer, gridData, colorblind, layerConfig]);
+
+  // CF-5: travel-time isochrone overlay. Adds/updates/removes a translucent
+  // reachable-area polygon for the selected neighborhood, above the choropleth
+  // fill but below selection/hover borders (beforeId=HIGHLIGHT_LAYER) and labels.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const apply = () => {
+      if (!isochrone) {
+        if (map.getLayer(ISOCHRONE_LINE_LAYER)) map.removeLayer(ISOCHRONE_LINE_LAYER);
+        if (map.getLayer(ISOCHRONE_FILL_LAYER)) map.removeLayer(ISOCHRONE_FILL_LAYER);
+        if (map.getSource(ISOCHRONE_SOURCE_ID)) map.removeSource(ISOCHRONE_SOURCE_ID);
+        return;
+      }
+      const fc: FeatureCollection = { type: 'FeatureCollection', features: [isochrone] };
+      const existing = map.getSource(ISOCHRONE_SOURCE_ID) as maplibregl.GeoJSONSource | undefined;
+      if (existing) {
+        existing.setData(fc);
+        return;
+      }
+      map.addSource(ISOCHRONE_SOURCE_ID, { type: 'geojson', data: fc });
+      const before = map.getLayer(HIGHLIGHT_LAYER) ? HIGHLIGHT_LAYER : beforeLabels(map);
+      map.addLayer({
+        id: ISOCHRONE_FILL_LAYER,
+        type: 'fill',
+        source: ISOCHRONE_SOURCE_ID,
+        paint: { 'fill-color': '#3b82f6', 'fill-opacity': 0.22 },
+      }, before);
+      map.addLayer({
+        id: ISOCHRONE_LINE_LAYER,
+        type: 'line',
+        source: ISOCHRONE_SOURCE_ID,
+        paint: { 'line-color': '#2563eb', 'line-width': 2, 'line-opacity': 0.85 },
+      }, before);
+    };
+    if (mapStyleLoadedRef.current) apply();
+    else map.on('load', apply);
+    return () => { map.off('load', apply); };
+  }, [isochrone]);
 
   // CF-5 Phase D1: faint Finland-wide seutukunta boundary line. Outlines all 69
   // sub-regions for structural context. Sits beneath the choropleth fill so it

@@ -6,6 +6,31 @@
 
 ---
 
+## Status — 2026-05-29 implementation pass
+
+This roadmap was executed end-to-end in a single pass, with the following items
+**deliberately skipped** at the project owner's request: **CF-2** (user reviews),
+**CF-6** (email digest), **PO-1** (per-neighborhood OG images), **PO-3** (auth
+reset/verification), **PO-4** (GDPR export/deletion), **PO-5** (real-time air
+quality), and **IN-1 / IN-2** (Dependabot, API observability).
+
+**Shipped:** QW-1 (build-derived data-freshness timestamp), QW-2 (keyboard
+shortcuts + `?` overlay), QW-3 (geolocation "show my area"), QW-4 (MiniMap
+a11y + axe-core E2E), CF-1 (quality-index redesign — see below), CF-3
+(correlation/scatter explorer), CF-4 (region comparison & ranking), CF-5
+(Digitransit travel-time isochrones; needs `VITE_DIGITRANSIT_API_KEY`, hidden
+when unset), PO-2 (time slider / historical playback), IN-3 (deploy artifact
+trimming via a Vite strip plugin).
+
+**CF-1 partial:** phases (A) dimension grouping + rebalanced defaults, (B)
+`docs/QUALITY_INDEX.md`, and (D) persona presets + explainer + softened labels
+shipped. Phase **(C) national-reference normalization** is intentionally
+deferred — it changes the meaning of every published score and is the part the
+roadmap flags for human/editorial review before release. It is documented as
+the next step in `docs/QUALITY_INDEX.md`.
+
+---
+
 ## Project Context
 
 naapurustot.fi is a static React 19 + TypeScript SPA on a MapLibre GL choropleth,
