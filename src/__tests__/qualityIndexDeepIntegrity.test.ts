@@ -263,14 +263,14 @@ describe('QUALITY_CATEGORIES — full range coverage', () => {
 
 describe('getQualityCategory — boundary values', () => {
   it('returns correct category at each boundary', () => {
-    expect(getQualityCategory(0)!.label.en).toBe('Emerging');
-    expect(getQualityCategory(20)!.label.en).toBe('Emerging');
-    expect(getQualityCategory(21)!.label.en).toBe('Developing');
-    expect(getQualityCategory(40)!.label.en).toBe('Developing');
-    expect(getQualityCategory(41)!.label.en).toBe('Balanced');
-    expect(getQualityCategory(60)!.label.en).toBe('Balanced');
-    expect(getQualityCategory(61)!.label.en).toBe('Strong');
-    expect(getQualityCategory(80)!.label.en).toBe('Strong');
+    expect(getQualityCategory(0)!.label.en).toBe('Avoid');
+    expect(getQualityCategory(20)!.label.en).toBe('Avoid');
+    expect(getQualityCategory(21)!.label.en).toBe('Bad');
+    expect(getQualityCategory(40)!.label.en).toBe('Bad');
+    expect(getQualityCategory(41)!.label.en).toBe('Okay');
+    expect(getQualityCategory(60)!.label.en).toBe('Okay');
+    expect(getQualityCategory(61)!.label.en).toBe('Good');
+    expect(getQualityCategory(80)!.label.en).toBe('Good');
     expect(getQualityCategory(81)!.label.en).toBe('Excellent');
     expect(getQualityCategory(100)!.label.en).toBe('Excellent');
   });

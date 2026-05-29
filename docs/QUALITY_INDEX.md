@@ -76,12 +76,17 @@ preferences sync):
 
 | Persona | Emphasis |
 |---------|----------|
-| **Balanced** (default) | All dimensions in balance (the table above) |
+| **Default** (the out-of-the-box index) | The OECD-anchored weighting in the table above — Prosperity leans a little heavier (30). |
+| **Balanced** | Every evaluative dimension weighted *exactly equally* (20 each) — distinct from Default. |
 | **Family with children** | Services, safety, education |
 | **Young professional (car-free)** | Mobility (transit/cycling/walking), services, prosperity |
 | **Student** | Mobility, services, quiet |
 | **Retiree** | Safety, healthcare services, clean & quiet environment |
 | **Nature & quiet** | Environment, green space, low noise |
+
+"Default" and "Balanced" are deliberately separate: the default is opinionated
+(material conditions weigh somewhat more, per OECD), while "Balanced" is the
+neutral all-equal lens for users who want no built-in emphasis.
 
 Personas are just weight presets — users can fine-tune any factor afterwards,
 and a "How is this calculated?" popover on the Quality badge lists the active
@@ -89,16 +94,15 @@ dimensions and weights.
 
 ## Category labels
 
-The harsh directional labels were replaced with descriptive, non-pejorative
-wording (colors unchanged):
+The 0–100 score maps to five directional bands (colors unchanged):
 
-| Range | Old | New |
-|-------|-----|-----|
-| 0–20 | Avoid | **Emerging** |
-| 20–40 | Bad | **Developing** |
-| 40–60 | Okay | **Balanced** |
-| 60–80 | Good | **Strong** |
-| 80–100 | Excellent | **Excellent** |
+| Range | Label |
+|-------|-------|
+| 0–20 | Avoid |
+| 20–40 | Bad |
+| 40–60 | Okay |
+| 60–80 | Good |
+| 80–100 | Excellent |
 
 ## Normalization (current & planned)
 

@@ -208,9 +208,9 @@ describe('getQualityCategory — edge cases', () => {
     expect(getQualityCategory(-1)).toBeNull();
   });
 
-  it('handles exact boundary at 20.5 (between Emerging and Developing)', () => {
-    // 20.5 is > 20 (Developing min) and <= 40 (Developing max), so it falls in Developing
+  it('handles exact boundary at 20.5 (between Avoid and Bad)', () => {
+    // 20.5 is > 20 (Bad min) and <= 40 (Bad max), so it falls in Bad
     // Categories use continuous boundaries: no gaps between them
-    expect(getQualityCategory(20.5)!.label.en).toBe('Developing');
+    expect(getQualityCategory(20.5)!.label.en).toBe('Bad');
   });
 });

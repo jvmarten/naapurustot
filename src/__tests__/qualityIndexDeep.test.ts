@@ -212,7 +212,7 @@ describe('getQualityCategory — edge cases', () => {
     // 50.5 should fall in the 41-60 range
     const cat = getQualityCategory(50.5);
     expect(cat).not.toBeNull();
-    expect(cat!.label.en).toBe('Balanced');
+    expect(cat!.label.en).toBe('Okay');
   });
 });
 
