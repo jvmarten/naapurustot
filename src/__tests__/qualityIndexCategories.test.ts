@@ -22,38 +22,38 @@ describe('getQualityCategory', () => {
     expect(getQualityCategory(null)).toBeNull();
   });
 
-  it('maps 0 to Avoid', () => {
+  it('maps 0 to Emerging', () => {
     const cat = getQualityCategory(0);
     expect(cat).not.toBeNull();
-    expect(cat!.label.en).toBe('Avoid');
+    expect(cat!.label.en).toBe('Emerging');
   });
 
-  it('maps 20 to Avoid (boundary)', () => {
-    expect(getQualityCategory(20)!.label.en).toBe('Avoid');
+  it('maps 20 to Emerging (boundary)', () => {
+    expect(getQualityCategory(20)!.label.en).toBe('Emerging');
   });
 
-  it('maps 21 to Bad (boundary crossing)', () => {
-    expect(getQualityCategory(21)!.label.en).toBe('Bad');
+  it('maps 21 to Developing (boundary crossing)', () => {
+    expect(getQualityCategory(21)!.label.en).toBe('Developing');
   });
 
-  it('maps 40 to Bad', () => {
-    expect(getQualityCategory(40)!.label.en).toBe('Bad');
+  it('maps 40 to Developing', () => {
+    expect(getQualityCategory(40)!.label.en).toBe('Developing');
   });
 
-  it('maps 41 to Okay', () => {
-    expect(getQualityCategory(41)!.label.en).toBe('Okay');
+  it('maps 41 to Balanced', () => {
+    expect(getQualityCategory(41)!.label.en).toBe('Balanced');
   });
 
-  it('maps 60 to Okay', () => {
-    expect(getQualityCategory(60)!.label.en).toBe('Okay');
+  it('maps 60 to Balanced', () => {
+    expect(getQualityCategory(60)!.label.en).toBe('Balanced');
   });
 
-  it('maps 61 to Good', () => {
-    expect(getQualityCategory(61)!.label.en).toBe('Good');
+  it('maps 61 to Strong', () => {
+    expect(getQualityCategory(61)!.label.en).toBe('Strong');
   });
 
-  it('maps 80 to Good', () => {
-    expect(getQualityCategory(80)!.label.en).toBe('Good');
+  it('maps 80 to Strong', () => {
+    expect(getQualityCategory(80)!.label.en).toBe('Strong');
   });
 
   it('maps 81 to Excellent', () => {

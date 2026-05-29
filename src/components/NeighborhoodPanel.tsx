@@ -3,7 +3,7 @@ import type { NeighborhoodProperties } from '../utils/metrics';
 import { parseTrendSeries, METRIC_SOURCES, METRIC_EXPLANATIONS } from '../utils/metrics';
 import { formatNumber, formatEuro, formatPct, formatDiff, diffColor, formatYtlGradeFull, parseSchools } from '../utils/formatting';
 import { t, getLang, useI18nVersion } from '../utils/i18n';
-import { getQualityCategory, QUALITY_CATEGORIES } from '../utils/qualityIndex';
+import { getQualityCategory, QUALITY_CATEGORIES, QUALITY_DIMENSIONS } from '../utils/qualityIndex';
 import { exportCsv, exportPdf } from '../utils/export';
 import { TrendSection } from './TrendChart';
 import Sparkline from './Sparkline';
@@ -282,16 +282,56 @@ const QualityBadge: React.FC<{
   const qi = animatedQi != null ? Math.round(animatedQi) : qualityIndex;
   const cat = getQualityCategory(qi);
   const lang = getLang();
+  // CF-1: "How is this calculated?" explainer popover.
+  const [showHow, setShowHow] = useState(false);
+  const evaluativeDims = QUALITY_DIMENSIONS.filter((d) => d.defaultWeight > 0);
   return (
     <div className="rounded-xl bg-surface-100 dark:bg-surface-900/60 p-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400">
+        <h3 className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400">
           {t('panel.quality_index')}
           {isCustomWeights && (
-            <span className="ml-1.5 text-brand-500 dark:text-brand-400">
+            <span className="ml-1 text-brand-500 dark:text-brand-400">
               ({t('custom_quality.custom_label')})
             </span>
           )}
+          {/* CF-1: explainer popover */}
+          <span className="relative inline-flex">
+            <button
+              type="button"
+              onClick={() => setShowHow((v) => !v)}
+              aria-label={t('quality.how_calculated')}
+              aria-expanded={showHow}
+              className="ml-0.5 w-4 h-4 flex items-center justify-center rounded-full text-surface-400 hover:text-brand-500 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </button>
+            {showHow && (
+              <span
+                role="dialog"
+                aria-label={t('quality.how_calculated')}
+                className="absolute left-0 top-6 z-30 w-64 normal-case tracking-normal rounded-xl bg-white dark:bg-surface-800
+                           border border-surface-200 dark:border-surface-700/50 shadow-2xl p-3 text-left"
+              >
+                <p className="text-[11px] font-normal text-surface-600 dark:text-surface-300 mb-2">
+                  {t('quality.explainer')}
+                </p>
+                <ul className="space-y-0.5">
+                  {evaluativeDims.map((d) => (
+                    <li key={d.id} className="flex items-center justify-between text-[11px] font-normal text-surface-700 dark:text-surface-200">
+                      <span>{d.label[lang]}</span>
+                      <span className="tabular-nums text-surface-400 dark:text-surface-500">{d.defaultWeight}%</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-[10px] font-normal text-surface-400 dark:text-surface-500">
+                  {t('quality.methodology_note')}
+                </p>
+              </span>
+            )}
+          </span>
         </h3>
         {onCustomize && (
           <button

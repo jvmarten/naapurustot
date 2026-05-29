@@ -31,6 +31,8 @@ interface SettingsDropdownProps {
   onFillOpacityChange: (value: number) => void;
   /** QW-1: Re-launches the onboarding tour. */
   onShowTour?: () => void;
+  /** QW-2: Opens the keyboard shortcuts overlay. */
+  onShowShortcuts?: () => void;
   /** QW-7: Copy an iframe embed snippet for the current map state to the clipboard. */
   onCopyEmbed?: () => Promise<boolean>;
 }
@@ -92,6 +94,7 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
   fillOpacity,
   onFillOpacityChange,
   onShowTour,
+  onShowShortcuts,
   onCopyEmbed,
 }) => {
   useI18nVersion();
@@ -249,6 +252,20 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
                 <span>{t('settings.show_tour')}</span>
               </button>
             </>
+          )}
+
+          {/* QW-2: Keyboard shortcuts overlay */}
+          {onShowShortcuts && (
+            <button
+              onClick={() => { onShowShortcuts(); setOpen(false); }}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200
+                         hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 7h6m-6 4h6m-9 8h12a2 2 0 002-2V5a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              <span>{t('shortcuts.title')}</span>
+            </button>
           )}
 
           {/* QW-7: Copy iframe embed snippet for the current map state */}

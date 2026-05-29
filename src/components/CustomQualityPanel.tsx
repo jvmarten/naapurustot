@@ -1,5 +1,8 @@
 import React, { useCallback, useRef, useEffect, useState, useMemo } from 'react';
-import { QUALITY_FACTORS, getDefaultWeights, isCustomWeights, type QualityWeights } from '../utils/qualityIndex';
+import {
+  QUALITY_FACTORS, getDefaultWeights, isCustomWeights, type QualityWeights,
+  QUALITY_DIMENSIONS, QUALITY_PERSONAS, getPersonaWeights, detectPersona, getFactorDimension,
+} from '../utils/qualityIndex';
 import { getLang } from '../utils/i18n';
 import { t } from '../utils/i18n';
 import { trackEvent } from '../utils/analytics';
@@ -138,6 +141,16 @@ export const CustomQualityPanel: React.FC<Props> = ({ weights, onChange, onClose
     [weights, onChange],
   );
 
+  // CF-1: apply a named persona preset (cloud-synced like any custom weights).
+  const handlePersona = useCallback(
+    (personaId: string) => {
+      trackEvent('select-quality-persona', { persona: personaId });
+      onChange(getPersonaWeights(personaId));
+    },
+    [onChange],
+  );
+  const activePersona = useMemo(() => detectPersona(weights), [weights]);
+
   const handleReset = useCallback(() => {
     onChange(getDefaultWeights());
     setShowMore(false);
@@ -151,21 +164,35 @@ export const CustomQualityPanel: React.FC<Props> = ({ weights, onChange, onClose
     [weights],
   );
 
+  const renderOneSlider = (factor: typeof QUALITY_FACTORS[number]) => {
+    const w = weights[factor.id] ?? 0;
+    const absW = Math.abs(w);
+    const effectivePct = totalWeight > 0 ? ((absW / totalWeight) * 100).toFixed(0) : '0';
+    return (
+      <div key={factor.id}>
+        <WeightSlider
+          label={`${factor.label[lang]}${absW > 0 ? ` (${effectivePct}%)` : ''}`}
+          value={w}
+          onChange={(v) => handleChange(factor.id, v)}
+          color={FACTOR_COLORS[factor.id] ?? '#6b7280'}
+          sliderId={factor.id}
+          bipolar={factor.bipolar}
+        />
+      </div>
+    );
+  };
+
+  // CF-1: render sliders grouped under their conceptual dimension headers.
   const renderFactorSliders = (factors: typeof QUALITY_FACTORS) =>
-    factors.map((factor) => {
-      const w = weights[factor.id] ?? 0;
-      const absW = Math.abs(w);
-      const effectivePct = totalWeight > 0 ? ((absW / totalWeight) * 100).toFixed(0) : '0';
+    QUALITY_DIMENSIONS.map((dim) => {
+      const inDim = factors.filter((f) => getFactorDimension(f.id) === dim.id);
+      if (inDim.length === 0) return null;
       return (
-        <div key={factor.id}>
-          <WeightSlider
-            label={`${factor.label[lang]}${absW > 0 ? ` (${effectivePct}%)` : ''}`}
-            value={w}
-            onChange={(v) => handleChange(factor.id, v)}
-            color={FACTOR_COLORS[factor.id] ?? '#6b7280'}
-            sliderId={factor.id}
-            bipolar={factor.bipolar}
-          />
+        <div key={dim.id}>
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500 mt-2 mb-0.5">
+            {dim.label[lang]}
+          </div>
+          {inDim.map(renderOneSlider)}
         </div>
       );
     });
@@ -208,6 +235,29 @@ export const CustomQualityPanel: React.FC<Props> = ({ weights, onChange, onClose
         <p className="text-xs text-surface-500 dark:text-surface-400">
           {t('custom_quality.description')}
         </p>
+      </div>
+
+      {/* CF-1: Persona presets — named lenses that reweight the dimensions */}
+      <div className="px-5 pt-2 pb-1">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500 mb-1.5">
+          {t('custom_quality.personas')}
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {QUALITY_PERSONAS.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => handlePersona(p.id)}
+              title={p.description[lang]}
+              aria-pressed={activePersona === p.id}
+              className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors border
+                ${activePersona === p.id
+                  ? 'bg-brand-500/15 dark:bg-brand-600/20 text-brand-600 dark:text-brand-300 border-brand-500/40'
+                  : 'bg-surface-100/60 dark:bg-surface-800/60 text-surface-600 dark:text-surface-300 border-transparent hover:bg-surface-200/60 dark:hover:bg-surface-700/60'}`}
+            >
+              {p.label[lang]}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Primary Sliders */}

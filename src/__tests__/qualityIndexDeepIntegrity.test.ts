@@ -43,10 +43,10 @@ function makeFeature(overrides: Partial<NeighborhoodProperties>): GeoJSON.Featur
 }
 
 describe('getDefaultWeights — structural integrity', () => {
-  it('primary factor weights sum to 95', () => {
+  it('primary factor weights sum to 100', () => {
     const primary = QUALITY_FACTORS.filter(f => f.primary);
     const sum = primary.reduce((acc, f) => acc + f.defaultWeight, 0);
-    expect(sum).toBe(95);
+    expect(sum).toBe(100);
   });
 
   it('secondary factor default weights are all 0', () => {
@@ -263,14 +263,14 @@ describe('QUALITY_CATEGORIES — full range coverage', () => {
 
 describe('getQualityCategory — boundary values', () => {
   it('returns correct category at each boundary', () => {
-    expect(getQualityCategory(0)!.label.en).toBe('Avoid');
-    expect(getQualityCategory(20)!.label.en).toBe('Avoid');
-    expect(getQualityCategory(21)!.label.en).toBe('Bad');
-    expect(getQualityCategory(40)!.label.en).toBe('Bad');
-    expect(getQualityCategory(41)!.label.en).toBe('Okay');
-    expect(getQualityCategory(60)!.label.en).toBe('Okay');
-    expect(getQualityCategory(61)!.label.en).toBe('Good');
-    expect(getQualityCategory(80)!.label.en).toBe('Good');
+    expect(getQualityCategory(0)!.label.en).toBe('Emerging');
+    expect(getQualityCategory(20)!.label.en).toBe('Emerging');
+    expect(getQualityCategory(21)!.label.en).toBe('Developing');
+    expect(getQualityCategory(40)!.label.en).toBe('Developing');
+    expect(getQualityCategory(41)!.label.en).toBe('Balanced');
+    expect(getQualityCategory(60)!.label.en).toBe('Balanced');
+    expect(getQualityCategory(61)!.label.en).toBe('Strong');
+    expect(getQualityCategory(80)!.label.en).toBe('Strong');
     expect(getQualityCategory(81)!.label.en).toBe('Excellent');
     expect(getQualityCategory(100)!.label.en).toBe('Excellent');
   });

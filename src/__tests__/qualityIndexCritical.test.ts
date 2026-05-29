@@ -208,14 +208,14 @@ describe('computeQualityIndices — critical edge cases', () => {
 
 describe('getQualityCategory — boundary values', () => {
   it('maps exact boundary values to correct categories', () => {
-    expect(getQualityCategory(0)?.label.en).toBe('Avoid');
-    expect(getQualityCategory(20)?.label.en).toBe('Avoid');
-    expect(getQualityCategory(21)?.label.en).toBe('Bad');
-    expect(getQualityCategory(40)?.label.en).toBe('Bad');
-    expect(getQualityCategory(41)?.label.en).toBe('Okay');
-    expect(getQualityCategory(60)?.label.en).toBe('Okay');
-    expect(getQualityCategory(61)?.label.en).toBe('Good');
-    expect(getQualityCategory(80)?.label.en).toBe('Good');
+    expect(getQualityCategory(0)?.label.en).toBe('Emerging');
+    expect(getQualityCategory(20)?.label.en).toBe('Emerging');
+    expect(getQualityCategory(21)?.label.en).toBe('Developing');
+    expect(getQualityCategory(40)?.label.en).toBe('Developing');
+    expect(getQualityCategory(41)?.label.en).toBe('Balanced');
+    expect(getQualityCategory(60)?.label.en).toBe('Balanced');
+    expect(getQualityCategory(61)?.label.en).toBe('Strong');
+    expect(getQualityCategory(80)?.label.en).toBe('Strong');
     expect(getQualityCategory(81)?.label.en).toBe('Excellent');
     expect(getQualityCategory(100)?.label.en).toBe('Excellent');
   });
@@ -253,7 +253,7 @@ describe('isCustomWeights', () => {
 
   it('returns true when any weight differs from default', () => {
     const w = getDefaultWeights();
-    w.safety = 50; // default is 25
+    w.safety = 50; // default is 18
     expect(isCustomWeights(w)).toBe(true);
   });
 
@@ -270,12 +270,12 @@ describe('isCustomWeights', () => {
 });
 
 describe('getDefaultWeights', () => {
-  it('sums primary weights to 95 (not 100, leaving room for secondary)', () => {
+  it('sums primary weights to 100', () => {
     const w = getDefaultWeights();
     const primarySum = QUALITY_FACTORS
       .filter((f) => f.primary)
       .reduce((sum, f) => sum + w[f.id], 0);
-    expect(primarySum).toBe(95);
+    expect(primarySum).toBe(100);
   });
 
   it('secondary factors have zero default weight', () => {

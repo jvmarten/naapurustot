@@ -28,6 +28,7 @@ const CustomQualityPanel = lazy(() => import('./components/CustomQualityPanel').
 const NeighborhoodWizard = lazy(() => import('./components/NeighborhoodWizard').then(m => ({ default: m.NeighborhoodWizard })));
 const SplitMapView = lazy(() => import('./components/SplitMapView').then(m => ({ default: m.SplitMapView })));
 const AreaSummaryPanel = lazy(() => import('./components/AreaSummaryPanel').then(m => ({ default: m.AreaSummaryPanel })));
+const CorrelationExplorer = lazy(() => import('./components/CorrelationExplorer').then(m => ({ default: m.CorrelationExplorer })));
 import { useMapData } from './hooks/useMapData';
 import { useGridData } from './hooks/useGridData';
 import { useFavorites } from './hooks/useFavorites';
@@ -37,11 +38,13 @@ import { useSelectedNeighborhood } from './hooks/useSelectedNeighborhood';
 import { useAuth } from './hooks/useAuth';
 const AuthModal = lazy(() => import('./components/AuthModal').then(m => ({ default: m.AuthModal })));
 const OnboardingTour = lazy(() => import('./components/OnboardingTour').then(m => ({ default: m.OnboardingTour })));
+const ShortcutsOverlay = lazy(() => import('./components/ShortcutsOverlay').then(m => ({ default: m.ShortcutsOverlay })));
+const TimeSlider = lazy(() => import('./components/TimeSlider').then(m => ({ default: m.TimeSlider })));
 import { UserMenu, type FavoriteEntry } from './components/UserMenu';
-import { type LayerId, type ColorblindType, getLayerById, getColorblindMode, setColorblindMode, rescaleLayerToData, clearRescaleCache } from './utils/colorScales';
+import { type LayerId, type ColorblindType, getLayerById, getColorblindMode, setColorblindMode, rescaleLayerToData, clearRescaleCache, TIME_SERIES_LAYERS } from './utils/colorScales';
 import { readInitialUrlState, useSyncUrlState } from './hooks/useUrlState';
 import type { NeighborhoodProperties } from './utils/metrics';
-import { computeMetroAverages } from './utils/metrics';
+import { computeMetroAverages, timeSeriesYearProp, getAvailableYears } from './utils/metrics';
 import { t, getLang, setLang, useI18nVersion, type Lang } from './utils/i18n';
 import { computeQualityIndices, isCustomWeights, type QualityWeights } from './utils/qualityIndex';
 import { buildMetroAreaFeatures, clearMetroAreaCache } from './utils/metroAreas';
@@ -85,6 +88,14 @@ const App: React.FC = () => {
   // QW-3: "Show my area" geolocation status (transient toast).
   const [geoStatus, setGeoStatus] = useState<null | 'loading' | 'denied' | 'outside' | 'unavailable'>(null);
   const pendingGeoRef = useRef<[number, number] | null>(null);
+  // QW-2: keyboard shortcuts help overlay.
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  // PO-2: time slider / historical playback.
+  const [timeYear, setTimeYear] = useState<number | null>(null);
+  const [timePlaying, setTimePlaying] = useState(false);
+  // CF-3: correlation / scatter explorer.
+  const [showScatter, setShowScatter] = useState(false);
+  const handleToggleScatter = useCallback(() => { setShowScatter((v) => { if (!v) trackEvent('open-scatter'); return !v; }); }, []);
 
   // Build a PNO→Feature lookup Map for O(1) feature access.
   // Replaces multiple O(n) .find() scans after quality index recomputation
@@ -217,9 +228,21 @@ const App: React.FC = () => {
   // Rescale layer stops when comparison scope is 'region' and a specific city is selected.
   // Uses a ref to return the same object identity when stops haven't changed,
   // avoiding unnecessary Map layer color transition effects.
+  // PO-2: years available for the active time-series metric (single-region only).
+  const timeHistoryProp = TIME_SERIES_LAYERS[activeLayer];
+  const availableYears = useMemo(() => {
+    if (!timeHistoryProp || cityFilter === 'all' || !filteredData) return [];
+    return getAvailableYears(filteredData.features, timeHistoryProp);
+  }, [timeHistoryProp, cityFilter, filteredData]);
+
   const prevEffectiveLayerRef = useRef<ReturnType<typeof getLayerById> | null>(null);
   const effectiveLayer = useMemo(() => {
     const base = getLayerById(activeLayer);
+    // PO-2: scrub the choropleth to a single year's value while keeping the
+    // metric's fixed color scale (so the animation shows change, not a rescale).
+    if (timeYear != null && timeHistoryProp) {
+      return { ...base, property: timeSeriesYearProp(timeHistoryProp, timeYear) };
+    }
     if (comparisonScope !== 'region' || cityFilter === 'all' || !filteredData) {
       prevEffectiveLayerRef.current = base;
       return base;
@@ -234,7 +257,7 @@ const App: React.FC = () => {
     prevEffectiveLayerRef.current = rescaled;
     return rescaled;
   // eslint-disable-next-line react-hooks/exhaustive-deps -- qualityVersion signals in-place data mutation for quality_index layer
-  }, [activeLayer, comparisonScope, cityFilter, filteredData, qualityVersion]);
+  }, [activeLayer, comparisonScope, cityFilter, filteredData, qualityVersion, timeYear, timeHistoryProp]);
 
   const handleCityChange = useCallback((city: CityFilter) => {
     trackEvent('switch-city', { city });
@@ -766,6 +789,36 @@ const App: React.FC = () => {
     return () => clearTimeout(id);
   }, [geoStatus]);
 
+  // PO-2: when the active time-series metric (or its years) changes, snap the
+  // slider to the most recent year; deactivate (and stop playback) otherwise.
+  useEffect(() => {
+    if (timeHistoryProp && cityFilter !== 'all' && availableYears.length > 1) {
+      setTimeYear(availableYears[availableYears.length - 1]);
+    } else {
+      setTimeYear(null);
+      setTimePlaying(false);
+    }
+  }, [timeHistoryProp, cityFilter, availableYears]);
+
+  // PO-2: playback loop — advance through years while playing.
+  useEffect(() => {
+    if (!timePlaying || availableYears.length < 2) return;
+    const id = setInterval(() => {
+      setTimeYear((y) => {
+        const i = y == null ? -1 : availableYears.indexOf(y);
+        return availableYears[(i + 1) % availableYears.length];
+      });
+    }, 900);
+    return () => clearInterval(id);
+  }, [timePlaying, availableYears]);
+
+  // PO-2: manual scrub pauses playback.
+  const handleScrubYear = useCallback((year: number) => {
+    setTimePlaying(false);
+    setTimeYear(year);
+  }, []);
+  const handleToggleTimePlay = useCallback(() => setTimePlaying((p) => !p), []);
+
   const handleResetView = useCallback(() => {
     handleCityChange('helsinki_metro');
   }, [handleCityChange]);
@@ -996,6 +1049,11 @@ const App: React.FC = () => {
     setShowTour(true);
   }, []);
 
+  // QW-2: open the keyboard shortcuts overlay from Settings.
+  const handleShowShortcuts = useCallback(() => {
+    setShowShortcuts(true);
+  }, []);
+
   // QW-7: Copy an iframe embed snippet for the current map state.
   const handleCopyEmbed = useCallback(async (): Promise<boolean> => {
     const snippet = buildEmbedSnippet({
@@ -1024,26 +1082,81 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // QW-4: Escape to close topmost panel.
-  // Uses a ref to avoid re-subscribing the listener on every state change
+  // QW-4 / QW-2: global keydown — Escape cascade + power-user shortcuts.
+  // Uses refs to avoid re-subscribing the listener on every state change
   // (the previous version had a 10-item dependency array that churned constantly).
   const escapeStateRef = useRef({ selectMode, drawMode, drawnPolygon, showWizard, showCustomQuality, selected, showFilter, showRanking });
   escapeStateRef.current = { selectMode, drawMode, drawnPolygon, showWizard, showCustomQuality, selected, showFilter, showRanking };
   const escapeActionsRef = useRef({ deselect, handleClearDraw });
   escapeActionsRef.current = { deselect, handleClearDraw };
+  // QW-2: shortcut state + actions, read at keypress time to keep the listener stable.
+  const shortcutsRef = useRef({ showShortcuts, showAuth, toggleFilter, toggleRanking, handleOpenWizard, handleToggleCustomQuality, handleToggleSplitMode, handleUseLocation, select });
+  shortcutsRef.current = { showShortcuts, showAuth, toggleFilter, toggleRanking, handleOpenWizard, handleToggleCustomQuality, handleToggleSplitMode, handleUseLocation, select };
+  const filterMatchPnosRef = useRef(filterMatchPnos);
+  filterMatchPnosRef.current = filterMatchPnos;
   useEffect(() => {
+    // [ / ] step through the current filter-match results (no-op when filter inactive).
+    const stepResults = (dir: number) => {
+      const matches = [...filterMatchPnosRef.current];
+      if (matches.length === 0) return;
+      const cur = selectedRef.current ? matches.indexOf(selectedRef.current.pno) : -1;
+      let next = cur + dir;
+      if (next < 0) next = matches.length - 1;
+      if (next >= matches.length) next = 0;
+      const feat = pnoFeatureMapRef.current.get(matches[next]);
+      if (feat?.properties) {
+        shortcutsRef.current.select(feat.properties as NeighborhoodProperties);
+        setFlyTarget({ center: getFeatureCenter(feat) });
+      }
+    };
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      const s = escapeStateRef.current;
-      const a = escapeActionsRef.current;
-      if (s.selectMode) { setSelectMode(false); setSelectedAreaPnos([]); return; }
-      if (s.drawMode) { setDrawMode(false); setDrawVertices([]); drawVerticesRef.current = []; return; }
-      if (s.drawnPolygon) { a.handleClearDraw(); return; }
-      if (s.showWizard) { setShowWizard(false); return; }
-      if (s.showCustomQuality) { setShowCustomQuality(false); return; }
-      if (s.selected) { a.deselect(); return; }
-      if (s.showFilter) { setShowFilter(false); return; }
-      if (s.showRanking) { setShowRanking(false); return; }
+      const sc = shortcutsRef.current;
+      if (e.key === 'Escape') {
+        const s = escapeStateRef.current;
+        const a = escapeActionsRef.current;
+        if (sc.showShortcuts) { setShowShortcuts(false); return; }
+        if (s.selectMode) { setSelectMode(false); setSelectedAreaPnos([]); return; }
+        if (s.drawMode) { setDrawMode(false); setDrawVertices([]); drawVerticesRef.current = []; return; }
+        if (s.drawnPolygon) { a.handleClearDraw(); return; }
+        if (s.showWizard) { setShowWizard(false); return; }
+        if (s.showCustomQuality) { setShowCustomQuality(false); return; }
+        if (s.selected) { a.deselect(); return; }
+        if (s.showFilter) { setShowFilter(false); return; }
+        if (s.showRanking) { setShowRanking(false); return; }
+        return;
+      }
+
+      // Power-user shortcuts: ignore while typing in a field or holding a chord modifier.
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable) return;
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+
+      if (e.key === '?') { e.preventDefault(); setShowShortcuts((v) => !v); return; }
+      // Remaining shortcuts shouldn't fire behind the auth modal.
+      if (sc.showAuth) return;
+
+      switch (e.key) {
+        case '/':
+          e.preventDefault();
+          (document.querySelector('input[role="combobox"]') as HTMLInputElement | null)?.focus();
+          break;
+        case '[': stepResults(-1); break;
+        case ']': stepResults(1); break;
+        default:
+          switch (e.key.toLowerCase()) {
+            case 'f': sc.toggleFilter(); break;
+            case 'r': sc.toggleRanking(); break;
+            case 'w': sc.handleOpenWizard(); break;
+            case 'c': sc.handleToggleCustomQuality(); break;
+            case 's': sc.handleToggleSplitMode(); break;
+            case 'g': sc.handleUseLocation(); break;
+            case 'l': setShowAuth(true); break;
+            default: return;
+          }
+      }
+      // A handled shortcut dismisses the help overlay so it feels responsive.
+      setShowShortcuts(false);
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -1126,6 +1239,7 @@ const App: React.FC = () => {
             fillOpacity={fillOpacity}
             onFillOpacityChange={handleFillOpacityChange}
             onShowTour={handleShowTour}
+            onShowShortcuts={handleShowShortcuts}
             onCopyEmbed={handleCopyEmbed}
           />
           <ToolsDropdown
@@ -1145,6 +1259,8 @@ const App: React.FC = () => {
             selectMode={selectMode}
             onToggleSelectMode={handleToggleSelectMode}
             onUseLocation={handleUseLocation}
+            showScatter={showScatter}
+            onToggleScatter={handleToggleScatter}
             lang={lang}
           />
         </div>
@@ -1261,6 +1377,19 @@ const App: React.FC = () => {
       {/* Legend — repositioned for mobile */}
       <Legend layerId={activeLayer} colorblind={colorblind} layerConfig={effectiveLayer} lang={lang} />
 
+      {/* PO-2: Time slider / historical playback (only when a time-series metric is active) */}
+      {!IS_EMBED && timeYear != null && availableYears.length > 1 && (
+        <Suspense fallback={null}>
+          <TimeSlider
+            years={availableYears}
+            currentYear={timeYear}
+            onYearChange={handleScrubYear}
+            playing={timePlaying}
+            onTogglePlay={handleToggleTimePlay}
+          />
+        </Suspense>
+      )}
+
       {/* Tooltip — hidden on touch devices via CSS.
            Reads from external store so mouse-move doesn't re-render App. */}
       <TooltipOverlay
@@ -1304,6 +1433,19 @@ const App: React.FC = () => {
             onExploreCity={handleExploreCity}
             userId={user?.id ?? null}
           />
+          </Suspense>
+        </ErrorBoundary>
+      )}
+
+      {/* CF-3: Correlation / scatter explorer */}
+      {showScatter && (
+        <ErrorBoundary>
+          <Suspense fallback={null}>
+            <CorrelationExplorer
+              data={filteredData}
+              onSelect={handleSearch}
+              onClose={() => setShowScatter(false)}
+            />
           </Suspense>
         </ErrorBoundary>
       )}
@@ -1449,6 +1591,13 @@ const App: React.FC = () => {
       {!IS_EMBED && showTour && (
         <Suspense fallback={null}>
           <OnboardingTour onComplete={handleCloseTour} skipAuthStep={!!user} />
+        </Suspense>
+      )}
+
+      {/* QW-2: Keyboard shortcuts overlay (hidden in embed mode) */}
+      {!IS_EMBED && showShortcuts && (
+        <Suspense fallback={null}>
+          <ShortcutsOverlay onClose={() => setShowShortcuts(false)} />
         </Suspense>
       )}
 

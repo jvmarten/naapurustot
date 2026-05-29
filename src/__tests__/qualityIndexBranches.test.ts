@@ -172,11 +172,11 @@ describe('getDefaultWeights', () => {
     }
   });
 
-  it('sums primary factor weights to 95', () => {
+  it('sums primary factor weights to 100', () => {
     const total = QUALITY_FACTORS
       .filter((f) => f.primary)
       .reduce((sum, f) => sum + f.defaultWeight, 0);
-    expect(total).toBe(95);
+    expect(total).toBe(100);
   });
 });
 
@@ -208,9 +208,9 @@ describe('getQualityCategory — edge cases', () => {
     expect(getQualityCategory(-1)).toBeNull();
   });
 
-  it('handles exact boundary at 20.5 (between Avoid and Bad)', () => {
-    // 20.5 is > 20 (Bad min) and <= 40 (Bad max), so it falls in Bad
+  it('handles exact boundary at 20.5 (between Emerging and Developing)', () => {
+    // 20.5 is > 20 (Developing min) and <= 40 (Developing max), so it falls in Developing
     // Categories use continuous boundaries: no gaps between them
-    expect(getQualityCategory(20.5)!.label.en).toBe('Bad');
+    expect(getQualityCategory(20.5)!.label.en).toBe('Developing');
   });
 });
