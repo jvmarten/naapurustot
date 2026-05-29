@@ -63,7 +63,10 @@ for (const [regionId, regionFeatures] of byRegion) {
 
   // Convert to TopoJSON
   console.log(`  ${regionId}: ${regionFeatures.length} features → ${regionId}.topojson`);
-  execSync(`npx -p topojson-server geo2topo neighborhoods=${tempPath} > ${topoPath}`, {
+  // Double-quote interpolated paths so a checkout path containing spaces (common
+  // on dev/CI machines, e.g. "C:\Users\First Last\...") doesn't make the shell
+  // split the input/redirect target and silently corrupt or skip the output.
+  execSync(`npx -p topojson-server geo2topo neighborhoods="${tempPath}" > "${topoPath}"`, {
     stdio: 'inherit',
   });
 

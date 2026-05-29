@@ -101,6 +101,11 @@ export function useNotes(userId?: string | null) {
       const merged = mergeNotes(notesRef.current, serverNotes);
       fromServerRef.current = true;
       setNotes(merged);
+      // Persist the server-merged result to localStorage immediately. Unlike the
+      // per-keystroke path this is a one-off write (no jank concern), and without
+      // it a reload before the user next types would lose the merged server notes.
+      notesRef.current = merged;
+      saveNotes(merged);
       // If merged differs from server, push merged back once.
       const serverKeys = Object.keys(serverNotes);
       const mergedKeys = Object.keys(merged);
@@ -134,7 +139,12 @@ export function useNotes(userId?: string | null) {
     // must be pure (no side effects). React StrictMode double-invokes updaters,
     // which would schedule duplicate timers if setTimeout lived inside.
     clearTimeout(localSaveTimerRef.current);
-    localSaveTimerRef.current = setTimeout(() => saveNotes(notesRef.current), 500);
+    localSaveTimerRef.current = setTimeout(() => {
+      // Clear the ref once the write lands so the unmount flush's truthiness
+      // guard doesn't see a stale timer id and repeat the write redundantly.
+      localSaveTimerRef.current = undefined;
+      saveNotes(notesRef.current);
+    }, 500);
   }, []);
 
   return { getNote, setNote };

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import type { FeatureCollection } from 'geojson';
-import { type LayerId, getLayerById, getColorForValue } from '../utils/colorScales';
+import { type LayerId, type LayerConfig, getLayerById, getColorForValue } from '../utils/colorScales';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { t, useI18nVersion } from '../utils/i18n';
 import { getFeatureCenter } from '../utils/geometryFilter';
@@ -8,6 +8,9 @@ import { getFeatureCenter } from '../utils/geometryFilter';
 interface RankingTableProps {
   data: FeatureCollection | null;
   activeLayer: LayerId;
+  /** Rescaled layer config (region-comparison mode); falls back to the base layer
+   *  for the id. Using it keeps the swatch colors consistent with the map/legend. */
+  layerConfig?: LayerConfig;
   onSelect: (pno: string, center: [number, number]) => void;
   onClose: () => void;
 }
@@ -22,9 +25,11 @@ interface RankedItem {
 
 // Removed hardcoded LOWER_IS_BETTER set — now uses layer.higherIsBetter from LayerConfig
 
-export const RankingTable: React.FC<RankingTableProps> = React.memo(({ data, activeLayer, onSelect, onClose }) => {
+export const RankingTable: React.FC<RankingTableProps> = React.memo(({ data, activeLayer, layerConfig, onSelect, onClose }) => {
   useI18nVersion();
-  const layer = getLayerById(activeLayer);
+  // Prefer the rescaled config (region-comparison mode) so swatch colors match the
+  // map fill and Legend; fall back to the base layer when none is provided.
+  const layer = layerConfig ?? getLayerById(activeLayer);
   const [reversed, setReversed] = useState(false);
 
   // Separate the expensive ranking computation (sorting, center extraction) from

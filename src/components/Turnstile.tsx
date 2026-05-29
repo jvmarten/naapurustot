@@ -75,6 +75,13 @@ export const Turnstile: React.FC<TurnstileProps> = ({ onToken }) => {
       activeWidgetId = window.turnstile.render(container, {
         sitekey: SITE_KEY,
         callback: (token: string) => onTokenRef.current(token),
+        // Turnstile tokens are single-use and expire (~300s). Clear the parent's
+        // token on expiry/timeout/error so a stale token is never submitted —
+        // submitting a consumed/expired token 403s at the server and would
+        // otherwise strand the user on the signup form.
+        'expired-callback': () => onTokenRef.current(''),
+        'timeout-callback': () => onTokenRef.current(''),
+        'error-callback': () => onTokenRef.current(''),
         theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light',
         size: 'flexible',
       });

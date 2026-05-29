@@ -10,6 +10,8 @@ interface AuthModalProps {
 
 const INPUT_CLASS = 'w-full px-3 py-2.5 rounded-lg border border-surface-300 dark:border-surface-600 bg-white dark:bg-surface-800 text-surface-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-shadow';
 
+const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || '';
+
 export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup }) => {
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [username, setUsername] = useState('');
@@ -17,6 +19,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
   const [confirmPassword, setConfirmPassword] = useState('');
   const [email, setEmail] = useState('');
   const [turnstileToken, setTurnstileToken] = useState('');
+  // Bumped to remount the Turnstile widget (and thus mint a fresh, unredeemed
+  // token) after a failed signup, since tokens are single-use.
+  const [turnstileKey, setTurnstileKey] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -50,6 +55,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
       return;
     }
 
+    // Block submit until the Turnstile challenge has produced a token. The server
+    // verifies the token AFTER the rate-limit middleware, so an empty-token submit
+    // still burns one of the 3 daily signup attempts for a guaranteed 403.
+    if (mode === 'signup' && TURNSTILE_SITE_KEY && !turnstileToken) {
+      setError(t('auth.error.bot_check_failed'));
+      return;
+    }
+
     setSubmitting(true);
 
     const err = mode === 'login'
@@ -59,6 +72,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
     setSubmitting(false);
     if (err) {
       setError(err);
+      // The server redeems the (single-use) Turnstile token even on a failed
+      // signup, so force a fresh widget before the user can resubmit — otherwise
+      // the next attempt re-sends a consumed token and always fails bot check.
+      if (mode === 'signup') {
+        setTurnstileToken('');
+        setTurnstileKey((k) => k + 1);
+      }
     } else {
       onClose();
     }
@@ -194,7 +214,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
               </div>
 
               {/* Turnstile */}
-              <Turnstile onToken={setTurnstileToken} />
+              <Turnstile key={turnstileKey} onToken={setTurnstileToken} />
             </>
           )}
 

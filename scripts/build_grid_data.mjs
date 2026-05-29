@@ -25,7 +25,8 @@ for (const file of gridFiles) {
   const input = resolve(publicData, file);
   const output = resolve(publicData, `${stem}.topojson`);
   console.log(`Converting ${file} → ${stem}.topojson`);
-  execSync(`npx -p topojson-server geo2topo grid=${input} > ${output}`, { stdio: 'inherit' });
+  // Quote paths so spaces in the checkout path don't break the shell command.
+  execSync(`npx -p topojson-server geo2topo grid="${input}" > "${output}"`, { stdio: 'inherit' });
 }
 
 console.log(`Built ${gridFiles.length} grid TopoJSON file(s).`);

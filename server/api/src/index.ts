@@ -35,7 +35,10 @@ app.use(cors({
     if (!origin || ALLOWED_ORIGINS.includes(origin)) {
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      // Reject by omitting CORS headers (the browser still blocks the response)
+      // rather than throwing — a thrown error propagates to the Sentry/error
+      // handler and returns a misleading 500, drowning real errors in noise.
+      callback(null, false);
     }
   },
   credentials: true,

@@ -373,6 +373,10 @@ interface MetricDef {
   pctOfPop?: boolean;
   /** For percentage properties weighted by household count */
   pctOfHh?: boolean;
+  /** For percentage properties whose denominator is total jobs (tp_tyopy), e.g.
+   *  sector employment shares. Population-weighting these biases the metro
+   *  average toward residential population instead of where the jobs are. */
+  pctOfJobs?: boolean;
 }
 
 /** Data source attribution for metrics shown in the neighborhood panel. */
@@ -534,15 +538,15 @@ const METRIC_DEFS: MetricDef[] = [
   { property: 'single_parent_hh_pct', weight: 'household', precision: 1, pctOfHh: true },
   { property: 'families_with_children_pct', weight: 'household', precision: 1, pctOfHh: true },
   { property: 'gender_ratio', weight: 'population', precision: 2 },
-  { property: 'tech_sector_pct', weight: 'population', precision: 1 },
-  { property: 'healthcare_workers_pct', weight: 'population', precision: 1 },
+  { property: 'tech_sector_pct', weight: 'count', precision: 1, pctOfJobs: true },
+  { property: 'healthcare_workers_pct', weight: 'count', precision: 1, pctOfJobs: true },
   // Phase 8: More demographic detail + trends
   // employment_rate is handled as a special ratio below (totalEmployed / totalActPop)
   { property: 'elderly_ratio_pct', weight: 'population', precision: 1, pctOfPop: true },
   { property: 'avg_household_size', weight: 'population', precision: 2 },
-  { property: 'manufacturing_jobs_pct', weight: 'population', precision: 1 },
-  { property: 'public_sector_jobs_pct', weight: 'population', precision: 1 },
-  { property: 'service_sector_jobs_pct', weight: 'population', precision: 1 },
+  { property: 'manufacturing_jobs_pct', weight: 'count', precision: 1, pctOfJobs: true },
+  { property: 'public_sector_jobs_pct', weight: 'count', precision: 1, pctOfJobs: true },
+  { property: 'service_sector_jobs_pct', weight: 'count', precision: 1, pctOfJobs: true },
   { property: 'new_construction_pct', weight: 'population', precision: 1 },
   // Phase 9: Real open data layers
   { property: 'rental_price_sqm', weight: 'population', precision: 2, requirePositive: true },
@@ -659,6 +663,13 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
         // Percentage of households
         totals[def.property] += (value / 100) * (p.te_taly ?? 0);
         weights[def.property] += p.te_taly ?? 0;
+      } else if (def.pctOfJobs) {
+        // Percentage of total jobs: weight by jobs count so the metro average
+        // equals sum(sector jobs) / sum(all jobs), not a population-weighted blend.
+        const jobs = p.tp_tyopy;
+        if (jobs == null || jobs <= 0) continue;
+        totals[def.property] += (value / 100) * jobs;
+        weights[def.property] += jobs;
       } else {
         totals[def.property] += value * w;
         weights[def.property] += w;
@@ -676,7 +687,7 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
     const w = weights[def.property];
     if (w <= 0) continue;
     const precision = def.precision ?? 1;
-    if (def.pctOfPop || def.pctOfHh) {
+    if (def.pctOfPop || def.pctOfHh || def.pctOfJobs) {
       result[def.property] = roundTo((totals[def.property] / w) * 100, precision);
     } else {
       result[def.property] = roundTo(totals[def.property] / w, precision);

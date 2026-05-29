@@ -113,6 +113,14 @@ export interface LayerConfig {
    * The grid data property name used for coloring the cells.
    */
   gridProperty?: string;
+  /**
+   * For diverging color scales, the data value the palette's neutral midpoint
+   * must stay pinned to when rescaling to a region's data range (e.g. 0 for
+   * change-over-time layers, 1.0 for gender_ratio). Omit for sequential scales —
+   * those are simply spread evenly across [min, max]. Without this, rescaling a
+   * diverging layer moves the neutral color off-center and inverts its meaning.
+   */
+  divergingCenter?: number;
 }
 
 import { getLang } from './i18n';
@@ -398,6 +406,7 @@ export const LAYERS: LayerConfig[] = [
     colors: ['#b2182b', '#d6604d', '#f4a582', '#fddbc7', '#d1e5f0', '#92c5de', '#4393c3', '#2166ac'],
     stops: [-15, -10, -5, 0, 5, 10, 15, 25],
     format: pct,
+    divergingCenter: 0,
   },
   {
     id: 'population_change',
@@ -407,6 +416,7 @@ export const LAYERS: LayerConfig[] = [
     colors: ['#b2182b', '#d6604d', '#f4a582', '#fddbc7', '#d1e5f0', '#92c5de', '#4393c3', '#2166ac'],
     stops: [-15, -10, -5, 0, 5, 10, 15, 25],
     format: pct,
+    divergingCenter: 0,
   },
   {
     id: 'unemployment_change',
@@ -417,6 +427,7 @@ export const LAYERS: LayerConfig[] = [
     stops: [-30, -20, -10, 0, 10, 20, 30, 50],
     format: pct,
     higherIsBetter: false,
+    divergingCenter: 0,
   },
   // --- Phase 7: New data layers ---
   // #1 Voting & Political
@@ -496,6 +507,7 @@ export const LAYERS: LayerConfig[] = [
     colors: ['#2166ac', '#4393c3', '#92c5de', '#d1e5f0', '#fddbc7', '#f4a582', '#d6604d', '#b2182b'],
     stops: [0.8, 0.85, 0.9, 0.95, 1.0, 1.05, 1.1, 1.2],
     format: (v: number) => `${v.toFixed(2)}`,
+    divergingCenter: 1.0,
   },
   {
     id: 'single_parent_hh',
@@ -644,6 +656,7 @@ export const LAYERS: LayerConfig[] = [
     colors: ['#b2182b', '#d6604d', '#f4a582', '#fddbc7', '#d1e5f0', '#92c5de', '#4393c3', '#2166ac'],
     stops: [-30, -20, -10, 0, 5, 10, 20, 40],
     format: pct,
+    divergingCenter: 0,
   },
   {
     id: 'school_quality',
@@ -847,7 +860,31 @@ export function rescaleLayerToData(
     _rescaleCache = { layerId: layer.id, features, result: layer };
     return layer;
   }
-  const newStops = layer.stops.map((_, i) => min + (i / (n - 1)) * (max - min));
+  const center = layer.divergingCenter;
+  let newStops: number[];
+  if (typeof center === 'number') {
+    // Diverging scale: keep the neutral midpoint pinned to `center` and scale each
+    // half by the data's actual deviation on that side. A side with no data keeps
+    // its original breakpoints (so it never collapses to zero width), and the
+    // closest-to-center stop is pinned exactly so the neutral color stays at center.
+    let ci = 0;
+    for (let i = 1; i < n; i++) {
+      if (Math.abs(layer.stops[i] - center) < Math.abs(layer.stops[ci] - center)) ci = i;
+    }
+    const negSpanData = center - min; // > 0 when data extends below center
+    const posSpanData = max - center; // > 0 when data extends above center
+    const origNeg = center - layer.stops[0];
+    const origPos = layer.stops[n - 1] - center;
+    const negScale = negSpanData > 0 ? negSpanData / (origNeg || 1) : null;
+    const posScale = posSpanData > 0 ? posSpanData / (origPos || 1) : null;
+    newStops = layer.stops.map((s, i) => {
+      if (i === ci) return center;
+      if (s < center) return negScale != null ? center - (center - s) * negScale : s;
+      return posScale != null ? center + (s - center) * posScale : s;
+    });
+  } else {
+    newStops = layer.stops.map((_, i) => min + (i / (n - 1)) * (max - min));
+  }
   const result = { ...layer, stops: newStops };
   _rescaleCache = { layerId: layer.id, features, result };
   return result;

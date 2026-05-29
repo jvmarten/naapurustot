@@ -30,12 +30,22 @@ function ensureOutlinesLoaded(): Promise<void> {
       })
       .then((topo) => {
         const objectName = Object.keys(topo.objects ?? {})[0];
-        if (!objectName) return;
-        const fc = feature(topo, topo.objects[objectName]) as FeatureCollection<OutlineGeometry>;
-        for (const f of fc.features) {
-          // seutukunnat.topojson keys each boundary by its regions.ts region id.
-          const region = (f.properties as { region?: string } | null)?.region;
-          if (region && f.geometry) outlinesByCity.set(region, f.geometry);
+        if (objectName) {
+          const fc = feature(topo, topo.objects[objectName]) as FeatureCollection<OutlineGeometry>;
+          for (const f of fc.features) {
+            // seutukunnat.topojson keys each boundary by its regions.ts region id.
+            const region = (f.properties as { region?: string } | null)?.region;
+            if (region && f.geometry) outlinesByCity.set(region, f.geometry);
+          }
+        }
+        if (outlinesByCity.size === 0) {
+          // A 200 response that parsed no usable regions (empty/corrupt topology,
+          // or no `region` properties) would otherwise leave outlinesPromise as a
+          // resolved-but-empty promise, permanently locking buildMetroAreaFeatures
+          // onto the MultiPolygon concat fallback — which preserves internal postal
+          // borders (CLAUDE.md pitfall). Reset so a later call can retry.
+          console.warn('[metroAreas] region outlines loaded but contained no regions; will retry');
+          outlinesPromise = null;
         }
       })
       .catch((err) => {

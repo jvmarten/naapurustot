@@ -222,4 +222,28 @@ describe('computeMetroAverages — null handling', () => {
     expect(avg.unemployment_rate).toBeUndefined();
     expect(avg.hr_mtu).toBeUndefined();
   });
+
+  it('weights sector-job shares by total jobs (tp_tyopy), not residential population', () => {
+    // A dormitory suburb (huge population, few jobs) and a job-dense district
+    // (small population, many jobs). The metro tech-sector share must equal the
+    // true region-wide ratio sum(sector jobs)/sum(all jobs), so the job-dense
+    // district dominates — NOT the population-weighted ~8.2.
+    const features = [
+      makeFeature({ he_vakiy: 10000, tp_tyopy: 500, tech_sector_pct: 5 }),
+      makeFeature({ he_vakiy: 1000, tp_tyopy: 8000, tech_sector_pct: 40 }),
+    ];
+    const avg = computeMetroAverages(features);
+    // ((5/100)*500 + (40/100)*8000) / (500 + 8000) * 100 = 3225 / 8500 * 100 ≈ 37.9
+    expect(avg.tech_sector_pct).toBeCloseTo(37.9, 1);
+  });
+
+  it('skips areas with no jobs (tp_tyopy <= 0) when averaging sector shares', () => {
+    const features = [
+      makeFeature({ he_vakiy: 5000, tp_tyopy: 0, tech_sector_pct: 90 }), // no jobs → excluded
+      makeFeature({ he_vakiy: 1000, tp_tyopy: 2000, tech_sector_pct: 10 }),
+    ];
+    const avg = computeMetroAverages(features);
+    // Only the second area contributes: (10/100 * 2000) / 2000 * 100 = 10
+    expect(avg.tech_sector_pct).toBe(10);
+  });
 });

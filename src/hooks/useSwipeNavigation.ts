@@ -22,6 +22,7 @@ interface UseSwipeNavigationReturn {
     onTouchStart: (e: React.TouchEvent) => void;
     onTouchMove: (e: React.TouchEvent) => void;
     onTouchEnd: () => void;
+    onTouchCancel: () => void;
   };
   /** Call when the CSS transition ends to clear snapping state */
   onTransitionEnd: () => void;
@@ -97,8 +98,10 @@ export function useSwipeNavigation(options: UseSwipeNavigationOptions): UseSwipe
 
     if (directionRef.current !== 'horizontal') return;
 
-    // Prevent vertical scrolling while swiping horizontally
-    e.preventDefault();
+    // Note: vertical-scroll locking is done by a non-passive native touchmove
+    // listener in the consumer (NeighborhoodPanel), gated on isSwiping. Calling
+    // e.preventDefault() here is a no-op because React 19 delegates touchmove as a
+    // passive listener (it would only emit a console warning), so it is omitted.
 
     lastXRef.current = touch.clientX;
 
@@ -147,6 +150,17 @@ export function useSwipeNavigation(options: UseSwipeNavigationOptions): UseSwipe
     setActiveSection(newSection);
   }, [activeSection, sectionCount, commitThreshold, velocityThreshold]);
 
+  // touchcancel fires instead of touchend when the OS takes over the gesture.
+  // Reset tracking state and animate the carousel back to the active section so
+  // it can't get frozen translated off-axis.
+  const onTouchCancel = useCallback(() => {
+    trackingRef.current = false;
+    directionRef.current = null;
+    setDragOffset(0);
+    setIsSwiping(false);
+    setIsSnapping(true);
+  }, []);
+
   const onTransitionEnd = useCallback(() => {
     setIsSnapping(false);
   }, []);
@@ -161,7 +175,8 @@ export function useSwipeNavigation(options: UseSwipeNavigationOptions): UseSwipe
     onTouchStart,
     onTouchMove,
     onTouchEnd,
-  }), [onTouchStart, onTouchMove, onTouchEnd]);
+    onTouchCancel,
+  }), [onTouchStart, onTouchMove, onTouchEnd, onTouchCancel]);
 
   return {
     activeSection,

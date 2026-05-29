@@ -47,17 +47,39 @@ function savePresets(presets: SavedPreset[]) {
   } catch { /* localStorage unavailable */ }
 }
 
-/** Merge presets by name — local order preserved, server-only names appended. */
+/** Stable signature so identical presets dedupe but same-name/different-criteria ones survive. */
+function presetSig(p: SavedPreset): string {
+  return JSON.stringify([p.name, p.criteria]);
+}
+
+/** Merge presets by (name + criteria) — local order preserved, server-only presets appended.
+ *  Deduping by name alone silently dropped a server copy that shared a name with a
+ *  locally-edited preset (the common cross-device edit case), losing the user's update. */
 function mergePresets(local: SavedPreset[], server: SavedPreset[]): SavedPreset[] {
-  const localNames = new Set(local.map((p) => p.name));
+  const seen = new Set(local.map(presetSig));
   const merged = [...local];
   for (const p of server) {
-    if (!localNames.has(p.name)) {
+    const sig = presetSig(p);
+    if (!seen.has(sig)) {
       merged.push(p);
-      localNames.add(p.name);
+      seen.add(sig);
     }
   }
   return merged;
+}
+
+/** Order-independent content signature, for deciding whether to push the merge back. */
+function canonicalize(presets: SavedPreset[]): string {
+  return JSON.stringify(
+    [...presets]
+      .map((p) => ({
+        name: p.name,
+        criteria: [...p.criteria]
+          .map((c) => ({ layerId: c.layerId, min: c.min, max: c.max }))
+          .sort((a, b) => (a.layerId < b.layerId ? -1 : a.layerId > b.layerId ? 1 : a.min - b.min)),
+      }))
+      .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)),
+  );
 }
 
 /** Manage saved filter presets (named sets of filter criteria).
@@ -114,10 +136,10 @@ export function useFilterPresets(userId?: string | null) {
       const merged = mergePresets(presetsRef.current, serverPresets);
       fromServerRef.current = true;
       setPresets(merged);
-      // Push back if merged differs from server
-      const differs =
-        merged.length !== serverPresets.length ||
-        merged.some((p, i) => p.name !== serverPresets[i]?.name);
+      // Push back if the merged set differs from the server in name OR criteria
+      // (content-aware, order-independent) — a name-only positional check missed
+      // diverged criteria and spuriously fired on mere reordering.
+      const differs = canonicalize(merged) !== canonicalize(serverPresets);
       if (differs) {
         api.savePreferences({ filterPresets: merged });
       }

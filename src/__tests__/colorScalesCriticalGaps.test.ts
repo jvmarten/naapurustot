@@ -107,15 +107,25 @@ describe('rescaleLayerToData — edge cases', () => {
     expect(result).toBe(layer);
   });
 
-  it('handles negative data range', () => {
+  it('handles negative data range (diverging layer keeps neutral center pinned)', () => {
     const layer = getLayerById('income_change');
     const features = [
       { type: 'Feature' as const, geometry: { type: 'Point' as const, coordinates: [0, 0] }, properties: { income_change_pct: -20 } },
       { type: 'Feature' as const, geometry: { type: 'Point' as const, coordinates: [0, 0] }, properties: { income_change_pct: -5 } },
     ];
     const result = rescaleLayerToData(layer, features);
+    // income_change is a diverging scale centered at 0. Rescaling must stretch the
+    // negative side to the data min (-20) while keeping the neutral midpoint pinned
+    // at 0 — NOT spread the whole scale over [-20, -5], which would paint a -5%
+    // decline with the positive/neutral color. The positive side has no data here,
+    // so its original breakpoints are preserved.
     expect(result.stops[0]).toBe(-20);
-    expect(result.stops[result.stops.length - 1]).toBe(-5);
+    expect(result.stops).toContain(0);
+    expect(result.stops[result.stops.length - 1]).toBe(25);
+    // Stops must remain strictly ascending (required by MapLibre's interpolate).
+    for (let i = 1; i < result.stops.length; i++) {
+      expect(result.stops[i]).toBeGreaterThan(result.stops[i - 1]);
+    }
   });
 });
 

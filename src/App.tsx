@@ -468,11 +468,18 @@ const App: React.FC = () => {
   // Restore neighborhood selection and pinned comparisons from URL once data is loaded
   useEffect(() => {
     if (!data || restoredPno.current) return;
-    restoredPno.current = true;
+    // Only latch the "restored" flag once the requested pno/compare pins actually
+    // resolve (or there was nothing to restore). A deep link can target a region
+    // other than the initially-loaded one — e.g. ?pno=20100 (Turku) under the
+    // default helsinki_metro view — in which case the lookup misses. Latching
+    // unconditionally would permanently skip the restore; leaving the flag unset
+    // lets this effect retry when the matching region's data later arrives.
+    let restoredSomething = !initialUrl.pno && (!initialUrl.compare || initialUrl.compare.length === 0);
     if (initialUrl.pno) {
       const feature = pnoFeatureMap.get(initialUrl.pno);
       if (feature?.properties) {
         select(feature.properties as NeighborhoodProperties);
+        restoredSomething = true;
       }
     }
     // QW-3: Restore pinned comparisons from URL
@@ -481,9 +488,11 @@ const App: React.FC = () => {
         const feature = pnoFeatureMap.get(pno);
         if (feature?.properties) {
           pin(feature.properties as NeighborhoodProperties);
+          restoredSomething = true;
         }
       }
     }
+    if (restoredSomething) restoredPno.current = true;
   }, [data, select, pin, pnoFeatureMap]);
 
   // Memoize pinned PNO array to avoid new references on every render.
@@ -1110,6 +1119,7 @@ const App: React.FC = () => {
             <RankingTable
               data={filteredData}
               activeLayer={activeLayer}
+              layerConfig={effectiveLayer}
               onSelect={handleSearch}
               onClose={handleCloseRanking}
             />

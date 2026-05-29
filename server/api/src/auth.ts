@@ -13,6 +13,12 @@ if (!JWT_SECRET) {
 const SALT_ROUNDS = 12;
 const COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days
 
+// A valid bcrypt hash (cost 12) of an arbitrary string. Used only to spend
+// equivalent CPU time in the login "user not found" branch so response timing
+// does not reveal whether a username exists (username enumeration). The value
+// itself is irrelevant — it just has to be a well-formed $2b$12$ hash.
+const DUMMY_HASH = '$2b$12$C6UzMDM.H6dfI/f/IKcEeO3ROOkvI7r5/Apx5OAtNgWZ6lyHkVqzG';
+
 const USERNAME_RE = /^[a-zA-Z0-9_-]{3,20}$/;
 
 /** Extract and verify JWT from cookie; returns userId or null. */
@@ -157,6 +163,9 @@ router.post('/login', rateLimit(10, 15 * 60 * 1000, 'login'), async (req: Reques
   );
 
   if (result.rows.length === 0) {
+    // Spend comparable bcrypt time so a non-existent username can't be told apart
+    // from a wrong password by response latency (defeats username enumeration).
+    await bcrypt.compare(password, DUMMY_HASH);
     res.status(401).json({ error: 'Invalid username or password' });
     return;
   }

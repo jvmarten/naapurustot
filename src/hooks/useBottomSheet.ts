@@ -18,6 +18,7 @@ interface UseBottomSheetReturn {
     onTouchStart: (e: React.TouchEvent) => void;
     onTouchMove: (e: React.TouchEvent) => void;
     onTouchEnd: () => void;
+    onTouchCancel: () => void;
   };
 }
 
@@ -152,6 +153,16 @@ export function useBottomSheet(options: UseBottomSheetOptions = {}): UseBottomSh
     setDragHeight(null);
   }, [peekHeight, resolveHeight]);
 
+  // touchcancel (system gesture, notification, multi-touch) fires instead of
+  // touchend. Abort the drag without running the velocity/snap logic — and
+  // crucially without the below-peek close path, since a cancelled gesture
+  // should never dismiss the sheet. Clearing dragHeight reverts to the current
+  // snap position via the height transition.
+  const onTouchCancel = useCallback(() => {
+    setIsDragging(false);
+    setDragHeight(null);
+  }, []);
+
   const sheetHeight = isDragging && dragHeight !== null ? dragHeight : resolveHeight(snap);
 
   // Memoize the handlers object so consumers that pass it as a prop or destructure it
@@ -161,7 +172,8 @@ export function useBottomSheet(options: UseBottomSheetOptions = {}): UseBottomSh
     onTouchStart,
     onTouchMove,
     onTouchEnd,
-  }), [onTouchStart, onTouchMove, onTouchEnd]);
+    onTouchCancel,
+  }), [onTouchStart, onTouchMove, onTouchEnd, onTouchCancel]);
 
   return {
     sheetHeight,

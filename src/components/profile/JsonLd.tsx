@@ -1,21 +1,27 @@
 import React from 'react';
 import type { NeighborhoodProperties } from '../../utils/metrics';
-import { t } from '../../utils/i18n';
+import { t, type Lang } from '../../utils/i18n';
 
 interface JsonLdProps {
   properties: NeighborhoodProperties;
   center: [number, number];
   url: string;
+  /** Active route language; defaults to Finnish so existing callers are unaffected. */
+  lang?: Lang;
 }
 
-export const JsonLd: React.FC<JsonLdProps> = ({ properties, center, url }) => {
+export const JsonLd: React.FC<JsonLdProps> = ({ properties, center, url, lang = 'fi' }) => {
   const cityName = properties.city ? t(`city.${properties.city}`) : 'Finland';
+  // Mirror the page's display-name rule and the prerenderer's getDisplayName so the
+  // client-rendered JSON-LD matches the visible <h1> and the static prerendered markup
+  // (previously it always emitted the Finnish name, diverging on the /sv/ route).
+  const displayName = lang === 'sv' && properties.namn ? properties.namn : properties.nimi;
 
   const schema = {
     '@context': 'https://schema.org',
     '@type': 'Place',
-    name: properties.nimi,
-    description: `${properties.nimi} (${properties.pno}) – ${cityName}`,
+    name: displayName,
+    description: `${displayName} (${properties.pno}) – ${cityName}`,
     url,
     address: {
       '@type': 'PostalAddress',
@@ -23,11 +29,16 @@ export const JsonLd: React.FC<JsonLdProps> = ({ properties, center, url }) => {
       addressLocality: cityName,
       addressCountry: 'FI',
     },
-    geo: {
-      '@type': 'GeoCoordinates',
-      latitude: center[1],
-      longitude: center[0],
-    },
+    // Only advertise coordinates when they are real. A null-geometry feature
+    // (prerendered fast path, or a failed region-geometry fetch) yields [0,0] —
+    // a point in the Gulf of Guinea — so omit the geo block rather than emit it.
+    ...(Number.isFinite(center[0]) && Number.isFinite(center[1]) && (center[0] !== 0 || center[1] !== 0) && {
+      geo: {
+        '@type': 'GeoCoordinates',
+        latitude: center[1],
+        longitude: center[0],
+      },
+    }),
     ...(properties.quality_index != null && {
       additionalProperty: [{
         '@type': 'PropertyValue',
@@ -48,7 +59,7 @@ export const JsonLd: React.FC<JsonLdProps> = ({ properties, center, url }) => {
     itemListElement: [
       { '@type': 'ListItem', position: 1, name: 'naapurustot.fi', item: 'https://naapurustot.fi' },
       { '@type': 'ListItem', position: 2, name: cityName, item: `https://naapurustot.fi/?city=${properties.city ?? 'helsinki_metro'}` },
-      { '@type': 'ListItem', position: 3, name: properties.nimi },
+      { '@type': 'ListItem', position: 3, name: displayName },
     ],
   };
 
