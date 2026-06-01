@@ -159,6 +159,8 @@
   "error.boundary_title": "Något gick fel",
   "error.boundary_description": "Ett oväntat fel inträffade",
   "error.reload": "Ladda om",
+  "error.webgl_unavailable": "Kartan är inte tillgänglig",
+  "error.webgl_unavailable_desc": "Din webbläsare eller enhet stöder inte WebGL, som krävs för att visa kartan.",
   "loading.title": "Läser in områdesdata…",
   "ranking.title": "Områden i ordning",
   "ranking.no_data": "Inga uppgifter",
