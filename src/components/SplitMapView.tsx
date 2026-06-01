@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { FeatureCollection } from 'geojson';
@@ -196,6 +196,9 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
   const rightLoadedRef = useRef(false);
   const syncingRef = useRef(false);
   const { theme } = useTheme();
+  // True when MapLibre can't create a WebGL context for either pane — show a
+  // fallback message rather than throwing into the ErrorBoundary.
+  const [webglFailed, setWebglFailed] = useState(false);
 
   // Sync handler factory: when one map moves, update the other
   const createSyncHandler = useCallback(
@@ -232,17 +235,32 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
       attributionControl: false as const,
     };
 
-    const leftMap = new maplibregl.Map({
-      container: leftContainerRef.current,
-      style: makeStyle(theme),
-      ...commonOptions,
-    });
+    let leftMap: maplibregl.Map;
+    let rightMap: maplibregl.Map;
+    // Holds the left pane once built so a failure constructing the right pane
+    // can tear it down (the refs aren't assigned until after both succeed).
+    let createdLeft: maplibregl.Map | null = null;
+    try {
+      leftMap = new maplibregl.Map({
+        container: leftContainerRef.current,
+        style: makeStyle(theme),
+        ...commonOptions,
+      });
+      createdLeft = leftMap;
 
-    const rightMap = new maplibregl.Map({
-      container: rightContainerRef.current,
-      style: makeStyle(theme),
-      ...commonOptions,
-    });
+      rightMap = new maplibregl.Map({
+        container: rightContainerRef.current,
+        style: makeStyle(theme),
+        ...commonOptions,
+      });
+    } catch (err) {
+      // WebGL unavailable — tear down whichever pane was created and show the
+      // fallback instead of crashing.
+      console.warn('SplitMapView: failed to initialize WebGL', err);
+      createdLeft?.remove();
+      setWebglFailed(true);
+      return;
+    }
 
     leftMap.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-left');
     rightMap.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
@@ -358,6 +376,20 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
     updateFill(leftMapRef.current, leftLayer);
     updateFill(rightMapRef.current, rightLayer);
   }, [leftLayer, rightLayer, colorblind, data]);
+
+  if (webglFailed) {
+    return (
+      <div className="relative flex h-full w-full flex-col items-center justify-center p-8 text-center bg-surface-50 dark:bg-surface-950">
+        <div className="text-4xl mb-4" aria-hidden="true">🗺️</div>
+        <h2 className="text-lg font-semibold text-surface-900 dark:text-white mb-2">
+          {t('error.webgl_unavailable')}
+        </h2>
+        <p className="text-sm text-surface-500 dark:text-surface-400 max-w-sm">
+          {t('error.webgl_unavailable_desc')}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="relative flex h-full w-full">

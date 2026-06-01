@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { Feature, FeatureCollection, Geometry, Polygon, MultiPolygon } from 'geojson';
@@ -40,6 +40,11 @@ export const MiniMap: React.FC<MiniMapProps> = ({ feature, allFeatures }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const { theme } = useTheme();
+  // True when MapLibre can't create a WebGL context (browser without WebGL,
+  // GPU hardware blocklist, or WebGL disabled). Renders a static fallback
+  // instead of letting the throw crash the surrounding profile page — this
+  // component is not wrapped in an ErrorBoundary.
+  const [webglFailed, setWebglFailed] = useState(false);
   // QW-4: re-render the accessible label on language switch.
   useI18nVersion();
 
@@ -52,24 +57,32 @@ export const MiniMap: React.FC<MiniMapProps> = ({ feature, allFeatures }) => {
     const tiles = theme === 'dark' ? BASEMAP_DARK : BASEMAP_LIGHT;
     const bbox = computeBbox(geometry);
 
-    const map = new maplibregl.Map({
-      container: containerRef.current,
-      style: {
-        version: 8,
-        sources: {
-          carto: {
-            type: 'raster',
-            tiles: [tiles],
-            tileSize: 256,
+    let map: maplibregl.Map;
+    try {
+      map = new maplibregl.Map({
+        container: containerRef.current,
+        style: {
+          version: 8,
+          sources: {
+            carto: {
+              type: 'raster',
+              tiles: [tiles],
+              tileSize: 256,
+            },
           },
+          layers: [{ id: 'carto-tiles', type: 'raster', source: 'carto', minzoom: 0, maxzoom: 20 }],
         },
-        layers: [{ id: 'carto-tiles', type: 'raster', source: 'carto', minzoom: 0, maxzoom: 20 }],
-      },
-      bounds: [bbox[0], bbox[1], bbox[2], bbox[3]] as [number, number, number, number],
-      fitBoundsOptions: { padding: 40 },
-      interactive: false,
-      attributionControl: false,
-    });
+        bounds: [bbox[0], bbox[1], bbox[2], bbox[3]] as [number, number, number, number],
+        fitBoundsOptions: { padding: 40 },
+        interactive: false,
+        attributionControl: false,
+      });
+    } catch (err) {
+      // WebGL unavailable — degrade to the static fallback rather than crash.
+      console.warn('MiniMap: failed to initialize WebGL, hiding map', err);
+      setWebglFailed(true);
+      return;
+    }
 
     map.on('load', () => {
       // Add surrounding neighborhoods with muted fill
@@ -130,6 +143,22 @@ export const MiniMap: React.FC<MiniMapProps> = ({ feature, allFeatures }) => {
   // shows (mirrors the role="img" + aria-label pattern on RadarChart/TrendChart).
   const name = (feature.properties?.nimi as string) || (feature.properties?.pno as string) || '';
   const ariaLabel = name ? `${t('aria.minimap')}: ${name}` : t('aria.minimap');
+
+  // WebGL unavailable — show a static placeholder so the profile page stays
+  // intact instead of crashing on the uncaught MapLibre error.
+  if (webglFailed) {
+    return (
+      <div
+        role="img"
+        aria-label={ariaLabel}
+        className="w-full h-64 md:h-80 rounded-xl bg-surface-100 dark:bg-surface-900/60 flex items-center justify-center px-6 text-center"
+      >
+        <span className="text-sm text-surface-500 dark:text-surface-400">
+          {t('error.webgl_unavailable')}
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div

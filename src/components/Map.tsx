@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { Feature, FeatureCollection, Polygon, MultiPolygon, Position } from 'geojson';
@@ -8,6 +8,7 @@ import { buildFillColorExpression, type LayerId, type LayerConfig, getLayerById 
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { useTheme } from '../hooks/useTheme';
 import { trackEvent } from '../utils/analytics';
+import { t, useI18nVersion } from '../utils/i18n';
 import { DEFAULT_CENTER, DEFAULT_ZOOM, MAP_MIN_ZOOM, MAP_MAX_ZOOM } from '../utils/mapConstants';
 // CF-5 Phase D1: pre-baked boundary outlines of all 69 Finnish seutukunnat.
 import seutukunnatUrl from '../data/seutukunnat.topojson?url';
@@ -260,6 +261,12 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   const hoveredIdRef = useRef<string | null>(null);
   const selectedIdRef = useRef<string | null>(null);
   const { theme } = useTheme();
+  // True when MapLibre can't create a WebGL context. Surfaces an explicit
+  // "map unavailable" message instead of throwing into the ErrorBoundary
+  // (whose generic "try again / reload" UI is misleading for a permanent
+  // lack of WebGL support).
+  const [webglFailed, setWebglFailed] = useState(false);
+  useI18nVersion();
 
   // PO-2: Track previous active layer to detect layer switches (skip animation on initial render)
   const prevActiveLayerRef = useRef<LayerId | null>(null);
@@ -295,15 +302,23 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const map = new maplibregl.Map({
-      container: containerRef.current,
-      style: makeStyle(theme),
-      center: DEFAULT_CENTER,
-      zoom: DEFAULT_ZOOM,
-      minZoom: MAP_MIN_ZOOM,
-      maxZoom: MAP_MAX_ZOOM,
-      attributionControl: false,
-    });
+    let map: maplibregl.Map;
+    try {
+      map = new maplibregl.Map({
+        container: containerRef.current,
+        style: makeStyle(theme),
+        center: DEFAULT_CENTER,
+        zoom: DEFAULT_ZOOM,
+        minZoom: MAP_MIN_ZOOM,
+        maxZoom: MAP_MAX_ZOOM,
+        attributionControl: false,
+      });
+    } catch (err) {
+      // WebGL unavailable — show the fallback instead of crashing.
+      console.warn('Map: failed to initialize WebGL', err);
+      setWebglFailed(true);
+      return;
+    }
 
     map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
@@ -1440,6 +1455,20 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       if (map.getLayer(DRAW_SNAP_FILL_LAYER)) map.removeLayer(DRAW_SNAP_FILL_LAYER);
     };
   }, [drawnPolygon, drawnAreaPnos, theme]);
+
+  if (webglFailed) {
+    return (
+      <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center bg-surface-50 dark:bg-surface-950">
+        <div className="text-4xl mb-4" aria-hidden="true">🗺️</div>
+        <h2 className="text-lg font-semibold text-surface-900 dark:text-white mb-2">
+          {t('error.webgl_unavailable')}
+        </h2>
+        <p className="text-sm text-surface-500 dark:text-surface-400 max-w-sm">
+          {t('error.webgl_unavailable_desc')}
+        </p>
+      </div>
+    );
+  }
 
   return <div ref={containerRef} className="absolute inset-0" />;
 });
