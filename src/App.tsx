@@ -51,7 +51,7 @@ import { computeQualityIndices, isCustomWeights, type QualityWeights } from './u
 import { getNationalRanges } from './utils/nationalRanges';
 import { buildMetroAreaFeatures, clearMetroAreaCache } from './utils/metroAreas';
 import { useAllCitiesUnionPreload } from './hooks/useAllCitiesUnionPreload';
-import { IS_EMBED, buildEmbedSnippet } from './utils/embed';
+import { IS_EMBED, buildEmbedSnippet, buildFullViewUrl, postEmbedHeight } from './utils/embed';
 import { findNeighborhoodForPoint } from './utils/geocode';
 import { getFeatureCenter } from './utils/geometryFilter';
 import { ISOCHRONE_ENABLED, fetchIsochrone, type IsochroneMode } from './utils/isochrone';
@@ -1102,6 +1102,11 @@ const App: React.FC = () => {
       pno: selected?.pno ?? null,
       layer: activeLayer,
       city: cityFilter,
+      compare: pinnedPnos,
+      scope: comparisonScope,
+      year: timeYear,
+      colorblind,
+      lang,
     });
     try {
       await navigator.clipboard.writeText(snippet);
@@ -1110,7 +1115,16 @@ const App: React.FC = () => {
     } catch {
       return false;
     }
-  }, [selected?.pno, activeLayer, cityFilter]);
+  }, [selected?.pno, activeLayer, cityFilter, pinnedPnos, comparisonScope, timeYear, colorblind, lang]);
+
+  // QW-3: from inside an embedded iframe, post the content height so a host page
+  // can auto-size the iframe (no-op outside an iframe).
+  useEffect(() => {
+    if (!IS_EMBED) return;
+    postEmbedHeight();
+    window.addEventListener('resize', postEmbedHeight);
+    return () => window.removeEventListener('resize', postEmbedHeight);
+  }, []);
 
   // IN-6: Reactive offline detection
   useEffect(() => {
@@ -1636,22 +1650,33 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* QW-7: Embed mode watermark — small link back to naapurustot.fi */}
+      {/* QW-3: Embed watermark — "open full view" deep link carrying the full configured state */}
       {IS_EMBED && (
         <a
-          href={`https://naapurustot.fi/?${new URLSearchParams({
-            ...(selected ? { pno: selected.pno } : {}),
-            ...(activeLayer !== 'quality_index' ? { layer: activeLayer } : {}),
-            ...(cityFilter !== 'helsinki_metro' ? { city: cityFilter } : {}),
-          }).toString()}`}
+          href={buildFullViewUrl(
+            {
+              pno: selected?.pno ?? null,
+              layer: activeLayer,
+              city: cityFilter,
+              compare: pinnedPnos,
+              scope: comparisonScope,
+              year: timeYear,
+              colorblind,
+              lang,
+            },
+            'https://naapurustot.fi',
+          )}
           target="_top"
           rel="noopener"
+          title={t('embed.open_full')}
+          aria-label={t('embed.open_full')}
           className="absolute bottom-2 right-2 z-30 px-2.5 py-1 rounded-md text-[11px] font-semibold
                      bg-white/85 dark:bg-surface-900/85 backdrop-blur-sm border border-surface-200/60 dark:border-surface-700/40
                      text-surface-700 dark:text-surface-200 hover:text-brand-600 dark:hover:text-brand-300
                      shadow-md transition-colors"
         >
           naapurustot<span className="text-brand-600 dark:text-brand-400">.fi</span>
+          <span className="ml-1 opacity-60" aria-hidden="true">↗</span>
         </a>
       )}
 
