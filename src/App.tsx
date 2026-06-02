@@ -43,7 +43,6 @@ const OnboardingTour = lazy(() => import('./components/OnboardingTour').then(m =
 const ShortcutsOverlay = lazy(() => import('./components/ShortcutsOverlay').then(m => ({ default: m.ShortcutsOverlay })));
 const TimeSlider = lazy(() => import('./components/TimeSlider').then(m => ({ default: m.TimeSlider })));
 import { UserMenu, type FavoriteEntry } from './components/UserMenu';
-import { HomeReentryPanel } from './components/HomeReentryPanel';
 import { ShortlistTray } from './components/ShortlistTray';
 import { type LayerId, type ColorblindType, getLayerById, getColorblindMode, setColorblindMode, rescaleLayerToData, clearRescaleCache, TIME_SERIES_LAYERS } from './utils/colorScales';
 import { readInitialUrlState, useSyncUrlState } from './hooks/useUrlState';
@@ -1591,7 +1590,7 @@ const App: React.FC = () => {
         </ErrorBoundary>
       )}
 
-      {/* QW-2: shortlist tray — on the idle home view, takes precedence over re-entry */}
+      {/* QW-2: shortlist tray — shown on the idle home view */}
       {!IS_EMBED && !selected && !showTour && pinned.length === 0 && data && shortlist.length > 0 && (
         <ShortlistTray
           entries={shortlistEntries}
@@ -1600,11 +1599,6 @@ const App: React.FC = () => {
           onCompare={handleCompareShortlist}
           onClear={clearShortlist}
         />
-      )}
-
-      {/* PO-4: "continue exploring" home re-entry surface — only on the idle home view */}
-      {!IS_EMBED && !selected && !showTour && pinned.length === 0 && data && shortlist.length === 0 && (
-        <HomeReentryPanel recent={recent} favorites={favoriteEntries} onSelect={handleSelectFavorite} />
       )}
 
       {/* Comparison panel (shows hint at 1 pinned, full panel at 2+). Hidden in embed mode. */}
