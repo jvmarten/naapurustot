@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import maplibregl from 'maplibre-gl';
+import { prefersReducedMotion } from '../hooks/useReducedMotion';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { Feature, FeatureCollection, Polygon, MultiPolygon, Position } from 'geojson';
 import { feature as topoFeature } from 'topojson-client';
@@ -1142,11 +1143,13 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   // FlyTo / fitBounds
   useEffect(() => {
     if (!mapRef.current || !flyTo) return;
+    // PO-1: jump instantly instead of animating the camera under reduce-motion.
+    const dur = prefersReducedMotion() ? 0 : 1200;
     if (flyTo.bounds) {
       const isMobile = window.innerWidth < 768;
-      mapRef.current.fitBounds(flyTo.bounds, { padding: isMobile ? 40 : 80, duration: 1200, maxZoom: 14.5 });
+      mapRef.current.fitBounds(flyTo.bounds, { padding: isMobile ? 40 : 80, duration: dur, maxZoom: 14.5 });
     } else {
-      mapRef.current.flyTo({ center: flyTo.center, zoom: flyTo.zoom ?? 13.5, duration: 1200 });
+      mapRef.current.flyTo({ center: flyTo.center, zoom: flyTo.zoom ?? 13.5, duration: dur });
     }
   }, [flyTo]);
 
