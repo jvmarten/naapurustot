@@ -8,7 +8,9 @@
  * The index signature allows dynamic property access by layer config `property` keys.
  */
 import type { RegionId } from './regions';
-import dataSources from '../data/data_sources.json';
+// Import attribute required so this module runs under Node's type-stripping in
+// scripts/prerender.mjs (which imports metrics.ts directly), not just under Vite.
+import dataSources from '../data/data_sources.json' with { type: 'json' };
 
 /** Supported city/region identifiers. */
 export type CityId = RegionId;
