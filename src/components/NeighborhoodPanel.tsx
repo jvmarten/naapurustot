@@ -11,6 +11,8 @@ import RadarChart from './RadarChart';
 import { IsochroneControls } from './IsochroneControls';
 import type { IsochroneMode } from '../utils/isochrone';
 import { findSimilarNeighborhoods } from '../utils/similarity';
+import { getLayerById, type LayerId } from '../utils/colorScales';
+import { histogram, percentileRank, binIndexOf } from '../utils/correlation';
 import { toSlug } from '../utils/slug';
 import { useAnimatedValue } from '../hooks/useAnimatedValue';
 import { useBottomSheet } from '../hooks/useBottomSheet';
@@ -30,6 +32,8 @@ interface PanelProps {
   onCustomize?: () => void;
   isCustomWeights?: boolean;
   allFeatures?: GeoJSON.Feature[];
+  /** QW-1: the active map layer, so the panel can show that metric's distribution + percentile */
+  activeLayer?: LayerId;
   onFlyTo?: (center: [number, number]) => void;
   isFavorite?: boolean;
   onToggleFavorite?: () => void;
@@ -290,6 +294,79 @@ const CollapsibleSection: React.FC<{
 });
 CollapsibleSection.displayName = 'CollapsibleSection';
 
+// QW-1: distribution of the active layer's metric across the loaded scope, with
+// this neighbourhood's bin highlighted and its direction-aware percentile. Reuses
+// the same value extraction as the choropleth (layer.property → number).
+const DistributionSection: React.FC<{
+  activeLayer: LayerId;
+  props: NeighborhoodProperties;
+  allFeatures: GeoJSON.Feature[];
+}> = React.memo(({ activeLayer, props, allFeatures }) => {
+  useI18nVersion();
+  const layer = getLayerById(activeLayer);
+
+  const result = useMemo(() => {
+    const values: number[] = [];
+    for (const f of allFeatures) {
+      const raw = (f.properties as Record<string, unknown> | null)?.[layer.property];
+      const v = typeof raw === 'string' ? Number(raw) : raw;
+      if (typeof v === 'number' && isFinite(v)) values.push(v);
+    }
+    const selfRaw = (props as Record<string, unknown>)[layer.property];
+    const selfVal = typeof selfRaw === 'string' ? Number(selfRaw) : selfRaw;
+    if (typeof selfVal !== 'number' || !isFinite(selfVal)) return null;
+    const hist = histogram(values, 12);
+    if (!hist) return null;
+    return {
+      hist,
+      pct: percentileRank(values, selfVal),
+      selfBin: binIndexOf(selfVal, hist.min, hist.max, hist.bins.length),
+      n: values.length,
+    };
+  }, [props, allFeatures, layer.property]);
+
+  if (!result) return null;
+  const { hist, pct, selfBin, n } = result;
+  const maxCount = Math.max(...hist.bins.map((b) => b.count), 1);
+  // For lower-is-better metrics a high raw percentile is actually worse, so invert
+  // to a consistent "better than X% of areas" reading.
+  const higherIsBetter = layer.higherIsBetter !== false;
+  const betterPct = pct == null ? null : Math.round(higherIsBetter ? pct : 100 - pct);
+
+  return (
+    <div className="px-4 md:px-5 pt-3">
+      <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400 mb-2">
+        {t('panel.distribution')} · {t(layer.labelKey)}
+      </h3>
+      <div className="flex items-end gap-px h-14" role="img" aria-label={t('panel.distribution')}>
+        {hist.bins.map((b, i) => (
+          <div
+            key={i}
+            className={`flex-1 rounded-t ${i === selfBin ? 'bg-brand-500 dark:bg-brand-400' : 'bg-surface-200 dark:bg-surface-700'}`}
+            style={{ height: `${(b.count / maxCount) * 100}%` }}
+            title={`${layer.format(b.x0)} – ${layer.format(b.x1)}: ${b.count}`}
+          />
+        ))}
+      </div>
+      <div className="flex justify-between text-[10px] text-surface-400 dark:text-surface-500 mt-1">
+        <span>{layer.format(hist.min)}</span>
+        <span>{layer.format(hist.max)}</span>
+      </div>
+      {betterPct != null && (
+        <p className="text-sm text-surface-700 dark:text-surface-200 mt-2">
+          <span className="font-semibold text-brand-600 dark:text-brand-400">
+            {t('panel.dist_better_than').replace('{pct}', String(betterPct))}
+          </span>{' '}
+          <span className="text-surface-400 dark:text-surface-500">
+            {t('panel.dist_sample').replace('{n}', String(n))}
+          </span>
+        </p>
+      )}
+    </div>
+  );
+});
+DistributionSection.displayName = 'DistributionSection';
+
 /**
  * Self-contained quality index badge with animated count-up.
  * Isolates ~18 animation re-renders (300ms × 60Hz) from the rest of
@@ -448,7 +525,7 @@ const NotesEditor: React.FC<{ pno: string; userId?: string | null }> = React.mem
 });
 NotesEditor.displayName = 'NotesEditor';
 
-export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, allFeatures, onFlyTo, isFavorite = false, onToggleFavorite, onExploreCity, userId, isochroneEnabled = false, isochroneMode = 'walk', isochroneBudget = 20, isochroneLoading = false, isochroneActive = false, onIsochroneChange, onIsochroneClear }) => {
+export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, allFeatures, activeLayer, onFlyTo, isFavorite = false, onToggleFavorite, onExploreCity, userId, isochroneEnabled = false, isochroneMode = 'walk', isochroneBudget = 20, isochroneLoading = false, isochroneActive = false, onIsochroneChange, onIsochroneClear }) => {
   useI18nVersion();
   const eduTotal = useMemo(() =>
     [d.ko_yl_kork, d.ko_al_kork, d.ko_ammat, d.ko_perus]
@@ -716,6 +793,11 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
 
       {/* CF-4: Radar chart */}
       <RadarChart data={d} metroAverages={avg} />
+
+      {/* QW-1: distribution + percentile of the active layer's metric across the loaded scope */}
+      {activeLayer && allFeatures && allFeatures.length > 1 && (
+        <DistributionSection activeLayer={activeLayer} props={d} allFeatures={allFeatures} />
+      )}
     </>
   );
 

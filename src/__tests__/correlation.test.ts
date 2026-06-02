@@ -1,5 +1,47 @@
 import { describe, it, expect } from 'vitest';
-import { pearson, bestFit } from '../utils/correlation';
+import { pearson, bestFit, percentileRank, histogram, binIndexOf } from '../utils/correlation';
+
+describe('percentileRank (QW-1)', () => {
+  it('returns the share of values <= the target (0–100)', () => {
+    const v = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    expect(percentileRank(v, 5)).toBe(50);
+    expect(percentileRank(v, 10)).toBe(100);
+    expect(percentileRank(v, 1)).toBe(10);
+  });
+  it('returns null for an empty set', () => {
+    expect(percentileRank([], 3)).toBeNull();
+  });
+});
+
+describe('histogram (QW-1)', () => {
+  it('bins values into equal-width buckets with the max in the last bin', () => {
+    const h = histogram([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 5);
+    expect(h).not.toBeNull();
+    expect(h!.bins).toHaveLength(5);
+    expect(h!.min).toBe(0);
+    expect(h!.max).toBe(10);
+    // Every value is counted exactly once.
+    expect(h!.bins.reduce((s, b) => s + b.count, 0)).toBe(11);
+    // The max (10) lands in the last bin, not a phantom 6th bin.
+    expect(h!.bins[4].count).toBeGreaterThan(0);
+  });
+  it('returns null when all values are identical or empty', () => {
+    expect(histogram([5, 5, 5], 4)).toBeNull();
+    expect(histogram([], 4)).toBeNull();
+  });
+});
+
+describe('binIndexOf (QW-1)', () => {
+  it('clamps to the last bin for the maximum and to 0 below the minimum', () => {
+    expect(binIndexOf(10, 0, 10, 5)).toBe(4);
+    expect(binIndexOf(0, 0, 10, 5)).toBe(0);
+    expect(binIndexOf(-5, 0, 10, 5)).toBe(0);
+    expect(binIndexOf(5, 0, 10, 10)).toBe(5);
+  });
+  it('returns 0 for a degenerate range', () => {
+    expect(binIndexOf(3, 3, 3, 5)).toBe(0);
+  });
+});
 
 describe('pearson', () => {
   it('returns +1 for a perfect positive linear relationship', () => {
