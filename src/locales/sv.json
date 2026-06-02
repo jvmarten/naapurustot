@@ -153,6 +153,8 @@
   "panel.trend_income": "Medianinkomst",
   "panel.trend_population": "Befolkning",
   "panel.trend_unemployment": "Arbetslöshet",
+  "panel.trend_property_price": "Bostadspris",
+  "panel.trend_crime": "Brottslighet",
   "panel.trend_unit_euro": "€/år",
   "layers.title": "Datalager",
   "layers.demographics": "Befolkning",

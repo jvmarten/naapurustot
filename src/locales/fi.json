@@ -153,6 +153,8 @@
   "panel.trend_income": "Mediaanitulo",
   "panel.trend_population": "V\u00e4est\u00f6",
   "panel.trend_unemployment": "Ty\u00f6tt\u00f6myysaste",
+  "panel.trend_property_price": "Asuntojen hinta",
+  "panel.trend_crime": "Rikollisuus",
   "panel.trend_unit_euro": "\u20ac/vuosi",
   "layers.title": "Aineistot",
   "layers.demographics": "V\u00e4est\u00f6",

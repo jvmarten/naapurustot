@@ -105,10 +105,15 @@ export interface NeighborhoodProperties {
   income_history: string | null;
   population_history: string | null;
   unemployment_history: string | null;
+  // CF-7: property-price (€/m²) and crime (per 1,000) time-series
+  property_price_history: string | null;
+  crime_index_history: string | null;
   // CF-4: Computed change metrics (derived from history arrays)
   income_change_pct: number | null;
   population_change_pct: number | null;
   unemployment_change_pct: number | null;
+  // CF-7: crime change derived from crime_index_history
+  crime_index_change_pct: number | null;
   // Phase 7: New data layers
   voter_turnout_pct: number | null;
   party_diversity_index: number | null;
@@ -355,11 +360,16 @@ export function computeChangeMetrics(features: GeoJSON.Feature[]): void {
     p.income_change_pct = computeChangePct(parseTrendSeries(p.income_history));
     p.population_change_pct = computeChangePct(parseTrendSeries(p.population_history));
     p.unemployment_change_pct = computeChangePct(parseTrendSeries(p.unemployment_history));
+    // CF-7: crime change from its history. property_price_change_pct stays as written
+    // into the GeoJSON (kept consistent with the series by the data pipeline) so codes
+    // without a fresh series keep their existing value.
+    const crimeSeries = parseTrendSeries(p.crime_index_history);
+    if (crimeSeries) p.crime_index_change_pct = computeChangePct(crimeSeries);
   }
 }
 
 // PO-2: history arrays that back the time slider / historical playback.
-export const TIME_SERIES_HISTORY_PROPS = ['income_history', 'population_history', 'unemployment_history'] as const;
+export const TIME_SERIES_HISTORY_PROPS = ['income_history', 'population_history', 'unemployment_history', 'property_price_history', 'crime_index_history'] as const;
 
 /** Property key holding a single year's materialized value, e.g. `income_history__2023`. */
 export function timeSeriesYearProp(historyProp: string, year: number): string {

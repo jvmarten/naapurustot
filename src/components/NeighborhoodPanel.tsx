@@ -792,6 +792,9 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
   const incomeHistory = useMemo(() => parseTrendSeries(d.income_history), [d.income_history]);
   const populationHistory = useMemo(() => parseTrendSeries(d.population_history), [d.population_history]);
   const unemploymentHistory = useMemo(() => parseTrendSeries(d.unemployment_history), [d.unemployment_history]);
+  // CF-7: property-price and crime time-series.
+  const propertyPriceHistory = useMemo(() => parseTrendSeries(d.property_price_history), [d.property_price_history]);
+  const crimeHistory = useMemo(() => parseTrendSeries(d.crime_index_history), [d.crime_index_history]);
 
   // Memoize sparkline prop objects so StatRow (React.memo) doesn't re-render
   // on every panel re-render. Without this, `{ data: ..., color: '#...' }`
@@ -1258,6 +1261,8 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
       incomeData={incomeHistory}
       populationData={populationHistory}
       unemploymentData={unemploymentHistory}
+      propertyPriceData={propertyPriceHistory}
+      crimeData={crimeHistory}
     />
   );
 

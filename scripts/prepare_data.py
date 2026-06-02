@@ -101,6 +101,12 @@ PROPERTY_PRICE_URL = (
 # Local fallback for property prices
 PROPERTY_PRICE_FILE = Path(__file__).parent / "property_prices.json"
 
+# CF-7: property-price & crime time-series, built by fetch_price_crime_history.py
+# ({pno: [[year, value], ...]}). Committed as the pipeline's local source, mirroring
+# historical_trends.json. Re-run that script to refresh, then `npm run build:data`.
+PROPERTY_PRICE_HISTORY_FILE = Path(__file__).parent / "property_price_history.json"
+CRIME_INDEX_HISTORY_FILE = Path(__file__).parent / "crime_index_history.json"
+
 # HSL Digitransit API v1 for transit accessibility
 DIGITRANSIT_URL = "https://api.digitransit.fi/routing/v1/routers/hsl/index/graphql"
 # Local fallback for transit stop density
@@ -1762,6 +1768,66 @@ def join_historical_trends(gdf, history: dict):
     return gdf
 
 
+def _change_pct(series):
+    """First→last percentage change of a [[year, value], ...] series."""
+    if not series or len(series) < 2:
+        return None
+    first, last = series[0][1], series[-1][1]
+    if first == 0:
+        return None
+    return round((last - first) / abs(first) * 100, 1)
+
+
+def join_price_crime_history(gdf):
+    """CF-7: join property-price and crime time-series from the committed JSON files.
+
+    Both are written by scripts/fetch_price_crime_history.py. The project convention
+    (income_history / median_income) is that a metric's snapshot equals its trend's
+    latest year, so for codes with a fresh sales-weighted property series we refresh
+    property_price_sqm, price_to_rent_ratio and property_price_change_pct to match.
+    Crime's latest year already equals crime_index by construction.
+    """
+    prop_hist = {}
+    crime_hist = {}
+    if PROPERTY_PRICE_HISTORY_FILE.exists():
+        with open(PROPERTY_PRICE_HISTORY_FILE, encoding="utf-8") as f:
+            prop_hist = json.load(f)
+    if CRIME_INDEX_HISTORY_FILE.exists():
+        with open(CRIME_INDEX_HISTORY_FILE, encoding="utf-8") as f:
+            crime_hist = json.load(f)
+
+    logger.info("Joining CF-7 price/crime history (%d property, %d crime postal codes)...",
+                len(prop_hist), len(crime_hist))
+
+    gdf["property_price_history"] = None
+    gdf["crime_index_history"] = None
+    if "crime_index_change_pct" not in gdf.columns:
+        gdf["crime_index_change_pct"] = None
+
+    refreshed = 0
+    for idx, row in gdf.iterrows():
+        pno = row.get("pno", "") or row.get("postinumeroalue", "")
+
+        pseries = prop_hist.get(pno)
+        if pseries and len(pseries) >= 2:
+            gdf.at[idx, "property_price_history"] = json.dumps(pseries)
+            latest = pseries[-1][1]
+            gdf.at[idx, "property_price_sqm"] = latest
+            gdf.at[idx, "property_price_change_pct"] = _change_pct(pseries)
+            rent = safe_val(row.get("rental_price_sqm"))
+            if rent is not None and rent > 0:
+                gdf.at[idx, "price_to_rent_ratio"] = round(latest / (rent * 12), 1)
+            refreshed += 1
+
+        cseries = crime_hist.get(pno)
+        if cseries and len(cseries) >= 2:
+            gdf.at[idx, "crime_index_history"] = json.dumps(cseries)
+            gdf.at[idx, "crime_index_change_pct"] = _change_pct(cseries)
+
+    logger.info("  Refreshed %d property snapshots to their latest history year", refreshed)
+    return gdf
+
+
 def fetch_rental_prices():
     """Fetch rental price data (€/m²/month) per postal code from Statistics Finland.
 
@@ -2610,6 +2676,9 @@ def main():
     # --- Change metrics derived from historical trends ---
     gdf = calculate_change_metrics(gdf)
 
+    # --- CF-7: property-price & crime time-series (refreshes property snapshot) ---
+    gdf = join_price_crime_history(gdf)
+
     # --- Backfill nulls from previous output ---
     # If any data source failed this run, preserve the values from the last
     # successful run instead of writing nulls.
@@ -2642,6 +2711,10 @@ def main():
         "income_change_pct",
         "population_change_pct",
         "unemployment_change_pct",
+        # CF-7: property-price & crime time-series
+        "property_price_history",
+        "crime_index_history",
+        "crime_index_change_pct",
     ]
     gdf = _backfill_nulls(gdf, previous, backfill_columns)
 

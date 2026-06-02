@@ -153,6 +153,8 @@
   "panel.trend_income": "Median Income",
   "panel.trend_population": "Population",
   "panel.trend_unemployment": "Unemployment Rate",
+  "panel.trend_property_price": "Property Price",
+  "panel.trend_crime": "Crime Rate",
   "panel.trend_unit_euro": "\u20ac/year",
   "layers.title": "Data Layers",
   "layers.demographics": "Demographics",

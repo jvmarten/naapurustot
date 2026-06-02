@@ -77,6 +77,8 @@ export function preloadUnion(): Promise<void> {
  * - population_history: summed per year
  * - income_history: population-weighted average per year
  * - unemployment_history: population-weighted average per year
+ * - property_price_history: population-weighted average per year (CF-7)
+ * - crime_index_history: population-weighted average per year (CF-7)
  */
 function aggregateTrendHistories(
   features: Feature[],
@@ -92,6 +94,8 @@ function aggregateTrendHistories(
     { key: 'population_history', mode: 'sum', entries: [] },
     { key: 'income_history', mode: 'weighted', entries: [] },
     { key: 'unemployment_history', mode: 'weighted', entries: [] },
+    { key: 'property_price_history', mode: 'weighted', entries: [] },
+    { key: 'crime_index_history', mode: 'weighted', entries: [] },
   ];
 
   for (const f of features) {

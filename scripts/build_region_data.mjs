@@ -95,6 +95,9 @@ const EXCLUDED_PROPS = new Set([
   'quality_index', 'quality_breakdown',
   'income_change', 'population_change', 'unemployment_change',
   'population_history', 'income_history', 'unemployment_history',
+  // CF-7: property-price & crime time-series arrays are trend data, not a
+  // coverage metric — exclude from the per-region density count.
+  'property_price_history', 'crime_index_history',
 ]);
 
 function isMeaningful(value) {
