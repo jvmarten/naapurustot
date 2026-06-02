@@ -27,6 +27,8 @@ import {
   computeMetroAverages,
   computeChangeMetrics,
   computeQuickWinMetrics,
+  DATA_SOURCE_PUBLISHERS,
+  DATA_SOURCE_METRICS,
 } from '../src/utils/metrics.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -506,6 +508,100 @@ function generatePage(feature, lang) {
   return html;
 }
 
+// CF-9: prerender the public Data Sources & Methodology page (FI/EN/SV), built
+// from the same single source-of-truth registry the app uses, so it is indexable
+// and citable. The <noscript> groups every dataset by publisher with its license,
+// vintage and resolution; a Dataset JSON-LD node lists the publishers as creators.
+const SOURCES_ROUTES = {
+  fi: { path: 'tietolahteet', url: 'https://naapurustot.fi/tietolahteet' },
+  en: { path: 'en/data-sources', url: 'https://naapurustot.fi/en/data-sources' },
+  sv: { path: 'sv/datakallor', url: 'https://naapurustot.fi/sv/datakallor' },
+};
+
+function buildSourcesNoscript(lang) {
+  const L = LOCALES[lang];
+  const tr = (k) => L[k] ?? k;
+  const granLabel = (g) =>
+    g === '250m grid' ? tr('sources.gran_grid') : g === 'derived' ? tr('sources.gran_derived') : tr('sources.gran_postal');
+
+  // Group registry metrics by publisher, collapsing to distinct datasets.
+  const byPub = new Map();
+  for (const entry of Object.values(DATA_SOURCE_METRICS)) {
+    if (!byPub.has(entry.publisher)) byPub.set(entry.publisher, new Map());
+    byPub.get(entry.publisher).set(`${entry.source}|${entry.vintage}|${entry.granularity}`, entry);
+  }
+
+  let rows = '';
+  for (const [pubId, datasets] of byPub) {
+    const pub = DATA_SOURCE_PUBLISHERS[pubId];
+    if (!pub) continue;
+    const items = [...datasets.values()]
+      .map(
+        (e) =>
+          `<li>${escapeHtml(e.source)} (${escapeHtml(String(e.vintage))}, ${escapeHtml(granLabel(e.granularity))})` +
+          `${e.is_proxy ? ` — ${escapeHtml(tr('data.estimate'))}` : ''}</li>`,
+      )
+      .join('');
+    rows += `<li><a href="${escapeHtml(pub.url)}">${escapeHtml(pub.name)}</a> — ${escapeHtml(pub.license)}<ul>${items}</ul></li>`;
+  }
+
+  return [
+    `<h1>${escapeHtml(tr('sources.title'))}</h1>`,
+    `<p>${escapeHtml(tr('sources.subtitle'))}</p>`,
+    `<h2>${escapeHtml(tr('sources.publishers_heading'))}</h2>`,
+    `<ul>${rows}</ul>`,
+    `<h2>${escapeHtml(tr('sources.methodology_heading'))}</h2>`,
+    `<p>${escapeHtml(tr('sources.methodology_body'))}</p>`,
+    `<p>${escapeHtml(tr('sources.quality_note'))}</p>`,
+  ].join('\n');
+}
+
+function buildSourcesJsonLd(lang, canonicalUrl) {
+  const tr = (k) => LOCALES[lang][k] ?? k;
+  const ds = {
+    '@context': 'https://schema.org',
+    '@type': 'Dataset',
+    name: tr('sources.title'),
+    description: tr('sources.subtitle'),
+    url: canonicalUrl,
+    inLanguage: lang,
+    isAccessibleForFree: true,
+    license: 'https://creativecommons.org/licenses/by/4.0/',
+    creator: Object.values(DATA_SOURCE_PUBLISHERS).map((p) => ({ '@type': 'Organization', name: p.name, url: p.url })),
+  };
+  return `<script type="application/ld+json">${JSON.stringify(ds).replace(/</g, '\\u003c')}</script>`;
+}
+
+function generateSourcesPage(lang) {
+  const title = `${LOCALES[lang]['sources.title']} – naapurustot.fi`;
+  const description = LOCALES[lang]['sources.subtitle'];
+  const { fi: fiR, en: enR, sv: svR } = SOURCES_ROUTES;
+  const canonicalUrl = SOURCES_ROUTES[lang].url;
+  const jsonLd = buildSourcesJsonLd(lang, canonicalUrl);
+  const noscriptContent = buildSourcesNoscript(lang);
+
+  let html = template;
+  html = html.replace('<html lang="fi">', `<html lang="${lang}">`);
+  html = html.replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(title)}</title>`);
+  html = html.replace(/<meta name="description" content="[^"]*" \/>/, `<meta name="description" content="${escapeHtml(description)}" />`);
+  html = html.replace(/<link rel="canonical" href="[^"]*" \/>/, `<link rel="canonical" href="${canonicalUrl}" />`);
+  html = html.replace(/<link rel="alternate" hreflang="fi" href="[^"]*" \/>/, `<link rel="alternate" hreflang="fi" href="${fiR.url}" />`);
+  html = html.replace(/<link rel="alternate" hreflang="en" href="[^"]*" \/>/, `<link rel="alternate" hreflang="en" href="${enR.url}" />`);
+  html = html.replace(/<link rel="alternate" hreflang="sv" href="[^"]*" \/>/, `<link rel="alternate" hreflang="sv" href="${svR.url}" />`);
+  html = html.replace(/<link rel="alternate" hreflang="x-default" href="[^"]*" \/>/, `<link rel="alternate" hreflang="x-default" href="${fiR.url}" />`);
+  html = html.replace(/<meta property="og:url" content="[^"]*" \/>/, `<meta property="og:url" content="${canonicalUrl}" />`);
+  html = html.replace(/<meta property="og:title" content="[^"]*" \/>/, `<meta property="og:title" content="${escapeHtml(title)}" />`);
+  html = html.replace(/<meta property="og:description" content="[^"]*" \/>/, `<meta property="og:description" content="${escapeHtml(description)}" />`);
+  html = html.replace(/<meta name="twitter:title" content="[^"]*" \/>/, `<meta name="twitter:title" content="${escapeHtml(title)}" />`);
+  html = html.replace(/<meta name="twitter:description" content="[^"]*" \/>/, `<meta name="twitter:description" content="${escapeHtml(description)}" />`);
+  html = html.replace('</head>', `    ${jsonLd}\n  </head>`);
+  html = html.replace(
+    /<noscript>[\s\S]*?<\/noscript>/,
+    `<noscript>\n    <div style="max-width:820px;margin:2rem auto;padding:1rem;font-family:system-ui,sans-serif;line-height:1.55">\n${noscriptContent}\n    </div>\n  </noscript>`,
+  );
+  return html;
+}
+
 // --- Main ---
 console.log('Prerendering neighbourhood profile pages...');
 
@@ -531,3 +627,11 @@ for (const feature of features) {
 }
 
 console.log(`Prerendered ${count} neighbourhoods (${count * 3} HTML files).`);
+
+// CF-9: write the three localized data-sources pages.
+for (const [lang, route] of Object.entries(SOURCES_ROUTES)) {
+  const dir = join(DIST, ...route.path.split('/'));
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'index.html'), generateSourcesPage(lang));
+}
+console.log('Prerendered 3 data-sources pages (/tietolahteet, /en/data-sources, /sv/datakallor).');
