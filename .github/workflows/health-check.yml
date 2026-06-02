@@ -1,0 +1,94 @@
+name: Health check
+
+# IN-4: daily synthetic monitoring of the live site, its data freshness, and the
+# optional backend. Opens (or comments on) a GitHub issue when something regresses,
+# so a dead backend or a silently-failed quarterly data refresh is noticed within a
+# day instead of months. Data-age threshold is configurable via the
+# DATA_MAX_AGE_DAYS repository secret.
+on:
+  schedule:
+    - cron: '0 6 * * *' # daily at 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: health-check
+  cancel-in-progress: false
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run synthetic checks
+        id: checks
+        env:
+          DATA_MAX_AGE_DAYS: ${{ secrets.DATA_MAX_AGE_DAYS }}
+        run: |
+          set +e
+          fails=()
+          http() { curl -s -o /dev/null -w "%{http_code}" -m 25 -L "$1"; }
+
+          # 1. Optional backend health endpoint.
+          code=$(http https://api.naapurustot.fi/health)
+          [ "$code" = "200" ] || fails+=("Backend https://api.naapurustot.fi/health returned $code")
+
+          # 2. Deployed site, sitemap, a sample profile, and the data metadata must 200.
+          for url in \
+            "https://naapurustot.fi/" \
+            "https://naapurustot.fi/sitemap.xml" \
+            "https://naapurustot.fi/alue/00100-helsinki-keskusta-etu-toolo/" \
+            "https://naapurustot.fi/data/build_metadata.json"; do
+            code=$(http "$url")
+            [ "$code" = "200" ] || fails+=("$url returned HTTP $code")
+          done
+
+          # 3. Data freshness from the deployed build metadata (catches a quietly
+          #    failed data refresh — the deploy date changes often, the data date does not).
+          gen=$(curl -s -m 25 https://naapurustot.fi/data/build_metadata.json \
+            | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1)
+          thr=${DATA_MAX_AGE_DAYS:-200}
+          if [ -n "$gen" ]; then
+            age=$(( ( $(date +%s) - $(date -d "$gen" +%s) ) / 86400 ))
+            echo "Data built $gen ($age days ago, threshold $thr)."
+            [ "$age" -le "$thr" ] || fails+=("Data is $age days old (built $gen, threshold $thr days) — a quarterly refresh may have failed")
+          else
+            fails+=("Could not read the data-freshness timestamp from /data/build_metadata.json")
+          fi
+
+          if [ ${#fails[@]} -gt 0 ]; then
+            echo "Health check FAILED:"
+            printf -- '- %s\n' "${fails[@]}"
+            { echo "report<<__EOF__"; printf -- '- %s\n' "${fails[@]}"; echo "__EOF__"; } >> "$GITHUB_OUTPUT"
+            echo "failed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "All health checks passed."
+            echo "failed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open or update an issue on failure
+        if: steps.checks.outputs.failed == 'true'
+        uses: actions/github-script@v8
+        env:
+          REPORT: ${{ steps.checks.outputs.report }}
+        with:
+          script: |
+            const title = '🚑 Health check failed';
+            const report = process.env.REPORT || '(no details)';
+            const run = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = `The scheduled health check found problems with the live site:\n\n${report}\n\n[View run](${run})`;
+            const open = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo, state: 'open', per_page: 100,
+            });
+            const existing = open.data.find((i) => i.title === title && !i.pull_request);
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo, issue_number: existing.number, body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner, repo: context.repo.repo, title, body,
+              });
+            }

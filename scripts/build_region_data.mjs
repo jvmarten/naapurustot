@@ -156,7 +156,11 @@ for (const [regionId, { present, total }] of Object.entries(coverageManifest)) {
 // build) does not run build:data, so this value stays pinned to the data refresh.
 const metadataPath = resolve(rootDir, 'src', 'data', 'build_metadata.json');
 const buildMetadata = { generated: new Date().toISOString() };
-writeFileSync(metadataPath, JSON.stringify(buildMetadata, null, 2) + '\n');
+const metadataJson = JSON.stringify(buildMetadata, null, 2) + '\n';
+writeFileSync(metadataPath, metadataJson);
+// IN-4: also expose it as a static asset (public/data → /data/build_metadata.json)
+// so the health-check workflow can read the deployed data-freshness timestamp.
+writeFileSync(resolve(rootDir, 'public', 'data', 'build_metadata.json'), metadataJson);
 console.log(`  → build_metadata.json (generated ${buildMetadata.generated})`);
 
 console.log('Done! Per-region TopoJSON files written to src/data/regions/, coverage to src/data/region_coverage.json');
