@@ -17,6 +17,8 @@ interface UrlState {
   year: number | null;
   colorblind: ColorblindType | null;
   lang: Lang | null;
+  // CF-5: postal code of the custom reference-baseline neighbourhood.
+  ref: string | null;
 }
 
 /** CF-1: the extra analytical state the URL can carry beyond pno/layer/compare/city. */
@@ -25,6 +27,8 @@ export interface ExtraUrlState {
   year?: number | null;
   colorblind?: ColorblindType;
   lang?: Lang;
+  /** CF-5: custom reference-baseline pno */
+  ref?: string | null;
 }
 
 const VALID_CITIES = new Set<string>(['all', ...REGION_IDS]);
@@ -67,6 +71,7 @@ function parseUrl(): UrlState {
   const yearRaw = searchParams.get('year');
   const cbRaw = searchParams.get('cb');
   const langRaw = searchParams.get('lang');
+  const refRaw = searchParams.get('ref');
 
   return {
     pno: pno && (VALID_CITIES.has(pno) || /^\d{5}$/.test(pno)) ? pno : null,
@@ -79,6 +84,7 @@ function parseUrl(): UrlState {
     year: yearRaw && /^\d{4}$/.test(yearRaw) ? Number(yearRaw) : null,
     colorblind: cbRaw && VALID_CB.has(cbRaw) ? (cbRaw as ColorblindType) : null,
     lang: langRaw && VALID_LANG.has(langRaw) ? (langRaw as Lang) : null,
+    ref: refRaw && /^\d{5}$/.test(refRaw) ? refRaw : null,
   };
 }
 
@@ -94,6 +100,7 @@ function writeUrl(pno: string | null, layer: LayerId, comparePnos: string[], cit
   if (extras.year != null) params.set('year', String(extras.year));
   if (extras.colorblind && extras.colorblind !== 'off') params.set('cb', extras.colorblind);
   if (extras.lang && extras.lang !== 'fi') params.set('lang', extras.lang);
+  if (extras.ref) params.set('ref', extras.ref);
   const str = params.toString();
   const newUrl = str
     ? `${window.location.pathname}?${str}`
@@ -114,11 +121,11 @@ export function readInitialUrlState(): UrlState {
  *  URL before the restoration effect has consumed them (e.g., pinned neighborhoods). */
 export function useSyncUrlState(pno: string | null, layer: LayerId, comparePnos: string[] = [], city: string = 'helsinki_metro', ready = true, extras: ExtraUrlState = {}) {
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const { scope, year, colorblind, lang } = extras;
+  const { scope, year, colorblind, lang, ref } = extras;
   useEffect(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
     if (!ready) return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-    timerRef.current = setTimeout(() => writeUrl(pno, layer, comparePnos, city, { scope, year, colorblind, lang }), 100);
+    timerRef.current = setTimeout(() => writeUrl(pno, layer, comparePnos, city, { scope, year, colorblind, lang, ref }), 100);
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-  }, [pno, layer, comparePnos, city, ready, scope, year, colorblind, lang]);
+  }, [pno, layer, comparePnos, city, ready, scope, year, colorblind, lang, ref]);
 }

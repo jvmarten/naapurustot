@@ -41,6 +41,10 @@ interface PanelProps {
   /** QW-2: whether this area is in the user's shortlist, and a toggle */
   isInShortlist?: boolean;
   onToggleShortlist?: () => void;
+  /** CF-5: custom reference-baseline pno + its name, and a setter (null clears) */
+  referencePno?: string | null;
+  referenceName?: string | null;
+  onSetReference?: (pno: string | null) => void;
   /** Callback to navigate to postal code view for a metro area */
   onExploreCity?: (cityId: string) => void;
   /** Authenticated user id — enables cloud-synced notes when set */
@@ -55,6 +59,10 @@ interface PanelProps {
   onIsochroneClear?: () => void;
 }
 
+/** CF-5: the per-row diff baseline label — the custom reference's name when one is
+ *  active, else null so StatRow falls back to the "vs metro/region" default. */
+const BaselineLabelContext = React.createContext<string | null>(null);
+
 const StatRow: React.FC<{
   label: string;
   value: string;
@@ -66,6 +74,8 @@ const StatRow: React.FC<{
   sparkline?: { data: import('../utils/metrics').TrendDataPoint[]; color?: string } | null;
 }> = React.memo(({ label, value, diff, diffClass, property, sparkline }) => {
   useI18nVersion();
+  // CF-5: "vs <reference>" when a custom reference baseline is active, else "vs metro".
+  const baselineLabel = React.useContext(BaselineLabelContext);
   const source = property ? getMetricSource(property) : undefined;
   const hasExplanation = !!property && METRIC_EXPLANATIONS.has(property);
   // PO-2: surface regression/derived estimates honestly rather than giving them
@@ -194,7 +204,7 @@ const StatRow: React.FC<{
         <span className="text-surface-900 dark:text-white font-medium">{value}</span>
         {diff && (
           <span className={`ml-0 text-xs ${diffClass}`}>
-            {diff} {t('panel.vs_metro')}
+            {diff} {baselineLabel ?? t('panel.vs_metro')}
           </span>
         )}
       </div>
@@ -601,7 +611,7 @@ const NotesEditor: React.FC<{ pno: string; userId?: string | null }> = React.mem
 });
 NotesEditor.displayName = 'NotesEditor';
 
-export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, allFeatures, activeLayer, onFlyTo, isFavorite = false, onToggleFavorite, isInShortlist = false, onToggleShortlist, onExploreCity, userId, isochroneEnabled = false, isochroneMode = 'walk', isochroneBudget = 20, isochroneLoading = false, isochroneActive = false, onIsochroneChange, onIsochroneClear }) => {
+export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, allFeatures, activeLayer, onFlyTo, isFavorite = false, onToggleFavorite, isInShortlist = false, onToggleShortlist, referencePno, referenceName, onSetReference, onExploreCity, userId, isochroneEnabled = false, isochroneMode = 'walk', isochroneBudget = 20, isochroneLoading = false, isochroneActive = false, onIsochroneChange, onIsochroneClear }) => {
   useI18nVersion();
   const eduTotal = useMemo(() =>
     [d.ko_yl_kork, d.ko_al_kork, d.ko_ammat, d.ko_perus]
@@ -686,6 +696,25 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
     >
       <svg className="w-5 h-5" fill={isFavorite ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+      </svg>
+    </button>
+  );
+
+  // CF-5: custom reference baseline state for this panel.
+  const isReference = !!referencePno && referencePno === d.pno;
+  const refActive = !!referencePno && !!referenceName && referencePno !== d.pno;
+  const vsLabel = refActive ? t('panel.vs_reference').replace('{ref}', referenceName as string) : null;
+
+  const referenceButton = onSetReference && !d._isMetroArea && (
+    <button
+      onClick={() => onSetReference(isReference ? null : d.pno)}
+      className={`p-1.5 rounded-lg transition-colors min-h-[44px] md:min-h-0 ${
+        isReference ? 'text-brand-500 hover:text-brand-600' : 'text-surface-400 hover:text-brand-500'
+      }`}
+      title={isReference ? t('panel.clear_reference') : t('panel.set_reference')}
+    >
+      <svg className="w-5 h-5" fill={isReference ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
       </svg>
     </button>
   );
@@ -798,6 +827,15 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
   // PO-3: Shared section content — used by both desktop and mobile
   const sectionOverview = (
     <>
+      {/* CF-5: active reference baseline banner */}
+      {refActive && (
+        <div className="mb-3 flex items-center justify-between gap-2 rounded-lg bg-brand-500/10 border border-brand-500/20 px-3 py-2 text-xs">
+          <span className="text-brand-700 dark:text-brand-300">{t('panel.compared_to').replace('{ref}', referenceName as string)}</span>
+          <button onClick={() => onSetReference?.(null)} className="shrink-0 text-brand-600 dark:text-brand-400 font-semibold hover:underline">
+            {t('panel.clear_reference')}
+          </button>
+        </div>
+      )}
       {/* Quality Index — extracted into QualityBadge to isolate animation re-renders */}
       {d.quality_index != null && (
         <QualityBadge
@@ -1363,6 +1401,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
   );
 
   return (
+    <BaselineLabelContext.Provider value={vsLabel}>
     <>
       {/* Desktop: side panel */}
       <div className="hidden md:block absolute top-0 left-0 z-20 h-full w-[380px] max-w-[90vw] overflow-y-auto
@@ -1405,10 +1444,11 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
               </svg>
             </button>
           </div>
-          {(favoriteButton || shortlistButton || pinButton) && (
+          {(favoriteButton || shortlistButton || referenceButton || pinButton) && (
             <div className="flex items-center gap-1 mt-3">
               {favoriteButton}
               {shortlistButton}
+              {referenceButton}
               {pinButton}
             </div>
           )}
@@ -1559,6 +1599,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
         </div>
       )}
     </>
+    </BaselineLabelContext.Provider>
   );
 });
 
