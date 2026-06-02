@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { prefersReducedMotion } from './useReducedMotion';
 
 /**
  * PO-1: Animate a numeric value with a count-up/count-down transition.
@@ -26,8 +27,10 @@ export function useAnimatedValue(target: number | null, duration = 300): number 
     fromRef.current = from;
     startRef.current = null;
 
-    // Skip animation if duration is zero or negative
-    if (duration <= 0) {
+    // PO-1: honor prefers-reduced-motion (and the existing zero-duration case) by
+    // snapping straight to the target instead of tweening.
+    const dur = prefersReducedMotion() ? 0 : duration;
+    if (dur <= 0) {
       displayRef.current = target;
       setDisplay(target);
       return;
@@ -36,7 +39,7 @@ export function useAnimatedValue(target: number | null, duration = 300): number 
     const animate = (timestamp: number) => {
       if (startRef.current == null) startRef.current = timestamp;
       const elapsed = timestamp - startRef.current;
-      const progress = Math.min(elapsed / duration, 1);
+      const progress = Math.min(elapsed / dur, 1);
 
       // Ease out cubic
       const eased = 1 - Math.pow(1 - progress, 3);
