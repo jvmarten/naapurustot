@@ -39,6 +39,18 @@ export function useQualityWeights(userId?: string | null) {
   const [weights, setWeightsState] = useState<QualityWeights>(loadWeights);
   const weightsRef = useRef(weights);
   const fromServerRef = useRef(false);
+
+  // PO-5b: cross-tab sync — adopt quality weights changed in another tab,
+  // suppressing the server-save echo via fromServerRef.
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== STORAGE_KEY) return;
+      fromServerRef.current = true;
+      setWeightsState(loadWeights());
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
   const prevUserIdRef = useRef<string | null | undefined>(undefined);
   const userIdRef = useRef(userId);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);

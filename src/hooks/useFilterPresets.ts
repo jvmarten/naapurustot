@@ -89,6 +89,18 @@ export function useFilterPresets(userId?: string | null) {
   const [presets, setPresets] = useState<SavedPreset[]>(loadPresets);
   const presetsRef = useRef(presets);
   const fromServerRef = useRef(false);
+
+  // PO-5b: cross-tab sync — adopt filter presets changed in another tab,
+  // suppressing the server-save echo via fromServerRef.
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== STORAGE_KEY) return;
+      fromServerRef.current = true;
+      setPresets(loadPresets());
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
   const prevUserIdRef = useRef<string | null | undefined>(undefined);
   const userIdRef = useRef(userId);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);

@@ -58,6 +58,18 @@ export function useNotes(userId?: string | null) {
 
   // Track whether the current change came from a server fetch (to avoid echoing it back)
   const fromServerRef = useRef(false);
+
+  // PO-5b: cross-tab sync — adopt notes changed in another tab, suppressing the
+  // server-save echo via fromServerRef.
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== STORAGE_KEY) return;
+      fromServerRef.current = true;
+      setNotes(loadNotes());
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
   const prevUserIdRef = useRef<string | null | undefined>(undefined);
   const userIdRef = useRef(userId);
   useEffect(() => { userIdRef.current = userId; }, [userId]);

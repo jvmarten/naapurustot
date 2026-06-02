@@ -46,6 +46,18 @@ export function useFavorites(userId?: string | null) {
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Track whether the current change came from a server fetch (to avoid echoing it back)
   const fromServerRef = useRef(false);
+
+  // PO-5b: cross-tab sync — adopt favorites changed in another tab, suppressing the
+  // server-save echo via fromServerRef.
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== STORAGE_KEY) return;
+      fromServerRef.current = true;
+      setFavorites(readFavorites());
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
   // Mirror of favorites so async callbacks can read the latest value without
   // doing impure work inside a state updater (StrictMode double-invokes updaters).
   const favoritesRef = useRef(favorites);
