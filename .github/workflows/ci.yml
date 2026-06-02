@@ -58,8 +58,13 @@ jobs:
       - name: Type check
         run: npx tsc --noEmit
 
-      - name: Test
-        run: npm run test
+      - name: Test (with coverage)
+        run: npm run test:coverage
+
+      - name: Coverage ratchet (IN-5)
+        # Fails if any headline coverage metric drops below coverage-baseline.json
+        # (minus a 0.5pp tolerance). Raise the baseline to lock in gains.
+        run: npm run coverage:check
 
       - name: Build
         run: npm run build
