@@ -64,6 +64,16 @@ urls.push({ loc: directory.fi, priority: '0.9', changefreq: 'weekly', alternates
 urls.push({ loc: directory.en, priority: '0.8', changefreq: 'weekly', alternates: directory });
 urls.push({ loc: directory.sv, priority: '0.8', changefreq: 'weekly', alternates: directory });
 
+// CF-9: data sources & methodology page.
+const dataSources = {
+  fi: `${ORIGIN}/tietolahteet`,
+  en: `${ORIGIN}/en/data-sources`,
+  sv: `${ORIGIN}/sv/datakallor`,
+};
+urls.push({ loc: dataSources.fi, priority: '0.5', changefreq: 'monthly', alternates: dataSources });
+urls.push({ loc: dataSources.en, priority: '0.4', changefreq: 'monthly', alternates: dataSources });
+urls.push({ loc: dataSources.sv, priority: '0.4', changefreq: 'monthly', alternates: dataSources });
+
 const features = geojson.features.filter((f) => f.properties?.pno && f.properties?.nimi);
 
 // Regional hub pages — one per region that has neighbourhood data.

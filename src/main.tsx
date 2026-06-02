@@ -19,6 +19,9 @@ installChunkReloadHandler();
 const NeighborhoodProfilePage = lazy(() => import('./pages/NeighborhoodProfilePage').then(m => ({ default: m.NeighborhoodProfilePage })));
 // eslint-disable-next-line react-refresh/only-export-components
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage').then(m => ({ default: m.NotFoundPage })));
+// CF-9: prerendered public data-sources & methodology page (FI/EN/SV).
+// eslint-disable-next-line react-refresh/only-export-components
+const DataSourcesPage = lazy(() => import('./pages/DataSourcesPage').then(m => ({ default: m.DataSourcesPage })));
 
 // Auto-reload when a new service worker is activated after deployment.
 // This prevents users from being stuck on a stale cached version.
@@ -119,6 +122,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="/alue/:slug" element={<NeighborhoodProfilePage />} />
             <Route path="/en/area/:slug" element={<NeighborhoodProfilePage />} />
             <Route path="/sv/omrade/:slug" element={<NeighborhoodProfilePage />} />
+            <Route path="/tietolahteet" element={<DataSourcesPage lang="fi" />} />
+            <Route path="/en/data-sources" element={<DataSourcesPage lang="en" />} />
+            <Route path="/sv/datakallor" element={<DataSourcesPage lang="sv" />} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </Suspense>

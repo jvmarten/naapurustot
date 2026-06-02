@@ -1614,6 +1614,14 @@ const App: React.FC = () => {
             <a href="mailto:info@naapurustot.fi" className="underline hover:text-brand-600 dark:hover:text-brand-300">
               {t('footer.contact')}
             </a>
+            {' · '}
+            {/* CF-9: link to the public data sources & methodology page (lang-aware) */}
+            <a
+              href={lang === 'en' ? '/en/data-sources' : lang === 'sv' ? '/sv/datakallor' : '/tietolahteet'}
+              className="underline hover:text-brand-600 dark:hover:text-brand-300"
+            >
+              {t('footer.sources')}
+            </a>
           </p>
         </div>
       )}
