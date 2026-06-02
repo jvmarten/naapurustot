@@ -24,6 +24,27 @@ const SIMILARITY_METRICS: (keyof NeighborhoodProperties)[] = [
   'child_ratio',
 ];
 
+/**
+ * CF-6: the similarity metrics exposed in the panel picker, each with an i18n
+ * label key, so the user can choose what "similar" means to them. The default
+ * selection is all of them (matching the historical hardcoded behaviour).
+ */
+export const AVAILABLE_SIMILARITY_METRICS: { key: keyof NeighborhoodProperties; labelKey: string }[] = [
+  { key: 'hr_mtu', labelKey: 'layer.median_income' },
+  { key: 'unemployment_rate', labelKey: 'layer.unemployment' },
+  { key: 'higher_education_rate', labelKey: 'layer.education' },
+  { key: 'foreign_language_pct', labelKey: 'layer.foreign_lang' },
+  { key: 'ownership_rate', labelKey: 'layer.ownership' },
+  { key: 'transit_stop_density', labelKey: 'layer.transit_access' },
+  { key: 'property_price_sqm', labelKey: 'layer.property_price' },
+  { key: 'crime_index', labelKey: 'layer.crime_rate' },
+  { key: 'population_density', labelKey: 'layer.population_density' },
+  { key: 'child_ratio', labelKey: 'layer.child_ratio' },
+];
+
+/** Valid similarity-metric keys, for validating a persisted user selection. */
+export const SIMILARITY_METRIC_KEYS: ReadonlySet<string> = new Set(SIMILARITY_METRICS as string[]);
+
 // Cache min/max ranges per dataset to avoid recomputing on every panel open.
 // The dataset reference doesn't change after initial load, so we can key on identity.
 let cachedFeatures: GeoJSON.Feature[] | null = null;
@@ -71,7 +92,13 @@ export function findSimilarNeighborhoods(
   target: NeighborhoodProperties,
   allFeatures: GeoJSON.Feature[],
   count: number = 5,
+  metrics?: (keyof NeighborhoodProperties)[],
 ): SimilarNeighborhood[] {
+  // CF-6: caller may pass a user-chosen metric subset; default to all. Ranges are
+  // always computed over the full metric set (cached per dataset), so switching the
+  // subset never invalidates the cache — we just iterate fewer metrics here.
+  const activeMetrics = metrics && metrics.length > 0 ? metrics : SIMILARITY_METRICS;
+
   // 1. Get cached or compute min/max for each metric across the entire dataset.
   // Before this fix, ranges were recomputed on every call (10 metrics × ~200 features
   // = ~2000 iterations). Now it's O(1) for repeated calls with the same dataset.
@@ -90,7 +117,7 @@ export function findSimilarNeighborhoods(
     let sumSq = 0;
     let usedMetrics = 0;
 
-    for (const metric of SIMILARITY_METRICS) {
+    for (const metric of activeMetrics) {
       const key = metric as string;
 
       // Skip if min-max range is unavailable (all values identical or missing)

@@ -260,6 +260,7 @@
   "settings.cb_deuteranopia": "Deuteranopia (green-blind)",
   "settings.cb_tritanopia": "Tritanopia (blue-blind)",
   "panel.similar": "Similar neighborhoods",
+  "panel.similar_by": "Compare by",
   "favorites.title": "Favorites",
   "favorites.add": "Add to favorites",
   "favorites.remove": "Remove from favorites",

@@ -13,6 +13,32 @@ function makeFeature(props: Record<string, any>): Feature {
   };
 }
 
+describe('findSimilarNeighborhoods — configurable metrics (CF-6)', () => {
+  const target = { pno: '00100', nimi: 'T', namn: 'T', hr_mtu: 30000, crime_index: 50 };
+  // A matches the target's income exactly but differs wildly in crime; B is the
+  // mirror image. Which one is "most similar" should depend on the chosen metric.
+  const features = [
+    makeFeature({ pno: '00100', nimi: 'T', namn: 'T', hr_mtu: 30000, crime_index: 50 }),
+    makeFeature({ pno: '00200', nimi: 'A', namn: 'A', hr_mtu: 30000, crime_index: 200 }),
+    makeFeature({ pno: '00300', nimi: 'B', namn: 'B', hr_mtu: 90000, crime_index: 50 }),
+  ];
+
+  it('ranks by income alone when only hr_mtu is selected', () => {
+    const r = findSimilarNeighborhoods(target as any, features, 2, ['hr_mtu']);
+    expect(r[0].properties.pno).toBe('00200');
+  });
+
+  it('ranks by crime alone when only crime_index is selected', () => {
+    const r = findSimilarNeighborhoods(target as any, features, 2, ['crime_index']);
+    expect(r[0].properties.pno).toBe('00300');
+  });
+
+  it('falls back to the default metric set for an empty subset', () => {
+    const r = findSimilarNeighborhoods(target as any, features, 2, []);
+    expect(r.length).toBeGreaterThan(0);
+  });
+});
+
 describe('findSimilarNeighborhoods', () => {
   it('returns the correct number of results', () => {
     const target = {
