@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { t, useI18nVersion } from '../utils/i18n';
 import type { ApiUser } from '../utils/api';
+import { useSyncStatus, retryAllSyncs } from '../utils/syncStatus';
 
 export interface FavoriteEntry {
   pno: string;
@@ -19,6 +20,8 @@ export const UserMenu: React.FC<UserMenuProps> = React.memo(({ user, onLogout, f
   useI18nVersion();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  // PO-5: surface cloud-sync health (was silently swallowed).
+  const syncStatus = useSyncStatus();
   // Snapshot favorites when dropdown opens so items stay visible after unfavoriting
   const [snapshotFavorites, setSnapshotFavorites] = useState<FavoriteEntry[]>([]);
 
@@ -67,6 +70,41 @@ export const UserMenu: React.FC<UserMenuProps> = React.memo(({ user, onLogout, f
 
       {open && (
         <div className="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-surface-900 rounded-xl shadow-xl border border-surface-200 dark:border-surface-700/40 overflow-hidden">
+          {/* PO-5: cloud-sync status — only shown when syncing or failed */}
+          {syncStatus !== 'idle' && (
+            <div
+              className={`flex items-center justify-between gap-2 px-4 py-2 text-[11px] border-b border-surface-100 dark:border-surface-800 ${
+                syncStatus === 'error' ? 'text-amber-600 dark:text-amber-400' : 'text-surface-400 dark:text-surface-500'
+              }`}
+            >
+              <span className="flex items-center gap-1.5">
+                {syncStatus === 'syncing' ? (
+                  <>
+                    <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    {t('sync.saving')}
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4a2 2 0 00-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z" />
+                    </svg>
+                    {t('sync.error')}
+                  </>
+                )}
+              </span>
+              {syncStatus === 'error' && (
+                <button
+                  onClick={() => retryAllSyncs()}
+                  className="font-semibold underline hover:text-amber-700 dark:hover:text-amber-300"
+                >
+                  {t('error.retry')}
+                </button>
+              )}
+            </div>
+          )}
           {/* Favorites section */}
           {displayFavorites.length > 0 && (
             <div className="border-b border-surface-100 dark:border-surface-800">

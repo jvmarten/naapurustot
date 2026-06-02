@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { api } from "../utils/api";
+import { runSync } from "../utils/syncStatus";
 
 const STORAGE_KEY = "naapurustot-favorites";
 
@@ -65,7 +66,8 @@ export function useFavorites(userId?: string | null) {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       saveTimerRef.current = null;
-      api.saveFavorites(favorites);
+      // PO-5: track sync status + retry on failure instead of silently swallowing.
+      runSync('favorites', () => api.saveFavorites(favoritesRef.current));
     }, 1000);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
   }, [favorites, userId]);

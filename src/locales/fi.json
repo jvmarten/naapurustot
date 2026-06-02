@@ -161,6 +161,8 @@
   "error.not_found": "Aluetta ei l\u00f6ytynyt",
   "error.generic": "Virhe",
   "error.retry": "Yrit\u00e4 uudelleen",
+  "sync.saving": "Tallennetaan\u2026",
+  "sync.error": "Muutoksia ei tallennettu tilillesi",
   "error.boundary_title": "Jokin meni pieleen",
   "error.boundary_description": "Odottamaton virhe tapahtui",
   "error.reload": "Lataa uudelleen",

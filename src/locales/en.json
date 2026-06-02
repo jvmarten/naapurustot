@@ -161,6 +161,8 @@
   "error.not_found": "Neighborhood not found",
   "error.generic": "Error",
   "error.retry": "Try again",
+  "sync.saving": "Saving…",
+  "sync.error": "Changes not saved to your account",
   "error.boundary_title": "Something went wrong",
   "error.boundary_description": "An unexpected error occurred",
   "error.reload": "Reload",

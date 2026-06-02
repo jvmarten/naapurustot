@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { api } from '../utils/api';
+import { runSync } from '../utils/syncStatus';
 
 const STORAGE_KEY = 'naapurustot-notes';
 
@@ -70,7 +71,8 @@ export function useNotes(userId?: string | null) {
     if (serverSaveTimerRef.current) clearTimeout(serverSaveTimerRef.current);
     serverSaveTimerRef.current = setTimeout(() => {
       serverSaveTimerRef.current = null;
-      api.saveNotes(notes);
+      // PO-5: track sync status + retry on failure instead of silently swallowing.
+      runSync('notes', () => api.saveNotes(notesRef.current));
     }, 1000);
     return () => { if (serverSaveTimerRef.current) clearTimeout(serverSaveTimerRef.current); };
   }, [notes, userId]);

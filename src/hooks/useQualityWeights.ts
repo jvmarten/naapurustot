@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { getDefaultWeights, isCustomWeights, type QualityWeights } from '../utils/qualityIndex';
 import { api } from '../utils/api';
+import { runSync } from '../utils/syncStatus';
 
 const STORAGE_KEY = 'naapurustot-quality-weights';
 
@@ -59,7 +60,8 @@ export function useQualityWeights(userId?: string | null) {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       saveTimerRef.current = null;
-      api.savePreferences({ qualityWeights: weights });
+      // PO-5: track sync status + retry on failure instead of silently swallowing.
+      runSync('weights', () => api.savePreferences({ qualityWeights: weightsRef.current }));
     }, 1000);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
   }, [weights, userId]);

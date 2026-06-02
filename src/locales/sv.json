@@ -161,6 +161,8 @@
   "error.not_found": "Området hittades inte",
   "error.generic": "Fel",
   "error.retry": "Försök igen",
+  "sync.saving": "Sparar…",
+  "sync.error": "Ändringar har inte sparats till ditt konto",
   "error.boundary_title": "Något gick fel",
   "error.boundary_description": "Ett oväntat fel inträffade",
   "error.reload": "Ladda om",

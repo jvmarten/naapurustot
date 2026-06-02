@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import type { FilterCriterion } from '../utils/filterUtils';
 import { LAYERS } from '../utils/colorScales';
+import { runSync } from '../utils/syncStatus';
 import { api } from '../utils/api';
 
 const STORAGE_KEY = 'naapurustot-filter-presets';
@@ -108,7 +109,8 @@ export function useFilterPresets(userId?: string | null) {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       saveTimerRef.current = null;
-      api.savePreferences({ filterPresets: presets });
+      // PO-5: track sync status + retry on failure instead of silently swallowing.
+      runSync('presets', () => api.savePreferences({ filterPresets: presetsRef.current }));
     }, 1000);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
   }, [presets, userId]);
