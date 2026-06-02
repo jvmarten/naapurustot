@@ -1463,6 +1463,7 @@ const App: React.FC = () => {
             onCustomize={handleToggleCustomQuality}
             isCustomWeights={customWeights}
             allFeatures={allFeatures}
+            activeLayer={activeLayer}
             onFlyTo={handleFlyTo}
             isFavorite={isFavorite(selected.pno)}
             onToggleFavorite={handleToggleFavorite}
