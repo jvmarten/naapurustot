@@ -13,12 +13,11 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
-import { useGridData, hasGridData } from '../hooks/useGridData';
+import { useGridData, hasGridData, getGridInfo } from '../hooks/useGridData';
 
 describe('hasGridData', () => {
-  it('returns true for registered grid layers', () => {
+  it('returns true for layers with a built grid in the manifest', () => {
     expect(hasGridData('light_pollution')).toBe(true);
-    expect(hasGridData('transit_reachability')).toBe(true);
     expect(hasGridData('air_quality')).toBe(true);
   });
 
@@ -26,6 +25,21 @@ describe('hasGridData', () => {
     expect(hasGridData('median_income')).toBe(false);
     expect(hasGridData('quality_index')).toBe(false);
     expect(hasGridData('unemployment')).toBe(false);
+    // IN-1: manifest-driven discovery — transit_reachability has no built grid
+    // file, so it is (correctly) absent rather than a hardcoded entry that 404s.
+    expect(hasGridData('transit_reachability')).toBe(false);
+  });
+});
+
+describe('getGridInfo (IN-1 manifest)', () => {
+  it('exposes coverage scope so partial grids are explicit', () => {
+    // Helsinki-area air-quality grid is regional; the VIIRS light grid is national.
+    expect(getGridInfo('air_quality')?.scope).toBe('regional');
+    expect(getGridInfo('light_pollution')?.scope).toBe('national');
+  });
+
+  it('returns undefined for a layer with no grid', () => {
+    expect(getGridInfo('median_income')).toBeUndefined();
   });
 });
 

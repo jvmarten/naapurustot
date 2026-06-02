@@ -1,6 +1,7 @@
 import React from 'react';
 import { getLayerById, type LayerId, type LayerConfig } from '../utils/colorScales';
 import { t, useI18nVersion, type Lang } from '../utils/i18n';
+import { getGridInfo } from '../hooks/useGridData';
 
 interface LegendProps {
   layerId: LayerId;
@@ -19,6 +20,11 @@ export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: 
   // Show only first and last tick values
   const n = layer.stops.length;
   const tickIndices = [0, n - 1];
+
+  // IN-1: when the active layer has a fine-grained grid dataset, surface its
+  // coverage scope so a "regional" (e.g. Helsinki-only) grid is visibly limited
+  // rather than silently masquerading as full-map resolution.
+  const grid = getGridInfo(layerId);
 
   return (
     <div className="fixed md:absolute bottom-5 md:bottom-8 left-3 md:left-4 z-10">
@@ -41,6 +47,12 @@ export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: 
             </span>
           ))}
         </div>
+        {grid && (
+          <div className="mt-2 flex items-center gap-1 text-[10px] text-surface-400 dark:text-surface-500">
+            <span aria-hidden="true">▦</span>
+            <span>{t(grid.scope === 'national' ? 'grid.scope_national' : 'grid.scope_regional')}</span>
+          </div>
+        )}
       </div>
     </div>
   );

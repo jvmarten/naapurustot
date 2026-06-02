@@ -6,6 +6,8 @@
   "search.clear": "Tyhjenn\u00e4 haku",
   "search.moreResults": "tulosta lis\u00e4\u00e4\u2026",
   "layer.quality_index": "Laatuindeksi",
+  "grid.scope_regional": "Tarkka ruutuaineisto · rajattu alue",
+  "grid.scope_national": "Tarkka ruutuaineisto · koko maa",
   "panel.quality_index": "Laatuindeksi",
   "layer.median_income": "Mediaanitulo",
   "layer.unemployment": "Ty\u00f6tt\u00f6myysaste",
