@@ -8,6 +8,40 @@ function setSearch(search: string) {
   window.history.replaceState(null, '', url.toString());
 }
 
+describe('readInitialUrlState — CF-1 extended state', () => {
+  beforeEach(() => {
+    window.location.hash = '';
+    setSearch('');
+  });
+
+  it('parses scope, year, colorblind and lang', () => {
+    setSearch('?scope=region&year=2022&cb=protanopia&lang=en');
+    const s = readInitialUrlState();
+    expect(s.scope).toBe('region');
+    expect(s.year).toBe(2022);
+    expect(s.colorblind).toBe('protanopia');
+    expect(s.lang).toBe('en');
+  });
+
+  it('rejects invalid extended params', () => {
+    setSearch('?scope=bogus&year=99&cb=nope&lang=de');
+    const s = readInitialUrlState();
+    expect(s.scope).toBeNull();
+    expect(s.year).toBeNull();
+    expect(s.colorblind).toBeNull();
+    expect(s.lang).toBeNull();
+  });
+
+  it('defaults extended state to null when absent', () => {
+    setSearch('?pno=00100');
+    const s = readInitialUrlState();
+    expect(s.scope).toBeNull();
+    expect(s.year).toBeNull();
+    expect(s.colorblind).toBeNull();
+    expect(s.lang).toBeNull();
+  });
+});
+
 describe('readInitialUrlState (query params)', () => {
   beforeEach(() => {
     window.location.hash = '';

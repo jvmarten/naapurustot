@@ -57,6 +57,10 @@ import { getFeatureCenter } from './utils/geometryFilter';
 import { ISOCHRONE_ENABLED, fetchIsochrone, type IsochroneMode } from './utils/isochrone';
 
 const initialUrl = readInitialUrlState();
+// CF-1: restore colorblind mode + language from a shared URL before first render,
+// so getColorblindMode()/getLang() below pick them up.
+if (initialUrl.colorblind) setColorblindMode(initialUrl.colorblind);
+if (initialUrl.lang) void setLang(initialUrl.lang);
 
 // QW-3: resolve which region's bounding box contains a coordinate. Region
 // bounds can overlap (irregular seutukunnat → rectangular bboxes), so pick the
@@ -94,7 +98,7 @@ const App: React.FC = () => {
   // QW-2: keyboard shortcuts help overlay.
   const [showShortcuts, setShowShortcuts] = useState(false);
   // PO-2: time slider / historical playback.
-  const [timeYear, setTimeYear] = useState<number | null>(null);
+  const [timeYear, setTimeYear] = useState<number | null>(initialUrl.year);
   const [timePlaying, setTimePlaying] = useState(false);
   // CF-3: correlation / scatter explorer.
   const [showScatter, setShowScatter] = useState(false);
@@ -207,7 +211,7 @@ const App: React.FC = () => {
   const [ariaAnnouncement, setAriaAnnouncement] = useState('');
   const [isOffline, setIsOffline] = useState(() => typeof navigator !== 'undefined' && !navigator.onLine);
 
-  const [comparisonScope, setComparisonScope] = useState<ComparisonScope>('all');
+  const [comparisonScope, setComparisonScope] = useState<ComparisonScope>(initialUrl.scope ?? 'all');
 
   // With per-region loading, single-region data is already scoped — no client-side filter needed.
   // Only the "all" view needs metro area aggregation.
@@ -577,7 +581,12 @@ const App: React.FC = () => {
   // Suppress URL writes until data is loaded and initial URL state (pno, compare) has been consumed
   // by the restoration effect. Without this, the debounced write fires with empty values during
   // loading and clears the initial URL params before they can be restored.
-  useSyncUrlState(selected?.pno ?? null, activeLayer, pinnedPnos, cityFilter, !!data);
+  useSyncUrlState(selected?.pno ?? null, activeLayer, pinnedPnos, cityFilter, !!data, {
+    scope: comparisonScope,
+    year: timeYear,
+    colorblind,
+    lang,
+  });
 
   // Recompute quality indices when custom weights change.
   // The slider state updates immediately for responsiveness, but the expensive
