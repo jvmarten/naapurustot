@@ -245,6 +245,27 @@ const App: React.FC = () => {
     return computeMetroAverages(filteredData.features);
   }, [filteredData, qualityVersion, cityFilter, metroAverages]);
 
+  // CF-5: custom reference baseline — compare the panel's diffs + radar overlay
+  // against a user-pinned neighbourhood instead of the region average. Falls back to
+  // the average when no reference is set or when viewing the reference area itself.
+  const [referencePno, setReferencePno] = useState<string | null>(initialUrl.ref);
+  const referenceProps = useMemo(
+    () => (referencePno ? (pnoFeatureMap.get(referencePno)?.properties as NeighborhoodProperties | undefined) : undefined),
+    [referencePno, pnoFeatureMap],
+  );
+  const referenceName = referenceProps?.nimi ?? null;
+  const effectiveBaseline = useMemo(
+    () =>
+      referenceProps && referencePno !== selected?.pno
+        ? (referenceProps as unknown as Record<string, number>)
+        : cityAverages,
+    [referenceProps, referencePno, selected?.pno, cityAverages],
+  );
+  const handleSetReference = useCallback((pno: string | null) => {
+    setReferencePno(pno);
+    trackEvent(pno ? 'set-reference' : 'clear-reference');
+  }, []);
+
   // Rescale layer stops when comparison scope is 'region' and a specific city is selected.
   // Uses a ref to return the same object identity when stops haven't changed,
   // avoiding unnecessary Map layer color transition effects.
@@ -591,6 +612,7 @@ const App: React.FC = () => {
     year: timeYear,
     colorblind,
     lang,
+    ref: referencePno,
   });
 
   // Recompute quality indices when custom weights change.
@@ -1496,7 +1518,7 @@ const App: React.FC = () => {
           <Suspense fallback={null}>
           <NeighborhoodPanel
             data={selected}
-            metroAverages={cityAverages}
+            metroAverages={effectiveBaseline}
             onClose={deselect}
             onPin={pin}
             onUnpin={unpin}
@@ -1511,6 +1533,9 @@ const App: React.FC = () => {
             onToggleFavorite={handleToggleFavorite}
             isInShortlist={isInShortlist(selected.pno)}
             onToggleShortlist={() => toggleShortlist(selected.pno)}
+            referencePno={referencePno}
+            referenceName={referenceName}
+            onSetReference={handleSetReference}
             onExploreCity={handleExploreCity}
             userId={user?.id ?? null}
             isochroneEnabled={ISOCHRONE_ENABLED}
