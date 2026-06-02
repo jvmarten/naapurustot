@@ -565,6 +565,7 @@
   "onboarding.click_hint": "Vihje: klikkaa kartalta mitä tahansa aluetta nähdäksesi sen tarkat tiedot.",
   "settings.show_tour": "Käy läpi esittelykierros",
   "embed.copy_code": "Kopioi upotuskoodi",
+  "embed.open_full": "Avaa naapurustot.fi:ssä",
   "embed.copied": "Upotuskoodi kopioitu!",
   "embed.copy_hint": "Kopioi iframe-koodinpätkä nykyisestä karttanäkymästä",
   "metric_explanation.he_vakiy": "Alueen rekisteröidyt asukkaat yhteensä.",

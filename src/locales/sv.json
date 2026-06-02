@@ -565,6 +565,7 @@
   "onboarding.click_hint": "Tips: klicka på vilket område som helst på kartan för att se dess fullständiga uppgifter.",
   "settings.show_tour": "Gå igenom introduktionen",
   "embed.copy_code": "Kopiera inbäddningskod",
+  "embed.open_full": "Öppna i naapurustot.fi",
   "embed.copied": "Inbäddningskoden kopierad!",
   "embed.copy_hint": "Kopiera ett iframe-kodavsnitt för den nuvarande kartvyn",
   "metric_explanation.he_vakiy": "Områdets registrerade invånare totalt.",

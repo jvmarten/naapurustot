@@ -565,6 +565,7 @@
   "onboarding.click_hint": "Tip: click any area on the map to see its full profile.",
   "settings.show_tour": "Take the tour",
   "embed.copy_code": "Copy embed code",
+  "embed.open_full": "Open in naapurustot.fi",
   "embed.copied": "Embed code copied!",
   "embed.copy_hint": "Copy an iframe snippet for the current map view",
   "metric_explanation.he_vakiy": "Total registered residents in the area.",
