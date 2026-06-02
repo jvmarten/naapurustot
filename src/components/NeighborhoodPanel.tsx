@@ -3,7 +3,7 @@ import type { NeighborhoodProperties } from '../utils/metrics';
 import { parseTrendSeries, getMetricSource, METRIC_EXPLANATIONS } from '../utils/metrics';
 import { formatNumber, formatEuro, formatPct, formatDiff, diffColor, formatYtlGradeFull, parseSchools } from '../utils/formatting';
 import { t, getLang, useI18nVersion } from '../utils/i18n';
-import { getQualityCategory, QUALITY_CATEGORIES, QUALITY_DIMENSIONS } from '../utils/qualityIndex';
+import { getQualityCategory, QUALITY_CATEGORIES, QUALITY_DIMENSIONS, computeQualityCoverage } from '../utils/qualityIndex';
 import { exportCsv, exportPdf } from '../utils/export';
 import { TrendSection } from './TrendChart';
 import Sparkline from './Sparkline';
@@ -491,6 +491,78 @@ const QualityBadge: React.FC<{
 });
 QualityBadge.displayName = 'QualityBadge';
 
+// CF-8: on-demand factor-coverage breakdown for the Quality Index — makes the
+// flagship number auditable by showing how many of the evaluative factors had
+// data for this specific area, grouped by dimension, with missing factors struck
+// through. A low "X/Y" chip flags a confident-looking score built on few inputs.
+const QualityCoverageSection: React.FC<{ props: NeighborhoodProperties }> = React.memo(({ props }) => {
+  useI18nVersion();
+  const [open, setOpen] = useState(false);
+  const lang = getLang();
+  const coverage = useMemo(() => computeQualityCoverage(props), [props]);
+  if (coverage.total === 0) return null;
+  const pct = Math.round((coverage.present / coverage.total) * 100);
+  const lowCoverage = pct < 70;
+
+  return (
+    <div className="px-4 md:px-5">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between py-1.5 group"
+        aria-expanded={open}
+      >
+        <span className="flex items-center gap-2 text-xs text-surface-500 dark:text-surface-400 group-hover:text-surface-700 dark:group-hover:text-surface-200">
+          {t('panel.quality_coverage')}
+          <span
+            className={`inline-flex items-center rounded px-1.5 py-px text-[10px] font-semibold border ${
+              lowCoverage
+                ? 'bg-amber-400/15 text-amber-600 dark:text-amber-400 border-amber-400/30'
+                : 'bg-emerald-400/10 text-emerald-600 dark:text-emerald-400 border-emerald-400/30'
+            }`}
+          >
+            {coverage.present}/{coverage.total}
+          </span>
+        </span>
+        <svg
+          className={`w-3.5 h-3.5 text-surface-400 dark:text-surface-500 transition-transform duration-200 ${open ? '' : '-rotate-90'}`}
+          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && (
+        <div className="pb-2 space-y-2.5">
+          <p className="text-[11px] leading-snug text-surface-400 dark:text-surface-500">{t('panel.quality_coverage_help')}</p>
+          {coverage.dimensions.map((dim) => (
+            <div key={dim.id}>
+              <div className="flex items-center justify-between text-[11px] font-medium text-surface-600 dark:text-surface-300">
+                <span>{dim.label[lang]}</span>
+                <span className="text-surface-400 dark:text-surface-500">{dim.present}/{dim.total}</span>
+              </div>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {dim.factors.map((f) => (
+                  <span
+                    key={f.id}
+                    className={`inline-flex items-center rounded px-1.5 py-px text-[10px] ${
+                      f.present
+                        ? 'bg-surface-100 dark:bg-surface-800 text-surface-500 dark:text-surface-400'
+                        : 'bg-transparent text-surface-300 dark:text-surface-600 line-through border border-dashed border-surface-200 dark:border-surface-700/60'
+                    }`}
+                    title={f.present ? undefined : t('panel.quality_factor_missing')}
+                  >
+                    {f.label[lang]}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+});
+QualityCoverageSection.displayName = 'QualityCoverageSection';
+
 /**
  * Self-contained notes editor that owns its own useNotes subscription.
  * Isolates typing-induced re-renders from the rest of NeighborhoodPanel.
@@ -717,6 +789,9 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
           onCustomize={onCustomize}
         />
       )}
+
+      {/* CF-8: Quality Index auditability — factor coverage for this area */}
+      {d.quality_index != null && <QualityCoverageSection props={d} />}
 
       {/* CF-5: travel-time isochrone controls (real neighborhoods only; needs a Digitransit key) */}
       {isochroneEnabled && !d._isMetroArea && onIsochroneChange && onIsochroneClear && (

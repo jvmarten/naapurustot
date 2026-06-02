@@ -842,6 +842,70 @@ export function getFactorDimension(factorId: string): DimensionId {
   return FACTOR_DIMENSION[factorId] ?? 'demographics';
 }
 
+// ─── CF-8: Quality Index auditability ──────────────────────────────────────
+
+export interface FactorCoverage {
+  id: string;
+  label: { fi: string; en: string; sv: string };
+  /** True when this area has data for the factor (so it contributed to the score). */
+  present: boolean;
+}
+
+export interface DimensionCoverage {
+  id: DimensionId;
+  label: { fi: string; en: string; sv: string };
+  factors: FactorCoverage[];
+  present: number;
+  total: number;
+}
+
+export interface QualityCoverage {
+  dimensions: DimensionCoverage[];
+  /** Number of default-weighted factors with data for this area. */
+  present: number;
+  /** Total default-weighted factors that make up the headline index. */
+  total: number;
+}
+
+/** A factor "has data" when at least one source property is finite (income also
+ *  requires > 0, matching the index's own missing-data rule in getFactorScore). */
+function factorHasData(p: NeighborhoodProperties, factor: QualityFactor): boolean {
+  return factor.properties.some((prop) => {
+    const raw = p[prop];
+    return typeof raw === 'number' && isFinite(raw) && !(prop === 'hr_mtu' && raw <= 0);
+  });
+}
+
+/**
+ * CF-8: per-neighbourhood factor-coverage breakdown for the Quality Index. Reports
+ * which of the evaluative (default-weighted) factors actually have data for this
+ * area, grouped by dimension, so a low-coverage rural postal code is visibly less
+ * certain than a fully-covered urban one. Descriptive (zero-weight) dimensions are
+ * excluded — they don't move the headline score.
+ */
+export function computeQualityCoverage(p: NeighborhoodProperties): QualityCoverage {
+  const active = QUALITY_FACTORS.filter((f) => f.defaultWeight !== 0);
+  const byDim = new Map<DimensionId, FactorCoverage[]>();
+  for (const f of active) {
+    const dim = getFactorDimension(f.id);
+    if (!byDim.has(dim)) byDim.set(dim, []);
+    byDim.get(dim)!.push({ id: f.id, label: f.label, present: factorHasData(p, f) });
+  }
+
+  const dimensions: DimensionCoverage[] = [];
+  let present = 0;
+  let total = 0;
+  for (const dim of QUALITY_DIMENSIONS) {
+    const factors = byDim.get(dim.id);
+    if (!factors || factors.length === 0) continue;
+    const dimPresent = factors.filter((f) => f.present).length;
+    present += dimPresent;
+    total += factors.length;
+    dimensions.push({ id: dim.id, label: dim.label, factors, present: dimPresent, total: factors.length });
+  }
+  return { dimensions, present, total };
+}
+
 /** A named quality-index lens (preset weights). Cloud-synced via the existing
  *  per-factor preferences sync — a persona is just a set of factor weights. */
 export interface QualityPersona {
