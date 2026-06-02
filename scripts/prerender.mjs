@@ -50,6 +50,31 @@ computeChangeMetrics(geojson.features);
 computeQuickWinMetrics(geojson.features);
 const metroAverages = computeMetroAverages(geojson.features);
 
+// CF-11: national percentile lookup for the quality index, so each profile can
+// state a verifiable "top X% nationally" superlative computed from real data.
+function buildPercentileFn(features, prop) {
+  const vals = features
+    .map((f) => Number(f.properties?.[prop]))
+    .filter((v) => Number.isFinite(v))
+    .sort((a, b) => a - b);
+  return (v) => {
+    if (!Number.isFinite(v) || vals.length === 0) return null;
+    let lo = 0, hi = vals.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (vals[mid] <= v) lo = mid + 1;
+      else hi = mid;
+    }
+    return (lo / vals.length) * 100; // share of areas with value <= v
+  };
+}
+const qualityPctFn = buildPercentileFn(geojson.features, 'quality_index');
+/** Top percentile for the quality index (higher index = better → smaller "top X%"); >= 1. */
+function qualityTopPercentile(v) {
+  const p = qualityPctFn(v);
+  return p == null ? null : Math.max(1, Math.round(100 - p));
+}
+
 // UI translations — used to resolve region names and metric labels so that
 // every page uses the same wording as the app, in all three languages.
 const LOCALES = {
@@ -237,6 +262,14 @@ const TEXT = {
     descTail: 'Tutustu alueen tilastoihin: asuminen, tulot, palvelut ja ympäristö.',
     pop: 'Väkiluku',
     income: 'Mediaanitulo',
+    descRank: (top) => `Laatuindeksissä koko maan parhaassa ${top} %:ssa.`,
+    faqHeading: 'Usein kysytyt kysymykset',
+    faqPopQ: (n) => `Mikä on ${n} väkiluku?`,
+    faqPopA: (n, v) => `${n} väkiluku on noin ${v} asukasta.`,
+    faqIncQ: (n) => `Mikä on mediaanitulo alueella ${n}?`,
+    faqIncA: (n, v) => `Mediaanitulo alueella ${n} on noin ${v} € vuodessa.`,
+    faqRankQ: (n) => `Miten ${n} sijoittuu laatuindeksissä?`,
+    faqRankA: (n, top) => `${n} kuuluu laatuindeksissä koko maan parhaaseen ${top} %:iin.`,
   },
   en: {
     intro: (name, pno, region, count) =>
@@ -254,6 +287,14 @@ const TEXT = {
     descTail: 'Explore the area statistics: housing, income, services and environment.',
     pop: 'Population',
     income: 'Median income',
+    descRank: (top) => `Ranks in the top ${top}% nationally for quality of life.`,
+    faqHeading: 'Frequently asked questions',
+    faqPopQ: (n) => `What is the population of ${n}?`,
+    faqPopA: (n, v) => `${n} has a population of about ${v}.`,
+    faqIncQ: (n) => `What is the median income in ${n}?`,
+    faqIncA: (n, v) => `The median income in ${n} is about €${v} per year.`,
+    faqRankQ: (n) => `How does ${n} rank for quality of life?`,
+    faqRankA: (n, top) => `${n} ranks in the top ${top}% nationally for quality of life.`,
   },
   sv: {
     intro: (name, pno, region, count) =>
@@ -271,6 +312,14 @@ const TEXT = {
     descTail: 'Utforska områdets statistik: boende, inkomst, tjänster och miljö.',
     pop: 'Folkmängd',
     income: 'Medianinkomst',
+    descRank: (top) => `Hör till de bästa ${top} % i landet i kvalitetsindexet.`,
+    faqHeading: 'Vanliga frågor',
+    faqPopQ: (n) => `Vad är folkmängden i ${n}?`,
+    faqPopA: (n, v) => `${n} har en folkmängd på cirka ${v}.`,
+    faqIncQ: (n) => `Vad är medianinkomsten i ${n}?`,
+    faqIncA: (n, v) => `Medianinkomsten i ${n} är cirka ${v} € per år.`,
+    faqRankQ: (n) => `Hur placerar sig ${n} i kvalitetsindexet?`,
+    faqRankA: (n, top) => `${n} hör till de bästa ${top} % i landet i kvalitetsindexet.`,
   },
 };
 
@@ -315,6 +364,17 @@ function buildNoscriptContent(props, lang) {
     lines.push('      </tbody></table>');
   }
 
+  // CF-11: FAQ — visible Q&A that mirrors the FAQPage JSON-LD (Google requires
+  // the structured data to match on-page content).
+  const faq = buildFaq(props, lang);
+  if (faq.length > 0) {
+    lines.push(`      <h2>${escapeHtml(T.faqHeading)}</h2>`);
+    for (const { q, a } of faq) {
+      lines.push(`      <h3>${escapeHtml(q)}</h3>`);
+      lines.push(`      <p>${escapeHtml(a)}</p>`);
+    }
+  }
+
   lines.push(`      <h2>${escapeHtml(T.sourcesHeading)}</h2>`);
   lines.push(`      <p>${escapeHtml(T.sources)}</p>`);
 
@@ -338,8 +398,25 @@ function buildDescription(props, lang, displayName, region) {
   if (props.hr_mtu != null && Number.isFinite(Number(props.hr_mtu))) {
     parts.push(`${T.income} ${fmtNum(Math.round(Number(props.hr_mtu)), 0, lang)} €.`);
   }
+  const top = qualityTopPercentile(Number(props.quality_index));
+  if (top != null) parts.push(T.descRank(top));
   parts.push(T.descTail);
   return parts.join(' ');
+}
+
+/** CF-11: templated Q&A from this area's real values, shared by the noscript FAQ and
+ *  the FAQPage JSON-LD so the structured data always matches visible page text. */
+function buildFaq(props, lang) {
+  const T = TEXT[lang];
+  const name = getDisplayName(props, lang);
+  const qa = [];
+  const pop = Number(props.he_vakiy);
+  if (Number.isFinite(pop)) qa.push({ q: T.faqPopQ(name), a: T.faqPopA(name, fmtNum(Math.round(pop), 0, lang)) });
+  const inc = Number(props.hr_mtu);
+  if (Number.isFinite(inc) && inc > 0) qa.push({ q: T.faqIncQ(name), a: T.faqIncA(name, fmtNum(Math.round(inc), 0, lang)) });
+  const top = qualityTopPercentile(Number(props.quality_index));
+  if (top != null) qa.push({ q: T.faqRankQ(name), a: T.faqRankA(name, top) });
+  return qa;
 }
 
 function buildJsonLd(props, center, url, lang) {
@@ -385,6 +462,11 @@ function buildJsonLd(props, center, url, lang) {
       url: `https://naapurustot.fi${CITY_PREFIX[lang]}/${props.city}/`,
     };
   }
+  // CF-11: verifiable national superlative as a structured property.
+  const topPct = qualityTopPercentile(Number(props.quality_index));
+  if (topPct != null) {
+    additionalProperty.push({ '@type': 'PropertyValue', name: 'qualityIndexTopPercentileNational', value: topPct });
+  }
   if (additionalProperty.length > 0) place.additionalProperty = additionalProperty;
 
   const breadcrumb = {
@@ -404,7 +486,22 @@ function buildJsonLd(props, center, url, lang) {
   // string field cannot break out of the <script> element. Mirrors the
   // in-app <JsonLd /> component in src/components/profile/JsonLd.tsx.
   const safeJson = (obj) => JSON.stringify(obj).replace(/</g, '\\u003c');
-  return `<script type="application/ld+json">${safeJson(place)}</script>\n    <script type="application/ld+json">${safeJson(breadcrumb)}</script>`;
+  // CF-11: FAQPage structured data (mirrors the visible noscript Q&A).
+  const faq = buildFaq(props, lang);
+  let faqScript = '';
+  if (faq.length > 0) {
+    const faqPage = {
+      '@context': 'https://schema.org',
+      '@type': 'FAQPage',
+      mainEntity: faq.map(({ q, a }) => ({
+        '@type': 'Question',
+        name: q,
+        acceptedAnswer: { '@type': 'Answer', text: a },
+      })),
+    };
+    faqScript = `\n    <script type="application/ld+json">${safeJson(faqPage)}</script>`;
+  }
+  return `<script type="application/ld+json">${safeJson(place)}</script>\n    <script type="application/ld+json">${safeJson(breadcrumb)}</script>${faqScript}`;
 }
 
 function generatePage(feature, lang) {
@@ -486,6 +583,12 @@ function generatePage(feature, lang) {
     `<meta name="twitter:description" content="${escapeHtml(description)}" />`,
   );
 
+  // CF-11: strip the template's generic homepage FAQPage so the per-neighbourhood
+  // FAQPage injected below is the only one on the profile (Google expects one per page).
+  html = html.replace(
+    /\s*<script type="application\/ld\+json">(?:(?!<\/script>)[\s\S])*?"FAQPage"(?:(?!<\/script>)[\s\S])*?<\/script>/,
+    '',
+  );
   // Inject JSON-LD before closing </head>.
   html = html.replace('</head>', `    ${jsonLd}\n  </head>`);
 
