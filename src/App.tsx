@@ -35,6 +35,7 @@ import { useGridData } from './hooks/useGridData';
 import { useFavorites } from './hooks/useFavorites';
 
 import { useRecentNeighborhoods } from './hooks/useRecentNeighborhoods';
+import { useShortlist } from './hooks/useShortlist';
 import { useSelectedNeighborhood } from './hooks/useSelectedNeighborhood';
 import { useAuth } from './hooks/useAuth';
 const AuthModal = lazy(() => import('./components/AuthModal').then(m => ({ default: m.AuthModal })));
@@ -43,6 +44,7 @@ const ShortcutsOverlay = lazy(() => import('./components/ShortcutsOverlay').then
 const TimeSlider = lazy(() => import('./components/TimeSlider').then(m => ({ default: m.TimeSlider })));
 import { UserMenu, type FavoriteEntry } from './components/UserMenu';
 import { HomeReentryPanel } from './components/HomeReentryPanel';
+import { ShortlistTray } from './components/ShortlistTray';
 import { type LayerId, type ColorblindType, getLayerById, getColorblindMode, setColorblindMode, rescaleLayerToData, clearRescaleCache, TIME_SERIES_LAYERS } from './utils/colorScales';
 import { readInitialUrlState, useSyncUrlState } from './hooks/useUrlState';
 import type { NeighborhoodProperties } from './utils/metrics';
@@ -203,6 +205,8 @@ const App: React.FC = () => {
   const [secondaryLayer, setSecondaryLayer] = useState<LayerId>('median_income');
   const { favorites, isFavorite, toggleFavorite } = useFavorites(user?.id);
   const { recent, addRecent } = useRecentNeighborhoods();
+  // QW-2: durable shortlist (distinct from one-tap favorites).
+  const { shortlist, isInShortlist, toggleShortlist, removeFromShortlist, clearShortlist } = useShortlist();
   const restoredPno = useRef(false);
   // Monotonic version counter to force re-renders when quality indices change
   const [qualityVersion, setQualityVersion] = useState(0);
@@ -1000,6 +1004,20 @@ const App: React.FC = () => {
     }
   }, [select, setCityFilter, regionIdSet]);
 
+  // QW-2: shortlist tray entries (pno → name) and the "compare" action, which pins
+  // the shortlist up to the comparison max (pin() dedupes + caps internally).
+  const shortlistEntries = useMemo(
+    () => shortlist.map((pno) => ({ pno, name: (pnoFeatureMap.get(pno)?.properties?.nimi as string | undefined) ?? pno })),
+    [shortlist, pnoFeatureMap],
+  );
+  const handleCompareShortlist = useCallback(() => {
+    trackEvent('shortlist-compare');
+    for (const pno of shortlist) {
+      const f = pnoFeatureMapRef.current.get(pno);
+      if (f?.properties) pin(f.properties as NeighborhoodProperties);
+    }
+  }, [shortlist, pin]);
+
   // Resolve pending metro area favorite after allCitiesData becomes available
   useEffect(() => {
     if (!pendingFavoritePno.current || !filteredData) return;
@@ -1491,6 +1509,8 @@ const App: React.FC = () => {
             onFlyTo={handleFlyTo}
             isFavorite={isFavorite(selected.pno)}
             onToggleFavorite={handleToggleFavorite}
+            isInShortlist={isInShortlist(selected.pno)}
+            onToggleShortlist={() => toggleShortlist(selected.pno)}
             onExploreCity={handleExploreCity}
             userId={user?.id ?? null}
             isochroneEnabled={ISOCHRONE_ENABLED}
@@ -1546,8 +1566,19 @@ const App: React.FC = () => {
         </ErrorBoundary>
       )}
 
+      {/* QW-2: shortlist tray — on the idle home view, takes precedence over re-entry */}
+      {!IS_EMBED && !selected && !showTour && pinned.length === 0 && data && shortlist.length > 0 && (
+        <ShortlistTray
+          entries={shortlistEntries}
+          onSelect={handleSelectFavorite}
+          onRemove={removeFromShortlist}
+          onCompare={handleCompareShortlist}
+          onClear={clearShortlist}
+        />
+      )}
+
       {/* PO-4: "continue exploring" home re-entry surface — only on the idle home view */}
-      {!IS_EMBED && !selected && !showTour && pinned.length === 0 && data && (
+      {!IS_EMBED && !selected && !showTour && pinned.length === 0 && data && shortlist.length === 0 && (
         <HomeReentryPanel recent={recent} favorites={favoriteEntries} onSelect={handleSelectFavorite} />
       )}
 
