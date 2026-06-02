@@ -3,7 +3,7 @@
   "lowerPercentile": 0.02,
   "upperPercentile": 0.98,
   "postalCodeCount": 3018,
-  "rangeCount": 160,
+  "rangeCount": 161,
   "ranges": {
     "pinta_ala": {
       "min": 1042118.78,
@@ -651,9 +651,9 @@
       "avg": 68.27958913187551
     },
     "property_price_sqm": {
-      "min": 513.8,
-      "max": 6504.379999999989,
-      "avg": 2333.796363636364
+      "min": 451.24,
+      "max": 5647.120000000001,
+      "avg": 1957.880613362541
     },
     "transit_stop_density": {
       "min": 0,
@@ -711,9 +711,9 @@
       "avg": 15.471458773784365
     },
     "price_to_rent_ratio": {
-      "min": 3.9,
-      "max": 22.777999999999995,
-      "avg": 10.55606796116505
+      "min": 4,
+      "max": 23.004,
+      "avg": 10.738477801268504
     },
     "walkability_index": {
       "min": 71,
@@ -721,9 +721,9 @@
       "avg": 79.39165009940358
     },
     "property_price_change_pct": {
-      "min": -41.4,
-      "max": 35.6,
-      "avg": -3.305795148247981
+      "min": -37,
+      "max": 35.15000000000001,
+      "avg": -3.2453125000000145
     },
     "school_quality_score": {
       "min": 48.47,
@@ -799,6 +799,11 @@
       "min": -70.524,
       "max": 182.72999999999985,
       "avg": 21.013767123287714
+    },
+    "crime_index_change_pct": {
+      "min": -67.5,
+      "max": 27.3079999999999,
+      "avg": -15.927212462711399
     },
     "traffic_accident_rate": {
       "min": 0.1,

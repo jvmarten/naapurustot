@@ -88,6 +88,9 @@ export type LayerId =
 export const TIME_SERIES_LAYERS: Partial<Record<LayerId, string>> = {
   median_income: 'income_history',
   unemployment: 'unemployment_history',
+  // CF-7: property prices (€/m²) and crime (per 1,000) now carry a real year series.
+  property_price: 'property_price_history',
+  crime_rate: 'crime_index_history',
 };
 
 export interface LayerConfig {

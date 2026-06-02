@@ -184,6 +184,9 @@ interface TrendSectionProps {
   incomeData: TrendDataPoint[] | null;
   populationData: TrendDataPoint[] | null;
   unemploymentData: TrendDataPoint[] | null;
+  // CF-7: property-price (€/m²) and crime (per 1,000) time-series.
+  propertyPriceData: TrendDataPoint[] | null;
+  crimeData: TrendDataPoint[] | null;
 }
 
 // Stable formatter references so TrendChart (React.memo) doesn't re-render
@@ -203,14 +206,18 @@ function trendNumFmt(): Intl.NumberFormat {
 const fmtIncome = (v: number) => `${Math.round(v / 1000)}k`;
 const fmtPopulation = (v: number) => trendNumFmt().format(v);
 const fmtUnemployment = (v: number) => `${v.toFixed(1)}%`;
+const fmtPropertyPrice = (v: number) => `${(v / 1000).toFixed(1)}k`;
+const fmtCrime = (v: number) => v.toFixed(0);
 
 export const TrendSection: React.FC<TrendSectionProps> = React.memo(({
   incomeData,
   populationData,
   unemploymentData,
+  propertyPriceData,
+  crimeData,
 }) => {
   useI18nVersion();
-  const hasAny = incomeData || populationData || unemploymentData;
+  const hasAny = incomeData || populationData || unemploymentData || propertyPriceData || crimeData;
   if (!hasAny) return null;
 
   return (
@@ -242,6 +249,24 @@ export const TrendSection: React.FC<TrendSectionProps> = React.memo(({
             data={unemploymentData}
             color="#f43f5e"
             formatValue={fmtUnemployment}
+          />
+        )}
+        {propertyPriceData && (
+          <TrendChart
+            title={t('panel.trend_property_price')}
+            data={propertyPriceData}
+            color="#f59e0b"
+            formatValue={fmtPropertyPrice}
+            unit="€/m²"
+          />
+        )}
+        {crimeData && (
+          <TrendChart
+            title={t('panel.trend_crime')}
+            data={crimeData}
+            color="#8b5cf6"
+            formatValue={fmtCrime}
+            unit="/1000"
           />
         )}
       </div>
