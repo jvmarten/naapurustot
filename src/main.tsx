@@ -76,6 +76,28 @@ if (SENTRY_DSN) {
       tracesSampleRate: 0.1,
       environment: import.meta.env.MODE,
       release: import.meta.env.VITE_SENTRY_RELEASE as string | undefined,
+      // Filter out noise thrown by third-party browser extensions injected
+      // into the page (most often on Mobile Safari). These are not our bugs —
+      // they originate in the extension's own code and surface here only
+      // because Sentry's global onunhandledrejection handler catches every
+      // rejected promise on the page. Examples:
+      //   "Invalid call to runtime.sendMessage(). Tab not found."
+      //   "Extension context invalidated."
+      //   "The message port closed before a response was received."
+      ignoreErrors: [
+        /runtime\.sendMessage/i,
+        /runtime\.connect/i,
+        /Extension context invalidated/i,
+        /message port closed/i,
+        /Receiving end does not exist/i,
+      ],
+      // Drop events whose stack frames all point at extension URLs. Different
+      // browsers use different protocols for injected extension scripts.
+      denyUrls: [
+        /^chrome-extension:\/\//i,
+        /^moz-extension:\/\//i,
+        /^safari-(web-)?extension:\/\//i,
+      ],
     });
   });
 }
