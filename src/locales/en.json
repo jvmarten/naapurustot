@@ -267,6 +267,8 @@
   "panel.similar": "Similar neighborhoods",
   "panel.similar_by": "Compare by",
   "favorites.title": "Favorites",
+  "reentry.title": "Continue exploring",
+  "reentry.recent": "Recently viewed",
   "favorites.add": "Add to favorites",
   "favorites.remove": "Remove from favorites",
   "favorites.empty": "Star neighborhoods to save them here",
