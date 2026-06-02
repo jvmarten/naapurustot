@@ -1,5 +1,4 @@
 {
-  "_README": "Single source-of-truth registry for every map data layer (roadmap IN-2). Keyed by GeoJSON feature property. `METRIC_SOURCES` in src/utils/metrics.ts is generated from `metrics` here, and src/__tests__/dataSourceRegistry.test.ts + scripts/validate_data.py enforce that every layer has a registry row so attribution can never silently drift. Per metric: `source` = human-readable dataset label shown in the UI, `publisher` = key into `publishers` (carries the clickable URL + license), `vintage` = data year(s), `granularity` = finest resolution actually shipped, `is_proxy` = true when the value is a regression/derived estimate rather than a direct measurement, `stored` = false only for values computed purely client-side (absent from the GeoJSON), `panel` = false to keep a derived/composite metric out of the per-row source attribution map.",
   "publishers": {
     "tilastokeskus": {
       "name": "Tilastokeskus",
@@ -58,65 +57,430 @@
     }
   },
   "metrics": {
-    "hr_mtu": { "source": "Tilastokeskus (Paavo)", "publisher": "tilastokeskus", "vintage": 2024, "granularity": "postal", "is_proxy": false },
-    "hr_ktu": { "source": "Tilastokeskus (Paavo)", "publisher": "tilastokeskus", "vintage": 2024, "granularity": "postal", "is_proxy": false },
-    "unemployment_rate": { "source": "Tilastokeskus (Paavo)", "publisher": "tilastokeskus", "vintage": 2024, "granularity": "postal", "is_proxy": false },
-    "higher_education_rate": { "source": "Tilastokeskus (Paavo)", "publisher": "tilastokeskus", "vintage": 2024, "granularity": "postal", "is_proxy": false },
-    "property_price_sqm": { "source": "Tilastokeskus (PxWeb)", "publisher": "tilastokeskus", "vintage": 2024, "granularity": "postal", "is_proxy": false },
-    "he_vakiy": { "source": "Tilastokeskus (Paavo)", "publisher": "tilastokeskus", "vintage": 2024, "granularity": "postal", "is_proxy": false },
-    "he_kika": { "source": "Tilastokeskus (Paavo)", "publisher": "tilastokeskus", "vintage": 2024, "granularity": "postal", "is_proxy": false },
-    "foreign_language_pct": { "source": "Tilastokeskus", "publisher": "tilastokeskus", "vintage": 2020, "granularity": "postal", "is_proxy": false },
-    "population_density": { "source": "Tilastokeskus (Paavo)", "publisher": "tilastokeskus", "vintage": 2024, "granularity": "postal", "is_proxy": false },
-    "pensioner_share": { "source": "Tilastokeskus (Paavo)", "publisher": "tilastokeskus", "vintage": 2024, "granularity": "postal", "is_proxy": false },
-    "child_ratio": { "source": "Tilastokeskus (Paavo)", "publisher": "tilastokeskus", "vintage": 2024, "granularity": "postal", "is_proxy": false },
-    "student_share": { "source": "Tilastokeskus (Paavo)", "publisher": "tilastokeskus", "vintage": 2024, "granularity": "postal", "is_proxy": false },
-    "single_person_hh_pct": { "source": "Tilastokeskus", "publisher": "tilastokeskus", "vintage": 2023, "granularity": "postal", "is_proxy": false },
-    "ownership_rate": { "source": "Tilastokeskus (Paavo)", "publisher": "tilastokeskus", "vintage": 2024, "granularity": "postal", "is_proxy": false },
-    "rental_rate": { "source": "Tilastokeskus (Paavo)", "publisher": "tilastokeskus", "vintage": 2024, "granularity": "postal", "is_proxy": false },
-    "ra_as_kpa": { "source": "Tilastokeskus (Paavo)", "publisher": "tilastokeskus", "vintage": 2024, "granularity": "postal", "is_proxy": false },
-    "detached_house_share": { "source": "Tilastokeskus (Paavo)", "publisher": "tilastokeskus", "vintage": 2024, "granularity": "postal", "is_proxy": false },
-    "transit_stop_density": { "source": "HSL (Digitransit)", "publisher": "hsl", "vintage": 2024, "granularity": "postal", "is_proxy": false },
-    "air_quality_index": { "source": "HSY", "publisher": "hsy", "vintage": 2024, "granularity": "250m grid", "is_proxy": false, "note": "FMI/HSY ENFUSER measured in the Helsinki region; a distance-from-centre gradient estimate is used for Tampere/Turku." },
-    "crime_index": { "source": "Poliisi", "publisher": "poliisi", "vintage": 2023, "granularity": "postal", "is_proxy": false },
-    "restaurant_density": { "source": "OpenStreetMap", "publisher": "osm", "vintage": 2024, "granularity": "postal", "is_proxy": false },
-    "grocery_density": { "source": "OpenStreetMap", "publisher": "osm", "vintage": 2024, "granularity": "postal", "is_proxy": false },
-    "daycare_density": { "source": "OpenStreetMap", "publisher": "osm", "vintage": 2024, "granularity": "postal", "is_proxy": false },
-    "school_density": { "source": "OpenStreetMap", "publisher": "osm", "vintage": 2024, "granularity": "postal", "is_proxy": false },
-    "healthcare_density": { "source": "OpenStreetMap", "publisher": "osm", "vintage": 2024, "granularity": "postal", "is_proxy": false },
-    "sports_facility_density": { "source": "LIPAS (Jyväskylän yliopisto)", "publisher": "lipas", "vintage": 2025, "granularity": "postal", "is_proxy": false },
-    "cycling_density": { "source": "OpenStreetMap", "publisher": "osm", "vintage": 2024, "granularity": "postal", "is_proxy": false },
-    "voter_turnout_pct": { "source": "Tilastokeskus (kuntavaalit)", "publisher": "tilastokeskus", "vintage": 2025, "granularity": "postal", "is_proxy": false },
-    "party_diversity_index": { "source": "Tilastokeskus (kuntavaalit)", "publisher": "tilastokeskus", "vintage": 2025, "granularity": "postal", "is_proxy": false },
-    "broadband_coverage_pct": { "source": "Traficom", "publisher": "traficom", "vintage": 2024, "granularity": "postal", "is_proxy": false },
-    "ev_charging_density": { "source": "OpenStreetMap", "publisher": "osm", "vintage": 2025, "granularity": "postal", "is_proxy": false },
-    "tree_canopy_pct": { "source": "HSY (LiDAR maanpeite)", "publisher": "hsy", "vintage": 2024, "granularity": "postal", "is_proxy": false, "note": "Coverage limited to the Helsinki region (HSY LiDAR land-cover)." },
-    "transit_reachability_score": { "source": "HSL / johdettu", "publisher": "hsl", "vintage": 2025, "granularity": "250m grid", "is_proxy": true, "note": "Helsinki: Digitransit isochrone-derived. Tampere/Turku: regression estimate (R²≈0.58)." },
-    "employment_rate": { "source": "Tilastokeskus (Paavo)", "publisher": "tilastokeskus", "vintage": 2024, "granularity": "postal", "is_proxy": false },
-    "elderly_ratio_pct": { "source": "Tilastokeskus (Paavo)", "publisher": "tilastokeskus", "vintage": 2024, "granularity": "postal", "is_proxy": false },
-    "avg_household_size": { "source": "Tilastokeskus (Paavo)", "publisher": "tilastokeskus", "vintage": 2024, "granularity": "postal", "is_proxy": false },
-    "manufacturing_jobs_pct": { "source": "Tilastokeskus (Paavo)", "publisher": "tilastokeskus", "vintage": 2024, "granularity": "postal", "is_proxy": false },
-    "public_sector_jobs_pct": { "source": "Tilastokeskus (Paavo)", "publisher": "tilastokeskus", "vintage": 2024, "granularity": "postal", "is_proxy": false },
-    "service_sector_jobs_pct": { "source": "Tilastokeskus (Paavo)", "publisher": "tilastokeskus", "vintage": 2024, "granularity": "postal", "is_proxy": false },
-    "new_construction_pct": { "source": "Tilastokeskus (Paavo)", "publisher": "tilastokeskus", "vintage": 2024, "granularity": "postal", "is_proxy": false },
-    "rental_price_sqm": { "source": "Tilastokeskus (PxWeb)", "publisher": "tilastokeskus", "vintage": 2024, "granularity": "postal", "is_proxy": false },
-    "price_to_rent_ratio": { "source": "Tilastokeskus (PxWeb)", "publisher": "tilastokeskus", "vintage": 2024, "granularity": "postal", "is_proxy": false },
-    "walkability_index": { "source": "OpenStreetMap (composite)", "publisher": "osm", "vintage": 2024, "granularity": "postal", "is_proxy": true, "note": "Composite index derived from OSM amenity/street-network density." },
-    "traffic_accident_rate": { "source": "Väylävirasto", "publisher": "vaylavirasto", "vintage": 2023, "granularity": "postal", "is_proxy": false },
-    "property_price_change_pct": { "source": "Tilastokeskus (PxWeb)", "publisher": "tilastokeskus", "vintage": "2020–2025", "granularity": "postal", "is_proxy": false },
-    "school_quality_score": { "source": "YTL (ylioppilastutkinto)", "publisher": "ytl", "vintage": 2024, "granularity": "postal", "is_proxy": false, "note": "Aggregated lukio matriculation results; interpolated to postal areas without a lukio." },
-    "light_pollution": { "source": "OpenStreetMap (street_lamp density)", "publisher": "osm", "vintage": 2026, "granularity": "250m grid", "is_proxy": true, "note": "Postal value is an OSM street-lamp density proxy; the 250m grid uses NASA VIIRS Black Marble radiance." },
-    "noise_pollution": { "source": "Helsinki meluselvitys 2022 / HRI pks liikennemelu 2012", "publisher": "hri", "vintage": "2012–2022", "granularity": "postal", "is_proxy": false },
-    "water_proximity_m": { "source": "OpenStreetMap", "publisher": "osm", "vintage": 2026, "granularity": "postal", "is_proxy": false },
-    "avg_construction_year": { "source": "Tilastokeskus (rakennuskanta)", "publisher": "tilastokeskus", "vintage": 2025, "granularity": "postal", "is_proxy": false },
-    "youth_ratio_pct": { "source": "Tilastokeskus (Paavo)", "publisher": "tilastokeskus", "vintage": 2024, "granularity": "postal", "is_proxy": false },
-    "gender_ratio": { "source": "Tilastokeskus (Paavo)", "publisher": "tilastokeskus", "vintage": 2024, "granularity": "postal", "is_proxy": false },
-    "single_parent_hh_pct": { "source": "Tilastokeskus (Paavo)", "publisher": "tilastokeskus", "vintage": 2024, "granularity": "postal", "is_proxy": false },
-    "families_with_children_pct": { "source": "Tilastokeskus (Paavo)", "publisher": "tilastokeskus", "vintage": 2024, "granularity": "postal", "is_proxy": false },
-    "tech_sector_pct": { "source": "Tilastokeskus (Paavo)", "publisher": "tilastokeskus", "vintage": 2024, "granularity": "postal", "is_proxy": false },
-    "healthcare_workers_pct": { "source": "Tilastokeskus (Paavo)", "publisher": "tilastokeskus", "vintage": 2024, "granularity": "postal", "is_proxy": false },
-    "income_change_pct": { "source": "Tilastokeskus (Paavo)", "publisher": "tilastokeskus", "vintage": "2020–2024", "granularity": "postal", "is_proxy": false, "panel": false, "note": "5-year change derived from the income history series." },
-    "population_change_pct": { "source": "Tilastokeskus (Paavo)", "publisher": "tilastokeskus", "vintage": "2020–2024", "granularity": "postal", "is_proxy": false, "panel": false, "note": "5-year change derived from the population history series." },
-    "unemployment_change_pct": { "source": "Tilastokeskus (Paavo)", "publisher": "tilastokeskus", "vintage": "2020–2024", "granularity": "postal", "is_proxy": false, "panel": false, "note": "5-year change derived from the unemployment history series." },
-    "quality_index": { "source": "naapurustot.fi (koostettu)", "publisher": "naapurustot", "vintage": 2026, "granularity": "derived", "is_proxy": false, "stored": false, "panel": false, "note": "Composite 0–100 index computed client-side from ~61 factors; see docs/QUALITY_INDEX.md." }
+    "hr_mtu": {
+      "source": "Tilastokeskus (Paavo)",
+      "publisher": "tilastokeskus",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "hr_ktu": {
+      "source": "Tilastokeskus (Paavo)",
+      "publisher": "tilastokeskus",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "unemployment_rate": {
+      "source": "Tilastokeskus (Paavo)",
+      "publisher": "tilastokeskus",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "higher_education_rate": {
+      "source": "Tilastokeskus (Paavo)",
+      "publisher": "tilastokeskus",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "property_price_sqm": {
+      "source": "Tilastokeskus (PxWeb)",
+      "publisher": "tilastokeskus",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "he_vakiy": {
+      "source": "Tilastokeskus (Paavo)",
+      "publisher": "tilastokeskus",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "he_kika": {
+      "source": "Tilastokeskus (Paavo)",
+      "publisher": "tilastokeskus",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "foreign_language_pct": {
+      "source": "Tilastokeskus",
+      "publisher": "tilastokeskus",
+      "vintage": 2020,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "population_density": {
+      "source": "Tilastokeskus (Paavo)",
+      "publisher": "tilastokeskus",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "pensioner_share": {
+      "source": "Tilastokeskus (Paavo)",
+      "publisher": "tilastokeskus",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "child_ratio": {
+      "source": "Tilastokeskus (Paavo)",
+      "publisher": "tilastokeskus",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "student_share": {
+      "source": "Tilastokeskus (Paavo)",
+      "publisher": "tilastokeskus",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "single_person_hh_pct": {
+      "source": "Tilastokeskus",
+      "publisher": "tilastokeskus",
+      "vintage": 2023,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "ownership_rate": {
+      "source": "Tilastokeskus (Paavo)",
+      "publisher": "tilastokeskus",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "rental_rate": {
+      "source": "Tilastokeskus (Paavo)",
+      "publisher": "tilastokeskus",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "ra_as_kpa": {
+      "source": "Tilastokeskus (Paavo)",
+      "publisher": "tilastokeskus",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "detached_house_share": {
+      "source": "Tilastokeskus (Paavo)",
+      "publisher": "tilastokeskus",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "transit_stop_density": {
+      "source": "HSL (Digitransit)",
+      "publisher": "hsl",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "air_quality_index": {
+      "source": "HSY",
+      "publisher": "hsy",
+      "vintage": 2024,
+      "granularity": "250m grid",
+      "is_proxy": false
+    },
+    "crime_index": {
+      "source": "Poliisi",
+      "publisher": "poliisi",
+      "vintage": 2023,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "restaurant_density": {
+      "source": "OpenStreetMap",
+      "publisher": "osm",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "grocery_density": {
+      "source": "OpenStreetMap",
+      "publisher": "osm",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "daycare_density": {
+      "source": "OpenStreetMap",
+      "publisher": "osm",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "school_density": {
+      "source": "OpenStreetMap",
+      "publisher": "osm",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "healthcare_density": {
+      "source": "OpenStreetMap",
+      "publisher": "osm",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "sports_facility_density": {
+      "source": "LIPAS (Jyväskylän yliopisto)",
+      "publisher": "lipas",
+      "vintage": 2025,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "cycling_density": {
+      "source": "OpenStreetMap",
+      "publisher": "osm",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "voter_turnout_pct": {
+      "source": "Tilastokeskus (kuntavaalit)",
+      "publisher": "tilastokeskus",
+      "vintage": 2025,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "party_diversity_index": {
+      "source": "Tilastokeskus (kuntavaalit)",
+      "publisher": "tilastokeskus",
+      "vintage": 2025,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "broadband_coverage_pct": {
+      "source": "Traficom",
+      "publisher": "traficom",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "ev_charging_density": {
+      "source": "OpenStreetMap",
+      "publisher": "osm",
+      "vintage": 2025,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "tree_canopy_pct": {
+      "source": "HSY (LiDAR maanpeite)",
+      "publisher": "hsy",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "transit_reachability_score": {
+      "source": "HSL / johdettu",
+      "publisher": "hsl",
+      "vintage": 2025,
+      "granularity": "250m grid",
+      "is_proxy": true
+    },
+    "employment_rate": {
+      "source": "Tilastokeskus (Paavo)",
+      "publisher": "tilastokeskus",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "elderly_ratio_pct": {
+      "source": "Tilastokeskus (Paavo)",
+      "publisher": "tilastokeskus",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "avg_household_size": {
+      "source": "Tilastokeskus (Paavo)",
+      "publisher": "tilastokeskus",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "manufacturing_jobs_pct": {
+      "source": "Tilastokeskus (Paavo)",
+      "publisher": "tilastokeskus",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "public_sector_jobs_pct": {
+      "source": "Tilastokeskus (Paavo)",
+      "publisher": "tilastokeskus",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "service_sector_jobs_pct": {
+      "source": "Tilastokeskus (Paavo)",
+      "publisher": "tilastokeskus",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "new_construction_pct": {
+      "source": "Tilastokeskus (Paavo)",
+      "publisher": "tilastokeskus",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "rental_price_sqm": {
+      "source": "Tilastokeskus (PxWeb)",
+      "publisher": "tilastokeskus",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "price_to_rent_ratio": {
+      "source": "Tilastokeskus (PxWeb)",
+      "publisher": "tilastokeskus",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "walkability_index": {
+      "source": "OpenStreetMap (composite)",
+      "publisher": "osm",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": true
+    },
+    "traffic_accident_rate": {
+      "source": "Väylävirasto",
+      "publisher": "vaylavirasto",
+      "vintage": 2023,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "property_price_change_pct": {
+      "source": "Tilastokeskus (PxWeb)",
+      "publisher": "tilastokeskus",
+      "vintage": "2020–2025",
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "school_quality_score": {
+      "source": "YTL (ylioppilastutkinto)",
+      "publisher": "ytl",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "light_pollution": {
+      "source": "OpenStreetMap (street_lamp density)",
+      "publisher": "osm",
+      "vintage": 2026,
+      "granularity": "250m grid",
+      "is_proxy": true
+    },
+    "noise_pollution": {
+      "source": "Helsinki meluselvitys 2022 / HRI pks liikennemelu 2012",
+      "publisher": "hri",
+      "vintage": "2012–2022",
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "water_proximity_m": {
+      "source": "OpenStreetMap",
+      "publisher": "osm",
+      "vintage": 2026,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "avg_construction_year": {
+      "source": "Tilastokeskus (rakennuskanta)",
+      "publisher": "tilastokeskus",
+      "vintage": 2025,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "youth_ratio_pct": {
+      "source": "Tilastokeskus (Paavo)",
+      "publisher": "tilastokeskus",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "gender_ratio": {
+      "source": "Tilastokeskus (Paavo)",
+      "publisher": "tilastokeskus",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "single_parent_hh_pct": {
+      "source": "Tilastokeskus (Paavo)",
+      "publisher": "tilastokeskus",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "families_with_children_pct": {
+      "source": "Tilastokeskus (Paavo)",
+      "publisher": "tilastokeskus",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "tech_sector_pct": {
+      "source": "Tilastokeskus (Paavo)",
+      "publisher": "tilastokeskus",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "healthcare_workers_pct": {
+      "source": "Tilastokeskus (Paavo)",
+      "publisher": "tilastokeskus",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "income_change_pct": {
+      "source": "Tilastokeskus (Paavo)",
+      "publisher": "tilastokeskus",
+      "vintage": "2020–2024",
+      "granularity": "postal",
+      "is_proxy": false,
+      "panel": false
+    },
+    "population_change_pct": {
+      "source": "Tilastokeskus (Paavo)",
+      "publisher": "tilastokeskus",
+      "vintage": "2020–2024",
+      "granularity": "postal",
+      "is_proxy": false,
+      "panel": false
+    },
+    "unemployment_change_pct": {
+      "source": "Tilastokeskus (Paavo)",
+      "publisher": "tilastokeskus",
+      "vintage": "2020–2024",
+      "granularity": "postal",
+      "is_proxy": false,
+      "panel": false
+    },
+    "quality_index": {
+      "source": "naapurustot.fi (koostettu)",
+      "publisher": "naapurustot",
+      "vintage": 2026,
+      "granularity": "derived",
+      "is_proxy": false,
+      "stored": false,
+      "panel": false
+    }
   }
 }
