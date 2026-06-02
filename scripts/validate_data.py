@@ -18,6 +18,10 @@ from pathlib import Path
 GEOJSON_PATH = Path(__file__).resolve().parent.parent / "public" / "data" / "metro_neighborhoods.geojson"
 # IN-2: single source-of-truth data-source registry.
 REGISTRY_PATH = Path(__file__).resolve().parent.parent / "src" / "data" / "data_sources.json"
+# IN-3: committed per-metric coverage baseline for regression detection.
+BASELINE_PATH = Path(__file__).resolve().parent.parent / "src" / "data" / "data_baseline.json"
+# Fail if a metric's non-null coverage drops by more than this fraction vs the baseline.
+COVERAGE_DROP_TOLERANCE = 0.25
 
 # ── Feature count bounds ─────────────────────────────────────────────
 # All 69 Finnish seutukunnat: ~3000 postal codes in total. Range allows
@@ -254,6 +258,75 @@ def check_data_source_registry(features: list) -> list[str]:
     return errors
 
 
+def _registry_stored_props() -> list[str]:
+    """Registry metric properties that are stored in the GeoJSON (not client-derived)."""
+    if not REGISTRY_PATH.exists():
+        return []
+    try:
+        reg = json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return []
+    return [p for p, e in reg.get("metrics", {}).items() if e.get("stored", True) is not False]
+
+
+def compute_coverage(features: list) -> dict[str, int]:
+    """Per registry metric, the number of features with a non-null, non-empty value."""
+    props = _registry_stored_props()
+    counts = {p: 0 for p in props}
+    for f in features:
+        fp = f.get("properties") or {}
+        for p in props:
+            v = fp.get(p)
+            if v is not None and not (isinstance(v, str) and v.strip() == ""):
+                counts[p] += 1
+    return counts
+
+
+def check_coverage_regression(features: list) -> list[str]:
+    """IN-3: fail if a metric that was populated in the committed baseline becomes
+    entirely null, or its coverage drops by more than COVERAGE_DROP_TOLERANCE — the
+    signature of a silent upstream schema change that nulls a column. New metrics
+    (absent from the baseline) are ignored; regenerate the baseline with
+    `python scripts/validate_data.py --write-baseline` after an intentional change."""
+    errors: list[str] = []
+    if not BASELINE_PATH.exists():
+        print("  [info] no data_baseline.json — skipping coverage-regression check (run --write-baseline to create)")
+        return []
+    try:
+        baseline = json.loads(BASELINE_PATH.read_text(encoding="utf-8")).get("metrics", {})
+    except json.JSONDecodeError as exc:
+        return [f"data_baseline.json is not valid JSON: {exc}"]
+
+    current = compute_coverage(features)
+    for prop, base_count in baseline.items():
+        if not isinstance(base_count, int) or base_count <= 0:
+            continue
+        cur = current.get(prop, 0)
+        if cur == 0:
+            errors.append(f"Metric '{prop}' was populated ({base_count}) in the baseline but is now entirely null")
+        elif cur < base_count * (1 - COVERAGE_DROP_TOLERANCE):
+            pct = round(100 * cur / base_count)
+            errors.append(f"Metric '{prop}' coverage dropped to {cur} ({pct}% of baseline {base_count})")
+    return errors
+
+
+def write_baseline(features: list) -> None:
+    """Write/refresh src/data/data_baseline.json from the current GeoJSON."""
+    counts = compute_coverage(features)
+    payload = {
+        "_comment": (
+            "IN-3 coverage baseline — per registry metric, the count of features with a "
+            "non-null value. validate_data.py fails if a populated metric goes all-null or "
+            "its coverage drops sharply (a silent upstream schema change). Regenerate after "
+            "an intentional data change: python scripts/validate_data.py --write-baseline"
+        ),
+        "feature_count": len(features),
+        "metrics": dict(sorted(counts.items())),
+    }
+    BASELINE_PATH.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(f"Wrote {BASELINE_PATH} ({len(counts)} metrics, {len(features)} features).")
+
+
 def check_pno_format(features: list) -> list[str]:
     """Postal codes should be 5-digit strings."""
     errors = []
@@ -269,8 +342,9 @@ def check_pno_format(features: list) -> list[str]:
 
 def main() -> int:
     path = GEOJSON_PATH
-    if len(sys.argv) > 1:
-        path = Path(sys.argv[1])
+    pos_args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    if pos_args:
+        path = Path(pos_args[0])
 
     print(f"Validating {path} ...")
     if not path.exists():
@@ -281,6 +355,10 @@ def main() -> int:
     features = data.get("features", [])
     print(f"  Features: {len(features)}")
 
+    if "--write-baseline" in sys.argv:
+        write_baseline(features)
+        return 0
+
     all_errors: list[str] = []
 
     checks = [
@@ -289,6 +367,7 @@ def main() -> int:
         ("All-null properties", check_no_all_null_properties(features)),
         ("Value ranges", check_value_ranges(features)),
         ("Data-source registry", check_data_source_registry(features)),
+        ("Coverage regression", check_coverage_regression(features)),
         ("Geometries", check_geometries(features)),
         ("Postal code format", check_pno_format(features)),
     ]
