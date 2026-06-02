@@ -100,12 +100,12 @@ jobs:
           # Exclude maplibre (large, irreducible third-party map renderer)
           JS_SIZE=$(find dist/assets -name '*.js' ! -name 'maplibre-*' -exec gzip -c {} \; | wc -c)
           echo "App JS bundle excluding maplibre (gzipped): $JS_SIZE bytes"
-          # Fail if app JS bundle exceeds 235KB gzipped
+          # Fail if app JS bundle exceeds 250KB gzipped
           # Budget history: 160KB → 210KB (react-router-dom + @turf/union + auth/profile),
-          # → 235KB after the FEATURE_ROADMAP batch (CF-1 quality-index personas/dimensions,
-          # CF-3 correlation explorer, CF-4 region ranking, CF-5 isochrone, PO-2 time slider,
-          # QW-2 keyboard shortcuts, QW-3 geolocation). New surfaces are lazy-loaded but the
-          # check sums all app chunks.
+          # → 235KB after the first FEATURE_ROADMAP batch, → 250KB after the second roadmap
+          # batch (registry-driven sources/badges, distribution+coverage panels, URL state,
+          # embed/share cards, reduced-motion, home re-entry, shortlist). New surfaces are
+          # lazy-loaded but the check sums all app chunks.
           if [ "$JS_SIZE" -gt 256000 ]; then
             echo "::error::JS bundle size exceeds 250KB gzipped budget ($JS_SIZE bytes)"
             exit 1
@@ -136,6 +136,30 @@ jobs:
             echo "| CSS | ${CSS_KB} KB |"
             echo "| **Total** | **${TOTAL_KB} KB** |"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Region geodata payload report (IN-6)
+        env:
+          REGION_PAYLOAD_CAP_KB: ${{ vars.REGION_PAYLOAD_CAP_KB }}
+        run: |
+          # Per-region TopoJSON download size (gzipped) — the real on-the-wire cost on
+          # the map hot path, separate from (and unbudgeted by) the JS bundle check.
+          # Reports every region and warns (does not fail) on any over the cap.
+          CAP=${REGION_PAYLOAD_CAP_KB:-1800}
+          {
+            echo "### 🗺️ Region geodata payload (gzipped)"
+            echo "| Region | gzip KB |"
+            echo "|--------|---------|"
+          } >> "$GITHUB_STEP_SUMMARY"
+          for f in dist/assets/*.topojson.gz; do
+            [ -e "$f" ] || continue
+            name=$(basename "$f" | sed -E 's/-[A-Za-z0-9_-]+\.topojson\.gz$//')
+            kb=$(( ($(stat -c%s "$f") + 512) / 1024 ))
+            printf '%s\t%s\n' "$kb" "$name"
+          done | sort -rn | while IFS=$'\t' read -r kb name; do
+            flag=""; [ "$kb" -gt "$CAP" ] && flag=" ⚠️"
+            echo "| ${name} | ${kb} KB${flag} |" >> "$GITHUB_STEP_SUMMARY"
+            [ -n "$flag" ] && echo "::warning::Region geodata '${name}' is ${kb} KB gzipped (> ${CAP} KB cap)"
+          done
 
       - name: Restore base branch bundle size
         if: github.event_name == 'pull_request'
