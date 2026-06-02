@@ -1,0 +1,26 @@
+{
+  "air_quality": {
+    "path": "data/air_quality_grid.topojson",
+    "format": "topojson",
+    "bbox": [
+      24.58,
+      60.1321,
+      25.201,
+      60.36835
+    ],
+    "cells": 11319,
+    "scope": "regional"
+  },
+  "light_pollution": {
+    "path": "data/light_pollution_grid.geojson",
+    "format": "geojson",
+    "bbox": [
+      19.90208,
+      60.00208,
+      30.95208,
+      70.08542
+    ],
+    "cells": 50594,
+    "scope": "national"
+  }
+}

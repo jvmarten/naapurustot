@@ -3,27 +3,44 @@ import type { FeatureCollection } from 'geojson';
 import { feature } from 'topojson-client';
 import type { Topology } from 'topojson-specification';
 import type { LayerId } from '../utils/colorScales';
+import gridManifest from '../data/grid_manifest.json';
 
 /**
- * Registry of fine-grained grid data files keyed by LayerId.
+ * Manifest-driven discovery of fine-grained grid datasets (IN-1).
  *
- * Each entry maps a layer to the path of its grid data file under
- * public/data/. Supports both .topojson and .geojson formats.
- * Files are fetched lazily the first time the user switches to a
- * grid layer. If the file doesn't exist (grid data not yet built),
- * the fetch silently fails and the map falls back to the postal choropleth.
+ * scripts/build_grid_data.mjs scans public/data/ for built grid files and emits
+ * src/data/grid_manifest.json, mapping each LayerId to its served file path,
+ * format, bbox, cell count, and coverage scope. This hook reads that manifest
+ * instead of a hardcoded path registry, so adding/removing a grid is a data-only
+ * change and partial coverage ("regional") is explicit rather than a silent
+ * choropleth fallback. Files are still fetched lazily the first time a grid layer
+ * is shown; a missing/failed fetch falls back to the postal choropleth.
  */
 const BASE = import.meta.env.BASE_URL ?? '/';
 
-const GRID_PATHS: Partial<Record<LayerId, string>> = {
-  transit_reachability: `${BASE}data/transit_reachability_grid.topojson`,
-  light_pollution: `${BASE}data/light_pollution_grid.geojson`,
-  air_quality: `${BASE}data/air_quality_grid.topojson`,
-};
+/** One grid layer's entry in grid_manifest.json. */
+export interface GridManifestEntry {
+  /** Served file path relative to the deploy base (e.g. "data/air_quality_grid.topojson") */
+  path: string;
+  format: 'topojson' | 'geojson';
+  /** [minLon, minLat, maxLon, maxLat] of the grid's coverage */
+  bbox: [number, number, number, number];
+  /** Number of grid cells */
+  cells: number;
+  /** "national" = covers (most of) Finland; "regional" = a limited area only */
+  scope: 'national' | 'regional';
+}
 
-/** Returns true if the layer has a registered grid data source. */
+const GRID_MANIFEST = gridManifest as unknown as Record<string, GridManifestEntry>;
+
+/** Returns true if the layer has a built grid dataset in the manifest. */
 export function hasGridData(layerId: LayerId): boolean {
-  return layerId in GRID_PATHS;
+  return (layerId as string) in GRID_MANIFEST;
+}
+
+/** Returns the grid manifest entry (path, format, bbox, cells, coverage scope) for a layer, or undefined. */
+export function getGridInfo(layerId: LayerId): GridManifestEntry | undefined {
+  return GRID_MANIFEST[layerId as string];
 }
 
 interface GridDataState {
@@ -56,7 +73,8 @@ export function useGridData(activeLayer: LayerId): GridDataState {
   const fetchedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    const path = GRID_PATHS[activeLayer];
+    const entry = GRID_MANIFEST[activeLayer as string];
+    const path = entry ? BASE + entry.path : undefined;
     if (!path) return;
     const fetched = fetchedRef.current;
     if (fetched.has(activeLayer)) {
@@ -106,8 +124,8 @@ export function useGridData(activeLayer: LayerId): GridDataState {
     };
   }, [activeLayer]);
 
-  const path = GRID_PATHS[activeLayer];
-  if (!path) return { gridData: null, loading: false };
+  const entry = GRID_MANIFEST[activeLayer as string];
+  if (!entry) return { gridData: null, loading: false };
 
   return { gridData: cache[activeLayer] ?? null, loading };
 }

@@ -6,6 +6,8 @@
   "search.clear": "Rensa sökning",
   "search.moreResults": "fler resultat…",
   "layer.quality_index": "Kvalitetsindex",
+  "grid.scope_regional": "Detaljerat rutdata · begränsat område",
+  "grid.scope_national": "Detaljerat rutdata · hela landet",
   "panel.quality_index": "Kvalitetsindex",
   "layer.median_income": "Medianinkomst",
   "layer.unemployment": "Arbetslöshet",

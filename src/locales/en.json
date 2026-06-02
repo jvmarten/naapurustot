@@ -6,6 +6,8 @@
   "search.clear": "Clear search",
   "search.moreResults": "more results\u2026",
   "layer.quality_index": "Quality Index",
+  "grid.scope_regional": "Fine-grained grid · limited area",
+  "grid.scope_national": "Fine-grained grid · nationwide",
   "panel.quality_index": "Quality Index",
   "layer.median_income": "Median Income",
   "layer.unemployment": "Unemployment Rate",
