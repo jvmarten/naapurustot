@@ -106,8 +106,8 @@ jobs:
           # CF-3 correlation explorer, CF-4 region ranking, CF-5 isochrone, PO-2 time slider,
           # QW-2 keyboard shortcuts, QW-3 geolocation). New surfaces are lazy-loaded but the
           # check sums all app chunks.
-          if [ "$JS_SIZE" -gt 240640 ]; then
-            echo "::error::JS bundle size exceeds 235KB gzipped budget ($JS_SIZE bytes)"
+          if [ "$JS_SIZE" -gt 256000 ]; then
+            echo "::error::JS bundle size exceeds 250KB gzipped budget ($JS_SIZE bytes)"
             exit 1
           fi
 

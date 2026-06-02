@@ -267,6 +267,8 @@
   "panel.similar": "Liknande områden",
   "panel.similar_by": "Jämför enligt",
   "favorites.title": "Favoriter",
+  "reentry.title": "Fortsätt utforska",
+  "reentry.recent": "Senast visade",
   "favorites.add": "Lägg till i favoriter",
   "favorites.remove": "Ta bort från favoriter",
   "favorites.empty": "Markera områden med en stjärna för att spara dem här",

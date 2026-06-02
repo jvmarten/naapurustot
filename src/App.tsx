@@ -42,6 +42,7 @@ const OnboardingTour = lazy(() => import('./components/OnboardingTour').then(m =
 const ShortcutsOverlay = lazy(() => import('./components/ShortcutsOverlay').then(m => ({ default: m.ShortcutsOverlay })));
 const TimeSlider = lazy(() => import('./components/TimeSlider').then(m => ({ default: m.TimeSlider })));
 import { UserMenu, type FavoriteEntry } from './components/UserMenu';
+import { HomeReentryPanel } from './components/HomeReentryPanel';
 import { type LayerId, type ColorblindType, getLayerById, getColorblindMode, setColorblindMode, rescaleLayerToData, clearRescaleCache, TIME_SERIES_LAYERS } from './utils/colorScales';
 import { readInitialUrlState, useSyncUrlState } from './hooks/useUrlState';
 import type { NeighborhoodProperties } from './utils/metrics';
@@ -1543,6 +1544,11 @@ const App: React.FC = () => {
             />
           </Suspense>
         </ErrorBoundary>
+      )}
+
+      {/* PO-4: "continue exploring" home re-entry surface — only on the idle home view */}
+      {!IS_EMBED && !selected && !showTour && pinned.length === 0 && data && (
+        <HomeReentryPanel recent={recent} favorites={favoriteEntries} onSelect={handleSelectFavorite} />
       )}
 
       {/* Comparison panel (shows hint at 1 pinned, full panel at 2+). Hidden in embed mode. */}
