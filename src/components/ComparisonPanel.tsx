@@ -4,6 +4,7 @@ import { formatNumber, formatEuro, formatPct, formatDensity, formatEuroSqm } fro
 import { t, useI18nVersion } from '../utils/i18n';
 import { CompareIllustration } from './EmptyStateIllustrations';
 import { exportComparisonPdf, exportComparisonCsv } from '../utils/export';
+import { generateComparisonCard } from '../utils/scoreCard';
 import { trackEvent } from '../utils/analytics';
 
 interface ComparisonPanelProps {
@@ -264,6 +265,14 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pin
                   title={t('export.pdf')}
                 >
                   {t('export.pdf')}
+                </button>
+                {/* CF-10: share the comparison as a branded PNG with the deep link */}
+                <button
+                  onClick={() => { trackEvent('share-comparison-image'); generateComparisonCard(pinned).catch(() => { /* html-to-image load failed */ }); }}
+                  className="text-xs text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200 transition-colors px-1.5 py-0.5"
+                  title={t('share.image')}
+                >
+                  {t('share.image')}
                 </button>
                 <span className="text-surface-300 dark:text-surface-700" aria-hidden>·</span>
               </>

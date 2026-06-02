@@ -16,7 +16,7 @@ vi.mock('html-to-image', () => ({
 }));
 
 // Import after mock setup
-import { generateScoreCard } from '../utils/scoreCard';
+import { generateScoreCard, generateComparisonCard } from '../utils/scoreCard';
 
 function makeProps(overrides: Partial<NeighborhoodProperties> = {}): NeighborhoodProperties {
   return {
@@ -251,5 +251,45 @@ describe('generateScoreCard', () => {
     await generateScoreCard(data, avg);
 
     expect(clickSpy).toHaveBeenCalled();
+  });
+});
+
+describe('generateComparisonCard (CF-10)', () => {
+  let appended: HTMLElement | null = null;
+  let removed: HTMLElement | null = null;
+
+  beforeEach(() => {
+    setLang('fi');
+    appended = null;
+    removed = null;
+    mockToPng.mockReset();
+    mockToPng.mockResolvedValue('data:image/png;base64,abc123');
+    vi.spyOn(document.body, 'appendChild').mockImplementation((node) => { appended = node as HTMLElement; return node; });
+    vi.spyOn(document.body, 'removeChild').mockImplementation((node) => { removed = node as HTMLElement; return node; });
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it('renders every pinned area and a deep link carrying the comparison, then cleans up', async () => {
+    const a = makeProps({ pno: '00100', nimi: 'Keskusta', quality_index: 80 });
+    const b = makeProps({ pno: '00200', nimi: 'Punavuori', quality_index: 65 });
+    await generateComparisonCard([a, b]);
+    const html = appended?.innerHTML ?? '';
+    expect(html).toContain('Keskusta');
+    expect(html).toContain('Punavuori');
+    expect(html).toContain('compare=00200');
+    expect(removed).toBe(appended);
+  });
+
+  it('escapes neighbourhood names (no XSS)', async () => {
+    const a = makeProps({ nimi: '<img src=x onerror=alert(1)>' });
+    await generateComparisonCard([a]);
+    expect(appended?.querySelectorAll('img').length ?? 0).toBe(0);
+  });
+
+  it('does nothing for an empty pin list', async () => {
+    await generateComparisonCard([]);
+    expect(appended).toBeNull();
   });
 });
