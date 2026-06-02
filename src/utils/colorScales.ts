@@ -139,7 +139,9 @@ let _fmtLocale = '';
 let _fmtNum: Intl.NumberFormat | null = null;
 
 function numFmt(): Intl.NumberFormat {
-  const loc = getLang() === 'en' ? 'en-US' : 'fi-FI';
+  // PO-7: Swedish maps to sv-SE (was silently falling through to fi-FI).
+  const lang = getLang();
+  const loc = lang === 'en' ? 'en-US' : lang === 'sv' ? 'sv-SE' : 'fi-FI';
   if (_fmtNum && _fmtLocale === loc) return _fmtNum;
   _fmtLocale = loc;
   _fmtNum = new Intl.NumberFormat(loc);

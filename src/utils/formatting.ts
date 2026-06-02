@@ -22,7 +22,11 @@ let cachedLocale = '';
 let cachedNumberFmt: Intl.NumberFormat | null = null;
 
 function getNumberFormatter(): Intl.NumberFormat {
-  const loc = getLang() === 'en' ? 'en-US' : 'fi-FI';
+  // PO-7: Swedish must map to sv-SE, not silently fall through to fi-FI — this
+  // matches the sv-SE tag the prerender/SEO scripts already use so the runtime
+  // app and its prerendered pages format numbers identically.
+  const lang = getLang();
+  const loc = lang === 'en' ? 'en-US' : lang === 'sv' ? 'sv-SE' : 'fi-FI';
   if (cachedNumberFmt && cachedLocale === loc) return cachedNumberFmt;
   cachedLocale = loc;
   cachedNumberFmt = new Intl.NumberFormat(loc);
