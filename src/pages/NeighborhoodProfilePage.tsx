@@ -607,6 +607,8 @@ export const NeighborhoodProfilePage: React.FC = () => {
           <p>{t('profile.data_sources')}: Tilastokeskus (Paavo), HSL, OpenStreetMap, HSY</p>
           <p className="mt-1">
             <Link to="/" className="hover:text-brand-500">naapurustot.fi</Link>
+            {' · '}
+            <a href="mailto:info@naapurustot.fi" className="hover:text-brand-500">{t('footer.contact')}</a>
           </p>
         </div>
       </footer>

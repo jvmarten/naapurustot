@@ -178,6 +178,7 @@
   "export.field": "Field",
   "export.value": "Value",
   "footer.attribution": "Data: Statistics Finland, HSL, HSY, Police, Kela, THL, Tax Admin, Traficom, Min. of Justice, OpenStreetMap (CC BY 4.0)",
+  "footer.contact": "Contact",
   "filter.title": "Find Neighborhoods",
   "filter.toggle": "Filter",
   "filter.add": "Add criterion",

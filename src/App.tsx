@@ -1608,7 +1608,13 @@ const App: React.FC = () => {
       {/* Attribution footer (full attribution hidden in embed mode) */}
       {!IS_EMBED && (
         <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 hidden md:block">
-          <p className="text-[10px] text-surface-600/70 dark:text-surface-500/70">{t('footer.attribution')}</p>
+          <p className="text-[10px] text-surface-600/70 dark:text-surface-500/70">
+            {t('footer.attribution')}
+            {' · '}
+            <a href="mailto:info@naapurustot.fi" className="underline hover:text-brand-600 dark:hover:text-brand-300">
+              {t('footer.contact')}
+            </a>
+          </p>
         </div>
       )}
 
