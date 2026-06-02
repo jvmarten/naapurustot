@@ -1,466 +1,419 @@
 # naapurustot.fi — Feature Roadmap
 
-> Generated 2026-05-22 from a full codebase analysis. Replaces the 2026-04-13
-> roadmap, the bulk of which has now shipped. A **Completed** section at the
-> bottom records what landed since that roadmap.
-
----
-
-## Status — 2026-05-29 implementation pass
-
-This roadmap was executed end-to-end in a single pass, with the following items
-**deliberately skipped** at the project owner's request: **CF-2** (user reviews),
-**CF-6** (email digest), **PO-1** (per-neighborhood OG images), **PO-3** (auth
-reset/verification), **PO-4** (GDPR export/deletion), **PO-5** (real-time air
-quality), and **IN-1 / IN-2** (Dependabot, API observability).
-
-**Shipped:** QW-1 (build-derived data-freshness timestamp), QW-2 (keyboard
-shortcuts + `?` overlay), QW-3 (geolocation "show my area"), QW-4 (MiniMap
-a11y + axe-core E2E), CF-1 (quality-index redesign — see below), CF-3
-(correlation/scatter explorer), CF-4 (region comparison & ranking), CF-5
-(Digitransit travel-time isochrones; needs `VITE_DIGITRANSIT_API_KEY`, hidden
-when unset), PO-2 (time slider / historical playback), IN-3 (deploy artifact
-trimming via a Vite strip plugin).
-
-**CF-1 complete:** phases (A) dimension grouping + rebalanced defaults, (B)
-`docs/QUALITY_INDEX.md`, (D) persona presets + explainer + softened labels, and
-(C) **national-reference normalization** shipped. Phase (C) makes the default
-scope "Whole of Finland": every metric is min–max normalized against
-build-time, winsorized (p2/p98) national ranges
-(`scripts/build_national_ranges.mjs` → `src/data/national_ranges.json`), so
-scores are comparable across regions. The "within region" toggle re-derives
-ranges from the loaded region only. This changed the meaning of every published
-score relative to the earlier region-relative behaviour; the methodology
-remains open to editorial revision (see `docs/QUALITY_INDEX.md`).
-
----
+> Generated 2026-06-01 from a full multi-agent codebase audit. Supersedes the 2026-05-22 roadmap, most of which has shipped.
 
 ## Project Context
 
-naapurustot.fi is a static React 19 + TypeScript SPA on a MapLibre GL choropleth,
-with an optional Express + PostgreSQL backend. It is a mature product — this
-roadmap is about depth and rigour, not breadth.
+naapurustot.fi is a mature static React 19 / TypeScript 5.9 / Vite 8 single-page app built on MapLibre GL, live at naapurustot.fi, covering all 69 Tilastokeskus seutukunnat (~3,018 postal codes) as per-region lazy-loaded TopoJSON. The map needs no backend — all computation is client-side over bundled geodata — while an optional Express + PostgreSQL backend (api.naapurustot.fi) provides JWT auth and cloud sync of favorites/notes/preferences. The stack pairs Turf.js and proj4 for geospatial work, Tailwind for styling, React hooks + Context for state, and FI/EN/SV i18n; distribution leans on a PWA, ~27,000 prerendered SEO profile pages, regional hubs, and an embed mode. The product is already broad and deep: ~58–71 verified-source data layers across 11 categories, a documented composite Quality Index normalized against winsorized national ranges, and a rich analysis toolkit (correlation, similarity, ranking, wizard, filters, comparison, split map, time slider, isochrones).
 
-**Where the project stands today:**
-
-- **Whole-Finland coverage shipped.** All **69 Tilastokeskus seutukunnat** (3 018
-  postal codes, Helsinki seutu → Lapland → Åland) are configured in `regions.ts`,
-  each with an ingested per-region TopoJSON and a coverage badge in the
-  CitySelector. The 2026-04-13 roadmap's flagship CF-5 is essentially done.
-- **~58 data layers** in `colorScales.ts` across 11 categories (Quality, Trends,
-  Demographics, Economy, Housing, Services, Safety, Mobility, Environment,
-  Voting, Connectivity).
-- **Backend live** at `api.naapurustot.fi`: auth (JWT/bcrypt/Turnstile) plus
-  **cloud sync of favorites, notes, and preferences** (`user_favorites`,
-  `user_notes`, `user_preferences` tables; `/auth/{favorites,notes,preferences}`
-  routes). The favorites/notes/preferences-sync items from the last roadmap all
-  shipped.
-- **Tooling/observability shipped:** Sentry (frontend + backend), `web-vitals`,
-  Lighthouse CI (perf ≥ 0.85, a11y ≥ 0.95, BP/SEO ≥ 0.95), CodeQL, `npm audit` +
-  `pip-audit` in CI, a 210 KB gzipped JS bundle budget, daily on-droplet Postgres
-  backups.
-- **Frontend depth shipped:** onboarding tour, embed mode, Swedish (FI/EN/SV),
-  per-metric explanations + source attribution, skip link, ARIA-labelled radar
-  and trend charts, multi-neighborhood PDF/CSV export, score-card image export,
-  split map, draw/select tools, wizard, ranking, filter presets, customizable
-  quality index, colorblind palettes, PWA, prerendered profile + regional-hub
-  pages, `llms.txt`, JSON-LD.
-
-**What this roadmap targets:** the product is broad; the next wins are (1) making
-the **headline Quality Index defensible** rather than hand-tuned, (2) adding the
-**lived-experience layer** (reviews) the backend was built for, (3) net-new
-**analysis tools**, and (4) closing **auth/compliance/ops** gaps now that user
-data is stored in production.
-
-**Tech stack:** React 19.2, React Router 7.13, TypeScript 5.9, Vite 8,
-MapLibre GL 5.20, Turf.js 7.3, Tailwind 3, Vitest, Playwright, Node 24, Express,
-PostgreSQL 16, Docker Compose, Caddy.
-
----
+The real frontier this roadmap targets is finer real granularity (250m grids beyond today's three Helsinki-centric layers, OSM building footprints), real-not-proxy data and deeper time-series, the lived-decision workflow (shareable URL state, durable shortlists, commute anchoring, custom reference baselines), trust/transparency surfaces (sources page, proxy and freshness disclosure, Quality Index auditability, privacy notice), and the deferred ops/CI/data-integrity infrastructure (single source-of-truth registry, provenance gates, health monitoring, coverage and payload reporting). Every item respects the hard constraints: real verifiable public sources only, finest-available granularity, data propagated into the GeoJSON source of truth and rebuilt into TopoJSON, the ~210KB gzipped bundle budget (heavy deps lazy-loaded), and the claude/* branch + auto-merge workflow.
 
 ## 1 — Quick Wins
 
-Small effort, noticeable improvement for users.
-
-### QW-1 Build-Derived Data-Freshness Timestamp
+### QW-1 Distribution viz: histogram + percentile rank for the active metric
 
 | | |
 |---|---|
-| **What** | `SettingsDropdown.tsx` shows `Last updated: 2026-03` as a **hardcoded string**. The data pipeline (`data-refresh.yml`) runs quarterly (Jan/Apr/Jul/Oct), so the label is already stale — the last refresh was April 2026. Embed a real `_metadata.generated` timestamp into the per-region TopoJSON during `npm run build:data` (`build_region_data.mjs`), read it through `dataLoader.ts` / `useMapData.ts`, and render the actual date. |
-| **Why** | Users make real decisions (relocation, home purchase) on this data; a stale or fabricated "last updated" date quietly erodes trust and is the kind of thing that ages into being simply wrong. Per-metric source attribution already exists — a correct global timestamp is the one missing, drift-prone piece. |
-| **Touches** | `scripts/build_region_data.mjs` (embed metadata), `src/utils/dataLoader.ts` or `src/hooks/useMapData.ts` (extract it), `src/components/SettingsDropdown.tsx`, `src/locales/{fi,en,sv}.json` |
+| **What** | Add a small distribution panel for the currently selected layer that renders a histogram (or boxplot) of the metric across the active scope (region or all-Finland), marks where the selected neighborhood falls, and shows its exact percentile rank. Computed entirely client-side from already-loaded features, reusing the value extraction used by the choropleth and the correlation explorer. Honor the existing comparison-scope toggle: compute over the current region's neighborhoods in regional view, over all loaded features in national view. |
+| **Why** | Users see a color and a number but no sense of the distribution shape — is this typical, an outlier, top-decile? A histogram with a "you are at the 87th percentile" marker turns every metric into an instantly interpretable insight and complements the national-range normalization already shipped. |
+| **Touches** | src/utils/correlation.ts, src/components/NeighborhoodPanel.tsx, src/utils/metrics.ts, src/locales/fi.json, src/locales/en.json, src/locales/sv.json |
 | **Complexity** | Small |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### QW-2 Keyboard Shortcuts + `?` Overlay
+### QW-2 Persistent named shortlist with side-by-side comparison and share
 
 | | |
 |---|---|
-| **What** | Today only `Escape` is wired (in `App.tsx`). Add power-user shortcuts and a `?` overlay listing them: `/` focus search, `F` filter, `R` ranking, `W` wizard, `C` customize quality, `S` split map, `G` "show my area" (QW-3), `L` sign-in, `[`/`]` step through the current ranking/filter results. New `ShortcutsOverlay.tsx`; shortcuts should no-op while a text input is focused. |
-| **Why** | The app exposes nine tools behind two dropdowns. Repeat users — relocation advisors, agents, journalists — navigate far faster by keyboard, and a discoverable shortcut list doubles as feature discovery for tools buried in menus. |
-| **Touches** | `src/App.tsx` (global keydown), new `src/components/ShortcutsOverlay.tsx`, `src/components/SettingsDropdown.tsx` (entry point), `src/locales/{fi,en,sv}.json` |
-| **Complexity** | Small |
-| **Dependencies** | None |
+| **What** | Introduce a lightweight named shortlist distinct from one-tap favorites: as a user browses they add candidate neighborhoods to a shortlist that persists in localStorage (and cloud-syncs like favorites/notes when signed in via a new GET/PUT /auth/shortlist endpoint mirroring the existing pattern), opens directly into the comparison panel, and exports/shares via the extended URL state. Add a new useShortlist hook mirroring useFavorites, an "Add to shortlist" control in NeighborhoodPanel, and a shortlist tray. |
+| **Why** | Choosing a home is a multi-day, multi-candidate process, but the comparison panel currently requires re-pinning each session and favorites are an undifferentiated flat list. A durable, named, shareable shortlist matches how people actually run a housing search and keeps them returning through the whole decision instead of losing their working set on refresh. |
+| **Touches** | src/hooks/useFavorites.ts, src/hooks/useShortlist.ts, src/components/ComparisonPanel.tsx, src/components/NeighborhoodPanel.tsx, src/utils/api.ts, src/locales/fi.json, src/locales/en.json, src/locales/sv.json |
+| **Complexity** | Medium |
+| **Dependencies** | CF-1 |
 | **Tag** | Claude Code |
 
-### QW-3 Geolocation — "Show My Area"
+### QW-3 Embed snippet upgrade: carry full state + "open full view" deep link + auto-resize
 
 | | |
 |---|---|
-| **What** | A small "use my location" button (in the SearchBar or as a map control) that calls `navigator.geolocation`, picks the containing postal code via point-in-polygon, switches to the right region, and selects the neighborhood. Graceful fallbacks for denied permission / outside Finland. |
-| **Why** | With whole-Finland coverage now live, "what's *my* neighborhood like?" is the most natural first action for a huge share of visitors, and today it requires knowing your own postal code or name. One tap turns a national map into a personal one. |
-| **Touches** | `src/components/SearchBar.tsx` (or a new map control), `src/utils/geocode.ts` / `src/utils/geometryFilter.ts` (point-in-polygon), `src/App.tsx` (selection handler), `src/locales/{fi,en,sv}.json` |
+| **What** | Extend buildEmbedSnippet to carry the richer URL state (layer, selected pno, region, compare, and once available filters/weights/year) so an embedded iframe shows the exact view the author configured. Refactor the existing embed watermark link to call buildEmbedSnippet with full state including compare, and add a small "Avaa naapurustot.fi:ssa" overlay that deep-links to the full app with the same state. Add a postMessage height handshake so host pages can auto-size the iframe (currently absent). |
+| **Why** | Embeds are a distribution channel into local news, real-estate listings, and municipal blogs, but a generic-state iframe with no path back to the full app leaks engagement and gives no referral. Carrying state plus a branded "open full view" link turns every embed into a configured showcase and a click-through funnel. |
+| **Touches** | src/utils/embed.ts, src/App.tsx, src/locales/fi.json, src/locales/en.json, src/locales/sv.json |
 | **Complexity** | Small |
-| **Dependencies** | None |
+| **Dependencies** | CF-1 |
 | **Tag** | Claude Code |
-
-### QW-4 Finish Accessibility: MiniMap Label + axe-core in E2E
-
-| | |
-|---|---|
-| **What** | Accessibility is largely done (skip link, ARIA-labelled `RadarChart`/`TrendChart`, a Lighthouse a11y ≥ 0.95 gate). Two gaps remain: `profile/MiniMap.tsx` is an unlabelled MapLibre `<div>` with no accessible name or text alternative, and there is no automated a11y assertion beyond Lighthouse's single-page audit. Add a `role`/`aria-label` (and a concise text summary) to MiniMap, and an `axe-core` pass over key app states in the Playwright E2E suite. |
-| **Why** | The EU Web Accessibility Directive applies to public information services. axe-core catches structural issues (labels, contrast, roles) across interactive states that a single Lighthouse run misses, and locks accessibility in against regression as later features ship. |
-| **Touches** | `src/components/profile/MiniMap.tsx`, `e2e/` (new axe-core spec), `.github/workflows/ci.yml`, `package.json` (`@axe-core/playwright` devDep) |
-| **Complexity** | Small |
-| **Dependencies** | None |
-| **Tag** | Claude Code |
-
----
 
 ## 2 — Core Features
 
-Meaningful additions that make the product more complete.
-
-### CF-1 Quality Index Methodology — A Defensible, Documented Default
-
-> **Prioritized.** This addresses the project owner's brief: *a well-thought-out
-> default quality index.*
+### CF-1 Comprehensive shareable URL state (filters, weights, time-year, isochrone, viewport, lang/colorblind)
 
 | | |
 |---|---|
-| **What** | The Quality Index is the **default map layer** — the first thing every visitor sees — yet its default weighting is hand-tuned: Safety 25 / Income 20 / Employment 20 / Education 15 / Transit 7 / Services 5 / Air 3. Rework it in four phases. **(A) Kill the double-counting.** Income, employment, education and crime are all strong proxies for area affluence, so ~80 % of the score is effectively *one* latent variable (socioeconomic status) counted four times — the "Quality Index" is largely an affluence map relabelled. Group the ~50 flat factors into ~6 conceptual **dimensions** (e.g. Prosperity, Safety, Services & amenities, Mobility, Environment, Housing context), score each dimension once, then weight dimensions — so each concept counts once and liveability factors (services, transit, green space, walkability, noise) actually register. **(B) Documented default.** Anchor the dimension weights to a citable external framework (OECD Better Life Index / Eurostat Quality-of-Life dimensions) and write `docs/QUALITY_INDEX.md` justifying every weight and its source. **(C) National-reference normalization.** Today each metric is min-max normalized over *whatever is loaded*, so the best postal code in tiny Joutsa scores ~100 just like the best in Helsinki, and a score's meaning shifts when you switch regions. Compute fixed national percentile breakpoints once at build time over all 3 018 postal codes, store them as a data artifact, and normalize against them so "72" means the same everywhere (keep the existing `comparisonScope` "within region" toggle as an explicit opt-in). **(D) Persona presets + explainer.** `CustomQualityPanel` currently offers only free-form sliders + reset — ship 5–6 named lenses (Balanced default, Family with children, Young professional / car-free, Student, Retiree, Nature & quiet), cloud-synced via the existing preferences sync, plus a "How is this calculated?" popover on the QualityBadge. Also reconsider the harsh category labels (`Avoid` / `Bad` for postal codes where people actually live) in favour of descriptive, non-pejorative wording. |
-| **Why** | This is the product's headline number; if it is not defensible, the product is not defensible. A score that silently equals "how wealthy is this area" is both analytically weak and editorially loaded — it stigmatizes lower-income neighborhoods and tells users little they could not guess from the income layer. A documented, dimension-balanced, nationally-comparable index with honest personas turns the index from a hand-wave into the credible, distinctive core of the product — and makes "naapurustot.fi's quality index" something that can be cited rather than dismissed. |
-| **Touches** | `src/utils/qualityIndex.ts` (dimension grouping, default weights, normalization — the core change), `src/components/CustomQualityPanel.tsx` (personas + explainer), `src/components/NeighborhoodPanel.tsx` (QualityBadge explainer + category labels), `src/hooks/useQualityWeights.ts`, `scripts/build_region_data.mjs` or `scripts/prepare_data.py` (build national reference ranges), new `docs/QUALITY_INDEX.md`, `src/locales/{fi,en,sv}.json`, and the ~14 `qualityIndex*.test.ts` suites |
+| **What** | Extend the URL state serializer in useUrlState beyond the current pno/layer/compare/city to encode the analytical state a user actually built: active filter ranges/presets, custom quality weights (or persona id), comparison scope, time-slider year, isochrone settings, draw-area polygons (compactly), viewport (center/zoom), and lang/colorblind. Use short compact keys with strict validation+clamping on parse, omit defaults to keep URLs short and pasteable, and keep viewport optional behind a "copy link to this view" affordance to avoid replaceState churn on pan. Add a "Copy share link" affordance and tests. |
+| **Why** | A configured map state (filtered, custom-weighted, time-set, pinned comparison) is the product's most viral and most collaborative artifact, but today a shared link restores only neighborhood/layer/compare/city, so a recipient lands on a generic default. Making every analysis reproducible by URL is the single highest-leverage growth and collaboration mechanic for a no-login tool, and is the foundational enabler for shareable shortlists, share-image cards, and richer embeds. |
+| **Touches** | src/hooks/useUrlState.ts, src/App.tsx, src/utils/embed.ts, src/hooks/useQualityWeights.ts, src/hooks/useFilterPresets.ts, src/utils/filterUtils.ts, src/components/TimeSlider.tsx, src/components/ComparisonPanel.tsx, src/components/NeighborhoodPanel.tsx, src/components/SettingsDropdown.tsx, src/components/IsochroneControls.tsx, src/__tests__/urlState.test.ts |
 | **Complexity** | Large |
-| **Dependencies** | None (preset cloud-sync reuses CF-2 from the prior roadmap, already shipped). High-visibility change — best done on a stable base with Sentry watching. |
-| **Tag** | Claude Code (the *methodology choices* and the new category wording warrant a human/editorial review before release) |
+| **Dependencies** | None |
+| **Tag** | Claude Code |
 
-### CF-2 User Reviews & Ratings
+### CF-2 Implement the 250m national grid (population, income, age/education) — replace the placeholder fetch
 
 | | |
 |---|---|
-| **What** | Logged-in users post a short review (≤ 500 chars) and a 1–5 star rating per neighborhood. Show average rating + count in `NeighborhoodPanel`, on the prerendered profile page, and as an optional `user_rating` map layer. Schema: `reviews (id, user_id, pno, rating, body, created_at, updated_at, status)` with a `pending`/`published`/`hidden` moderation flag. Spam controls: Turnstile-gated submission, one review per user per postal code, 24 h edit window. |
-| **Why** | The 58 objective layers already cover the measurable. The missing dimension is lived experience — "what is it *actually* like to live here?" — and it is the single biggest differentiator versus any other Finnish neighborhood tool. The auth, rate-limiting and Turnstile rails were built for exactly this and are currently underused. |
-| **Touches** | `server/api/src/db.ts` (+`reviews` table), new `server/api/src/reviews.ts` + mount in `index.ts`, new `src/components/ReviewsSection.tsx`, `src/components/NeighborhoodPanel.tsx`, `src/pages/NeighborhoodProfilePage.tsx`, `scripts/prerender.mjs` (render reviews), `src/utils/colorScales.ts` (new `user_rating` layer + `LayerId`), `src/locales/{fi,en,sv}.json` |
+| **What** | Implement scripts/fetch_grid_data.py (currently a documentation-only stub) against Statistics Finland's published 250m statistical grid (vaestoruutuaineisto via StatFin PxWeb / open file download), reprojecting ETRS-TM35FIN (EPSG:3067) to WGS84 with proj4/pyproj, and emit real grid TopoJSON for population density, median income, and age/education structure. Wire it through the data pipeline (prepare_data.py, validate_data.py, build_grid_data.mjs) and rebuild via npm run build:data so the highest-variance fundamentals render at sub-postal resolution nationwide where published, degrading to the existing hatch where cells are suppressed. |
+| **Why** | Postal codes can be huge and internally lopsided — a single code may mix a dense apartment core with sparse forest, misleading exactly the people making a high-stakes move. The 250m demographic grid is the canonical finest-granularity Finnish open dataset; implementing this documented placeholder satisfies the granularity mandate and unblocks national grid rollout beyond today's three Helsinki-centric grid layers. |
+| **Touches** | scripts/fetch_grid_data.py, scripts/build_grid_data.mjs, scripts/prepare_data.py, scripts/validate_data.py, src/hooks/useGridData.ts, public/data/metro_neighborhoods.geojson |
 | **Complexity** | Large |
-| **Dependencies** | None (auth rails exist). |
-| **Tag** | Claude Code (a moderation workflow + user-generated-content T&Cs should be agreed before public launch) |
+| **Dependencies** | IN-1 |
+| **Tag** | Claude Code |
 
-### CF-3 Correlation / Scatter Explorer
+### CF-3 OSM building-footprint morphology layer (density, lot coverage, typology)
 
 | | |
 |---|---|
-| **What** | A new panel from `ToolsDropdown` ("Explore relationships"): the user picks two of the ~58 metrics; the panel renders a scatter plot — one point per neighborhood, sized by population, coloured by region — with the Pearson coefficient and an optional best-fit line. Hovering a point highlights it on the map. All computation is client-side from the already-loaded data. |
-| **Why** | A genuinely net-new analytical capability no Finnish neighborhood tool offers. It answers questions the choropleth cannot — "do low-crime areas cost more?", "does income track air quality?" — and correlation-plot screenshots are highly shareable on social/LinkedIn, a low-cost growth channel. |
-| **Touches** | New `src/components/CorrelationExplorer.tsx`, new `src/utils/correlation.ts` (Pearson + axis extraction), `src/components/ToolsDropdown.tsx`, `src/App.tsx` (panel state + map-highlight link), `src/locales/{fi,en,sv}.json` |
+| **What** | Add a "built form" layer set derived from OSM building footprints via a new scripts/fetch_building_footprints.py querying Overpass for way/relation building=* with full geometry (`out geom;`). Aggregate per postal code: footprint coverage ratio (sum of footprint area / land area pinta_ala), building-count density, and a coarse morphology mix (low-rise detached vs apartment-block share by footprint-size buckets). Add the LayerId + color scale in colorScales.ts, metric metadata in metrics.ts, FI/EN/SV labels, write values into the GeoJSON, and rebuild the TopoJSON. Where OSM coverage is partial, use the existing gray/low-data hatch. |
+| **Why** | Built-form morphology — leafy detached suburb, dense apartment grid, or sprawling blocks — is one of the strongest lived-experience signals when choosing a home and is currently only weakly proxied by detached-house share. Real footprint morphology gives a concrete, finer-than-Paavo signal of urban character, using a free, verifiable source the project already ingests for POIs at near-zero new infrastructure cost. |
+| **Touches** | scripts/fetch_building_footprints.py, scripts/prepare_data.py, src/utils/colorScales.ts, src/utils/metrics.ts, public/data/metro_neighborhoods.geojson, src/locales/fi.json, src/locales/en.json, src/locales/sv.json |
+| **Complexity** | Large |
+| **Dependencies** | None |
+| **Tag** | Claude Code |
+
+### CF-4 Commute-to-destination travel-time filter (anchor isochrone to a real address)
+
+| | |
+|---|---|
+| **What** | Add a "How far from..." destination input next to the existing isochrone controls. The user geocodes a real address (workplace, school) via the existing Digitransit geocoder, picks mode (walk/bike/transit/car) and a time budget, and the map shades every neighborhood by whether its centroid falls inside the reachable area from that destination. Compute one reverse isochrone around the destination, then point-in-polygon-test each neighborhood centroid with findNeighborhoodForPoint, surface a "within X min of <address>" badge in NeighborhoodPanel, and cache per destination+mode+budget in sessionStorage like the current isochrone cache. (Distinct from the shipped single-neighborhood isochrone; renumbered to avoid collision with the shipped CF-4/CF-5.) |
+| **Why** | Commute is the single most decision-determining constraint for relocators, and the one thing the app cannot answer today: the current isochrone only draws outward from a neighborhood you already selected, never inward from where you need to be daily. Letting someone type their office and instantly see which neighborhoods are commute-viable turns the map from "browse stats" into "find where I could actually live". |
+| **Touches** | src/utils/isochrone.ts, src/components/IsochroneControls.tsx, src/utils/geocode.ts, src/components/Map.tsx, src/components/NeighborhoodPanel.tsx, src/locales/fi.json, src/locales/en.json, src/locales/sv.json |
+| **Complexity** | Large |
+| **Dependencies** | None |
+| **Tag** | Manual Setup |
+
+### CF-5 Custom reference-neighborhood baseline with per-criterion "why it matched" breakdown
+
+| | |
+|---|---|
+| **What** | Let the user pin ANY neighborhood as a custom reference baseline instead of only the metro/region average, so per-metric diff arrows, the radar overlay, comparison framing, and quality diffs are computed relative to a user-chosen "home" or "target" area ("greener than where I live, but pricier"). Generalize the hardcoded metroAverages diff logic in NeighborhoodPanel, RadarChart, and AreaSummaryPanel to a selected reference. In the wizard/filter result and comparison views, also show a per-metric contribution breakdown — which criteria pushed each neighborhood up or down, with the actual value vs the chosen threshold — instead of an opaque single match-%. Store the reference pno in URL state with a clear "compared to {area}" label. |
+| **Why** | Relative-to-average is generic; relative-to-a-place-I-care-about (my current street) is the question people actually have, and a ranked list with a single opaque score does not help someone decide. Generalizing the existing metro-diff and scoring logic to a user-selected reference, plus exposing why each place scored, is a far more persuasive and trustworthy lens that adds no new data. |
+| **Touches** | src/components/NeighborhoodPanel.tsx, src/components/ComparisonPanel.tsx, src/components/NeighborhoodWizard.tsx, src/components/RadarChart.tsx, src/components/AreaSummaryPanel.tsx, src/utils/filterUtils.ts, src/utils/qualityIndex.ts, src/hooks/useUrlState.ts, src/locales/fi.json, src/locales/en.json, src/locales/sv.json |
 | **Complexity** | Medium |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### CF-4 Region Comparison & Ranking
+### CF-6 Configurable + national similarity engine ("find places like here, anywhere in Finland")
 
 | | |
 |---|---|
-| **What** | The ranking table ranks neighborhoods *within* a view; comparison pins up to three *neighborhoods*. Neither works at the **region** level. Add a region view: rank all 69 seutukunnat by any metric (population-weighted aggregates already exist via `region_properties.json` / `computeMetroAverages`), and let users compare whole regions side by side. Surface it from `ToolsDropdown` or the CitySelector. |
-| **Why** | The product just went national — 69 regions — but offers no way to ask "which seutukunta has the best transit / lowest unemployment / cheapest housing?". A region-level league table is a natural, low-cost payoff of the national rollout and serves a different audience (people choosing a *city/region*, not yet a street). |
-| **Touches** | New `src/components/RegionRanking.tsx` (or extend `RankingTable.tsx`), a region-aggregation util over `src/data/region_properties.json`, `src/components/ToolsDropdown.tsx` / `src/components/CitySelector.tsx`, `src/App.tsx`, `src/locales/{fi,en,sv}.json` |
+| **What** | Replace the hardcoded 10-metric SIMILARITY_METRICS array in src/utils/similarity.ts with a user-selectable metric set and optional per-metric weights, and add a "search all of Finland" toggle so the similarity query ranks candidates across every loaded region instead of only the current view. Persist the chosen metric set in URL/localStorage and surface a small picker in the panel that already shows the top-5 similar neighborhoods. |
+| **Why** | The similarity engine is powerful but opaque — users cannot tell it what "similar" means to them, and it cannot answer the most compelling question ("find me places like my current home, anywhere in Finland"). Making the existing engine configurable and national is a large analytical upgrade with no new data, leveraging the whole-Finland coverage already shipped. |
+| **Touches** | src/utils/similarity.ts, src/components/NeighborhoodPanel.tsx, src/hooks/useUrlState.ts, src/locales/fi.json, src/locales/en.json, src/locales/sv.json |
 | **Complexity** | Medium |
-| **Dependencies** | None (national data + region aggregates already shipped) |
+| **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### CF-5 Isochrone / Travel-Time Overlay
+### CF-7 Property-price and crime time-series (add _history series + change metrics)
 
 | | |
 |---|---|
-| **What** | With a neighborhood selected, show a "reachable within X minutes" overlay. The user picks mode (walk / bike / transit) and budget (10/20/30/45 min) in `NeighborhoodPanel`; query the Digitransit Routing API isochrone endpoint, render the polygon as a translucent fill, cache by pno+mode+budget in `sessionStorage`. |
-| **Why** | "How far can I get from here in 30 minutes?" is the defining question for commuters and relocators. The existing `transit_reachability` score is a single abstract number; an actual reachable-area polygon is vastly more intuitive, and Digitransit covers essentially all of Finland — so it pays off the national rollout. |
-| **Touches** | New `src/utils/isochrone.ts`, new `src/components/IsochroneOverlay.tsx`, `src/components/Map.tsx` (overlay layer), `src/components/NeighborhoodPanel.tsx` (controls), `src/components/ToolsDropdown.tsx`, `src/App.tsx`, `src/locales/{fi,en,sv}.json` |
-| **Complexity** | Large |
-| **Dependencies** | None (functionally) |
-| **Tag** | Manual Setup (Digitransit has required a free subscription API key since 2023 — register at digitransit.fi and provide the key as a build-time env var) |
-
-### CF-6 Email Digest & Neighborhood Alerts
-
-| | |
-|---|---|
-| **What** | For opted-in, verified, logged-in users: a low-volume (monthly/quarterly) email digest summarizing changes to favorited neighborhoods — income/price movement, new reviews (CF-2), data refreshes. One-click RFC 8058 unsubscribe. Needs a transactional email provider, a server-side cron worker (the `data-refresh.yml` cadence is a natural trigger), and an opt-in toggle in `UserMenu`. |
-| **Why** | Retention. Most visitors look at one neighborhood once and never return; favorites sync exists but creates no reason to come back. A digest tied to the data-refresh cycle re-engages exactly the users who explicitly asked to care, and turns favorites from a bookmark into an ongoing thread. |
-| **Touches** | `server/api/src/db.ts` (`users.email_digest_opt_in`), new `server/api/src/email.ts`, new digest worker (`server/workers/`), `server/api/src/auth.ts` (unsubscribe route), email templates, `src/components/UserMenu.tsx` |
+| **What** | Extend the historical-trends pipeline so property prices and crime rates get the same [year, value] history treatment income/population/unemployment already have. fetch_property_prices.py already queries multiple yearly periods of the StatFin ashi table and fetch_crime_index.py reads a yearly StatFin rpk table — capture the full year series instead of only the latest, write property_price_history and crime_index_history into the GeoJSON, derive change-% metrics, and wire both into the existing TimeSlider/TrendChart/Sparkline components. |
+| **Why** | Time-series exists for only 3 metrics today, yet two of the most decision-relevant numbers — what prices are doing and whether crime is rising or falling — sit on upstream tables the pipeline already touches that publish yearly data. This turns static snapshots into trends with no new data source, directly extending the shipped time-slider investment. |
+| **Touches** | scripts/fetch_property_prices.py, scripts/fetch_crime_index.py, scripts/historical_trends.json, scripts/prepare_data.py, src/utils/metrics.ts, src/components/TrendChart.tsx, src/components/Sparkline.tsx, public/data/metro_neighborhoods.geojson |
 | **Complexity** | Medium |
-| **Dependencies** | PO-3 (email verification) should land first so digests only reach verified addresses; shares `email.ts` with PO-3 |
-| **Tag** | Manual Setup (transactional email provider account — Resend/Postmark/SES — plus SPF/DKIM/DMARC DNS records) |
+| **Dependencies** | None |
+| **Tag** | Claude Code |
 
----
+### CF-8 Quality Index auditability: per-neighborhood factor-coverage breakdown
+
+| | |
+|---|---|
+| **What** | Make each neighborhood's Quality Index defensible by showing, on demand in the NeighborhoodPanel quality section, exactly which of the ~61 factors contributed: per-dimension score, factors used, factors missing (no data) for this specific area, and how missing factors were handled (re-normalized within available factors vs penalized). Surface the active comparison scope (national vs within-region) and a "coverage: X/61 factors" confidence chip so a low-coverage rural postal code is visibly less certain than a fully-covered Helsinki one. |
+| **Why** | The index is the headline number every visitor sees, yet there is no way to see why a given area scored as it did or how many factors were actually available — partial-coverage areas get a confident-looking score built on few inputs. Exposing factor coverage and missing-data handling makes the flagship metric auditable, defends against "this score is wrong" challenges, and reinforces the documented methodology in qualityIndex.ts. |
+| **Touches** | src/utils/qualityIndex.ts, src/components/NeighborhoodPanel.tsx, src/locales/fi.json, src/locales/en.json, src/locales/sv.json |
+| **Complexity** | Medium |
+| **Dependencies** | None |
+| **Tag** | Claude Code |
+
+### CF-9 Public Data Sources & Methodology page (FI/EN/SV, prerendered, linked app-wide)
+
+| | |
+|---|---|
+| **What** | Add a static, prerendered /tietolahteet (FI), /en/data-sources, /sv/datakallor route built from the data-source registry, listing every layer with its source name, clickable source URL, license, vintage year, granularity, and a "derived/proxy" badge where applicable. Include a concise Quality Index methodology summary rendered from docs/QUALITY_INDEX.md plus the national-normalization explanation. Wire it into prerender.mjs, the sitemap (with hreflang alternates), and add a footer/header link from the SPA and from every prerendered profile page's nav. |
+| **Why** | The methodology is currently buried in a repo markdown file and a single tooltip string; there is no public, indexable page a skeptical journalist, official, or resident can cite to verify the data. A transparent, multilingual sources+methodology page is the single biggest trust/credibility lever and strengthens SEO/E-E-A-T across the ~27,000 profile pages. |
+| **Touches** | scripts/prerender.mjs, scripts/generate-sitemap.mjs, src/pages/DataSourcesPage.tsx, src/main.tsx, docs/QUALITY_INDEX.md, src/locales/fi.json, src/locales/en.json, src/locales/sv.json, src/data/data_sources.json |
+| **Complexity** | Medium |
+| **Dependencies** | IN-2 |
+| **Tag** | Claude Code |
+
+### CF-10 Comparison & correlation "share as image" cards (PNG export + Web Share)
+
+| | |
+|---|---|
+| **What** | Generalize the existing single-neighborhood score-card path to produce two branded PNG artifacts: a side-by-side comparison card (2-3 pinned neighborhoods with key metric diffs and quality badges) and a correlation snapshot card (the scatter plot, Pearson r, the two metric labels, a naapurustot.fi watermark, and the deep link). Reuse the lazy-loaded html-to-image path so the bundle budget is untouched, and wire a "Jaa kuvana" / Web Share button into ComparisonPanel and CorrelationExplorer mirroring NeighborhoodPanel. |
+| **Why** | Comparison and correlation are exactly the screenshots people already crop and post, but today they must hand-screenshot an un-branded, un-linked view. A branded card with the deep link baked in converts each share into traceable inbound traffic and back-links — top-of-funnel growth with export machinery already proven. |
+| **Touches** | src/utils/scoreCard.ts, src/components/ComparisonPanel.tsx, src/components/CorrelationExplorer.tsx, src/locales/fi.json, src/locales/en.json, src/locales/sv.json, src/__tests__/scoreCard.test.ts |
+| **Complexity** | Medium |
+| **Dependencies** | CF-1 |
+| **Tag** | Claude Code |
+
+### CF-11 Prerender SEO depth: twitter:image, verifiable percentile badges, FAQPage + Dataset JSON-LD
+
+| | |
+|---|---|
+| **What** | Sharpen the ~27k prerendered profiles and 207 hubs using only data already in the repo. (1) Inject the currently-missing twitter:image meta tag (pointing at the shared og-image.png) so X/Slack/WhatsApp cards render at all. (2) Compute each neighborhood's percentile rank within its region and nationally for headline metrics (quality index, income, transit) from the loaded GeoJSON + national_ranges.json, and surface them as a verifiable sentence in the meta description, noscript table, and JSON-LD additionalProperty ("Top 8% nationally for quality index"). (3) Emit a FAQPage JSON-LD block plus matching visible/noscript Q&A templated from real values ("What is the average income in {area}?"), and a Dataset JSON-LD node on hub pages describing the underlying open datasets, sources, and licenses. |
+| **Why** | Profiles are the SEO surface but their social cards are half-broken (no twitter:image) and copy is generic, while answer engines increasingly cite pages with explicit Q&A/Dataset structured data. Real computed superlatives and templated Q&A are the most clickable, most-quoted hooks for humans and LLMs — all traced to real data, so no integrity risk — deepening discoverability across 27k profiles with zero new data sources. |
+| **Touches** | scripts/prerender.mjs, scripts/prerender-hubs.mjs, src/components/profile/JsonLd.tsx, src/utils/nationalRanges.ts, src/utils/percentileRanks.ts, index.html |
+| **Complexity** | Medium |
+| **Dependencies** | None |
+| **Tag** | Claude Code |
 
 ## 3 — Polish
 
-UX, edge cases, compliance, quality.
-
-### PO-1 Dynamic Per-Neighborhood OG Images
+### PO-1 prefers-reduced-motion support + re-enable AA color-contrast CI gate
 
 | | |
 |---|---|
-| **What** | Every shared profile URL (`/alue/00500-...`) currently gets the same site-wide `og-image.png`. Generate a per-neighborhood social-preview image — name, a small static map thumbnail, the quality index, one headline metric — at build time inside the existing prerender pipeline, written to `public/og/{pno}.png`, with the profile page emitting per-pno `og:image` / `twitter:image` meta. |
-| **Why** | The prerender pipeline already emits ~9 000 profile pages × 3 languages; rich link previews drive multiple times the click-through of a generic card across WhatsApp, Slack, LinkedIn. This converts the SEO surface already built into an organic distribution channel at near-zero marginal cost. |
-| **Touches** | `scripts/prerender.mjs`, new `scripts/render-og-image.mjs`, new `public/og/` output, profile-page `<meta>` tags, the `build:pages` npm script |
+| **What** | Add a global CSS media query in src/index.css that neutralizes Tailwind transition/animation utilities under prefers-reduced-motion: reduce, plus a small useReducedMotion (matchMedia) hook consumed where motion is programmatic: useAnimatedValue counter tweens, MapLibre easeTo/flyTo in Map.tsx and SplitMapView.tsx (pass animate:false/duration:0 when reduced), the onboarding tour, and bottom-sheet drags / sparkline draws. Separately, fix the brand-500-on-white contrast (currently 4.47:1, below WCAG AA) by darkening the brand text token or adjusting usage so the disabled axe color-contrast rule can be re-enabled in CI. |
+| **Why** | There is no prefers-reduced-motion handling anywhere in src (a WCAG 2.3.3 gap and vestibular trigger given animated counters, radar tweens, and map fly-to), and sub-AA brand text excludes low-vision users — exactly the cohorts making housing decisions. Both are low-effort, high-trust accessibility wins for a public-interest civic tool, and re-enabling the contrast gate prevents regressions. |
+| **Touches** | src/index.css, src/hooks/useAnimatedValue.ts, src/components/Map.tsx, src/components/SplitMapView.tsx, src/components/OnboardingTour.tsx, tailwind.config.js, e2e/a11y.spec.ts |
+| **Complexity** | Small |
+| **Dependencies** | None |
+| **Tag** | Claude Code |
+
+### PO-2 Honest proxy/derived-data disclosure badge on map, legend, and panel
+
+| | |
+|---|---|
+| **What** | Surface the is_proxy/derived flag from the data-source registry directly in the UI: a small "estimate / arvio" badge with an explanatory popover wherever a value comes from a regression proxy or derived model rather than direct measurement — specifically Tampere/Turku transit_reachability_score (R²=0.58 regression) and their distance-from-center air-quality gradients, plus any source tagged derived. Show it in the Legend, the NeighborhoodPanel stat row next to the existing source attribution, and in the tooltip. Add FI/EN/SV strings explaining what "estimate" means and which regions/layers are affected. |
+| **Why** | Presenting a regression proxy with the same visual weight as a measured value quietly overstates accuracy — an acknowledged gap that erodes trust if a local notices their city's "transit access" isn't real travel-time data. Explicitly labelling estimates is honest, defuses "this is wrong" criticism, and turns a weakness into a credibility signal without removing the layer. |
+| **Touches** | src/utils/metrics.ts, src/components/NeighborhoodPanel.tsx, src/components/Legend.tsx, src/locales/fi.json, src/locales/en.json, src/locales/sv.json |
+| **Complexity** | Small |
+| **Dependencies** | IN-2 |
+| **Tag** | Claude Code |
+
+### PO-3 Per-layer data-freshness / vintage panel with staleness signalling
+
+| | |
+|---|---|
+| **What** | Replace the single global build_metadata.json timestamp with a per-layer freshness view driven by the registry's vintage years: a sortable list of every layer, its vintage, granularity, and source, with a subtle "last updated N years ago" staleness indicator (amber for layers older than ~3 years such as foreign_language 2020, noise 2012-2022, crime 2023). Keep the build-derived timestamp as "site last rebuilt", but make data age per-layer and honest, and optionally show the vintage year inline in the Legend caption. Extend the LayerConfig interface with optional vintage_year and source fields to support per-layer metadata. |
+| **Why** | A single build timestamp implies all data is fresh, but vintages actually range 2012-2026 with several frozen snapshots. Users making relocation decisions deserve to know a metric is years old. Per-layer freshness is a low-effort honesty win that prevents over-trusting stale layers. |
+| **Touches** | src/components/Legend.tsx, src/data/build_metadata.json, src/data/data_sources.json, src/locales/fi.json, src/locales/en.json, src/locales/sv.json, src/utils/colorScales.ts |
 | **Complexity** | Medium |
-| **Dependencies** | Benefits from CF-1 (the headline metric on the card should be the redesigned index) but does not block on it |
-| **Tag** | Claude Code (build-time generation; no external service) |
+| **Dependencies** | IN-2 |
+| **Tag** | Claude Code |
 
-### PO-2 Time Slider / Historical Playback
+### PO-4 Recently-viewed & favorites re-entry surface ("continue exploring") on the home view
 
 | | |
 |---|---|
-| **What** | Several metrics already carry 5-year history arrays (`median_income`, `population`, `unemployment_rate`) used only inside per-neighborhood trend charts. Add a time slider below the legend that scrubs earliest → latest year and animates the choropleth across all neighborhoods at once, with a play/pause control. Visible only when a time-series metric is active. |
-| **Why** | "How has this area changed over five years?" is evocative and decision-relevant for buyers and planners. The trend data is already fetched and bundled — exposing it *spatially* across the whole map, not just one chart, is a distinctive capability for near-zero data cost. |
-| **Touches** | New `src/components/TimeSlider.tsx`, `src/components/Map.tsx` (year-indexed paint expressions), `src/components/Legend.tsx`, `src/utils/metrics.ts` (flag time-series metrics), `src/locales/{fi,en,sv}.json` |
+| **What** | On (re)load with no deep link, render a lightweight panel/strip that resurfaces the user's recent neighborhoods (useRecentNeighborhoods) and favorites (useFavorites) as one-click chips that restore that view, plus "similar to your favorites" suggestions from the existing similarity engine. New HomeReentryPanel.tsx component, rendered when nothing is selected. Purely local data, no new fetch; degrades to onboarding for first-time visitors. |
+| **Why** | The product is research-grade but has weak return-visit hooks for anonymous users — every fresh load starts cold. A "pick up where you left off" surface, built from local recents/favorites already tracked, raises day-N return engagement and gives the optional account a tangible upgrade reason (cloud-synced recents across devices), without new data sources. |
+| **Touches** | src/hooks/useRecentNeighborhoods.ts, src/hooks/useFavorites.ts, src/utils/similarity.ts, src/App.tsx, src/components/EmptyStateIllustrations.tsx, src/components/HomeReentryPanel.tsx |
 | **Complexity** | Medium |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### PO-3 Auth UX: Password Reset + Email Verification
+### PO-5 Surface and retry silent server-sync failures + cross-tab localStorage sync
 
 | | |
 |---|---|
-| **What** | Auth has signup/login/logout but no password reset and no email verification. Add: (1) forgot-password (request → signed-token email → reset form), (2) verification on signup (token email; UI shows "verify your email" until clicked), (3) a change-password form in `UserMenu`. |
-| **Why** | Baseline hygiene for any production auth system. Without reset, a locked-out user is locked out forever; without verification, digest emails (CF-6) go to mistyped addresses and damage sender reputation. The product stores user data in production today — these are overdue. |
-| **Touches** | `server/api/src/auth.ts` (reset/verify routes + token handling), `server/api/src/db.ts` (`email_verified_at`, `password_reset_tokens`), new `server/api/src/email.ts` (shared with CF-6), new `src/pages/ResetPasswordPage.tsx` + `VerifyEmailPage.tsx`, `src/components/AuthModal.tsx`, `src/components/UserMenu.tsx`, `src/main.tsx` (routes) |
+| **What** | Add a thin sync-status layer used by useFavorites, useNotes, useQualityWeights, and useFilterPresets: replace the silently-swallowed server-sync catch blocks with a status signal (idle/syncing/error) exposed to a small unobtrusive "changes not saved to your account, retry" indicator, plus exponential-backoff retry. Add cross-tab consistency via a storage event listener (and/or BroadcastChannel) so favoriting in one tab updates others. All browser-native APIs, no new heavy deps. |
+| **Why** | Server-sync failures for favorites/notes/preferences are swallowed silently with no retry or feedback, and there is no cross-tab localStorage sync, so logged-in users can lose data they believe is cloud-saved and see stale state across tabs. This is a trust-and-data-loss fix for the optional-backend feature the project already invested in, with zero bundle impact. |
+| **Touches** | src/hooks/useFavorites.ts, src/hooks/useNotes.ts, src/hooks/useQualityWeights.ts, src/hooks/useFilterPresets.ts, src/components/UserMenu.tsx, src/utils/syncStatus.ts |
 | **Complexity** | Medium |
-| **Dependencies** | Shares the transactional email provider + `email.ts` with CF-6 |
-| **Tag** | Manual Setup (email provider + deliverability DNS) |
+| **Dependencies** | None |
+| **Tag** | Claude Code |
 
-### PO-4 GDPR Data Export + Account Deletion
-
-| | |
-|---|---|
-| **What** | The product stores user data (favorites, notes, preferences, and reviews once CF-2 ships) but offers no export and no deletion. Add to `UserMenu`: (1) "Download my data" → JSON of all stored user data; (2) "Delete my account" with confirmation + a 30-day grace window (soft-delete flag + cascade). Add a `/privacy` page documenting retention and third-party processors. |
-| **Why** | GDPR Article 20 (portability) and Article 17 (erasure) are legal requirements for an EU-operated service holding personal data. Far cheaper to build now, while the user-data model is small, than to retrofit later. |
-| **Touches** | `server/api/src/index.ts` / `auth.ts` (export + delete routes), `server/api/src/db.ts` (soft-delete + cascade), `src/components/UserMenu.tsx`, new `src/pages/PrivacyPage.tsx`, `src/main.tsx` (route), prerender config |
-| **Complexity** | Small–Medium |
-| **Dependencies** | CF-2 should land first so the export covers reviews |
-| **Tag** | Claude Code (the privacy-policy copy needs legal review before public launch) |
-
-### PO-5 Real-Time Air Quality Layer
+### PO-6 Privacy & data-handling notice page for the auth backend (FI/EN/SV)
 
 | | |
 |---|---|
-| **What** | HSY publishes hourly air-quality indices per station. When the `air_quality` layer is active in the Helsinki metro, overlay live values instead of the static monthly average and show an "updated X hours ago" badge on the selected neighborhood. Cache 1 h in `localStorage`; fall back to the static average + the existing hatched no-data pattern outside HSY coverage. |
-| **Why** | Hourly air quality swings sharply with traffic and weather; a monthly average misses lived experience. A live value makes the app usable for daily decisions ("is it a good day to run in Kallio?") and differentiates it from static dashboards. |
-| **Touches** | New `src/utils/airQualityLive.ts` (HSY client), `src/components/Map.tsx` (merge live values when the layer is active), `src/components/NeighborhoodPanel.tsx` (timestamp badge), `src/locales/{fi,en,sv}.json` |
-| **Complexity** | Medium |
-| **Dependencies** | HSY coverage is Helsinki-metro only — explicitly a regional enhancement, not national |
-| **Tag** | Claude Code (HSY's feed is open and keyless; validate endpoint stability/rate limits before rollout) |
+| **What** | Add a prerendered, multilingual privacy/data-handling page (/tietosuoja, /en/privacy, /sv/integritet) that plainly states what the optional account collects (email, hashed password, favorites/notes/preferences synced to api.naapurustot.fi), the legal basis, retention, the third parties involved (Cloudflare Turnstile, Sentry, self-hosted Umami), that the map works fully without an account, and how to contact for data requests. Link it from the auth/signup UI and the site footer. Transparency notice only — does NOT implement the deferred GDPR export/delete or account-deletion flows. |
+| **Why** | The product collects emails and personal favorites/notes via the backend and runs Turnstile/Sentry/Umami, but there is no privacy notice anywhere — a basic legal/compliance gap and a trust blocker at the exact moment a user is asked to sign up. A clear, honest notice is table stakes for a public Finnish service handling personal data and is independent of the deferred export/delete machinery. |
+| **Touches** | scripts/prerender.mjs, scripts/generate-sitemap.mjs, src/components/AuthModal.tsx, src/locales/fi.json, src/locales/en.json, src/locales/sv.json, src/main.tsx, src/pages/PrivacyPage.tsx, src/components/SettingsDropdown.tsx |
+| **Complexity** | Small |
+| **Dependencies** | None |
+| **Tag** | Manual Setup |
 
----
+### PO-7 Locale key-parity + Swedish format-locale CI gate
+
+| | |
+|---|---|
+| **What** | Add a Vitest spec under src/__tests__ that asserts en.json and sv.json have full key parity with fi.json (sv.json currently missing ~53 of 587 keys) and that no value is an empty string, failing CI when a new fi key lands without translations, and translate the missing SV keys. Separately, fix src/utils/formatting.ts getNumberFormatter() so Swedish maps to sv-SE instead of silently falling through the en-vs-fi ternary, matching the sv-SE tag the prerender scripts already use. |
+| **Why** | Swedish is a co-official Finnish language yet ~9% of the UI silently falls back to Finnish, with number formatting inconsistent between the live app and the prerendered SEO pages (which correctly use sv-SE). A parity test prevents regression permanently and the formatting fix makes the runtime app match its own SEO output, at zero bundle cost. |
+| **Touches** | src/utils/formatting.ts, src/locales/sv.json, src/locales/fi.json, src/locales/en.json, src/__tests__/i18nKeyParity.test.ts |
+| **Complexity** | Small |
+| **Dependencies** | None |
+| **Tag** | Claude Code |
 
 ## 4 — Infrastructure
 
-Not user-facing; unblocks future growth and de-risks operations.
-
-### IN-1 Dependabot
+### IN-1 Manifest-driven grid-layer discovery (kill the hardcoded 3-path registry)
 
 | | |
 |---|---|
-| **What** | CodeQL, `npm audit` and `pip-audit` already run in CI, but there is **no Dependabot** — nothing opens PRs to actually apply updates. Add `.github/dependabot.yml` for npm (frontend + `server/api/`), pip (data pipeline), Docker (server base images) and GitHub Actions. Constrain load-bearing deps (`@turf/union`, `maplibre-gl`) to patch/minor only — major bumps on those have a CLAUDE.md pitfall history. |
-| **Why** | Audits *detect* vulnerable dependencies; Dependabot *fixes* them. Without it, security and maintenance debt accumulates silently across a now four-runtime stack (frontend, Node API, Python pipeline, Docker). Zero cost on a public repo. |
-| **Touches** | New `.github/dependabot.yml` |
+| **What** | Have scripts/build_grid_data.mjs emit a grid_manifest.json (mapping each LayerId to its built grid file path, format, bbox, and coverage scope) as it scans public/data for grid files, mirroring the existing region_coverage.json pattern from build_region_data.mjs. Refactor src/hooks/useGridData.ts to read GRID_PATHS and hasGridData() from that manifest at startup instead of the hardcoded transit_reachability/light_pollution/air_quality object, and let the Legend/UI show per-grid coverage scope ("Helsinki metro only") instead of silently falling back. |
+| **Why** | Grid layers are the granularity frontier, but every new one currently requires editing the hook and risks silent fallback (a typo'd path just warns to console and reverts to choropleth) with no coverage signal to users. A manifest removes the code coupling so grid rollout scales with data and makes partial coverage explicit, directly unblocking the 250m national grid item. |
+| **Touches** | src/hooks/useGridData.ts, scripts/build_grid_data.mjs, src/data/grid_manifest.json, src/components/Legend.tsx, package.json |
 | **Complexity** | Small |
 | **Dependencies** | None |
-| **Tag** | Claude Code (committing the file is sufficient; GitHub enables Dependabot automatically) |
-
-### IN-2 API Observability — Metrics, Structured Logs, Off-Site Backup, Uptime
-
-| | |
-|---|---|
-| **What** | The API has a minimal `/health` and a daily on-droplet `pg_dump`, but no operational visibility. Add: (1) an expanded `/health` reporting DB connectivity + version + uptime; (2) a `/metrics` endpoint (request counts, latency, auth-failure counts); (3) structured JSON request logging; (4) **off-site** backup replication (the current backups live only on the same droplet — a droplet loss loses the data and its backups); (5) an external uptime monitor on `api.naapurustot.fi`. |
-| **Why** | The API is in production with real user data and no safety net. If the DB fails, nobody knows until users notice favorites stopped syncing; if the droplet dies, the only backups die with it; a brute-force auth attempt is invisible. This is baseline ops hygiene for a live backend. |
-| **Touches** | `server/api/src/index.ts` (health + metrics routes), new `server/api/src/logging.ts`, `server/docker-compose.yml`, `server/backup.sh` (off-site target), uptime-monitor configuration |
-| **Complexity** | Medium |
-| **Dependencies** | None (Sentry already shipped) |
-| **Tag** | Manual Setup (off-site storage bucket — DigitalOcean Spaces / S3 — plus an UptimeRobot or equivalent account; the `/metrics`, `/health` and logging code is Claude Code) |
-
-### IN-3 Trim Deployed Data Artifacts
-
-| | |
-|---|---|
-| **What** | `public/data/` holds pipeline **inputs** that Vite copies verbatim into the deployed site: `metro_neighborhoods.geojson` (~41 MB — the source-of-truth GeoJSON the app never loads at runtime) and the `*_grid.geojson` files (~5 MB, superseded by their `.topojson` builds). Audit what `dist/` actually ships, then move build-only inputs out of `public/` (e.g. a `data-src/` directory the pipeline and `build:data` read from) so they are not deployed. Also note the ~10 MB `src/data/region_properties.json` powering the "all cities" view as a payload-size watch item. |
-| **Why** | ~46 MB of dead weight is copied into every GitHub Pages deploy — slower deploys, wasted bandwidth, and raw source data needlessly exposed at `/data/` (only weakly hidden by a `robots.txt` disallow). Cleanly separating pipeline inputs from shipped assets removes the footgun and shrinks the deploy. |
-| **Touches** | `vite.config.ts` (publicDir / copy config), `public/data/` → new `data-src/` (or similar), `scripts/*` that read those inputs, `.gitignore`, `.github/workflows/deploy.yml` |
-| **Complexity** | Small–Medium |
-| **Dependencies** | None — verify each file is truly unused at runtime before moving it |
 | **Tag** | Claude Code |
 
----
+### IN-2 Single source-of-truth data-source registry + CI drift check
+
+| | |
+|---|---|
+| **What** | Create one canonical machine-readable registry (src/data/data_sources.json) keyed by metric/GeoJSON property, each entry carrying: human source name, source URL, publisher/license, vintage year(s), granularity (postal/250m grid/derived), and a boolean is_proxy flag. Generate the existing METRIC_SOURCES map in src/utils/metrics.ts from this registry (or import it directly) so the hand-maintained, URL-less map can no longer silently drift. Add a Vitest spec that fails CI if any LayerId in colorScales.ts / metrics.ts lacks a registry entry, and a Python check in validate_data.py asserting every layer written to the GeoJSON has a registry row. |
+| **Why** | Source attribution is the product's core credibility asset, but METRIC_SOURCES is a separate hand-maintained map with no URLs and years frozen at a uniform value while real vintages span 2012-2026. A single registry with CI parity guarantees every shown number traces to a citable, dated, licensed source and prevents attribution from rotting as the 58-71 layers evolve. It is the foundation for the public sources page, the proxy badge, and the freshness panel. |
+| **Touches** | src/data/data_sources.json, src/utils/metrics.ts, src/utils/colorScales.ts, scripts/validate_data.py, src/__tests__/metrics-registry.test.ts |
+| **Complexity** | Medium |
+| **Dependencies** | None |
+| **Tag** | Claude Code |
+
+### IN-3 Build-time data-provenance integrity check + provenance manifest
+
+| | |
+|---|---|
+| **What** | Harden the pipeline's trustworthiness: in prepare_data.py / validate_data.py, assert that the vintage years declared in the data-source registry match the actual vintages recorded in scripts/*.json provenance fields, failing the build on mismatch. Also compute per-metric null-rate and compare against a committed src/data/data_baseline.json, failing if coverage drops by more than a configurable delta or a previously-populated metric becomes entirely null. Emit a build-time provenance manifest (extending build_metadata.json) recording per layer: source, vintage, granularity, row count, coverage %, and add it as a CI artifact and to the data-refresh workflow summary. |
+| **Why** | The quarterly data-refresh workflow currently only sanity-checks file size and feature count, so a silent upstream schema change that nulls a column (e.g. property_price or crime), or a vintage drifting out of sync with the declared source, would pass review and ship a degraded map. A provenance + null-rate gate turns the project's data-integrity stance into an enforced automated check and gives a defensible audit trail for every data change, supporting the sources page and freshness panel. |
+| **Touches** | scripts/prepare_data.py, scripts/validate_data.py, .github/workflows/data-refresh.yml, src/data/build_metadata.json, src/data/data_sources.json |
+| **Complexity** | Medium |
+| **Dependencies** | IN-2 |
+| **Tag** | Claude Code |
+
+### IN-4 Synthetic data-freshness + backend uptime health monitor (Actions cron)
+
+| | |
+|---|---|
+| **What** | Add a lightweight scheduled GitHub Actions workflow (health-check.yml) that runs daily: (1) pings api.naapurustot.fi/health and opens an issue if the optional backend is down or slow; (2) fetches the deployed build_metadata/provenance manifest and warns if data is older than a configurable threshold (e.g. not refreshed in >2 quarters), catching a silently-failed quarterly refresh; (3) verifies the deployed sitemap.xml and a sample profile page return 200. On failure it opens a GitHub issue (via built-in GITHUB_TOKEN) so the owner is alerted. Data-age threshold configurable as a GitHub secret. |
+| **Why** | There are no post-deploy health checks, no synthetic data-freshness monitoring, and server-sync failures are swallowed silently — so a dead backend or a quietly-failed data refresh could go unnoticed for months. A zero-cost cron smoke test gives the operator early warning that the live site and its data are healthy, foundational ops trustworthiness without standing up new infrastructure. |
+| **Touches** | .github/workflows/health-check.yml, server/api/src/index.ts, src/data/build_metadata.json |
+| **Complexity** | Small |
+| **Dependencies** | IN-3 |
+| **Tag** | Claude Code |
+
+### IN-5 Test-coverage reporting + ratchet gate in CI
+
+| | |
+|---|---|
+| **What** | Wire the already-installed-but-unused @vitest/coverage-v8 into the Vitest config with a v8 provider and sane include/exclude, add an npm run test:coverage script, and add a CI step in ci.yml (and the auto-merge.yml path) that runs coverage and enforces a baseline threshold that ratchets up — failing if coverage drops below the committed baseline rather than demanding a fixed high number. Surface the summary in the GitHub step summary like the existing bundle-size report. |
+| **Why** | @vitest/coverage-v8 is installed but never invoked, so the 145 specs produce no coverage signal and regressions in critical paths (the dataLoader/filterPresets tests written to fix sub-15% coverage) can silently reappear. A ratchet gate locks in hard-won coverage without blocking unrelated work, using infra patterns the CI already demonstrates. |
+| **Touches** | .github/workflows/ci.yml, .github/workflows/auto-merge.yml, vitest.config.ts, package.json |
+| **Complexity** | Medium |
+| **Dependencies** | None |
+| **Tag** | Claude Code |
+
+### IN-6 Region TopoJSON payload audit + quantization for map-load performance
+
+| | |
+|---|---|
+| **What** | Add a build-time payload report (extend build_region_data.mjs / build_grid_data.mjs) that records each per-region TopoJSON's gzipped byte size into a committed manifest and prints a CI step summary like the existing bundle-size report, flagging any region file crossing a configurable size budget. Pair it with coordinate quantization/precision tuning in the TopoJSON build (geo2topo -q / toposimplify, following the existing build_seutukunta_boundaries.mjs -q 1e5 pattern) to shrink precision where it does not affect rendering, measuring before/after payload on the largest regions. This is a data-payload performance lever distinct from the JS bundle budget. |
+| **Why** | CI enforces a JS bundle budget but has no visibility into the per-region geodata payloads users actually download on the map hot path, and the dataset spans ~3,018 postal codes across 69 lazy-loaded regions where the biggest regions dominate first-paint cost. Instrumenting and quantizing the geodata gives a measurable map-performance win and a regression guard for the largest real cost on the wire. |
+| **Touches** | scripts/build_region_data.mjs, scripts/build_grid_data.mjs, .github/workflows/ci.yml |
+| **Complexity** | Medium |
+| **Dependencies** | None |
+| **Tag** | Claude Code |
 
 ## Suggested Sequencing
 
-Items within a batch are **logically independent** — no item depends on or breaks
-another in the same batch — so they are safe to run as parallel Claude Code
-sessions. Where two items append to the same hub file (`App.tsx`, `ToolsDropdown.tsx`,
-the locale JSON, or a server file), the conflict is **mechanical, not logical**;
-those pairs are called out with a merge order. Batches run sequentially: batch
-N+1 assumes batch N is merged.
+### Batch 1 — Foundations: registry, manifest, URL state, standalone wins
 
-### Batch 1 — Trust, Reach & Hygiene
-
-Six fully parallel sessions. None changes core application logic, so this batch
-de-risks everything after it.
+The bedrock items everything else builds on — the data-source registry (IN-2) and grid manifest (IN-1) unblock most transparency and grid work, and comprehensive URL state (CF-1) enables shortlists, share-cards, and richer embeds. The rest are fully self-contained features with no dependencies that can run in parallel from day one.
 
 | Item | Category | Complexity | Tag |
-|------|----------|-----------|-----|
-| QW-1 Build-derived data-freshness timestamp | Quick Win | Small | Claude Code |
-| QW-3 Geolocation — "show my area" | Quick Win | Small | Claude Code |
-| QW-4 Finish accessibility (MiniMap + axe-core) | Quick Win | Small | Claude Code |
-| PO-1 Dynamic per-neighborhood OG images | Polish | Medium | Claude Code |
-| IN-1 Dependabot | Infrastructure | Small | Claude Code |
-| IN-3 Trim deployed data artifacts | Infrastructure | Small–Medium | Claude Code |
+|---|---|---|---|
+| IN-2 | Infrastructure | Medium | Claude Code |
+| IN-1 | Infrastructure | Small | Claude Code |
+| CF-1 | Core Features | Large | Claude Code |
+| QW-1 | Quick Wins | Small | Claude Code |
+| CF-6 | Core Features | Medium | Claude Code |
+| CF-7 | Core Features | Medium | Claude Code |
+| CF-8 | Core Features | Medium | Claude Code |
+| PO-1 | Polish | Small | Claude Code |
+| PO-4 | Polish | Medium | Claude Code |
+| PO-5 | Polish | Medium | Claude Code |
+| PO-7 | Polish | Small | Claude Code |
+| IN-5 | Infrastructure | Medium | Claude Code |
+| IN-6 | Infrastructure | Medium | Claude Code |
+| CF-4 | Core Features | Large | Manual Setup |
 
-> **Why first:** correct data-freshness (trust), a finished accessibility story
-> (compliance), automated dependency updates (security), a leaner deploy
-> (IN-3), social-preview reach (PO-1) and a personal entry point (QW-3) — all
-> before any new application surface is added.
->
-> **File map:** QW-1 → `build_region_data.mjs`, `dataLoader.ts`/`useMapData.ts`,
-> `SettingsDropdown.tsx`, locales · QW-3 → `SearchBar.tsx`, `geocode.ts`/`geometryFilter.ts`,
-> `App.tsx`, locales · QW-4 → `profile/MiniMap.tsx`, `e2e/`, `ci.yml`, `package.json`
-> · PO-1 → `prerender.mjs`, new `render-og-image.mjs`, `public/og/`, profile meta
-> · IN-1 → new `.github/dependabot.yml` · IN-3 → `vite.config.ts`, `public/data/`,
-> `.gitignore`, `deploy.yml`.
->
-> **Parallel safety:** QW-3 is the only batch-1 item touching `App.tsx`. QW-1 and
-> QW-3 both append locale keys (trivial). No other overlap.
+Parallel-safety note: distinct file sets except for shared hubs — CF-1, CF-6, and QW-1 all touch useUrlState.ts/NeighborhoodPanel.tsx and the locale JSONs (merge CF-1 first as it restructures the serializer, then CF-6's metric+scope params, then QW-1's histogram section); PO-1, IN-5, and IN-6 share ci.yml/config files (append-only, merge in ID order); CF-4 needs VITE_DIGITRANSIT_API_KEY set in the deploy environment before it delivers end-user value.
 
-### Batch 2 — The Quality Index Redesign
+### Batch 2 — Granularity & shipped-state consumers
 
-Three parallel sessions with zero file overlap (locale appends aside).
+Heavy data-pipeline and analytical features that depend on Batch 1's foundations: the 250m grid (CF-2) needs the grid manifest, footprint morphology (CF-3) is independent but pipeline-heavy, and the reference-baseline (CF-5) consumes the URL-state plumbing from CF-1.
 
 | Item | Category | Complexity | Tag |
-|------|----------|-----------|-----|
-| CF-1 Quality Index methodology — defensible default | Core Feature | Large | Claude Code |
-| QW-2 Keyboard shortcuts + `?` overlay | Quick Win | Small | Claude Code |
-| PO-2 Time slider / historical playback | Polish | Medium | Claude Code |
+|---|---|---|---|
+| CF-2 | Core Features | Large | Claude Code |
+| CF-3 | Core Features | Large | Claude Code |
+| CF-5 | Core Features | Medium | Claude Code |
+| QW-2 | Quick Wins | Medium | Claude Code |
 
-> **Why second:** CF-1 reworks the **default map layer** — the most visible
-> change in this roadmap — so it should land on the stable, observable base from
-> batch 1, with shipped Sentry catching any regression. QW-2 and PO-2 are
-> independent UX wins that fill the batch without touching CF-1's files.
->
-> **File map:** CF-1 → `qualityIndex.ts`, `CustomQualityPanel.tsx`,
-> `NeighborhoodPanel.tsx`, `useQualityWeights.ts`, `build_region_data.mjs`, new
-> `docs/QUALITY_INDEX.md`, `qualityIndex*.test.ts`, locales · QW-2 → `App.tsx`,
-> new `ShortcutsOverlay.tsx`, `SettingsDropdown.tsx`, locales · PO-2 → new
-> `TimeSlider.tsx`, `Map.tsx`, `Legend.tsx`, `metrics.ts`, locales.
->
-> **Parallel safety:** the three items touch disjoint components. Only locale
-> JSON is shared (mechanical).
+Parallel-safety note: CF-2 and CF-3 both write to public/data/metro_neighborhoods.geojson and prepare_data.py (sequence the data-pipeline merge: rebuild and validate GeoJSON after each lands, never concurrently); CF-5 and QW-2 touch NeighborhoodPanel.tsx/ComparisonPanel.tsx and locale JSONs (append-only, merge CF-5's reference logic before QW-2's shortlist control).
 
-### Batch 3 — Backend Differentiators, Analysis Tools & Compliance
+### Batch 3 — Trust surfaces & provenance gates
 
-Four sessions, two mechanical-conflict pairs (noted below).
+The transparency and integrity layer that consumes the registry from Batch 1: the public sources page (CF-9), proxy badge (PO-2), freshness panel (PO-3), and the build-time provenance gate (IN-3) all read src/data/data_sources.json, so they must follow IN-2.
 
 | Item | Category | Complexity | Tag |
-|------|----------|-----------|-----|
-| CF-2 User reviews & ratings | Core Feature | Large | Claude Code |
-| CF-3 Correlation / scatter explorer | Core Feature | Medium | Claude Code |
-| CF-4 Region comparison & ranking | Core Feature | Medium | Claude Code |
-| PO-4 GDPR data export + account deletion | Polish | Small–Medium | Claude Code |
+|---|---|---|---|
+| CF-9 | Core Features | Medium | Claude Code |
+| PO-2 | Polish | Small | Claude Code |
+| PO-3 | Polish | Medium | Claude Code |
+| IN-3 | Infrastructure | Medium | Claude Code |
+| PO-6 | Polish | Small | Manual Setup |
 
-> **Why third:** reviews (CF-2) is the lived-experience layer the backend was
-> built for and the product's biggest differentiator; CF-3 and CF-4 are net-new
-> analysis tools; PO-4 closes the compliance gap and wants reviews to exist so
-> the export is complete.
->
-> **File map:** CF-2 → `db.ts` + new `reviews.ts` + `index.ts`, new
-> `ReviewsSection.tsx`, `NeighborhoodPanel.tsx`, `NeighborhoodProfilePage.tsx`,
-> `prerender.mjs`, `colorScales.ts`, locales · CF-3 → new `CorrelationExplorer.tsx`
-> + `correlation.ts`, `ToolsDropdown.tsx`, `App.tsx`, locales · CF-4 → new
-> `RegionRanking.tsx`, region-aggregation util, `ToolsDropdown.tsx`/`CitySelector.tsx`,
-> `App.tsx`, locales · PO-4 → `index.ts`/`auth.ts`, `db.ts`, `UserMenu.tsx`, new
-> `PrivacyPage.tsx`, `main.tsx`.
->
-> **Parallel safety:** **(a)** CF-2 & PO-4 both touch `server/api/src/db.ts` and
-> `index.ts` — sequence **CF-2 before PO-4** so the GDPR export covers reviews.
-> **(b)** CF-3 & CF-4 both add a tool to `ToolsDropdown.tsx` and panel state to
-> `App.tsx` — sequence them; both edits are additive. No logical coupling in
-> either pair.
+Parallel-safety note: largely distinct files — CF-9 and PO-6 both add routes to main.tsx and pages to prerender.mjs/generate-sitemap.mjs (append routes in ID order); PO-2 and PO-3 share Legend.tsx and locale JSONs (append-only); PO-6 needs owner sign-off on legal/retention copy before publishing.
 
-### Batch 4 — External-Service Features & Operations
+### Batch 4 — Distribution polish & ops monitoring
 
-Five sessions, two mechanical-conflict pairs (noted below). This is the
-external-dependency batch — most operationally heavy, so it runs last on a fully
-stable base.
+The final layer that depends on the richer URL state (share-cards CF-10, embed upgrade QW-3), the prerender depth pass (CF-11), and the provenance manifest (health monitor IN-4 reads IN-3's output).
 
 | Item | Category | Complexity | Tag |
-|------|----------|-----------|-----|
-| CF-5 Isochrone / travel-time overlay | Core Feature | Large | Manual Setup |
-| CF-6 Email digest & neighborhood alerts | Core Feature | Medium | Manual Setup |
-| PO-3 Auth UX: password reset + email verification | Polish | Medium | Manual Setup |
-| PO-5 Real-time air quality layer | Polish | Medium | Claude Code |
-| IN-2 API observability (metrics, logs, backup, uptime) | Infrastructure | Medium | Manual Setup |
+|---|---|---|---|
+| CF-10 | Core Features | Medium | Claude Code |
+| QW-3 | Quick Wins | Small | Claude Code |
+| CF-11 | Core Features | Medium | Claude Code |
+| IN-4 | Infrastructure | Small | Claude Code |
 
-> **Why last:** every item here needs an external account or service —
-> Digitransit API key (CF-5), a transactional email provider (CF-6, PO-3),
-> off-site storage + an uptime monitor (IN-2) — or external-API validation
-> (PO-5). All benefit from the stable, observable foundation of batches 1–3.
->
-> **File map:** CF-5 → new `isochrone.ts` + `IsochroneOverlay.tsx`, `Map.tsx`,
-> `NeighborhoodPanel.tsx`, `ToolsDropdown.tsx`, `App.tsx`, locales · CF-6 →
-> `db.ts`, new `email.ts` + digest worker, `auth.ts`, `UserMenu.tsx`, templates ·
-> PO-3 → `auth.ts`, `db.ts`, new `email.ts`, new `ResetPasswordPage.tsx` +
-> `VerifyEmailPage.tsx`, `AuthModal.tsx`, `UserMenu.tsx`, `main.tsx` · PO-5 → new
-> `airQualityLive.ts`, `Map.tsx`, `NeighborhoodPanel.tsx`, locales · IN-2 →
-> `index.ts`, new `logging.ts`, `docker-compose.yml`, `backup.sh`.
->
-> **Parallel safety:** **(a)** CF-6 & PO-3 share `server/api/src/email.ts`,
-> `db.ts`, `auth.ts` and `UserMenu.tsx` — sequence **PO-3 first** so it scaffolds
-> `email.ts`, then CF-6 builds the digest template on top (PO-3's email
-> verification is also a soft prerequisite for CF-6). **(b)** CF-5 & PO-5 both
-> touch `Map.tsx` and `NeighborhoodPanel.tsx` — sequence them; the edits are
-> additive (a new overlay layer vs. a live-value merge). IN-2 touches only
-> `server/api/src/index.ts` among the shared files and is otherwise isolated.
+Parallel-safety note: distinct file sets — CF-10 (scoreCard/Comparison/Correlation), QW-3 (embed.ts/App.tsx), CF-11 (prerender scripts/JsonLd), and IN-4 (new workflow + server health endpoint) only overlap on locale JSONs (append-only); IN-4 lands after IN-3 so the freshness check has a provenance manifest to read.
 
----
+## Completed since the 2026-05-22 Roadmap
 
-## Completed since the 2026-04-13 Roadmap
-
-These items from the previous roadmap have shipped and are intentionally **not**
-carried forward:
-
-| Prev ID | Item | Evidence |
-|---|---|---|
-| CF-5 | Full-Finland coverage via seutukunta alignment | All 69 seutukunnat in `regions.ts` with ingested per-region TopoJSON; `region_coverage.json` + CitySelector coverage badges; `seutukunnat.topojson` outline |
-| CF-3 | Swedish language support | `sv.json`, FI/EN/SV picker, SV prerender routes |
-| CF-2 | Cloud-synced filter & quality presets | `user_preferences` table, `/auth/preferences`, `useQualityWeights`, `useFilterPresets(userId)` |
-| CF-8 | Multi-neighborhood PDF report | `exportComparisonPdf()` in `export.ts` |
-| QW-1 | Onboarding tour | `OnboardingTour.tsx` (5 steps), first-visit gated |
-| QW-4 | Skip link + chart ARIA | Skip link in `index.html`; `role="img"` + `aria-label` on `RadarChart`/`TrendChart` (MiniMap remains — see QW-4 above) |
-| QW-5 | Explain-this-metric tooltips | `METRIC_EXPLANATIONS` + `METRIC_SOURCES` in `metrics.ts`, info popovers in `NeighborhoodPanel` |
-| QW-6 | Cloud-synced notes | `user_notes` table, `/auth/notes`, `useNotes(userId)` |
-| QW-7 | Embed mode | `embed.ts`, `IS_EMBED`, `buildEmbedSnippet`, watermark, "copy embed" in settings |
-| IN-1 | Sentry (frontend + backend) | `@sentry/react` + `@sentry/node`, `server/api/src/instrument.ts` |
-| IN-2 | Core Web Vitals monitoring | `web-vitals` dep, `src/utils/webVitals.ts` |
-| IN-3 | Lighthouse CI | `lighthouserc.cjs`, Lighthouse job in `ci.yml` |
-| IN-4 (part) | Security scanning | CodeQL (`codeql.yml`), `npm audit` + `pip-audit` in CI — **Dependabot still missing → IN-1 above** |
-| — | SEO/GEO expansion | Regional hub prerendering (`prerender-hubs.mjs`), `llms.txt`/`llms-full.txt`, expanded JSON-LD |
-
-**Partially shipped — folded into this roadmap with reduced scope:** QW-3 Data
-Freshness (a label exists but is hardcoded → QW-1), PO-1 WCAG audit (Lighthouse
-a11y gate live; MiniMap + axe-core remain → QW-4), PO-2 Dynamic OG Images
-(carried as PO-1), IN-5 API Observability (`/health` + on-droplet backups exist;
-metrics/logs/off-site backup/uptime remain → IN-2).
-
-**Carried forward unchanged:** CF-1 Reviews (→ CF-2), CF-4 Correlation Explorer
-(→ CF-3), CF-6 Isochrone (→ CF-5), CF-7 Email Digest (→ CF-6), QW-2 Keyboard
-Shortcuts (→ QW-2), PO-4 Time Slider (→ PO-2), PO-5 Auth UX (→ PO-3), PO-6 GDPR
-(→ PO-4), PO-3 Real-Time Air Quality (→ PO-5).
+| Capability | Area |
+|---|---|
+| MapLibre GL choropleth, 58–71 layers across 11 categories, theme-aware borders | Map core |
+| Composite Quality Index (0–100), 6 dimensions, ~61 factors, documented methodology | Quality Index |
+| National-reference normalization (winsorized p2/p98) + "within region" scope toggle | Quality Index |
+| 7 quality personas + free-form weight sliders | Quality Index |
+| Whole-Finland coverage: all 69 seutukunnat (~3,018 postal codes), lazy-loaded TopoJSON | Coverage |
+| Per-region coverage badges in CitySelector from region_coverage.json | Coverage |
+| 250m grid layers for air_quality (FMI ENFUSER, Helsinki), light_pollution (VIIRS), transit_reachability | Granularity |
+| Zoom-based grid/postal fade-over + no-data hatch overlay | Map rendering |
+| Seutukunta boundary outlines + all-cities metro-area dissolve via @turf/union | Map rendering |
+| Digitransit travel-time isochrones (single neighborhood, walk/bike/transit) | Mobility |
+| Draw-area + select-areas tools with population-weighted summary | Analysis |
+| Split map view with synchronized pan/zoom | Analysis |
+| Time slider for income, population, unemployment (5-year history) | Time-series |
+| Correlation/scatter explorer (Pearson r + best-fit) | Analysis |
+| Similarity engine (10 metrics, top-5) | Analysis |
+| Region-level ranking (69 seutukunnat) + neighborhood ranking table | Analysis |
+| 4-step discovery wizard + filter panel with presets/ranking | Analysis |
+| Multi-neighborhood comparison panel (max 3, table + chart) | Analysis |
+| NeighborhoodPanel: quality badge, radar, sparklines, metro diffs, source attribution | UX |
+| Mobile bottom-sheet + swipe tabs, 44px touch targets | UX |
+| Colorblind palettes; FI/EN/SV i18n (lazy EN/SV) | Accessibility / i18n |
+| Onboarding tour, keyboard shortcuts overlay, geolocation, embed mode | UX |
+| Score-card PNG export, CSV export, browser-print PDF export | Export |
+| WebGL-unavailable graceful fallback | Resilience |
+| PWA (NetworkFirst HTML / CacheFirst tiles / SWR geodata), auto-update | PWA |
+| ~27,000 prerendered profile pages with JSON-LD, noscript tables, hreflang | SEO |
+| 207 regional hubs + all-areas directory + sitemap.xml; llms.txt | SEO |
+| Optional backend: JWT/bcrypt/Turnstile auth; cloud sync of favorites/notes/preferences | Backend |
+| IP rate limiting, timing-attack-resistant login | Backend |
+| Sentry, Umami, web-vitals tracking | Observability |
+| CI/CD: 145 Vitest + 8 Playwright, axe-core, Lighthouse CI, CodeQL, npm/pip audit | CI/CD |
+| ~210KB gzipped bundle budget; code splitting; lazy @turf modules; auto-merge | CI/CD |
+| Build-derived data-freshness timestamp in settings | Data ops |
+| URL deep-linking for pno/layer/compare/city (+ legacy hash migration) | State |
+| Quarterly data-refresh workflow with GeoJSON validation; daily on-droplet pg_dump backups | Data ops |
