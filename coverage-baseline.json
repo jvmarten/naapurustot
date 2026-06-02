@@ -1,0 +1,7 @@
+{
+  "_comment": "IN-5 coverage ratchet baseline. CI fails if measured coverage drops below these minus the tolerance in scripts/check-coverage.mjs. Raise these numbers (never lower) as coverage improves to lock in gains. Regenerate the measured values with `npm run test:coverage`.",
+  "statements": 32.27,
+  "branches": 27.05,
+  "functions": 25.34,
+  "lines": 32.91
+}

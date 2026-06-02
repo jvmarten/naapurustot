@@ -50,8 +50,13 @@ jobs:
       - name: Type check
         run: npx tsc --noEmit
 
-      - name: Test
-        run: npm run test
+      - name: Test (with coverage)
+        run: npm run test:coverage
+
+      - name: Coverage ratchet (IN-5)
+        # Mirrors ci.yml so claude/* branches are gated on the coverage ratchet
+        # before auto-merge. Fails if coverage drops below coverage-baseline.json.
+        run: npm run coverage:check
 
       - name: Build
         run: npm run build
