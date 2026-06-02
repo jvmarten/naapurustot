@@ -530,6 +530,22 @@ export function getMetricSource(property: string): ResolvedMetricSource | undefi
 }
 
 /**
+ * PO-3: extract the most recent calendar year from a registry vintage, which may
+ * be a number (2024) or a range string ("2012–2022", "2020–2025"). Used to flag
+ * stale layers. Returns null when no 4-digit year is present.
+ */
+export function latestVintageYear(year: number | string | undefined | null): number | null {
+  if (year == null) return null;
+  if (typeof year === 'number') return Number.isFinite(year) ? year : null;
+  const matches = String(year).match(/\d{4}/g);
+  if (!matches) return null;
+  return Math.max(...matches.map(Number));
+}
+
+/** PO-3: a layer is flagged "stale" when its newest data year is more than this many years old. */
+export const STALE_VINTAGE_YEARS = 3;
+
+/**
  * Maps GeoJSON property names to their data source and year, generated from the
  * single source-of-truth registry (src/data/data_sources.json). Derived/composite
  * metrics flagged `panel: false` in the registry (the quality index and the
