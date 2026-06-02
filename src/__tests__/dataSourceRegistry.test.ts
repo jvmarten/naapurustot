@@ -13,6 +13,7 @@ import {
   DATA_SOURCE_PUBLISHERS,
   DATA_SOURCE_METRICS,
   getMetricSource,
+  latestVintageYear,
 } from '../utils/metrics';
 
 const VALID_GRANULARITY = new Set(['postal', '250m grid', 'derived']);
@@ -97,5 +98,26 @@ describe('Data-source registry (IN-2)', () => {
     expect(METRIC_SOURCES.hr_mtu).toEqual({ source: 'Tilastokeskus (Paavo)', year: 2024 });
     expect(METRIC_SOURCES.crime_index).toEqual({ source: 'Poliisi', year: 2023 });
     expect(METRIC_SOURCES.noise_pollution.year).toBe('2012–2022');
+  });
+
+  it('flags transit_reachability and light_pollution as proxy/estimate (PO-2)', () => {
+    expect(getMetricSource('transit_reachability_score')?.isProxy).toBe(true);
+    expect(getMetricSource('light_pollution')?.isProxy).toBe(true);
+    expect(getMetricSource('hr_mtu')?.isProxy).toBe(false);
+  });
+});
+
+describe('latestVintageYear (PO-3)', () => {
+  it('returns a numeric year as-is', () => {
+    expect(latestVintageYear(2024)).toBe(2024);
+  });
+  it('extracts the most recent year from a range string', () => {
+    expect(latestVintageYear('2012–2022')).toBe(2022);
+    expect(latestVintageYear('2020–2025')).toBe(2025);
+  });
+  it('returns null for missing/yearless input', () => {
+    expect(latestVintageYear(null)).toBeNull();
+    expect(latestVintageYear(undefined)).toBeNull();
+    expect(latestVintageYear('n/a')).toBeNull();
   });
 });

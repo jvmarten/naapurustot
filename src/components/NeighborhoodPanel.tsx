@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useMemo, useEffect, useLayoutEffect } from 'react';
 import type { NeighborhoodProperties } from '../utils/metrics';
-import { parseTrendSeries, METRIC_SOURCES, METRIC_EXPLANATIONS } from '../utils/metrics';
+import { parseTrendSeries, getMetricSource, METRIC_EXPLANATIONS } from '../utils/metrics';
 import { formatNumber, formatEuro, formatPct, formatDiff, diffColor, formatYtlGradeFull, parseSchools } from '../utils/formatting';
 import { t, getLang, useI18nVersion } from '../utils/i18n';
 import { getQualityCategory, QUALITY_CATEGORIES, QUALITY_DIMENSIONS } from '../utils/qualityIndex';
@@ -58,8 +58,11 @@ const StatRow: React.FC<{
   sparkline?: { data: import('../utils/metrics').TrendDataPoint[]; color?: string } | null;
 }> = React.memo(({ label, value, diff, diffClass, property, sparkline }) => {
   useI18nVersion();
-  const source = property ? METRIC_SOURCES[property] : undefined;
+  const source = property ? getMetricSource(property) : undefined;
   const hasExplanation = !!property && METRIC_EXPLANATIONS.has(property);
+  // PO-2: surface regression/derived estimates honestly rather than giving them
+  // the same visual weight as a direct measurement.
+  const isEstimate = !!source?.isProxy;
   const [infoOpen, setInfoOpen] = useState(false);
   const infoRef = useRef<HTMLSpanElement>(null);
   const tooltipRef = useRef<HTMLSpanElement>(null);
@@ -141,6 +144,12 @@ const StatRow: React.FC<{
             >
               i
             </button>
+            {isEstimate && (
+              <span className="ml-1 inline-flex items-center rounded px-1 py-px text-[8px] font-semibold uppercase tracking-wide
+                               bg-amber-400/15 text-amber-600 dark:text-amber-400 border border-amber-400/30">
+                {t('data.estimate')}
+              </span>
+            )}
             {infoOpen && (
               <span
                 ref={tooltipRef}
@@ -155,6 +164,11 @@ const StatRow: React.FC<{
                 {hasExplanation && (
                   <span className="block mb-1.5 text-white">
                     {t(`metric_explanation.${property}`)}
+                  </span>
+                )}
+                {isEstimate && (
+                  <span className="block mb-1.5 text-amber-300">
+                    {t('data.estimate_desc')}
                   </span>
                 )}
                 <span className="block text-[10px] italic text-surface-300 dark:text-surface-400">
