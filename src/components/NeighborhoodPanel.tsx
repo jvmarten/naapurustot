@@ -10,7 +10,8 @@ import Sparkline from './Sparkline';
 import RadarChart from './RadarChart';
 import { IsochroneControls } from './IsochroneControls';
 import type { IsochroneMode } from '../utils/isochrone';
-import { findSimilarNeighborhoods } from '../utils/similarity';
+import { findSimilarNeighborhoods, AVAILABLE_SIMILARITY_METRICS } from '../utils/similarity';
+import { useSimilarityMetrics } from '../hooks/useSimilarityMetrics';
 import { getLayerById, type LayerId } from '../utils/colorScales';
 import { histogram, percentileRank, binIndexOf } from '../utils/correlation';
 import { toSlug } from '../utils/slug';
@@ -695,10 +696,15 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
   // neighborhood selection. The Similar section is collapsed by default, so most
   // users never see it. Now the computation only runs when the user expands it.
   const [similarExpanded, setSimilarExpanded] = useState(false);
+  // CF-6: user-configurable metric set for "similar neighbourhoods".
+  const { selected: similarityMetrics, toggle: toggleSimilarityMetric } = useSimilarityMetrics();
   const similar = useMemo(() => {
     if (!similarExpanded || !allFeatures) return [];
-    return findSimilarNeighborhoods(d, allFeatures, 5);
-  }, [similarExpanded, d, allFeatures]);
+    const metrics = AVAILABLE_SIMILARITY_METRICS
+      .map((m) => m.key)
+      .filter((k) => similarityMetrics.has(k as string));
+    return findSimilarNeighborhoods(d, allFeatures, 5, metrics);
+  }, [similarExpanded, d, allFeatures, similarityMetrics]);
 
   // PO-3: Shared section content — used by both desktop and mobile
   const sectionOverview = (
@@ -1147,8 +1153,33 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
               <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
             </svg>
           </button>
-          {similarExpanded && similar.length > 0 && (
+          {similarExpanded && (
             <div className="space-y-2">
+              {/* CF-6: choose which metrics define "similar" */}
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-surface-400 dark:text-surface-500 mb-1.5">
+                  {t('panel.similar_by')}
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {AVAILABLE_SIMILARITY_METRICS.map((m) => {
+                    const on = similarityMetrics.has(m.key as string);
+                    return (
+                      <button
+                        key={m.key as string}
+                        onClick={() => toggleSimilarityMetric(m.key as string)}
+                        aria-pressed={on}
+                        className={`px-2 py-0.5 rounded-full text-[11px] border transition-colors ${
+                          on
+                            ? 'bg-brand-500/15 text-brand-600 dark:text-brand-300 border-brand-500/40'
+                            : 'bg-surface-100 dark:bg-surface-900/60 text-surface-500 dark:text-surface-400 border-surface-200 dark:border-surface-700/50 hover:border-surface-300 dark:hover:border-surface-600'
+                        }`}
+                      >
+                        {t(m.labelKey)}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
               {similar.map((s) => (
                 <button
                   key={s.properties.pno}

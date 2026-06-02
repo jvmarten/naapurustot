@@ -260,6 +260,7 @@
   "settings.cb_deuteranopia": "Deuteranopia (vihersokeus)",
   "settings.cb_tritanopia": "Tritanopia (sinisokeus)",
   "panel.similar": "Samankaltaiset alueet",
+  "panel.similar_by": "Vertailtavat mittarit",
   "favorites.title": "Suosikit",
   "favorites.add": "Lis\u00e4\u00e4 suosikkeihin",
   "favorites.remove": "Poista suosikeista",
