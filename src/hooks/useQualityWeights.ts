@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { getDefaultWeights, isCustomWeights, type QualityWeights } from '../utils/qualityIndex';
 import { api } from '../utils/api';
+import { runSync } from '../utils/syncStatus';
 
 const STORAGE_KEY = 'naapurustot-quality-weights';
 
@@ -38,6 +39,18 @@ export function useQualityWeights(userId?: string | null) {
   const [weights, setWeightsState] = useState<QualityWeights>(loadWeights);
   const weightsRef = useRef(weights);
   const fromServerRef = useRef(false);
+
+  // PO-5b: cross-tab sync — adopt quality weights changed in another tab,
+  // suppressing the server-save echo via fromServerRef.
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== STORAGE_KEY) return;
+      fromServerRef.current = true;
+      setWeightsState(loadWeights());
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
   const prevUserIdRef = useRef<string | null | undefined>(undefined);
   const userIdRef = useRef(userId);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -59,7 +72,8 @@ export function useQualityWeights(userId?: string | null) {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       saveTimerRef.current = null;
-      api.savePreferences({ qualityWeights: weights });
+      // PO-5: track sync status + retry on failure instead of silently swallowing.
+      runSync('weights', () => api.savePreferences({ qualityWeights: weightsRef.current }));
     }, 1000);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
   }, [weights, userId]);

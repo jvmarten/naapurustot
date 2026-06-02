@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { api } from "../utils/api";
+import { runSync } from "../utils/syncStatus";
 
 const STORAGE_KEY = "naapurustot-favorites";
 
@@ -45,6 +46,18 @@ export function useFavorites(userId?: string | null) {
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Track whether the current change came from a server fetch (to avoid echoing it back)
   const fromServerRef = useRef(false);
+
+  // PO-5b: cross-tab sync — adopt favorites changed in another tab, suppressing the
+  // server-save echo via fromServerRef.
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== STORAGE_KEY) return;
+      fromServerRef.current = true;
+      setFavorites(readFavorites());
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
   // Mirror of favorites so async callbacks can read the latest value without
   // doing impure work inside a state updater (StrictMode double-invokes updaters).
   const favoritesRef = useRef(favorites);
@@ -65,7 +78,8 @@ export function useFavorites(userId?: string | null) {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       saveTimerRef.current = null;
-      api.saveFavorites(favorites);
+      // PO-5: track sync status + retry on failure instead of silently swallowing.
+      runSync('favorites', () => api.saveFavorites(favoritesRef.current));
     }, 1000);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
   }, [favorites, userId]);

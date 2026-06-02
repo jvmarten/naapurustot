@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import type { FilterCriterion } from '../utils/filterUtils';
 import { LAYERS } from '../utils/colorScales';
+import { runSync } from '../utils/syncStatus';
 import { api } from '../utils/api';
 
 const STORAGE_KEY = 'naapurustot-filter-presets';
@@ -88,6 +89,18 @@ export function useFilterPresets(userId?: string | null) {
   const [presets, setPresets] = useState<SavedPreset[]>(loadPresets);
   const presetsRef = useRef(presets);
   const fromServerRef = useRef(false);
+
+  // PO-5b: cross-tab sync — adopt filter presets changed in another tab,
+  // suppressing the server-save echo via fromServerRef.
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== STORAGE_KEY) return;
+      fromServerRef.current = true;
+      setPresets(loadPresets());
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
   const prevUserIdRef = useRef<string | null | undefined>(undefined);
   const userIdRef = useRef(userId);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -108,7 +121,8 @@ export function useFilterPresets(userId?: string | null) {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       saveTimerRef.current = null;
-      api.savePreferences({ filterPresets: presets });
+      // PO-5: track sync status + retry on failure instead of silently swallowing.
+      runSync('presets', () => api.savePreferences({ filterPresets: presetsRef.current }));
     }, 1000);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
   }, [presets, userId]);
