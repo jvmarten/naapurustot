@@ -16,6 +16,8 @@ import sys
 from pathlib import Path
 
 GEOJSON_PATH = Path(__file__).resolve().parent.parent / "public" / "data" / "metro_neighborhoods.geojson"
+# IN-2: single source-of-truth data-source registry.
+REGISTRY_PATH = Path(__file__).resolve().parent.parent / "src" / "data" / "data_sources.json"
 
 # ── Feature count bounds ─────────────────────────────────────────────
 # All 69 Finnish seutukunnat: ~3000 postal codes in total. Range allows
@@ -211,6 +213,47 @@ def check_geometries(features: list) -> list[str]:
     return errors
 
 
+def check_data_source_registry(features: list) -> list[str]:
+    """IN-2: every layer that the data-source registry marks as stored in the
+    GeoJSON must actually be present (non-null on >= 1 feature), so a registry row
+    can never silently point at a dropped data column. Metrics computed purely
+    client-side (the quality index) are flagged `stored: false` and skipped.
+    Also verifies every metric's publisher reference resolves."""
+    errors: list[str] = []
+    if not REGISTRY_PATH.exists():
+        return [f"data-source registry not found: {REGISTRY_PATH}"]
+    try:
+        registry = json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        return [f"data_sources.json is not valid JSON: {exc}"]
+
+    publishers = registry.get("publishers", {})
+    metrics = registry.get("metrics", {})
+    if not metrics:
+        return ["data_sources.json has no 'metrics' section"]
+
+    for prop, entry in metrics.items():
+        pub = entry.get("publisher")
+        if pub not in publishers:
+            errors.append(f"Metric '{prop}' references unknown publisher '{pub}'")
+
+    # Properties present (non-null) on at least one feature.
+    present: set[str] = set()
+    for f in features:
+        for key, val in (f.get("properties") or {}).items():
+            if val is not None:
+                present.add(key)
+
+    for prop, entry in metrics.items():
+        if entry.get("stored", True) is False:
+            continue
+        if prop not in present:
+            errors.append(
+                f"Registry metric '{prop}' is marked stored but is missing/all-null in the GeoJSON"
+            )
+    return errors
+
+
 def check_pno_format(features: list) -> list[str]:
     """Postal codes should be 5-digit strings."""
     errors = []
@@ -245,6 +288,7 @@ def main() -> int:
         ("Required properties", check_required_properties(features)),
         ("All-null properties", check_no_all_null_properties(features)),
         ("Value ranges", check_value_ranges(features)),
+        ("Data-source registry", check_data_source_registry(features)),
         ("Geometries", check_geometries(features)),
         ("Postal code format", check_pno_format(features)),
     ]

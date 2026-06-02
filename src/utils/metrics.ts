@@ -8,6 +8,7 @@
  * The index signature allows dynamic property access by layer config `property` keys.
  */
 import type { RegionId } from './regions';
+import dataSources from '../data/data_sources.json';
 
 /** Supported city/region identifiers. */
 export type CityId = RegionId;
@@ -446,92 +447,98 @@ export const METRIC_EXPLANATIONS: ReadonlySet<string> = new Set([
   'property_price_change_pct',
 ]);
 
+/** A publisher in the data-source registry (src/data/data_sources.json): the
+ *  citable organization behind one or more metrics, with a clickable URL and license. */
+export interface DataSourcePublisher {
+  name: string;
+  url: string;
+  license: string;
+}
+
+/** A metric's registry row resolved together with its publisher's URL/license. */
+export interface ResolvedMetricSource extends MetricSource {
+  /** Publisher id (key into DATA_SOURCE_PUBLISHERS) */
+  publisher: string;
+  /** Publisher display name (e.g. "Tilastokeskus") */
+  publisherName: string;
+  /** Clickable canonical source URL */
+  url: string;
+  /** Data license, e.g. "CC BY 4.0" / "ODbL 1.0" */
+  license: string;
+  /** Finest resolution actually shipped: "postal" | "250m grid" | "derived" */
+  granularity: string;
+  /** True when the value is a regression/derived estimate, not a direct measurement */
+  isProxy: boolean;
+  /** Optional clarifying note (regional proxy caveats, derivation, coverage) */
+  note?: string;
+}
+
+interface RegistryMetricEntry {
+  source: string;
+  publisher: string;
+  vintage: number | string;
+  granularity: string;
+  is_proxy: boolean;
+  /** false only for values computed purely client-side (absent from the GeoJSON) */
+  stored?: boolean;
+  /** false to keep a derived/composite metric out of the per-row attribution map */
+  panel?: boolean;
+  note?: string;
+}
+
+interface DataSourceRegistry {
+  publishers: Record<string, DataSourcePublisher>;
+  metrics: Record<string, RegistryMetricEntry>;
+}
+
+// IN-2: single source-of-truth registry. METRIC_SOURCES below and the richer
+// getMetricSource() accessor are both generated from it, so the URL-less,
+// hand-maintained attribution map can no longer silently drift from the
+// documented, dated, licensed sources. Parity is enforced by
+// src/__tests__/dataSourceRegistry.test.ts and scripts/validate_data.py.
+const REGISTRY = dataSources as unknown as DataSourceRegistry;
+
+/** All publishers in the data-source registry, keyed by publisher id. */
+export const DATA_SOURCE_PUBLISHERS: Record<string, DataSourcePublisher> = REGISTRY.publishers;
+
+/** Raw per-metric registry rows, keyed by GeoJSON property. */
+export const DATA_SOURCE_METRICS: Record<string, RegistryMetricEntry> = REGISTRY.metrics;
+
 /**
- * Maps GeoJSON property names (or panel label keys) to their data source and year.
- * Used by NeighborhoodPanel to show attribution per stat row.
+ * Resolve a metric property to its full registry entry — source label, vintage,
+ * clickable URL, license, granularity, and proxy flag. Returns undefined when the
+ * property has no registry row. Backs the public sources page (CF-9), the proxy
+ * badge (PO-2), and the per-layer freshness panel (PO-3).
  */
-export const METRIC_SOURCES: Record<string, MetricSource> = {
-  // Economy
-  hr_mtu: { source: 'Tilastokeskus (Paavo)', year: 2024 },
-  hr_ktu: { source: 'Tilastokeskus (Paavo)', year: 2024 },
-  unemployment_rate: { source: 'Tilastokeskus (Paavo)', year: 2024 },
-  higher_education_rate: { source: 'Tilastokeskus (Paavo)', year: 2024 },
-  property_price_sqm: { source: 'Tilastokeskus (PxWeb)', year: 2024 },
+export function getMetricSource(property: string): ResolvedMetricSource | undefined {
+  const entry = REGISTRY.metrics[property];
+  if (!entry) return undefined;
+  const pub = REGISTRY.publishers[entry.publisher];
+  return {
+    source: entry.source,
+    year: entry.vintage,
+    publisher: entry.publisher,
+    publisherName: pub?.name ?? entry.publisher,
+    url: pub?.url ?? '',
+    license: pub?.license ?? '',
+    granularity: entry.granularity,
+    isProxy: entry.is_proxy,
+    note: entry.note,
+  };
+}
 
-  // Demographics
-  he_vakiy: { source: 'Tilastokeskus (Paavo)', year: 2024 },
-  foreign_language_pct: { source: 'Tilastokeskus', year: 2020 },
-  population_density: { source: 'Tilastokeskus (Paavo)', year: 2024 },
-  child_ratio: { source: 'Tilastokeskus (Paavo)', year: 2024 },
-  student_share: { source: 'Tilastokeskus (Paavo)', year: 2024 },
-  single_person_hh_pct: { source: 'Tilastokeskus', year: 2023 },
-
-  // Housing
-  ownership_rate: { source: 'Tilastokeskus (Paavo)', year: 2024 },
-  rental_rate: { source: 'Tilastokeskus (Paavo)', year: 2024 },
-  ra_as_kpa: { source: 'Tilastokeskus (Paavo)', year: 2024 },
-  detached_house_share: { source: 'Tilastokeskus (Paavo)', year: 2024 },
-  // Quality of life
-  transit_stop_density: { source: 'HSL (Digitransit)', year: 2024 },
-  air_quality_index: { source: 'HSY', year: 2024 },
-  crime_index: { source: 'Poliisi', year: 2023 },
-
-  // Services
-  restaurant_density: { source: 'OpenStreetMap', year: 2024 },
-  grocery_density: { source: 'OpenStreetMap', year: 2024 },
-  daycare_density: { source: 'OpenStreetMap', year: 2024 },
-  school_density: { source: 'OpenStreetMap', year: 2024 },
-  healthcare_density: { source: 'OpenStreetMap', year: 2024 },
-  sports_facility_density: { source: 'LIPAS (Jyväskylän yliopisto)', year: 2025 },
-  // Mobility
-  cycling_density: { source: 'OpenStreetMap', year: 2024 },
-
-  // Phase 7: Voting & Political
-  voter_turnout_pct: { source: 'Tilastokeskus (kuntavaalit)', year: 2025 },
-  party_diversity_index: { source: 'Tilastokeskus (kuntavaalit)', year: 2025 },
-
-
-  // Internet & Connectivity
-  broadband_coverage_pct: { source: 'Traficom', year: 2024 },
-  ev_charging_density: { source: 'OpenStreetMap', year: 2025 },
-
-  // Tree Canopy / Urban Heat Island
-  tree_canopy_pct: { source: 'HSY (LiDAR maanpeite)', year: 2024 },
-
-  // Accessibility
-  transit_reachability_score: { source: 'HSL / johdettu', year: 2025 },
-
-  // Phase 8: More demographic detail + trends
-  employment_rate: { source: 'Tilastokeskus (Paavo)', year: 2024 },
-  elderly_ratio_pct: { source: 'Tilastokeskus (Paavo)', year: 2024 },
-  avg_household_size: { source: 'Tilastokeskus (Paavo)', year: 2024 },
-  manufacturing_jobs_pct: { source: 'Tilastokeskus (Paavo)', year: 2024 },
-  public_sector_jobs_pct: { source: 'Tilastokeskus (Paavo)', year: 2024 },
-  service_sector_jobs_pct: { source: 'Tilastokeskus (Paavo)', year: 2024 },
-  new_construction_pct: { source: 'Tilastokeskus (Paavo)', year: 2024 },
-
-  // Phase 9: Real open data layers
-  rental_price_sqm: { source: 'Tilastokeskus (PxWeb)', year: 2024 },
-  price_to_rent_ratio: { source: 'Tilastokeskus (PxWeb)', year: 2024 },
-  walkability_index: { source: 'OpenStreetMap (composite)', year: 2024 },
-  traffic_accident_rate: { source: 'Väylävirasto', year: 2023 },
-  property_price_change_pct: { source: 'Tilastokeskus (PxWeb)', year: '2020–2025' },
-  school_quality_score: { source: 'YTL (ylioppilastutkinto)', year: 2024 },
-  light_pollution: { source: 'OpenStreetMap (street_lamp density)', year: 2026 },
-  noise_pollution: { source: 'Helsinki meluselvitys 2022 / HRI pks liikennemelu 2012', year: '2012–2022' },
-
-  // Phase 10: Water proximity & building age
-  water_proximity_m: { source: 'OpenStreetMap', year: 2026 },
-  avg_construction_year: { source: 'Tilastokeskus (rakennuskanta)', year: 2025 },
-
-  // Quick wins (from existing Paavo data)
-  youth_ratio_pct: { source: 'Tilastokeskus (Paavo)', year: 2024 },
-  gender_ratio: { source: 'Tilastokeskus (Paavo)', year: 2024 },
-  single_parent_hh_pct: { source: 'Tilastokeskus (Paavo)', year: 2024 },
-  families_with_children_pct: { source: 'Tilastokeskus (Paavo)', year: 2024 },
-  tech_sector_pct: { source: 'Tilastokeskus (Paavo)', year: 2024 },
-  healthcare_workers_pct: { source: 'Tilastokeskus (Paavo)', year: 2024 },
-};
+/**
+ * Maps GeoJSON property names to their data source and year, generated from the
+ * single source-of-truth registry (src/data/data_sources.json). Derived/composite
+ * metrics flagged `panel: false` in the registry (the quality index and the
+ * *_change layers) are excluded — they are not direct measurements with a per-row
+ * source. NeighborhoodPanel and the profile StatCard read this for attribution.
+ */
+export const METRIC_SOURCES: Record<string, MetricSource> = Object.fromEntries(
+  Object.entries(REGISTRY.metrics)
+    .filter(([, e]) => e.panel !== false)
+    .map(([prop, e]) => [prop, { source: e.source, year: e.vintage }]),
+);
 
 const METRIC_DEFS: MetricDef[] = [
   // Economy
