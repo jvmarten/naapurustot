@@ -25,6 +25,8 @@ const DIST = join(ROOT, 'dist');
 const GEOJSON_PATH = join(ROOT, 'public', 'data', 'metro_neighborhoods.geojson');
 
 const geojson = JSON.parse(readFileSync(GEOJSON_PATH, 'utf-8'));
+// CF-11b: data-source registry, for the Dataset JSON-LD on hub pages.
+const REGISTRY = JSON.parse(readFileSync(join(ROOT, 'src', 'data', 'data_sources.json'), 'utf-8'));
 
 const LOCALES = {
   fi: JSON.parse(readFileSync(join(ROOT, 'src', 'locales', 'fi.json'), 'utf-8')),
@@ -100,6 +102,31 @@ function featureCenter(feature) {
 // Escape every `<` as the JSON escape so a literal `</script>` cannot break
 // out of the inline <script type="application/ld+json"> element.
 const safeJson = (obj) => JSON.stringify(obj).replace(/</g, '\\u003c');
+
+// CF-11b: localized Dataset name/description for the hub-page Dataset JSON-LD.
+const DATASET_TEXT = {
+  fi: { name: (r) => `${r} – naapurustojen tilastot`, desc: (r) => `Avoimeen julkiseen dataan perustuvat naapurustojen tilastot alueella ${r}.` },
+  en: { name: (r) => `${r} – neighbourhood statistics`, desc: (r) => `Neighbourhood statistics for ${r}, compiled from open public data.` },
+  sv: { name: (r) => `${r} – statistik per område`, desc: (r) => `Områdesstatistik för ${r}, sammanställd från öppna offentliga data.` },
+};
+
+/** CF-11b: Dataset JSON-LD describing the open datasets behind a hub, with each
+ *  registry publisher as a creator — strengthens discoverability for answer engines. */
+function buildHubDataset(lang, regionName, url) {
+  const t = DATASET_TEXT[lang] ?? DATASET_TEXT.en;
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Dataset',
+    name: t.name(regionName),
+    description: t.desc(regionName),
+    url,
+    inLanguage: lang,
+    isAccessibleForFree: true,
+    license: 'https://creativecommons.org/licenses/by/4.0/',
+    creator: Object.values(REGISTRY.publishers ?? {}).map((p) => ({ '@type': 'Organization', name: p.name, url: p.url })),
+    isPartOf: { '@type': 'WebSite', name: 'naapurustot.fi', url: ORIGIN },
+  };
+}
 
 const STYLE = `:root{color-scheme:light dark}
 *{box-sizing:border-box}
@@ -471,7 +498,8 @@ ${rows}
       { '@type': 'ListItem', position: 3, name: regionName },
     ],
   };
-  const jsonLd = [collection, breadcrumb]
+  const dataset = buildHubDataset(lang, regionName, alternates[lang]);
+  const jsonLd = [collection, breadcrumb, dataset]
     .map((o) => `    <script type="application/ld+json">${safeJson(o)}</script>`)
     .join('\n');
 
