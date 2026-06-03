@@ -5,6 +5,7 @@ import { getFeatureCenter } from '../utils/geometryFilter';
 import { pearson, bestFit, type XYPoint } from '../utils/correlation';
 import { t, useI18nVersion } from '../utils/i18n';
 import { trackEvent } from '../utils/analytics';
+import { generateCorrelationCard } from '../utils/scoreCard';
 
 interface Props {
   data: FeatureCollection | null;
@@ -185,12 +186,40 @@ export const CorrelationExplorer: React.FC<Props> = ({ data, onSelect, onClose }
 
       {/* Footer / hover detail */}
       <div className="px-5 py-2.5 border-t border-surface-100 dark:border-surface-800/60 flex items-center justify-between gap-3 text-[11px] text-surface-500 dark:text-surface-400">
-        <span>{t('correlation.point_size_hint')} · {points.length} {t('correlation.point_count')}{dropped > 0 ? ` (+${dropped} ${t('correlation.no_data_short')})` : ''}</span>
-        {hoveredPt && (
-          <span className="font-medium text-surface-700 dark:text-surface-200 truncate">
-            {hoveredPt.name}: {layerX.format(hoveredPt.x)} / {layerY.format(hoveredPt.y)}
-          </span>
-        )}
+        <span className="min-w-0 truncate">{t('correlation.point_size_hint')} · {points.length} {t('correlation.point_count')}{dropped > 0 ? ` (+${dropped} ${t('correlation.no_data_short')})` : ''}</span>
+        <div className="flex items-center gap-3 shrink-0">
+          {hoveredPt && (
+            <span className="font-medium text-surface-700 dark:text-surface-200 truncate max-w-[40vw] md:max-w-[220px]">
+              {hoveredPt.name}: {layerX.format(hoveredPt.x)} / {layerY.format(hoveredPt.y)}
+            </span>
+          )}
+          {/* CF-10b: share the scatter as a branded PNG card */}
+          {domain && points.length > 0 && (
+            <button
+              onClick={() => {
+                if (!domain) return;
+                trackEvent('correlation-snapshot-share');
+                generateCorrelationCard({
+                  points: points.map((p) => ({ x: p.x, y: p.y, pop: p.pop, color: regionColors.get(p.region) ?? '#0074c5' })),
+                  r,
+                  fit,
+                  domain,
+                  labelX: t(layerX.labelKey),
+                  labelY: t(layerY.labelKey),
+                  formatX: layerX.format,
+                  formatY: layerY.format,
+                }).catch(() => { /* html-to-image load failed */ });
+              }}
+              className="inline-flex items-center gap-1 shrink-0 px-2 py-1 rounded-lg font-medium text-brand-600 dark:text-brand-300 hover:bg-brand-500/10 dark:hover:bg-brand-600/15 transition-colors"
+              title={t('share.image')}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              {t('share.image')}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
