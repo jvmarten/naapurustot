@@ -17,6 +17,8 @@ vi.mock('../utils/geocode', () => ({
 }));
 
 function fc(...areas: Array<{ pno: string; nimi: string; city: string }>): FeatureCollection {
+  // Index features carry geometry: null (properties-only); cast bridges that to
+  // the non-null default FeatureCollection type, mirroring processProperties.
   return {
     type: 'FeatureCollection',
     features: areas.map((a) => ({
@@ -24,7 +26,7 @@ function fc(...areas: Array<{ pno: string; nimi: string; city: string }>): Featu
       geometry: null,
       properties: a,
     })),
-  };
+  } as unknown as FeatureCollection;
 }
 
 const regionData = fc({ pno: '00100', nimi: 'Helsinki keskusta', city: 'helsinki_metro' });
