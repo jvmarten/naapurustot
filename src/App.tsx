@@ -204,8 +204,8 @@ const App: React.FC = () => {
   const [secondaryLayer, setSecondaryLayer] = useState<LayerId>('median_income');
   const { favorites, isFavorite, toggleFavorite } = useFavorites(user?.id);
   const { recent, addRecent } = useRecentNeighborhoods();
-  // QW-2: durable shortlist (distinct from one-tap favorites).
-  const { shortlist, isInShortlist, toggleShortlist, removeFromShortlist, clearShortlist } = useShortlist();
+  // QW-2: durable shortlist (distinct from one-tap favorites). QW-2b: cloud-syncs when signed in.
+  const { shortlist, isInShortlist, toggleShortlist, removeFromShortlist, clearShortlist } = useShortlist(user?.id);
   const restoredPno = useRef(false);
   // Monotonic version counter to force re-renders when quality indices change
   const [qualityVersion, setQualityVersion] = useState(0);

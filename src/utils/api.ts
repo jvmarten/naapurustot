@@ -99,6 +99,16 @@ export const api = {
       body: JSON.stringify({ favorites }),
     }),
 
+  // QW-2b: shortlist cloud sync (mirrors favorites).
+  getShortlist: () =>
+    request<{ shortlist: string[] }>('/auth/shortlist'),
+
+  saveShortlist: (shortlist: string[]) =>
+    request<{ shortlist: string[] }>('/auth/shortlist', {
+      method: 'PUT',
+      body: JSON.stringify({ shortlist }),
+    }),
+
   getNotes: () =>
     request<{ notes: Record<string, string> }>('/auth/notes'),
 
