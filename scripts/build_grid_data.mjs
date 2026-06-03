@@ -76,8 +76,10 @@ for (const file of gridFiles) {
 
   if (size <= SIZE_THRESHOLD) {
     console.log(`Converting ${file} → ${stem}.topojson`);
+    // IN-6b: quantize with -q 1e5 so TopoJSON delta-encodes the (regular, axis-aligned)
+    // grid cell coordinates — a payload win at imperceptible (sub-cell) precision loss.
     // Quote paths so spaces in the checkout path don't break the shell command.
-    execSync(`npx -p topojson-server geo2topo grid="${geojsonPath}" > "${topoPath}"`, { stdio: 'inherit' });
+    execSync(`npx -p topojson-server geo2topo -q 1e5 grid="${geojsonPath}" > "${topoPath}"`, { stdio: 'inherit' });
   } else {
     console.log(`Serving ${file} as raw GeoJSON (${(size / 1024 / 1024).toFixed(1)} MB > threshold)`);
   }
