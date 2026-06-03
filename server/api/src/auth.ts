@@ -272,6 +272,56 @@ router.put('/favorites', async (req: Request, res: Response): Promise<void> => {
   res.json({ favorites });
 });
 
+// ── Shortlist sync (QW-2b) ──
+
+router.get('/shortlist', async (req: Request, res: Response): Promise<void> => {
+  const userId = authenticateToken(req);
+  if (!userId) {
+    res.status(401).json({ error: 'Not authenticated' });
+    return;
+  }
+
+  const result = await pool.query(
+    'SELECT shortlist FROM user_shortlist WHERE user_id = $1',
+    [userId]
+  );
+  const shortlist: string[] = result.rows.length > 0 ? result.rows[0].shortlist : [];
+  res.json({ shortlist });
+});
+
+router.put('/shortlist', async (req: Request, res: Response): Promise<void> => {
+  const userId = authenticateToken(req);
+  if (!userId) {
+    res.status(401).json({ error: 'Not authenticated' });
+    return;
+  }
+
+  const { shortlist } = req.body;
+  if (!Array.isArray(shortlist) || !shortlist.every((v: unknown) => typeof v === 'string')) {
+    res.status(400).json({ error: 'shortlist must be an array of strings' });
+    return;
+  }
+  if (shortlist.length > 200) {
+    res.status(400).json({ error: 'Too many shortlist entries (max 200)' });
+    return;
+  }
+  // Same identifier constraint as favorites (5-digit postal code or region ID like
+  // "helsinki_metro") — reject arbitrary strings to prevent storing junk/XSS payloads.
+  const SHORTLIST_RE = /^[a-z0-9_]{1,30}$/;
+  if (shortlist.some((v: string) => !SHORTLIST_RE.test(v))) {
+    res.status(400).json({ error: 'Invalid shortlist entry format' });
+    return;
+  }
+
+  await pool.query(
+    `INSERT INTO user_shortlist (user_id, shortlist, updated_at)
+     VALUES ($1, $2, NOW())
+     ON CONFLICT (user_id) DO UPDATE SET shortlist = $2, updated_at = NOW()`,
+    [userId, JSON.stringify(shortlist)]
+  );
+  res.json({ shortlist });
+});
+
 // ── Notes sync (QW-6) ──
 
 const PNO_RE = /^\d{5}$/;

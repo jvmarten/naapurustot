@@ -48,6 +48,14 @@ export async function initDb(): Promise<void> {
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
+  // QW-2b: durable shortlist sync (mirrors user_favorites).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS user_shortlist (
+      user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      shortlist JSONB NOT NULL DEFAULT '[]',
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
   console.log('Database initialized');
 }
 
