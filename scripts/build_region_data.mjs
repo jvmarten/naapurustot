@@ -61,12 +61,19 @@ for (const [regionId, regionFeatures] of byRegion) {
   const topoPath = resolve(regionsDir, `${regionId}.topojson`);
   writeFileSync(tempPath, JSON.stringify(regionGeojson));
 
-  // Convert to TopoJSON
+  // Convert to TopoJSON.
   console.log(`  ${regionId}: ${regionFeatures.length} features → ${regionId}.topojson`);
+  // IN-6b: quantize coordinates with -q 1e5 (same lever as build_seutukunta_boundaries.mjs).
+  // Quantization snaps coordinates to an integer grid within each region's own bbox,
+  // which lets TopoJSON delta-encode them — a large payload win on the map hot path.
+  // At 1e5 over a single region's extent the grid step is sub-metre to a few metres,
+  // far finer than the rendered border needs, so no visible boundary change. We do NOT
+  // run toposimplify here: removing points would visibly alter small/intricate postal
+  // polygons, and quantization alone captures most of the saving losslessly-in-practice.
   // Double-quote interpolated paths so a checkout path containing spaces (common
   // on dev/CI machines, e.g. "C:\Users\First Last\...") doesn't make the shell
   // split the input/redirect target and silently corrupt or skip the output.
-  execSync(`npx -p topojson-server geo2topo neighborhoods="${tempPath}" > "${topoPath}"`, {
+  execSync(`npx -p topojson-server geo2topo -q 1e5 neighborhoods="${tempPath}" > "${topoPath}"`, {
     stdio: 'inherit',
   });
 
