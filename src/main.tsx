@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { registerSW } from 'virtual:pwa-register';
 import App from './App';
 import { ThemeProvider } from './hooks/useTheme';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { installChunkReloadHandler } from './utils/chunkReload';
 import './index.css';
 
@@ -119,9 +120,13 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <Suspense fallback={null}>
           <Routes>
             <Route path="/" element={<App />} />
-            <Route path="/alue/:slug" element={<NeighborhoodProfilePage />} />
-            <Route path="/en/area/:slug" element={<NeighborhoodProfilePage />} />
-            <Route path="/sv/omrade/:slug" element={<NeighborhoodProfilePage />} />
+            {/* Profile routes are wrapped in an ErrorBoundary so a render-phase
+                crash (e.g. a "Maximum call stack size exceeded" RangeError seen
+                on memory-constrained mobile engines) degrades to a recoverable
+                fallback instead of an uncaught error + blank page. */}
+            <Route path="/alue/:slug" element={<ErrorBoundary><NeighborhoodProfilePage /></ErrorBoundary>} />
+            <Route path="/en/area/:slug" element={<ErrorBoundary><NeighborhoodProfilePage /></ErrorBoundary>} />
+            <Route path="/sv/omrade/:slug" element={<ErrorBoundary><NeighborhoodProfilePage /></ErrorBoundary>} />
             <Route path="/tietolahteet" element={<DataSourcesPage lang="fi" />} />
             <Route path="/en/data-sources" element={<DataSourcesPage lang="en" />} />
             <Route path="/sv/datakallor" element={<DataSourcesPage lang="sv" />} />
