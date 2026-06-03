@@ -1,5 +1,5 @@
 import type { FeatureCollection } from 'geojson';
-import { type LayerId, type LayerConfig, getLayerById } from './colorScales';
+import { type LayerId, type LayerConfig, getLayerById, LAYERS } from './colorScales';
 import type { NeighborhoodProperties } from './metrics';
 
 /**
@@ -17,6 +17,41 @@ export interface FilterCriterion {
 /** Get the data range (min stop, max stop) for a layer from its color stops. */
 function getLayerRange(layer: LayerConfig): [number, number] {
   return [layer.stops[0], layer.stops[layer.stops.length - 1]];
+}
+
+const VALID_FILTER_LAYERS: ReadonlySet<string> = new Set(LAYERS.map((l) => l.id));
+
+/**
+ * CF-1b: compact URL encoding for filter criteria, e.g.
+ *   "median_income~25000~40000,crime_rate~0~80"
+ * Numbers are rounded to 3 decimals to keep links short.
+ */
+export function serializeFilters(filters: FilterCriterion[]): string {
+  const round = (n: number) => Math.round(n * 1000) / 1000;
+  return filters.map((f) => `${f.layerId}~${round(f.min)}~${round(f.max)}`).join(',');
+}
+
+/**
+ * Inverse of serializeFilters. Validates each layerId against LAYERS and requires
+ * finite min ≤ max, dropping malformed or unknown entries so a hand-edited or stale
+ * shared URL can never crash the app or apply a bogus filter.
+ */
+export function deserializeFilters(encoded: string): FilterCriterion[] {
+  const out: FilterCriterion[] = [];
+  for (const part of encoded.split(',')) {
+    const fields = part.split('~');
+    if (fields.length !== 3) continue;
+    const [layerId, minStr, maxStr] = fields;
+    // Reject empty number strings explicitly — Number('') coerces to 0, which would
+    // otherwise sneak through as a valid 0 bound.
+    if (!minStr || !maxStr) continue;
+    const min = Number(minStr);
+    const max = Number(maxStr);
+    if (layerId && VALID_FILTER_LAYERS.has(layerId) && Number.isFinite(min) && Number.isFinite(max) && min <= max) {
+      out.push({ layerId: layerId as LayerId, min, max });
+    }
+  }
+  return out;
 }
 
 // Stable empty set to avoid creating new references on every call with no filters.

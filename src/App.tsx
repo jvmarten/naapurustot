@@ -180,7 +180,7 @@ const App: React.FC = () => {
   const [showRanking, setShowRanking] = useState(false);
   const [showFilter, setShowFilter] = useState(false);
   const [showCustomQuality, setShowCustomQuality] = useState(false);
-  const [filters, setFilters] = useState<FilterCriterion[]>([]);
+  const [filters, setFilters] = useState<FilterCriterion[]>(initialUrl.filters);
   // CF-2: Quality weights persist to localStorage and (when logged in) sync to the backend.
   const { weights: qualityWeights, setWeights: setQualityWeights } = useQualityWeights(user?.id ?? null);
   // Memoize isCustomWeights to avoid iterating all QUALITY_FACTORS on every App render
@@ -612,6 +612,7 @@ const App: React.FC = () => {
     colorblind,
     lang,
     ref: referencePno,
+    filters,
   });
 
   // Recompute quality indices when custom weights change.
@@ -1157,6 +1158,19 @@ const App: React.FC = () => {
     }
   }, [selected?.pno, activeLayer, cityFilter, pinnedPnos, comparisonScope, timeYear, colorblind, lang]);
 
+  // CF-1b: copy the current full URL (which now also carries active filters) so the
+  // exact configured view — selection, layer, comparison, scope, year, filters — is
+  // shareable. replaceState keeps window.location.href in sync before this runs.
+  const handleCopyShareLink = useCallback(async (): Promise<boolean> => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      trackEvent('copy-share-link', { layer: activeLayer });
+      return true;
+    } catch {
+      return false;
+    }
+  }, [activeLayer]);
+
   // QW-3: from inside an embedded iframe, post the content height so a host page
   // can auto-size the iframe (no-op outside an iframe).
   useEffect(() => {
@@ -1338,6 +1352,7 @@ const App: React.FC = () => {
             onShowTour={handleShowTour}
             onShowShortcuts={handleShowShortcuts}
             onCopyEmbed={handleCopyEmbed}
+            onCopyShareLink={handleCopyShareLink}
           />
           <ToolsDropdown
             showFilter={showFilter}

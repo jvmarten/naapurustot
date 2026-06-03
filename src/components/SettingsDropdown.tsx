@@ -35,6 +35,8 @@ interface SettingsDropdownProps {
   onShowShortcuts?: () => void;
   /** QW-7: Copy an iframe embed snippet for the current map state to the clipboard. */
   onCopyEmbed?: () => Promise<boolean>;
+  /** CF-1b: Copy a shareable link to the current configured view (incl. filters). */
+  onCopyShareLink?: () => Promise<boolean>;
 }
 
 const CB_OPTIONS: { value: ColorblindType; labelKey: string }[] = [
@@ -96,6 +98,7 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
   onShowTour,
   onShowShortcuts,
   onCopyEmbed,
+  onCopyShareLink,
 }) => {
   useI18nVersion();
   const [open, setOpen] = useState(false);
@@ -114,6 +117,20 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
       embedCopyTimerRef.current = setTimeout(() => setEmbedCopied(false), 2000);
     }
   }, [onCopyEmbed]);
+
+  // CF-1b: "Copy share link" — copies the current URL (incl. active filters).
+  const [linkCopied, setLinkCopied] = useState(false);
+  const linkCopyTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(linkCopyTimerRef.current), []);
+  const handleShareLinkClick = useCallback(async () => {
+    if (!onCopyShareLink) return;
+    const ok = await onCopyShareLink();
+    if (ok) {
+      setLinkCopied(true);
+      clearTimeout(linkCopyTimerRef.current);
+      linkCopyTimerRef.current = setTimeout(() => setLinkCopied(false), 2000);
+    }
+  }, [onCopyShareLink]);
 
   useEffect(() => {
     if (!open) return;
@@ -265,6 +282,21 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 7h6m-6 4h6m-9 8h12a2 2 0 002-2V5a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
               <span>{t('shortcuts.title')}</span>
+            </button>
+          )}
+
+          {/* CF-1b: Copy a shareable link to the current configured view */}
+          {onCopyShareLink && (
+            <button
+              onClick={handleShareLinkClick}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200
+                         hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors"
+              title={t('share.link_hint')}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 010 5.656l-3 3a4 4 0 01-5.656-5.656l1.5-1.5m6.328-1.828a4 4 0 00-5.656 0m5.656 0l-1.5 1.5m1.5-1.5l3-3a4 4 0 015.656 5.656l-1.5 1.5" />
+              </svg>
+              <span>{linkCopied ? t('share.link_copied') : t('share.link')}</span>
             </button>
           )}
 

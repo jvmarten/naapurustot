@@ -3,6 +3,8 @@ import type { LayerId, ColorblindType } from '../utils/colorScales';
 import { LAYERS } from '../utils/colorScales';
 import { REGION_IDS } from '../utils/regions';
 import type { Lang } from '../utils/i18n';
+import type { FilterCriterion } from '../utils/filterUtils';
+import { serializeFilters, deserializeFilters } from '../utils/filterUtils';
 
 /** CF-1: comparison scope carried in the URL ('all' = whole Finland, 'region' = within region). */
 export type UrlScope = 'all' | 'region';
@@ -19,6 +21,8 @@ interface UrlState {
   lang: Lang | null;
   // CF-5: postal code of the custom reference-baseline neighbourhood.
   ref: string | null;
+  // CF-1b: active filter range criteria (empty when absent from the URL).
+  filters: FilterCriterion[];
 }
 
 /** CF-1: the extra analytical state the URL can carry beyond pno/layer/compare/city. */
@@ -29,6 +33,8 @@ export interface ExtraUrlState {
   lang?: Lang;
   /** CF-5: custom reference-baseline pno */
   ref?: string | null;
+  /** CF-1b: active filter criteria */
+  filters?: FilterCriterion[];
 }
 
 const VALID_CITIES = new Set<string>(['all', ...REGION_IDS]);
@@ -72,6 +78,7 @@ function parseUrl(): UrlState {
   const cbRaw = searchParams.get('cb');
   const langRaw = searchParams.get('lang');
   const refRaw = searchParams.get('ref');
+  const filterRaw = searchParams.get('filter');
 
   return {
     pno: pno && (VALID_CITIES.has(pno) || /^\d{5}$/.test(pno)) ? pno : null,
@@ -85,6 +92,7 @@ function parseUrl(): UrlState {
     colorblind: cbRaw && VALID_CB.has(cbRaw) ? (cbRaw as ColorblindType) : null,
     lang: langRaw && VALID_LANG.has(langRaw) ? (langRaw as Lang) : null,
     ref: refRaw && /^\d{5}$/.test(refRaw) ? refRaw : null,
+    filters: filterRaw ? deserializeFilters(filterRaw) : [],
   };
 }
 
@@ -101,6 +109,7 @@ function writeUrl(pno: string | null, layer: LayerId, comparePnos: string[], cit
   if (extras.colorblind && extras.colorblind !== 'off') params.set('cb', extras.colorblind);
   if (extras.lang && extras.lang !== 'fi') params.set('lang', extras.lang);
   if (extras.ref) params.set('ref', extras.ref);
+  if (extras.filters && extras.filters.length > 0) params.set('filter', serializeFilters(extras.filters));
   const str = params.toString();
   const newUrl = str
     ? `${window.location.pathname}?${str}`
@@ -121,11 +130,14 @@ export function readInitialUrlState(): UrlState {
  *  URL before the restoration effect has consumed them (e.g., pinned neighborhoods). */
 export function useSyncUrlState(pno: string | null, layer: LayerId, comparePnos: string[] = [], city: string = 'helsinki_metro', ready = true, extras: ExtraUrlState = {}) {
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const { scope, year, colorblind, lang, ref } = extras;
+  const { scope, year, colorblind, lang, ref, filters } = extras;
+  // Depend on a serialized key, not the array reference, so an unchanged filter set
+  // never re-triggers the URL write.
+  const filterKey = filters && filters.length > 0 ? serializeFilters(filters) : '';
   useEffect(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
     if (!ready) return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-    timerRef.current = setTimeout(() => writeUrl(pno, layer, comparePnos, city, { scope, year, colorblind, lang, ref }), 100);
+    timerRef.current = setTimeout(() => writeUrl(pno, layer, comparePnos, city, { scope, year, colorblind, lang, ref, filters }), 100);
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-  }, [pno, layer, comparePnos, city, ready, scope, year, colorblind, lang, ref]);
+  }, [pno, layer, comparePnos, city, ready, scope, year, colorblind, lang, ref, filters, filterKey]);
 }
