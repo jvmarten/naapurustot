@@ -16,7 +16,7 @@ vi.mock('html-to-image', () => ({
 }));
 
 // Import after mock setup
-import { generateScoreCard, generateComparisonCard } from '../utils/scoreCard';
+import { generateScoreCard, generateComparisonCard, generateCorrelationCard } from '../utils/scoreCard';
 
 function makeProps(overrides: Partial<NeighborhoodProperties> = {}): NeighborhoodProperties {
   return {
@@ -294,5 +294,60 @@ describe('generateComparisonCard (CF-10)', () => {
   it('does nothing for an empty pin list', async () => {
     await generateComparisonCard([]);
     expect(appended).toBeNull();
+  });
+});
+
+describe('generateCorrelationCard (CF-10b)', () => {
+  let appended: HTMLElement | null = null;
+  let removed: HTMLElement | null = null;
+
+  const input = {
+    points: [
+      { x: 30000, y: 5, pop: 5000, color: '#0074c5' },
+      { x: 25000, y: 8, pop: 3000, color: '#10b981' },
+    ],
+    r: -0.82,
+    fit: { slope: -0.0003, intercept: 14 },
+    domain: { xMin: 25000, xMax: 30000, yMin: 5, yMax: 8, popMax: 5000 },
+    labelX: 'Median income',
+    labelY: 'Unemployment',
+    formatX: (v: number) => `${v} €`,
+    formatY: (v: number) => `${v} %`,
+  };
+
+  beforeEach(() => {
+    setLang('fi');
+    appended = null;
+    removed = null;
+    mockToPng.mockReset();
+    mockToPng.mockResolvedValue('data:image/png;base64,abc123');
+    vi.spyOn(document.body, 'appendChild').mockImplementation((node) => { appended = node as HTMLElement; return node; });
+    vi.spyOn(document.body, 'removeChild').mockImplementation((node) => { removed = node as HTMLElement; return node; });
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it('renders the scatter, metric labels, Pearson r and watermark, then cleans up', async () => {
+    await generateCorrelationCard(input);
+    const html = appended?.innerHTML ?? '';
+    expect(html).toContain('Median income');
+    expect(html).toContain('Unemployment');
+    expect(html).toContain('-0.82');
+    expect(html).toContain('naapurustot.fi');
+    // One <circle> per point.
+    expect(appended?.querySelectorAll('circle').length ?? 0).toBe(2);
+    expect(removed).toBe(appended);
+  });
+
+  it('does nothing when there are no points', async () => {
+    await generateCorrelationCard({ ...input, points: [] });
+    expect(appended).toBeNull();
+  });
+
+  it('cleans up the off-screen node even if image generation fails', async () => {
+    mockToPng.mockRejectedValueOnce(new Error('Canvas error'));
+    await expect(generateCorrelationCard(input)).rejects.toThrow();
+    expect(removed).toBe(appended);
   });
 });

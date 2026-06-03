@@ -183,3 +183,71 @@ export async function generateComparisonCard(pinned: NeighborhoodProperties[]): 
     document.body.removeChild(container);
   }
 }
+
+export interface CorrelationCardInput {
+  points: { x: number; y: number; pop: number; color: string }[];
+  r: number | null;
+  fit: { slope: number; intercept: number } | null;
+  domain: { xMin: number; xMax: number; yMin: number; yMax: number; popMax: number };
+  labelX: string;
+  labelY: string;
+  formatX: (v: number) => string;
+  formatY: (v: number) => string;
+}
+
+/**
+ * CF-10b: render the correlation scatter as a branded PNG card — the scatter plot
+ * (region-coloured dots, best-fit line), the two metric labels, the Pearson r, a
+ * naapurustot.fi watermark, and a deep link — then share/download it. Reuses the
+ * comparison card's lazy html-to-image + shareOrDownload path, so no new bundle cost.
+ */
+export async function generateCorrelationCard(input: CorrelationCardInput): Promise<void> {
+  const { points, r, fit, domain, labelX, labelY, formatX, formatY } = input;
+  if (points.length === 0) return;
+
+  const VB_W = 640, VB_H = 380;
+  const PAD = { left: 64, right: 24, top: 16, bottom: 44 };
+  const plotW = VB_W - PAD.left - PAD.right;
+  const plotH = VB_H - PAD.top - PAD.bottom;
+  const sx = (x: number) => PAD.left + ((x - domain.xMin) / (domain.xMax - domain.xMin || 1)) * plotW;
+  const sy = (y: number) => PAD.top + plotH - ((y - domain.yMin) / (domain.yMax - domain.yMin || 1)) * plotH;
+  const radius = (pop: number) => 2 + 10 * Math.sqrt(pop / (domain.popMax || 1));
+
+  const fitLine = fit && r != null && Math.abs(r) > 0.1
+    ? `<line x1="${sx(domain.xMin).toFixed(1)}" y1="${sy(fit.slope * domain.xMin + fit.intercept).toFixed(1)}" x2="${sx(domain.xMax).toFixed(1)}" y2="${sy(fit.slope * domain.xMax + fit.intercept).toFixed(1)}" stroke="#64748b" stroke-width="1.5" stroke-dasharray="5 4" />`
+    : '';
+  const circles = points
+    .map((p) => `<circle cx="${sx(p.x).toFixed(1)}" cy="${sy(p.y).toFixed(1)}" r="${radius(p.pop).toFixed(1)}" fill="${p.color}" fill-opacity="0.7" />`)
+    .join('');
+
+  const svg = `<svg viewBox="0 0 ${VB_W} ${VB_H}" width="${VB_W}" height="${VB_H}" xmlns="http://www.w3.org/2000/svg">`
+    + `<line x1="${PAD.left}" y1="${PAD.top}" x2="${PAD.left}" y2="${PAD.top + plotH}" stroke="#cbd5e1" stroke-width="1" />`
+    + `<line x1="${PAD.left}" y1="${PAD.top + plotH}" x2="${PAD.left + plotW}" y2="${PAD.top + plotH}" stroke="#cbd5e1" stroke-width="1" />`
+    + `<text x="${PAD.left}" y="${VB_H - 12}" fill="#64748b" font-size="11">${escapeHtml(formatX(domain.xMin))}</text>`
+    + `<text x="${PAD.left + plotW}" y="${VB_H - 12}" text-anchor="end" fill="#64748b" font-size="11">${escapeHtml(formatX(domain.xMax))}</text>`
+    + `<text x="${PAD.left - 8}" y="${PAD.top + plotH}" text-anchor="end" fill="#64748b" font-size="11">${escapeHtml(formatY(domain.yMin))}</text>`
+    + `<text x="${PAD.left - 8}" y="${PAD.top + 10}" text-anchor="end" fill="#64748b" font-size="11">${escapeHtml(formatY(domain.yMax))}</text>`
+    + fitLine + circles + `</svg>`;
+
+  const container = document.createElement('div');
+  container.style.cssText = `width:${VB_W + 64}px;padding:32px;background:#ffffff;`
+    + `font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;border-radius:16px;box-sizing:border-box;`;
+  const rText = r == null ? '—' : r.toFixed(2);
+  const deepLink = 'https://naapurustot.fi';
+  container.innerHTML = `
+    <div style="font-size:13px;color:#64748b;margin-bottom:6px;font-weight:600;">naapurustot.fi · ${escapeHtml(t('correlation.title'))}</div>
+    <div style="font-size:18px;color:#0f172a;font-weight:700;margin-bottom:2px;">${escapeHtml(labelX)} <span style="color:#94a3b8;font-weight:400;">/</span> ${escapeHtml(labelY)}</div>
+    <div style="font-size:13px;color:#334155;margin-bottom:12px;">${escapeHtml(t('correlation.pearson_r'))} = <strong>${rText}</strong></div>
+    ${svg}
+    <div style="margin-top:14px;text-align:center;font-size:11px;color:#94a3b8;">${escapeHtml(deepLink)}</div>
+  `;
+
+  document.body.appendChild(container);
+  try {
+    const { toPng } = await import('html-to-image');
+    const dataUrl = await toPng(container, { quality: 0.95, pixelRatio: 2 });
+    await shareOrDownload(dataUrl, 'naapurustot-korrelaatio.png', deepLink, t('correlation.title'));
+  } finally {
+    document.body.removeChild(container);
+  }
+}
