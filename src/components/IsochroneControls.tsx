@@ -63,7 +63,7 @@ export const IsochroneControls: React.FC<Props> = ({ mode, budget, loading, acti
             onClick={() => onChange(mode, b)}
             aria-pressed={active && budget === b}
             className={`flex-1 py-1.5 rounded-lg text-xs font-semibold tabular-nums transition-colors ${active && budget === b
-              ? 'bg-brand-500 text-white'
+              ? 'bg-brand-600 text-white'
               : 'bg-surface-200/60 dark:bg-surface-800/60 text-surface-600 dark:text-surface-300 hover:bg-surface-200 dark:hover:bg-surface-700/60'}`}
           >
             {b} {t('isochrone.minutes')}

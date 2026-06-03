@@ -60,7 +60,7 @@ const STAT_SECTIONS: { title: string; stats: StatDef[] }[] = [
 const ALL_STATS = STAT_SECTIONS.flatMap((s) => s.stats);
 
 const COLUMN_COLORS = [
-  'text-brand-500 dark:text-brand-400',
+  'text-brand-600 dark:text-brand-400',
   'text-emerald-500 dark:text-emerald-400',
   'text-amber-500 dark:text-amber-400',
 ];

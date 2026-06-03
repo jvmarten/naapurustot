@@ -156,7 +156,7 @@ const StatRow: React.FC<{
               className={`inline-flex items-center justify-center w-3.5 h-3.5 rounded-full text-[8px] font-bold
                           border transition-colors flex-shrink-0 cursor-pointer
                           ${infoOpen
-                            ? 'text-brand-500 border-brand-500 bg-brand-500/10'
+                            ? 'text-brand-600 border-brand-500 bg-brand-500/10'
                             : 'text-surface-400 dark:text-surface-500 border-surface-300 dark:border-surface-600 hover:text-surface-600 dark:hover:text-surface-300 hover:border-surface-400 dark:hover:border-surface-500'
                           }`}
             >
@@ -387,6 +387,28 @@ DistributionSection.displayName = 'DistributionSection';
  * NeighborhoodPanel. Without this, each animation frame re-evaluates
  * ~1000 lines of JSX just to update a single number.
  */
+/**
+ * PO-1b: pick black or white text for a colored chip so it always meets WCAG AA.
+ * The Quality Index badge colour ranges red→green; white text fails on the light
+ * (orange/yellow) mid-scale values, so choose whichever foreground has the higher
+ * contrast against the given background.
+ */
+function readableTextColor(bgHex: string): string {
+  const c = bgHex.replace('#', '');
+  if (c.length < 6) return '#ffffff';
+  const lin = (v: number) => {
+    const s = v / 255;
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  };
+  const L =
+    0.2126 * lin(parseInt(c.slice(0, 2), 16)) +
+    0.7152 * lin(parseInt(c.slice(2, 4), 16)) +
+    0.0722 * lin(parseInt(c.slice(4, 6), 16));
+  const contrastWhite = 1.05 / (L + 0.05);
+  const contrastDark = (L + 0.05) / 0.05;
+  return contrastDark >= contrastWhite ? '#0f172a' : '#ffffff';
+}
+
 const QualityBadge: React.FC<{
   qualityIndex: number;
   isCustomWeights: boolean;
@@ -403,10 +425,10 @@ const QualityBadge: React.FC<{
   return (
     <div className="rounded-xl bg-surface-100 dark:bg-surface-900/60 p-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400">
+        <h3 className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-surface-600 dark:text-surface-400">
           {t('panel.quality_index')}
           {isCustomWeights && (
-            <span className="ml-1 text-brand-500 dark:text-brand-400">
+            <span className="ml-1 text-brand-600 dark:text-brand-400">
               ({t('custom_quality.custom_label')})
             </span>
           )}
@@ -417,7 +439,7 @@ const QualityBadge: React.FC<{
               onClick={() => setShowHow((v) => !v)}
               aria-label={t('quality.how_calculated')}
               aria-expanded={showHow}
-              className="ml-0.5 w-4 h-4 flex items-center justify-center rounded-full text-surface-400 hover:text-brand-500 transition-colors"
+              className="ml-0.5 w-4 h-4 flex items-center justify-center rounded-full text-surface-400 hover:text-brand-600 transition-colors"
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -454,7 +476,7 @@ const QualityBadge: React.FC<{
             className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold transition-colors
               ${isCustomWeights
                 ? 'bg-brand-500/15 text-brand-600 dark:text-brand-400 hover:bg-brand-500/25'
-                : 'bg-surface-200/60 dark:bg-surface-800/60 text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-200'
+                : 'bg-surface-200/60 dark:bg-surface-800/60 text-surface-600 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-200'
               }`}
           >
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -466,15 +488,15 @@ const QualityBadge: React.FC<{
       </div>
       <div className="flex items-center gap-3 mb-3">
         <div
-          className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm"
-          style={{ backgroundColor: cat?.color ?? '#6b7280' }}
+          className="w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm"
+          style={{ backgroundColor: cat?.color ?? '#6b7280', color: readableTextColor(cat?.color ?? '#6b7280') }}
         >
           {qi}
         </div>
         <span className="text-surface-900 dark:text-white font-semibold text-lg">
           {cat?.label[lang] ?? '—'}
         </span>
-        <span className="text-surface-500 dark:text-surface-400 text-sm">
+        <span className="text-surface-600 dark:text-surface-400 text-sm">
           ({cat?.min}–{cat?.max})
         </span>
       </div>
@@ -709,7 +731,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
     <button
       onClick={() => onSetReference(isReference ? null : d.pno)}
       className={`p-1.5 rounded-lg transition-colors min-h-[44px] md:min-h-0 ${
-        isReference ? 'text-brand-500 hover:text-brand-600' : 'text-surface-400 hover:text-brand-500'
+        isReference ? 'text-brand-600 hover:text-brand-600' : 'text-surface-400 hover:text-brand-600'
       }`}
       title={isReference ? t('panel.clear_reference') : t('panel.set_reference')}
     >
@@ -723,7 +745,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
     <button
       onClick={() => { trackEvent(isInShortlist ? 'shortlist-remove' : 'shortlist-add'); onToggleShortlist(); }}
       className={`p-1.5 rounded-lg transition-colors min-h-[44px] md:min-h-0 ${
-        isInShortlist ? 'text-brand-500 hover:text-brand-600' : 'text-surface-400 hover:text-brand-500'
+        isInShortlist ? 'text-brand-600 hover:text-brand-600' : 'text-surface-400 hover:text-brand-600'
       }`}
       title={isInShortlist ? t('shortlist.remove') : t('shortlist.add')}
     >
@@ -742,7 +764,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
           ? 'bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 hover:bg-rose-100 hover:text-rose-600 dark:hover:bg-rose-900/30 dark:hover:text-rose-400'
           : pinCount >= 3
             ? 'bg-surface-100 dark:bg-surface-800 text-surface-400 cursor-not-allowed'
-            : 'bg-brand-500 hover:bg-brand-600 text-white'
+            : 'bg-brand-600 hover:bg-brand-700 text-white'
       }`}
       title={isPinned ? t('compare.pinned') : pinCount >= 3 ? t('compare.max') : t('compare.pin')}
     >
@@ -1538,7 +1560,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
               onClick={() => setActiveSection(i)}
               className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
                 activeSection === i
-                  ? 'bg-brand-500 text-white'
+                  ? 'bg-brand-600 text-white'
                   : 'bg-surface-100 dark:bg-surface-800 text-surface-500 dark:text-surface-400'
               }`}
             >

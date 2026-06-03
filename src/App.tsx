@@ -1675,7 +1675,7 @@ const App: React.FC = () => {
         <div
           role="status"
           className={`absolute top-12 left-1/2 -translate-x-1/2 z-50 px-3 py-1.5 rounded-lg text-white text-xs font-medium backdrop-blur-sm
-                     ${geoStatus === 'loading' ? 'bg-brand-500/90' : 'bg-amber-500/90'}`}
+                     ${geoStatus === 'loading' ? 'bg-brand-700/90' : 'bg-amber-500/90'}`}
         >
           {geoStatus === 'loading'
             ? t('geolocation.using')

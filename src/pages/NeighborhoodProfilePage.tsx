@@ -341,7 +341,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-white dark:bg-surface-950 text-surface-900 dark:text-white px-4">
         <h1 className="text-2xl font-bold mb-4">{heading}</h1>
-        <Link to="/" className="text-brand-500 hover:underline">{t('notfound.back_to_map')}</Link>
+        <Link to="/" className="text-brand-600 hover:underline">{t('notfound.back_to_map')}</Link>
       </div>
     );
   }
@@ -378,7 +378,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
       {/* Header */}
       <header className="border-b border-surface-200 dark:border-surface-800">
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Link to="/" className="text-lg font-bold text-brand-500 hover:text-brand-600 transition-colors">
+          <Link to="/" className="text-lg font-bold text-brand-600 hover:text-brand-600 transition-colors">
             naapurustot.fi
           </Link>
           <button
@@ -394,9 +394,9 @@ export const NeighborhoodProfilePage: React.FC = () => {
       <main id="main" tabIndex={-1} className="max-w-5xl mx-auto px-4 py-8 focus:outline-none">
         {/* Breadcrumb */}
         <nav className="text-sm text-surface-500 dark:text-surface-400 mb-6">
-          <Link to="/" className="hover:text-brand-500">{t('app.title')}</Link>
+          <Link to="/" className="hover:text-brand-600">{t('app.title')}</Link>
           <span className="mx-2">/</span>
-          <Link to={`/?city=${d.city ?? 'helsinki_metro'}`} className="hover:text-brand-500">{cityName}</Link>
+          <Link to={`/?city=${d.city ?? 'helsinki_metro'}`} className="hover:text-brand-600">{cityName}</Link>
           <span className="mx-2">/</span>
           <span className="text-surface-900 dark:text-white">{displayName}</span>
         </nav>
@@ -606,9 +606,9 @@ export const NeighborhoodProfilePage: React.FC = () => {
         <div className="max-w-5xl mx-auto px-4 text-center text-xs text-surface-400 dark:text-surface-500">
           <p>{t('profile.data_sources')}: Tilastokeskus (Paavo), HSL, OpenStreetMap, HSY</p>
           <p className="mt-1">
-            <Link to="/" className="hover:text-brand-500">naapurustot.fi</Link>
+            <Link to="/" className="hover:text-brand-600">naapurustot.fi</Link>
             {' · '}
-            <a href="mailto:info@naapurustot.fi" className="hover:text-brand-500">{t('footer.contact')}</a>
+            <a href="mailto:info@naapurustot.fi" className="hover:text-brand-600">{t('footer.contact')}</a>
           </p>
         </div>
       </footer>

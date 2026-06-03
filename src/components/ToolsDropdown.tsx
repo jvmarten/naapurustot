@@ -132,7 +132,7 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
             </svg>
             <span>{t('filter.toggle')}</span>
             {showFilter && (
-              <svg className="w-4 h-4 ml-auto text-brand-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <svg className="w-4 h-4 ml-auto text-brand-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
               </svg>
             )}
@@ -149,7 +149,7 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
             </svg>
             <span>{t('ranking.toggle')}</span>
             {showRanking && (
-              <svg className="w-4 h-4 ml-auto text-brand-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <svg className="w-4 h-4 ml-auto text-brand-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
               </svg>
             )}
@@ -168,7 +168,7 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
               </svg>
               <span>{t('correlation.toggle')}</span>
               {showScatter && (
-                <svg className="w-4 h-4 ml-auto text-brand-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <svg className="w-4 h-4 ml-auto text-brand-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                 </svg>
               )}
@@ -187,7 +187,7 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
               </svg>
               <span>{t('region.comparison.toggle')}</span>
               {showRegionRanking && (
-                <svg className="w-4 h-4 ml-auto text-brand-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <svg className="w-4 h-4 ml-auto text-brand-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                 </svg>
               )}
@@ -272,7 +272,7 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
               </svg>
               <span>{t('tools.compare_layers')}</span>
               {splitMode && (
-                <svg className="w-4 h-4 ml-auto text-brand-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <svg className="w-4 h-4 ml-auto text-brand-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                 </svg>
               )}
