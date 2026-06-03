@@ -15,6 +15,8 @@ import { useSimilarityMetrics } from '../hooks/useSimilarityMetrics';
 import { getLayerById, type LayerId } from '../utils/colorScales';
 import { histogram, percentileRank, binIndexOf } from '../utils/correlation';
 import { toSlug } from '../utils/slug';
+import { useNavigate } from 'react-router-dom';
+import { loadAllData } from '../utils/dataLoader';
 import { useAnimatedValue } from '../hooks/useAnimatedValue';
 import { useBottomSheet } from '../hooks/useBottomSheet';
 import { useSwipeNavigation } from '../hooks/useSwipeNavigation';
@@ -841,13 +843,46 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
   const [similarExpanded, setSimilarExpanded] = useState(false);
   // CF-6: user-configurable metric set for "similar neighbourhoods".
   const { selected: similarityMetrics, toggle: toggleSimilarityMetric } = useSimilarityMetrics();
+  const navigate = useNavigate();
+  // CF-6b: rank similarity within the current region (default) or across all of
+  // Finland. The choice is persisted like the metric set; the national dataset
+  // (geometry-stripped region_properties.json) is lazy-loaded on first use.
+  const [similarityScope, setSimilarityScope] = useState<'region' | 'national'>(() => {
+    try { return localStorage.getItem('naapurustot-similarity-scope') === 'national' ? 'national' : 'region'; }
+    catch { return 'region'; }
+  });
+  const setScope = useCallback((s: 'region' | 'national') => {
+    setSimilarityScope(s);
+    try { localStorage.setItem('naapurustot-similarity-scope', s); } catch { /* ignore */ }
+  }, []);
+  const [nationalFeatures, setNationalFeatures] = useState<GeoJSON.Feature[] | null>(null);
+  const [nationalLoading, setNationalLoading] = useState(false);
+  useEffect(() => {
+    if (!similarExpanded || similarityScope !== 'national' || nationalFeatures || nationalLoading) return;
+    setNationalLoading(true);
+    loadAllData()
+      .then((res) => setNationalFeatures(res.data.features))
+      .catch(() => { /* national similarity unavailable — toggle back to region */ })
+      .finally(() => setNationalLoading(false));
+  }, [similarExpanded, similarityScope, nationalFeatures, nationalLoading]);
+
+  const scopeFeatures = similarityScope === 'national' ? nationalFeatures : allFeatures;
   const similar = useMemo(() => {
-    if (!similarExpanded || !allFeatures) return [];
+    if (!similarExpanded || !scopeFeatures) return [];
     const metrics = AVAILABLE_SIMILARITY_METRICS
       .map((m) => m.key)
       .filter((k) => similarityMetrics.has(k as string));
-    return findSimilarNeighborhoods(d, allFeatures, 5, metrics);
-  }, [similarExpanded, d, allFeatures, similarityMetrics]);
+    return findSimilarNeighborhoods(d, scopeFeatures, 5, metrics);
+  }, [similarExpanded, d, scopeFeatures, similarityMetrics]);
+
+  // CF-6b: open a national result. Its centre is unavailable (region_properties is
+  // geometry-stripped), so navigate to its profile page rather than fly the map.
+  const openNationalResult = useCallback((props: NeighborhoodProperties) => {
+    const slug = toSlug(props.pno, props.nimi || props.namn || props.pno);
+    const lang = getLang();
+    const base = lang === 'en' ? '/en/area/' : lang === 'sv' ? '/sv/omrade/' : '/alue/';
+    navigate(`${base}${slug}`);
+  }, [navigate]);
 
   // PO-3: Shared section content — used by both desktop and mobile
   const sectionOverview = (
@@ -1337,21 +1372,59 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
                   })}
                 </div>
               </div>
-              {similar.map((s) => (
-                <button
-                  key={s.properties.pno}
-                  onClick={() => onFlyTo?.(s.center)}
-                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg
-                             bg-surface-100 dark:bg-surface-900/60 hover:bg-surface-200 dark:hover:bg-surface-800
-                             transition-colors text-left"
-                >
-                  <div>
-                    <span className="text-sm font-medium text-surface-900 dark:text-white">{s.properties.nimi}</span>
-                    <span className="text-xs text-surface-400 ml-1.5">{s.properties.pno}</span>
+              {/* CF-6b: rank within this region or across all of Finland */}
+              {!d._isMetroArea && (
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-surface-400 dark:text-surface-500 mb-1.5">
+                    {t('panel.similar_scope_label')}
                   </div>
-                  <span className="text-xs text-surface-500">{((1 - s.distance) * 100).toFixed(0)}%</span>
-                </button>
-              ))}
+                  <div className="flex gap-1">
+                    {(['region', 'national'] as const).map((sc) => (
+                      <button
+                        key={sc}
+                        onClick={() => setScope(sc)}
+                        aria-pressed={similarityScope === sc}
+                        className={`flex-1 px-2 py-1 rounded-lg text-[11px] font-medium border transition-colors ${
+                          similarityScope === sc
+                            ? 'bg-brand-500/15 text-brand-600 dark:text-brand-300 border-brand-500/40'
+                            : 'bg-surface-100 dark:bg-surface-900/60 text-surface-500 dark:text-surface-400 border-surface-200 dark:border-surface-700/50 hover:border-surface-300 dark:hover:border-surface-600'
+                        }`}
+                      >
+                        {t(sc === 'region' ? 'panel.similar_scope_region' : 'panel.similar_scope_national')}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {similarityScope === 'national' && nationalLoading && !nationalFeatures ? (
+                <div className="px-3 py-2.5 text-xs text-surface-400 dark:text-surface-500">{t('loading')}</div>
+              ) : (
+                similar.map((s) => {
+                  const national = similarityScope === 'national';
+                  return (
+                    <button
+                      key={s.properties.pno}
+                      onClick={() => (national ? openNationalResult(s.properties) : onFlyTo?.(s.center))}
+                      className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg
+                                 bg-surface-100 dark:bg-surface-900/60 hover:bg-surface-200 dark:hover:bg-surface-800
+                                 transition-colors text-left"
+                    >
+                      <div className="min-w-0">
+                        <span className="text-sm font-medium text-surface-900 dark:text-white">{s.properties.nimi}</span>
+                        <span className="text-xs text-surface-400 ml-1.5">{s.properties.pno}</span>
+                      </div>
+                      <span className="flex items-center gap-1 text-xs text-surface-500 shrink-0">
+                        {((1 - s.distance) * 100).toFixed(0)}%
+                        {national && (
+                          <svg className="w-3 h-3 text-surface-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                          </svg>
+                        )}
+                      </span>
+                    </button>
+                  );
+                })
+              )}
             </div>
           )}
         </div>
