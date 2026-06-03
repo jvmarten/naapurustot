@@ -22,6 +22,15 @@ REGISTRY_PATH = Path(__file__).resolve().parent.parent / "src" / "data" / "data_
 BASELINE_PATH = Path(__file__).resolve().parent.parent / "src" / "data" / "data_baseline.json"
 # Fail if a metric's non-null coverage drops by more than this fraction vs the baseline.
 COVERAGE_DROP_TOLERANCE = 0.25
+# IN-3: independent provenance record of the ACTUAL fetched data vintage per metric.
+# Cross-checked against data_sources.json so the public attribution can never silently
+# diverge from what was really pulled. Update in lockstep when a fetch pulls a new period.
+PROVENANCE_PATH = Path(__file__).resolve().parent / "provenance.json"
+# Registry metrics intentionally absent from provenance.json: client-derived metrics
+# that have no upstream fetch (and therefore no fetched vintage to cross-check).
+EXEMPT_FROM_PROVENANCE = {
+    "quality_index",  # composite of other layers, computed client-side (stored: false)
+}
 
 # ── Feature count bounds ─────────────────────────────────────────────
 # All 69 Finnish seutukunnat: ~3000 postal codes in total. Range allows
@@ -296,6 +305,77 @@ def check_registry_vintage(features: list) -> list[str]:
     return errors
 
 
+def _normalize_vintage(v) -> str:
+    """Canonical string form of a vintage so 2024 == '2024' and en/em dashes in
+    'YYYY-YYYY' ranges compare equal regardless of which dash character was used."""
+    s = str(v).strip()
+    # Unify en-dash / em-dash with a plain hyphen and drop surrounding spaces.
+    s = s.replace("–", "-").replace("—", "-")
+    s = "-".join(part.strip() for part in s.split("-"))
+    return s
+
+
+def check_provenance_vintage_match(features: list) -> list[str]:
+    """IN-3: cross-check the data-source registry against an INDEPENDENT provenance
+    record (scripts/provenance.json) of the vintage actually fetched per metric, and
+    FAIL on any divergence. check_registry_vintage() only proves each registry vintage
+    is a plausible year; this proves it equals what was really pulled. Rules:
+
+      * every metric present in BOTH files must have an identical vintage;
+      * every non-exempt registry metric MUST appear in provenance.json (a new metric
+        added to the registry without recording its fetched vintage fails the build);
+      * every provenance metric must still exist in the registry (catch stale entries).
+
+    Client-derived metrics with no upstream fetch (EXEMPT_FROM_PROVENANCE) are skipped."""
+    errors: list[str] = []
+    if not REGISTRY_PATH.exists():
+        return [f"data-source registry not found: {REGISTRY_PATH}"]
+    if not PROVENANCE_PATH.exists():
+        return [f"provenance record not found: {PROVENANCE_PATH}"]
+    try:
+        registry = json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        return [f"data_sources.json is not valid JSON: {exc}"]
+    try:
+        provenance = json.loads(PROVENANCE_PATH.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        return [f"provenance.json is not valid JSON: {exc}"]
+
+    prov_vintages = provenance.get("vintages")
+    if not isinstance(prov_vintages, dict):
+        return ["provenance.json has no 'vintages' object"]
+
+    reg_metrics = registry.get("metrics", {})
+
+    # 1. Registry metrics that must be cross-checked but are missing from provenance.
+    for prop, entry in reg_metrics.items():
+        if prop in EXEMPT_FROM_PROVENANCE:
+            continue
+        if prop not in prov_vintages:
+            errors.append(
+                f"Metric '{prop}' is in data_sources.json but has no recorded vintage in "
+                f"provenance.json — record the fetched vintage (or exempt it if client-derived)"
+            )
+
+    # 2. Provenance entries that no longer correspond to a registry metric.
+    for prop in prov_vintages:
+        if prop not in reg_metrics:
+            errors.append(
+                f"Metric '{prop}' is in provenance.json but absent from data_sources.json (stale entry?)"
+            )
+
+    # 3. Both present → vintages must be identical.
+    for prop in sorted(set(reg_metrics) & set(prov_vintages)):
+        reg_v = reg_metrics[prop].get("vintage")
+        prov_v = prov_vintages[prop]
+        if _normalize_vintage(reg_v) != _normalize_vintage(prov_v):
+            errors.append(
+                f"Metric '{prop}' vintage mismatch: data_sources.json={reg_v!r} "
+                f"vs provenance.json={prov_v!r}"
+            )
+    return errors
+
+
 def _registry_stored_props() -> list[str]:
     """Registry metric properties that are stored in the GeoJSON (not client-derived)."""
     if not REGISTRY_PATH.exists():
@@ -406,6 +486,7 @@ def main() -> int:
         ("Value ranges", check_value_ranges(features)),
         ("Data-source registry", check_data_source_registry(features)),
         ("Registry vintage", check_registry_vintage(features)),
+        ("Provenance vintage match", check_provenance_vintage_match(features)),
         ("Coverage regression", check_coverage_regression(features)),
         ("Geometries", check_geometries(features)),
         ("Postal code format", check_pno_format(features)),

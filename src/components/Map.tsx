@@ -62,6 +62,8 @@ interface MapProps {
   layerConfig?: LayerConfig;
   /** CF-5: travel-time isochrone polygon to overlay for the selected neighborhood. */
   isochrone?: Feature<Polygon | MultiPolygon> | null;
+  /** CF-1: fires after the camera settles, so the host can capture the viewport for "copy link to this view". */
+  onMoveEnd?: (camera: { center: [number, number]; zoom: number }) => void;
 }
 
 // Stable empty defaults to avoid creating new references on every render
@@ -256,7 +258,7 @@ function buildGridFillOpacity(o: number): unknown[] {
   ];
 }
 
-export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1, gridData = null, drawMode = false, onDrawClick, onDrawDoubleClick, drawVertices, drawnPolygon = null, drawnAreaPnos = EMPTY_ARRAY, selectMode = false, selectedAreaPnos = EMPTY_ARRAY, onSelectAreaClick, layerConfig, isochrone = null }) => {
+export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1, gridData = null, drawMode = false, onDrawClick, onDrawDoubleClick, drawVertices, drawnPolygon = null, drawnAreaPnos = EMPTY_ARRAY, selectMode = false, selectedAreaPnos = EMPTY_ARRAY, onSelectAreaClick, layerConfig, isochrone = null, onMoveEnd }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const hoveredIdRef = useRef<string | null>(null);
@@ -1024,6 +1026,8 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   onDrawDoubleClickRef.current = onDrawDoubleClick;
   const onSelectAreaClickRef = useRef(onSelectAreaClick);
   onSelectAreaClickRef.current = onSelectAreaClick;
+  const onMoveEndRef = useRef(onMoveEnd);
+  onMoveEndRef.current = onMoveEnd;
   const handlersAttachedRef = useRef(false);
 
   useEffect(() => {
@@ -1125,10 +1129,18 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       }
     };
 
+    // CF-1: report the settled camera so the host can offer "copy link to this view".
+    const onMapMoveEnd = () => {
+      if (!onMoveEndRef.current) return;
+      const c = map.getCenter();
+      onMoveEndRef.current({ center: [c.lng, c.lat], zoom: map.getZoom() });
+    };
+
     map.on('mousemove', onMouseMove);
     map.on('mouseleave', FILL_LAYER, onMouseLeave);
     map.on('click', onMapClick);
     map.on('dblclick', onMapDblClick);
+    map.on('moveend', onMapMoveEnd);
 
     return () => {
       handlersAttachedRef.current = false;
@@ -1137,6 +1149,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       map.off('mouseleave', FILL_LAYER, onMouseLeave);
       map.off('click', onMapClick);
       map.off('dblclick', onMapDblClick);
+      map.off('moveend', onMapMoveEnd);
     };
   }, [data]);
 

@@ -31,6 +31,32 @@ describe('computeQualityIndices', () => {
     }
   });
 
+  it('CF-8: populates per-dimension sub-scores alongside the headline index', () => {
+    const features = [
+      makeFeature({ hr_mtu: 10000, unemployment_rate: 20, crime_index: 200, air_quality_index: 20 }),
+      makeFeature({ hr_mtu: 50000, unemployment_rate: 0, crime_index: 0, air_quality_index: 5 }),
+    ];
+    computeQualityIndices(features);
+    const dims = features[1].properties!.quality_dimension_scores as Record<string, number>;
+    expect(dims).toBeTruthy();
+    // safety (crime) and livelihood (income/employment) are default-weighted dimensions
+    expect(typeof dims.safety).toBe('number');
+    expect(typeof dims.livelihood).toBe('number');
+    expect(dims.safety).toBeGreaterThanOrEqual(0);
+    expect(dims.safety).toBeLessThanOrEqual(100);
+    // Feature 1 has the better crime/income/employment → higher safety + livelihood
+    const dims0 = features[0].properties!.quality_dimension_scores as Record<string, number>;
+    expect(dims.safety).toBeGreaterThan(dims0.safety);
+    expect(dims.livelihood).toBeGreaterThan(dims0.livelihood);
+  });
+
+  it('CF-8: clears dimension scores when the index is null', () => {
+    const features = [makeFeature({ hr_mtu: null, unemployment_rate: null, crime_index: null })];
+    computeQualityIndices(features);
+    expect(features[0].properties!.quality_index).toBeNull();
+    expect(features[0].properties!.quality_dimension_scores).toBeNull();
+  });
+
   it('computes exact values for two-feature min/max scenario with explicit weights', () => {
     const features = [
       makeFeature({ hr_mtu: 10000, unemployment_rate: 0, higher_education_rate: 0 }),

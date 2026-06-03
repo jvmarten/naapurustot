@@ -47,6 +47,8 @@ interface PanelProps {
   referencePno?: string | null;
   referenceName?: string | null;
   onSetReference?: (pno: string | null) => void;
+  /** CF-8: which range the Quality Index was normalized against. */
+  qualityScope?: 'national' | 'region';
   /** Callback to navigate to postal code view for a metro area */
   onExploreCity?: (cityId: string) => void;
   /** Authenticated user id — enables cloud-synced notes when set */
@@ -532,11 +534,12 @@ QualityBadge.displayName = 'QualityBadge';
 // flagship number auditable by showing how many of the evaluative factors had
 // data for this specific area, grouped by dimension, with missing factors struck
 // through. A low "X/Y" chip flags a confident-looking score built on few inputs.
-const QualityCoverageSection: React.FC<{ props: NeighborhoodProperties }> = React.memo(({ props }) => {
+const QualityCoverageSection: React.FC<{ props: NeighborhoodProperties; scope?: 'national' | 'region' }> = React.memo(({ props, scope = 'national' }) => {
   useI18nVersion();
   const [open, setOpen] = useState(false);
   const lang = getLang();
   const coverage = useMemo(() => computeQualityCoverage(props), [props]);
+  const dimScores = props.quality_dimension_scores ?? {};
   if (coverage.total === 0) return null;
   const pct = Math.round((coverage.present / coverage.total) * 100);
   const lowCoverage = pct < 70;
@@ -570,10 +573,22 @@ const QualityCoverageSection: React.FC<{ props: NeighborhoodProperties }> = Reac
       {open && (
         <div className="pb-2 space-y-2.5">
           <p className="text-[11px] leading-snug text-surface-400 dark:text-surface-500">{t('panel.quality_coverage_help')}</p>
-          {coverage.dimensions.map((dim) => (
+          {/* CF-8: which national-vs-region range the score was normalized against */}
+          <p className="text-[11px] leading-snug text-surface-400 dark:text-surface-500">
+            <span className="text-surface-500 dark:text-surface-400">{t('panel.quality_scope_label')}:</span>{' '}
+            {t(scope === 'region' ? 'panel.quality_scope_region' : 'panel.quality_scope_national')}
+          </p>
+          {coverage.dimensions.map((dim) => {
+            const score = dimScores[dim.id];
+            return (
             <div key={dim.id}>
               <div className="flex items-center justify-between text-[11px] font-medium text-surface-600 dark:text-surface-300">
-                <span>{dim.label[lang]}</span>
+                <span>
+                  {dim.label[lang]}
+                  {typeof score === 'number' && (
+                    <span className="ml-1.5 tabular-nums text-surface-500 dark:text-surface-400">{score}/100</span>
+                  )}
+                </span>
                 <span className="text-surface-400 dark:text-surface-500">{dim.present}/{dim.total}</span>
               </div>
               <div className="flex flex-wrap gap-1 mt-1">
@@ -592,7 +607,8 @@ const QualityCoverageSection: React.FC<{ props: NeighborhoodProperties }> = Reac
                 ))}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -635,7 +651,7 @@ const NotesEditor: React.FC<{ pno: string; userId?: string | null }> = React.mem
 });
 NotesEditor.displayName = 'NotesEditor';
 
-export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, allFeatures, activeLayer, onFlyTo, isFavorite = false, onToggleFavorite, isInShortlist = false, onToggleShortlist, referencePno, referenceName, onSetReference, onExploreCity, userId, isochroneEnabled = false, isochroneMode = 'walk', isochroneBudget = 20, isochroneLoading = false, isochroneActive = false, onIsochroneChange, onIsochroneClear }) => {
+export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, allFeatures, activeLayer, onFlyTo, isFavorite = false, onToggleFavorite, isInShortlist = false, onToggleShortlist, referencePno, referenceName, onSetReference, qualityScope = 'national', onExploreCity, userId, isochroneEnabled = false, isochroneMode = 'walk', isochroneBudget = 20, isochroneLoading = false, isochroneActive = false, onIsochroneChange, onIsochroneClear }) => {
   useI18nVersion();
   const eduTotal = useMemo(() =>
     [d.ko_yl_kork, d.ko_al_kork, d.ko_ammat, d.ko_perus]
@@ -906,7 +922,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
       )}
 
       {/* CF-8: Quality Index auditability — factor coverage for this area */}
-      {d.quality_index != null && <QualityCoverageSection props={d} />}
+      {d.quality_index != null && <QualityCoverageSection props={d} scope={qualityScope} />}
 
       {/* CF-5: travel-time isochrone controls (real neighborhoods only; needs a Digitransit key) */}
       {isochroneEnabled && !d._isMetroArea && onIsochroneChange && onIsochroneClear && (

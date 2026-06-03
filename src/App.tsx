@@ -45,7 +45,7 @@ const TimeSlider = lazy(() => import('./components/TimeSlider').then(m => ({ def
 import { UserMenu, type FavoriteEntry } from './components/UserMenu';
 import { ShortlistTray } from './components/ShortlistTray';
 import { type LayerId, type ColorblindType, getLayerById, getColorblindMode, setColorblindMode, rescaleLayerToData, clearRescaleCache, TIME_SERIES_LAYERS } from './utils/colorScales';
-import { readInitialUrlState, useSyncUrlState } from './hooks/useUrlState';
+import { readInitialUrlState, useSyncUrlState, buildViewportShareUrl, type UrlViewport } from './hooks/useUrlState';
 import type { NeighborhoodProperties } from './utils/metrics';
 import { computeMetroAverages, timeSeriesYearProp, getAvailableYears } from './utils/metrics';
 import { t, getLang, setLang, useI18nVersion, type Lang } from './utils/i18n';
@@ -165,6 +165,10 @@ const App: React.FC = () => {
   }, [rawGridData, data]);
   const [wizardResultPnos, setWizardResultPnos] = useState<string[]>([]);
   const [flyTarget, setFlyTarget] = useState<{ center: [number, number]; zoom?: number; bounds?: [number, number, number, number] } | null>(() => {
+    // CF-1: an explicit shared viewport takes precedence over the city preset.
+    if (initialUrl.viewport) {
+      return { center: initialUrl.viewport.center, zoom: initialUrl.viewport.zoom };
+    }
     const city = (initialUrl.city as CityFilter) ?? 'helsinki_metro';
     const vp = CITY_VIEWPORTS[city];
     if (vp?.bounds) {
@@ -172,6 +176,10 @@ const App: React.FC = () => {
     }
     return null;
   });
+  // CF-1: latest map camera, captured on moveend (no re-render, no URL churn) so the
+  // "copy link to this view" affordance can embed the exact viewport on demand.
+  const cameraRef = useRef<UrlViewport | null>(initialUrl.viewport);
+  const handleMapMoveEnd = useCallback((cam: UrlViewport) => { cameraRef.current = cam; }, []);
   // Subscribe to i18n changes (language switch + lazy-loaded dictionary arrivals)
   // so App and its non-memoized children re-render whenever translations may
   // have changed. Memoized children call useI18nVersion themselves.
@@ -205,7 +213,7 @@ const App: React.FC = () => {
   const { favorites, isFavorite, toggleFavorite } = useFavorites(user?.id);
   const { recent, addRecent } = useRecentNeighborhoods();
   // QW-2: durable shortlist (distinct from one-tap favorites). QW-2b: cloud-syncs when signed in.
-  const { shortlist, isInShortlist, toggleShortlist, removeFromShortlist, clearShortlist } = useShortlist(user?.id);
+  const { shortlist, isInShortlist, toggleShortlist, removeFromShortlist, clearShortlist, mergeIntoShortlist } = useShortlist(user?.id);
   const restoredPno = useRef(false);
   // Monotonic version counter to force re-renders when quality indices change
   const [qualityVersion, setQualityVersion] = useState(0);
@@ -585,6 +593,15 @@ const App: React.FC = () => {
     if (restoredSomething) restoredPno.current = true;
   }, [data, select, pin, pnoFeatureMap]);
 
+  // CF-1 / QW-2: apply shared analytical state from the URL once on mount. Custom
+  // weights override the locally-stored set (so a shared link reproduces the
+  // author's index); the shortlist is merged so the recipient keeps their own.
+  useEffect(() => {
+    if (initialUrl.weights) setQualityWeights(initialUrl.weights);
+    if (initialUrl.shortlist.length > 0) mergeIntoShortlist(initialUrl.shortlist);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
+  }, []);
+
   // Memoize pinned PNO array to avoid new references on every render.
   // Without this, Map's pinnedPnos useEffect fires on every App re-render,
   // recreating the pinned highlight layer unnecessarily.
@@ -613,6 +630,10 @@ const App: React.FC = () => {
     lang,
     ref: referencePno,
     filters,
+    // CF-1: carry custom quality weights and an active isochrone, plus the QW-2 shortlist.
+    weights: qualityWeights,
+    isochrone: isochronePolygon ? { mode: isochroneMode, budget: isochroneBudget } : null,
+    shortlist,
   });
 
   // Recompute quality indices when custom weights change.
@@ -888,6 +909,18 @@ const App: React.FC = () => {
   // (or is deselected) so a stale reachable-area doesn't linger on a new area.
   useEffect(() => { setIsochronePolygon(null); }, [selected?.pno]);
 
+  // CF-1: re-fetch a shared isochrone once its neighbourhood has been restored. Runs
+  // once; the clear-on-selection effect above fires first for this same pno change.
+  const isoRestoredRef = useRef(false);
+  useEffect(() => {
+    if (isoRestoredRef.current) return;
+    if (!initialUrl.isochrone || !initialUrl.pno || !ISOCHRONE_ENABLED) { isoRestoredRef.current = true; return; }
+    if (selected?.pno === initialUrl.pno) {
+      isoRestoredRef.current = true;
+      void handleIsochroneChange(initialUrl.isochrone.mode, initialUrl.isochrone.budget);
+    }
+  }, [selected?.pno, handleIsochroneChange]);
+
   const handleResetView = useCallback(() => {
     handleCityChange('helsinki_metro');
   }, [handleCityChange]);
@@ -1158,12 +1191,13 @@ const App: React.FC = () => {
     }
   }, [selected?.pno, activeLayer, cityFilter, pinnedPnos, comparisonScope, timeYear, colorblind, lang]);
 
-  // CF-1b: copy the current full URL (which now also carries active filters) so the
-  // exact configured view — selection, layer, comparison, scope, year, filters — is
-  // shareable. replaceState keeps window.location.href in sync before this runs.
+  // CF-1: copy a shareable link to the exact configured view — selection, layer,
+  // comparison, scope, year, filters, custom weights, isochrone and shortlist are
+  // already kept in window.location by useSyncUrlState; here we additionally bake in
+  // the current map camera (viewport) so "copy link to this view" reproduces the pan/zoom.
   const handleCopyShareLink = useCallback(async (): Promise<boolean> => {
     try {
-      await navigator.clipboard.writeText(window.location.href);
+      await navigator.clipboard.writeText(buildViewportShareUrl(cameraRef.current));
       trackEvent('copy-share-link', { layer: activeLayer });
       return true;
     } catch {
@@ -1314,6 +1348,7 @@ const App: React.FC = () => {
             onSelectAreaClick={handleSelectAreaClick}
             layerConfig={effectiveLayer}
             isochrone={isochronePolygon}
+            onMoveEnd={handleMapMoveEnd}
           />
         )}
       </ErrorBoundary>
@@ -1550,6 +1585,7 @@ const App: React.FC = () => {
             referencePno={referencePno}
             referenceName={referenceName}
             onSetReference={handleSetReference}
+            qualityScope={comparisonScope === 'region' && cityFilter !== 'all' ? 'region' : 'national'}
             onExploreCity={handleExploreCity}
             userId={user?.id ?? null}
             isochroneEnabled={ISOCHRONE_ENABLED}
@@ -1620,7 +1656,7 @@ const App: React.FC = () => {
       {!IS_EMBED && pinned.length >= 1 && (
         <ErrorBoundary>
           <Suspense fallback={null}>
-            <ComparisonPanel pinned={pinned} onUnpin={unpin} onClear={clearPinned} />
+            <ComparisonPanel pinned={pinned} onUnpin={unpin} onClear={clearPinned} reference={referenceProps ?? null} referenceName={referenceName} />
           </Suspense>
         </ErrorBoundary>
       )}

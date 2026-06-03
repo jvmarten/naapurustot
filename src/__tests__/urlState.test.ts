@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { readInitialUrlState } from '../hooks/useUrlState';
+import { readInitialUrlState, buildViewportShareUrl } from '../hooks/useUrlState';
+import { getDefaultWeights, getPersonaWeights, detectPersona } from '../utils/qualityIndex';
 
 // Helper to set query params in jsdom
 function setSearch(search: string) {
@@ -39,6 +40,80 @@ describe('readInitialUrlState — CF-1 extended state', () => {
     expect(s.year).toBeNull();
     expect(s.colorblind).toBeNull();
     expect(s.lang).toBeNull();
+  });
+});
+
+describe('readInitialUrlState — CF-1 weights / isochrone / viewport, QW-2 shortlist', () => {
+  beforeEach(() => {
+    window.location.hash = '';
+    setSearch('');
+  });
+
+  it('parses a persona id into its full weight set', () => {
+    setSearch('?qp=family');
+    const s = readInitialUrlState();
+    expect(s.weights).not.toBeNull();
+    expect(detectPersona(s.weights!)).toBe('family');
+  });
+
+  it('ignores the default persona and unknown personas', () => {
+    setSearch('?qp=default');
+    expect(readInitialUrlState().weights).toBeNull();
+    setSearch('?qp=not_a_persona');
+    expect(readInitialUrlState().weights).toBeNull();
+  });
+
+  it('parses a custom weight diff onto the defaults', () => {
+    setSearch('?qw=safety:40,income:0');
+    const s = readInitialUrlState();
+    expect(s.weights).not.toBeNull();
+    const def = getDefaultWeights();
+    expect(s.weights!.safety).toBe(40);
+    expect(s.weights!.income).toBe(0);
+    // untouched factors keep their default weight
+    expect(s.weights!.air_quality).toBe(def.air_quality);
+  });
+
+  it('drops unknown factor ids and out-of-range weights in qw', () => {
+    setSearch('?qw=not_a_factor:50,safety:9999');
+    const s = readInitialUrlState();
+    const def = getDefaultWeights();
+    expect(s.weights!.safety).toBe(def.safety); // 9999 rejected → stays default
+    expect((s.weights as Record<string, number>).not_a_factor).toBeUndefined();
+  });
+
+  it('round-trips a persona through getPersonaWeights/detectPersona', () => {
+    const w = getPersonaWeights('student');
+    expect(detectPersona(w)).toBe('student');
+  });
+
+  it('parses a valid isochrone and rejects a bad one', () => {
+    setSearch('?iso=transit~30');
+    expect(readInitialUrlState().isochrone).toEqual({ mode: 'transit', budget: 30 });
+    setSearch('?iso=car~30'); // car not a supported mode yet
+    expect(readInitialUrlState().isochrone).toBeNull();
+    setSearch('?iso=walk~9999'); // over the budget cap
+    expect(readInitialUrlState().isochrone).toBeNull();
+  });
+
+  it('parses a viewport and clamps an out-of-bounds one to null', () => {
+    setSearch('?v=24.94~60.17~12');
+    expect(readInitialUrlState().viewport).toEqual({ center: [24.94, 60.17], zoom: 12 });
+    setSearch('?v=200~200~12'); // off-world
+    expect(readInitialUrlState().viewport).toBeNull();
+  });
+
+  it('parses the shortlist as validated 5-digit pnos', () => {
+    setSearch('?sl=00100.00200.bogus.20100');
+    expect(readInitialUrlState().shortlist).toEqual(['00100', '00200', '20100']);
+  });
+
+  it('buildViewportShareUrl appends v only when a viewport is given', () => {
+    setSearch('?pno=00100');
+    expect(buildViewportShareUrl(null)).toBe(window.location.href);
+    const withV = buildViewportShareUrl({ center: [24.94, 60.17], zoom: 11 });
+    expect(withV).toContain('v=24.94');
+    expect(withV).toContain('pno=00100');
   });
 });
 

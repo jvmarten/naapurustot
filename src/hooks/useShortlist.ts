@@ -132,6 +132,11 @@ export function useShortlist(userId?: string | null) {
     setShortlist((prev) => prev.filter((p) => p !== pno));
   }, []);
   const clearShortlist = useCallback(() => setShortlist([]), []);
+  // QW-2: adopt postal codes from a shared URL without clobbering the local list.
+  const mergeIntoShortlist = useCallback((pnos: string[]) => {
+    if (pnos.length === 0) return;
+    setShortlist((prev) => mergeShortlist(prev, pnos.filter((p) => /^\d{5}$/.test(p))));
+  }, []);
 
-  return { shortlist, isInShortlist, toggleShortlist, removeFromShortlist, clearShortlist };
+  return { shortlist, isInShortlist, toggleShortlist, removeFromShortlist, clearShortlist, mergeIntoShortlist };
 }

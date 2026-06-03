@@ -675,6 +675,9 @@ export function computeQualityIndices(
     const p = f.properties as NeighborhoodProperties;
 
     const scores: { value: number; weight: number }[] = [];
+    // CF-8: accumulate the same weighted scores bucketed by conceptual dimension,
+    // so the panel can show a defensible per-dimension breakdown of the headline.
+    const dimAcc = new Map<DimensionId, { weighted: number; weight: number }>();
     for (const factor of QUALITY_FACTORS) {
       const factorWeight = w[factor.id] ?? 0;
       const absWeight = Math.abs(factorWeight);
@@ -684,14 +687,25 @@ export function computeQualityIndices(
       // Bipolar factor with negative weight: user prefers lower values, so flip score.
       if (factor.bipolar && factorWeight < 0) score = 100 - score;
       scores.push({ value: score, weight: absWeight });
+      const dim = getFactorDimension(factor.id);
+      const acc = dimAcc.get(dim) ?? { weighted: 0, weight: 0 };
+      acc.weighted += score * absWeight;
+      acc.weight += absWeight;
+      dimAcc.set(dim, acc);
     }
 
     if (scores.length === 0) {
       (f.properties as NeighborhoodProperties).quality_index = null;
+      (f.properties as NeighborhoodProperties).quality_dimension_scores = null;
     } else {
       const totalWeight = scores.reduce((sum, s) => sum + s.weight, 0);
       const weighted = scores.reduce((sum, s) => sum + s.value * s.weight, 0);
       (f.properties as NeighborhoodProperties).quality_index = Math.round(weighted / totalWeight);
+      const dimScores: Record<string, number> = {};
+      for (const [dim, acc] of dimAcc) {
+        if (acc.weight > 0) dimScores[dim] = Math.round(acc.weighted / acc.weight);
+      }
+      (f.properties as NeighborhoodProperties).quality_dimension_scores = dimScores;
     }
   }
 }
