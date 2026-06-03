@@ -124,7 +124,10 @@ function buildHubDataset(lang, regionName, url) {
     isAccessibleForFree: true,
     license: 'https://creativecommons.org/licenses/by/4.0/',
     creator: Object.values(REGISTRY.publishers ?? {}).map((p) => ({ '@type': 'Organization', name: p.name, url: p.url })),
-    isPartOf: { '@type': 'WebSite', name: 'naapurustot.fi', url: ORIGIN },
+    // Google's Dataset spec only accepts URL or Dataset for `isPartOf`; a WebSite
+    // there triggers "Invalid object type for field 'isPartOf'". Express the
+    // catalog membership with `includedInDataCatalog` → DataCatalog instead.
+    includedInDataCatalog: { '@type': 'DataCatalog', name: 'naapurustot.fi', url: ORIGIN },
   };
 }
 
