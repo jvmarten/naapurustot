@@ -41,9 +41,11 @@ export const MiniMap: React.FC<MiniMapProps> = ({ feature, allFeatures }) => {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const { theme } = useTheme();
   // True when MapLibre can't create a WebGL context (browser without WebGL,
-  // GPU hardware blocklist, or WebGL disabled). Renders a static fallback
-  // instead of letting the throw crash the surrounding profile page — this
-  // component is not wrapped in an ErrorBoundary.
+  // GPU hardware blocklist, or WebGL disabled) or fails while wiring up its
+  // sources/layers. Renders a static fallback instead of crashing. The profile
+  // page is wrapped in an ErrorBoundary, but that only catches render-phase
+  // errors — MapLibre runs inside async event callbacks, so this component must
+  // catch its own failures (see the constructor and 'load' handler guards).
   const [webglFailed, setWebglFailed] = useState(false);
   // QW-4: re-render the accessible label on language switch.
   useI18nVersion();
@@ -85,50 +87,62 @@ export const MiniMap: React.FC<MiniMapProps> = ({ feature, allFeatures }) => {
     }
 
     map.on('load', () => {
-      // Add surrounding neighborhoods with muted fill
-      if (allFeatures) {
-        const fc: FeatureCollection = { type: 'FeatureCollection', features: allFeatures };
-        map.addSource('all', { type: 'geojson', data: fc });
-        map.addLayer({
-          id: 'all-fill',
-          type: 'fill',
-          source: 'all',
-          paint: {
-            'fill-color': theme === 'dark' ? '#374151' : '#e5e7eb',
-            'fill-opacity': 0.3,
-          },
-        });
-        map.addLayer({
-          id: 'all-line',
-          type: 'line',
-          source: 'all',
-          paint: {
-            'line-color': theme === 'dark' ? '#4b5563' : '#d1d5db',
-            'line-width': 0.5,
-          },
-        });
-      }
+      // Adding sources/layers makes MapLibre synchronously process the region
+      // geometry on the main thread. On memory-constrained engines (notably iOS
+      // WebKit/JavaScriptCore, whose call-stack limit is far smaller than V8's)
+      // this can throw a "RangeError: Maximum call stack size exceeded". Because
+      // this runs in an async event callback — outside the try/catch around the
+      // constructor — an uncaught throw here surfaces as a global window.onerror
+      // and crashes the profile page. Degrade to the static fallback instead.
+      try {
+        // Add surrounding neighborhoods with muted fill
+        if (allFeatures) {
+          const fc: FeatureCollection = { type: 'FeatureCollection', features: allFeatures };
+          map.addSource('all', { type: 'geojson', data: fc });
+          map.addLayer({
+            id: 'all-fill',
+            type: 'fill',
+            source: 'all',
+            paint: {
+              'fill-color': theme === 'dark' ? '#374151' : '#e5e7eb',
+              'fill-opacity': 0.3,
+            },
+          });
+          map.addLayer({
+            id: 'all-line',
+            type: 'line',
+            source: 'all',
+            paint: {
+              'line-color': theme === 'dark' ? '#4b5563' : '#d1d5db',
+              'line-width': 0.5,
+            },
+          });
+        }
 
-      // Highlight the selected neighborhood
-      map.addSource('highlight', { type: 'geojson', data: feature });
-      map.addLayer({
-        id: 'highlight-fill',
-        type: 'fill',
-        source: 'highlight',
-        paint: {
-          'fill-color': '#6366f1',
-          'fill-opacity': 0.35,
-        },
-      });
-      map.addLayer({
-        id: 'highlight-line',
-        type: 'line',
-        source: 'highlight',
-        paint: {
-          'line-color': '#6366f1',
-          'line-width': 2.5,
-        },
-      });
+        // Highlight the selected neighborhood
+        map.addSource('highlight', { type: 'geojson', data: feature });
+        map.addLayer({
+          id: 'highlight-fill',
+          type: 'fill',
+          source: 'highlight',
+          paint: {
+            'fill-color': '#6366f1',
+            'fill-opacity': 0.35,
+          },
+        });
+        map.addLayer({
+          id: 'highlight-line',
+          type: 'line',
+          source: 'highlight',
+          paint: {
+            'line-color': '#6366f1',
+            'line-width': 2.5,
+          },
+        });
+      } catch (err) {
+        console.warn('MiniMap: failed to add map layers, hiding map', err);
+        setWebglFailed(true);
+      }
     });
 
     mapRef.current = map;
