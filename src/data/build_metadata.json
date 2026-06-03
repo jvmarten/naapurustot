@@ -1,3 +1,478 @@
 {
-  "generated": "2026-06-03T06:41:13.675Z"
+  "generated": "2026-06-03T06:55:03.929Z",
+  "rows_total": 3018,
+  "metrics": {
+    "air_quality_index": {
+      "source": "HSY",
+      "vintage": 2024,
+      "granularity": "250m grid",
+      "is_proxy": false,
+      "row_count": 3018,
+      "coverage_pct": 100
+    },
+    "avg_construction_year": {
+      "source": "Tilastokeskus (rakennuskanta)",
+      "vintage": 2025,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 3018,
+      "coverage_pct": 100
+    },
+    "avg_household_size": {
+      "source": "Tilastokeskus (Paavo)",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 2999,
+      "coverage_pct": 99.4
+    },
+    "broadband_coverage_pct": {
+      "source": "Traficom",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 3001,
+      "coverage_pct": 99.4
+    },
+    "child_ratio": {
+      "source": "Tilastokeskus (Paavo)",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 2937,
+      "coverage_pct": 97.3
+    },
+    "crime_index": {
+      "source": "Poliisi",
+      "vintage": 2023,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 3018,
+      "coverage_pct": 100
+    },
+    "cycling_density": {
+      "source": "OpenStreetMap",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 3018,
+      "coverage_pct": 100
+    },
+    "daycare_density": {
+      "source": "OpenStreetMap",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 3018,
+      "coverage_pct": 100
+    },
+    "detached_house_share": {
+      "source": "Tilastokeskus (Paavo)",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 2981,
+      "coverage_pct": 98.8
+    },
+    "elderly_ratio_pct": {
+      "source": "Tilastokeskus (Paavo)",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 2937,
+      "coverage_pct": 97.3
+    },
+    "employment_rate": {
+      "source": "Tilastokeskus (Paavo)",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 2937,
+      "coverage_pct": 97.3
+    },
+    "ev_charging_density": {
+      "source": "OpenStreetMap",
+      "vintage": 2025,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 3018,
+      "coverage_pct": 100
+    },
+    "families_with_children_pct": {
+      "source": "Tilastokeskus (Paavo)",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 2811,
+      "coverage_pct": 93.1
+    },
+    "foreign_language_pct": {
+      "source": "Tilastokeskus",
+      "vintage": 2020,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 3001,
+      "coverage_pct": 99.4
+    },
+    "gender_ratio": {
+      "source": "Tilastokeskus (Paavo)",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 2937,
+      "coverage_pct": 97.3
+    },
+    "grocery_density": {
+      "source": "OpenStreetMap",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 3018,
+      "coverage_pct": 100
+    },
+    "he_kika": {
+      "source": "Tilastokeskus (Paavo)",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 2954,
+      "coverage_pct": 97.9
+    },
+    "he_vakiy": {
+      "source": "Tilastokeskus (Paavo)",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 3018,
+      "coverage_pct": 100
+    },
+    "healthcare_density": {
+      "source": "OpenStreetMap",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 3018,
+      "coverage_pct": 100
+    },
+    "healthcare_workers_pct": {
+      "source": "Tilastokeskus (Paavo)",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 2626,
+      "coverage_pct": 87
+    },
+    "higher_education_rate": {
+      "source": "Tilastokeskus (Paavo)",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 2927,
+      "coverage_pct": 97
+    },
+    "hr_ktu": {
+      "source": "Tilastokeskus (Paavo)",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 2944,
+      "coverage_pct": 97.5
+    },
+    "hr_mtu": {
+      "source": "Tilastokeskus (Paavo)",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 2944,
+      "coverage_pct": 97.5
+    },
+    "income_change_pct": {
+      "source": "Tilastokeskus (Paavo)",
+      "vintage": "2020–2024",
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 2938,
+      "coverage_pct": 97.3
+    },
+    "light_pollution": {
+      "source": "OpenStreetMap (street_lamp density)",
+      "vintage": 2026,
+      "granularity": "250m grid",
+      "is_proxy": true,
+      "row_count": 3018,
+      "coverage_pct": 100
+    },
+    "manufacturing_jobs_pct": {
+      "source": "Tilastokeskus (Paavo)",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 2626,
+      "coverage_pct": 87
+    },
+    "new_construction_pct": {
+      "source": "Tilastokeskus (Paavo)",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 2981,
+      "coverage_pct": 98.8
+    },
+    "noise_pollution": {
+      "source": "Helsinki meluselvitys 2022 / HRI pks liikennemelu 2012",
+      "vintage": "2012–2022",
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 3018,
+      "coverage_pct": 100
+    },
+    "ownership_rate": {
+      "source": "Tilastokeskus (Paavo)",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 2811,
+      "coverage_pct": 93.1
+    },
+    "party_diversity_index": {
+      "source": "Tilastokeskus (kuntavaalit)",
+      "vintage": 2025,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 2986,
+      "coverage_pct": 98.9
+    },
+    "pensioner_share": {
+      "source": "Tilastokeskus (Paavo)",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 2937,
+      "coverage_pct": 97.3
+    },
+    "population_change_pct": {
+      "source": "Tilastokeskus (Paavo)",
+      "vintage": "2020–2024",
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 3001,
+      "coverage_pct": 99.4
+    },
+    "population_density": {
+      "source": "Tilastokeskus (Paavo)",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 3018,
+      "coverage_pct": 100
+    },
+    "price_to_rent_ratio": {
+      "source": "Tilastokeskus (PxWeb)",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 473,
+      "coverage_pct": 15.7
+    },
+    "property_price_change_pct": {
+      "source": "Tilastokeskus (PxWeb)",
+      "vintage": "2020–2025",
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 896,
+      "coverage_pct": 29.7
+    },
+    "property_price_sqm": {
+      "source": "Tilastokeskus (PxWeb)",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 913,
+      "coverage_pct": 30.3
+    },
+    "public_sector_jobs_pct": {
+      "source": "Tilastokeskus (Paavo)",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 2626,
+      "coverage_pct": 87
+    },
+    "ra_as_kpa": {
+      "source": "Tilastokeskus (Paavo)",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 2995,
+      "coverage_pct": 99.2
+    },
+    "rental_price_sqm": {
+      "source": "Tilastokeskus (PxWeb)",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 473,
+      "coverage_pct": 15.7
+    },
+    "rental_rate": {
+      "source": "Tilastokeskus (Paavo)",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 2811,
+      "coverage_pct": 93.1
+    },
+    "restaurant_density": {
+      "source": "OpenStreetMap",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 3018,
+      "coverage_pct": 100
+    },
+    "school_density": {
+      "source": "OpenStreetMap",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 3018,
+      "coverage_pct": 100
+    },
+    "school_quality_score": {
+      "source": "YTL (ylioppilastutkinto)",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 310,
+      "coverage_pct": 10.3
+    },
+    "service_sector_jobs_pct": {
+      "source": "Tilastokeskus (Paavo)",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 2626,
+      "coverage_pct": 87
+    },
+    "single_parent_hh_pct": {
+      "source": "Tilastokeskus (Paavo)",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 2811,
+      "coverage_pct": 93.1
+    },
+    "single_person_hh_pct": {
+      "source": "Tilastokeskus",
+      "vintage": 2023,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 2811,
+      "coverage_pct": 93.1
+    },
+    "sports_facility_density": {
+      "source": "LIPAS (Jyväskylän yliopisto)",
+      "vintage": 2025,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 3018,
+      "coverage_pct": 100
+    },
+    "student_share": {
+      "source": "Tilastokeskus (Paavo)",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 2937,
+      "coverage_pct": 97.3
+    },
+    "tech_sector_pct": {
+      "source": "Tilastokeskus (Paavo)",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 2626,
+      "coverage_pct": 87
+    },
+    "traffic_accident_rate": {
+      "source": "Väylävirasto",
+      "vintage": 2023,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 2185,
+      "coverage_pct": 72.4
+    },
+    "transit_reachability_score": {
+      "source": "HSL / johdettu",
+      "vintage": 2025,
+      "granularity": "250m grid",
+      "is_proxy": true,
+      "row_count": 167,
+      "coverage_pct": 5.5
+    },
+    "transit_stop_density": {
+      "source": "HSL (Digitransit)",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 330,
+      "coverage_pct": 10.9
+    },
+    "tree_canopy_pct": {
+      "source": "HSY (LiDAR maanpeite)",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 3018,
+      "coverage_pct": 100
+    },
+    "unemployment_change_pct": {
+      "source": "Tilastokeskus (Paavo)",
+      "vintage": "2020–2024",
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 2920,
+      "coverage_pct": 96.8
+    },
+    "unemployment_rate": {
+      "source": "Tilastokeskus (Paavo)",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 2937,
+      "coverage_pct": 97.3
+    },
+    "voter_turnout_pct": {
+      "source": "Tilastokeskus (kuntavaalit)",
+      "vintage": 2025,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 2986,
+      "coverage_pct": 98.9
+    },
+    "walkability_index": {
+      "source": "OpenStreetMap (composite)",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": true,
+      "row_count": 3018,
+      "coverage_pct": 100
+    },
+    "water_proximity_m": {
+      "source": "OpenStreetMap",
+      "vintage": 2026,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 3018,
+      "coverage_pct": 100
+    },
+    "youth_ratio_pct": {
+      "source": "Tilastokeskus (Paavo)",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 2937,
+      "coverage_pct": 97.3
+    }
+  }
 }

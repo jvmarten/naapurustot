@@ -258,6 +258,44 @@ def check_data_source_registry(features: list) -> list[str]:
     return errors
 
 
+def check_registry_vintage(features: list) -> list[str]:
+    """IN-3b: every registry metric must declare a plausible vintage — a 4-digit
+    year, or a "YYYY-YYYY" / "YYYY–YYYY" range — within a sane window. This stops
+    the source attribution from silently rotting to a missing, mistyped, or
+    future-dated vintage as the registry evolves, complementing the build-time
+    provenance manifest (build_metadata.json) emitted by build_region_data.mjs."""
+    errors: list[str] = []
+    if not REGISTRY_PATH.exists():
+        return [f"data-source registry not found: {REGISTRY_PATH}"]
+    try:
+        registry = json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        return [f"data_sources.json is not valid JSON: {exc}"]
+
+    min_year, max_year = 2000, 2035
+
+    def valid_year(y: int) -> bool:
+        return min_year <= y <= max_year
+
+    for prop, entry in registry.get("metrics", {}).items():
+        v = entry.get("vintage")
+        if v is None:
+            errors.append(f"Metric '{prop}' has no vintage in the registry")
+        elif isinstance(v, bool):  # bool is an int subclass — reject explicitly
+            errors.append(f"Metric '{prop}' vintage must be a year, not a boolean")
+        elif isinstance(v, int):
+            if not valid_year(v):
+                errors.append(f"Metric '{prop}' vintage {v} is outside [{min_year}, {max_year}]")
+        elif isinstance(v, str):
+            parts = [p.strip() for p in v.replace("–", "-").replace("—", "-").split("-")]
+            if not parts or not all(p.isdigit() and len(p) == 4 for p in parts) \
+                    or not all(valid_year(int(p)) for p in parts):
+                errors.append(f"Metric '{prop}' vintage '{v}' is not a valid year or year range")
+        else:
+            errors.append(f"Metric '{prop}' vintage has unexpected type: {type(v).__name__}")
+    return errors
+
+
 def _registry_stored_props() -> list[str]:
     """Registry metric properties that are stored in the GeoJSON (not client-derived)."""
     if not REGISTRY_PATH.exists():
@@ -367,6 +405,7 @@ def main() -> int:
         ("All-null properties", check_no_all_null_properties(features)),
         ("Value ranges", check_value_ranges(features)),
         ("Data-source registry", check_data_source_registry(features)),
+        ("Registry vintage", check_registry_vintage(features)),
         ("Coverage regression", check_coverage_regression(features)),
         ("Geometries", check_geometries(features)),
         ("Postal code format", check_pno_format(features)),

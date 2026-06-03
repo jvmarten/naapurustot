@@ -164,8 +164,39 @@ for (const [regionId, { present, total }] of Object.entries(coverageManifest)) {
 // so the SettingsDropdown "Data last updated" label reflects the real last data
 // build instead of a hand-edited, drift-prone string. `npm run build` (the deploy
 // build) does not run build:data, so this value stays pinned to the data refresh.
+// IN-3b: build-time provenance manifest. For every registry metric actually
+// stored in the GeoJSON, record its source/vintage/granularity/proxy flag (from
+// data_sources.json) alongside the real row count and coverage % computed from the
+// features here. This gives every shipped metric a dated, machine-readable
+// provenance record — a defensible audit trail and the input for the per-layer
+// freshness panel — without re-running the (network-bound) Python pipeline.
+const registryPath = resolve(rootDir, 'src', 'data', 'data_sources.json');
+const registry = JSON.parse(readFileSync(registryPath, 'utf-8'));
+const provenanceMetrics = {};
+for (const [metric, meta] of Object.entries(registry.metrics ?? {})) {
+  if (meta.stored === false) continue; // client-derived (e.g. quality index): no stored column
+  let count = 0;
+  for (const f of features) {
+    if (isMeaningful((f.properties ?? {})[metric])) count += 1;
+  }
+  provenanceMetrics[metric] = {
+    source: meta.source,
+    vintage: meta.vintage,
+    granularity: meta.granularity,
+    is_proxy: Boolean(meta.is_proxy),
+    row_count: count,
+    coverage_pct: features.length ? Math.round((count / features.length) * 1000) / 10 : 0,
+  };
+}
+const sortedProvenanceMetrics = {};
+for (const k of Object.keys(provenanceMetrics).sort()) sortedProvenanceMetrics[k] = provenanceMetrics[k];
+
 const metadataPath = resolve(rootDir, 'src', 'data', 'build_metadata.json');
-const buildMetadata = { generated: new Date().toISOString() };
+const buildMetadata = {
+  generated: new Date().toISOString(),
+  rows_total: features.length,
+  metrics: sortedProvenanceMetrics,
+};
 const metadataJson = JSON.stringify(buildMetadata, null, 2) + '\n';
 writeFileSync(metadataPath, metadataJson);
 // IN-4: also expose it as a static asset (public/data → /data/build_metadata.json)
