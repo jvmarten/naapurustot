@@ -7,14 +7,21 @@ import { getFeatureCenter } from '../utils/geometryFilter';
 import { trackEvent } from '../utils/analytics';
 
 interface SearchBarProps {
+  /** Region-scoped data with geometry — used to resolve geocoded addresses to a containing neighborhood. */
   data: FeatureCollection | null;
+  /**
+   * Global all-areas index (properties only) for the name/postal-code dropdown.
+   * Lets any area in Finland be found regardless of the observed subregion.
+   * Falls back to `data` until the index has loaded.
+   */
+  searchData?: FeatureCollection | null;
   onSelect: (pno: string, center: [number, number]) => void;
   recent?: RecentEntry[];
   /** Pass current language to trigger re-render on language change */
   lang?: Lang;
 }
 
-export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, onSelect, recent = [], lang }) => {
+export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchData, onSelect, recent = [], lang }) => {
   useI18nVersion();
   const displayName = (p: GeoJSON.GeoJsonProperties): string => {
     if (!p) return '';
@@ -48,15 +55,19 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, onSelect,
     return () => clearTimeout(handle);
   }, [query]);
 
+  // Text search runs against the global index when available (so areas in any
+  // subregion are found), falling back to the region-scoped data until it loads.
+  const searchSource = searchData ?? data;
+
   const { results, totalCount } = useMemo(() => {
-    if (!data || debouncedQuery.length < 2) return { results: [], totalCount: 0 };
+    if (!searchSource || debouncedQuery.length < 2) return { results: [], totalCount: 0 };
     const q = debouncedQuery.toLowerCase();
     // Score matches so exact/prefix hits rank above arbitrary substring matches,
     // then keep the top 8. Previously the first 8 in dataset order won, so an exact
     // name match could be pushed out of view by earlier incidental substring matches.
     const scored: { f: GeoJSON.Feature; score: number; idx: number }[] = [];
     let idx = 0;
-    for (const f of data.features) {
+    for (const f of searchSource.features) {
       const p = f.properties;
       if (!p) { idx++; continue; }
       const nimi = (p.nimi as string | undefined)?.toLowerCase();
@@ -80,7 +91,7 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, onSelect,
     // Stable tie-break on dataset index keeps ordering deterministic.
     scored.sort((a, b) => a.score - b.score || a.idx - b.idx);
     return { results: scored.slice(0, 8).map((s) => s.f), totalCount: scored.length };
-  }, [data, debouncedQuery]);
+  }, [searchSource, debouncedQuery]);
 
   // CF-1: Debounced address geocoding — always search for streets/addresses alongside neighborhoods.
   // Uses AbortController to cancel in-flight HTTP requests when the query changes,

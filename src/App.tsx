@@ -32,6 +32,7 @@ const AreaSummaryPanel = lazy(() => import('./components/AreaSummaryPanel').then
 const CorrelationExplorer = lazy(() => import('./components/CorrelationExplorer').then(m => ({ default: m.CorrelationExplorer })));
 const RegionRankingTable = lazy(() => import('./components/RegionRankingTable').then(m => ({ default: m.RegionRankingTable })));
 import { useMapData } from './hooks/useMapData';
+import { useSearchIndex } from './hooks/useSearchIndex';
 import { useGridData } from './hooks/useGridData';
 import { useFavorites } from './hooks/useFavorites';
 
@@ -90,6 +91,10 @@ const App: React.FC = () => {
   // Load only the selected region's data (or combined data for "all" view)
   const { data, loading, error, metroAverages, retry } = useMapData(cityFilter);
 
+  // Global all-areas index (properties only) so search finds any area in
+  // Finland regardless of the observed subregion. Shares loadAllData's cache.
+  const searchIndex = useSearchIndex();
+
   // Auth
   const { user, login, signup, logout } = useAuth();
   const [showAuth, setShowAuth] = useState(false);
@@ -127,6 +132,20 @@ const App: React.FC = () => {
     }
     return m;
   }, [data]);
+
+  // Map every postal code to the region (`city`) that owns it, from the global
+  // search index. Lets a cross-subregion search resolve which region to switch
+  // to so the area's geometry can load.
+  const pnoRegionMap = useMemo(() => {
+    const m = new globalThis.Map<string, CityFilter>();
+    if (!searchIndex) return m;
+    for (const f of searchIndex.features) {
+      const pno = f.properties?.pno;
+      const city = f.properties?.city;
+      if (pno && city) m.set(pno as string, city as CityFilter);
+    }
+    return m;
+  }, [searchIndex]);
 
   const { selected, select, deselect, pinned, pin, unpin, clearPinned, refreshPinned } = useSelectedNeighborhood();
   const [activeLayer, setActiveLayerRaw] = useState<LayerId>(initialUrl.layer ?? 'quality_index');
@@ -656,6 +675,11 @@ const App: React.FC = () => {
   filteredDataRef.current = filteredData;
   const pnoFeatureMapRef = useRef(pnoFeatureMap);
   pnoFeatureMapRef.current = pnoFeatureMap;
+  const pnoRegionMapRef = useRef(pnoRegionMap);
+  pnoRegionMapRef.current = pnoRegionMap;
+  // Postal code awaiting selection after a cross-subregion search switches
+  // regions — resolved once the target region's geometry finishes loading.
+  const pendingSearchRef = useRef<string | null>(null);
   // CF-2: track the latest weights set via slider edits so a server-sync update
   // from useQualityWeights can be detected and routed through the same recompute path.
   const lastInteractiveWeightsRef = useRef(qualityWeights);
@@ -745,44 +769,80 @@ const App: React.FC = () => {
   // when filteredData/cityFilter change (which would defeat React.memo on SearchBar).
   const dataRef = useRef(data);
   dataRef.current = data;
-  const handleSearch = useCallback(
-    (pno: string, center: [number, number]) => {
-      const currentFiltered = filteredDataRef.current;
-      const currentCity = cityFilterRef.current;
-      const lookup = pnoFeatureMapRef.current;
-      if (lookup.size > 0) {
-        // O(1) lookup in raw data, then fall back to filteredData (for synthetic metro area features)
-        const feature = lookup.get(pno)
-          ?? currentFiltered?.features.find((f) => f.properties?.pno === pno);
-        if (feature?.properties) {
-          const props = feature.properties as NeighborhoodProperties;
-          // Auto-switch city filter if the searched neighborhood is in a different city
-          if (props.city && currentCity !== 'all' && props.city !== currentCity) {
-            setCityFilter(props.city);
-          }
-          select(props);
-          trackEvent('view-neighborhood', { pno: props.pno, name: props.nimi || props.pno });
-          addRecent({ pno: props.pno, name: props.nimi || props.pno, center });
-          // Use feature bounding box for better zoom fit (lazy-load @turf/bbox)
-          if (feature.geometry) {
-            import('@turf/bbox').then(({ bbox }) => {
-              const [minLng, minLat, maxLng, maxLat] = bbox(feature);
-              setFlyTarget({ center, bounds: [minLng, minLat, maxLng, maxLat] });
-            }).catch(() => {
-              setFlyTarget({ center });
-            });
-          } else {
-            setFlyTarget({ center });
-          }
-        } else {
-          setFlyTarget({ center });
-        }
-      } else {
+  // Select a neighborhood feature (with geometry) and fly the map to its extent.
+  const selectAndFly = useCallback(
+    (feature: GeoJSON.Feature) => {
+      const props = feature.properties as NeighborhoodProperties;
+      select(props);
+      trackEvent('view-neighborhood', { pno: props.pno, name: props.nimi || props.pno });
+      const center = getFeatureCenter(feature);
+      addRecent({ pno: props.pno, name: props.nimi || props.pno, center });
+      // Use feature bounding box for a better zoom fit (lazy-load @turf/bbox).
+      import('@turf/bbox').then(({ bbox }) => {
+        const [minLng, minLat, maxLng, maxLat] = bbox(feature);
+        setFlyTarget({ center, bounds: [minLng, minLat, maxLng, maxLat] });
+      }).catch(() => {
         setFlyTarget({ center });
-      }
+      });
     },
     [select, addRecent],
   );
+
+  const handleSearch = useCallback(
+    (pno: string, center: [number, number]) => {
+      // Address-only result (no postal code) — fly straight to the geocoded point.
+      if (!pno) {
+        setFlyTarget({ center });
+        return;
+      }
+
+      const currentCity = cityFilterRef.current;
+      const currentFiltered = filteredDataRef.current;
+      const lookup = pnoFeatureMapRef.current;
+      // Feature with geometry from the currently loaded region, if present.
+      const localFeature = lookup.get(pno)
+        ?? currentFiltered?.features.find((f) => f.properties?.pno === pno);
+
+      if (localFeature?.properties && localFeature.geometry) {
+        // Geometry is already loaded — select and fly immediately.
+        selectAndFly(localFeature);
+        return;
+      }
+
+      // No geometry loaded for this area: it lives in a different subregion, or
+      // we're in the all-cities view (which holds properties only). Resolve its
+      // owning region, switch to it, and defer selection until geometry loads.
+      // This both enables cross-subregion search and avoids flying to [0,0],
+      // which getFeatureCenter returns for the index's null-geometry features.
+      const targetRegion = pnoRegionMapRef.current.get(pno)
+        ?? (localFeature?.properties?.city as CityFilter | undefined);
+      if (targetRegion && targetRegion !== currentCity) {
+        pendingSearchRef.current = pno;
+        setCityFilter(targetRegion);
+        deselect();
+        return;
+      }
+
+      // Same region but geometry isn't available yet (or region unknown) —
+      // best-effort fly to the provided center, but never to the [0,0] sentinel.
+      if (center[0] !== 0 || center[1] !== 0) {
+        setFlyTarget({ center });
+      }
+    },
+    [selectAndFly, deselect],
+  );
+
+  // Resolve a pending cross-subregion search once the target region's geometry
+  // has loaded (analogous to the geolocation resolver). pendingSearchRef is
+  // cleared on first resolution so later data changes re-run this as a no-op.
+  useEffect(() => {
+    const pno = pendingSearchRef.current;
+    if (!pno || !filteredData) return;
+    const feature = pnoFeatureMap.get(pno);
+    if (!feature?.properties || !feature.geometry) return; // region still loading
+    pendingSearchRef.current = null;
+    selectAndFly(feature);
+  }, [filteredData, pnoFeatureMap, selectAndFly]);
 
   // QW-3: "Show my area" — geolocate the visitor, switch to their region if
   // needed, and select the containing neighborhood. Graceful fallbacks for
@@ -1458,7 +1518,7 @@ const App: React.FC = () => {
       {/* Search bar (hidden in embed mode) */}
       {!IS_EMBED && (
         <div data-tour-id="search" className="absolute top-[3.5rem] left-3 md:left-4 z-10 w-52 md:w-72">
-          <SearchBar data={data} onSelect={handleSearch} recent={recent} lang={lang} />
+          <SearchBar data={data} searchData={searchIndex} onSelect={handleSearch} recent={recent} lang={lang} />
         </div>
       )}
 
