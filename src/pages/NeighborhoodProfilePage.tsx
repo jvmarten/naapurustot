@@ -374,7 +374,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-white dark:bg-surface-950 text-surface-900 dark:text-white">
-      <JsonLd properties={d} center={center} url={canonicalUrl} lang={lang} />
+      <JsonLd properties={d} center={center} url={canonicalUrl} lang={lang} nationalFeatures={state.allFeatures} regionFeatures={state.regionFeatures} />
 
       {/* Header */}
       <header className="border-b border-surface-200 dark:border-surface-800">

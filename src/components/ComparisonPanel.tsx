@@ -11,6 +11,26 @@ interface ComparisonPanelProps {
   pinned: NeighborhoodProperties[];
   onUnpin: (pno: string) => void;
   onClear: () => void;
+  /** CF-5: a custom reference-baseline neighbourhood — pinned values show a delta vs it. */
+  reference?: NeighborhoodProperties | null;
+  referenceName?: string | null;
+}
+
+/** CF-5: percentage delta of a value vs the reference baseline, coloured by whether
+ *  the direction is favourable. Returns null when either side is missing. */
+function refDeltaOf(
+  val: number | null | undefined,
+  refVal: number | null | undefined,
+  higherIsBetter: boolean,
+): { text: string; cls: string } | null {
+  if (val == null || refVal == null || refVal === 0) return null;
+  const pct = ((val - refVal) / Math.abs(refVal)) * 100;
+  if (Math.abs(pct) < 0.5) return { text: '≈', cls: 'text-surface-400 dark:text-surface-500' };
+  const better = higherIsBetter ? pct > 0 : pct < 0;
+  return {
+    text: `${pct > 0 ? '+' : ''}${pct.toFixed(0)}%`,
+    cls: better ? 'text-emerald-500 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400',
+  };
 }
 
 interface StatDef {
@@ -86,7 +106,8 @@ const MobileCard: React.FC<{
   onUnpin: (pno: string) => void;
   allPinned: NeighborhoodProperties[];
   bestByKey: Record<string, string | null>;
-}> = ({ n, color, onUnpin, allPinned, bestByKey }) => (
+  reference?: NeighborhoodProperties | null;
+}> = ({ n, color, onUnpin, allPinned, bestByKey, reference }) => (
   <div className="bg-surface-50 dark:bg-surface-900/60 rounded-xl p-4 relative">
     <div className="flex items-center justify-between mb-3">
       <div>
@@ -106,11 +127,15 @@ const MobileCard: React.FC<{
       {ALL_STATS.map((stat) => {
         const val = n[stat.key] as number | null;
         const isBest = allPinned.length > 1 && n.pno === bestByKey[stat.key];
+        const delta = reference && reference.pno !== n.pno
+          ? refDeltaOf(val, reference[stat.key] as number | null, stat.higherIsBetter)
+          : null;
         return (
           <div key={stat.key} className="flex justify-between text-xs">
             <span className="text-surface-500 dark:text-surface-400">{t(stat.label)}</span>
             <span className={isBest ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-surface-900 dark:text-white font-medium'}>
               {stat.format(val)}
+              {delta && <span className={`ml-1 text-[9px] tabular-nums ${delta.cls}`}>{delta.text}</span>}
               {isBest && <span className="ml-1 text-[9px] uppercase text-emerald-500">{t('compare.best')}</span>}
             </span>
           </div>
@@ -172,8 +197,13 @@ const ComparisonChart: React.FC<{ pinned: NeighborhoodProperties[] }> = React.me
 });
 ComparisonChart.displayName = 'ComparisonChart';
 
-export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pinned, onUnpin, onClear }) => {
+export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pinned, onUnpin, onClear, reference = null, referenceName = null }) => {
   useI18nVersion();
+  // CF-5: show per-value deltas vs the reference only when it isn't itself the sole pinned area.
+  const refActive = !!reference && pinned.some((p) => p.pno !== reference.pno);
+  const refCaption = refActive && referenceName
+    ? <span className="text-[10px] font-normal text-surface-400 dark:text-surface-500 ml-1">{t('panel.compared_to').replace('{ref}', referenceName)}</span>
+    : null;
   // PO-4: Tab state for chart vs table view
   const [view, setView] = useState<'table' | 'chart'>('table');
   // CF-8: Export the entire comparison (table + per-neighborhood detail pages)
@@ -226,7 +256,7 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pin
         <div className="flex items-center justify-between px-5 py-3 border-b border-surface-200 dark:border-surface-800/50">
           <div className="flex items-center gap-3">
             <h2 className="text-sm font-display font-bold text-surface-900 dark:text-white">
-              {t('compare.title')}
+              {t('compare.title')}{refCaption}
             </h2>
             {/* PO-4: Tab toggle */}
             <div className="flex rounded-lg bg-surface-100 dark:bg-surface-800 p-0.5">
@@ -339,6 +369,9 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pin
                         {pinned.map((n) => {
                           const val = n[stat.key] as number | null;
                           const isBest = pinned.length > 1 && n.pno === bestByKey[stat.key];
+                          const delta = refActive && reference && reference.pno !== n.pno
+                            ? refDeltaOf(val, reference[stat.key] as number | null, stat.higherIsBetter)
+                            : null;
                           return (
                             <td
                               key={n.pno}
@@ -349,6 +382,9 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pin
                               }`}
                             >
                               {stat.format(val)}
+                              {delta && (
+                                <span className={`ml-1 text-[9px] tabular-nums ${delta.cls}`}>{delta.text}</span>
+                              )}
                               {isBest && (
                                 <span className="ml-1 text-[9px] font-semibold uppercase text-emerald-500 dark:text-emerald-400">
                                   {t('compare.best')}
@@ -375,7 +411,7 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pin
                       shadow-[0_-4px_30px_rgba(0,0,0,0.15)] rounded-t-2xl">
         <div className="flex items-center justify-between px-5 py-3 border-b border-surface-200 dark:border-surface-800/50">
           <h2 className="text-sm font-display font-bold text-surface-900 dark:text-white">
-            {t('compare.title')}
+            {t('compare.title')}{refCaption}
           </h2>
           <div className="flex items-center gap-2">
             {/* CF-8: Multi-neighborhood export — mobile */}
@@ -406,7 +442,7 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pin
         </div>
         <div className="overflow-y-auto p-4 space-y-3" style={{ maxHeight: 'calc(60vh - 52px)' }}>
           {pinned.map((n, i) => (
-            <MobileCard key={n.pno} n={n} color={COLUMN_COLORS[i]} onUnpin={onUnpin} allPinned={pinned} bestByKey={bestByKey} />
+            <MobileCard key={n.pno} n={n} color={COLUMN_COLORS[i]} onUnpin={onUnpin} allPinned={pinned} bestByKey={bestByKey} reference={refActive ? reference : null} />
           ))}
         </div>
       </div>

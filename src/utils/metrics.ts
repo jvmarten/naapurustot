@@ -83,6 +83,9 @@ export interface NeighborhoodProperties {
   pensioner_share: number | null;
   foreign_language_pct: number | null;
   quality_index: number | null;
+  /** CF-8: per-dimension Quality Index sub-scores (0–100), keyed by DimensionId.
+   *  Populated alongside quality_index in computeQualityIndices; absent until then. */
+  quality_dimension_scores?: Record<string, number> | null;
   ownership_rate: number | null;
   rental_rate: number | null;
   population_density: number | null;
@@ -198,7 +201,7 @@ export interface NeighborhoodProperties {
   _isMetroArea?: boolean;
   /** Marker for a seutukunta with no ingested data — renders gray, panel is empty (CF-5 Phase D) */
   _noData?: boolean;
-  [key: string]: string | number | boolean | null | undefined | Array<{ name: string; score: number }>;
+  [key: string]: string | number | boolean | null | undefined | Array<{ name: string; score: number }> | Record<string, number>;
 }
 
 /** A single data point in a time series: [year, value] */

@@ -16,12 +16,14 @@
  */
 import { execSync } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdirSync, existsSync, unlinkSync } from 'node:fs';
+import { gzipSync } from 'node:zlib';
 import { resolve } from 'node:path';
 
 const rootDir = resolve(import.meta.dirname, '..');
 const geojsonPath = resolve(rootDir, 'public', 'data', 'metro_neighborhoods.geojson');
 const regionsDir = resolve(rootDir, 'src', 'data', 'regions');
 const propertiesOutput = resolve(rootDir, 'src', 'data', 'region_properties.json');
+const payloadManifestPath = resolve(rootDir, 'src', 'data', 'region_payload_manifest.json');
 
 // Ensure regions output directory exists
 mkdirSync(regionsDir, { recursive: true });
@@ -48,6 +50,15 @@ for (const feature of features) {
 }
 
 console.log(`  ${byRegion.size} region(s) found: ${[...byRegion.keys()].join(', ')}`);
+
+// IN-6: per-region payload sizes for a committed, diffable manifest. For each
+// emitted TopoJSON we record its raw byte length and its gzipped byte length
+// (fixed level 9 so the value is reproducible across machines/runs), plus the
+// feature count. Shipping both raw + gzip means a regression in either the
+// on-disk artifact or what the CDN actually serves over the wire shows up in
+// the diff. The CI "Region geodata payload report" step prints live dist sizes;
+// this manifest is the committed baseline those numbers can be checked against.
+const payloadByRegion = {};
 
 // Write per-region GeoJSON and convert to TopoJSON
 for (const [regionId, regionFeatures] of byRegion) {
@@ -77,9 +88,48 @@ for (const [regionId, regionFeatures] of byRegion) {
     stdio: 'inherit',
   });
 
+  // IN-6: measure the emitted TopoJSON. Read the bytes geo2topo just wrote
+  // (rather than re-serializing) so the recorded raw size is exactly the
+  // committed artifact, then gzip at a fixed level for a reproducible figure.
+  const topoBuffer = readFileSync(topoPath);
+  payloadByRegion[regionId] = {
+    topojson_bytes: topoBuffer.length,
+    gzip_bytes: gzipSync(topoBuffer, { level: 9 }).length,
+    feature_count: regionFeatures.length,
+  };
+
   // Clean up temporary GeoJSON
   unlinkSync(tempPath);
 }
+
+// IN-6: write the payload manifest with deterministically sorted region keys
+// and a top-level total, matching the stable-diff convention used for
+// grid_manifest.json / region_coverage.json (sorted keys, 2-space indent,
+// trailing newline).
+const sortedPayload = {};
+let totalTopojsonBytes = 0;
+let totalGzipBytes = 0;
+let totalFeatureCount = 0;
+for (const regionId of Object.keys(payloadByRegion).sort()) {
+  sortedPayload[regionId] = payloadByRegion[regionId];
+  totalTopojsonBytes += payloadByRegion[regionId].topojson_bytes;
+  totalGzipBytes += payloadByRegion[regionId].gzip_bytes;
+  totalFeatureCount += payloadByRegion[regionId].feature_count;
+}
+const payloadManifest = {
+  total: {
+    regions: Object.keys(sortedPayload).length,
+    topojson_bytes: totalTopojsonBytes,
+    gzip_bytes: totalGzipBytes,
+    feature_count: totalFeatureCount,
+  },
+  regions: sortedPayload,
+};
+writeFileSync(payloadManifestPath, JSON.stringify(payloadManifest, null, 2) + '\n');
+console.log(
+  `  → region_payload_manifest.json (${payloadManifest.total.regions} regions, ` +
+    `${totalTopojsonBytes} raw / ${totalGzipBytes} gzip bytes)`,
+);
 
 // CF-5: properties-only dataset for the "all cities" view. That view
 // aggregates per-region stats and takes its geometry from seutukunnat.topojson,

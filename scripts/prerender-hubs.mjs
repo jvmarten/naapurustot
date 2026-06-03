@@ -207,6 +207,7 @@ ${altLinks}
     <meta property="og:description" content="${escapeHtml(description)}" />
     <meta property="og:image" content="${ORIGIN}/og-image.png" />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="${ORIGIN}/og-image.png" />
     <style>${STYLE}</style>
 ${jsonLd}
   </head>

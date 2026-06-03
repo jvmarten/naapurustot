@@ -67,6 +67,48 @@ jobs:
       - name: Validate data quality
         run: python scripts/validate_data.py
 
+      - name: Provenance manifest summary
+        if: always()
+        run: |
+          MANIFEST="src/data/build_metadata.json"
+          if [ ! -f "$MANIFEST" ]; then
+            echo "::warning::Provenance manifest not found ($MANIFEST) — skipping summary"
+            echo "Provenance manifest \`$MANIFEST\` not found — skipped." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          python3 - "$MANIFEST" >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json, sys
+          with open(sys.argv[1], encoding="utf-8") as f:
+              meta = json.load(f)
+          metrics = meta.get("metrics", {})
+          print("## Data provenance manifest")
+          print()
+          print(f"- Generated: `{meta.get('generated', 'unknown')}`")
+          print(f"- Rows total: **{meta.get('rows_total', '?')}**")
+          print(f"- Layers: **{len(metrics)}**")
+          print()
+          print("| Metric | Source | Vintage | Granularity | Rows | Coverage % |")
+          print("| --- | --- | --- | ---: | ---: | ---: |")
+          for name in sorted(metrics):
+              m = metrics[name]
+              proxy = " (proxy)" if m.get("is_proxy") else ""
+              print(
+                  f"| `{name}`{proxy} | {m.get('source', '?')} | {m.get('vintage', '?')} "
+                  f"| {m.get('granularity', '?')} | {m.get('row_count', '?')} "
+                  f"| {m.get('coverage_pct', '?')} |"
+              )
+          PY
+
+      - name: Upload provenance manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-metadata
+          path: |
+            src/data/build_metadata.json
+            public/data/build_metadata.json
+          if-no-files-found: warn
+
       - name: Check for changes
         id: diff
         run: |

@@ -30,6 +30,9 @@ import {
   DATA_SOURCE_PUBLISHERS,
   DATA_SOURCE_METRICS,
 } from '../src/utils/metrics.ts';
+// CF-11: the single source of truth for percentile ranks, shared with the
+// client-rendered <JsonLd /> so prerendered and hydrated structured data agree.
+import { computeNeighbourhoodPercentiles } from '../src/utils/percentileRanks.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -50,29 +53,25 @@ computeChangeMetrics(geojson.features);
 computeQuickWinMetrics(geojson.features);
 const metroAverages = computeMetroAverages(geojson.features);
 
-// CF-11: national percentile lookup for the quality index, so each profile can
-// state a verifiable "top X% nationally" superlative computed from real data.
-function buildPercentileFn(features, prop) {
-  const vals = features
-    .map((f) => Number(f.properties?.[prop]))
-    .filter((v) => Number.isFinite(v))
-    .sort((a, b) => a - b);
-  return (v) => {
-    if (!Number.isFinite(v) || vals.length === 0) return null;
-    let lo = 0, hi = vals.length;
-    while (lo < hi) {
-      const mid = (lo + hi) >> 1;
-      if (vals[mid] <= v) lo = mid + 1;
-      else hi = mid;
-    }
-    return (lo / vals.length) * 100; // share of areas with value <= v
-  };
+// CF-11: percentile ranks for the quality index, median income and transit
+// reachability, computed against real per-area values so each profile can state
+// a verifiable "top X%" superlative both nationally and within its own region.
+// All ranking logic lives in src/utils/percentileRanks.ts (the same module the
+// client's <JsonLd /> uses), so the static and hydrated structured data match.
+const NATIONAL_SOURCES = geojson.features;
+// Region (seutukunta) cohorts, keyed by `city`, for within-region percentiles.
+const REGION_SOURCES = new Map();
+for (const f of geojson.features) {
+  const city = f.properties?.city;
+  if (!city) continue;
+  if (!REGION_SOURCES.has(city)) REGION_SOURCES.set(city, []);
+  REGION_SOURCES.get(city).push(f);
 }
-const qualityPctFn = buildPercentileFn(geojson.features, 'quality_index');
-/** Top percentile for the quality index (higher index = better → smaller "top X%"); >= 1. */
-function qualityTopPercentile(v) {
-  const p = qualityPctFn(v);
-  return p == null ? null : Math.max(1, Math.round(100 - p));
+
+/** Full {quality,income,transit}×{national,regional} percentile bundle for a feature's props. */
+function percentilesFor(props) {
+  const regional = (props.city && REGION_SOURCES.get(props.city)) || NATIONAL_SOURCES;
+  return computeNeighbourhoodPercentiles(props, NATIONAL_SOURCES, regional);
 }
 
 // UI translations — used to resolve region names and metric labels so that
@@ -263,13 +262,25 @@ const TEXT = {
     pop: 'Väkiluku',
     income: 'Mediaanitulo',
     descRank: (top) => `Laatuindeksissä koko maan parhaassa ${top} %:ssa.`,
+    descIncRank: (top) => `Mediaanituloltaan koko maan parhaassa ${top} %:ssa.`,
+    descTransitRank: (top) => `Joukkoliikenteen saavutettavuudessa koko maan parhaassa ${top} %:ssa.`,
     faqHeading: 'Usein kysytyt kysymykset',
     faqPopQ: (n) => `Mikä on ${n} väkiluku?`,
     faqPopA: (n, v) => `${n} väkiluku on noin ${v} asukasta.`,
     faqIncQ: (n) => `Mikä on mediaanitulo alueella ${n}?`,
     faqIncA: (n, v) => `Mediaanitulo alueella ${n} on noin ${v} € vuodessa.`,
     faqRankQ: (n) => `Miten ${n} sijoittuu laatuindeksissä?`,
-    faqRankA: (n, top) => `${n} kuuluu laatuindeksissä koko maan parhaaseen ${top} %:iin.`,
+    faqRankA: (n, top, regTop, region) =>
+      `${n} kuuluu laatuindeksissä koko maan parhaaseen ${top} %:iin` +
+      `${regTop != null && region ? ` ja seutukunnan ${region} parhaaseen ${regTop} %:iin` : ''}.`,
+    faqIncRankQ: (n) => `Kuinka korkeat tulot alueella ${n} on?`,
+    faqIncRankA: (n, top, regTop, region) =>
+      `${n} kuuluu mediaanituloltaan koko maan parhaaseen ${top} %:iin` +
+      `${regTop != null && region ? ` ja seutukunnan ${region} parhaaseen ${regTop} %:iin` : ''}.`,
+    faqTransitRankQ: (n) => `Miten hyvin ${n} on joukkoliikenteen saavutettavissa?`,
+    faqTransitRankA: (n, top, regTop, region) =>
+      `${n} kuuluu joukkoliikenteen saavutettavuudessa koko maan parhaaseen ${top} %:iin` +
+      `${regTop != null && region ? ` ja seutukunnan ${region} parhaaseen ${regTop} %:iin` : ''}.`,
   },
   en: {
     intro: (name, pno, region, count) =>
@@ -288,13 +299,25 @@ const TEXT = {
     pop: 'Population',
     income: 'Median income',
     descRank: (top) => `Ranks in the top ${top}% nationally for quality of life.`,
+    descIncRank: (top) => `Ranks in the top ${top}% nationally for median income.`,
+    descTransitRank: (top) => `Ranks in the top ${top}% nationally for public-transport access.`,
     faqHeading: 'Frequently asked questions',
     faqPopQ: (n) => `What is the population of ${n}?`,
     faqPopA: (n, v) => `${n} has a population of about ${v}.`,
     faqIncQ: (n) => `What is the median income in ${n}?`,
     faqIncA: (n, v) => `The median income in ${n} is about €${v} per year.`,
     faqRankQ: (n) => `How does ${n} rank for quality of life?`,
-    faqRankA: (n, top) => `${n} ranks in the top ${top}% nationally for quality of life.`,
+    faqRankA: (n, top, regTop, region) =>
+      `${n} ranks in the top ${top}% nationally for quality of life` +
+      `${regTop != null && region ? ` and in the top ${regTop}% within the ${region} sub-region` : ''}.`,
+    faqIncRankQ: (n) => `How high are incomes in ${n}?`,
+    faqIncRankA: (n, top, regTop, region) =>
+      `${n} ranks in the top ${top}% nationally for median income` +
+      `${regTop != null && region ? ` and in the top ${regTop}% within the ${region} sub-region` : ''}.`,
+    faqTransitRankQ: (n) => `How well is ${n} served by public transport?`,
+    faqTransitRankA: (n, top, regTop, region) =>
+      `${n} ranks in the top ${top}% nationally for public-transport access` +
+      `${regTop != null && region ? ` and in the top ${regTop}% within the ${region} sub-region` : ''}.`,
   },
   sv: {
     intro: (name, pno, region, count) =>
@@ -313,13 +336,25 @@ const TEXT = {
     pop: 'Folkmängd',
     income: 'Medianinkomst',
     descRank: (top) => `Hör till de bästa ${top} % i landet i kvalitetsindexet.`,
+    descIncRank: (top) => `Hör till de bästa ${top} % i landet i medianinkomst.`,
+    descTransitRank: (top) => `Hör till de bästa ${top} % i landet i kollektivtrafikens tillgänglighet.`,
     faqHeading: 'Vanliga frågor',
     faqPopQ: (n) => `Vad är folkmängden i ${n}?`,
     faqPopA: (n, v) => `${n} har en folkmängd på cirka ${v}.`,
     faqIncQ: (n) => `Vad är medianinkomsten i ${n}?`,
     faqIncA: (n, v) => `Medianinkomsten i ${n} är cirka ${v} € per år.`,
     faqRankQ: (n) => `Hur placerar sig ${n} i kvalitetsindexet?`,
-    faqRankA: (n, top) => `${n} hör till de bästa ${top} % i landet i kvalitetsindexet.`,
+    faqRankA: (n, top, regTop, region) =>
+      `${n} hör till de bästa ${top} % i landet i kvalitetsindexet` +
+      `${regTop != null && region ? ` och till de bästa ${regTop} % i regionen ${region}` : ''}.`,
+    faqIncRankQ: (n) => `Hur höga är inkomsterna i ${n}?`,
+    faqIncRankA: (n, top, regTop, region) =>
+      `${n} hör till de bästa ${top} % i landet i medianinkomst` +
+      `${regTop != null && region ? ` och till de bästa ${regTop} % i regionen ${region}` : ''}.`,
+    faqTransitRankQ: (n) => `Hur väl betjänas ${n} av kollektivtrafik?`,
+    faqTransitRankA: (n, top, regTop, region) =>
+      `${n} hör till de bästa ${top} % i landet i kollektivtrafikens tillgänglighet` +
+      `${regTop != null && region ? ` och till de bästa ${regTop} % i regionen ${region}` : ''}.`,
   },
 };
 
@@ -398,24 +433,38 @@ function buildDescription(props, lang, displayName, region) {
   if (props.hr_mtu != null && Number.isFinite(Number(props.hr_mtu))) {
     parts.push(`${T.income} ${fmtNum(Math.round(Number(props.hr_mtu)), 0, lang)} €.`);
   }
-  const top = qualityTopPercentile(Number(props.quality_index));
-  if (top != null) parts.push(T.descRank(top));
+  // CF-11: lead with the strongest available national superlative (quality →
+  // income → transit) so the meta description carries a verifiable ranking.
+  const pct = percentilesFor(props);
+  if (pct.quality.nationalTop != null) parts.push(T.descRank(pct.quality.nationalTop));
+  else if (pct.income.nationalTop != null) parts.push(T.descIncRank(pct.income.nationalTop));
+  else if (pct.transit.nationalTop != null) parts.push(T.descTransitRank(pct.transit.nationalTop));
   parts.push(T.descTail);
   return parts.join(' ');
 }
 
 /** CF-11: templated Q&A from this area's real values, shared by the noscript FAQ and
- *  the FAQPage JSON-LD so the structured data always matches visible page text. */
+ *  the FAQPage JSON-LD so the structured data always matches visible page text. The
+ *  ranking answers carry both national and within-region percentiles. */
 function buildFaq(props, lang) {
   const T = TEXT[lang];
   const name = getDisplayName(props, lang);
+  const region = getRegionName(props.city, lang);
+  const pct = percentilesFor(props);
   const qa = [];
   const pop = Number(props.he_vakiy);
   if (Number.isFinite(pop)) qa.push({ q: T.faqPopQ(name), a: T.faqPopA(name, fmtNum(Math.round(pop), 0, lang)) });
   const inc = Number(props.hr_mtu);
   if (Number.isFinite(inc) && inc > 0) qa.push({ q: T.faqIncQ(name), a: T.faqIncA(name, fmtNum(Math.round(inc), 0, lang)) });
-  const top = qualityTopPercentile(Number(props.quality_index));
-  if (top != null) qa.push({ q: T.faqRankQ(name), a: T.faqRankA(name, top) });
+  if (pct.quality.nationalTop != null) {
+    qa.push({ q: T.faqRankQ(name), a: T.faqRankA(name, pct.quality.nationalTop, pct.quality.regionalTop, region) });
+  }
+  if (pct.income.nationalTop != null) {
+    qa.push({ q: T.faqIncRankQ(name), a: T.faqIncRankA(name, pct.income.nationalTop, pct.income.regionalTop, region) });
+  }
+  if (pct.transit.nationalTop != null) {
+    qa.push({ q: T.faqTransitRankQ(name), a: T.faqTransitRankA(name, pct.transit.nationalTop, pct.transit.regionalTop, region) });
+  }
   return qa;
 }
 
@@ -462,10 +511,20 @@ function buildJsonLd(props, center, url, lang) {
       url: `https://naapurustot.fi${CITY_PREFIX[lang]}/${props.city}/`,
     };
   }
-  // CF-11: verifiable national superlative as a structured property.
-  const topPct = qualityTopPercentile(Number(props.quality_index));
-  if (topPct != null) {
-    additionalProperty.push({ '@type': 'PropertyValue', name: 'qualityIndexTopPercentileNational', value: topPct });
+  // CF-11: verifiable national + within-region superlatives as structured
+  // properties — quality index, median income and transit reachability. Each
+  // value is an integer "top X%" derived from real per-area distributions.
+  const pct = percentilesFor(props);
+  const pctProps = [
+    ['qualityIndexTopPercentileNational', pct.quality.nationalTop],
+    ['qualityIndexTopPercentileRegional', pct.quality.regionalTop],
+    ['medianIncomeTopPercentileNational', pct.income.nationalTop],
+    ['medianIncomeTopPercentileRegional', pct.income.regionalTop],
+    ['transitReachabilityTopPercentileNational', pct.transit.nationalTop],
+    ['transitReachabilityTopPercentileRegional', pct.transit.regionalTop],
+  ];
+  for (const [pname, value] of pctProps) {
+    if (value != null) additionalProperty.push({ '@type': 'PropertyValue', name: pname, value });
   }
   if (additionalProperty.length > 0) place.additionalProperty = additionalProperty;
 
@@ -581,6 +640,20 @@ function generatePage(feature, lang) {
   html = html.replace(
     /<meta name="twitter:description" content="[^"]*" \/>/,
     `<meta name="twitter:description" content="${escapeHtml(description)}" />`,
+  );
+
+  // CF-11: pin an absolute social-card image for both Open Graph and Twitter on
+  // each profile rather than relying on the inherited template tags. Profiles
+  // share the branded site card (no per-area image exists), so both point at the
+  // same absolute /og-image.png URL.
+  const OG_IMAGE = 'https://naapurustot.fi/og-image.png';
+  html = html.replace(
+    /<meta property="og:image" content="[^"]*" \/>/,
+    `<meta property="og:image" content="${OG_IMAGE}" />`,
+  );
+  html = html.replace(
+    /<meta name="twitter:image" content="[^"]*" \/>/,
+    `<meta name="twitter:image" content="${OG_IMAGE}" />`,
   );
 
   // CF-11: strip the template's generic homepage FAQPage so the per-neighbourhood

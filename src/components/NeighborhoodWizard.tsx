@@ -24,12 +24,22 @@ interface WizardAnswers {
   healthcareImportance: number;
 }
 
+/** CF-5: per-criterion "why it matched" breakdown — the area's actual value against
+ *  the threshold/preference the user chose, and whether it helped or hurt the score. */
+interface Contribution {
+  label: string;
+  actual: string;
+  target: string;
+  direction: 'up' | 'down' | 'neutral';
+}
+
 interface ScoredNeighborhood {
   pno: string;
   name: string;
   qualityIndex: number | null;
   score: number;
   reasons: string[];
+  contributions: Contribution[];
   center: [number, number];
 }
 
@@ -102,6 +112,11 @@ function scoreNeighborhoods(
     let score = 0;
     let totalWeight = 0;
     const reasons: string[] = [];
+    // CF-5: capture each active criterion's actual value vs the chosen threshold.
+    const contributions: Contribution[] = [];
+    const dirOf = (s: number): Contribution['direction'] => (s > 0.6 ? 'up' : s < 0.4 ? 'down' : 'neutral');
+    const fmtDensity = (v: number | null | undefined) => (v == null ? '—' : `${v.toFixed(1)} /km²`);
+    const fmtPct = (v: number | null | undefined) => (v == null ? '—' : `${Math.round(v)} %`);
 
     // --- Transit importance ---
     const transitWeight = answers.transitImportance / 5;
@@ -110,6 +125,12 @@ function scoreNeighborhoods(
       score += transitScore * transitWeight * 2;
       totalWeight += transitWeight * 2;
       if (transitScore > 0.7) reasons.push(t('wizard.reason_good_transit'));
+      contributions.push({
+        label: t('wizard.transit_importance'),
+        actual: fmtDensity(p.transit_stop_density),
+        target: `${answers.transitImportance}/5`,
+        direction: dirOf(transitScore),
+      });
     }
 
     // --- Quiet vs lively ---
@@ -118,11 +139,23 @@ function scoreNeighborhoods(
       score += restaurantInv * 2;
       totalWeight += 2;
       if (restaurantInv > 0.7) reasons.push(t('wizard.reason_quiet'));
+      contributions.push({
+        label: t('wizard.quiet_preference'),
+        actual: fmtDensity(p.restaurant_density),
+        target: t('wizard.pref_quiet'),
+        direction: dirOf(restaurantInv),
+      });
     } else if (answers.quietPreference === 'lively') {
       const restaurantScore = normalize(p.restaurant_density, restaurantRange.min, restaurantRange.max);
       score += restaurantScore * 2;
       totalWeight += 2;
       if (restaurantScore > 0.7) reasons.push(t('wizard.reason_lively'));
+      contributions.push({
+        label: t('wizard.quiet_preference'),
+        actual: fmtDensity(p.restaurant_density),
+        target: t('wizard.pref_lively'),
+        direction: dirOf(restaurantScore),
+      });
     } else {
       totalWeight += 0.5;
       score += 0.25;
@@ -133,7 +166,8 @@ function scoreNeighborhoods(
     const bMin = Math.min(answers.budgetMin, answers.budgetMax);
     const bMax = Math.max(answers.budgetMin, answers.budgetMax);
     if (price != null) {
-      if (price >= bMin && price <= bMax) {
+      const inBudget = price >= bMin && price <= bMax;
+      if (inBudget) {
         const budgetRange = bMax - bMin;
         // When range is 0 (min===max), exact match gets full score.
         // Otherwise compute how close the price is to the midpoint (0–1).
@@ -148,6 +182,12 @@ function scoreNeighborhoods(
         score += 0;
         totalWeight += 2;
       }
+      contributions.push({
+        label: t('wizard.budget'),
+        actual: `${Math.round(price)} ${t('wizard.budget_unit')}`,
+        target: `${bMin}–${bMax} ${t('wizard.budget_unit')}`,
+        direction: inBudget ? 'up' : 'down',
+      });
     }
 
     // --- Apartment size preference ---
@@ -164,6 +204,12 @@ function scoreNeighborhoods(
     score += sizeScore;
     totalWeight += 1;
     if (sizeScore > 0.7) reasons.push(t('wizard.reason_apt_size'));
+    contributions.push({
+      label: t('wizard.size_preference'),
+      actual: p.ra_as_kpa != null ? `${p.ra_as_kpa.toFixed(0)} m²` : '—',
+      target: t(`wizard.size_${answers.sizePreference}`),
+      direction: dirOf(sizeScore),
+    });
 
     // --- Tenure preference ---
     if (answers.tenurePreference === 'own') {
@@ -171,11 +217,23 @@ function scoreNeighborhoods(
       score += ownerScore;
       totalWeight += 1;
       if (ownerScore > 0.7) reasons.push(t('wizard.reason_ownership'));
+      contributions.push({
+        label: t('wizard.tenure_preference'),
+        actual: fmtPct(p.ownership_rate),
+        target: t('wizard.tenure_own'),
+        direction: dirOf(ownerScore),
+      });
     } else if (answers.tenurePreference === 'rent') {
       const rentalScore = normalize(p.rental_rate, rentalRange.min, rentalRange.max);
       score += rentalScore;
       totalWeight += 1;
       if (rentalScore > 0.7) reasons.push(t('wizard.reason_rental'));
+      contributions.push({
+        label: t('wizard.tenure_preference'),
+        actual: fmtPct(p.rental_rate),
+        target: t('wizard.tenure_rent'),
+        direction: dirOf(rentalScore),
+      });
     } else {
       totalWeight += 0.5;
       score += 0.25;
@@ -194,6 +252,18 @@ function scoreNeighborhoods(
 
       if (daycareScore > 0.6) reasons.push(t('wizard.reason_daycare'));
       if (schoolScore > 0.6) reasons.push(t('wizard.reason_schools'));
+      contributions.push({
+        label: t('wizard.reason_daycare'),
+        actual: fmtDensity(p.daycare_density),
+        target: t('wizard.yes'),
+        direction: dirOf(daycareScore),
+      });
+      contributions.push({
+        label: t('wizard.school_importance'),
+        actual: fmtDensity(p.school_density),
+        target: `${answers.schoolImportance}/5`,
+        direction: dirOf(schoolScore),
+      });
     }
 
     // --- Healthcare ---
@@ -203,6 +273,12 @@ function scoreNeighborhoods(
       score += healthScore * healthWeight * 1.5;
       totalWeight += healthWeight * 1.5;
       if (healthScore > 0.7) reasons.push(t('wizard.reason_healthcare'));
+      contributions.push({
+        label: t('wizard.healthcare_importance'),
+        actual: fmtDensity(p.healthcare_density),
+        target: `${answers.healthcareImportance}/5`,
+        direction: dirOf(healthScore),
+      });
     }
 
     const finalScore = totalWeight > 0 ? score / totalWeight : 0;
@@ -220,6 +296,7 @@ function scoreNeighborhoods(
       qualityIndex: p.quality_index,
       score: Math.round(finalScore * 100),
       reasons: uniqueReasons.slice(0, 3),
+      contributions,
     });
   }
 
@@ -230,6 +307,7 @@ function scoreNeighborhoods(
     qualityIndex: s.qualityIndex,
     score: s.score,
     reasons: s.reasons,
+    contributions: s.contributions,
     // getFeatureCenter uses bbox midpoint, which is unbiased by the duplicate
     // closing vertex in GeoJSON rings. The previous custom centroid averaged
     // every vertex, pulling the result toward the first/last point of each
@@ -609,6 +687,27 @@ export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onCl
                     <span className="font-medium">{t('wizard.why_match')}:</span>{' '}
                     {match.reasons.join(', ')}
                   </p>
+                </div>
+              )}
+              {/* CF-5: per-criterion breakdown — actual value vs the chosen threshold */}
+              {match.contributions.length > 0 && (
+                <div className="mt-2 ml-8 space-y-0.5">
+                  {match.contributions.slice(0, 6).map((c, ci) => (
+                    <div key={ci} className="flex items-center justify-between gap-2 text-[11px]">
+                      <span className="flex items-center gap-1 text-surface-500 dark:text-surface-400 truncate">
+                        <span aria-hidden className={
+                          c.direction === 'up' ? 'text-emerald-500' : c.direction === 'down' ? 'text-rose-500' : 'text-surface-400'
+                        }>
+                          {c.direction === 'up' ? '▲' : c.direction === 'down' ? '▼' : '•'}
+                        </span>
+                        <span className="truncate">{c.label}</span>
+                      </span>
+                      <span className="flex-shrink-0 tabular-nums text-surface-600 dark:text-surface-300">
+                        {c.actual}
+                        <span className="text-surface-400 dark:text-surface-500"> · {c.target}</span>
+                      </span>
+                    </div>
+                  ))}
                 </div>
               )}
             </button>
