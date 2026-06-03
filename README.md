@@ -226,7 +226,7 @@ All data is pre-processed into `src/data/metro_neighborhoods.topojson` by the Py
 | [Statistics Finland — PxWeb](https://stat.fi/) | Property prices, rental prices, price changes | CC BY 4.0 |
 | [HSL Digitransit API](https://digitransit.fi/en/developers/) | Transit stop density, geocoding | — |
 | [HSY Open Data](https://www.hsy.fi/en/air-quality-and-climate/air-quality-now/) | Air quality index, tree canopy (LiDAR) | CC BY 4.0 |
-| [OpenStreetMap](https://www.openstreetmap.org/) | Restaurants, grocery stores, healthcare, schools, daycares, cycling infra, EV charging, light pollution | ODbL |
+| [OpenStreetMap](https://www.openstreetmap.org/) | Restaurants, grocery stores, healthcare, schools, daycares, cycling infra, EV charging | ODbL |
 | Police / Poliisi (2023) | Crime index | — |
 | [Traficom](https://www.traficom.fi/) | Broadband coverage | — |
 | [Väylävirasto](https://vayla.fi/) | Traffic accidents | — |

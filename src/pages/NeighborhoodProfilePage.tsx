@@ -10,6 +10,7 @@ import { formatNumber, formatEuro, formatPct, formatDiff } from '../utils/format
 import { getQualityCategory, QUALITY_CATEGORIES } from '../utils/qualityIndex';
 import { findSimilarNeighborhoods } from '../utils/similarity';
 import { getFeatureCenter } from '../utils/geometryFilter';
+import { ContactMenu } from '../components/ContactMenu';
 import { StatCard } from '../components/profile/StatCard';
 import { JsonLd } from '../components/profile/JsonLd';
 
@@ -608,7 +609,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
           <p className="mt-1">
             <Link to="/" className="hover:text-brand-600">naapurustot.fi</Link>
             {' · '}
-            <a href="mailto:info@naapurustot.fi" className="hover:text-brand-600">{t('footer.contact')}</a>
+            <ContactMenu className="hover:text-brand-600" />
           </p>
         </div>
       </footer>

@@ -195,7 +195,7 @@
       "coverage_pct": 97.3
     },
     "light_pollution": {
-      "source": "OpenStreetMap (street_lamp density)",
+      "source": "NASA VIIRS Black Marble (VNP46A4 nighttime radiance)",
       "vintage": 2026,
       "granularity": "250m grid",
       "is_proxy": true,

@@ -50,6 +50,11 @@
       "url": "https://hri.fi/",
       "license": "CC BY 4.0"
     },
+    "nasa": {
+      "name": "NASA Black Marble (VIIRS)",
+      "url": "https://blackmarble.gsfc.nasa.gov/",
+      "license": "Public domain (NASA)"
+    },
     "naapurustot": {
       "name": "naapurustot.fi (koostettu)",
       "url": "https://naapurustot.fi/",
@@ -380,8 +385,8 @@
       "is_proxy": false
     },
     "light_pollution": {
-      "source": "OpenStreetMap (street_lamp density)",
-      "publisher": "osm",
+      "source": "NASA VIIRS Black Marble (VNP46A4 nighttime radiance)",
+      "publisher": "nasa",
       "vintage": 2026,
       "granularity": "250m grid",
       "is_proxy": true

@@ -1154,7 +1154,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
           />
           <StatRow
             label={t('panel.light_pollution')}
-            value={d.light_pollution != null ? `${Number(d.light_pollution).toFixed(1)} /km²` : '—'}
+            value={d.light_pollution != null ? `${Number(d.light_pollution).toFixed(1)} nW/cm²/sr` : '—'}
             diff={formatDiff(d.light_pollution, avg.light_pollution)}
             diffClass={diffColor(d.light_pollution, avg.light_pollution, false)}
             property="light_pollution"

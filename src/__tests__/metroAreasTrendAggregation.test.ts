@@ -116,4 +116,29 @@ describe('buildMetroAreaFeatures — trend aggregation', () => {
     const popHistory = JSON.parse(helsinki!.properties!.population_history as string);
     expect(popHistory).toEqual([[2020, 500], [2021, 600]]);
   });
+
+  it('derives trend-change percentages from the aggregated histories', () => {
+    const features = [
+      makeFeature({
+        pno: '00100',
+        population_history: JSON.stringify([[2020, 500], [2021, 550]]),
+        income_history: JSON.stringify([[2020, 30000], [2021, 33000]]),
+        he_vakiy: 1000,
+      }),
+      makeFeature({
+        pno: '00200',
+        population_history: JSON.stringify([[2020, 300], [2021, 350]]),
+        income_history: JSON.stringify([[2020, 30000], [2021, 33000]]),
+        he_vakiy: 1000,
+      }, [[[2, 0], [3, 0], [3, 1], [2, 1], [2, 0]]]),
+    ];
+
+    const result = buildMetroAreaFeatures(features)!;
+    const helsinki = result.features.find((f) => f.properties?.pno === 'helsinki_metro')!;
+    // Without deriving these the metro features had no *_change_pct, so every
+    // trend choropleth rendered gray in the all-cities view.
+    // population summed 800 → 900 ⇒ +12.5 %; income (equal weights) 30000 → 33000 ⇒ +10 %.
+    expect(helsinki.properties!.population_change_pct).toBeCloseTo(12.5, 5);
+    expect(helsinki.properties!.income_change_pct).toBeCloseTo(10, 5);
+  });
 });
