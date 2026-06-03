@@ -627,7 +627,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = React.memo(({
                 const name = prompt(t('filter.preset_name'));
                 if (name?.trim()) { trackEvent('save-filter-preset'); onSavePreset(name.trim(), filters); }
               }}
-              className="text-[10px] font-medium text-brand-500 dark:text-brand-400
+              className="text-[10px] font-medium text-brand-600 dark:text-brand-400
                          hover:text-brand-600 dark:hover:text-brand-300 transition-colors"
             >
               {t('filter.save_preset')}
@@ -758,7 +758,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = React.memo(({
                   const name = prompt(t('filter.preset_name'));
                   if (name?.trim()) { trackEvent('save-filter-preset'); onSavePreset(name.trim(), filters); }
                 }}
-                className="text-[10px] font-medium text-brand-500 dark:text-brand-400
+                className="text-[10px] font-medium text-brand-600 dark:text-brand-400
                            hover:text-brand-600 dark:hover:text-brand-300 transition-colors"
               >
                 {t('filter.save_preset')}
@@ -790,7 +790,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = React.memo(({
               <div className="px-4 py-1 flex-shrink-0 flex items-center justify-end">
                 <button
                   onClick={() => setMobileResultsOpen(!mobileResultsOpen)}
-                  className="text-[10px] font-medium text-brand-500 dark:text-brand-400"
+                  className="text-[10px] font-medium text-brand-600 dark:text-brand-400"
                 >
                   {mobileResultsOpen ? t('filter.hide_results') : t('filter.show_results')}
                 </button>

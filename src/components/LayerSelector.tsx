@@ -200,7 +200,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
                 }}
                 className={`flex-shrink-0 p-1.5 rounded-lg transition-colors min-h-[44px] md:min-h-0 min-w-[32px] flex items-center justify-center ${
                   isCustomWeights
-                    ? 'text-brand-500 dark:text-brand-400 hover:bg-brand-500/15'
+                    ? 'text-brand-600 dark:text-brand-400 hover:bg-brand-500/15'
                     : 'text-surface-400 dark:text-surface-500 hover:text-surface-600 dark:hover:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800/60'
                 }`}
                 title={t('custom_quality.button')}
@@ -231,7 +231,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
             >
               <span className={`text-[10px] font-semibold uppercase tracking-wider ${
                 hasActiveLayer && isCollapsed
-                  ? 'text-brand-500 dark:text-brand-400'
+                  ? 'text-brand-600 dark:text-brand-400'
                   : 'text-surface-400 dark:text-surface-500'
               }`}>
                 {t(group.labelKey)}

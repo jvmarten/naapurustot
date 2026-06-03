@@ -15,12 +15,11 @@ import AxeBuilder from '@axe-core/playwright';
  * the structural problems (missing labels, roles, names) axe is best at — and
  * surface any lower-impact findings in the failure message for triage.
  *
- * The `color-contrast` rule is disabled here and left to the Lighthouse a11y
- * gate (≥0.95, which runs the same axe contrast check on the home page):
- * several primary brand-500 buttons render white text at ~4.47:1 (just under
- * the 4.5:1 AA threshold), a pre-existing, app-wide design-token issue best
- * addressed in a dedicated contrast pass rather than gated per interactive
- * state here. This spec focuses on structural regressions across states.
+ * The `color-contrast` rule is ENFORCED (PO-1b): the brand-500-on-light /
+ * white-on-brand-500 cases that were below the 4.5:1 AA threshold (brand-500 is
+ * only ~3.3:1 on white) were fixed by bumping the affected text and primary
+ * buttons to brand-600/700, so contrast regressions are now gated per
+ * interactive state here in addition to the Lighthouse home-page a11y gate.
  */
 
 async function waitForDataLoaded(page: import('@playwright/test').Page) {
@@ -30,7 +29,6 @@ async function waitForDataLoaded(page: import('@playwright/test').Page) {
 function analyze(page: import('@playwright/test').Page) {
   return new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-    .disableRules(['color-contrast'])
     .exclude('.maplibregl-map')
     .analyze();
 }

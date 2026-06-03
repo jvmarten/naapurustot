@@ -80,7 +80,7 @@ export const DonateButton: React.FC<DonateButtonProps> = ({ variant = 'button' }
         </span>
         <button
           onClick={handleCopy}
-          className="shrink-0 text-xs font-medium text-brand-500 hover:text-brand-600
+          className="shrink-0 text-xs font-medium text-brand-600 hover:text-brand-600
                      dark:text-brand-400 dark:hover:text-brand-300 transition-colors"
         >
           {copied ? t('donate.copied') : t('donate.copy')}
@@ -90,7 +90,7 @@ export const DonateButton: React.FC<DonateButtonProps> = ({ variant = 'button' }
       {/* QR Code toggle */}
       <button
         onClick={() => setShowQr((v) => !v)}
-        className="text-xs font-medium text-brand-500 hover:text-brand-600
+        className="text-xs font-medium text-brand-600 hover:text-brand-600
                    dark:text-brand-400 dark:hover:text-brand-300 transition-colors mb-2"
       >
         {showQr ? t('donate.hideQr') : t('donate.showQr')}
@@ -143,7 +143,7 @@ export const DonateButton: React.FC<DonateButtonProps> = ({ variant = 'button' }
             </span>
             <button
               onClick={handleCopy}
-              className="shrink-0 text-xs font-medium text-brand-500 hover:text-brand-600
+              className="shrink-0 text-xs font-medium text-brand-600 hover:text-brand-600
                          dark:text-brand-400 dark:hover:text-brand-300 transition-colors"
             >
               {copied ? t('donate.copied') : t('donate.copy')}
@@ -153,7 +153,7 @@ export const DonateButton: React.FC<DonateButtonProps> = ({ variant = 'button' }
           {/* QR Code toggle */}
           <button
             onClick={() => setShowQr((v) => !v)}
-            className="text-xs font-medium text-brand-500 hover:text-brand-600
+            className="text-xs font-medium text-brand-600 hover:text-brand-600
                        dark:text-brand-400 dark:hover:text-brand-300 transition-colors mb-2"
           >
             {showQr ? t('donate.hideQr') : t('donate.showQr')}
