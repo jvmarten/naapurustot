@@ -2,7 +2,7 @@ import React from 'react';
 import { getLayerById, type LayerId, type LayerConfig } from '../utils/colorScales';
 import { t, useI18nVersion, type Lang } from '../utils/i18n';
 import { getGridInfo } from '../hooks/useGridData';
-import { getMetricSource, latestVintageYear, STALE_VINTAGE_YEARS } from '../utils/metrics';
+import { getMetricSource } from '../utils/metrics';
 
 interface LegendProps {
   layerId: LayerId;
@@ -27,12 +27,11 @@ export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: 
   // rather than silently masquerading as full-map resolution.
   const grid = getGridInfo(layerId);
 
-  // PO-2 / PO-3: surface the active layer's data source vintage, a staleness flag
-  // when it's years old, and an "estimate" badge when the value is a proxy/derived
-  // model rather than a direct measurement — all from the data-source registry.
+  // PO-2: badge layers whose value is a proxy/derived model rather than a direct
+  // measurement. Data freshness (vintage) is intentionally NOT shown here — it
+  // lives in the settings menu ("data last updated") and the data-sources page,
+  // so the on-map legend stays clean and uncluttered.
   const src = getMetricSource(layer.property);
-  const vintageYear = latestVintageYear(src?.year);
-  const stale = vintageYear != null && new Date().getFullYear() - vintageYear > STALE_VINTAGE_YEARS;
 
   return (
     <div className="fixed md:absolute bottom-5 md:bottom-8 left-3 md:left-4 z-10">
@@ -61,22 +60,12 @@ export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: 
             <span>{t(grid.scope === 'national' ? 'grid.scope_national' : 'grid.scope_regional')}</span>
           </div>
         )}
-        {src && (
-          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-surface-400 dark:text-surface-500">
-            {src.isProxy && (
-              <span className="inline-flex items-center rounded px-1 py-px text-[8px] font-semibold uppercase tracking-wide
-                               bg-amber-400/15 text-amber-600 dark:text-amber-400 border border-amber-400/30">
-                {t('data.estimate')}
-              </span>
-            )}
-            {src.year != null && (
-              <span
-                className={stale ? 'text-amber-600 dark:text-amber-400' : undefined}
-                title={stale ? t('data.stale') : undefined}
-              >
-                {t('data.vintage')} {src.year}{stale ? ' ⚠' : ''}
-              </span>
-            )}
+        {src?.isProxy && (
+          <div className="mt-2 flex items-center text-[10px]">
+            <span className="inline-flex items-center rounded px-1 py-px text-[8px] font-semibold uppercase tracking-wide
+                             bg-amber-400/15 text-amber-600 dark:text-amber-400 border border-amber-400/30">
+              {t('data.estimate')}
+            </span>
           </div>
         )}
       </div>

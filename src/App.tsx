@@ -4,6 +4,7 @@ import { DEFAULT_CENTER, DEFAULT_ZOOM, CITY_VIEWPORTS } from './utils/mapConstan
 import { REGION_IDS } from './utils/regions';
 import { LayerSelector } from './components/LayerSelector';
 import { SearchBar } from './components/SearchBar';
+import { ContactMenu } from './components/ContactMenu';
 import { CitySelector, type CityFilter } from './components/CitySelector';
 import { ComparisonScopeToggle, type ComparisonScope } from './components/ComparisonScopeToggle';
 import { TooltipOverlay } from './components/TooltipOverlay';
@@ -1691,9 +1692,7 @@ const App: React.FC = () => {
           <p className="text-[10px] text-surface-600/70 dark:text-surface-500/70">
             {t('footer.attribution')}
             {' · '}
-            <a href="mailto:info@naapurustot.fi" className="underline hover:text-brand-600 dark:hover:text-brand-300">
-              {t('footer.contact')}
-            </a>
+            <ContactMenu className="underline hover:text-brand-600 dark:hover:text-brand-300" />
             {' · '}
             {/* CF-9: link to the public data sources & methodology page (lang-aware) */}
             <a

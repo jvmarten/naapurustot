@@ -2,7 +2,7 @@ import type { Feature, FeatureCollection, Polygon, MultiPolygon } from 'geojson'
 import { feature } from 'topojson-client';
 import type { Topology } from 'topojson-specification';
 import type { CityId, NeighborhoodProperties, TrendDataPoint } from './metrics';
-import { computeMetroAverages, parseTrendSeries } from './metrics';
+import { computeChangeMetrics, computeMetroAverages, parseTrendSeries } from './metrics';
 import { REGIONS } from './regions';
 import { t } from './i18n';
 
@@ -369,6 +369,14 @@ export function buildMetroAreaFeatures(
       geometry: cached.geometry,
     });
   }
+
+  // Derive the trend-change layers (income / population / unemployment / crime
+  // % change) from the histories aggregated above, mirroring the single-city
+  // pipeline (computeChangeMetrics in dataLoader.ts). Without this the metro
+  // features carried only the raw *_history arrays, so every trend choropleth
+  // rendered gray in the all-cities view. property_price_change_pct is left as
+  // computed by computeMetroAverages (it lives in METRIC_DEFS) and is untouched here.
+  computeChangeMetrics(features);
 
   // CF-5 Phase D: emit a feature for every seutukunta WITHOUT ingested data.
   // They carry no statistics (so the choropleth renders them gray via its
