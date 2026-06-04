@@ -93,9 +93,9 @@ for (const id of regionIds) {
 for (const feature of features) {
   const slug = toSlug(feature.properties.pno, feature.properties.nimi);
   const alt = {
-    fi: `${ORIGIN}/alue/${slug}`,
-    en: `${ORIGIN}/en/area/${slug}`,
-    sv: `${ORIGIN}/sv/omrade/${slug}`,
+    fi: `${ORIGIN}/alue/${slug}/`,
+    en: `${ORIGIN}/en/area/${slug}/`,
+    sv: `${ORIGIN}/sv/omrade/${slug}/`,
   };
   urls.push({ loc: alt.fi, priority: '0.7', changefreq: 'monthly', alternates: alt });
   urls.push({ loc: alt.en, priority: '0.6', changefreq: 'monthly', alternates: alt });
