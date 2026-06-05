@@ -897,7 +897,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
     const slug = toSlug(props.pno, props.nimi || props.namn || props.pno);
     const lang = getLang();
     const base = lang === 'en' ? '/en/area/' : lang === 'sv' ? '/sv/omrade/' : '/alue/';
-    navigate(`${base}${slug}`);
+    navigate(`${base}${slug}/`);
   }, [navigate]);
 
   // PO-3: Shared section content — used by both desktop and mobile
@@ -1499,7 +1499,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
       {/* Profile page link */}
       {!d._isMetroArea && (
         <a
-          href={`/alue/${toSlug(d.pno, d.nimi)}`}
+          href={`/alue/${toSlug(d.pno, d.nimi)}/`}
           className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl
                      bg-surface-100 dark:bg-surface-900/60 hover:bg-surface-200 dark:hover:bg-surface-800
                      text-sm font-medium text-surface-600 dark:text-surface-300 transition-colors"

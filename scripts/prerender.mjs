@@ -573,9 +573,9 @@ function generatePage(feature, lang) {
   const title = `${displayName} (${props.pno}) – naapurustot.fi`;
   const description = buildDescription(props, lang, displayName, region);
 
-  const fiUrl = `https://naapurustot.fi/alue/${slug}`;
-  const enUrl = `https://naapurustot.fi/en/area/${slug}`;
-  const svUrl = `https://naapurustot.fi/sv/omrade/${slug}`;
+  const fiUrl = `https://naapurustot.fi/alue/${slug}/`;
+  const enUrl = `https://naapurustot.fi/en/area/${slug}/`;
+  const svUrl = `https://naapurustot.fi/sv/omrade/${slug}/`;
   const canonicalUrl = lang === 'fi' ? fiUrl : lang === 'sv' ? svUrl : enUrl;
   const jsonLd = buildJsonLd(props, center, canonicalUrl, lang);
   const noscriptContent = buildNoscriptContent(props, lang);
