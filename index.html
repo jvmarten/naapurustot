@@ -274,7 +274,23 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+    <!-- Open the TLS connection to the basemap tile CDN during HTML parse so the
+         handshake overlaps the JS download instead of starting only when MapLibre
+         requests the first tile. crossorigin is REQUIRED: MapLibre fetches raster
+         tiles as anonymous-CORS images for WebGL texturing, so a plain preconnect
+         would open a second, unused connection. dns-prefetch is a fallback for
+         browsers that ignore preconnect, plus the analytics origin. -->
+    <link rel="preconnect" href="https://basemaps.cartocdn.com" crossorigin />
+    <link rel="dns-prefetch" href="https://basemaps.cartocdn.com" />
+    <link rel="dns-prefetch" href="https://analytics.naapurustot.fi" />
+    <!-- Load brand fonts without blocking first paint: fetch the stylesheet as
+         print media (non-render-blocking), then flip it to all media once loaded.
+         display=swap + Tailwind's system-ui fallback stack keep text readable
+         during the brief swap. No no-JS font fallback by design — the app needs
+         JS to function and the fallback fonts are perfectly legible. (Keep this
+         comment free of HTML tag tokens — prerender.mjs regex-matches them.) -->
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
   </head>
   <body class="bg-surface-100 dark:bg-surface-950 text-surface-900 dark:text-white antialiased" translate="no">
     <a class="skip-link" href="#main" lang="fi">Siirry sis&auml;lt&ouml;&ouml;n</a>

@@ -1522,8 +1522,11 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
       {/* Desktop: side panel */}
       <div className="hidden md:block absolute top-0 left-0 z-20 h-full w-[380px] max-w-[90vw] overflow-y-auto
                       bg-white/95 dark:bg-surface-950/95 backdrop-blur-xl border-r border-surface-200 dark:border-surface-800/50 shadow-2xl">
-        {/* Header */}
-        <div className="sticky top-0 z-10 bg-white/95 dark:bg-surface-950/95 backdrop-blur-xl border-b border-surface-200 dark:border-surface-800/50 px-6 py-5">
+        {/* Header — backdrop-blur-sm (not -xl): this sticky bar re-rasterizes its
+            backdrop on every scroll frame as opaque panel content scrolls under it.
+            The 95%-opaque bg already reads as solid, so a smaller blur radius keeps
+            the frosted look while cutting per-scroll-frame GPU work. */}
+        <div className="sticky top-0 z-10 bg-white/95 dark:bg-surface-950/95 backdrop-blur-sm border-b border-surface-200 dark:border-surface-800/50 px-6 py-5">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
               <div className="flex items-start gap-2">
