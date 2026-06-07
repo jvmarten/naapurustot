@@ -1071,6 +1071,12 @@ const App: React.FC = () => {
   const handleToggleFavorite = useCallback(() => {
     if (selected) toggleFavorite(selected.pno);
   }, [selected, toggleFavorite]);
+  // Stable shortlist toggle — an inline arrow here would be a fresh prop every App
+  // render, defeating NeighborhoodPanel's React.memo (and re-rendering the largest
+  // mounted subtree on every unrelated state change, e.g. time-slider playback).
+  const handleToggleShortlist = useCallback(() => {
+    if (selected) toggleShortlist(selected.pno);
+  }, [selected, toggleShortlist]);
   const handleExploreCity = useCallback((cityId: string) => {
     handleCityChange(cityId as CityFilter);
   }, [handleCityChange]);
@@ -1642,7 +1648,7 @@ const App: React.FC = () => {
             isFavorite={isFavorite(selected.pno)}
             onToggleFavorite={handleToggleFavorite}
             isInShortlist={isInShortlist(selected.pno)}
-            onToggleShortlist={() => toggleShortlist(selected.pno)}
+            onToggleShortlist={handleToggleShortlist}
             referencePno={referencePno}
             referenceName={referenceName}
             onSetReference={handleSetReference}

@@ -753,12 +753,23 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     if (!map) return;
     const lineColor = theme === 'dark' ? '#3f4d63' : '#9aa7b8';
 
-    const addBoundaries = () => {
-      // Layer already present (theme toggle): just repaint.
-      if (map.getLayer(SEUTUKUNNAT_LINE_LAYER)) {
-        map.setPaintProperty(SEUTUKUNNAT_LINE_LAYER, 'line-color', lineColor);
-        return;
-      }
+    // Idle scheduler with a setTimeout fallback (Safari lacks requestIdleCallback).
+    // The timeout cap guarantees the work still runs on a busy main thread.
+    let idleHandle: number | undefined;
+    const scheduleIdle = (cb: () => void): number =>
+      typeof window.requestIdleCallback === 'function'
+        ? window.requestIdleCallback(cb, { timeout: 2000 })
+        : window.setTimeout(cb, 200);
+    const cancelIdle = (h: number): void => {
+      if (typeof window.cancelIdleCallback === 'function') window.cancelIdleCallback(h);
+      else clearTimeout(h);
+    };
+
+    // The heavy first-time add: the boundary file is ~199KB gzipped and its decode
+    // (large JSON.parse + topojson feature() of all 69 sub-regions) is pure
+    // background context. Running it at idle keeps it from contending with the
+    // region data fetch and first map paint on a cold single-region load.
+    const addSeutukunnatLayer = () => {
       void loadSeutukunnatBoundaries().then((geo) => {
         // Guard against the captured `map` being a stale (removed) instance after an
         // unmount/remount: only proceed if it is still the live map. mapRef.current
@@ -785,12 +796,31 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       });
     };
 
+    const addBoundaries = () => {
+      // Layer already present (theme toggle): just repaint immediately — cheap.
+      if (map.getLayer(SEUTUKUNNAT_LINE_LAYER)) {
+        map.setPaintProperty(SEUTUKUNNAT_LINE_LAYER, 'line-color', lineColor);
+        return;
+      }
+      // First-time add: defer off the first-paint window. The getLayer guard and
+      // mapRef equality check inside addSeutukunnatLayer keep it idempotent if a
+      // theme toggle races during the idle wait.
+      idleHandle = scheduleIdle(() => {
+        idleHandle = undefined;
+        if (mapRef.current !== map) return;
+        addSeutukunnatLayer();
+      });
+    };
+
     // Gate on mapStyleLoadedRef (not isStyleLoaded()) so the seutukunnat boundary
     // is still added when this runs during an in-flight setData rather than being
     // queued on the already-fired one-shot 'load' event.
     if (mapStyleLoadedRef.current) addBoundaries();
     else map.on('load', addBoundaries);
-    return () => { map.off('load', addBoundaries); };
+    return () => {
+      map.off('load', addBoundaries);
+      if (idleHandle !== undefined) cancelIdle(idleHandle);
+    };
   }, [theme]);
 
   // Update fill opacity when user adjusts the slider.
@@ -877,6 +907,17 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     }
 
     if (isLayerSwitch) {
+      // Respect reduced-motion: swap the fill color instantly and skip the chained
+      // fade timers. This MUST run before the fade-to-0 below — otherwise
+      // fill-opacity is set to 0 and the early return leaves the choropleth blank.
+      // Mirrors the no-fade branch in the `else` below and the flyTo reduce-motion path.
+      if (prefersReducedMotion()) {
+        map.setPaintProperty(FILL_LAYER, 'fill-color', buildFillColorExpression(layer));
+        if (map.getLayer(GRID_FILL_LAYER) && layer.gridProperty) {
+          map.setPaintProperty(GRID_FILL_LAYER, 'fill-color', buildFillColorExpression(layer, layer.gridProperty));
+        }
+        return;
+      }
       // PO-2: Animated transition — fade out, swap color, fade back in
       // Temporarily shorten the opacity transition for a snappy fade-out
       map.setPaintProperty(FILL_LAYER, 'fill-opacity-transition', { duration: 150, delay: 0 });

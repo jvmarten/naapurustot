@@ -4,6 +4,12 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
+  // Mirror the production `__BUILD_DATE__` define (vite.config.ts) so components
+  // that reference it (SettingsDropdown) don't hit an undefined global under test.
+  // Tests don't assert on the freshness date, so an empty string is sufficient.
+  define: {
+    __BUILD_DATE__: JSON.stringify(''),
+  },
   test: {
     globals: true,
     environment: 'jsdom',

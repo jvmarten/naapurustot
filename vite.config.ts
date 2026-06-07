@@ -4,8 +4,23 @@ import viteCompression from 'vite-plugin-compression'
 import { VitePWA } from 'vite-plugin-pwa'
 import { visualizer } from 'rollup-plugin-visualizer'
 import { sentryVitePlugin } from '@sentry/vite-plugin'
-import { existsSync, readdirSync, rmSync } from 'node:fs'
+import { existsSync, readdirSync, rmSync, readFileSync } from 'node:fs'
 import { resolve as resolvePath, join as joinPath } from 'node:path'
+
+// QW-1: inline ONLY the data-freshness timestamp from build_metadata.json via a
+// `define` (below), so the full ~12.7KB per-metric metadata table never ships in
+// the budget-counted index chunk. SettingsDropdown renders just this one date.
+// Vite's JSON plugin stringifies files this size, defeating tree-shaking, so a
+// plain `import { generated }` would still pull the whole object into the bundle.
+function readBuildDate(): string {
+  try {
+    const raw = readFileSync(new URL('./src/data/build_metadata.json', import.meta.url), 'utf8')
+    return (JSON.parse(raw) as { generated?: string }).generated ?? ''
+  } catch {
+    return ''
+  }
+}
+const BUILD_DATE = readBuildDate()
 
 // IN-3: Keep build-only pipeline inputs out of the deployed site.
 //
@@ -155,6 +170,10 @@ export default defineConfig({
       sourcemaps: { filesToDeleteAfterUpload: ['./dist/**/*.map'] },
     }) : null,
   ],
+  define: {
+    // QW-1: data-freshness timestamp inlined as a string literal (see readBuildDate).
+    __BUILD_DATE__: JSON.stringify(BUILD_DATE),
+  },
   build: {
     assetsInlineLimit: 0, // Never inline data files — always emit as hashed assets
     sourcemap: SENTRY_AUTH_TOKEN ? 'hidden' : false,
