@@ -324,8 +324,11 @@ const App: React.FC = () => {
     }
     prevEffectiveLayerRef.current = rescaled;
     return rescaled;
+  // colorblind: getLayerById() applies the colorblind palette substitution, so the
+  // effective layer must recompute when the mode changes — otherwise the choropleth
+  // keeps the old palette until a reload (the cache is cleared in setColorblindMode).
   // eslint-disable-next-line react-hooks/exhaustive-deps -- qualityVersion signals in-place data mutation for quality_index layer
-  }, [activeLayer, comparisonScope, cityFilter, filteredData, qualityVersion, timeYear, timeHistoryProp]);
+  }, [activeLayer, comparisonScope, cityFilter, filteredData, qualityVersion, timeYear, timeHistoryProp, colorblind]);
 
   const handleCityChange = useCallback((city: CityFilter) => {
     trackEvent('switch-city', { city });

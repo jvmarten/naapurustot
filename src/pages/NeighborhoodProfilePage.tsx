@@ -233,9 +233,9 @@ export const NeighborhoodProfilePage: React.FC = () => {
       let prevCanonicalHref: string | null = null;
       let createdCanonical: HTMLLinkElement | null = null;
       const canonicalByLang: Record<Lang, string> = {
-        fi: `https://naapurustot.fi/alue/${slug}`,
-        en: `https://naapurustot.fi/en/area/${slug}`,
-        sv: `https://naapurustot.fi/sv/omrade/${slug}`,
+        fi: `https://naapurustot.fi/alue/${slug}/`,
+        en: `https://naapurustot.fi/en/area/${slug}/`,
+        sv: `https://naapurustot.fi/sv/omrade/${slug}/`,
       };
       const canonicalHref = canonicalByLang[lang];
       if (existingCanonical) {
@@ -362,7 +362,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
     : (d.namn && d.namn !== displayName ? d.namn : '');
 
   const profileSlug = toSlug(d.pno, d.nimi);
-  const canonicalUrl = `https://naapurustot.fi${langPathPrefix[lang]}/${profileSlug}`;
+  const canonicalUrl = `https://naapurustot.fi${langPathPrefix[lang]}/${profileSlug}/`;
 
   /** Format a comparison string: "avg: X" with color. */
   const avgStr = (val: number | null, key: string, formatter: (v: number | null) => string) => {
