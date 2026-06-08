@@ -447,7 +447,7 @@ const AreaSummarySection: React.FC<{
       )}
       {summary.strong.length > 0 && (
         <div>
-          <span className="block text-[10px] font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mb-1">
+          <span className="block text-[10px] font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 mb-1">
             {t('summary.strong')}
           </span>
           <div className="flex flex-wrap gap-1">
@@ -459,7 +459,7 @@ const AreaSummarySection: React.FC<{
                 title={fillTemplate(t('summary.chip_top'), { pct: String(e.topPct) })}
               >
                 {t(e.labelKey)}
-                <span className="tabular-nums text-emerald-600/70 dark:text-emerald-400/70">
+                <span className="tabular-nums text-emerald-700 dark:text-emerald-400/70">
                   {fillTemplate(t('summary.chip_top'), { pct: String(e.topPct) })}
                 </span>
               </span>
@@ -469,7 +469,7 @@ const AreaSummarySection: React.FC<{
       )}
       {summary.weak.length > 0 && (
         <div>
-          <span className="block text-[10px] font-semibold uppercase tracking-wider text-rose-600 dark:text-rose-400 mb-1">
+          <span className="block text-[10px] font-semibold uppercase tracking-wider text-rose-700 dark:text-rose-400 mb-1">
             {t('summary.weak')}
           </span>
           <div className="flex flex-wrap gap-1">
@@ -481,7 +481,7 @@ const AreaSummarySection: React.FC<{
                 title={fillTemplate(t('summary.chip_bottom'), { pct: String(e.bottomPct) })}
               >
                 {t(e.labelKey)}
-                <span className="tabular-nums text-rose-600/70 dark:text-rose-400/70">
+                <span className="tabular-nums text-rose-700 dark:text-rose-400/70">
                   {fillTemplate(t('summary.chip_bottom'), { pct: String(e.bottomPct) })}
                 </span>
               </span>
@@ -665,8 +665,8 @@ const QualityCoverageSection: React.FC<{ props: NeighborhoodProperties; scope?: 
           <span
             className={`inline-flex items-center rounded px-1.5 py-px text-[10px] font-semibold border ${
               lowCoverage
-                ? 'bg-amber-400/15 text-amber-600 dark:text-amber-400 border-amber-400/30'
-                : 'bg-emerald-400/10 text-emerald-600 dark:text-emerald-400 border-emerald-400/30'
+                ? 'bg-amber-400/15 text-amber-800 dark:text-amber-400 border-amber-400/30'
+                : 'bg-emerald-400/10 text-emerald-700 dark:text-emerald-400 border-emerald-400/30'
             }`}
           >
             {coverage.present}/{coverage.total}
@@ -785,9 +785,9 @@ NotesEditor.displayName = 'NotesEditor';
 
 // CF-1: traffic-light band styling for the affordability shares.
 const BAND_STYLES: Record<AffordabilityBand, { dot: string; text: string; bg: string }> = {
-  green: { dot: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/30' },
-  amber: { dot: 'bg-amber-500', text: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-400/10 border-amber-400/30' },
-  red: { dot: 'bg-rose-500', text: 'text-rose-600 dark:text-rose-400', bg: 'bg-rose-500/10 border-rose-500/30' },
+  green: { dot: 'bg-emerald-500', text: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/30' },
+  amber: { dot: 'bg-amber-500', text: 'text-amber-800 dark:text-amber-400', bg: 'bg-amber-400/10 border-amber-400/30' },
+  red: { dot: 'bg-rose-500', text: 'text-rose-700 dark:text-rose-400', bg: 'bg-rose-500/10 border-rose-500/30' },
 };
 const BAND_LABEL_KEY: Record<AffordabilityBand, string> = {
   green: 'afford.band_green',
