@@ -305,6 +305,45 @@ def check_registry_vintage(features: list) -> list[str]:
     return errors
 
 
+# PO-5: metrics whose value is a municipality-level figure distributed/refined down
+# to postal codes (a finer granularity than the source actually publishes). Each MUST
+# be flagged is_proxy:true in the registry so the proxy badge / sources page never
+# present a distributed estimate as a direct postal-level measurement. Keyed to the
+# distribution logic in the named fetch script.
+MUNICIPALITY_DISTRIBUTED_PROXIES = {
+    "crime_index": "fetch_crime_index.py distribute_to_postal_codes()",
+    "avg_construction_year": "fetch_building_age.py refine_to_postal_codes()",
+}
+
+
+def check_distributed_proxy_flags(features: list) -> list[str]:
+    """PO-5: a metric whose declared granularity is finer than its source's real
+    granularity (a municipality figure distributed/refined to postal codes) must be
+    flagged is_proxy:true. Self-contained — reads only the registry. Catches an
+    honest-attribution regression where such a metric is silently reset to
+    is_proxy:false."""
+    errors: list[str] = []
+    if not REGISTRY_PATH.exists():
+        return [f"data-source registry not found: {REGISTRY_PATH}"]
+    try:
+        registry = json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        return [f"data_sources.json is not valid JSON: {exc}"]
+
+    metrics = registry.get("metrics", {})
+    for prop, derivation in MUNICIPALITY_DISTRIBUTED_PROXIES.items():
+        entry = metrics.get(prop)
+        if entry is None:
+            errors.append(f"Metric '{prop}' missing from the registry (expected a distributed proxy)")
+            continue
+        if entry.get("is_proxy") is not True:
+            errors.append(
+                f"Metric '{prop}' is a municipality-distributed estimate ({derivation}) "
+                f"but is not flagged is_proxy:true in data_sources.json"
+            )
+    return errors
+
+
 def _normalize_vintage(v) -> str:
     """Canonical string form of a vintage so 2024 == '2024' and en/em dashes in
     'YYYY-YYYY' ranges compare equal regardless of which dash character was used."""
@@ -485,6 +524,7 @@ def main() -> int:
         ("All-null properties", check_no_all_null_properties(features)),
         ("Value ranges", check_value_ranges(features)),
         ("Data-source registry", check_data_source_registry(features)),
+        ("Distributed proxy flags", check_distributed_proxy_flags(features)),
         ("Registry vintage", check_registry_vintage(features)),
         ("Provenance vintage match", check_provenance_vintage_match(features)),
         ("Coverage regression", check_coverage_regression(features)),

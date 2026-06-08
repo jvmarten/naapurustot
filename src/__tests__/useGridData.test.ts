@@ -13,7 +13,58 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
-import { useGridData, hasGridData, getGridInfo } from '../hooks/useGridData';
+import type { Feature, FeatureCollection } from 'geojson';
+import { useGridData, hasGridData, getGridInfo, cellCentroid, clipGridToData } from '../hooks/useGridData';
+
+/** Build a 1x1 square grid cell whose centroid is (cx, cy). */
+function cell(cx: number, cy: number, props: Record<string, unknown> = {}): Feature {
+  return {
+    type: 'Feature',
+    properties: props,
+    geometry: {
+      type: 'Polygon',
+      coordinates: [[[cx - 0.5, cy - 0.5], [cx + 0.5, cy - 0.5], [cx + 0.5, cy + 0.5], [cx - 0.5, cy + 0.5], [cx - 0.5, cy - 0.5]]],
+    },
+  };
+}
+
+describe('cellCentroid (IN-1/IN-2)', () => {
+  it('returns the bbox midpoint of the outer ring', () => {
+    expect(cellCentroid(cell(5, 7))).toEqual([5, 7]);
+  });
+
+  it('returns null for a cell with no usable geometry', () => {
+    expect(cellCentroid({ type: 'Feature', properties: {}, geometry: null } as unknown as Feature)).toBeNull();
+  });
+});
+
+describe('clipGridToData (IN-1)', () => {
+  // A region whose bbox is roughly [0,0]..[10,10].
+  const region: FeatureCollection = {
+    type: 'FeatureCollection',
+    features: [{
+      type: 'Feature',
+      properties: {},
+      geometry: { type: 'Polygon', coordinates: [[[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]]] },
+    }],
+  };
+
+  it('keeps cells whose centroid is inside the region bbox and drops the rest', () => {
+    const grid: FeatureCollection = {
+      type: 'FeatureCollection',
+      features: [cell(5, 5), cell(50, 50)],
+    };
+    const clipped = clipGridToData(grid, region);
+    expect(clipped?.features).toHaveLength(1);
+    expect(cellCentroid(clipped!.features[0])).toEqual([5, 5]);
+  });
+
+  it('returns the grid unchanged when either input is null', () => {
+    const grid: FeatureCollection = { type: 'FeatureCollection', features: [cell(5, 5)] };
+    expect(clipGridToData(grid, null)).toBe(grid);
+    expect(clipGridToData(null, region)).toBeNull();
+  });
+});
 
 describe('hasGridData', () => {
   it('returns true for layers with a built grid in the manifest', () => {

@@ -26,6 +26,16 @@ function saveNotes(notes: Record<string, string>): void {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(notes)); } catch { /* quota exceeded or unavailable */ }
 }
 
+/**
+ * QW-5: read a single neighbourhood's saved note straight from localStorage,
+ * outside the React hook. Used by the export utilities (export.ts) so a CSV/PDF/
+ * GeoJSON/JSON download can fold in the user's own private notes without threading
+ * the hook's state through every export call site. Returns '' when none exists.
+ */
+export function readNote(pno: string): string {
+  return loadNotes()[pno] ?? '';
+}
+
 /** Merge two notes maps. When the same pno exists in both, the longer text wins —
  *  a proxy for "more recently edited" when we don't have per-note timestamps. */
 function mergeNotes(local: Record<string, string>, server: Record<string, string>): Record<string, string> {

@@ -2,7 +2,11 @@ import React, { useRef, useEffect, useCallback, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { FeatureCollection } from 'geojson';
-import { buildFillColorExpression, LAYERS, type LayerId, getLayerById } from '../utils/colorScales';
+import { buildFillColorExpression, LAYERS, type LayerId, type LayerConfig, getLayerById } from '../utils/colorScales';
+import { ensureHatchImage } from '../utils/hatchPattern';
+import { buildFillOpacityFadeOut, buildGridFillOpacity, GRID_ZOOM_FADE_IN } from '../utils/gridFade';
+import { getGridInfo } from '../hooks/useGridData';
+import { getCoveragePct, isLowCoverage, formatCoveragePct, type NeighborhoodProperties } from '../utils/metrics';
 import { useTheme } from '../hooks/useTheme';
 import { t, useI18nVersion } from '../utils/i18n';
 import { DEFAULT_CENTER, DEFAULT_ZOOM, MAP_MAX_ZOOM, MAP_MIN_ZOOM } from '../utils/mapConstants';
@@ -31,6 +35,95 @@ const SplitLayerPicker: React.FC<{
   );
 });
 
+/**
+ * IN-1: in-pane hover tooltip. Mirrors the main map's Tooltip but is positioned
+ * pane-locally (absolute within the pane) and shows the value for that pane's own
+ * layer. Kept lightweight — only the hovered value + "vs avg" delta.
+ */
+const SplitPaneTooltip: React.FC<{
+  hover: PaneHover;
+  layer: LayerConfig;
+  metroAverage?: number;
+  /** 'left' tooltips flip leftward near the divider; 'right' flip rightward. */
+  side: 'left' | 'right';
+}> = ({ hover, layer, metroAverage, side }) => {
+  const value = hover.props[layer.property] as number | null | undefined;
+  const fmt = value != null ? (layer.tooltipFormat ?? layer.format)(value) : t('tooltip.no_data');
+  let cmpText = '';
+  let cmpClass = '';
+  if (value != null && metroAverage != null && metroAverage !== 0) {
+    const diffPct = ((value - metroAverage) / Math.abs(metroAverage)) * 100;
+    if (Math.abs(diffPct) >= 1) {
+      const sign = diffPct > 0 ? '+' : '';
+      cmpText = `${diffPct > 0 ? '▲' : '▼'} ${sign}${diffPct.toFixed(0)}% ${t('tooltip.vs_avg')}`;
+      const isPositive = (layer.higherIsBetter !== false) ? diffPct > 0 : diffPct < 0;
+      cmpClass = isPositive ? 'text-emerald-500' : 'text-rose-400';
+    }
+  }
+  // Offset from the cursor; flip toward pane interior so it never spills over the
+  // divider or off the outer edge.
+  const flipX = side === 'left' ? -12 : 12;
+  const style: React.CSSProperties = {
+    transform: `translate(${side === 'left' ? 'calc(-100% - 0px)' : '0'}, -100%)`,
+    left: hover.x + flipX,
+    top: hover.y - 12,
+  };
+  return (
+    <div
+      className="tooltip-desktop pointer-events-none absolute z-30 max-w-[180px] rounded-lg bg-white/95 dark:bg-surface-900/95 px-3 py-2 text-sm shadow-xl border border-surface-200 dark:border-surface-700/50"
+      style={style}
+    >
+      <div className="font-semibold text-surface-900 dark:text-white truncate">
+        {hover.props.nimi || hover.props.pno}
+      </div>
+      <div className={value == null ? 'text-surface-400 italic' : 'text-surface-600 dark:text-surface-300'}>
+        {fmt}
+      </div>
+      {cmpText && <div className={`text-xs mt-0.5 ${cmpClass}`}>{cmpText}</div>}
+    </div>
+  );
+};
+
+/**
+ * IN-1: compact per-pane legend with a coverage-scope badge. Smaller than the
+ * main Legend (no proxy/freshness rows) so it fits two side-by-side panes.
+ */
+const SplitPaneLegend: React.FC<{ layer: LayerConfig; side: 'left' | 'right' }> = ({ layer, side }) => {
+  useI18nVersion();
+  const n = layer.stops.length;
+  const grid = getGridInfo(layer.id);
+  const coverage = getCoveragePct(layer.property);
+  const lowCoverage = isLowCoverage(layer.property);
+  const coverageLabel = coverage != null ? formatCoveragePct(coverage) : null;
+  return (
+    <div className={`absolute bottom-2 z-10 ${side === 'left' ? 'left-2' : 'right-2'}`}>
+      <div className="rounded-lg bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-lg px-2.5 py-1.5">
+        <div className="flex items-center gap-0">
+          {layer.colors.map((color, i) => (
+            <div key={i} className="w-4 h-2.5 first:rounded-l last:rounded-r" style={{ backgroundColor: color }} />
+          ))}
+        </div>
+        <div className="flex justify-between mt-1" style={{ width: `${layer.colors.length * 16}px` }}>
+          <span className="text-[9px] text-surface-500">{layer.format(layer.stops[0])}</span>
+          <span className="text-[9px] text-surface-500">{layer.format(layer.stops[n - 1])}</span>
+        </div>
+        {grid && (
+          <div className="mt-1 flex items-center gap-1 text-[9px] text-surface-400 dark:text-surface-500">
+            <span aria-hidden="true">▦</span>
+            <span>{t(grid.scope === 'national' ? 'grid.scope_national' : 'grid.scope_regional')}</span>
+          </div>
+        )}
+        {lowCoverage && coverageLabel != null && (
+          <div className="mt-1 flex items-center gap-1 text-[9px] text-amber-600 dark:text-amber-400">
+            <span aria-hidden="true">▦</span>
+            <span>{t('split.low_coverage').replace('{pct}', coverageLabel)}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const BASEMAP_LIGHT = (import.meta.env.VITE_BASEMAP_LIGHT_URL as string) || 'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png';
 const BASEMAP_DARK = (import.meta.env.VITE_BASEMAP_DARK_URL as string) || 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png';
 const BASEMAP_LIGHT_LABELS = (import.meta.env.VITE_BASEMAP_LIGHT_LABELS_URL as string) || 'https://basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}@2x.png';
@@ -53,6 +146,22 @@ interface SplitMapViewProps {
   onLeftLayerChange?: (id: LayerId) => void;
   onRightLayerChange?: (id: LayerId) => void;
   colorblind?: string;
+  /** IN-1: region-clipped fine-grained grid for the left pane's layer (null when none). */
+  leftGridData?: FeatureCollection | null;
+  /** IN-1: region-clipped fine-grained grid for the right pane's layer (null when none). */
+  rightGridData?: FeatureCollection | null;
+  /** IN-1: per-metric region averages, for the hover tooltip's "vs avg" line. */
+  metroAverages?: Record<string, number>;
+  /** IN-1: open the detail panel when a neighborhood is clicked in either pane. */
+  onSelectNeighborhood?: (props: NeighborhoodProperties) => void;
+}
+
+/** IN-1: local hover state for one pane's in-map tooltip. */
+interface PaneHover {
+  props: NeighborhoodProperties;
+  /** Cursor position in pane-local pixels. */
+  x: number;
+  y: number;
 }
 
 function makeStyle(theme: 'dark' | 'light'): maplibregl.StyleSpecification {
@@ -98,12 +207,102 @@ function makeStyle(theme: 'dark' | 'light'): maplibregl.StyleSpecification {
 }
 
 const METRO_LINE_LAYER = 'neighborhoods-metro-line';
+const NO_DATA_LAYER = 'neighborhoods-no-data-pattern';
+const HIGHLIGHT_LAYER = 'neighborhoods-highlight';
+// IN-1: per-pane fine-grained grid source/layer, mirroring the main map.
+const GRID_SOURCE_ID = 'grid-cells';
+const GRID_FILL_LAYER = 'grid-fill';
+
+/** PO-1: filter selecting features whose active-layer property is null/missing,
+ *  excluding metro-area dissolve features (CLAUDE.md pitfall #4). */
+function noDataFilter(propertyKey: string): maplibregl.FilterSpecification {
+  return ['all',
+    ['!', ['boolean', ['get', '_isMetroArea'], false]],
+    ['any',
+      ['!', ['has', propertyKey]],
+      ['==', ['get', propertyKey], null],
+    ],
+  ] as unknown as maplibregl.FilterSpecification;
+}
+
+/** IN-1: true when a fine-grained grid should render for this layer + data pair. */
+function gridActive(layer: LayerConfig, gridData: FeatureCollection | null | undefined): boolean {
+  return !!gridData && !!layer.gridProperty;
+}
+
+// IN-1: base postal-fill opacity for the "no grid" case. Kept STATE-DEPENDENT
+// (references feature-state hover/selected) on purpose — the panes call
+// setFeatureState({hover}) on the FILL source, and MapLibre's
+// ProgramConfiguration.updatePaintArrays throws "this.expression.evaluate is not
+// a function" if a state-dependent fill-opacity is ever replaced by a bare
+// constant and then a setFeatureState fires. Bumping the hovered cell also reads
+// a touch better. Mirrors Map.tsx's buildFillOpacity rationale.
+const BASE_FILL_OPACITY: maplibregl.ExpressionSpecification = [
+  'case',
+  ['boolean', ['feature-state', 'hover'], false], 0.8,
+  ['boolean', ['feature-state', 'selected'], false], 0.8,
+  0.65,
+] as unknown as maplibregl.ExpressionSpecification;
+
+/**
+ * IN-1: add/update the per-pane fine-grained grid layer with the same zoom fade
+ * as the main map (Map.tsx). The postal fill fades OUT and the grid fades IN
+ * across GRID_ZOOM_FADE_IN..OUT. Inserted above FILL_LAYER but below LINE_LAYER
+ * so borders, the no-data hatch, and the hover ring stay on top.
+ */
+function syncGridLayer(
+  map: maplibregl.Map,
+  layer: LayerConfig,
+  gridData: FeatureCollection | null | undefined,
+) {
+  const useGrid = gridActive(layer, gridData);
+
+  if (!useGrid) {
+    // Tear the grid layer down and restore the postal fill's base opacity.
+    if (map.getLayer(GRID_FILL_LAYER)) map.removeLayer(GRID_FILL_LAYER);
+    if (map.getSource(GRID_SOURCE_ID)) map.removeSource(GRID_SOURCE_ID);
+    if (map.getLayer(FILL_LAYER)) {
+      map.setPaintProperty(FILL_LAYER, 'fill-opacity', BASE_FILL_OPACITY);
+    }
+    return;
+  }
+
+  // Postal fill fades out as the grid fades in.
+  if (map.getLayer(FILL_LAYER)) {
+    map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacityFadeOut(1) as maplibregl.ExpressionSpecification);
+  }
+
+  const existing = map.getSource(GRID_SOURCE_ID) as maplibregl.GeoJSONSource | undefined;
+  if (existing) {
+    existing.setData(gridData!);
+    map.setPaintProperty(GRID_FILL_LAYER, 'fill-color', buildFillColorExpression(layer, layer.gridProperty));
+    map.setPaintProperty(GRID_FILL_LAYER, 'fill-opacity', buildGridFillOpacity(1) as maplibregl.ExpressionSpecification);
+    return;
+  }
+
+  // beforeId=LINE_LAYER requires the line layer to exist — addDataLayers always
+  // adds it before calling syncGridLayer, so this is safe here.
+  if (!map.getLayer(LINE_LAYER)) return;
+  map.addSource(GRID_SOURCE_ID, { type: 'geojson', data: gridData! });
+  map.addLayer({
+    id: GRID_FILL_LAYER,
+    type: 'fill',
+    source: GRID_SOURCE_ID,
+    minzoom: GRID_ZOOM_FADE_IN,
+    paint: {
+      'fill-color': buildFillColorExpression(layer, layer.gridProperty),
+      'fill-opacity': buildGridFillOpacity(1) as maplibregl.ExpressionSpecification,
+      'fill-opacity-transition': { duration: 300, delay: 0 },
+    },
+  }, LINE_LAYER);
+}
 
 function addDataLayers(
   map: maplibregl.Map,
   data: FeatureCollection,
   layerId: LayerId,
   theme: 'dark' | 'light',
+  gridData: FeatureCollection | null | undefined,
 ) {
   // If the source already exists, just refresh its data — rebuilding the
   // source + 3 layers on every data change (e.g., quality weight adjustment
@@ -115,6 +314,10 @@ function addDataLayers(
     if (map.getLayer(FILL_LAYER)) {
       map.setPaintProperty(FILL_LAYER, 'fill-color', buildFillColorExpression(layer));
     }
+    if (map.getLayer(NO_DATA_LAYER)) {
+      map.setFilter(NO_DATA_LAYER, noDataFilter(layer.property));
+    }
+    syncGridLayer(map, layer, gridData);
     return;
   }
 
@@ -133,7 +336,7 @@ function addDataLayers(
     paint: {
       'fill-color': buildFillColorExpression(layer),
       'fill-color-transition': { duration: 300, delay: 0 },
-      'fill-opacity': 0.65,
+      'fill-opacity': BASE_FILL_OPACITY,
       'fill-opacity-transition': { duration: 300, delay: 0 },
     },
   }, beforeLabels(map));
@@ -162,6 +365,36 @@ function addDataLayers(
       'line-opacity': 0.7,
     },
   }, beforeLabels(map));
+
+  // IN-1: hover/selection ring. line-opacity is feature-state driven so the
+  // hover handler only flips state instead of re-running setFilter per frame.
+  map.addLayer({
+    id: HIGHLIGHT_LAYER,
+    type: 'line',
+    source: SOURCE_ID,
+    paint: {
+      'line-color': theme === 'dark' ? '#f8fafc' : '#0f172a',
+      'line-width': 2.5,
+      'line-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 1, 0],
+    },
+  }, beforeLabels(map));
+
+  // PO-1: diagonal-hatch fill for no-data neighborhoods. Mirrors Map.tsx —
+  // excludes metro-area features and re-adds the hatch image on style reload
+  // via the styleimagemissing handler wired by ensureHatchImage.
+  map.addLayer({
+    id: NO_DATA_LAYER,
+    type: 'fill',
+    source: SOURCE_ID,
+    filter: noDataFilter(layer.property),
+    paint: {
+      'fill-pattern': ensureHatchImage(map, theme),
+      'fill-opacity': 0.9,
+    },
+  }, beforeLabels(map));
+
+  // IN-1: grid layer added last so LINE_LAYER already exists for beforeId.
+  syncGridLayer(map, layer, gridData);
 }
 
 function updateThemeColors(map: maplibregl.Map, theme: 'dark' | 'light') {
@@ -173,6 +406,13 @@ function updateThemeColors(map: maplibregl.Map, theme: 'dark' | 'light') {
   if (map.getLayer(METRO_LINE_LAYER)) {
     map.setPaintProperty(METRO_LINE_LAYER, 'line-color', border);
   }
+  if (map.getLayer(HIGHLIGHT_LAYER)) {
+    map.setPaintProperty(HIGHLIGHT_LAYER, 'line-color', theme === 'dark' ? '#f8fafc' : '#0f172a');
+  }
+  if (map.getLayer(NO_DATA_LAYER)) {
+    // PO-1: swap to the theme-matched hatch image (reload-safe via ensureHatchImage).
+    map.setPaintProperty(NO_DATA_LAYER, 'fill-pattern', ensureHatchImage(map, theme));
+  }
 }
 
 export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
@@ -182,6 +422,10 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
   onLeftLayerChange,
   onRightLayerChange,
   colorblind = 'off',
+  leftGridData = null,
+  rightGridData = null,
+  metroAverages,
+  onSelectNeighborhood,
 }) => {
   useI18nVersion();
   const leftContainerRef = useRef<HTMLDivElement>(null);
@@ -199,6 +443,24 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
   // True when MapLibre can't create a WebGL context for either pane — show a
   // fallback message rather than throwing into the ErrorBoundary.
   const [webglFailed, setWebglFailed] = useState(false);
+
+  // IN-1: per-pane hover tooltip state. Kept local (not the global tooltipStore)
+  // so each pane shows the value for ITS OWN layer, positioned inside that pane.
+  const [leftHover, setLeftHover] = useState<PaneHover | null>(null);
+  const [rightHover, setRightHover] = useState<PaneHover | null>(null);
+
+  // Grid data + select callback read inside the event/style handlers via refs so
+  // those handlers stay stable (attached once) and never go stale on a grid fetch
+  // completing. Synced in an effect (not during render) per the react-hooks/refs
+  // rule — the handlers that read them only fire after commit, so this is safe.
+  const leftGridRef = useRef(leftGridData);
+  const rightGridRef = useRef(rightGridData);
+  const onSelectRef = useRef(onSelectNeighborhood);
+  useEffect(() => {
+    leftGridRef.current = leftGridData;
+    rightGridRef.current = rightGridData;
+    onSelectRef.current = onSelectNeighborhood;
+  });
 
   // Sync handler factory: when one map moves, update the other
   const createSyncHandler = useCallback(
@@ -338,9 +600,16 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
 
     const pendingListeners: { map: maplibregl.Map; fn: () => void }[] = [];
 
-    const setupMap = (map: maplibregl.Map | null, layerId: LayerId, loadedRef: React.RefObject<boolean>) => {
+    const setupMap = (
+      map: maplibregl.Map | null,
+      layerId: LayerId,
+      loadedRef: React.RefObject<boolean>,
+      gridRef: React.RefObject<FeatureCollection | null>,
+    ) => {
       if (!map) return;
-      const apply = () => addDataLayers(map, data, layerId, theme);
+      // Read grid from the ref so a deferred 'load' apply picks up grid data that
+      // arrived between this effect running and the style finishing loading.
+      const apply = () => addDataLayers(map, data, layerId, theme, gridRef.current);
       // Gate on the persistent loaded flag. addDataLayers is idempotent
       // (getSource/getLayer guards + setData refresh), so calling it directly
       // during an in-flight setData is safe; queuing on the one-shot 'load'
@@ -353,8 +622,8 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
       }
     };
 
-    setupMap(leftMapRef.current, leftLayer, leftLoadedRef);
-    setupMap(rightMapRef.current, rightLayer, rightLoadedRef);
+    setupMap(leftMapRef.current, leftLayer, leftLoadedRef, leftGridRef);
+    setupMap(rightMapRef.current, rightLayer, rightLoadedRef, rightGridRef);
 
     return () => {
       for (const { map, fn } of pendingListeners) {
@@ -363,19 +632,111 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
     };
   }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Update fill color when active layers or colorblind mode change
+  // Update fill color (and re-sync the grid layer) when active layers or
+  // colorblind mode change. A layer switch can toggle grid availability, so the
+  // grid layer is rebuilt/torn down here too.
   useEffect(() => {
     if (!data) return;
 
-    const updateFill = (map: maplibregl.Map | null, layerId: LayerId) => {
+    const updateFill = (
+      map: maplibregl.Map | null,
+      layerId: LayerId,
+      gridData: FeatureCollection | null,
+    ) => {
       if (!map || !map.getLayer(FILL_LAYER)) return;
       const layer = getLayerById(layerId);
       map.setPaintProperty(FILL_LAYER, 'fill-color', buildFillColorExpression(layer));
+      // PO-1: re-target the no-data hatch to the new layer's property.
+      if (map.getLayer(NO_DATA_LAYER)) {
+        map.setFilter(NO_DATA_LAYER, noDataFilter(layer.property));
+      }
+      // IN-1: add/refresh/remove the grid layer for the (possibly new) layer.
+      // syncGridLayer also restores the postal fill opacity when no grid applies.
+      syncGridLayer(map, layer, gridData);
     };
 
-    updateFill(leftMapRef.current, leftLayer);
-    updateFill(rightMapRef.current, rightLayer);
-  }, [leftLayer, rightLayer, colorblind, data]);
+    updateFill(leftMapRef.current, leftLayer, leftGridData);
+    updateFill(rightMapRef.current, rightLayer, rightGridData);
+  }, [leftLayer, rightLayer, colorblind, data, leftGridData, rightGridData]);
+
+  // IN-1: per-pane hover (in-map tooltip + highlight ring) and click-to-open.
+  // Handlers are attached once and read grid/select via refs, so they never go
+  // stale on data refreshes or grid fetches. Hover positions are pane-local.
+  useEffect(() => {
+    const setupInteract = (
+      map: maplibregl.Map | null,
+      setHover: React.Dispatch<React.SetStateAction<PaneHover | null>>,
+    ): (() => void) | undefined => {
+      if (!map) return undefined;
+      const hoveredIdRef = { current: null as string | null };
+      let pending: maplibregl.MapMouseEvent | null = null;
+      let rafId: number | null = null;
+
+      const setHoverState = (pno: string | null) => {
+        if (hoveredIdRef.current === pno) return;
+        if (hoveredIdRef.current) {
+          map.setFeatureState({ source: SOURCE_ID, id: hoveredIdRef.current }, { hover: false });
+        }
+        hoveredIdRef.current = pno;
+        if (pno) map.setFeatureState({ source: SOURCE_ID, id: pno }, { hover: true });
+      };
+
+      const process = () => {
+        rafId = null;
+        const e = pending;
+        pending = null;
+        if (!e || !map.getSource(SOURCE_ID) || !map.getLayer(FILL_LAYER)) return;
+        const features = map.queryRenderedFeatures(e.point, { layers: [FILL_LAYER] });
+        const feat = features[0];
+        const pno = feat?.properties?.pno as string | undefined;
+        if (feat && pno) {
+          setHoverState(pno);
+          map.getCanvas().style.cursor = 'pointer';
+          setHover({ props: feat.properties as NeighborhoodProperties, x: e.point.x, y: e.point.y });
+        } else {
+          setHoverState(null);
+          map.getCanvas().style.cursor = '';
+          setHover(null);
+        }
+      };
+
+      const onMove = (e: maplibregl.MapMouseEvent) => {
+        pending = e;
+        if (rafId === null) rafId = requestAnimationFrame(process);
+      };
+      const onLeave = () => {
+        pending = null;
+        if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
+        setHoverState(null);
+        map.getCanvas().style.cursor = '';
+        setHover(null);
+      };
+      const onClick = (e: maplibregl.MapMouseEvent) => {
+        if (!map.getSource(SOURCE_ID) || !map.getLayer(FILL_LAYER)) return;
+        const features = map.queryRenderedFeatures(e.point, { layers: [FILL_LAYER] });
+        const props = features[0]?.properties as NeighborhoodProperties | undefined;
+        if (props?.pno) onSelectRef.current?.(props);
+      };
+
+      map.on('mousemove', onMove);
+      map.on('mouseleave', FILL_LAYER, onLeave);
+      map.on('click', onClick);
+      return () => {
+        if (rafId !== null) cancelAnimationFrame(rafId);
+        map.off('mousemove', onMove);
+        map.off('mouseleave', FILL_LAYER, onLeave);
+        map.off('click', onClick);
+      };
+    };
+
+    const cleanups = [
+      setupInteract(leftMapRef.current, setLeftHover),
+      setupInteract(rightMapRef.current, setRightHover),
+    ];
+    return () => { for (const c of cleanups) c?.(); };
+    // Attach once on mount: the map instances live for the component's lifetime,
+    // and grid/select are read via refs. setLeftHover/setRightHover are stable.
+  }, []);
 
   if (webglFailed) {
     return (
@@ -391,37 +752,58 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
     );
   }
 
+  const leftConfig = getLayerById(leftLayer);
+  const rightConfig = getLayerById(rightLayer);
+
   return (
     <div className="relative flex h-full w-full">
       {/* Left map */}
-      <div className="relative h-full w-1/2">
+      <div className="relative h-full w-1/2 overflow-hidden">
         <div ref={leftContainerRef} className="absolute inset-0" />
         <div className="absolute top-2 left-2 z-10">
           {onLeftLayerChange ? (
             <SplitLayerPicker value={leftLayer} onChange={onLeftLayerChange} />
           ) : (
             <div className="px-2 py-1 rounded bg-white/80 dark:bg-surface-900/80 text-xs font-medium">
-              {t(getLayerById(leftLayer).labelKey)}
+              {t(leftConfig.labelKey)}
             </div>
           )}
         </div>
+        <SplitPaneLegend layer={leftConfig} side="left" />
+        {leftHover && (
+          <SplitPaneTooltip
+            hover={leftHover}
+            layer={leftConfig}
+            metroAverage={metroAverages?.[leftConfig.property]}
+            side="left"
+          />
+        )}
       </div>
 
       {/* Vertical divider */}
       <div className="absolute left-1/2 top-0 bottom-0 z-20 w-0.5 -translate-x-1/2 bg-slate-400 dark:bg-slate-600 pointer-events-none" />
 
       {/* Right map */}
-      <div className="relative h-full w-1/2">
+      <div className="relative h-full w-1/2 overflow-hidden">
         <div ref={rightContainerRef} className="absolute inset-0" />
         <div className="absolute top-2 left-2 z-10">
           {onRightLayerChange ? (
             <SplitLayerPicker value={rightLayer} onChange={onRightLayerChange} />
           ) : (
             <div className="px-2 py-1 rounded bg-white/80 dark:bg-surface-900/80 text-xs font-medium">
-              {t(getLayerById(rightLayer).labelKey)}
+              {t(rightConfig.labelKey)}
             </div>
           )}
         </div>
+        <SplitPaneLegend layer={rightConfig} side="right" />
+        {rightHover && (
+          <SplitPaneTooltip
+            hover={rightHover}
+            layer={rightConfig}
+            metroAverage={metroAverages?.[rightConfig.property]}
+            side="right"
+          />
+        )}
       </div>
     </div>
   );

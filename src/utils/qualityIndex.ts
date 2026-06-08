@@ -1,4 +1,4 @@
-import type { NeighborhoodProperties } from './metrics';
+import { getCoveragePct, type NeighborhoodProperties } from './metrics.ts';
 
 /**
  * Computes a composite Quality Index (0–100) for each neighborhood.
@@ -69,9 +69,11 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   // Money is mid-weight (employment 12 > income 10 > education 4) because
   // unemployment harms wellbeing far more than the lost income alone, and
   // education is ~76% redundant with income. Service density is demoted to a
-  // token 3. Every factor used has ~97–100% coverage in all regions except
-  // transit (patchy outside Helsinki) and traffic safety (~70%), both small.
-  // See docs/QUALITY_INDEX.md.
+  // token 3. Most default factors have ~97–100% national coverage; the thin
+  // exceptions are transit (transit_stop_density ~10.9% — Helsinki-region only)
+  // and traffic safety (~72%), both small-weight. computeQualityCoverage exposes
+  // each factor's national coverage so the panel can tell "no data anywhere" from
+  // a genuine local gap. See docs/QUALITY_INDEX.md.
   {
     id: 'safety',
     label: { fi: 'Turvallisuus', en: 'Safety', sv: 'Säkerhet' },
@@ -863,6 +865,34 @@ export interface FactorCoverage {
   label: { fi: string; en: string; sv: string };
   /** True when this area has data for the factor (so it contributed to the score). */
   present: boolean;
+  /**
+   * PO-11: national coverage (% of all 3,018 postal codes with a real value) for
+   * this factor's best-covered source property, from build_metadata.json. Lets the
+   * panel distinguish a missing factor that is simply thin everywhere (e.g. transit
+   * ~11%) from a genuine local gap in an otherwise near-complete metric. null when
+   * no measured figure exists for any source property.
+   */
+  nationalCoveragePct: number | null;
+  /** PO-11: true when this factor is sparse nationwide (so a local miss is expected, not a data hole). */
+  nationallyThin: boolean;
+}
+
+/**
+ * PO-11: a default-weighted factor counts as "thin nationally" when even its
+ * best-covered source property reaches under this share of postal codes. Matches
+ * metrics.PARTIAL_COVERAGE_THRESHOLD intent (~95%) so the near-complete Paavo/HSY
+ * layers stay unflagged while transit (~11%) is surfaced.
+ */
+export const FACTOR_THIN_COVERAGE_THRESHOLD = 95;
+
+/** PO-11: best (max) national coverage across a factor's source properties, or null. */
+function factorNationalCoverage(factor: QualityFactor): number | null {
+  let best: number | null = null;
+  for (const prop of factor.properties) {
+    const c = getCoveragePct(prop as string);
+    if (c != null && (best == null || c > best)) best = c;
+  }
+  return best;
 }
 
 export interface DimensionCoverage {
@@ -879,6 +909,13 @@ export interface QualityCoverage {
   present: number;
   /** Total default-weighted factors that make up the headline index. */
   total: number;
+  /**
+   * PO-11: of the factors MISSING here, how many are also sparse nationwide
+   * (best source property under FACTOR_THIN_COVERAGE_THRESHOLD). These are gaps
+   * the index can never fill anywhere — distinct from a genuine local hole in an
+   * otherwise complete metric — so the panel can phrase the chip honestly.
+   */
+  missingThinNationally: number;
 }
 
 /** A factor "has data" when at least one source property is finite (income also
@@ -903,21 +940,32 @@ export function computeQualityCoverage(p: NeighborhoodProperties): QualityCovera
   for (const f of active) {
     const dim = getFactorDimension(f.id);
     if (!byDim.has(dim)) byDim.set(dim, []);
-    byDim.get(dim)!.push({ id: f.id, label: f.label, present: factorHasData(p, f) });
+    const nationalCoveragePct = factorNationalCoverage(f);
+    const nationallyThin =
+      nationalCoveragePct != null && nationalCoveragePct < FACTOR_THIN_COVERAGE_THRESHOLD;
+    byDim.get(dim)!.push({
+      id: f.id,
+      label: f.label,
+      present: factorHasData(p, f),
+      nationalCoveragePct,
+      nationallyThin,
+    });
   }
 
   const dimensions: DimensionCoverage[] = [];
   let present = 0;
   let total = 0;
+  let missingThinNationally = 0;
   for (const dim of QUALITY_DIMENSIONS) {
     const factors = byDim.get(dim.id);
     if (!factors || factors.length === 0) continue;
     const dimPresent = factors.filter((f) => f.present).length;
     present += dimPresent;
     total += factors.length;
+    missingThinNationally += factors.filter((f) => !f.present && f.nationallyThin).length;
     dimensions.push({ id: dim.id, label: dim.label, factors, present: dimPresent, total: factors.length });
   }
-  return { dimensions, present, total };
+  return { dimensions, present, total, missingThinNationally };
 }
 
 /** A named quality-index lens (preset weights). Cloud-synced via the existing

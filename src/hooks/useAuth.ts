@@ -81,5 +81,25 @@ export function useAuth() {
     setState({ user: null, loading: false });
   }, []);
 
-  return { user: state.user, loading: state.loading, login, signup, logout };
+  // CF-13 (GDPR): fetch the full stored record. Returns the payload on success
+  // or an error string on failure; never mutates auth state.
+  const exportData = useCallback(async (): Promise<{ data?: Record<string, unknown>; error?: string }> => {
+    const { data, error } = await api.exportData();
+    return { data, error: error ?? undefined };
+  }, []);
+
+  // CF-13 (GDPR): permanently delete the account. On success the server clears
+  // the cookie; we mirror logout by clearing the local session. Returns null on
+  // success or an error string on failure.
+  const deleteAccount = useCallback(async (): Promise<string | null> => {
+    const { data, error } = await api.deleteAccount();
+    if (data?.ok) {
+      setSessionFlag(false);
+      setState({ user: null, loading: false });
+      return null;
+    }
+    return error ?? 'Delete failed';
+  }, []);
+
+  return { user: state.user, loading: state.loading, login, signup, logout, exportData, deleteAccount };
 }

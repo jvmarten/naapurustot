@@ -23,6 +23,10 @@ Method:
      --overwrite is passed.
   5. Save merged results to scripts/crime_index.json.
 
+Because the postal-code values are a municipality figure distributed to a finer
+granularity than the source publishes, crime_index is flagged is_proxy:true in
+src/data/data_sources.json (enforced by validate_data.py check_distributed_proxy_flags).
+
 Output: scripts/crime_index.json
 Format: {"00100": 168.2, "33100": 115.4, "20100": 135.2, ...}
         (reported offences and infractions per 1,000 residents)

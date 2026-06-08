@@ -92,3 +92,91 @@ export function bestFit(points: XYPoint[]): { slope: number; intercept: number }
   const intercept = (sy - slope * sx) / n;
   return { slope, intercept };
 }
+
+/**
+ * QW-3: Best-fit lines computed independently per group (region). Groups with
+ * fewer than `minPoints` points or no x-variance are skipped. Returns a map
+ * keyed by the group key, in first-seen order, so callers can draw per-region
+ * trend lines and spot Simpson's-paradox clustering.
+ */
+export function groupedBestFit<T extends XYPoint>(
+  points: T[],
+  groupKey: (p: T) => string,
+  minPoints = 3,
+): Map<string, { slope: number; intercept: number; n: number }> {
+  const groups = new Map<string, T[]>();
+  for (const p of points) {
+    const k = groupKey(p);
+    const g = groups.get(k);
+    if (g) g.push(p); else groups.set(k, [p]);
+  }
+  const out = new Map<string, { slope: number; intercept: number; n: number }>();
+  for (const [k, g] of groups) {
+    if (g.length < minPoints) continue;
+    const fit = bestFit(g);
+    if (fit) out.set(k, { ...fit, n: g.length });
+  }
+  return out;
+}
+
+/**
+ * QW-3: Coefficient of determination R² — the share of variance in y explained
+ * by a linear fit on x. For simple linear regression this is just r², so we
+ * derive it from the Pearson r to reuse the guarded computation. Returns null
+ * when r is undefined (too few points or zero variance).
+ */
+export function rSquared(points: XYPoint[]): number | null {
+  const r = pearson(points);
+  if (r == null) return null;
+  return r * r;
+}
+
+export type Significance = 'strong' | 'moderate' | 'weak' | 'none';
+
+/**
+ * QW-3: A coarse, n-aware significance hint for a correlation. Not a formal
+ * p-value — it approximates the two-sided t-test for ρ=0 by comparing |r|
+ * against the critical |r| at α≈0.05 for n−2 degrees of freedom, and labels how
+ * far past that threshold the observed |r| sits. With small n a large |r| can
+ * still be "weak"; with large n even a modest |r| clears the bar. Returns
+ * 'none' when r is undefined or below the significance threshold.
+ */
+export function significanceHint(points: XYPoint[]): Significance {
+  const r = pearson(points);
+  const n = points.length;
+  if (r == null || n < 3) return 'none';
+  const absR = Math.abs(r);
+  if (absR >= 1) return 'strong';
+  const df = n - 2;
+  // t-statistic for the observed r, and the two-sided 5% critical t for df.
+  const t = absR * Math.sqrt(df / (1 - absR * absR));
+  const tCrit = criticalT05(df);
+  if (t < tCrit) return 'none';
+  // Past the 5% bar: grade by how decisively (≈1% and ≈0.1% two-sided cutoffs).
+  if (t >= tCrit * 1.6) return 'strong';
+  if (t >= tCrit * 1.25) return 'moderate';
+  return 'weak';
+}
+
+/**
+ * Approximate two-sided 5% critical t-value for `df` degrees of freedom.
+ * A short lookup for small df plus a smooth large-sample approximation; exact
+ * tables are unnecessary for a UI "significance hint".
+ */
+function criticalT05(df: number): number {
+  if (df < 1) return Infinity;
+  const table: Record<number, number> = {
+    1: 12.71, 2: 4.30, 3: 3.18, 4: 2.78, 5: 2.57, 6: 2.45, 7: 2.36, 8: 2.31,
+    9: 2.26, 10: 2.23, 12: 2.18, 15: 2.13, 20: 2.09, 25: 2.06, 30: 2.04,
+    40: 2.02, 60: 2.00, 120: 1.98,
+  };
+  if (table[df] != null) return table[df];
+  // Interpolate / extrapolate toward the normal z (1.96) for large df.
+  if (df >= 120) return 1.96 + (1.98 - 1.96) * (120 / df);
+  const keys = Object.keys(table).map(Number).sort((a, b) => a - b);
+  let lo = keys[0], hi = keys[keys.length - 1];
+  for (const k of keys) { if (k <= df) lo = k; if (k >= df) { hi = k; break; } }
+  if (lo === hi) return table[lo];
+  const frac = (df - lo) / (hi - lo);
+  return table[lo] + (table[hi] - table[lo]) * frac;
+}

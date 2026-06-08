@@ -184,6 +184,66 @@ export async function generateComparisonCard(pinned: NeighborhoodProperties[]): 
   }
 }
 
+/**
+ * CF-11: render a branded shortlist summary card — one row per shortlisted area
+ * with its name, quality badge and 2-3 key metrics — as a PNG with the scoped
+ * shortlist deep link (`sl`+`city` only) baked in, then share/download it. Reuses
+ * the same lazy html-to-image + shareOrDownload path as the comparison card, so it
+ * adds no new bundle weight. The `deepLink` is built by the caller via
+ * buildShortlistShareUrl so this helper stays decoupled from the URL codec.
+ */
+export async function generateShortlistCard(areas: NeighborhoodProperties[], deepLink: string): Promise<void> {
+  if (areas.length === 0) return;
+  // Show the three most universally-populated metrics to keep rows compact.
+  const cardMetrics = METRICS.slice(0, 3);
+
+  const container = document.createElement('div');
+  container.style.cssText = `
+    width: 600px; padding: 32px; background: #ffffff;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    border-radius: 16px; box-sizing: border-box;
+  `;
+
+  const rows = areas
+    .map((a) => {
+      const qi = a.quality_index;
+      const cat = qi != null ? getQualityCategory(qi) : null;
+      const badge = qi != null && cat
+        ? `<div style="flex-shrink:0;width:42px;height:42px;border-radius:10px;background:${cat.color};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:16px;">${qi}</div>`
+        : `<div style="flex-shrink:0;width:42px;height:42px;border-radius:10px;background:#e2e8f0;"></div>`;
+      const metrics = cardMetrics
+        .map(({ key, label, format }) =>
+          `<span style="font-size:12px;color:#475569;"><span style="color:#94a3b8;">${escapeHtml(t(label))}:</span> ${escapeHtml(format(a[key] as number | null))}</span>`,
+        )
+        .join('<span style="color:#cbd5e1;">·</span>');
+      return `
+        <div style="display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid #f1f5f9;">
+          ${badge}
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:16px;font-weight:700;color:#0f172a;">${escapeHtml(a.nimi || a.pno)}</div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;">${metrics}</div>
+          </div>
+        </div>`;
+    })
+    .join('');
+
+  container.innerHTML = `
+    <div style="font-size:13px;color:#64748b;margin-bottom:6px;font-weight:600;">naapurustot.fi · ${escapeHtml(t('shortlist.title'))}</div>
+    <div style="font-size:22px;font-weight:800;color:#0f172a;margin-bottom:14px;">${areas.length} ${escapeHtml(t('shortlist.areas'))}</div>
+    <div>${rows}</div>
+    <div style="margin-top:20px;text-align:center;font-size:11px;color:#94a3b8;word-break:break-all;">${escapeHtml(deepLink)}</div>
+  `;
+
+  document.body.appendChild(container);
+  try {
+    const { toPng } = await import('html-to-image');
+    const dataUrl = await toPng(container, { quality: 0.95, pixelRatio: 2 });
+    await shareOrDownload(dataUrl, 'naapurustot-vertailulista.png', deepLink, t('shortlist.title'));
+  } finally {
+    document.body.removeChild(container);
+  }
+}
+
 export interface CorrelationCardInput {
   points: { x: number; y: number; pop: number; color: string }[];
   r: number | null;

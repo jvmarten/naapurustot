@@ -105,14 +105,18 @@ jobs:
           # Exclude maplibre (large, irreducible third-party map renderer)
           JS_SIZE=$(find dist/assets -name '*.js' ! -name 'maplibre-*' -exec gzip -c {} \; | wc -c)
           echo "App JS bundle excluding maplibre (gzipped): $JS_SIZE bytes"
-          # Fail if app JS bundle exceeds 250KB gzipped
+          # Fail if app JS bundle exceeds the budget (gzipped, all app chunks excl. maplibre)
           # Budget history: 160KB → 210KB (react-router-dom + @turf/union + auth/profile),
-          # → 235KB after the first FEATURE_ROADMAP batch, → 250KB after the second roadmap
-          # batch (registry-driven sources/badges, distribution+coverage panels, URL state,
-          # embed/share cards, reduced-motion, home re-entry, shortlist). New surfaces are
-          # lazy-loaded but the check sums all app chunks.
-          if [ "$JS_SIZE" -gt 256000 ]; then
-            echo "::error::JS bundle size exceeds 250KB gzipped budget ($JS_SIZE bytes)"
+          # → 235KB after the first FEATURE_ROADMAP batch, → 250KB (256000 B) after the second,
+          # → 280000 B after the third batch: the full 36-item FEATURE_ROADMAP completion
+          # (affordability calc, plain-language area summary, similarity weight sliders, home
+          # anchor, adjacency, percentile filters/superlatives, drawn-area share URLs,
+          # correlation depth, national-scope toggle, split-map fidelity, GeoJSON/JSON export,
+          # shortlist sharing+cards, notes in export, panel a11y, wizard profile, GDPR UI,
+          # coverage/freshness/note disclosures). Measured 273508 B; +~6.5KB margin.
+          # New surfaces are lazy-loaded but the check sums all app chunks.
+          if [ "$JS_SIZE" -gt 280000 ]; then
+            echo "::error::JS bundle size exceeds 280KB gzipped budget ($JS_SIZE bytes)"
             exit 1
           fi
 

@@ -1,5 +1,11 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { readInitialUrlState, buildViewportShareUrl } from '../hooks/useUrlState';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { renderHook } from '@testing-library/react';
+import {
+  readInitialUrlState,
+  buildViewportShareUrl,
+  useSyncUrlState,
+  URL_SCHEMA_VERSION,
+} from '../hooks/useUrlState';
 import { getDefaultWeights, getPersonaWeights, detectPersona } from '../utils/qualityIndex';
 
 // Helper to set query params in jsdom
@@ -114,6 +120,97 @@ describe('readInitialUrlState — CF-1 weights / isochrone / viewport, QW-2 shor
     const withV = buildViewportShareUrl({ center: [24.94, 60.17], zoom: 11 });
     expect(withV).toContain('v=24.94');
     expect(withV).toContain('pno=00100');
+  });
+});
+
+// ─── CF-9: drawn / selected-areas analysis area in the share URL ─────────────
+describe('readInitialUrlState — CF-9 draw param (parse)', () => {
+  beforeEach(() => {
+    window.location.hash = '';
+    setSearch('');
+  });
+
+  it('defaults draw to null when absent', () => {
+    setSearch('?pno=00100');
+    expect(readInitialUrlState().draw).toBeNull();
+  });
+
+  it('parses a select-areas pno list', () => {
+    setSearch('?draw=s:00100.00200.00300');
+    expect(readInitialUrlState().draw).toEqual({
+      mode: 'select',
+      pnos: ['00100', '00200', '00300'],
+    });
+  });
+
+  it('drops invalid pnos from a select-areas list', () => {
+    setSearch('?draw=s:00100.bogus.1234.00200');
+    expect(readInitialUrlState().draw).toEqual({ mode: 'select', pnos: ['00100', '00200'] });
+  });
+
+  it('rejects a select-areas list with no valid pnos', () => {
+    setSearch('?draw=s:bogus.1234');
+    expect(readInitialUrlState().draw).toBeNull();
+  });
+
+  it('parses a free-hand polygon vertex list', () => {
+    setSearch('?draw=p:24.94~60.17_24.95~60.18_24.96~60.16');
+    expect(readInitialUrlState().draw).toEqual({
+      mode: 'polygon',
+      vertices: [
+        [24.94, 60.17],
+        [24.95, 60.18],
+        [24.96, 60.16],
+      ],
+    });
+  });
+
+  it('rejects a polygon with fewer than 3 vertices', () => {
+    setSearch('?draw=p:24.94~60.17_24.95~60.18');
+    expect(readInitialUrlState().draw).toBeNull();
+  });
+
+  it('clamps off-world polygon vertices on parse (Finland bbox)', () => {
+    // Middle vertex is off-world (200,200) and is silently dropped, leaving 3 valid
+    // vertices that still form a polygon; an out-of-bbox vertex never survives.
+    setSearch('?draw=p:24.94~60.17_200~200_24.95~60.18_24.96~60.16');
+    const d = readInitialUrlState().draw;
+    expect(d).toEqual({
+      mode: 'polygon',
+      vertices: [
+        [24.94, 60.17],
+        [24.95, 60.18],
+        [24.96, 60.16],
+      ],
+    });
+  });
+
+  it('rejects a polygon left with <3 vertices after bbox clamping', () => {
+    setSearch('?draw=p:24.94~60.17_200~200_24.95~60.18');
+    expect(readInitialUrlState().draw).toBeNull();
+  });
+
+  it('caps a polygon at 60 vertices', () => {
+    const verts: string[] = [];
+    for (let i = 0; i < 80; i++) verts.push(`${(24 + i * 0.001).toFixed(5)}~60.17`);
+    setSearch(`?draw=p:${verts.join('_')}`);
+    const d = readInitialUrlState().draw;
+    expect(d?.mode).toBe('polygon');
+    expect(d && d.mode === 'polygon' ? d.vertices.length : 0).toBe(60);
+  });
+
+  it('rejects garbage draw values', () => {
+    for (const bad of ['', 'x', 'garbage', 'p:', 's:', 'q:00100', '00100', 'p:abc~def']) {
+      setSearch(`?draw=${encodeURIComponent(bad)}`);
+      expect(readInitialUrlState().draw).toBeNull();
+    }
+  });
+
+  it('is version-gated: a newer-schema draw param is clamped to null', () => {
+    setSearch(`?pno=00100&draw=s:00100.00200&_v=${URL_SCHEMA_VERSION + 1}`);
+    const s = readInitialUrlState();
+    expect(s.pno).toBe('00100'); // primitive survives
+    expect(s.draw).toBeNull(); // structured draw is clamped
   });
 });
 
@@ -260,5 +357,264 @@ describe('readInitialUrlState (legacy hash fallback)', () => {
     window.location.hash = '#pno=00100';
     const state = readInitialUrlState();
     expect(state.pno).toBe('00200');
+  });
+});
+
+// ─── IN-3: share-URL schema version tag + migration / clamp guard ────────────
+describe('readInitialUrlState — IN-3 schema version parsing', () => {
+  beforeEach(() => {
+    window.location.hash = '';
+    setSearch('');
+  });
+
+  it('exposes a stable current schema version constant', () => {
+    expect(URL_SCHEMA_VERSION).toBe(2);
+    expect(Number.isInteger(URL_SCHEMA_VERSION)).toBe(true);
+  });
+
+  it('round-trips structured params tagged with the current version (_v=2)', () => {
+    setSearch(`?pno=00100&qp=family&sl=00100.00200&iso=transit~30&_v=${URL_SCHEMA_VERSION}`);
+    const s = readInitialUrlState();
+    // Current version → every structured decoder runs normally.
+    expect(s.pno).toBe('00100');
+    expect(detectPersona(s.weights!)).toBe('family');
+    expect(s.shortlist).toEqual(['00100', '00200']);
+    expect(s.isochrone).toEqual({ mode: 'transit', budget: 30 });
+  });
+
+  it('parses legacy links with no version tag as v1 (full back-compat)', () => {
+    // No _v at all — every link shipped before IN-3.
+    setSearch('?pno=00100&qp=student&sl=00100.00300&filter=median_income~25000~40000');
+    const s = readInitialUrlState();
+    expect(s.pno).toBe('00100');
+    expect(detectPersona(s.weights!)).toBe('student');
+    expect(s.shortlist).toEqual(['00100', '00300']);
+    expect(s.filters).toEqual([{ layerId: 'median_income', min: 25000, max: 40000 }]);
+  });
+
+  it('treats a garbage version tag as legacy and still parses structured params', () => {
+    // Hand-mangled / non-numeric / sub-1 versions must not blank the state.
+    for (const bad of ['abc', '', '0', '-3', '2.5', 'NaN']) {
+      setSearch(`?pno=00100&qp=family&_v=${encodeURIComponent(bad)}`);
+      const s = readInitialUrlState();
+      expect(s.pno).toBe('00100');
+      expect(detectPersona(s.weights!)).toBe('family');
+    }
+  });
+
+  it('clamps structured params from a NEWER schema while keeping stable primitives', () => {
+    // A link from a future build (_v greater than current): its structured encodings
+    // may have changed, so they are dropped rather than mis-decoded; primitives stay.
+    setSearch(`?pno=00100&city=turku&layer=median_income&scope=region&qp=family&iso=transit~30&sl=00100.00200&filter=median_income~25000~40000&_v=${URL_SCHEMA_VERSION + 1}`);
+    const s = readInitialUrlState();
+    // Stable, self-validating primitives are honoured.
+    expect(s.pno).toBe('00100');
+    expect(s.city).toBe('turku');
+    expect(s.layer).toBe('median_income');
+    expect(s.scope).toBe('region');
+    // Structured/version-sensitive params are clamped to absent.
+    expect(s.weights).toBeNull();
+    expect(s.isochrone).toBeNull();
+    expect(s.shortlist).toEqual([]);
+    expect(s.filters).toEqual([]);
+    expect(s.viewport).toBeNull();
+  });
+
+  it('still clamps a newer-version viewport param', () => {
+    setSearch(`?pno=00100&v=24.94~60.17~12&_v=${URL_SCHEMA_VERSION + 5}`);
+    const s = readInitialUrlState();
+    expect(s.pno).toBe('00100');
+    expect(s.viewport).toBeNull();
+  });
+});
+
+describe('useSyncUrlState — IN-3 schema version stamping', () => {
+  let replaceStateSpy: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    replaceStateSpy = vi.fn();
+    Object.defineProperty(window, 'location', {
+      value: { search: '', hash: '', pathname: '/' },
+      writable: true,
+      configurable: true,
+    });
+    Object.defineProperty(window.history, 'replaceState', {
+      value: replaceStateSpy,
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function lastUrl(): string {
+    const calls = replaceStateSpy.mock.calls;
+    return calls[calls.length - 1][2] as string;
+  }
+
+  it('does NOT stamp the version for plain primitive-only links', () => {
+    Object.defineProperty(window, 'location', {
+      value: { search: '?pno=99999', hash: '', pathname: '/' },
+      writable: true,
+      configurable: true,
+    });
+    replaceStateSpy.mockClear();
+    renderHook(() => useSyncUrlState('00100', 'median_income', ['00200'], 'turku'));
+    vi.advanceTimersByTime(150);
+    const url = lastUrl();
+    expect(url).toContain('pno=00100');
+    expect(url).toContain('layer=median_income');
+    expect(url).not.toContain('_v=');
+  });
+
+  it('stamps _v with the current version when a structured param is present', () => {
+    replaceStateSpy.mockClear();
+    renderHook(() =>
+      useSyncUrlState('00100', 'quality_index', [], 'helsinki_metro', true, {
+        shortlist: ['00100', '00200'],
+      }),
+    );
+    vi.advanceTimersByTime(150);
+    const url = lastUrl();
+    expect(url).toContain('sl=00100.00200');
+    expect(url).toContain(`_v=${URL_SCHEMA_VERSION}`);
+  });
+
+  it('keeps an empty URL clean (no version tag)', () => {
+    Object.defineProperty(window, 'location', {
+      value: { search: '?pno=00100', hash: '', pathname: '/' },
+      writable: true,
+      configurable: true,
+    });
+    replaceStateSpy.mockClear();
+    renderHook(() => useSyncUrlState(null, 'quality_index', []));
+    vi.advanceTimersByTime(150);
+    expect(lastUrl()).toBe('/');
+  });
+});
+
+describe('buildViewportShareUrl — IN-3 schema version stamping', () => {
+  it('stamps _v alongside the structured viewport param', () => {
+    // The preceding useSyncUrlState block swaps window.location for a plain object
+    // without an href; restore a real, href-bearing location (with the pno search)
+    // so buildViewportShareUrl can build a URL from it.
+    Object.defineProperty(window, 'location', {
+      value: new URL('http://localhost/?pno=00100'),
+      writable: true,
+      configurable: true,
+    });
+    const url = buildViewportShareUrl({ center: [24.94, 60.17], zoom: 11 });
+    expect(url).toContain('v=24.94');
+    expect(url).toContain(`_v=${URL_SCHEMA_VERSION}`);
+  });
+});
+
+// ─── CF-9: serialize side via useSyncUrlState (kept LAST: swaps window.location
+//     for a plain object, which would break setSearch in later describes) ──────
+describe('useSyncUrlState — CF-9 draw param (serialize + round-trip)', () => {
+  let replaceStateSpy: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    replaceStateSpy = vi.fn();
+    Object.defineProperty(window, 'location', {
+      value: { search: '', hash: '', pathname: '/' },
+      writable: true,
+      configurable: true,
+    });
+    Object.defineProperty(window.history, 'replaceState', {
+      value: replaceStateSpy,
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function lastUrl(): string {
+    const calls = replaceStateSpy.mock.calls;
+    return calls[calls.length - 1][2] as string;
+  }
+
+  // Parse a freshly serialized URL without setSearch (window.location is a plain
+  // object here): point window.location at a real URL carrying the produced query.
+  function parseProducedUrl(producedUrl: string) {
+    const search = new URL(producedUrl, 'http://localhost').search;
+    Object.defineProperty(window, 'location', {
+      value: new URL(`http://localhost/${search}`),
+      writable: true,
+      configurable: true,
+    });
+    return readInitialUrlState();
+  }
+
+  it('serializes a select-areas selection and stamps the version', () => {
+    replaceStateSpy.mockClear();
+    renderHook(() =>
+      useSyncUrlState('00100', 'quality_index', [], 'helsinki_metro', true, {
+        draw: { mode: 'select', pnos: ['00100', '00200', '00300'] },
+      }),
+    );
+    vi.advanceTimersByTime(150);
+    const url = lastUrl();
+    expect(url).toContain('draw=s%3A00100.00200.00300'); // ':' is percent-encoded
+    expect(url).toContain(`_v=${URL_SCHEMA_VERSION}`);
+  });
+
+  it('round-trips a select-areas selection through serialize → parse', () => {
+    replaceStateSpy.mockClear();
+    renderHook(() =>
+      useSyncUrlState('00100', 'quality_index', [], 'helsinki_metro', true, {
+        draw: { mode: 'select', pnos: ['00100', '00200'] },
+      }),
+    );
+    vi.advanceTimersByTime(150);
+    expect(parseProducedUrl(lastUrl()).draw).toEqual({ mode: 'select', pnos: ['00100', '00200'] });
+  });
+
+  it('round-trips a free-hand polygon through serialize → parse (quantized to 5dp)', () => {
+    replaceStateSpy.mockClear();
+    renderHook(() =>
+      useSyncUrlState('00100', 'quality_index', [], 'helsinki_metro', true, {
+        draw: {
+          mode: 'polygon',
+          vertices: [
+            [24.941234, 60.171567],
+            [24.951111, 60.181111],
+            [24.961, 60.161],
+          ],
+        },
+      }),
+    );
+    vi.advanceTimersByTime(150);
+    expect(parseProducedUrl(lastUrl()).draw).toEqual({
+      mode: 'polygon',
+      vertices: [
+        [24.94123, 60.17157],
+        [24.95111, 60.18111],
+        [24.961, 60.161],
+      ],
+    });
+  });
+
+  it('does not write a draw param when no area is active', () => {
+    // Start from a search that differs from the state being written so a
+    // replaceState actually fires; the produced URL must carry pno but no draw.
+    Object.defineProperty(window, 'location', {
+      value: { search: '?pno=99999', hash: '', pathname: '/' },
+      writable: true,
+      configurable: true,
+    });
+    replaceStateSpy.mockClear();
+    renderHook(() => useSyncUrlState('00100', 'quality_index', [], 'helsinki_metro', true, { draw: null }));
+    vi.advanceTimersByTime(150);
+    const url = lastUrl();
+    expect(url).toContain('pno=00100');
+    expect(url).not.toContain('draw=');
   });
 });

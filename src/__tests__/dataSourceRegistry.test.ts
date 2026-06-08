@@ -14,6 +14,9 @@ import {
   DATA_SOURCE_METRICS,
   getMetricSource,
   latestVintageYear,
+  vintageFreshness,
+  NOW_YEAR,
+  STALE_VINTAGE_YEARS,
 } from '../utils/metrics';
 
 const VALID_GRANULARITY = new Set(['postal', '250m grid', 'derived']);
@@ -119,5 +122,33 @@ describe('latestVintageYear (PO-3)', () => {
     expect(latestVintageYear(null)).toBeNull();
     expect(latestVintageYear(undefined)).toBeNull();
     expect(latestVintageYear('n/a')).toBeNull();
+  });
+});
+
+describe('vintageFreshness (PO-3)', () => {
+  it('returns null when no usable year is present', () => {
+    expect(vintageFreshness(null)).toBeNull();
+    expect(vintageFreshness('n/a')).toBeNull();
+  });
+
+  it('computes years-ago from the newest year in a range', () => {
+    const f = vintageFreshness('2012–2022');
+    expect(f?.latest).toBe(2022);
+    expect(f?.yearsAgo).toBe(NOW_YEAR - 2022);
+  });
+
+  it('flags a layer stale only when older than the threshold', () => {
+    const stale = vintageFreshness(NOW_YEAR - STALE_VINTAGE_YEARS - 1);
+    expect(stale?.isStale).toBe(true);
+    const edge = vintageFreshness(NOW_YEAR - STALE_VINTAGE_YEARS);
+    expect(edge?.isStale).toBe(false);
+    expect(edge?.yearsAgo).toBe(STALE_VINTAGE_YEARS);
+  });
+
+  it('clamps a current/future vintage to zero years ago and never stale', () => {
+    const current = vintageFreshness(NOW_YEAR);
+    expect(current?.yearsAgo).toBe(0);
+    expect(current?.isStale).toBe(false);
+    expect(vintageFreshness(NOW_YEAR + 2)?.yearsAgo).toBe(0);
   });
 });

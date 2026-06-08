@@ -1,6 +1,13 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { t } from '../utils/i18n';
+import { t, getLang } from '../utils/i18n';
 import { Turnstile } from './Turnstile';
+
+// PO-14: lang-aware path to the prerendered privacy & data-handling notice.
+const PRIVACY_PATH: Record<string, string> = {
+  fi: '/tietosuoja',
+  en: '/en/privacy',
+  sv: '/sv/integritet',
+};
 
 interface AuthModalProps {
   onClose: () => void;
@@ -231,6 +238,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
               ? t('auth.submitting')
               : mode === 'login' ? t('auth.login') : t('auth.signup')}
           </button>
+
+          {/* PO-14: link the privacy & data-handling notice so users see what an
+              account stores before creating one. */}
+          <p className="text-center text-[11px] text-surface-400 dark:text-surface-500">
+            <a
+              href={PRIVACY_PATH[getLang()] ?? PRIVACY_PATH.fi}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-brand-600 dark:hover:text-brand-400"
+            >
+              {t('privacy.link')}
+            </a>
+          </p>
         </form>
       </div>
     </div>

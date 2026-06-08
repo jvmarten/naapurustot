@@ -405,7 +405,7 @@
     "transit_reachability_score": {
       "source": "HSL / johdettu",
       "vintage": 2025,
-      "granularity": "250m grid",
+      "granularity": "postal",
       "is_proxy": true,
       "row_count": 167,
       "coverage_pct": 5.5

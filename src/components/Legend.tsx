@@ -2,7 +2,7 @@ import React from 'react';
 import { getLayerById, type LayerId, type LayerConfig } from '../utils/colorScales';
 import { t, useI18nVersion, type Lang } from '../utils/i18n';
 import { getGridInfo } from '../hooks/useGridData';
-import { getMetricSource } from '../utils/metrics';
+import { getMetricSource, getCoveragePct, isPartialCoverage, isLowCoverage, formatCoveragePct } from '../utils/metrics';
 
 interface LegendProps {
   layerId: LayerId;
@@ -32,6 +32,14 @@ export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: 
   // lives in the settings menu ("data last updated") and the data-sources page,
   // so the on-map legend stays clean and uncluttered.
   const src = getMetricSource(layer.property);
+
+  // PO-2: surface real per-layer coverage. Partial layers (<95% of postal codes)
+  // get a subtle caption; genuinely sparse ones (<50%) get a warning banner instead,
+  // since the gray no-data polygons (PO-1 hatch) then dominate the choropleth.
+  const coverage = getCoveragePct(layer.property);
+  const partial = isPartialCoverage(layer.property);
+  const lowCoverage = isLowCoverage(layer.property);
+  const coverageLabel = coverage != null ? formatCoveragePct(coverage) : null;
 
   return (
     <div className="fixed md:absolute bottom-5 md:bottom-8 left-3 md:left-4 z-10">
@@ -66,6 +74,27 @@ export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: 
                              bg-amber-400/15 text-amber-600 dark:text-amber-400 border border-amber-400/30">
               {t('data.estimate')}
             </span>
+          </div>
+        )}
+        {/* PO-6: frozen/retired upstream source — postal rents can never refresh */}
+        {src?.discontinued != null && (
+          <div className="mt-2 flex items-start gap-1 text-[10px] text-amber-600 dark:text-amber-400 max-w-[160px] leading-snug">
+            <span aria-hidden="true">⚠</span>
+            <span>{t('source.discontinued').replace('{year}', String(src.discontinued))}</span>
+          </div>
+        )}
+        {/* PO-2: low-coverage banner for sparse layers (<50%) — explains the gray
+            (PO-1 no-data hatch) polygons that dominate the choropleth. */}
+        {lowCoverage && coverageLabel != null && (
+          <div className="mt-2 flex items-start gap-1 text-[10px] text-amber-600 dark:text-amber-400 max-w-[160px] leading-snug">
+            <span aria-hidden="true">▦</span>
+            <span>{t('coverage.low_banner').replace('{pct}', coverageLabel)}</span>
+          </div>
+        )}
+        {/* PO-2: subtle caption for partial-but-not-sparse layers (50–95%). */}
+        {partial && !lowCoverage && coverageLabel != null && (
+          <div className="mt-2 text-[10px] text-surface-400 dark:text-surface-500 max-w-[160px] leading-snug">
+            {t('coverage.caption').replace('{pct}', coverageLabel)}
           </div>
         )}
       </div>

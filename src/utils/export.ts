@@ -2,6 +2,16 @@ import type { NeighborhoodProperties } from './metrics';
 import { formatNumber, formatEuro, formatPct, escapeHtml } from './formatting';
 import { t, getLang } from './i18n';
 import { getQualityCategory } from './qualityIndex';
+import { readNote } from '../hooks/useNotes';
+
+/**
+ * QW-5: the user's own private note for an area, read from localStorage.
+ * Returns '' when none exists. Exports fold this in under a clearly labelled
+ * "your private notes" heading so the private text is never mistaken for source data.
+ */
+function noteFor(d: { pno?: string | null }): string {
+  return d.pno ? readNote(d.pno) : '';
+}
 
 interface StatEntry {
   label: string;
@@ -57,6 +67,27 @@ function collectStats(d: NeighborhoodProperties): StatEntry[] {
   return rows;
 }
 
+/**
+ * Trigger a browser download of a Blob. Revokes the object URL after a generous
+ * delay so slow devices have time to start the download (the blobs are small).
+ */
+function downloadBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  try {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+  } finally {
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  }
+}
+
+/** Strip characters that are illegal in filenames across platforms. */
+function safeFilePart(s: string): string {
+  return s.replace(/[/\\:*?"<>|]/g, '_');
+}
+
 function escapeCsvField(field: string): string {
   // Prevent CSV injection: prefix formula-triggering characters with a single quote
   // so Excel/LibreOffice treat the cell as text, not a formula.
@@ -77,6 +108,9 @@ export function exportCsv(d: NeighborhoodProperties, _avg: Record<string, number
   const stats = collectStats(d);
   const header = `${escapeCsvField(t('export.field'))},${escapeCsvField(t('export.value'))}`;
   const rows = stats.map((s) => `${escapeCsvField(s.label)},${escapeCsvField(s.value)}`);
+  // QW-5: fold the user's own private note in as a final labelled row.
+  const note = noteFor(d);
+  if (note) rows.push(`${escapeCsvField(t('export.your_notes'))},${escapeCsvField(note)}`);
   const csv = [header, ...rows].join('\n');
 
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
@@ -116,6 +150,7 @@ export function exportPdf(d: NeighborhoodProperties, _avg: Record<string, number
   const safeNimi = escapeHtml(d.nimi);
   const safePno = escapeHtml(d.pno);
   const safeNamn = escapeHtml(d.namn ?? '');
+  const notesBlock = notesHtml(noteFor(d));
 
   const html = `<!DOCTYPE html>
 <html lang="${escapeHtml(lang)}">
@@ -146,12 +181,26 @@ export function exportPdf(d: NeighborhoodProperties, _avg: Record<string, number
   <table>
     ${tableRows}
   </table>
+  ${notesBlock}
   <div class="footer">${escapeHtml(t('footer.attribution'))}</div>
 </div>
 </body>
 </html>`;
 
   openPrintWindow(html);
+}
+
+/**
+ * QW-5: render a "your private notes" block for the PDF reports. Returns '' when
+ * the note is empty so no empty section appears. The note text is HTML-escaped and
+ * line breaks preserved via white-space:pre-wrap.
+ */
+function notesHtml(note: string): string {
+  if (!note) return '';
+  // Inline styles (not a shared class) so the block renders identically in both the
+  // single-area report and the comparison report, whose stylesheets differ.
+  return `<div style="padding:12px 16px 4px;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#6b7280;background:#f9fafb">${escapeHtml(t('export.your_notes'))}</div>` +
+    `<div style="padding:8px 16px 14px;font-size:0.85rem;color:#374151;white-space:pre-wrap;line-height:1.5;background:#f9fafb">${escapeHtml(note)}</div>`;
 }
 
 function openPrintWindow(html: string): void {
@@ -237,6 +286,7 @@ export function exportComparisonPdf(pinned: NeighborhoodProperties[]): void {
             ${qi != null ? `<div class="qi"><span class="qi-score">${qi}</span><span>${escapeHtml(catLabel)}</span></div>` : ''}
           </div>
           <table>${rows}</table>
+          ${notesHtml(noteFor(p))}
         </div>
       </section>`;
     })
@@ -296,6 +346,29 @@ ${detailPages}
   openPrintWindow(html);
 }
 
+// ── CF-11: Shortlist export ──
+//
+// A shortlist is just a candidate set of areas. CSV is the comparison-CSV layout
+// (one metric per row, one column per area) which already handles a single area;
+// PDF reuses the per-area report for one entry and the comparison report for many,
+// so no new templating is introduced.
+
+/** Export the shortlist as a single CSV file (one metric per row, one column per area). */
+export function exportShortlistCsv(areas: NeighborhoodProperties[]): void {
+  if (areas.length === 0) return;
+  exportComparisonCsv(areas);
+}
+
+/** Export the shortlist as a printable PDF report (single-area card for one entry, comparison report for many). */
+export function exportShortlistPdf(areas: NeighborhoodProperties[]): void {
+  if (areas.length === 0) return;
+  if (areas.length === 1) {
+    exportPdf(areas[0], {});
+    return;
+  }
+  exportComparisonPdf(areas);
+}
+
 /** Export a multi-neighborhood comparison as a single CSV file. */
 export function exportComparisonCsv(pinned: NeighborhoodProperties[]): void {
   if (pinned.length === 0) return;
@@ -310,19 +383,97 @@ export function exportComparisonCsv(pinned: NeighborhoodProperties[]): void {
     const cells = allStats.map((stats) => stats[i]?.value ?? '');
     return [label, ...cells].map(escapeCsvField).join(',');
   });
+  // QW-5: fold the users' own private notes into a final labelled row (one cell per
+  // area, aligned with the per-area columns). Omitted entirely when none have a note.
+  const notes = pinned.map((p) => noteFor(p));
+  if (notes.some((n) => n)) {
+    rows.push([t('export.your_notes'), ...notes].map(escapeCsvField).join(','));
+  }
   const csv = [headerRow, ...rows].join('\n');
 
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  try {
-    const a = document.createElement('a');
-    a.href = url;
-    const slug = pinned
-      .map((p) => (p.nimi || p.pno).replace(/[/\\:*?"<>|]/g, '_'))
-      .join('_vs_');
-    a.download = `comparison_${slug}.csv`;
-    a.click();
-  } finally {
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  const slug = pinned.map((p) => safeFilePart(p.nimi || p.pno)).join('_vs_');
+  downloadBlob(blob, `comparison_${slug}.csv`);
+}
+
+// \u2500\u2500 CF-10: Machine-readable GeoJSON / JSON data export \u2500\u2500
+//
+// Emits the RAW, unformatted property values (numbers stay numbers, nulls stay
+// null) so the output drops straight into QGIS / pandas / GeoPandas. Internal
+// runtime-only keys (underscore-prefixed flags, nested object scores) are dropped
+// so consumers get a flat, tabular set of attributes. exportGeoJson preserves
+// geometry; exportJson is the geometry-free flat variant.
+
+/** Runtime-only property keys that should never leak into an exported dataset. */
+const INTERNAL_EXPORT_KEYS = new Set(['_isMetroArea', 'quality_dimension_scores']);
+
+/**
+ * Keep only flat, machine-friendly property values: strings, finite numbers,
+ * booleans and null. Drops internal flags, nested objects and arrays (e.g. the
+ * encoded trend series and dimension-score maps) so the columns stay tabular.
+ */
+function rawExportProps(props: Record<string, unknown> | null | undefined): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (!props) return out;
+  for (const [k, v] of Object.entries(props)) {
+    if (INTERNAL_EXPORT_KEYS.has(k)) continue;
+    if (v === null) { out[k] = null; continue; }
+    const tp = typeof v;
+    if (tp === 'string' || tp === 'boolean') { out[k] = v; continue; }
+    if (tp === 'number') { out[k] = Number.isFinite(v as number) ? v : null; continue; }
+    // Objects/arrays (nested score maps, geometry helpers) are intentionally skipped.
   }
+  // QW-5: fold in the user's own private note as a dedicated `user_note` property
+  // so it travels with the area's data in QGIS/pandas. Only added when non-empty.
+  const note = typeof out.pno === 'string' ? readNote(out.pno) : '';
+  if (note) out.user_note = note;
+  return out;
+}
+
+/**
+ * A GeoJSON feature whose geometry may be null. The GeoJSON spec permits null
+ * geometry, but @types/geojson's `Feature` defaults to a non-null geometry, so
+ * we widen it here for the data exports (an area's geometry may not be loaded).
+ */
+type ExportFeature = GeoJSON.Feature<GeoJSON.Geometry | null>;
+
+/** Filename slug for a set of features, capped so it stays manageable. */
+function featuresSlug(features: ExportFeature[]): string {
+  if (features.length === 1) {
+    const p = features[0].properties as Record<string, unknown> | null;
+    const name = (p?.nimi as string) || (p?.pno as string) || 'area';
+    const pno = (p?.pno as string) || '';
+    return safeFilePart(pno ? `${name}_${pno}` : name);
+  }
+  return `naapurustot_${features.length}`;
+}
+
+/**
+ * Export the given features as a downloadable GeoJSON FeatureCollection with
+ * geometry preserved and RAW (unformatted) metric properties. Used for the
+ * selected area, the pinned comparison set and the shortlist.
+ */
+export function exportGeoJson(features: ExportFeature[]): void {
+  if (features.length === 0) return;
+  const fc: GeoJSON.FeatureCollection<GeoJSON.Geometry | null> = {
+    type: 'FeatureCollection',
+    features: features.map((f) => ({
+      type: 'Feature',
+      geometry: f.geometry ?? null,
+      properties: rawExportProps(f.properties as Record<string, unknown> | null),
+    })),
+  };
+  const blob = new Blob([JSON.stringify(fc)], { type: 'application/geo+json' });
+  downloadBlob(blob, `${featuresSlug(features)}.geojson`);
+}
+
+/**
+ * Export the given features as a flat JSON array of RAW property records (no
+ * geometry) \u2014 the pandas-friendly variant.
+ */
+export function exportJson(features: ExportFeature[]): void {
+  if (features.length === 0) return;
+  const records = features.map((f) => rawExportProps(f.properties as Record<string, unknown> | null));
+  const blob = new Blob([JSON.stringify(records)], { type: 'application/json' });
+  downloadBlob(blob, `${featuresSlug(features)}.json`);
 }

@@ -67,9 +67,23 @@ this is mathematically equivalent to scoring each dimension once and then
 weighting the dimensions. Splitting Livelihood into employment 12 + income 10 +
 education 4 is what stops affluence being counted several times over: pure
 socioeconomic status now contributes ~26 % rather than ~80 %, leaving real room
-for safety (30), a healthy environment (28) and everyday ease (16). Every factor
-that carries default weight has ~97–100 % coverage in all regions except transit
-(patchy outside Helsinki) and traffic safety (~70 %), both small.
+for safety (30), a healthy environment (28) and everyday ease (16).
+
+Most default factors have ~97–100 % national coverage (Paavo, HSY, OSM), but two
+default-weighted inputs are genuinely thin and should not be read as nationwide:
+
+- **Transit** (`transit_stop_density`, weight 3) covers only **~10.9 %** of postal
+  codes — effectively the Helsinki region (HSL/Digitransit). The optional
+  `transit_reachability` factor is thinner still at **~5.5 %**.
+- **Traffic safety** (`traffic_accident_rate`, weight 4) covers **~72 %**.
+
+Under the default *Whole-of-Finland* scope a missing factor is imputed at the
+neutral midpoint, so outside the Helsinki region the transit factor neither helps
+nor hurts — the index simply has no transit signal there. To keep this honest, the
+neighbourhood panel's **Data coverage** breakdown shows each missing factor's real
+national coverage and flags the ones that are sparse *everywhere* (transit), so a
+"no data here" gap in an otherwise complete metric is visibly different from a
+metric that is thin across the whole country.
 
 ### Housing & demographics
 

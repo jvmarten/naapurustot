@@ -19,9 +19,15 @@ interface SearchBarProps {
   recent?: RecentEntry[];
   /** Pass current language to trigger re-render on language change */
   lang?: Lang;
+  /** QW-2: the postal code currently anchored as the user's home/reference baseline. */
+  homePno?: string | null;
+  /** QW-2: display name of the home neighborhood (for the "My home: {area}" chip). */
+  homeName?: string | null;
+  /** QW-2: set (or clear, with null) the home/reference baseline. */
+  onSetHome?: (pno: string | null) => void;
 }
 
-export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchData, onSelect, recent = [], lang }) => {
+export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchData, onSelect, recent = [], lang, homePno, homeName, onSetHome }) => {
   useI18nVersion();
   const displayName = (p: GeoJSON.GeoJsonProperties): string => {
     if (!p) return '';
@@ -47,6 +53,11 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
   const [addressResults, setAddressResults] = useState<GeocodeResult[]>([]);
   const geocodeTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const geocodeAbortRef = useRef<AbortController | null>(null);
+
+  // QW-2: the neighborhood a just-picked address resolved into, surfaced as a
+  // transient "set this as my home" prompt below the input. Cleared once the user
+  // acts on it or starts a new search.
+  const [homePrompt, setHomePrompt] = useState<{ pno: string; name: string } | null>(null);
 
   // Debounce the query used for the feature scan. Short delay (80ms) keeps
   // results feeling responsive while collapsing rapid keystrokes into a single scan.
@@ -186,8 +197,14 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
     try {
       const neighborhood = await findNeighborhoodForPoint(addr.coordinates);
       if (neighborhood?.properties) {
-        onSelect(neighborhood.properties.pno, addr.coordinates);
+        const pno = neighborhood.properties.pno as string;
+        onSelect(pno, addr.coordinates);
         setQuery(displayName(neighborhood.properties) || addr.label);
+        // QW-2: an address resolved to a real neighborhood → offer "set as my home".
+        // Skip the prompt when it's already the home so we don't nag.
+        if (onSetHome && pno !== homePno) {
+          setHomePrompt({ pno, name: displayName(neighborhood.properties) || pno });
+        }
       } else {
         onSelect('', addr.coordinates);
         setQuery(addr.label);
@@ -259,6 +276,8 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
           onChange={(e) => {
             setQuery(e.target.value);
             setIsOpen(true);
+            // QW-2: a fresh search supersedes any pending "set as home" prompt.
+            if (homePrompt) setHomePrompt(null);
           }}
           onFocus={() => setIsOpen(true)}
           onKeyDown={handleKeyDown}
@@ -270,7 +289,7 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
         />
         {query && (
           <button
-            onClick={() => { setQuery(''); setIsOpen(false); setAddressResults([]); inputRef.current?.focus(); }}
+            onClick={() => { setQuery(''); setIsOpen(false); setAddressResults([]); setHomePrompt(null); inputRef.current?.focus(); }}
             className="absolute inset-y-0 right-0 flex items-center pr-3 text-surface-400 hover:text-surface-600 dark:hover:text-surface-300"
             aria-label={t('search.clear')}
           >
@@ -280,6 +299,54 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
           </button>
         )}
       </div>
+
+      {/* QW-2: "set this address's area as my home" prompt after an address resolves. */}
+      {onSetHome && homePrompt && (
+        <div className="mt-1.5 flex items-center gap-2 rounded-xl bg-brand-500/10 dark:bg-brand-600/15 border border-brand-500/30 px-3 py-2 text-xs shadow-lg backdrop-blur-md">
+          <svg className="w-4 h-4 shrink-0 text-brand-600 dark:text-brand-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+          </svg>
+          <button
+            type="button"
+            onClick={() => { trackEvent('set-home-address'); onSetHome(homePrompt.pno); setHomePrompt(null); }}
+            className="flex-1 text-left font-medium text-brand-700 dark:text-brand-200 hover:underline"
+          >
+            {t('home.set_prompt').replace('{area}', homePrompt.name)}
+          </button>
+          <button
+            type="button"
+            onClick={() => setHomePrompt(null)}
+            className="shrink-0 text-surface-400 hover:text-surface-600 dark:hover:text-surface-300"
+            aria-label={t('home.dismiss')}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
+
+      {/* QW-2: persistent "My home: {area}" chip — the active reference baseline. */}
+      {homePno && homeName && (
+        <div className="mt-1.5 inline-flex max-w-full items-center gap-1.5 rounded-full bg-brand-600/90 dark:bg-brand-700/90 px-2.5 py-1 text-[11px] font-medium text-white shadow-lg backdrop-blur-md">
+          <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+          </svg>
+          <span className="truncate">{t('home.chip').replace('{area}', homeName)}</span>
+          {onSetHome && (
+            <button
+              type="button"
+              onClick={() => { trackEvent('clear-home'); onSetHome(null); }}
+              className="shrink-0 -mr-0.5 rounded-full p-0.5 hover:bg-white/20"
+              aria-label={t('home.clear')}
+            >
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* PO-5: Recent neighborhoods when input is empty/focused */}
       {isOpen && results.length === 0 && query.length < 2 && recent.length > 0 && (

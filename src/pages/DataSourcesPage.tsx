@@ -1,7 +1,7 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { LAYERS } from '../utils/colorScales';
-import { getMetricSource, DATA_SOURCE_PUBLISHERS } from '../utils/metrics';
+import { getMetricSource, getCoveragePct, formatCoveragePct, isLowCoverage, vintageFreshness, DATA_SOURCE_PUBLISHERS } from '../utils/metrics';
 import { t, getLang, setLang, useI18nVersion, type Lang } from '../utils/i18n';
 
 /**
@@ -20,6 +20,24 @@ const GRAN_KEY: Record<string, string> = {
   derived: 'sources.gran_derived',
 };
 
+/**
+ * PO-15: format the build_metadata `generated` ISO timestamp (inlined via the
+ * __BUILD_DATE__ define — see vite.config.ts; the full table stays out of the
+ * bundle) as a localized day-level date for the prominent "Data updated" note.
+ * Returns '' for an empty/invalid stamp so the section can be omitted.
+ */
+function formatGeneratedDate(iso: string | undefined, lang: Lang): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const locale = lang === 'fi' ? 'fi-FI' : lang === 'sv' ? 'sv-SE' : 'en-GB';
+  try {
+    return d.toLocaleDateString(locale, { year: 'numeric', month: 'long', day: 'numeric' });
+  } catch {
+    return iso.slice(0, 10);
+  }
+}
+
 export const DataSourcesPage: React.FC<{ lang: Lang }> = ({ lang }) => {
   useEffect(() => {
     if (getLang() !== lang) void setLang(lang);
@@ -35,6 +53,50 @@ export const DataSourcesPage: React.FC<{ lang: Lang }> = ({ lang }) => {
   const usedPublishers = Array.from(
     new Set(LAYERS.map((l) => getMetricSource(l.property)?.publisher).filter(Boolean) as string[]),
   ).map((id) => ({ id, ...DATA_SOURCE_PUBLISHERS[id] }));
+
+  // PO-3: optional recency sort. null keeps the original LAYERS order; 'newest'/'oldest'
+  // orders by the freshest year in each layer's vintage (yearless rows sort last).
+  const [sort, setSort] = useState<null | 'newest' | 'oldest'>(null);
+  const rows = useMemo(() => {
+    const base = LAYERS.map((layer) => {
+      const s = getMetricSource(layer.property);
+      return s ? { layer, s, fresh: vintageFreshness(s.year) } : null;
+    }).filter((r): r is NonNullable<typeof r> => r != null);
+    if (!sort) return base;
+    const dir = sort === 'newest' ? -1 : 1;
+    return [...base].sort((a, b) => {
+      const ya = a.fresh?.latest;
+      const yb = b.fresh?.latest;
+      if (ya == null && yb == null) return 0;
+      if (ya == null) return 1; // yearless rows always last
+      if (yb == null) return -1;
+      return (ya - yb) * dir;
+    });
+  }, [sort]);
+  const toggleSort = () => setSort((s) => (s === 'newest' ? 'oldest' : 'newest'));
+
+  // PO-15: machine-readable build_metadata rendered as a human "Data updated"
+  // changelog — the prominent generated date plus a per-source refresh log
+  // (newest vintage + how many layers it backs), grouped from the same registry
+  // the layers table above uses, sorted newest-first. Indexable on the
+  // prerendered page (scripts/prerender.mjs mirrors this in <noscript>).
+  const generatedOn = formatGeneratedDate(__BUILD_DATE__, lang);
+  const refreshLog = useMemo(() => {
+    const bySource = new Map<string, { source: string; count: number; newest: number | null }>();
+    for (const { s, fresh } of rows) {
+      const cur = bySource.get(s.source) ?? { source: s.source, count: 0, newest: null };
+      cur.count += 1;
+      const y = fresh?.latest ?? null;
+      if (y != null && (cur.newest == null || y > cur.newest)) cur.newest = y;
+      bySource.set(s.source, cur);
+    }
+    return [...bySource.values()].sort((a, b) => {
+      const ya = a.newest ?? -Infinity;
+      const yb = b.newest ?? -Infinity;
+      if (yb !== ya) return yb - ya; // newest first
+      return a.source.localeCompare(b.source);
+    });
+  }, [rows]);
 
   return (
     <main className="min-h-screen bg-surface-50 dark:bg-surface-950 text-surface-800 dark:text-surface-200">
@@ -53,6 +115,52 @@ export const DataSourcesPage: React.FC<{ lang: Lang }> = ({ lang }) => {
           {t('sources.subtitle')}
         </p>
 
+        {/* PO-15: prominent "Data updated" note + per-source refresh log, rendered
+            from the committed build_metadata provenance so it is human-readable and
+            indexable (mirrored in the prerendered <noscript>). */}
+        {generatedOn && (
+          <section
+            aria-labelledby="data-updated-heading"
+            className="mt-8 rounded-xl border border-surface-200 dark:border-surface-800 bg-surface-100/60 dark:bg-surface-900/50 p-5"
+          >
+            <h2
+              id="data-updated-heading"
+              className="text-sm font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400"
+            >
+              {t('sources.updated_heading')}
+            </h2>
+            <p className="mt-1 text-2xl font-bold text-surface-900 dark:text-white">
+              {t('sources.updated_on').replace('{date}', generatedOn)}
+            </p>
+            <p className="mt-2 max-w-2xl text-sm text-surface-600 dark:text-surface-400 leading-relaxed">
+              {t('sources.updated_intro')}
+            </p>
+
+            <h3 className="mt-5 mb-2 text-xs font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400">
+              {t('sources.refresh_log_heading')}
+            </h3>
+            <ul className="flex flex-col gap-1.5">
+              {refreshLog.map((r) => (
+                <li
+                  key={r.source}
+                  className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 border-b border-surface-200/70 dark:border-surface-800/70 pb-1.5 last:border-0 last:pb-0"
+                >
+                  <span className="text-sm text-surface-800 dark:text-surface-200">{r.source}</span>
+                  <span className="text-xs text-surface-500 dark:text-surface-400 whitespace-nowrap">
+                    {r.newest != null && (
+                      <span className="tabular-nums">
+                        {t('sources.refresh_newest').replace('{year}', String(r.newest))}
+                      </span>
+                    )}
+                    {r.newest != null && ' · '}
+                    {t('sources.refresh_layers').replace('{n}', String(r.count))}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         <h2 className="mt-10 mb-3 text-lg font-semibold text-surface-900 dark:text-white">
           {t('sources.layers_heading')}
         </h2>
@@ -63,15 +171,30 @@ export const DataSourcesPage: React.FC<{ lang: Lang }> = ({ lang }) => {
                 <th className="px-3 py-2 font-semibold">{t('sources.col_layer')}</th>
                 <th className="px-3 py-2 font-semibold">{t('sources.col_source')}</th>
                 <th className="px-3 py-2 font-semibold">{t('sources.col_license')}</th>
-                <th className="px-3 py-2 font-semibold">{t('sources.col_year')}</th>
+                <th className="px-3 py-2 font-semibold">
+                  <button
+                    type="button"
+                    onClick={toggleSort}
+                    aria-label={t('sources.sort_by_year')}
+                    className="inline-flex items-center gap-1 uppercase tracking-wider hover:text-surface-700 dark:hover:text-surface-200 transition-colors"
+                  >
+                    {t('sources.col_year')}
+                    <span aria-hidden="true" className="text-[9px] leading-none">
+                      {sort === 'newest' ? '▼' : sort === 'oldest' ? '▲' : '↕'}
+                    </span>
+                  </button>
+                </th>
                 <th className="px-3 py-2 font-semibold">{t('sources.col_granularity')}</th>
+                <th className="px-3 py-2 font-semibold">{t('sources.col_coverage')}</th>
                 <th className="px-3 py-2 font-semibold">{t('sources.col_type')}</th>
               </tr>
             </thead>
             <tbody>
-              {LAYERS.map((layer) => {
-                const s = getMetricSource(layer.property);
-                if (!s) return null;
+              {rows.map(({ layer, s, fresh }) => {
+                // PO-2: real per-postal-code coverage from build_metadata.json. Absent
+                // for client-derived metrics (e.g. quality_index) — render "—" then.
+                const cov = getCoveragePct(layer.property);
+                const lowCov = isLowCoverage(layer.property);
                 return (
                   <tr
                     key={layer.id}
@@ -91,11 +214,37 @@ export const DataSourcesPage: React.FC<{ lang: Lang }> = ({ lang }) => {
                       ) : (
                         s.source
                       )}
+                      {/* PO-4: registry caveat note (i18n key) for proxy/derived/partial metrics */}
+                      {s.note && (
+                        <span className="mt-0.5 block text-[11px] leading-snug text-surface-500 dark:text-surface-400">
+                          {t(s.note)}
+                        </span>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-surface-600 dark:text-surface-400 whitespace-nowrap">{s.license}</td>
-                    <td className="px-3 py-2 text-surface-600 dark:text-surface-400 whitespace-nowrap">{s.year}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      <span className="text-surface-600 dark:text-surface-400">{s.year}</span>
+                      {fresh?.isStale && (
+                        <span
+                          className="ml-1.5 inline-flex items-center rounded px-1.5 py-px text-[10px] font-semibold
+                                     bg-amber-400/15 text-amber-600 dark:text-amber-400 border border-amber-400/30"
+                          title={t('sources.updated_year').replace('{year}', String(fresh.latest))}
+                        >
+                          {t('sources.years_ago').replace('{n}', String(fresh.yearsAgo))}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-3 py-2 text-surface-600 dark:text-surface-400">
                       {t(GRAN_KEY[s.granularity] ?? 'sources.gran_postal')}
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      {cov != null ? (
+                        <span className={lowCov ? 'text-amber-600 dark:text-amber-400' : 'text-surface-600 dark:text-surface-400'}>
+                          {t('sources.coverage_value').replace('{pct}', formatCoveragePct(cov))}
+                        </span>
+                      ) : (
+                        <span className="text-surface-400 dark:text-surface-600">—</span>
+                      )}
                     </td>
                     <td className="px-3 py-2">
                       {s.isProxy ? (

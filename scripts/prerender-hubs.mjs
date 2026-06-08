@@ -36,6 +36,9 @@ const LOCALES = {
 
 const LANGS = ['fi', 'en', 'sv'];
 const LOCALE_TAG = { fi: 'fi-FI', en: 'en-US', sv: 'sv-SE' };
+// og:locale uses underscore-format locale identifiers (not the BCP-47 hyphen
+// tags in LOCALE_TAG used for number formatting). Mirrors index.html.
+const OG_LOCALE = { fi: 'fi_FI', en: 'en_US', sv: 'sv_FI' };
 const AREA_PREFIX = { fi: '/alue', en: '/en/area', sv: '/sv/omrade' };
 const CITY_PREFIX = { fi: '/kaupunki', en: '/en/city', sv: '/sv/stad' };
 const DIRECTORY_PATH = { fi: '/kaupungit/', en: '/en/cities/', sv: '/sv/stader/' };
@@ -110,11 +113,37 @@ const DATASET_TEXT = {
   sv: { name: (r) => `${r} – statistik per område`, desc: (r) => `Områdesstatistik för ${r}, sammanställd från öppna offentliga data.` },
 };
 
+// PO-10: localized topical keywords for the hub Dataset — the data domains the
+// registry actually covers (income, housing, services, safety, environment,
+// transport, demographics). Fixed, real descriptors; no fabricated values.
+const DATASET_KEYWORDS = {
+  fi: ['naapurustot', 'postinumeroalueet', 'väestö', 'tulot', 'asuminen', 'palvelut', 'turvallisuus', 'ympäristö', 'joukkoliikenne'],
+  en: ['neighbourhoods', 'postal code areas', 'demographics', 'income', 'housing', 'services', 'safety', 'environment', 'public transport'],
+  sv: ['bostadsområden', 'postnummerområden', 'befolkning', 'inkomst', 'boende', 'tjänster', 'säkerhet', 'miljö', 'kollektivtrafik'],
+};
+
+// PO-10: temporalCoverage derived from the registry vintages. Every vintage is
+// either a single year (number) or an `YYYY–YYYY` range string; pull all 4-digit
+// years from all of them and express the span as an ISO 8601 interval `min/max`.
+const TEMPORAL_COVERAGE = (() => {
+  const years = [];
+  for (const m of Object.values(REGISTRY.metrics ?? {})) {
+    const matches = String(m.vintage).match(/\d{4}/g);
+    if (matches) for (const y of matches) years.push(Number(y));
+  }
+  if (years.length === 0) return undefined;
+  const min = Math.min(...years);
+  const max = Math.max(...years);
+  return min === max ? String(min) : `${min}/${max}`;
+})();
+
 /** CF-11b: Dataset JSON-LD describing the open datasets behind a hub, with each
- *  registry publisher as a creator — strengthens discoverability for answer engines. */
-function buildHubDataset(lang, regionName, url) {
+ *  registry publisher as a creator — strengthens discoverability for answer engines.
+ *  PO-10: also carries spatialCoverage (region centre), keywords and temporalCoverage
+ *  so each hub Dataset is fully described. `center` is the region's [lon, lat]. */
+function buildHubDataset(lang, regionName, url, center) {
   const t = DATASET_TEXT[lang] ?? DATASET_TEXT.en;
-  return {
+  const ds = {
     '@context': 'https://schema.org',
     '@type': 'Dataset',
     name: t.name(regionName),
@@ -123,12 +152,26 @@ function buildHubDataset(lang, regionName, url) {
     inLanguage: lang,
     isAccessibleForFree: true,
     license: 'https://creativecommons.org/licenses/by/4.0/',
+    keywords: DATASET_KEYWORDS[lang] ?? DATASET_KEYWORDS.en,
     creator: Object.values(REGISTRY.publishers ?? {}).map((p) => ({ '@type': 'Organization', name: p.name, url: p.url })),
+    // PO-10: spatial extent of this hub's datasets — the region itself, located
+    // at its computed centroid. Lets answer engines place the data geographically.
+    spatialCoverage: {
+      '@type': 'Place',
+      name: regionName,
+      geo: {
+        '@type': 'GeoCoordinates',
+        latitude: Math.round(center[1] * 1e5) / 1e5,
+        longitude: Math.round(center[0] * 1e5) / 1e5,
+      },
+    },
     // Google's Dataset spec only accepts URL or Dataset for `isPartOf`; a WebSite
     // there triggers "Invalid object type for field 'isPartOf'". Express the
     // catalog membership with `includedInDataCatalog` → DataCatalog instead.
     includedInDataCatalog: { '@type': 'DataCatalog', name: 'naapurustot.fi', url: ORIGIN },
   };
+  if (TEMPORAL_COVERAGE) ds.temporalCoverage = TEMPORAL_COVERAGE;
+  return ds;
 }
 
 const STYLE = `:root{color-scheme:light dark}
@@ -190,6 +233,13 @@ function htmlPage({ lang, title, description, canonical, alternates, jsonLd, bod
     sv: 'Data: Statistikcentralen (Paavo), HSL, HSY, OpenStreetMap och andra öppna offentliga källor.',
   }[lang];
 
+  // PO-9: localized og:locale (underscore format), its two alternates, and a
+  // localized per-page og:image:alt (the page title reads well as alt text).
+  const localeAlts = LANGS
+    .filter((l) => l !== lang)
+    .map((l) => `    <meta property="og:locale:alternate" content="${OG_LOCALE[l]}" />`)
+    .join('\n');
+
   return `<!doctype html>
 <html lang="${lang}">
   <head>
@@ -209,6 +259,9 @@ ${altLinks}
     <meta property="og:title" content="${escapeHtml(title)}" />
     <meta property="og:description" content="${escapeHtml(description)}" />
     <meta property="og:image" content="${ORIGIN}/og-image.png" />
+    <meta property="og:image:alt" content="${escapeHtml(title)}" />
+    <meta property="og:locale" content="${OG_LOCALE[lang]}" />
+${localeAlts}
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image" content="${ORIGIN}/og-image.png" />
     <style>${STYLE}</style>
@@ -502,7 +555,7 @@ ${rows}
       { '@type': 'ListItem', position: 3, name: regionName },
     ],
   };
-  const dataset = buildHubDataset(lang, regionName, alternates[lang]);
+  const dataset = buildHubDataset(lang, regionName, alternates[lang], region.center);
   const jsonLd = [collection, breadcrumb, dataset]
     .map((o) => `    <script type="application/ld+json">${safeJson(o)}</script>`)
     .join('\n');

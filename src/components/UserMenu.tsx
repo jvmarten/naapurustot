@@ -14,9 +14,13 @@ interface UserMenuProps {
   favorites?: FavoriteEntry[];
   onSelectFavorite?: (pno: string) => void;
   onToggleFavorite?: (pno: string) => void;
+  /** CF-13: GDPR export — resolves to the stored record or an error string. */
+  onExportData?: () => Promise<{ data?: Record<string, unknown>; error?: string }>;
+  /** CF-13: GDPR account deletion — resolves to null on success or an error string. */
+  onDeleteAccount?: () => Promise<string | null>;
 }
 
-export const UserMenu: React.FC<UserMenuProps> = React.memo(({ user, onLogout, favorites = [], onSelectFavorite, onToggleFavorite }) => {
+export const UserMenu: React.FC<UserMenuProps> = React.memo(({ user, onLogout, favorites = [], onSelectFavorite, onToggleFavorite, onExportData, onDeleteAccount }) => {
   useI18nVersion();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -24,6 +28,60 @@ export const UserMenu: React.FC<UserMenuProps> = React.memo(({ user, onLogout, f
   const syncStatus = useSyncStatus();
   // Snapshot favorites when dropdown opens so items stay visible after unfavoriting
   const [snapshotFavorites, setSnapshotFavorites] = useState<FavoriteEntry[]>([]);
+  // CF-13: GDPR export/delete state.
+  const [exporting, setExporting] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [gdprError, setGdprError] = useState<string | null>(null);
+
+  // Reset transient GDPR UI whenever the menu closes.
+  useEffect(() => {
+    if (!open) {
+      setConfirmingDelete(false);
+      setGdprError(null);
+    }
+  }, [open]);
+
+  const handleExport = async () => {
+    if (!onExportData || exporting) return;
+    setGdprError(null);
+    setExporting(true);
+    try {
+      const { data, error } = await onExportData();
+      if (error || !data) {
+        setGdprError(error ?? t('auth.error.server_error'));
+        return;
+      }
+      // Trigger a client-side download of the JSON payload.
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'naapurustot-data.json';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!onDeleteAccount || deleting) return;
+    setGdprError(null);
+    setDeleting(true);
+    try {
+      const error = await onDeleteAccount();
+      if (error) {
+        setGdprError(error);
+        return;
+      }
+      setOpen(false);
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   useEffect(() => {
     if (open) {
@@ -151,6 +209,62 @@ export const UserMenu: React.FC<UserMenuProps> = React.memo(({ user, onLogout, f
               <p className="px-4 pb-3 text-xs text-surface-400 dark:text-surface-500">
                 {t('favorites.empty')}
               </p>
+            </div>
+          )}
+
+          {/* CF-13: GDPR data controls — only when the auth backend is wired in */}
+          {(onExportData || onDeleteAccount) && (
+            <div className="p-1.5 border-b border-surface-100 dark:border-surface-800">
+              {onExportData && (
+                <button
+                  onClick={handleExport}
+                  disabled={exporting}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-surface-700 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors disabled:opacity-50"
+                >
+                  <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                  </svg>
+                  {exporting ? t('auth.submitting') : t('account.export')}
+                </button>
+              )}
+
+              {onDeleteAccount && !confirmingDelete && (
+                <button
+                  onClick={() => { setGdprError(null); setConfirmingDelete(true); }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+                >
+                  <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                  </svg>
+                  {t('account.delete')}
+                </button>
+              )}
+
+              {onDeleteAccount && confirmingDelete && (
+                <div className="px-3 py-2">
+                  <p className="text-xs text-surface-600 dark:text-surface-400 mb-2">{t('account.delete_confirm')}</p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleDelete}
+                      disabled={deleting}
+                      className="flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-red-600 hover:bg-red-700 transition-colors disabled:opacity-50"
+                    >
+                      {deleting ? t('auth.submitting') : t('account.delete_yes')}
+                    </button>
+                    <button
+                      onClick={() => setConfirmingDelete(false)}
+                      disabled={deleting}
+                      className="flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-surface-700 dark:text-surface-300 bg-surface-100 dark:bg-surface-800 hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors disabled:opacity-50"
+                    >
+                      {t('account.delete_cancel')}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {gdprError && (
+                <p className="px-3 py-1.5 text-xs text-amber-600 dark:text-amber-400">{gdprError}</p>
+              )}
             </div>
           )}
 

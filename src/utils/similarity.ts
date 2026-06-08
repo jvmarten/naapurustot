@@ -45,6 +45,13 @@ export const AVAILABLE_SIMILARITY_METRICS: { key: keyof NeighborhoodProperties; 
 /** Valid similarity-metric keys, for validating a persisted user selection. */
 export const SIMILARITY_METRIC_KEYS: ReadonlySet<string> = new Set(SIMILARITY_METRICS as string[]);
 
+/** CF-5: per-metric weight bounds and default. A weight of 0 disables the metric;
+ *  1 is the neutral default; up to 3 lets the user emphasise a metric 3× over a
+ *  default-weighted one. The stepper UI and URL/localStorage codecs all clamp here. */
+export const SIMILARITY_WEIGHT_MIN = 0;
+export const SIMILARITY_WEIGHT_MAX = 3;
+export const SIMILARITY_WEIGHT_DEFAULT = 1;
+
 // Cache min/max ranges per dataset to avoid recomputing on every panel open.
 // The dataset reference doesn't change after initial load, so we can key on identity.
 let cachedFeatures: GeoJSON.Feature[] | null = null;
@@ -86,6 +93,11 @@ function getOrComputeRanges(allFeatures: GeoJSON.Feature[]): { mins: Record<stri
  * @param target - The neighborhood to find similarities for
  * @param allFeatures - All GeoJSON features in the dataset
  * @param count - Number of similar neighborhoods to return (default 5)
+ * @param metrics - Optional subset of metrics to compare on (default: all)
+ * @param weights - CF-5: optional per-metric weight map (0–3). A metric absent from
+ *   the map defaults to weight 1; weight 0 effectively excludes it. Each metric's
+ *   normalized squared difference is multiplied by its weight before summing, and
+ *   the total is normalized by the sum of weights actually used.
  * @returns Array of similar neighborhoods sorted by ascending distance
  */
 export function findSimilarNeighborhoods(
@@ -93,6 +105,7 @@ export function findSimilarNeighborhoods(
   allFeatures: GeoJSON.Feature[],
   count: number = 5,
   metrics?: (keyof NeighborhoodProperties)[],
+  weights?: Record<string, number>,
 ): SimilarNeighborhood[] {
   // CF-6: caller may pass a user-chosen metric subset; default to all. Ranges are
   // always computed over the full metric set (cached per dataset), so switching the
@@ -115,10 +128,19 @@ export function findSimilarNeighborhoods(
     if (props.pno === target.pno) continue;
 
     let sumSq = 0;
-    let usedMetrics = 0;
+    // CF-5: accumulate the weight actually applied (skipping metrics with no
+    // comparable value), so the distance normalizes by total weight rather than a
+    // raw metric count. With all-default weights of 1 this reduces exactly to the
+    // previous "divide by number of metrics used" behaviour.
+    let usedWeight = 0;
 
     for (const metric of activeMetrics) {
       const key = metric as string;
+
+      // CF-5: per-metric weight (default 1 when unspecified). A weight of 0 excludes
+      // the metric entirely, equivalent to deselecting it.
+      const weight = weights ? (key in weights ? weights[key] : SIMILARITY_WEIGHT_DEFAULT) : SIMILARITY_WEIGHT_DEFAULT;
+      if (weight <= 0) continue;
 
       // Skip if min-max range is unavailable (all values identical or missing)
       if (!(key in mins)) continue;
@@ -135,16 +157,16 @@ export function findSimilarNeighborhoods(
       const normalizedCandidate = (candidateVal - mins[key]) / range;
 
       const diff = normalizedTarget - normalizedCandidate;
-      sumSq += diff * diff;
-      usedMetrics++;
+      sumSq += weight * diff * diff;
+      usedWeight += weight;
     }
 
-    // Only include candidates that share at least one comparable metric
-    if (usedMetrics === 0) continue;
+    // Only include candidates that share at least one comparable, positively-weighted metric
+    if (usedWeight === 0) continue;
 
-    // Normalize distance by number of metrics used so comparisons with
-    // different numbers of available metrics are still meaningful
-    const distance = Math.sqrt(sumSq / usedMetrics);
+    // Normalize distance by total weight applied so comparisons with different
+    // numbers of available metrics (or different weights) are still meaningful.
+    const distance = Math.sqrt(sumSq / usedWeight);
 
     candidates.push({ feature, properties: props, distance });
   }

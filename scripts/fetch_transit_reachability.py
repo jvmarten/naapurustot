@@ -5,7 +5,8 @@ Compute transit reachability scores from the Helsinki Region Travel Time Matrix.
 Data source: Helsinki Region Travel Time Matrix 2023
              Zenodo: https://zenodo.org/records/11220980
              License: CC BY 4.0
-             Granularity: 250m × 250m grid (YKR grid)
+             Source granularity: 250m × 250m YKR grid (used only as an
+             intermediate; see "Published granularity" below).
 
 Method:
 1. Download the travel time matrix CSV from Zenodo
@@ -14,8 +15,14 @@ Method:
 3. Aggregate grid cells to postal code areas (area-weighted average)
 4. Normalize to a 0-100 score
 
+Published granularity: POSTAL, not grid. The score that ships in the app is a
+postal-level proxy: grid intermediates (when available) are aggregated to
+postal codes before output, and no per-cell grid is exported. Do NOT register
+this metric as "250m grid" — that would imply a per-cell precision the shipped
+data does not have. The score is is_proxy=true at postal granularity.
+
 Output: transit_reachability.json
-Format: {"00100": 85.2, "00120": 72.1, ...}  (score 0-100)
+Format: {"00100": 85.2, "00120": 72.1, ...}  (postal code -> score 0-100)
 """
 
 import json
@@ -97,30 +104,6 @@ def fetch_travel_time_summary() -> pd.DataFrame:
     return pd.DataFrame()
 
 
-def export_grid_geojson(grid: gpd.GeoDataFrame) -> None:
-    """
-    Export raw 250m grid cells as GeoJSON for fine-grained map rendering.
-
-    Each grid cell polygon retains its reachability score so the frontend
-    can render a smooth, cell-level choropleth instead of postal-code averages.
-    Output: public/data/transit_reachability_grid.geojson
-    """
-    if grid.empty or "reachability" not in grid.columns:
-        logger.warning("No grid reachability data to export")
-        return
-
-    # Convert to WGS84 for the web map
-    grid_wgs = grid.to_crs(epsg=4326) if grid.crs and grid.crs.to_epsg() != 4326 else grid
-
-    # Keep only geometry + reachability score to minimise file size
-    export = grid_wgs[["geometry", "reachability"]].copy()
-    export["reachability"] = export["reachability"].round(1)
-
-    out_path = OUT_DIR.parent / "public" / "data" / "transit_reachability_grid.geojson"
-    export.to_file(out_path, driver="GeoJSON")
-    logger.info("Wrote grid GeoJSON: %s (%d cells)", out_path, len(export))
-
-
 def compute_reachability_from_grid(
     grid: gpd.GeoDataFrame, postal: gpd.GeoDataFrame
 ) -> dict:
@@ -186,9 +169,11 @@ def main():
     if local_grid.exists():
         logger.info("Loading cached grid data from %s", local_grid)
         grid = gpd.read_file(local_grid)
+        # Grid cells are only an intermediate: aggregate to postal codes.
+        # We deliberately do NOT export a per-cell grid GeoJSON — the shipped
+        # metric is a postal-level proxy, and emitting a grid would imply a
+        # per-cell precision the published data does not have.
         result = compute_reachability_from_grid(grid, postal)
-        # Export raw 250m grid cells for fine-grained map rendering
-        export_grid_geojson(grid)
     else:
         logger.info("Travel time matrix not found locally.")
         logger.info("To populate this layer:")

@@ -35,6 +35,7 @@ export type LayerId =
   | 'income_change'
   | 'population_change'
   | 'unemployment_change'
+  | 'crime_index_change'
   // Phase 7: New data layers
   | 'voter_turnout'
   | 'party_diversity'
@@ -435,6 +436,18 @@ export const LAYERS: LayerConfig[] = [
     id: 'unemployment_change',
     labelKey: 'layer.unemployment_change',
     property: 'unemployment_change_pct',
+    unit: '%',
+    colors: ['#2166ac', '#4393c3', '#92c5de', '#d1e5f0', '#fddbc7', '#f4a582', '#d6604d', '#b2182b'],
+    stops: [-30, -20, -10, 0, 10, 20, 30, 50],
+    format: pct,
+    higherIsBetter: false,
+    divergingCenter: 0,
+  },
+  // CF-7: crime change over time (rising crime is worse → reversed ramp like unemployment_change)
+  {
+    id: 'crime_index_change',
+    labelKey: 'layer.crime_index_change',
+    property: 'crime_index_change_pct',
     unit: '%',
     colors: ['#2166ac', '#4393c3', '#92c5de', '#d1e5f0', '#fddbc7', '#f4a582', '#d6604d', '#b2182b'],
     stops: [-30, -20, -10, 0, 10, 20, 30, 50],

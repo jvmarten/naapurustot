@@ -17,6 +17,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { computeMatchingPnos, type FilterCriterion } from './utils/filterUtils';
 import { useFilterPresets } from './hooks/useFilterPresets';
 import { useQualityWeights } from './hooks/useQualityWeights';
+import { useWizardProfile, wizardAnswersToQualityWeights, type WizardAnswers } from './hooks/useWizardProfile';
 import { trackEvent } from './utils/analytics';
 import type { Feature, Polygon, MultiPolygon, Position } from 'geojson';
 
@@ -33,12 +34,14 @@ const CorrelationExplorer = lazy(() => import('./components/CorrelationExplorer'
 const RegionRankingTable = lazy(() => import('./components/RegionRankingTable').then(m => ({ default: m.RegionRankingTable })));
 import { useMapData } from './hooks/useMapData';
 import { useSearchIndex } from './hooks/useSearchIndex';
-import { useGridData } from './hooks/useGridData';
+import { useGridData, cellCentroid, clipGridToData } from './hooks/useGridData';
 import { useFavorites } from './hooks/useFavorites';
 
 import { useRecentNeighborhoods } from './hooks/useRecentNeighborhoods';
 import { useShortlist } from './hooks/useShortlist';
 import { useSelectedNeighborhood } from './hooks/useSelectedNeighborhood';
+import { useAffordability } from './hooks/useAffordability';
+import { useSimilarityMetrics } from './hooks/useSimilarityMetrics';
 import { useAuth } from './hooks/useAuth';
 const AuthModal = lazy(() => import('./components/AuthModal').then(m => ({ default: m.AuthModal })));
 const OnboardingTour = lazy(() => import('./components/OnboardingTour').then(m => ({ default: m.OnboardingTour })));
@@ -47,7 +50,7 @@ const TimeSlider = lazy(() => import('./components/TimeSlider').then(m => ({ def
 import { UserMenu, type FavoriteEntry } from './components/UserMenu';
 import { ShortlistTray } from './components/ShortlistTray';
 import { type LayerId, type ColorblindType, getLayerById, getColorblindMode, setColorblindMode, rescaleLayerToData, clearRescaleCache, TIME_SERIES_LAYERS } from './utils/colorScales';
-import { readInitialUrlState, useSyncUrlState, buildViewportShareUrl, type UrlViewport } from './hooks/useUrlState';
+import { readInitialUrlState, useSyncUrlState, buildViewportShareUrl, buildShortlistShareUrl, type UrlViewport, type UrlDraw } from './hooks/useUrlState';
 import type { NeighborhoodProperties } from './utils/metrics';
 import { computeMetroAverages, timeSeriesYearProp, getAvailableYears } from './utils/metrics';
 import { t, getLang, setLang, useI18nVersion, type Lang } from './utils/i18n';
@@ -57,6 +60,7 @@ import { buildMetroAreaFeatures, clearMetroAreaCache } from './utils/metroAreas'
 import { useAllCitiesUnionPreload } from './hooks/useAllCitiesUnionPreload';
 import { IS_EMBED, buildEmbedSnippet, buildFullViewUrl, postEmbedHeight } from './utils/embed';
 import { findNeighborhoodForPoint } from './utils/geocode';
+import { loadHomeReference, saveHomeReference } from './utils/homeReference';
 import { getFeatureCenter } from './utils/geometryFilter';
 import { ISOCHRONE_ENABLED, fetchIsochrone, type IsochroneMode } from './utils/isochrone';
 
@@ -96,7 +100,7 @@ const App: React.FC = () => {
   const searchIndex = useSearchIndex();
 
   // Auth
-  const { user, login, signup, logout } = useAuth();
+  const { user, login, signup, logout, exportData, deleteAccount } = useAuth();
   const [showAuth, setShowAuth] = useState(false);
   // QW-1: Onboarding tour
   const [showTour, setShowTour] = useState(false);
@@ -151,39 +155,109 @@ const App: React.FC = () => {
   const [activeLayer, setActiveLayerRaw] = useState<LayerId>(initialUrl.layer ?? 'quality_index');
   const setActiveLayer = useCallback((layer: LayerId) => { trackEvent('change-layer', { layer }); setActiveLayerRaw(layer); }, []);
   const { gridData: rawGridData } = useGridData(activeLayer);
-  // Clip grid cells to the loaded region's bounding box so a region-scoped
-  // view (e.g. Helsinki Metro) doesn't leak grid cells from other regions
-  // (e.g. Turku, Tampere). For the all-cities view this is a no-op because
-  // the bbox covers all of Finland.
-  const gridData = useMemo(() => {
-    if (!rawGridData || !data) return rawGridData;
+  // Clip grid cells to the loaded region so a region-scoped view (e.g. Helsinki
+  // Metro) doesn't leak grid cells from other regions (e.g. Turku, Tampere).
+  // For the all-cities view this is effectively a no-op (the region covers all
+  // of Finland). IN-2: the test is on each cell's CENTROID, not an arbitrary
+  // first ring vertex, so boundary cells no longer leak or clip incorrectly on
+  // the ~50k-cell grids.
+  //
+  // Two-stage clip:
+  //  1. `gridClipGeometry` (sync): the region bbox + each region polygon's ring
+  //     coordinates and bbox, computed once per loaded dataset.
+  //  2. bbox fast-path (sync) → exact point-in-polygon refine (async): a cheap
+  //     bbox prefilter keeps us off an O(cells × polygons) PIP sweep, then
+  //     @turf/boolean-point-in-polygon (lazy-loaded) refines the survivors
+  //     against the actual region outline.
+  const gridClipGeometry = useMemo(() => {
+    if (!data) return null;
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    // Per-polygon outer/holes rings + bbox, for the point-in-polygon refine step.
+    const polygons: { rings: Position[][]; bbox: [number, number, number, number] }[] = [];
     for (const feat of data.features) {
       const g = feat.geometry;
       if (!g) continue;
-      const polys = g.type === 'MultiPolygon' ? g.coordinates : g.type === 'Polygon' ? [g.coordinates] : null;
-      if (!polys) continue;
-      for (const poly of polys) {
+      const multi = g.type === 'MultiPolygon' ? g.coordinates : g.type === 'Polygon' ? [g.coordinates] : null;
+      if (!multi) continue;
+      for (const poly of multi) {
+        let pMinX = Infinity, pMinY = Infinity, pMaxX = -Infinity, pMaxY = -Infinity;
         for (const ring of poly) {
           for (const [x, y] of ring) {
-            if (x < minX) minX = x;
-            if (y < minY) minY = y;
-            if (x > maxX) maxX = x;
-            if (y > maxY) maxY = y;
+            if (x < pMinX) pMinX = x;
+            if (y < pMinY) pMinY = y;
+            if (x > pMaxX) pMaxX = x;
+            if (y > pMaxY) pMaxY = y;
           }
         }
+        if (!isFinite(pMinX)) continue;
+        polygons.push({ rings: poly as Position[][], bbox: [pMinX, pMinY, pMaxX, pMaxY] });
+        if (pMinX < minX) minX = pMinX;
+        if (pMinY < minY) minY = pMinY;
+        if (pMaxX > maxX) maxX = pMaxX;
+        if (pMaxY > maxY) maxY = pMaxY;
       }
     }
-    if (!isFinite(minX)) return rawGridData;
+    if (!isFinite(minX)) return null;
+    return { bbox: [minX, minY, maxX, maxY] as [number, number, number, number], polygons };
+  }, [data]);
+
+  // Stage 1: synchronous bbox-of-centroid clip. Serves as the immediate render
+  // value (no flash of out-of-region cells) and as the candidate set the async
+  // point-in-polygon pass refines. `null` cells fall through to the raw grid.
+  const gridDataBboxClipped = useMemo(() => {
+    if (!rawGridData) return rawGridData;
+    if (!gridClipGeometry) return rawGridData;
+    const [minX, minY, maxX, maxY] = gridClipGeometry.bbox;
     const features = rawGridData.features.filter((f) => {
-      const ring = (f.geometry as { coordinates?: number[][][] } | undefined)?.coordinates?.[0];
-      if (!ring || ring.length === 0) return false;
-      const [x, y] = ring[0];
-      return x >= minX && x <= maxX && y >= minY && y <= maxY;
+      const c = cellCentroid(f);
+      if (!c) return false;
+      return c[0] >= minX && c[0] <= maxX && c[1] >= minY && c[1] <= maxY;
     });
     return { ...rawGridData, features };
-  }, [rawGridData, data]);
+  }, [rawGridData, gridClipGeometry]);
+
+  // Stage 2: refine the bbox-clipped candidates against the actual region
+  // polygon(s). Lazy-loads @turf/boolean-point-in-polygon to keep it out of the
+  // main bundle. Until it resolves (and on failure) we render the bbox-clipped
+  // set, which is already centroid-correct at the bbox level.
+  const [gridData, setGridData] = useState<typeof rawGridData>(gridDataBboxClipped);
+  useEffect(() => {
+    // Nothing to refine: no grid, or no region geometry → use bbox-clipped value as-is.
+    if (!gridDataBboxClipped || !gridClipGeometry || gridClipGeometry.polygons.length === 0) {
+      setGridData(gridDataBboxClipped);
+      return;
+    }
+    // Show the bbox-clipped set immediately while the precise pass loads.
+    setGridData(gridDataBboxClipped);
+    let cancelled = false;
+    import('@turf/boolean-point-in-polygon')
+      .then(({ booleanPointInPolygon }) => {
+        if (cancelled) return;
+        const { polygons } = gridClipGeometry;
+        const features = gridDataBboxClipped.features.filter((f) => {
+          const c = cellCentroid(f);
+          if (!c) return false;
+          const [cx, cy] = c;
+          for (const { rings, bbox } of polygons) {
+            // Per-polygon bbox reject keeps PIP off polygons that can't contain the cell.
+            if (cx < bbox[0] || cx > bbox[2] || cy < bbox[1] || cy > bbox[3]) continue;
+            try {
+              if (booleanPointInPolygon(c, { type: 'Polygon', coordinates: rings })) return true;
+            } catch { /* skip invalid ring */ }
+          }
+          return false;
+        });
+        setGridData({ ...gridDataBboxClipped, features });
+      })
+      .catch(() => {
+        // Lazy import failed — keep the bbox-clipped fallback already set.
+      });
+    return () => { cancelled = true; };
+  }, [gridDataBboxClipped, gridClipGeometry]);
   const [wizardResultPnos, setWizardResultPnos] = useState<string[]>([]);
+  // CF-12: adjacent postal codes to ring-highlight, driven by the panel's
+  // neighbouring-areas lens. Cleared when the panel unmounts or the area changes.
+  const [neighborHighlightPnos, setNeighborHighlightPnos] = useState<string[]>([]);
   const [flyTarget, setFlyTarget] = useState<{ center: [number, number]; zoom?: number; bounds?: [number, number, number, number] } | null>(() => {
     // CF-1: an explicit shared viewport takes precedence over the city preset.
     if (initialUrl.viewport) {
@@ -216,6 +290,8 @@ const App: React.FC = () => {
   const customWeights = useMemo(() => isCustomWeights(qualityWeights), [qualityWeights]);
   const [colorblind, setColorblind] = useState(getColorblindMode);
   const [showWizard, setShowWizard] = useState(false);
+  // CF-4: persistent, shareable wizard priority profile (localStorage + cloud sync).
+  const { profile: wizardProfile, setProfile: setWizardProfile } = useWizardProfile(user?.id ?? null);
   const { presets: savedPresets, addPreset: saveFilterPreset, removePreset: removeFilterPreset } = useFilterPresets(user?.id ?? null);
   const [fillOpacity, setFillOpacity] = useState(() => {
     try {
@@ -230,10 +306,30 @@ const App: React.FC = () => {
   // QW-4: Split map view state
   const [splitMode, setSplitMode] = useState(false);
   const [secondaryLayer, setSecondaryLayer] = useState<LayerId>('median_income');
+  // IN-1: second grid fetch for the split view's right pane. The hook is lazy —
+  // it only fetches when `secondaryLayer` actually has a grid dataset (most don't),
+  // so this is free for the common case. Clipped to the loaded region's bbox so a
+  // region view doesn't leak national grid cells (cheaper sync clip than the main
+  // pane's async point-in-polygon refine, which is overkill for a comparison pane).
+  const { gridData: rawSecondaryGrid } = useGridData(secondaryLayer);
+  const secondaryGridData = useMemo(
+    () => clipGridToData(rawSecondaryGrid, data),
+    [rawSecondaryGrid, data],
+  );
   const { favorites, isFavorite, toggleFavorite } = useFavorites(user?.id);
   const { recent, addRecent } = useRecentNeighborhoods();
   // QW-2: durable shortlist (distinct from one-tap favorites). QW-2b: cloud-syncs when signed in.
   const { shortlist, isInShortlist, toggleShortlist, removeFromShortlist, clearShortlist, mergeIntoShortlist } = useShortlist(user?.id);
+  // CF-1: affordability calculator inputs (localStorage + URL-shared). Hydrates from a shared link.
+  const { state: affordabilityState, update: updateAffordability, urlValue: affordabilityUrl } = useAffordability(initialUrl.affordability);
+  // CF-5: per-metric similarity weights (localStorage + URL-shared). Lifted here so the
+  // URL writer can carry them; the panel drives the controls via the passed props.
+  const {
+    weights: similarityWeights,
+    setWeight: setSimilarityWeight,
+    toggle: toggleSimilarityMetric,
+    urlWeights: similarityUrlWeights,
+  } = useSimilarityMetrics(initialUrl.simWeights);
   const restoredPno = useRef(false);
   // Monotonic version counter to force re-renders when quality indices change
   const [qualityVersion, setQualityVersion] = useState(0);
@@ -275,7 +371,8 @@ const App: React.FC = () => {
   // CF-5: custom reference baseline — compare the panel's diffs + radar overlay
   // against a user-pinned neighbourhood instead of the region average. Falls back to
   // the average when no reference is set or when viewing the reference area itself.
-  const [referencePno, setReferencePno] = useState<string | null>(initialUrl.ref);
+  // QW-2: a shared `ref` link wins; otherwise restore the user's persisted "my home".
+  const [referencePno, setReferencePno] = useState<string | null>(() => initialUrl.ref ?? loadHomeReference());
   const referenceProps = useMemo(
     () => (referencePno ? (pnoFeatureMap.get(referencePno)?.properties as NeighborhoodProperties | undefined) : undefined),
     [referencePno, pnoFeatureMap],
@@ -290,6 +387,9 @@ const App: React.FC = () => {
   );
   const handleSetReference = useCallback((pno: string | null) => {
     setReferencePno(pno);
+    // QW-2: mirror to localStorage so "my home" survives reloads (URL `ref` still
+    // carries it for sharing; this restores it when no link is present).
+    saveHomeReference(pno);
     trackEvent(pno ? 'set-reference' : 'clear-reference');
   }, []);
 
@@ -514,6 +614,20 @@ const App: React.FC = () => {
     return () => { cancelled = true; };
   }, [drawnPolygon, data, selectedAreaPnos]);
 
+  // CF-9: encode the active analysis area for the share URL. A select-areas
+  // selection (pnos present) serializes as a pno list; a free-hand drawn polygon
+  // serializes as its ring vertices. Null when no area is active. Tracked via its
+  // own key in useSyncUrlState, so this only drives the URL — never a render loop.
+  const drawUrlValue = useMemo<UrlDraw | null>(() => {
+    if (!drawnPolygon) return null;
+    if (selectedAreaPnos.length > 0) return { mode: 'select', pnos: selectedAreaPnos };
+    const ring = drawnPolygon.geometry.coordinates[0];
+    if (!ring || ring.length < 4) return null; // closed ring needs >=4 points (3 distinct + close)
+    // Drop the duplicated closing vertex; deserializeDraw re-closes the ring.
+    const vertices = ring.slice(0, -1).map(([lng, lat]) => [lng, lat] as [number, number]);
+    return vertices.length >= 3 ? { mode: 'polygon', vertices } : null;
+  }, [drawnPolygon, selectedAreaPnos]);
+
   const handleSelectAreaClick = useCallback((props: NeighborhoodProperties) => {
     const pno = props.pno;
     setSelectedAreaPnos((prev) => {
@@ -622,8 +736,35 @@ const App: React.FC = () => {
   useEffect(() => {
     if (initialUrl.weights) setQualityWeights(initialUrl.weights);
     if (initialUrl.shortlist.length > 0) mergeIntoShortlist(initialUrl.shortlist);
+    // CF-4: restore a shared wizard priority profile so the finder reopens pre-filled.
+    if (initialUrl.wizardProfile) setWizardProfile(initialUrl.wizardProfile);
+    // CF-9: restore a shared drawn/selected analysis area so AreaSummaryPanel reopens.
+    // Free-hand polygons reconstruct immediately (no data needed); select-areas
+    // selections only set the pnos here — the latched effect below promotes them
+    // to a hull polygon once the region's geometry has loaded.
+    const draw = initialUrl.draw;
+    if (draw) {
+      if (draw.mode === 'polygon') {
+        const closed = [...draw.vertices, draw.vertices[0]];
+        setDrawnPolygon({ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [closed] } });
+      } else {
+        setSelectedAreaPnos(draw.pnos);
+      }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
   }, []);
+
+  // CF-9: promote a restored select-areas selection to a drawn polygon once the
+  // selected-areas hull can be computed (needs the region geometry to be loaded).
+  // Latches after the first promotion so later selection edits aren't overridden.
+  const drawRestoredRef = useRef(initialUrl.draw?.mode !== 'select');
+  useEffect(() => {
+    if (drawRestoredRef.current) return;
+    if (selectedAreasPolygon) {
+      drawRestoredRef.current = true;
+      setDrawnPolygon(selectedAreasPolygon);
+    }
+  }, [selectedAreasPolygon]);
 
   // Memoize pinned PNO array to avoid new references on every render.
   // Without this, Map's pinnedPnos useEffect fires on every App re-render,
@@ -657,6 +798,12 @@ const App: React.FC = () => {
     weights: qualityWeights,
     isochrone: isochronePolygon ? { mode: isochroneMode, budget: isochroneBudget } : null,
     shortlist,
+    affordability: affordabilityUrl,
+    simWeights: similarityUrlWeights,
+    // CF-9: shared drawn/selected analysis area.
+    draw: drawUrlValue,
+    // CF-4: shared wizard priority profile (only emitted when non-default).
+    wizardProfile,
   });
 
   // Recompute quality indices when custom weights change.
@@ -1049,7 +1196,19 @@ const App: React.FC = () => {
     setWizardResultPnos(pnos);
     setShowWizard(false);
   }, []);
+  // CF-4: persist the wizard's priority profile (localStorage + cloud + share URL).
+  const handleSaveWizardProfile = useCallback((answers: WizardAnswers) => {
+    setWizardProfile(answers);
+  }, [setWizardProfile]);
+  // CF-4: map the wizard's stated priorities onto the live Quality Index weights, so
+  // the headline map score reflects them continuously. Persists the profile too.
+  const handleApplyWizardToMap = useCallback((answers: WizardAnswers) => {
+    setWizardProfile(answers);
+    handleQualityWeightsChange(wizardAnswersToQualityWeights(answers));
+  }, [setWizardProfile, handleQualityWeightsChange]);
   const handleFlyTo = useCallback((center: [number, number]) => setFlyTarget({ center }), []);
+  // CF-12: stable setter for the panel's spatial-neighbour ring highlight.
+  const handleHighlightNeighbors = useCallback((pnos: string[]) => setNeighborHighlightPnos(pnos), []);
 
   // Memoize the headerSlot to avoid creating new React elements on every App render.
   // Without this, LayerSelector (React.memo) re-renders on every unrelated state change.
@@ -1135,6 +1294,16 @@ const App: React.FC = () => {
     () => shortlist.map((pno) => ({ pno, name: (pnoFeatureMap.get(pno)?.properties?.nimi as string | undefined) ?? pno })),
     [shortlist, pnoFeatureMap],
   );
+  // CF-10: resolve a pno's map feature/geometry for the GeoJSON data exports
+  // (shortlist tray + comparison set). Geometry lives only in pnoFeatureMap.
+  const featureFor = useCallback(
+    (pno: string): GeoJSON.Feature | null => pnoFeatureMap.get(pno) ?? null,
+    [pnoFeatureMap],
+  );
+  const geometryFor = useCallback(
+    (pno: string): GeoJSON.Geometry | null => pnoFeatureMap.get(pno)?.geometry ?? null,
+    [pnoFeatureMap],
+  );
   const handleCompareShortlist = useCallback(() => {
     trackEvent('shortlist-compare');
     for (const pno of shortlist) {
@@ -1142,6 +1311,12 @@ const App: React.FC = () => {
       if (f?.properties) pin(f.properties as NeighborhoodProperties);
     }
   }, [shortlist, pin]);
+  // CF-11: a MINIMAL share link carrying ONLY the shortlist + city, so a recipient
+  // gets the candidate set on a clean view (none of the author's layer/filter/weight state).
+  const shortlistShareUrl = useMemo(
+    () => buildShortlistShareUrl(shortlist, cityFilter),
+    [shortlist, cityFilter],
+  );
 
   // Resolve pending metro area favorite after allCitiesData becomes available
   useEffect(() => {
@@ -1389,6 +1564,10 @@ const App: React.FC = () => {
               onLeftLayerChange={setActiveLayer}
               onRightLayerChange={setSecondaryLayer}
               colorblind={colorblind}
+              leftGridData={gridData}
+              rightGridData={secondaryGridData}
+              metroAverages={cityAverages}
+              onSelectNeighborhood={handleClick}
             />
           </Suspense>
         ) : (
@@ -1405,6 +1584,7 @@ const App: React.FC = () => {
             qualityVersion={qualityVersion}
             colorblind={colorblind}
             wizardHighlightPnos={wizardResultPnos}
+            neighborHighlightPnos={neighborHighlightPnos}
             fillOpacity={fillOpacity}
             gridData={gridData}
             drawMode={drawMode}
@@ -1500,7 +1680,7 @@ const App: React.FC = () => {
         {/* Right: city selector & auth */}
         <div className="flex items-center gap-1.5 shrink-0">
           {user ? (
-            <UserMenu user={user} onLogout={logout} favorites={favoriteEntries} onSelectFavorite={handleSelectFavorite} onToggleFavorite={toggleFavorite} />
+            <UserMenu user={user} onLogout={logout} favorites={favoriteEntries} onSelectFavorite={handleSelectFavorite} onToggleFavorite={toggleFavorite} onExportData={exportData} onDeleteAccount={deleteAccount} />
           ) : (
             <button
               data-tour-id="auth"
@@ -1527,7 +1707,16 @@ const App: React.FC = () => {
       {/* Search bar (hidden in embed mode) */}
       {!IS_EMBED && (
         <div data-tour-id="search" className="absolute top-[3.5rem] left-3 md:left-4 z-10 w-52 md:w-72">
-          <SearchBar data={data} searchData={searchIndex} onSelect={handleSearch} recent={recent} lang={lang} />
+          <SearchBar
+            data={data}
+            searchData={searchIndex}
+            onSelect={handleSearch}
+            recent={recent}
+            lang={lang}
+            homePno={referencePno}
+            homeName={referenceName}
+            onSetHome={handleSetReference}
+          />
         </div>
       )}
 
@@ -1665,6 +1854,12 @@ const App: React.FC = () => {
             isochroneActive={isochronePolygon != null}
             onIsochroneChange={handleIsochroneChange}
             onIsochroneClear={handleIsochroneClear}
+            affordabilityState={affordabilityState}
+            onAffordabilityChange={updateAffordability}
+            similarityWeights={similarityWeights}
+            onSimilarityWeightChange={setSimilarityWeight}
+            onSimilarityToggle={toggleSimilarityMetric}
+            onHighlightNeighbors={handleHighlightNeighbors}
           />
           </Suspense>
         </ErrorBoundary>
@@ -1706,6 +1901,10 @@ const App: React.FC = () => {
               onSelect={handleSearch}
               onClose={handleCloseWizard}
               onShowOnMap={handleWizardShowOnMap}
+              initialAnswers={wizardProfile}
+              onSaveProfile={handleSaveWizardProfile}
+              onApplyToMap={handleApplyWizardToMap}
+              affordability={affordabilityState}
             />
           </Suspense>
         </ErrorBoundary>
@@ -1719,6 +1918,8 @@ const App: React.FC = () => {
           onRemove={removeFromShortlist}
           onCompare={handleCompareShortlist}
           onClear={clearShortlist}
+          featureFor={featureFor}
+          shareUrl={shortlistShareUrl}
         />
       )}
 
@@ -1726,7 +1927,7 @@ const App: React.FC = () => {
       {!IS_EMBED && pinned.length >= 1 && (
         <ErrorBoundary>
           <Suspense fallback={null}>
-            <ComparisonPanel pinned={pinned} onUnpin={unpin} onClear={clearPinned} reference={referenceProps ?? null} referenceName={referenceName} />
+            <ComparisonPanel pinned={pinned} onUnpin={unpin} onClear={clearPinned} reference={referenceProps ?? null} referenceName={referenceName} geometryFor={geometryFor} />
           </Suspense>
         </ErrorBoundary>
       )}
@@ -1820,6 +2021,14 @@ const App: React.FC = () => {
               className="underline hover:text-brand-600 dark:hover:text-brand-300"
             >
               {t('footer.sources')}
+            </a>
+            {' · '}
+            {/* PO-14: link to the public privacy & data-handling notice (lang-aware) */}
+            <a
+              href={lang === 'en' ? '/en/privacy' : lang === 'sv' ? '/sv/integritet' : '/tietosuoja'}
+              className="underline hover:text-brand-600 dark:hover:text-brand-300"
+            >
+              {t('privacy.link')}
             </a>
           </p>
         </div>

@@ -19,6 +19,10 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { createHash } from 'crypto';
+// PO-13: the single card-templating helper (shared with CF-11's runtime
+// shortlist card). Pure SVG → no new client-bundle deps, no rasteriser.
+import { buildSocialCardSvg } from './social-card.mjs';
 // The app's data-processing functions, reused at build time so each page can
 // embed a render-ready payload. Both modules have type-only imports, so Node's
 // TypeScript stripping (Node 22.18+/24) loads them without a build step.
@@ -33,6 +37,10 @@ import {
 // CF-11: the single source of truth for percentile ranks, shared with the
 // client-rendered <JsonLd /> so prerendered and hydrated structured data agree.
 import { computeNeighbourhoodPercentiles } from '../src/utils/percentileRanks.ts';
+// CF-2: plain-language strengths/weaknesses, templated from the same real
+// direction-aware percentiles as the client panel, so the SEO meta/noscript copy
+// matches the in-app summary exactly.
+import { computeAreaSummary, composeSummarySentences, fillTemplate } from '../src/utils/areaSummary.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -44,6 +52,17 @@ const template = readFileSync(join(DIST, 'index.html'), 'utf-8');
 
 // Read GeoJSON.
 const geojson = JSON.parse(readFileSync(GEOJSON_PATH, 'utf-8'));
+
+// PO-15: the committed provenance manifest — `generated` timestamp and per-metric
+// vintage/coverage. Read directly here (a build script, no client-bundle budget) to
+// render the human, indexable "Data updated" changelog into the data-sources noscript.
+const BUILD_METADATA = (() => {
+  try {
+    return JSON.parse(readFileSync(join(ROOT, 'src', 'data', 'build_metadata.json'), 'utf-8'));
+  } catch {
+    return { generated: '', metrics: {} };
+  }
+})();
 
 // Process every feature exactly as the client's dataLoader does (same order),
 // so each page can embed a payload the React app renders from instantly —
@@ -74,6 +93,23 @@ function percentilesFor(props) {
   return computeNeighbourhoodPercentiles(props, NATIONAL_SOURCES, regional);
 }
 
+/**
+ * CF-2: localized plain-language strength/weakness sentences for one area, ranked
+ * against the full national cohort so the "top {pct}% nationally" wording is true.
+ * Returns finished strings (empty when nothing notable). Label and template lookups
+ * go through LOCALES so the prerendered copy matches the client panel's `t()` output.
+ */
+function summarySentencesFor(props, lang) {
+  const summary = computeAreaSummary(props, NATIONAL_SOURCES);
+  const L = LOCALES[lang];
+  const tr = (k) => L?.[k] ?? LOCALES.fi[k] ?? k;
+  const specs = composeSummarySentences(summary, {
+    label: (k) => tr(k),
+    and: tr('summary.and'),
+  });
+  return specs.map((s) => fillTemplate(tr(s.key), s.tokens));
+}
+
 // UI translations — used to resolve region names and metric labels so that
 // every page uses the same wording as the app, in all three languages.
 const LOCALES = {
@@ -83,6 +119,9 @@ const LOCALES = {
 };
 
 const LOCALE_TAG = { fi: 'fi-FI', en: 'en-US', sv: 'sv-SE' };
+// og:locale uses underscore-format locale identifiers (not the BCP-47 hyphen
+// tags in LOCALE_TAG used for number formatting). Mirrors index.html.
+const OG_LOCALE = { fi: 'fi_FI', en: 'en_US', sv: 'sv_FI' };
 /** Path prefix for a regional hub page, per language. */
 const CITY_PREFIX = { fi: '/kaupunki', en: '/en/city', sv: '/sv/stad' };
 /** All-areas directory URL, per language. */
@@ -110,6 +149,30 @@ function escapeHtml(str) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+/**
+ * Rewrite the template's Open Graph locale tags to the page language: the single
+ * `og:locale` becomes this page's underscore locale, and the two
+ * `og:locale:alternate` tags become the other two languages. `og:image:alt` is
+ * set to a localized per-page string (the localized page title works well).
+ */
+function localizeOgLocale(html, lang, imageAlt) {
+  const alternates = ['fi', 'en', 'sv'].filter((l) => l !== lang);
+  html = html.replace(
+    /<meta property="og:image:alt" content="[^"]*" \/>/,
+    `<meta property="og:image:alt" content="${escapeHtml(imageAlt)}" />`,
+  );
+  html = html.replace(
+    /<meta property="og:locale" content="[^"]*" \/>/,
+    `<meta property="og:locale" content="${OG_LOCALE[lang]}" />`,
+  );
+  let i = 0;
+  html = html.replace(
+    /<meta property="og:locale:alternate" content="[^"]*" \/>/g,
+    () => `<meta property="og:locale:alternate" content="${OG_LOCALE[alternates[i++]]}" />`,
+  );
+  return html;
 }
 
 /** Resolve the localized display name of a region (seutukunta). */
@@ -265,6 +328,26 @@ const TEXT = {
     descIncRank: (top) => `Mediaanituloltaan koko maan parhaassa ${top} %:ssa.`,
     descTransitRank: (top) => `Joukkoliikenteen saavutettavuudessa koko maan parhaassa ${top} %:ssa.`,
     faqHeading: 'Usein kysytyt kysymykset',
+    faqCrimeRankQ: (n) => `Kuinka turvallinen ${n} on?`,
+    faqCrimeRankA: (n, top, regTop, region) =>
+      `${n} kuuluu turvallisuudessa koko maan parhaaseen ${top} %:iin` +
+      `${regTop != null && region ? ` ja seutukunnan ${region} parhaaseen ${regTop} %:iin` : ''}.`,
+    faqAirRankQ: (n) => `Millainen ilmanlaatu alueella ${n} on?`,
+    faqAirRankA: (n, top, regTop, region) =>
+      `${n} kuuluu ilmanlaadultaan koko maan parhaaseen ${top} %:iin` +
+      `${regTop != null && region ? ` ja seutukunnan ${region} parhaaseen ${regTop} %:iin` : ''}.`,
+    faqTreeRankQ: (n) => `Kuinka vehreä ${n} on?`,
+    faqTreeRankA: (n, top, regTop, region) =>
+      `${n} kuuluu puuston latvuspeitossa koko maan parhaaseen ${top} %:iin` +
+      `${regTop != null && region ? ` ja seutukunnan ${region} parhaaseen ${regTop} %:iin` : ''}.`,
+    faqEduRankQ: (n) => `Kuinka korkeasti koulutettuja ${n} asukkaat ovat?`,
+    faqEduRankA: (n, top, regTop, region) =>
+      `${n} kuuluu korkeakoulutusasteessa koko maan parhaaseen ${top} %:iin` +
+      `${regTop != null && region ? ` ja seutukunnan ${region} parhaaseen ${regTop} %:iin` : ''}.`,
+    faqEmpRankQ: (n) => `Kuinka korkea työllisyysaste alueella ${n} on?`,
+    faqEmpRankA: (n, top, regTop, region) =>
+      `${n} kuuluu työllisyysasteessa koko maan parhaaseen ${top} %:iin` +
+      `${regTop != null && region ? ` ja seutukunnan ${region} parhaaseen ${regTop} %:iin` : ''}.`,
     faqPopQ: (n) => `Mikä on ${n} väkiluku?`,
     faqPopA: (n, v) => `${n} väkiluku on noin ${v} asukasta.`,
     faqIncQ: (n) => `Mikä on mediaanitulo alueella ${n}?`,
@@ -302,6 +385,26 @@ const TEXT = {
     descIncRank: (top) => `Ranks in the top ${top}% nationally for median income.`,
     descTransitRank: (top) => `Ranks in the top ${top}% nationally for public-transport access.`,
     faqHeading: 'Frequently asked questions',
+    faqCrimeRankQ: (n) => `How safe is ${n}?`,
+    faqCrimeRankA: (n, top, regTop, region) =>
+      `${n} ranks in the top ${top}% nationally for safety` +
+      `${regTop != null && region ? ` and in the top ${regTop}% within the ${region} sub-region` : ''}.`,
+    faqAirRankQ: (n) => `What is the air quality in ${n}?`,
+    faqAirRankA: (n, top, regTop, region) =>
+      `${n} ranks in the top ${top}% nationally for air quality` +
+      `${regTop != null && region ? ` and in the top ${regTop}% within the ${region} sub-region` : ''}.`,
+    faqTreeRankQ: (n) => `How green is ${n}?`,
+    faqTreeRankA: (n, top, regTop, region) =>
+      `${n} ranks in the top ${top}% nationally for tree canopy cover` +
+      `${regTop != null && region ? ` and in the top ${regTop}% within the ${region} sub-region` : ''}.`,
+    faqEduRankQ: (n) => `How highly educated are residents of ${n}?`,
+    faqEduRankA: (n, top, regTop, region) =>
+      `${n} ranks in the top ${top}% nationally for higher education` +
+      `${regTop != null && region ? ` and in the top ${regTop}% within the ${region} sub-region` : ''}.`,
+    faqEmpRankQ: (n) => `How high is the employment rate in ${n}?`,
+    faqEmpRankA: (n, top, regTop, region) =>
+      `${n} ranks in the top ${top}% nationally for employment rate` +
+      `${regTop != null && region ? ` and in the top ${regTop}% within the ${region} sub-region` : ''}.`,
     faqPopQ: (n) => `What is the population of ${n}?`,
     faqPopA: (n, v) => `${n} has a population of about ${v}.`,
     faqIncQ: (n) => `What is the median income in ${n}?`,
@@ -339,6 +442,26 @@ const TEXT = {
     descIncRank: (top) => `Hör till de bästa ${top} % i landet i medianinkomst.`,
     descTransitRank: (top) => `Hör till de bästa ${top} % i landet i kollektivtrafikens tillgänglighet.`,
     faqHeading: 'Vanliga frågor',
+    faqCrimeRankQ: (n) => `Hur säkert är ${n}?`,
+    faqCrimeRankA: (n, top, regTop, region) =>
+      `${n} hör till de bästa ${top} % i landet i säkerhet` +
+      `${regTop != null && region ? ` och till de bästa ${regTop} % i regionen ${region}` : ''}.`,
+    faqAirRankQ: (n) => `Hur är luftkvaliteten i ${n}?`,
+    faqAirRankA: (n, top, regTop, region) =>
+      `${n} hör till de bästa ${top} % i landet i luftkvalitet` +
+      `${regTop != null && region ? ` och till de bästa ${regTop} % i regionen ${region}` : ''}.`,
+    faqTreeRankQ: (n) => `Hur grönt är ${n}?`,
+    faqTreeRankA: (n, top, regTop, region) =>
+      `${n} hör till de bästa ${top} % i landet i krontäckning` +
+      `${regTop != null && region ? ` och till de bästa ${regTop} % i regionen ${region}` : ''}.`,
+    faqEduRankQ: (n) => `Hur högutbildade är invånarna i ${n}?`,
+    faqEduRankA: (n, top, regTop, region) =>
+      `${n} hör till de bästa ${top} % i landet i högre utbildning` +
+      `${regTop != null && region ? ` och till de bästa ${regTop} % i regionen ${region}` : ''}.`,
+    faqEmpRankQ: (n) => `Hur hög är sysselsättningsgraden i ${n}?`,
+    faqEmpRankA: (n, top, regTop, region) =>
+      `${n} hör till de bästa ${top} % i landet i sysselsättningsgrad` +
+      `${regTop != null && region ? ` och till de bästa ${regTop} % i regionen ${region}` : ''}.`,
     faqPopQ: (n) => `Vad är folkmängden i ${n}?`,
     faqPopA: (n, v) => `${n} har en folkmängd på cirka ${v}.`,
     faqIncQ: (n) => `Vad är medianinkomsten i ${n}?`,
@@ -388,6 +511,12 @@ function buildNoscriptContent(props, lang) {
   lines.push(`      <h1>${name} (${pno})</h1>`);
   lines.push(`      <p>${escapeHtml(T.intro(displayName, props.pno, regionName, count))}</p>`);
 
+  // CF-2: plain-language strengths/weaknesses, from this area's real percentiles.
+  const summarySentences = summarySentencesFor(props, lang);
+  if (summarySentences.length > 0) {
+    lines.push(`      <p>${escapeHtml(summarySentences.join(' '))}</p>`);
+  }
+
   for (const section of sections) {
     lines.push(`      <h2>${escapeHtml(SECTION_LABELS[section.id][lang])}</h2>`);
     lines.push('      <table><tbody>');
@@ -433,12 +562,19 @@ function buildDescription(props, lang, displayName, region) {
   if (props.hr_mtu != null && Number.isFinite(Number(props.hr_mtu))) {
     parts.push(`${T.income} ${fmtNum(Math.round(Number(props.hr_mtu)), 0, lang)} €.`);
   }
-  // CF-11: lead with the strongest available national superlative (quality →
-  // income → transit) so the meta description carries a verifiable ranking.
-  const pct = percentilesFor(props);
-  if (pct.quality.nationalTop != null) parts.push(T.descRank(pct.quality.nationalTop));
-  else if (pct.income.nationalTop != null) parts.push(T.descIncRank(pct.income.nationalTop));
-  else if (pct.transit.nationalTop != null) parts.push(T.descTransitRank(pct.transit.nationalTop));
+  // CF-2: lead the meta with the auto-composed strength/weakness sentence (it can
+  // name several metrics at once, e.g. "top 8% nationally for income and transit").
+  // Falls back to the CF-11 single-superlative ranking when the summary is empty so
+  // the description always carries a verifiable percentile.
+  const summarySentences = summarySentencesFor(props, lang);
+  if (summarySentences.length > 0) {
+    parts.push(summarySentences[0]);
+  } else {
+    const pct = percentilesFor(props);
+    if (pct.quality.nationalTop != null) parts.push(T.descRank(pct.quality.nationalTop));
+    else if (pct.income.nationalTop != null) parts.push(T.descIncRank(pct.income.nationalTop));
+    else if (pct.transit.nationalTop != null) parts.push(T.descTransitRank(pct.transit.nationalTop));
+  }
   parts.push(T.descTail);
   return parts.join(' ');
 }
@@ -464,6 +600,23 @@ function buildFaq(props, lang) {
   }
   if (pct.transit.nationalTop != null) {
     qa.push({ q: T.faqTransitRankQ(name), a: T.faqTransitRankA(name, pct.transit.nationalTop, pct.transit.regionalTop, region) });
+  }
+  // CF-8: broaden the verifiable superlatives — crime/safety, air quality, tree
+  // canopy, higher education and employment, each ranked from its own direction.
+  if (pct.crime.nationalTop != null) {
+    qa.push({ q: T.faqCrimeRankQ(name), a: T.faqCrimeRankA(name, pct.crime.nationalTop, pct.crime.regionalTop, region) });
+  }
+  if (pct.air.nationalTop != null) {
+    qa.push({ q: T.faqAirRankQ(name), a: T.faqAirRankA(name, pct.air.nationalTop, pct.air.regionalTop, region) });
+  }
+  if (pct.treeCanopy.nationalTop != null) {
+    qa.push({ q: T.faqTreeRankQ(name), a: T.faqTreeRankA(name, pct.treeCanopy.nationalTop, pct.treeCanopy.regionalTop, region) });
+  }
+  if (pct.education.nationalTop != null) {
+    qa.push({ q: T.faqEduRankQ(name), a: T.faqEduRankA(name, pct.education.nationalTop, pct.education.regionalTop, region) });
+  }
+  if (pct.employment.nationalTop != null) {
+    qa.push({ q: T.faqEmpRankQ(name), a: T.faqEmpRankA(name, pct.employment.nationalTop, pct.employment.regionalTop, region) });
   }
   return qa;
 }
@@ -522,6 +675,18 @@ function buildJsonLd(props, center, url, lang) {
     ['medianIncomeTopPercentileRegional', pct.income.regionalTop],
     ['transitReachabilityTopPercentileNational', pct.transit.nationalTop],
     ['transitReachabilityTopPercentileRegional', pct.transit.regionalTop],
+    // CF-8: additional verifiable superlatives (crime/safety, air, tree canopy,
+    // higher education, employment), national + within-region.
+    ['safetyTopPercentileNational', pct.crime.nationalTop],
+    ['safetyTopPercentileRegional', pct.crime.regionalTop],
+    ['airQualityTopPercentileNational', pct.air.nationalTop],
+    ['airQualityTopPercentileRegional', pct.air.regionalTop],
+    ['treeCanopyTopPercentileNational', pct.treeCanopy.nationalTop],
+    ['treeCanopyTopPercentileRegional', pct.treeCanopy.regionalTop],
+    ['higherEducationTopPercentileNational', pct.education.nationalTop],
+    ['higherEducationTopPercentileRegional', pct.education.regionalTop],
+    ['employmentRateTopPercentileNational', pct.employment.nationalTop],
+    ['employmentRateTopPercentileRegional', pct.employment.regionalTop],
   ];
   for (const [pname, value] of pctProps) {
     if (value != null) additionalProperty.push({ '@type': 'PropertyValue', name: pname, value });
@@ -561,6 +726,68 @@ function buildJsonLd(props, center, url, lang) {
     faqScript = `\n    <script type="application/ld+json">${safeJson(faqPage)}</script>`;
   }
   return `<script type="application/ld+json">${safeJson(place)}</script>\n    <script type="application/ld+json">${safeJson(breadcrumb)}</script>${faqScript}`;
+}
+
+// PO-13: emit one templated SVG social card per profile into the build output
+// (dist/og/), as a content-hashed static asset — never committed to the repo.
+const CARD_DIR = join(DIST, 'og');
+const ORIGIN = 'https://naapurustot.fi';
+let cardsWritten = 0;
+
+/**
+ * Localized best-percentile badge for the card: the single most favourable
+ * "Top X% nationally" superlative this area can claim, picked across the same
+ * percentile metrics the FAQ/JSON-LD use. Returns null when none qualify (e.g.
+ * an area with no rankable metrics), in which case the card omits the pill.
+ */
+function bestNationalBadge(props, lang) {
+  const pct = percentilesFor(props);
+  // Prefer the strongest (lowest "top X%") of the headline metrics, in a stable
+  // priority order so the badge is deterministic for ties.
+  const candidates = [pct.quality, pct.income, pct.transit, pct.education, pct.crime, pct.air, pct.treeCanopy, pct.employment]
+    .map((m) => m?.nationalTop)
+    .filter((v) => v != null);
+  if (candidates.length === 0) return null;
+  const best = Math.min(...candidates);
+  const tmpl = LOCALES[lang]?.['card.badge_national'] ?? LOCALES.fi['card.badge_national'];
+  return fillTemplate(tmpl, { pct: String(best) });
+}
+
+/** The 2–3 key stats shown on the card, from this area's real values. */
+function cardStats(props, lang) {
+  const L = LOCALES[lang];
+  const tr = (k) => L?.[k] ?? LOCALES.fi[k] ?? k;
+  const stats = [];
+  const pop = Number(props.he_vakiy);
+  if (Number.isFinite(pop)) stats.push({ label: tr('panel.population'), value: fmtNum(Math.round(pop), 0, lang) });
+  const inc = Number(props.hr_mtu);
+  if (Number.isFinite(inc) && inc > 0) {
+    stats.push({ label: tr('layer.median_income'), value: `${fmtNum(Math.round(inc), 0, lang)} €` });
+  }
+  return stats.slice(0, 3);
+}
+
+/**
+ * Build, write (once, content-hashed) and return the absolute URL of this area's
+ * social card for the given language. The same SVG bytes hash to the same file,
+ * so re-runs are idempotent and the filename busts caches when the card changes.
+ */
+function emitCard(props, slug, lang) {
+  const svg = buildSocialCardSvg({
+    name: getDisplayName(props, lang),
+    pno: props.pno,
+    region: getRegionName(props.city, lang),
+    quality: props.quality_index,
+    qualityLabel: LOCALES[lang]?.['layer.quality_index'] ?? LOCALES.fi['layer.quality_index'],
+    badge: bestNationalBadge(props, lang),
+    stats: cardStats(props, lang),
+  });
+  const hash = createHash('sha256').update(svg).digest('hex').slice(0, 10);
+  const fileName = `${slug}-${lang}.${hash}.svg`;
+  mkdirSync(CARD_DIR, { recursive: true });
+  writeFileSync(join(CARD_DIR, fileName), svg);
+  cardsWritten++;
+  return `${ORIGIN}/og/${fileName}`;
 }
 
 function generatePage(feature, lang) {
@@ -642,19 +869,23 @@ function generatePage(feature, lang) {
     `<meta name="twitter:description" content="${escapeHtml(description)}" />`,
   );
 
-  // CF-11: pin an absolute social-card image for both Open Graph and Twitter on
-  // each profile rather than relying on the inherited template tags. Profiles
-  // share the branded site card (no per-area image exists), so both point at the
-  // same absolute /og-image.png URL.
-  const OG_IMAGE = 'https://naapurustot.fi/og-image.png';
+  // PO-13: per-area dynamic social card. Each profile gets its own templated SVG
+  // card (area name, quality index, percentile badge, key stats), emitted as a
+  // content-hashed asset under /og/, replacing the shared /og-image.png. The card
+  // is 1200×630 (the template's og:image:width/height already match), declared as
+  // image/svg+xml via the og:image:type tag added below.
+  const ogImage = emitCard(props, slug, lang);
   html = html.replace(
     /<meta property="og:image" content="[^"]*" \/>/,
-    `<meta property="og:image" content="${OG_IMAGE}" />`,
+    `<meta property="og:image" content="${ogImage}" />\n    <meta property="og:image:type" content="image/svg+xml" />`,
   );
   html = html.replace(
     /<meta name="twitter:image" content="[^"]*" \/>/,
-    `<meta name="twitter:image" content="${OG_IMAGE}" />`,
+    `<meta name="twitter:image" content="${ogImage}" />`,
   );
+
+  // PO-9: localize og:locale, its two alternates, and the per-area og:image:alt.
+  html = localizeOgLocale(html, lang, title);
 
   // CF-11: strip the template's generic homepage FAQPage so the per-neighbourhood
   // FAQPage injected below is the only one on the profile (Google expects one per page).
@@ -694,11 +925,74 @@ const SOURCES_ROUTES = {
   sv: { path: 'sv/datakallor', url: 'https://naapurustot.fi/sv/datakallor' },
 };
 
+/**
+ * PO-15: localize the build_metadata `generated` ISO timestamp to a day-level date
+ * (mirrors formatGeneratedDate in DataSourcesPage.tsx). Returns '' when absent/invalid.
+ */
+function formatGeneratedDate(iso, lang) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  try {
+    return d.toLocaleDateString(LOCALE_TAG[lang], { year: 'numeric', month: 'long', day: 'numeric' });
+  } catch {
+    return String(iso).slice(0, 10);
+  }
+}
+
+/**
+ * PO-15: per-source refresh log from build_metadata — each source's newest vintage
+ * year and how many metrics it backs, sorted newest-first. Mirrors the SPA grouping
+ * in DataSourcesPage.tsx so the static and hydrated changelog agree.
+ */
+function buildRefreshLog() {
+  const bySource = new Map();
+  for (const m of Object.values(BUILD_METADATA.metrics ?? {})) {
+    const source = m?.source;
+    if (!source) continue;
+    const cur = bySource.get(source) ?? { source, count: 0, newest: null };
+    cur.count += 1;
+    const years = String(m.vintage ?? '').match(/\d{4}/g);
+    const y = years ? Math.max(...years.map(Number)) : null;
+    if (y != null && (cur.newest == null || y > cur.newest)) cur.newest = y;
+    bySource.set(source, cur);
+  }
+  return [...bySource.values()].sort((a, b) => {
+    const ya = a.newest ?? -Infinity;
+    const yb = b.newest ?? -Infinity;
+    if (yb !== ya) return yb - ya;
+    return a.source.localeCompare(b.source);
+  });
+}
+
 function buildSourcesNoscript(lang) {
   const L = LOCALES[lang];
   const tr = (k) => L[k] ?? k;
+  const fill = (k, tokens) => {
+    let s = tr(k);
+    for (const [token, value] of Object.entries(tokens)) s = s.replace(`{${token}}`, String(value));
+    return s;
+  };
   const granLabel = (g) =>
     g === '250m grid' ? tr('sources.gran_grid') : g === 'derived' ? tr('sources.gran_derived') : tr('sources.gran_postal');
+
+  // PO-15: prominent generated date + per-source refresh log (indexable changelog).
+  const generatedOn = formatGeneratedDate(BUILD_METADATA.generated, lang);
+  let updatedBlock = '';
+  if (generatedOn) {
+    const logItems = buildRefreshLog()
+      .map((r) => {
+        const newest = r.newest != null ? `${escapeHtml(fill('sources.refresh_newest', { year: r.newest }))} · ` : '';
+        return `<li>${escapeHtml(r.source)} — ${newest}${escapeHtml(fill('sources.refresh_layers', { n: r.count }))}</li>`;
+      })
+      .join('');
+    updatedBlock =
+      `<h2>${escapeHtml(tr('sources.updated_heading'))}</h2>` +
+      `<p><strong>${escapeHtml(fill('sources.updated_on', { date: generatedOn }))}</strong></p>` +
+      `<p>${escapeHtml(tr('sources.updated_intro'))}</p>` +
+      `<h3>${escapeHtml(tr('sources.refresh_log_heading'))}</h3>` +
+      `<ul>${logItems}</ul>`;
+  }
 
   // Group registry metrics by publisher, collapsing to distinct datasets.
   const byPub = new Map();
@@ -724,12 +1018,13 @@ function buildSourcesNoscript(lang) {
   return [
     `<h1>${escapeHtml(tr('sources.title'))}</h1>`,
     `<p>${escapeHtml(tr('sources.subtitle'))}</p>`,
+    updatedBlock,
     `<h2>${escapeHtml(tr('sources.publishers_heading'))}</h2>`,
     `<ul>${rows}</ul>`,
     `<h2>${escapeHtml(tr('sources.methodology_heading'))}</h2>`,
     `<p>${escapeHtml(tr('sources.methodology_body'))}</p>`,
     `<p>${escapeHtml(tr('sources.quality_note'))}</p>`,
-  ].join('\n');
+  ].filter(Boolean).join('\n');
 }
 
 function buildSourcesJsonLd(lang, canonicalUrl) {
@@ -743,9 +1038,132 @@ function buildSourcesJsonLd(lang, canonicalUrl) {
     inLanguage: lang,
     isAccessibleForFree: true,
     license: 'https://creativecommons.org/licenses/by/4.0/',
+    // PO-15: real provenance — the build_metadata `generated` timestamp as the
+    // dataset's machine-readable last-refresh date (matches the visible "Data updated" note).
+    ...(BUILD_METADATA.generated ? { dateModified: BUILD_METADATA.generated } : {}),
     creator: Object.values(DATA_SOURCE_PUBLISHERS).map((p) => ({ '@type': 'Organization', name: p.name, url: p.url })),
   };
-  return `<script type="application/ld+json">${JSON.stringify(ds).replace(/</g, '\\u003c')}</script>`;
+  // PO-10: a CollectionPage node describing the page itself (matching the hub
+  // pages' depth: site root → this page) plus a BreadcrumbList. The brand name
+  // "naapurustot.fi" is a literal, not a translatable string (mirrors the hubs).
+  const collection = {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: tr('sources.title'),
+    description: tr('sources.subtitle'),
+    url: canonicalUrl,
+    inLanguage: lang,
+    isPartOf: { '@type': 'WebSite', name: 'naapurustot.fi', url: 'https://naapurustot.fi' },
+  };
+  const breadcrumb = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'naapurustot.fi', item: 'https://naapurustot.fi/' },
+      { '@type': 'ListItem', position: 2, name: tr('sources.title') },
+    ],
+  };
+  return [collection, breadcrumb, ds]
+    .map((o) => `<script type="application/ld+json">${JSON.stringify(o).replace(/</g, '\\u003c')}</script>`)
+    .join('\n    ');
+}
+
+// PO-14: prerender the public Privacy & data-handling notice (FI/EN/SV). Built
+// from the same locale dictionaries the app uses, so the static copy always
+// matches the in-app PrivacyPage. The <noscript> mirrors every section as
+// semantic HTML; a PrivacyPolicy JSON-LD node makes it machine-readable.
+const PRIVACY_ROUTES = {
+  fi: { path: 'tietosuoja', url: 'https://naapurustot.fi/tietosuoja' },
+  en: { path: 'en/privacy', url: 'https://naapurustot.fi/en/privacy' },
+  sv: { path: 'sv/integritet', url: 'https://naapurustot.fi/sv/integritet' },
+};
+
+// Section keys must match src/pages/PrivacyPage.tsx (SECTION_KEYS), each with a
+// `_h` heading and `_b` body in all three locale files.
+const PRIVACY_SECTIONS = [
+  'privacy.s_noaccount',
+  'privacy.s_account',
+  'privacy.s_basis',
+  'privacy.s_thirdparties',
+  'privacy.s_retention',
+  'privacy.s_rights',
+  'privacy.s_contact',
+];
+
+function buildPrivacyNoscript(lang) {
+  const tr = (k) => LOCALES[lang][k] ?? LOCALES.fi[k] ?? k;
+  const lines = [
+    `<h1>${escapeHtml(tr('privacy.title'))}</h1>`,
+    `<p>${escapeHtml(tr('privacy.subtitle'))}</p>`,
+  ];
+  for (const key of PRIVACY_SECTIONS) {
+    lines.push(`<h2>${escapeHtml(tr(`${key}_h`))}</h2>`);
+    // Bodies may contain newline-separated items (e.g. the third-party list);
+    // split so each becomes its own paragraph in the fallback.
+    for (const para of tr(`${key}_b`).split('\n')) {
+      lines.push(`<p>${escapeHtml(para)}</p>`);
+    }
+    if (key === 'privacy.s_contact') {
+      lines.push('<p><a href="mailto:info@naapurustot.fi">info@naapurustot.fi</a></p>');
+    }
+  }
+  return lines.join('\n');
+}
+
+function buildPrivacyJsonLd(lang, canonicalUrl) {
+  const tr = (k) => LOCALES[lang][k] ?? k;
+  const policy = {
+    '@context': 'https://schema.org',
+    '@type': 'PrivacyPolicy',
+    name: tr('privacy.title'),
+    description: tr('privacy.subtitle'),
+    url: canonicalUrl,
+    inLanguage: lang,
+    isPartOf: { '@type': 'WebSite', name: 'naapurustot.fi', url: 'https://naapurustot.fi' },
+  };
+  const breadcrumb = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'naapurustot.fi', item: 'https://naapurustot.fi/' },
+      { '@type': 'ListItem', position: 2, name: tr('privacy.title') },
+    ],
+  };
+  return [policy, breadcrumb]
+    .map((o) => `<script type="application/ld+json">${JSON.stringify(o).replace(/</g, '\\u003c')}</script>`)
+    .join('\n    ');
+}
+
+function generatePrivacyPage(lang) {
+  const title = `${LOCALES[lang]['privacy.title']} – naapurustot.fi`;
+  const description = LOCALES[lang]['privacy.subtitle'];
+  const { fi: fiR, en: enR, sv: svR } = PRIVACY_ROUTES;
+  const canonicalUrl = PRIVACY_ROUTES[lang].url;
+  const jsonLd = buildPrivacyJsonLd(lang, canonicalUrl);
+  const noscriptContent = buildPrivacyNoscript(lang);
+
+  let html = template;
+  html = html.replace('<html lang="fi">', `<html lang="${lang}">`);
+  html = html.replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(title)}</title>`);
+  html = html.replace(/<meta name="description" content="[^"]*" \/>/, `<meta name="description" content="${escapeHtml(description)}" />`);
+  html = html.replace(/<link rel="canonical" href="[^"]*" \/>/, `<link rel="canonical" href="${canonicalUrl}" />`);
+  html = html.replace(/<link rel="alternate" hreflang="fi" href="[^"]*" \/>/, `<link rel="alternate" hreflang="fi" href="${fiR.url}" />`);
+  html = html.replace(/<link rel="alternate" hreflang="en" href="[^"]*" \/>/, `<link rel="alternate" hreflang="en" href="${enR.url}" />`);
+  html = html.replace(/<link rel="alternate" hreflang="sv" href="[^"]*" \/>/, `<link rel="alternate" hreflang="sv" href="${svR.url}" />`);
+  html = html.replace(/<link rel="alternate" hreflang="x-default" href="[^"]*" \/>/, `<link rel="alternate" hreflang="x-default" href="${fiR.url}" />`);
+  html = html.replace(/<meta property="og:url" content="[^"]*" \/>/, `<meta property="og:url" content="${canonicalUrl}" />`);
+  html = html.replace(/<meta property="og:title" content="[^"]*" \/>/, `<meta property="og:title" content="${escapeHtml(title)}" />`);
+  html = html.replace(/<meta property="og:description" content="[^"]*" \/>/, `<meta property="og:description" content="${escapeHtml(description)}" />`);
+  html = html.replace(/<meta name="twitter:title" content="[^"]*" \/>/, `<meta name="twitter:title" content="${escapeHtml(title)}" />`);
+  html = html.replace(/<meta name="twitter:description" content="[^"]*" \/>/, `<meta name="twitter:description" content="${escapeHtml(description)}" />`);
+  // PO-9: localize og:locale, its two alternates, and the per-page og:image:alt.
+  html = localizeOgLocale(html, lang, title);
+  html = html.replace('</head>', `    ${jsonLd}\n  </head>`);
+  html = html.replace(
+    /<noscript>[\s\S]*?<\/noscript>/,
+    `<noscript>\n    <div style="max-width:820px;margin:2rem auto;padding:1rem;font-family:system-ui,sans-serif;line-height:1.55">\n${noscriptContent}\n    </div>\n  </noscript>`,
+  );
+  return html;
 }
 
 function generateSourcesPage(lang) {
@@ -770,6 +1188,8 @@ function generateSourcesPage(lang) {
   html = html.replace(/<meta property="og:description" content="[^"]*" \/>/, `<meta property="og:description" content="${escapeHtml(description)}" />`);
   html = html.replace(/<meta name="twitter:title" content="[^"]*" \/>/, `<meta name="twitter:title" content="${escapeHtml(title)}" />`);
   html = html.replace(/<meta name="twitter:description" content="[^"]*" \/>/, `<meta name="twitter:description" content="${escapeHtml(description)}" />`);
+  // PO-9: localize og:locale, its two alternates, and the per-page og:image:alt.
+  html = localizeOgLocale(html, lang, title);
   html = html.replace('</head>', `    ${jsonLd}\n  </head>`);
   html = html.replace(
     /<noscript>[\s\S]*?<\/noscript>/,
@@ -802,7 +1222,7 @@ for (const feature of features) {
   count++;
 }
 
-console.log(`Prerendered ${count} neighbourhoods (${count * 3} HTML files).`);
+console.log(`Prerendered ${count} neighbourhoods (${count * 3} HTML files, ${cardsWritten} social cards in dist/og/).`);
 
 // CF-9: write the three localized data-sources pages.
 for (const [lang, route] of Object.entries(SOURCES_ROUTES)) {
@@ -811,3 +1231,11 @@ for (const [lang, route] of Object.entries(SOURCES_ROUTES)) {
   writeFileSync(join(dir, 'index.html'), generateSourcesPage(lang));
 }
 console.log('Prerendered 3 data-sources pages (/tietolahteet, /en/data-sources, /sv/datakallor).');
+
+// PO-14: write the three localized privacy pages.
+for (const [lang, route] of Object.entries(PRIVACY_ROUTES)) {
+  const dir = join(DIST, ...route.path.split('/'));
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'index.html'), generatePrivacyPage(lang));
+}
+console.log('Prerendered 3 privacy pages (/tietosuoja, /en/privacy, /sv/integritet).');

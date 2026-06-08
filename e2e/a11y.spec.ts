@@ -62,6 +62,19 @@ test.describe('accessibility (axe-core)', () => {
     expect(violations, describe(violations)).toEqual([]);
   });
 
+  test('neighborhood panel exposes an accessible name', async ({ page }) => {
+    // PO-8: the desktop side panel is role=complementary with a key-based aria-label
+    // (the mobile sheet is role=dialog). At the default desktop viewport the
+    // complementary container is the visible one. Assert it carries a non-empty
+    // accessible name so screen-reader users can identify the region.
+    await page.goto('/#pno=00100');
+    await waitForDataLoaded(page);
+    const panel = page.locator('[role="complementary"][aria-label]').first();
+    await expect(panel).toBeVisible({ timeout: 10000 });
+    const label = await panel.getAttribute('aria-label');
+    expect(label && label.trim().length).toBeTruthy();
+  });
+
   test('filter panel has no serious/critical a11y violations', async ({ page }) => {
     await page.goto('/');
     await waitForDataLoaded(page);

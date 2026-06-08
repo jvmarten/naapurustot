@@ -6,6 +6,8 @@ import type { Feature, FeatureCollection, Polygon, MultiPolygon, Position } from
 import { feature as topoFeature } from 'topojson-client';
 import type { Topology } from 'topojson-specification';
 import { buildFillColorExpression, type LayerId, type LayerConfig, getLayerById } from '../utils/colorScales';
+import { ensureHatchImage } from '../utils/hatchPattern';
+import { GRID_ZOOM_FADE_IN, buildFillOpacityFadeOut, buildGridFillOpacity } from '../utils/gridFade';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { useTheme } from '../hooks/useTheme';
 import { trackEvent } from '../utils/analytics';
@@ -37,6 +39,8 @@ interface MapProps {
   colorblind?: string;
   /** PO-4: PNOs to highlight from wizard results */
   wizardHighlightPnos?: string[];
+  /** CF-12: adjacent postal codes to ring-highlight (spatial-neighbour lens) */
+  neighborHighlightPnos?: string[];
   /** User-adjustable fill opacity multiplier (0–1, default 1) */
   fillOpacity?: number;
   /** Fine-grained grid data for layers that support it (e.g. 250m transit reachability cells) */
@@ -134,6 +138,7 @@ const SELECT_AREA_LAYER = 'neighborhoods-select-area';
 
 const FILTER_HIGHLIGHT_LAYER = 'neighborhoods-filter-highlight';
 const WIZARD_HIGHLIGHT_LAYER = 'neighborhoods-wizard-highlight';
+const NEIGHBOR_HIGHLIGHT_LAYER = 'neighborhoods-neighbor-highlight';
 const NO_DATA_LAYER = 'neighborhoods-no-data-pattern';
 
 const GRID_SOURCE_ID = 'grid-cells';
@@ -220,45 +225,7 @@ function buildFillOpacity(o: number, overrides?: { matchExpr?: unknown[]; matchV
   return base;
 }
 
-// Zoom range over which the grid (e.g. 250m VIIRS cells) takes over from the
-// postal choropleth for grid-capable layers. Below GRID_ZOOM_FADE_IN only the
-// smooth choropleth shows; above GRID_ZOOM_FADE_OUT only the grid shows.
-// Centered around zoom 7.75 — between the all-Finland viewport (~4.8) and
-// city defaults (~9), so country views stay smooth and city/postal views
-// show the detailed grid at full opacity.
-const GRID_ZOOM_FADE_IN = 7;
-const GRID_ZOOM_FADE_OUT = 8.5;
-
-/**
- * Like buildFillOpacity but the values fade linearly to 0 between
- * GRID_ZOOM_FADE_IN and GRID_ZOOM_FADE_OUT. Use for the postal choropleth
- * when a grid layer is active — at low zoom the choropleth stays visible,
- * at high zoom it hands off to the grid.
- */
-function buildFillOpacityFadeOut(o: number) {
-  const fadeAt = (val: number): unknown[] => [
-    'interpolate', ['linear'], ['zoom'],
-    GRID_ZOOM_FADE_IN, val,
-    GRID_ZOOM_FADE_OUT, 0,
-  ];
-  return [
-    'case',
-    ['boolean', ['feature-state', 'hover'], false], fadeAt(0.85 * o),
-    ['boolean', ['feature-state', 'selected'], false], fadeAt(0.85 * o),
-    fadeAt(0.65 * o),
-  ];
-}
-
-/** Grid opacity that fades in over the same zoom range buildFillOpacityFadeOut fades out. */
-function buildGridFillOpacity(o: number): unknown[] {
-  return [
-    'interpolate', ['linear'], ['zoom'],
-    GRID_ZOOM_FADE_IN, 0,
-    GRID_ZOOM_FADE_OUT, 0.8 * o,
-  ];
-}
-
-export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1, gridData = null, drawMode = false, onDrawClick, onDrawDoubleClick, drawVertices, drawnPolygon = null, drawnAreaPnos = EMPTY_ARRAY, selectMode = false, selectedAreaPnos = EMPTY_ARRAY, onSelectAreaClick, layerConfig, isochrone = null, onMoveEnd }) => {
+export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, neighborHighlightPnos = EMPTY_ARRAY, fillOpacity = 1, gridData = null, drawMode = false, onDrawClick, onDrawDoubleClick, drawVertices, drawnPolygon = null, drawnAreaPnos = EMPTY_ARRAY, selectMode = false, selectedAreaPnos = EMPTY_ARRAY, onSelectAreaClick, layerConfig, isochrone = null, onMoveEnd }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const hoveredIdRef = useRef<string | null>(null);
@@ -501,11 +468,15 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         },
       }, beforeLabels(map));
 
-      // QW-2: Hatched pattern overlay for neighborhoods with null data
-      // Also exclude metro area features (no individual postal code borders in all-cities view)
+      // PO-1: true diagonal-hatch fill for neighborhoods with null/missing data.
+      // Replaces the old dashed-border treatment with a runtime-generated
+      // fill-pattern. Excludes metro area features so all-cities dissolve
+      // outlines stay clean (CLAUDE.md pitfall #4). The hatch image is
+      // registered here and re-added automatically on style reload via the
+      // styleimagemissing handler wired by ensureHatchImage.
       map.addLayer({
         id: NO_DATA_LAYER,
-        type: 'line',
+        type: 'fill',
         source: SOURCE_ID,
         filter: ['all',
           ['!', ['boolean', ['get', '_isMetroArea'], false]],
@@ -515,10 +486,8 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
           ],
         ] as unknown as maplibregl.ExpressionSpecification,
         paint: {
-          'line-color': theme === 'dark' ? '#475569' : '#94a3b8',
-          'line-width': 1.5,
-          'line-dasharray': [2, 2],
-          'line-opacity': 0.8,
+          'fill-pattern': ensureHatchImage(map, theme),
+          'fill-opacity': 0.9,
         },
       }, beforeLabels(map));
 
@@ -564,7 +533,8 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         map.setPaintProperty(HIGHLIGHT_LAYER, 'line-color', theme === 'dark' ? '#f8fafc' : '#0f172a');
       }
       if (map.getLayer(NO_DATA_LAYER)) {
-        map.setPaintProperty(NO_DATA_LAYER, 'line-color', theme === 'dark' ? '#475569' : '#94a3b8');
+        // PO-1: swap to the theme-matched hatch image (registered + reload-safe via ensureHatchImage).
+        map.setPaintProperty(NO_DATA_LAYER, 'fill-pattern', ensureHatchImage(map, theme));
       }
       if (map.getLayer(PINNED_LAYER)) {
         map.setPaintProperty(PINNED_LAYER, 'line-color', theme === 'dark' ? '#facc15' : '#d97706');
@@ -1340,6 +1310,44 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       }, beforeLabels(map));
     }
   }, [wizardHighlightPnos, data, theme]);
+
+  // CF-12: spatial-neighbour ring. Dashed amber outline around adjacent postal
+  // codes, distinct from the selection (solid white/dark) and wizard (solid blue)
+  // highlights. Like the wizard layer it toggles via setFilter to avoid layer
+  // churn, and sits below the labels.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !data) return;
+    if (!map.isStyleLoaded() || !map.getSource(SOURCE_ID)) return;
+
+    if (neighborHighlightPnos.length === 0) {
+      if (map.getLayer(NEIGHBOR_HIGHLIGHT_LAYER)) {
+        map.setLayoutProperty(NEIGHBOR_HIGHLIGHT_LAYER, 'visibility', 'none');
+      }
+      return;
+    }
+
+    const filter = ['in', ['get', 'pno'], ['literal', neighborHighlightPnos]] as unknown as maplibregl.ExpressionSpecification;
+
+    if (map.getLayer(NEIGHBOR_HIGHLIGHT_LAYER)) {
+      map.setFilter(NEIGHBOR_HIGHLIGHT_LAYER, filter);
+      map.setPaintProperty(NEIGHBOR_HIGHLIGHT_LAYER, 'line-color', theme === 'dark' ? '#fbbf24' : '#d97706');
+      map.setLayoutProperty(NEIGHBOR_HIGHLIGHT_LAYER, 'visibility', 'visible');
+    } else {
+      map.addLayer({
+        id: NEIGHBOR_HIGHLIGHT_LAYER,
+        type: 'line',
+        source: SOURCE_ID,
+        filter,
+        paint: {
+          'line-color': theme === 'dark' ? '#fbbf24' : '#d97706',
+          'line-width': 2.5,
+          'line-opacity': 0.95,
+          'line-dasharray': [2, 1.5],
+        },
+      }, beforeLabels(map));
+    }
+  }, [neighborHighlightPnos, data, theme]);
 
   // CF-6: Draw/select mode cursor
   useEffect(() => {

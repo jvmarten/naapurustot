@@ -36,8 +36,32 @@ Internet
 | `POST` | `/auth/login` | No | 10/IP/15min | Login (sets httpOnly JWT cookie) |
 | `POST` | `/auth/logout` | No | — | Clear auth cookie |
 | `GET` | `/auth/me` | Yes | — | Get current user from JWT cookie |
+| `GET` | `/auth/export` | Yes | — | Download the full stored record as JSON (GDPR data export) |
+| `DELETE` | `/auth/account` | Yes | — | Permanently delete the account and all data (GDPR), then clear the cookie |
 | `GET` | `/auth/favorites` | Yes | — | Get user's favorites list |
 | `PUT` | `/auth/favorites` | Yes | — | Replace user's favorites list |
+
+### GDPR data export & deletion (CF-13)
+
+These two endpoints let a logged-in user exercise their right to data
+portability and erasure directly from the account menu:
+
+- **`GET /auth/export`** returns a single JSON document containing the account
+  row (id, username, email, display name, trust level, timestamps) plus the
+  user's favorites, shortlist, notes, filter presets and quality weights. The
+  response sets `Content-Disposition: attachment; filename="naapurustot-data.json"`.
+  It reports exactly what the API stores — nothing more.
+- **`DELETE /auth/account`** requires a JSON body `{ "confirm": "DELETE" }` and
+  permanently deletes the `users` row. The `ON DELETE CASCADE` foreign keys on
+  `user_favorites`, `user_shortlist`, `user_notes` and `user_preferences` remove
+  every dependent row, so no orphaned personal data remains. The auth cookie is
+  cleared on success. Deletion is irreversible (recoverable only from a prior
+  `pg_dump` backup, which ages out per `BACKUP_RETENTION_DAYS`).
+
+> **Owner review:** the in-app copy points users to delete/export their own
+> data; there is no separate privacy-contact address baked into the app. If a
+> data-protection contact is required, add it via the project's existing
+> channels rather than hard-coding a personal email.
 
 ## Prerequisites
 
