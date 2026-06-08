@@ -119,11 +119,25 @@ export const api = {
     }),
 
   getPreferences: () =>
-    request<{ filterPresets: unknown[]; qualityWeights: Record<string, number> }>('/auth/preferences'),
+    request<{ filterPresets: unknown[]; qualityWeights: Record<string, number>; wizardProfile?: unknown }>('/auth/preferences'),
 
-  savePreferences: (data: { filterPresets?: unknown[]; qualityWeights?: Record<string, number> }) =>
-    request<{ filterPresets: unknown[]; qualityWeights: Record<string, number> }>('/auth/preferences', {
+  // CF-4: wizardProfile is an opaque blob (validated client-side) carried alongside
+  // the existing preset/weights preferences sync.
+  savePreferences: (data: { filterPresets?: unknown[]; qualityWeights?: Record<string, number>; wizardProfile?: unknown }) =>
+    request<{ filterPresets: unknown[]; qualityWeights: Record<string, number>; wizardProfile?: unknown }>('/auth/preferences', {
       method: 'PUT',
       body: JSON.stringify(data),
+    }),
+
+  // CF-13 (GDPR): download the full stored record as JSON.
+  exportData: () =>
+    request<Record<string, unknown>>('/auth/export'),
+
+  // CF-13 (GDPR): permanently delete the account (cascades to all user data).
+  // Requires the literal "DELETE" confirmation the server validates.
+  deleteAccount: () =>
+    request<{ ok: boolean }>('/auth/account', {
+      method: 'DELETE',
+      body: JSON.stringify({ confirm: 'DELETE' }),
     }),
 };

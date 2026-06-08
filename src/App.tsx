@@ -17,6 +17,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { computeMatchingPnos, type FilterCriterion } from './utils/filterUtils';
 import { useFilterPresets } from './hooks/useFilterPresets';
 import { useQualityWeights } from './hooks/useQualityWeights';
+import { useWizardProfile, wizardAnswersToQualityWeights, type WizardAnswers } from './hooks/useWizardProfile';
 import { trackEvent } from './utils/analytics';
 import type { Feature, Polygon, MultiPolygon, Position } from 'geojson';
 
@@ -99,7 +100,7 @@ const App: React.FC = () => {
   const searchIndex = useSearchIndex();
 
   // Auth
-  const { user, login, signup, logout } = useAuth();
+  const { user, login, signup, logout, exportData, deleteAccount } = useAuth();
   const [showAuth, setShowAuth] = useState(false);
   // QW-1: Onboarding tour
   const [showTour, setShowTour] = useState(false);
@@ -289,6 +290,8 @@ const App: React.FC = () => {
   const customWeights = useMemo(() => isCustomWeights(qualityWeights), [qualityWeights]);
   const [colorblind, setColorblind] = useState(getColorblindMode);
   const [showWizard, setShowWizard] = useState(false);
+  // CF-4: persistent, shareable wizard priority profile (localStorage + cloud sync).
+  const { profile: wizardProfile, setProfile: setWizardProfile } = useWizardProfile(user?.id ?? null);
   const { presets: savedPresets, addPreset: saveFilterPreset, removePreset: removeFilterPreset } = useFilterPresets(user?.id ?? null);
   const [fillOpacity, setFillOpacity] = useState(() => {
     try {
@@ -733,6 +736,8 @@ const App: React.FC = () => {
   useEffect(() => {
     if (initialUrl.weights) setQualityWeights(initialUrl.weights);
     if (initialUrl.shortlist.length > 0) mergeIntoShortlist(initialUrl.shortlist);
+    // CF-4: restore a shared wizard priority profile so the finder reopens pre-filled.
+    if (initialUrl.wizardProfile) setWizardProfile(initialUrl.wizardProfile);
     // CF-9: restore a shared drawn/selected analysis area so AreaSummaryPanel reopens.
     // Free-hand polygons reconstruct immediately (no data needed); select-areas
     // selections only set the pnos here — the latched effect below promotes them
@@ -797,6 +802,8 @@ const App: React.FC = () => {
     simWeights: similarityUrlWeights,
     // CF-9: shared drawn/selected analysis area.
     draw: drawUrlValue,
+    // CF-4: shared wizard priority profile (only emitted when non-default).
+    wizardProfile,
   });
 
   // Recompute quality indices when custom weights change.
@@ -1189,6 +1196,16 @@ const App: React.FC = () => {
     setWizardResultPnos(pnos);
     setShowWizard(false);
   }, []);
+  // CF-4: persist the wizard's priority profile (localStorage + cloud + share URL).
+  const handleSaveWizardProfile = useCallback((answers: WizardAnswers) => {
+    setWizardProfile(answers);
+  }, [setWizardProfile]);
+  // CF-4: map the wizard's stated priorities onto the live Quality Index weights, so
+  // the headline map score reflects them continuously. Persists the profile too.
+  const handleApplyWizardToMap = useCallback((answers: WizardAnswers) => {
+    setWizardProfile(answers);
+    handleQualityWeightsChange(wizardAnswersToQualityWeights(answers));
+  }, [setWizardProfile, handleQualityWeightsChange]);
   const handleFlyTo = useCallback((center: [number, number]) => setFlyTarget({ center }), []);
   // CF-12: stable setter for the panel's spatial-neighbour ring highlight.
   const handleHighlightNeighbors = useCallback((pnos: string[]) => setNeighborHighlightPnos(pnos), []);
@@ -1663,7 +1680,7 @@ const App: React.FC = () => {
         {/* Right: city selector & auth */}
         <div className="flex items-center gap-1.5 shrink-0">
           {user ? (
-            <UserMenu user={user} onLogout={logout} favorites={favoriteEntries} onSelectFavorite={handleSelectFavorite} onToggleFavorite={toggleFavorite} />
+            <UserMenu user={user} onLogout={logout} favorites={favoriteEntries} onSelectFavorite={handleSelectFavorite} onToggleFavorite={toggleFavorite} onExportData={exportData} onDeleteAccount={deleteAccount} />
           ) : (
             <button
               data-tour-id="auth"
@@ -1884,6 +1901,9 @@ const App: React.FC = () => {
               onSelect={handleSearch}
               onClose={handleCloseWizard}
               onShowOnMap={handleWizardShowOnMap}
+              initialAnswers={wizardProfile}
+              onSaveProfile={handleSaveWizardProfile}
+              onApplyToMap={handleApplyWizardToMap}
             />
           </Suspense>
         </ErrorBoundary>
@@ -2000,6 +2020,14 @@ const App: React.FC = () => {
               className="underline hover:text-brand-600 dark:hover:text-brand-300"
             >
               {t('footer.sources')}
+            </a>
+            {' · '}
+            {/* PO-14: link to the public privacy & data-handling notice (lang-aware) */}
+            <a
+              href={lang === 'en' ? '/en/privacy' : lang === 'sv' ? '/sv/integritet' : '/tietosuoja'}
+              className="underline hover:text-brand-600 dark:hover:text-brand-300"
+            >
+              {t('privacy.link')}
             </a>
           </p>
         </div>

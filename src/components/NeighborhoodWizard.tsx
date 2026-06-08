@@ -8,24 +8,19 @@ import { getFeatureCenter } from '../utils/geometryFilter';
 import { loadAllData } from '../utils/dataLoader';
 import { buildProfileUrl } from '../utils/profileUrl';
 import { ComparisonScopeToggle, type ComparisonScope } from './ComparisonScopeToggle';
+import { defaultWizardAnswers, type WizardAnswers } from '../hooks/useWizardProfile';
 
 interface WizardProps {
   data: FeatureCollection | null;
   onSelect: (pno: string, center: [number, number]) => void;
   onClose: () => void;
   onShowOnMap?: (pnos: string[]) => void;
-}
-
-interface WizardAnswers {
-  transitImportance: number;
-  quietPreference: 'quiet' | 'lively' | 'neutral';
-  budgetMin: number;
-  budgetMax: number;
-  sizePreference: 'small' | 'medium' | 'large';
-  tenurePreference: 'own' | 'rent' | 'either';
-  hasChildren: boolean;
-  schoolImportance: number;
-  healthcareImportance: number;
+  /** CF-4: pre-fill the wizard from a persisted/shared priority profile. */
+  initialAnswers?: WizardAnswers;
+  /** CF-4: persist the current answers (localStorage + cloud sync + share URL). */
+  onSaveProfile?: (answers: WizardAnswers) => void;
+  /** CF-4: map the answers onto live Quality Index weights so the map reflects them. */
+  onApplyToMap?: (answers: WizardAnswers) => void;
 }
 
 /** CF-5: per-criterion "why it matched" breakdown — the area's actual value against
@@ -47,17 +42,10 @@ interface ScoredNeighborhood {
   center: [number, number];
 }
 
-const defaultAnswers: WizardAnswers = {
-  transitImportance: 3,
-  quietPreference: 'neutral',
-  budgetMin: 1000,
-  budgetMax: 6000,
-  sizePreference: 'medium',
-  tenurePreference: 'either',
-  hasChildren: false,
-  schoolImportance: 3,
-  healthcareImportance: 3,
-};
+// CF-4: WizardAnswers/defaultWizardAnswers now live in hooks/useWizardProfile.ts
+// (shared with the persistence hook and the share-URL codec). Aliased here so the
+// existing in-component references stay terse.
+const defaultAnswers = defaultWizardAnswers;
 
 /** Normalize a value within a range to 0-1 */
 function normalize(value: number | null, min: number, max: number): number {
@@ -322,10 +310,25 @@ function scoreNeighborhoods(
 
 const STEP_COUNT = 4;
 
-export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onClose, onShowOnMap }) => {
+export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onClose, onShowOnMap, initialAnswers, onSaveProfile, onApplyToMap }) => {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
-  const [answers, setAnswers] = useState<WizardAnswers>({ ...defaultAnswers });
+  // CF-4: pre-fill from a persisted/shared profile when provided.
+  const [answers, setAnswers] = useState<WizardAnswers>(() => ({ ...defaultAnswers, ...initialAnswers }));
+  // CF-4: feedback flag for the "Save my priorities" action.
+  const [saved, setSaved] = useState(false);
+
+  // CF-4: persist edited answers (debounced) so the profile, share URL and any
+  // mapped weights track the wizard continuously, not just on an explicit save.
+  const onSaveProfileRef = useRef(onSaveProfile);
+  useEffect(() => { onSaveProfileRef.current = onSaveProfile; }, [onSaveProfile]);
+  const firstAnswersRef = useRef(true);
+  useEffect(() => {
+    if (firstAnswersRef.current) { firstAnswersRef.current = false; return; }
+    setSaved(false);
+    const id = setTimeout(() => onSaveProfileRef.current?.(answers), 400);
+    return () => clearTimeout(id);
+  }, [answers]);
   // CF-6: score within this region or across all of Finland. The national dataset
   // (geometry-stripped region_properties.json) is lazy-loaded on first use.
   const [scope, setScope] = useState<ComparisonScope>('region');
@@ -671,6 +674,34 @@ export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onCl
           <ComparisonScopeToggle scope={scope} onChange={setScope} disabled={nationalLoading} />
         </div>
       </div>
+
+      {/* CF-4: persist the priority profile + optionally reflect it on the live map */}
+      {(onSaveProfile || onApplyToMap) && (
+        <div className="flex flex-wrap items-center gap-2">
+          {onSaveProfile && (
+            <button
+              onClick={() => { onSaveProfile(answers); setSaved(true); trackEvent('wizard-save-profile'); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
+                         bg-surface-100 dark:bg-surface-800 text-surface-700 dark:text-surface-300
+                         hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+              {saved ? t('wizard.saved') : t('wizard.save_priorities')}
+            </button>
+          )}
+          {onApplyToMap && !isNational && (
+            <button
+              onClick={() => { onApplyToMap(answers); trackEvent('wizard-apply-map'); onClose(); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
+                         bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 transition-colors"
+            >
+              {t('wizard.apply_to_map')}
+            </button>
+          )}
+        </div>
+      )}
 
       {nationalLoading && topMatches.length === 0 ? (
         <p className="text-sm text-surface-500 dark:text-surface-400">

@@ -95,6 +95,16 @@ urls.push({ loc: dataSources.fi, priority: '0.5', changefreq: 'monthly', alterna
 urls.push({ loc: dataSources.en, priority: '0.4', changefreq: 'monthly', alternates: dataSources });
 urls.push({ loc: dataSources.sv, priority: '0.4', changefreq: 'monthly', alternates: dataSources });
 
+// PO-14: privacy & data-handling notice page.
+const privacy = {
+  fi: `${ORIGIN}/tietosuoja`,
+  en: `${ORIGIN}/en/privacy`,
+  sv: `${ORIGIN}/sv/integritet`,
+};
+urls.push({ loc: privacy.fi, priority: '0.4', changefreq: 'yearly', alternates: privacy });
+urls.push({ loc: privacy.en, priority: '0.3', changefreq: 'yearly', alternates: privacy });
+urls.push({ loc: privacy.sv, priority: '0.3', changefreq: 'yearly', alternates: privacy });
+
 const features = geojson.features.filter((f) => f.properties?.pno && f.properties?.nimi);
 
 // Regional hub pages — one per region that has neighbourhood data.

@@ -53,6 +53,17 @@ const template = readFileSync(join(DIST, 'index.html'), 'utf-8');
 // Read GeoJSON.
 const geojson = JSON.parse(readFileSync(GEOJSON_PATH, 'utf-8'));
 
+// PO-15: the committed provenance manifest — `generated` timestamp and per-metric
+// vintage/coverage. Read directly here (a build script, no client-bundle budget) to
+// render the human, indexable "Data updated" changelog into the data-sources noscript.
+const BUILD_METADATA = (() => {
+  try {
+    return JSON.parse(readFileSync(join(ROOT, 'src', 'data', 'build_metadata.json'), 'utf-8'));
+  } catch {
+    return { generated: '', metrics: {} };
+  }
+})();
+
 // Process every feature exactly as the client's dataLoader does (same order),
 // so each page can embed a payload the React app renders from instantly —
 // avoiding the ~1.7 MB region_properties.json fetch before first paint.
@@ -914,11 +925,74 @@ const SOURCES_ROUTES = {
   sv: { path: 'sv/datakallor', url: 'https://naapurustot.fi/sv/datakallor' },
 };
 
+/**
+ * PO-15: localize the build_metadata `generated` ISO timestamp to a day-level date
+ * (mirrors formatGeneratedDate in DataSourcesPage.tsx). Returns '' when absent/invalid.
+ */
+function formatGeneratedDate(iso, lang) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  try {
+    return d.toLocaleDateString(LOCALE_TAG[lang], { year: 'numeric', month: 'long', day: 'numeric' });
+  } catch {
+    return String(iso).slice(0, 10);
+  }
+}
+
+/**
+ * PO-15: per-source refresh log from build_metadata — each source's newest vintage
+ * year and how many metrics it backs, sorted newest-first. Mirrors the SPA grouping
+ * in DataSourcesPage.tsx so the static and hydrated changelog agree.
+ */
+function buildRefreshLog() {
+  const bySource = new Map();
+  for (const m of Object.values(BUILD_METADATA.metrics ?? {})) {
+    const source = m?.source;
+    if (!source) continue;
+    const cur = bySource.get(source) ?? { source, count: 0, newest: null };
+    cur.count += 1;
+    const years = String(m.vintage ?? '').match(/\d{4}/g);
+    const y = years ? Math.max(...years.map(Number)) : null;
+    if (y != null && (cur.newest == null || y > cur.newest)) cur.newest = y;
+    bySource.set(source, cur);
+  }
+  return [...bySource.values()].sort((a, b) => {
+    const ya = a.newest ?? -Infinity;
+    const yb = b.newest ?? -Infinity;
+    if (yb !== ya) return yb - ya;
+    return a.source.localeCompare(b.source);
+  });
+}
+
 function buildSourcesNoscript(lang) {
   const L = LOCALES[lang];
   const tr = (k) => L[k] ?? k;
+  const fill = (k, tokens) => {
+    let s = tr(k);
+    for (const [token, value] of Object.entries(tokens)) s = s.replace(`{${token}}`, String(value));
+    return s;
+  };
   const granLabel = (g) =>
     g === '250m grid' ? tr('sources.gran_grid') : g === 'derived' ? tr('sources.gran_derived') : tr('sources.gran_postal');
+
+  // PO-15: prominent generated date + per-source refresh log (indexable changelog).
+  const generatedOn = formatGeneratedDate(BUILD_METADATA.generated, lang);
+  let updatedBlock = '';
+  if (generatedOn) {
+    const logItems = buildRefreshLog()
+      .map((r) => {
+        const newest = r.newest != null ? `${escapeHtml(fill('sources.refresh_newest', { year: r.newest }))} · ` : '';
+        return `<li>${escapeHtml(r.source)} — ${newest}${escapeHtml(fill('sources.refresh_layers', { n: r.count }))}</li>`;
+      })
+      .join('');
+    updatedBlock =
+      `<h2>${escapeHtml(tr('sources.updated_heading'))}</h2>` +
+      `<p><strong>${escapeHtml(fill('sources.updated_on', { date: generatedOn }))}</strong></p>` +
+      `<p>${escapeHtml(tr('sources.updated_intro'))}</p>` +
+      `<h3>${escapeHtml(tr('sources.refresh_log_heading'))}</h3>` +
+      `<ul>${logItems}</ul>`;
+  }
 
   // Group registry metrics by publisher, collapsing to distinct datasets.
   const byPub = new Map();
@@ -944,12 +1018,13 @@ function buildSourcesNoscript(lang) {
   return [
     `<h1>${escapeHtml(tr('sources.title'))}</h1>`,
     `<p>${escapeHtml(tr('sources.subtitle'))}</p>`,
+    updatedBlock,
     `<h2>${escapeHtml(tr('sources.publishers_heading'))}</h2>`,
     `<ul>${rows}</ul>`,
     `<h2>${escapeHtml(tr('sources.methodology_heading'))}</h2>`,
     `<p>${escapeHtml(tr('sources.methodology_body'))}</p>`,
     `<p>${escapeHtml(tr('sources.quality_note'))}</p>`,
-  ].join('\n');
+  ].filter(Boolean).join('\n');
 }
 
 function buildSourcesJsonLd(lang, canonicalUrl) {
@@ -963,6 +1038,9 @@ function buildSourcesJsonLd(lang, canonicalUrl) {
     inLanguage: lang,
     isAccessibleForFree: true,
     license: 'https://creativecommons.org/licenses/by/4.0/',
+    // PO-15: real provenance — the build_metadata `generated` timestamp as the
+    // dataset's machine-readable last-refresh date (matches the visible "Data updated" note).
+    ...(BUILD_METADATA.generated ? { dateModified: BUILD_METADATA.generated } : {}),
     creator: Object.values(DATA_SOURCE_PUBLISHERS).map((p) => ({ '@type': 'Organization', name: p.name, url: p.url })),
   };
   // PO-10: a CollectionPage node describing the page itself (matching the hub
@@ -988,6 +1066,104 @@ function buildSourcesJsonLd(lang, canonicalUrl) {
   return [collection, breadcrumb, ds]
     .map((o) => `<script type="application/ld+json">${JSON.stringify(o).replace(/</g, '\\u003c')}</script>`)
     .join('\n    ');
+}
+
+// PO-14: prerender the public Privacy & data-handling notice (FI/EN/SV). Built
+// from the same locale dictionaries the app uses, so the static copy always
+// matches the in-app PrivacyPage. The <noscript> mirrors every section as
+// semantic HTML; a PrivacyPolicy JSON-LD node makes it machine-readable.
+const PRIVACY_ROUTES = {
+  fi: { path: 'tietosuoja', url: 'https://naapurustot.fi/tietosuoja' },
+  en: { path: 'en/privacy', url: 'https://naapurustot.fi/en/privacy' },
+  sv: { path: 'sv/integritet', url: 'https://naapurustot.fi/sv/integritet' },
+};
+
+// Section keys must match src/pages/PrivacyPage.tsx (SECTION_KEYS), each with a
+// `_h` heading and `_b` body in all three locale files.
+const PRIVACY_SECTIONS = [
+  'privacy.s_noaccount',
+  'privacy.s_account',
+  'privacy.s_basis',
+  'privacy.s_thirdparties',
+  'privacy.s_retention',
+  'privacy.s_rights',
+  'privacy.s_contact',
+];
+
+function buildPrivacyNoscript(lang) {
+  const tr = (k) => LOCALES[lang][k] ?? LOCALES.fi[k] ?? k;
+  const lines = [
+    `<h1>${escapeHtml(tr('privacy.title'))}</h1>`,
+    `<p>${escapeHtml(tr('privacy.subtitle'))}</p>`,
+  ];
+  for (const key of PRIVACY_SECTIONS) {
+    lines.push(`<h2>${escapeHtml(tr(`${key}_h`))}</h2>`);
+    // Bodies may contain newline-separated items (e.g. the third-party list);
+    // split so each becomes its own paragraph in the fallback.
+    for (const para of tr(`${key}_b`).split('\n')) {
+      lines.push(`<p>${escapeHtml(para)}</p>`);
+    }
+    if (key === 'privacy.s_contact') {
+      lines.push('<p><a href="mailto:info@naapurustot.fi">info@naapurustot.fi</a></p>');
+    }
+  }
+  return lines.join('\n');
+}
+
+function buildPrivacyJsonLd(lang, canonicalUrl) {
+  const tr = (k) => LOCALES[lang][k] ?? k;
+  const policy = {
+    '@context': 'https://schema.org',
+    '@type': 'PrivacyPolicy',
+    name: tr('privacy.title'),
+    description: tr('privacy.subtitle'),
+    url: canonicalUrl,
+    inLanguage: lang,
+    isPartOf: { '@type': 'WebSite', name: 'naapurustot.fi', url: 'https://naapurustot.fi' },
+  };
+  const breadcrumb = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'naapurustot.fi', item: 'https://naapurustot.fi/' },
+      { '@type': 'ListItem', position: 2, name: tr('privacy.title') },
+    ],
+  };
+  return [policy, breadcrumb]
+    .map((o) => `<script type="application/ld+json">${JSON.stringify(o).replace(/</g, '\\u003c')}</script>`)
+    .join('\n    ');
+}
+
+function generatePrivacyPage(lang) {
+  const title = `${LOCALES[lang]['privacy.title']} – naapurustot.fi`;
+  const description = LOCALES[lang]['privacy.subtitle'];
+  const { fi: fiR, en: enR, sv: svR } = PRIVACY_ROUTES;
+  const canonicalUrl = PRIVACY_ROUTES[lang].url;
+  const jsonLd = buildPrivacyJsonLd(lang, canonicalUrl);
+  const noscriptContent = buildPrivacyNoscript(lang);
+
+  let html = template;
+  html = html.replace('<html lang="fi">', `<html lang="${lang}">`);
+  html = html.replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(title)}</title>`);
+  html = html.replace(/<meta name="description" content="[^"]*" \/>/, `<meta name="description" content="${escapeHtml(description)}" />`);
+  html = html.replace(/<link rel="canonical" href="[^"]*" \/>/, `<link rel="canonical" href="${canonicalUrl}" />`);
+  html = html.replace(/<link rel="alternate" hreflang="fi" href="[^"]*" \/>/, `<link rel="alternate" hreflang="fi" href="${fiR.url}" />`);
+  html = html.replace(/<link rel="alternate" hreflang="en" href="[^"]*" \/>/, `<link rel="alternate" hreflang="en" href="${enR.url}" />`);
+  html = html.replace(/<link rel="alternate" hreflang="sv" href="[^"]*" \/>/, `<link rel="alternate" hreflang="sv" href="${svR.url}" />`);
+  html = html.replace(/<link rel="alternate" hreflang="x-default" href="[^"]*" \/>/, `<link rel="alternate" hreflang="x-default" href="${fiR.url}" />`);
+  html = html.replace(/<meta property="og:url" content="[^"]*" \/>/, `<meta property="og:url" content="${canonicalUrl}" />`);
+  html = html.replace(/<meta property="og:title" content="[^"]*" \/>/, `<meta property="og:title" content="${escapeHtml(title)}" />`);
+  html = html.replace(/<meta property="og:description" content="[^"]*" \/>/, `<meta property="og:description" content="${escapeHtml(description)}" />`);
+  html = html.replace(/<meta name="twitter:title" content="[^"]*" \/>/, `<meta name="twitter:title" content="${escapeHtml(title)}" />`);
+  html = html.replace(/<meta name="twitter:description" content="[^"]*" \/>/, `<meta name="twitter:description" content="${escapeHtml(description)}" />`);
+  // PO-9: localize og:locale, its two alternates, and the per-page og:image:alt.
+  html = localizeOgLocale(html, lang, title);
+  html = html.replace('</head>', `    ${jsonLd}\n  </head>`);
+  html = html.replace(
+    /<noscript>[\s\S]*?<\/noscript>/,
+    `<noscript>\n    <div style="max-width:820px;margin:2rem auto;padding:1rem;font-family:system-ui,sans-serif;line-height:1.55">\n${noscriptContent}\n    </div>\n  </noscript>`,
+  );
+  return html;
 }
 
 function generateSourcesPage(lang) {
@@ -1055,3 +1231,11 @@ for (const [lang, route] of Object.entries(SOURCES_ROUTES)) {
   writeFileSync(join(dir, 'index.html'), generateSourcesPage(lang));
 }
 console.log('Prerendered 3 data-sources pages (/tietolahteet, /en/data-sources, /sv/datakallor).');
+
+// PO-14: write the three localized privacy pages.
+for (const [lang, route] of Object.entries(PRIVACY_ROUTES)) {
+  const dir = join(DIST, ...route.path.split('/'));
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'index.html'), generatePrivacyPage(lang));
+}
+console.log('Prerendered 3 privacy pages (/tietosuoja, /en/privacy, /sv/integritet).');

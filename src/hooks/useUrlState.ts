@@ -14,6 +14,8 @@ import {
 import {
   SIMILARITY_METRIC_KEYS, SIMILARITY_WEIGHT_MIN, SIMILARITY_WEIGHT_MAX, SIMILARITY_WEIGHT_DEFAULT,
 } from '../utils/similarity';
+import type { WizardAnswers } from './useWizardProfile';
+import { serializeWizardProfile, deserializeWizardProfile, isCustomWizardAnswers } from './useWizardProfile';
 
 /**
  * IN-3: share-URL schema version.
@@ -105,6 +107,8 @@ interface UrlState {
   simWeights: Record<string, number> | null;
   // CF-9: shared drawn/selected analysis area, null when absent.
   draw: UrlDraw | null;
+  // CF-4: shared wizard priority profile, null when absent.
+  wizardProfile: WizardAnswers | null;
 }
 
 /** CF-1: the extra analytical state the URL can carry beyond pno/layer/compare/city. */
@@ -129,6 +133,8 @@ export interface ExtraUrlState {
   simWeights?: Record<string, number> | null;
   /** CF-9: drawn/selected analysis area. */
   draw?: UrlDraw | null;
+  /** CF-4: wizard priority profile. */
+  wizardProfile?: WizardAnswers | null;
 }
 
 const VALID_CITIES = new Set<string>(['all', ...REGION_IDS]);
@@ -356,13 +362,14 @@ type StructuredParams = {
   affRaw: string | null;
   simwRaw: string | null;
   drawRaw: string | null;
+  wpRaw: string | null;
 };
 
 function migrateParams(searchParams: URLSearchParams, version: number): StructuredParams {
   const read = (key: string): string | null => searchParams.get(key);
   // Newer-than-current schema: discard structured params we may decode incorrectly.
   if (version > URL_SCHEMA_VERSION) {
-    return { filterRaw: null, qpRaw: null, qwRaw: null, isoRaw: null, viewRaw: null, slRaw: null, affRaw: null, simwRaw: null, drawRaw: null };
+    return { filterRaw: null, qpRaw: null, qwRaw: null, isoRaw: null, viewRaw: null, slRaw: null, affRaw: null, simwRaw: null, drawRaw: null, wpRaw: null };
   }
   // v1 (legacy) … current: every prior encoding is still readable as-is.
   return {
@@ -375,6 +382,7 @@ function migrateParams(searchParams: URLSearchParams, version: number): Structur
     affRaw: read('aff'),
     simwRaw: read('simw'),
     drawRaw: read('draw'),
+    wpRaw: read('wp'),
   };
 }
 
@@ -410,7 +418,7 @@ function parseUrl(): UrlState {
   // IN-3: resolve the schema version, then gate the structured params through the
   // migration/clamp guard. Simple primitives below are read directly (stable format).
   const schemaVersion = readSchemaVersion(searchParams);
-  const { filterRaw, qpRaw, qwRaw, isoRaw, viewRaw, slRaw, affRaw, simwRaw, drawRaw } = migrateParams(searchParams, schemaVersion);
+  const { filterRaw, qpRaw, qwRaw, isoRaw, viewRaw, slRaw, affRaw, simwRaw, drawRaw, wpRaw } = migrateParams(searchParams, schemaVersion);
 
   // CF-1: extended analytical state (query params only — legacy hash links never had these).
   const scopeRaw = searchParams.get('scope');
@@ -443,6 +451,7 @@ function parseUrl(): UrlState {
     affordability: affRaw ? deserializeAffordability(affRaw) : null,
     simWeights: simwRaw ? deserializeSimWeights(simwRaw) : null,
     draw: drawRaw ? deserializeDraw(drawRaw) : null,
+    wizardProfile: wpRaw ? deserializeWizardProfile(wpRaw) : null,
   };
 }
 
@@ -456,7 +465,7 @@ function parseUrl(): UrlState {
  * (e.g. CF-9's `draw`) should add their encoded key here when factored through
  * `serializeUrlParams`.
  */
-const VERSIONED_PARAM_KEYS = ['filter', 'qp', 'qw', 'iso', 'v', 'sl', 'aff', 'simw', 'draw'] as const;
+const VERSIONED_PARAM_KEYS = ['filter', 'qp', 'qw', 'iso', 'v', 'sl', 'aff', 'simw', 'draw', 'wp'] as const;
 
 /** True when the built params carry at least one structured/version-sensitive key. */
 function hasVersionedParams(params: URLSearchParams): boolean {
@@ -516,6 +525,10 @@ function serializeUrlParams(pno: string | null, layer: LayerId, comparePnos: str
   if (extras.draw) {
     const draw = serializeDraw(extras.draw);
     if (draw.length > 2) params.set('draw', draw); // skip an empty body (just the mode prefix)
+  }
+  // CF-4: wizard priority profile — only when it differs from the defaults.
+  if (extras.wizardProfile && isCustomWizardAnswers(extras.wizardProfile)) {
+    params.set('wp', serializeWizardProfile(extras.wizardProfile));
   }
   return params;
 }
@@ -582,7 +595,7 @@ export function buildViewportShareUrl(viewport: UrlViewport | null): string {
  *  URL before the restoration effect has consumed them (e.g., pinned neighborhoods). */
 export function useSyncUrlState(pno: string | null, layer: LayerId, comparePnos: string[] = [], city: string = 'helsinki_metro', ready = true, extras: ExtraUrlState = {}) {
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const { scope, year, colorblind, lang, ref, filters, weights, isochrone, shortlist, affordability, simWeights, draw } = extras;
+  const { scope, year, colorblind, lang, ref, filters, weights, isochrone, shortlist, affordability, simWeights, draw, wizardProfile } = extras;
   // Depend on serialized keys, not object/array references, so an unchanged value
   // never re-triggers the URL write.
   const filterKey = filters && filters.length > 0 ? serializeFilters(filters) : '';
@@ -592,11 +605,12 @@ export function useSyncUrlState(pno: string | null, layer: LayerId, comparePnos:
   const affKey = affordability ? serializeAffordability(affordability) : '';
   const simwKey = simWeights ? serializeSimWeights(simWeights) : '';
   const drawKey = draw ? serializeDraw(draw) : '';
+  const wpKey = wizardProfile && isCustomWizardAnswers(wizardProfile) ? serializeWizardProfile(wizardProfile) : '';
   useEffect(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
     if (!ready) return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-    timerRef.current = setTimeout(() => writeUrl(pno, layer, comparePnos, city, { scope, year, colorblind, lang, ref, filters, weights, isochrone, shortlist, affordability, simWeights, draw }), 100);
+    timerRef.current = setTimeout(() => writeUrl(pno, layer, comparePnos, city, { scope, year, colorblind, lang, ref, filters, weights, isochrone, shortlist, affordability, simWeights, draw, wizardProfile }), 100);
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- object/array extras are tracked via their serialized *Key deps
-  }, [pno, layer, comparePnos, city, ready, scope, year, colorblind, lang, ref, filterKey, weightsKey, isoKey, shortlistKey, affKey, simwKey, drawKey]);
+  }, [pno, layer, comparePnos, city, ready, scope, year, colorblind, lang, ref, filterKey, weightsKey, isoKey, shortlistKey, affKey, simwKey, drawKey, wpKey]);
 }

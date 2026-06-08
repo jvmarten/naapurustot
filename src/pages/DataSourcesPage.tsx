@@ -20,6 +20,24 @@ const GRAN_KEY: Record<string, string> = {
   derived: 'sources.gran_derived',
 };
 
+/**
+ * PO-15: format the build_metadata `generated` ISO timestamp (inlined via the
+ * __BUILD_DATE__ define — see vite.config.ts; the full table stays out of the
+ * bundle) as a localized day-level date for the prominent "Data updated" note.
+ * Returns '' for an empty/invalid stamp so the section can be omitted.
+ */
+function formatGeneratedDate(iso: string | undefined, lang: Lang): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const locale = lang === 'fi' ? 'fi-FI' : lang === 'sv' ? 'sv-SE' : 'en-GB';
+  try {
+    return d.toLocaleDateString(locale, { year: 'numeric', month: 'long', day: 'numeric' });
+  } catch {
+    return iso.slice(0, 10);
+  }
+}
+
 export const DataSourcesPage: React.FC<{ lang: Lang }> = ({ lang }) => {
   useEffect(() => {
     if (getLang() !== lang) void setLang(lang);
@@ -57,6 +75,29 @@ export const DataSourcesPage: React.FC<{ lang: Lang }> = ({ lang }) => {
   }, [sort]);
   const toggleSort = () => setSort((s) => (s === 'newest' ? 'oldest' : 'newest'));
 
+  // PO-15: machine-readable build_metadata rendered as a human "Data updated"
+  // changelog — the prominent generated date plus a per-source refresh log
+  // (newest vintage + how many layers it backs), grouped from the same registry
+  // the layers table above uses, sorted newest-first. Indexable on the
+  // prerendered page (scripts/prerender.mjs mirrors this in <noscript>).
+  const generatedOn = formatGeneratedDate(__BUILD_DATE__, lang);
+  const refreshLog = useMemo(() => {
+    const bySource = new Map<string, { source: string; count: number; newest: number | null }>();
+    for (const { s, fresh } of rows) {
+      const cur = bySource.get(s.source) ?? { source: s.source, count: 0, newest: null };
+      cur.count += 1;
+      const y = fresh?.latest ?? null;
+      if (y != null && (cur.newest == null || y > cur.newest)) cur.newest = y;
+      bySource.set(s.source, cur);
+    }
+    return [...bySource.values()].sort((a, b) => {
+      const ya = a.newest ?? -Infinity;
+      const yb = b.newest ?? -Infinity;
+      if (yb !== ya) return yb - ya; // newest first
+      return a.source.localeCompare(b.source);
+    });
+  }, [rows]);
+
   return (
     <main className="min-h-screen bg-surface-50 dark:bg-surface-950 text-surface-800 dark:text-surface-200">
       <div className="mx-auto max-w-4xl px-5 py-10">
@@ -73,6 +114,52 @@ export const DataSourcesPage: React.FC<{ lang: Lang }> = ({ lang }) => {
         <p className="mt-3 max-w-2xl text-surface-600 dark:text-surface-400 leading-relaxed">
           {t('sources.subtitle')}
         </p>
+
+        {/* PO-15: prominent "Data updated" note + per-source refresh log, rendered
+            from the committed build_metadata provenance so it is human-readable and
+            indexable (mirrored in the prerendered <noscript>). */}
+        {generatedOn && (
+          <section
+            aria-labelledby="data-updated-heading"
+            className="mt-8 rounded-xl border border-surface-200 dark:border-surface-800 bg-surface-100/60 dark:bg-surface-900/50 p-5"
+          >
+            <h2
+              id="data-updated-heading"
+              className="text-sm font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400"
+            >
+              {t('sources.updated_heading')}
+            </h2>
+            <p className="mt-1 text-2xl font-bold text-surface-900 dark:text-white">
+              {t('sources.updated_on').replace('{date}', generatedOn)}
+            </p>
+            <p className="mt-2 max-w-2xl text-sm text-surface-600 dark:text-surface-400 leading-relaxed">
+              {t('sources.updated_intro')}
+            </p>
+
+            <h3 className="mt-5 mb-2 text-xs font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400">
+              {t('sources.refresh_log_heading')}
+            </h3>
+            <ul className="flex flex-col gap-1.5">
+              {refreshLog.map((r) => (
+                <li
+                  key={r.source}
+                  className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 border-b border-surface-200/70 dark:border-surface-800/70 pb-1.5 last:border-0 last:pb-0"
+                >
+                  <span className="text-sm text-surface-800 dark:text-surface-200">{r.source}</span>
+                  <span className="text-xs text-surface-500 dark:text-surface-400 whitespace-nowrap">
+                    {r.newest != null && (
+                      <span className="tabular-nums">
+                        {t('sources.refresh_newest').replace('{year}', String(r.newest))}
+                      </span>
+                    )}
+                    {r.newest != null && ' · '}
+                    {t('sources.refresh_layers').replace('{n}', String(r.count))}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         <h2 className="mt-10 mb-3 text-lg font-semibold text-surface-900 dark:text-white">
           {t('sources.layers_heading')}

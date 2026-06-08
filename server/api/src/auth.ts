@@ -189,6 +189,122 @@ router.post('/logout', (_req: Request, res: Response): void => {
   res.json({ ok: true });
 });
 
+// ── GDPR: account deletion + personal-data export (CF-13) ──
+
+const CLEAR_COOKIE_OPTS = { httpOnly: true, secure: true, sameSite: 'none' as const, path: '/' };
+
+/**
+ * Validate the confirmation a client must send to delete its account.
+ * Requires the literal string "DELETE" so a misrouted/accidental request can
+ * never wipe an account. Pure (no DB) so it can be unit-tested in isolation.
+ */
+export function validateDeleteConfirmation(confirm: unknown): { ok: true } | { ok: false; error: string } {
+  if (confirm !== 'DELETE') {
+    return { ok: false, error: 'Account deletion requires confirmation' };
+  }
+  return { ok: true };
+}
+
+/**
+ * Assemble the full personal-data export payload from the rows the API stores
+ * for a user. Pure (no DB) so the export shape is unit-testable. Any table
+ * with no row for the user contributes its documented empty default.
+ */
+export function buildExportPayload(parts: {
+  user: Record<string, unknown> | undefined;
+  favorites: string[] | undefined;
+  shortlist: string[] | undefined;
+  notes: Record<string, string> | undefined;
+  preferences: { filterPresets?: unknown; qualityWeights?: unknown } | undefined;
+}) {
+  const u = parts.user;
+  return {
+    exportedAt: new Date().toISOString(),
+    account: u
+      ? {
+          id: u.id,
+          username: u.username,
+          email: u.email ?? null,
+          displayName: u.display_name ?? null,
+          trustLevel: u.trust_level,
+          createdAt: u.created_at,
+          updatedAt: u.updated_at,
+        }
+      : null,
+    favorites: parts.favorites ?? [],
+    shortlist: parts.shortlist ?? [],
+    notes: parts.notes ?? {},
+    filterPresets: parts.preferences?.filterPresets ?? [],
+    qualityWeights: parts.preferences?.qualityWeights ?? {},
+  };
+}
+
+// Export the full stored record so the user can download all data we hold.
+router.get('/export', async (req: Request, res: Response): Promise<void> => {
+  const userId = authenticateToken(req);
+  if (!userId) {
+    res.status(401).json({ error: 'Not authenticated' });
+    return;
+  }
+
+  const [user, favorites, shortlist, notes, preferences] = await Promise.all([
+    pool.query(
+      'SELECT id, username, email, display_name, trust_level, created_at, updated_at FROM users WHERE id = $1',
+      [userId]
+    ),
+    pool.query('SELECT favorites FROM user_favorites WHERE user_id = $1', [userId]),
+    pool.query('SELECT shortlist FROM user_shortlist WHERE user_id = $1', [userId]),
+    pool.query('SELECT notes FROM user_notes WHERE user_id = $1', [userId]),
+    pool.query('SELECT filter_presets, quality_weights FROM user_preferences WHERE user_id = $1', [userId]),
+  ]);
+
+  if (user.rows.length === 0) {
+    res.clearCookie('token', CLEAR_COOKIE_OPTS);
+    res.status(401).json({ error: 'User not found' });
+    return;
+  }
+
+  const payload = buildExportPayload({
+    user: user.rows[0],
+    favorites: favorites.rows[0]?.favorites,
+    shortlist: shortlist.rows[0]?.shortlist,
+    notes: notes.rows[0]?.notes,
+    preferences: preferences.rows[0]
+      ? { filterPresets: preferences.rows[0].filter_presets, qualityWeights: preferences.rows[0].quality_weights }
+      : undefined,
+  });
+
+  res.setHeader('Content-Disposition', 'attachment; filename="naapurustot-data.json"');
+  res.json(payload);
+});
+
+// Permanently delete the account. The ON DELETE CASCADE FKs on user_favorites,
+// user_shortlist, user_notes and user_preferences remove all dependent rows.
+router.delete('/account', async (req: Request, res: Response): Promise<void> => {
+  const userId = authenticateToken(req);
+  if (!userId) {
+    res.status(401).json({ error: 'Not authenticated' });
+    return;
+  }
+
+  const confirmation = validateDeleteConfirmation(req.body?.confirm);
+  if (!confirmation.ok) {
+    res.status(400).json({ error: confirmation.error });
+    return;
+  }
+
+  // Deleting the users row cascades to all user_* tables via ON DELETE CASCADE.
+  const result = await pool.query('DELETE FROM users WHERE id = $1', [userId]);
+  if (result.rowCount === 0) {
+    res.clearCookie('token', CLEAR_COOKIE_OPTS);
+    res.status(401).json({ error: 'User not found' });
+    return;
+  }
+
+  res.clearCookie('token', CLEAR_COOKIE_OPTS);
+  res.json({ ok: true });
+});
+
 router.get('/me', async (req: Request, res: Response): Promise<void> => {
   const token = req.cookies?.token;
   if (!token) {
