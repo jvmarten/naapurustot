@@ -63,8 +63,11 @@ export function useMapData(regionId?: RegionId | 'all'): MapDataState {
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        const message = err instanceof Error ? err.message : String(err);
-        setState({ data: null, loading: false, error: message, metroAverages: {} });
+        // Log the raw error for diagnostics; surface a stable code to the UI so
+        // the banner can render a localized, user-friendly subtitle instead of
+        // a truncated English/technical message.
+        console.error(err);
+        setState({ data: null, loading: false, error: 'load_failed', metroAverages: {} });
       });
     return () => { cancelled = true; };
   }, [regionId, attempt]);

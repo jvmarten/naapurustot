@@ -69,7 +69,7 @@ jobs:
           JS_SIZE=$(find dist/assets -name '*.js' ! -name 'maplibre-*' -exec gzip -c {} \; | wc -c)
           echo "App JS bundle excluding maplibre (gzipped): $JS_SIZE bytes"
           # 280000 B budget — mirrors ci.yml. Raised from 256000 B for the third roadmap
-          # batch (full 36-item FEATURE_ROADMAP completion). Measured 273508 B; +~6.5KB margin.
+          # batch (36-item FEATURE_ROADMAP) + the UX-review batch. Measured 278914 B; ~1KB margin.
           if [ "$JS_SIZE" -gt 280000 ]; then
             echo "::error::JS bundle size exceeds 280KB gzipped budget ($JS_SIZE bytes)"
             exit 1

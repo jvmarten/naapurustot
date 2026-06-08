@@ -16,6 +16,8 @@ interface ComparisonPanelProps {
   referenceName?: string | null;
   /** CF-10: resolve a pno's map geometry so the comparison set can export as GeoJSON. */
   geometryFor?: (pno: string) => GeoJSON.Geometry | null;
+  /** MO7: hide the MOBILE sheet when a NeighborhoodPanel mobile sheet is open (both anchor bottom-0 z-20). Desktop is untouched. */
+  suppressMobile?: boolean;
 }
 
 /** CF-5: percentage delta of a value vs the reference baseline, coloured by whether
@@ -199,7 +201,7 @@ const ComparisonChart: React.FC<{ pinned: NeighborhoodProperties[] }> = React.me
 });
 ComparisonChart.displayName = 'ComparisonChart';
 
-export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pinned, onUnpin, onClear, reference = null, referenceName = null, geometryFor }) => {
+export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pinned, onUnpin, onClear, reference = null, referenceName = null, geometryFor, suppressMobile }) => {
   useI18nVersion();
   // CF-5: show per-value deltas vs the reference only when it isn't itself the sole pinned area.
   const refActive = !!reference && pinned.some((p) => p.pno !== reference.pno);
@@ -208,6 +210,8 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pin
     : null;
   // PO-4: Tab state for chart vs table view
   const [view, setView] = useState<'table' | 'chart'>('table');
+  // L2: per-button busy state + re-entry guard for the share-as-image card.
+  const [sharingImage, setSharingImage] = useState(false);
   // CF-8: Export the entire comparison (table + per-neighborhood detail pages)
   const handleExportPdf = useCallback(() => {
     trackEvent('export-comparison-pdf', { count: pinned.length });
@@ -243,14 +247,24 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pin
   if (pinned.length === 0) return null;
 
   if (pinned.length === 1) {
+    // C3/EM2: on mobile this hint was previously `hidden md:flex`, so pinning a
+    // single area gave no feedback. Render a compact bottom-anchored pill on
+    // mobile (suppressed when a NeighborhoodPanel sheet is open via suppressMobile),
+    // and keep the desktop floating card unchanged at md+.
     return (
-      <div className="hidden md:flex absolute bottom-4 left-1/2 -translate-x-1/2 z-20
-                      bg-white/95 dark:bg-surface-950/95 backdrop-blur-xl rounded-2xl
-                      border border-surface-200 dark:border-surface-800/50 shadow-2xl
-                      px-6 py-4 items-center gap-4">
-        <CompareIllustration className="w-12 h-12 opacity-60 flex-shrink-0" />
+      <div
+        className={`flex fixed bottom-0 inset-x-0 z-20 pb-safe
+                    md:absolute md:bottom-4 md:left-1/2 md:inset-x-auto md:-translate-x-1/2 md:pb-0
+                    bg-white/95 dark:bg-surface-950/95 backdrop-blur-xl
+                    rounded-t-2xl md:rounded-2xl
+                    border-t md:border border-surface-200 dark:border-surface-800/50
+                    shadow-[0_-4px_30px_rgba(0,0,0,0.15)] md:shadow-2xl
+                    px-4 py-3 md:px-6 md:py-4 items-center gap-3 md:gap-4 ${suppressMobile ? '!hidden md:!flex' : ''}`}
+      >
+        <CompareIllustration className="w-10 h-10 md:w-12 md:h-12 opacity-60 flex-shrink-0" />
         <div className="text-sm text-surface-400 dark:text-surface-500">
           {t('empty.compare_hint')}
+          <span className="ml-1.5 text-[10px] font-semibold tabular-nums text-surface-300 dark:text-surface-600">1/2</span>
         </div>
       </div>
     );
@@ -317,11 +331,17 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pin
                 </button>
                 {/* CF-10: share the comparison as a branded PNG with the deep link */}
                 <button
-                  onClick={() => { trackEvent('share-comparison-image'); generateComparisonCard(pinned).catch(() => { /* html-to-image load failed */ }); }}
-                  className="text-xs text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200 transition-colors px-1.5 py-0.5"
+                  onClick={() => {
+                    if (sharingImage) return;
+                    trackEvent('share-comparison-image');
+                    setSharingImage(true);
+                    generateComparisonCard(pinned).catch(() => { /* html-to-image load failed */ }).finally(() => setSharingImage(false));
+                  }}
+                  disabled={sharingImage}
+                  className="text-xs text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200 transition-colors px-1.5 py-0.5 disabled:opacity-50"
                   title={t('share.image')}
                 >
-                  {t('share.image')}
+                  {sharingImage ? t('share.generating') : t('share.image')}
                 </button>
                 <span className="text-surface-300 dark:text-surface-700" aria-hidden>·</span>
               </>
@@ -423,11 +443,11 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pin
         )}
       </div>
 
-      {/* Mobile: stacked cards in bottom sheet */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-20 max-h-[60vh]
+      {/* Mobile: stacked cards in bottom sheet — MO7: hidden when a NeighborhoodPanel mobile sheet is open */}
+      <div className={`md:hidden fixed bottom-0 left-0 right-0 z-20 max-h-[60vh]
                       bg-white/95 dark:bg-surface-950/95 backdrop-blur-xl
                       border-t border-surface-200 dark:border-surface-800/50
-                      shadow-[0_-4px_30px_rgba(0,0,0,0.15)] rounded-t-2xl">
+                      shadow-[0_-4px_30px_rgba(0,0,0,0.15)] rounded-t-2xl ${suppressMobile ? 'hidden' : ''}`}>
         <div className="flex items-center justify-between px-5 py-3 border-b border-surface-200 dark:border-surface-800/50">
           <h2 className="text-sm font-display font-bold text-surface-900 dark:text-white">
             {t('compare.title')}{refCaption}
@@ -465,7 +485,7 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pin
             </button>
           </div>
         </div>
-        <div className="overflow-y-auto p-4 space-y-3" style={{ maxHeight: 'calc(60vh - 52px)' }}>
+        <div className="overflow-y-auto p-4 pb-safe space-y-3" style={{ maxHeight: 'calc(60vh - 52px)' }}>
           {pinned.map((n, i) => (
             <MobileCard key={n.pno} n={n} color={COLUMN_COLORS[i]} onUnpin={onUnpin} allPinned={pinned} bestByKey={bestByKey} reference={refActive ? reference : null} />
           ))}

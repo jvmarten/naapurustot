@@ -11,7 +11,7 @@ export interface RecentEntry {
 
 function loadRecent(): RecentEntry[] {
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
@@ -29,14 +29,14 @@ function loadRecent(): RecentEntry[] {
 }
 
 function saveRecent(entries: RecentEntry[]): void {
-  try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(entries)); } catch { /* quota exceeded or unavailable */ }
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(entries)); } catch { /* quota exceeded or unavailable */ }
 }
 
-/** Track recently searched neighborhoods (max 10), persisted to sessionStorage. */
+/** Track recently searched neighborhoods (max 10), persisted to localStorage. */
 export function useRecentNeighborhoods() {
   const [recent, setRecent] = useState<RecentEntry[]>(loadRecent);
 
-  // Persist to sessionStorage outside state updaters (updaters must be pure —
+  // Persist to localStorage outside state updaters (updaters must be pure —
   // React StrictMode double-invokes them, which would trigger redundant writes).
   useEffect(() => { saveRecent(recent); }, [recent]);
 

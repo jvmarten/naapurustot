@@ -3,7 +3,18 @@
 **Date:** 2026-06-03
 **Reviewer perspective:** A first-time visitor who knows nothing about the project, arriving cold at naapurustot.fi.
 **Method:** Seven parallel read-throughs of the frontend (one per dimension below) plus a completeness sweep, each grounded in the actual source with `file:line` references, then manually spot-verified against `App.tsx`, `SearchBar.tsx`, `useMapData.ts`, `useGridData`, `ErrorBanner`, `OnboardingTour`, `useBottomSheet`, and `e2e/a11y.spec.ts`.
-**Scope:** Frontend & user-facing behavior only. Nothing in this document has been implemented — it is a review.
+**Scope:** Frontend & user-facing behavior only.
+
+---
+
+## Implementation status (2026-06-08)
+
+This review has now been **implemented** (branch `claude/ux-review-fixes`, executed in the review's own batch order). i18n: 27 new keys + 3 reworded onboarding strings across fi/en/sv. Verified: `tsc -b` clean, ESLint clean, 2419/2419 Vitest tests pass, production build green, gzipped app-JS bundle 278,914 B (≤ 280,000 B budget — now only ~1 KB headroom, keep future additions minimal).
+
+- **Implemented (all severities):** C1, L4, EM5, A6, MO1, EM6, MO4, C11, A3 (global `:focus-visible` + per-component rings on Tools/Settings/panel/AuthModal), A4, MO6, E5, E3, A5, E4, L5, A8, C5, C9, A7, E8, O7, O6, O4, O5, A1, O1/EM1/EM4, C6, MO5, E6, E9, C4, C7, C8, C10, C2, X1, X3, L2, EM3, L1, L3, L6, L7, E1, E2, E7, MO2, MO7, MO3, C3/EM2, X4, and the Claude-Code-doable parts of X6 (manifest `theme_color` reconciled to `#1e3a5f`; manifest description set to the Finnish source string).
+- **Dropped at owner's request:** **O2** (Quality Index legend category labels), **O3** (persistent tagline), **X5** (donation fiat option).
+- **Already shipped before this batch (no work needed):** **A2** (panel is `role="complementary"` + focus move/restore), **X2** (privacy page, routes, signup/footer/settings links, cookieless-Umami statement, prerendered noscript+JSON-LD — all present from roadmap PO-14), **X7** core (the "Data updated" freshness section on the Data Sources page shipped as PO-15; the optional map-corner footer note was skipped to stay within the bundle budget).
+- **Manual remainder (needs design assets / infra, not done here):** **X6** real 192/512 + maskable PNG icons and a 180×180 `apple-touch-icon.png` (plus the `manifest.icons[]` / `<link rel="apple-touch-icon">` wiring that follows once those assets exist); **X4** secondary half (localizing the *root* `index.html` OG card per `?lang` via prerendered lang-variant root copies — the primary fix, pointing the share link at the per-area profile URL that already has correct OG, is done).
 
 ---
 

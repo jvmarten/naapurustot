@@ -156,8 +156,15 @@ export default defineConfig({
       manifest: {
         name: 'naapurustot.fi',
         short_name: 'naapurustot',
-        description: 'Finnish neighborhoods on a map',
-        theme_color: '#6366f1',
+        // X6: The manifest is emitted statically at build time — browsers read it
+        // from a fixed URL at install and do NOT localize it by Accept-Language/UA.
+        // A single locale must therefore be baked in, so we use the Finnish
+        // source-language one-liner (the app is Finnish-first). Runtime UI strings
+        // remain localized via i18n; only this install-time blurb is static.
+        description: 'Vertaile Suomen asuinalueita kartalla',
+        // X6: keep in sync with index.html <meta name="theme-color"> and
+        // scripts/prerender-hubs.mjs (both '#1e3a5f').
+        theme_color: '#1e3a5f',
         background_color: '#ffffff',
         display: 'standalone',
         icons: [

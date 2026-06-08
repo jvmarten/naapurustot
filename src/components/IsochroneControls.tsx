@@ -6,6 +6,8 @@ interface Props {
   mode: IsochroneMode;
   budget: number;
   loading?: boolean;
+  /** E1: the last fetch failed (network/HTTP) — show an error row with a retry. */
+  error?: boolean;
   active?: boolean;
   onChange: (mode: IsochroneMode, budget: number) => void;
   onClear: () => void;
@@ -21,7 +23,7 @@ const MODE_LABEL: Record<IsochroneMode, string> = {
  * CF-5: mode + time-budget picker for the travel-time isochrone overlay.
  * Rendered only when a Digitransit key is configured (ISOCHRONE_ENABLED).
  */
-export const IsochroneControls: React.FC<Props> = ({ mode, budget, loading, active, onChange, onClear }) => {
+export const IsochroneControls: React.FC<Props> = ({ mode, budget, loading, error, active, onChange, onClear }) => {
   useI18nVersion();
   return (
     <div className="rounded-xl bg-surface-100 dark:bg-surface-900/60 p-4">
@@ -73,6 +75,19 @@ export const IsochroneControls: React.FC<Props> = ({ mode, budget, loading, acti
 
       {loading && (
         <p className="mt-2 text-[11px] text-surface-400 dark:text-surface-500">{t('isochrone.loading')}</p>
+      )}
+
+      {/* E1: surface a genuine fetch failure (vs. a silently empty area) with a retry. */}
+      {error && !loading && (
+        <div className="mt-2 flex items-center justify-between gap-2" role="alert">
+          <span className="text-[11px] text-amber-600 dark:text-amber-400">{t('isochrone.error')}</span>
+          <button
+            onClick={() => onChange(mode, budget)}
+            className="text-[10px] font-semibold text-brand-600 dark:text-brand-400 hover:underline flex-shrink-0"
+          >
+            {t('error.retry')}
+          </button>
+        </div>
       )}
     </div>
   );

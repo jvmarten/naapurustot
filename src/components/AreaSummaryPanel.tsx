@@ -245,7 +245,7 @@ export const AreaSummaryPanel: React.FC<AreaSummaryPanelProps> = React.memo(({ p
             </svg>
           </button>
         </div>
-        <div className="overflow-y-auto p-4 space-y-2" style={{ maxHeight: 'calc(65vh - 56px)' }}>
+        <div className="overflow-y-auto p-4 pb-safe space-y-2" style={{ maxHeight: 'calc(65vh - 56px)' }}>
           {intersecting.length === 0 ? (
             <div className="py-6 text-center text-sm text-surface-400 dark:text-surface-500">
               {t('draw.no_neighborhoods')}

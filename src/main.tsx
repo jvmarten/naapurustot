@@ -120,25 +120,41 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ThemeProvider>
       <BrowserRouter>
-        <Suspense fallback={null}>
-          <Routes>
-            <Route path="/" element={<App />} />
-            {/* Profile routes are wrapped in an ErrorBoundary so a render-phase
-                crash (e.g. a "Maximum call stack size exceeded" RangeError seen
-                on memory-constrained mobile engines) degrades to a recoverable
-                fallback instead of an uncaught error + blank page. */}
-            <Route path="/alue/:slug" element={<ErrorBoundary><NeighborhoodProfilePage /></ErrorBoundary>} />
-            <Route path="/en/area/:slug" element={<ErrorBoundary><NeighborhoodProfilePage /></ErrorBoundary>} />
-            <Route path="/sv/omrade/:slug" element={<ErrorBoundary><NeighborhoodProfilePage /></ErrorBoundary>} />
-            <Route path="/tietolahteet" element={<DataSourcesPage lang="fi" />} />
-            <Route path="/en/data-sources" element={<DataSourcesPage lang="en" />} />
-            <Route path="/sv/datakallor" element={<DataSourcesPage lang="sv" />} />
-            <Route path="/tietosuoja" element={<PrivacyPage lang="fi" />} />
-            <Route path="/en/privacy" element={<PrivacyPage lang="en" />} />
-            <Route path="/sv/integritet" element={<PrivacyPage lang="sv" />} />
-            <Route path="*" element={<NotFoundPage />} />
-          </Routes>
-        </Suspense>
+        {/* Top-level boundary: guards the lazy routes (DataSources, Privacy,
+            NotFound) so a chunk-load failure that chunkReload can't recover
+            degrades to the localized fallback instead of a blank white page.
+            Per-profile-route boundaries below remain for tighter in-place
+            recovery. */}
+        <ErrorBoundary>
+          {/* L3: minimal full-page centered spinner while a route chunk loads,
+              so a lazy page navigation shows feedback instead of a blank screen. */}
+          <Suspense fallback={
+            <div className="fixed inset-0 flex items-center justify-center bg-white dark:bg-surface-950" aria-hidden="true">
+              <svg className="w-8 h-8 animate-spin text-surface-400 dark:text-surface-500" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+            </div>
+          }>
+            <Routes>
+              <Route path="/" element={<App />} />
+              {/* Profile routes are wrapped in an ErrorBoundary so a render-phase
+                  crash (e.g. a "Maximum call stack size exceeded" RangeError seen
+                  on memory-constrained mobile engines) degrades to a recoverable
+                  fallback instead of an uncaught error + blank page. */}
+              <Route path="/alue/:slug" element={<ErrorBoundary><NeighborhoodProfilePage /></ErrorBoundary>} />
+              <Route path="/en/area/:slug" element={<ErrorBoundary><NeighborhoodProfilePage /></ErrorBoundary>} />
+              <Route path="/sv/omrade/:slug" element={<ErrorBoundary><NeighborhoodProfilePage /></ErrorBoundary>} />
+              <Route path="/tietolahteet" element={<DataSourcesPage lang="fi" />} />
+              <Route path="/en/data-sources" element={<DataSourcesPage lang="en" />} />
+              <Route path="/sv/datakallor" element={<DataSourcesPage lang="sv" />} />
+              <Route path="/tietosuoja" element={<PrivacyPage lang="fi" />} />
+              <Route path="/en/privacy" element={<PrivacyPage lang="en" />} />
+              <Route path="/sv/integritet" element={<PrivacyPage lang="sv" />} />
+              <Route path="*" element={<NotFoundPage />} />
+            </Routes>
+          </Suspense>
+        </ErrorBoundary>
       </BrowserRouter>
     </ThemeProvider>
   </React.StrictMode>,

@@ -32,6 +32,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const overlayRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // A11y: move focus into the dialog on open and restore it to the triggering
+  // element on close, so keyboard/screen-reader users aren't left behind the modal.
+  useEffect(() => {
+    const trigger = document.activeElement as HTMLElement | null;
+    const firstInput = panelRef.current?.querySelector<HTMLInputElement>('input[type="text"]');
+    (firstInput ?? panelRef.current)?.focus();
+    return () => trigger?.focus?.();
+  }, []);
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
@@ -103,17 +113,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
     >
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label={mode === 'login' ? t('auth.login') : t('auth.signup')}
-        className="w-full max-w-sm mx-4 bg-white dark:bg-surface-900 rounded-2xl shadow-2xl border border-surface-200 dark:border-surface-700/40 overflow-hidden max-h-[90vh] overflow-y-auto"
+        tabIndex={-1}
+        className="w-full max-w-sm mx-4 bg-white dark:bg-surface-900 rounded-2xl shadow-2xl border border-surface-200 dark:border-surface-700/40 overflow-hidden max-h-[90vh] overflow-y-auto outline-none"
       >
         {/* Tab header */}
         <div className="flex items-center border-b border-surface-200 dark:border-surface-700/40">
           <button
             type="button"
             onClick={() => switchMode('login')}
-            className={`flex-1 py-3.5 text-sm font-semibold text-center transition-colors relative
+            className={`flex-1 py-3.5 text-sm font-semibold text-center transition-colors relative focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-inset
               ${mode === 'login'
                 ? 'text-surface-900 dark:text-white'
                 : 'text-surface-400 dark:text-surface-500 hover:text-surface-600 dark:hover:text-surface-300'}`}
@@ -126,7 +138,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
           <button
             type="button"
             onClick={() => switchMode('signup')}
-            className={`flex-1 py-3.5 text-sm font-semibold text-center transition-colors relative
+            className={`flex-1 py-3.5 text-sm font-semibold text-center transition-colors relative focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-inset
               ${mode === 'signup'
                 ? 'text-surface-900 dark:text-white'
                 : 'text-surface-400 dark:text-surface-500 hover:text-surface-600 dark:hover:text-surface-300'}`}
@@ -139,7 +151,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
           <button
             onClick={onClose}
             aria-label={t('aria.close')}
-            className="px-3 py-3.5 text-surface-400 hover:text-surface-600 dark:hover:text-surface-300 transition-colors"
+            className="px-3 py-3.5 text-surface-400 hover:text-surface-600 dark:hover:text-surface-300 transition-colors rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -232,7 +244,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
           <button
             type="submit"
             disabled={submitting}
-            className="w-full py-2.5 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-2.5 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
           >
             {submitting
               ? t('auth.submitting')

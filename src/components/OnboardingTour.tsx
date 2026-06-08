@@ -65,10 +65,19 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({ onComplete, skip
   const isFirst = stepIndex === 0;
   const isLast = stepIndex === steps.length - 1;
   const completedRef = useRef(false);
+  const popoverRef = useRef<HTMLDivElement>(null);
 
   // Track tour start once on mount
   useEffect(() => {
     trackEvent('onboarding', { action: 'start' });
+  }, []);
+
+  // A11y: move focus into the popover on open and restore it to the triggering
+  // element on close, so keyboard/screen-reader users aren't left behind the modal.
+  useEffect(() => {
+    const trigger = document.activeElement as HTMLElement | null;
+    popoverRef.current?.focus();
+    return () => trigger?.focus?.();
   }, []);
 
   const finish = useCallback((reason: 'completed' | 'skipped') => {
@@ -133,6 +142,24 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({ onComplete, skip
       } else if (e.key === 'ArrowLeft') {
         e.preventDefault();
         if (!isFirst) setStepIndex((i) => i - 1);
+      } else if (e.key === 'Tab') {
+        // Trap Tab within the popover (Skip/Back/Next + top-right skip buttons).
+        const root = popoverRef.current;
+        if (!root) return;
+        const focusable = root.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        );
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        const active = document.activeElement;
+        if (e.shiftKey && active === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && active === last) {
+          e.preventDefault();
+          first.focus();
+        }
       }
     };
     // Capture phase so we beat the App-level Escape handler.
@@ -238,7 +265,9 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({ onComplete, skip
 
       {/* Popover card */}
       <div
-        className="absolute rounded-2xl bg-white dark:bg-surface-900 shadow-2xl border border-surface-200 dark:border-surface-700/40 p-5"
+        ref={popoverRef}
+        tabIndex={-1}
+        className="absolute rounded-2xl bg-white dark:bg-surface-900 shadow-2xl border border-surface-200 dark:border-surface-700/40 p-5 outline-none"
         style={{
           top: popoverPos.top,
           left: popoverPos.left,
@@ -302,6 +331,13 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({ onComplete, skip
             {isLast ? t('onboarding.finish') : t('onboarding.next')}
           </button>
         </div>
+
+        {/* Reassure users they can reopen the tour later — last step only. */}
+        {isLast && (
+          <p className="mt-3 text-xs text-surface-500 dark:text-surface-400 italic">
+            {t('onboarding.reopen_note')}
+          </p>
+        )}
       </div>
     </div>
   );

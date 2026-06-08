@@ -11,7 +11,7 @@ vi.mock('../utils/i18n', () => ({
 
 describe('useRecentNeighborhoods', () => {
   beforeEach(() => {
-    sessionStorage.clear();
+    localStorage.clear();
   });
 
   it('starts with empty recent list', () => {
@@ -57,18 +57,18 @@ describe('useRecentNeighborhoods', () => {
     expect(result.current.recent[0].pno).toBe('00011');
   });
 
-  it('persists to sessionStorage', () => {
+  it('persists to localStorage', () => {
     const { result } = renderHook(() => useRecentNeighborhoods());
 
     act(() => result.current.addRecent({ pno: '00100', name: 'Helsinki', center: [24.94, 60.17] }));
 
-    const stored = JSON.parse(sessionStorage.getItem('naapurustot-recent')!);
+    const stored = JSON.parse(localStorage.getItem('naapurustot-recent')!);
     expect(stored).toHaveLength(1);
     expect(stored[0].pno).toBe('00100');
   });
 
-  it('loads from sessionStorage on mount', () => {
-    sessionStorage.setItem(
+  it('loads from localStorage on mount', () => {
+    localStorage.setItem(
       'naapurustot-recent',
       JSON.stringify([{ pno: '00200', name: 'Espoo', center: [24.66, 60.21] }]),
     );

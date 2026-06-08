@@ -113,7 +113,11 @@ jobs:
           # anchor, adjacency, percentile filters/superlatives, drawn-area share URLs,
           # correlation depth, national-scope toggle, split-map fidelity, GeoJSON/JSON export,
           # shortlist sharing+cards, notes in export, panel a11y, wizard profile, GDPR UI,
-          # coverage/freshness/note disclosures). Measured 273508 B; +~6.5KB margin.
+          # coverage/freshness/note disclosures), then the UX-review batch (search
+          # empty/loading states, focus-visible + menu/dialog a11y, colorblind diverging
+          # palettes, WebGL context-loss recovery, idle/reset/wizard on-map chips,
+          # share-image busy states, safe-area insets, map accessible name/keyboard entry).
+          # Measured 278914 B; ~1KB margin — budget is nearly full, keep additions minimal.
           # New surfaces are lazy-loaded but the check sums all app chunks.
           if [ "$JS_SIZE" -gt 280000 ]; then
             echo "::error::JS bundle size exceeds 280KB gzipped budget ($JS_SIZE bytes)"

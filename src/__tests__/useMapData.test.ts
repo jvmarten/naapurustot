@@ -114,7 +114,10 @@ describe('useMapData', () => {
     expect(resetDataCacheMock).not.toHaveBeenCalled();
   });
 
-  it('surfaces an error message when the loader rejects', async () => {
+  it('surfaces a stable error code when the loader rejects', async () => {
+    // E4: useMapData stores a stable 'load_failed' code (not the raw technical
+    // message) so ErrorBanner can render a fully localized subtitle. The raw
+    // error is logged to the console for diagnostics instead.
     loadAllDataMock.mockRejectedValueOnce(new Error('Failed to load data: 500'));
 
     const { result } = renderHook(() => useMapData('all'));
@@ -122,7 +125,7 @@ describe('useMapData', () => {
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
     });
-    expect(result.current.error).toBe('Failed to load data: 500');
+    expect(result.current.error).toBe('load_failed');
     expect(result.current.data).toBeNull();
   });
 
@@ -133,7 +136,7 @@ describe('useMapData', () => {
 
     const { result } = renderHook(() => useMapData('all'));
     await waitFor(() => {
-      expect(result.current.error).toBe('Failed to load data: 500');
+      expect(result.current.error).toBe('load_failed');
     });
     expect(resetDataCacheMock).not.toHaveBeenCalled();
 

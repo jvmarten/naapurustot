@@ -749,6 +749,12 @@ const CB_PALETTES: Record<Exclude<ColorblindType, 'off'>, string[]> = {
   tritanopia: ['#000004', '#2c115f', '#711f81', '#b63679', '#ee605e', '#fb9d3a', '#f7e54a', '#fcffa4'],
 };
 
+// Single CVD-safe diverging ramp (blue → near-neutral grey → orange), defined low→high.
+// Shared by all three colorblind modes: blue/orange poles stay distinguishable under
+// protan/deutan/tritan vision while the grey center preserves a diverging layer's
+// neutral midpoint (which the sequential CB_PALETTES would destroy).
+const CB_DIVERGING: string[] = ['#2c7bb6', '#5ca9d6', '#a6cee3', '#dcdcdc', '#fdd49e', '#fdae61', '#e8722a', '#b8531a'];
+
 let colorblindMode: ColorblindType = 'off';
 
 export function setColorblindMode(mode: ColorblindType) {
@@ -798,6 +804,18 @@ function resamplePalette(palette: string[], count: number): string[] {
   return result;
 }
 
+// Warmth of a #rrggbb color: red minus blue. Positive = warm, negative = cool.
+function warmth(hex: string): number {
+  const c = parseInt(hex.slice(1), 16);
+  return ((c >> 16) & 0xff) - (c & 0xff);
+}
+
+// True when the original ramp runs warm→cool (low end warmer than high end), so the
+// cool→warm CB_DIVERGING palette must be reversed to preserve the layer's polarity.
+function runsWarmToCool(colors: string[]): boolean {
+  return warmth(colors[0]) > warmth(colors[colors.length - 1]);
+}
+
 // O(1) layer lookup instead of O(n) Array.find() on every call.
 // getLayerById is called on every hover (tooltip), layer switch, and map paint update.
 export const LAYER_MAP = new Map<LayerId, LayerConfig>();
@@ -806,7 +824,8 @@ for (const layer of LAYERS) {
 }
 
 // Cache resampled colorblind palettes to avoid recomputing on every getLayerById call.
-// Key: "mode:colorCount", e.g. "protanopia:8"
+// Key: "mode:family:colorCount", e.g. "protanopia:s:8" (s=sequential, d=diverging) so the
+// shared sequential and diverging palette families never collide in the cache.
 const cbPaletteCache = new Map<string, string[]>();
 
 // Cache colorblind-substituted LayerConfig objects to return stable references.
@@ -821,10 +840,23 @@ export function getLayerById(id: LayerId): LayerConfig {
   const layerKey = `${colorblindMode}:${id}`;
   const cached = cbLayerCache.get(layerKey);
   if (cached) return cached;
-  const paletteKey = `${colorblindMode}:${layer.colors.length}`;
+  // Diverging layers use the shared CVD-safe diverging ramp (preserving their neutral
+  // midpoint); sequential layers use the per-mode sequential CB palette.
+  const isDiverging = layer.divergingCenter != null;
+  // For diverging layers the polarity ('w'arm→cool reversed vs 'c'ool→warm) is part of
+  // the cache identity so two same-length diverging layers of opposite polarity don't collide.
+  const reverse = isDiverging && runsWarmToCool(layer.colors);
+  const family = isDiverging ? (reverse ? 'dw' : 'dc') : 's';
+  const paletteKey = `${colorblindMode}:${family}:${layer.colors.length}`;
   let cbColors = cbPaletteCache.get(paletteKey);
   if (!cbColors) {
-    cbColors = resamplePalette(CB_PALETTES[colorblindMode], layer.colors.length);
+    if (isDiverging) {
+      cbColors = resamplePalette(CB_DIVERGING, layer.colors.length);
+      // Match the layer's polarity: reverse the cool→warm CB ramp for warm→cool layers.
+      if (reverse) cbColors = [...cbColors].reverse();
+    } else {
+      cbColors = resamplePalette(CB_PALETTES[colorblindMode], layer.colors.length);
+    }
     cbPaletteCache.set(paletteKey, cbColors);
   }
   const result = { ...layer, colors: cbColors };

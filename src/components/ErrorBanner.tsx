@@ -2,11 +2,10 @@ import React from 'react';
 import { t } from '../utils/i18n';
 
 interface ErrorBannerProps {
-  message: string;
   onRetry: () => void;
 }
 
-export const ErrorBanner: React.FC<ErrorBannerProps> = ({ message, onRetry }) => (
+export const ErrorBanner: React.FC<ErrorBannerProps> = ({ onRetry }) => (
   <div className="absolute top-12 left-1/2 -translate-x-1/2 z-50 max-w-md w-full px-4">
     <div className="flex items-center gap-3 rounded-xl bg-rose-50/95 dark:bg-rose-950/90 backdrop-blur-md border border-rose-200 dark:border-rose-800/60 px-4 py-3 shadow-lg">
       <svg
@@ -24,7 +23,7 @@ export const ErrorBanner: React.FC<ErrorBannerProps> = ({ message, onRetry }) =>
       </svg>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-rose-800 dark:text-rose-200">{t('error.load_failed')}</p>
-        <p className="text-xs text-rose-600 dark:text-rose-400 truncate">{message}</p>
+        <p className="text-xs text-rose-600 dark:text-rose-400">{t('error.load_failed_detail')}</p>
       </div>
       <button
         onClick={onRetry}

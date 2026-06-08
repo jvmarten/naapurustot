@@ -92,9 +92,21 @@ export const Turnstile: React.FC<TurnstileProps> = ({ onToken }) => {
 
   if (error) {
     return (
-      <p className="text-sm text-red-600 dark:text-red-400 text-center py-2">
-        {t('auth.error.bot_check_failed')}
-      </p>
+      <div className="text-center py-2 space-y-2">
+        <p className="text-sm text-red-600 dark:text-red-400">
+          {t('auth.error.bot_check_failed')}
+        </p>
+        <p className="text-[11px] text-surface-500 dark:text-surface-400">
+          {t('auth.error.bot_check_blocked')}
+        </p>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="text-xs font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 underline rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+        >
+          {t('error.reload')}
+        </button>
+      </div>
     );
   }
 

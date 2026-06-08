@@ -67,6 +67,9 @@ export const NeighborhoodProfilePage: React.FC = () => {
   // True once the region geometry load has settled (loaded or failed). Until
   // then the MiniMap slot shows a placeholder so its arrival doesn't shift layout.
   const [mapResolved, setMapResolved] = useState(false);
+  // Bumped by the Retry button on a `load_failed` error; included in the load
+  // effect's deps so incrementing it cleanly re-runs the fetch.
+  const [retryCount, setRetryCount] = useState(0);
 
   // Detect language from URL path:
   //   /sv/omrade/… → Swedish
@@ -195,7 +198,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
     })();
 
     return () => { cancelled = true; };
-  }, [pno]);
+  }, [pno, retryCount]);
 
   // Update document title + hreflang + meta description.
   // Reuse existing elements from index.html where possible to avoid duplicates.
@@ -342,6 +345,14 @@ export const NeighborhoodProfilePage: React.FC = () => {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-white dark:bg-surface-950 text-surface-900 dark:text-white px-4">
         <h1 className="text-2xl font-bold mb-4">{heading}</h1>
+        {error === 'load_failed' && (
+          <button
+            onClick={() => setRetryCount(c => c + 1)}
+            className="inline-flex items-center px-6 py-3 mb-4 bg-brand-700 text-white rounded-lg hover:bg-brand-800 transition-colors font-medium"
+          >
+            {t('error.retry')}
+          </button>
+        )}
         <Link to="/" className="text-brand-600 hover:underline">{t('notfound.back_to_map')}</Link>
       </div>
     );

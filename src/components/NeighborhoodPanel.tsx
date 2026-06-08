@@ -62,6 +62,8 @@ interface PanelProps {
   isochroneMode?: IsochroneMode;
   isochroneBudget?: number;
   isochroneLoading?: boolean;
+  /** E1: true when the last isochrone fetch failed (network/HTTP) — drives an error + retry row */
+  isochroneError?: boolean;
   isochroneActive?: boolean;
   onIsochroneChange?: (mode: IsochroneMode, budget: number) => void;
   onIsochroneClear?: () => void;
@@ -363,24 +365,37 @@ const DistributionSection: React.FC<{
       hist,
       pct: percentileRank(values, selfVal),
       selfBin: binIndexOf(selfVal, hist.min, hist.max, hist.bins.length),
+      selfFmt: layer.format(selfVal),
       n: values.length,
     };
-  }, [props, allFeatures, layer.property]);
+  }, [props, allFeatures, layer]);
 
   if (!result) return null;
-  const { hist, pct, selfBin, n } = result;
+  const { hist, pct, selfBin, selfFmt, n } = result;
   const maxCount = Math.max(...hist.bins.map((b) => b.count), 1);
   // For lower-is-better metrics a high raw percentile is actually worse, so invert
   // to a consistent "better than X% of areas" reading.
   const higherIsBetter = layer.higherIsBetter !== false;
   const betterPct = pct == null ? null : Math.round(higherIsBetter ? pct : 100 - pct);
 
+  // A8: data-bearing aria for the mini-chart — names the metric, this area's own
+  // value and its direction-aware standing. Falls back to the static label when
+  // the percentile is unavailable (so the chart never loses its accessible name).
+  const distAria = betterPct == null
+    ? t('panel.distribution')
+    : t('panel.dist_aria')
+        .replace('{metric}', t(layer.labelKey))
+        .replace('{value}', selfFmt)
+        .replace('{pct}', String(betterPct));
+
   return (
-    <div className="px-4 md:px-5 pt-3">
+    // C5: remount + fade on each active-layer change so the swapped distribution
+    // is perceptible (the animation is reduced-motion-safe via index.css).
+    <div key={activeLayer} className="px-4 md:px-5 pt-3 animate-fade-in">
       <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400 mb-2">
         {t('panel.distribution')} · {t(layer.labelKey)}
       </h3>
-      <div className="flex items-end gap-px h-14" role="img" aria-label={t('panel.distribution')}>
+      <div className="flex items-end gap-px h-14" role="img" aria-label={distAria}>
         {hist.bins.map((b, i) => (
           <div
             key={i}
@@ -1013,7 +1028,7 @@ const AffordabilitySection: React.FC<{
 });
 AffordabilitySection.displayName = 'AffordabilitySection';
 
-export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, allFeatures, activeLayer, onFlyTo, isFavorite = false, onToggleFavorite, isInShortlist = false, onToggleShortlist, referencePno, referenceName, onSetReference, qualityScope = 'national', onExploreCity, userId, isochroneEnabled = false, isochroneMode = 'walk', isochroneBudget = 20, isochroneLoading = false, isochroneActive = false, onIsochroneChange, onIsochroneClear, affordabilityState, onAffordabilityChange, similarityWeights, onSimilarityWeightChange, onSimilarityToggle, onHighlightNeighbors }) => {
+export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, allFeatures, activeLayer, onFlyTo, isFavorite = false, onToggleFavorite, isInShortlist = false, onToggleShortlist, referencePno, referenceName, onSetReference, qualityScope = 'national', onExploreCity, userId, isochroneEnabled = false, isochroneMode = 'walk', isochroneBudget = 20, isochroneLoading = false, isochroneError = false, isochroneActive = false, onIsochroneChange, onIsochroneClear, affordabilityState, onAffordabilityChange, similarityWeights, onSimilarityWeightChange, onSimilarityToggle, onHighlightNeighbors }) => {
   useI18nVersion();
   const eduTotal = useMemo(() =>
     [d.ko_yl_kork, d.ko_al_kork, d.ko_ammat, d.ko_perus]
@@ -1023,9 +1038,17 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
 
   // Copy link / share state
   const [copied, setCopied] = useState(false);
+  // L2: per-button busy state + re-entry guard for the share-as-image card.
+  const [sharingImage, setSharingImage] = useState(false);
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   // Clean up the "copied" feedback timer on unmount to prevent state updates after unmount
   React.useEffect(() => () => clearTimeout(copiedTimerRef.current), []);
+  // C9: transient toast shown when the pin button is tapped at the 3-area cap.
+  // On touch the button can't be disabled (a tap would be a silent no-op), so a
+  // tap-while-full surfaces this instead of pinning. Same machinery as `copied`.
+  const [pinToast, setPinToast] = useState(false);
+  const pinToastTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  React.useEffect(() => () => clearTimeout(pinToastTimerRef.current), []);
   const handleCopyLink = useCallback(async () => {
     trackEvent('share-link');
     const url = window.location.href;
@@ -1106,7 +1129,8 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
   const favoriteButton = onToggleFavorite && (
     <button
       onClick={() => { trackEvent(isFavorite ? 'unfavorite' : 'favorite'); onToggleFavorite(); }}
-      className={`p-1.5 rounded-lg transition-colors min-h-[44px] md:min-h-0 ${
+      className={`p-1.5 rounded-lg transition-colors min-h-[44px] md:min-h-0
+        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-surface-950 ${
         isFavorite
           ? 'text-amber-500 hover:text-amber-600'
           : 'text-surface-400 hover:text-amber-500'
@@ -1127,7 +1151,8 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
   const referenceButton = onSetReference && !d._isMetroArea && (
     <button
       onClick={() => onSetReference(isReference ? null : d.pno)}
-      className={`p-1.5 rounded-lg transition-colors min-h-[44px] md:min-h-0 ${
+      className={`p-1.5 rounded-lg transition-colors min-h-[44px] md:min-h-0
+        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-surface-950 ${
         isReference ? 'text-brand-600 hover:text-brand-600' : 'text-surface-400 hover:text-brand-600'
       }`}
       title={isReference ? t('panel.clear_reference') : t('panel.set_reference')}
@@ -1141,7 +1166,8 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
   const shortlistButton = onToggleShortlist && (
     <button
       onClick={() => { trackEvent(isInShortlist ? 'shortlist-remove' : 'shortlist-add'); onToggleShortlist(); }}
-      className={`p-1.5 rounded-lg transition-colors min-h-[44px] md:min-h-0 ${
+      className={`p-1.5 rounded-lg transition-colors min-h-[44px] md:min-h-0
+        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-surface-950 ${
         isInShortlist ? 'text-brand-600 hover:text-brand-600' : 'text-surface-400 hover:text-brand-600'
       }`}
       title={isInShortlist ? t('shortlist.remove') : t('shortlist.add')}
@@ -1152,18 +1178,31 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
     </button>
   );
 
+  // C9: at the cap, keep the greyed/not-allowed look but DON'T set `disabled` — a
+  // disabled button swallows the tap on touch, making a full-cap tap a silent
+  // no-op. Instead handle the capped tap in onClick and surface a brief toast.
+  const pinCapped = !isPinned && pinCount >= 3;
   const pinButton = onPin && (
     <button
-      onClick={() => { trackEvent(isPinned ? 'unpin-compare' : 'pin-compare'); if (isPinned && onUnpin) { onUnpin(d.pno); } else { onPin(d); } }}
-      disabled={!isPinned && pinCount >= 3}
-      className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors min-h-[44px] md:min-h-0 ${
+      onClick={() => {
+        if (pinCapped) {
+          setPinToast(true);
+          clearTimeout(pinToastTimerRef.current);
+          pinToastTimerRef.current = setTimeout(() => setPinToast(false), 2000);
+          return;
+        }
+        trackEvent(isPinned ? 'unpin-compare' : 'pin-compare');
+        if (isPinned && onUnpin) { onUnpin(d.pno); } else { onPin(d); }
+      }}
+      className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors min-h-[44px] md:min-h-0
+        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-surface-950 ${
         isPinned
           ? 'bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 hover:bg-rose-100 hover:text-rose-600 dark:hover:bg-rose-900/30 dark:hover:text-rose-400'
-          : pinCount >= 3
+          : pinCapped
             ? 'bg-surface-100 dark:bg-surface-800 text-surface-400 cursor-not-allowed'
             : 'bg-brand-600 hover:bg-brand-700 text-white'
       }`}
-      title={isPinned ? t('compare.pinned') : pinCount >= 3 ? t('compare.max') : t('compare.pin')}
+      title={isPinned ? t('compare.pinned') : pinCapped ? t('compare.max') : t('compare.pin')}
     >
       {isPinned ? t('compare.pinned') : t('compare.pin')}
     </button>
@@ -1216,15 +1255,21 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
       </button>
       {/* CF-2: Share as image */}
       <button
-        onClick={() => { trackEvent('export-image'); generateScoreCard(d, avg).catch(() => { /* html-to-image load failed */ }); }}
+        onClick={() => {
+          if (sharingImage) return;
+          trackEvent('export-image');
+          setSharingImage(true);
+          generateScoreCard(d, avg).catch(() => { /* html-to-image load failed */ }).finally(() => setSharingImage(false));
+        }}
+        disabled={sharingImage}
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium min-h-[44px] md:min-h-0
                    text-brand-600 dark:text-brand-300
-                   hover:bg-brand-500/10 dark:hover:bg-brand-600/15 transition-colors"
+                   hover:bg-brand-500/10 dark:hover:bg-brand-600/15 transition-colors disabled:opacity-50"
       >
         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
-        {t('share.image')}
+        {sharingImage ? t('share.generating') : t('share.image')}
       </button>
     </div>
   );
@@ -1400,6 +1445,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
           mode={isochroneMode}
           budget={isochroneBudget}
           loading={isochroneLoading}
+          error={isochroneError}
           active={isochroneActive}
           onChange={onIsochroneChange}
           onClear={onIsochroneClear}
@@ -2079,7 +2125,8 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
                 <h2 className="text-xl font-display font-bold text-surface-900 dark:text-white break-words min-w-0">{d.nimi}</h2>
                 <button
                   onClick={handleCopyLink}
-                  className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-surface-400 hover:text-surface-600 dark:hover:text-surface-200 flex-shrink-0"
+                  className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-surface-400 hover:text-surface-600 dark:hover:text-surface-200 flex-shrink-0
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-surface-950"
                   title={t('panel.copy_link')}
                 >
                   {copied ? (
@@ -2102,7 +2149,8 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
               onClick={onClose}
               aria-label={t('aria.close')}
               title={t('aria.close')}
-              className="p-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-surface-400 hover:text-surface-900 dark:hover:text-white flex-shrink-0"
+              className="p-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-surface-400 hover:text-surface-900 dark:hover:text-white flex-shrink-0
+                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-surface-950"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -2163,7 +2211,8 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
                 <h2 className="text-lg font-display font-bold text-surface-900 dark:text-white break-words min-w-0">{d.nimi}</h2>
                 <button
                   onClick={handleCopyLink}
-                  className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-surface-400 hover:text-surface-600 dark:hover:text-surface-200 flex-shrink-0"
+                  className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-surface-400 hover:text-surface-600 dark:hover:text-surface-200 flex-shrink-0
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-surface-950"
                   title={t('panel.copy_link')}
                 >
                   {copied ? (
@@ -2186,7 +2235,8 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
               onClick={onClose}
               aria-label={t('aria.close')}
               title={t('aria.close')}
-              className="p-2.5 -mr-1 rounded-xl hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-surface-400 hover:text-surface-900 dark:hover:text-white flex-shrink-0"
+              className="p-2.5 -mr-1 rounded-xl hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-surface-400 hover:text-surface-900 dark:hover:text-white flex-shrink-0
+                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-surface-950"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -2254,7 +2304,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
                 className={`w-full flex-shrink-0 ${isSwiping ? 'overflow-hidden' : 'overflow-y-auto'}`}
                 style={{ minWidth: '100%' }}
               >
-                <div className="px-6 py-4 space-y-6">
+                <div className="px-6 py-4 pb-safe space-y-6">
                   {i === 0 && exploreButton}
                   {section}
                   {section && exportButtons}
@@ -2267,10 +2317,19 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
 
       {/* QW-2: Toast notification for clipboard copy */}
       {copied && (
-        <div className="fixed bottom-24 md:bottom-6 left-1/2 -translate-x-1/2 z-50
+        <div className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] md:bottom-6 left-1/2 -translate-x-1/2 z-50
                        px-4 py-2 rounded-xl bg-surface-900 dark:bg-white text-white dark:text-surface-900
                        text-sm font-medium shadow-lg animate-fade-in">
           {t('panel.copied')}
+        </div>
+      )}
+
+      {/* C9: transient toast when the compare cap is reached on a touch tap */}
+      {pinToast && (
+        <div className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] md:bottom-6 left-1/2 -translate-x-1/2 z-50
+                       px-4 py-2 rounded-xl bg-surface-900 dark:bg-white text-white dark:text-surface-900
+                       text-sm font-medium shadow-lg animate-fade-in">
+          {t('compare.max_toast')}
         </div>
       )}
     </>

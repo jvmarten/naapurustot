@@ -42,6 +42,8 @@ export const CorrelationExplorer: React.FC<Props> = ({ data, onSelect, onClose }
   const [metricX, setMetricX] = useState<LayerId>('median_income');
   const [metricY, setMetricY] = useState<LayerId>('unemployment');
   const [showFit, setShowFit] = useState(true);
+  // L2: per-button busy state + re-entry guard for the share-as-image card.
+  const [sharingImage, setSharingImage] = useState(false);
   // QW-3: when on, draw a best-fit line per region instead of one global line, so a
   // global correlation that is really a clustering (Simpson's-paradox) artifact shows.
   const [byRegion, setByRegion] = useState(false);
@@ -312,8 +314,9 @@ export const CorrelationExplorer: React.FC<Props> = ({ data, onSelect, onClose }
           {domain && points.length > 0 && (
             <button
               onClick={() => {
-                if (!domain) return;
+                if (!domain || sharingImage) return;
                 trackEvent('correlation-snapshot-share');
+                setSharingImage(true);
                 generateCorrelationCard({
                   points: points.map((p) => ({ x: p.x, y: p.y, pop: p.pop, color: regionColors.get(p.region) ?? '#0074c5' })),
                   r,
@@ -323,15 +326,16 @@ export const CorrelationExplorer: React.FC<Props> = ({ data, onSelect, onClose }
                   labelY: t(layerY.labelKey),
                   formatX: layerX.format,
                   formatY: layerY.format,
-                }).catch(() => { /* html-to-image load failed */ });
+                }).catch(() => { /* html-to-image load failed */ }).finally(() => setSharingImage(false));
               }}
-              className="inline-flex items-center gap-1 shrink-0 px-2 py-1 rounded-lg font-medium text-brand-600 dark:text-brand-300 hover:bg-brand-500/10 dark:hover:bg-brand-600/15 transition-colors"
+              disabled={sharingImage}
+              className="inline-flex items-center gap-1 shrink-0 px-2 py-1 rounded-lg font-medium text-brand-600 dark:text-brand-300 hover:bg-brand-500/10 dark:hover:bg-brand-600/15 transition-colors disabled:opacity-50"
               title={t('share.image')}
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
-              {t('share.image')}
+              {sharingImage ? t('share.generating') : t('share.image')}
             </button>
           )}
         </div>
