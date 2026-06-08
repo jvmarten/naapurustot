@@ -95,7 +95,8 @@
       "publisher": "tilastokeskus",
       "vintage": 2024,
       "granularity": "postal",
-      "is_proxy": false
+      "is_proxy": false,
+      "note": "note.largest_municipalities"
     },
     "he_vakiy": {
       "source": "Tilastokeskus (Paavo)",
@@ -201,7 +202,7 @@
       "vintage": 2023,
       "granularity": "postal",
       "is_proxy": true,
-      "note": "Municipality-level police statistics distributed to postal codes via density/unemployment/rental proxies (fetch_crime_index.py distribute_to_postal_codes)"
+      "note": "note.crime_index"
     },
     "restaurant_density": {
       "source": "OpenStreetMap",
@@ -293,7 +294,7 @@
       "vintage": 2025,
       "granularity": "postal",
       "is_proxy": true,
-      "note": "Postal-level proxy regressed from HSL transit-stop signals (partial coverage); no 250 m travel-time grid is shipped, so the score is published at postal granularity only."
+      "note": "note.transit_reachability"
     },
     "employment_rate": {
       "source": "Tilastokeskus (Paavo)",
@@ -351,7 +352,7 @@
       "granularity": "postal",
       "is_proxy": false,
       "discontinued": 2022,
-      "note": "Source discontinued — the postal-code rent table (StatFin asvu 13eb) was retired; current tables publish only at region level, so postal rents are frozen at the last published snapshot (2022) and cannot refresh."
+      "note": "note.largest_municipalities"
     },
     "price_to_rent_ratio": {
       "source": "Tilastokeskus (PxWeb, asvu 13eb)",
@@ -360,14 +361,15 @@
       "granularity": "postal",
       "is_proxy": false,
       "discontinued": 2022,
-      "note": "Source discontinued — derived from the retired postal-code rent table (StatFin asvu 13eb); rents are frozen at the last published snapshot (2022) and cannot refresh."
+      "note": "note.largest_municipalities"
     },
     "walkability_index": {
       "source": "OpenStreetMap (composite)",
       "publisher": "osm",
       "vintage": 2024,
       "granularity": "postal",
-      "is_proxy": true
+      "is_proxy": true,
+      "note": "note.walkability"
     },
     "traffic_accident_rate": {
       "source": "Väylävirasto",
@@ -395,14 +397,16 @@
       "publisher": "nasa",
       "vintage": 2026,
       "granularity": "250m grid",
-      "is_proxy": true
+      "is_proxy": true,
+      "note": "note.light_pollution"
     },
     "noise_pollution": {
       "source": "Helsinki meluselvitys 2022 / HRI pks liikennemelu 2012",
       "publisher": "hri",
       "vintage": "2012–2022",
       "granularity": "postal",
-      "is_proxy": false
+      "is_proxy": false,
+      "note": "note.noise_pollution"
     },
     "water_proximity_m": {
       "source": "OpenStreetMap",
@@ -417,7 +421,7 @@
       "vintage": 2025,
       "granularity": "postal",
       "is_proxy": true,
-      "note": "Municipality-level average construction year refined to postal codes via Paavo new-construction/detached-house signals (fetch_building_age.py refine_to_postal_codes)"
+      "note": "note.avg_construction_year"
     },
     "youth_ratio_pct": {
       "source": "Tilastokeskus (Paavo)",

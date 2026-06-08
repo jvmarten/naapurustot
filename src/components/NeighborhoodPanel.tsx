@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useMemo, useEffect, useLayoutEffect } from 'react';
 import type { NeighborhoodProperties } from '../utils/metrics';
-import { parseTrendSeries, getMetricSource, METRIC_EXPLANATIONS } from '../utils/metrics';
+import { parseTrendSeries, getMetricSource, vintageFreshness, METRIC_EXPLANATIONS, formatCoveragePct } from '../utils/metrics';
 import { formatNumber, formatEuro, formatPct, formatDiff, diffColor, formatYtlGradeFull, parseSchools, formatDensity, formatEuroSqm } from '../utils/formatting';
 import { t, getLang, useI18nVersion } from '../utils/i18n';
 import { getQualityCategory, QUALITY_CATEGORIES, QUALITY_DIMENSIONS, computeQualityCoverage } from '../utils/qualityIndex';
@@ -85,6 +85,8 @@ const StatRow: React.FC<{
   // PO-2: surface regression/derived estimates honestly rather than giving them
   // the same visual weight as a direct measurement.
   const isEstimate = !!source?.isProxy;
+  // PO-3: how old this metric's vintage is, so the popover can flag stale layers.
+  const fresh = source ? vintageFreshness(source.year) : null;
   const [infoOpen, setInfoOpen] = useState(false);
   const infoRef = useRef<HTMLSpanElement>(null);
   const tooltipRef = useRef<HTMLSpanElement>(null);
@@ -193,8 +195,20 @@ const StatRow: React.FC<{
                     {t('data.estimate_desc')}
                   </span>
                 )}
+                {/* PO-4: registry caveat note (i18n key) — derivation/coverage/mixed-vintage details */}
+                {source.note && (
+                  <span className="block mb-1.5 text-surface-200 dark:text-surface-300">
+                    {t(source.note)}
+                  </span>
+                )}
                 <span className="block text-[10px] italic text-surface-300 dark:text-surface-400">
                   {source.source} ({source.year})
+                  {fresh && fresh.yearsAgo > 0 && (
+                    <span className={fresh.isStale ? ' text-amber-400 not-italic font-medium' : ''}>
+                      {' · '}
+                      {t('source.years_ago').replace('{n}', String(fresh.yearsAgo))}
+                    </span>
+                  )}
                 </span>
               </span>
             )}
@@ -569,6 +583,12 @@ const QualityCoverageSection: React.FC<{ props: NeighborhoodProperties; scope?: 
       {open && (
         <div className="pb-2 space-y-2.5">
           <p className="text-[11px] leading-snug text-surface-400 dark:text-surface-500">{t('panel.quality_coverage_help')}</p>
+          {/* PO-11: separate "thin everywhere" gaps from genuine local holes. */}
+          {coverage.missingThinNationally > 0 && (
+            <p className="text-[11px] leading-snug text-amber-600 dark:text-amber-400">
+              {t('panel.quality_coverage_thin_note')}
+            </p>
+          )}
           {/* CF-8: which national-vs-region range the score was normalized against */}
           <p className="text-[11px] leading-snug text-surface-400 dark:text-surface-500">
             <span className="text-surface-500 dark:text-surface-400">{t('panel.quality_scope_label')}:</span>{' '}
@@ -588,7 +608,12 @@ const QualityCoverageSection: React.FC<{ props: NeighborhoodProperties; scope?: 
                 <span className="text-surface-400 dark:text-surface-500">{dim.present}/{dim.total}</span>
               </div>
               <div className="flex flex-wrap gap-1 mt-1">
-                {dim.factors.map((f) => (
+                {dim.factors.map((f) => {
+                  // PO-11: a missing factor that is also sparse nationwide is a
+                  // gap the index can't fill anywhere, not a local data hole — so
+                  // label it with its real national coverage and a clearer title.
+                  const thinMissing = !f.present && f.nationallyThin;
+                  return (
                   <span
                     key={f.id}
                     className={`inline-flex items-center rounded px-1.5 py-px text-[10px] ${
@@ -596,11 +621,23 @@ const QualityCoverageSection: React.FC<{ props: NeighborhoodProperties; scope?: 
                         ? 'bg-surface-100 dark:bg-surface-800 text-surface-500 dark:text-surface-400'
                         : 'bg-transparent text-surface-300 dark:text-surface-600 line-through border border-dashed border-surface-200 dark:border-surface-700/60'
                     }`}
-                    title={f.present ? undefined : t('panel.quality_factor_missing')}
+                    title={
+                      f.present
+                        ? undefined
+                        : thinMissing && f.nationalCoveragePct != null
+                          ? `${t('panel.quality_factor_thin')} (${formatCoveragePct(f.nationalCoveragePct)}%)`
+                          : t('panel.quality_factor_missing')
+                    }
                   >
                     {f.label[lang]}
+                    {thinMissing && f.nationalCoveragePct != null && (
+                      <span className="ml-1 no-underline tabular-nums text-amber-600 dark:text-amber-400">
+                        {formatCoveragePct(f.nationalCoveragePct)}%
+                      </span>
+                    )}
                   </span>
-                ))}
+                  );
+                })}
               </div>
             </div>
             );

@@ -1,7 +1,7 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { LAYERS } from '../utils/colorScales';
-import { getMetricSource, DATA_SOURCE_PUBLISHERS } from '../utils/metrics';
+import { getMetricSource, getCoveragePct, formatCoveragePct, isLowCoverage, vintageFreshness, DATA_SOURCE_PUBLISHERS } from '../utils/metrics';
 import { t, getLang, setLang, useI18nVersion, type Lang } from '../utils/i18n';
 
 /**
@@ -36,6 +36,27 @@ export const DataSourcesPage: React.FC<{ lang: Lang }> = ({ lang }) => {
     new Set(LAYERS.map((l) => getMetricSource(l.property)?.publisher).filter(Boolean) as string[]),
   ).map((id) => ({ id, ...DATA_SOURCE_PUBLISHERS[id] }));
 
+  // PO-3: optional recency sort. null keeps the original LAYERS order; 'newest'/'oldest'
+  // orders by the freshest year in each layer's vintage (yearless rows sort last).
+  const [sort, setSort] = useState<null | 'newest' | 'oldest'>(null);
+  const rows = useMemo(() => {
+    const base = LAYERS.map((layer) => {
+      const s = getMetricSource(layer.property);
+      return s ? { layer, s, fresh: vintageFreshness(s.year) } : null;
+    }).filter((r): r is NonNullable<typeof r> => r != null);
+    if (!sort) return base;
+    const dir = sort === 'newest' ? -1 : 1;
+    return [...base].sort((a, b) => {
+      const ya = a.fresh?.latest;
+      const yb = b.fresh?.latest;
+      if (ya == null && yb == null) return 0;
+      if (ya == null) return 1; // yearless rows always last
+      if (yb == null) return -1;
+      return (ya - yb) * dir;
+    });
+  }, [sort]);
+  const toggleSort = () => setSort((s) => (s === 'newest' ? 'oldest' : 'newest'));
+
   return (
     <main className="min-h-screen bg-surface-50 dark:bg-surface-950 text-surface-800 dark:text-surface-200">
       <div className="mx-auto max-w-4xl px-5 py-10">
@@ -63,15 +84,30 @@ export const DataSourcesPage: React.FC<{ lang: Lang }> = ({ lang }) => {
                 <th className="px-3 py-2 font-semibold">{t('sources.col_layer')}</th>
                 <th className="px-3 py-2 font-semibold">{t('sources.col_source')}</th>
                 <th className="px-3 py-2 font-semibold">{t('sources.col_license')}</th>
-                <th className="px-3 py-2 font-semibold">{t('sources.col_year')}</th>
+                <th className="px-3 py-2 font-semibold">
+                  <button
+                    type="button"
+                    onClick={toggleSort}
+                    aria-label={t('sources.sort_by_year')}
+                    className="inline-flex items-center gap-1 uppercase tracking-wider hover:text-surface-700 dark:hover:text-surface-200 transition-colors"
+                  >
+                    {t('sources.col_year')}
+                    <span aria-hidden="true" className="text-[9px] leading-none">
+                      {sort === 'newest' ? '▼' : sort === 'oldest' ? '▲' : '↕'}
+                    </span>
+                  </button>
+                </th>
                 <th className="px-3 py-2 font-semibold">{t('sources.col_granularity')}</th>
+                <th className="px-3 py-2 font-semibold">{t('sources.col_coverage')}</th>
                 <th className="px-3 py-2 font-semibold">{t('sources.col_type')}</th>
               </tr>
             </thead>
             <tbody>
-              {LAYERS.map((layer) => {
-                const s = getMetricSource(layer.property);
-                if (!s) return null;
+              {rows.map(({ layer, s, fresh }) => {
+                // PO-2: real per-postal-code coverage from build_metadata.json. Absent
+                // for client-derived metrics (e.g. quality_index) — render "—" then.
+                const cov = getCoveragePct(layer.property);
+                const lowCov = isLowCoverage(layer.property);
                 return (
                   <tr
                     key={layer.id}
@@ -91,11 +127,37 @@ export const DataSourcesPage: React.FC<{ lang: Lang }> = ({ lang }) => {
                       ) : (
                         s.source
                       )}
+                      {/* PO-4: registry caveat note (i18n key) for proxy/derived/partial metrics */}
+                      {s.note && (
+                        <span className="mt-0.5 block text-[11px] leading-snug text-surface-500 dark:text-surface-400">
+                          {t(s.note)}
+                        </span>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-surface-600 dark:text-surface-400 whitespace-nowrap">{s.license}</td>
-                    <td className="px-3 py-2 text-surface-600 dark:text-surface-400 whitespace-nowrap">{s.year}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      <span className="text-surface-600 dark:text-surface-400">{s.year}</span>
+                      {fresh?.isStale && (
+                        <span
+                          className="ml-1.5 inline-flex items-center rounded px-1.5 py-px text-[10px] font-semibold
+                                     bg-amber-400/15 text-amber-600 dark:text-amber-400 border border-amber-400/30"
+                          title={t('sources.updated_year').replace('{year}', String(fresh.latest))}
+                        >
+                          {t('sources.years_ago').replace('{n}', String(fresh.yearsAgo))}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-3 py-2 text-surface-600 dark:text-surface-400">
                       {t(GRAN_KEY[s.granularity] ?? 'sources.gran_postal')}
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      {cov != null ? (
+                        <span className={lowCov ? 'text-amber-600 dark:text-amber-400' : 'text-surface-600 dark:text-surface-400'}>
+                          {t('sources.coverage_value').replace('{pct}', formatCoveragePct(cov))}
+                        </span>
+                      ) : (
+                        <span className="text-surface-400 dark:text-surface-600">—</span>
+                      )}
                     </td>
                     <td className="px-3 py-2">
                       {s.isProxy ? (

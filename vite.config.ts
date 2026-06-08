@@ -22,6 +22,25 @@ function readBuildDate(): string {
 }
 const BUILD_DATE = readBuildDate()
 
+// PO-2: inline ONLY the compact per-metric coverage map ({ property: coverage_pct })
+// from build_metadata.json via a `define`, so the sources page, legend caption, and
+// low-coverage banner can read real coverage without pulling the full ~12.7KB metadata
+// table (source/vintage/granularity/row_count per metric) into the budget-counted bundle.
+function readCoverageMap(): Record<string, number> {
+  try {
+    const raw = readFileSync(new URL('./src/data/build_metadata.json', import.meta.url), 'utf8')
+    const parsed = JSON.parse(raw) as { metrics?: Record<string, { coverage_pct?: number }> }
+    const out: Record<string, number> = {}
+    for (const [prop, m] of Object.entries(parsed.metrics ?? {})) {
+      if (typeof m?.coverage_pct === 'number') out[prop] = m.coverage_pct
+    }
+    return out
+  } catch {
+    return {}
+  }
+}
+const COVERAGE_PCT = readCoverageMap()
+
 // IN-3: Keep build-only pipeline inputs out of the deployed site.
 //
 // `public/data/` holds both runtime data the app fetches AND large GeoJSON
@@ -173,6 +192,8 @@ export default defineConfig({
   define: {
     // QW-1: data-freshness timestamp inlined as a string literal (see readBuildDate).
     __BUILD_DATE__: JSON.stringify(BUILD_DATE),
+    // PO-2: compact per-metric coverage map inlined (see readCoverageMap).
+    __COVERAGE_PCT__: JSON.stringify(COVERAGE_PCT),
   },
   build: {
     assetsInlineLimit: 0, // Never inline data files — always emit as hashed assets

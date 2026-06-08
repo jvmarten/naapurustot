@@ -83,6 +83,9 @@ const LOCALES = {
 };
 
 const LOCALE_TAG = { fi: 'fi-FI', en: 'en-US', sv: 'sv-SE' };
+// og:locale uses underscore-format locale identifiers (not the BCP-47 hyphen
+// tags in LOCALE_TAG used for number formatting). Mirrors index.html.
+const OG_LOCALE = { fi: 'fi_FI', en: 'en_US', sv: 'sv_FI' };
 /** Path prefix for a regional hub page, per language. */
 const CITY_PREFIX = { fi: '/kaupunki', en: '/en/city', sv: '/sv/stad' };
 /** All-areas directory URL, per language. */
@@ -110,6 +113,30 @@ function escapeHtml(str) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+/**
+ * Rewrite the template's Open Graph locale tags to the page language: the single
+ * `og:locale` becomes this page's underscore locale, and the two
+ * `og:locale:alternate` tags become the other two languages. `og:image:alt` is
+ * set to a localized per-page string (the localized page title works well).
+ */
+function localizeOgLocale(html, lang, imageAlt) {
+  const alternates = ['fi', 'en', 'sv'].filter((l) => l !== lang);
+  html = html.replace(
+    /<meta property="og:image:alt" content="[^"]*" \/>/,
+    `<meta property="og:image:alt" content="${escapeHtml(imageAlt)}" />`,
+  );
+  html = html.replace(
+    /<meta property="og:locale" content="[^"]*" \/>/,
+    `<meta property="og:locale" content="${OG_LOCALE[lang]}" />`,
+  );
+  let i = 0;
+  html = html.replace(
+    /<meta property="og:locale:alternate" content="[^"]*" \/>/g,
+    () => `<meta property="og:locale:alternate" content="${OG_LOCALE[alternates[i++]]}" />`,
+  );
+  return html;
 }
 
 /** Resolve the localized display name of a region (seutukunta). */
@@ -656,6 +683,9 @@ function generatePage(feature, lang) {
     `<meta name="twitter:image" content="${OG_IMAGE}" />`,
   );
 
+  // PO-9: localize og:locale, its two alternates, and the per-area og:image:alt.
+  html = localizeOgLocale(html, lang, title);
+
   // CF-11: strip the template's generic homepage FAQPage so the per-neighbourhood
   // FAQPage injected below is the only one on the profile (Google expects one per page).
   html = html.replace(
@@ -745,7 +775,29 @@ function buildSourcesJsonLd(lang, canonicalUrl) {
     license: 'https://creativecommons.org/licenses/by/4.0/',
     creator: Object.values(DATA_SOURCE_PUBLISHERS).map((p) => ({ '@type': 'Organization', name: p.name, url: p.url })),
   };
-  return `<script type="application/ld+json">${JSON.stringify(ds).replace(/</g, '\\u003c')}</script>`;
+  // PO-10: a CollectionPage node describing the page itself (matching the hub
+  // pages' depth: site root → this page) plus a BreadcrumbList. The brand name
+  // "naapurustot.fi" is a literal, not a translatable string (mirrors the hubs).
+  const collection = {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: tr('sources.title'),
+    description: tr('sources.subtitle'),
+    url: canonicalUrl,
+    inLanguage: lang,
+    isPartOf: { '@type': 'WebSite', name: 'naapurustot.fi', url: 'https://naapurustot.fi' },
+  };
+  const breadcrumb = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'naapurustot.fi', item: 'https://naapurustot.fi/' },
+      { '@type': 'ListItem', position: 2, name: tr('sources.title') },
+    ],
+  };
+  return [collection, breadcrumb, ds]
+    .map((o) => `<script type="application/ld+json">${JSON.stringify(o).replace(/</g, '\\u003c')}</script>`)
+    .join('\n    ');
 }
 
 function generateSourcesPage(lang) {
@@ -770,6 +822,8 @@ function generateSourcesPage(lang) {
   html = html.replace(/<meta property="og:description" content="[^"]*" \/>/, `<meta property="og:description" content="${escapeHtml(description)}" />`);
   html = html.replace(/<meta name="twitter:title" content="[^"]*" \/>/, `<meta name="twitter:title" content="${escapeHtml(title)}" />`);
   html = html.replace(/<meta name="twitter:description" content="[^"]*" \/>/, `<meta name="twitter:description" content="${escapeHtml(description)}" />`);
+  // PO-9: localize og:locale, its two alternates, and the per-page og:image:alt.
+  html = localizeOgLocale(html, lang, title);
   html = html.replace('</head>', `    ${jsonLd}\n  </head>`);
   html = html.replace(
     /<noscript>[\s\S]*?<\/noscript>/,

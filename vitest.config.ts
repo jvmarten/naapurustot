@@ -9,6 +9,17 @@ export default defineConfig({
   // Tests don't assert on the freshness date, so an empty string is sufficient.
   define: {
     __BUILD_DATE__: JSON.stringify(''),
+    // PO-2: mirror the production `__COVERAGE_PCT__` define (vite.config.ts) so the
+    // coverage helper resolves under test. A small slice of the real build_metadata.json
+    // coverage values is sufficient — tests assert the helper plumbing, not every metric.
+    __COVERAGE_PCT__: JSON.stringify({
+      quality_index: 100,
+      hr_mtu: 97.5,
+      transit_stop_density: 10.9,
+      school_quality_score: 10.3,
+      property_price_sqm: 30.3,
+      rental_price_sqm: 15.7,
+    }),
   },
   test: {
     globals: true,

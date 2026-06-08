@@ -484,7 +484,10 @@ export interface ResolvedMetricSource extends MetricSource {
   granularity: string;
   /** True when the value is a regression/derived estimate, not a direct measurement */
   isProxy: boolean;
-  /** Optional clarifying note (regional proxy caveats, derivation, coverage) */
+  /** PO-4: optional clarifying caveat for proxy/derived/partial metrics, stored as an
+   *  i18n KEY (e.g. "note.transit_reachability") — render via t(note) so only bundled
+   *  fi.json carries the prose. Covers regression estimates, OSM composites, distributed
+   *  municipality figures, mixed-survey vintages, and largest-municipality-only coverage. */
   note?: string;
   /** PO-6: year the upstream source was last published before being retired. Set
    *  only for frozen/discontinued sources (e.g. the postal-code rent table); the
@@ -502,6 +505,7 @@ interface RegistryMetricEntry {
   stored?: boolean;
   /** false to keep a derived/composite metric out of the per-row attribution map */
   panel?: boolean;
+  /** PO-4: i18n KEY for a caveat note (e.g. "note.walkability"); rendered via t(note). */
   note?: string;
   /** PO-6: last-published year for a retired/frozen upstream source */
   discontinued?: number;
@@ -550,6 +554,59 @@ export function getMetricSource(property: string): ResolvedMetricSource | undefi
 }
 
 /**
+ * PO-2: Compact per-metric coverage map ({ property: coverage_pct }) inlined at
+ * build time from src/data/build_metadata.json via Vite's `__COVERAGE_PCT__`
+ * define (see vite.config.ts). coverage_pct is the share of the 3,018 metro
+ * postal codes that carry a real value for the metric — it is computed FROM the
+ * registry by the data pipeline, so it is read here, never folded back in.
+ */
+const COVERAGE_PCT: Record<string, number> =
+  typeof __COVERAGE_PCT__ !== 'undefined' ? __COVERAGE_PCT__ : {};
+
+/**
+ * PO-2: real coverage (% of metro postal codes with a value) for a metric, or
+ * null when build_metadata.json carries no coverage_pct for it. Degrades to null
+ * rather than fabricating a number, so the UI can simply omit the caption/column.
+ */
+export function getCoveragePct(property: string): number | null {
+  const v = COVERAGE_PCT[property];
+  return typeof v === 'number' && Number.isFinite(v) ? v : null;
+}
+
+/**
+ * PO-2: a layer counts as "partial coverage" (worth a subtle caption) when a real
+ * coverage value exists and falls below this share of postal codes. ~95% leaves
+ * the near-complete Paavo layers (97–100%) unflagged while surfacing the genuinely
+ * sparse ones (transit ~11%, school quality ~10%, property price ~30%, rent ~16%).
+ */
+export const PARTIAL_COVERAGE_THRESHOLD = 95;
+
+/**
+ * PO-2: a layer is "low coverage" (worth a prominent warning banner, not just a
+ * caption) when under half the postal codes carry a value. Below this point the
+ * gray no-data polygons dominate the map and the choropleth is easy to misread.
+ */
+export const LOW_COVERAGE_THRESHOLD = 50;
+
+/** PO-2: true when a metric has a real, below-threshold coverage value. */
+export function isPartialCoverage(property: string): boolean {
+  const c = getCoveragePct(property);
+  return c != null && c < PARTIAL_COVERAGE_THRESHOLD;
+}
+
+/** PO-2: true when a metric has real coverage below the low-coverage threshold. */
+export function isLowCoverage(property: string): boolean {
+  const c = getCoveragePct(property);
+  return c != null && c < LOW_COVERAGE_THRESHOLD;
+}
+
+/** PO-2: format a coverage fraction for display — whole-percent for clean values,
+ *  one decimal otherwise (e.g. 100 → "100", 10.9 → "10.9"). */
+export function formatCoveragePct(pct: number): string {
+  return Number.isInteger(pct) ? String(pct) : pct.toFixed(1);
+}
+
+/**
  * PO-3: extract the most recent calendar year from a registry vintage, which may
  * be a number (2024) or a range string ("2012–2022", "2020–2025"). Used to flag
  * stale layers. Returns null when no 4-digit year is present.
@@ -564,6 +621,36 @@ export function latestVintageYear(year: number | string | undefined | null): num
 
 /** PO-3: a layer is flagged "stale" when its newest data year is more than this many years old. */
 export const STALE_VINTAGE_YEARS = 3;
+
+/**
+ * PO-3: reference "current year" for freshness math. Fixed (not `new Date()`) so
+ * the staleness UI is deterministic across builds and tests — it tracks the dataset
+ * build vintage, not the wall clock, and is bumped alongside the data refresh. Kept
+ * in step with build_metadata.json's `generated` year.
+ */
+export const NOW_YEAR = 2026;
+
+/** PO-3: per-layer freshness derived from a registry vintage. */
+export interface VintageFreshness {
+  /** Newest calendar year in the vintage (e.g. 2022 from "2012–2022"). */
+  latest: number;
+  /** Whole years between `latest` and NOW_YEAR (0 when same year or in the future). */
+  yearsAgo: number;
+  /** True when older than the staleness threshold (worth an amber flag). */
+  isStale: boolean;
+}
+
+/**
+ * PO-3: resolve a registry vintage to its freshness — newest year, whole years
+ * since then, and whether that exceeds STALE_VINTAGE_YEARS. Returns null when the
+ * vintage carries no usable year, so callers can simply omit the indicator.
+ */
+export function vintageFreshness(year: number | string | undefined | null): VintageFreshness | null {
+  const latest = latestVintageYear(year);
+  if (latest == null) return null;
+  const yearsAgo = Math.max(0, NOW_YEAR - latest);
+  return { latest, yearsAgo, isStale: yearsAgo > STALE_VINTAGE_YEARS };
+}
 
 /**
  * Maps GeoJSON property names to their data source and year, generated from the
