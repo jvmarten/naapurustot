@@ -107,4 +107,70 @@ describe('colorblind mode', () => {
       expect(original.colors.length).toBe(10); // confirm > 8
     });
   });
+
+  describe('diverging vs sequential colorblind palettes (A4)', () => {
+    // Chroma (max-min channel) ~0 means a near-neutral grey; hue measured as red-blue warmth.
+    const rgb = (hex: string) => {
+      const c = parseInt(hex.slice(1), 16);
+      return { r: (c >> 16) & 0xff, g: (c >> 8) & 0xff, b: c & 0xff };
+    };
+    const chroma = (hex: string) => {
+      const { r, g, b } = rgb(hex);
+      return Math.max(r, g, b) - Math.min(r, g, b);
+    };
+    const warmth = (hex: string) => {
+      const { r, b } = rgb(hex);
+      return r - b;
+    };
+
+    const modes: ColorblindType[] = ['protanopia', 'deuteranopia', 'tritanopia'];
+
+    it('diverging layer keeps a near-neutral grey center with hue-distinct ends in every CB mode', () => {
+      for (const mode of modes) {
+        setColorblindMode(mode);
+        const layer = getLayerById('income_change');
+        const original = LAYERS.find((l) => l.id === 'income_change')!;
+        expect(layer.colors.length).toBe(original.colors.length);
+        // The greyest (lowest-chroma) stop must sit at the center, not an end.
+        const chromas = layer.colors.map(chroma);
+        const greyest = chromas.indexOf(Math.min(...chromas));
+        const lastIdx = layer.colors.length - 1;
+        expect(greyest).toBeGreaterThan(0);
+        expect(greyest).toBeLessThan(lastIdx);
+        const mid = Math.floor(lastIdx / 2);
+        expect(Math.abs(greyest - mid)).toBeLessThanOrEqual(1);
+        // The two ends are genuinely different hues (one warm, one cool).
+        expect(chroma(layer.colors[0])).toBeGreaterThan(chroma(layer.colors[greyest]));
+        expect(chroma(layer.colors[lastIdx])).toBeGreaterThan(chroma(layer.colors[greyest]));
+        expect(Math.sign(warmth(layer.colors[0]))).not.toBe(Math.sign(warmth(layer.colors[lastIdx])));
+      }
+    });
+
+    it('preserves each diverging layer\'s polarity (warm/cool direction) under CB substitution', () => {
+      setColorblindMode('deuteranopia');
+      for (const id of ['income_change', 'unemployment_change'] as const) {
+        const layer = getLayerById(id);
+        const original = LAYERS.find((l) => l.id === id)!;
+        // Same warm→cool vs cool→warm direction as the original ramp.
+        const origDir = Math.sign(warmth(original.colors[0]) - warmth(original.colors[original.colors.length - 1]));
+        const cbDir = Math.sign(warmth(layer.colors[0]) - warmth(layer.colors[layer.colors.length - 1]));
+        expect(cbDir).toBe(origDir);
+      }
+    });
+
+    it('sequential layer still uses the sequential CB palette (no grey center)', () => {
+      for (const mode of modes) {
+        setColorblindMode(mode);
+        const layer = getLayerById('quality_index');
+        const original = LAYERS.find((l) => l.id === 'quality_index')!;
+        expect(layer.colors).not.toEqual(original.colors);
+        expect(layer.colors.length).toBe(original.colors.length);
+        // Sequential CB palettes ramp monotonically; the center is not the greyest stop.
+        const chromas = layer.colors.map(chroma);
+        const greyest = chromas.indexOf(Math.min(...chromas));
+        const mid = Math.floor((layer.colors.length - 1) / 2);
+        expect(greyest).not.toBe(mid);
+      }
+    });
+  });
 });

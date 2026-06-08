@@ -51,6 +51,10 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
 
   // CF-1: Address geocoding state
   const [addressResults, setAddressResults] = useState<GeocodeResult[]>([]);
+  // L4: true while an address geocode is debounced/in-flight, so the dropdown can
+  // show a "searching addresses…" hint instead of looking empty. Also gates the
+  // C1 no-results branch so the two never both show.
+  const [isGeocoding, setIsGeocoding] = useState(false);
   const geocodeTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const geocodeAbortRef = useRef<AbortController | null>(null);
 
@@ -112,13 +116,18 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
     if (geocodeAbortRef.current) geocodeAbortRef.current.abort();
     if (query.length < 3 || /^\d{5}$/.test(query.trim())) {
       setAddressResults([]);
+      setIsGeocoding(false);
       return;
     }
+    setIsGeocoding(true);
     const abortController = new AbortController();
     geocodeAbortRef.current = abortController;
     geocodeTimerRef.current = setTimeout(async () => {
       const res = await geocodeAddress(query, abortController.signal);
-      if (!abortController.signal.aborted) setAddressResults(res);
+      if (!abortController.signal.aborted) {
+        setAddressResults(res);
+        setIsGeocoding(false);
+      }
     }, 300);
     return () => {
       if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current);
@@ -289,7 +298,7 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
         />
         {query && (
           <button
-            onClick={() => { setQuery(''); setIsOpen(false); setAddressResults([]); setHomePrompt(null); inputRef.current?.focus(); }}
+            onClick={() => { setQuery(''); setIsOpen(false); setAddressResults([]); setIsGeocoding(false); setHomePrompt(null); inputRef.current?.focus(); }}
             className="absolute inset-y-0 right-0 flex items-center pr-3 text-surface-400 hover:text-surface-600 dark:hover:text-surface-300"
             aria-label={t('search.clear')}
           >
@@ -350,13 +359,18 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
 
       {/* PO-5: Recent neighborhoods when input is empty/focused */}
       {isOpen && results.length === 0 && query.length < 2 && recent.length > 0 && (
-        <div className="mt-1.5 rounded-xl bg-white/95 dark:bg-surface-900/95 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden">
+        <div
+          role="listbox"
+          aria-label={t('recent.title')}
+          className="mt-1.5 rounded-xl bg-white/95 dark:bg-surface-900/95 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden"
+        >
           <div className="px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500">
             {t('recent.title')}
           </div>
           {recent.slice(0, 5).map((entry) => (
             <button
               key={entry.pno}
+              role="option"
               className="w-full text-left px-4 py-2.5 md:py-2 text-sm transition-colors min-h-[44px] md:min-h-0
                          border-b border-surface-100 dark:border-surface-800/40 last:border-0
                          hover:bg-surface-100 dark:hover:bg-surface-800/60"
@@ -373,11 +387,21 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
         </div>
       )}
 
-      {isOpen && (results.length > 0 || addressResults.length > 0) && (
+      {/* EM5: first-timer hint when the input is empty/focused and there are no recents yet. */}
+      {isOpen && query.length < 2 && recent.length === 0 && (
+        <div className="mt-1.5 rounded-xl bg-white/95 dark:bg-surface-900/95 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden">
+          <div className="px-4 py-2.5 text-sm text-surface-500 dark:text-surface-400">
+            {t('search.start_typing')}
+          </div>
+        </div>
+      )}
+
+      {isOpen && (results.length > 0 || addressResults.length > 0 || isGeocoding) && (
         <div
           ref={listRef}
           id="search-results-list"
           role="listbox"
+          aria-label={t('search.results_label')}
           className="mt-1.5 rounded-xl bg-white/95 dark:bg-surface-900/95 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl max-h-[60vh] overflow-y-auto"
         >
           {results.map((f, index) => (
@@ -404,11 +428,17 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
             </div>
           )}
           {/* CF-1: Address results */}
-          {addressResults.length > 0 && (
+          {(addressResults.length > 0 || isGeocoding) && (
             <>
               <div className="px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500 border-t border-surface-100 dark:border-surface-800/40">
                 {t('search.address_results')}
               </div>
+              {/* L4: subtle loading row while geocoding has not yet returned results. */}
+              {isGeocoding && addressResults.length === 0 && (
+                <div className="px-4 py-2 text-xs text-surface-400 dark:text-surface-500">
+                  {t('search.address_searching')}
+                </div>
+              )}
               {addressResults.map((addr, i) => {
                 const globalIndex = results.length + i;
                 return (
@@ -431,6 +461,16 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
               })}
             </>
           )}
+        </div>
+      )}
+
+      {/* C1: settled no-results state — query is long enough, both searches returned
+          nothing, and geocoding has finished. Mirrors the dropdown container styling. */}
+      {isOpen && debouncedQuery.length >= 2 && results.length === 0 && addressResults.length === 0 && !isGeocoding && (
+        <div className="mt-1.5 rounded-xl bg-white/95 dark:bg-surface-900/95 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden">
+          <div className="px-4 py-2.5 text-sm text-surface-500 dark:text-surface-400">
+            {t('search.no_results').replace('{query}', debouncedQuery)}
+          </div>
         </div>
       )}
     </div>

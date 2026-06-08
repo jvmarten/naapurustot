@@ -530,6 +530,23 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
     leftMapRef.current = leftMap;
     rightMapRef.current = rightMap;
 
+    // E5: recover from runtime WebGL context loss on EITHER pane. The
+    // synchronous try/catch above only covers construction; these listeners
+    // surface the same fallback UI for a transient loss and clear it if the
+    // browser restores the context.
+    const onLost = (ev: Event) => { ev.preventDefault(); setWebglFailed(true); };
+    const onRestored = () => setWebglFailed(false);
+    const leftCanvas = leftMap.getCanvas();
+    const rightCanvas = rightMap.getCanvas();
+    leftCanvas.addEventListener('webglcontextlost', onLost, false);
+    leftCanvas.addEventListener('webglcontextrestored', onRestored, false);
+    rightCanvas.addEventListener('webglcontextlost', onLost, false);
+    rightCanvas.addEventListener('webglcontextrestored', onRestored, false);
+    // Diagnostics only — most map 'error' events are recoverable (failed tile,
+    // transient source error), so do NOT flip webglFailed here.
+    leftMap.on('error', (e) => { console.warn('SplitMapView runtime error', e?.error); });
+    rightMap.on('error', (e) => { console.warn('SplitMapView runtime error', e?.error); });
+
     // Flip the persistent loaded flag once each map's style is ready. map.once
     // auto-removes the listener, so no explicit cleanup is needed for these.
     leftMap.once('load', () => { leftLoadedRef.current = true; });
@@ -545,6 +562,10 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
     return () => {
       leftMap.off('move', syncLeftToRight);
       rightMap.off('move', syncRightToLeft);
+      leftCanvas.removeEventListener('webglcontextlost', onLost, false);
+      leftCanvas.removeEventListener('webglcontextrestored', onRestored, false);
+      rightCanvas.removeEventListener('webglcontextlost', onLost, false);
+      rightCanvas.removeEventListener('webglcontextrestored', onRestored, false);
       leftMap.remove();
       rightMap.remove();
       leftMapRef.current = null;
@@ -745,9 +766,15 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
         <h2 className="text-lg font-semibold text-surface-900 dark:text-white mb-2">
           {t('error.webgl_unavailable')}
         </h2>
-        <p className="text-sm text-surface-500 dark:text-surface-400 max-w-sm">
-          {t('error.webgl_unavailable_desc')}
+        <p className="text-sm text-surface-500 dark:text-surface-400 max-w-sm mb-4">
+          {t('error.webgl_context_lost_desc')}
         </p>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-4 py-2 rounded-xl text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors"
+        >
+          {t('error.reload')}
+        </button>
       </div>
     );
   }

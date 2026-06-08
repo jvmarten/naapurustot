@@ -8,6 +8,22 @@
   box-sizing: border-box;
 }
 
+/* A3: global keyboard-focus baseline (brand-500 / brand-400 in dark) */
+:focus-visible {
+  outline: 2px solid #0c93e7;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.dark :focus-visible {
+  outline-color: #36adf6;
+}
+
+/* Suppress the stray outline MapLibre's canvas shows on keyboard focus */
+.maplibregl-canvas:focus-visible {
+  outline: none;
+}
+
 html,
 body,
 #root {
@@ -213,5 +229,18 @@ html.theme-transition *::after {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* MO6: enlarge range-input thumbs on coarse (touch) pointers for easier dragging */
+@media (pointer: coarse) {
+  input[type=range]::-webkit-slider-thumb {
+    width: 24px;
+    height: 24px;
+  }
+
+  input[type=range]::-moz-range-thumb {
+    width: 24px;
+    height: 24px;
   }
 }

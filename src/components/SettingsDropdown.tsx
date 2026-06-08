@@ -35,6 +35,10 @@ interface SettingsDropdownProps {
   onCopyEmbed?: () => Promise<boolean>;
   /** CF-1b: Copy a shareable link to the current configured view (incl. filters). */
   onCopyShareLink?: () => Promise<boolean>;
+  /** X1: read the share URL for the manual-copy fallback when clipboard write fails. */
+  getShareUrl?: () => string;
+  /** X1: read the embed snippet for the manual-copy fallback when clipboard write fails. */
+  getEmbedSnippet?: () => string;
 }
 
 const CB_OPTIONS: { value: ColorblindType; labelKey: string }[] = [
@@ -80,7 +84,8 @@ const OpacitySlider: React.FC<{ fillOpacity: number; onFillOpacityChange: (v: nu
         max={100}
         value={local}
         onChange={handleChange}
-        className="w-full h-1 accent-brand-500 cursor-pointer"
+        className="w-full h-1 accent-brand-500 cursor-pointer
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60"
       />
     </div>
   );
@@ -97,11 +102,27 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
   onShowShortcuts,
   onCopyEmbed,
   onCopyShareLink,
+  getShareUrl,
+  getEmbedSnippet,
 }) => {
   useI18nVersion();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const { mode, setMode } = useTheme();
+  // X1: when a clipboard write fails, reveal the value for a manual select-all copy.
+  // `null` = no fallback shown; otherwise the readOnly textarea displays the value.
+  const [copyFallback, setCopyFallback] = useState<string | null>(null);
+  const fallbackTextareaRef = useRef<HTMLTextAreaElement>(null);
+  // X1: manual copy from the revealed textarea (mirrors DonateButton's execCommand path).
+  const handleManualCopy = useCallback(() => {
+    const ta = fallbackTextareaRef.current;
+    if (!ta) return;
+    ta.focus();
+    ta.select();
+    try { document.execCommand('copy'); } catch { /* manual select-all still available */ }
+  }, []);
+
   // QW-7: Brief "Copied!" confirmation after clicking the embed-code button
   const [embedCopied, setEmbedCopied] = useState(false);
   const embedCopyTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -110,11 +131,15 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
     if (!onCopyEmbed) return;
     const ok = await onCopyEmbed();
     if (ok) {
+      setCopyFallback(null);
       setEmbedCopied(true);
       clearTimeout(embedCopyTimerRef.current);
       embedCopyTimerRef.current = setTimeout(() => setEmbedCopied(false), 2000);
+    } else if (getEmbedSnippet) {
+      // X1: clipboard blocked — reveal the snippet for a manual copy.
+      setCopyFallback(getEmbedSnippet());
     }
-  }, [onCopyEmbed]);
+  }, [onCopyEmbed, getEmbedSnippet]);
 
   // CF-1b: "Copy share link" — copies the current URL (incl. active filters).
   const [linkCopied, setLinkCopied] = useState(false);
@@ -124,11 +149,15 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
     if (!onCopyShareLink) return;
     const ok = await onCopyShareLink();
     if (ok) {
+      setCopyFallback(null);
       setLinkCopied(true);
       clearTimeout(linkCopyTimerRef.current);
       linkCopyTimerRef.current = setTimeout(() => setLinkCopied(false), 2000);
+    } else if (getShareUrl) {
+      // X1: clipboard blocked — reveal the URL for a manual copy.
+      setCopyFallback(getShareUrl());
     }
-  }, [onCopyShareLink]);
+  }, [onCopyShareLink, getShareUrl]);
 
   useEffect(() => {
     if (!open) return;
@@ -137,16 +166,30 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
         setOpen(false);
       }
     };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      document.removeEventListener('keydown', onKey);
+    };
   }, [open]);
 
   return (
     <div className="relative" ref={ref}>
       <button
+        ref={triggerRef}
         onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
         className={`flex px-2.5 py-2 rounded-lg text-xs font-semibold transition-all items-center justify-center
                    min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60
                    ${open
                      ? 'bg-brand-500/20 text-brand-600 dark:text-brand-300 border border-brand-500/30'
                      : 'text-surface-600 dark:text-white/70 hover:text-surface-900 dark:hover:text-white hover:bg-surface-100 dark:hover:bg-white/10 border border-transparent'
@@ -162,9 +205,13 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full mt-2 w-56 rounded-xl bg-white dark:bg-surface-900
+        <div
+          role="menu"
+          aria-label={t('settings.title')}
+          className="absolute left-0 top-full mt-2 w-56 rounded-xl bg-white dark:bg-surface-900
                        border border-surface-200 dark:border-surface-700/40 shadow-2xl backdrop-blur-md
-                       py-1 z-50 max-h-[calc(100vh-80px)] overflow-y-auto">
+                       py-1 z-50 max-h-[calc(100vh-80px)] overflow-y-auto"
+        >
           {/* Theme selector */}
           <div className="px-4 py-2.5">
             <div className="text-xs font-medium text-surface-500 dark:text-surface-400 mb-2">{t('settings.theme')}</div>
@@ -172,10 +219,12 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
               {(['system', 'light', 'dark'] as const).map((m) => (
                 <button
                   key={m}
+                  role="menuitem"
                   onClick={() => setMode(m)}
                   title={t(`settings.theme_${m}`)}
                   aria-label={t(`settings.theme_${m}`)}
                   className={`flex-1 flex items-center justify-center py-2 transition-colors
+                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60
                     ${mode === m
                       ? 'bg-brand-500/15 dark:bg-brand-600/20 text-brand-600 dark:text-brand-300'
                       : 'text-surface-500 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-800'
@@ -205,9 +254,11 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
               {(['fi', 'en', 'sv'] as const).map((l) => (
                 <button
                   key={l}
+                  role="menuitem"
                   onClick={() => onLangChange(l)}
                   aria-pressed={lang === l}
-                  className={`flex-1 py-2 text-xs font-semibold uppercase transition-colors ${lang === l
+                  className={`flex-1 py-2 text-xs font-semibold uppercase transition-colors
+                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 ${lang === l
                     ? 'bg-brand-500/15 dark:bg-brand-600/20 text-brand-600 dark:text-brand-300'
                     : 'text-surface-500 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-800'}`}
                 >
@@ -257,9 +308,11 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
             <>
               <div className="border-t border-surface-100 dark:border-surface-700/40 my-1" />
               <button
+                role="menuitem"
                 onClick={() => { onShowTour(); setOpen(false); }}
                 className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200
-                           hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors"
+                           hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors
+                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
@@ -272,9 +325,11 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
           {/* QW-2: Keyboard shortcuts overlay */}
           {onShowShortcuts && (
             <button
+              role="menuitem"
               onClick={() => { onShowShortcuts(); setOpen(false); }}
               className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200
-                         hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors"
+                         hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors
+                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 7h6m-6 4h6m-9 8h12a2 2 0 002-2V5a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -286,9 +341,11 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
           {/* CF-1b: Copy a shareable link to the current configured view */}
           {onCopyShareLink && (
             <button
+              role="menuitem"
               onClick={handleShareLinkClick}
               className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200
-                         hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors"
+                         hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors
+                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60"
               title={t('share.link_hint')}
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -301,9 +358,11 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
           {/* QW-7: Copy iframe embed snippet for the current map state */}
           {onCopyEmbed && (
             <button
+              role="menuitem"
               onClick={handleEmbedClick}
               className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200
-                         hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors"
+                         hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors
+                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60"
               title={t('embed.copy_hint')}
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -313,12 +372,39 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
             </button>
           )}
 
+          {/* X1: clipboard write failed — reveal the value for a manual select-all copy */}
+          {copyFallback !== null && (
+            <div className="px-4 py-2.5">
+              <p className="text-xs font-medium text-amber-600 dark:text-amber-400 mb-2">{t('share.copy_failed')}</p>
+              <textarea
+                ref={fallbackTextareaRef}
+                readOnly
+                value={copyFallback}
+                onFocus={(e) => e.currentTarget.select()}
+                rows={3}
+                className="w-full text-[11px] font-mono text-surface-700 dark:text-surface-200
+                           bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700/40
+                           rounded-lg p-2 resize-none focus:outline-none focus:ring-1 focus:ring-brand-500/50"
+              />
+              <button
+                onClick={handleManualCopy}
+                className="mt-2 w-full px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-brand-500/15 dark:bg-brand-600/20
+                           text-brand-600 dark:text-brand-300 hover:bg-brand-500/25 transition-colors
+                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60"
+              >
+                {t('share.button')}
+              </button>
+            </div>
+          )}
+
           {/* PO-14: privacy & data-handling notice (lang-aware prerendered page) */}
           <div className="border-t border-surface-100 dark:border-surface-700/40 my-1" />
           <a
+            role="menuitem"
             href={lang === 'en' ? '/en/privacy' : lang === 'sv' ? '/sv/integritet' : '/tietosuoja'}
             className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200
-                       hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors"
+                       hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors
+                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z" />

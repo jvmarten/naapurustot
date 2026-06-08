@@ -30,6 +30,9 @@ const SV: Dict = {};
 let enPromise: Promise<void> | null = null;
 let svPromise: Promise<void> | null = null;
 
+/** Lang whose dictionary fetch failed (so a banner can offer a retry), else null. */
+let loadError: Lang | null = null;
+
 const subscribers = new Set<() => void>();
 let version = 0;
 function notify(): void {
@@ -37,23 +40,27 @@ function notify(): void {
   for (const fn of subscribers) fn();
 }
 
-function loadLocale(url: string, target: Dict, promise: Promise<void> | null, reset: () => void): Promise<void> {
-  if (promise) return promise;
+function loadLocale(lang: Lang, url: string, target: Dict, reset: () => void): Promise<void> {
   const p = fetch(url).then((r) => r.json()).then((d: Dict) => {
     Object.assign(target, d);
+    loadError = null;
     notify();
-  }).catch(() => { reset(); });
+  }).catch(() => {
+    reset();
+    loadError = lang;
+    notify();
+  });
   return p;
 }
 
 function loadEn(): Promise<void> {
   if (enPromise) return enPromise;
-  enPromise = loadLocale(enUrl, EN, enPromise, () => { enPromise = null; });
+  enPromise = loadLocale('en', enUrl, EN, () => { enPromise = null; });
   return enPromise;
 }
 function loadSv(): Promise<void> {
   if (svPromise) return svPromise;
-  svPromise = loadLocale(svUrl, SV, svPromise, () => { svPromise = null; });
+  svPromise = loadLocale('sv', svUrl, SV, () => { svPromise = null; });
   return svPromise;
 }
 
@@ -73,14 +80,32 @@ export function setLang(lang: Lang): Promise<void> {
   }
   if (lang === 'en') return loadEn();
   if (lang === 'sv') return loadSv();
+  // Finnish is always bundled, so switching to it clears any pending load error.
+  if (loadError !== null) { loadError = null; notify(); }
   return Promise.resolve();
 }
 
 export function getLang(): Lang { return currentLang; }
 
+/** Lang whose dictionary fetch failed (so a banner can offer a retry), else null. */
+export function getLocaleLoadError(): Lang | null { return loadError; }
+
+/**
+ * Retry a failed lazy dictionary load: clears the failed lang's cached promise
+ * and the error flag, then re-invokes the loader for the current lang.
+ */
+export function retryLocaleLoad(): void {
+  if (currentLang === 'en') enPromise = null;
+  else if (currentLang === 'sv') svPromise = null;
+  loadError = null;
+  if (currentLang === 'en') void loadEn();
+  else if (currentLang === 'sv') void loadSv();
+  notify();
+}
+
 /** Look up a translation by key. Returns the key itself if no translation is found. */
 export function t(key: string): string {
-  if (currentLang === 'sv') return SV[key] ?? FI[key] ?? EN[key] ?? key;
+  if (currentLang === 'sv') return SV[key] ?? EN[key] ?? FI[key] ?? key;
   if (currentLang === 'en') return EN[key] ?? FI[key] ?? key;
   return FI[key] ?? EN[key] ?? key;
 }

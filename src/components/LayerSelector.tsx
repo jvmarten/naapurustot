@@ -11,6 +11,8 @@ interface LayerSelectorProps {
   headerSlot?: React.ReactNode;
   /** Pass current language to trigger re-render on language change */
   lang?: Lang;
+  /** MO2: on mobile, suppress the FAB when a full-width panel covers it (desktop dropdown is unaffected). */
+  hidden?: boolean;
 }
 
 type LayerGroup = {
@@ -32,7 +34,7 @@ const LAYER_GROUPS: LayerGroup[] = [
   { labelKey: 'layers.connectivity', ids: ['broadband_coverage'] },
 ];
 
-export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeLayer, onLayerChange, onCustomizeQuality, isCustomWeights = false, headerSlot, lang: _lang }) => {
+export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeLayer, onLayerChange, onCustomizeQuality, isCustomWeights = false, headerSlot, lang: _lang, hidden }) => {
   useI18nVersion();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(
     Object.fromEntries(LAYER_GROUPS.map((g) => [g.labelKey, true]))
@@ -319,12 +321,12 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
 
       {/* Mobile: bottom-right FAB + swipe-up sheet */}
       <div className="md:hidden">
-        {/* FAB trigger */}
-        {!mobileOpen && (
+        {/* FAB trigger — MO2: also suppressed when a full-width panel covers it */}
+        {!mobileOpen && !hidden && (
           <button
             data-tour-id="layers"
             onClick={() => setMobileOpen(true)}
-            className="fixed bottom-8 right-3 z-30 w-14 h-14 rounded-2xl
+            className="fixed bottom-[calc(2rem+env(safe-area-inset-bottom))] right-3 z-30 w-14 h-14 rounded-2xl
                        bg-white/95 dark:bg-surface-900/95 backdrop-blur-md
                        border border-surface-200 dark:border-surface-700/40
                        shadow-2xl flex items-center justify-center

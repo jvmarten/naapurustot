@@ -32,14 +32,25 @@ const BASE = `https://api.digitransit.fi/routing/v1/routers/${ROUTER}/isochrone`
 
 type IsoFeature = Feature<Polygon | MultiPolygon>;
 
+/**
+ * Discriminated fetch outcome so callers can tell a genuine failure (network
+ * throw, non-OK HTTP) from a legitimately empty result. `ok: true` with a null
+ * feature means "no reachable area / nothing to overlay" (not an error);
+ * `ok: false` means the request failed and a retry affordance is warranted.
+ */
+export type IsochroneResult =
+  | { ok: true; feature: IsoFeature | null }
+  | { ok: false };
+
 function cacheKey(pno: string, mode: IsochroneMode, budget: number): string {
   return `isochrone:${pno}:${mode}:${budget}`;
 }
 
 /**
  * Fetch (or return cached) reachable-area polygon for a neighborhood centroid.
- * Returns null on missing key, network/HTTP error, or empty response — callers
- * treat null as "no overlay".
+ * Returns a discriminated result: `{ ok: false }` on a network/HTTP failure,
+ * `{ ok: true, feature }` otherwise — where `feature` is null for a missing
+ * key, non-finite coords, or a legitimately empty response.
  */
 export async function fetchIsochrone(
   pno: string,
@@ -47,13 +58,13 @@ export async function fetchIsochrone(
   lat: number,
   mode: IsochroneMode,
   budgetMinutes: number,
-): Promise<IsoFeature | null> {
-  if (!ISOCHRONE_ENABLED || !isFinite(lng) || !isFinite(lat)) return null;
+): Promise<IsochroneResult> {
+  if (!ISOCHRONE_ENABLED || !isFinite(lng) || !isFinite(lat)) return { ok: true, feature: null };
 
   const key = cacheKey(pno, mode, budgetMinutes);
   try {
     const cached = sessionStorage.getItem(key);
-    if (cached) return JSON.parse(cached) as IsoFeature;
+    if (cached) return { ok: true, feature: JSON.parse(cached) as IsoFeature };
   } catch { /* sessionStorage unavailable */ }
 
   const params = new URLSearchParams({
@@ -66,15 +77,15 @@ export async function fetchIsochrone(
     const res = await fetch(`${BASE}?${params.toString()}`, {
       headers: { 'digitransit-subscription-key': KEY as string },
     });
-    if (!res.ok) return null;
+    if (!res.ok) return { ok: false };
     const data = await res.json();
     const feat = data?.features?.[0];
     const geom = feat?.geometry;
-    if (!geom || (geom.type !== 'Polygon' && geom.type !== 'MultiPolygon')) return null;
+    if (!geom || (geom.type !== 'Polygon' && geom.type !== 'MultiPolygon')) return { ok: true, feature: null };
     const result: IsoFeature = { type: 'Feature', properties: { mode, budget: budgetMinutes }, geometry: geom };
     try { sessionStorage.setItem(key, JSON.stringify(result)); } catch { /* quota */ }
-    return result;
+    return { ok: true, feature: result };
   } catch {
-    return null;
+    return { ok: false };
   }
 }

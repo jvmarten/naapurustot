@@ -6,6 +6,7 @@ import {
 import { getLang } from '../utils/i18n';
 import { t } from '../utils/i18n';
 import { trackEvent } from '../utils/analytics';
+import { useBottomSheet } from '../hooks/useBottomSheet';
 
 interface Props {
   weights: QualityWeights;
@@ -126,6 +127,13 @@ export const CustomQualityPanel: React.FC<Props> = ({ weights, onChange, onClose
     window.addEventListener('resize', check);
     return () => window.removeEventListener('resize', check);
   }, []);
+
+  // MO5: Unified bottom sheet drag behavior (reuses the FilterPanel pattern)
+  const { sheetHeight, isDragging, handlers: sheetHandlers } = useBottomSheet({
+    halfRatio: 0.85,
+    initialSnap: 'half',
+    onClose,
+  });
 
   // Auto-expand secondary section if any secondary factor has non-zero weight
   useEffect(() => {
@@ -313,16 +321,37 @@ export const CustomQualityPanel: React.FC<Props> = ({ weights, onChange, onClose
 
   if (isMobile) {
     return (
-      <div className="fixed inset-x-0 bottom-0 z-40">
-        <div className="bg-white dark:bg-surface-900 rounded-t-2xl shadow-2xl border-t border-surface-200 dark:border-surface-700/50
-                        max-h-[85vh] overflow-y-auto">
-          {/* Drag handle */}
-          <div className="flex justify-center pt-2 pb-1">
+      <>
+        {/* Backdrop — tap outside to close */}
+        <div
+          className="fixed inset-0 z-30 bg-black/20 dark:bg-black/40"
+          onClick={onClose}
+        />
+
+        {/* Bottom sheet — height driven by the drag gesture */}
+        <div
+          className="fixed inset-x-0 bottom-0 z-40 flex flex-col
+                     bg-white dark:bg-surface-900 rounded-t-2xl shadow-2xl
+                     border-t border-surface-200 dark:border-surface-700/50"
+          style={{
+            height: sheetHeight,
+            transition: isDragging ? 'none' : 'height 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
+          }}
+        >
+          {/* Drag handle — functional drag-to-dismiss affordance */}
+          <div
+            className="flex justify-center pt-2 pb-1 cursor-grab active:cursor-grabbing touch-none flex-shrink-0"
+            onTouchStart={sheetHandlers.onTouchStart}
+            onTouchMove={sheetHandlers.onTouchMove}
+            onTouchEnd={sheetHandlers.onTouchEnd}
+          >
             <div className="w-10 h-1 rounded-full bg-surface-300 dark:bg-surface-600" />
           </div>
-          {content}
+          <div className="flex-1 overflow-y-auto pb-safe">
+            {content}
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 

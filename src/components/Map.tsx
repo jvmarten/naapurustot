@@ -293,6 +293,19 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
 
+    // E5: recover from runtime WebGL context loss (GPU reset, tab backgrounding,
+    // driver hiccup). The synchronous try/catch above only covers construction;
+    // these listeners surface the same fallback UI for a transient loss and clear
+    // it if the browser restores the context.
+    const canvas = map.getCanvas();
+    const onLost = (ev: Event) => { ev.preventDefault(); setWebglFailed(true); };
+    const onRestored = () => setWebglFailed(false);
+    canvas.addEventListener('webglcontextlost', onLost, false);
+    canvas.addEventListener('webglcontextrestored', onRestored, false);
+    // Diagnostics only — most map 'error' events are recoverable (failed tile,
+    // transient source error), so do NOT flip webglFailed here.
+    map.on('error', (e) => { console.warn('Map runtime error', e?.error); });
+
     // Debounced resize — collapses rapid resize events (ResizeObserver,
     // visualViewport, and early layout settle timers) into a single call.
     let resizeTimer: ReturnType<typeof setTimeout> | undefined;
@@ -323,6 +336,13 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     // partial rendering when the layout isn't settled at init time (mobile first-load bug).
     map.once('load', () => {
       mapStyleLoadedRef.current = true;
+      // A1: give the WebGL canvas an accessible name + role so screen readers
+      // announce it as an interactive map region (MapLibre's keyboard pan/zoom
+      // handler stays enabled — no keyboard:false in the Map options above).
+      try {
+        map.getCanvas().setAttribute('aria-label', t('aria.map_canvas'));
+        map.getCanvas().setAttribute('role', 'application');
+      } catch { /* canvas unavailable */ }
       map.resize();
       // After paint, double-check dimensions in case layout was still settling.
       requestAnimationFrame(() => requestAnimationFrame(verifySize));
@@ -364,6 +384,8 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       window.visualViewport?.removeEventListener('resize', debouncedResize);
       window.removeEventListener('orientationchange', onOrientationChange);
       window.removeEventListener('pageshow', onPageShow);
+      canvas.removeEventListener('webglcontextlost', onLost, false);
+      canvas.removeEventListener('webglcontextrestored', onRestored, false);
       ro.disconnect();
       map.remove();
       mapRef.current = null;
@@ -1528,14 +1550,27 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         <h2 className="text-lg font-semibold text-surface-900 dark:text-white mb-2">
           {t('error.webgl_unavailable')}
         </h2>
-        <p className="text-sm text-surface-500 dark:text-surface-400 max-w-sm">
-          {t('error.webgl_unavailable_desc')}
+        <p className="text-sm text-surface-500 dark:text-surface-400 max-w-sm mb-4">
+          {t('error.webgl_context_lost_desc')}
         </p>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-4 py-2 rounded-xl text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors"
+        >
+          {t('error.reload')}
+        </button>
       </div>
     );
   }
 
-  return <div ref={containerRef} className="absolute inset-0" />;
+  return (
+    <div
+      ref={containerRef}
+      className="absolute inset-0"
+      role="application"
+      aria-label={t('aria.map_region').replace('{layer}', t((layerConfig ?? getLayerById(activeLayer)).labelKey))}
+    />
+  );
 });
 
 Map.displayName = 'Map';

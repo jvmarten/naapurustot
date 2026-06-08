@@ -34,7 +34,7 @@ const CorrelationExplorer = lazy(() => import('./components/CorrelationExplorer'
 const RegionRankingTable = lazy(() => import('./components/RegionRankingTable').then(m => ({ default: m.RegionRankingTable })));
 import { useMapData } from './hooks/useMapData';
 import { useSearchIndex } from './hooks/useSearchIndex';
-import { useGridData, cellCentroid, clipGridToData } from './hooks/useGridData';
+import { useGridData, cellCentroid, clipGridToData, hasGridData } from './hooks/useGridData';
 import { useFavorites } from './hooks/useFavorites';
 
 import { useRecentNeighborhoods } from './hooks/useRecentNeighborhoods';
@@ -49,11 +49,12 @@ const ShortcutsOverlay = lazy(() => import('./components/ShortcutsOverlay').then
 const TimeSlider = lazy(() => import('./components/TimeSlider').then(m => ({ default: m.TimeSlider })));
 import { UserMenu, type FavoriteEntry } from './components/UserMenu';
 import { ShortlistTray } from './components/ShortlistTray';
+import { MapPinIllustration } from './components/EmptyStateIllustrations';
 import { type LayerId, type ColorblindType, getLayerById, getColorblindMode, setColorblindMode, rescaleLayerToData, clearRescaleCache, TIME_SERIES_LAYERS } from './utils/colorScales';
 import { readInitialUrlState, useSyncUrlState, buildViewportShareUrl, buildShortlistShareUrl, type UrlViewport, type UrlDraw } from './hooks/useUrlState';
 import type { NeighborhoodProperties } from './utils/metrics';
 import { computeMetroAverages, timeSeriesYearProp, getAvailableYears } from './utils/metrics';
-import { t, getLang, setLang, useI18nVersion, type Lang } from './utils/i18n';
+import { t, getLang, setLang, useI18nVersion, getLocaleLoadError, retryLocaleLoad, type Lang } from './utils/i18n';
 import { computeQualityIndices, isCustomWeights, type QualityWeights } from './utils/qualityIndex';
 import { getNationalRanges } from './utils/nationalRanges';
 import { buildMetroAreaFeatures, clearMetroAreaCache } from './utils/metroAreas';
@@ -62,6 +63,7 @@ import { IS_EMBED, buildEmbedSnippet, buildFullViewUrl, postEmbedHeight } from '
 import { findNeighborhoodForPoint } from './utils/geocode';
 import { loadHomeReference, saveHomeReference } from './utils/homeReference';
 import { getFeatureCenter } from './utils/geometryFilter';
+import { toSlug } from './utils/slug';
 import { ISOCHRONE_ENABLED, fetchIsochrone, type IsochroneMode } from './utils/isochrone';
 
 const initialUrl = readInitialUrlState();
@@ -88,6 +90,18 @@ function findRegionForCoords(lng: number, lat: number): CityFilter | null {
   return best;
 }
 
+// L3: lightweight Suspense fallback for user-triggered lazy panels — a centered
+// spinner (reusing the UserMenu animate-spin SVG markup) so opening a panel shows
+// immediate feedback instead of nothing while its chunk downloads.
+const PanelSkeleton: React.FC = () => (
+  <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none" aria-hidden="true">
+    <svg className="w-6 h-6 animate-spin text-surface-400 dark:text-surface-500" viewBox="0 0 24 24" fill="none">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+    </svg>
+  </div>
+);
+
 const App: React.FC = () => {
   // City filter — declared before useMapData so the hook can load the right region
   const [cityFilter, setCityFilter] = useState<CityFilter>((initialUrl.city as CityFilter) ?? 'helsinki_metro');
@@ -100,13 +114,28 @@ const App: React.FC = () => {
   const searchIndex = useSearchIndex();
 
   // Auth
-  const { user, login, signup, logout, exportData, deleteAccount } = useAuth();
+  const { user, loading: authLoading, login, signup, logout, exportData, deleteAccount } = useAuth();
   const [showAuth, setShowAuth] = useState(false);
   // QW-1: Onboarding tour
   const [showTour, setShowTour] = useState(false);
+  // O1/EM1/EM4: dismissible idle "click any area" hint pill (persisted in localStorage).
+  const [idleHintDismissed, setIdleHintDismissed] = useState(() => {
+    try { return !!localStorage.getItem('naapurustot-idle-hint-seen'); } catch { return false; }
+  });
+  const handleDismissIdleHint = useCallback(() => {
+    try { localStorage.setItem('naapurustot-idle-hint-seen', '1'); } catch { /* unavailable */ }
+    setIdleHintDismissed(true);
+  }, []);
+  // E9: dismissible locale-load-error notice (non-blocking).
+  const [localeErrorDismissed, setLocaleErrorDismissed] = useState(false);
   // QW-3: "Show my area" geolocation status (transient toast).
   const [geoStatus, setGeoStatus] = useState<null | 'loading' | 'denied' | 'outside' | 'unavailable'>(null);
   const pendingGeoRef = useRef<[number, number] | null>(null);
+  // C4/C7/C8: one shared transient toast (mirrors the geoStatus role="status"
+  // toast + its auto-dismiss timer) for scope-rescale, city-switch and
+  // address-only notices. A bumped key restarts the auto-dismiss on repeats.
+  const [toast, setToast] = useState<{ text: string; key: number } | null>(null);
+  const showToast = useCallback((text: string) => setToast({ text, key: Date.now() }), []);
   // QW-2: keyboard shortcuts help overlay.
   const [showShortcuts, setShowShortcuts] = useState(false);
   // PO-2: time slider / historical playback.
@@ -123,6 +152,9 @@ const App: React.FC = () => {
   const [isochroneMode, setIsochroneMode] = useState<IsochroneMode>('walk');
   const [isochroneBudget, setIsochroneBudget] = useState(20);
   const [isochroneLoading, setIsochroneLoading] = useState(false);
+  // E1: distinguishes a genuine fetch failure (network/HTTP) from an empty area,
+  // so the panel can surface an error + retry rather than silently showing nothing.
+  const [isochroneError, setIsochroneError] = useState(false);
 
   // Build a PNO→Feature lookup Map for O(1) feature access.
   // Replaces multiple O(n) .find() scans after quality index recomputation
@@ -154,7 +186,7 @@ const App: React.FC = () => {
   const { selected, select, deselect, pinned, pin, unpin, clearPinned, refreshPinned } = useSelectedNeighborhood();
   const [activeLayer, setActiveLayerRaw] = useState<LayerId>(initialUrl.layer ?? 'quality_index');
   const setActiveLayer = useCallback((layer: LayerId) => { trackEvent('change-layer', { layer }); setActiveLayerRaw(layer); }, []);
-  const { gridData: rawGridData } = useGridData(activeLayer);
+  const { gridData: rawGridData, loading: gridLoading } = useGridData(activeLayer);
   // Clip grid cells to the loaded region so a region-scoped view (e.g. Helsinki
   // Metro) doesn't leak grid cells from other regions (e.g. Turku, Tampere).
   // For the all-cities view this is effectively a no-op (the region covers all
@@ -340,6 +372,21 @@ const App: React.FC = () => {
   const [isOffline, setIsOffline] = useState(() => typeof navigator !== 'undefined' && !navigator.onLine);
 
   const [comparisonScope, setComparisonScope] = useState<ComparisonScope>(initialUrl.scope ?? 'all');
+
+  // C4: explain the region-scoping rescale the FIRST time the user switches to
+  // 'region' (persisted flag mirrors the fill-opacity localStorage try/catch).
+  // Wrap setComparisonScope so both ComparisonScopeToggle instances trigger it.
+  const handleScopeChange = useCallback((next: ComparisonScope) => {
+    if (next === 'region') {
+      try {
+        if (!localStorage.getItem('naapurustot-scope-hint-seen')) {
+          localStorage.setItem('naapurustot-scope-hint-seen', '1');
+          showToast(t('scope.rescale_note'));
+        }
+      } catch { /* localStorage unavailable */ }
+    }
+    setComparisonScope(next);
+  }, [showToast]);
 
   // With per-region loading, single-region data is already scoped — no client-side filter needed.
   // Only the "all" view needs metro area aggregation.
@@ -943,6 +990,8 @@ const App: React.FC = () => {
       // Address-only result (no postal code) — fly straight to the geocoded point.
       if (!pno) {
         setFlyTarget({ center });
+        // C8: tell the user we have no neighborhood data for this address.
+        showToast(t('address.no_neighborhood'));
         return;
       }
 
@@ -970,6 +1019,8 @@ const App: React.FC = () => {
         pendingSearchRef.current = pno;
         setCityFilter(targetRegion);
         deselect();
+        // C7: surface the forced region switch so the map jump isn't a surprise.
+        showToast(t('city.switched_to').replace('{city}', t('city.' + targetRegion)));
         return;
       }
 
@@ -979,7 +1030,7 @@ const App: React.FC = () => {
         setFlyTarget({ center });
       }
     },
-    [selectAndFly, deselect],
+    [selectAndFly, deselect, showToast],
   );
 
   // Resolve a pending cross-subregion search once the target region's geometry
@@ -1033,7 +1084,9 @@ const App: React.FC = () => {
         setGeoStatus(null);
       },
       (err) => {
-        setGeoStatus(err.code === err.PERMISSION_DENIED ? 'denied' : 'outside');
+        // E2: TIMEOUT / POSITION_UNAVAILABLE are device/permission failures, not
+        // out-of-coverage coordinates — only genuinely off-map coords say 'outside'.
+        setGeoStatus(err.code === err.PERMISSION_DENIED ? 'denied' : 'unavailable');
       },
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 },
     );
@@ -1067,6 +1120,13 @@ const App: React.FC = () => {
     const id = setTimeout(() => setGeoStatus(null), 4000);
     return () => clearTimeout(id);
   }, [geoStatus]);
+
+  // C4/C7/C8: auto-dismiss the shared transient toast (re-armed on each new key).
+  useEffect(() => {
+    if (!toast) return;
+    const id = setTimeout(() => setToast(null), 4000);
+    return () => clearTimeout(id);
+  }, [toast]);
 
   // PO-2: when the active time-series metric (or its years) changes, snap the
   // slider to the most recent year; deactivate (and stop playback) otherwise.
@@ -1108,17 +1168,25 @@ const App: React.FC = () => {
     setIsochroneMode(mode);
     setIsochroneBudget(budget);
     setIsochroneLoading(true);
-    const poly = await fetchIsochrone(sel.pno, lng, lat, mode, budget);
+    setIsochroneError(false);
+    const result = await fetchIsochrone(sel.pno, lng, lat, mode, budget);
     // Ignore a stale response if the selection changed mid-request.
     if (selectedRef.current?.pno !== sel.pno) { setIsochroneLoading(false); return; }
-    setIsochronePolygon(poly);
+    if (result.ok) {
+      setIsochronePolygon(result.feature);
+      setIsochroneError(false);
+    } else {
+      // E1: genuine fetch failure — keep any prior overlay cleared and flag the error.
+      setIsochronePolygon(null);
+      setIsochroneError(true);
+    }
     setIsochroneLoading(false);
   }, []);
-  const handleIsochroneClear = useCallback(() => setIsochronePolygon(null), []);
+  const handleIsochroneClear = useCallback(() => { setIsochronePolygon(null); setIsochroneError(false); }, []);
 
   // CF-5: clear the isochrone overlay whenever the selected neighborhood changes
   // (or is deselected) so a stale reachable-area doesn't linger on a new area.
-  useEffect(() => { setIsochronePolygon(null); }, [selected?.pno]);
+  useEffect(() => { setIsochronePolygon(null); setIsochroneError(false); }, [selected?.pno]);
 
   // CF-1: re-fetch a shared isochrone once its neighbourhood has been restored. Runs
   // once; the clear-on-selection effect above fires first for this same pno change.
@@ -1132,9 +1200,19 @@ const App: React.FC = () => {
     }
   }, [selected?.pno, handleIsochroneChange]);
 
+  // C6: full reset — return to the default region AND clear all transient state
+  // (selection, pins, drawn/selected area, filters, panels, wizard highlight, scope).
   const handleResetView = useCallback(() => {
     handleCityChange('helsinki_metro');
-  }, [handleCityChange]);
+    deselect();
+    clearPinned();
+    handleClearDraw();
+    setFilters([]);
+    setShowFilter(false);
+    setShowRanking(false);
+    setWizardResultPnos([]);
+    setComparisonScope('all');
+  }, [handleCityChange, deselect, clearPinned, handleClearDraw]);
 
   const handleLangChange = useCallback((next: Lang) => {
     if (next === lang) return;
@@ -1222,12 +1300,12 @@ const App: React.FC = () => {
       <div className="rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden">
         <ComparisonScopeToggle
           scope={comparisonScope}
-          onChange={setComparisonScope}
+          onChange={handleScopeChange}
           disabled={cityFilter === 'all'}
         />
       </div>
     </div>
-  ), [comparisonScope, cityFilter]);
+  ), [comparisonScope, cityFilter, handleScopeChange]);
   // Stable callbacks for NeighborhoodPanel props — prevents new closures on every render
   // which would defeat React.memo on the panel.
   const handleToggleFavorite = useCallback(() => {
@@ -1277,6 +1355,8 @@ const App: React.FC = () => {
         setCityFilter('all');
       } else if (city && cityFilterRef.current !== 'all' && city !== cityFilterRef.current) {
         setCityFilter(city as CityFilter);
+        // C7: surface the forced region switch (mirrors handleSearch).
+        showToast(t('city.switched_to').replace('{city}', t('city.' + city)));
       }
       select(feature.properties as NeighborhoodProperties);
       return;
@@ -1286,7 +1366,7 @@ const App: React.FC = () => {
       pendingFavoritePno.current = pno;
       setCityFilter('all');
     }
-  }, [select, setCityFilter, regionIdSet]);
+  }, [select, setCityFilter, regionIdSet, showToast]);
 
   // QW-2: shortlist tray entries (pno → name) and the "compare" action, which pins
   // the shortlist up to the comparison max (pin() dedupes + caps internally).
@@ -1415,40 +1495,92 @@ const App: React.FC = () => {
     setShowShortcuts(true);
   }, []);
 
+  // QW-7: build the iframe embed snippet for the current map state. X1: exposed as
+  // a getter so SettingsDropdown can reveal it for a manual select-all copy fallback.
+  const getEmbedSnippet = useCallback((): string => buildEmbedSnippet({
+    pno: selected?.pno ?? null,
+    layer: activeLayer,
+    city: cityFilter,
+    compare: pinnedPnos,
+    scope: comparisonScope,
+    year: timeYear,
+    colorblind,
+    lang,
+  }), [selected?.pno, activeLayer, cityFilter, pinnedPnos, comparisonScope, timeYear, colorblind, lang]);
+
+  // CF-1: build a shareable link to the exact configured view — selection, layer,
+  // comparison, scope, year, filters, custom weights, isochrone and shortlist are
+  // already kept in window.location by useSyncUrlState; here we additionally bake in
+  // the current map camera (viewport) so the link reproduces the pan/zoom.
+  // X1/X3: exposed as a getter so both the header Share control and SettingsDropdown's
+  // manual-copy fallback can read the exact same URL.
+  // X4: when an area is selected, share its localized profile URL instead — that
+  // route already has correct, prerendered, per-area OG/Twitter cards (generated by
+  // scripts/prerender.mjs), so deep links unfurl as the right area/metric/language
+  // card. The path shape mirrors NeighborhoodProfilePage's canonicalByLang map
+  // (src/pages/NeighborhoodProfilePage.tsx:238-242). With nothing selected we keep
+  // the existing root viewport-share URL (which still serves generic root OG).
+  const getShareUrl = useCallback((): string => {
+    if (selected) {
+      const slug = toSlug(selected.pno, selected.nimi);
+      const profilePathByLang: Record<Lang, string> = {
+        fi: `/alue/${slug}/`,
+        en: `/en/area/${slug}/`,
+        sv: `/sv/omrade/${slug}/`,
+      };
+      return `${window.location.origin}${profilePathByLang[lang]}`;
+    }
+    return buildViewportShareUrl(cameraRef.current);
+  }, [selected, lang]);
+
   // QW-7: Copy an iframe embed snippet for the current map state.
   const handleCopyEmbed = useCallback(async (): Promise<boolean> => {
-    const snippet = buildEmbedSnippet({
-      pno: selected?.pno ?? null,
-      layer: activeLayer,
-      city: cityFilter,
-      compare: pinnedPnos,
-      scope: comparisonScope,
-      year: timeYear,
-      colorblind,
-      lang,
-    });
     try {
-      await navigator.clipboard.writeText(snippet);
+      await navigator.clipboard.writeText(getEmbedSnippet());
       trackEvent('copy-embed', { layer: activeLayer });
       return true;
     } catch {
       return false;
     }
-  }, [selected?.pno, activeLayer, cityFilter, pinnedPnos, comparisonScope, timeYear, colorblind, lang]);
+  }, [getEmbedSnippet, activeLayer]);
 
-  // CF-1: copy a shareable link to the exact configured view — selection, layer,
-  // comparison, scope, year, filters, custom weights, isochrone and shortlist are
-  // already kept in window.location by useSyncUrlState; here we additionally bake in
-  // the current map camera (viewport) so "copy link to this view" reproduces the pan/zoom.
   const handleCopyShareLink = useCallback(async (): Promise<boolean> => {
     try {
-      await navigator.clipboard.writeText(buildViewportShareUrl(cameraRef.current));
+      await navigator.clipboard.writeText(getShareUrl());
       trackEvent('copy-share-link', { layer: activeLayer });
       return true;
     } catch {
       return false;
     }
-  }, [activeLayer]);
+  }, [getShareUrl, activeLayer]);
+
+  // X3: dedicated, discoverable header Share control. On success it flashes
+  // "Link copied"; on failure it reveals the URL for a manual select-all copy
+  // (the same recovery as X1's SettingsDropdown fallback).
+  const [headerShare, setHeaderShare] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const headerShareUrlRef = useRef('');
+  const headerShareTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const headerShareTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(headerShareTimerRef.current), []);
+  const handleHeaderShare = useCallback(async () => {
+    const ok = await handleCopyShareLink();
+    if (ok) {
+      setHeaderShare('copied');
+      clearTimeout(headerShareTimerRef.current);
+      headerShareTimerRef.current = setTimeout(() => setHeaderShare('idle'), 2000);
+    } else {
+      headerShareUrlRef.current = getShareUrl();
+      setHeaderShare('failed');
+    }
+  }, [handleCopyShareLink, getShareUrl]);
+  // X3: manual copy fallback from the revealed textarea (mirrors DonateButton).
+  const handleHeaderShareManualCopy = useCallback(() => {
+    const ta = headerShareTextareaRef.current;
+    if (!ta) return;
+    ta.focus();
+    ta.select();
+    try { document.execCommand('copy'); } catch { /* manual select-all still available */ }
+  }, []);
 
   // QW-3: from inside an embedded iframe, post the content height so a host page
   // can auto-size the iframe (no-op outside an iframe).
@@ -1551,8 +1683,34 @@ const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // C6: any transient state worth a one-tap reset. Drives the "Clear all" chip.
+  const isDirty =
+    !!selected ||
+    pinned.length > 0 ||
+    !!drawnPolygon ||
+    filters.length > 0 ||
+    wizardResultPnos.length > 0 ||
+    comparisonScope !== 'all';
+
+  // O1/EM1/EM4: the idle hint is mutually exclusive with the "Clear all" chip —
+  // it only appears on a pristine home view (nothing dirty, nothing else mounted).
+  const showIdleHint =
+    !IS_EMBED &&
+    !selected &&
+    !showTour &&
+    pinned.length === 0 &&
+    shortlist.length === 0 &&
+    !!data &&
+    !idleHintDismissed &&
+    !isDirty;
+
+  // E9: surface a failed locale dictionary fetch (re-render via useI18nVersion above).
+  const localeLoadError = getLocaleLoadError();
+
   return (
     <div id="main" tabIndex={-1} className="h-dvh w-screen overflow-hidden relative focus:outline-none" data-testid="app-root" data-loaded={!loading}>
+      {/* A1: screen-reader entry point — names the map and points to the keyboard-accessible selection paths (search combobox + ranking table). */}
+      <p className="sr-only">{t('aria.map_instructions')}</p>
       {/* Map — QW-4: Conditional split view */}
       <ErrorBoundary>
         {splitMode ? (
@@ -1614,13 +1772,13 @@ const App: React.FC = () => {
               <div className="w-10 h-10 rounded-full bg-surface-200 dark:bg-surface-700 animate-pulse mt-2" />
             </div>
             <h1 className="text-xl font-display font-bold text-surface-900 dark:text-white">naapurustot</h1>
-            <p className="text-surface-500 dark:text-surface-400 text-sm">{t('loading.title')}</p>
+            <p className="text-surface-500 dark:text-surface-400 text-sm">{t(cityFilter === 'all' ? 'loading.nationwide' : 'loading.title')}</p>
           </div>
         </div>
       )}
 
       {/* Error banner */}
-      {error && <ErrorBanner message={error} onRetry={retry} />}
+      {error && <ErrorBanner onRetry={retry} />}
 
       {/* QW-7: Header is hidden in embed mode so the map renders edge-to-edge. */}
       {!IS_EMBED && (
@@ -1638,6 +1796,8 @@ const App: React.FC = () => {
             onShowShortcuts={handleShowShortcuts}
             onCopyEmbed={handleCopyEmbed}
             onCopyShareLink={handleCopyShareLink}
+            getShareUrl={getShareUrl}
+            getEmbedSnippet={getEmbedSnippet}
           />
           <ToolsDropdown
             showFilter={showFilter}
@@ -1662,6 +1822,64 @@ const App: React.FC = () => {
             onToggleRegionRanking={handleToggleRegionRanking}
             lang={lang}
           />
+          {/* X3: discoverable Share control (icon + label on desktop) */}
+          <div className="relative">
+            <button
+              onClick={handleHeaderShare}
+              className={`flex px-2.5 py-2 rounded-lg text-xs font-semibold transition-all items-center justify-center
+                         min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0
+                         focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500
+                         ${headerShare === 'copied'
+                           ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30'
+                           : 'text-surface-600 dark:text-white/70 hover:text-surface-900 dark:hover:text-white hover:bg-surface-100 dark:hover:bg-white/10 border border-transparent'
+                         }`}
+              aria-label={t('share.button')}
+              title={t('share.button')}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+              </svg>
+              <span className="hidden md:inline ml-1.5 whitespace-nowrap">
+                {headerShare === 'copied' ? t('share.link_copied') : t('share.button')}
+              </span>
+            </button>
+            {/* X3/X1: clipboard blocked — reveal the URL for a manual select-all copy */}
+            {headerShare === 'failed' && (
+              <div className="absolute left-0 top-full mt-2 w-72 max-w-[calc(100vw-1.5rem)] z-50 p-3 rounded-xl
+                              bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700/40 shadow-2xl">
+                <p className="text-xs font-medium text-surface-700 dark:text-surface-200 mb-2">{t('share.copy_failed')}</p>
+                <textarea
+                  ref={headerShareTextareaRef}
+                  readOnly
+                  value={headerShareUrlRef.current}
+                  onFocus={(e) => e.currentTarget.select()}
+                  rows={3}
+                  className="w-full text-[11px] font-mono text-surface-700 dark:text-surface-200
+                             bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700/40
+                             rounded-lg p-2 resize-none focus:outline-none focus:ring-1 focus:ring-brand-500/50"
+                />
+                <div className="flex items-center justify-end gap-2 mt-2">
+                  <button
+                    onClick={handleHeaderShareManualCopy}
+                    className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-brand-500/15 dark:bg-brand-600/20
+                               text-brand-600 dark:text-brand-300 hover:bg-brand-500/25 transition-colors"
+                  >
+                    {t('share.button')}
+                  </button>
+                  <button
+                    onClick={() => setHeaderShare('idle')}
+                    aria-label={t('aria.close')}
+                    title={t('aria.close')}
+                    className="p-1 rounded-md text-surface-500 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white hover:bg-surface-100 dark:hover:bg-white/10 transition-colors"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Center: brand — absolutely positioned for true centering */}
@@ -1681,6 +1899,13 @@ const App: React.FC = () => {
         <div className="flex items-center gap-1.5 shrink-0">
           {user ? (
             <UserMenu user={user} onLogout={logout} favorites={favoriteEntries} onSelectFavorite={handleSelectFavorite} onToggleFavorite={toggleFavorite} onExportData={exportData} onDeleteAccount={deleteAccount} />
+          ) : authLoading ? (
+            // L7: while restoring a returning user's session, show a placeholder
+            // instead of the Sign-in button to avoid a flash of "Sign in".
+            <div
+              aria-hidden="true"
+              className="min-w-[44px] min-h-[44px] md:min-w-[64px] md:min-h-[36px] rounded-lg bg-surface-200 dark:bg-surface-700 animate-pulse"
+            />
           ) : (
             <button
               data-tour-id="auth"
@@ -1730,7 +1955,7 @@ const App: React.FC = () => {
           )}
           <ComparisonScopeToggle
             scope={comparisonScope}
-            onChange={setComparisonScope}
+            onChange={handleScopeChange}
             disabled={cityFilter === 'all'}
           />
         </div>
@@ -1739,7 +1964,7 @@ const App: React.FC = () => {
       {/* Ranking table */}
       {showRanking && (
         <ErrorBoundary>
-          <Suspense fallback={null}>
+          <Suspense fallback={<PanelSkeleton />}>
             <RankingTable
               data={filteredData}
               activeLayer={activeLayer}
@@ -1754,7 +1979,7 @@ const App: React.FC = () => {
       {/* Filter panel */}
       {showFilter && (
         <ErrorBoundary>
-          <Suspense fallback={null}>
+          <Suspense fallback={<PanelSkeleton />}>
             <FilterPanel
               data={filteredData}
               filters={filters}
@@ -1779,11 +2004,12 @@ const App: React.FC = () => {
           isCustomWeights={customWeights}
           headerSlot={layerSelectorHeaderSlot}
           lang={lang}
+          hidden={!!selected}
         />
       )}
 
-      {/* Legend — repositioned for mobile */}
-      <Legend layerId={activeLayer} colorblind={colorblind} layerConfig={effectiveLayer} lang={lang} />
+      {/* Legend — repositioned for mobile (MO2: suppressed on mobile when an area panel covers it) */}
+      <Legend layerId={activeLayer} colorblind={colorblind} layerConfig={effectiveLayer} lang={lang} gridLoading={gridLoading && hasGridData(activeLayer)} hidden={!!selected} />
 
       {/* PO-2: Time slider / historical playback (only when a time-series metric is active) */}
       {!IS_EMBED && timeYear != null && availableYears.length > 1 && (
@@ -1809,7 +2035,7 @@ const App: React.FC = () => {
       {/* Custom quality sliders panel */}
       {showCustomQuality && (
         <ErrorBoundary>
-          <Suspense fallback={null}>
+          <Suspense fallback={<PanelSkeleton />}>
             <CustomQualityPanel
               weights={qualityWeights}
               onChange={handleQualityWeightsChange}
@@ -1823,7 +2049,7 @@ const App: React.FC = () => {
       {/* Neighborhood detail panel */}
       {selected && (
         <ErrorBoundary>
-          <Suspense fallback={null}>
+          <Suspense fallback={<PanelSkeleton />}>
           <NeighborhoodPanel
             data={selected}
             metroAverages={effectiveBaseline}
@@ -1851,6 +2077,7 @@ const App: React.FC = () => {
             isochroneMode={isochroneMode}
             isochroneBudget={isochroneBudget}
             isochroneLoading={isochroneLoading}
+            isochroneError={isochroneError}
             isochroneActive={isochronePolygon != null}
             onIsochroneChange={handleIsochroneChange}
             onIsochroneClear={handleIsochroneClear}
@@ -1868,7 +2095,7 @@ const App: React.FC = () => {
       {/* CF-3: Correlation / scatter explorer */}
       {showScatter && (
         <ErrorBoundary>
-          <Suspense fallback={null}>
+          <Suspense fallback={<PanelSkeleton />}>
             <CorrelationExplorer
               data={filteredData}
               onSelect={handleSearch}
@@ -1881,7 +2108,7 @@ const App: React.FC = () => {
       {/* CF-4: Region comparison & ranking */}
       {showRegionRanking && (
         <ErrorBoundary>
-          <Suspense fallback={null}>
+          <Suspense fallback={<PanelSkeleton />}>
             <RegionRankingTable
               activeLayer={activeLayer}
               layerConfig={getLayerById(activeLayer)}
@@ -1895,7 +2122,7 @@ const App: React.FC = () => {
       {/* Neighborhood wizard */}
       {showWizard && (
         <ErrorBoundary>
-          <Suspense fallback={null}>
+          <Suspense fallback={<PanelSkeleton />}>
             <NeighborhoodWizard
               data={filteredData}
               onSelect={handleSearch}
@@ -1927,7 +2154,7 @@ const App: React.FC = () => {
       {!IS_EMBED && pinned.length >= 1 && (
         <ErrorBoundary>
           <Suspense fallback={null}>
-            <ComparisonPanel pinned={pinned} onUnpin={unpin} onClear={clearPinned} reference={referenceProps ?? null} referenceName={referenceName} geometryFor={geometryFor} />
+            <ComparisonPanel pinned={pinned} onUnpin={unpin} onClear={clearPinned} reference={referenceProps ?? null} referenceName={referenceName} geometryFor={geometryFor} suppressMobile={!!selected} />
           </Suspense>
         </ErrorBoundary>
       )}
@@ -1935,7 +2162,7 @@ const App: React.FC = () => {
       {/* CF-6: Area summary panel for drawn polygon */}
       {drawnPolygon && filteredData && (
         <ErrorBoundary>
-          <Suspense fallback={null}>
+          <Suspense fallback={<PanelSkeleton />}>
             <AreaSummaryPanel
               polygon={drawnPolygon}
               data={filteredData}
@@ -1949,7 +2176,7 @@ const App: React.FC = () => {
 
       {/* CF-6: Draw mode hint with Done button */}
       {drawMode && (
-        <div className="absolute bottom-20 md:bottom-8 left-1/2 -translate-x-1/2 z-10 flex items-center gap-3 px-4 py-2 rounded-xl
+        <div className="absolute bottom-[calc(5rem+env(safe-area-inset-bottom))] md:bottom-8 left-1/2 -translate-x-1/2 z-10 flex items-center gap-3 px-4 py-2 rounded-xl
                        bg-violet-500/90 text-white text-xs font-medium backdrop-blur-sm shadow-lg">
           <span className="hidden md:inline">{t('draw.hint_desktop')}</span>
           <span className="md:hidden">{t('draw.hint')}</span>
@@ -1966,7 +2193,7 @@ const App: React.FC = () => {
 
       {/* Select areas mode hint with Done button */}
       {selectMode && (
-        <div className="absolute bottom-20 md:bottom-8 left-1/2 -translate-x-1/2 z-10 flex items-center gap-3 px-4 py-2 rounded-xl
+        <div className="absolute bottom-[calc(5rem+env(safe-area-inset-bottom))] md:bottom-8 left-1/2 -translate-x-1/2 z-10 flex items-center gap-3 px-4 py-2 rounded-xl
                        bg-violet-500/90 text-white text-xs font-medium backdrop-blur-sm shadow-lg">
           <span>{t('draw.select_hint')}</span>
           {selectedAreaPnos.length > 0 && (
@@ -1983,6 +2210,61 @@ const App: React.FC = () => {
         </div>
       )}
 
+
+      {/* O1/EM1/EM4: idle "click any area to explore" hint — only on a pristine home view */}
+      {showIdleHint && (
+        <div className="absolute bottom-[calc(5rem+env(safe-area-inset-bottom))] md:bottom-8 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2.5 pl-3 pr-2 py-1.5 rounded-xl
+                       bg-white/85 dark:bg-surface-900/85 backdrop-blur-md border border-surface-200/60 dark:border-surface-700/40 shadow-lg">
+          <MapPinIllustration className="w-7 h-7 shrink-0" />
+          <span className="text-xs font-medium text-surface-700 dark:text-surface-200">{t('empty.click_to_explore')}</span>
+          <button
+            onClick={handleDismissIdleHint}
+            aria-label={t('aria.close')}
+            title={t('aria.close')}
+            className="p-1 rounded-md text-surface-500 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white hover:bg-surface-100 dark:hover:bg-white/10 transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
+
+      {/* C6: one-tap "Clear all" reset chip — shown only when transient state is dirty.
+          Suppressed while actively drawing/selecting so it doesn't stack on those hint pills. */}
+      {isDirty && !drawMode && !selectMode && (
+        <div className="absolute bottom-[calc(5rem+env(safe-area-inset-bottom))] md:bottom-8 left-1/2 -translate-x-1/2 z-10">
+          <button
+            onClick={handleResetView}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-500/90 hover:bg-violet-500
+                       text-white text-xs font-medium backdrop-blur-sm shadow-lg transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+            </svg>
+            {t('map.clear_all')}
+          </button>
+        </div>
+      )}
+
+      {/* C10: persistent wizard-results chip — shows the highlighted count with a
+          one-tap Clear. Offset above the "Clear all"/draw pills so it doesn't overlap. */}
+      {!IS_EMBED && wizardResultPnos.length > 0 && (
+        <div className="absolute bottom-[calc(8rem+env(safe-area-inset-bottom))] md:bottom-[4.5rem] left-1/2 -translate-x-1/2 z-10 flex items-center gap-2.5 pl-3 pr-2 py-1.5 rounded-xl
+                       bg-amber-500/90 text-white text-xs font-medium backdrop-blur-sm shadow-lg">
+          <span className="whitespace-nowrap">{t('wizard.results')} · <span className="tabular-nums">{wizardResultPnos.length}</span></span>
+          <button
+            onClick={handleClearWizardHighlight}
+            aria-label={t('wizard.clear_highlights')}
+            title={t('wizard.clear_highlights')}
+            className="p-1 rounded-md hover:bg-white/25 transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
 
       {/* IN-6: Offline indicator */}
       {isOffline && (
@@ -2001,9 +2283,49 @@ const App: React.FC = () => {
         >
           {geoStatus === 'loading'
             ? t('geolocation.using')
-            : geoStatus === 'outside'
-              ? t('geolocation.outside')
-              : t('geolocation.error')}
+            : geoStatus === 'denied'
+              ? t('geolocation.denied')
+              : geoStatus === 'unavailable'
+                ? t('geolocation.unavailable')
+                : t('geolocation.outside')}
+        </div>
+      )}
+
+      {/* C4/C7/C8: shared transient toast (scope rescale note, city switch, address-only) */}
+      {toast && (
+        <div
+          role="status"
+          className="absolute top-12 left-1/2 -translate-x-1/2 z-50 max-w-[90vw] px-3 py-1.5 rounded-lg
+                     bg-brand-700/90 text-white text-xs font-medium text-center backdrop-blur-sm shadow-lg"
+        >
+          {toast.text}
+        </div>
+      )}
+
+      {/* E9: locale dictionary load failure — non-blocking notice with retry + dismiss */}
+      {localeLoadError && !localeErrorDismissed && (
+        <div
+          role="status"
+          className="absolute top-12 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-3 py-1.5 rounded-lg
+                     bg-amber-500/90 text-white text-xs font-medium backdrop-blur-sm shadow-lg"
+        >
+          <span>{t('lang.load_failed')}</span>
+          <button
+            onClick={retryLocaleLoad}
+            className="px-2 py-0.5 rounded-md bg-white/25 hover:bg-white/40 transition-colors font-semibold"
+          >
+            {t('error.retry')}
+          </button>
+          <button
+            onClick={() => setLocaleErrorDismissed(true)}
+            aria-label={t('aria.close')}
+            title={t('aria.close')}
+            className="p-0.5 rounded-md hover:bg-white/25 transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
       )}
 

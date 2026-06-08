@@ -442,7 +442,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = React.memo(({
   useI18nVersion();
   // QW-3: Unified bottom sheet drag behavior
   const sheetRef = useRef<HTMLDivElement>(null);
-  const { isDragging, handlers: sheetHandlers } = useBottomSheet({
+  const { sheetHeight, isDragging, handlers: sheetHandlers } = useBottomSheet({
     halfRatio: 0.85,
     initialSnap: 'half',
     onClose,
@@ -597,7 +597,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = React.memo(({
   ) : null;
 
   const resultsList = (
-    <div className="overflow-y-auto flex-1 min-h-0">
+    <div className="overflow-y-auto flex-1 min-h-0 pb-safe">
       {ranked.map((item, i) => (
         <button
           key={item.pno}
@@ -639,6 +639,14 @@ export const FilterPanel: React.FC<FilterPanelProps> = React.memo(({
           <p className="text-sm text-surface-400 dark:text-surface-500">
             {t('filter.no_match')}
           </p>
+          <button
+            onClick={() => onFiltersChange([])}
+            className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium
+                       bg-brand-500/10 dark:bg-brand-600/15 text-brand-600 dark:text-brand-300
+                       hover:bg-brand-500/20 dark:hover:bg-brand-600/25 transition-colors"
+          >
+            {t('filter.clear_all')}
+          </button>
         </div>
       )}
 
@@ -777,9 +785,10 @@ export const FilterPanel: React.FC<FilterPanelProps> = React.memo(({
                      bg-white/95 dark:bg-surface-950/95 backdrop-blur-xl
                      border-t border-surface-200 dark:border-surface-800/50
                      shadow-[0_-4px_30px_rgba(0,0,0,0.15)] rounded-t-2xl
-                     max-h-[85vh] flex flex-col"
+                     flex flex-col"
           style={{
-            transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
+            height: sheetHeight,
+            transition: isDragging ? 'none' : 'height 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
           }}
         >
           {/* Drag handle */}
