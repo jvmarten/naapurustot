@@ -37,6 +37,7 @@
   "layer.income_change": "Income Change (%)",
   "layer.population_change": "Population Change (%)",
   "layer.unemployment_change": "Unemployment Change (%)",
+  "layer.crime_index_change": "Crime Change (%)",
   "layer.voter_turnout": "Voter Turnout",
   "layer.party_diversity": "Political Diversity",
   "layer.broadband_coverage": "Broadband Coverage",
@@ -420,6 +421,7 @@
   "data.last_updated": "Data last updated",
   "data.estimate": "Estimate",
   "data.estimate_desc": "This value is a model-based estimate, not a direct measurement.",
+  "source.discontinued": "Source discontinued — last published {year}",
   "data.vintage": "Data:",
   "data.stale": "This data is over 3 years old",
   "share.image": "Share as image",
@@ -644,5 +646,6 @@
   "metric_explanation.manufacturing_jobs_pct": "Share of local jobs in industrial manufacturing.",
   "metric_explanation.public_sector_jobs_pct": "Share of local jobs in public administration.",
   "metric_explanation.service_sector_jobs_pct": "Share of local jobs in services (retail, hospitality, etc.).",
-  "metric_explanation.property_price_change_pct": "Property price change over the past five years."
+  "metric_explanation.property_price_change_pct": "Property price change over the past five years.",
+  "metric_explanation.crime_index_change_pct": "Change in crime rate over the past five years. Lower is better."
 }

@@ -17,6 +17,11 @@ Method:
      - ra_raky / ra_asunn (under-construction share => "newness" signal)
      - ra_pt_as / ra_asunn (detached house share => 1970s-90s suburban signal)
 
+Because the postal-code values are a municipality average refined to a finer
+granularity than the source publishes, avg_construction_year is flagged
+is_proxy:true in src/data/data_sources.json (enforced by validate_data.py
+check_distributed_proxy_flags).
+
 Output: scripts/building_age.json
 Format: {"00100": 1972, "00120": 1965, ...}  (estimated avg construction year)
 """

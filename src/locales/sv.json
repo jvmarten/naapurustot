@@ -37,6 +37,7 @@
   "layer.income_change": "Inkomstförändring (%)",
   "layer.population_change": "Befolkningsförändring (%)",
   "layer.unemployment_change": "Arbetslöshetsförändring (%)",
+  "layer.crime_index_change": "Brottsförändring (%)",
   "layer.voter_turnout": "Valdeltagande",
   "layer.party_diversity": "Politisk mångfald",
   "layer.broadband_coverage": "Bredbandstäckning",
@@ -420,6 +421,7 @@
   "data.last_updated": "Data uppdaterad",
   "data.estimate": "Uppskattning",
   "data.estimate_desc": "Det här värdet är en modellbaserad uppskattning, inte en direkt mätning.",
+  "source.discontinued": "Källan har upphört — senast publicerad {year}",
   "data.vintage": "Uppgifter:",
   "data.stale": "Uppgifterna är över 3 år gamla",
   "share.image": "Dela som bild",
@@ -644,5 +646,6 @@
   "metric_explanation.manufacturing_jobs_pct": "Andelen arbetsplatser inom industrin av alla arbetsplatser i området.",
   "metric_explanation.public_sector_jobs_pct": "Andelen arbetsplatser inom offentlig förvaltning av alla arbetsplatser i området.",
   "metric_explanation.service_sector_jobs_pct": "Andelen arbetsplatser inom servicesektorn av alla arbetsplatser i området (handel, restauranger m.fl.).",
-  "metric_explanation.property_price_change_pct": "Bostadsprisernas förändring under fem år."
+  "metric_explanation.property_price_change_pct": "Bostadsprisernas förändring under fem år.",
+  "metric_explanation.crime_index_change_pct": "Brottslighetens förändring under fem år. Lägre är bättre."
 }

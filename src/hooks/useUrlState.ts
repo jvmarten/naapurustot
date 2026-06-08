@@ -12,6 +12,30 @@ import {
   QUALITY_FACTORS, QUALITY_PERSONAS,
 } from '../utils/qualityIndex';
 
+/**
+ * IN-3: share-URL schema version.
+ *
+ * Stamped onto shared links as `_v=<n>` so future schema changes can migrate or
+ * safely clamp old/foreign links instead of restoring wrong-but-plausible state.
+ * Bump this whenever the *encoding* of any structured param (filter/qw/iso/v/sl/…)
+ * changes incompatibly, and add a migration branch in `migrateParams()`.
+ *
+ * History:
+ *   1 — implicit legacy: any link without `_v` (every link shipped before IN-3).
+ *   2 — current: `_v=2`, identical param semantics to v1 (the tag is additive).
+ *
+ * The key is `_v` rather than the roadmap's suggested `sv` because `sv` is the
+ * Swedish language code used pervasively as a *value* (`lang=sv`); a `sv` param
+ * key would be ambiguous. `_v` is unambiguous and collision-free.
+ */
+export const URL_SCHEMA_VERSION = 2;
+
+/** Implicit version of any legacy link that predates the `_v` tag. */
+const LEGACY_SCHEMA_VERSION = 1;
+
+/** The URL param key carrying the schema version. */
+const SCHEMA_VERSION_KEY = '_v';
+
 /** CF-1: comparison scope carried in the URL ('all' = whole Finland, 'region' = within region). */
 export type UrlScope = 'all' | 'region';
 
@@ -141,6 +165,64 @@ function deserializeIsochrone(s: string): UrlIsochrone | null {
   return null;
 }
 
+/**
+ * IN-3: read and normalise the share-URL schema version.
+ *
+ * Returns a finite integer >= 1. Absent, empty, or unparseable `_v` is treated
+ * as the implicit legacy version (1) — best-effort, never a throw — so old and
+ * hand-mangled links still parse rather than blanking the whole state.
+ */
+function readSchemaVersion(searchParams: URLSearchParams): number {
+  const raw = searchParams.get(SCHEMA_VERSION_KEY);
+  if (raw == null) return LEGACY_SCHEMA_VERSION;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1) return LEGACY_SCHEMA_VERSION;
+  return n;
+}
+
+/**
+ * IN-3: migration / clamp guard applied to the *structured* (encoded) params.
+ *
+ * Simple, self-validating primitives (pno/layer/compare/city/scope/year/cb/lang/ref)
+ * have a stable format across versions and are always honoured. The structured
+ * params whose encoding could change between schema versions (filter, qp/qw, iso,
+ * v, sl) are gated here:
+ *
+ *  - version <= URL_SCHEMA_VERSION (incl. legacy v1): the current decoders read
+ *    every prior encoding, so the params pass through untouched.
+ *  - version  > URL_SCHEMA_VERSION (a link from a *newer* build than this one):
+ *    we cannot trust an encoding from the future, so the structured params are
+ *    dropped (clamped to absent) rather than mis-decoded into plausible-but-wrong
+ *    state. Primitives are still kept so the link is not wholly inert.
+ *
+ * Returns the raw string for each structured param, or null to ignore it.
+ */
+type StructuredParams = {
+  filterRaw: string | null;
+  qpRaw: string | null;
+  qwRaw: string | null;
+  isoRaw: string | null;
+  viewRaw: string | null;
+  slRaw: string | null;
+};
+
+function migrateParams(searchParams: URLSearchParams, version: number): StructuredParams {
+  const read = (key: string): string | null => searchParams.get(key);
+  // Newer-than-current schema: discard structured params we may decode incorrectly.
+  if (version > URL_SCHEMA_VERSION) {
+    return { filterRaw: null, qpRaw: null, qwRaw: null, isoRaw: null, viewRaw: null, slRaw: null };
+  }
+  // v1 (legacy) … current: every prior encoding is still readable as-is.
+  return {
+    filterRaw: read('filter'),
+    qpRaw: read('qp'),
+    qwRaw: read('qw'),
+    isoRaw: read('iso'),
+    viewRaw: read('v'),
+    slRaw: read('sl'),
+  };
+}
+
 function parseUrl(): UrlState {
   // Support both query params (?pno=) and legacy hash (#pno=) for backwards compat
   const searchParams = new URLSearchParams(window.location.search);
@@ -170,18 +252,17 @@ function parseUrl(): UrlState {
     }
   }
 
+  // IN-3: resolve the schema version, then gate the structured params through the
+  // migration/clamp guard. Simple primitives below are read directly (stable format).
+  const schemaVersion = readSchemaVersion(searchParams);
+  const { filterRaw, qpRaw, qwRaw, isoRaw, viewRaw, slRaw } = migrateParams(searchParams, schemaVersion);
+
   // CF-1: extended analytical state (query params only — legacy hash links never had these).
   const scopeRaw = searchParams.get('scope');
   const yearRaw = searchParams.get('year');
   const cbRaw = searchParams.get('cb');
   const langRaw = searchParams.get('lang');
   const refRaw = searchParams.get('ref');
-  const filterRaw = searchParams.get('filter');
-  const qpRaw = searchParams.get('qp');
-  const qwRaw = searchParams.get('qw');
-  const isoRaw = searchParams.get('iso');
-  const viewRaw = searchParams.get('v');
-  const slRaw = searchParams.get('sl');
 
   let weights: QualityWeights | null = null;
   if (qpRaw && VALID_PERSONA.has(qpRaw) && qpRaw !== 'default') weights = getPersonaWeights(qpRaw);
@@ -207,8 +288,43 @@ function parseUrl(): UrlState {
   };
 }
 
-/** Write current app state to URL query params. Default values are omitted to keep URLs short. */
-function writeUrl(pno: string | null, layer: LayerId, comparePnos: string[], city: string = 'helsinki_metro', extras: ExtraUrlState = {}) {
+/**
+ * IN-3: param keys whose *encoding* is structured and therefore version-sensitive.
+ *
+ * A link carrying any of these needs the `_v` stamp so a future build can migrate
+ * or clamp it (see `migrateParams`). Simple self-validating primitives (pno, layer,
+ * compare, city, scope, year, cb, lang, ref) are deliberately excluded — they keep
+ * shared URLs and the existing exact-URL tests free of the version tag. Future items
+ * (e.g. CF-9's `draw`) should add their encoded key here when factored through
+ * `serializeUrlParams`.
+ */
+const VERSIONED_PARAM_KEYS = ['filter', 'qp', 'qw', 'iso', 'v', 'sl'] as const;
+
+/** True when the built params carry at least one structured/version-sensitive key. */
+function hasVersionedParams(params: URLSearchParams): boolean {
+  return VERSIONED_PARAM_KEYS.some((k) => params.has(k));
+}
+
+/**
+ * IN-3: stamp the current schema version onto a params set, omit-default style.
+ *
+ * Only emitted when the link carries a structured param that actually needs the
+ * version to be decoded safely; plain primitive links (and empty URLs) stay clean.
+ * Mutates and returns `params` for chaining.
+ */
+function stampSchemaVersion(params: URLSearchParams): URLSearchParams {
+  if (hasVersionedParams(params)) params.set(SCHEMA_VERSION_KEY, String(URL_SCHEMA_VERSION));
+  return params;
+}
+
+/**
+ * IN-3: shared serialization of app state → URL params, reused by `writeUrl` and
+ * `buildViewportShareUrl` (and intended for future items adding their own params).
+ * Does NOT include the viewport (`v`) — that is appended only on explicit share —
+ * and does NOT stamp the schema version; callers decide when to `stampSchemaVersion`.
+ * Default values are omitted to keep URLs short.
+ */
+function serializeUrlParams(pno: string | null, layer: LayerId, comparePnos: string[], city: string, extras: ExtraUrlState): URLSearchParams {
   const params = new URLSearchParams();
   if (pno) params.set('pno', pno);
   if (layer !== 'quality_index') params.set('layer', layer);
@@ -231,8 +347,16 @@ function writeUrl(pno: string | null, layer: LayerId, comparePnos: string[], cit
   if (extras.isochrone) params.set('iso', `${extras.isochrone.mode}~${extras.isochrone.budget}`);
   // QW-2: shared shortlist.
   if (extras.shortlist && extras.shortlist.length > 0) params.set('sl', extras.shortlist.join('.'));
+  return params;
+}
+
+/** Write current app state to URL query params. Default values are omitted to keep URLs short. */
+function writeUrl(pno: string | null, layer: LayerId, comparePnos: string[], city: string = 'helsinki_metro', extras: ExtraUrlState = {}) {
+  const params = serializeUrlParams(pno, layer, comparePnos, city, extras);
   // NB: viewport (`v`) is intentionally never written here — continuous panning
   // would churn replaceState. It is appended only by buildViewportShareUrl().
+  // IN-3: stamp the schema version only for links carrying a structured param.
+  stampSchemaVersion(params);
   const str = params.toString();
   const newUrl = str
     ? `${window.location.pathname}?${str}`
@@ -256,6 +380,8 @@ export function buildViewportShareUrl(viewport: UrlViewport | null): string {
   try {
     const u = new URL(base);
     u.searchParams.set('v', serializeViewport(viewport));
+    // IN-3: `v` is a structured/version-sensitive param, so stamp the schema version.
+    stampSchemaVersion(u.searchParams);
     return u.toString();
   } catch {
     return base;

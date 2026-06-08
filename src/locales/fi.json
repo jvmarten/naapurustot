@@ -37,6 +37,7 @@
   "layer.income_change": "Tulomuutos (%)",
   "layer.population_change": "Väestömuutos (%)",
   "layer.unemployment_change": "Työttömyysmuutos (%)",
+  "layer.crime_index_change": "Rikollisuuden muutos (%)",
   "layer.voter_turnout": "Äänestysprosentti",
   "layer.party_diversity": "Puoluekentän monipuolisuus",
   "layer.broadband_coverage": "Laajakaistakattavuus",
@@ -420,6 +421,7 @@
   "data.last_updated": "Aineisto päivitetty",
   "data.estimate": "Arvio",
   "data.estimate_desc": "Tämä arvo on mallinnettu arvio, ei suora mittaus.",
+  "source.discontinued": "Lähde lakkautettu — viimeisin julkaisu {year}",
   "data.vintage": "Tiedot:",
   "data.stale": "Aineisto on yli 3 vuotta vanha",
   "share.image": "Jaa kuvana",
@@ -644,5 +646,6 @@
   "metric_explanation.manufacturing_jobs_pct": "Teollisuuden työpaikkojen osuus alueen kaikista työpaikoista.",
   "metric_explanation.public_sector_jobs_pct": "Julkishallinnon työpaikkojen osuus alueen kaikista työpaikoista.",
   "metric_explanation.service_sector_jobs_pct": "Palvelusektorin työpaikkojen osuus alueen kaikista työpaikoista (kauppa, ravintolat ym.).",
-  "metric_explanation.property_price_change_pct": "Asuntohintojen muutos viiden vuoden aikana."
+  "metric_explanation.property_price_change_pct": "Asuntohintojen muutos viiden vuoden aikana.",
+  "metric_explanation.crime_index_change_pct": "Rikollisuuden muutos viiden vuoden aikana. Matalampi on parempi."
 }

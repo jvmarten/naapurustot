@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback, useMemo, useEffect, useLayoutEffect } from 'react';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { parseTrendSeries, getMetricSource, METRIC_EXPLANATIONS } from '../utils/metrics';
-import { formatNumber, formatEuro, formatPct, formatDiff, diffColor, formatYtlGradeFull, parseSchools } from '../utils/formatting';
+import { formatNumber, formatEuro, formatPct, formatDiff, diffColor, formatYtlGradeFull, parseSchools, formatDensity, formatEuroSqm } from '../utils/formatting';
 import { t, getLang, useI18nVersion } from '../utils/i18n';
 import { getQualityCategory, QUALITY_CATEGORIES, QUALITY_DIMENSIONS, computeQualityCoverage } from '../utils/qualityIndex';
 import { exportCsv, exportPdf } from '../utils/export';
@@ -217,6 +217,22 @@ const StatRow: React.FC<{
 });
 StatRow.displayName = 'StatRow';
 
+// PO-6: small inline caveat for a retired/frozen upstream source (the postal-code
+// rent table StatFin asvu 13eb), rendered once below the rows it backs. Reads the
+// last-published year from the data-source registry so it stays in sync with it.
+const DiscontinuedCaveat: React.FC<{ property: string }> = React.memo(({ property }) => {
+  useI18nVersion();
+  const year = getMetricSource(property)?.discontinued;
+  if (year == null) return null;
+  return (
+    <p className="py-1.5 flex items-start gap-1 text-[11px] leading-snug text-amber-600 dark:text-amber-400">
+      <span aria-hidden="true">⚠</span>
+      <span>{t('source.discontinued').replace('{year}', String(year))}</span>
+    </p>
+  );
+});
+DiscontinuedCaveat.displayName = 'DiscontinuedCaveat';
+
 const BarSegment: React.FC<{ label: string; value: number; total: number; color: string }> = React.memo(({
   label,
   value,
@@ -243,34 +259,14 @@ const toNum = (v: unknown): number | null => {
   return isFinite(n) ? n : null;
 };
 
-// Cache Intl.NumberFormat per locale — avoids creating a new formatter on every
-// stat row render (~30+ calls per panel open). Invalidated on language change.
-let _panelFmtLocale = '';
-let _panelFmt: Intl.NumberFormat | null = null;
-function panelNumFmt(): Intl.NumberFormat {
-  const loc = getLang() === 'en' ? 'en-US' : 'fi-FI';
-  if (_panelFmt && _panelFmtLocale === loc) return _panelFmt;
-  _panelFmtLocale = loc;
-  _panelFmt = new Intl.NumberFormat(loc);
-  return _panelFmt;
-}
-
-const formatDensity = (v: number | string | null | undefined): string => {
-  const n = toNum(v);
-  if (n == null) return '—';
-  return `${panelNumFmt().format(n)} /km²`;
-};
+// QW-4: density and €/m² formatting now uses the shared, sv-aware formatters in
+// utils/formatting.ts (formatDensity, formatEuroSqm). The previous panel-local
+// duplicates and their Intl.NumberFormat cache hard-coded fi-FI for Swedish.
 
 const formatSqm = (v: number | string | null | undefined): string => {
   const n = toNum(v);
   if (n == null) return '—';
   return `${n.toFixed(1)} m²`;
-};
-
-const formatEuroSqm = (v: number | string | null | undefined): string => {
-  const n = toNum(v);
-  if (n == null) return '—';
-  return `${panelNumFmt().format(n)} €/m²`;
 };
 
 const formatStopDensity = (v: number | string | null | undefined): string => {
@@ -1056,6 +1052,8 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
             diffClass={diffColor(d.price_to_rent_ratio, avg.price_to_rent_ratio, false)}
             property="price_to_rent_ratio"
           />
+          {/* PO-6: rent source (StatFin asvu 13eb) is retired — flag the frozen snapshot */}
+          <DiscontinuedCaveat property="rental_price_sqm" />
           <StatRow
             label={t('panel.building_age')}
             value={d.avg_construction_year != null ? `${Math.round(Number(d.avg_construction_year))}` : '—'}
@@ -1184,7 +1182,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
           />
           <StatRow
             label={t('panel.water_proximity')}
-            value={d.water_proximity_m != null ? `${panelNumFmt().format(Number(d.water_proximity_m))} m` : '—'}
+            value={d.water_proximity_m != null ? `${formatNumber(d.water_proximity_m)} m` : '—'}
             diff={formatDiff(d.water_proximity_m, avg.water_proximity_m)}
             diffClass={diffColor(d.water_proximity_m, avg.water_proximity_m, false)}
             property="water_proximity_m"

@@ -486,6 +486,10 @@ export interface ResolvedMetricSource extends MetricSource {
   isProxy: boolean;
   /** Optional clarifying note (regional proxy caveats, derivation, coverage) */
   note?: string;
+  /** PO-6: year the upstream source was last published before being retired. Set
+   *  only for frozen/discontinued sources (e.g. the postal-code rent table); the
+   *  value can never refresh past this year. */
+  discontinued?: number;
 }
 
 interface RegistryMetricEntry {
@@ -499,6 +503,8 @@ interface RegistryMetricEntry {
   /** false to keep a derived/composite metric out of the per-row attribution map */
   panel?: boolean;
   note?: string;
+  /** PO-6: last-published year for a retired/frozen upstream source */
+  discontinued?: number;
 }
 
 interface DataSourceRegistry {
@@ -539,6 +545,7 @@ export function getMetricSource(property: string): ResolvedMetricSource | undefi
     granularity: entry.granularity,
     isProxy: entry.is_proxy,
     note: entry.note,
+    discontinued: entry.discontinued,
   };
 }
 

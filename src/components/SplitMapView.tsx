@@ -3,6 +3,7 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { FeatureCollection } from 'geojson';
 import { buildFillColorExpression, LAYERS, type LayerId, getLayerById } from '../utils/colorScales';
+import { ensureHatchImage } from '../utils/hatchPattern';
 import { useTheme } from '../hooks/useTheme';
 import { t, useI18nVersion } from '../utils/i18n';
 import { DEFAULT_CENTER, DEFAULT_ZOOM, MAP_MAX_ZOOM, MAP_MIN_ZOOM } from '../utils/mapConstants';
@@ -98,6 +99,19 @@ function makeStyle(theme: 'dark' | 'light'): maplibregl.StyleSpecification {
 }
 
 const METRO_LINE_LAYER = 'neighborhoods-metro-line';
+const NO_DATA_LAYER = 'neighborhoods-no-data-pattern';
+
+/** PO-1: filter selecting features whose active-layer property is null/missing,
+ *  excluding metro-area dissolve features (CLAUDE.md pitfall #4). */
+function noDataFilter(propertyKey: string): maplibregl.FilterSpecification {
+  return ['all',
+    ['!', ['boolean', ['get', '_isMetroArea'], false]],
+    ['any',
+      ['!', ['has', propertyKey]],
+      ['==', ['get', propertyKey], null],
+    ],
+  ] as unknown as maplibregl.FilterSpecification;
+}
 
 function addDataLayers(
   map: maplibregl.Map,
@@ -114,6 +128,9 @@ function addDataLayers(
     const layer = getLayerById(layerId);
     if (map.getLayer(FILL_LAYER)) {
       map.setPaintProperty(FILL_LAYER, 'fill-color', buildFillColorExpression(layer));
+    }
+    if (map.getLayer(NO_DATA_LAYER)) {
+      map.setFilter(NO_DATA_LAYER, noDataFilter(layer.property));
     }
     return;
   }
@@ -162,6 +179,20 @@ function addDataLayers(
       'line-opacity': 0.7,
     },
   }, beforeLabels(map));
+
+  // PO-1: diagonal-hatch fill for no-data neighborhoods. Mirrors Map.tsx —
+  // excludes metro-area features and re-adds the hatch image on style reload
+  // via the styleimagemissing handler wired by ensureHatchImage.
+  map.addLayer({
+    id: NO_DATA_LAYER,
+    type: 'fill',
+    source: SOURCE_ID,
+    filter: noDataFilter(layer.property),
+    paint: {
+      'fill-pattern': ensureHatchImage(map, theme),
+      'fill-opacity': 0.9,
+    },
+  }, beforeLabels(map));
 }
 
 function updateThemeColors(map: maplibregl.Map, theme: 'dark' | 'light') {
@@ -172,6 +203,10 @@ function updateThemeColors(map: maplibregl.Map, theme: 'dark' | 'light') {
   }
   if (map.getLayer(METRO_LINE_LAYER)) {
     map.setPaintProperty(METRO_LINE_LAYER, 'line-color', border);
+  }
+  if (map.getLayer(NO_DATA_LAYER)) {
+    // PO-1: swap to the theme-matched hatch image (reload-safe via ensureHatchImage).
+    map.setPaintProperty(NO_DATA_LAYER, 'fill-pattern', ensureHatchImage(map, theme));
   }
 }
 
@@ -371,6 +406,10 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
       if (!map || !map.getLayer(FILL_LAYER)) return;
       const layer = getLayerById(layerId);
       map.setPaintProperty(FILL_LAYER, 'fill-color', buildFillColorExpression(layer));
+      // PO-1: re-target the no-data hatch to the new layer's property.
+      if (map.getLayer(NO_DATA_LAYER)) {
+        map.setFilter(NO_DATA_LAYER, noDataFilter(layer.property));
+      }
     };
 
     updateFill(leftMapRef.current, leftLayer);

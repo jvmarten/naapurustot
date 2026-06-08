@@ -84,6 +84,27 @@ function findRegionForCoords(lng: number, lat: number): CityFilter | null {
   return best;
 }
 
+/**
+ * IN-2: centroid of a grid cell, used to decide whether the cell belongs to the
+ * loaded region. Grid cells are small (~250 m) axis-aligned rectangles, so the
+ * bbox midpoint of the outer ring is an exact, allocation-free stand-in for a
+ * true polygon centroid — and far cheaper than @turf/centroid across ~50k cells.
+ * Returns null for cells without a usable ring.
+ */
+function cellCentroid(f: Feature): [number, number] | null {
+  const ring = (f.geometry as { coordinates?: Position[][] } | undefined)?.coordinates?.[0];
+  if (!ring || ring.length === 0) return null;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const [x, y] of ring) {
+    if (x < minX) minX = x;
+    if (y < minY) minY = y;
+    if (x > maxX) maxX = x;
+    if (y > maxY) maxY = y;
+  }
+  if (!isFinite(minX)) return null;
+  return [(minX + maxX) / 2, (minY + maxY) / 2];
+}
+
 const App: React.FC = () => {
   // City filter — declared before useMapData so the hook can load the right region
   const [cityFilter, setCityFilter] = useState<CityFilter>((initialUrl.city as CityFilter) ?? 'helsinki_metro');
@@ -151,38 +172,105 @@ const App: React.FC = () => {
   const [activeLayer, setActiveLayerRaw] = useState<LayerId>(initialUrl.layer ?? 'quality_index');
   const setActiveLayer = useCallback((layer: LayerId) => { trackEvent('change-layer', { layer }); setActiveLayerRaw(layer); }, []);
   const { gridData: rawGridData } = useGridData(activeLayer);
-  // Clip grid cells to the loaded region's bounding box so a region-scoped
-  // view (e.g. Helsinki Metro) doesn't leak grid cells from other regions
-  // (e.g. Turku, Tampere). For the all-cities view this is a no-op because
-  // the bbox covers all of Finland.
-  const gridData = useMemo(() => {
-    if (!rawGridData || !data) return rawGridData;
+  // Clip grid cells to the loaded region so a region-scoped view (e.g. Helsinki
+  // Metro) doesn't leak grid cells from other regions (e.g. Turku, Tampere).
+  // For the all-cities view this is effectively a no-op (the region covers all
+  // of Finland). IN-2: the test is on each cell's CENTROID, not an arbitrary
+  // first ring vertex, so boundary cells no longer leak or clip incorrectly on
+  // the ~50k-cell grids.
+  //
+  // Two-stage clip:
+  //  1. `gridClipGeometry` (sync): the region bbox + each region polygon's ring
+  //     coordinates and bbox, computed once per loaded dataset.
+  //  2. bbox fast-path (sync) → exact point-in-polygon refine (async): a cheap
+  //     bbox prefilter keeps us off an O(cells × polygons) PIP sweep, then
+  //     @turf/boolean-point-in-polygon (lazy-loaded) refines the survivors
+  //     against the actual region outline.
+  const gridClipGeometry = useMemo(() => {
+    if (!data) return null;
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    // Per-polygon outer/holes rings + bbox, for the point-in-polygon refine step.
+    const polygons: { rings: Position[][]; bbox: [number, number, number, number] }[] = [];
     for (const feat of data.features) {
       const g = feat.geometry;
       if (!g) continue;
-      const polys = g.type === 'MultiPolygon' ? g.coordinates : g.type === 'Polygon' ? [g.coordinates] : null;
-      if (!polys) continue;
-      for (const poly of polys) {
+      const multi = g.type === 'MultiPolygon' ? g.coordinates : g.type === 'Polygon' ? [g.coordinates] : null;
+      if (!multi) continue;
+      for (const poly of multi) {
+        let pMinX = Infinity, pMinY = Infinity, pMaxX = -Infinity, pMaxY = -Infinity;
         for (const ring of poly) {
           for (const [x, y] of ring) {
-            if (x < minX) minX = x;
-            if (y < minY) minY = y;
-            if (x > maxX) maxX = x;
-            if (y > maxY) maxY = y;
+            if (x < pMinX) pMinX = x;
+            if (y < pMinY) pMinY = y;
+            if (x > pMaxX) pMaxX = x;
+            if (y > pMaxY) pMaxY = y;
           }
         }
+        if (!isFinite(pMinX)) continue;
+        polygons.push({ rings: poly as Position[][], bbox: [pMinX, pMinY, pMaxX, pMaxY] });
+        if (pMinX < minX) minX = pMinX;
+        if (pMinY < minY) minY = pMinY;
+        if (pMaxX > maxX) maxX = pMaxX;
+        if (pMaxY > maxY) maxY = pMaxY;
       }
     }
-    if (!isFinite(minX)) return rawGridData;
+    if (!isFinite(minX)) return null;
+    return { bbox: [minX, minY, maxX, maxY] as [number, number, number, number], polygons };
+  }, [data]);
+
+  // Stage 1: synchronous bbox-of-centroid clip. Serves as the immediate render
+  // value (no flash of out-of-region cells) and as the candidate set the async
+  // point-in-polygon pass refines. `null` cells fall through to the raw grid.
+  const gridDataBboxClipped = useMemo(() => {
+    if (!rawGridData) return rawGridData;
+    if (!gridClipGeometry) return rawGridData;
+    const [minX, minY, maxX, maxY] = gridClipGeometry.bbox;
     const features = rawGridData.features.filter((f) => {
-      const ring = (f.geometry as { coordinates?: number[][][] } | undefined)?.coordinates?.[0];
-      if (!ring || ring.length === 0) return false;
-      const [x, y] = ring[0];
-      return x >= minX && x <= maxX && y >= minY && y <= maxY;
+      const c = cellCentroid(f);
+      if (!c) return false;
+      return c[0] >= minX && c[0] <= maxX && c[1] >= minY && c[1] <= maxY;
     });
     return { ...rawGridData, features };
-  }, [rawGridData, data]);
+  }, [rawGridData, gridClipGeometry]);
+
+  // Stage 2: refine the bbox-clipped candidates against the actual region
+  // polygon(s). Lazy-loads @turf/boolean-point-in-polygon to keep it out of the
+  // main bundle. Until it resolves (and on failure) we render the bbox-clipped
+  // set, which is already centroid-correct at the bbox level.
+  const [gridData, setGridData] = useState<typeof rawGridData>(gridDataBboxClipped);
+  useEffect(() => {
+    // Nothing to refine: no grid, or no region geometry → use bbox-clipped value as-is.
+    if (!gridDataBboxClipped || !gridClipGeometry || gridClipGeometry.polygons.length === 0) {
+      setGridData(gridDataBboxClipped);
+      return;
+    }
+    // Show the bbox-clipped set immediately while the precise pass loads.
+    setGridData(gridDataBboxClipped);
+    let cancelled = false;
+    import('@turf/boolean-point-in-polygon')
+      .then(({ booleanPointInPolygon }) => {
+        if (cancelled) return;
+        const { polygons } = gridClipGeometry;
+        const features = gridDataBboxClipped.features.filter((f) => {
+          const c = cellCentroid(f);
+          if (!c) return false;
+          const [cx, cy] = c;
+          for (const { rings, bbox } of polygons) {
+            // Per-polygon bbox reject keeps PIP off polygons that can't contain the cell.
+            if (cx < bbox[0] || cx > bbox[2] || cy < bbox[1] || cy > bbox[3]) continue;
+            try {
+              if (booleanPointInPolygon(c, { type: 'Polygon', coordinates: rings })) return true;
+            } catch { /* skip invalid ring */ }
+          }
+          return false;
+        });
+        setGridData({ ...gridDataBboxClipped, features });
+      })
+      .catch(() => {
+        // Lazy import failed — keep the bbox-clipped fallback already set.
+      });
+    return () => { cancelled = true; };
+  }, [gridDataBboxClipped, gridClipGeometry]);
   const [wizardResultPnos, setWizardResultPnos] = useState<string[]>([]);
   const [flyTarget, setFlyTarget] = useState<{ center: [number, number]; zoom?: number; bounds?: [number, number, number, number] } | null>(() => {
     // CF-1: an explicit shared viewport takes precedence over the city preset.

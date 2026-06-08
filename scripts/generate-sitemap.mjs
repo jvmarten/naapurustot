@@ -22,10 +22,30 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 const DIST = join(ROOT, 'dist');
 const GEOJSON_PATH = join(ROOT, 'public', 'data', 'metro_neighborhoods.geojson');
+const BUILD_METADATA_PATH = join(ROOT, 'src', 'data', 'build_metadata.json');
 const ORIGIN = 'https://naapurustot.fi';
 
 const geojson = JSON.parse(readFileSync(GEOJSON_PATH, 'utf-8'));
 const today = new Date().toISOString().split('T')[0];
+
+// Stable per-area lastmod driven by the data-refresh date (PO-12).
+// Stamping a fresh build timestamp on every URL each deploy trains crawlers to
+// ignore lastmod, so profile/hub/directory URLs use the dataset's `generated`
+// date instead. It only changes when the underlying data is actually rebuilt.
+// The home page may keep the build date since it changes every deploy.
+function readDataLastmod() {
+  try {
+    const meta = JSON.parse(readFileSync(BUILD_METADATA_PATH, 'utf-8'));
+    const date = new Date(meta.generated).toISOString().split('T')[0];
+    // Guard against a malformed `generated` value yielding "Invalid Date".
+    if (/^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
+  } catch {
+    // Fall through to the build date if metadata is missing/unparseable.
+  }
+  return today;
+}
+
+const dataLastmod = readDataLastmod();
 
 // Slug logic — must stay identical to scripts/prerender.mjs.
 function slugify(text) {
@@ -46,11 +66,12 @@ function toSlug(pno, nimi) {
 
 const urls = [];
 
-// Home page.
+// Home page — keeps the build date since it changes every deploy.
 urls.push({
   loc: `${ORIGIN}/`,
   priority: '1.0',
   changefreq: 'weekly',
+  lastmod: today,
   alternates: { fi: `${ORIGIN}/`, en: `${ORIGIN}/`, sv: `${ORIGIN}/` },
 });
 
@@ -113,7 +134,7 @@ const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
 ${urls.map((u) => `  <url>
     <loc>${u.loc}</loc>
-    <lastmod>${today}</lastmod>
+    <lastmod>${u.lastmod ?? dataLastmod}</lastmod>
     <changefreq>${u.changefreq}</changefreq>
     <priority>${u.priority}</priority>${renderAlternates(u.alternates)}
   </url>`).join('\n')}

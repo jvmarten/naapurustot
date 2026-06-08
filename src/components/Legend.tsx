@@ -68,6 +68,13 @@ export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: 
             </span>
           </div>
         )}
+        {/* PO-6: frozen/retired upstream source — postal rents can never refresh */}
+        {src?.discontinued != null && (
+          <div className="mt-2 flex items-start gap-1 text-[10px] text-amber-600 dark:text-amber-400 max-w-[160px] leading-snug">
+            <span aria-hidden="true">⚠</span>
+            <span>{t('source.discontinued').replace('{year}', String(src.discontinued))}</span>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -6,6 +6,7 @@ import type { Feature, FeatureCollection, Polygon, MultiPolygon, Position } from
 import { feature as topoFeature } from 'topojson-client';
 import type { Topology } from 'topojson-specification';
 import { buildFillColorExpression, type LayerId, type LayerConfig, getLayerById } from '../utils/colorScales';
+import { ensureHatchImage } from '../utils/hatchPattern';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { useTheme } from '../hooks/useTheme';
 import { trackEvent } from '../utils/analytics';
@@ -501,11 +502,15 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         },
       }, beforeLabels(map));
 
-      // QW-2: Hatched pattern overlay for neighborhoods with null data
-      // Also exclude metro area features (no individual postal code borders in all-cities view)
+      // PO-1: true diagonal-hatch fill for neighborhoods with null/missing data.
+      // Replaces the old dashed-border treatment with a runtime-generated
+      // fill-pattern. Excludes metro area features so all-cities dissolve
+      // outlines stay clean (CLAUDE.md pitfall #4). The hatch image is
+      // registered here and re-added automatically on style reload via the
+      // styleimagemissing handler wired by ensureHatchImage.
       map.addLayer({
         id: NO_DATA_LAYER,
-        type: 'line',
+        type: 'fill',
         source: SOURCE_ID,
         filter: ['all',
           ['!', ['boolean', ['get', '_isMetroArea'], false]],
@@ -515,10 +520,8 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
           ],
         ] as unknown as maplibregl.ExpressionSpecification,
         paint: {
-          'line-color': theme === 'dark' ? '#475569' : '#94a3b8',
-          'line-width': 1.5,
-          'line-dasharray': [2, 2],
-          'line-opacity': 0.8,
+          'fill-pattern': ensureHatchImage(map, theme),
+          'fill-opacity': 0.9,
         },
       }, beforeLabels(map));
 
@@ -564,7 +567,8 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         map.setPaintProperty(HIGHLIGHT_LAYER, 'line-color', theme === 'dark' ? '#f8fafc' : '#0f172a');
       }
       if (map.getLayer(NO_DATA_LAYER)) {
-        map.setPaintProperty(NO_DATA_LAYER, 'line-color', theme === 'dark' ? '#475569' : '#94a3b8');
+        // PO-1: swap to the theme-matched hatch image (registered + reload-safe via ensureHatchImage).
+        map.setPaintProperty(NO_DATA_LAYER, 'fill-pattern', ensureHatchImage(map, theme));
       }
       if (map.getLayer(PINNED_LAYER)) {
         map.setPaintProperty(PINNED_LAYER, 'line-color', theme === 'dark' ? '#facc15' : '#d97706');

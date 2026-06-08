@@ -200,7 +200,8 @@
       "publisher": "poliisi",
       "vintage": 2023,
       "granularity": "postal",
-      "is_proxy": false
+      "is_proxy": true,
+      "note": "Municipality-level police statistics distributed to postal codes via density/unemployment/rental proxies (fetch_crime_index.py distribute_to_postal_codes)"
     },
     "restaurant_density": {
       "source": "OpenStreetMap",
@@ -290,8 +291,9 @@
       "source": "HSL / johdettu",
       "publisher": "hsl",
       "vintage": 2025,
-      "granularity": "250m grid",
-      "is_proxy": true
+      "granularity": "postal",
+      "is_proxy": true,
+      "note": "Postal-level proxy regressed from HSL transit-stop signals (partial coverage); no 250 m travel-time grid is shipped, so the score is published at postal granularity only."
     },
     "employment_rate": {
       "source": "Tilastokeskus (Paavo)",
@@ -343,18 +345,22 @@
       "is_proxy": false
     },
     "rental_price_sqm": {
-      "source": "Tilastokeskus (PxWeb)",
+      "source": "Tilastokeskus (PxWeb, asvu 13eb)",
       "publisher": "tilastokeskus",
-      "vintage": 2024,
+      "vintage": 2022,
       "granularity": "postal",
-      "is_proxy": false
+      "is_proxy": false,
+      "discontinued": 2022,
+      "note": "Source discontinued — the postal-code rent table (StatFin asvu 13eb) was retired; current tables publish only at region level, so postal rents are frozen at the last published snapshot (2022) and cannot refresh."
     },
     "price_to_rent_ratio": {
-      "source": "Tilastokeskus (PxWeb)",
+      "source": "Tilastokeskus (PxWeb, asvu 13eb)",
       "publisher": "tilastokeskus",
-      "vintage": 2024,
+      "vintage": 2022,
       "granularity": "postal",
-      "is_proxy": false
+      "is_proxy": false,
+      "discontinued": 2022,
+      "note": "Source discontinued — derived from the retired postal-code rent table (StatFin asvu 13eb); rents are frozen at the last published snapshot (2022) and cannot refresh."
     },
     "walkability_index": {
       "source": "OpenStreetMap (composite)",
@@ -410,7 +416,8 @@
       "publisher": "tilastokeskus",
       "vintage": 2025,
       "granularity": "postal",
-      "is_proxy": false
+      "is_proxy": true,
+      "note": "Municipality-level average construction year refined to postal codes via Paavo new-construction/detached-house signals (fetch_building_age.py refine_to_postal_codes)"
     },
     "youth_ratio_pct": {
       "source": "Tilastokeskus (Paavo)",
@@ -474,6 +481,14 @@
       "source": "Tilastokeskus (Paavo)",
       "publisher": "tilastokeskus",
       "vintage": "2020–2024",
+      "granularity": "postal",
+      "is_proxy": false,
+      "panel": false
+    },
+    "crime_index_change_pct": {
+      "source": "Poliisi",
+      "publisher": "poliisi",
+      "vintage": 2023,
       "granularity": "postal",
       "is_proxy": false,
       "panel": false
