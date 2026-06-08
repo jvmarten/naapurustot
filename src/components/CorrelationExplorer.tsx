@@ -1,11 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { FeatureCollection, Feature } from 'geojson';
+import { useNavigate } from 'react-router-dom';
 import { LAYERS, getLayerById, type LayerId } from '../utils/colorScales';
 import { getFeatureCenter } from '../utils/geometryFilter';
-import { pearson, bestFit, type XYPoint } from '../utils/correlation';
+import { pearson, bestFit, rSquared, significanceHint, groupedBestFit, type XYPoint } from '../utils/correlation';
 import { t, useI18nVersion } from '../utils/i18n';
 import { trackEvent } from '../utils/analytics';
 import { generateCorrelationCard } from '../utils/scoreCard';
+import { loadAllData } from '../utils/dataLoader';
+import { buildProfileUrl } from '../utils/profileUrl';
+import { ComparisonScopeToggle, type ComparisonScope } from './ComparisonScopeToggle';
 
 interface Props {
   data: FeatureCollection | null;
@@ -22,14 +26,41 @@ const REGION_PALETTE = [
 const VB_W = 640, VB_H = 400;
 const PAD = { left: 58, right: 16, top: 16, bottom: 40 };
 
+// QW-3: Tailwind tone per significance grade for the hint badge.
+const SIG_TONE: Record<string, string> = {
+  strong: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
+  moderate: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
+  weak: 'bg-surface-500/15 text-surface-600 dark:text-surface-300',
+  none: 'bg-surface-500/10 text-surface-500 dark:text-surface-400',
+};
+
 interface Pt extends XYPoint { pno: string; name: string; pop: number; region: string; feature: Feature; }
 
 export const CorrelationExplorer: React.FC<Props> = ({ data, onSelect, onClose }) => {
   useI18nVersion();
+  const navigate = useNavigate();
   const [metricX, setMetricX] = useState<LayerId>('median_income');
   const [metricY, setMetricY] = useState<LayerId>('unemployment');
   const [showFit, setShowFit] = useState(true);
+  // QW-3: when on, draw a best-fit line per region instead of one global line, so a
+  // global correlation that is really a clustering (Simpson's-paradox) artifact shows.
+  const [byRegion, setByRegion] = useState(false);
   const [hovered, setHovered] = useState<string | null>(null);
+  // CF-6: scope the scatter to this region or all of Finland. The national dataset
+  // (geometry-stripped region_properties.json) is lazy-loaded on first use.
+  const [scope, setScope] = useState<ComparisonScope>('region');
+  const [nationalData, setNationalData] = useState<FeatureCollection | null>(null);
+  const [nationalLoading, setNationalLoading] = useState(false);
+  useEffect(() => {
+    if (scope !== 'all' || nationalData || nationalLoading) return;
+    setNationalLoading(true);
+    loadAllData()
+      .then((res) => setNationalData(res.data))
+      .catch(() => setScope('region')) // national dataset unavailable — fall back
+      .finally(() => setNationalLoading(false));
+  }, [scope, nationalData, nationalLoading]);
+  const isNational = scope === 'all';
+  const activeData = isNational ? nationalData : data;
 
   // Close on Escape (this panel sits above App's panel cascade).
   useEffect(() => {
@@ -46,7 +77,7 @@ export const CorrelationExplorer: React.FC<Props> = ({ data, onSelect, onClose }
     const colors = new Map<string, string>();
     let dropped = 0;
     let total = 0;
-    for (const f of data?.features ?? []) {
+    for (const f of activeData?.features ?? []) {
       const p = f.properties;
       if (!p?.pno) continue;
       total++;
@@ -63,10 +94,31 @@ export const CorrelationExplorer: React.FC<Props> = ({ data, onSelect, onClose }
       });
     }
     return { points: pts, regionColors: colors, dropped, total };
-  }, [data, layerX.property, layerY.property]);
+  }, [activeData, layerX.property, layerY.property]);
 
   const r = useMemo(() => pearson(points), [points]);
   const fit = useMemo(() => (showFit ? bestFit(points) : null), [points, showFit]);
+  // QW-3: variance explained (R²) and an n-aware significance hint for the global fit.
+  const r2 = useMemo(() => rSquared(points), [points]);
+  const sig = useMemo(() => significanceHint(points), [points]);
+  // QW-3: per-region best-fit lines, computed only when the region-trend toggle is on
+  // and a global fit is being shown (the toggle replaces the single global line).
+  const regionFits = useMemo(
+    () => (showFit && byRegion ? groupedBestFit(points, (p) => p.region) : null),
+    [points, showFit, byRegion],
+  );
+  // Per-region x-extent, so each region's trend line is drawn only across its own data.
+  const regionXRanges = useMemo(() => {
+    if (!regionFits) return null;
+    const ranges = new Map<string, { min: number; max: number }>();
+    for (const p of points) {
+      if (!regionFits.has(p.region)) continue;
+      const cur = ranges.get(p.region);
+      if (!cur) ranges.set(p.region, { min: p.x, max: p.x });
+      else { if (p.x < cur.min) cur.min = p.x; if (p.x > cur.max) cur.max = p.x; }
+    }
+    return ranges;
+  }, [points, regionFits]);
 
   // Axis domains with a little padding.
   const domain = useMemo(() => {
@@ -89,15 +141,37 @@ export const CorrelationExplorer: React.FC<Props> = ({ data, onSelect, onClose }
   const radius = (pop: number) => domain ? 2 + 10 * Math.sqrt(pop / (domain.popMax || 1)) : 3;
 
   const rText = r == null ? '—' : r.toFixed(2);
-  const ariaLabel = `${t('correlation.title')}: ${t(layerX.labelKey)} / ${t(layerY.labelKey)}. ${t('correlation.pearson_r')} = ${rText}. ${points.length} ${t('correlation.point_count')}.`;
+  const r2Text = r2 == null ? '—' : r2.toFixed(2);
+  const sigText = t(`correlation.sig_${sig}`);
+  const ariaLabel = `${t('correlation.title')}: ${t(layerX.labelKey)} / ${t(layerY.labelKey)}. ${t('correlation.pearson_r')} = ${rText}. ${t('correlation.r_squared')} = ${r2Text}. ${sigText}. ${points.length} ${t('correlation.point_count')}.`;
 
   const hoveredPt = hovered ? points.find((p) => p.pno === hovered) : null;
+
+  // CF-6: open a clicked point. National features are geometry-stripped, so the map
+  // can't fly to them — navigate to their profile page instead (as national
+  // similarity does). Region-scope points keep the fly-to path.
+  const handlePointClick = (p: Pt) => {
+    trackEvent('correlation-select', { pno: p.pno });
+    if (isNational) {
+      onClose();
+      navigate(buildProfileUrl(p.pno, p.name));
+    } else {
+      onSelect(p.pno, getFeatureCenter(p.feature));
+    }
+  };
 
   const content = (
     <div className="bg-white dark:bg-surface-900 w-full md:max-w-3xl md:rounded-2xl shadow-2xl border border-surface-200 dark:border-surface-700/40 overflow-hidden max-h-[90vh] flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-3 border-b border-surface-200 dark:border-surface-700/50">
-        <h2 className="text-sm font-bold text-surface-900 dark:text-white">{t('correlation.title')}</h2>
+        <div className="flex items-center gap-2 min-w-0">
+          <h2 className="text-sm font-bold text-surface-900 dark:text-white truncate">{t('correlation.title')}</h2>
+          {/* CF-6: region vs all-Finland scope */}
+          <ComparisonScopeToggle scope={scope} onChange={setScope} disabled={nationalLoading} />
+          <span className="text-[11px] text-surface-400 dark:text-surface-500 truncate">
+            {t(isNational ? 'scope.all' : 'scope.region')}
+          </span>
+        </div>
         <button
           onClick={onClose}
           aria-label={t('aria.close')}
@@ -136,11 +210,36 @@ export const CorrelationExplorer: React.FC<Props> = ({ data, onSelect, onClose }
           <input type="checkbox" checked={showFit} onChange={(e) => setShowFit(e.target.checked)} className="accent-brand-500" />
           {t('correlation.show_best_fit')}
         </label>
-        <div className="ml-auto text-right pb-0.5">
-          <div className="text-[10px] uppercase tracking-wider text-surface-400 dark:text-surface-500">{t('correlation.pearson_r')}</div>
-          <div className="text-lg font-bold tabular-nums text-surface-900 dark:text-white">{rText}</div>
+        <label className={`flex items-center gap-1.5 text-xs pb-1.5 ${showFit ? 'text-surface-600 dark:text-surface-300 cursor-pointer' : 'text-surface-400 dark:text-surface-600 cursor-not-allowed'}`}>
+          <input
+            type="checkbox"
+            checked={byRegion}
+            disabled={!showFit}
+            onChange={(e) => { setByRegion(e.target.checked); trackEvent('correlation-by-region', { on: e.target.checked ? 1 : 0 }); }}
+            className="accent-brand-500 disabled:opacity-50"
+          />
+          {t('correlation.by_region')}
+        </label>
+        <div className="ml-auto flex items-end gap-4 pb-0.5">
+          <div className="text-right">
+            <div className="text-[10px] uppercase tracking-wider text-surface-400 dark:text-surface-500">{t('correlation.pearson_r')}</div>
+            <div className="text-lg font-bold tabular-nums text-surface-900 dark:text-white">{rText}</div>
+          </div>
+          <div className="text-right">
+            <div className="text-[10px] uppercase tracking-wider text-surface-400 dark:text-surface-500">{t('correlation.r_squared')}</div>
+            <div className="text-lg font-bold tabular-nums text-surface-900 dark:text-white">{r2Text}</div>
+          </div>
         </div>
       </div>
+
+      {/* QW-3: significance hint + R² gloss + Simpson's-paradox nudge */}
+      {points.length > 0 && (
+        <div className="px-5 py-2 flex flex-wrap items-center gap-2 text-[11px] text-surface-500 dark:text-surface-400 border-b border-surface-100 dark:border-surface-800/60">
+          <span className={`px-1.5 py-0.5 rounded font-medium ${SIG_TONE[sig]}`}>{sigText}</span>
+          <span className="min-w-0">{t('correlation.r_squared_hint').replace('{pct}', r2 == null ? '—' : String(Math.round(r2 * 100)))}</span>
+          {byRegion && <span className="min-w-0 text-surface-400 dark:text-surface-500">· {t('correlation.region_trend_hint')}</span>}
+        </div>
+      )}
 
       {/* Scatter */}
       <div className="p-4 overflow-auto">
@@ -154,8 +253,22 @@ export const CorrelationExplorer: React.FC<Props> = ({ data, onSelect, onClose }
             <text x={PAD.left + plotW} y={VB_H - 8} textAnchor="end" className="fill-surface-500 text-[11px]">{layerX.format(domain.xMax)}</text>
             <text x={PAD.left - 6} y={PAD.top + plotH} textAnchor="end" className="fill-surface-500 text-[11px]">{layerY.format(domain.yMin)}</text>
             <text x={PAD.left - 6} y={PAD.top + 8} textAnchor="end" className="fill-surface-500 text-[11px]">{layerY.format(domain.yMax)}</text>
-            {/* Best-fit line */}
-            {fit && r != null && Math.abs(r) > 0.1 && (
+            {/* QW-3: per-region best-fit lines (each clipped to its own region's x-range so
+                a region's trend is never extrapolated across the whole plot). */}
+            {regionFits && regionXRanges && [...regionFits].map(([region, f]) => {
+              const range = regionXRanges.get(region);
+              if (!range) return null;
+              return (
+                <line
+                  key={region}
+                  x1={sx(range.min)} y1={sy(f.slope * range.min + f.intercept)}
+                  x2={sx(range.max)} y2={sy(f.slope * range.max + f.intercept)}
+                  stroke={regionColors.get(region)} strokeWidth={1.75} strokeOpacity={0.85} strokeLinecap="round"
+                />
+              );
+            })}
+            {/* Global best-fit line (hidden while per-region trends are shown) */}
+            {!byRegion && fit && r != null && Math.abs(r) > 0.1 && (
               <line
                 x1={sx(domain.xMin)} y1={sy(fit.slope * domain.xMin + fit.intercept)}
                 x2={sx(domain.xMax)} y2={sy(fit.slope * domain.xMax + fit.intercept)}
@@ -173,14 +286,16 @@ export const CorrelationExplorer: React.FC<Props> = ({ data, onSelect, onClose }
                 className="cursor-pointer transition-[r,fill-opacity]"
                 onMouseEnter={() => setHovered(p.pno)}
                 onMouseLeave={() => setHovered((h) => (h === p.pno ? null : h))}
-                onClick={() => { trackEvent('correlation-select', { pno: p.pno }); onSelect(p.pno, getFeatureCenter(p.feature)); }}
+                onClick={() => handlePointClick(p)}
               >
                 <title>{`${p.name} (${p.pno})`}</title>
               </circle>
             ))}
           </svg>
         ) : (
-          <p className="text-sm text-surface-500 dark:text-surface-400 py-8 text-center">{t('correlation.no_data_warning')}</p>
+          <p className="text-sm text-surface-500 dark:text-surface-400 py-8 text-center">
+            {nationalLoading ? t('loading') : t('correlation.no_data_warning')}
+          </p>
         )}
       </div>
 

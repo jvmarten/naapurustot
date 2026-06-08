@@ -7,6 +7,7 @@ import { feature as topoFeature } from 'topojson-client';
 import type { Topology } from 'topojson-specification';
 import { buildFillColorExpression, type LayerId, type LayerConfig, getLayerById } from '../utils/colorScales';
 import { ensureHatchImage } from '../utils/hatchPattern';
+import { GRID_ZOOM_FADE_IN, buildFillOpacityFadeOut, buildGridFillOpacity } from '../utils/gridFade';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { useTheme } from '../hooks/useTheme';
 import { trackEvent } from '../utils/analytics';
@@ -222,44 +223,6 @@ function buildFillOpacity(o: number, overrides?: { matchExpr?: unknown[]; matchV
     base.push(0.65 * o);
   }
   return base;
-}
-
-// Zoom range over which the grid (e.g. 250m VIIRS cells) takes over from the
-// postal choropleth for grid-capable layers. Below GRID_ZOOM_FADE_IN only the
-// smooth choropleth shows; above GRID_ZOOM_FADE_OUT only the grid shows.
-// Centered around zoom 7.75 — between the all-Finland viewport (~4.8) and
-// city defaults (~9), so country views stay smooth and city/postal views
-// show the detailed grid at full opacity.
-const GRID_ZOOM_FADE_IN = 7;
-const GRID_ZOOM_FADE_OUT = 8.5;
-
-/**
- * Like buildFillOpacity but the values fade linearly to 0 between
- * GRID_ZOOM_FADE_IN and GRID_ZOOM_FADE_OUT. Use for the postal choropleth
- * when a grid layer is active — at low zoom the choropleth stays visible,
- * at high zoom it hands off to the grid.
- */
-function buildFillOpacityFadeOut(o: number) {
-  const fadeAt = (val: number): unknown[] => [
-    'interpolate', ['linear'], ['zoom'],
-    GRID_ZOOM_FADE_IN, val,
-    GRID_ZOOM_FADE_OUT, 0,
-  ];
-  return [
-    'case',
-    ['boolean', ['feature-state', 'hover'], false], fadeAt(0.85 * o),
-    ['boolean', ['feature-state', 'selected'], false], fadeAt(0.85 * o),
-    fadeAt(0.65 * o),
-  ];
-}
-
-/** Grid opacity that fades in over the same zoom range buildFillOpacityFadeOut fades out. */
-function buildGridFillOpacity(o: number): unknown[] {
-  return [
-    'interpolate', ['linear'], ['zoom'],
-    GRID_ZOOM_FADE_IN, 0,
-    GRID_ZOOM_FADE_OUT, 0.8 * o,
-  ];
 }
 
 export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, neighborHighlightPnos = EMPTY_ARRAY, fillOpacity = 1, gridData = null, drawMode = false, onDrawClick, onDrawDoubleClick, drawVertices, drawnPolygon = null, drawnAreaPnos = EMPTY_ARRAY, selectMode = false, selectedAreaPnos = EMPTY_ARRAY, onSelectAreaClick, layerConfig, isochrone = null, onMoveEnd }) => {

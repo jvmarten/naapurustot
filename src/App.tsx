@@ -33,7 +33,7 @@ const CorrelationExplorer = lazy(() => import('./components/CorrelationExplorer'
 const RegionRankingTable = lazy(() => import('./components/RegionRankingTable').then(m => ({ default: m.RegionRankingTable })));
 import { useMapData } from './hooks/useMapData';
 import { useSearchIndex } from './hooks/useSearchIndex';
-import { useGridData } from './hooks/useGridData';
+import { useGridData, cellCentroid, clipGridToData } from './hooks/useGridData';
 import { useFavorites } from './hooks/useFavorites';
 
 import { useRecentNeighborhoods } from './hooks/useRecentNeighborhoods';
@@ -49,7 +49,7 @@ const TimeSlider = lazy(() => import('./components/TimeSlider').then(m => ({ def
 import { UserMenu, type FavoriteEntry } from './components/UserMenu';
 import { ShortlistTray } from './components/ShortlistTray';
 import { type LayerId, type ColorblindType, getLayerById, getColorblindMode, setColorblindMode, rescaleLayerToData, clearRescaleCache, TIME_SERIES_LAYERS } from './utils/colorScales';
-import { readInitialUrlState, useSyncUrlState, buildViewportShareUrl, type UrlViewport } from './hooks/useUrlState';
+import { readInitialUrlState, useSyncUrlState, buildViewportShareUrl, type UrlViewport, type UrlDraw } from './hooks/useUrlState';
 import type { NeighborhoodProperties } from './utils/metrics';
 import { computeMetroAverages, timeSeriesYearProp, getAvailableYears } from './utils/metrics';
 import { t, getLang, setLang, useI18nVersion, type Lang } from './utils/i18n';
@@ -85,27 +85,6 @@ function findRegionForCoords(lng: number, lat: number): CityFilter | null {
     if (area < bestArea) { bestArea = area; best = id as CityFilter; }
   }
   return best;
-}
-
-/**
- * IN-2: centroid of a grid cell, used to decide whether the cell belongs to the
- * loaded region. Grid cells are small (~250 m) axis-aligned rectangles, so the
- * bbox midpoint of the outer ring is an exact, allocation-free stand-in for a
- * true polygon centroid — and far cheaper than @turf/centroid across ~50k cells.
- * Returns null for cells without a usable ring.
- */
-function cellCentroid(f: Feature): [number, number] | null {
-  const ring = (f.geometry as { coordinates?: Position[][] } | undefined)?.coordinates?.[0];
-  if (!ring || ring.length === 0) return null;
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  for (const [x, y] of ring) {
-    if (x < minX) minX = x;
-    if (y < minY) minY = y;
-    if (x > maxX) maxX = x;
-    if (y > maxY) maxY = y;
-  }
-  if (!isFinite(minX)) return null;
-  return [(minX + maxX) / 2, (minY + maxY) / 2];
 }
 
 const App: React.FC = () => {
@@ -324,6 +303,16 @@ const App: React.FC = () => {
   // QW-4: Split map view state
   const [splitMode, setSplitMode] = useState(false);
   const [secondaryLayer, setSecondaryLayer] = useState<LayerId>('median_income');
+  // IN-1: second grid fetch for the split view's right pane. The hook is lazy —
+  // it only fetches when `secondaryLayer` actually has a grid dataset (most don't),
+  // so this is free for the common case. Clipped to the loaded region's bbox so a
+  // region view doesn't leak national grid cells (cheaper sync clip than the main
+  // pane's async point-in-polygon refine, which is overkill for a comparison pane).
+  const { gridData: rawSecondaryGrid } = useGridData(secondaryLayer);
+  const secondaryGridData = useMemo(
+    () => clipGridToData(rawSecondaryGrid, data),
+    [rawSecondaryGrid, data],
+  );
   const { favorites, isFavorite, toggleFavorite } = useFavorites(user?.id);
   const { recent, addRecent } = useRecentNeighborhoods();
   // QW-2: durable shortlist (distinct from one-tap favorites). QW-2b: cloud-syncs when signed in.
@@ -622,6 +611,20 @@ const App: React.FC = () => {
     return () => { cancelled = true; };
   }, [drawnPolygon, data, selectedAreaPnos]);
 
+  // CF-9: encode the active analysis area for the share URL. A select-areas
+  // selection (pnos present) serializes as a pno list; a free-hand drawn polygon
+  // serializes as its ring vertices. Null when no area is active. Tracked via its
+  // own key in useSyncUrlState, so this only drives the URL — never a render loop.
+  const drawUrlValue = useMemo<UrlDraw | null>(() => {
+    if (!drawnPolygon) return null;
+    if (selectedAreaPnos.length > 0) return { mode: 'select', pnos: selectedAreaPnos };
+    const ring = drawnPolygon.geometry.coordinates[0];
+    if (!ring || ring.length < 4) return null; // closed ring needs >=4 points (3 distinct + close)
+    // Drop the duplicated closing vertex; deserializeDraw re-closes the ring.
+    const vertices = ring.slice(0, -1).map(([lng, lat]) => [lng, lat] as [number, number]);
+    return vertices.length >= 3 ? { mode: 'polygon', vertices } : null;
+  }, [drawnPolygon, selectedAreaPnos]);
+
   const handleSelectAreaClick = useCallback((props: NeighborhoodProperties) => {
     const pno = props.pno;
     setSelectedAreaPnos((prev) => {
@@ -730,8 +733,33 @@ const App: React.FC = () => {
   useEffect(() => {
     if (initialUrl.weights) setQualityWeights(initialUrl.weights);
     if (initialUrl.shortlist.length > 0) mergeIntoShortlist(initialUrl.shortlist);
+    // CF-9: restore a shared drawn/selected analysis area so AreaSummaryPanel reopens.
+    // Free-hand polygons reconstruct immediately (no data needed); select-areas
+    // selections only set the pnos here — the latched effect below promotes them
+    // to a hull polygon once the region's geometry has loaded.
+    const draw = initialUrl.draw;
+    if (draw) {
+      if (draw.mode === 'polygon') {
+        const closed = [...draw.vertices, draw.vertices[0]];
+        setDrawnPolygon({ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [closed] } });
+      } else {
+        setSelectedAreaPnos(draw.pnos);
+      }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
   }, []);
+
+  // CF-9: promote a restored select-areas selection to a drawn polygon once the
+  // selected-areas hull can be computed (needs the region geometry to be loaded).
+  // Latches after the first promotion so later selection edits aren't overridden.
+  const drawRestoredRef = useRef(initialUrl.draw?.mode !== 'select');
+  useEffect(() => {
+    if (drawRestoredRef.current) return;
+    if (selectedAreasPolygon) {
+      drawRestoredRef.current = true;
+      setDrawnPolygon(selectedAreasPolygon);
+    }
+  }, [selectedAreasPolygon]);
 
   // Memoize pinned PNO array to avoid new references on every render.
   // Without this, Map's pinnedPnos useEffect fires on every App re-render,
@@ -767,6 +795,8 @@ const App: React.FC = () => {
     shortlist,
     affordability: affordabilityUrl,
     simWeights: similarityUrlWeights,
+    // CF-9: shared drawn/selected analysis area.
+    draw: drawUrlValue,
   });
 
   // Recompute quality indices when custom weights change.
@@ -1501,6 +1531,10 @@ const App: React.FC = () => {
               onLeftLayerChange={setActiveLayer}
               onRightLayerChange={setSecondaryLayer}
               colorblind={colorblind}
+              leftGridData={gridData}
+              rightGridData={secondaryGridData}
+              metroAverages={cityAverages}
+              onSelectNeighborhood={handleClick}
             />
           </Suspense>
         ) : (

@@ -1,9 +1,13 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import type { FeatureCollection } from 'geojson';
+import { useNavigate } from 'react-router-dom';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { t } from '../utils/i18n';
 import { trackEvent } from '../utils/analytics';
 import { getFeatureCenter } from '../utils/geometryFilter';
+import { loadAllData } from '../utils/dataLoader';
+import { buildProfileUrl } from '../utils/profileUrl';
+import { ComparisonScopeToggle, type ComparisonScope } from './ComparisonScopeToggle';
 
 interface WizardProps {
   data: FeatureCollection | null;
@@ -319,8 +323,24 @@ function scoreNeighborhoods(
 const STEP_COUNT = 4;
 
 export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onClose, onShowOnMap }) => {
+  const navigate = useNavigate();
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<WizardAnswers>({ ...defaultAnswers });
+  // CF-6: score within this region or across all of Finland. The national dataset
+  // (geometry-stripped region_properties.json) is lazy-loaded on first use.
+  const [scope, setScope] = useState<ComparisonScope>('region');
+  const [nationalData, setNationalData] = useState<FeatureCollection | null>(null);
+  const [nationalLoading, setNationalLoading] = useState(false);
+  useEffect(() => {
+    if (scope !== 'all' || nationalData || nationalLoading) return;
+    setNationalLoading(true);
+    loadAllData()
+      .then((res) => setNationalData(res.data))
+      .catch(() => setScope('region')) // national dataset unavailable — fall back
+      .finally(() => setNationalLoading(false));
+  }, [scope, nationalData, nationalLoading]);
+  const isNational = scope === 'all';
+  const activeData = isNational ? nationalData : data;
 
   // A11y: move focus into the dialog on open and restore it to the triggering
   // element on close, so keyboard/screen-reader users aren't left behind the modal.
@@ -332,9 +352,22 @@ export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onCl
   }, []);
 
   const topMatches = useMemo(() => {
-    if (!data || step < 3) return [];
-    return scoreNeighborhoods(data, answers);
-  }, [data, answers, step]);
+    if (!activeData || step < 3) return [];
+    return scoreNeighborhoods(activeData, answers);
+  }, [activeData, answers, step]);
+
+  // CF-6: open a result. National features are geometry-stripped, so the map can't
+  // fly to them — navigate to their profile page instead (as national similarity
+  // does). Region-scope matches keep the fly-to path.
+  const handleResultClick = (pno: string, name: string, center: [number, number]) => {
+    if (isNational) {
+      onClose();
+      navigate(buildProfileUrl(pno, name));
+    } else {
+      onSelect(pno, center);
+      onClose();
+    }
+  };
 
   const canNext = step < STEP_COUNT - 1;
   const canBack = step > 0;
@@ -626,18 +659,32 @@ export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onCl
 
   const renderResults = () => (
     <div className="space-y-4">
-      <h3 className="text-lg font-bold text-surface-900 dark:text-white">
-        {t('wizard.top_matches')}
-      </h3>
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-lg font-bold text-surface-900 dark:text-white">
+          {t('wizard.top_matches')}
+        </h3>
+        {/* CF-6: region vs all-Finland scope */}
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-[11px] text-surface-400 dark:text-surface-500">
+            {t(isNational ? 'scope.all' : 'scope.region')}
+          </span>
+          <ComparisonScopeToggle scope={scope} onChange={setScope} disabled={nationalLoading} />
+        </div>
+      </div>
 
-      {topMatches.length === 0 ? (
+      {nationalLoading && topMatches.length === 0 ? (
+        <p className="text-sm text-surface-500 dark:text-surface-400">
+          {t('loading')}
+        </p>
+      ) : topMatches.length === 0 ? (
         <p className="text-sm text-surface-500 dark:text-surface-400">
           {t('filter.no_match')}
         </p>
       ) : (
         <div className="space-y-3">
-          {/* PO-4: Show on Map button */}
-          {onShowOnMap && topMatches.length > 0 && (
+          {/* PO-4: Show on Map button — region scope only (national features are
+              geometry-stripped and can't be drawn on the map). */}
+          {onShowOnMap && !isNational && topMatches.length > 0 && (
             <button
               onClick={() => onShowOnMap(topMatches.map((m) => m.pno))}
               className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium
@@ -652,7 +699,7 @@ export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onCl
           {topMatches.map((match, i) => (
             <button
               key={match.pno}
-              onClick={() => { onSelect(match.pno, match.center); onClose(); }}
+              onClick={() => handleResultClick(match.pno, match.name, match.center)}
               className="w-full text-left p-3 rounded-xl transition-colors
                          bg-surface-50 dark:bg-surface-800/60 hover:bg-surface-100 dark:hover:bg-surface-700/60
                          border border-surface-200 dark:border-surface-700/50"

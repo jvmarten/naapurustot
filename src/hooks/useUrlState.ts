@@ -63,6 +63,17 @@ export interface UrlAffordability {
   sizeM2: number;
 }
 
+/**
+ * CF-9: a shared drawn/selected analysis area (reopens AreaSummaryPanel on restore).
+ *
+ * Two shapes, distinguished by `mode`:
+ *  - 'select'  — a tapped-neighbourhood multi-selection, carried as a pno list.
+ *  - 'polygon' — a free-hand drawn ring, carried as a quantized vertex list.
+ */
+export type UrlDraw =
+  | { mode: 'select'; pnos: string[] }
+  | { mode: 'polygon'; vertices: [number, number][] };
+
 interface UrlState {
   pno: string | null;
   layer: LayerId | null;
@@ -92,6 +103,8 @@ interface UrlState {
   affordability: UrlAffordability | null;
   // CF-5: per-metric similarity weights (only non-default entries), null when absent.
   simWeights: Record<string, number> | null;
+  // CF-9: shared drawn/selected analysis area, null when absent.
+  draw: UrlDraw | null;
 }
 
 /** CF-1: the extra analytical state the URL can carry beyond pno/layer/compare/city. */
@@ -114,6 +127,8 @@ export interface ExtraUrlState {
   affordability?: UrlAffordability | null;
   /** CF-5: per-metric similarity weights (only non-default entries carried). */
   simWeights?: Record<string, number> | null;
+  /** CF-9: drawn/selected analysis area. */
+  draw?: UrlDraw | null;
 }
 
 const VALID_CITIES = new Set<string>(['all', ...REGION_IDS]);
@@ -253,6 +268,52 @@ function deserializeSimWeights(encoded: string): Record<string, number> | null {
   return Object.keys(out).length > 0 ? out : null;
 }
 
+// ─── CF-9: drawn / selected-areas URL codec ─────────────────────────────────
+// The shared analysis area is encoded in a single `draw` param, prefixed by mode:
+//   - select-areas:  `draw=s:00100.00200.00300`  (dot-joined pnos, like `sl`)
+//   - free polygon:  `draw=p:24.94~60.17_24.95~60.18_…`  (`lng~lat` vertices,
+//     quantized to 5 decimals like the `v` viewport codec, `_`-joined).
+// Polygons are capped at DRAW_MAX_VERTICES and every vertex is Finland-bbox-clamped
+// on PARSE so a hand-edited link can never inject an off-world or unbounded ring.
+const DRAW_MAX_VERTICES = 60;
+// Finland bounding box (shared with the viewport codec): lng 18–33, lat 58–71.
+const FIN_LNG_MIN = 18, FIN_LNG_MAX = 33, FIN_LAT_MIN = 58, FIN_LAT_MAX = 71;
+
+function serializeDraw(d: UrlDraw): string {
+  if (d.mode === 'select') return `s:${d.pnos.join('.')}`;
+  const round = (n: number) => Math.round(n * 1e5) / 1e5;
+  // Drop the redundant closing vertex (ring is re-closed on parse) and cap length.
+  const verts = d.vertices.slice(0, DRAW_MAX_VERTICES);
+  return `p:${verts.map(([lng, lat]) => `${round(lng)}~${round(lat)}`).join('_')}`;
+}
+
+function deserializeDraw(s: string): UrlDraw | null {
+  const idx = s.indexOf(':');
+  if (idx !== 1) return null;
+  const tag = s[0];
+  const body = s.slice(2);
+  if (tag === 's') {
+    const pnos = body.split('.').filter((p) => /^\d{5}$/.test(p));
+    return pnos.length > 0 ? { mode: 'select', pnos } : null;
+  }
+  if (tag === 'p') {
+    const vertices: [number, number][] = [];
+    for (const pair of body.split('_')) {
+      if (vertices.length >= DRAW_MAX_VERTICES) break;
+      const [lngStr, latStr] = pair.split('~');
+      const lng = Number(lngStr);
+      const lat = Number(latStr);
+      if (!Number.isFinite(lng) || !Number.isFinite(lat)) continue;
+      // Bbox-clamp on parse: silently drop any vertex outside Finland.
+      if (lng < FIN_LNG_MIN || lng > FIN_LNG_MAX || lat < FIN_LAT_MIN || lat > FIN_LAT_MAX) continue;
+      vertices.push([lng, lat]);
+    }
+    // A polygon needs at least 3 distinct vertices to enclose any area.
+    return vertices.length >= 3 ? { mode: 'polygon', vertices } : null;
+  }
+  return null;
+}
+
 /**
  * IN-3: read and normalise the share-URL schema version.
  *
@@ -294,13 +355,14 @@ type StructuredParams = {
   slRaw: string | null;
   affRaw: string | null;
   simwRaw: string | null;
+  drawRaw: string | null;
 };
 
 function migrateParams(searchParams: URLSearchParams, version: number): StructuredParams {
   const read = (key: string): string | null => searchParams.get(key);
   // Newer-than-current schema: discard structured params we may decode incorrectly.
   if (version > URL_SCHEMA_VERSION) {
-    return { filterRaw: null, qpRaw: null, qwRaw: null, isoRaw: null, viewRaw: null, slRaw: null, affRaw: null, simwRaw: null };
+    return { filterRaw: null, qpRaw: null, qwRaw: null, isoRaw: null, viewRaw: null, slRaw: null, affRaw: null, simwRaw: null, drawRaw: null };
   }
   // v1 (legacy) … current: every prior encoding is still readable as-is.
   return {
@@ -312,6 +374,7 @@ function migrateParams(searchParams: URLSearchParams, version: number): Structur
     slRaw: read('sl'),
     affRaw: read('aff'),
     simwRaw: read('simw'),
+    drawRaw: read('draw'),
   };
 }
 
@@ -347,7 +410,7 @@ function parseUrl(): UrlState {
   // IN-3: resolve the schema version, then gate the structured params through the
   // migration/clamp guard. Simple primitives below are read directly (stable format).
   const schemaVersion = readSchemaVersion(searchParams);
-  const { filterRaw, qpRaw, qwRaw, isoRaw, viewRaw, slRaw, affRaw, simwRaw } = migrateParams(searchParams, schemaVersion);
+  const { filterRaw, qpRaw, qwRaw, isoRaw, viewRaw, slRaw, affRaw, simwRaw, drawRaw } = migrateParams(searchParams, schemaVersion);
 
   // CF-1: extended analytical state (query params only — legacy hash links never had these).
   const scopeRaw = searchParams.get('scope');
@@ -379,6 +442,7 @@ function parseUrl(): UrlState {
     shortlist: slRaw ? slRaw.split('.').filter((p) => /^\d{5}$/.test(p)) : [],
     affordability: affRaw ? deserializeAffordability(affRaw) : null,
     simWeights: simwRaw ? deserializeSimWeights(simwRaw) : null,
+    draw: drawRaw ? deserializeDraw(drawRaw) : null,
   };
 }
 
@@ -392,7 +456,7 @@ function parseUrl(): UrlState {
  * (e.g. CF-9's `draw`) should add their encoded key here when factored through
  * `serializeUrlParams`.
  */
-const VERSIONED_PARAM_KEYS = ['filter', 'qp', 'qw', 'iso', 'v', 'sl', 'aff', 'simw'] as const;
+const VERSIONED_PARAM_KEYS = ['filter', 'qp', 'qw', 'iso', 'v', 'sl', 'aff', 'simw', 'draw'] as const;
 
 /** True when the built params carry at least one structured/version-sensitive key. */
 function hasVersionedParams(params: URLSearchParams): boolean {
@@ -448,6 +512,11 @@ function serializeUrlParams(pno: string | null, layer: LayerId, comparePnos: str
     const simw = serializeSimWeights(extras.simWeights);
     if (simw) params.set('simw', simw);
   }
+  // CF-9: drawn/selected analysis area (omitted entirely when no area is active).
+  if (extras.draw) {
+    const draw = serializeDraw(extras.draw);
+    if (draw.length > 2) params.set('draw', draw); // skip an empty body (just the mode prefix)
+  }
   return params;
 }
 
@@ -495,7 +564,7 @@ export function buildViewportShareUrl(viewport: UrlViewport | null): string {
  *  URL before the restoration effect has consumed them (e.g., pinned neighborhoods). */
 export function useSyncUrlState(pno: string | null, layer: LayerId, comparePnos: string[] = [], city: string = 'helsinki_metro', ready = true, extras: ExtraUrlState = {}) {
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const { scope, year, colorblind, lang, ref, filters, weights, isochrone, shortlist, affordability, simWeights } = extras;
+  const { scope, year, colorblind, lang, ref, filters, weights, isochrone, shortlist, affordability, simWeights, draw } = extras;
   // Depend on serialized keys, not object/array references, so an unchanged value
   // never re-triggers the URL write.
   const filterKey = filters && filters.length > 0 ? serializeFilters(filters) : '';
@@ -504,11 +573,12 @@ export function useSyncUrlState(pno: string | null, layer: LayerId, comparePnos:
   const shortlistKey = shortlist && shortlist.length > 0 ? shortlist.join('.') : '';
   const affKey = affordability ? serializeAffordability(affordability) : '';
   const simwKey = simWeights ? serializeSimWeights(simWeights) : '';
+  const drawKey = draw ? serializeDraw(draw) : '';
   useEffect(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
     if (!ready) return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-    timerRef.current = setTimeout(() => writeUrl(pno, layer, comparePnos, city, { scope, year, colorblind, lang, ref, filters, weights, isochrone, shortlist, affordability, simWeights }), 100);
+    timerRef.current = setTimeout(() => writeUrl(pno, layer, comparePnos, city, { scope, year, colorblind, lang, ref, filters, weights, isochrone, shortlist, affordability, simWeights, draw }), 100);
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- object/array extras are tracked via their serialized *Key deps
-  }, [pno, layer, comparePnos, city, ready, scope, year, colorblind, lang, ref, filterKey, weightsKey, isoKey, shortlistKey, affKey, simwKey]);
+  }, [pno, layer, comparePnos, city, ready, scope, year, colorblind, lang, ref, filterKey, weightsKey, isoKey, shortlistKey, affKey, simwKey, drawKey]);
 }
