@@ -541,6 +541,24 @@ export function readInitialUrlState(): UrlState {
   return parseUrl();
 }
 
+/**
+ * CF-11: build a MINIMAL shareable URL carrying ONLY the shortlist (`sl`) and the
+ * `city`, deliberately dropping the author's unrelated layer/filter/weight/selection
+ * state so the recipient gets the candidate set on a clean view. Reuses the shared
+ * `serializeUrlParams` serializer (no other params leak because only `shortlist` is
+ * passed) and stamps the IN-3 schema version (`sl` is a structured/versioned key).
+ * Returns the bare origin when the shortlist is empty.
+ */
+export function buildShortlistShareUrl(shortlist: string[], city: string = 'helsinki_metro'): string {
+  const base = `${window.location.origin}${window.location.pathname}`;
+  const pnos = shortlist.filter((p) => /^\d{5}$/.test(p));
+  if (pnos.length === 0) return base;
+  const params = serializeUrlParams(null, 'quality_index', [], city, { shortlist: pnos });
+  stampSchemaVersion(params);
+  const str = params.toString();
+  return str ? `${base}?${str}` : base;
+}
+
 /** CF-1: build a shareable URL for the current view with the given camera appended.
  *  Used by the explicit "copy link to this view" affordance so ordinary panning
  *  never writes the viewport to the address bar. */

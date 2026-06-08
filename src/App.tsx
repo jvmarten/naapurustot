@@ -49,7 +49,7 @@ const TimeSlider = lazy(() => import('./components/TimeSlider').then(m => ({ def
 import { UserMenu, type FavoriteEntry } from './components/UserMenu';
 import { ShortlistTray } from './components/ShortlistTray';
 import { type LayerId, type ColorblindType, getLayerById, getColorblindMode, setColorblindMode, rescaleLayerToData, clearRescaleCache, TIME_SERIES_LAYERS } from './utils/colorScales';
-import { readInitialUrlState, useSyncUrlState, buildViewportShareUrl, type UrlViewport, type UrlDraw } from './hooks/useUrlState';
+import { readInitialUrlState, useSyncUrlState, buildViewportShareUrl, buildShortlistShareUrl, type UrlViewport, type UrlDraw } from './hooks/useUrlState';
 import type { NeighborhoodProperties } from './utils/metrics';
 import { computeMetroAverages, timeSeriesYearProp, getAvailableYears } from './utils/metrics';
 import { t, getLang, setLang, useI18nVersion, type Lang } from './utils/i18n';
@@ -1277,6 +1277,16 @@ const App: React.FC = () => {
     () => shortlist.map((pno) => ({ pno, name: (pnoFeatureMap.get(pno)?.properties?.nimi as string | undefined) ?? pno })),
     [shortlist, pnoFeatureMap],
   );
+  // CF-10: resolve a pno's map feature/geometry for the GeoJSON data exports
+  // (shortlist tray + comparison set). Geometry lives only in pnoFeatureMap.
+  const featureFor = useCallback(
+    (pno: string): GeoJSON.Feature | null => pnoFeatureMap.get(pno) ?? null,
+    [pnoFeatureMap],
+  );
+  const geometryFor = useCallback(
+    (pno: string): GeoJSON.Geometry | null => pnoFeatureMap.get(pno)?.geometry ?? null,
+    [pnoFeatureMap],
+  );
   const handleCompareShortlist = useCallback(() => {
     trackEvent('shortlist-compare');
     for (const pno of shortlist) {
@@ -1284,6 +1294,12 @@ const App: React.FC = () => {
       if (f?.properties) pin(f.properties as NeighborhoodProperties);
     }
   }, [shortlist, pin]);
+  // CF-11: a MINIMAL share link carrying ONLY the shortlist + city, so a recipient
+  // gets the candidate set on a clean view (none of the author's layer/filter/weight state).
+  const shortlistShareUrl = useMemo(
+    () => buildShortlistShareUrl(shortlist, cityFilter),
+    [shortlist, cityFilter],
+  );
 
   // Resolve pending metro area favorite after allCitiesData becomes available
   useEffect(() => {
@@ -1881,6 +1897,8 @@ const App: React.FC = () => {
           onRemove={removeFromShortlist}
           onCompare={handleCompareShortlist}
           onClear={clearShortlist}
+          featureFor={featureFor}
+          shareUrl={shortlistShareUrl}
         />
       )}
 
@@ -1888,7 +1906,7 @@ const App: React.FC = () => {
       {!IS_EMBED && pinned.length >= 1 && (
         <ErrorBoundary>
           <Suspense fallback={null}>
-            <ComparisonPanel pinned={pinned} onUnpin={unpin} onClear={clearPinned} reference={referenceProps ?? null} referenceName={referenceName} />
+            <ComparisonPanel pinned={pinned} onUnpin={unpin} onClear={clearPinned} reference={referenceProps ?? null} referenceName={referenceName} geometryFor={geometryFor} />
           </Suspense>
         </ErrorBoundary>
       )}

@@ -19,6 +19,10 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { createHash } from 'crypto';
+// PO-13: the single card-templating helper (shared with CF-11's runtime
+// shortlist card). Pure SVG → no new client-bundle deps, no rasteriser.
+import { buildSocialCardSvg } from './social-card.mjs';
 // The app's data-processing functions, reused at build time so each page can
 // embed a render-ready payload. Both modules have type-only imports, so Node's
 // TypeScript stripping (Node 22.18+/24) loads them without a build step.
@@ -713,6 +717,68 @@ function buildJsonLd(props, center, url, lang) {
   return `<script type="application/ld+json">${safeJson(place)}</script>\n    <script type="application/ld+json">${safeJson(breadcrumb)}</script>${faqScript}`;
 }
 
+// PO-13: emit one templated SVG social card per profile into the build output
+// (dist/og/), as a content-hashed static asset — never committed to the repo.
+const CARD_DIR = join(DIST, 'og');
+const ORIGIN = 'https://naapurustot.fi';
+let cardsWritten = 0;
+
+/**
+ * Localized best-percentile badge for the card: the single most favourable
+ * "Top X% nationally" superlative this area can claim, picked across the same
+ * percentile metrics the FAQ/JSON-LD use. Returns null when none qualify (e.g.
+ * an area with no rankable metrics), in which case the card omits the pill.
+ */
+function bestNationalBadge(props, lang) {
+  const pct = percentilesFor(props);
+  // Prefer the strongest (lowest "top X%") of the headline metrics, in a stable
+  // priority order so the badge is deterministic for ties.
+  const candidates = [pct.quality, pct.income, pct.transit, pct.education, pct.crime, pct.air, pct.treeCanopy, pct.employment]
+    .map((m) => m?.nationalTop)
+    .filter((v) => v != null);
+  if (candidates.length === 0) return null;
+  const best = Math.min(...candidates);
+  const tmpl = LOCALES[lang]?.['card.badge_national'] ?? LOCALES.fi['card.badge_national'];
+  return fillTemplate(tmpl, { pct: String(best) });
+}
+
+/** The 2–3 key stats shown on the card, from this area's real values. */
+function cardStats(props, lang) {
+  const L = LOCALES[lang];
+  const tr = (k) => L?.[k] ?? LOCALES.fi[k] ?? k;
+  const stats = [];
+  const pop = Number(props.he_vakiy);
+  if (Number.isFinite(pop)) stats.push({ label: tr('panel.population'), value: fmtNum(Math.round(pop), 0, lang) });
+  const inc = Number(props.hr_mtu);
+  if (Number.isFinite(inc) && inc > 0) {
+    stats.push({ label: tr('layer.median_income'), value: `${fmtNum(Math.round(inc), 0, lang)} €` });
+  }
+  return stats.slice(0, 3);
+}
+
+/**
+ * Build, write (once, content-hashed) and return the absolute URL of this area's
+ * social card for the given language. The same SVG bytes hash to the same file,
+ * so re-runs are idempotent and the filename busts caches when the card changes.
+ */
+function emitCard(props, slug, lang) {
+  const svg = buildSocialCardSvg({
+    name: getDisplayName(props, lang),
+    pno: props.pno,
+    region: getRegionName(props.city, lang),
+    quality: props.quality_index,
+    qualityLabel: LOCALES[lang]?.['layer.quality_index'] ?? LOCALES.fi['layer.quality_index'],
+    badge: bestNationalBadge(props, lang),
+    stats: cardStats(props, lang),
+  });
+  const hash = createHash('sha256').update(svg).digest('hex').slice(0, 10);
+  const fileName = `${slug}-${lang}.${hash}.svg`;
+  mkdirSync(CARD_DIR, { recursive: true });
+  writeFileSync(join(CARD_DIR, fileName), svg);
+  cardsWritten++;
+  return `${ORIGIN}/og/${fileName}`;
+}
+
 function generatePage(feature, lang) {
   const props = feature.properties;
   const slug = toSlug(props.pno, props.nimi);
@@ -792,18 +858,19 @@ function generatePage(feature, lang) {
     `<meta name="twitter:description" content="${escapeHtml(description)}" />`,
   );
 
-  // CF-11: pin an absolute social-card image for both Open Graph and Twitter on
-  // each profile rather than relying on the inherited template tags. Profiles
-  // share the branded site card (no per-area image exists), so both point at the
-  // same absolute /og-image.png URL.
-  const OG_IMAGE = 'https://naapurustot.fi/og-image.png';
+  // PO-13: per-area dynamic social card. Each profile gets its own templated SVG
+  // card (area name, quality index, percentile badge, key stats), emitted as a
+  // content-hashed asset under /og/, replacing the shared /og-image.png. The card
+  // is 1200×630 (the template's og:image:width/height already match), declared as
+  // image/svg+xml via the og:image:type tag added below.
+  const ogImage = emitCard(props, slug, lang);
   html = html.replace(
     /<meta property="og:image" content="[^"]*" \/>/,
-    `<meta property="og:image" content="${OG_IMAGE}" />`,
+    `<meta property="og:image" content="${ogImage}" />\n    <meta property="og:image:type" content="image/svg+xml" />`,
   );
   html = html.replace(
     /<meta name="twitter:image" content="[^"]*" \/>/,
-    `<meta name="twitter:image" content="${OG_IMAGE}" />`,
+    `<meta name="twitter:image" content="${ogImage}" />`,
   );
 
   // PO-9: localize og:locale, its two alternates, and the per-area og:image:alt.
@@ -979,7 +1046,7 @@ for (const feature of features) {
   count++;
 }
 
-console.log(`Prerendered ${count} neighbourhoods (${count * 3} HTML files).`);
+console.log(`Prerendered ${count} neighbourhoods (${count * 3} HTML files, ${cardsWritten} social cards in dist/og/).`);
 
 // CF-9: write the three localized data-sources pages.
 for (const [lang, route] of Object.entries(SOURCES_ROUTES)) {

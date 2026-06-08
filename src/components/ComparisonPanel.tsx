@@ -3,7 +3,7 @@ import type { NeighborhoodProperties } from '../utils/metrics';
 import { formatNumber, formatEuro, formatPct, formatDensity, formatEuroSqm } from '../utils/formatting';
 import { t, useI18nVersion } from '../utils/i18n';
 import { CompareIllustration } from './EmptyStateIllustrations';
-import { exportComparisonPdf, exportComparisonCsv } from '../utils/export';
+import { exportComparisonPdf, exportComparisonCsv, exportGeoJson } from '../utils/export';
 import { generateComparisonCard } from '../utils/scoreCard';
 import { trackEvent } from '../utils/analytics';
 
@@ -14,6 +14,8 @@ interface ComparisonPanelProps {
   /** CF-5: a custom reference-baseline neighbourhood — pinned values show a delta vs it. */
   reference?: NeighborhoodProperties | null;
   referenceName?: string | null;
+  /** CF-10: resolve a pno's map geometry so the comparison set can export as GeoJSON. */
+  geometryFor?: (pno: string) => GeoJSON.Geometry | null;
 }
 
 /** CF-5: percentage delta of a value vs the reference baseline, coloured by whether
@@ -197,7 +199,7 @@ const ComparisonChart: React.FC<{ pinned: NeighborhoodProperties[] }> = React.me
 });
 ComparisonChart.displayName = 'ComparisonChart';
 
-export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pinned, onUnpin, onClear, reference = null, referenceName = null }) => {
+export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pinned, onUnpin, onClear, reference = null, referenceName = null, geometryFor }) => {
   useI18nVersion();
   // CF-5: show per-value deltas vs the reference only when it isn't itself the sole pinned area.
   const refActive = !!reference && pinned.some((p) => p.pno !== reference.pno);
@@ -215,6 +217,15 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pin
     trackEvent('export-comparison-csv', { count: pinned.length });
     exportComparisonCsv(pinned);
   }, [pinned]);
+  // CF-10: machine-readable GeoJSON of the whole comparison set (geometry + raw values).
+  const handleExportGeoJson = useCallback(() => {
+    trackEvent('export-comparison-geojson', { count: pinned.length });
+    exportGeoJson(pinned.map((p) => ({
+      type: 'Feature',
+      geometry: geometryFor?.(p.pno) ?? null,
+      properties: p as unknown as GeoJSON.GeoJsonProperties,
+    })));
+  }, [pinned, geometryFor]);
 
   // Pre-compute "best" PNO for each stat once, instead of calling findBest()
   // per stat-row inside the render loop. Before: 13 stats × 3 pinned = 39 iterations
@@ -295,6 +306,14 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pin
                   title={t('export.pdf')}
                 >
                   {t('export.pdf')}
+                </button>
+                {/* CF-10: machine-readable GeoJSON (geometry + raw values) */}
+                <button
+                  onClick={handleExportGeoJson}
+                  className="text-xs text-surface-500 hover:text-brand-600 dark:text-surface-400 dark:hover:text-brand-300 transition-colors px-1.5 py-0.5"
+                  title={t('export.geojson')}
+                >
+                  {t('export.geojson')}
                 </button>
                 {/* CF-10: share the comparison as a branded PNG with the deep link */}
                 <button
@@ -428,6 +447,12 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pin
                   className="text-xs text-surface-500 hover:text-brand-600 dark:text-surface-400 dark:hover:text-brand-300 transition-colors px-1.5 py-0.5"
                 >
                   {t('export.pdf')}
+                </button>
+                <button
+                  onClick={handleExportGeoJson}
+                  className="text-xs text-surface-500 hover:text-brand-600 dark:text-surface-400 dark:hover:text-brand-300 transition-colors px-1.5 py-0.5"
+                >
+                  {t('export.geojson')}
                 </button>
                 <span className="text-surface-300 dark:text-surface-700" aria-hidden>·</span>
               </>

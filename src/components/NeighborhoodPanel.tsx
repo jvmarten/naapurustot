@@ -5,7 +5,7 @@ import { formatNumber, formatEuro, formatPct, formatDiff, diffColor, formatYtlGr
 import { t, getLang, useI18nVersion } from '../utils/i18n';
 import { getQualityCategory, QUALITY_CATEGORIES, QUALITY_DIMENSIONS, computeQualityCoverage } from '../utils/qualityIndex';
 import { computeAreaSummary, composeSummarySentences, fillTemplate } from '../utils/areaSummary';
-import { exportCsv, exportPdf } from '../utils/export';
+import { exportCsv, exportPdf, exportGeoJson } from '../utils/export';
 import { TrendSection } from './TrendChart';
 import Sparkline from './Sparkline';
 import RadarChart from './RadarChart';
@@ -1057,10 +1057,27 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
 
   // QW-3: Bottom sheet state (mobile only) — uses shared useBottomSheet hook
   const sheetRef = useRef<HTMLDivElement>(null);
-  const { sheetHeight, isDragging, handlers: sheetHandlers } = useBottomSheet({
+  const { sheetHeight, isDragging, snap, handlers: sheetHandlers } = useBottomSheet({
     initialSnap: 'half',
     onClose,
   });
+
+  // PO-8: A11y — on open, move keyboard focus into whichever panel container is
+  // visible (desktop side panel or mobile sheet), and restore it to the element
+  // that triggered the open on close. Neither container traps focus: the desktop
+  // panel coexists with the map, and the mobile sheet relies on the global
+  // Escape-to-close handler. Runs once per open (the component instance is reused
+  // across neighborhood changes, so this fires on mount/unmount only).
+  const desktopPanelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const trigger = document.activeElement as HTMLElement | null;
+    // offsetParent is null for the display:none container at the current breakpoint.
+    const visible = [desktopPanelRef.current, sheetRef.current].find(
+      (el) => el && el.offsetParent !== null,
+    );
+    (visible ?? desktopPanelRef.current)?.focus();
+    return () => trigger?.focus?.();
+  }, []);
 
   // PO-3: Swipe navigation for mobile sections
   const MOBILE_SECTIONS = useMemo(() => [
@@ -1152,8 +1169,16 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
     </button>
   );
 
+  // CF-10: the selected area's GeoJSON feature (geometry + raw props) for the
+  // machine-readable export. Look it up from the loaded features so geometry is
+  // included; fall back to a geometry-less feature if the cohort isn't loaded.
+  const selectedFeature = useMemo<GeoJSON.Feature<GeoJSON.Geometry | null>>(() => {
+    const f = allFeatures?.find((ft) => (ft.properties as { pno?: string } | null)?.pno === d.pno);
+    return f ?? { type: 'Feature', geometry: null, properties: d as unknown as GeoJSON.GeoJsonProperties };
+  }, [allFeatures, d]);
+
   const exportButtons = (
-    <div className="flex items-center justify-center gap-3 px-6 py-4 border-t border-surface-200 dark:border-surface-800/50">
+    <div className="flex flex-wrap items-center justify-center gap-3 px-6 py-4 border-t border-surface-200 dark:border-surface-800/50">
       <button
         onClick={() => { trackEvent('export-csv'); exportCsv(d, avg); }}
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium min-h-[44px] md:min-h-0
@@ -1175,6 +1200,19 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
         </svg>
         {t('export.pdf')}
+      </button>
+      {/* CF-10: machine-readable GeoJSON (geometry + raw values) for QGIS/pandas */}
+      <button
+        onClick={() => { trackEvent('export-geojson'); exportGeoJson([selectedFeature]); }}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium min-h-[44px] md:min-h-0
+                   text-surface-500 dark:text-surface-400
+                   hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-surface-700 dark:hover:text-surface-200 transition-colors"
+        title={t('export.geojson')}
+      >
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+        </svg>
+        {t('export.geojson')}
       </button>
       {/* CF-2: Share as image */}
       <button
@@ -2020,8 +2058,15 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
   return (
     <BaselineLabelContext.Provider value={vsLabel}>
     <>
-      {/* Desktop: side panel */}
-      <div className="hidden md:block absolute top-0 left-0 z-20 h-full w-[380px] max-w-[90vw] overflow-y-auto
+      {/* Desktop: side panel — role=complementary (NOT dialog): it is non-modal and
+          coexists with the map, so it must not trap focus. tabIndex=-1 lets PO-8's
+          focus effect move focus here on open without adding it to the tab order. */}
+      <div
+        ref={desktopPanelRef}
+        tabIndex={-1}
+        role="complementary"
+        aria-label={t('aria.panel_label').replace('{name}', d.nimi ?? d.pno)}
+        className="hidden md:block absolute top-0 left-0 z-20 h-full w-[380px] max-w-[90vw] overflow-y-auto outline-none
                       bg-white/95 dark:bg-surface-950/95 backdrop-blur-xl border-r border-surface-200 dark:border-surface-800/50 shadow-2xl">
         {/* Header — backdrop-blur-sm (not -xl): this sticky bar re-rasterizes its
             backdrop on every scroll frame as opaque panel content scrolls under it.
@@ -2077,10 +2122,20 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
         {exportButtons}
       </div>
 
-      {/* Mobile: bottom sheet */}
+      {/* Mobile: bottom sheet — role=dialog with aria-modal flipped on only at the
+          full snap, where the sheet covers the screen and reads as modal. Escape-to-
+          close is handled globally (do not re-add here). It still does not trap focus. */}
       <div
         ref={sheetRef}
-        className="md:hidden fixed bottom-0 left-0 right-0 z-20
+        tabIndex={-1}
+        role="dialog"
+        aria-modal={snap === 'full'}
+        aria-label={
+          snap === 'full'
+            ? t('aria.panel_label_full').replace('{name}', d.nimi ?? d.pno)
+            : t('aria.panel_label').replace('{name}', d.nimi ?? d.pno)
+        }
+        className="md:hidden fixed bottom-0 left-0 right-0 z-20 outline-none
                    bg-white/95 dark:bg-surface-950/95 backdrop-blur-xl
                    border-t border-surface-200 dark:border-surface-800/50
                    shadow-[0_-4px_30px_rgba(0,0,0,0.15)] rounded-t-2xl flex flex-col overflow-hidden"
