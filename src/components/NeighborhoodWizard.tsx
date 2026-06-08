@@ -9,6 +9,8 @@ import { loadAllData } from '../utils/dataLoader';
 import { buildProfileUrl } from '../utils/profileUrl';
 import { ComparisonScopeToggle, type ComparisonScope } from './ComparisonScopeToggle';
 import { defaultWizardAnswers, type WizardAnswers } from '../hooks/useWizardProfile';
+import type { AffordabilityState } from '../hooks/useAffordability';
+import { affordabilityScore, orientationForTenure, type AffordabilityScore } from '../utils/affordability';
 
 interface WizardProps {
   data: FeatureCollection | null;
@@ -21,6 +23,9 @@ interface WizardProps {
   onSaveProfile?: (answers: WizardAnswers) => void;
   /** CF-4: map the answers onto live Quality Index weights so the map reflects them. */
   onApplyToMap?: (answers: WizardAnswers) => void;
+  /** CF-14: the user's affordability inputs (income/budget + size), if any. Lets the
+   *  wizard fold "within my budget" into the match. Undefined/empty → no affordability UI. */
+  affordability?: AffordabilityState;
 }
 
 /** CF-5: per-criterion "why it matched" breakdown — the area's actual value against
@@ -42,6 +47,9 @@ interface ScoredNeighborhood {
   center: [number, number];
 }
 
+/** CF-14: how affordability is folded into the wizard result. */
+export type AffordabilityMatchMode = 'off' | 'filter' | 'soft';
+
 // CF-4: WizardAnswers/defaultWizardAnswers now live in hooks/useWizardProfile.ts
 // (shared with the persistence hook and the share-URL codec). Aliased here so the
 // existing in-component references stay terse.
@@ -56,10 +64,23 @@ function normalize(value: number | null, min: number, max: number): number {
 function scoreNeighborhoods(
   data: FeatureCollection,
   answers: WizardAnswers,
+  // CF-14: optional affordability folding. When `affordabilityMode` is 'off' (or the
+  // user has no usable income/budget+size input) this is a complete no-op — nothing
+  // about the existing scoring changes for users who never opened the calculator.
+  affordability?: AffordabilityState,
+  affordabilityMode: AffordabilityMatchMode = 'off',
 ): ScoredNeighborhood[] {
   const features = data.features.filter(
     (f) => f.properties && (f.properties as NeighborhoodProperties).he_vakiy != null,
   );
+
+  // CF-14: build the affordability input once. The orientation follows the wizard's
+  // tenure answer (own → buy, rent → rent, either → cheaper of the two).
+  const affOrientation = orientationForTenure(answers.tenurePreference);
+  const affInput = affordability
+    ? { mode: affordability.mode, monthlyIncome: affordability.income, monthlyBudget: affordability.budget, sizeM2: affordability.sizeM2 ?? 0 }
+    : null;
+  const affActive = affordabilityMode !== 'off' && affInput != null;
 
   // Collect all property ranges in a single pass over features instead of
   // iterating once per property (was 9 × ~200 = 1800 iterations, now ~200).
@@ -273,7 +294,31 @@ function scoreNeighborhoods(
       });
     }
 
-    const finalScore = totalWeight > 0 ? score / totalWeight : 0;
+    let finalScore = totalWeight > 0 ? score / totalWeight : 0;
+
+    // --- CF-14: affordability fold (only when the user enabled it AND has usable input) ---
+    if (affActive && affInput) {
+      const aff: AffordabilityScore = affordabilityScore(affInput, p, affOrientation);
+      if (aff.applicable) {
+        const overBudget = aff.affordable === false;
+        if (affordabilityMode === 'filter' && overBudget) {
+          // Hard filter: drop the area from the result set entirely.
+          continue;
+        }
+        if (affordabilityMode === 'soft') {
+          // Soft weight: scale the whole match toward 0 as the cost overshoots.
+          finalScore *= aff.weight;
+        }
+        if (!overBudget) reasons.push(t('wizard.reason_within_budget'));
+        // Surface the affordability verdict in the "why it matched" breakdown.
+        contributions.push({
+          label: t('wizard.affordability'),
+          actual: aff.share != null ? `${Math.round(aff.share * 100)} %` : '—',
+          target: t(overBudget ? 'wizard.afford_over' : 'wizard.afford_within'),
+          direction: overBudget ? 'down' : 'up',
+        });
+      }
+    }
 
     // Deduplicate reasons
     const uniqueReasons = [...new Set(reasons)];
@@ -310,9 +355,18 @@ function scoreNeighborhoods(
 
 const STEP_COUNT = 4;
 
-export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onClose, onShowOnMap, initialAnswers, onSaveProfile, onApplyToMap }) => {
+export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onClose, onShowOnMap, initialAnswers, onSaveProfile, onApplyToMap, affordability }) => {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
+  // CF-14: does the user have a usable affordability input (amount + size)? Only
+  // then do we offer the "within my budget" control; otherwise it stays a no-op.
+  const hasAffordability =
+    affordability != null &&
+    affordability.sizeM2 != null &&
+    (affordability.mode === 'budget' ? affordability.budget != null : affordability.income != null);
+  // CF-14: how affordability folds into the result. Default 'off' so existing users
+  // (and anyone who hasn't set a budget) see exactly the historical behaviour.
+  const [affordabilityMode, setAffordabilityMode] = useState<AffordabilityMatchMode>('off');
   // CF-4: pre-fill from a persisted/shared profile when provided.
   const [answers, setAnswers] = useState<WizardAnswers>(() => ({ ...defaultAnswers, ...initialAnswers }));
   // CF-4: feedback flag for the "Save my priorities" action.
@@ -354,10 +408,12 @@ export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onCl
     return () => trigger?.focus?.();
   }, []);
 
+  // CF-14: only fold affordability when the user has a usable input AND enabled it.
+  const effectiveAffMode: AffordabilityMatchMode = hasAffordability ? affordabilityMode : 'off';
   const topMatches = useMemo(() => {
     if (!activeData || step < 3) return [];
-    return scoreNeighborhoods(activeData, answers);
-  }, [activeData, answers, step]);
+    return scoreNeighborhoods(activeData, answers, affordability, effectiveAffMode);
+  }, [activeData, answers, step, affordability, effectiveAffMode]);
 
   // CF-6: open a result. National features are geometry-stripped, so the map can't
   // fly to them — navigate to their profile page instead (as national similarity
@@ -674,6 +730,36 @@ export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onCl
           <ComparisonScopeToggle scope={scope} onChange={setScope} disabled={nationalLoading} />
         </div>
       </div>
+
+      {/* CF-14: affordability fold — only when the user has set a budget + size.
+          'off' keeps results untouched; 'soft' boosts affordable areas in the
+          match-%, 'filter' drops areas that overshoot the budget entirely. */}
+      {hasAffordability && (
+        <div className="rounded-xl bg-surface-50 dark:bg-surface-800/40 border border-surface-200 dark:border-surface-700/50 p-3 space-y-2">
+          <p className="text-xs font-medium text-surface-700 dark:text-surface-300">
+            {t('wizard.affordability_match')}
+          </p>
+          <div className="grid grid-cols-3 gap-1.5">
+            {(['off', 'soft', 'filter'] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => setAffordabilityMode(m)}
+                aria-pressed={affordabilityMode === m}
+                className={`px-2 py-1.5 rounded-lg text-[11px] font-medium border transition-colors
+                  ${affordabilityMode === m
+                    ? 'bg-blue-500 text-white border-blue-500 shadow-sm'
+                    : 'bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-400 border-surface-200 dark:border-surface-700/50 hover:bg-surface-200 dark:hover:bg-surface-700'
+                  }`}
+              >
+                {t(`wizard.afford_mode_${m}`)}
+              </button>
+            ))}
+          </div>
+          <p className="text-[11px] text-surface-400 dark:text-surface-500">
+            {t(`wizard.afford_mode_${affordabilityMode}_hint`)}
+          </p>
+        </div>
+      )}
 
       {/* CF-4: persist the priority profile + optionally reflect it on the live map */}
       {(onSaveProfile || onApplyToMap) && (

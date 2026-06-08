@@ -2,6 +2,10 @@ import type { FeatureCollection } from 'geojson';
 import { type LayerId, type LayerConfig, getLayerById, LAYERS } from './colorScales';
 import type { NeighborhoodProperties } from './metrics';
 import { distributionFor, valueAtPercentileSorted } from './percentileRanks';
+import {
+  affordabilityScore, effectiveMonthlyBudget,
+  type AffordabilityInput, type AffordabilityOrientation,
+} from './affordability';
 
 /**
  * CF-7: how a criterion's `min`/`max` bounds are interpreted.
@@ -188,4 +192,60 @@ export function computeMatchingPnos(
   }
 
   return pnos;
+}
+
+// ─── CF-14: affordability-aware scoring path ────────────────────────────────
+// Optional add-on to the Quality-Index / best-match flow so it can respect
+// "within my budget". A complete NO-OP when the user has entered no usable
+// affordability input (no budget/income + size): isAffordabilityActive returns
+// false and callers leave their existing behaviour untouched.
+
+/** True when the affordability input carries a usable budget (so an affordability
+ *  test can actually run). Cheap guard callers use to stay a no-op when unset. */
+export function isAffordabilityActive(input: AffordabilityInput | null | undefined): boolean {
+  return input != null && effectiveMonthlyBudget(input) > 0;
+}
+
+/**
+ * CF-14: PNOs whose estimated housing cost is within the user's budget, for use
+ * as an OPTIONAL hard filter alongside computeMatchingPnos. Returns null (not an
+ * empty set) when affordability is inactive, so callers can skip ANDing it in
+ * rather than accidentally filtering everything out.
+ *
+ * An area that the test cannot judge (missing rent/buy price for the chosen
+ * orientation) is INCLUDED — affordability can't disqualify what it can't measure.
+ */
+export function computeAffordablePnos(
+  data: FeatureCollection | null,
+  input: AffordabilityInput | null | undefined,
+  orientation: AffordabilityOrientation = 'either',
+): Set<string> | null {
+  if (!data || !isAffordabilityActive(input)) return null;
+  const pnos = new Set<string>();
+  for (const f of data.features) {
+    const p = f.properties as NeighborhoodProperties;
+    if (!p?.pno || !p.he_vakiy || p.he_vakiy <= 0) continue;
+    const aff = affordabilityScore(input!, p, orientation);
+    // Not applicable (no comparable price) → can't disqualify; include it.
+    if (!aff.applicable || aff.affordable !== false) pnos.add(p.pno);
+  }
+  return pnos;
+}
+
+/**
+ * CF-14: fold affordability into a 0–100 match percentage. Multiplies the base
+ * match by the area's soft affordability weight (1 when comfortably within budget,
+ * decaying as the cost overshoots). Returns the base score UNCHANGED when
+ * affordability is inactive or the area is unjudgeable — the graceful no-op.
+ */
+export function affordabilityAdjustedMatch(
+  baseMatch: number,
+  props: NeighborhoodProperties,
+  input: AffordabilityInput | null | undefined,
+  orientation: AffordabilityOrientation = 'either',
+): number {
+  if (!isAffordabilityActive(input)) return baseMatch;
+  const aff = affordabilityScore(input!, props, orientation);
+  if (!aff.applicable) return baseMatch;
+  return Math.round(baseMatch * aff.weight);
 }

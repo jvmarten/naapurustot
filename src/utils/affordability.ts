@@ -182,3 +182,82 @@ export const AFFORDABILITY_LIMITS = {
 export function inRange(n: number | null | undefined, min: number, max: number): boolean {
   return n != null && Number.isFinite(n) && n >= min && n <= max;
 }
+
+// ─── CF-14: affordability-aware scoring / filtering ─────────────────────────
+// Folds CF-1's pure math into the discovery wizard and Quality-Index match-%, so
+// "best match" can optionally respect "within my budget". Everything here is a
+// no-op when the user has no usable affordability input — graceful default.
+
+/**
+ * Which cost an area is judged against. 'rent' / 'buy' look at exactly one share;
+ * 'either' passes when *either* renting or buying fits, and uses the better
+ * (lower) of the two shares for the soft weight. Mirrors the wizard's tenure
+ * answer ('own' → 'buy', 'rent' → 'rent', 'either' → 'either').
+ */
+export type AffordabilityOrientation = 'rent' | 'buy' | 'either';
+
+export interface AffordabilityScore {
+  /** True when input + size + a relevant price field were all usable — i.e. the
+   *  affordability test actually ran. When false, callers must treat the area as
+   *  neither helped nor hurt (no-op). */
+  applicable: boolean;
+  /** True when the relevant cost is within budget (share ≤ 1.0). null when not applicable. */
+  affordable: boolean | null;
+  /** The decisive cost/budget share used (rent, buy, or the better of the two). null when not applicable. */
+  share: number | null;
+  /**
+   * Soft 0–1 multiplier for ranking: 1 when comfortably within budget, decaying
+   * toward 0 as the cost overshoots (1 at share ≤ 1, 0 at share ≥ OVERSHOOT_MAX).
+   * 1 (neutral) when not applicable so it never penalizes areas the test can't judge.
+   */
+  weight: number;
+}
+
+/** Share at/above which the soft affordability weight bottoms out at 0. A cost
+ *  twice the budget contributes nothing; between 1× and 2× it ramps down linearly. */
+export const AFFORDABILITY_OVERSHOOT_MAX = 2.0;
+
+const softWeightForShare = (share: number | null): number => {
+  if (share == null || !Number.isFinite(share)) return 1; // not judgeable → neutral
+  if (share <= RENT_GREEN_MAX) return 1;
+  if (share >= AFFORDABILITY_OVERSHOOT_MAX) return 0;
+  return (AFFORDABILITY_OVERSHOOT_MAX - share) / (AFFORDABILITY_OVERSHOOT_MAX - RENT_GREEN_MAX);
+};
+
+/**
+ * CF-14 core: judge how an area's housing cost fits the user's budget. Reuses
+ * affordabilityFor (no duplicated math). When the input carries no usable budget
+ * (effectiveMonthlyBudget ≤ 0) or the relevant price field is missing, returns a
+ * NEUTRAL, non-applicable result so the caller leaves the area's score untouched.
+ *
+ * `orientation` picks rent vs buy (or either); 'either' passes when the cheaper of
+ * the two paths fits, and scores on that better share.
+ */
+export function affordabilityScore(
+  input: AffordabilityInput,
+  props: AffordabilityInputProps,
+  orientation: AffordabilityOrientation = 'either',
+): AffordabilityScore {
+  const NEUTRAL: AffordabilityScore = { applicable: false, affordable: null, share: null, weight: 1 };
+  if (effectiveMonthlyBudget(input) <= 0) return NEUTRAL;
+
+  const r = affordabilityFor(input, props);
+  const shares: number[] = [];
+  if (orientation !== 'buy' && r.rentShare != null) shares.push(r.rentShare);
+  if (orientation !== 'rent' && r.buyShare != null) shares.push(r.buyShare);
+  if (shares.length === 0) return NEUTRAL; // no relevant price data → can't judge
+
+  // 'either' takes the cheaper path; a single-orientation request has one share.
+  const share = Math.min(...shares);
+  return {
+    applicable: true,
+    affordable: share <= RENT_GREEN_MAX,
+    share,
+    weight: softWeightForShare(share),
+  };
+}
+
+/** Map a wizard tenure answer to the affordability orientation. */
+export function orientationForTenure(tenure: 'own' | 'rent' | 'either'): AffordabilityOrientation {
+  return tenure === 'own' ? 'buy' : tenure === 'rent' ? 'rent' : 'either';
+}

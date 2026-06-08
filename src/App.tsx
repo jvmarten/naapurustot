@@ -1904,6 +1904,7 @@ const App: React.FC = () => {
               initialAnswers={wizardProfile}
               onSaveProfile={handleSaveWizardProfile}
               onApplyToMap={handleApplyWizardToMap}
+              affordability={affordabilityState}
             />
           </Suspense>
         </ErrorBoundary>
