@@ -11,6 +11,9 @@ import {
   getDefaultWeights, getPersonaWeights, detectPersona, isCustomWeights,
   QUALITY_FACTORS, QUALITY_PERSONAS,
 } from '../utils/qualityIndex';
+import {
+  SIMILARITY_METRIC_KEYS, SIMILARITY_WEIGHT_MIN, SIMILARITY_WEIGHT_MAX, SIMILARITY_WEIGHT_DEFAULT,
+} from '../utils/similarity';
 
 /**
  * IN-3: share-URL schema version.
@@ -51,6 +54,15 @@ export interface UrlViewport {
   zoom: number;
 }
 
+/** CF-1: affordability-calculator inputs carried in the share URL. */
+export interface UrlAffordability {
+  mode: 'income' | 'budget';
+  /** €/month — net income (income mode) or housing budget (budget mode). */
+  amount: number;
+  /** Apartment size in m². */
+  sizeM2: number;
+}
+
 interface UrlState {
   pno: string | null;
   layer: LayerId | null;
@@ -64,6 +76,9 @@ interface UrlState {
   // CF-5: postal code of the custom reference-baseline neighbourhood.
   ref: string | null;
   // CF-1b: active filter range criteria (empty when absent from the URL).
+  // CF-7: each criterion's per-criterion mode (absolute vs percentile) round-trips
+  // inside the same `filter` param via serializeFilters/deserializeFilters (a trailing
+  // `~p` flag), which is already gated by the IN-3 version guard (VERSIONED_PARAM_KEYS).
   filters: FilterCriterion[];
   // CF-1: custom quality weights (from a persona id or a diff), null when default.
   weights: QualityWeights | null;
@@ -73,6 +88,10 @@ interface UrlState {
   viewport: UrlViewport | null;
   // QW-2: shared shortlist (postal codes), empty when absent.
   shortlist: string[];
+  // CF-1 (affordability): shared rent/buy calculator inputs, null when absent.
+  affordability: UrlAffordability | null;
+  // CF-5: per-metric similarity weights (only non-default entries), null when absent.
+  simWeights: Record<string, number> | null;
 }
 
 /** CF-1: the extra analytical state the URL can carry beyond pno/layer/compare/city. */
@@ -91,6 +110,10 @@ export interface ExtraUrlState {
   isochrone?: UrlIsochrone | null;
   /** QW-2: current shortlist (postal codes). */
   shortlist?: string[];
+  /** CF-1 (affordability): rent/buy calculator inputs. */
+  affordability?: UrlAffordability | null;
+  /** CF-5: per-metric similarity weights (only non-default entries carried). */
+  simWeights?: Record<string, number> | null;
 }
 
 const VALID_CITIES = new Set<string>(['all', ...REGION_IDS]);
@@ -165,6 +188,71 @@ function deserializeIsochrone(s: string): UrlIsochrone | null {
   return null;
 }
 
+// ─── CF-1: affordability calculator URL codec ───────────────────────────────
+// Encoded as `aff=i~3000~50` (income mode) or `aff=b~1200~50` (budget mode),
+// i.e. `<mode>~<amount>~<sizeM2>`. Amount/size are clamped to the same generous
+// bounds the input form enforces so a hand-edited link can never inject absurd
+// values. Defaults are omitted entirely by the serializer (no `aff` when unset).
+const AFF_AMOUNT_MAX = 1_000_000;
+const AFF_SIZE_MAX = 1000;
+
+function serializeAffordability(a: UrlAffordability): string {
+  const m = a.mode === 'budget' ? 'b' : 'i';
+  return `${m}~${Math.round(a.amount)}~${Math.round(a.sizeM2)}`;
+}
+
+function deserializeAffordability(s: string): UrlAffordability | null {
+  const [modeRaw, amountRaw, sizeRaw] = s.split('~');
+  const mode = modeRaw === 'b' ? 'budget' : modeRaw === 'i' ? 'income' : null;
+  const amount = Number(amountRaw);
+  const sizeM2 = Number(sizeRaw);
+  if (
+    mode &&
+    Number.isFinite(amount) && amount >= 1 && amount <= AFF_AMOUNT_MAX &&
+    Number.isFinite(sizeM2) && sizeM2 >= 1 && sizeM2 <= AFF_SIZE_MAX
+  ) {
+    return { mode, amount: Math.round(amount), sizeM2: Math.round(sizeM2) };
+  }
+  return null;
+}
+
+// ─── CF-5: similarity-weight URL codec ──────────────────────────────────────
+// The per-metric similarity weights (0–3, default 1) are encoded compactly as
+// `simw=hr_mtu:2,crime_index:0` — only the metrics that differ from the neutral
+// default of 1 are listed, so an all-default configuration omits the param
+// entirely. Unknown keys and out-of-range values are dropped on decode.
+
+function serializeSimWeights(w: Record<string, number>): string {
+  const parts: string[] = [];
+  for (const key of Object.keys(w)) {
+    if (!SIMILARITY_METRIC_KEYS.has(key)) continue;
+    const v = Math.round(w[key]);
+    if (!Number.isFinite(v) || v === SIMILARITY_WEIGHT_DEFAULT) continue;
+    if (v < SIMILARITY_WEIGHT_MIN || v > SIMILARITY_WEIGHT_MAX) continue;
+    parts.push(`${key}:${v}`);
+  }
+  return parts.join(',');
+}
+
+function deserializeSimWeights(encoded: string): Record<string, number> | null {
+  const out: Record<string, number> = {};
+  for (const part of encoded.split(',')) {
+    const idx = part.indexOf(':');
+    if (idx <= 0) continue;
+    const key = part.slice(0, idx);
+    const val = Number(part.slice(idx + 1));
+    if (
+      SIMILARITY_METRIC_KEYS.has(key) &&
+      Number.isFinite(val) &&
+      val >= SIMILARITY_WEIGHT_MIN && val <= SIMILARITY_WEIGHT_MAX &&
+      val !== SIMILARITY_WEIGHT_DEFAULT
+    ) {
+      out[key] = Math.round(val);
+    }
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
+
 /**
  * IN-3: read and normalise the share-URL schema version.
  *
@@ -204,13 +292,15 @@ type StructuredParams = {
   isoRaw: string | null;
   viewRaw: string | null;
   slRaw: string | null;
+  affRaw: string | null;
+  simwRaw: string | null;
 };
 
 function migrateParams(searchParams: URLSearchParams, version: number): StructuredParams {
   const read = (key: string): string | null => searchParams.get(key);
   // Newer-than-current schema: discard structured params we may decode incorrectly.
   if (version > URL_SCHEMA_VERSION) {
-    return { filterRaw: null, qpRaw: null, qwRaw: null, isoRaw: null, viewRaw: null, slRaw: null };
+    return { filterRaw: null, qpRaw: null, qwRaw: null, isoRaw: null, viewRaw: null, slRaw: null, affRaw: null, simwRaw: null };
   }
   // v1 (legacy) … current: every prior encoding is still readable as-is.
   return {
@@ -220,6 +310,8 @@ function migrateParams(searchParams: URLSearchParams, version: number): Structur
     isoRaw: read('iso'),
     viewRaw: read('v'),
     slRaw: read('sl'),
+    affRaw: read('aff'),
+    simwRaw: read('simw'),
   };
 }
 
@@ -255,7 +347,7 @@ function parseUrl(): UrlState {
   // IN-3: resolve the schema version, then gate the structured params through the
   // migration/clamp guard. Simple primitives below are read directly (stable format).
   const schemaVersion = readSchemaVersion(searchParams);
-  const { filterRaw, qpRaw, qwRaw, isoRaw, viewRaw, slRaw } = migrateParams(searchParams, schemaVersion);
+  const { filterRaw, qpRaw, qwRaw, isoRaw, viewRaw, slRaw, affRaw, simwRaw } = migrateParams(searchParams, schemaVersion);
 
   // CF-1: extended analytical state (query params only — legacy hash links never had these).
   const scopeRaw = searchParams.get('scope');
@@ -285,6 +377,8 @@ function parseUrl(): UrlState {
     isochrone: isoRaw ? deserializeIsochrone(isoRaw) : null,
     viewport: viewRaw ? deserializeViewport(viewRaw) : null,
     shortlist: slRaw ? slRaw.split('.').filter((p) => /^\d{5}$/.test(p)) : [],
+    affordability: affRaw ? deserializeAffordability(affRaw) : null,
+    simWeights: simwRaw ? deserializeSimWeights(simwRaw) : null,
   };
 }
 
@@ -298,7 +392,7 @@ function parseUrl(): UrlState {
  * (e.g. CF-9's `draw`) should add their encoded key here when factored through
  * `serializeUrlParams`.
  */
-const VERSIONED_PARAM_KEYS = ['filter', 'qp', 'qw', 'iso', 'v', 'sl'] as const;
+const VERSIONED_PARAM_KEYS = ['filter', 'qp', 'qw', 'iso', 'v', 'sl', 'aff', 'simw'] as const;
 
 /** True when the built params carry at least one structured/version-sensitive key. */
 function hasVersionedParams(params: URLSearchParams): boolean {
@@ -347,6 +441,13 @@ function serializeUrlParams(pno: string | null, layer: LayerId, comparePnos: str
   if (extras.isochrone) params.set('iso', `${extras.isochrone.mode}~${extras.isochrone.budget}`);
   // QW-2: shared shortlist.
   if (extras.shortlist && extras.shortlist.length > 0) params.set('sl', extras.shortlist.join('.'));
+  // CF-1: affordability calculator inputs (omitted entirely when unset).
+  if (extras.affordability) params.set('aff', serializeAffordability(extras.affordability));
+  // CF-5: per-metric similarity weights — only non-default entries, omitted when all default.
+  if (extras.simWeights) {
+    const simw = serializeSimWeights(extras.simWeights);
+    if (simw) params.set('simw', simw);
+  }
   return params;
 }
 
@@ -394,18 +495,20 @@ export function buildViewportShareUrl(viewport: UrlViewport | null): string {
  *  URL before the restoration effect has consumed them (e.g., pinned neighborhoods). */
 export function useSyncUrlState(pno: string | null, layer: LayerId, comparePnos: string[] = [], city: string = 'helsinki_metro', ready = true, extras: ExtraUrlState = {}) {
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const { scope, year, colorblind, lang, ref, filters, weights, isochrone, shortlist } = extras;
+  const { scope, year, colorblind, lang, ref, filters, weights, isochrone, shortlist, affordability, simWeights } = extras;
   // Depend on serialized keys, not object/array references, so an unchanged value
   // never re-triggers the URL write.
   const filterKey = filters && filters.length > 0 ? serializeFilters(filters) : '';
   const weightsKey = weightsParamKey(weights);
   const isoKey = isochrone ? `${isochrone.mode}~${isochrone.budget}` : '';
   const shortlistKey = shortlist && shortlist.length > 0 ? shortlist.join('.') : '';
+  const affKey = affordability ? serializeAffordability(affordability) : '';
+  const simwKey = simWeights ? serializeSimWeights(simWeights) : '';
   useEffect(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
     if (!ready) return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-    timerRef.current = setTimeout(() => writeUrl(pno, layer, comparePnos, city, { scope, year, colorblind, lang, ref, filters, weights, isochrone, shortlist }), 100);
+    timerRef.current = setTimeout(() => writeUrl(pno, layer, comparePnos, city, { scope, year, colorblind, lang, ref, filters, weights, isochrone, shortlist, affordability, simWeights }), 100);
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- object/array extras are tracked via their serialized *Key deps
-  }, [pno, layer, comparePnos, city, ready, scope, year, colorblind, lang, ref, filterKey, weightsKey, isoKey, shortlistKey]);
+  }, [pno, layer, comparePnos, city, ready, scope, year, colorblind, lang, ref, filterKey, weightsKey, isoKey, shortlistKey, affKey, simwKey]);
 }

@@ -39,6 +39,8 @@ import { useFavorites } from './hooks/useFavorites';
 import { useRecentNeighborhoods } from './hooks/useRecentNeighborhoods';
 import { useShortlist } from './hooks/useShortlist';
 import { useSelectedNeighborhood } from './hooks/useSelectedNeighborhood';
+import { useAffordability } from './hooks/useAffordability';
+import { useSimilarityMetrics } from './hooks/useSimilarityMetrics';
 import { useAuth } from './hooks/useAuth';
 const AuthModal = lazy(() => import('./components/AuthModal').then(m => ({ default: m.AuthModal })));
 const OnboardingTour = lazy(() => import('./components/OnboardingTour').then(m => ({ default: m.OnboardingTour })));
@@ -57,6 +59,7 @@ import { buildMetroAreaFeatures, clearMetroAreaCache } from './utils/metroAreas'
 import { useAllCitiesUnionPreload } from './hooks/useAllCitiesUnionPreload';
 import { IS_EMBED, buildEmbedSnippet, buildFullViewUrl, postEmbedHeight } from './utils/embed';
 import { findNeighborhoodForPoint } from './utils/geocode';
+import { loadHomeReference, saveHomeReference } from './utils/homeReference';
 import { getFeatureCenter } from './utils/geometryFilter';
 import { ISOCHRONE_ENABLED, fetchIsochrone, type IsochroneMode } from './utils/isochrone';
 
@@ -272,6 +275,9 @@ const App: React.FC = () => {
     return () => { cancelled = true; };
   }, [gridDataBboxClipped, gridClipGeometry]);
   const [wizardResultPnos, setWizardResultPnos] = useState<string[]>([]);
+  // CF-12: adjacent postal codes to ring-highlight, driven by the panel's
+  // neighbouring-areas lens. Cleared when the panel unmounts or the area changes.
+  const [neighborHighlightPnos, setNeighborHighlightPnos] = useState<string[]>([]);
   const [flyTarget, setFlyTarget] = useState<{ center: [number, number]; zoom?: number; bounds?: [number, number, number, number] } | null>(() => {
     // CF-1: an explicit shared viewport takes precedence over the city preset.
     if (initialUrl.viewport) {
@@ -322,6 +328,16 @@ const App: React.FC = () => {
   const { recent, addRecent } = useRecentNeighborhoods();
   // QW-2: durable shortlist (distinct from one-tap favorites). QW-2b: cloud-syncs when signed in.
   const { shortlist, isInShortlist, toggleShortlist, removeFromShortlist, clearShortlist, mergeIntoShortlist } = useShortlist(user?.id);
+  // CF-1: affordability calculator inputs (localStorage + URL-shared). Hydrates from a shared link.
+  const { state: affordabilityState, update: updateAffordability, urlValue: affordabilityUrl } = useAffordability(initialUrl.affordability);
+  // CF-5: per-metric similarity weights (localStorage + URL-shared). Lifted here so the
+  // URL writer can carry them; the panel drives the controls via the passed props.
+  const {
+    weights: similarityWeights,
+    setWeight: setSimilarityWeight,
+    toggle: toggleSimilarityMetric,
+    urlWeights: similarityUrlWeights,
+  } = useSimilarityMetrics(initialUrl.simWeights);
   const restoredPno = useRef(false);
   // Monotonic version counter to force re-renders when quality indices change
   const [qualityVersion, setQualityVersion] = useState(0);
@@ -363,7 +379,8 @@ const App: React.FC = () => {
   // CF-5: custom reference baseline — compare the panel's diffs + radar overlay
   // against a user-pinned neighbourhood instead of the region average. Falls back to
   // the average when no reference is set or when viewing the reference area itself.
-  const [referencePno, setReferencePno] = useState<string | null>(initialUrl.ref);
+  // QW-2: a shared `ref` link wins; otherwise restore the user's persisted "my home".
+  const [referencePno, setReferencePno] = useState<string | null>(() => initialUrl.ref ?? loadHomeReference());
   const referenceProps = useMemo(
     () => (referencePno ? (pnoFeatureMap.get(referencePno)?.properties as NeighborhoodProperties | undefined) : undefined),
     [referencePno, pnoFeatureMap],
@@ -378,6 +395,9 @@ const App: React.FC = () => {
   );
   const handleSetReference = useCallback((pno: string | null) => {
     setReferencePno(pno);
+    // QW-2: mirror to localStorage so "my home" survives reloads (URL `ref` still
+    // carries it for sharing; this restores it when no link is present).
+    saveHomeReference(pno);
     trackEvent(pno ? 'set-reference' : 'clear-reference');
   }, []);
 
@@ -745,6 +765,8 @@ const App: React.FC = () => {
     weights: qualityWeights,
     isochrone: isochronePolygon ? { mode: isochroneMode, budget: isochroneBudget } : null,
     shortlist,
+    affordability: affordabilityUrl,
+    simWeights: similarityUrlWeights,
   });
 
   // Recompute quality indices when custom weights change.
@@ -1138,6 +1160,8 @@ const App: React.FC = () => {
     setShowWizard(false);
   }, []);
   const handleFlyTo = useCallback((center: [number, number]) => setFlyTarget({ center }), []);
+  // CF-12: stable setter for the panel's spatial-neighbour ring highlight.
+  const handleHighlightNeighbors = useCallback((pnos: string[]) => setNeighborHighlightPnos(pnos), []);
 
   // Memoize the headerSlot to avoid creating new React elements on every App render.
   // Without this, LayerSelector (React.memo) re-renders on every unrelated state change.
@@ -1493,6 +1517,7 @@ const App: React.FC = () => {
             qualityVersion={qualityVersion}
             colorblind={colorblind}
             wizardHighlightPnos={wizardResultPnos}
+            neighborHighlightPnos={neighborHighlightPnos}
             fillOpacity={fillOpacity}
             gridData={gridData}
             drawMode={drawMode}
@@ -1615,7 +1640,16 @@ const App: React.FC = () => {
       {/* Search bar (hidden in embed mode) */}
       {!IS_EMBED && (
         <div data-tour-id="search" className="absolute top-[3.5rem] left-3 md:left-4 z-10 w-52 md:w-72">
-          <SearchBar data={data} searchData={searchIndex} onSelect={handleSearch} recent={recent} lang={lang} />
+          <SearchBar
+            data={data}
+            searchData={searchIndex}
+            onSelect={handleSearch}
+            recent={recent}
+            lang={lang}
+            homePno={referencePno}
+            homeName={referenceName}
+            onSetHome={handleSetReference}
+          />
         </div>
       )}
 
@@ -1753,6 +1787,12 @@ const App: React.FC = () => {
             isochroneActive={isochronePolygon != null}
             onIsochroneChange={handleIsochroneChange}
             onIsochroneClear={handleIsochroneClear}
+            affordabilityState={affordabilityState}
+            onAffordabilityChange={updateAffordability}
+            similarityWeights={similarityWeights}
+            onSimilarityWeightChange={setSimilarityWeight}
+            onSimilarityToggle={toggleSimilarityMetric}
+            onHighlightNeighbors={handleHighlightNeighbors}
           />
           </Suspense>
         </ErrorBoundary>

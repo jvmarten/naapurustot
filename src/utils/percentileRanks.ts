@@ -29,15 +29,42 @@ export interface MetricDirection {
   higherIsBetter: boolean;
 }
 
+/** The metric keys CF-11/CF-8 surface as percentile superlatives. */
+export type PercentileMetricKey =
+  | 'quality'
+  | 'income'
+  | 'transit'
+  | 'crime'
+  | 'air'
+  | 'treeCanopy'
+  | 'education'
+  | 'employment';
+
 /**
- * The three metrics CF-11 surfaces. `quality_index` and `transit_reachability_score`
- * are 0–100 composite scores; `hr_mtu` is the Statistics Finland median income (€/yr).
- * For all three, a higher value is the better/“top” end.
+ * The metrics surfaced as percentile superlatives, with each metric's "better"
+ * direction.
+ *
+ * CF-11 seeded three high-coverage, clear-direction metrics: `quality_index` and
+ * `transit_reachability_score` are 0–100 composite scores; `hr_mtu` is the
+ * Statistics Finland median income (€/yr) — for all three a higher value is the
+ * better/"top" end.
+ *
+ * CF-8 broadens this to five more high-coverage, unambiguous-direction metrics:
+ *  - `crime_index` (100% coverage) — lower is better (less crime).
+ *  - `air_quality_index` (100%) — lower is better (lower index = cleaner air).
+ *  - `tree_canopy_pct` (100%) — higher is better (more greenery).
+ *  - `higher_education_rate` (97%) — higher is better.
+ *  - `employment_rate` (97%) — higher is better.
  */
-export const PERCENTILE_METRICS: Record<'quality' | 'income' | 'transit', MetricDirection> = {
+export const PERCENTILE_METRICS: Record<PercentileMetricKey, MetricDirection> = {
   quality: { prop: 'quality_index', higherIsBetter: true },
   income: { prop: 'hr_mtu', higherIsBetter: true },
   transit: { prop: 'transit_reachability_score', higherIsBetter: true },
+  crime: { prop: 'crime_index', higherIsBetter: false },
+  air: { prop: 'air_quality_index', higherIsBetter: false },
+  treeCanopy: { prop: 'tree_canopy_pct', higherIsBetter: true },
+  education: { prop: 'higher_education_rate', higherIsBetter: true },
+  employment: { prop: 'employment_rate', higherIsBetter: true },
 };
 
 /** Anything with a `.properties` bag of numbers — GeoJSON features or bare property objects. */
@@ -93,6 +120,41 @@ export function percentileRankSorted(sorted: number[], value: number): number | 
     else hi = mid;
   }
   return (lo / sorted.length) * 100;
+}
+
+/**
+ * Inverse of `percentileRankSorted`: the value at percentile `p` (0–100) within
+ * an already-sorted ascending distribution — i.e. the quantile. Returns null for
+ * an empty distribution or a non-finite `p`.
+ *
+ * CF-7: powers percentile-mode range filters, where the slider expresses a 0–100
+ * rank and `computeMatchingPnos` resolves each bound to a concrete metric value at
+ * filter time. Uses linear interpolation between the two straddling observations
+ * (the same convention as `Math`-style quantiles), with the rank clamped to
+ * [0, 100] so a hand-edited URL can never index out of bounds. p=0 → the minimum,
+ * p=100 → the maximum.
+ */
+export function valueAtPercentileSorted(sorted: number[], p: number): number | null {
+  if (sorted.length === 0 || !Number.isFinite(p)) return null;
+  const clamped = p <= 0 ? 0 : p >= 100 ? 100 : p;
+  if (sorted.length === 1) return sorted[0];
+  // Position on the 0..(n-1) index axis.
+  const pos = (clamped / 100) * (sorted.length - 1);
+  const lo = Math.floor(pos);
+  const hi = Math.ceil(pos);
+  if (lo === hi) return sorted[lo];
+  const frac = pos - lo;
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * frac;
+}
+
+/** Convenience: derive the distribution and return the value at percentile `p`. */
+export function valueAtPercentile(
+  sources: Array<HasProperties | Record<string, unknown>>,
+  prop: string,
+  p: number,
+  options: { requirePositive?: boolean } = {},
+): number | null {
+  return valueAtPercentileSorted(distributionFor(sources, prop, options), p);
 }
 
 /** Convenience: derive the distribution and return the percentile rank in one call. */
@@ -159,16 +221,16 @@ export function metricPercentile(
   };
 }
 
-/** Bundle of all CF-11 percentile metrics for one neighbourhood. */
-export interface NeighbourhoodPercentiles {
-  quality: MetricPercentile;
-  income: MetricPercentile;
-  transit: MetricPercentile;
-}
+/** Bundle of all percentile metrics for one neighbourhood (CF-11 + CF-8). */
+export type NeighbourhoodPercentiles = Record<PercentileMetricKey, MetricPercentile>;
 
 /**
- * Compute the full CF-11 percentile bundle (quality, income, transit) for a
- * single neighbourhood, given its properties and the national/regional cohorts.
+ * Compute the full percentile bundle for a single neighbourhood, given its
+ * properties and the national/regional cohorts.
+ *
+ * Covers the CF-11 trio (quality, income, transit) plus the CF-8 additions
+ * (crime, air, treeCanopy, education, employment), each ranked from its own
+ * direction so the "top X%" reads correctly (e.g. low crime → top percentile).
  *
  * Income uses requirePositive: a 0 or negative median income is a missing-data
  * placeholder in Paavo and must not pollute the distribution or the rank.
@@ -178,12 +240,18 @@ export function computeNeighbourhoodPercentiles(
   nationalSources: Array<HasProperties | Record<string, unknown>>,
   regionalSources: Array<HasProperties | Record<string, unknown>>,
 ): NeighbourhoodPercentiles {
-  const qv = readMetric(props, PERCENTILE_METRICS.quality.prop);
-  const iv = readMetric(props, PERCENTILE_METRICS.income.prop);
-  const tv = readMetric(props, PERCENTILE_METRICS.transit.prop);
+  const pct = (key: PercentileMetricKey, options?: { requirePositive?: boolean }): MetricPercentile => {
+    const dir = PERCENTILE_METRICS[key];
+    return metricPercentile(readMetric(props, dir.prop), dir, nationalSources, regionalSources, options);
+  };
   return {
-    quality: metricPercentile(qv, PERCENTILE_METRICS.quality, nationalSources, regionalSources),
-    income: metricPercentile(iv, PERCENTILE_METRICS.income, nationalSources, regionalSources, { requirePositive: true }),
-    transit: metricPercentile(tv, PERCENTILE_METRICS.transit, nationalSources, regionalSources),
+    quality: pct('quality'),
+    income: pct('income', { requirePositive: true }),
+    transit: pct('transit'),
+    crime: pct('crime'),
+    air: pct('air'),
+    treeCanopy: pct('treeCanopy'),
+    education: pct('education'),
+    employment: pct('employment'),
   };
 }

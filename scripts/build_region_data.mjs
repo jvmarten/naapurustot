@@ -18,6 +18,7 @@ import { execSync } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdirSync, existsSync, unlinkSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import { resolve } from 'node:path';
+import { buildAdjacencyFromRegions } from './lib/adjacency.mjs';
 
 const rootDir = resolve(import.meta.dirname, '..');
 const geojsonPath = resolve(rootDir, 'public', 'data', 'metro_neighborhoods.geojson');
@@ -129,6 +130,21 @@ writeFileSync(payloadManifestPath, JSON.stringify(payloadManifest, null, 2) + '\
 console.log(
   `  → region_payload_manifest.json (${payloadManifest.total.regions} regions, ` +
     `${totalTopojsonBytes} raw / ${totalGzipBytes} gzip bytes)`,
+);
+
+// CF-12: postal-code adjacency graph (pno -> [neighbor pnos]) derived from the
+// just-written region TopoJSON arc-sharing. Shared arcs encode shared borders,
+// so this is exact and free of geometry math. Within-region only (we never ship
+// a combined topology), keyed by the globally-unique postal code. Emitted both
+// as a bundleable source JSON and a static /data asset for the lazy fetch path.
+console.log('Building postal-code adjacency graph from TopoJSON arc-sharing...');
+const adjacency = buildAdjacencyFromRegions(regionsDir);
+const adjacencyJson = JSON.stringify(adjacency);
+writeFileSync(resolve(rootDir, 'src', 'data', 'adjacency.json'), adjacencyJson + '\n');
+const adjKeys = Object.keys(adjacency).length;
+console.log(
+  `  → adjacency.json (${adjKeys} postal codes, ` +
+    `${adjacencyJson.length} raw / ${gzipSync(adjacencyJson, { level: 9 }).length} gzip bytes)`,
 );
 
 // CF-5: properties-only dataset for the "all cities" view. That view

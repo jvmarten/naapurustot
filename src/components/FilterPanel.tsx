@@ -5,7 +5,7 @@ import type { NeighborhoodProperties } from '../utils/metrics';
 import { t, useI18nVersion } from '../utils/i18n';
 import { useBottomSheet } from '../hooks/useBottomSheet';
 
-import { type FilterCriterion, computeMatchingPnos } from '../utils/filterUtils';
+import { type FilterCriterion, computeMatchingPnos, resolveCriterionBounds } from '../utils/filterUtils';
 import { getFeatureCenter } from '../utils/geometryFilter';
 import { FilterEmptyIllustration } from './EmptyStateIllustrations';
 import { trackEvent } from '../utils/analytics';
@@ -169,22 +169,84 @@ const RangeSlider: React.FC<{
 };
 
 /* ------------------------------------------------------------------ */
+/* CF-7: percentile-mode helpers                                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * When a criterion is switched into percentile mode, seed its 0–100 bounds from the
+ * absolute values' current position in the layer's stop range (best-effort), and
+ * vice-versa when switching back. Keeps the toggle from snapping the slider to the
+ * rails on every flip.
+ */
+function toPercentileBounds(c: FilterCriterion, layer: LayerConfig): FilterCriterion {
+  const [lo, hi] = getLayerRange(layer);
+  const span = hi - lo || 1;
+  const pct = (v: number) => Math.max(0, Math.min(100, Math.round(((v - lo) / span) * 100)));
+  return { layerId: c.layerId, min: pct(c.min), max: pct(c.max), mode: 'percentile' };
+}
+
+function toAbsoluteBounds(c: FilterCriterion, layer: LayerConfig): FilterCriterion {
+  const [lo, hi] = getLayerRange(layer);
+  const span = hi - lo;
+  const val = (p: number) => lo + (Math.max(0, Math.min(100, p)) / 100) * span;
+  return { layerId: c.layerId, min: val(c.min), max: val(c.max) };
+}
+
+/**
+ * CF-7: a human "top X% / bottom X%" superlative for a percentile range, honouring
+ * the metric's direction. The slider axis is raw percentile rank (0 = lowest value,
+ * 100 = highest). A superlative reads cleanly only when the band is anchored at the
+ * favourable rail:
+ *  - higher-is-better, band reaches the top (max = 100): "top {100−min}%".
+ *  - lower-is-better, band reaches the bottom (min = 0):  "bottom {max}%".
+ * For a mid-distribution slice (neither rail at the favourable end) we return '' and
+ * the row falls back to showing just the resolved value range.
+ */
+function percentileHint(min: number, max: number, higherIsBetter: boolean): string {
+  const lo = Math.round(min);
+  const hi = Math.round(max);
+  if (lo <= 0 && hi >= 100) return ''; // whole distribution — no superlative
+  if (higherIsBetter) {
+    if (hi >= 100) return t('filter.pct_top').replace('{n}', String(Math.max(1, 100 - lo)));
+    return '';
+  }
+  if (lo <= 0) return t('filter.pct_bottom').replace('{n}', String(Math.max(1, hi)));
+  return '';
+}
+
+/* ------------------------------------------------------------------ */
 /* Single filter row                                                  */
 /* ------------------------------------------------------------------ */
 const FilterRow: React.FC<{
   criterion: FilterCriterion;
   onChange: (c: FilterCriterion) => void;
   onRemove: () => void;
-}> = ({ criterion, onChange, onRemove }) => {
+  /** CF-7: active-scope features used to resolve percentile bounds to real values. */
+  scopeFeatures: FeatureCollection['features'] | null;
+}> = ({ criterion, onChange, onRemove, scopeFeatures }) => {
   const layer = getLayerById(criterion.layerId);
-  const [rangeMin, rangeMax] = getLayerRange(layer);
+  const isPercentile = criterion.mode === 'percentile';
+  const [rangeMin, rangeMax] = isPercentile ? [0, 100] : getLayerRange(layer);
 
   // Pick a step that makes sense for the range
   const range = rangeMax - rangeMin;
-  const step = range > 1000 ? 100 : range > 100 ? 1 : range > 10 ? 0.5 : 0.01;
+  const step = isPercentile ? 1 : range > 1000 ? 100 : range > 100 ? 1 : range > 10 ? 0.5 : 0.01;
 
   const midColorIdx = Math.floor(layer.colors.length / 2);
   const color = layer.colors[midColorIdx];
+
+  // CF-7: resolved real-value bounds for the percentile slider (recomputed when the
+  // scope data or bounds change). Null when the metric has no data in scope.
+  const resolved = useMemo(
+    () => (isPercentile ? resolveCriterionBounds(criterion, scopeFeatures) : null),
+    [isPercentile, criterion, scopeFeatures],
+  );
+
+  const handleToggleMode = useCallback(() => {
+    onChange(isPercentile ? toAbsoluteBounds(criterion, layer) : toPercentileBounds(criterion, layer));
+  }, [isPercentile, criterion, layer, onChange]);
+
+  const hint = isPercentile ? percentileHint(criterion.min, criterion.max, layer.higherIsBetter !== false) : '';
 
   return (
     <div className="px-3 py-2.5 border-b border-surface-100 dark:border-surface-800/30 last:border-0">
@@ -192,15 +254,28 @@ const FilterRow: React.FC<{
         <span className="text-xs font-medium text-surface-700 dark:text-surface-200 truncate">
           {t(layer.labelKey)}
         </span>
-        <button
-          onClick={onRemove}
-          className="p-0.5 rounded hover:bg-surface-100 dark:hover:bg-surface-800/60 transition-colors flex-shrink-0"
-          aria-label={t('filter.remove')}
-        >
-          <svg className="w-3.5 h-3.5 text-surface-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <button
+            onClick={handleToggleMode}
+            className={`px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wide transition-colors
+                       ${isPercentile
+                         ? 'bg-brand-500/15 text-brand-600 dark:bg-brand-600/20 dark:text-brand-300'
+                         : 'bg-surface-100 dark:bg-surface-800/60 text-surface-500 dark:text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700/60'}`}
+            title={t('filter.mode_toggle')}
+            aria-pressed={isPercentile}
+          >
+            {isPercentile ? t('filter.mode_percentile') : t('filter.mode_absolute')}
+          </button>
+          <button
+            onClick={onRemove}
+            className="p-0.5 rounded hover:bg-surface-100 dark:hover:bg-surface-800/60 transition-colors"
+            aria-label={t('filter.remove')}
+          >
+            <svg className="w-3.5 h-3.5 text-surface-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
       </div>
       <RangeSlider
         min={rangeMin}
@@ -213,9 +288,31 @@ const FilterRow: React.FC<{
       />
       <div className="flex justify-between mt-1 text-[10px] text-surface-500 dark:text-surface-400 tabular-nums">
         {/* Values reflect the RangeSlider's debounced local state via controlled inputs */}
-        <span>{layer.format(criterion.min)}</span>
-        <span>{layer.format(criterion.max)}</span>
+        {isPercentile ? (
+          <>
+            <span>P{Math.round(criterion.min)}</span>
+            <span>P{Math.round(criterion.max)}</span>
+          </>
+        ) : (
+          <>
+            <span>{layer.format(criterion.min)}</span>
+            <span>{layer.format(criterion.max)}</span>
+          </>
+        )}
       </div>
+      {/* CF-7: resolved real-value range + superlative hint, shown beneath the slider. */}
+      {isPercentile && (
+        <div className="mt-1 flex items-center justify-between gap-2 text-[10px]">
+          <span className="text-surface-400 dark:text-surface-500 tabular-nums truncate">
+            {resolved
+              ? `${layer.format(resolved.valueMin)} – ${layer.format(resolved.valueMax)}`
+              : t('filter.pct_no_data')}
+          </span>
+          {hint && (
+            <span className="text-brand-600 dark:text-brand-400 font-medium flex-shrink-0">{hint}</span>
+          )}
+        </div>
+      )}
     </div>
   );
 };
@@ -366,6 +463,11 @@ export const FilterPanel: React.FC<FilterPanelProps> = React.memo(({
     if (!data || matchingPnos.size === 0) return [];
     return data.features.filter((f) => matchingPnos.has((f.properties as NeighborhoodProperties).pno));
   }, [data, matchingPnos]);
+
+  // CF-7: the active-scope feature set FilterRow resolves percentile bounds against.
+  // This is `filteredData` from App — already region-scoped in single-city mode and the
+  // metro aggregate in "all" mode — so percentiles honour the comparisonScope plumbing.
+  const scopeFeatures = data?.features ?? null;
 
   // Pre-resolve layer configs once per filter change — avoids calling getLayerById
   // per-feature per-filter in the ranked computation (~200 features × 4 filters = 800
@@ -644,6 +746,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = React.memo(({
                 criterion={criterion}
                 onChange={(c) => handleUpdateFilter(i, c)}
                 onRemove={() => handleRemoveFilter(i)}
+                scopeFeatures={scopeFeatures}
               />
             ))}
           </div>
@@ -775,6 +878,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = React.memo(({
                   criterion={criterion}
                   onChange={(c) => handleUpdateFilter(i, c)}
                   onRemove={() => handleRemoveFilter(i)}
+                  scopeFeatures={scopeFeatures}
                 />
               ))}
             </div>

@@ -1,17 +1,19 @@
 import React, { useState, useRef, useCallback, useMemo, useEffect, useLayoutEffect } from 'react';
 import type { NeighborhoodProperties } from '../utils/metrics';
-import { parseTrendSeries, getMetricSource, vintageFreshness, METRIC_EXPLANATIONS, formatCoveragePct } from '../utils/metrics';
+import { parseTrendSeries, getMetricSource, vintageFreshness, METRIC_EXPLANATIONS, formatCoveragePct, getCoveragePct, isPartialCoverage } from '../utils/metrics';
 import { formatNumber, formatEuro, formatPct, formatDiff, diffColor, formatYtlGradeFull, parseSchools, formatDensity, formatEuroSqm } from '../utils/formatting';
 import { t, getLang, useI18nVersion } from '../utils/i18n';
 import { getQualityCategory, QUALITY_CATEGORIES, QUALITY_DIMENSIONS, computeQualityCoverage } from '../utils/qualityIndex';
+import { computeAreaSummary, composeSummarySentences, fillTemplate } from '../utils/areaSummary';
 import { exportCsv, exportPdf } from '../utils/export';
 import { TrendSection } from './TrendChart';
 import Sparkline from './Sparkline';
 import RadarChart from './RadarChart';
 import { IsochroneControls } from './IsochroneControls';
 import type { IsochroneMode } from '../utils/isochrone';
-import { findSimilarNeighborhoods, AVAILABLE_SIMILARITY_METRICS } from '../utils/similarity';
-import { useSimilarityMetrics } from '../hooks/useSimilarityMetrics';
+import { findSimilarNeighborhoods, AVAILABLE_SIMILARITY_METRICS, SIMILARITY_WEIGHT_MIN, SIMILARITY_WEIGHT_MAX, SIMILARITY_WEIGHT_DEFAULT } from '../utils/similarity';
+import { resolveNeighborPnos } from '../utils/adjacency';
+import { getFeatureCenter } from '../utils/geometryFilter';
 import { getLayerById, type LayerId } from '../utils/colorScales';
 import { histogram, percentileRank, binIndexOf } from '../utils/correlation';
 import { toSlug } from '../utils/slug';
@@ -23,6 +25,8 @@ import { useSwipeNavigation } from '../hooks/useSwipeNavigation';
 import { trackEvent } from '../utils/analytics';
 import { generateScoreCard } from '../utils/scoreCard';
 import { useNotes } from '../hooks/useNotes';
+import { affordabilityFor, AFFORDABILITY_LIMITS, type AffordabilityBand } from '../utils/affordability';
+import type { AffordabilityState } from '../hooks/useAffordability';
 
 interface PanelProps {
   data: NeighborhoodProperties;
@@ -61,6 +65,16 @@ interface PanelProps {
   isochroneActive?: boolean;
   onIsochroneChange?: (mode: IsochroneMode, budget: number) => void;
   onIsochroneClear?: () => void;
+  /** CF-1: affordability calculator inputs (persisted + URL-shared by App). */
+  affordabilityState?: AffordabilityState;
+  onAffordabilityChange?: (patch: Partial<AffordabilityState>) => void;
+  /** CF-5: per-metric similarity weights (0–3) + controls, owned by App for URL sync. */
+  similarityWeights?: Record<string, number>;
+  onSimilarityWeightChange?: (key: string, value: number) => void;
+  onSimilarityToggle?: (key: string) => void;
+  /** CF-12: highlight a set of adjacent postal codes on the map (ring/contiguity).
+   *  Called with the neighbour PNOs to outline, or [] to clear. */
+  onHighlightNeighbors?: (pnos: string[]) => void;
 }
 
 /** CF-5: the per-row diff baseline label — the custom reference's name when one is
@@ -395,6 +409,91 @@ const DistributionSection: React.FC<{
 });
 DistributionSection.displayName = 'DistributionSection';
 
+// CF-2: auto-composed plain-language strengths & weaknesses, templated from this
+// area's REAL direction-aware percentiles across the loaded comparison cohort. The
+// same pure machinery feeds the prerendered profile meta/noscript (SEO), so the
+// on-page copy and the structured data tell the same verifiable story. Renders
+// nothing when the area has no notable standing (or the cohort is too small).
+const AreaSummarySection: React.FC<{
+  props: NeighborhoodProperties;
+  allFeatures: GeoJSON.Feature[];
+}> = React.memo(({ props, allFeatures }) => {
+  useI18nVersion();
+  const summary = useMemo(
+    () => computeAreaSummary(props as Record<string, unknown>, allFeatures),
+    [props, allFeatures],
+  );
+  // Resolve the sentence specs with the live i18n dictionary (label keys → strings,
+  // localized "and", template lookup). composeSummarySentences stays pure/reusable.
+  const sentences = useMemo(() => {
+    const specs = composeSummarySentences(summary, {
+      label: (k) => t(k),
+      and: t('summary.and'),
+    });
+    return specs.map((s) => fillTemplate(t(s.key), s.tokens));
+  }, [summary]);
+
+  if (summary.strong.length === 0 && summary.weak.length === 0) return null;
+
+  return (
+    <div className="rounded-xl bg-surface-100 dark:bg-surface-900/60 p-4 space-y-3">
+      <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-600 dark:text-surface-400">
+        {t('summary.title')}
+      </h3>
+      {sentences.length > 0 && (
+        <p className="text-sm leading-snug text-surface-700 dark:text-surface-200">
+          {sentences.join(' ')}
+        </p>
+      )}
+      {summary.strong.length > 0 && (
+        <div>
+          <span className="block text-[10px] font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mb-1">
+            {t('summary.strong')}
+          </span>
+          <div className="flex flex-wrap gap-1">
+            {summary.strong.map((e) => (
+              <span
+                key={e.prop}
+                className="inline-flex items-center gap-1 rounded px-1.5 py-px text-[11px] font-medium
+                           bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25"
+                title={fillTemplate(t('summary.chip_top'), { pct: String(e.topPct) })}
+              >
+                {t(e.labelKey)}
+                <span className="tabular-nums text-emerald-600/70 dark:text-emerald-400/70">
+                  {fillTemplate(t('summary.chip_top'), { pct: String(e.topPct) })}
+                </span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+      {summary.weak.length > 0 && (
+        <div>
+          <span className="block text-[10px] font-semibold uppercase tracking-wider text-rose-600 dark:text-rose-400 mb-1">
+            {t('summary.weak')}
+          </span>
+          <div className="flex flex-wrap gap-1">
+            {summary.weak.map((e) => (
+              <span
+                key={e.prop}
+                className="inline-flex items-center gap-1 rounded px-1.5 py-px text-[11px] font-medium
+                           bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-500/25"
+                title={fillTemplate(t('summary.chip_bottom'), { pct: String(e.bottomPct) })}
+              >
+                {t(e.labelKey)}
+                <span className="tabular-nums text-rose-600/70 dark:text-rose-400/70">
+                  {fillTemplate(t('summary.chip_bottom'), { pct: String(e.bottomPct) })}
+                </span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+});
+AreaSummarySection.displayName = 'AreaSummarySection';
+
 /**
  * Self-contained quality index badge with animated count-up.
  * Isolates ~18 animation re-renders (300ms × 60Hz) from the rest of
@@ -684,7 +783,237 @@ const NotesEditor: React.FC<{ pno: string; userId?: string | null }> = React.mem
 });
 NotesEditor.displayName = 'NotesEditor';
 
-export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, allFeatures, activeLayer, onFlyTo, isFavorite = false, onToggleFavorite, isInShortlist = false, onToggleShortlist, referencePno, referenceName, onSetReference, qualityScope = 'national', onExploreCity, userId, isochroneEnabled = false, isochroneMode = 'walk', isochroneBudget = 20, isochroneLoading = false, isochroneActive = false, onIsochroneChange, onIsochroneClear }) => {
+// CF-1: traffic-light band styling for the affordability shares.
+const BAND_STYLES: Record<AffordabilityBand, { dot: string; text: string; bg: string }> = {
+  green: { dot: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/30' },
+  amber: { dot: 'bg-amber-500', text: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-400/10 border-amber-400/30' },
+  red: { dot: 'bg-rose-500', text: 'text-rose-600 dark:text-rose-400', bg: 'bg-rose-500/10 border-rose-500/30' },
+};
+const BAND_LABEL_KEY: Record<AffordabilityBand, string> = {
+  green: 'afford.band_green',
+  amber: 'afford.band_amber',
+  red: 'afford.band_red',
+};
+
+/** CF-1: a single cost card (rent or buy) with its share bar and band label. */
+const AffordRow: React.FC<{
+  heading: string;
+  primary: string;
+  secondary?: string | null;
+  share: number | null;
+  band: AffordabilityBand | null;
+  noDataLabel: string;
+}> = ({ heading, primary, secondary, share, band, noDataLabel }) => {
+  useI18nVersion();
+  const style = band ? BAND_STYLES[band] : null;
+  // Bar fill is the share clamped to 100% of the bar; the band colour conveys overflow.
+  const fillPct = share != null ? Math.min(100, share * 100) : 0;
+  return (
+    <div className={`rounded-lg border px-3 py-2.5 ${style ? style.bg : 'bg-surface-100 dark:bg-surface-900/60 border-surface-200 dark:border-surface-800/50'}`}>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs text-surface-500 dark:text-surface-400">{heading}</span>
+        {band && style && (
+          <span className={`inline-flex items-center gap-1 text-[11px] font-semibold ${style.text}`}>
+            <span className={`w-2 h-2 rounded-full ${style.dot}`} aria-hidden="true" />
+            {t(BAND_LABEL_KEY[band])}
+          </span>
+        )}
+      </div>
+      {share == null && band == null && secondary == null && primary === '—' ? (
+        <p className="mt-1 text-[11px] text-surface-400 dark:text-surface-500">{noDataLabel}</p>
+      ) : (
+        <>
+          <div className="mt-1 flex items-baseline justify-between gap-2">
+            <span className="text-lg font-semibold text-surface-900 dark:text-white tabular-nums">{primary}</span>
+            {share != null && style && (
+              <span className={`text-xs font-medium tabular-nums ${style.text}`}>
+                {t('afford.rent_share').replace('{pct}', String(Math.round(share * 100)))}
+              </span>
+            )}
+          </div>
+          {secondary && <p className="mt-0.5 text-[11px] text-surface-400 dark:text-surface-500">{secondary}</p>}
+          {share != null && style && (
+            <div className="mt-1.5 h-1.5 rounded-full bg-surface-200 dark:bg-surface-800 overflow-hidden">
+              <div className={`h-full rounded-full ${style.dot}`} style={{ width: `${fillPct}%` }} />
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
+
+/**
+ * CF-1: Affordability calculator. Enter a monthly net income OR a housing budget
+ * plus an apartment size; estimate rent (rental_price_sqm × m²) and purchase price
+ * (property_price_sqm × m²) as a share of budget with a traffic-light band, plus a
+ * local-median-income context line. Surfaces the rent source's vintage, partial
+ * coverage and the PO-6 "source discontinued" note inline so it never overstates
+ * confidence. All math lives in utils/affordability.ts (pure, reused by CF-14).
+ */
+const AffordabilitySection: React.FC<{
+  props: NeighborhoodProperties;
+  state: AffordabilityState;
+  onChange: (patch: Partial<AffordabilityState>) => void;
+}> = React.memo(({ props, state, onChange }) => {
+  useI18nVersion();
+  const trackedRef = useRef(false);
+
+  const result = useMemo(
+    () => affordabilityFor(
+      {
+        mode: state.mode,
+        monthlyIncome: state.income,
+        monthlyBudget: state.budget,
+        sizeM2: state.sizeM2 ?? 0,
+      },
+      props,
+    ),
+    [state.mode, state.income, state.budget, state.sizeM2, props],
+  );
+
+  // PO-6 + PO-2: rent source vintage, partial coverage and discontinued note —
+  // surfaced inline so the estimate never looks more confident than the data.
+  const rentSource = getMetricSource('rental_price_sqm');
+  const rentCoverage = getCoveragePct('rental_price_sqm');
+  const rentPartial = isPartialCoverage('rental_price_sqm');
+
+  const hasAmount = state.mode === 'income' ? state.income != null : state.budget != null;
+  const hasInputs = hasAmount && state.sizeM2 != null;
+
+  const numInput = (value: number | null, onValue: (n: number | null) => void, placeholder: string, label: string) => (
+    <label className="flex-1 min-w-0">
+      <span className="block text-[10px] uppercase tracking-wider text-surface-400 dark:text-surface-500 mb-1">{label}</span>
+      <input
+        type="number"
+        inputMode="numeric"
+        value={value ?? ''}
+        min={1}
+        placeholder={placeholder}
+        onChange={(e) => {
+          if (!trackedRef.current) { trackEvent('affordability'); trackedRef.current = true; }
+          const raw = e.target.value;
+          onValue(raw === '' ? null : Number(raw));
+        }}
+        className="w-full rounded-lg bg-surface-100 dark:bg-surface-900/60 border border-surface-200 dark:border-surface-800/50
+                   px-3 py-2 text-sm text-surface-900 dark:text-white placeholder-surface-400 dark:placeholder-surface-500
+                   focus:outline-none focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/30"
+      />
+    </label>
+  );
+
+  const clamp = (n: number | null, min: number, max: number): number | null =>
+    n == null || !isFinite(n) ? null : Math.min(max, Math.max(min, Math.round(n)));
+
+  return (
+    <div className="rounded-xl bg-surface-100/60 dark:bg-surface-900/40 border border-surface-200 dark:border-surface-800/50 p-4 space-y-3">
+      <div>
+        <h3 className="text-sm font-semibold text-surface-900 dark:text-white">{t('afford.title')}</h3>
+        <p className="text-[11px] text-surface-400 dark:text-surface-500 mt-0.5">{t('afford.intro')}</p>
+      </div>
+
+      {/* Mode toggle: income vs direct budget */}
+      <div className="flex gap-1">
+        {(['income', 'budget'] as const).map((m) => (
+          <button
+            key={m}
+            onClick={() => onChange({ mode: m })}
+            aria-pressed={state.mode === m}
+            className={`flex-1 px-2 py-1.5 rounded-lg text-[11px] font-medium border transition-colors ${
+              state.mode === m
+                ? 'bg-brand-500/15 text-brand-600 dark:text-brand-300 border-brand-500/40'
+                : 'bg-surface-100 dark:bg-surface-900/60 text-surface-500 dark:text-surface-400 border-surface-200 dark:border-surface-700/50 hover:border-surface-300 dark:hover:border-surface-600'
+            }`}
+          >
+            {t(m === 'income' ? 'afford.mode_income' : 'afford.mode_budget')}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex gap-2">
+        {state.mode === 'income'
+          ? numInput(
+              state.income,
+              (n) => onChange({ income: clamp(n, AFFORDABILITY_LIMITS.income.min, AFFORDABILITY_LIMITS.income.max) }),
+              t('afford.income_placeholder'),
+              t('afford.income_label'),
+            )
+          : numInput(
+              state.budget,
+              (n) => onChange({ budget: clamp(n, AFFORDABILITY_LIMITS.budget.min, AFFORDABILITY_LIMITS.budget.max) }),
+              t('afford.budget_placeholder'),
+              t('afford.budget_label'),
+            )}
+        {numInput(
+          state.sizeM2,
+          (n) => onChange({ sizeM2: clamp(n, AFFORDABILITY_LIMITS.size.min, AFFORDABILITY_LIMITS.size.max) }),
+          t('afford.size_placeholder'),
+          t('afford.size_label'),
+        )}
+      </div>
+
+      {/* Income-mode derived budget line */}
+      {state.mode === 'income' && result.monthlyBudget > 0 && (
+        <p className="text-[11px] text-surface-500 dark:text-surface-400">
+          {t('afford.budget_from_income').replace('{budget}', formatNumber(Math.round(result.monthlyBudget)))}
+        </p>
+      )}
+
+      {!hasInputs ? (
+        <p className="text-xs text-surface-400 dark:text-surface-500">{t('afford.need_input')}</p>
+      ) : (
+        <div className="space-y-2">
+          <AffordRow
+            heading={t('afford.rent_heading')}
+            primary={result.monthlyRent != null ? `${formatEuro(Math.round(result.monthlyRent))} ${t('afford.per_month')}` : '—'}
+            share={result.rentShare}
+            band={result.rentBand}
+            noDataLabel={t('afford.no_rent_data')}
+          />
+          <AffordRow
+            heading={t('afford.buy_heading')}
+            primary={result.purchasePrice != null ? formatEuro(Math.round(result.purchasePrice)) : '—'}
+            secondary={
+              result.monthlyMortgage != null
+                ? t('afford.mortgage_est').replace('{amount}', `${formatEuro(Math.round(result.monthlyMortgage))} ${t('afford.per_month')}`)
+                : null
+            }
+            share={result.buyShare}
+            band={result.buyBand}
+            noDataLabel={t('afford.no_buy_data')}
+          />
+          <p className="text-[10px] text-surface-400 dark:text-surface-500">{t('afford.mortgage_assumptions')}</p>
+        </div>
+      )}
+
+      {/* Local median income context (reads hr_mtu) */}
+      {props.hr_mtu != null && (
+        <p className="text-[11px] text-surface-500 dark:text-surface-400">
+          {t('afford.median_income_context').replace('{amount}', formatEuro(props.hr_mtu))}
+        </p>
+      )}
+
+      {/* CRITICAL: rent source honesty — vintage + partial coverage + PO-6 discontinued note */}
+      <div className="pt-1 border-t border-surface-200 dark:border-surface-800/50 space-y-1">
+        <p className="text-[10px] text-surface-400 dark:text-surface-500">{t('afford.disclaimer')}</p>
+        {rentSource && (
+          <p className="text-[10px] italic text-surface-400 dark:text-surface-500">
+            {rentSource.source} ({rentSource.year})
+          </p>
+        )}
+        {rentPartial && rentCoverage != null && (
+          <p className="text-[10px] text-surface-400 dark:text-surface-500">
+            {t('coverage.caption').replace('{pct}', formatCoveragePct(rentCoverage))}
+          </p>
+        )}
+        <DiscontinuedCaveat property="rental_price_sqm" />
+      </div>
+    </div>
+  );
+});
+AffordabilitySection.displayName = 'AffordabilitySection';
+
+export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, allFeatures, activeLayer, onFlyTo, isFavorite = false, onToggleFavorite, isInShortlist = false, onToggleShortlist, referencePno, referenceName, onSetReference, qualityScope = 'national', onExploreCity, userId, isochroneEnabled = false, isochroneMode = 'walk', isochroneBudget = 20, isochroneLoading = false, isochroneActive = false, onIsochroneChange, onIsochroneClear, affordabilityState, onAffordabilityChange, similarityWeights, onSimilarityWeightChange, onSimilarityToggle, onHighlightNeighbors }) => {
   useI18nVersion();
   const eduTotal = useMemo(() =>
     [d.ko_yl_kork, d.ko_al_kork, d.ko_ammat, d.ko_perus]
@@ -890,8 +1219,14 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
   // neighborhood selection. The Similar section is collapsed by default, so most
   // users never see it. Now the computation only runs when the user expands it.
   const [similarExpanded, setSimilarExpanded] = useState(false);
-  // CF-6: user-configurable metric set for "similar neighbourhoods".
-  const { selected: similarityMetrics, toggle: toggleSimilarityMetric } = useSimilarityMetrics();
+  // CF-5/CF-6: per-metric weights (0–3, 0 = off) for "similar neighbourhoods". The
+  // weight map and its controls are owned by App (for URL/localStorage sync); fall
+  // back to all-default when the props are absent (e.g. the standalone profile page).
+  const simWeights = similarityWeights;
+  const metricWeight = useCallback(
+    (key: string) => (simWeights ? (simWeights[key] ?? SIMILARITY_WEIGHT_DEFAULT) : SIMILARITY_WEIGHT_DEFAULT),
+    [simWeights],
+  );
   const navigate = useNavigate();
   // CF-6b: rank similarity within the current region (default) or across all of
   // Finland. The choice is persisted like the metric set; the national dataset
@@ -916,13 +1251,21 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
   }, [similarExpanded, similarityScope, nationalFeatures, nationalLoading]);
 
   const scopeFeatures = similarityScope === 'national' ? nationalFeatures : allFeatures;
+  // CF-5: only metrics with a positive weight participate; their weights scale the
+  // contribution inside findSimilarNeighborhoods. Memo key on a stable serialization
+  // of the weight map so a slider nudge re-runs but unrelated re-renders don't.
+  const simWeightsKey = useMemo(
+    () => AVAILABLE_SIMILARITY_METRICS.map((m) => metricWeight(m.key as string)).join(','),
+    [metricWeight],
+  );
   const similar = useMemo(() => {
     if (!similarExpanded || !scopeFeatures) return [];
     const metrics = AVAILABLE_SIMILARITY_METRICS
       .map((m) => m.key)
-      .filter((k) => similarityMetrics.has(k as string));
-    return findSimilarNeighborhoods(d, scopeFeatures, 5, metrics);
-  }, [similarExpanded, d, scopeFeatures, similarityMetrics]);
+      .filter((k) => metricWeight(k as string) > 0);
+    return findSimilarNeighborhoods(d, scopeFeatures, 5, metrics, simWeights);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- simWeights tracked via simWeightsKey
+  }, [similarExpanded, d, scopeFeatures, simWeightsKey]);
 
   // CF-6b: open a national result. Its centre is unavailable (region_properties is
   // geometry-stripped), so navigate to its profile page rather than fly the map.
@@ -932,6 +1275,57 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
     const base = lang === 'en' ? '/en/area/' : lang === 'sv' ? '/sv/omrade/' : '/alue/';
     navigate(`${base}${slug}/`);
   }, [navigate]);
+
+  // CF-12: spatial-neighbour (adjacency) lens — "the cheaper area next door".
+  // The precomputed pno->neighbours graph is fetched lazily; the result is mapped
+  // to the loaded features so each chip carries a real name, centre and price.
+  // Neighbours are ordered by €/m² ascending when available (cheapest first),
+  // surfacing the value the lens is named for, then by name.
+  const [neighborPnos, setNeighborPnos] = useState<string[] | null>(null);
+  useEffect(() => {
+    // Metro-area aggregates have no postal-code adjacency; reset when switching areas.
+    setNeighborPnos(null);
+    if (!allFeatures || allFeatures.length === 0 || d._isMetroArea) return;
+    let cancelled = false;
+    resolveNeighborPnos(d, allFeatures)
+      .then((pnos) => { if (!cancelled) setNeighborPnos(pnos); })
+      .catch(() => { if (!cancelled) setNeighborPnos([]); });
+    return () => { cancelled = true; };
+  }, [d, allFeatures]);
+
+  const neighbors = useMemo(() => {
+    if (!neighborPnos || neighborPnos.length === 0 || !allFeatures) return [];
+    const byPno = new Map<string, GeoJSON.Feature>();
+    for (const f of allFeatures) {
+      const pno = (f.properties as NeighborhoodProperties | null)?.pno;
+      if (pno) byPno.set(pno, f);
+    }
+    const list = neighborPnos
+      .map((pno) => byPno.get(pno))
+      .filter((f): f is GeoJSON.Feature => !!f)
+      .map((f) => {
+        const props = f.properties as NeighborhoodProperties;
+        const price = toNum(props.property_price_sqm);
+        return { props, price, center: getFeatureCenter(f) };
+      });
+    list.sort((a, b) => {
+      // Cheapest €/m² first; areas without a price sink below those with one.
+      if (a.price != null && b.price != null) return a.price - b.price;
+      if (a.price != null) return -1;
+      if (b.price != null) return 1;
+      return (a.props.nimi ?? a.props.pno).localeCompare(b.props.nimi ?? b.props.pno);
+    });
+    return list;
+  }, [neighborPnos, allFeatures]);
+
+  // Drive the map ring/contiguity highlight while the neighbours section is mounted,
+  // clearing it on unmount or when the set changes.
+  const neighborPnoList = useMemo(() => neighbors.map((n) => n.props.pno), [neighbors]);
+  useEffect(() => {
+    if (!onHighlightNeighbors) return;
+    onHighlightNeighbors(neighborPnoList);
+    return () => onHighlightNeighbors([]);
+  }, [neighborPnoList, onHighlightNeighbors]);
 
   // PO-3: Shared section content — used by both desktop and mobile
   const sectionOverview = (
@@ -956,6 +1350,11 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
 
       {/* CF-8: Quality Index auditability — factor coverage for this area */}
       {d.quality_index != null && <QualityCoverageSection props={d} scope={qualityScope} />}
+
+      {/* CF-2: auto-composed plain-language strengths & weaknesses from real percentiles */}
+      {allFeatures && allFeatures.length > 1 && (
+        <AreaSummarySection props={d} allFeatures={allFeatures} />
+      )}
 
       {/* CF-5: travel-time isochrone controls (real neighborhoods only; needs a Digitransit key) */}
       {isochroneEnabled && !d._isMetroArea && onIsochroneChange && onIsochroneClear && (
@@ -1048,6 +1447,11 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
 
   const sectionStats = (
     <>
+      {/* CF-1: Affordability calculator — rent/buy on my income or budget */}
+      {affordabilityState && onAffordabilityChange && !d._isMetroArea && (
+        <AffordabilitySection props={d} state={affordabilityState} onChange={onAffordabilityChange} />
+      )}
+
       {/* Housing section — PO-2: collapsible, default open */}
       <CollapsibleSection title={t('panel.housing')} defaultOpen>
         <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
@@ -1379,6 +1783,36 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
       {/* CF-4: Neighborhood Notes — self-contained to isolate keystroke re-renders */}
       <NotesEditor pno={d.pno} userId={userId} />
 
+      {/* CF-12: Neighboring areas — geographic adjacency chips, cheapest €/m² first.
+          A real spatial lens distinct from the metric-similarity list below. */}
+      {!d._isMetroArea && neighbors.length > 0 && (
+        <div>
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400 mb-1.5">
+            {t('panel.neighbors')}
+          </h3>
+          <p className="text-[11px] leading-snug text-surface-400 dark:text-surface-500 mb-2">
+            {t('panel.neighbors_help')}
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {neighbors.map((n) => (
+              <button
+                key={n.props.pno}
+                onClick={() => { trackEvent('neighbor-chip'); onFlyTo?.(n.center); }}
+                className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px]
+                           bg-surface-100 dark:bg-surface-900/60 hover:bg-surface-200 dark:hover:bg-surface-800
+                           border border-surface-200 dark:border-surface-700/50 transition-colors"
+                title={t('panel.neighbors_chip_title').replace('{name}', n.props.nimi ?? n.props.pno)}
+              >
+                <span className="font-medium text-surface-900 dark:text-white">{n.props.nimi ?? n.props.pno}</span>
+                {n.price != null && (
+                  <span className="tabular-nums text-surface-500 dark:text-surface-400">{formatEuroSqm(n.price)}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* CF-1: Similar neighborhoods — on-demand computation */}
       {allFeatures && allFeatures.length > 0 && (
         <div>
@@ -1398,27 +1832,59 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
           </button>
           {similarExpanded && (
             <div className="space-y-2">
-              {/* CF-6: choose which metrics define "similar" */}
+              {/* CF-5/CF-6: choose which metrics define "similar" and how heavily each weighs */}
               <div>
                 <div className="text-[10px] uppercase tracking-wider text-surface-400 dark:text-surface-500 mb-1.5">
                   {t('panel.similar_by')}
                 </div>
                 <div className="flex flex-wrap gap-1">
                   {AVAILABLE_SIMILARITY_METRICS.map((m) => {
-                    const on = similarityMetrics.has(m.key as string);
+                    const key = m.key as string;
+                    const weight = metricWeight(key);
+                    const on = weight > 0;
+                    const label = t(m.labelKey);
                     return (
-                      <button
-                        key={m.key as string}
-                        onClick={() => toggleSimilarityMetric(m.key as string)}
-                        aria-pressed={on}
-                        className={`px-2 py-0.5 rounded-full text-[11px] border transition-colors ${
+                      <span
+                        key={key}
+                        className={`inline-flex items-center rounded-full text-[11px] border transition-colors ${
                           on
                             ? 'bg-brand-500/15 text-brand-600 dark:text-brand-300 border-brand-500/40'
-                            : 'bg-surface-100 dark:bg-surface-900/60 text-surface-500 dark:text-surface-400 border-surface-200 dark:border-surface-700/50 hover:border-surface-300 dark:hover:border-surface-600'
+                            : 'bg-surface-100 dark:bg-surface-900/60 text-surface-500 dark:text-surface-400 border-surface-200 dark:border-surface-700/50'
                         }`}
                       >
-                        {t(m.labelKey)}
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => onSimilarityToggle?.(key)}
+                          aria-pressed={on}
+                          className="pl-2 pr-1.5 py-0.5 rounded-l-full hover:opacity-80"
+                          title={on ? t('panel.similar_weight_off').replace('{metric}', label) : t('panel.similar_weight_on').replace('{metric}', label)}
+                        >
+                          {label}
+                        </button>
+                        {on && (
+                          <span className="flex items-center pr-1 gap-0.5" role="group" aria-label={t('panel.similar_weight_label').replace('{metric}', label)}>
+                            <button
+                              type="button"
+                              onClick={() => onSimilarityWeightChange?.(key, weight - 1)}
+                              disabled={weight <= SIMILARITY_WEIGHT_MIN}
+                              aria-label={t('panel.similar_weight_decrease').replace('{metric}', label)}
+                              className="w-4 h-4 flex items-center justify-center rounded leading-none disabled:opacity-30 hover:bg-brand-500/20"
+                            >
+                              −
+                            </button>
+                            <span className="tabular-nums min-w-[1.1rem] text-center font-semibold" aria-live="polite">{weight}×</span>
+                            <button
+                              type="button"
+                              onClick={() => onSimilarityWeightChange?.(key, weight + 1)}
+                              disabled={weight >= SIMILARITY_WEIGHT_MAX}
+                              aria-label={t('panel.similar_weight_increase').replace('{metric}', label)}
+                              className="w-4 h-4 flex items-center justify-center rounded leading-none disabled:opacity-30 hover:bg-brand-500/20"
+                            >
+                              +
+                            </button>
+                          </span>
+                        )}
+                      </span>
                     );
                   })}
                 </div>

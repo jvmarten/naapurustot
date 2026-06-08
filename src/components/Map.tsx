@@ -38,6 +38,8 @@ interface MapProps {
   colorblind?: string;
   /** PO-4: PNOs to highlight from wizard results */
   wizardHighlightPnos?: string[];
+  /** CF-12: adjacent postal codes to ring-highlight (spatial-neighbour lens) */
+  neighborHighlightPnos?: string[];
   /** User-adjustable fill opacity multiplier (0–1, default 1) */
   fillOpacity?: number;
   /** Fine-grained grid data for layers that support it (e.g. 250m transit reachability cells) */
@@ -135,6 +137,7 @@ const SELECT_AREA_LAYER = 'neighborhoods-select-area';
 
 const FILTER_HIGHLIGHT_LAYER = 'neighborhoods-filter-highlight';
 const WIZARD_HIGHLIGHT_LAYER = 'neighborhoods-wizard-highlight';
+const NEIGHBOR_HIGHLIGHT_LAYER = 'neighborhoods-neighbor-highlight';
 const NO_DATA_LAYER = 'neighborhoods-no-data-pattern';
 
 const GRID_SOURCE_ID = 'grid-cells';
@@ -259,7 +262,7 @@ function buildGridFillOpacity(o: number): unknown[] {
   ];
 }
 
-export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1, gridData = null, drawMode = false, onDrawClick, onDrawDoubleClick, drawVertices, drawnPolygon = null, drawnAreaPnos = EMPTY_ARRAY, selectMode = false, selectedAreaPnos = EMPTY_ARRAY, onSelectAreaClick, layerConfig, isochrone = null, onMoveEnd }) => {
+export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, neighborHighlightPnos = EMPTY_ARRAY, fillOpacity = 1, gridData = null, drawMode = false, onDrawClick, onDrawDoubleClick, drawVertices, drawnPolygon = null, drawnAreaPnos = EMPTY_ARRAY, selectMode = false, selectedAreaPnos = EMPTY_ARRAY, onSelectAreaClick, layerConfig, isochrone = null, onMoveEnd }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const hoveredIdRef = useRef<string | null>(null);
@@ -1344,6 +1347,44 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       }, beforeLabels(map));
     }
   }, [wizardHighlightPnos, data, theme]);
+
+  // CF-12: spatial-neighbour ring. Dashed amber outline around adjacent postal
+  // codes, distinct from the selection (solid white/dark) and wizard (solid blue)
+  // highlights. Like the wizard layer it toggles via setFilter to avoid layer
+  // churn, and sits below the labels.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !data) return;
+    if (!map.isStyleLoaded() || !map.getSource(SOURCE_ID)) return;
+
+    if (neighborHighlightPnos.length === 0) {
+      if (map.getLayer(NEIGHBOR_HIGHLIGHT_LAYER)) {
+        map.setLayoutProperty(NEIGHBOR_HIGHLIGHT_LAYER, 'visibility', 'none');
+      }
+      return;
+    }
+
+    const filter = ['in', ['get', 'pno'], ['literal', neighborHighlightPnos]] as unknown as maplibregl.ExpressionSpecification;
+
+    if (map.getLayer(NEIGHBOR_HIGHLIGHT_LAYER)) {
+      map.setFilter(NEIGHBOR_HIGHLIGHT_LAYER, filter);
+      map.setPaintProperty(NEIGHBOR_HIGHLIGHT_LAYER, 'line-color', theme === 'dark' ? '#fbbf24' : '#d97706');
+      map.setLayoutProperty(NEIGHBOR_HIGHLIGHT_LAYER, 'visibility', 'visible');
+    } else {
+      map.addLayer({
+        id: NEIGHBOR_HIGHLIGHT_LAYER,
+        type: 'line',
+        source: SOURCE_ID,
+        filter,
+        paint: {
+          'line-color': theme === 'dark' ? '#fbbf24' : '#d97706',
+          'line-width': 2.5,
+          'line-opacity': 0.95,
+          'line-dasharray': [2, 1.5],
+        },
+      }, beforeLabels(map));
+    }
+  }, [neighborHighlightPnos, data, theme]);
 
   // CF-6: Draw/select mode cursor
   useEffect(() => {

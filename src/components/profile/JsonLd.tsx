@@ -38,6 +38,16 @@ const FAQ_TEXT: Record<Lang, {
   faqIncRankA: (n: string, top: number, regTop: number | null, region: string) => string;
   faqTransitRankQ: (n: string) => string;
   faqTransitRankA: (n: string, top: number, regTop: number | null, region: string) => string;
+  faqCrimeRankQ: (n: string) => string;
+  faqCrimeRankA: (n: string, top: number, regTop: number | null, region: string) => string;
+  faqAirRankQ: (n: string) => string;
+  faqAirRankA: (n: string, top: number, regTop: number | null, region: string) => string;
+  faqTreeRankQ: (n: string) => string;
+  faqTreeRankA: (n: string, top: number, regTop: number | null, region: string) => string;
+  faqEduRankQ: (n: string) => string;
+  faqEduRankA: (n: string, top: number, regTop: number | null, region: string) => string;
+  faqEmpRankQ: (n: string) => string;
+  faqEmpRankA: (n: string, top: number, regTop: number | null, region: string) => string;
 }> = {
   fi: {
     faqPopQ: (n) => `Mikä on ${n} väkiluku?`,
@@ -55,6 +65,26 @@ const FAQ_TEXT: Record<Lang, {
     faqTransitRankQ: (n) => `Miten hyvin ${n} on joukkoliikenteen saavutettavissa?`,
     faqTransitRankA: (n, top, regTop, region) =>
       `${n} kuuluu joukkoliikenteen saavutettavuudessa koko maan parhaaseen ${top} %:iin` +
+      `${regTop != null && region ? ` ja seutukunnan ${region} parhaaseen ${regTop} %:iin` : ''}.`,
+    faqCrimeRankQ: (n) => `Kuinka turvallinen ${n} on?`,
+    faqCrimeRankA: (n, top, regTop, region) =>
+      `${n} kuuluu turvallisuudessa koko maan parhaaseen ${top} %:iin` +
+      `${regTop != null && region ? ` ja seutukunnan ${region} parhaaseen ${regTop} %:iin` : ''}.`,
+    faqAirRankQ: (n) => `Millainen ilmanlaatu alueella ${n} on?`,
+    faqAirRankA: (n, top, regTop, region) =>
+      `${n} kuuluu ilmanlaadultaan koko maan parhaaseen ${top} %:iin` +
+      `${regTop != null && region ? ` ja seutukunnan ${region} parhaaseen ${regTop} %:iin` : ''}.`,
+    faqTreeRankQ: (n) => `Kuinka vehreä ${n} on?`,
+    faqTreeRankA: (n, top, regTop, region) =>
+      `${n} kuuluu puuston latvuspeitossa koko maan parhaaseen ${top} %:iin` +
+      `${regTop != null && region ? ` ja seutukunnan ${region} parhaaseen ${regTop} %:iin` : ''}.`,
+    faqEduRankQ: (n) => `Kuinka korkeasti koulutettuja ${n} asukkaat ovat?`,
+    faqEduRankA: (n, top, regTop, region) =>
+      `${n} kuuluu korkeakoulutusasteessa koko maan parhaaseen ${top} %:iin` +
+      `${regTop != null && region ? ` ja seutukunnan ${region} parhaaseen ${regTop} %:iin` : ''}.`,
+    faqEmpRankQ: (n) => `Kuinka korkea työllisyysaste alueella ${n} on?`,
+    faqEmpRankA: (n, top, regTop, region) =>
+      `${n} kuuluu työllisyysasteessa koko maan parhaaseen ${top} %:iin` +
       `${regTop != null && region ? ` ja seutukunnan ${region} parhaaseen ${regTop} %:iin` : ''}.`,
   },
   en: {
@@ -74,6 +104,26 @@ const FAQ_TEXT: Record<Lang, {
     faqTransitRankA: (n, top, regTop, region) =>
       `${n} ranks in the top ${top}% nationally for public-transport access` +
       `${regTop != null && region ? ` and in the top ${regTop}% within the ${region} sub-region` : ''}.`,
+    faqCrimeRankQ: (n) => `How safe is ${n}?`,
+    faqCrimeRankA: (n, top, regTop, region) =>
+      `${n} ranks in the top ${top}% nationally for safety` +
+      `${regTop != null && region ? ` and in the top ${regTop}% within the ${region} sub-region` : ''}.`,
+    faqAirRankQ: (n) => `What is the air quality in ${n}?`,
+    faqAirRankA: (n, top, regTop, region) =>
+      `${n} ranks in the top ${top}% nationally for air quality` +
+      `${regTop != null && region ? ` and in the top ${regTop}% within the ${region} sub-region` : ''}.`,
+    faqTreeRankQ: (n) => `How green is ${n}?`,
+    faqTreeRankA: (n, top, regTop, region) =>
+      `${n} ranks in the top ${top}% nationally for tree canopy cover` +
+      `${regTop != null && region ? ` and in the top ${regTop}% within the ${region} sub-region` : ''}.`,
+    faqEduRankQ: (n) => `How highly educated are residents of ${n}?`,
+    faqEduRankA: (n, top, regTop, region) =>
+      `${n} ranks in the top ${top}% nationally for higher education` +
+      `${regTop != null && region ? ` and in the top ${regTop}% within the ${region} sub-region` : ''}.`,
+    faqEmpRankQ: (n) => `How high is the employment rate in ${n}?`,
+    faqEmpRankA: (n, top, regTop, region) =>
+      `${n} ranks in the top ${top}% nationally for employment rate` +
+      `${regTop != null && region ? ` and in the top ${regTop}% within the ${region} sub-region` : ''}.`,
   },
   sv: {
     faqPopQ: (n) => `Vad är folkmängden i ${n}?`,
@@ -91,6 +141,26 @@ const FAQ_TEXT: Record<Lang, {
     faqTransitRankQ: (n) => `Hur väl betjänas ${n} av kollektivtrafik?`,
     faqTransitRankA: (n, top, regTop, region) =>
       `${n} hör till de bästa ${top} % i landet i kollektivtrafikens tillgänglighet` +
+      `${regTop != null && region ? ` och till de bästa ${regTop} % i regionen ${region}` : ''}.`,
+    faqCrimeRankQ: (n) => `Hur säkert är ${n}?`,
+    faqCrimeRankA: (n, top, regTop, region) =>
+      `${n} hör till de bästa ${top} % i landet i säkerhet` +
+      `${regTop != null && region ? ` och till de bästa ${regTop} % i regionen ${region}` : ''}.`,
+    faqAirRankQ: (n) => `Hur är luftkvaliteten i ${n}?`,
+    faqAirRankA: (n, top, regTop, region) =>
+      `${n} hör till de bästa ${top} % i landet i luftkvalitet` +
+      `${regTop != null && region ? ` och till de bästa ${regTop} % i regionen ${region}` : ''}.`,
+    faqTreeRankQ: (n) => `Hur grönt är ${n}?`,
+    faqTreeRankA: (n, top, regTop, region) =>
+      `${n} hör till de bästa ${top} % i landet i krontäckning` +
+      `${regTop != null && region ? ` och till de bästa ${regTop} % i regionen ${region}` : ''}.`,
+    faqEduRankQ: (n) => `Hur högutbildade är invånarna i ${n}?`,
+    faqEduRankA: (n, top, regTop, region) =>
+      `${n} hör till de bästa ${top} % i landet i högre utbildning` +
+      `${regTop != null && region ? ` och till de bästa ${regTop} % i regionen ${region}` : ''}.`,
+    faqEmpRankQ: (n) => `Hur hög är sysselsättningsgraden i ${n}?`,
+    faqEmpRankA: (n, top, regTop, region) =>
+      `${n} hör till de bästa ${top} % i landet i sysselsättningsgrad` +
       `${regTop != null && region ? ` och till de bästa ${regTop} % i regionen ${region}` : ''}.`,
   },
 };
@@ -131,6 +201,23 @@ function buildFaq(
   }
   if (pct.transit.nationalTop != null) {
     qa.push({ q: T.faqTransitRankQ(name), a: T.faqTransitRankA(name, pct.transit.nationalTop, pct.transit.regionalTop, region) });
+  }
+  // CF-8: broaden the verifiable superlatives — crime/safety, air quality, tree
+  // canopy, higher education and employment, each ranked from its own direction.
+  if (pct.crime.nationalTop != null) {
+    qa.push({ q: T.faqCrimeRankQ(name), a: T.faqCrimeRankA(name, pct.crime.nationalTop, pct.crime.regionalTop, region) });
+  }
+  if (pct.air.nationalTop != null) {
+    qa.push({ q: T.faqAirRankQ(name), a: T.faqAirRankA(name, pct.air.nationalTop, pct.air.regionalTop, region) });
+  }
+  if (pct.treeCanopy.nationalTop != null) {
+    qa.push({ q: T.faqTreeRankQ(name), a: T.faqTreeRankA(name, pct.treeCanopy.nationalTop, pct.treeCanopy.regionalTop, region) });
+  }
+  if (pct.education.nationalTop != null) {
+    qa.push({ q: T.faqEduRankQ(name), a: T.faqEduRankA(name, pct.education.nationalTop, pct.education.regionalTop, region) });
+  }
+  if (pct.employment.nationalTop != null) {
+    qa.push({ q: T.faqEmpRankQ(name), a: T.faqEmpRankA(name, pct.employment.nationalTop, pct.employment.regionalTop, region) });
   }
   return qa;
 }
@@ -181,6 +268,18 @@ export const JsonLd: React.FC<JsonLdProps> = ({
       ['medianIncomeTopPercentileRegional', pct.income.regionalTop],
       ['transitReachabilityTopPercentileNational', pct.transit.nationalTop],
       ['transitReachabilityTopPercentileRegional', pct.transit.regionalTop],
+      // CF-8: additional verifiable superlatives (crime/safety, air, tree canopy,
+      // higher education, employment), national + within-region.
+      ['safetyTopPercentileNational', pct.crime.nationalTop],
+      ['safetyTopPercentileRegional', pct.crime.regionalTop],
+      ['airQualityTopPercentileNational', pct.air.nationalTop],
+      ['airQualityTopPercentileRegional', pct.air.regionalTop],
+      ['treeCanopyTopPercentileNational', pct.treeCanopy.nationalTop],
+      ['treeCanopyTopPercentileRegional', pct.treeCanopy.regionalTop],
+      ['higherEducationTopPercentileNational', pct.education.nationalTop],
+      ['higherEducationTopPercentileRegional', pct.education.regionalTop],
+      ['employmentRateTopPercentileNational', pct.employment.nationalTop],
+      ['employmentRateTopPercentileRegional', pct.employment.regionalTop],
     ];
     for (const [name, value] of pctProps) {
       if (value != null) additionalProperty.push({ '@type': 'PropertyValue', name, value });

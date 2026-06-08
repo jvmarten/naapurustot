@@ -39,6 +39,57 @@ describe('findSimilarNeighborhoods — configurable metrics (CF-6)', () => {
   });
 });
 
+describe('findSimilarNeighborhoods — per-metric weights (CF-5)', () => {
+  // Target sits at the low end of both metrics. A matches income but is far on crime;
+  // B matches crime but is far on income. With equal weights they tie; tilting the
+  // weight toward one metric must break the tie toward the candidate that matches it.
+  const target = { pno: '00100', nimi: 'T', namn: 'T', hr_mtu: 0, crime_index: 0 };
+  const features = [
+    makeFeature({ pno: '00100', nimi: 'T', namn: 'T', hr_mtu: 0, crime_index: 0 }),
+    makeFeature({ pno: '00200', nimi: 'A', namn: 'A', hr_mtu: 0, crime_index: 100 }),
+    makeFeature({ pno: '00300', nimi: 'B', namn: 'B', hr_mtu: 100, crime_index: 0 }),
+  ];
+
+  it('ties when both metrics carry equal weight', () => {
+    const r = findSimilarNeighborhoods(target as any, features, 2, ['hr_mtu', 'crime_index'], { hr_mtu: 1, crime_index: 1 });
+    expect(r[0].distance).toBeCloseTo(r[1].distance, 10);
+  });
+
+  it('prefers the income-matching candidate when income is weighted higher', () => {
+    // Heavier income weight punishes B (income mismatch) more than A.
+    const r = findSimilarNeighborhoods(target as any, features, 2, ['hr_mtu', 'crime_index'], { hr_mtu: 3, crime_index: 1 });
+    expect(r[0].properties.pno).toBe('00200');
+  });
+
+  it('prefers the crime-matching candidate when crime is weighted higher', () => {
+    const r = findSimilarNeighborhoods(target as any, features, 2, ['hr_mtu', 'crime_index'], { hr_mtu: 1, crime_index: 3 });
+    expect(r[0].properties.pno).toBe('00300');
+  });
+
+  it('a weight of 0 excludes a metric exactly like deselecting it', () => {
+    const weighted = findSimilarNeighborhoods(target as any, features, 3, ['hr_mtu', 'crime_index'], { hr_mtu: 1, crime_index: 0 });
+    const subset = findSimilarNeighborhoods(target as any, features, 3, ['hr_mtu']);
+    expect(weighted.map((r) => r.properties.pno)).toEqual(subset.map((r) => r.properties.pno));
+    weighted.forEach((r, i) => expect(r.distance).toBeCloseTo(subset[i].distance, 10));
+  });
+
+  it('all-default weights reproduce the unweighted distances', () => {
+    const weighted = findSimilarNeighborhoods(target as any, features, 3, ['hr_mtu', 'crime_index'], { hr_mtu: 1, crime_index: 1 });
+    const plain = findSimilarNeighborhoods(target as any, features, 3, ['hr_mtu', 'crime_index']);
+    weighted.forEach((r, i) => {
+      expect(r.properties.pno).toBe(plain[i].properties.pno);
+      expect(r.distance).toBeCloseTo(plain[i].distance, 10);
+    });
+  });
+
+  it('scaling all weights uniformly does not change distances', () => {
+    // Distance normalizes by total weight, so 2× every weight cancels out.
+    const w1 = findSimilarNeighborhoods(target as any, features, 3, ['hr_mtu', 'crime_index'], { hr_mtu: 1, crime_index: 1 });
+    const w2 = findSimilarNeighborhoods(target as any, features, 3, ['hr_mtu', 'crime_index'], { hr_mtu: 2, crime_index: 2 });
+    w1.forEach((r, i) => expect(r.distance).toBeCloseTo(w2[i].distance, 10));
+  });
+});
+
 describe('findSimilarNeighborhoods', () => {
   it('returns the correct number of results', () => {
     const target = {
