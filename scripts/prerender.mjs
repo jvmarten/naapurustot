@@ -87,10 +87,34 @@ for (const f of geojson.features) {
   REGION_SOURCES.get(city).push(f);
 }
 
+// Perf: percentilesFor and the area summary are pure functions of an area's props
+// (the national/regional cohorts are fixed for the whole run), but each is invoked
+// many times per area — across the FAQ, JSON-LD, meta description and social-card
+// badge, in all three languages — and each call internally rebuilds and re-sorts
+// the full national distribution. Without memoization that makes the prerender
+// quadratic in the area count (the dominant cost by far). Caching the result per
+// props object (one stable reference shared by a feature's three language renders)
+// returns byte-identical output with the redundant recomputation removed.
+const percentilesCache = new Map();
+const areaSummaryCache = new Map();
+
 /** Full {quality,income,transit}×{national,regional} percentile bundle for a feature's props. */
 function percentilesFor(props) {
+  const cached = percentilesCache.get(props);
+  if (cached) return cached;
   const regional = (props.city && REGION_SOURCES.get(props.city)) || NATIONAL_SOURCES;
-  return computeNeighbourhoodPercentiles(props, NATIONAL_SOURCES, regional);
+  const result = computeNeighbourhoodPercentiles(props, NATIONAL_SOURCES, regional);
+  percentilesCache.set(props, result);
+  return result;
+}
+
+/** Memoized per-area strengths/weaknesses against the national cohort (language-independent). */
+function areaSummaryFor(props) {
+  const cached = areaSummaryCache.get(props);
+  if (cached) return cached;
+  const result = computeAreaSummary(props, NATIONAL_SOURCES);
+  areaSummaryCache.set(props, result);
+  return result;
 }
 
 /**
@@ -100,7 +124,7 @@ function percentilesFor(props) {
  * go through LOCALES so the prerendered copy matches the client panel's `t()` output.
  */
 function summarySentencesFor(props, lang) {
-  const summary = computeAreaSummary(props, NATIONAL_SOURCES);
+  const summary = areaSummaryFor(props);
   const L = LOCALES[lang];
   const tr = (k) => L?.[k] ?? LOCALES.fi[k] ?? k;
   const specs = composeSummarySentences(summary, {
