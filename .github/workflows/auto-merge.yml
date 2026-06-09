@@ -13,9 +13,13 @@ concurrency:
   group: auto-merge-to-main
   cancel-in-progress: true
 
+# The gate is split into independent jobs that run in parallel, so the wall-clock
+# time is the slowest lane rather than the sum of every step. merge-to-main depends
+# on ALL of them, so a failure in any lane still blocks the merge to main.
 jobs:
-  ci:
+  security:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
 
@@ -23,8 +27,6 @@ jobs:
         with:
           node-version: 22
           cache: npm
-
-      - run: npm ci
 
       - name: npm audit (frontend)
         run: npm audit --audit-level=high
@@ -43,6 +45,18 @@ jobs:
 
       - name: pip-audit (data pipeline)
         run: pip-audit --requirement requirements.txt
+
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
 
       - name: Lint
         run: npm run lint
@@ -75,12 +89,52 @@ jobs:
             exit 1
           fi
 
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Cache Playwright browsers
+        # Keyed on the lockfile so the cache invalidates whenever the Playwright
+        # version changes. On a hit the browser download is skipped; --with-deps
+        # still runs the (fast, idempotent) apt system-dependency install.
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
       - name: E2E tests
         run: npm run test:e2e
         timeout-minutes: 5
+
+  lighthouse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build
+        run: npm run build
 
       - name: Prerender profile pages
         run: npm run build:pages
@@ -101,7 +155,7 @@ jobs:
           retention-days: 14
 
   merge-to-main:
-    needs: ci
+    needs: [security, checks, e2e, lighthouse]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -148,4 +202,3 @@ jobs:
         run: gh workflow run deploy.yml --ref main
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
