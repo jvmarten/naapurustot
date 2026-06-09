@@ -28,7 +28,7 @@ describe('embed (QW-3)', () => {
 
   it('omits default values to keep the link short', () => {
     const url = buildFullViewUrl(
-      { pno: null, layer: 'quality_index', city: 'helsinki_metro', scope: 'all', colorblind: 'off', lang: 'fi' },
+      { pno: null, layer: 'quality_index', city: 'all', scope: 'all', colorblind: 'off', lang: 'fi' },
       'https://naapurustot.fi',
     );
     expect(url).toBe('https://naapurustot.fi/');

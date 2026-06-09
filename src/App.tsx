@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { Map } from './components/Map';
 import { DEFAULT_CENTER, DEFAULT_ZOOM, CITY_VIEWPORTS } from './utils/mapConstants';
-import { REGION_IDS } from './utils/regions';
+import { REGION_IDS, DEFAULT_CITY } from './utils/regions';
 import { LayerSelector } from './components/LayerSelector';
 import { SearchBar } from './components/SearchBar';
 import { ContactMenu } from './components/ContactMenu';
@@ -49,7 +49,6 @@ const ShortcutsOverlay = lazy(() => import('./components/ShortcutsOverlay').then
 const TimeSlider = lazy(() => import('./components/TimeSlider').then(m => ({ default: m.TimeSlider })));
 import { UserMenu, type FavoriteEntry } from './components/UserMenu';
 import { ShortlistTray } from './components/ShortlistTray';
-import { MapPinIllustration } from './components/EmptyStateIllustrations';
 import { type LayerId, type ColorblindType, getLayerById, getColorblindMode, setColorblindMode, rescaleLayerToData, clearRescaleCache, TIME_SERIES_LAYERS } from './utils/colorScales';
 import { readInitialUrlState, useSyncUrlState, buildViewportShareUrl, buildShortlistShareUrl, type UrlViewport, type UrlDraw } from './hooks/useUrlState';
 import type { NeighborhoodProperties } from './utils/metrics';
@@ -104,7 +103,7 @@ const PanelSkeleton: React.FC = () => (
 
 const App: React.FC = () => {
   // City filter — declared before useMapData so the hook can load the right region
-  const [cityFilter, setCityFilter] = useState<CityFilter>((initialUrl.city as CityFilter) ?? 'helsinki_metro');
+  const [cityFilter, setCityFilter] = useState<CityFilter>((initialUrl.city as CityFilter) ?? DEFAULT_CITY);
 
   // Load only the selected region's data (or combined data for "all" view)
   const { data, loading, error, metroAverages, retry } = useMapData(cityFilter);
@@ -118,14 +117,6 @@ const App: React.FC = () => {
   const [showAuth, setShowAuth] = useState(false);
   // QW-1: Onboarding tour
   const [showTour, setShowTour] = useState(false);
-  // O1/EM1/EM4: dismissible idle "click any area" hint pill (persisted in localStorage).
-  const [idleHintDismissed, setIdleHintDismissed] = useState(() => {
-    try { return !!localStorage.getItem('naapurustot-idle-hint-seen'); } catch { return false; }
-  });
-  const handleDismissIdleHint = useCallback(() => {
-    try { localStorage.setItem('naapurustot-idle-hint-seen', '1'); } catch { /* unavailable */ }
-    setIdleHintDismissed(true);
-  }, []);
   // E9: dismissible locale-load-error notice (non-blocking).
   const [localeErrorDismissed, setLocaleErrorDismissed] = useState(false);
   // QW-3: "Show my area" geolocation status (transient toast).
@@ -295,7 +286,7 @@ const App: React.FC = () => {
     if (initialUrl.viewport) {
       return { center: initialUrl.viewport.center, zoom: initialUrl.viewport.zoom };
     }
-    const city = (initialUrl.city as CityFilter) ?? 'helsinki_metro';
+    const city = (initialUrl.city as CityFilter) ?? DEFAULT_CITY;
     const vp = CITY_VIEWPORTS[city];
     if (vp?.bounds) {
       return { center: vp.center, zoom: vp.zoom, bounds: vp.bounds };
@@ -1203,7 +1194,7 @@ const App: React.FC = () => {
   // C6: full reset — return to the default region AND clear all transient state
   // (selection, pins, drawn/selected area, filters, panels, wizard highlight, scope).
   const handleResetView = useCallback(() => {
-    handleCityChange('helsinki_metro');
+    handleCityChange(DEFAULT_CITY);
     deselect();
     clearPinned();
     handleClearDraw();
@@ -1554,34 +1545,6 @@ const App: React.FC = () => {
     }
   }, [getShareUrl, activeLayer]);
 
-  // X3: dedicated, discoverable header Share control. On success it flashes
-  // "Link copied"; on failure it reveals the URL for a manual select-all copy
-  // (the same recovery as X1's SettingsDropdown fallback).
-  const [headerShare, setHeaderShare] = useState<'idle' | 'copied' | 'failed'>('idle');
-  const headerShareUrlRef = useRef('');
-  const headerShareTextareaRef = useRef<HTMLTextAreaElement>(null);
-  const headerShareTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  useEffect(() => () => clearTimeout(headerShareTimerRef.current), []);
-  const handleHeaderShare = useCallback(async () => {
-    const ok = await handleCopyShareLink();
-    if (ok) {
-      setHeaderShare('copied');
-      clearTimeout(headerShareTimerRef.current);
-      headerShareTimerRef.current = setTimeout(() => setHeaderShare('idle'), 2000);
-    } else {
-      headerShareUrlRef.current = getShareUrl();
-      setHeaderShare('failed');
-    }
-  }, [handleCopyShareLink, getShareUrl]);
-  // X3: manual copy fallback from the revealed textarea (mirrors DonateButton).
-  const handleHeaderShareManualCopy = useCallback(() => {
-    const ta = headerShareTextareaRef.current;
-    if (!ta) return;
-    ta.focus();
-    ta.select();
-    try { document.execCommand('copy'); } catch { /* manual select-all still available */ }
-  }, []);
-
   // QW-3: from inside an embedded iframe, post the content height so a host page
   // can auto-size the iframe (no-op outside an iframe).
   useEffect(() => {
@@ -1691,18 +1654,6 @@ const App: React.FC = () => {
     filters.length > 0 ||
     wizardResultPnos.length > 0 ||
     comparisonScope !== 'all';
-
-  // O1/EM1/EM4: the idle hint is mutually exclusive with the "Clear all" chip —
-  // it only appears on a pristine home view (nothing dirty, nothing else mounted).
-  const showIdleHint =
-    !IS_EMBED &&
-    !selected &&
-    !showTour &&
-    pinned.length === 0 &&
-    shortlist.length === 0 &&
-    !!data &&
-    !idleHintDismissed &&
-    !isDirty;
 
   // E9: surface a failed locale dictionary fetch (re-render via useI18nVersion above).
   const localeLoadError = getLocaleLoadError();
@@ -1822,64 +1773,6 @@ const App: React.FC = () => {
             onToggleRegionRanking={handleToggleRegionRanking}
             lang={lang}
           />
-          {/* X3: discoverable Share control (icon + label on desktop) */}
-          <div className="relative">
-            <button
-              onClick={handleHeaderShare}
-              className={`flex px-2.5 py-2 rounded-lg text-xs font-semibold transition-all items-center justify-center
-                         min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0
-                         focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500
-                         ${headerShare === 'copied'
-                           ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30'
-                           : 'text-surface-600 dark:text-white/70 hover:text-surface-900 dark:hover:text-white hover:bg-surface-100 dark:hover:bg-white/10 border border-transparent'
-                         }`}
-              aria-label={t('share.button')}
-              title={t('share.button')}
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-              </svg>
-              <span className="hidden md:inline ml-1.5 whitespace-nowrap">
-                {headerShare === 'copied' ? t('share.link_copied') : t('share.button')}
-              </span>
-            </button>
-            {/* X3/X1: clipboard blocked — reveal the URL for a manual select-all copy */}
-            {headerShare === 'failed' && (
-              <div className="absolute left-0 top-full mt-2 w-72 max-w-[calc(100vw-1.5rem)] z-50 p-3 rounded-xl
-                              bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700/40 shadow-2xl">
-                <p className="text-xs font-medium text-surface-700 dark:text-surface-200 mb-2">{t('share.copy_failed')}</p>
-                <textarea
-                  ref={headerShareTextareaRef}
-                  readOnly
-                  value={headerShareUrlRef.current}
-                  onFocus={(e) => e.currentTarget.select()}
-                  rows={3}
-                  className="w-full text-[11px] font-mono text-surface-700 dark:text-surface-200
-                             bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700/40
-                             rounded-lg p-2 resize-none focus:outline-none focus:ring-1 focus:ring-brand-500/50"
-                />
-                <div className="flex items-center justify-end gap-2 mt-2">
-                  <button
-                    onClick={handleHeaderShareManualCopy}
-                    className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-brand-500/15 dark:bg-brand-600/20
-                               text-brand-600 dark:text-brand-300 hover:bg-brand-500/25 transition-colors"
-                  >
-                    {t('share.button')}
-                  </button>
-                  <button
-                    onClick={() => setHeaderShare('idle')}
-                    aria-label={t('aria.close')}
-                    title={t('aria.close')}
-                    className="p-1 rounded-md text-surface-500 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white hover:bg-surface-100 dark:hover:bg-white/10 transition-colors"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden="true">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
         </div>
 
         {/* Center: brand — absolutely positioned for true centering */}
@@ -2210,25 +2103,6 @@ const App: React.FC = () => {
         </div>
       )}
 
-
-      {/* O1/EM1/EM4: idle "click any area to explore" hint — only on a pristine home view */}
-      {showIdleHint && (
-        <div className="absolute bottom-[calc(5rem+env(safe-area-inset-bottom))] md:bottom-8 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2.5 pl-3 pr-2 py-1.5 rounded-xl
-                       bg-white/85 dark:bg-surface-900/85 backdrop-blur-md border border-surface-200/60 dark:border-surface-700/40 shadow-lg">
-          <MapPinIllustration className="w-7 h-7 shrink-0" />
-          <span className="text-xs font-medium text-surface-700 dark:text-surface-200">{t('empty.click_to_explore')}</span>
-          <button
-            onClick={handleDismissIdleHint}
-            aria-label={t('aria.close')}
-            title={t('aria.close')}
-            className="p-1 rounded-md text-surface-500 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white hover:bg-surface-100 dark:hover:bg-white/10 transition-colors"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-      )}
 
       {/* C6: one-tap "Clear all" reset chip — shown only when transient state is dirty.
           Suppressed while actively drawing/selecting so it doesn't stack on those hint pills. */}

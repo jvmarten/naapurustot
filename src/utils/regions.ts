@@ -752,6 +752,16 @@ export const REGION_IDS = Object.keys(REGIONS) as RegionId[];
  */
 export const REGION_IDS_WITH_DATA: RegionId[] = [...REGION_IDS];
 
+/**
+ * The view shown on first load when the URL carries no `city` param. The
+ * national "All Finland" view is the default landing; individual seutukunnat
+ * are reached via the region selector. This is the single source of truth for
+ * the default — App state init, the map viewport preset, and the clean-URL
+ * serializer (which omits the `city` param when it equals this value) all key
+ * off it.
+ */
+export const DEFAULT_CITY = 'all' as const;
+
 /** Viewport for the "all cities" view, showing the full extent of Finland. */
 export const ALL_FINLAND_VIEWPORT = {
   center: [25.0, 64.0] as [number, number],
