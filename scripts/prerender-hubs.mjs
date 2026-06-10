@@ -37,6 +37,12 @@ computeChangeMetrics(geojson.features);
 computeQuickWinMetrics(geojson.features);
 // CF-11b: data-source registry, for the Dataset JSON-LD on hub pages.
 const REGISTRY = JSON.parse(readFileSync(join(ROOT, 'src', 'data', 'data_sources.json'), 'utf-8'));
+// PO-4: dataset build date drives the citation year (the data vintage, not page age).
+const BUILD_METADATA = (() => {
+  try { return JSON.parse(readFileSync(join(ROOT, 'src', 'data', 'build_metadata.json'), 'utf-8')); }
+  catch { return { generated: '' }; }
+})();
+const CITE_YEAR = String(BUILD_METADATA.generated || '').slice(0, 4) || '2026';
 
 const LOCALES = {
   fi: JSON.parse(readFileSync(join(ROOT, 'src', 'locales', 'fi.json'), 'utf-8')),
@@ -259,6 +265,13 @@ function htmlPage({ lang, title, description, canonical, alternates, jsonLd, bod
     <meta name="description" content="${escapeHtml(description)}" />
     <link rel="canonical" href="${canonical}" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="DC.title" content="${escapeHtml(title)}" />
+    <meta name="DC.creator" content="naapurustot.fi" />
+    <meta name="DC.publisher" content="naapurustot.fi" />
+    <meta name="DC.date" content="${CITE_YEAR}" />
+    <meta name="DC.identifier" content="${canonical}" />
+    <meta name="DC.language" content="${lang}" />
+    <meta name="DC.rights" content="Data: Statistics Finland (CC BY 4.0), OpenStreetMap (ODbL) and other public sources" />
     <meta name="robots" content="index, follow, max-image-preview:large" />
     <meta name="theme-color" content="#1e3a5f" />
 ${altLinks}
@@ -313,6 +326,23 @@ function buildDirectoryRankingNav(lang) {
     .map((m) => `<a href="${rankPath(m.slug, null, lang)}">${escapeHtml(cap(m.label[lang]))}</a>`)
     .join(' · ');
   return `      <h2>${escapeHtml(RANK_TEXT[lang].bestHeading)}</h2>\n      <p>${links}</p>`;
+}
+
+// PO-4: a "Cite this page" section with a ready citation string and a BibTeX @misc
+// entry (data vintage as the year), so researchers/journalists can cite a hub.
+const CITE_TEXT = {
+  fi: { heading: 'Viittaa tähän sivuun', intro: 'Suositeltu viittaus' },
+  en: { heading: 'Cite this page', intro: 'Recommended citation' },
+  sv: { heading: 'Citera denna sida', intro: 'Rekommenderad hänvisning' },
+};
+function buildCiteSection(lang, title, url) {
+  const T = CITE_TEXT[lang] ?? CITE_TEXT.en;
+  const cite = `naapurustot.fi (${CITE_YEAR}). ${title}. ${url}`;
+  const key = `naapurustot_${CITE_YEAR}_${url.replace(/^https?:\/\//, '').replace(/[^a-z0-9]+/gi, '_').replace(/^_|_$/g, '')}`;
+  const bib = `@misc{${key},\n  title        = {${title}},\n  author       = {{naapurustot.fi}},\n  year         = {${CITE_YEAR}},\n  howpublished = {\\url{${url}}},\n  note         = {Data: Statistics Finland (Paavo, CC BY 4.0) and other public sources}\n}`;
+  return `      <h2>${escapeHtml(T.heading)}</h2>
+      <p>${escapeHtml(T.intro)}: ${escapeHtml(cite)}</p>
+      <details><summary>BibTeX</summary><pre style="white-space:pre-wrap;font-size:.82rem;overflow-x:auto">${escapeHtml(bib)}</pre></details>`;
 }
 
 // --- Localized prose ---
@@ -667,7 +697,8 @@ function buildDirectory(lang) {
 ${rows}
         </tbody>
       </table>
-${buildDirectoryRankingNav(lang)}`;
+${buildDirectoryRankingNav(lang)}
+${buildCiteSection(lang, T.dirTitle, alternates[lang])}`;
 
   const itemList = {
     '@context': 'https://schema.org',
@@ -757,6 +788,7 @@ ${rows}
         </tbody>
       </table>
 ${buildBestAreasNav(region, lang)}
+${buildCiteSection(lang, T.cityTitle(regionName), alternates[lang])}
       <p><a href="${DIRECTORY_PATH[lang]}">${escapeHtml(T.backToDir)}</a></p>`;
 
   const collection = {
@@ -850,7 +882,8 @@ function buildLanding(lang) {
         ${hubLinks}
       </ul>
       <p><a href="${DIRECTORY_PATH[lang]}">${escapeHtml(L.directoryLink)} →</a></p>
-      <p class="muted">${escapeHtml(L.sourcesNote)}</p>`;
+      <p class="muted">${escapeHtml(L.sourcesNote)}</p>
+${buildCiteSection(lang, L.title, alternates[lang])}`;
 
   const collection = {
     '@context': 'https://schema.org',
