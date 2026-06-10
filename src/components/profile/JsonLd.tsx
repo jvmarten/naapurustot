@@ -231,6 +231,11 @@ export const JsonLd: React.FC<JsonLdProps> = ({
   regionFeatures,
 }) => {
   const cityName = properties.city ? t(`city.${properties.city}`) : 'Finland';
+  // QW-5: language-aware regional-hub path, matching scripts/prerender.mjs's
+  // CITY_PREFIX so the hydrated breadcrumb points at the same prerendered hub URL
+  // the static markup does (was `/?city=`, a non-prerendered query-param route).
+  const cityPrefix = { fi: '/kaupunki', en: '/en/city', sv: '/sv/stad' }[lang];
+  const hubUrl = `https://naapurustot.fi${cityPrefix}/${properties.city ?? 'helsinki_metro'}/`;
   // Mirror the page's display-name rule and the prerenderer's getDisplayName so the
   // client-rendered JSON-LD matches the visible <h1> and the static prerendered markup
   // (previously it always emitted the Finnish name, diverging on the /sv/ route).
@@ -295,7 +300,7 @@ export const JsonLd: React.FC<JsonLdProps> = ({
     address: {
       '@type': 'PostalAddress',
       postalCode: properties.pno,
-      addressLocality: cityName,
+      addressRegion: cityName,
       addressCountry: 'FI',
     },
     // Only advertise coordinates when they are real. A null-geometry feature
@@ -320,7 +325,7 @@ export const JsonLd: React.FC<JsonLdProps> = ({
     '@type': 'BreadcrumbList',
     itemListElement: [
       { '@type': 'ListItem', position: 1, name: 'naapurustot.fi', item: 'https://naapurustot.fi' },
-      { '@type': 'ListItem', position: 2, name: cityName, item: `https://naapurustot.fi/?city=${properties.city ?? 'helsinki_metro'}` },
+      { '@type': 'ListItem', position: 2, name: cityName, item: hubUrl },
       { '@type': 'ListItem', position: 3, name: displayName },
     ],
   };

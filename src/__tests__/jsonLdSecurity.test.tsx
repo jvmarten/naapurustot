@@ -201,7 +201,8 @@ describe('JsonLd — XSS hardening', () => {
     const scripts = container.querySelectorAll('script[type="application/ld+json"]');
     const crumb = JSON.parse(scripts[1].innerHTML);
     expect(crumb.itemListElement).toHaveLength(3);
-    expect(crumb.itemListElement[1].item).toBe('https://naapurustot.fi/?city=turku');
+    // QW-5: breadcrumb now points at the prerendered regional hub (was `/?city=`).
+    expect(crumb.itemListElement[1].item).toBe('https://naapurustot.fi/kaupunki/turku/');
     expect(crumb.itemListElement[2].name).toBe('Portsa');
   });
 
@@ -215,7 +216,7 @@ describe('JsonLd — XSS hardening', () => {
     );
     const scripts = container.querySelectorAll('script[type="application/ld+json"]');
     const crumb = JSON.parse(scripts[1].innerHTML);
-    expect(crumb.itemListElement[1].item).toBe('https://naapurustot.fi/?city=helsinki_metro');
+    expect(crumb.itemListElement[1].item).toBe('https://naapurustot.fi/kaupunki/helsinki_metro/');
   });
 
   it('places GeoCoordinates as [longitude, latitude] derived from center tuple', () => {
