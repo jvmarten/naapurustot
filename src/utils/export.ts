@@ -1,5 +1,5 @@
 import type { NeighborhoodProperties } from './metrics';
-import { formatNumber, formatEuro, formatPct, escapeHtml } from './formatting';
+import { formatNumber, formatEuro, formatPct, formatYtlGradeFull, escapeHtml } from './formatting';
 import { t, getLang } from './i18n';
 import { getQualityCategory } from './qualityIndex';
 import { readNote } from '../hooks/useNotes';
@@ -36,6 +36,8 @@ function collectStats(d: NeighborhoodProperties): StatEntry[] {
   const fmtSqm = (v: number | null | undefined) => (v == null ? '—' : `${v.toFixed(1)} m²`);
   const fmtEuroSqm = (v: number | null | undefined) => (v == null ? '—' : `${fmt.format(v)} €/m²`);
   const fmtStopDensity = (v: number | null | undefined) => (v == null ? '—' : `${v.toFixed(1)} /km²`);
+  // PO-2: 1-decimal scalar; the per-metric labels below already carry their unit (e.g. "(/km²)").
+  const fmtNum1 = (v: number | null | undefined) => (v == null ? '—' : v.toFixed(1));
 
   const rows: StatEntry[] = [
     { label: t('panel.quality_index'), value: d.quality_index != null ? String(d.quality_index) : '—' },
@@ -43,10 +45,12 @@ function collectStats(d: NeighborhoodProperties): StatEntry[] {
     { label: t('panel.median_income'), value: formatEuro(d.hr_mtu) },
     { label: t('panel.avg_income'), value: formatEuro(d.hr_ktu) },
     { label: t('panel.unemployment'), value: formatPct(d.unemployment_rate) },
+    { label: t('panel.employment_rate'), value: formatPct(d.employment_rate) },
     { label: t('panel.foreign_lang'), value: formatPct(d.foreign_language_pct) },
     // Housing
     { label: t('panel.ownership_rate'), value: formatPct(d.ownership_rate) },
     { label: t('panel.rental_rate'), value: formatPct(d.rental_rate) },
+    { label: t('panel.rental_price'), value: d.rental_price_sqm != null ? `${fmt.format(d.rental_price_sqm)}` : '—' },
     { label: t('panel.avg_apt_size'), value: fmtSqm(d.ra_as_kpa) },
     { label: t('panel.detached_houses'), value: formatPct(d.detached_house_share) },
     { label: t('panel.dwellings'), value: formatNumber(d.ra_asunn) },
@@ -59,6 +63,19 @@ function collectStats(d: NeighborhoodProperties): StatEntry[] {
     { label: t('panel.property_price'), value: fmtEuroSqm(d.property_price_sqm) },
     { label: t('panel.transit_access'), value: fmtStopDensity(d.transit_stop_density) },
     { label: t('panel.air_quality'), value: d.air_quality_index != null ? d.air_quality_index.toFixed(1) : '—' },
+    { label: t('panel.crime_rate'), value: fmtNum1(d.crime_index) },
+    { label: t('panel.walkability'), value: fmtNum1(d.walkability_index) },
+    { label: t('panel.school_quality'), value: formatYtlGradeFull(d.school_quality_score) },
+    { label: t('panel.noise_pollution'), value: fmtNum1(d.noise_pollution) },
+    { label: t('panel.light_pollution'), value: d.light_pollution != null ? d.light_pollution.toFixed(2) : '—' },
+    { label: t('panel.tree_canopy'), value: formatPct(d.tree_canopy_pct) },
+    // Services (labels already carry the "(/km²)" unit)
+    { label: t('panel.grocery_access'), value: fmtNum1(d.grocery_density) },
+    { label: t('panel.restaurant_density'), value: fmtNum1(d.restaurant_density) },
+    { label: t('panel.school_density'), value: fmtNum1(d.school_density) },
+    { label: t('panel.daycare_density'), value: fmtNum1(d.daycare_density) },
+    { label: t('panel.healthcare_access'), value: fmtNum1(d.healthcare_density) },
+    { label: t('panel.sports_facilities'), value: fmtNum1(d.sports_facility_density) },
     // Activity
     { label: t('panel.employed'), value: formatNumber(d.pt_tyoll) },
     { label: t('panel.unemployed'), value: formatNumber(d.pt_tyott) },
