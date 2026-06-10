@@ -402,6 +402,7 @@
   "panel.no_data": "No data available",
   "tooltip.no_data": "No data",
   "tooltip.vs_avg": "vs. avg",
+  "tooltip.cell_value": "cell",
   "tooltip.more_schools": "more",
   "tools.title": "Tools",
   "tools.print": "Print / Screenshot",

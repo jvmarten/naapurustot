@@ -402,6 +402,7 @@
   "panel.no_data": "Inga uppgifter tillgängliga",
   "tooltip.no_data": "Inga uppgifter",
   "tooltip.vs_avg": "vs. m.",
+  "tooltip.cell_value": "ruta",
   "tooltip.more_schools": "till",
   "tools.title": "Verktyg",
   "tools.print": "Skriv ut / Skärmdump",

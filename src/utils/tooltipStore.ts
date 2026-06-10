@@ -17,6 +17,12 @@ export interface TooltipData {
   x: number;
   /** Cursor Y position (viewport pixels). */
   y: number;
+  /**
+   * QW-8: when hovering over a fine-grained grid cell (air quality / light pollution)
+   * above the crossfade zoom, the active layer's value for THAT cell — shown instead of
+   * the postal aggregate, which the user isn't looking at. Absent/null over postal fill.
+   */
+  gridValue?: number | null;
 }
 
 let current: TooltipData | null = null;

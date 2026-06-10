@@ -935,9 +935,9 @@ const App: React.FC = () => {
   }, [qualityWeights, data, select, refreshPinned]);
 
   const handleHover = useCallback(
-    (props: NeighborhoodProperties | null, x: number, y: number) => {
+    (props: NeighborhoodProperties | null, x: number, y: number, gridValue?: number | null) => {
       if (selectedRef.current) return;
-      setTooltipData(props ? { props, x, y } : null);
+      setTooltipData(props ? { props, x, y, gridValue } : null);
     },
     [],
   );

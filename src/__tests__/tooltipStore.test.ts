@@ -82,4 +82,13 @@ describe('tooltipStore', () => {
     expect(listener).toHaveBeenCalledTimes(1);
     expect(getTooltipSnapshot()).toBeNull();
   });
+
+  it('carries an optional grid-cell value (QW-8)', () => {
+    const data: TooltipData = { ...makeTooltip(5, 6), gridValue: 23.4 };
+    setTooltipData(data);
+    expect(getTooltipSnapshot()?.gridValue).toBe(23.4);
+    // Postal hover (no grid) leaves it undefined.
+    setTooltipData(makeTooltip(7, 8));
+    expect(getTooltipSnapshot()?.gridValue).toBeUndefined();
+  });
 });
