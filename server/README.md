@@ -115,7 +115,7 @@ docker compose logs -f
 | `API_DB_PASSWORD` | PostgreSQL password for the API database user |
 | `JWT_SECRET` | Secret for signing JWT auth tokens (must be set in production) |
 | `TURNSTILE_SECRET` | Cloudflare Turnstile secret key (skip in dev to disable bot check) |
-| `TURNSTILE_ALLOWED_HOSTNAMES` | Optional — comma-separated hostnames a Turnstile token must have been solved on (e.g. `naapurustot.fi,www.naapurustot.fi`); empty disables the check. Note: not yet forwarded to the api container in `docker-compose.yml` |
+| `TURNSTILE_ALLOWED_HOSTNAMES` | Optional — comma-separated hostnames a Turnstile token must have been solved on (e.g. `naapurustot.fi,www.naapurustot.fi`); empty disables the check |
 | `SENTRY_DSN` | Optional — Sentry error tracking for the API; empty disables Sentry entirely |
 | `SENTRY_RELEASE` | Optional — release identifier attached to Sentry events |
 | `BACKUP_RETENTION_DAYS` | Optional — days of pg_dumps to keep in `./backups/` (default: 14) |

@@ -193,6 +193,7 @@
   "error.retry": "Try again",
   "sync.saving": "Saving…",
   "sync.error": "Changes not saved to your account",
+  "sync.session_expired": "Session expired — please log in again",
   "error.boundary_title": "Something went wrong",
   "error.boundary_description": "An unexpected error occurred",
   "error.reload": "Reload",

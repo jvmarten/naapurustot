@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { t, useI18nVersion } from '../utils/i18n';
 import type { ApiUser } from '../utils/api';
-import { useSyncStatus, retryAllSyncs } from '../utils/syncStatus';
+import { useSyncStatus, useSessionExpired, retryAllSyncs } from '../utils/syncStatus';
 import { FavoritesEmptyIllustration } from './EmptyStateIllustrations';
 
 export interface FavoriteEntry {
@@ -27,6 +27,7 @@ export const UserMenu: React.FC<UserMenuProps> = React.memo(({ user, onLogout, f
   const ref = useRef<HTMLDivElement>(null);
   // PO-5: surface cloud-sync health (was silently swallowed).
   const syncStatus = useSyncStatus();
+  const sessionExpired = useSessionExpired();
   // Snapshot favorites when dropdown opens so items stay visible after unfavoriting
   const [snapshotFavorites, setSnapshotFavorites] = useState<FavoriteEntry[]>([]);
   // CF-13: GDPR export/delete state.
@@ -154,11 +155,13 @@ export const UserMenu: React.FC<UserMenuProps> = React.memo(({ user, onLogout, f
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4a2 2 0 00-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z" />
                     </svg>
-                    {t('sync.error')}
+                    {/* IN-3: a 401 is terminal (no retry loop) — tell the user to log in again. */}
+                    {sessionExpired ? t('sync.session_expired') : t('sync.error')}
                   </>
                 )}
               </span>
-              {syncStatus === 'error' && (
+              {/* Retry only helps for transient (5xx/network) errors; a 401 needs a re-login. */}
+              {syncStatus === 'error' && !sessionExpired && (
                 <button
                   onClick={() => retryAllSyncs()}
                   className="font-semibold underline hover:text-amber-700 dark:hover:text-amber-300"

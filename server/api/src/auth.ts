@@ -220,7 +220,7 @@ export function buildExportPayload(parts: {
   favorites: string[] | undefined;
   shortlist: string[] | undefined;
   notes: Record<string, string> | undefined;
-  preferences: { filterPresets?: unknown; qualityWeights?: unknown } | undefined;
+  preferences: { filterPresets?: unknown; qualityWeights?: unknown; wizardProfile?: unknown } | undefined;
 }) {
   const u = parts.user;
   return {
@@ -241,6 +241,7 @@ export function buildExportPayload(parts: {
     notes: parts.notes ?? {},
     filterPresets: parts.preferences?.filterPresets ?? [],
     qualityWeights: parts.preferences?.qualityWeights ?? {},
+    wizardProfile: parts.preferences?.wizardProfile ?? {},
   };
 }
 
@@ -260,7 +261,7 @@ router.get('/export', async (req: Request, res: Response): Promise<void> => {
     pool.query('SELECT favorites FROM user_favorites WHERE user_id = $1', [userId]),
     pool.query('SELECT shortlist FROM user_shortlist WHERE user_id = $1', [userId]),
     pool.query('SELECT notes FROM user_notes WHERE user_id = $1', [userId]),
-    pool.query('SELECT filter_presets, quality_weights FROM user_preferences WHERE user_id = $1', [userId]),
+    pool.query('SELECT filter_presets, quality_weights, wizard_profile FROM user_preferences WHERE user_id = $1', [userId]),
   ]);
 
   if (user.rows.length === 0) {
@@ -275,7 +276,11 @@ router.get('/export', async (req: Request, res: Response): Promise<void> => {
     shortlist: shortlist.rows[0]?.shortlist,
     notes: notes.rows[0]?.notes,
     preferences: preferences.rows[0]
-      ? { filterPresets: preferences.rows[0].filter_presets, qualityWeights: preferences.rows[0].quality_weights }
+      ? {
+          filterPresets: preferences.rows[0].filter_presets,
+          qualityWeights: preferences.rows[0].quality_weights,
+          wizardProfile: preferences.rows[0].wizard_profile,
+        }
       : undefined,
   });
 
@@ -557,6 +562,35 @@ function validateQualityWeights(value: unknown): { ok: true; value: Record<strin
   return { ok: true, value: result };
 }
 
+// IN-3: the wizard priority profile is a fixed-shape blob (re-sanitized client-side
+// by sanitizeWizardAnswers on read). Validate it size-capped + key-allowlisted so the
+// authed PUT can't be used to stuff arbitrary JSON into the column.
+const WIZARD_PROFILE_KEYS = new Set([
+  'transitImportance', 'quietPreference', 'budgetMin', 'budgetMax', 'sizePreference',
+  'tenurePreference', 'hasChildren', 'schoolImportance', 'healthcareImportance',
+]);
+
+export function validateWizardProfile(value: unknown): { ok: true; value: Record<string, unknown> } | { ok: false; error: string } {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return { ok: false, error: 'wizardProfile must be an object' };
+  }
+  const entries = Object.entries(value as Record<string, unknown>);
+  if (entries.length > WIZARD_PROFILE_KEYS.size) return { ok: false, error: 'Too many wizardProfile keys' };
+  const result: Record<string, unknown> = {};
+  for (const [k, v] of entries) {
+    if (!WIZARD_PROFILE_KEYS.has(k)) return { ok: false, error: `Unknown wizardProfile key: ${k}` };
+    if (typeof v === 'number') {
+      if (!isFinite(v)) return { ok: false, error: 'wizardProfile number must be finite' };
+    } else if (typeof v === 'string') {
+      if (v.length > 20) return { ok: false, error: 'wizardProfile string too long' };
+    } else if (typeof v !== 'boolean') {
+      return { ok: false, error: 'wizardProfile values must be number, string, or boolean' };
+    }
+    result[k] = v;
+  }
+  return { ok: true, value: result };
+}
+
 router.get('/preferences', async (req: Request, res: Response): Promise<void> => {
   const userId = authenticateToken(req);
   if (!userId) {
@@ -565,16 +599,17 @@ router.get('/preferences', async (req: Request, res: Response): Promise<void> =>
   }
 
   const result = await pool.query(
-    'SELECT filter_presets, quality_weights FROM user_preferences WHERE user_id = $1',
+    'SELECT filter_presets, quality_weights, wizard_profile FROM user_preferences WHERE user_id = $1',
     [userId]
   );
   if (result.rows.length === 0) {
-    res.json({ filterPresets: [], qualityWeights: {} });
+    res.json({ filterPresets: [], qualityWeights: {}, wizardProfile: {} });
     return;
   }
   res.json({
     filterPresets: result.rows[0].filter_presets ?? [],
     qualityWeights: result.rows[0].quality_weights ?? {},
+    wizardProfile: result.rows[0].wizard_profile ?? {},
   });
 });
 
@@ -585,7 +620,7 @@ router.put('/preferences', async (req: Request, res: Response): Promise<void> =>
     return;
   }
 
-  const { filterPresets, qualityWeights } = req.body ?? {};
+  const { filterPresets, qualityWeights, wizardProfile } = req.body ?? {};
 
   // Allow partial updates: only validate fields that were sent.
   let presetsJson: string | null = null;
@@ -600,30 +635,42 @@ router.put('/preferences', async (req: Request, res: Response): Promise<void> =>
     if (!v.ok) { res.status(400).json({ error: v.error }); return; }
     weightsJson = JSON.stringify(v.value);
   }
+  // IN-3: wizardProfile is now a first-class preference. Before this, a
+  // wizardProfile-only PUT (what useWizardProfile sends) failed the
+  // "provide at least one" check below with a 400 — a guaranteed retry loop
+  // for every signed-in user who touched the wizard.
+  let wizardJson: string | null = null;
+  if (wizardProfile !== undefined) {
+    const v = validateWizardProfile(wizardProfile);
+    if (!v.ok) { res.status(400).json({ error: v.error }); return; }
+    wizardJson = JSON.stringify(v.value);
+  }
 
-  if (presetsJson === null && weightsJson === null) {
-    res.status(400).json({ error: 'Provide filterPresets or qualityWeights' });
+  if (presetsJson === null && weightsJson === null && wizardJson === null) {
+    res.status(400).json({ error: 'Provide filterPresets, qualityWeights, or wizardProfile' });
     return;
   }
 
   // COALESCE keeps unspecified fields at their existing values.
   await pool.query(
-    `INSERT INTO user_preferences (user_id, filter_presets, quality_weights, updated_at)
-     VALUES ($1, COALESCE($2::jsonb, '[]'::jsonb), COALESCE($3::jsonb, '{}'::jsonb), NOW())
+    `INSERT INTO user_preferences (user_id, filter_presets, quality_weights, wizard_profile, updated_at)
+     VALUES ($1, COALESCE($2::jsonb, '[]'::jsonb), COALESCE($3::jsonb, '{}'::jsonb), COALESCE($4::jsonb, '{}'::jsonb), NOW())
      ON CONFLICT (user_id) DO UPDATE SET
        filter_presets = COALESCE($2::jsonb, user_preferences.filter_presets),
        quality_weights = COALESCE($3::jsonb, user_preferences.quality_weights),
+       wizard_profile = COALESCE($4::jsonb, user_preferences.wizard_profile),
        updated_at = NOW()`,
-    [userId, presetsJson, weightsJson]
+    [userId, presetsJson, weightsJson, wizardJson]
   );
 
   const result = await pool.query(
-    'SELECT filter_presets, quality_weights FROM user_preferences WHERE user_id = $1',
+    'SELECT filter_presets, quality_weights, wizard_profile FROM user_preferences WHERE user_id = $1',
     [userId]
   );
   res.json({
     filterPresets: result.rows[0]?.filter_presets ?? [],
     qualityWeights: result.rows[0]?.quality_weights ?? {},
+    wizardProfile: result.rows[0]?.wizard_profile ?? {},
   });
 });
 

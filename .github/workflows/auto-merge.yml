@@ -204,8 +204,36 @@ jobs:
           path: lhci-reports/
           retention-days: 14
 
+  server:
+    # IN-2: build + test server/api (tsc via `npm run build` + node:test). The server
+    # suite and type-check currently run in NO workflow, so auth/sync/GDPR type errors
+    # and test failures only surface during the docker build on the droplet AFTER merge.
+    # This gates them before the merge to main.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/api/package-lock.json
+
+      - name: Install
+        working-directory: server/api
+        run: npm ci
+
+      - name: Type check + build
+        working-directory: server/api
+        run: npm run build
+
+      - name: Test
+        working-directory: server/api
+        run: npm test
+
   merge-to-main:
-    needs: [security, checks, e2e, lighthouse]
+    needs: [security, checks, e2e, lighthouse, server]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -267,5 +295,27 @@ jobs:
       - name: Trigger deploy workflow
         if: success()
         run: gh workflow run deploy.yml --ref main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # IN-2: deploy-server.yml's push trigger can never fire (GITHUB_TOKEN pushes are
+      # suppressed), so dispatch it explicitly when the merged diff touched server/**.
+      - name: Trigger server deploy if server changed
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if git diff --name-only HEAD~1 HEAD | grep -q '^server/'; then
+            echo "server/** changed — dispatching deploy-server.yml"
+            gh workflow run deploy-server.yml --ref main
+          else
+            echo "no server/** changes — skipping server deploy"
+          fi
+
+      # IN-2: scan the merged code same-day instead of waiting for the Monday cron
+      # (the push-to-main trigger never fires for GITHUB_TOKEN pushes).
+      - name: Trigger CodeQL scan
+        if: success()
+        run: gh workflow run codeql.yml --ref main
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
