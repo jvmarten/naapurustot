@@ -437,6 +437,7 @@
   "offline.indicator": "Offline — using cached data",
   "aria.close": "Close",
   "aria.language": "Language",
+  "aria.expand_sheet": "Expand panel",
   "aria.layer_changed": "Layer changed to",
   "aria.neighborhood_selected": "Neighborhood selected",
   "aria.filter_results": "Filter results",

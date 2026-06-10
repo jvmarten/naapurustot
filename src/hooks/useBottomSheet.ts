@@ -14,6 +14,8 @@ interface UseBottomSheetReturn {
   sheetHeight: number;
   isDragging: boolean;
   snap: SnapPosition;
+  /** PO-3: advance peek → half → full → peek (for a tappable/keyboard handle). */
+  cycleSnap: () => void;
   handlers: {
     onTouchStart: (e: React.TouchEvent) => void;
     onTouchMove: (e: React.TouchEvent) => void;
@@ -163,6 +165,15 @@ export function useBottomSheet(options: UseBottomSheetOptions = {}): UseBottomSh
     setDragHeight(null);
   }, []);
 
+  // PO-3: advance the snap position peek → half → full → peek. Lets a tap or Enter/Space
+  // on the (now button) drag handle expand the sheet, so keyboard + switch users aren't
+  // locked out of a gesture-only affordance. Clearing dragHeight makes the height
+  // transition animate to the new snap rather than a stale drag height.
+  const cycleSnap = useCallback(() => {
+    setSnap((s) => (s === 'peek' ? 'half' : s === 'half' ? 'full' : 'peek'));
+    setDragHeight(null);
+  }, []);
+
   const sheetHeight = isDragging && dragHeight !== null ? dragHeight : resolveHeight(snap);
 
   // Memoize the handlers object so consumers that pass it as a prop or destructure it
@@ -179,6 +190,7 @@ export function useBottomSheet(options: UseBottomSheetOptions = {}): UseBottomSh
     sheetHeight,
     isDragging,
     snap,
+    cycleSnap,
     handlers,
   };
 }

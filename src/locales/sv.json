@@ -437,6 +437,7 @@
   "offline.indicator": "Offline — använder cache",
   "aria.close": "Stäng",
   "aria.language": "Språk",
+  "aria.expand_sheet": "Expandera panelen",
   "aria.layer_changed": "Datalager bytt",
   "aria.neighborhood_selected": "Område valt",
   "aria.filter_results": "Filterresultat",

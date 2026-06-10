@@ -437,6 +437,7 @@
   "offline.indicator": "Offline — käytetään välimuistia",
   "aria.close": "Sulje",
   "aria.language": "Kieli",
+  "aria.expand_sheet": "Laajenna paneeli",
   "aria.layer_changed": "Aineisto vaihdettu",
   "aria.neighborhood_selected": "Alue valittu",
   "aria.filter_results": "Suodatustuloksia",
