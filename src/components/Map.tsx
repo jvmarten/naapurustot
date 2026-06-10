@@ -233,7 +233,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   // (whose generic "try again / reload" UI is misleading for a permanent
   // lack of WebGL support).
   const [webglFailed, setWebglFailed] = useState(false);
-  useI18nVersion();
+  const i18nVersion = useI18nVersion();
 
   // PO-2: Track previous active layer to detect layer switches (skip animation on initial render)
   const prevActiveLayerRef = useRef<LayerId | null>(null);
@@ -1220,66 +1220,80 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !data) return;
-    if (!map.isStyleLoaded() || !map.getSource(SOURCE_ID)) return;
+    // CF-2: gate on the persistent mapStyleLoadedRef (not isStyleLoaded(), which is
+    // false during an in-flight setData re-parse) and queue on 'load' when pre-init —
+    // returning early instead silently dropped the highlight with no retry.
+    const apply = () => {
+      if (!map.getSource(SOURCE_ID)) return;
 
-    if (pinnedPnos.length === 0) {
-      if (map.getLayer(PINNED_LAYER)) {
-        map.setLayoutProperty(PINNED_LAYER, 'visibility', 'none');
+      if (pinnedPnos.length === 0) {
+        if (map.getLayer(PINNED_LAYER)) {
+          map.setLayoutProperty(PINNED_LAYER, 'visibility', 'none');
+        }
+        return;
       }
-      return;
-    }
 
-    const filter = ['in', ['get', 'pno'], ['literal', pinnedPnos]] as unknown as maplibregl.ExpressionSpecification;
+      const filter = ['in', ['get', 'pno'], ['literal', pinnedPnos]] as unknown as maplibregl.ExpressionSpecification;
 
-    if (map.getLayer(PINNED_LAYER)) {
-      map.setFilter(PINNED_LAYER, filter);
-      map.setLayoutProperty(PINNED_LAYER, 'visibility', 'visible');
-    } else {
-      map.addLayer({
-        id: PINNED_LAYER,
-        type: 'line',
-        source: SOURCE_ID,
-        filter: filter,
-        paint: {
-          'line-color': theme === 'dark' ? '#facc15' : '#d97706',
-          'line-width': 3,
-          'line-opacity': 1,
-        },
-      }, beforeLabels(map));
-    }
+      if (map.getLayer(PINNED_LAYER)) {
+        map.setFilter(PINNED_LAYER, filter);
+        map.setLayoutProperty(PINNED_LAYER, 'visibility', 'visible');
+      } else {
+        map.addLayer({
+          id: PINNED_LAYER,
+          type: 'line',
+          source: SOURCE_ID,
+          filter: filter,
+          paint: {
+            'line-color': theme === 'dark' ? '#facc15' : '#d97706',
+            'line-width': 3,
+            'line-opacity': 1,
+          },
+        }, beforeLabels(map));
+      }
+    };
+    if (mapStyleLoadedRef.current) apply();
+    else map.on('load', apply);
+    return () => { map.off('load', apply); };
   }, [pinnedPnos, data, theme]);
 
   // Select-areas mode highlight layer
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !data) return;
-    if (!map.isStyleLoaded() || !map.getSource(SOURCE_ID)) return;
+    // CF-2: gate on mapStyleLoadedRef + queue on 'load' (see pinned-highlight effect).
+    const apply = () => {
+      if (!map.getSource(SOURCE_ID)) return;
 
-    if (selectedAreaPnos.length === 0) {
-      if (map.getLayer(SELECT_AREA_LAYER)) {
-        map.setLayoutProperty(SELECT_AREA_LAYER, 'visibility', 'none');
+      if (selectedAreaPnos.length === 0) {
+        if (map.getLayer(SELECT_AREA_LAYER)) {
+          map.setLayoutProperty(SELECT_AREA_LAYER, 'visibility', 'none');
+        }
+        return;
       }
-      return;
-    }
 
-    const filter = ['in', ['get', 'pno'], ['literal', selectedAreaPnos]] as unknown as maplibregl.ExpressionSpecification;
+      const filter = ['in', ['get', 'pno'], ['literal', selectedAreaPnos]] as unknown as maplibregl.ExpressionSpecification;
 
-    if (map.getLayer(SELECT_AREA_LAYER)) {
-      map.setFilter(SELECT_AREA_LAYER, filter);
-      map.setLayoutProperty(SELECT_AREA_LAYER, 'visibility', 'visible');
-    } else {
-      map.addLayer({
-        id: SELECT_AREA_LAYER,
-        type: 'line',
-        source: SOURCE_ID,
-        filter: filter,
-        paint: {
-          'line-color': theme === 'dark' ? '#a78bfa' : '#7c3aed',
-          'line-width': 3,
-          'line-opacity': 1,
-        },
-      }, beforeLabels(map));
-    }
+      if (map.getLayer(SELECT_AREA_LAYER)) {
+        map.setFilter(SELECT_AREA_LAYER, filter);
+        map.setLayoutProperty(SELECT_AREA_LAYER, 'visibility', 'visible');
+      } else {
+        map.addLayer({
+          id: SELECT_AREA_LAYER,
+          type: 'line',
+          source: SOURCE_ID,
+          filter: filter,
+          paint: {
+            'line-color': theme === 'dark' ? '#a78bfa' : '#7c3aed',
+            'line-width': 3,
+            'line-opacity': 1,
+          },
+        }, beforeLabels(map));
+      }
+    };
+    if (mapStyleLoadedRef.current) apply();
+    else map.on('load', apply);
+    return () => { map.off('load', apply); };
   }, [selectedAreaPnos, data, theme]);
 
   // PO-4: Wizard results highlight layer — uses setFilter on existing layer to avoid recreation.
@@ -1288,47 +1302,62 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !data) return;
-    if (!map.isStyleLoaded() || !map.getSource(SOURCE_ID)) return;
+    // CF-2: gate on mapStyleLoadedRef + queue on 'load' (see pinned-highlight effect).
+    const apply = () => {
+      if (!map.getSource(SOURCE_ID)) return;
 
-    const currentOpacity = fillOpacityRef.current;
+      const currentOpacity = fillOpacityRef.current;
 
-    if (wizardHighlightPnos.length === 0) {
-      if (map.getLayer(WIZARD_HIGHLIGHT_LAYER)) {
-        map.setLayoutProperty(WIZARD_HIGHLIGHT_LAYER, 'visibility', 'none');
+      if (wizardHighlightPnos.length === 0) {
+        if (map.getLayer(WIZARD_HIGHLIGHT_LAYER)) {
+          map.setLayoutProperty(WIZARD_HIGHLIGHT_LAYER, 'visibility', 'none');
+        }
+        if (map.getLayer(FILL_LAYER)) {
+          map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(currentOpacity));
+        }
+        return;
       }
+
       if (map.getLayer(FILL_LAYER)) {
-        map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(currentOpacity));
+        map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(currentOpacity, {
+          matchExpr: ['in', ['get', 'pno'], ['literal', wizardHighlightPnos]],
+          matchVal: 0.8,
+          dimVal: 0.2,
+        }));
       }
-      return;
-    }
 
-    if (map.getLayer(FILL_LAYER)) {
-      map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(currentOpacity, {
-        matchExpr: ['in', ['get', 'pno'], ['literal', wizardHighlightPnos]],
-        matchVal: 0.8,
-        dimVal: 0.2,
-      }));
-    }
+      const filter = ['in', ['get', 'pno'], ['literal', wizardHighlightPnos]] as unknown as maplibregl.ExpressionSpecification;
 
-    const filter = ['in', ['get', 'pno'], ['literal', wizardHighlightPnos]] as unknown as maplibregl.ExpressionSpecification;
-
-    if (map.getLayer(WIZARD_HIGHLIGHT_LAYER)) {
-      map.setFilter(WIZARD_HIGHLIGHT_LAYER, filter);
-      map.setLayoutProperty(WIZARD_HIGHLIGHT_LAYER, 'visibility', 'visible');
-    } else {
-      map.addLayer({
-        id: WIZARD_HIGHLIGHT_LAYER,
-        type: 'line',
-        source: SOURCE_ID,
-        filter: filter,
-        paint: {
-          'line-color': theme === 'dark' ? '#60a5fa' : '#2563eb',
-          'line-width': 3,
-          'line-opacity': 1,
-        },
-      }, beforeLabels(map));
-    }
+      if (map.getLayer(WIZARD_HIGHLIGHT_LAYER)) {
+        map.setFilter(WIZARD_HIGHLIGHT_LAYER, filter);
+        map.setLayoutProperty(WIZARD_HIGHLIGHT_LAYER, 'visibility', 'visible');
+      } else {
+        map.addLayer({
+          id: WIZARD_HIGHLIGHT_LAYER,
+          type: 'line',
+          source: SOURCE_ID,
+          filter: filter,
+          paint: {
+            'line-color': theme === 'dark' ? '#60a5fa' : '#2563eb',
+            'line-width': 3,
+            'line-opacity': 1,
+          },
+        }, beforeLabels(map));
+      }
+    };
+    if (mapStyleLoadedRef.current) apply();
+    else map.on('load', apply);
+    return () => { map.off('load', apply); };
   }, [wizardHighlightPnos, data, theme]);
+
+  // CF-2: re-apply the canvas accessible name when the UI language changes. It is set
+  // once inside map.once('load'), so without this the screen-reader name stayed in the
+  // language the map first loaded in after a later language switch.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapStyleLoadedRef.current) return;
+    try { map.getCanvas().setAttribute('aria-label', t('aria.map_canvas')); } catch { /* canvas unavailable */ }
+  }, [i18nVersion]);
 
   // CF-6: Draw/select mode cursor
   useEffect(() => {
@@ -1403,7 +1432,9 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       }, beforeLabels(map));
     };
 
-    if (map.isStyleLoaded()) {
+    // CF-2: gate on mapStyleLoadedRef, not isStyleLoaded() (false mid setData re-parse,
+    // which would queue on a 'load' event that already fired and silently drop the update).
+    if (mapStyleLoadedRef.current) {
       updatePreview();
     } else {
       map.on('load', updatePreview);
@@ -1486,7 +1517,8 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       }
     };
 
-    if (map.isStyleLoaded()) {
+    // CF-2: gate on mapStyleLoadedRef, not isStyleLoaded() (see draw-preview effect).
+    if (mapStyleLoadedRef.current) {
       addDrawnPolygon();
     } else {
       map.on('load', addDrawnPolygon);
