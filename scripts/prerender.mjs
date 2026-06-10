@@ -1012,6 +1012,23 @@ function emitCard(props, slug, lang) {
   return `${ORIGIN}/og/${fileName}`;
 }
 
+// CF-11: oEmbed discovery — lets WordPress / Discourse / newsroom CMSes auto-embed
+// the live interactive map from a pasted profile link. type:"rich" with the same
+// iframe `buildEmbedSnippet` produces in-app. One endpoint per (area, language).
+function oembedHref(slug, lang) {
+  return `${ORIGIN}/oembed/${slug}.${lang}.json`;
+}
+function buildOembedJson(props, lang, displayName) {
+  const params = new URLSearchParams({ pno: String(props.pno), embed: '1' });
+  if (lang !== 'fi') params.set('lang', lang);
+  const url = `${ORIGIN}/?${params.toString()}`;
+  const html = `<iframe src="${url}" width="640" height="480" style="border:0;border-radius:12px;max-width:100%;width:100%" loading="lazy" title="naapurustot.fi"></iframe>`;
+  return JSON.stringify({
+    version: '1.0', type: 'rich', provider_name: 'naapurustot.fi', provider_url: ORIGIN,
+    title: `${displayName} (${props.pno})`, width: 640, height: 480, html,
+  });
+}
+
 function generatePage(feature, lang) {
   const props = feature.properties;
   const slug = toSlug(props.pno, props.nimi);
@@ -1135,8 +1152,10 @@ function generatePage(feature, lang) {
     `<meta name="DC.type" content="Dataset" />`,
     `<meta name="DC.rights" content="Data: Statistics Finland (CC BY 4.0), OpenStreetMap (ODbL) and other public sources" />`,
   ].filter(Boolean).map((m) => `    ${m}`).join('\n');
-  // Inject Dublin Core meta + JSON-LD before closing </head>.
-  html = html.replace('</head>', `${dcMeta}\n    ${jsonLd}\n  </head>`);
+  // CF-11: oEmbed discovery link.
+  const oembedLink = `    <link rel="alternate" type="application/json+oembed" href="${oembedHref(slug, lang)}" title="${escapeHtml(getDisplayName(props, lang))}" />`;
+  // Inject Dublin Core meta + oEmbed link + JSON-LD before closing </head>.
+  html = html.replace('</head>', `${dcMeta}\n${oembedLink}\n    ${jsonLd}\n  </head>`);
 
   // Replace noscript content with the full neighbourhood statistics.
   html = html.replace(
@@ -1472,6 +1491,7 @@ function generateSourcesPage(lang) {
 console.log('Prerendering neighbourhood profile pages...');
 
 const features = geojson.features.filter((f) => f.properties?.pno && f.properties?.nimi);
+const oembedDir = join(DIST, 'oembed'); // CF-11: per-area oEmbed endpoints
 let count = 0;
 
 for (const feature of features) {
@@ -1488,6 +1508,12 @@ for (const feature of features) {
   const svDir = join(DIST, 'sv', 'omrade', slug);
   mkdirSync(svDir, { recursive: true });
   writeFileSync(join(svDir, 'index.html'), generatePage(feature, 'sv'));
+
+  // CF-11: oEmbed endpoint per language (referenced by the head link above).
+  mkdirSync(oembedDir, { recursive: true });
+  for (const lang of ['fi', 'en', 'sv']) {
+    writeFileSync(join(oembedDir, `${slug}.${lang}.json`), buildOembedJson(feature.properties, lang, getDisplayName(feature.properties, lang)));
+  }
 
   count++;
 }
