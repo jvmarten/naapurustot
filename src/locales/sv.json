@@ -216,6 +216,7 @@
   "panel.no_data_region": "För denna ekonomiska region har ännu inga uppgifter samlats in. Uppgifterna läggs till senare.",
   "map.reset_view": "Tillbaka till översikt",
   "export.csv": "Ladda ner CSV",
+  "export.json": "Ladda ner JSON",
   "export.pdf": "Ladda ner PDF",
   "export.geojson": "Ladda ner GeoJSON",
   "export.field": "Fält",

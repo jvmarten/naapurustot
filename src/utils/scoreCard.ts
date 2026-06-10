@@ -1,5 +1,5 @@
 import type { NeighborhoodProperties } from './metrics';
-import { formatEuro, formatPct, formatEuroSqm, escapeHtml } from './formatting';
+import { formatEuro, formatPct, formatEuroSqm, formatDiff, escapeHtml } from './formatting';
 import { t } from './i18n';
 import { getQualityCategory } from './qualityIndex';
 import { buildFullViewUrl } from './embed';
@@ -77,7 +77,8 @@ export async function generateScoreCard(
         const val = data[key] as number | null;
         const avg = metroAverages[key];
         const diff = val != null && avg != null ? val - avg : null;
-        const diffStr = diff != null ? `${diff > 0 ? '+' : ''}${diff.toFixed(1)}` : '';
+        // PO-2: locale-correct signed diff (was period-decimal toFixed) + i18n "vs metro".
+        const diffStr = formatDiff(val, avg);
         const isGood = diff != null ? (higherIsBetter ? diff > 0 : diff < 0) : false;
         const diffColor = diff != null ? (diff === 0 ? '#64748b' : isGood ? '#059669' : '#dc2626') : '#64748b';
         return `
@@ -85,7 +86,7 @@ export async function generateScoreCard(
             <span style="font-size: 13px; color: #64748b;">${escapeHtml(t(label))}</span>
             <div style="display: flex; align-items: center; gap: 8px;">
               <span style="font-size: 14px; font-weight: 600; color: #0f172a;">${escapeHtml(format(val))}</span>
-              ${diffStr ? `<span style="font-size: 11px; color: ${diffColor};">${escapeHtml(diffStr)} vs. metro</span>` : ''}
+              ${diffStr ? `<span style="font-size: 11px; color: ${diffColor};">${escapeHtml(diffStr)} ${escapeHtml(t('panel.vs_metro'))}</span>` : ''}
             </div>
           </div>`;
       }).join('')}
@@ -102,10 +103,10 @@ export async function generateScoreCard(
     // This keeps it out of the initial bundle and the NeighborhoodPanel chunk.
     const { toPng } = await import('html-to-image');
     const dataUrl = await toPng(container, { quality: 0.95, pixelRatio: 2 });
-    const link = document.createElement('a');
-    link.download = `${(data.nimi || data.pno).replace(/[/\\:*?"<>|]/g, '_')}-${data.pno}-naapurustot.png`;
-    link.href = dataUrl;
-    link.click();
+    // PO-2: route through the shared Web-Share/download path with a deep link, so a
+    // shared area card carries traceable inbound traffic like the other cards.
+    const filename = `${(data.nimi || data.pno).replace(/[/\\:*?"<>|]/g, '_')}-${data.pno}-naapurustot.png`;
+    await shareOrDownload(dataUrl, filename, buildFullViewUrl({ pno: data.pno, layer: null, city: null }), data.nimi);
   } finally {
     document.body.removeChild(container);
   }

@@ -5,7 +5,7 @@ import { formatNumber, formatEuro, formatPct, formatDiff, diffColor, formatYtlGr
 import { t, getLang, useI18nVersion } from '../utils/i18n';
 import { getQualityCategory, QUALITY_CATEGORIES, QUALITY_DIMENSIONS, computeQualityCoverage, type QualityWeights } from '../utils/qualityIndex';
 import { computeAreaSummary, composeSummarySentences, fillTemplate } from '../utils/areaSummary';
-import { exportCsv, exportPdf, exportGeoJson } from '../utils/export';
+import { exportCsv, exportPdf, exportGeoJson, exportJson } from '../utils/export';
 import { TrendSection } from './TrendChart';
 import Sparkline from './Sparkline';
 import RadarChart from './RadarChart';
@@ -1041,6 +1041,16 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
         </svg>
         {t('export.geojson')}
+      </button>
+      {/* PO-2: raw-numeric JSON (unit-free values) for analysis/spreadsheets */}
+      <button
+        onClick={() => { trackEvent('export-json'); exportJson([selectedFeature]); }}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium min-h-[44px] md:min-h-0
+                   text-surface-500 dark:text-surface-400
+                   hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-surface-700 dark:hover:text-surface-200 transition-colors"
+        title={t('export.json')}
+      >
+        {t('export.json')}
       </button>
       {/* CF-2: Share as image */}
       <button

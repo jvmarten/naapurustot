@@ -7,6 +7,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { setLang } from '../utils/i18n';
+import { formatDiff } from '../utils/formatting';
 
 // Hoist the mock function so vi.mock can reference it
 const mockToPng = vi.fn();
@@ -223,8 +224,12 @@ describe('generateScoreCard', () => {
 
     await generateScoreCard(data, avg);
 
-    const html = appendedElement?.innerHTML ?? '';
-    expect(html).toContain('-10000.0');
+    // PO-2: the diff now routes through locale-aware formatDiff. Normalise the
+    // FI non-breaking thousands separator (jsdom serialises it as &nbsp;) so the
+    // comparison is against the same separator formatDiff emits.
+    const norm = (s: string) => s.replace(/&nbsp;| /g, ' ');
+    const html = norm(appendedElement?.innerHTML ?? '');
+    expect(html).toContain(norm(formatDiff(20000, 30000)));
   });
 
   it('handles null metric value gracefully (shows em dash)', async () => {
