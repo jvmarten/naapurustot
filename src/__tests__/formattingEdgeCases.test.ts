@@ -29,11 +29,11 @@ describe('formatting — type coercion from string inputs', () => {
   });
 
   it('formatPct handles string input', () => {
-    expect(formatPct('12.5')).toBe('12.5 %');
+    expect(formatPct('12.5')).toBe('12,5 %');
   });
 
   it('formatPct respects custom decimal places', () => {
-    expect(formatPct(12.345, 2)).toBe('12.35 %');
+    expect(formatPct(12.345, 2)).toBe('12,35 %');
     expect(formatPct(12.345, 0)).toBe('12 %');
   });
 });
@@ -68,15 +68,15 @@ describe('formatting — special numeric values', () => {
 
 describe('formatDiff — difference calculation', () => {
   it('positive difference shows + sign', () => {
-    expect(formatDiff(75, 50)).toBe('+25.0');
+    expect(formatDiff(75, 50)).toBe('+25,0');
   });
 
   it('negative difference shows - sign', () => {
-    expect(formatDiff(30, 50)).toBe('-20.0');
+    expect(formatDiff(30, 50)).toBe('-20,0');
   });
 
   it('equal values show 0.0 without + prefix', () => {
-    expect(formatDiff(50, 50)).toBe('0.0');
+    expect(formatDiff(50, 50)).toBe('0,0');
   });
 
   it('returns empty string when value is null', () => {
@@ -88,7 +88,7 @@ describe('formatDiff — difference calculation', () => {
   });
 
   it('handles string inputs', () => {
-    expect(formatDiff('75', '50')).toBe('+25.0');
+    expect(formatDiff('75', '50')).toBe('+25,0');
   });
 
   it('returns empty for NaN input', () => {
@@ -96,7 +96,7 @@ describe('formatDiff — difference calculation', () => {
   });
 
   it('handles very small differences', () => {
-    expect(formatDiff(50.001, 50)).toBe('+0.0');
+    expect(formatDiff(50.001, 50)).toBe('+0,0');
   });
 });
 

@@ -66,7 +66,7 @@ describe('formatEuro — edge cases', () => {
 
 describe('formatPct — edge cases', () => {
   it('uses 1 decimal by default', () => {
-    expect(formatPct(12.345)).toBe('12.3 %');
+    expect(formatPct(12.345)).toBe('12,3 %');
   });
 
   it('respects zero decimals', () => {
@@ -74,21 +74,21 @@ describe('formatPct — edge cases', () => {
   });
 
   it('handles negative percentages', () => {
-    expect(formatPct(-5.5)).toBe('-5.5 %');
+    expect(formatPct(-5.5)).toBe('-5,5 %');
   });
 
   it('handles zero', () => {
-    expect(formatPct(0)).toBe('0.0 %');
+    expect(formatPct(0)).toBe('0,0 %');
   });
 });
 
 describe('formatDiff — edge cases', () => {
   it('shows 0.0 without + prefix when value equals average', () => {
-    expect(formatDiff(10, 10)).toBe('0.0');
+    expect(formatDiff(10, 10)).toBe('0,0');
   });
 
   it('handles string inputs', () => {
-    expect(formatDiff('15', '10')).toBe('+5.0');
+    expect(formatDiff('15', '10')).toBe('+5,0');
   });
 
   it('returns empty string when both are null', () => {

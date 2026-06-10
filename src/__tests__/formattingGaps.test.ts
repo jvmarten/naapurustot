@@ -61,24 +61,24 @@ describe('formatEuro — edge cases', () => {
 describe('formatPct — edge cases', () => {
   it('respects custom decimal places', () => {
     expect(formatPct(12.3456, 0)).toBe('12 %');
-    expect(formatPct(12.3456, 2)).toBe('12.35 %');
-    expect(formatPct(12.3456, 3)).toBe('12.346 %');
+    expect(formatPct(12.3456, 2)).toBe('12,35 %');
+    expect(formatPct(12.3456, 3)).toBe('12,346 %');
   });
 
   it('handles string percentage input', () => {
-    expect(formatPct('45.6')).toBe('45.6 %');
+    expect(formatPct('45.6')).toBe('45,6 %');
   });
 
   it('handles zero', () => {
-    expect(formatPct(0)).toBe('0.0 %');
+    expect(formatPct(0)).toBe('0,0 %');
   });
 
   it('handles 100%', () => {
-    expect(formatPct(100)).toBe('100.0 %');
+    expect(formatPct(100)).toBe('100,0 %');
   });
 
   it('handles negative percentage', () => {
-    expect(formatPct(-5.5)).toBe('-5.5 %');
+    expect(formatPct(-5.5)).toBe('-5,5 %');
   });
 });
 
@@ -96,26 +96,26 @@ describe('formatDiff — edge cases', () => {
   });
 
   it('formats positive diff with + sign', () => {
-    expect(formatDiff(60, 50)).toBe('+10.0');
+    expect(formatDiff(60, 50)).toBe('+10,0');
   });
 
   it('formats negative diff without explicit sign', () => {
-    expect(formatDiff(40, 50)).toBe('-10.0');
+    expect(formatDiff(40, 50)).toBe('-10,0');
   });
 
   it('formats zero diff without sign', () => {
-    expect(formatDiff(50, 50)).toBe('0.0');
+    expect(formatDiff(50, 50)).toBe('0,0');
   });
 
   it('handles string inputs', () => {
-    expect(formatDiff('60', '50')).toBe('+10.0');
+    expect(formatDiff('60', '50')).toBe('+10,0');
   });
 
   it('handles very small differences', () => {
     // 50.05 - 50 = 0.04999... due to floating point, rounds to 0.0
-    expect(formatDiff(50.05, 50)).toBe('+0.0');
+    expect(formatDiff(50.05, 50)).toBe('+0,0');
     // Use a larger diff to verify rounding
-    expect(formatDiff(50.25, 50)).toBe('+0.3');
+    expect(formatDiff(50.25, 50)).toBe('+0,3');
   });
 });
 
