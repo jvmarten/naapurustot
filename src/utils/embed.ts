@@ -6,6 +6,8 @@
  * Read once at module load so all components see a consistent value. The flag
  * is intentionally not reactive — entering/leaving embed mode requires a reload.
  */
+import { DEFAULT_CITY } from './regions';
+
 function detectEmbed(): boolean {
   if (typeof window === 'undefined') return false;
   try {
@@ -39,7 +41,7 @@ function stateParams(s: EmbedState): URLSearchParams {
   const params = new URLSearchParams();
   if (s.pno) params.set('pno', s.pno);
   if (s.layer && s.layer !== 'quality_index') params.set('layer', s.layer);
-  if (s.city && s.city !== 'helsinki_metro') params.set('city', s.city);
+  if (s.city && s.city !== DEFAULT_CITY) params.set('city', s.city);
   if (s.compare && s.compare.length > 0) params.set('compare', s.compare.join(','));
   if (s.scope && s.scope !== 'all') params.set('scope', s.scope);
   if (s.year != null) params.set('year', String(s.year));

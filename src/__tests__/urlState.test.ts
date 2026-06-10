@@ -296,7 +296,7 @@ describe('readInitialUrlState (city param)', () => {
     setSearch('');
   });
 
-  it('returns null city when no city param (defaults to helsinki_metro in App)', () => {
+  it('returns null city when no city param (defaults to the all-Finland view in App)', () => {
     setSearch('');
     const state = readInitialUrlState();
     expect(state.city).toBeNull();

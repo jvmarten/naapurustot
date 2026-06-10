@@ -17,7 +17,7 @@ describe('CF-11 buildShortlistShareUrl — scoped sl+city link', () => {
   });
 
   it('carries ONLY the shortlist and the schema stamp (default city omitted)', () => {
-    const url = buildShortlistShareUrl(['00100', '00200'], 'helsinki_metro');
+    const url = buildShortlistShareUrl(['00100', '00200'], 'all');
     const params = new URL(url).searchParams;
     expect(params.get('sl')).toBe('00100.00200');
     expect(params.get('_v')).toBe(String(URL_SCHEMA_VERSION));

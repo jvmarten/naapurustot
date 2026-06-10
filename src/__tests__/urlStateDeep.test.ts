@@ -173,19 +173,28 @@ describe('useSyncUrlState', () => {
     expect(lastCall[2]).toBe('/?compare=00200%2C00300');
   });
 
-  it('omits city from URL when it is helsinki_metro (default)', () => {
+  it('omits city from URL when it is all (default landing view)', () => {
     // Set search to something non-empty so writeUrl actually calls replaceState
     Object.defineProperty(window, 'location', {
-      value: { search: '?city=helsinki_metro', hash: '', pathname: '/' },
+      value: { search: '?city=all', hash: '', pathname: '/' },
       writable: true,
       configurable: true,
     });
+    replaceStateSpy.mockClear();
+    renderHook(() => useSyncUrlState(null, 'quality_index', [], 'all'));
+    vi.advanceTimersByTime(150);
+    const lastCall = replaceStateSpy.mock.calls[replaceStateSpy.mock.calls.length - 1];
+    const url = lastCall[2] as string;
+    expect(url).not.toContain('city=');
+  });
+
+  it('writes city to URL when set to helsinki_metro (no longer the default)', () => {
     replaceStateSpy.mockClear();
     renderHook(() => useSyncUrlState(null, 'quality_index', [], 'helsinki_metro'));
     vi.advanceTimersByTime(150);
     const lastCall = replaceStateSpy.mock.calls[replaceStateSpy.mock.calls.length - 1];
     const url = lastCall[2] as string;
-    expect(url).not.toContain('city=');
+    expect(url).toContain('city=helsinki_metro');
   });
 
   it('writes city to URL when set to turku', () => {
@@ -194,14 +203,6 @@ describe('useSyncUrlState', () => {
     vi.advanceTimersByTime(150);
     const lastCall = replaceStateSpy.mock.calls[replaceStateSpy.mock.calls.length - 1];
     expect(lastCall[2]).toBe('/?city=turku');
-  });
-
-  it('writes city to URL when set to all', () => {
-    replaceStateSpy.mockClear();
-    renderHook(() => useSyncUrlState(null, 'quality_index', [], 'all'));
-    vi.advanceTimersByTime(150);
-    const lastCall = replaceStateSpy.mock.calls[replaceStateSpy.mock.calls.length - 1];
-    expect(lastCall[2]).toBe('/?city=all');
   });
 
   it('produces clean URL when no state is set', () => {
