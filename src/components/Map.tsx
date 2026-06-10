@@ -27,7 +27,7 @@ const BASEMAP_DARK_LABELS = (import.meta.env.VITE_BASEMAP_DARK_LABELS_URL as str
 interface MapProps {
   data: FeatureCollection | null;
   activeLayer: LayerId;
-  onHover: (props: NeighborhoodProperties | null, x: number, y: number) => void;
+  onHover: (props: NeighborhoodProperties | null, x: number, y: number, gridValue?: number | null) => void;
   onClick: (props: NeighborhoodProperties) => void;
   flyTo: { center: [number, number]; zoom?: number; bounds?: [number, number, number, number] } | null;
   selectedPno?: string | null;
@@ -1048,6 +1048,10 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   selectModeRef.current = selectMode;
   const onHoverRef = useRef(onHover);
   onHoverRef.current = onHover;
+  // QW-8: the always-attached hover handler reads the current effective layer (for its
+  // gridProperty + crossfade) from a ref so it stays stable but never goes stale.
+  const effectiveLayerRef = useRef<LayerConfig>(layerConfig ?? getLayerById(activeLayer));
+  effectiveLayerRef.current = layerConfig ?? getLayerById(activeLayer);
   const onClickRef = useRef(onClick);
   onClickRef.current = onClick;
   const onDrawClickRef = useRef(onDrawClick);
@@ -1102,7 +1106,17 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
           map.getCanvas().style.cursor = 'pointer';
         }
 
-        onHoverRef.current(feat.properties as NeighborhoodProperties, e.point.x, e.point.y);
+        // QW-8: above the crossfade the postal fill is invisible (opacity 0) but still
+        // hit-tested, so over a fine-grained grid the tooltip would show the postal
+        // aggregate. Query the grid layer under the cursor and surface ITS cell value.
+        let gridValue: number | null = null;
+        const lyr = effectiveLayerRef.current;
+        if (gridDataRef.current && lyr.gridProperty && map.getZoom() >= GRID_ZOOM_FADE_IN && map.getLayer(GRID_FILL_LAYER)) {
+          const cells = map.queryRenderedFeatures(e.point, { layers: [GRID_FILL_LAYER] });
+          const gv = cells[0]?.properties?.[lyr.gridProperty];
+          if (typeof gv === 'number' && isFinite(gv)) gridValue = gv;
+        }
+        onHoverRef.current(feat.properties as NeighborhoodProperties, e.point.x, e.point.y, gridValue);
       } else {
         if (hoveredIdRef.current) {
           map.setFeatureState({ source: SOURCE_ID, id: hoveredIdRef.current }, { hover: false });
