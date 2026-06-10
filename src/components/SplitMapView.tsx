@@ -47,11 +47,14 @@ const SplitPaneTooltip: React.FC<{
   /** 'left' tooltips flip leftward near the divider; 'right' flip rightward. */
   side: 'left' | 'right';
 }> = ({ hover, layer, metroAverage, side }) => {
-  const value = hover.props[layer.property] as number | null | undefined;
+  // QW-8: over a fine-grained grid cell, show the cell's own value (labeled) instead of
+  // the postal aggregate, and suppress the postal "vs avg" comparison.
+  const isGridCell = hover.gridValue != null;
+  const value = isGridCell ? hover.gridValue : (hover.props[layer.property] as number | null | undefined);
   const fmt = value != null ? (layer.tooltipFormat ?? layer.format)(value) : t('tooltip.no_data');
   let cmpText = '';
   let cmpClass = '';
-  if (value != null && metroAverage != null && metroAverage !== 0) {
+  if (!isGridCell && value != null && metroAverage != null && metroAverage !== 0) {
     const diffPct = ((value - metroAverage) / Math.abs(metroAverage)) * 100;
     if (Math.abs(diffPct) >= 1) {
       const sign = diffPct > 0 ? '+' : '';
@@ -78,6 +81,7 @@ const SplitPaneTooltip: React.FC<{
       </div>
       <div className={value == null ? 'text-surface-400 italic' : 'text-surface-600 dark:text-surface-300'}>
         {fmt}
+        {isGridCell && <span className="ml-1.5 text-[10px] uppercase tracking-wide text-surface-400 dark:text-surface-500">{t('tooltip.cell_value')}</span>}
       </div>
       {cmpText && <div className={`text-xs mt-0.5 ${cmpClass}`}>{cmpText}</div>}
     </div>
@@ -170,6 +174,9 @@ interface PaneHover {
   /** Cursor position in pane-local pixels. */
   x: number;
   y: number;
+  /** QW-8: the fine-grained grid cell's value under the cursor (above the crossfade),
+   *  shown instead of the postal aggregate. Null/absent over the postal fill. */
+  gridValue?: number | null;
 }
 
 function makeStyle(theme: 'dark' | 'light'): maplibregl.StyleSpecification {
@@ -740,6 +747,8 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
     const setupInteract = (
       map: maplibregl.Map | null,
       setHover: React.Dispatch<React.SetStateAction<PaneHover | null>>,
+      configRef: React.RefObject<LayerConfig>,
+      gridRef: React.RefObject<FeatureCollection | null>,
     ): (() => void) | undefined => {
       if (!map) return undefined;
       const hoveredIdRef = { current: null as string | null };
@@ -766,7 +775,16 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
         if (feat && pno) {
           setHoverState(pno);
           map.getCanvas().style.cursor = 'pointer';
-          setHover({ props: feat.properties as NeighborhoodProperties, x: e.point.x, y: e.point.y });
+          // QW-8: over the pane's fine-grained grid above the crossfade, surface the
+          // cell's own value (the postal fill is invisible but still hit-tested).
+          let gridValue: number | null = null;
+          const cfg = configRef.current;
+          if (gridRef.current && cfg.gridProperty && map.getZoom() >= GRID_ZOOM_FADE_IN && map.getLayer(GRID_FILL_LAYER)) {
+            const cells = map.queryRenderedFeatures(e.point, { layers: [GRID_FILL_LAYER] });
+            const gv = cells[0]?.properties?.[cfg.gridProperty];
+            if (typeof gv === 'number' && isFinite(gv)) gridValue = gv;
+          }
+          setHover({ props: feat.properties as NeighborhoodProperties, x: e.point.x, y: e.point.y, gridValue });
         } else {
           setHoverState(null);
           map.getCanvas().style.cursor = '';
@@ -804,8 +822,8 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
     };
 
     const cleanups = [
-      setupInteract(leftMapRef.current, setLeftHover),
-      setupInteract(rightMapRef.current, setRightHover),
+      setupInteract(leftMapRef.current, setLeftHover, leftConfigRef, leftGridRef),
+      setupInteract(rightMapRef.current, setRightHover, rightConfigRef, rightGridRef),
     ];
     return () => { for (const c of cleanups) c?.(); };
     // Attach once on mount: the map instances live for the component's lifetime,
