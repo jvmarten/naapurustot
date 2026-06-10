@@ -5,6 +5,11 @@ import pool from './db.js';
 import { rateLimit } from './rateLimit.js';
 import { verifyTurnstile } from './turnstile.js';
 
+/**
+ * Auth + user-data router, mounted at /auth by index.ts. Covers signup/login/
+ * logout/me, per-user sync (favorites, shortlist, notes, preferences), and GDPR
+ * export/deletion. All routes except signup/login/logout require the JWT cookie.
+ */
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' ? '' : 'dev-secret-change-me');
 if (!JWT_SECRET) {

@@ -410,7 +410,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   // Add source + layers once. On subsequent `data` changes we call setData on
   // the existing source instead of tearing down and recreating ~8 layers every
   // time — quality-weight sliders in "all cities" view used to rebuild the map
-  // (and re-run @turf/union on the dataset level) on every debounced tick.
+  // (and re-derive the whole metro-area dataset) on every debounced tick.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !data) return;
@@ -647,7 +647,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     // Use mapStyleLoadedRef (not map.isStyleLoaded()) to gate post-init layer
     // additions. isStyleLoaded() returns false whenever the main source is
     // re-parsing tiles after setData — quality-weight recompute, metro-area
-    // rebuild when @turf/union arrives, region switch. If gridData lands inside
+    // rebuild when the pre-baked outlines arrive, region switch. If gridData lands inside
     // that window, queueing addGridLayer on 'load' silently drops it because
     // 'load' is a one-shot event that already fired at init. That leaves
     // GRID_FILL_LAYER unadded while Effect 2 hides FILL_LAYER — the map paints

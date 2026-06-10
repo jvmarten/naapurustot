@@ -1,7 +1,8 @@
 /**
  * Express API server for naapurustot.fi.
  *
- * Provides user authentication (signup/login/logout) and favorites sync.
+ * Provides user authentication (signup/login/logout/me), per-user data sync
+ * (favorites, shortlist, notes, preferences), and GDPR export/deletion.
  * Runs behind Caddy reverse proxy at api.naapurustot.fi.
  * Database tables are auto-created on startup via initDb().
  */

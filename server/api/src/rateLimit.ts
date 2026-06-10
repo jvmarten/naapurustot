@@ -26,7 +26,9 @@ function getClientIp(req: Request): string {
 }
 
 /**
- * Rate limiter factory.
+ * Rate limiter factory: fixed-window counter per client IP, kept in process
+ * memory (resets on restart, not shared across instances). Requests over the
+ * limit get 429 with a Retry-After header.
  * @param maxRequests - Maximum requests allowed in the window
  * @param windowMs - Window duration in milliseconds
  * @param prefix - Key prefix to separate different limiters

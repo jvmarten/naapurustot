@@ -354,8 +354,8 @@ const App: React.FC = () => {
   const restoredPno = useRef(false);
   // Monotonic version counter to force re-renders when quality indices change
   const [qualityVersion, setQualityVersion] = useState(0);
-  // Version counter that bumps once @turf/union lazy-loads, triggering a
-  // re-run of buildMetroAreaFeatures with dissolved boundaries.
+  // Version counter that bumps once the pre-baked seutukunta outlines fetch
+  // resolves, triggering a re-run of buildMetroAreaFeatures with full region boundaries.
   const unionReady = useAllCitiesUnionPreload(cityFilter);
   const [ariaAnnouncement, setAriaAnnouncement] = useState('');
   const [isOffline, setIsOffline] = useState(() => typeof navigator !== 'undefined' && !navigator.onLine);
@@ -388,7 +388,7 @@ const App: React.FC = () => {
   const allCitiesData = useMemo(() => {
     if (!data || cityFilter !== 'all') return null;
     return buildMetroAreaFeatures(data.features) as typeof data;
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- lang triggers rebuild so metro area names respect language; unionReady signals @turf/union loaded; qualityVersion signals in-place data mutation
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- lang triggers rebuild so metro area names respect language; unionReady signals the pre-baked region outlines fetch resolved; qualityVersion signals in-place data mutation
   }, [data, cityFilter, lang, unionReady, qualityVersion]);
 
   const filteredData = cityFilter === 'all' ? allCitiesData : singleCityData;

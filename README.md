@@ -1,36 +1,33 @@
 # naapurustot
 
-Interactive map application for exploring neighborhood-level data across the Helsinki metropolitan area. Live at [naapurustot.fi](https://naapurustot.fi).
+Interactive map application for exploring neighborhood-level statistics across Finland — 3,018 postal-code areas in all 69 sub-regions (*seutukunnat*). Live at [naapurustot.fi](https://naapurustot.fi).
 
-The frontend is fully static — all data layers run in the browser using pre-built TopoJSON datasets. An optional backend (Express API + PostgreSQL) handles user accounts and favorites sync.
+The frontend is fully static — all data ships as pre-built TopoJSON/JSON assets and every computation happens in the browser. An optional backend (Express API + PostgreSQL) adds user accounts and cross-device sync of favorites, shortlist, notes, and preferences.
 
 ## Features
 
-- **Interactive map** — browse ~160 postal-code neighborhoods with color-coded data layers
-- **45+ data layers** — quality index, median income, unemployment, education, population density, transit access, air quality, property prices, housing mix, walkability, school quality, and more
-- **Neighborhood profiles** — click any area for detailed statistics compared against metro averages
-- **Quality Index** — composite 0–100 score with customizable weights (safety, income, employment, education, transit, services, air quality)
-- **Comparison** — pin up to 3 neighborhoods for side-by-side comparison
-- **Neighborhood Wizard** — answer preference questions to find matching neighborhoods
-- **Ranking table** — sort all neighborhoods by any metric
-- **Filter** — set range sliders on multiple metrics to find neighborhoods that match all criteria, with saveable presets
-- **Trend charts** — historical income, population, and unemployment data
-- **Search** — find neighborhoods by name, postal code, or street address (via Digitransit geocoding)
-- **Similar neighborhoods** — Euclidean distance across 10 normalized key metrics
-- **Export** — CSV, PDF printable report, and PNG score card
-- **Share** — URL state includes selected neighborhood, layer, and pinned comparisons
-- **Bilingual** — Finnish (default) and English
-- **Multi-region** — Helsinki metro, Turku, Tampere, and 19 other Finnish cities with per-region lazy loading
-- **User accounts** — optional sign-up/login for cross-device favorites sync (server-side)
-- **Dark / light / system theme**
-- **PWA** — installable, works offline via service worker
-- **Accessibility** — ARIA live regions, keyboard navigation (Escape closes panels)
-- **Colorblind modes** — protanopia, deuteranopia, tritanopia palettes
-- **Neighborhood profile pages** — SEO-friendly `/alue/{pno}-{name}` routes with pre-rendered HTML
+- **Interactive map** — 3,018 postal-code areas colored by 59 data layers in 11 categories (income, unemployment, education, density, transit, air quality, property and rental prices, noise, light pollution, tree canopy, broadband, school quality, …)
+- **Quality Index** — composite 0–100 score from 13 default-weighted factors grouped into four dimensions (safety, health & environment, livelihood, everyday life); fully customizable weights with 7 persona presets, cloud-synced when signed in (see [`docs/QUALITY_INDEX.md`](docs/QUALITY_INDEX.md))
+- **Neighborhood panel** — stats vs. national/regional averages, historical trends, radar chart, similar areas (weighted Euclidean distance over 10 metrics), notes
+- **Comparison** — pin up to 3 areas side-by-side; durable shortlist tray with shareable URL
+- **Wizard** — preference questionnaire (incl. housing budget) that scores and highlights matching areas
+- **Ranking & filtering** — sortable ranking tables for areas and whole regions; multi-criteria range filters with saveable presets
+- **Correlation explorer** — scatter-plot any two metrics
+- **Time slider** — scrub historical years for income, unemployment, property prices, and crime
+- **Travel-time isochrones** — reachable-area overlay via Digitransit routing (hidden unless a free API key is configured)
+- **Draw tool** — freeform polygon or click-select → aggregated area summary
+- **Split map** — side-by-side dual-map comparison of two layers
+- **Search** — area name, postal code, or street address (Digitransit geocoding), nationwide
+- **Fine-grained grids** — sub-postal-code overlays where available (air quality ~250 m, light pollution ~500 m)
+- **Export & share** — CSV, PDF report, PNG score card, embeddable iframe mode, state-carrying share URLs
+- **Trilingual** — Finnish (default), English, Swedish
+- **User accounts (optional)** — favorites/notes/preferences sync, GDPR data export and account deletion
+- **PWA** — installable, offline-capable; dark/light/system theme; colorblind palettes (protanopia, deuteranopia, tritanopia); keyboard shortcuts (press `?`)
+- **SEO pages** — ~9,000 pre-rendered profile pages plus region hub pages with JSON-LD structured data
 
 ## Quick start
 
-**Prerequisites:** Node.js 18+ (CI uses Node 22)
+**Prerequisites:** Node.js 20.19+ (CI uses Node 22). `npm run build:pages` requires Node 22.18+ — the prerenderer imports the app's TypeScript modules directly via Node's type stripping.
 
 ```bash
 git clone https://github.com/jvmarten/naapurustot.git
@@ -40,175 +37,125 @@ npm install
 npm run dev               # http://localhost:5173
 ```
 
-No Python or data pipeline setup is needed for frontend development — the TopoJSON dataset is checked into the repo.
+No Python or data pipeline setup is needed for frontend development — all runtime data artifacts are checked into the repo under `src/data/`.
 
 ## Project structure
 
 ```
 src/
-├── main.tsx                 # Entry point: React root, router, SW registration, Sentry
-├── App.tsx                  # Top-level state orchestration, lazy-loaded panels
-├── pages/
-│   ├── NeighborhoodProfilePage.tsx  # SEO profile page (/alue/:slug)
-│   └── NotFoundPage.tsx             # 404 fallback
-├── components/
-│   ├── Map.tsx              # MapLibre GL instance, 10 independent useEffect hooks
-│   ├── NeighborhoodPanel.tsx # Detail panel (stats, trends, radar, export)
-│   ├── SearchBar.tsx        # Address geocoding + neighborhood name search
-│   ├── LayerSelector.tsx    # Grouped layer picker (54 layers, 11 categories)
-│   ├── Legend.tsx            # Color gradient + min/max values
-│   ├── RankingTable.tsx     # Sortable ranking with infinite scroll
-│   ├── FilterPanel.tsx      # Multi-criteria filter with range sliders
-│   ├── ComparisonPanel.tsx  # Side-by-side stats for pinned neighborhoods
-│   ├── NeighborhoodWizard.tsx # 4-step preference-based neighborhood finder
-│   ├── CustomQualityPanel.tsx # Quality index weight customization
-│   ├── DrawTool.tsx         # Freeform polygon drawing on map
-│   ├── AreaSummaryPanel.tsx # Aggregated stats for drawn region
-│   ├── SplitMapView.tsx     # Side-by-side dual-map comparison
-│   ├── Tooltip.tsx          # Hover tooltip with value vs metro average
-│   ├── TooltipOverlay.tsx   # External-store tooltip (avoids App re-renders)
-│   ├── AuthModal.tsx        # Signup/login modal (lazy-loaded)
-│   ├── UserMenu.tsx         # Profile dropdown with favorites management
-│   ├── SettingsDropdown.tsx # Theme, language, colorblind, opacity controls
-│   └── ToolsDropdown.tsx    # Filter/ranking/wizard/draw toggle buttons
-├── hooks/
-│   ├── useMapData.ts        # Fetch + process TopoJSON per region (lazy)
-│   ├── useSelectedNeighborhood.ts  # Selected + pinned (max 3)
-│   ├── useTheme.tsx         # Dark/light/system theme context
-│   ├── useUrlState.ts       # URL ↔ state sync (?pno=, ?layer=, ?compare=, ?city=)
-│   ├── useGridData.ts       # Lazy-load fine-grained grid data (250m cells)
-│   ├── useAuth.ts           # JWT-based auth state (optional server)
-│   ├── useFavorites.ts      # localStorage + server-synced favorites
-│   ├── useNotes.ts          # localStorage-backed per-neighborhood notes
-│   ├── useFilterPresets.ts  # localStorage-backed named filter presets
-│   ├── useRecentNeighborhoods.ts  # sessionStorage-backed recent searches
-│   ├── useBottomSheet.ts    # Touch drag with velocity-based snapping
-│   ├── useSwipeNavigation.ts # Horizontal swipe for mobile panels
-│   └── useAnimatedValue.ts  # requestAnimationFrame numeric transition
-├── utils/
-│   ├── colorScales.ts       # LayerId union type, 54 layer configs, color expressions
-│   ├── metrics.ts           # NeighborhoodProperties interface, metro averages
-│   ├── qualityIndex.ts      # Quality index (0–100) from 10 weighted factors
-│   ├── similarity.ts        # Euclidean distance for finding similar neighborhoods
-│   ├── filterUtils.ts       # Multi-criteria range filtering
-│   ├── dataLoader.ts        # Per-region lazy data loading + caching
-│   ├── formatting.ts        # Locale-aware number/currency/percentage formatting
-│   ├── i18n.ts              # Flat key-value translation system (fi/en)
-│   ├── geocode.ts           # Digitransit API geocoding with LRU cache
-│   ├── export.ts            # CSV + PDF export
-│   ├── scoreCard.ts         # PNG score card via html-to-image (lazy)
-│   ├── geometryFilter.ts    # Remove tiny island polygons from MultiPolygons
-│   ├── metroAreas.ts        # Dissolve postal polygons into city outlines (@turf/union)
-│   ├── regions.ts           # Region config (22 cities, viewports, municipality codes)
-│   ├── slug.ts              # URL slug generation for profile pages
-│   ├── tooltipStore.ts      # External store for tooltip state (60 Hz perf)
-│   ├── api.ts               # API client for auth/favorites server
-│   ├── analytics.ts         # Umami event tracking wrapper
-│   └── mapConstants.ts      # Default map center/zoom from env vars
-├── locales/
-│   ├── fi.json              # Finnish translations
-│   └── en.json              # English translations
-├── data/
-│   ├── metro_neighborhoods.topojson  # Combined dataset (all regions)
-│   └── regions/*.topojson            # Per-region files (lazy-loaded)
-└── __tests__/               # 100+ Vitest test files
+├── main.tsx              # Entry: chunk-reload handler, SW registration, Sentry (optional), routes
+├── App.tsx               # The map application — owns all map/UI state, mounts panels lazily
+├── components/           # ~38 React components (Map, NeighborhoodPanel, panels, chrome)
+│   └── profile/          # Profile-page building blocks (MiniMap, StatCard, JsonLd)
+├── pages/                # Route-level pages: NeighborhoodProfilePage, DataSourcesPage,
+│                         #   PrivacyPage, NotFoundPage
+├── hooks/                # 21 custom hooks — data loading, persisted user state w/ server
+│                         #   sync, URL state codec, gestures (no external state library)
+├── utils/                # Domain logic: colorScales (59 layers), metrics, qualityIndex,
+│                         #   dataLoader, regions (69), similarity, filters, i18n, export, …
+├── locales/              # fi.json / en.json / sv.json — flat key-value, 1:1 key parity
+├── data/                 # Build artifacts the app loads (generated by npm run build:data):
+│   ├── regions/*.topojson      # 69 per-region files, lazy-loaded
+│   ├── seutukunnat.topojson    # Region outlines for the all-Finland view
+│   ├── region_properties.json  # Geometry-stripped properties of all 3,018 areas
+│   ├── national_ranges.json    # Winsorized p2/p98 ranges for normalization
+│   └── *.json                  # adjacency, coverage, payload + grid manifests, metadata
+└── __tests__/            # 170+ Vitest test files (jsdom)
 
-scripts/                     # Python data pipeline
-├── prepare_data.py          # Main pipeline: fetches, merges, outputs GeoJSON
-├── fetch_*.py               # API-specific data fetchers (~20 scripts)
-├── *.json                   # Pre-computed intermediate data files
-├── validate_data.py         # Post-pipeline data validation
-├── audit_data_coverage.py   # Coverage reporting
-├── build_region_data.mjs    # Split GeoJSON into per-region TopoJSON files
-├── build_grid_data.mjs      # TopoJSON grid generation (250m cells)
-├── prerender.mjs            # Pre-render neighborhood profile pages to static HTML
-└── generate-sitemap.mjs     # Generate sitemap.xml for SEO
+scripts/                  # Data pipeline (Python) + build tooling (Node)
+├── prepare_data.py       # Main pipeline: fetches all sources, writes the GeoJSON
+├── fetch_*.py            # ~24 per-source fetchers (crime, schools, noise, VIIRS, …)
+├── validate_data.py      # Schema/range/provenance/coverage gates (--write-baseline)
+├── build_region_data.mjs # GeoJSON → per-region TopoJSON + manifests
+├── build_national_ranges.mjs / build_grid_data.mjs
+├── prerender.mjs         # Static HTML for ~9,000 profile pages (+ social cards, JSON-LD)
+├── prerender-hubs.mjs    # Region hub/directory pages
+└── generate-sitemap.mjs  # sitemap.xml (~9,270 URLs, hreflang alternates)
 
-server/                      # Optional backend (DigitalOcean droplet)
-├── docker-compose.yml       # Caddy + API + Umami + PostgreSQL
-├── api/src/
-│   ├── index.ts             # Express server entry point
-│   ├── auth.ts              # Signup/login/logout + favorites sync endpoints
-│   ├── db.ts                # PostgreSQL connection + schema init
-│   ├── rateLimit.ts         # In-memory per-IP rate limiter
-│   └── turnstile.ts         # Cloudflare Turnstile bot verification
-└── README.md                # Server setup instructions
+server/                   # Optional backend (DigitalOcean droplet, Docker Compose)
+├── docker-compose.yml    # Caddy + API + Umami + PostgreSQL + daily backup sidecar
+├── api/src/              # Express 5: auth, favorites/shortlist/notes/preferences, GDPR
+└── README.md             # Server setup instructions
 
 public/data/
-├── metro_neighborhoods.geojson   # Source of truth (~1.3 MB, ~160 neighborhoods)
-└── *_grid.{geojson,topojson}     # 250m grid overlays (air quality, light, transit)
+├── metro_neighborhoods.geojson   # Pipeline output, ~39 MB — build input only,
+│                                 #   stripped from dist/ at build time
+└── *_grid.{geojson,topojson}     # Grid overlays (air quality, light pollution)
 ```
 
 ## Scripts
 
 | Command | What it does |
 |---------|-------------|
-| `npm run dev` | Start Vite dev server (port 5173) |
-| `npm run build` | TypeScript check + production build → `dist/` |
+| `npm run dev` | Vite dev server (port 5173) |
+| `npm run build` | TypeScript check (`tsc -b`) + production build → `dist/` |
 | `npm run preview` | Serve the production build locally (port 4173) |
 | `npm run lint` | ESLint |
-| `npm run test` | Run Vitest unit tests (jsdom) |
+| `npm run test` | Vitest unit tests (jsdom) |
 | `npm run test:watch` | Vitest in watch mode |
-| `npm run test:e2e` | Playwright end-to-end tests (requires `npm run build` first) |
-| `npm run build:data` | Rebuild TopoJSON from GeoJSON (after data pipeline changes) |
+| `npm run test:coverage` | Unit tests with v8 coverage |
+| `npm run coverage:check` | Coverage ratchet vs `coverage-baseline.json` (CI gate) |
+| `npm run test:e2e` | Playwright E2E tests (requires `npm run build` first) |
+| `npm run test:visual` | Playwright visual screenshots (`:update` to regenerate) |
+| `npm run build:data` | Rebuild `src/data/` artifacts from the GeoJSON |
+| `npm run build:pages` | Pre-render profile + hub pages and sitemap into `dist/` |
 
 ## Environment variables
 
 ### Frontend (`.env`)
 
-All variables are prefixed with `VITE_` and injected at build time by Vite. Copy `.env.example` to `.env` — the defaults target the Helsinki metro area and work out of the box.
+`VITE_`-prefixed variables are inlined at build time. Copy `.env.example` to `.env` — defaults work out of the box.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `VITE_MAP_CENTER_LNG` | `24.94` | Map initial center longitude |
-| `VITE_MAP_CENTER_LAT` | `60.17` | Map initial center latitude |
-| `VITE_MAP_ZOOM` | `9.2` | Map initial zoom level |
-| `VITE_MAP_MIN_ZOOM` | `8` | Minimum allowed zoom |
-| `VITE_MAP_MAX_ZOOM` | `16` | Maximum allowed zoom |
-| `VITE_BASEMAP_LIGHT_URL` | CARTO light | Raster tile URL for light theme |
-| `VITE_BASEMAP_DARK_URL` | CARTO dark | Raster tile URL for dark theme |
-| `VITE_SENTRY_DSN` | *(unset)* | Optional — enables Sentry error tracking. When set at build time, `@sentry/react` is bundled and initialized. |
-| `VITE_API_URL` | `https://api.naapurustot.fi` | Backend API URL for auth/favorites (optional) |
+| `VITE_MAP_CENTER_LNG` / `VITE_MAP_CENTER_LAT` | `24.94` / `60.17` | Initial map center |
+| `VITE_MAP_ZOOM` | `9.2` | Initial zoom |
+| `VITE_MAP_MIN_ZOOM` / `VITE_MAP_MAX_ZOOM` | `2` / `16` | Zoom limits (min must allow the whole-Finland view, zoom ~4.8) |
+| `VITE_BASEMAP_LIGHT_URL` / `VITE_BASEMAP_DARK_URL` | CARTO | Raster basemap tile URLs |
+| `VITE_BASEMAP_LIGHT_LABELS_URL` / `VITE_BASEMAP_DARK_LABELS_URL` | CARTO | Labels-only overlay drawn above the choropleth |
+| `VITE_DIGITRANSIT_API_KEY` | *(unset)* | Enables travel-time isochrones ([register free](https://digitransit.fi/en/developers/)); unset hides the feature |
+| `VITE_DIGITRANSIT_ROUTER` | `finland` | Routing graph: `finland`, `hsl`, or `waltti` |
+| `VITE_SENTRY_DSN` | *(unset)* | Enables Sentry error tracking; unset tree-shakes Sentry out entirely |
+| `VITE_API_URL` | `https://api.naapurustot.fi` | Backend API base URL (code default, not in `.env.example`) |
+| `VITE_TURNSTILE_SITE_KEY` | *(unset)* | Cloudflare Turnstile site key for the signup widget |
 
-Source map upload to Sentry is gated on `SENTRY_AUTH_TOKEN` being present at build time (CI-only — set as a GitHub Actions secret along with `SENTRY_ORG` and `SENTRY_PROJECT`). When the token is set, hidden source maps are emitted, uploaded to Sentry, and deleted from `dist/` before deploy. The release is tagged with the commit SHA via `VITE_SENTRY_RELEASE`.
+Sentry source-map upload happens only in CI: when `SENTRY_AUTH_TOKEN` (plus `SENTRY_ORG`, `SENTRY_PROJECT`) is set at build time, hidden source maps are emitted, uploaded, and deleted from `dist/`. Releases are tagged with the commit SHA via `VITE_SENTRY_RELEASE`.
 
 ### Server (`server/.env`)
 
-Only needed if running the backend. Copy `server/.env.example` to `server/.env`.
+Only needed when running the backend. Copy `server/.env.example`.
 
 | Variable | Description |
 |----------|-------------|
-| `POSTGRES_PASSWORD` | PostgreSQL password for the Umami database |
+| `POSTGRES_PASSWORD` | PostgreSQL password for the Umami database user |
 | `APP_SECRET` | Umami application secret |
-| `API_DB_PASSWORD` | PostgreSQL password for the API database |
-| `JWT_SECRET` | Secret for signing JWT auth tokens |
-| `TURNSTILE_SECRET` | Cloudflare Turnstile secret key for bot protection |
-| `SENTRY_DSN` | Optional — enables Sentry error tracking for the API. Leave empty to disable. |
-| `SENTRY_RELEASE` | Optional — release identifier (commit SHA) injected by `deploy-server.yml`. |
+| `API_DB_PASSWORD` | PostgreSQL password for the API database user |
+| `JWT_SECRET` | Signs JWT auth tokens — **required in production** (API refuses to start without it) |
+| `TURNSTILE_SECRET` | Cloudflare Turnstile secret; **empty silently disables bot protection** |
+| `TURNSTILE_ALLOWED_HOSTNAMES` | Optional CSV allowlist of hostnames Turnstile tokens may originate from |
+| `SENTRY_DSN` / `SENTRY_RELEASE` | Optional API error tracking (release SHA injected by `deploy-server.yml`) |
+| `BACKUP_RETENTION_DAYS` | Days of daily `pg_dump` backups to keep (default 14) |
 
 ## Tech stack
 
 | Layer | Technology |
 |-------|------------|
-| Framework | React 19, TypeScript 5.9 (strict mode), React Router 7 |
-| Build | Vite 8, Rollup (manual chunks for maplibre + vendor) |
-| Map | MapLibre GL JS 5, Turf.js (union, bbox, point-in-polygon), TopoJSON |
-| Styling | Tailwind CSS 3 (class-based dark mode) |
-| Fonts | Inter (body), Space Grotesk (headings) |
-| Testing | Vitest (jsdom, 100+ tests), Playwright (E2E + visual regression) |
-| Compression | gzip + Brotli via vite-plugin-compression |
-| PWA | vite-plugin-pwa (Workbox service worker, NetworkFirst HTML) |
-| Linting | ESLint 9, typescript-eslint, React Hooks rules |
-| CI | GitHub Actions (lint → type check → test → build → E2E → visual → bundle size) |
+| Framework | React 19, TypeScript 5.9 (strict), React Router 7 |
+| Build | Vite 8 (manual chunks: `maplibre`, `vendor`), gzip + Brotli pre-compression |
+| Map | MapLibre GL JS 5, Turf.js (lazy per-module imports), TopoJSON |
+| Styling | Tailwind CSS 3 (class-based dark mode), Inter + Space Grotesk |
+| Testing | Vitest (jsdom) with coverage ratchet, Playwright (E2E + axe-core a11y + visual) |
+| PWA | vite-plugin-pwa / Workbox — NetworkFirst HTML, CacheFirst tiles, SWR geodata |
+| Quality gates | ESLint 9, bundle-size budget, Lighthouse CI, CodeQL, npm/pip audit |
 | Backend (optional) | Express 5, PostgreSQL 16, bcrypt, JWT, Cloudflare Turnstile |
-| Analytics | Umami (self-hosted, privacy-friendly) |
+| Analytics | Umami (self-hosted, cookieless) |
 | Hosting | GitHub Pages (frontend), DigitalOcean droplet + Caddy (backend) |
 
 ## Testing
 
-**Unit tests** use Vitest with jsdom. Tests cover utilities (color scales, metrics, quality index, similarity, filtering, formatting, i18n, geocoding), hooks (favorites, URL state), and component rendering. Run with `npm run test`.
+**Unit tests** — 170+ Vitest files (~2,400 tests) in `src/__tests__/`, jsdom environment. Heaviest coverage on the domain utilities (quality index, color scales, similarity, filtering, formatting, geometry, URL state, export security/CSV-injection). CI runs `test:coverage` followed by `coverage:check`, a downward-only ratchet that fails if coverage drops more than 0.5 pp below `coverage-baseline.json` — raise the baseline manually when you meaningfully add coverage.
 
-**E2E tests** use Playwright against the production build. The CI workflow builds first, then runs Playwright at `http://localhost:4173`. To run locally:
+**E2E tests** — Playwright against the production build at `localhost:4173` (7 specs: smoke, comparison, filter presets, layers/legend, panel, wizard, axe-core accessibility):
 
 ```bash
 npm run build
@@ -216,133 +163,129 @@ npx playwright install   # first time only
 npm run test:e2e
 ```
 
-## Data sources
+**Visual regression** — 6 screenshot tests exist but baselines are deliberately **not** committed; CI regenerates them per run, so the job only catches in-run flakiness, not cross-commit UI changes.
 
-All data is pre-processed into `src/data/metro_neighborhoods.topojson` by the Python pipeline in `scripts/`.
+A separate backend test suite (`server/api/src/*.test.ts`) runs via `node:test`/tsx from `server/api/`, outside Vitest.
+
+## Data
+
+All map data is produced by the Python pipeline in `scripts/` and baked into static artifacts at build time. Coverage is nationwide: 3,018 postal-code areas across 69 seutukunnat (308 municipalities). Source registry, vintages, and per-metric coverage live in `src/data/data_sources.json` and are browsable in-app at `/tietolahteet` (Data sources page).
 
 | Source | What it provides | License |
 |--------|-----------------|---------|
-| [Statistics Finland — Paavo (2024)](https://stat.fi/tup/paavo/) | Population, income, employment, education, housing, demographics | CC BY 4.0 |
-| [Statistics Finland — PxWeb](https://stat.fi/) | Property prices, rental prices, price changes | CC BY 4.0 |
-| [HSL Digitransit API](https://digitransit.fi/en/developers/) | Transit stop density, geocoding | — |
-| [HSY Open Data](https://www.hsy.fi/en/air-quality-and-climate/air-quality-now/) | Air quality index, tree canopy (LiDAR) | CC BY 4.0 |
-| [OpenStreetMap](https://www.openstreetmap.org/) | Restaurants, grocery stores, healthcare, schools, daycares, cycling infra, EV charging | ODbL |
-| Police / Poliisi (2023) | Crime index | — |
-| [Traficom](https://www.traficom.fi/) | Broadband coverage | — |
-| [Väylävirasto](https://vayla.fi/) | Traffic accidents | — |
-| [Statistics Finland (kuntavaalit 2025)](https://stat.fi/) | Voter turnout, party diversity | CC BY 4.0 |
-| YTL (ylioppilastutkinto 2024) | School quality scores | — |
-| OKM (Ministry of Education, 2020) | Foreign-language speaker share | — |
-| [NASA VIIRS Black Marble](https://blackmarble.gsfc.nasa.gov/) | Light pollution (VNP46A4 radiance) | — |
-| Helsinki meluselvitys / HRI | Noise pollution levels | — |
+| [Statistics Finland — Paavo](https://stat.fi/tup/paavo/) | Postal-code geometries; population, income, employment, education, housing, demographics (6-year history) | CC BY 4.0 |
+| [Statistics Finland — PxWeb](https://stat.fi/) | Property/rental prices + history, building age, crime (municipality), municipal election turnout & party diversity | CC BY 4.0 |
+| [HSL Digitransit](https://digitransit.fi/en/developers/) | Transit stop density, geocoding, isochrone routing | CC BY 4.0 |
+| Helsinki Region Travel Time Matrix (Zenodo) | Transit reachability (Helsinki; regression-based proxy elsewhere) | CC BY 4.0 |
+| [HSY](https://www.hsy.fi/) / FMI ENFUSER + SILAM | Air quality (station + grid, nationwide model fill), tree canopy LiDAR (Helsinki) | CC BY 4.0 |
+| Copernicus HRL | Tree canopy outside Helsinki | free |
+| [OpenStreetMap](https://www.openstreetmap.org/) (Overpass) | Restaurants, groceries, healthcare, schools, daycares, cycling, EV charging, green space, water proximity | ODbL |
+| Poliisi (via PxWeb) | Crime index (municipality-level, distributed to postal codes — flagged as proxy) | CC BY 4.0 |
+| [Traficom](https://www.traficom.fi/) | Broadband coverage | CC BY 4.0 |
+| [Väylävirasto](https://vayla.fi/) | Traffic accidents | CC BY 4.0 |
+| YTL / Opintopolku | School quality (matriculation exam results) | © YTL public statistics |
+| OKM / Statistics Finland | Foreign-language speaker share | — |
+| [NASA VIIRS Black Marble](https://blackmarble.gsfc.nasa.gov/) | Light pollution (VNP46A4 radiance, ~500 m grid) | Public domain (NASA) |
+| Helsinki/Tampere meluselvitys, HRI | Noise pollution | — |
+| [LIPAS](https://www.lipas.fi/) | Sports facility density | CC BY 4.0 |
+
+Municipality-level metrics distributed to postal codes (crime index, construction year, …) are flagged `is_proxy` in the registry and badged as estimates in the UI.
 
 ### Rebuilding the data
 
-The data pipeline is Python-based. You only need this if you're updating the underlying dataset:
+Only needed when updating the dataset itself:
 
 ```bash
 pip install -r requirements.txt
-python scripts/prepare_data.py --validate   # fetches + merges all sources → GeoJSON
-npm run build:data                          # converts GeoJSON → TopoJSON for the app
+python scripts/prepare_data.py          # fetch + merge all sources → public/data/metro_neighborhoods.geojson
+python scripts/validate_data.py         # schema/range/provenance/coverage gates
+npm run build:data                      # GeoJSON → src/data/ artifacts the app loads
 ```
 
-The pipeline fetches from Statistics Finland, HSL, and other APIs, merges pre-computed JSON files from `scripts/`, and writes `public/data/metro_neighborhoods.geojson`. The `build:data` script then converts this to the TopoJSON file the app actually loads.
+`prepare_data.py` accepts `--dry-run`, `--all-finland`, and `--regions <ids>` (writes a suffixed file so the main dataset is never overwritten). A full run takes hours (Overpass queries across 69 region bboxes); successful responses are cached in `scripts/cache/`, and `_backfill_nulls` restores values from the previous output when an individual source fails — check the run log, not just coverage. After an intentional coverage change, run `python scripts/validate_data.py --write-baseline`.
 
-A GitHub Actions workflow (`data-refresh.yml`) runs this pipeline on the 1st of each month and creates a PR if data changes.
+The `data-refresh.yml` workflow runs the pipeline quarterly (1 Jan/Apr/Jul/Oct) and opens a PR when data changed.
 
 ## Deployment
 
 ### Frontend (GitHub Pages)
 
-The app deploys to **GitHub Pages** automatically on push to `main`:
+Pushes to `main` run CI (`ci.yml`); on success, `deploy.yml` builds, pre-renders all profile/hub pages, generates the sitemap, and publishes to GitHub Pages (custom domain `naapurustot.fi`).
 
-1. CI workflow runs lint, type check, tests, build, E2E, and visual regression
-2. Build includes a bundle size check (fails if app JS exceeds 160 KB gzipped, excluding MapLibre)
-3. Deploy workflow builds, pre-renders profile pages, generates sitemap, and publishes to GitHub Pages
-4. Custom domain `naapurustot.fi` is configured at the DNS level
+The hard CI gate is the **bundle-size budget: 280,000 bytes gzipped** for *all* app JS (lazy chunks included) excluding only the `maplibre` chunk — currently within ~1 KB of the limit, so treat every new dependency as suspect. Heavy data (locales en/sv, region TopoJSONs, `region_properties.json`, `adjacency.json`) is deliberately fetched as static assets rather than imported, to stay outside the budget. A bundle analysis report lands in `dist/stats.html` on every build.
 
-A bundle analysis report is generated at `dist/stats.html` on every build.
+Branches named `claude/*` follow a separate path: `ci.yml` skips them entirely and `auto-merge.yml` is their only gate — it mirrors the CI checks (minus visual regression), merges to `main` on success, deletes the branch, and triggers `deploy.yml` explicitly.
 
 ### Backend (DigitalOcean)
 
-The server is optional — the app works fully without it. See [`server/README.md`](server/README.md) for setup.
+The server is optional — the app is fully functional without it. See [`server/README.md`](server/README.md).
 
-Services (via `docker compose`):
-- **Caddy** — reverse proxy with automatic HTTPS for `api.naapurustot.fi` and `analytics.naapurustot.fi`
-- **API** — Express.js auth server (signup, login, favorites sync)
-- **Umami** — self-hosted privacy-friendly analytics
-- **PostgreSQL** — shared database for Umami and the API
+Services via Docker Compose: **Caddy** (auto-HTTPS for `api.` and `analytics.naapurustot.fi`), **API** (Express auth/sync server), **Umami** (analytics), **PostgreSQL 16** (shared), and a **daily backup sidecar** (gzipped `pg_dump`, retention `BACKUP_RETENTION_DAYS`). The `postgres_data` volume is external — create it once with `docker volume create postgres_data`.
 
-Deploy: `ssh` into the droplet, `cd /opt/naapurustot`, `docker compose pull && docker compose up -d`.
+Deploys run automatically on pushes to `main` touching `server/**` (or manually via `deploy-server.yml`): SSH to the droplet, `git pull`, `docker compose build api && docker compose up -d`.
 
 ## Routes
 
-| Path | Component | Description |
-|------|-----------|-------------|
-| `/` | `App` | Main map application |
-| `/alue/:slug` | `NeighborhoodProfilePage` | Finnish neighborhood profile (e.g., `/alue/00100-helsinki-keskusta`) |
-| `/en/area/:slug` | `NeighborhoodProfilePage` | English neighborhood profile |
-| `*` | `NotFoundPage` | 404 fallback |
+| Path | Description |
+|------|-------------|
+| `/` | Main map application |
+| `/alue/:slug` · `/en/area/:slug` · `/sv/omrade/:slug` | Neighborhood profile (e.g. `/alue/00100-helsinki-keskusta-etu-toolo`) |
+| `/tietolahteet` · `/en/data-sources` · `/sv/datakallor` | Data sources page |
+| `/tietosuoja` · `/en/privacy` · `/sv/integritet` | Privacy page |
+| `*` | 404 |
 
-Profile pages are pre-rendered to static HTML at build time (`npm run build:pages`) for SEO. The slug format is `{pno}-{slugified-name}` — the postal code prefix enables O(1) lookup.
+Profile pages are pre-rendered to static HTML at build time (`npm run build:pages`); the slug's 5-digit postal-code prefix enables O(1) lookup. Region hub pages (`/kaupungit/`, `/kaupunki/{region}/` + en/sv variants) are standalone prerendered HTML, *not* React routes.
 
 ## URL state
 
-The app encodes state in query parameters for shareable links:
+The app encodes shareable state in query parameters (defaults are omitted to keep URLs short):
 
 | Param | Example | Description |
 |-------|---------|-------------|
-| `pno` | `?pno=00100` | Selected neighborhood (5-digit postal code) |
-| `layer` | `?layer=median_income` | Active data layer (omitted for default `quality_index`) |
-| `compare` | `?compare=00100,02100` | Comma-separated pinned comparison PNOs |
-| `city` | `?city=turku` | Active region (omitted for default `helsinki_metro`; use `all` for all cities) |
+| `pno` | `?pno=00100` | Selected area (5-digit postal code) |
+| `layer` | `?layer=median_income` | Active layer (default `quality_index`) |
+| `compare` | `?compare=00100,02100` | Pinned comparison areas (max 3) |
+| `city` | `?city=helsinki_metro` | Active region (default `all` = whole Finland) |
 
-Legacy `#hash` URLs are automatically migrated to query params.
+Extended analytical state uses additional params — `scope`, `year`, `cb` (colorblind), `lang`, `ref` (home baseline), `filter`, `qp`/`qw` (quality persona/weights), `iso` (isochrone), `v` (viewport), `sl` (shortlist), `aff`, `simw`, `draw`, `wp` (wizard) — versioned with `_v` so future schema changes degrade gracefully. Legacy `#hash` URLs migrate automatically. See `src/hooks/useUrlState.ts`.
 
-## Local storage keys
+## Client-side storage
 
-The app persists user preferences in localStorage:
+localStorage (all optional; the app works with storage disabled): `lang`, `naapurustot-theme`, `naapurustot-colorblind`, `naapurustot-fill-opacity`, `naapurustot-favorites`, `naapurustot-notes`, `naapurustot-filter-presets`, `naapurustot-shortlist`, `naapurustot-quality-weights`, `naapurustot-similarity-weights`, `naapurustot-wizard-profile`, `naapurustot-affordability`, `naapurustot-similarity-scope`, `naapurustot-home-reference`, `naapurustot-recent`, `naapurustot-onboarding-seen`, `naapurustot-scope-hint-seen`, and `has_session` (skip-auth-check flag; the credential itself is an httpOnly cookie). sessionStorage: `naapurustot:chunk-reload-at` (reload-loop guard).
 
-| Key | Purpose |
-|-----|---------|
-| `lang` | UI language (`fi` or `en`) |
-| `naapurustot-theme` | Theme mode (`light`, `dark`, `system`) |
-| `naapurustot-colorblind` | Colorblind palette mode |
-| `naapurustot-fill-opacity` | Map fill opacity (0–1) |
-| `naapurustot-favorites` | Favorited neighborhood PNOs (JSON array) |
-| `naapurustot-notes` | User notes per neighborhood (JSON object) |
-| `naapurustot-filter-presets` | Saved filter presets (JSON array) |
-
-Recent searches are stored in `sessionStorage` under `naapurustot-recent`.
+When signed in, favorites/notes/shortlist/presets/weights additionally sync to the server (1 s debounce, cross-tab via `storage` events).
 
 ## Adding a new data layer
 
-1. Add the layer ID to the `LayerId` union type in `src/utils/colorScales.ts`
-2. Define the color scale, stops, property name, and formatter in the `LAYERS` array (same file)
-3. Add the property to `NeighborhoodProperties` in `src/utils/metrics.ts`
-4. Add metric source attribution to `METRIC_SOURCES` (same file)
-5. If the metric needs weighted metro averaging, add a `MetricDef` entry to `METRIC_DEFS` (same file)
-6. Add Finnish and English labels to `src/locales/fi.json` and `src/locales/en.json`
-7. Include the data in the GeoJSON via `scripts/prepare_data.py`, then run `npm run build:data`
-
-If the layer should contribute to the Quality Index, add a `QualityFactor` entry in `src/utils/qualityIndex.ts`.
+1. Add the layer ID to the `LayerId` union and a `LayerConfig` to `LAYERS` in `src/utils/colorScales.ts`
+2. Add the layer to a group in `LAYER_GROUPS` (`src/components/LayerSelector.tsx`)
+3. Add the property to `NeighborhoodProperties` and, if it needs weighted averaging, a `MetricDef` to `METRIC_DEFS` in `src/utils/metrics.ts`
+4. Register the source in `src/data/data_sources.json` **and** its vintage in `scripts/provenance.json` (validation enforces both)
+5. Add labels to **all three** locale files — `fi.json`, `en.json`, `sv.json` (a key-parity test fails CI otherwise)
+6. Produce the data in `scripts/prepare_data.py` and verify the values land in `public/data/metro_neighborhoods.geojson`
+7. Run `npm run build:data` and re-baseline validation if coverage changed
+8. Optional: add a `QualityFactor` in `src/utils/qualityIndex.ts` if the layer should contribute to the Quality Index
 
 ## CI/CD workflows
 
 | Workflow | Trigger | What it does |
 |----------|---------|-------------|
-| `ci.yml` | Push/PR to main | Lint → type check → test → build → E2E → visual regression → bundle size (160 KB gzip budget) |
-| `deploy.yml` | Push to main / manual | Build + pre-render profile pages + generate sitemap → deploy to GitHub Pages |
-| `deploy-server.yml` | Manual | Deploy backend services to DigitalOcean droplet |
-| `data-refresh.yml` | Monthly cron / manual | Re-run Python data pipeline, create PR if data changed |
-| `auto-merge.yml` | On `claude/*` branch push | Run CI, then auto-merge to main if all checks pass |
-| `issue-to-pr.yml` | On issue creation | Create a branch from the issue |
+| `ci.yml` | Push/PR to main (skips `claude/*` PRs) | 3 parallel jobs: security audits; lint → type check → tests + coverage ratchet → build → E2E → visual → bundle budget; Lighthouse |
+| `auto-merge.yml` | Push to `claude/**` | Mirrors the CI gates in 4 parallel jobs, then merges to main, deletes the branch, triggers deploy |
+| `deploy.yml` | CI success on main / manual | Build + `build:pages` + sitemap → GitHub Pages |
+| `deploy-server.yml` | Push to main touching `server/**` / manual | SSH deploy of backend containers |
+| `data-refresh.yml` | Quarterly cron / manual | Re-run data pipeline, validate, open PR if changed |
+| `health-check.yml` | Daily cron | Synthetic checks of site, API, sitemap, data freshness; files an issue on failure |
+| `codeql.yml` | Push/PR to main + weekly | CodeQL security analysis (JS/TS + Python) |
+| `issue-to-pr.yml` | Issue labeled `claude` | Claude Code implements the issue on a branch |
 
 ## Further documentation
 
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — system architecture, data flow, map layers, state management
-- [`docs/FEATURE_ROADMAP.md`](docs/FEATURE_ROADMAP.md) — planned features and phases
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — system architecture, data flow, state management, map internals
+- [`docs/QUALITY_INDEX.md`](docs/QUALITY_INDEX.md) — quality index methodology and weights
+- [`docs/FEATURE_ROADMAP.md`](docs/FEATURE_ROADMAP.md) — feature history and planning
+- [`server/README.md`](server/README.md) — backend setup and operations
 
 ## License
 
-Data is licensed under CC BY 4.0 by Statistics Finland, HSL, and HSY. Map tiles by CARTO, data by OpenStreetMap contributors.
+Data: CC BY 4.0 (Statistics Finland, HSL, HSY) and ODbL (OpenStreetMap contributors). Map tiles by CARTO.

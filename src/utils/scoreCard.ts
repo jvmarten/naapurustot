@@ -244,6 +244,9 @@ export async function generateShortlistCard(areas: NeighborhoodProperties[], dee
   }
 }
 
+/** Pre-computed inputs for generateCorrelationCard — the caller supplies the stats
+ *  (Pearson r, optional OLS fit) and the axis/population domain, so the card renders
+ *  without stats deps. Each point's `pop` scales its dot radius against `domain.popMax`. */
 export interface CorrelationCardInput {
   points: { x: number; y: number; pop: number; color: string }[];
   r: number | null;

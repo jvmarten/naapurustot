@@ -1,6 +1,8 @@
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { getFeatureCenter } from '../utils/geometryFilter';
 
+/** One findSimilarNeighborhoods result: `distance` is the weighted normalized Euclidean
+ *  distance (lower = more similar); `center` is the area's [lng, lat] bbox midpoint. */
 export interface SimilarNeighborhood {
   properties: NeighborhoodProperties;
   distance: number;

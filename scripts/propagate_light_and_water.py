@@ -5,7 +5,8 @@ Targeted update so we don't have to re-run the full prepare_data.py pipeline.
 After this runs, ``npm run build:data`` rebuilds the TopoJSON the app loads.
 
 Inputs:
-    scripts/light_pollution.json  — { postal_code: lamps_per_km2 }
+    scripts/light_pollution.json  — { postal_code: mean VIIRS radiance, nW/cm^2/sr }
+                                    (NASA Black Marble; written by aggregate_viirs_postal.py)
     scripts/water_proximity.json  — { postal_code: distance_m }
 
 Output:

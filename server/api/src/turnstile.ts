@@ -10,6 +10,12 @@ const ALLOWED_HOSTNAMES = (process.env.TURNSTILE_ALLOWED_HOSTNAMES || '')
   .map((h) => h.trim().toLowerCase())
   .filter(Boolean);
 
+/**
+ * Verify a Cloudflare Turnstile token against the siteverify API.
+ * Allow-all when TURNSTILE_SECRET is unset (dev/staging — every request
+ * passes without contacting Cloudflare). Otherwise fails closed: returns
+ * false on rejection, hostname-allowlist mismatch, or any network/parse error.
+ */
 export async function verifyTurnstile(token: string, ip?: string): Promise<boolean> {
   // Skip verification if no secret is configured (dev mode)
   if (!TURNSTILE_SECRET) return true;

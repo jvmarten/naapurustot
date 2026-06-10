@@ -1,9 +1,9 @@
 /**
  * Tests for metroAreas.ts — cache invalidation and trend aggregation threshold.
  *
- * These test two critical gaps:
+ * These test three critical gaps:
  * 1. The 50% data completeness threshold in aggregateTrendHistories (sum mode)
- * 2. The metro area cache invalidation when unionFn becomes available
+ * 2. The metro area cache invalidation (clearMetroAreaCache, dataset changes)
  * 3. The buildMetroAreaFeatures function behavior with different data shapes
  */
 import { describe, it, expect, beforeEach } from 'vitest';

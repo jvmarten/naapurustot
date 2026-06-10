@@ -1,8 +1,9 @@
 /**
  * Database connection pool and schema initialization.
  *
- * Tables are created with IF NOT EXISTS on startup, so the schema is
- * always up to date without requiring a separate migration step.
+ * Tables are created with IF NOT EXISTS on startup — there is no migration
+ * mechanism. New tables appear automatically, but column changes to an
+ * existing table require a manual ALTER against the live database.
  */
 import pg from 'pg';
 
@@ -12,7 +13,7 @@ const pool = new pg.Pool({
   idleTimeoutMillis: 30000,
 });
 
-/** Create tables if they don't exist. Safe to call on every startup. */
+/** Create tables if they don't exist. Safe to call on every startup; never alters existing tables (no migrations). */
 export async function initDb(): Promise<void> {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (

@@ -1,6 +1,6 @@
 # naapurustot.fi Server
 
-Optional backend infrastructure for user accounts, favorites sync, and analytics (Umami), running on a DigitalOcean droplet via Docker Compose.
+Optional backend infrastructure for user accounts, user-data sync (favorites, shortlist, notes, preferences), and analytics (Umami), running on a DigitalOcean droplet via Docker Compose.
 
 **The frontend works fully without this server.** User preferences (favorites, notes, filter presets) fall back to localStorage when no server is available.
 
@@ -10,11 +10,11 @@ Optional backend infrastructure for user accounts, favorites sync, and analytics
 Internet
   │
   ├── analytics.naapurustot.fi → Caddy → Umami (privacy-friendly analytics)
-  ├── api.naapurustot.fi → Caddy → Express API (auth + favorites)
+  ├── api.naapurustot.fi → Caddy → Express API (auth + user-data sync)
   │
   └── PostgreSQL 16 (shared)
       ├── umami database (analytics data)
-      └── naapurustot database (users + favorites)
+      └── naapurustot database (users + favorites/shortlist/notes/preferences)
 ```
 
 ## Services
@@ -39,7 +39,15 @@ Internet
 | `GET` | `/auth/export` | Yes | — | Download the full stored record as JSON (GDPR data export) |
 | `DELETE` | `/auth/account` | Yes | — | Permanently delete the account and all data (GDPR), then clear the cookie |
 | `GET` | `/auth/favorites` | Yes | — | Get user's favorites list |
-| `PUT` | `/auth/favorites` | Yes | — | Replace user's favorites list |
+| `PUT` | `/auth/favorites` | Yes | — | Replace user's favorites list (max 200 entries) |
+| `GET` | `/auth/shortlist` | Yes | — | Get user's shortlist |
+| `PUT` | `/auth/shortlist` | Yes | — | Replace user's shortlist (max 200 entries) |
+| `GET` | `/auth/notes` | Yes | — | Get user's neighborhood notes |
+| `PUT` | `/auth/notes` | Yes | — | Replace notes, keyed by 5-digit postal code (max 500 notes × 5000 chars) |
+| `GET` | `/auth/preferences` | Yes | — | Get filter presets + quality weights |
+| `PUT` | `/auth/preferences` | Yes | — | Update filter presets and/or quality weights (partial update — omitted field keeps its value) |
+
+"Auth: Yes" means the request must carry the httpOnly JWT cookie set by login/signup.
 
 ### GDPR data export & deletion (CF-13)
 
@@ -80,8 +88,8 @@ scp -r server/ root@YOUR_DROPLET_IP:/opt/naapurustot/
 # 2. SSH into the droplet
 ssh root@YOUR_DROPLET_IP
 
-# 3. Create .env with secrets
-cd /opt/naapurustot
+# 3. Create .env with secrets (the scp above put everything in /opt/naapurustot/server)
+cd /opt/naapurustot/server
 cp .env.example .env
 # Generate and fill in the values:
 # openssl rand -hex 32   (run for each secret)
@@ -107,6 +115,9 @@ docker compose logs -f
 | `API_DB_PASSWORD` | PostgreSQL password for the API database user |
 | `JWT_SECRET` | Secret for signing JWT auth tokens (must be set in production) |
 | `TURNSTILE_SECRET` | Cloudflare Turnstile secret key (skip in dev to disable bot check) |
+| `TURNSTILE_ALLOWED_HOSTNAMES` | Optional — comma-separated hostnames a Turnstile token must have been solved on (e.g. `naapurustot.fi,www.naapurustot.fi`); empty disables the check. Note: not yet forwarded to the api container in `docker-compose.yml` |
+| `SENTRY_DSN` | Optional — Sentry error tracking for the API; empty disables Sentry entirely |
+| `SENTRY_RELEASE` | Optional — release identifier attached to Sentry events |
 | `BACKUP_RETENTION_DAYS` | Optional — days of pg_dumps to keep in `./backups/` (default: 14) |
 
 Generate secrets with: `openssl rand -hex 32`
@@ -167,7 +178,7 @@ ls -lh /opt/naapurustot/server/backups/
 
 # Verify the latest dumps are recent
 ls -t /opt/naapurustot/server/backups/umami-*.sql.gz | head -1
-ls -t /opt/naapurustot/server/backups/api-*.sql.gz | head -1
+ls -t /opt/naapurustot/server/backups/naapurustot-*.sql.gz | head -1
 ```
 
 > **Off-droplet copy (recommended):** the `backups/` directory only protects
@@ -187,7 +198,7 @@ cd /opt/naapurustot/server
 
 # Pick the dump you want to restore (latest shown here)
 LATEST_UMAMI=$(ls -t backups/umami-*.sql.gz | head -1)
-LATEST_API=$(ls -t backups/api-*.sql.gz | head -1)
+LATEST_API=$(ls -t backups/naapurustot-*.sql.gz | head -1)
 
 # Stop Umami / API so they don't see a half-restored DB
 docker compose stop umami api

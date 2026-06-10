@@ -1,3 +1,11 @@
+import type { RegionId } from './regions';
+// Import attribute required so this module runs under Node's type-stripping in
+// scripts/prerender.mjs (which imports metrics.ts directly), not just under Vite.
+import dataSources from '../data/data_sources.json' with { type: 'json' };
+
+/** Supported city/region identifiers. */
+export type CityId = RegionId;
+
 /**
  * Properties attached to each GeoJSON feature representing a postal code area.
  *
@@ -7,14 +15,6 @@
  *
  * The index signature allows dynamic property access by layer config `property` keys.
  */
-import type { RegionId } from './regions';
-// Import attribute required so this module runs under Node's type-stripping in
-// scripts/prerender.mjs (which imports metrics.ts directly), not just under Vite.
-import dataSources from '../data/data_sources.json' with { type: 'json' };
-
-/** Supported city/region identifiers. */
-export type CityId = RegionId;
-
 export interface NeighborhoodProperties {
   /** 5-digit Finnish postal code (e.g., "00100") */
   pno: string;
