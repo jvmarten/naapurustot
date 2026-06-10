@@ -1,8 +1,12 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { api } from '../utils/api';
 import { runSync } from '../utils/syncStatus';
+import { addTombstone, clearTombstone, readTombstones } from '../utils/syncTombstones';
 
 const STORAGE_KEY = 'naapurustot-notes';
+// CF-6: pnos whose note the user cleared on this device — skipped on the
+// login-merge so a deleted note is not resurrected by the longer-text-wins rule.
+const TOMBSTONE_KEY = 'naapurustot-notes-removed';
 
 function loadNotes(): Record<string, string> {
   try {
@@ -37,13 +41,16 @@ export function readNote(pno: string): string {
 }
 
 /** Merge two notes maps. When the same pno exists in both, the longer text wins —
- *  a proxy for "more recently edited" when we don't have per-note timestamps. */
+ *  a proxy for "more recently edited" when we don't have per-note timestamps.
+ *  CF-6: a server note whose pno the user cleared here (tombstoned, and absent
+ *  locally) is skipped so a deleted note is not resurrected. */
 function mergeNotes(local: Record<string, string>, server: Record<string, string>): Record<string, string> {
+  const tomb = readTombstones(TOMBSTONE_KEY);
   const merged: Record<string, string> = { ...local };
   for (const [pno, serverText] of Object.entries(server)) {
     const localText = merged[pno];
     if (!localText) {
-      merged[pno] = serverText;
+      if (!tomb.has(pno)) merged[pno] = serverText;
     } else if (serverText.length > localText.length) {
       merged[pno] = serverText;
     }
@@ -150,6 +157,9 @@ export function useNotes(userId?: string | null) {
     if (!/^\d{5}$/.test(pno)) return;
     // Limit note length to prevent localStorage quota exhaustion
     const trimmed = text.slice(0, 5000);
+    // CF-6: a cleared note is a deletion (tombstone it); writing text is a re-add.
+    if (trimmed.trim()) clearTombstone(TOMBSTONE_KEY, pno);
+    else addTombstone(TOMBSTONE_KEY, pno);
     setNotes((prev) => {
       const next = { ...prev };
       if (trimmed.trim()) {

@@ -1,8 +1,12 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { api } from "../utils/api";
 import { runSync } from "../utils/syncStatus";
+import { addTombstone, addTombstones, clearTombstone, mergeRespectingTombstones } from "../utils/syncTombstones";
 
 const STORAGE_KEY = "naapurustot-favorites";
+// CF-6: items the user explicitly un-favorited on this device — skipped on the
+// login-merge so a deletion is not undone by a stale server copy.
+const TOMBSTONE_KEY = "naapurustot-favorites-removed";
 
 function readFavorites(): string[] {
   try {
@@ -21,19 +25,6 @@ function readFavorites(): string[] {
 
 function writeFavorites(favorites: string[]): void {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(favorites)); } catch { /* quota exceeded or unavailable */ }
-}
-
-/** Merge two favorites arrays, preserving order of `base` and appending new items from `other`. */
-function mergeFavorites(base: string[], other: string[]): string[] {
-  const set = new Set(base);
-  const merged = [...base];
-  for (const pno of other) {
-    if (!set.has(pno)) {
-      merged.push(pno);
-      set.add(pno);
-    }
-  }
-  return merged;
 }
 
 /**
@@ -110,7 +101,8 @@ export function useFavorites(userId?: string | null) {
       // updater must be pure, and StrictMode double-invokes it which would
       // double-save to the server. The ref is synced by the writeFavorites effect.
       const serverFavs = data.favorites;
-      const merged = mergeFavorites(favoritesRef.current, serverFavs);
+      // CF-6: skip server items the user deleted here (tombstoned) so they don't resurrect.
+      const merged = mergeRespectingTombstones(favoritesRef.current, serverFavs, TOMBSTONE_KEY);
       // Suppress the debounced re-save for this particular change
       fromServerRef.current = true;
       setFavorites(merged);
@@ -131,12 +123,16 @@ export function useFavorites(userId?: string | null) {
   );
 
   const toggleFavorite = useCallback((pno: string): void => {
+    // CF-6: maintain the deletion tombstone outside the (pure) state updater.
+    if (favoritesRef.current.includes(pno)) addTombstone(TOMBSTONE_KEY, pno);
+    else clearTombstone(TOMBSTONE_KEY, pno);
     setFavorites((prev) =>
       prev.includes(pno) ? prev.filter((p) => p !== pno) : [...prev, pno]
     );
   }, []);
 
   const clearFavorites = useCallback((): void => {
+    addTombstones(TOMBSTONE_KEY, favoritesRef.current);
     setFavorites([]);
   }, []);
 

@@ -1,8 +1,12 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { api } from '../utils/api';
 import { runSync } from '../utils/syncStatus';
+import { addTombstone, addTombstones, clearTombstone, mergeRespectingTombstones } from '../utils/syncTombstones';
 
 const STORAGE_KEY = 'naapurustot-shortlist';
+// CF-6: shortlist entries the user explicitly removed on this device — skipped on
+// the login-merge so a removal is not undone by a stale server copy.
+const TOMBSTONE_KEY = 'naapurustot-shortlist-removed';
 
 function readShortlist(): string[] {
   try {
@@ -23,19 +27,6 @@ function writeShortlist(list: string[]): void {
   } catch {
     /* quota exceeded or unavailable */
   }
-}
-
-/** Merge two shortlist arrays, preserving order of `base` and appending new items from `other`. */
-function mergeShortlist(base: string[], other: string[]): string[] {
-  const set = new Set(base);
-  const merged = [...base];
-  for (const pno of other) {
-    if (!set.has(pno)) {
-      merged.push(pno);
-      set.add(pno);
-    }
-  }
-  return merged;
 }
 
 /**
@@ -111,7 +102,8 @@ export function useShortlist(userId?: string | null) {
     api.getShortlist().then(({ data }) => {
       if (cancelled || !data) return;
       const serverList = data.shortlist;
-      const merged = mergeShortlist(shortlistRef.current, serverList);
+      // CF-6: skip server items the user removed here (tombstoned) so they don't resurrect.
+      const merged = mergeRespectingTombstones(shortlistRef.current, serverList, TOMBSTONE_KEY);
       // Suppress the debounced re-save for this particular change.
       fromServerRef.current = true;
       setShortlist(merged);
@@ -126,16 +118,31 @@ export function useShortlist(userId?: string | null) {
   const set = useMemo(() => new Set(shortlist), [shortlist]);
   const isInShortlist = useCallback((pno: string) => set.has(pno), [set]);
   const toggleShortlist = useCallback((pno: string) => {
+    // CF-6: keep the deletion tombstone in step with the toggle (outside the updater).
+    if (shortlistRef.current.includes(pno)) addTombstone(TOMBSTONE_KEY, pno);
+    else clearTombstone(TOMBSTONE_KEY, pno);
     setShortlist((prev) => (prev.includes(pno) ? prev.filter((p) => p !== pno) : [...prev, pno]));
   }, []);
   const removeFromShortlist = useCallback((pno: string) => {
+    addTombstone(TOMBSTONE_KEY, pno);
     setShortlist((prev) => prev.filter((p) => p !== pno));
   }, []);
-  const clearShortlist = useCallback(() => setShortlist([]), []);
+  const clearShortlist = useCallback(() => {
+    addTombstones(TOMBSTONE_KEY, shortlistRef.current);
+    setShortlist([]);
+  }, []);
   // QW-2: adopt postal codes from a shared URL without clobbering the local list.
+  // CF-6: importing a shared list is an explicit re-add, so clear any tombstones.
   const mergeIntoShortlist = useCallback((pnos: string[]) => {
-    if (pnos.length === 0) return;
-    setShortlist((prev) => mergeShortlist(prev, pnos.filter((p) => /^\d{5}$/.test(p))));
+    const valid = pnos.filter((p) => /^\d{5}$/.test(p));
+    if (valid.length === 0) return;
+    for (const p of valid) clearTombstone(TOMBSTONE_KEY, p);
+    setShortlist((prev) => {
+      const seen = new Set(prev);
+      const merged = [...prev];
+      for (const p of valid) if (!seen.has(p)) { merged.push(p); seen.add(p); }
+      return merged;
+    });
   }, []);
 
   return { shortlist, isInShortlist, toggleShortlist, removeFromShortlist, clearShortlist, mergeIntoShortlist };
