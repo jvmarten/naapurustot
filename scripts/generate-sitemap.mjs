@@ -133,6 +133,20 @@ for (const feature of features) {
   urls.push({ loc: alt.sv, priority: '0.6', changefreq: 'monthly', alternates: alt });
 }
 
+// CF-12: "best areas by metric" ranking pages. prerender-hubs.mjs writes a
+// manifest of {fi,en,sv} alternates for exactly the pages it generated (coverage
+// gating lives there) — read it so every <loc> resolves to a real file.
+try {
+  const manifest = JSON.parse(readFileSync(join(DIST, 'ranking-pages.json'), 'utf-8'));
+  for (const alt of manifest) {
+    urls.push({ loc: alt.fi, priority: '0.6', changefreq: 'monthly', alternates: alt });
+    urls.push({ loc: alt.en, priority: '0.5', changefreq: 'monthly', alternates: alt });
+    urls.push({ loc: alt.sv, priority: '0.5', changefreq: 'monthly', alternates: alt });
+  }
+} catch {
+  // Manifest absent (hubs not yet prerendered) — sitemap simply omits ranking pages.
+}
+
 function renderAlternates(alternates) {
   if (!alternates) return '';
   return Object.entries(alternates)

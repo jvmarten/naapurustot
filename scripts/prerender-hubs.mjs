@@ -18,6 +18,11 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+// CF-12: reuse the app's data-processing so ranking pages score quality_index and
+// the quick-win metrics (child_ratio etc.) exactly as the map does. Type-only
+// imports → Node's TypeScript stripping (22.18+/24) loads them without a build.
+import { computeQualityIndices } from '../src/utils/qualityIndex.ts';
+import { computeChangeMetrics, computeQuickWinMetrics } from '../src/utils/metrics.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -25,6 +30,11 @@ const DIST = join(ROOT, 'dist');
 const GEOJSON_PATH = join(ROOT, 'public', 'data', 'metro_neighborhoods.geojson');
 
 const geojson = JSON.parse(readFileSync(GEOJSON_PATH, 'utf-8'));
+// CF-12: derive computed metrics in place (same order as scripts/prerender.mjs)
+// so quality_index and the quick-win props are present on every feature.
+computeQualityIndices(geojson.features);
+computeChangeMetrics(geojson.features);
+computeQuickWinMetrics(geojson.features);
 // CF-11b: data-source registry, for the Dataset JSON-LD on hub pages.
 const REGISTRY = JSON.parse(readFileSync(join(ROOT, 'src', 'data', 'data_sources.json'), 'utf-8'));
 
@@ -284,6 +294,27 @@ ${body}
 `;
 }
 
+/** Uppercase the first letter (metric labels are lowercase for in-sentence use). */
+function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+/** "Best areas by metric" link row for a region hub (only metrics with a page). */
+function buildBestAreasNav(region, lang) {
+  const avail = region.rankings || [];
+  if (avail.length === 0) return '';
+  const links = avail
+    .map((m) => `<a href="${rankPath(m.slug, region.id, lang)}">${escapeHtml(cap(m.label[lang]))}</a>`)
+    .join(' · ');
+  return `      <h2>${escapeHtml(RANK_TEXT[lang].bestHeading)}</h2>\n      <p>${links}</p>`;
+}
+
+/** National "best areas by metric" link row for the directory page. */
+function buildDirectoryRankingNav(lang) {
+  const links = RANKING_METRICS
+    .map((m) => `<a href="${rankPath(m.slug, null, lang)}">${escapeHtml(cap(m.label[lang]))}</a>`)
+    .join(' · ');
+  return `      <h2>${escapeHtml(RANK_TEXT[lang].bestHeading)}</h2>\n      <p>${links}</p>`;
+}
+
 // --- Localized prose ---
 const TEXT = {
   fi: {
@@ -414,6 +445,205 @@ const TOTAL_POP = regions.reduce((s, r) => s + r.totalPop, 0);
 function cityUrl(id, lang) { return `${ORIGIN}${CITY_PREFIX[lang]}/${id}/`; }
 function dirUrl(lang) { return `${ORIGIN}${DIRECTORY_PATH[lang]}`; }
 
+// ---------------------------------------------------------------------------
+// CF-12: prerendered "best areas by metric" ranking pages.
+//
+// /kaupunki/{region}/parhaat/{metric}/ (×3 languages) plus national top-50 lists
+// for a handful of high-coverage, high-intent metrics. Each is a direction-aware
+// ranked table of real values with source/vintage disclosure, ItemList +
+// BreadcrumbList JSON-LD, and links into the /alue/ profiles. All page strings
+// are inline (locale keys would consume the bundled fi.json budget); zero JS.
+//
+// The higherIsBetter direction is replicated inline — this .mjs cannot import
+// colorScales.ts (its formatting → i18n chain reaches Vite-only `?url` assets).
+// ---------------------------------------------------------------------------
+
+function fmtDec(n, lang, d) {
+  return Number(n).toLocaleString(LOCALE_TAG[lang], { minimumFractionDigits: d, maximumFractionDigits: d });
+}
+
+const RANK_SEGMENT = { fi: 'parhaat', en: 'best', sv: 'basta' };
+const MIN_REGION_RANKED = 6; // a region needs this many covered areas for its own page
+const REGION_TOP_N = 15;
+const NATIONAL_TOP_N = 50;
+
+const RANKING_METRICS = [
+  { slug: 'quality-index', property: 'quality_index', higherIsBetter: true,
+    label: { fi: 'elämänlaatu', en: 'quality of life', sv: 'livskvalitet' },
+    col: { fi: 'Laatuindeksi', en: 'Quality index', sv: 'Kvalitetsindex' },
+    fmt: (v, lang) => fmtNum(Math.round(v), lang) },
+  { slug: 'income', property: 'hr_mtu', higherIsBetter: true,
+    label: { fi: 'mediaanitulot', en: 'median income', sv: 'medianinkomst' },
+    col: { fi: 'Mediaanitulo', en: 'Median income', sv: 'Medianinkomst' },
+    fmt: (v, lang) => `${fmtNum(Math.round(v), lang)} €` },
+  { slug: 'safety', property: 'crime_index', higherIsBetter: false,
+    label: { fi: 'turvallisuus', en: 'safety', sv: 'säkerhet' },
+    col: { fi: 'Rikollisuusindeksi', en: 'Crime index', sv: 'Brottsindex' },
+    fmt: (v, lang) => fmtDec(v, lang, 1) },
+  { slug: 'families', property: 'child_ratio', higherIsBetter: true,
+    label: { fi: 'lapsiperheet', en: 'families with children', sv: 'barnfamiljer' },
+    col: { fi: 'Lasten osuus', en: 'Children (0–6) share', sv: 'Andel barn (0–6)' },
+    fmt: (v, lang) => `${fmtDec(v, lang, 1)} %` },
+  { slug: 'transit', property: 'transit_stop_density', higherIsBetter: true,
+    label: { fi: 'joukkoliikenne', en: 'public transport access', sv: 'kollektivtrafik' },
+    col: { fi: 'Pysäkkitiheys', en: 'Stop density', sv: 'Hållplatstäthet' },
+    fmt: (v, lang) => fmtNum(Math.round(v), lang) },
+  { slug: 'air-quality', property: 'air_quality_index', higherIsBetter: false,
+    label: { fi: 'ilmanlaatu', en: 'air quality', sv: 'luftkvalitet' },
+    col: { fi: 'Ilmanlaatuindeksi', en: 'Air quality index', sv: 'Luftkvalitetsindex' },
+    fmt: (v, lang) => fmtDec(v, lang, 1) },
+];
+
+const RANK_TEXT = {
+  fi: {
+    title: (m, r) => `Parhaat alueet: ${m}${r ? ` – ${r}` : ' Suomessa'} | naapurustot.fi`,
+    h1: (m, r) => `Parhaat alueet – ${m}${r ? `, ${r}` : ', koko Suomi'}`,
+    desc: (m, r, n) => r
+      ? `${r}: ${n} parasta postinumeroaluetta mittarilla ${m}. Todelliset arvot ja lähde, päivittyy avoimesta julkisesta datasta.`
+      : `Suomen ${n} parasta postinumeroaluetta mittarilla ${m}. Todelliset arvot ja lähde.`,
+    intro: (m, r, n) => r
+      ? `${r} ${n} parasta postinumeroaluetta mittarilla ${m}, järjestettynä parhaasta. Klikkaa aluetta nähdäksesi sen kaikki tilastot.`
+      : `Suomen ${n} parasta postinumeroaluetta mittarilla ${m}, järjestettynä parhaasta. Klikkaa aluetta nähdäksesi sen kaikki tilastot.`,
+    colRank: 'Sija', colArea: 'Alue', colRegion: 'Seutukunta',
+    source: (s, v) => `Lähde: ${s} (${v}). Kaikki arvot perustuvat avoimeen, todennettavaan julkiseen dataan.`,
+    crumbBest: 'Parhaat alueet', crumbAll: 'Kaikki alueet',
+    bestHeading: 'Parhaat alueet mittareittain',
+    nationalLink: 'Koko Suomen lista',
+  },
+  en: {
+    title: (m, r) => `Best areas for ${m}${r ? ` in ${r}` : ' in Finland'} | naapurustot.fi`,
+    h1: (m, r) => `Best areas for ${m}${r ? ` — ${r}` : ' — all of Finland'}`,
+    desc: (m, r, n) => r
+      ? `${r}: the ${n} best postal code areas for ${m}. Real values and source, updated from open public data.`
+      : `The ${n} best postal code areas in Finland for ${m}. Real values and source.`,
+    intro: (m, r, n) => r
+      ? `The ${n} best postal code areas in ${r} for ${m}, ranked best first. Click an area to see all its statistics.`
+      : `The ${n} best postal code areas in Finland for ${m}, ranked best first. Click an area to see all its statistics.`,
+    colRank: 'Rank', colArea: 'Area', colRegion: 'Sub-region',
+    source: (s, v) => `Source: ${s} (${v}). Every value is based on open, verifiable public data.`,
+    crumbBest: 'Best areas', crumbAll: 'All areas',
+    bestHeading: 'Best areas by metric',
+    nationalLink: 'Nationwide list',
+  },
+  sv: {
+    title: (m, r) => `Bästa områden för ${m}${r ? ` i ${r}` : ' i Finland'} | naapurustot.fi`,
+    h1: (m, r) => `Bästa områden för ${m}${r ? ` — ${r}` : ' — hela Finland'}`,
+    desc: (m, r, n) => r
+      ? `${r}: de ${n} bästa postnummerområdena för ${m}. Verkliga värden och källa, uppdateras från öppna offentliga data.`
+      : `De ${n} bästa postnummerområdena i Finland för ${m}. Verkliga värden och källa.`,
+    intro: (m, r, n) => r
+      ? `De ${n} bästa postnummerområdena i ${r} för ${m}, rankade bäst först. Klicka på ett område för all dess statistik.`
+      : `De ${n} bästa postnummerområdena i Finland för ${m}, rankade bäst först. Klicka på ett område för all dess statistik.`,
+    colRank: 'Plats', colArea: 'Område', colRegion: 'Region',
+    source: (s, v) => `Källa: ${s} (${v}). Alla värden bygger på öppna, verifierbara offentliga data.`,
+    crumbBest: 'Bästa områden', crumbAll: 'Alla områden',
+    bestHeading: 'Bästa områden per mätare',
+    nationalLink: 'Lista för hela Finland',
+  },
+};
+
+/** Path (no origin) to a ranking page, per scope and language. */
+function rankPath(metricSlug, regionId, lang) {
+  return regionId
+    ? `${CITY_PREFIX[lang]}/${regionId}/${RANK_SEGMENT[lang]}/${metricSlug}/`
+    : `/${[lang === 'fi' ? null : lang, RANK_SEGMENT[lang], metricSlug].filter(Boolean).join('/')}/`;
+}
+function rankAlternates(metricSlug, regionId) {
+  return Object.fromEntries(LANGS.map((l) => [l, `${ORIGIN}${rankPath(metricSlug, regionId, l)}`]));
+}
+
+/** Rank a feature list by a metric (direction-aware); returns the top-N covered. */
+function rankFeatures(features, metric, topN) {
+  const covered = features.filter((f) => Number.isFinite(Number(f.properties[metric.property])));
+  covered.sort((a, b) => {
+    const av = Number(a.properties[metric.property]);
+    const bv = Number(b.properties[metric.property]);
+    return metric.higherIsBetter ? bv - av : av - bv;
+  });
+  return covered.slice(0, topN);
+}
+
+/** Build one ranking page. `region` is null for the national list. */
+function buildRankingPage(metric, lang, region, ranked) {
+  const T = RANK_TEXT[lang];
+  const label = metric.label[lang];
+  const regionName = region ? getRegionName(region.id, lang) : '';
+  const alternates = rankAlternates(metric.slug, region ? region.id : null);
+  const reg = REGISTRY.metrics?.[metric.property] ?? {};
+  const national = !region;
+
+  const rows = ranked.map((f, i) => {
+    const p = f.properties;
+    const name = escapeHtml(getDisplayName(p, lang));
+    const href = `${AREA_PREFIX[lang]}/${escapeHtml(toSlug(p.pno, p.nimi))}/`;
+    const value = escapeHtml(metric.fmt(Number(p[metric.property]), lang));
+    const regionCell = national
+      ? `<td>${escapeHtml(getRegionName(p.city, lang))}</td>`
+      : '';
+    return `        <tr><td class="num">${i + 1}</td><td><a href="${href}">${name}</a></td>` +
+      `<td>${escapeHtml(p.pno)}</td>${regionCell}<td class="num">${value}</td></tr>`;
+  }).join('\n');
+
+  const regionColHead = national ? `<th scope="col">${escapeHtml(T.colRegion)}</th>` : '';
+  const crumbs = national
+    ? `<p class="crumbs"><a href="/">naapurustot.fi</a> / ${escapeHtml(T.crumbBest)}</p>`
+    : `<p class="crumbs"><a href="/">naapurustot.fi</a> / <a href="${DIRECTORY_PATH[lang]}">${escapeHtml(T.crumbAll)}</a> / <a href="${CITY_PREFIX[lang]}/${escapeHtml(region.id)}/">${escapeHtml(regionName)}</a> / ${escapeHtml(T.crumbBest)}</p>`;
+
+  const nationalCta = !national
+    ? `\n      <p><a href="${rankPath(metric.slug, null, lang)}">${escapeHtml(T.nationalLink)} →</a></p>`
+    : '';
+
+  const body = `      ${crumbs}
+      <h1>${escapeHtml(T.h1(label, regionName))}</h1>
+      <p class="lead">${escapeHtml(T.intro(label, regionName, ranked.length))}</p>
+      <table>
+        <caption>${escapeHtml(T.source(reg.source ?? 'naapurustot.fi', reg.vintage ?? ''))}</caption>
+        <thead><tr><th scope="col" class="num">${escapeHtml(T.colRank)}</th><th scope="col">${escapeHtml(T.colArea)}</th><th scope="col">${escapeHtml(TEXT[lang].colPostal)}</th>${regionColHead}<th scope="col" class="num">${escapeHtml(metric.col[lang])}</th></tr></thead>
+        <tbody>
+${rows}
+        </tbody>
+      </table>${nationalCta}
+      <p><a href="${national ? DIRECTORY_PATH[lang] : `${CITY_PREFIX[lang]}/${escapeHtml(region.id)}/`}">← ${escapeHtml(national ? T.crumbAll : regionName)}</a></p>`;
+
+  const itemList = {
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    name: T.h1(label, regionName),
+    numberOfItems: ranked.length,
+    itemListElement: ranked.map((f, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: getDisplayName(f.properties, lang),
+      url: `${ORIGIN}${AREA_PREFIX[lang]}/${toSlug(f.properties.pno, f.properties.nimi)}/`,
+    })),
+  };
+  const crumbList = national
+    ? [
+        { '@type': 'ListItem', position: 1, name: 'naapurustot.fi', item: `${ORIGIN}/` },
+        { '@type': 'ListItem', position: 2, name: T.crumbBest },
+      ]
+    : [
+        { '@type': 'ListItem', position: 1, name: 'naapurustot.fi', item: `${ORIGIN}/` },
+        { '@type': 'ListItem', position: 2, name: T.crumbAll, item: dirUrl(lang) },
+        { '@type': 'ListItem', position: 3, name: regionName, item: cityUrl(region.id, lang) },
+        { '@type': 'ListItem', position: 4, name: T.crumbBest },
+      ];
+  const breadcrumb = { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: crumbList };
+  const jsonLd = [itemList, breadcrumb]
+    .map((o) => `    <script type="application/ld+json">${safeJson(o)}</script>`)
+    .join('\n');
+
+  return htmlPage({
+    lang,
+    title: T.title(label, regionName),
+    description: T.desc(label, regionName, ranked.length),
+    canonical: alternates[lang],
+    alternates,
+    jsonLd,
+    body,
+  });
+}
+
 // --- Directory page ---
 function buildDirectory(lang) {
   const T = TEXT[lang];
@@ -436,7 +666,8 @@ function buildDirectory(lang) {
         <tbody>
 ${rows}
         </tbody>
-      </table>`;
+      </table>
+${buildDirectoryRankingNav(lang)}`;
 
   const itemList = {
     '@context': 'https://schema.org',
@@ -525,6 +756,7 @@ function buildCityHub(region, lang) {
 ${rows}
         </tbody>
       </table>
+${buildBestAreasNav(region, lang)}
       <p><a href="${DIRECTORY_PATH[lang]}">${escapeHtml(T.backToDir)}</a></p>`;
 
   const collection = {
@@ -585,6 +817,14 @@ const CITY_OUT = {
   sv: (id) => join(DIST, 'sv', 'stad', id),
 };
 
+// CF-12: which metrics earn a per-region ranking page (enough covered areas to
+// rank meaningfully) — attached to each region so its hub can cross-link them.
+for (const region of regions) {
+  region.rankings = RANKING_METRICS.filter(
+    (m) => region.features.filter((f) => Number.isFinite(Number(f.properties[m.property]))).length >= MIN_REGION_RANKED,
+  );
+}
+
 for (const lang of LANGS) {
   mkdirSync(DIR_OUT[lang], { recursive: true });
   writeFileSync(join(DIR_OUT[lang], 'index.html'), buildDirectory(lang));
@@ -601,3 +841,31 @@ for (const region of regions) {
 }
 
 console.log(`Prerendered ${cityCount} regional hubs + 3 directory pages (${cityCount * 3 + 3} HTML files).`);
+
+// CF-12: ranking pages — national top-50 + per-region top-15 per metric (×3 langs).
+// Emits a manifest of {fi,en,sv} alternates so generate-sitemap.mjs lists exactly
+// the pages that were written (single source of truth — no gating drift).
+const RANKABLE = geojson.features.filter((f) => f.properties?.pno && f.properties?.nimi);
+const rankingManifest = [];
+
+function writeRankingSet(metric, region, ranked) {
+  for (const lang of LANGS) {
+    const dir = join(DIST, ...rankPath(metric.slug, region ? region.id : null, lang).split('/').filter(Boolean));
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'index.html'), buildRankingPage(metric, lang, region, ranked));
+  }
+  rankingManifest.push(rankAlternates(metric.slug, region ? region.id : null));
+}
+
+for (const metric of RANKING_METRICS) {
+  const ranked = rankFeatures(RANKABLE, metric, NATIONAL_TOP_N);
+  if (ranked.length > 0) writeRankingSet(metric, null, ranked);
+}
+for (const region of regions) {
+  for (const metric of region.rankings) {
+    writeRankingSet(metric, region, rankFeatures(region.features, metric, REGION_TOP_N));
+  }
+}
+
+writeFileSync(join(DIST, 'ranking-pages.json'), JSON.stringify(rankingManifest));
+console.log(`Prerendered ${rankingManifest.length} ranking page sets (${rankingManifest.length * 3} HTML files; manifest → dist/ranking-pages.json).`);
