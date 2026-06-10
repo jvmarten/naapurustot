@@ -1426,9 +1426,19 @@ const App: React.FC = () => {
       }
       if (ogTitle) ogTitle.setAttribute('content', `${selected.nimi} — naapurustot.fi`);
       if (ogDesc) ogDesc.setAttribute('content', `${selected.nimi} (${selected.pno}) — ${t('panel.quality_index')}: ${selected.quality_index ?? '—'}`);
-      const pnoUrl = `https://naapurustot.fi/?pno=${selected.pno}`;
-      if (canonical) canonical.setAttribute('href', pnoUrl);
-      if (ogUrl) ogUrl.setAttribute('content', pnoUrl);
+      // CF-10: canonicalise to the prerendered, trailing-slash profile URL for the
+      // current language — NOT `?pno=` (a non-prerendered query-param duplicate of
+      // the same page, which re-opens the duplicate-content signal the 59946a4
+      // de-indexing fix closed). Mirrors getShareUrl's path map.
+      const slug = toSlug(selected.pno, selected.nimi);
+      const profilePathByLang: Record<Lang, string> = {
+        fi: `/alue/${slug}/`,
+        en: `/en/area/${slug}/`,
+        sv: `/sv/omrade/${slug}/`,
+      };
+      const profileUrl = `https://naapurustot.fi${profilePathByLang[lang]}`;
+      if (canonical) canonical.setAttribute('href', profileUrl);
+      if (ogUrl) ogUrl.setAttribute('content', profileUrl);
     } else {
       document.title = 'naapurustot — naapurustot kartalla | naapurustot.fi';
       if (desc) desc.setAttribute('content', t('meta.site_description'));
