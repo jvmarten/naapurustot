@@ -19,6 +19,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, unlinkSync } from '
 import { gzipSync } from 'node:zlib';
 import { resolve } from 'node:path';
 import { buildAdjacencyFromRegions } from './lib/adjacency.mjs';
+import { computeDataUpdateEvents, mergeDataUpdates } from './lib/data-updates.mjs';
 
 const rootDir = resolve(import.meta.dirname, '..');
 const geojsonPath = resolve(rootDir, 'public', 'data', 'metro_neighborhoods.geojson');
@@ -263,6 +264,20 @@ const buildMetadata = {
   rows_total: features.length,
   metrics: sortedProvenanceMetrics,
 };
+// PO-5: append real data-change events (vintage/coverage shifts vs the PREVIOUS
+// build_metadata, read before we overwrite it) to the committed data_updates.json,
+// which drives the indexable "Data updated" changelog and the Atom feed. Real build
+// events only — no fabricated dates. On an unchanged rebuild this is a no-op.
+const dataUpdatesPath = resolve(rootDir, 'src', 'data', 'data_updates.json');
+let prevMetrics = {};
+try { prevMetrics = JSON.parse(readFileSync(metadataPath, 'utf-8')).metrics ?? {}; } catch { /* first build */ }
+let dataUpdates = [];
+try { dataUpdates = JSON.parse(readFileSync(dataUpdatesPath, 'utf-8')); } catch { /* none yet */ }
+const updateEvents = computeDataUpdateEvents(prevMetrics, sortedProvenanceMetrics, buildMetadata.generated.slice(0, 10));
+const mergedUpdates = mergeDataUpdates(dataUpdates, updateEvents);
+writeFileSync(dataUpdatesPath, JSON.stringify(mergedUpdates, null, 2) + '\n');
+if (updateEvents.length > 0) console.log(`  → data_updates.json (+${updateEvents.length} change events)`);
+
 const metadataJson = JSON.stringify(buildMetadata, null, 2) + '\n';
 writeFileSync(metadataPath, metadataJson);
 // IN-4: also expose it as a static asset (public/data → /data/build_metadata.json)

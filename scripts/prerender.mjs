@@ -1259,12 +1259,37 @@ function buildSourcesNoscript(lang) {
     rows += `<li><a href="${escapeHtml(pub.url)}">${escapeHtml(pub.name)}</a> — ${escapeHtml(pub.license)}<ul>${items}</ul></li>`;
   }
 
+  // PO-5: complete per-metric audit table from build_metadata — coverage, row
+  // count, vintage, resolution and the proxy flag. The SPA ships most of this; the
+  // prerendered noscript previously lacked it. Headers inline (build-only, no bundle).
+  const CT = {
+    fi: { heading: 'Mittareiden kattavuus', metric: 'Mittari', coverage: 'Kattavuus', rows: 'Alueita', vintage: 'Vuosi', gran: 'Tarkkuus', proxy: 'Arvio' },
+    en: { heading: 'Per-metric coverage', metric: 'Metric', coverage: 'Coverage', rows: 'Areas', vintage: 'Year', gran: 'Resolution', proxy: 'Estimate' },
+    sv: { heading: 'Mätarnas täckning', metric: 'Mätare', coverage: 'Täckning', rows: 'Områden', vintage: 'År', gran: 'Upplösning', proxy: 'Uppskattning' },
+  }[lang] ?? { heading: 'Per-metric coverage', metric: 'Metric', coverage: 'Coverage', rows: 'Areas', vintage: 'Year', gran: 'Resolution', proxy: 'Estimate' };
+  const metricRows = Object.keys(BUILD_METADATA.metrics ?? {}).sort().map((key) => {
+    const m = BUILD_METADATA.metrics[key];
+    return `<tr><th scope="row">${escapeHtml(key)}</th>` +
+      `<td>${escapeHtml(String(m.coverage_pct ?? ''))} %</td>` +
+      `<td>${escapeHtml(String(m.row_count ?? ''))}</td>` +
+      `<td>${escapeHtml(String(m.vintage ?? ''))}</td>` +
+      `<td>${escapeHtml(granLabel(m.granularity))}</td>` +
+      `<td>${m.is_proxy ? escapeHtml(tr('data.estimate')) : '—'}</td></tr>`;
+  }).join('');
+  const coverageTable = metricRows
+    ? `<h2>${escapeHtml(CT.heading)}</h2><table><thead><tr>` +
+      `<th scope="col">${escapeHtml(CT.metric)}</th><th scope="col">${escapeHtml(CT.coverage)}</th>` +
+      `<th scope="col">${escapeHtml(CT.rows)}</th><th scope="col">${escapeHtml(CT.vintage)}</th>` +
+      `<th scope="col">${escapeHtml(CT.gran)}</th><th scope="col">${escapeHtml(CT.proxy)}</th></tr></thead><tbody>${metricRows}</tbody></table>`
+    : '';
+
   return [
     `<h1>${escapeHtml(tr('sources.title'))}</h1>`,
     `<p>${escapeHtml(tr('sources.subtitle'))}</p>`,
     updatedBlock,
     `<h2>${escapeHtml(tr('sources.publishers_heading'))}</h2>`,
     `<ul>${rows}</ul>`,
+    coverageTable,
     `<h2>${escapeHtml(tr('sources.methodology_heading'))}</h2>`,
     `<p>${escapeHtml(tr('sources.methodology_body'))}</p>`,
     `<p>${escapeHtml(tr('sources.quality_note'))}</p>`,

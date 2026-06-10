@@ -17,6 +17,8 @@ import buildMetadata from '../data/build_metadata.json';
 import fi from '../locales/fi.json';
 import en from '../locales/en.json';
 import sv from '../locales/sv.json';
+// @ts-expect-error — plain .mjs build helper with no type declarations
+import { computeDataUpdateEvents, mergeDataUpdates } from '../../scripts/lib/data-updates.mjs';
 
 type Dict = Record<string, string>;
 const LOCALES: Record<string, Dict> = { fi: fi as Dict, en: en as Dict, sv: sv as Dict };
@@ -111,5 +113,46 @@ describe('PO-15 per-source refresh log', () => {
       const cur = log[i].newest ?? -Infinity;
       expect(prev).toBeGreaterThanOrEqual(cur);
     }
+  });
+});
+
+describe('PO-5 data-updates changelog (Atom feed source)', () => {
+  it('emits a vintage event when a metric is refreshed', () => {
+    const events = computeDataUpdateEvents(
+      { crime_index: { vintage: 2023, coverage_pct: 80 } },
+      { crime_index: { vintage: 2024, coverage_pct: 80 } },
+      '2026-06-10',
+    );
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ metric: 'crime_index', type: 'vintage', from: 2023, to: 2024, date: '2026-06-10' });
+    expect(events[0].title).toContain('2024');
+  });
+
+  it('emits a coverage event only when coverage shifts >= 0.5pp', () => {
+    const big = computeDataUpdateEvents(
+      { hr_mtu: { vintage: 2024, coverage_pct: 90.0 } },
+      { hr_mtu: { vintage: 2024, coverage_pct: 91.2 } },
+      '2026-06-10',
+    );
+    expect(big).toHaveLength(1);
+    expect(big[0].type).toBe('coverage');
+    const small = computeDataUpdateEvents(
+      { hr_mtu: { vintage: 2024, coverage_pct: 90.0 } },
+      { hr_mtu: { vintage: 2024, coverage_pct: 90.3 } },
+      '2026-06-10',
+    );
+    expect(small).toHaveLength(0);
+  });
+
+  it('does not emit for a brand-new metric (addition, not a refresh)', () => {
+    expect(computeDataUpdateEvents({}, { fresh: { vintage: 2024, coverage_pct: 60 } }, '2026-06-10')).toHaveLength(0);
+  });
+
+  it('mergeDataUpdates prepends newest events and bounds the log', () => {
+    const existing = Array.from({ length: 5 }, (_, i) => ({ metric: `old${i}` }));
+    const merged = mergeDataUpdates(existing, [{ metric: 'new1' }, { metric: 'new2' }], 4);
+    expect(merged).toHaveLength(4);
+    expect(merged[0].metric).toBe('new1');
+    expect(mergeDataUpdates(existing, [])).toBe(existing);
   });
 });
