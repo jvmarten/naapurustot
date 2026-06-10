@@ -1118,8 +1118,23 @@ function generatePage(feature, lang) {
   // CF-10: drop the homepage Finnish keywords meta — irrelevant on EN/SV profiles
   // and a deprecated, spammy signal on every profile.
   html = html.replace(/\s*<meta name="keywords"[^>]*>/, '');
-  // Inject JSON-LD before closing </head>.
-  html = html.replace('</head>', `    ${jsonLd}\n  </head>`);
+  // PO-4: Dublin Core metadata so Zotero's Embedded Metadata translator produces a
+  // correct one-click citation (title, creator, dated identifier, rights). DC.date
+  // is the dataset build date — the citation reflects the data vintage, not the page
+  // fetch time. Injected alongside the JSON-LD, ahead of </head>.
+  const dcDate = String(BUILD_METADATA.generated || '').slice(0, 10);
+  const dcMeta = [
+    `<meta name="DC.title" content="${escapeHtml(title)}" />`,
+    `<meta name="DC.creator" content="naapurustot.fi" />`,
+    `<meta name="DC.publisher" content="naapurustot.fi" />`,
+    dcDate && `<meta name="DC.date" content="${dcDate}" />`,
+    `<meta name="DC.identifier" content="${canonicalUrl}" />`,
+    `<meta name="DC.language" content="${lang}" />`,
+    `<meta name="DC.type" content="Dataset" />`,
+    `<meta name="DC.rights" content="Data: Statistics Finland (CC BY 4.0), OpenStreetMap (ODbL) and other public sources" />`,
+  ].filter(Boolean).map((m) => `    ${m}`).join('\n');
+  // Inject Dublin Core meta + JSON-LD before closing </head>.
+  html = html.replace('</head>', `${dcMeta}\n    ${jsonLd}\n  </head>`);
 
   // Replace noscript content with the full neighbourhood statistics.
   html = html.replace(

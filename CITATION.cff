@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+message: "If you use naapurustot.fi data or pages in research or journalism, please cite it as below and credit the underlying open-data sources."
+title: "naapurustot.fi — Finnish neighbourhood statistics"
+abstract: >-
+  A free, independent map service compiling 50+ open-data indicators —
+  income, employment, education, housing, services, safety, transit and
+  environment — for all 3,018 Finnish postal-code areas across 69 sub-regions
+  (seutukunnat), with per-area profile pages, a Quality Index and an open bulk
+  dataset. Every value traces to a verifiable public source. Data is licensed
+  per source: Statistics Finland (Paavo) under CC BY 4.0, OpenStreetMap-derived
+  columns under the ODbL; see the codebook for per-column licensing.
+type: dataset
+authors:
+  - name: "naapurustot.fi"
+    website: "https://naapurustot.fi"
+url: "https://naapurustot.fi"
+repository-code: "https://github.com/jvmarten/naapurustot"
+license: CC-BY-4.0
+keywords:
+  - neighbourhoods
+  - Finland
+  - postal code areas
+  - open data
+  - Statistics Finland
+  - Paavo
