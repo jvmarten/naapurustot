@@ -96,6 +96,9 @@ urls.push({ loc: dataSources.fi, priority: '0.5', changefreq: 'monthly', alterna
 urls.push({ loc: dataSources.en, priority: '0.4', changefreq: 'monthly', alternates: dataSources });
 urls.push({ loc: dataSources.sv, priority: '0.4', changefreq: 'monthly', alternates: dataSources });
 
+// CF-14: open-data download/API landing page (single language, crawlable).
+urls.push({ loc: `${ORIGIN}/avoin-data/`, priority: '0.6', changefreq: 'monthly' });
+
 // PO-14: privacy & data-handling notice page. CF-10: trailing slash (directory index).
 const privacy = {
   fi: `${ORIGIN}/tietosuoja/`,
