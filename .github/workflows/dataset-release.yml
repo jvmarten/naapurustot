@@ -1,0 +1,76 @@
+# CF-14: publish a frozen, citable snapshot of the open dataset as a GitHub
+# Release tagged `data-YYYY.MM`. Frozen releases keep published stories/analyses
+# verifiable across the quarterly data refresh. Manual (workflow_dispatch) — run
+# it after a data refresh has merged.
+name: Dataset release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_suffix:
+        description: 'Optional suffix appended to the data-YYYY.MM tag (e.g. "b")'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dataset-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.18.0
+          cache: npm
+
+      - run: npm ci
+
+      # Build the app + open-data artifacts (build:pages emits dist/avoin-data/).
+      - run: npm run build
+      - run: npm run build:pages
+
+      - name: Derive tag + notes from build_metadata vintages
+        id: meta
+        run: |
+          set -euo pipefail
+          GEN=$(node -p "require('./src/data/build_metadata.json').generated")
+          YM=$(date -u -d "$GEN" +%Y.%m || date -u +%Y.%m)
+          TAG="data-${YM}${{ inputs.tag_suffix }}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          {
+            echo "## naapurustot.fi open dataset — $TAG"
+            echo ""
+            echo "Frozen snapshot generated $GEN."
+            echo ""
+            echo "Per-metric vintages:"
+            node -e "const m=require('./src/data/build_metadata.json').metrics;for(const k of Object.keys(m).sort())console.log('- '+k+': '+m[k].vintage+' ('+m[k].coverage_pct+'% coverage)')"
+          } > release-notes.md
+
+      - name: Assemble + checksum release assets
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          gzip -9 -c dist/avoin-data/naapurustot_areas.csv > release/naapurustot_areas.csv.gz
+          gzip -9 -c dist/avoin-data/naapurustot_timeseries.csv > release/naapurustot_timeseries.csv.gz
+          cp dist/avoin-data/codebook.csv dist/avoin-data/codebook.json release/
+          gzip -9 -c public/data/metro_neighborhoods.geojson > release/metro_neighborhoods.geojson.gz
+          ( cd release && sha256sum * > SHA256SUMS.txt )
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.meta.outputs.tag }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" release/* --clobber
+          else
+            gh release create "$TAG" release/* --title "$TAG" --notes-file release-notes.md
+          fi
