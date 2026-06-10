@@ -21,7 +21,9 @@ interface StatEntry {
 let _exportFmtLocale = '';
 let _exportFmt: Intl.NumberFormat | null = null;
 function exportNumFmt(): Intl.NumberFormat {
-  const loc = getLang() === 'en' ? 'en-US' : 'fi-FI';
+  // PO-2: Swedish maps to sv-SE (was silently folded into fi-FI), matching the
+  // runtime UI and prerendered pages so exported numbers format per the user's locale.
+  const loc = getLang() === 'en' ? 'en-US' : getLang() === 'sv' ? 'sv-SE' : 'fi-FI';
   if (_exportFmt && _exportFmtLocale === loc) return _exportFmt;
   _exportFmtLocale = loc;
   _exportFmt = new Intl.NumberFormat(loc);

@@ -37,12 +37,12 @@ describe('formatting — null/undefined/NaN handling', () => {
   });
 
   it('formatPct handles zero', () => {
-    expect(formatPct(0)).toBe('0.0 %');
+    expect(formatPct(0)).toBe('0,0 %');
   });
 
   it('formatPct custom decimals', () => {
     expect(formatPct(33.333, 0)).toBe('33 %');
-    expect(formatPct(33.333, 2)).toBe('33.33 %');
+    expect(formatPct(33.333, 2)).toBe('33,33 %');
   });
 });
 
@@ -57,27 +57,27 @@ describe('formatDiff — edge cases', () => {
 
   it('returns +0.0 when values are equal', () => {
     // diff = 0, sign is empty string (not +)
-    expect(formatDiff(50, 50)).toBe('0.0');
+    expect(formatDiff(50, 50)).toBe('0,0');
   });
 
   it('formats positive difference with + sign', () => {
-    expect(formatDiff(55, 50)).toBe('+5.0');
+    expect(formatDiff(55, 50)).toBe('+5,0');
   });
 
   it('formats negative difference without + sign', () => {
-    expect(formatDiff(45, 50)).toBe('-5.0');
+    expect(formatDiff(45, 50)).toBe('-5,0');
   });
 
   it('handles string inputs', () => {
-    expect(formatDiff('55', '50')).toBe('+5.0');
+    expect(formatDiff('55', '50')).toBe('+5,0');
   });
 
   it('handles very small differences', () => {
     // 50.05 - 50 = 0.05, diff > 0 → sign is '+', toFixed(1) = '0.0' → '+0.0'
     // This is a quirk: +0.0 looks odd but is technically correct
-    expect(formatDiff(50.05, 50)).toBe('+0.0');
+    expect(formatDiff(50.05, 50)).toBe('+0,0');
     // Larger diff that rounds to visible value
-    expect(formatDiff(50.06, 50)).toBe('+0.1');
+    expect(formatDiff(50.06, 50)).toBe('+0,1');
   });
 });
 

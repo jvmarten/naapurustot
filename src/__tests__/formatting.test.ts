@@ -39,15 +39,15 @@ describe('formatPct', () => {
   });
 
   it('formats with 1 decimal by default', () => {
-    expect(formatPct(12.567)).toBe('12.6 %');
+    expect(formatPct(12.567)).toBe('12,6 %');
   });
 
   it('respects custom decimal count', () => {
-    expect(formatPct(12.567, 2)).toBe('12.57 %');
+    expect(formatPct(12.567, 2)).toBe('12,57 %');
   });
 
   it('formats zero', () => {
-    expect(formatPct(0)).toBe('0.0 %');
+    expect(formatPct(0)).toBe('0,0 %');
   });
 });
 
@@ -61,15 +61,15 @@ describe('formatDiff', () => {
   });
 
   it('formats positive difference with + sign', () => {
-    expect(formatDiff(15, 10)).toBe('+5.0');
+    expect(formatDiff(15, 10)).toBe('+5,0');
   });
 
   it('formats negative difference with - sign', () => {
-    expect(formatDiff(8, 10)).toBe('-2.0');
+    expect(formatDiff(8, 10)).toBe('-2,0');
   });
 
   it('formats zero difference without + prefix', () => {
-    expect(formatDiff(10, 10)).toBe('0.0');
+    expect(formatDiff(10, 10)).toBe('0,0');
   });
 });
 
@@ -145,7 +145,7 @@ describe('formatYtlGradeFull', () => {
   });
 
   it('includes letter grade and mean on 0-7 scale', () => {
-    expect(formatYtlGradeFull(73.4)).toBe('M+ (5.14)');
+    expect(formatYtlGradeFull(73.4)).toBe('M+ (5,14)');
   });
 });
 

@@ -62,11 +62,11 @@ describe('formatting — edge cases and correctness', () => {
 
   describe('formatPct', () => {
     it('appends % symbol with default 1 decimal', () => {
-      expect(formatPct(12.345)).toBe('12.3 %');
+      expect(formatPct(12.345)).toBe('12,3 %');
     });
 
     it('respects custom decimals', () => {
-      expect(formatPct(12.345, 2)).toBe('12.35 %');
+      expect(formatPct(12.345, 2)).toBe('12,35 %');
     });
 
     it('returns — for null', () => {
@@ -74,26 +74,26 @@ describe('formatting — edge cases and correctness', () => {
     });
 
     it('formats zero correctly', () => {
-      expect(formatPct(0)).toBe('0.0 %');
+      expect(formatPct(0)).toBe('0,0 %');
     });
 
     it('handles negative percentages', () => {
-      expect(formatPct(-5.7)).toBe('-5.7 %');
+      expect(formatPct(-5.7)).toBe('-5,7 %');
     });
   });
 
   describe('formatDiff', () => {
     it('shows + for positive difference', () => {
-      expect(formatDiff(110, 100)).toBe('+10.0');
+      expect(formatDiff(110, 100)).toBe('+10,0');
     });
 
     it('shows negative difference without + sign', () => {
-      expect(formatDiff(90, 100)).toBe('-10.0');
+      expect(formatDiff(90, 100)).toBe('-10,0');
     });
 
     it('shows 0.0 for equal values (no + sign)', () => {
       // diff = 0, sign = '' (not >0)
-      expect(formatDiff(100, 100)).toBe('0.0');
+      expect(formatDiff(100, 100)).toBe('0,0');
     });
 
     it('returns empty string when value is null', () => {
@@ -105,7 +105,7 @@ describe('formatting — edge cases and correctness', () => {
     });
 
     it('accepts string numbers', () => {
-      expect(formatDiff('150', '100')).toBe('+50.0');
+      expect(formatDiff('150', '100')).toBe('+50,0');
     });
   });
 

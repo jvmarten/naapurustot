@@ -62,15 +62,15 @@ describe('formatPct — deep edge cases', () => {
   });
 
   it('handles very small decimals', () => {
-    expect(formatPct(0.123)).toBe('0.1 %');
+    expect(formatPct(0.123)).toBe('0,1 %');
   });
 
   it('handles 100%', () => {
-    expect(formatPct(100)).toBe('100.0 %');
+    expect(formatPct(100)).toBe('100,0 %');
   });
 
   it('handles values over 100%', () => {
-    expect(formatPct(150.5)).toBe('150.5 %');
+    expect(formatPct(150.5)).toBe('150,5 %');
   });
 
   it('handles 0 decimals', () => {
@@ -78,7 +78,7 @@ describe('formatPct — deep edge cases', () => {
   });
 
   it('handles 3 decimals', () => {
-    expect(formatPct(42.5678, 3)).toBe('42.568 %');
+    expect(formatPct(42.5678, 3)).toBe('42,568 %');
   });
 });
 
@@ -88,19 +88,19 @@ describe('formatDiff — deep edge cases', () => {
   });
 
   it('handles string inputs', () => {
-    expect(formatDiff('10', '5')).toBe('+5.0');
+    expect(formatDiff('10', '5')).toBe('+5,0');
   });
 
   it('handles very small differences', () => {
-    expect(formatDiff(10.01, 10)).toBe('+0.0');
+    expect(formatDiff(10.01, 10)).toBe('+0,0');
   });
 
   it('handles equal values', () => {
-    expect(formatDiff(5, 5)).toBe('0.0');
+    expect(formatDiff(5, 5)).toBe('0,0');
   });
 
   it('handles large negative difference', () => {
-    expect(formatDiff(0, 1000)).toBe('-1000.0');
+    expect(formatDiff(0, 1000)).toBe('-1 000,0');
   });
 });
 

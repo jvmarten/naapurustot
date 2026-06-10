@@ -61,14 +61,14 @@ describe('formatting edge cases', () => {
   });
 
   it('formatPct handles custom decimal places', () => {
-    expect(formatPct(12.345, 2)).toBe('12.35 %');
+    expect(formatPct(12.345, 2)).toBe('12,35 %');
     expect(formatPct(12.345, 0)).toBe('12 %');
   });
 
   it('formatDiff shows sign correctly', () => {
-    expect(formatDiff(110, 100)).toBe('+10.0');
-    expect(formatDiff(90, 100)).toBe('-10.0');
-    expect(formatDiff(100, 100)).toBe('0.0');
+    expect(formatDiff(110, 100)).toBe('+10,0');
+    expect(formatDiff(90, 100)).toBe('-10,0');
+    expect(formatDiff(100, 100)).toBe('0,0');
   });
 
   it('formatDiff returns empty string for null inputs', () => {

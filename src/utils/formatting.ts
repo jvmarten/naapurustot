@@ -21,16 +21,37 @@ function toNum(v: unknown): number | null {
 let cachedLocale = '';
 let cachedNumberFmt: Intl.NumberFormat | null = null;
 
-function getNumberFormatter(): Intl.NumberFormat {
+function localeTag(): string {
   // PO-7: Swedish must map to sv-SE, not silently fall through to fi-FI — this
   // matches the sv-SE tag the prerender/SEO scripts already use so the runtime
   // app and its prerendered pages format numbers identically.
   const lang = getLang();
-  const loc = lang === 'en' ? 'en-US' : lang === 'sv' ? 'sv-SE' : 'fi-FI';
+  return lang === 'en' ? 'en-US' : lang === 'sv' ? 'sv-SE' : 'fi-FI';
+}
+
+function getNumberFormatter(): Intl.NumberFormat {
+  const loc = localeTag();
   if (cachedNumberFmt && cachedLocale === loc) return cachedNumberFmt;
   cachedLocale = loc;
   cachedNumberFmt = new Intl.NumberFormat(loc);
   return cachedNumberFmt;
+}
+
+// PO-2: cached fixed-decimal formatters per (locale, decimals). Routing the
+// `toFixed`-based formatters (percentages, diffs, YTL mean) through Intl makes
+// FI/SV render "12,3 %" with a comma, matching the rest of the locale-formatted
+// UI and the prerendered pages — instead of the en-only "12.3 %". Keyed by
+// locale so a language switch never returns a stale formatter; bounded (3 locales
+// × a couple of decimal counts).
+const fixedFmtCache = new Map<string, Intl.NumberFormat>();
+function getFixedFormatter(decimals: number): Intl.NumberFormat {
+  const key = `${localeTag()}:${decimals}`;
+  let fmt = fixedFmtCache.get(key);
+  if (!fmt) {
+    fmt = new Intl.NumberFormat(localeTag(), { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+    fixedFmtCache.set(key, fmt);
+  }
+  return fmt;
 }
 
 /** Format a number with locale-appropriate thousand separators. Returns '—' for null/undefined. */
@@ -47,21 +68,26 @@ export function formatEuro(v: number | string | null | undefined): string {
   return `${getNumberFormatter().format(n)} €`;
 }
 
-/** Format a number as a percentage (e.g., "12.3 %"). Returns '—' for null/undefined. */
+/** Format a number as a percentage (e.g., FI "12,3 %", EN "12.3 %"). Returns '—' for null/undefined. */
 export function formatPct(v: number | string | null | undefined, decimals = 1): string {
   const n = toNum(v);
   if (n == null) return '—';
-  return `${n.toFixed(decimals)} %`;
+  // Locale separator via Intl, but a predictable ASCII "-" for negatives (Intl's
+  // fi-FI would emit U+2212) — consistent with formatDiff and the rest of the app.
+  const sign = n < 0 ? '-' : '';
+  return `${sign}${getFixedFormatter(decimals).format(Math.abs(n))} %`;
 }
 
-/** Format the difference between a value and average with a +/- sign. */
+/** Format the difference between a value and average with a +/- sign (locale decimals). */
 export function formatDiff(value: number | string | null, avg: number | string | null): string {
   const a = toNum(value);
   const b = toNum(avg);
   if (a == null || b == null) return '';
   const diff = a - b;
-  const sign = diff > 0 ? '+' : '';
-  return `${sign}${diff.toFixed(1)}`;
+  // Format the magnitude through Intl and add an ASCII sign ourselves, so the
+  // separator is locale-correct while the sign stays a predictable "+"/"-".
+  const sign = diff > 0 ? '+' : diff < 0 ? '-' : '';
+  return `${sign}${getFixedFormatter(1).format(Math.abs(diff))}`;
 }
 
 /** Escape a string for safe HTML embedding. */
@@ -137,7 +163,7 @@ export function formatYtlGradeFull(value: number | string | null | undefined): s
   const n = toNum(value);
   if (n == null) return '—';
   const mean = (Math.max(0, Math.min(100, n)) / 100) * 7;
-  return `${formatYtlGrade(n)} (${mean.toFixed(2)})`;
+  return `${formatYtlGrade(n)} (${getFixedFormatter(2).format(mean)})`;
 }
 
 /**
