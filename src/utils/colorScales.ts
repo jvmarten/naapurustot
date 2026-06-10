@@ -71,18 +71,6 @@ export type LayerId =
   | 'water_proximity'
   | 'building_age';
 
-/**
- * Configuration for a single data layer displayed on the map.
- *
- * Each layer defines how a GeoJSON property is visualized as a choropleth:
- * - `id` is a unique LayerId used in URL state and layer switching
- * - `property` is the key on NeighborhoodProperties to read
- * - `colors` and `stops` define the interpolated color scale (must be same length)
- * - `format` converts raw values to display strings (e.g., "25 000 €")
- * - `labelKey` is a translation key resolved via `t()` from i18n
- * - `category` groups layers in the LayerSelector UI
- * - `gridProperty` (optional) maps to a sub-postal-code grid data layer
- */
 // PO-2: layers that carry a 5-year history array and can be scrubbed with the
 // time slider. Maps the active LayerId to the history property whose per-year
 // values share the layer's color scale (so the animation shows real change).
@@ -94,6 +82,20 @@ export const TIME_SERIES_LAYERS: Partial<Record<LayerId, string>> = {
   crime_rate: 'crime_index_history',
 };
 
+/**
+ * Configuration for a single data layer displayed on the map.
+ *
+ * Each layer defines how a GeoJSON property is visualized as a choropleth:
+ * - `id` is a unique LayerId used in URL state and layer switching
+ * - `property` is the key on NeighborhoodProperties to read
+ * - `colors` and `stops` define the interpolated color scale (must be same length)
+ * - `format` converts raw values to display strings (e.g., "25 000 €")
+ * - `labelKey` is a translation key resolved via `t()` from i18n
+ * - `gridProperty` (optional) maps to a sub-postal-code grid data layer
+ *
+ * Grouping in the LayerSelector UI is not configured here — it lives in
+ * LAYER_GROUPS in src/components/LayerSelector.tsx.
+ */
 export interface LayerConfig {
   id: LayerId;
   labelKey: string;
@@ -757,6 +759,11 @@ const CB_DIVERGING: string[] = ['#2c7bb6', '#5ca9d6', '#a6cee3', '#dcdcdc', '#fd
 
 let colorblindMode: ColorblindType = 'off';
 
+/**
+ * Switch the colorblind-safe palette mode. Invalidates the substituted-layer
+ * cache so getLayerById rebuilds configs, and persists the choice to
+ * localStorage key 'naapurustot-colorblind' (restored at module load).
+ */
 export function setColorblindMode(mode: ColorblindType) {
   if (colorblindMode !== mode) cbLayerCache.clear();
   colorblindMode = mode;
@@ -873,10 +880,17 @@ export function getColorForValue(layer: LayerConfig, value: number | null | unde
   return layer.colors[0];
 }
 
+let _rescaleCache: { layerId: string; features: GeoJSON.Feature[]; result: LayerConfig } | null = null;
+
 /**
- * Build a MapLibre style expression for interpolated fill color.
- * Returns gray (#d1d5db) for features where the property is null/missing.
+ * Drop the rescale cache. Call after mutating feature property values in place
+ * (e.g. recomputing quality_index): the cache keys on the features array's
+ * identity, so in-place edits would otherwise return stale rescaled stops.
  */
+export function clearRescaleCache(): void {
+  _rescaleCache = null;
+}
+
 /**
  * Rescale a layer's color stops to the actual min/max range found in the given features.
  * Colors stay the same; only stop breakpoints shift to span the data range.
@@ -886,12 +900,6 @@ export function getColorForValue(layer: LayerConfig, value: number | null | unde
  * re-renders skip the O(n) min/max scan. The cache is invalidated when a different
  * layer or dataset is passed.
  */
-let _rescaleCache: { layerId: string; features: GeoJSON.Feature[]; result: LayerConfig } | null = null;
-
-export function clearRescaleCache(): void {
-  _rescaleCache = null;
-}
-
 export function rescaleLayerToData(
   layer: LayerConfig,
   features: GeoJSON.Feature[],
@@ -948,6 +956,10 @@ export function rescaleLayerToData(
   return result;
 }
 
+/**
+ * Build a MapLibre style expression for interpolated fill color.
+ * Returns gray (#d1d5db) for features where the property is null/missing.
+ */
 export function buildFillColorExpression(layer: LayerConfig, propertyOverride?: string): ExpressionSpecification {
   const prop = propertyOverride ?? layer.property;
   // The typeof guard below ensures we only reach the interpolation for actual numbers,

@@ -1,6 +1,6 @@
 /**
  * Street address geocoding via HSL Digitransit API.
- * Results are bounded to supported city regions and cached in memory (LRU, max 100 entries).
+ * Results are bounded to a Finland-wide bounding box and cached in memory (LRU, max 100 entries).
  */
 
 const DIGITRANSIT_URL = 'https://api.digitransit.fi/geocoding/v1/search';
@@ -12,7 +12,9 @@ export interface GeocodeResult {
   coordinates: [number, number]; // [lng, lat]
 }
 
-/** Geocode a street address or place name. Returns up to 5 results within supported city bboxes.
+/** Geocode a street address or place name. Returns up to 5 results within a Finland-wide
+ *  bbox. Resolves to [] on any failure (network error, non-OK response, abort) — it never
+ *  throws — and failures are not cached, so the next call retries.
  *  Pass an AbortSignal to cancel in-flight requests when the query changes. */
 export async function geocodeAddress(query: string, signal?: AbortSignal): Promise<GeocodeResult[]> {
   if (query.length < 3) return [];
@@ -84,6 +86,8 @@ let pipMods: {
   point: typeof import('@turf/helpers').point;
 } | null = null;
 
+/** Find the feature whose polygon contains `coords` ([lng, lat]), or null when none
+ *  does. Async because the turf modules are lazy-loaded on first call. */
 export async function findNeighborhoodForPoint(
   coords: [number, number],
   features: GeoJSON.Feature[],

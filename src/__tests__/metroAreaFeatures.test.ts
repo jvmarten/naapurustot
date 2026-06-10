@@ -31,7 +31,7 @@ const square1: number[][][] = [[[24, 60], [25, 60], [25, 61], [24, 61], [24, 60]
 const square2: number[][][] = [[[25, 60], [26, 60], [26, 61], [25, 61], [25, 60]]];
 
 describe('buildMetroAreaFeatures', () => {
-  // @turf/union is lazy-loaded; pre-load it before tests run
+  // The seutukunta outlines are lazy-fetched; pre-load them before tests run
   beforeAll(() => preloadUnion());
 
   it('sets _isMetroArea: true on every metro area feature', () => {
@@ -86,8 +86,9 @@ describe('buildMetroAreaFeatures', () => {
     const result = buildMetroAreaFeatures(features)!;
     const geom = result.features[0].geometry;
 
-    // With @turf/union installed, adjacent squares merge into a single Polygon.
-    // Without it, they become a MultiPolygon (no border dissolve, but still correct).
+    // With the pre-baked seutukunta outline loaded, the city gets its official
+    // boundary (Polygon or MultiPolygon). Without it, the fallback concatenates
+    // into a MultiPolygon (no border dissolve, but still correct).
     expect(['Polygon', 'MultiPolygon']).toContain(geom.type);
   });
 });

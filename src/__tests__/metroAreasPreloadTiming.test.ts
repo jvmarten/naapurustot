@@ -8,7 +8,8 @@
  *   when regionId changed, which pushed the preloadUnion trigger past the
  *   first paint of the all-cities view — buildMetroAreaFeatures ran with the
  *   fallback (MultiPolygon concatenation, which preserves internal borders)
- *   before @turf/union finished loading.
+ *   before the dissolved boundaries finished loading (then via @turf/union;
+ *   now the pre-baked seutukunta outlines fetched by preloadUnion).
  *
  * What we assert:
  *   The all-cities union preload effect fires as soon as cityFilter flips to
@@ -45,7 +46,7 @@ describe('useAllCitiesUnionPreload', () => {
     // Mirrors the App-level transition: cityFilter goes from a region to 'all'.
     // At that instant, useMapData has already wiped `data` to null (via the
     // render-phase reset added in commit 78521838). The preload must still
-    // fire so the import is in flight while the new dataset is fetching.
+    // fire so the outlines fetch is in flight while the new dataset is fetching.
     const { rerender } = renderHook(({ city }) => useAllCitiesUnionPreload(city), {
       initialProps: { city: 'helsinki_metro' },
     });

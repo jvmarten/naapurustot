@@ -3,6 +3,7 @@ import { useState, useCallback, useEffect } from 'react';
 const MAX_RECENT = 10;
 const STORAGE_KEY = 'naapurustot-recent';
 
+/** A recently searched neighborhood; `center` is [lng, lat] (MapLibre order) for the fly-to on reselect. */
 export interface RecentEntry {
   pno: string;
   name: string;

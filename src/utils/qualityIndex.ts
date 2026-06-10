@@ -27,6 +27,8 @@ import { getCoveragePct, type NeighborhoodProperties } from './metrics.ts';
  * using the (custom) weights.
  */
 
+/** Per-metric normalization range: `min`/`max` bound the 0–100 min-max scaling;
+ *  `avg` is the metric's mean, used as the missing-data imputation in region scope. */
 export interface MinMax {
   min: number;
   max: number;
@@ -641,6 +643,12 @@ function getFactorScore(
   return factor.invert ? 100 - avg : avg;
 }
 
+/**
+ * Computes and writes `quality_index` (0–100 integer, or null when no factor has
+ * data) and `quality_dimension_scores` onto each feature's properties, in place.
+ * Pass `nationalRanges` for cross-region-comparable scores (missing metrics score
+ * a neutral 50); pass null/undefined to normalize within the loaded features only.
+ */
 export function computeQualityIndices(
   features: GeoJSON.Feature[],
   weights?: QualityWeights,
@@ -854,6 +862,7 @@ export const FACTOR_DIMENSION: Record<string, DimensionId> = {
   voter_turnout: 'demographics', party_diversity: 'demographics',
 };
 
+/** Dimension for a factor id; unknown ids fall back to 'demographics' (descriptive). */
 export function getFactorDimension(factorId: string): DimensionId {
   return FACTOR_DIMENSION[factorId] ?? 'demographics';
 }
@@ -1019,6 +1028,8 @@ const PERSONA_WEIGHTS: Record<string, QualityWeights> = {
   }),
 };
 
+/** The selectable preset lenses (labels/descriptions only) — the actual factor
+ *  weights live in the non-exported PERSONA_WEIGHTS, read via getPersonaWeights(). */
 export const QUALITY_PERSONAS: QualityPersona[] = [
   { id: 'default', isDefault: true,
     label: { fi: 'Oletus', en: 'Default', sv: 'Standard' },

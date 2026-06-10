@@ -1,11 +1,12 @@
 /**
- * Tests for uncovered branches in metroAreas.ts (lines 211-212, union/cache interaction).
+ * Tests for uncovered branches in metroAreas.ts (outline/cache interaction).
  *
  * Critical pitfall documented in CLAUDE.md: the metro area cache must invalidate
- * when @turf/union becomes available. These tests verify:
- * - Fallback MultiPolygon concatenation when union is unavailable
- * - Cache invalidation when union availability changes
- * - Single-polygon city handling (no union needed)
+ * when the pre-baked seutukunta outlines become available (`usedOutlines` flag).
+ * These tests verify:
+ * - Fallback MultiPolygon concatenation when outlines are unavailable
+ * - Cache invalidation when outline availability changes
+ * - Single-polygon city handling (the fallback keeps it a plain Polygon)
  * - clearMetroAreaCache() actually invalidates
  */
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -91,7 +92,7 @@ describe('buildMetroAreaFeatures — fallback and cache', () => {
     const result = buildMetroAreaFeatures(features);
     expect(result).not.toBeNull();
     expect(result!.features).toHaveLength(1);
-    // Without @turf/union, it falls back to MultiPolygon concatenation
+    // Without the pre-baked outlines, it falls back to MultiPolygon concatenation
     const geom = result!.features[0].geometry;
     expect(geom.type === 'Polygon' || geom.type === 'MultiPolygon').toBe(true);
   });

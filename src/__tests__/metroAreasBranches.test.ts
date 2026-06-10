@@ -22,7 +22,7 @@ function makeFeature(city: string, props: Record<string, unknown> = {}): Feature
 }
 
 describe('buildMetroAreaFeatures', () => {
-  // @turf/union is lazy-loaded; pre-load it before tests run
+  // The seutukunta outlines are lazy-fetched; pre-load them before tests run
   beforeAll(() => preloadUnion());
 
   it('returns empty features for empty input', () => {

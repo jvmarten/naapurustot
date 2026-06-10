@@ -27,7 +27,8 @@ let cached: Map<string, MinMax> | null = null;
  * National per-metric ranges keyed by property name. Each entry is the
  * `{ min, max, avg }` shape consumed by `normalize`/`getFactorScore`, where
  * `min`/`max` are the winsorized (p2/p98) normalization bounds and `avg` is the
- * true national mean used as the missing-data fallback.
+ * true national mean. (National-scope scoring imputes a neutral 50 for missing
+ * values rather than this mean — see `neutralizeMissing` in getFactorScore.)
  */
 export function getNationalRanges(): Map<string, MinMax> {
   if (cached) return cached;

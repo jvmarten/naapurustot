@@ -124,6 +124,9 @@ export interface ResolvedBounds {
   rangeMax: number;
 }
 
+/** Resolve a criterion to concrete value bounds for the active scope (see the
+ *  ResolvedBounds doc above). Returns null when a percentile criterion has no finite
+ *  values in scope — callers should skip it rather than match nothing. */
 export function resolveCriterionBounds(
   criterion: FilterCriterion,
   features: FeatureCollection['features'] | null,

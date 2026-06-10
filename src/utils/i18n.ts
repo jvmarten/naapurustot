@@ -72,6 +72,12 @@ try {
   else if (currentLang === 'sv') void loadSv();
 } catch { /* localStorage unavailable in SSR/tests */ }
 
+/**
+ * Switch the UI language. Persists the choice to localStorage ('lang'), notifies
+ * subscribers, and kicks off the lazy dictionary fetch for en/sv. The returned
+ * promise settles when that load finishes and resolves even if the fetch fails
+ * (it never rejects — check getLocaleLoadError instead).
+ */
 export function setLang(lang: Lang): Promise<void> {
   if (currentLang !== lang) {
     currentLang = lang;

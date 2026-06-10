@@ -3,9 +3,9 @@ import { useState, useCallback, useRef, useMemo } from 'react';
 interface UseSwipeNavigationOptions {
   /** Total number of sections */
   sectionCount: number;
-  /** Fraction of container width needed to commit a swipe (0–1). Default 0.3. */
+  /** Fraction of container width needed to commit a swipe (0–1). Default 0.2. */
   commitThreshold?: number;
-  /** Velocity threshold (px/ms) for flick gestures. Default 0.4. */
+  /** Velocity threshold (px/ms) for flick gestures. Default 0.3. */
   velocityThreshold?: number;
 }
 
@@ -132,7 +132,7 @@ export function useSwipeNavigation(options: UseSwipeNavigationOptions): UseSwipe
 
     let newSection = activeSection;
 
-    // Commit the swipe only if dragged past 30% of width OR flicked fast enough
+    // Commit the swipe only if dragged past commitThreshold × width OR flicked fast enough
     const draggedEnough = Math.abs(dx) > width * commitThreshold;
     const flickedFast = velocity > velocityThreshold;
 

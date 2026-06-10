@@ -71,6 +71,11 @@ async function request<T>(path: string, options?: RequestInit): Promise<ApiRespo
   }
 }
 
+/**
+ * REST client for the backend. Every method resolves to `{ data }` on success or
+ * `{ error }` (a localised message) on failure — it never rejects, so callers
+ * branch on `res.error` rather than wrapping calls in try/catch.
+ */
 export const api = {
   signup: (username: string, password: string, turnstileToken: string, email?: string, displayName?: string) =>
     request<{ user: ApiUser }>('/auth/signup', {
@@ -122,7 +127,10 @@ export const api = {
     request<{ filterPresets: unknown[]; qualityWeights: Record<string, number>; wizardProfile?: unknown }>('/auth/preferences'),
 
   // CF-4: wizardProfile is an opaque blob (validated client-side) carried alongside
-  // the existing preset/weights preferences sync.
+  // the existing preset/weights preferences sync. NOTE: server-side support is not
+  // yet implemented — the server stores and returns only filterPresets/qualityWeights,
+  // ignores wizardProfile, and rejects a wizardProfile-only PUT with 400. The field
+  // is sent but not persisted until the backend adds it.
   savePreferences: (data: { filterPresets?: unknown[]; qualityWeights?: Record<string, number>; wizardProfile?: unknown }) =>
     request<{ filterPresets: unknown[]; qualityWeights: Record<string, number>; wizardProfile?: unknown }>('/auth/preferences', {
       method: 'PUT',

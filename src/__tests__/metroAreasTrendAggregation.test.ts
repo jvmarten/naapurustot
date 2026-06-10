@@ -21,7 +21,7 @@ function makeFeature(overrides: Partial<NeighborhoodProperties>, coords: number[
 }
 
 describe('buildMetroAreaFeatures — trend aggregation', () => {
-  // @turf/union is lazy-loaded; pre-load it before tests run
+  // The seutukunta outlines are lazy-fetched; pre-load them before tests run
   beforeAll(() => preloadUnion());
 
   it('aggregates population history by summing per year', () => {

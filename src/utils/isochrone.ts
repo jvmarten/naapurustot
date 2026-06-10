@@ -20,6 +20,7 @@ export const ISOCHRONE_ENABLED = !!KEY;
 
 export type IsochroneMode = 'walk' | 'bike' | 'transit';
 export const ISOCHRONE_MODES: IsochroneMode[] = ['walk', 'bike', 'transit'];
+/** Selectable travel-time budgets, in minutes. */
 export const ISOCHRONE_BUDGETS = [10, 20, 30, 45] as const;
 
 const MODE_PARAM: Record<IsochroneMode, string> = {

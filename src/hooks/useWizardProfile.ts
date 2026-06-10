@@ -20,6 +20,8 @@ export interface WizardAnswers {
   healthcareImportance: number;
 }
 
+/** Baseline answers: the per-field fallback for sanitizeWizardAnswers, and the
+ *  reference isCustomWizardAnswers compares against to gate sync/URL emission. */
 export const defaultWizardAnswers: WizardAnswers = {
   transitImportance: 3,
   quietPreference: 'neutral',
@@ -103,6 +105,8 @@ const SIZE_DECODE: Record<string, WizardAnswers['sizePreference']> = { s: 'small
 const TENURE_CODE: Record<WizardAnswers['tenurePreference'], string> = { own: 'o', rent: 'r', either: 'e' };
 const TENURE_DECODE: Record<string, WizardAnswers['tenurePreference']> = { o: 'own', r: 'rent', e: 'either' };
 
+/** Encode answers as the fixed-order `~`-tuple for the `wp` URL param (see codec
+ *  note above), clamping out-of-range numeric fields on the way out. */
 export function serializeWizardProfile(a: WizardAnswers): string {
   return [
     clampImportance(a.transitImportance),

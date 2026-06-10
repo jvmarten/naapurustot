@@ -34,6 +34,12 @@ function resolveTheme(mode: ThemeMode): ResolvedTheme {
   return mode;
 }
 
+/**
+ * Resolves the theme mode ('system' follows prefers-color-scheme reactively),
+ * toggles the `dark` class on <html> (briefly adding `theme-transition` for a
+ * smooth switch, skipped on first paint), and persists the chosen mode to
+ * localStorage under 'naapurustot-theme'.
+ */
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [mode, setModeState] = useState<ThemeMode>(getStoredMode);
   const [resolved, setResolved] = useState<ResolvedTheme>(() => resolveTheme(mode));
@@ -91,5 +97,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   );
 };
 
+/** Returns { mode, theme, setMode } — `theme` is the resolved 'dark' | 'light' even when mode is 'system'. */
 // eslint-disable-next-line react-refresh/only-export-components -- custom hook co-located with provider
 export const useTheme = () => useContext(ThemeContext);
