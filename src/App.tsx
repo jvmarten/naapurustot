@@ -278,9 +278,6 @@ const App: React.FC = () => {
     return () => { cancelled = true; };
   }, [gridDataBboxClipped, gridClipGeometry]);
   const [wizardResultPnos, setWizardResultPnos] = useState<string[]>([]);
-  // CF-12: adjacent postal codes to ring-highlight, driven by the panel's
-  // neighbouring-areas lens. Cleared when the panel unmounts or the area changes.
-  const [neighborHighlightPnos, setNeighborHighlightPnos] = useState<string[]>([]);
   const [flyTarget, setFlyTarget] = useState<{ center: [number, number]; zoom?: number; bounds?: [number, number, number, number] } | null>(() => {
     // CF-1: an explicit shared viewport takes precedence over the city preset.
     if (initialUrl.viewport) {
@@ -343,8 +340,9 @@ const App: React.FC = () => {
   const { recent, addRecent } = useRecentNeighborhoods();
   // QW-2: durable shortlist (distinct from one-tap favorites). QW-2b: cloud-syncs when signed in.
   const { shortlist, isInShortlist, toggleShortlist, removeFromShortlist, clearShortlist, mergeIntoShortlist } = useShortlist(user?.id);
-  // CF-1: affordability calculator inputs (localStorage + URL-shared). Hydrates from a shared link.
-  const { state: affordabilityState, update: updateAffordability, urlValue: affordabilityUrl } = useAffordability(initialUrl.affordability);
+  // CF-14: affordability inputs (localStorage + URL-shared). Hydrates from a shared link;
+  // consumed read-only by the wizard's budget fold since the panel calculator was removed.
+  const { state: affordabilityState, urlValue: affordabilityUrl } = useAffordability(initialUrl.affordability);
   // CF-5: per-metric similarity weights (localStorage + URL-shared). Lifted here so the
   // URL writer can carry them; the panel drives the controls via the passed props.
   const {
@@ -1276,25 +1274,16 @@ const App: React.FC = () => {
     handleQualityWeightsChange(wizardAnswersToQualityWeights(answers));
   }, [setWizardProfile, handleQualityWeightsChange]);
   const handleFlyTo = useCallback((center: [number, number]) => setFlyTarget({ center }), []);
-  // CF-12: stable setter for the panel's spatial-neighbour ring highlight.
-  const handleHighlightNeighbors = useCallback((pnos: string[]) => setNeighborHighlightPnos(pnos), []);
 
   // Memoize the headerSlot to avoid creating new React elements on every App render.
   // Without this, LayerSelector (React.memo) re-renders on every unrelated state change.
   const layerSelectorHeaderSlot = useMemo(() => (
-    <div className="flex items-center gap-1.5">
-      {comparisonScope === 'region' && cityFilter !== 'all' && (
-        <div className="px-2.5 py-1 rounded-lg bg-amber-500/90 text-white text-[10px] font-semibold backdrop-blur-sm whitespace-nowrap">
-          {t('scope.active_hint')}
-        </div>
-      )}
-      <div className="rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden">
-        <ComparisonScopeToggle
-          scope={comparisonScope}
-          onChange={handleScopeChange}
-          disabled={cityFilter === 'all'}
-        />
-      </div>
+    <div className="rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden">
+      <ComparisonScopeToggle
+        scope={comparisonScope}
+        onChange={handleScopeChange}
+        disabled={cityFilter === 'all'}
+      />
     </div>
   ), [comparisonScope, cityFilter, handleScopeChange]);
   // Stable callbacks for NeighborhoodPanel props — prevents new closures on every render
@@ -1693,7 +1682,6 @@ const App: React.FC = () => {
             qualityVersion={qualityVersion}
             colorblind={colorblind}
             wizardHighlightPnos={wizardResultPnos}
-            neighborHighlightPnos={neighborHighlightPnos}
             fillOpacity={fillOpacity}
             gridData={gridData}
             drawMode={drawMode}
@@ -1974,12 +1962,9 @@ const App: React.FC = () => {
             isochroneActive={isochronePolygon != null}
             onIsochroneChange={handleIsochroneChange}
             onIsochroneClear={handleIsochroneClear}
-            affordabilityState={affordabilityState}
-            onAffordabilityChange={updateAffordability}
             similarityWeights={similarityWeights}
             onSimilarityWeightChange={setSimilarityWeight}
             onSimilarityToggle={toggleSimilarityMetric}
-            onHighlightNeighbors={handleHighlightNeighbors}
           />
           </Suspense>
         </ErrorBoundary>
