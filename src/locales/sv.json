@@ -252,7 +252,7 @@
   "sources.gran_grid": "250 m ruta",
   "sources.gran_derived": "Härledd",
   "sources.methodology_heading": "Kvalitetsindexets metod",
-  "sources.methodology_body": "Kvalitetsindexet är ett sammansatt värde 0–100 som beräknas från cirka 61 faktorer i sex dimensioner (säkerhet, ekonomi, utbildning, tjänster, kollektivtrafik och miljö). Varje mått normaliseras till sitt nationella intervall (winsoriserad 2:a–98:e percentilen) så att områden är jämförbara i hela Finland.",
+  "sources.methodology_body": "Kvalitetsindexet är ett sammansatt 0–100-värde beräknat från cirka 50 faktorer i fyra utvärderande dimensioner — trygghet och sinnesro, hälsa/natur/lugn, försörjning och arbete samt vardagens smidighet — plus beskrivande boende- och befolkningsdata. Varje mått normaliseras till sitt nationella intervall (winsoriserad 2:a–98:e percentilen) så att områden är jämförbara i hela Finland.",
   "sources.quality_note": "Saknade faktorer utelämnas och indexet normaliseras om över tillgängliga faktorer, så områden med lite data är osäkrare.",
   "privacy.title": "Integritet och datahantering",
   "privacy.subtitle": "Den här sidan beskriver vilka uppgifter naapurustot.fi samlar in och hur de hanteras. Vi beskriver endast det som tjänsten faktiskt gör.",

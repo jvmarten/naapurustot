@@ -252,7 +252,7 @@
   "sources.gran_grid": "250 m grid",
   "sources.gran_derived": "Derived",
   "sources.methodology_heading": "Quality Index methodology",
-  "sources.methodology_body": "The Quality Index is a 0–100 composite computed from about 61 factors across six dimensions (safety, economy, education, services, transit and environment). Each metric is normalized to its national range (winsorized 2nd–98th percentile) so areas are comparable across all of Finland.",
+  "sources.methodology_body": "The Quality Index is a 0–100 composite computed from about 50 factors grouped into four evaluative dimensions — safety & peace of mind, health/nature/calm, livelihood & purpose, and everyday freedom & ease — plus descriptive housing and demographic context. Each metric is normalized to its national range (winsorized 2nd–98th percentile) so areas are comparable across all of Finland.",
   "sources.quality_note": "Missing factors are dropped and the index is re-normalized over the available factors, so low-coverage areas are inherently less certain.",
   "privacy.title": "Privacy & data handling",
   "privacy.subtitle": "This page explains what data naapurustot.fi collects and how it is handled. It describes only what the service actually does.",
