@@ -2010,10 +2010,15 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
               </svg>
             </button>
           </div>
-          {(favoriteButton || pinButton) && (
+          {/* CF-3: the mobile sheet header previously omitted the shortlist + reference
+              buttons, so phone users had NO way to add an area to the shortlist (a flagship
+              synced feature). Render them alongside favorite/pin like the desktop panel. */}
+          {(favoriteButton || pinButton || shortlistButton || referenceButton) && (
             <div className="flex items-center gap-1 mt-2">
               {favoriteButton}
               {pinButton}
+              {shortlistButton}
+              {referenceButton}
             </div>
           )}
         </div>
