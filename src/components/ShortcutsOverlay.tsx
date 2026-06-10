@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { t, useI18nVersion } from '../utils/i18n';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface ShortcutsOverlayProps {
   onClose: () => void;
@@ -28,6 +29,9 @@ const SHORTCUTS: { keys: string[]; labelKey: string }[] = [
 export const ShortcutsOverlay: React.FC<ShortcutsOverlayProps> = ({ onClose }) => {
   useI18nVersion();
   const closeRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  // PO-3: contain Tab focus within the dialog (it declares aria-modal).
+  useFocusTrap(dialogRef);
 
   // Move focus into the dialog so the close button is the first stop and the
   // dialog is announced. App's global Escape handler closes it.
@@ -39,6 +43,7 @@ export const ShortcutsOverlay: React.FC<ShortcutsOverlayProps> = ({ onClose }) =
       onClick={onClose}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label={t('shortcuts.title')}

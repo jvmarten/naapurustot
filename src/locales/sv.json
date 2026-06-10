@@ -159,6 +159,7 @@
   "panel.building_age": "Genomsn. byggår",
   "panel.trends": "Utvecklingstrender",
   "panel.distribution": "Fördelning",
+  "panel.sections": "Sektioner",
   "panel.dist_better_than": "Bättre än {pct} % av områdena",
   "panel.dist_sample": "({n} områden jämförs)",
   "summary.title": "Styrkor och svagheter",

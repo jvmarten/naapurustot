@@ -2023,10 +2023,12 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
           )}
         </div>
         {/* PO-3: Section tabs */}
-        <div className="flex px-5 pt-3 pb-1 gap-1">
+        <div role="tablist" aria-label={t('panel.sections')} className="flex px-5 pt-3 pb-1 gap-1">
           {MOBILE_SECTIONS.map((label, i) => (
             <button
               key={i}
+              role="tab"
+              aria-selected={activeSection === i}
               onClick={() => setActiveSection(i)}
               className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
                 activeSection === i

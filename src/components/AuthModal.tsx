@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { t, getLang } from '../utils/i18n';
 import { Turnstile } from './Turnstile';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 // PO-14: lang-aware path to the prerendered privacy & data-handling notice.
 const PRIVACY_PATH: Record<string, string> = {
@@ -33,6 +34,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
   const [submitting, setSubmitting] = useState(false);
   const overlayRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  // PO-3: contain Tab focus within the modal (it declares aria-modal).
+  useFocusTrap(panelRef);
 
   // A11y: move focus into the dialog on open and restore it to the triggering
   // element on close, so keyboard/screen-reader users aren't left behind the modal.

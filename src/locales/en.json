@@ -159,6 +159,7 @@
   "panel.building_age": "Avg. Construction Year",
   "panel.trends": "Historical Trends",
   "panel.distribution": "Distribution",
+  "panel.sections": "Sections",
   "panel.dist_better_than": "Better than {pct}% of areas",
   "panel.dist_sample": "({n} areas compared)",
   "summary.title": "Strengths & weaknesses",

@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { t } from '../utils/i18n';
 import { trackEvent } from '../utils/analytics';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import { getFeatureCenter } from '../utils/geometryFilter';
 import { loadAllData } from '../utils/dataLoader';
 import { buildProfileUrl } from '../utils/profileUrl';
@@ -402,6 +403,8 @@ export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onCl
   // A11y: move focus into the dialog on open and restore it to the triggering
   // element on close, so keyboard/screen-reader users aren't left behind the modal.
   const panelRef = useRef<HTMLDivElement>(null);
+  // PO-3: contain Tab focus within the wizard dialog (it declares aria-modal).
+  useFocusTrap(panelRef);
   useEffect(() => {
     const trigger = document.activeElement as HTMLElement | null;
     panelRef.current?.focus();
