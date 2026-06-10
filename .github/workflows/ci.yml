@@ -151,7 +151,10 @@ jobs:
           done | sort -rn | while IFS=$'\t' read -r kb name; do
             flag=""; [ "$kb" -gt "$CAP" ] && flag=" ⚠️"
             echo "| ${name} | ${kb} KB${flag} |" >> "$GITHUB_STEP_SUMMARY"
-            [ -n "$flag" ] && echo "::warning::Region geodata '${name}' is ${kb} KB gzipped (> ${CAP} KB cap)"
+            # Use if/fi (not `&&`): a trailing `[ -n "$flag" ] && echo` returns 1 on the
+            # last (smallest, under-cap) region, which under `set -eo pipefail` fails the
+            # whole step. This is an informational report and must never fail the build.
+            if [ -n "$flag" ]; then echo "::warning::Region geodata '${name}' is ${kb} KB gzipped (> ${CAP} KB cap)"; fi
           done
 
       - name: Comment bundle size delta on PR
