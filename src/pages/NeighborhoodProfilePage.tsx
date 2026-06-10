@@ -90,6 +90,14 @@ export const NeighborhoodProfilePage: React.FC = () => {
     en: '/en/area',
     sv: '/sv/omrade',
   };
+  // QW-5: language-aware regional-hub path. The hubs are standalone prerendered
+  // HTML outside the SPA router, so the breadcrumb links to them with a plain
+  // <a> (a Link would 404 against react-router). Mirrors scripts/prerender-hubs.mjs.
+  const cityHubPrefix: Record<Lang, string> = {
+    fi: '/kaupunki',
+    en: '/en/city',
+    sv: '/sv/stad',
+  };
 
   const [lang, setLangState] = useState<Lang>(pathLang);
   // Sync local lang state when the URL language changes (e.g., navigating from /alue/ to /en/area/)
@@ -408,7 +416,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
         <nav className="text-sm text-surface-500 dark:text-surface-400 mb-6">
           <Link to="/" className="hover:text-brand-600">{t('app.title')}</Link>
           <span className="mx-2">/</span>
-          <Link to={`/?city=${d.city ?? 'helsinki_metro'}`} className="hover:text-brand-600">{cityName}</Link>
+          <a href={`${cityHubPrefix[lang]}/${d.city ?? 'helsinki_metro'}/`} className="hover:text-brand-600">{cityName}</a>
           <span className="mx-2">/</span>
           <span className="text-surface-900 dark:text-white">{displayName}</span>
         </nav>

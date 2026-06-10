@@ -22,6 +22,9 @@ interface ShortlistTrayProps {
   /** CF-11: a MINIMAL deep link carrying ONLY the shortlist (`sl`) + `city` — none
    *  of the author's layer/filter/weight state — built by App via buildShortlistShareUrl. */
   shareUrl?: string;
+  /** CF-3: when set, the tray is showing over an open panel (expanded from the
+   *  compact chip) — the title becomes a button that collapses it back to the chip. */
+  onCollapse?: () => void;
 }
 
 /**
@@ -33,7 +36,7 @@ interface ShortlistTrayProps {
  * minimal `sl`+`city` link), a branded shortlist summary image card, and CSV/PDF
  * export. The card + exports lazy-load their heavy modules on click.
  */
-export const ShortlistTray: React.FC<ShortlistTrayProps> = React.memo(({ entries, onSelect, onRemove, onCompare, onClear, featureFor, shareUrl }) => {
+export const ShortlistTray: React.FC<ShortlistTrayProps> = React.memo(({ entries, onSelect, onRemove, onCompare, onClear, featureFor, shareUrl, onCollapse }) => {
   useI18nVersion();
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -128,9 +131,19 @@ export const ShortlistTray: React.FC<ShortlistTrayProps> = React.memo(({ entries
       <div className="pointer-events-auto rounded-2xl bg-white/95 dark:bg-surface-900/95 backdrop-blur-md
                       border border-surface-200 dark:border-surface-700/40 shadow-2xl px-4 py-3">
         <div className="flex items-center justify-between mb-2">
-          <div className="text-xs font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400">
-            {t('shortlist.title')} ({entries.length})
-          </div>
+          {onCollapse ? (
+            <button
+              onClick={onCollapse}
+              title={t('aria.close')}
+              className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400 hover:text-brand-600 dark:hover:text-brand-300 transition-colors"
+            >
+              {t('shortlist.title')} ({entries.length})<span aria-hidden>⌄</span>
+            </button>
+          ) : (
+            <div className="text-xs font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400">
+              {t('shortlist.title')} ({entries.length})
+            </div>
+          )}
           <div className="flex items-center gap-2 text-xs">
             <button onClick={onCompare} className="text-brand-600 dark:text-brand-300 font-semibold hover:underline">
               {t('shortlist.compare')}

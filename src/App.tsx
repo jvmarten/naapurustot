@@ -130,6 +130,8 @@ const App: React.FC = () => {
   const showToast = useCallback((text: string) => setToast({ text, key: Date.now() }), []);
   // QW-2: keyboard shortcuts help overlay.
   const [showShortcuts, setShowShortcuts] = useState(false);
+  // CF-3: whether the shortlist tray is expanded over an open panel (vs the compact chip).
+  const [shortlistExpanded, setShortlistExpanded] = useState(false);
   // PO-2: time slider / historical playback.
   const [timeYear, setTimeYear] = useState<number | null>(initialUrl.year);
   const [timePlaying, setTimePlaying] = useState(false);
@@ -1454,6 +1456,9 @@ const App: React.FC = () => {
     document.documentElement.lang = lang;
   }, [lang]);
 
+  // CF-3: re-collapse the shortlist tray to its compact chip on each new selection.
+  useEffect(() => { setShortlistExpanded(false); }, [selected?.pno]);
+
   // ARIA: announce layer changes (skip initial mount to avoid spurious announcement)
   const layerMountedRef = useRef(false);
   useEffect(() => {
@@ -2062,18 +2067,41 @@ const App: React.FC = () => {
         </ErrorBoundary>
       )}
 
-      {/* QW-2: shortlist tray — shown on the idle home view */}
-      {!IS_EMBED && !selected && !showTour && pinned.length === 0 && data && shortlist.length > 0 && (
-        <ShortlistTray
-          entries={shortlistEntries}
-          onSelect={handleSelectFavorite}
-          onRemove={removeFromShortlist}
-          onCompare={handleCompareShortlist}
-          onClear={clearShortlist}
-          featureFor={featureFor}
-          shareUrl={shortlistShareUrl}
-        />
-      )}
+      {/* QW-2 / CF-3: shortlist tray. On the idle home view it shows in full. While a
+          panel is open (an area selected or a comparison running) it collapses to a
+          compact count chip (desktop only — mobile reaches the shortlist via the
+          bottom-sheet header buttons) so the flagship synced feature stays reachable
+          during the very compare workflow it exists for. */}
+      {!IS_EMBED && !showTour && data && shortlist.length > 0 && (() => {
+        const idle = !selected && pinned.length === 0;
+        if (idle || shortlistExpanded) {
+          return (
+            <ShortlistTray
+              entries={shortlistEntries}
+              onSelect={handleSelectFavorite}
+              onRemove={removeFromShortlist}
+              onCompare={handleCompareShortlist}
+              onClear={clearShortlist}
+              featureFor={featureFor}
+              shareUrl={shortlistShareUrl}
+              onCollapse={idle ? undefined : () => setShortlistExpanded(false)}
+            />
+          );
+        }
+        return (
+          <button
+            onClick={() => setShortlistExpanded(true)}
+            className="hidden md:flex items-center gap-1.5 fixed bottom-24 left-1/2 -translate-x-1/2 z-10
+                       px-3.5 py-1.5 rounded-full text-xs font-semibold
+                       bg-white/95 dark:bg-surface-900/95 backdrop-blur-md text-surface-600 dark:text-surface-300
+                       border border-surface-200 dark:border-surface-700/40 shadow-lg
+                       hover:text-brand-600 dark:hover:text-brand-300 transition-colors"
+            title={t('shortlist.title')}
+          >
+            {t('shortlist.title')} ({shortlist.length})<span aria-hidden>⌃</span>
+          </button>
+        );
+      })()}
 
       {/* Comparison panel (shows hint at 1 pinned, full panel at 2+). Hidden in embed mode. */}
       {!IS_EMBED && pinned.length >= 1 && (
