@@ -58,6 +58,15 @@ jobs:
 
       - run: npm ci
 
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Data registry + provenance cross-check (QW-4)
+        # Fast files-only validation: registry↔provenance vintage match + proxy
+        # flags, reading only JSON (no 39 MB GeoJSON load, no pip deps).
+        run: python scripts/validate_data.py --files-only
+
       - name: Lint
         run: npm run lint
 
@@ -75,19 +84,60 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Check bundle size
-        # Mirrors ci.yml so bundle bloat is caught on claude/* branches before
-        # auto-merge. Without this, GITHUB_TOKEN pushes to main silently bypass
-        # ci.yml (GitHub suppresses workflow triggers from GITHUB_TOKEN pushes).
+      # Restore the previous main baseline (saved by merge-to-main below) so the
+      # branch's exact gzip delta vs main shows in the step summary. The cache
+      # archives the file as bundle-size.json; rename before the script rewrites it.
+      - name: Restore base branch bundle size
+        uses: actions/cache/restore@v5
+        with:
+          path: bundle-size.json
+          key: bundle-size-main-dummy
+          restore-keys: bundle-size-main-
+
+      - name: Stash restored baseline
         run: |
-          JS_SIZE=$(find dist/assets -name '*.js' ! -name 'maplibre-*' -exec gzip -c {} \; | wc -c)
-          echo "App JS bundle excluding maplibre (gzipped): $JS_SIZE bytes"
-          # 280000 B budget — mirrors ci.yml. Raised from 256000 B for the third roadmap
-          # batch (36-item FEATURE_ROADMAP) + the UX-review batch. Measured 278914 B; ~1KB margin.
-          if [ "$JS_SIZE" -gt 280000 ]; then
-            echo "::error::JS bundle size exceeds 280KB gzipped budget ($JS_SIZE bytes)"
-            exit 1
-          fi
+          if [ -f bundle-size.json ]; then mv bundle-size.json base-bundle-size.json; fi
+
+      - name: Check bundle size + report delta
+        # Single source of truth shared with ci.yml: scripts/check-bundle-size.mjs
+        # holds the 280000 B budget. Without this, GITHUB_TOKEN pushes to main
+        # silently bypass ci.yml (GitHub suppresses triggers from GITHUB_TOKEN pushes).
+        run: npm run bundle:check
+
+      - name: Region geodata payload report
+        # Ported from ci.yml — per-region TopoJSON download size (gzipped), the real
+        # on-the-wire map-hot-path cost, separate from the JS bundle budget.
+        env:
+          REGION_PAYLOAD_CAP_KB: ${{ vars.REGION_PAYLOAD_CAP_KB }}
+        run: |
+          CAP=${REGION_PAYLOAD_CAP_KB:-1800}
+          {
+            echo "### 🗺️ Region geodata payload (gzipped)"
+            echo "| Region | gzip KB |"
+            echo "|--------|---------|"
+          } >> "$GITHUB_STEP_SUMMARY"
+          for f in dist/assets/*.topojson.gz; do
+            [ -e "$f" ] || continue
+            name=$(basename "$f" | sed -E 's/-[A-Za-z0-9_-]+\.topojson\.gz$//')
+            kb=$(( ($(stat -c%s "$f") + 512) / 1024 ))
+            printf '%s\t%s\n' "$kb" "$name"
+          done | sort -rn | while IFS=$'\t' read -r kb name; do
+            flag=""; [ "$kb" -gt "$CAP" ] && flag=" ⚠️"
+            echo "| ${name} | ${kb} KB${flag} |" >> "$GITHUB_STEP_SUMMARY"
+            # Use if/fi (not `&&`): a trailing `[ -n "$flag" ] && echo` returns 1 on the
+            # last (smallest, under-cap) region, which under `set -eo pipefail` fails the
+            # whole step. This is an informational report and must never fail the build.
+            if [ -n "$flag" ]; then echo "::warning::Region geodata '${name}' is ${kb} KB gzipped (> ${CAP} KB cap)"; fi
+          done
+
+      # Forward this branch's bundle size to merge-to-main so it can become the
+      # next main baseline — but only saved there, after the merge actually lands.
+      - name: Upload bundle size
+        uses: actions/upload-artifact@v7
+        with:
+          name: bundle-size
+          path: bundle-size.json
+          retention-days: 7
 
   e2e:
     runs-on: ubuntu-latest
@@ -196,6 +246,23 @@ jobs:
       - name: Delete merged branch
         if: success()
         run: git push origin --delete "${{ github.ref_name }}" || true
+
+      # Save this merged branch's bundle size as the new main baseline so the next
+      # claude/* branch's checks job can show its delta vs main. The ci.yml save on
+      # main is unreachable (GITHUB_TOKEN pushes don't trigger ci.yml), so this is
+      # the only path that ever populates the baseline cache.
+      - name: Download bundle size
+        if: success()
+        uses: actions/download-artifact@v7
+        with:
+          name: bundle-size
+
+      - name: Save bundle baseline for main
+        if: success()
+        uses: actions/cache/save@v5
+        with:
+          path: bundle-size.json
+          key: bundle-size-main-${{ github.sha }}
 
       - name: Trigger deploy workflow
         if: success()

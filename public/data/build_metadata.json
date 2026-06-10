@@ -1,11 +1,11 @@
 {
-  "generated": "2026-06-03T09:41:09.749Z",
+  "generated": "2026-06-10T13:42:53.640Z",
   "rows_total": 3018,
   "metrics": {
     "air_quality_index": {
-      "source": "HSY",
+      "source": "HSY / FMI (ENFUSER, SILAM)",
       "vintage": 2024,
-      "granularity": "250m grid",
+      "granularity": "postal",
       "is_proxy": false,
       "row_count": 3018,
       "coverage_pct": 100
@@ -14,7 +14,7 @@
       "source": "Tilastokeskus (rakennuskanta)",
       "vintage": 2025,
       "granularity": "postal",
-      "is_proxy": false,
+      "is_proxy": true,
       "row_count": 3018,
       "coverage_pct": 100
     },
@@ -30,7 +30,7 @@
       "source": "Traficom",
       "vintage": 2024,
       "granularity": "postal",
-      "is_proxy": false,
+      "is_proxy": true,
       "row_count": 3001,
       "coverage_pct": 99.4
     },
@@ -46,8 +46,16 @@
       "source": "Poliisi",
       "vintage": 2023,
       "granularity": "postal",
-      "is_proxy": false,
+      "is_proxy": true,
       "row_count": 3018,
+      "coverage_pct": 100
+    },
+    "crime_index_change_pct": {
+      "source": "Poliisi",
+      "vintage": 2023,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 3017,
       "coverage_pct": 100
     },
     "cycling_density": {
@@ -219,7 +227,7 @@
       "coverage_pct": 98.8
     },
     "noise_pollution": {
-      "source": "Helsinki meluselvitys 2022 / HRI pks liikennemelu 2012",
+      "source": "Helsinki meluselvitys 2022 / HRI pks liikennemelu 2012 / Väylävirasto (maantie- ja rautatiemelu) / Tampere",
       "vintage": "2012–2022",
       "granularity": "postal",
       "is_proxy": false,
@@ -238,7 +246,7 @@
       "source": "Tilastokeskus (kuntavaalit)",
       "vintage": 2025,
       "granularity": "postal",
-      "is_proxy": false,
+      "is_proxy": true,
       "row_count": 2986,
       "coverage_pct": 98.9
     },
@@ -267,8 +275,8 @@
       "coverage_pct": 100
     },
     "price_to_rent_ratio": {
-      "source": "Tilastokeskus (PxWeb)",
-      "vintage": 2024,
+      "source": "Tilastokeskus (PxWeb, asvu 13eb)",
+      "vintage": 2022,
       "granularity": "postal",
       "is_proxy": false,
       "row_count": 473,
@@ -307,8 +315,8 @@
       "coverage_pct": 99.2
     },
     "rental_price_sqm": {
-      "source": "Tilastokeskus (PxWeb)",
-      "vintage": 2024,
+      "source": "Tilastokeskus (PxWeb, asvu 13eb)",
+      "vintage": 2022,
       "granularity": "postal",
       "is_proxy": false,
       "row_count": 473,
@@ -446,7 +454,7 @@
       "source": "Tilastokeskus (kuntavaalit)",
       "vintage": 2025,
       "granularity": "postal",
-      "is_proxy": false,
+      "is_proxy": true,
       "row_count": 2986,
       "coverage_pct": 98.9
     },

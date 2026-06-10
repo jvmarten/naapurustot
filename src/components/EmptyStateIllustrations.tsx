@@ -4,35 +4,6 @@ interface EmptyStateProps {
   className?: string;
 }
 
-/** Map pin/cursor illustration for "no neighborhood selected" */
-export const MapPinIllustration: React.FC<EmptyStateProps> = ({ className = '' }) => (
-  <svg
-    className={className}
-    width="64"
-    height="64"
-    viewBox="0 0 64 64"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    aria-hidden="true"
-  >
-    {/* Map pin */}
-    <path
-      d="M32 8C23.16 8 16 15.16 16 24c0 12 16 32 16 32s16-20 16-32c0-8.84-7.16-16-16-16z"
-      className="fill-primary-200 dark:fill-primary-800/50"
-    />
-    <circle cx="32" cy="24" r="6" className="fill-primary-400 dark:fill-primary-500" />
-    {/* Cursor arrow */}
-    <path
-      d="M44 38l4-1.5 8 8-3.5 3.5-8-8 1.5-4z"
-      className="fill-surface-400 dark:fill-surface-500"
-    />
-    <path
-      d="M38 32l12 4-4 1.5-4 4-1.5-4L38 32z"
-      className="fill-surface-300 dark:fill-surface-600"
-    />
-  </svg>
-);
-
 /** Side-by-side comparison illustration */
 export const CompareIllustration: React.FC<EmptyStateProps> = ({ className = '' }) => (
   <svg

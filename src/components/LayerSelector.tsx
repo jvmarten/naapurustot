@@ -150,7 +150,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
           <button
             onClick={() => setLayerSearch('')}
             className="absolute right-4 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-surface-400 dark:text-surface-500 hover:text-surface-600 dark:hover:text-surface-300 hover:bg-surface-200 dark:hover:bg-surface-700/60 transition-colors"
-            aria-label="Clear search"
+            aria-label={t('search.clear')}
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -356,6 +356,8 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
         {mobileOpen && (
           <div
             ref={sheetRef}
+            role="dialog"
+            aria-label={t('layers.title')}
             className="fixed bottom-0 left-0 right-0 z-40
                        bg-white/95 dark:bg-surface-950/95 backdrop-blur-xl
                        border-t border-surface-200 dark:border-surface-800/50
@@ -372,6 +374,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
               onTouchStart={sheetHandlers.onTouchStart}
               onTouchMove={sheetHandlers.onTouchMove}
               onTouchEnd={sheetHandlers.onTouchEnd}
+              onTouchCancel={sheetHandlers.onTouchCancel}
             >
               <div className="w-10 h-1.5 rounded-full bg-surface-300 dark:bg-surface-600" />
             </div>
@@ -383,6 +386,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
               <button
                 onClick={() => setMobileOpen(false)}
                 className="p-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-400"
+                aria-label={t('aria.close')}
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />

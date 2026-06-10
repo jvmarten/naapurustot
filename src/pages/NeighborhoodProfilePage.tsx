@@ -396,7 +396,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
           <button
             onClick={() => changeLang(lang === 'fi' ? 'en' : lang === 'en' ? 'sv' : 'fi')}
             className="text-sm text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-200 transition-colors"
-            aria-label="Language"
+            aria-label={t('aria.language')}
           >
             {lang === 'fi' ? 'EN' : lang === 'en' ? 'SV' : 'FI'}
           </button>

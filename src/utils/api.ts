@@ -76,6 +76,19 @@ async function request<T>(path: string, options?: RequestInit): Promise<ApiRespo
  * `{ error }` (a localised message) on failure — it never rejects, so callers
  * branch on `res.error` rather than wrapping calls in try/catch.
  */
+type PreferencesPayload = {
+  filterPresets: unknown[];
+  qualityWeights: Record<string, number>;
+  wizardProfile?: unknown;
+};
+
+// CF-7: single-flight cache for GET /auth/preferences. The three preferences-backed
+// hooks (quality weights, filter presets, wizard profile) each fire this on the same
+// login transition — without deduping, that's three identical requests. The promise is
+// shared only while in flight and cleared the moment it settles, so a later login (or a
+// post-save refetch) always pulls fresh server state. Mirrors loadAllData's cache shape.
+let preferencesInFlight: Promise<ApiResponse<PreferencesPayload>> | null = null;
+
 export const api = {
   signup: (username: string, password: string, turnstileToken: string, email?: string, displayName?: string) =>
     request<{ user: ApiUser }>('/auth/signup', {
@@ -123,8 +136,15 @@ export const api = {
       body: JSON.stringify({ notes }),
     }),
 
-  getPreferences: () =>
-    request<{ filterPresets: unknown[]; qualityWeights: Record<string, number>; wizardProfile?: unknown }>('/auth/preferences'),
+  getPreferences: (): Promise<ApiResponse<PreferencesPayload>> => {
+    if (preferencesInFlight) return preferencesInFlight;
+    const p = request<PreferencesPayload>('/auth/preferences');
+    preferencesInFlight = p;
+    void p.finally(() => {
+      if (preferencesInFlight === p) preferencesInFlight = null;
+    });
+    return p;
+  },
 
   // CF-4: wizardProfile is an opaque blob (validated client-side) carried alongside
   // the existing preset/weights preferences sync. NOTE: server-side support is not

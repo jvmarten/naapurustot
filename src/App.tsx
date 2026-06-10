@@ -297,7 +297,7 @@ const App: React.FC = () => {
   // Subscribe to i18n changes (language switch + lazy-loaded dictionary arrivals)
   // so App and its non-memoized children re-render whenever translations may
   // have changed. Memoized children call useI18nVersion themselves.
-  useI18nVersion();
+  const i18nVersion = useI18nVersion();
   const lang = getLang();
   const [showRanking, setShowRanking] = useState(false);
   const [showFilter, setShowFilter] = useState(false);
@@ -1408,12 +1408,7 @@ const App: React.FC = () => {
       document.title = `${selected.nimi} (${selected.pno})${qi} | naapurustot.fi`;
       if (desc) {
         const name = lang === 'sv' ? (selected.namn ?? selected.nimi) : selected.nimi;
-        const tail = lang === 'fi'
-          ? 'mediaanitulo, työttömyys, asuntohinnat, palvelut ja 35+ mittaria Helsingin seudun asuinalueen vertailuun.'
-          : lang === 'sv'
-            ? 'medianinkomst, arbetslöshet, bostadspriser, tjänster och 35+ mätare för jämförelse av Helsingforsregionens bostadsområden.'
-            : 'median income, unemployment, property prices, services and 35+ metrics for neighborhood comparison.';
-        desc.setAttribute('content', `${name} (${selected.pno}): ${tail}`);
+        desc.setAttribute('content', `${name} (${selected.pno}): ${t('meta.area_description_tail')}`);
       }
       if (ogTitle) ogTitle.setAttribute('content', `${selected.nimi} — naapurustot.fi`);
       if (ogDesc) ogDesc.setAttribute('content', `${selected.nimi} (${selected.pno}) — ${t('panel.quality_index')}: ${selected.quality_index ?? '—'}`);
@@ -1422,11 +1417,13 @@ const App: React.FC = () => {
       if (ogUrl) ogUrl.setAttribute('content', pnoUrl);
     } else {
       document.title = 'naapurustot — naapurustot kartalla | naapurustot.fi';
-      if (desc) desc.setAttribute('content', 'naapurustot.fi — vertaile Helsingin, Espoon, Vantaan ja Turun naapurustoja ja asuinalueita 35+ mittarilla. Tulotaso, asuntohinnat, palvelut, turvallisuus, joukkoliikenne ja paljon muuta interaktiivisella kartalla.');
+      if (desc) desc.setAttribute('content', t('meta.site_description'));
       if (canonical) canonical.setAttribute('href', 'https://naapurustot.fi/');
       if (ogUrl) ogUrl.setAttribute('content', 'https://naapurustot.fi/');
     }
-  }, [selected, lang]);
+    // i18nVersion in deps so the description re-renders when the lazy en/sv
+    // dictionary arrives — otherwise non-FI first paint keeps the FI fallback.
+  }, [selected, lang, i18nVersion]);
 
   // Dynamic HTML lang attribute for SEO
   useEffect(() => {

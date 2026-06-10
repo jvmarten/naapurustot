@@ -330,6 +330,8 @@ export const CustomQualityPanel: React.FC<Props> = ({ weights, onChange, onClose
 
         {/* Bottom sheet — height driven by the drag gesture */}
         <div
+          role="dialog"
+          aria-label={t('custom_quality.title')}
           className="fixed inset-x-0 bottom-0 z-40 flex flex-col
                      bg-white dark:bg-surface-900 rounded-t-2xl shadow-2xl
                      border-t border-surface-200 dark:border-surface-700/50"
@@ -344,6 +346,7 @@ export const CustomQualityPanel: React.FC<Props> = ({ weights, onChange, onClose
             onTouchStart={sheetHandlers.onTouchStart}
             onTouchMove={sheetHandlers.onTouchMove}
             onTouchEnd={sheetHandlers.onTouchEnd}
+            onTouchCancel={sheetHandlers.onTouchCancel}
           >
             <div className="w-10 h-1 rounded-full bg-surface-300 dark:bg-surface-600" />
           </div>
