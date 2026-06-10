@@ -46,6 +46,11 @@ interface PanelProps {
   onCustomize?: () => void;
   isCustomWeights?: boolean;
   allFeatures?: GeoJSON.Feature[];
+  /** PO-1: 'region' when allFeatures is a single loaded region (cityFilter !== 'all'),
+   *  so the area summary says "within {region}" instead of "nationally". */
+  summaryScope?: 'national' | 'region';
+  /** PO-1: the loaded region's display name for the region-scoped summary copy. */
+  summaryRegion?: string;
   /** QW-1: the active map layer, so the panel can show that metric's distribution + percentile */
   activeLayer?: LayerId;
   onFlyTo?: (center: [number, number]) => void;
@@ -433,7 +438,11 @@ DistributionSection.displayName = 'DistributionSection';
 const AreaSummarySection: React.FC<{
   props: NeighborhoodProperties;
   allFeatures: GeoJSON.Feature[];
-}> = React.memo(({ props, allFeatures }) => {
+  /** PO-1: 'region' when the loaded cohort is a single region (not all-Finland). */
+  scope?: 'national' | 'region';
+  /** PO-1: the loaded region's display name, for the region-scoped sentences. */
+  regionName?: string;
+}> = React.memo(({ props, allFeatures, scope = 'national', regionName = '' }) => {
   useI18nVersion();
   const summary = useMemo(
     () => computeAreaSummary(props as Record<string, unknown>, allFeatures),
@@ -441,13 +450,17 @@ const AreaSummarySection: React.FC<{
   );
   // Resolve the sentence specs with the live i18n dictionary (label keys → strings,
   // localized "and", template lookup). composeSummarySentences stays pure/reusable.
+  // PO-1: pass the cohort scope so the copy says "within {region}" — not "nationally" —
+  // when ranking against a single loaded region.
   const sentences = useMemo(() => {
     const specs = composeSummarySentences(summary, {
       label: (k) => t(k),
       and: t('summary.and'),
+      scope,
+      region: regionName,
     });
     return specs.map((s) => fillTemplate(t(s.key), s.tokens));
-  }, [summary]);
+  }, [summary, scope, regionName]);
 
   if (summary.strong.length === 0 && summary.weak.length === 0) return null;
 
@@ -799,7 +812,7 @@ const NotesEditor: React.FC<{ pno: string; userId?: string | null }> = React.mem
 });
 NotesEditor.displayName = 'NotesEditor';
 
-export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, allFeatures, activeLayer, onFlyTo, isFavorite = false, onToggleFavorite, isInShortlist = false, onToggleShortlist, referencePno, referenceName, onSetReference, qualityScope = 'national', onExploreCity, userId, isochroneEnabled = false, isochroneMode = 'walk', isochroneBudget = 20, isochroneLoading = false, isochroneError = false, isochroneActive = false, onIsochroneChange, onIsochroneClear, similarityWeights, onSimilarityWeightChange, onSimilarityToggle }) => {
+export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, allFeatures, summaryScope = 'national', summaryRegion = '', activeLayer, onFlyTo, isFavorite = false, onToggleFavorite, isInShortlist = false, onToggleShortlist, referencePno, referenceName, onSetReference, qualityScope = 'national', onExploreCity, userId, isochroneEnabled = false, isochroneMode = 'walk', isochroneBudget = 20, isochroneLoading = false, isochroneError = false, isochroneActive = false, onIsochroneChange, onIsochroneClear, similarityWeights, onSimilarityWeightChange, onSimilarityToggle }) => {
   useI18nVersion();
   const eduTotal = useMemo(() =>
     [d.ko_yl_kork, d.ko_al_kork, d.ko_ammat, d.ko_perus]
@@ -1201,7 +1214,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
 
       {/* CF-2: auto-composed plain-language strengths & weaknesses from real percentiles */}
       {allFeatures && allFeatures.length > 1 && (
-        <AreaSummarySection props={d} allFeatures={allFeatures} />
+        <AreaSummarySection props={d} allFeatures={allFeatures} scope={summaryScope} regionName={summaryRegion} />
       )}
 
       {/* CF-5: travel-time isochrone controls (real neighborhoods only; needs a Digitransit key) */}

@@ -148,6 +148,29 @@ describe('composeSummarySentences', () => {
     expect(specs).toHaveLength(0);
   });
 
+  it('PO-1: uses the national templates by default', () => {
+    const specs = composeSummarySentences(summary, { label, and: 'and' });
+    expect(specs.some((s) => s.key === 'summary.sentence.top')).toBe(true);
+    expect(specs.every((s) => !s.key.endsWith('_region'))).toBe(true);
+    expect(specs.every((s) => s.tokens.region === undefined)).toBe(true);
+  });
+
+  it('PO-1: switches to the region templates + region token when scope=region', () => {
+    const specs = composeSummarySentences(summary, { label, and: 'and', scope: 'region', region: 'Helsingin seutu' });
+    const top = specs.find((s) => s.key === 'summary.sentence.top_region');
+    expect(top?.tokens.region).toBe('Helsingin seutu');
+    expect(specs.find((s) => s.key === 'summary.sentence.bottom_region')).toBeDefined();
+    expect(specs.find((s) => s.key === 'summary.sentence.expensive_region')?.tokens.region).toBe('Helsingin seutu');
+    // No national-template specs leak through.
+    expect(specs.every((s) => s.key.endsWith('_region'))).toBe(true);
+  });
+
+  it('PO-1: stays national when scope=region but no region name is supplied', () => {
+    const specs = composeSummarySentences(summary, { label, and: 'and', scope: 'region', region: '' });
+    expect(specs.some((s) => s.key === 'summary.sentence.top')).toBe(true);
+    expect(specs.every((s) => !s.key.endsWith('_region'))).toBe(true);
+  });
+
   it('renders finished strings via injected templates', () => {
     const tpl = (k: string) => ({
       'summary.sentence.top': 'Top {pct}% nationally for {metrics}',
