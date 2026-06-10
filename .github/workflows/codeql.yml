@@ -1,6 +1,9 @@
 name: CodeQL
 
 on:
+  # IN-2: allow auto-merge.yml to dispatch a same-day scan after it merges to main
+  # (the push-to-main trigger never fires for GITHUB_TOKEN pushes from auto-merge).
+  workflow_dispatch:
   push:
     branches: [main]
   pull_request:

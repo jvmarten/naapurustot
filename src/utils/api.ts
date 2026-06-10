@@ -146,11 +146,11 @@ export const api = {
     return p;
   },
 
-  // CF-4: wizardProfile is an opaque blob (validated client-side) carried alongside
-  // the existing preset/weights preferences sync. NOTE: server-side support is not
-  // yet implemented — the server stores and returns only filterPresets/qualityWeights,
-  // ignores wizardProfile, and rejects a wizardProfile-only PUT with 400. The field
-  // is sent but not persisted until the backend adds it.
+  // CF-4 / IN-3: wizardProfile is an opaque blob (validated client-side by
+  // sanitizeWizardAnswers, and server-side by validateWizardProfile) carried alongside
+  // the preset/weights preferences sync. The server now stores it in the
+  // user_preferences.wizard_profile column and returns it from GET/PUT (added via the
+  // db.ts migration runner), so a wizardProfile-only PUT persists and cross-syncs.
   savePreferences: (data: { filterPresets?: unknown[]; qualityWeights?: Record<string, number>; wizardProfile?: unknown }) =>
     request<{ filterPresets: unknown[]; qualityWeights: Record<string, number>; wizardProfile?: unknown }>('/auth/preferences', {
       method: 'PUT',

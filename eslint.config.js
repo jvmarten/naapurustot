@@ -6,7 +6,9 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  // Ignore the frontend build output AND nested build dirs (e.g. server/api/dist),
+  // so a local `npm run build` in server/api doesn't make `eslint .` lint generated .d.ts.
+  globalIgnores(['dist', '**/dist/**']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [

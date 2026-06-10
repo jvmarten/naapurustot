@@ -193,6 +193,7 @@
   "error.retry": "Försök igen",
   "sync.saving": "Sparar…",
   "sync.error": "Ändringar har inte sparats till ditt konto",
+  "sync.session_expired": "Sessionen har gått ut — logga in igen",
   "error.boundary_title": "Något gick fel",
   "error.boundary_description": "Ett oväntat fel inträffade",
   "error.reload": "Ladda om",

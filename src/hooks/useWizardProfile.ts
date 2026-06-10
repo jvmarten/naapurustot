@@ -245,6 +245,11 @@ export function useWizardProfile(userId?: string | null) {
       fromServerRef.current = false;
       return;
     }
+    // IN-3: never sync an untouched default profile — it would write an empty blob
+    // for every signed-in user who never opened the wizard (the line-24 gate). Since
+    // this also gates the timer, the unmount flush below (guarded on saveTimerRef)
+    // won't fire for defaults either.
+    if (!isCustomWizardAnswers(profile)) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       saveTimerRef.current = null;

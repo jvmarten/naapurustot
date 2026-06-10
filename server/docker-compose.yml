@@ -18,6 +18,9 @@ services:
       DATABASE_URL: postgresql://naapurustot_api:${API_DB_PASSWORD}@db:5432/naapurustot
       JWT_SECRET: ${JWT_SECRET}
       TURNSTILE_SECRET: ${TURNSTILE_SECRET}
+      # IN-2: forward the anti-phishing hostname allowlist (turnstile.ts reads it).
+      # Without this it was unset in the container, silently disabling the check.
+      TURNSTILE_ALLOWED_HOSTNAMES: ${TURNSTILE_ALLOWED_HOSTNAMES:-}
       SENTRY_DSN: ${SENTRY_DSN:-}
       SENTRY_RELEASE: ${SENTRY_RELEASE:-}
       NODE_ENV: production

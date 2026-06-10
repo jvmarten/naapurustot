@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateDeleteConfirmation, buildExportPayload } from './auth.js';
+import { validateDeleteConfirmation, buildExportPayload, validateWizardProfile } from './auth.js';
 
 // CF-13: focused unit tests for the pure GDPR helpers. No DB required — these
 // cover the validation/branching that guards account deletion and the shape of
@@ -74,4 +74,36 @@ test('buildExportPayload yields a null account when the user row is absent', () 
     preferences: undefined,
   });
   assert.equal(payload.account, null);
+});
+
+test('buildExportPayload includes wizardProfile (IN-3)', () => {
+  const payload = buildExportPayload({
+    user: undefined, favorites: undefined, shortlist: undefined, notes: undefined,
+    preferences: { wizardProfile: { transitImportance: 5, hasChildren: true } },
+  });
+  assert.deepEqual(payload.wizardProfile, { transitImportance: 5, hasChildren: true });
+  // Defaults to {} when no preferences row exists.
+  const empty = buildExportPayload({
+    user: undefined, favorites: undefined, shortlist: undefined, notes: undefined, preferences: undefined,
+  });
+  assert.deepEqual(empty.wizardProfile, {});
+});
+
+test('validateWizardProfile accepts a well-formed profile (IN-3)', () => {
+  const v = validateWizardProfile({
+    transitImportance: 4, quietPreference: 'quiet', budgetMin: 1000, budgetMax: 6000,
+    sizePreference: 'medium', tenurePreference: 'either', hasChildren: true,
+    schoolImportance: 5, healthcareImportance: 3,
+  });
+  assert.equal(v.ok, true);
+});
+
+test('validateWizardProfile rejects non-objects, unknown keys, oversized + non-finite values (IN-3)', () => {
+  for (const bad of [null, undefined, 'x', 42, [1, 2]]) {
+    assert.equal(validateWizardProfile(bad).ok, false, `expected rejection for ${JSON.stringify(bad)}`);
+  }
+  assert.equal(validateWizardProfile({ evilKey: 1 }).ok, false);
+  assert.equal(validateWizardProfile({ quietPreference: 'x'.repeat(21) }).ok, false);
+  assert.equal(validateWizardProfile({ transitImportance: Infinity }).ok, false);
+  assert.equal(validateWizardProfile({ hasChildren: { nested: true } }).ok, false);
 });
