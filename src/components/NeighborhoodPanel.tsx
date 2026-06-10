@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useMemo, useEffect, useLayoutEffect } from 'react';
 import type { NeighborhoodProperties } from '../utils/metrics';
-import { parseTrendSeries, getMetricSource, vintageFreshness, METRIC_EXPLANATIONS, formatCoveragePct, getCoveragePct, isPartialCoverage } from '../utils/metrics';
+import { parseTrendSeries, getMetricSource, vintageFreshness, METRIC_EXPLANATIONS, formatCoveragePct } from '../utils/metrics';
 import { formatNumber, formatEuro, formatPct, formatDiff, diffColor, formatYtlGradeFull, parseSchools, formatDensity, formatEuroSqm } from '../utils/formatting';
 import { t, getLang, useI18nVersion } from '../utils/i18n';
 import { getQualityCategory, QUALITY_CATEGORIES, QUALITY_DIMENSIONS, computeQualityCoverage } from '../utils/qualityIndex';
@@ -25,8 +25,6 @@ import { useSwipeNavigation } from '../hooks/useSwipeNavigation';
 import { trackEvent } from '../utils/analytics';
 import { generateScoreCard } from '../utils/scoreCard';
 import { useNotes } from '../hooks/useNotes';
-import { affordabilityFor, AFFORDABILITY_LIMITS, type AffordabilityBand } from '../utils/affordability';
-import type { AffordabilityState } from '../hooks/useAffordability';
 
 interface PanelProps {
   data: NeighborhoodProperties;
@@ -67,16 +65,10 @@ interface PanelProps {
   isochroneActive?: boolean;
   onIsochroneChange?: (mode: IsochroneMode, budget: number) => void;
   onIsochroneClear?: () => void;
-  /** CF-1: affordability calculator inputs (persisted + URL-shared by App). */
-  affordabilityState?: AffordabilityState;
-  onAffordabilityChange?: (patch: Partial<AffordabilityState>) => void;
   /** CF-5: per-metric similarity weights (0–3) + controls, owned by App for URL sync. */
   similarityWeights?: Record<string, number>;
   onSimilarityWeightChange?: (key: string, value: number) => void;
   onSimilarityToggle?: (key: string) => void;
-  /** CF-12: highlight a set of adjacent postal codes on the map (ring/contiguity).
-   *  Called with the neighbour PNOs to outline, or [] to clear. */
-  onHighlightNeighbors?: (pnos: string[]) => void;
 }
 
 /** CF-5: the per-row diff baseline label — the custom reference's name when one is
@@ -798,237 +790,7 @@ const NotesEditor: React.FC<{ pno: string; userId?: string | null }> = React.mem
 });
 NotesEditor.displayName = 'NotesEditor';
 
-// CF-1: traffic-light band styling for the affordability shares.
-const BAND_STYLES: Record<AffordabilityBand, { dot: string; text: string; bg: string }> = {
-  green: { dot: 'bg-emerald-500', text: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/30' },
-  amber: { dot: 'bg-amber-500', text: 'text-amber-800 dark:text-amber-400', bg: 'bg-amber-400/10 border-amber-400/30' },
-  red: { dot: 'bg-rose-500', text: 'text-rose-700 dark:text-rose-400', bg: 'bg-rose-500/10 border-rose-500/30' },
-};
-const BAND_LABEL_KEY: Record<AffordabilityBand, string> = {
-  green: 'afford.band_green',
-  amber: 'afford.band_amber',
-  red: 'afford.band_red',
-};
-
-/** CF-1: a single cost card (rent or buy) with its share bar and band label. */
-const AffordRow: React.FC<{
-  heading: string;
-  primary: string;
-  secondary?: string | null;
-  share: number | null;
-  band: AffordabilityBand | null;
-  noDataLabel: string;
-}> = ({ heading, primary, secondary, share, band, noDataLabel }) => {
-  useI18nVersion();
-  const style = band ? BAND_STYLES[band] : null;
-  // Bar fill is the share clamped to 100% of the bar; the band colour conveys overflow.
-  const fillPct = share != null ? Math.min(100, share * 100) : 0;
-  return (
-    <div className={`rounded-lg border px-3 py-2.5 ${style ? style.bg : 'bg-surface-100 dark:bg-surface-900/60 border-surface-200 dark:border-surface-800/50'}`}>
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-xs text-surface-500 dark:text-surface-400">{heading}</span>
-        {band && style && (
-          <span className={`inline-flex items-center gap-1 text-[11px] font-semibold ${style.text}`}>
-            <span className={`w-2 h-2 rounded-full ${style.dot}`} aria-hidden="true" />
-            {t(BAND_LABEL_KEY[band])}
-          </span>
-        )}
-      </div>
-      {share == null && band == null && secondary == null && primary === '—' ? (
-        <p className="mt-1 text-[11px] text-surface-400 dark:text-surface-500">{noDataLabel}</p>
-      ) : (
-        <>
-          <div className="mt-1 flex items-baseline justify-between gap-2">
-            <span className="text-lg font-semibold text-surface-900 dark:text-white tabular-nums">{primary}</span>
-            {share != null && style && (
-              <span className={`text-xs font-medium tabular-nums ${style.text}`}>
-                {t('afford.rent_share').replace('{pct}', String(Math.round(share * 100)))}
-              </span>
-            )}
-          </div>
-          {secondary && <p className="mt-0.5 text-[11px] text-surface-400 dark:text-surface-500">{secondary}</p>}
-          {share != null && style && (
-            <div className="mt-1.5 h-1.5 rounded-full bg-surface-200 dark:bg-surface-800 overflow-hidden">
-              <div className={`h-full rounded-full ${style.dot}`} style={{ width: `${fillPct}%` }} />
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
-};
-
-/**
- * CF-1: Affordability calculator. Enter a monthly net income OR a housing budget
- * plus an apartment size; estimate rent (rental_price_sqm × m²) and purchase price
- * (property_price_sqm × m²) as a share of budget with a traffic-light band, plus a
- * local-median-income context line. Surfaces the rent source's vintage, partial
- * coverage and the PO-6 "source discontinued" note inline so it never overstates
- * confidence. All math lives in utils/affordability.ts (pure, reused by CF-14).
- */
-const AffordabilitySection: React.FC<{
-  props: NeighborhoodProperties;
-  state: AffordabilityState;
-  onChange: (patch: Partial<AffordabilityState>) => void;
-}> = React.memo(({ props, state, onChange }) => {
-  useI18nVersion();
-  const trackedRef = useRef(false);
-
-  const result = useMemo(
-    () => affordabilityFor(
-      {
-        mode: state.mode,
-        monthlyIncome: state.income,
-        monthlyBudget: state.budget,
-        sizeM2: state.sizeM2 ?? 0,
-      },
-      props,
-    ),
-    [state.mode, state.income, state.budget, state.sizeM2, props],
-  );
-
-  // PO-6 + PO-2: rent source vintage, partial coverage and discontinued note —
-  // surfaced inline so the estimate never looks more confident than the data.
-  const rentSource = getMetricSource('rental_price_sqm');
-  const rentCoverage = getCoveragePct('rental_price_sqm');
-  const rentPartial = isPartialCoverage('rental_price_sqm');
-
-  const hasAmount = state.mode === 'income' ? state.income != null : state.budget != null;
-  const hasInputs = hasAmount && state.sizeM2 != null;
-
-  const numInput = (value: number | null, onValue: (n: number | null) => void, placeholder: string, label: string) => (
-    <label className="flex-1 min-w-0">
-      <span className="block text-[10px] uppercase tracking-wider text-surface-400 dark:text-surface-500 mb-1">{label}</span>
-      <input
-        type="number"
-        inputMode="numeric"
-        value={value ?? ''}
-        min={1}
-        placeholder={placeholder}
-        onChange={(e) => {
-          if (!trackedRef.current) { trackEvent('affordability'); trackedRef.current = true; }
-          const raw = e.target.value;
-          onValue(raw === '' ? null : Number(raw));
-        }}
-        className="w-full rounded-lg bg-surface-100 dark:bg-surface-900/60 border border-surface-200 dark:border-surface-800/50
-                   px-3 py-2 text-sm text-surface-900 dark:text-white placeholder-surface-400 dark:placeholder-surface-500
-                   focus:outline-none focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/30"
-      />
-    </label>
-  );
-
-  const clamp = (n: number | null, min: number, max: number): number | null =>
-    n == null || !isFinite(n) ? null : Math.min(max, Math.max(min, Math.round(n)));
-
-  return (
-    <div className="rounded-xl bg-surface-100/60 dark:bg-surface-900/40 border border-surface-200 dark:border-surface-800/50 p-4 space-y-3">
-      <div>
-        <h3 className="text-sm font-semibold text-surface-900 dark:text-white">{t('afford.title')}</h3>
-        <p className="text-[11px] text-surface-400 dark:text-surface-500 mt-0.5">{t('afford.intro')}</p>
-      </div>
-
-      {/* Mode toggle: income vs direct budget */}
-      <div className="flex gap-1">
-        {(['income', 'budget'] as const).map((m) => (
-          <button
-            key={m}
-            onClick={() => onChange({ mode: m })}
-            aria-pressed={state.mode === m}
-            className={`flex-1 px-2 py-1.5 rounded-lg text-[11px] font-medium border transition-colors ${
-              state.mode === m
-                ? 'bg-brand-500/15 text-brand-600 dark:text-brand-300 border-brand-500/40'
-                : 'bg-surface-100 dark:bg-surface-900/60 text-surface-500 dark:text-surface-400 border-surface-200 dark:border-surface-700/50 hover:border-surface-300 dark:hover:border-surface-600'
-            }`}
-          >
-            {t(m === 'income' ? 'afford.mode_income' : 'afford.mode_budget')}
-          </button>
-        ))}
-      </div>
-
-      <div className="flex gap-2">
-        {state.mode === 'income'
-          ? numInput(
-              state.income,
-              (n) => onChange({ income: clamp(n, AFFORDABILITY_LIMITS.income.min, AFFORDABILITY_LIMITS.income.max) }),
-              t('afford.income_placeholder'),
-              t('afford.income_label'),
-            )
-          : numInput(
-              state.budget,
-              (n) => onChange({ budget: clamp(n, AFFORDABILITY_LIMITS.budget.min, AFFORDABILITY_LIMITS.budget.max) }),
-              t('afford.budget_placeholder'),
-              t('afford.budget_label'),
-            )}
-        {numInput(
-          state.sizeM2,
-          (n) => onChange({ sizeM2: clamp(n, AFFORDABILITY_LIMITS.size.min, AFFORDABILITY_LIMITS.size.max) }),
-          t('afford.size_placeholder'),
-          t('afford.size_label'),
-        )}
-      </div>
-
-      {/* Income-mode derived budget line */}
-      {state.mode === 'income' && result.monthlyBudget > 0 && (
-        <p className="text-[11px] text-surface-500 dark:text-surface-400">
-          {t('afford.budget_from_income').replace('{budget}', formatNumber(Math.round(result.monthlyBudget)))}
-        </p>
-      )}
-
-      {!hasInputs ? (
-        <p className="text-xs text-surface-400 dark:text-surface-500">{t('afford.need_input')}</p>
-      ) : (
-        <div className="space-y-2">
-          <AffordRow
-            heading={t('afford.rent_heading')}
-            primary={result.monthlyRent != null ? `${formatEuro(Math.round(result.monthlyRent))} ${t('afford.per_month')}` : '—'}
-            share={result.rentShare}
-            band={result.rentBand}
-            noDataLabel={t('afford.no_rent_data')}
-          />
-          <AffordRow
-            heading={t('afford.buy_heading')}
-            primary={result.purchasePrice != null ? formatEuro(Math.round(result.purchasePrice)) : '—'}
-            secondary={
-              result.monthlyMortgage != null
-                ? t('afford.mortgage_est').replace('{amount}', `${formatEuro(Math.round(result.monthlyMortgage))} ${t('afford.per_month')}`)
-                : null
-            }
-            share={result.buyShare}
-            band={result.buyBand}
-            noDataLabel={t('afford.no_buy_data')}
-          />
-          <p className="text-[10px] text-surface-400 dark:text-surface-500">{t('afford.mortgage_assumptions')}</p>
-        </div>
-      )}
-
-      {/* Local median income context (reads hr_mtu) */}
-      {props.hr_mtu != null && (
-        <p className="text-[11px] text-surface-500 dark:text-surface-400">
-          {t('afford.median_income_context').replace('{amount}', formatEuro(props.hr_mtu))}
-        </p>
-      )}
-
-      {/* CRITICAL: rent source honesty — vintage + partial coverage + PO-6 discontinued note */}
-      <div className="pt-1 border-t border-surface-200 dark:border-surface-800/50 space-y-1">
-        <p className="text-[10px] text-surface-400 dark:text-surface-500">{t('afford.disclaimer')}</p>
-        {rentSource && (
-          <p className="text-[10px] italic text-surface-400 dark:text-surface-500">
-            {rentSource.source} ({rentSource.year})
-          </p>
-        )}
-        {rentPartial && rentCoverage != null && (
-          <p className="text-[10px] text-surface-400 dark:text-surface-500">
-            {t('coverage.caption').replace('{pct}', formatCoveragePct(rentCoverage))}
-          </p>
-        )}
-        <DiscontinuedCaveat property="rental_price_sqm" />
-      </div>
-    </div>
-  );
-});
-AffordabilitySection.displayName = 'AffordabilitySection';
-
-export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, allFeatures, activeLayer, onFlyTo, isFavorite = false, onToggleFavorite, isInShortlist = false, onToggleShortlist, referencePno, referenceName, onSetReference, qualityScope = 'national', onExploreCity, userId, isochroneEnabled = false, isochroneMode = 'walk', isochroneBudget = 20, isochroneLoading = false, isochroneError = false, isochroneActive = false, onIsochroneChange, onIsochroneClear, affordabilityState, onAffordabilityChange, similarityWeights, onSimilarityWeightChange, onSimilarityToggle, onHighlightNeighbors }) => {
+export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, allFeatures, activeLayer, onFlyTo, isFavorite = false, onToggleFavorite, isInShortlist = false, onToggleShortlist, referencePno, referenceName, onSetReference, qualityScope = 'national', onExploreCity, userId, isochroneEnabled = false, isochroneMode = 'walk', isochroneBudget = 20, isochroneLoading = false, isochroneError = false, isochroneActive = false, onIsochroneChange, onIsochroneClear, similarityWeights, onSimilarityWeightChange, onSimilarityToggle }) => {
   useI18nVersion();
   const eduTotal = useMemo(() =>
     [d.ko_yl_kork, d.ko_al_kork, d.ko_ammat, d.ko_perus]
@@ -1401,15 +1163,6 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
     return list;
   }, [neighborPnos, allFeatures]);
 
-  // Drive the map ring/contiguity highlight while the neighbours section is mounted,
-  // clearing it on unmount or when the set changes.
-  const neighborPnoList = useMemo(() => neighbors.map((n) => n.props.pno), [neighbors]);
-  useEffect(() => {
-    if (!onHighlightNeighbors) return;
-    onHighlightNeighbors(neighborPnoList);
-    return () => onHighlightNeighbors([]);
-  }, [neighborPnoList, onHighlightNeighbors]);
-
   // PO-3: Shared section content — used by both desktop and mobile
   const sectionOverview = (
     <>
@@ -1531,11 +1284,6 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
 
   const sectionStats = (
     <>
-      {/* CF-1: Affordability calculator — rent/buy on my income or budget */}
-      {affordabilityState && onAffordabilityChange && !d._isMetroArea && (
-        <AffordabilitySection props={d} state={affordabilityState} onChange={onAffordabilityChange} />
-      )}
-
       {/* Housing section — PO-2: collapsible, default open */}
       <CollapsibleSection title={t('panel.housing')} defaultOpen>
         <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
