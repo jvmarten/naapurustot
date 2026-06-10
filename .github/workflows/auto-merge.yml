@@ -292,9 +292,12 @@ jobs:
           path: bundle-size.json
           key: bundle-size-main-${{ github.sha }}
 
+      # Dispatches are best-effort and run after the merge has already landed: a
+      # transient GitHub API 500 (or a deploy workflow's own failure) must NOT fail the
+      # post-merge job — the next merge re-triggers them. So `if: always()` + `|| echo`.
       - name: Trigger deploy workflow
         if: success()
-        run: gh workflow run deploy.yml --ref main
+        run: gh workflow run deploy.yml --ref main || echo "deploy dispatch failed (transient) — non-fatal; next merge re-triggers"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -307,7 +310,7 @@ jobs:
         run: |
           if git diff --name-only HEAD~1 HEAD | grep -q '^server/'; then
             echo "server/** changed — dispatching deploy-server.yml"
-            gh workflow run deploy-server.yml --ref main
+            gh workflow run deploy-server.yml --ref main || echo "server deploy dispatch failed (transient) — non-fatal"
           else
             echo "no server/** changes — skipping server deploy"
           fi
@@ -316,6 +319,6 @@ jobs:
       # (the push-to-main trigger never fires for GITHUB_TOKEN pushes).
       - name: Trigger CodeQL scan
         if: success()
-        run: gh workflow run codeql.yml --ref main
+        run: gh workflow run codeql.yml --ref main || echo "codeql dispatch failed (transient) — non-fatal"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

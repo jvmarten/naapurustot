@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateDeleteConfirmation, buildExportPayload, validateWizardProfile } from './auth.js';
+import { validateDeleteConfirmation, buildExportPayload, validateWizardProfile, httpErrorStatus, LARGE_BODY_ROUTES } from './auth.js';
 
 // CF-13: focused unit tests for the pure GDPR helpers. No DB required — these
 // cover the validation/branching that guards account deletion and the shape of
@@ -106,4 +106,19 @@ test('validateWizardProfile rejects non-objects, unknown keys, oversized + non-f
   assert.equal(validateWizardProfile({ quietPreference: 'x'.repeat(21) }).ok, false);
   assert.equal(validateWizardProfile({ transitImportance: Infinity }).ok, false);
   assert.equal(validateWizardProfile({ hasChildren: { nested: true } }).ok, false);
+});
+
+test('httpErrorStatus reads status/statusCode, defaults to 500 (IN-4)', () => {
+  assert.equal(httpErrorStatus({ status: 413 }), 413);
+  assert.equal(httpErrorStatus({ statusCode: 413 }), 413);
+  assert.equal(httpErrorStatus(new Error('boom')), 500);
+  assert.equal(httpErrorStatus(null), 500);
+  assert.equal(httpErrorStatus({ status: 'nope' }), 500);
+});
+
+test('LARGE_BODY_ROUTES covers the big-payload endpoints, not the small ones (IN-4)', () => {
+  assert.equal(LARGE_BODY_ROUTES.has('/auth/notes'), true);
+  assert.equal(LARGE_BODY_ROUTES.has('/auth/preferences'), true);
+  assert.equal(LARGE_BODY_ROUTES.has('/auth/favorites'), false);
+  assert.equal(LARGE_BODY_ROUTES.has('/auth/login'), false);
 });

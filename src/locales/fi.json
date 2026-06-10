@@ -669,6 +669,7 @@
   "auth.register": "Rekisteröidy",
   "auth.error.network": "Palvelimeen ei saada yhteyttä — yritä myöhemmin uudelleen",
   "auth.error.server_error": "Palvelinvirhe — yritä myöhemmin uudelleen",
+  "auth.error.too_large": "Tallennettavaa dataa on liikaa — lyhennä muistiinpanoja",
   "auth.error.fields_required": "Käyttäjänimi ja salasana vaaditaan",
   "auth.error.invalid_username": "Käyttäjänimen tulee olla 3–20 merkkiä (kirjaimet, numerot, _ tai -)",
   "auth.error.password_too_short": "Salasanan tulee olla vähintään 12 merkkiä",

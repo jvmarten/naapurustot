@@ -11,7 +11,8 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import * as Sentry from '@sentry/node';
-import authRouter from './auth.js';
+import authRouter, { LARGE_BODY_ROUTES, httpErrorStatus } from './auth.js';
+import { rateLimit } from './rateLimit.js';
 import { initDb } from './db.js';
 
 const app = express();
@@ -45,14 +46,34 @@ app.use(cors({
   credentials: true,
 }));
 
-app.use(express.json({ limit: '16kb' }));
+// IN-4: a tight 16 KB limit for nearly every route, but the notes/preferences PUTs
+// carry legitimately large payloads. Stacking a second express.json() doesn't work —
+// the first parser to run consumes the stream — so dispatch to the right parser here.
+const jsonSmall = express.json({ limit: '16kb' });
+const jsonLarge = express.json({ limit: '1mb' });
+app.use((req: Request, res: Response, next: NextFunction) => {
+  return (LARGE_BODY_ROUTES.has(req.path) ? jsonLarge : jsonSmall)(req, res, next);
+});
 app.use(cookieParser());
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-app.use('/auth', authRouter);
+// IN-4: defend the SameSite=None auth cookie against CSRF. Browsers always send Origin
+// on state-changing (non-GET) requests; a missing or non-allowlisted Origin on a
+// POST/PUT/DELETE is a forged cross-site request (e.g. a drive-by POST /auth/logout).
+function sameOriginOnly(req: Request, res: Response, next: NextFunction): void {
+  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') { next(); return; }
+  const origin = req.get('origin');
+  if (origin && ALLOWED_ORIGINS.includes(origin)) { next(); return; }
+  res.status(403).json({ error: 'Invalid origin' });
+}
+
+// IN-4: a modest per-IP fixed-window limit across the authed API (writes + the heavy
+// GET /auth/export). Generous enough that real use never hits it; signup/login keep
+// their own stricter limiters (separate buckets) inside the router.
+app.use('/auth', rateLimit(300, 60_000, 'auth'), sameOriginOnly, authRouter);
 
 // Must be registered after routes — captures errors thrown from handlers.
 Sentry.setupExpressErrorHandler(app);
@@ -63,7 +84,14 @@ Sentry.setupExpressErrorHandler(app);
 app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
   console.error(`${req.method} ${req.url} error:`, err);
   if (!res.headersSent) {
-    res.status(500).json({ error: 'Internal server error' });
+    // IN-4: honor a body-parser 413 (payload too large) so the client can show the
+    // right message instead of a misleading 500. Other errors stay generic (no leak).
+    const status = httpErrorStatus(err);
+    if (status === 413) {
+      res.status(413).json({ error: 'Payload too large' });
+    } else {
+      res.status(500).json({ error: 'Internal server error' });
+    }
   }
 });
 

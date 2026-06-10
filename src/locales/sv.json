@@ -669,6 +669,7 @@
   "auth.register": "Registrera",
   "auth.error.network": "Det går inte att ansluta till servern — försök igen senare",
   "auth.error.server_error": "Serverfel — försök igen senare",
+  "auth.error.too_large": "För mycket data att spara — korta ner dina anteckningar",
   "auth.error.fields_required": "Användarnamn och lösenord krävs",
   "auth.error.invalid_username": "Användarnamnet måste vara 3–20 tecken (bokstäver, siffror, _ eller -)",
   "auth.error.password_too_short": "Lösenordet måste vara minst 12 tecken",

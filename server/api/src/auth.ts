@@ -194,6 +194,27 @@ router.post('/logout', (_req: Request, res: Response): void => {
   res.json({ ok: true });
 });
 
+// ── IN-4: request-hardening helpers (wired into index.ts; pure + testable) ──
+
+/**
+ * Routes whose JSON body is legitimately large (notes: up to 500 × 5000 chars ≈ 2.5 MB;
+ * preferences: presets + weights + wizard profile). The global 16 KB json parser SKIPS
+ * these and a 1 MB parser is mounted instead — otherwise a heavy note-taker's payload
+ * exceeds 16 KB and they can never sync again (the body parser 413s before the handler).
+ */
+export const LARGE_BODY_ROUTES = new Set(['/auth/notes', '/auth/preferences']);
+
+/** Read an Express/body-parser error's HTTP status (PayloadTooLargeError → 413), else 500.
+ *  The fallback error handler used a hardcoded 500, masking 413 as a generic server error. */
+export function httpErrorStatus(err: unknown): number {
+  if (err && typeof err === 'object') {
+    const e = err as { status?: unknown; statusCode?: unknown };
+    if (typeof e.status === 'number') return e.status;
+    if (typeof e.statusCode === 'number') return e.statusCode;
+  }
+  return 500;
+}
+
 // ── GDPR: account deletion + personal-data export (CF-13) ──
 
 const CLEAR_COOKIE_OPTS = { httpOnly: true, secure: true, sameSite: 'none' as const, path: '/' };
