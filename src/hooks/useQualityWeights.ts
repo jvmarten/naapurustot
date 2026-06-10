@@ -39,6 +39,11 @@ export function useQualityWeights(userId?: string | null) {
   const [weights, setWeightsState] = useState<QualityWeights>(loadWeights);
   const weightsRef = useRef(weights);
   const fromServerRef = useRef(false);
+  // CF-6: true while the current weights are a transient seed from a shared link —
+  // shown for this session but never written to localStorage or pushed to the
+  // server until the recipient actually edits them. Cleared on any real edit or
+  // when the user's own server-side weights are adopted on login.
+  const seededRef = useRef(false);
 
   // PO-5b: cross-tab sync — adopt quality weights changed in another tab,
   // suppressing the server-save echo via fromServerRef.
@@ -55,10 +60,11 @@ export function useQualityWeights(userId?: string | null) {
   const userIdRef = useRef(userId);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Persist to localStorage on change (cheap, no debounce needed — setter is debounced upstream)
+  // Persist to localStorage on change (cheap, no debounce needed — setter is debounced upstream).
+  // CF-6: a shared-link seed is held in memory only — not written until the user edits.
   useEffect(() => {
     weightsRef.current = weights;
-    saveWeights(weights);
+    if (!seededRef.current) saveWeights(weights);
   }, [weights]);
 
   useEffect(() => { userIdRef.current = userId; }, [userId]);
@@ -69,6 +75,8 @@ export function useQualityWeights(userId?: string | null) {
       fromServerRef.current = false;
       return;
     }
+    // CF-6: never push a shared-link seed to the account.
+    if (seededRef.current) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       saveTimerRef.current = null;
@@ -98,10 +106,13 @@ export function useQualityWeights(userId?: string | null) {
       const serverWeights = data.qualityWeights;
       if (!isValidWeights(serverWeights)) return;
       const serverCustom = isCustomWeights(serverWeights as QualityWeights);
-      const localCustom = isCustomWeights(weightsRef.current);
+      // CF-6: a seed doesn't count as local customisation — the user's own server
+      // weights take precedence over a shared link, and a seed is never pushed up.
+      const localCustom = !seededRef.current && isCustomWeights(weightsRef.current);
       if (serverCustom && !localCustom) {
         // Adopt server-side custom weights — local hasn't been touched here.
         const merged = { ...getDefaultWeights(), ...serverWeights };
+        seededRef.current = false; // adopted weights are owned and must persist
         fromServerRef.current = true;
         setWeightsState(merged);
       } else if (localCustom && !serverCustom) {
@@ -114,8 +125,16 @@ export function useQualityWeights(userId?: string | null) {
   }, [userId]);
 
   const setWeights = useCallback((next: QualityWeights) => {
+    seededRef.current = false; // an explicit edit makes the weights owned + persisted
     setWeightsState(next);
   }, []);
 
-  return { weights, setWeights };
+  // CF-6: apply weights from a shared link for this session only (no persistence
+  // until the user edits them via setWeights).
+  const seedWeights = useCallback((next: QualityWeights) => {
+    seededRef.current = true;
+    setWeightsState(next);
+  }, []);
+
+  return { weights, setWeights, seedWeights };
 }
