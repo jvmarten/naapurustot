@@ -49,6 +49,24 @@ export function useAuth() {
     return () => { cancelled = true; };
   }, []);
 
+  // CF-6: cross-tab auth sync. Without this, logging out in one tab leaves other tabs
+  // believing they're authenticated — they keep PUTing with a now-cleared cookie into
+  // the 401 path. Mirror the `has_session` flag the same way the six data hooks do:
+  // when it's removed in another tab, drop the user here; when it appears (a login),
+  // restore the session via /auth/me.
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== AUTH_FLAG) return;
+      if (e.newValue === '1') {
+        api.me().then(({ data }) => setState({ user: data?.user ?? null, loading: false }));
+      } else {
+        setState({ user: null, loading: false });
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
   const login = useCallback(async (username: string, password: string): Promise<string | null> => {
     const { data, error } = await api.login(username, password);
     if (data?.user) {
