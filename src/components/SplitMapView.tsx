@@ -143,9 +143,17 @@ interface SplitMapViewProps {
   data: FeatureCollection | null;
   leftLayer: LayerId;
   rightLayer: LayerId;
+  /** CF-2: App-level effective (region-rescaled / colorblind) config per pane, so the
+   *  split panes use the SAME colour scale the main map does. Falls back to getLayerById. */
+  leftLayerConfig?: LayerConfig;
+  rightLayerConfig?: LayerConfig;
   onLeftLayerChange?: (id: LayerId) => void;
   onRightLayerChange?: (id: LayerId) => void;
   colorblind?: string;
+  /** CF-2: the postal fill opacity slider value, so split view honours it like the main map. */
+  fillOpacity?: number;
+  /** CF-2: the selected neighbourhood's pno, to render a visual selection ring on click. */
+  selectedPno?: string | null;
   /** IN-1: region-clipped fine-grained grid for the left pane's layer (null when none). */
   leftGridData?: FeatureCollection | null;
   /** IN-1: region-clipped fine-grained grid for the right pane's layer (null when none). */
@@ -237,12 +245,19 @@ function gridActive(layer: LayerConfig, gridData: FeatureCollection | null | und
 // a function" if a state-dependent fill-opacity is ever replaced by a bare
 // constant and then a setFeatureState fires. Bumping the hovered cell also reads
 // a touch better. Mirrors Map.tsx's buildFillOpacity rationale.
-const BASE_FILL_OPACITY: maplibregl.ExpressionSpecification = [
-  'case',
-  ['boolean', ['feature-state', 'hover'], false], 0.8,
-  ['boolean', ['feature-state', 'selected'], false], 0.8,
-  0.65,
-] as unknown as maplibregl.ExpressionSpecification;
+// CF-2: postal-fill opacity for the "no grid" case, scaled by the slider value so the
+// split panes honour it like the main map. Kept STATE-DEPENDENT (references feature-state
+// hover/selected) on purpose — replacing a state-dependent fill-opacity with a bare
+// constant makes the next setFeatureState throw (see Map.tsx). hover/selected bump +0.15.
+function baseFillOpacity(opacity: number): maplibregl.ExpressionSpecification {
+  const bump = Math.min(1, opacity + 0.15);
+  return [
+    'case',
+    ['boolean', ['feature-state', 'hover'], false], bump,
+    ['boolean', ['feature-state', 'selected'], false], bump,
+    opacity,
+  ] as unknown as maplibregl.ExpressionSpecification;
+}
 
 /**
  * IN-1: add/update the per-pane fine-grained grid layer with the same zoom fade
@@ -254,6 +269,7 @@ function syncGridLayer(
   map: maplibregl.Map,
   layer: LayerConfig,
   gridData: FeatureCollection | null | undefined,
+  fillOpacity: number,
 ) {
   const useGrid = gridActive(layer, gridData);
 
@@ -262,21 +278,21 @@ function syncGridLayer(
     if (map.getLayer(GRID_FILL_LAYER)) map.removeLayer(GRID_FILL_LAYER);
     if (map.getSource(GRID_SOURCE_ID)) map.removeSource(GRID_SOURCE_ID);
     if (map.getLayer(FILL_LAYER)) {
-      map.setPaintProperty(FILL_LAYER, 'fill-opacity', BASE_FILL_OPACITY);
+      map.setPaintProperty(FILL_LAYER, 'fill-opacity', baseFillOpacity(fillOpacity));
     }
     return;
   }
 
-  // Postal fill fades out as the grid fades in.
+  // Postal fill fades out as the grid fades in. CF-2: honour the opacity slider.
   if (map.getLayer(FILL_LAYER)) {
-    map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacityFadeOut(1) as maplibregl.ExpressionSpecification);
+    map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacityFadeOut(fillOpacity) as maplibregl.ExpressionSpecification);
   }
 
   const existing = map.getSource(GRID_SOURCE_ID) as maplibregl.GeoJSONSource | undefined;
   if (existing) {
     existing.setData(gridData!);
     map.setPaintProperty(GRID_FILL_LAYER, 'fill-color', buildFillColorExpression(layer, layer.gridProperty));
-    map.setPaintProperty(GRID_FILL_LAYER, 'fill-opacity', buildGridFillOpacity(1) as maplibregl.ExpressionSpecification);
+    map.setPaintProperty(GRID_FILL_LAYER, 'fill-opacity', buildGridFillOpacity(fillOpacity) as maplibregl.ExpressionSpecification);
     return;
   }
 
@@ -291,7 +307,7 @@ function syncGridLayer(
     minzoom: GRID_ZOOM_FADE_IN,
     paint: {
       'fill-color': buildFillColorExpression(layer, layer.gridProperty),
-      'fill-opacity': buildGridFillOpacity(1) as maplibregl.ExpressionSpecification,
+      'fill-opacity': buildGridFillOpacity(fillOpacity) as maplibregl.ExpressionSpecification,
       'fill-opacity-transition': { duration: 300, delay: 0 },
     },
   }, LINE_LAYER);
@@ -300,9 +316,10 @@ function syncGridLayer(
 function addDataLayers(
   map: maplibregl.Map,
   data: FeatureCollection,
-  layerId: LayerId,
+  layer: LayerConfig,
   theme: 'dark' | 'light',
   gridData: FeatureCollection | null | undefined,
+  fillOpacity: number,
 ) {
   // If the source already exists, just refresh its data — rebuilding the
   // source + 3 layers on every data change (e.g., quality weight adjustment
@@ -310,14 +327,13 @@ function addDataLayers(
   if (map.getSource(SOURCE_ID)) {
     const source = map.getSource(SOURCE_ID) as maplibregl.GeoJSONSource | undefined;
     if (source) source.setData(data);
-    const layer = getLayerById(layerId);
     if (map.getLayer(FILL_LAYER)) {
       map.setPaintProperty(FILL_LAYER, 'fill-color', buildFillColorExpression(layer));
     }
     if (map.getLayer(NO_DATA_LAYER)) {
       map.setFilter(NO_DATA_LAYER, noDataFilter(layer.property));
     }
-    syncGridLayer(map, layer, gridData);
+    syncGridLayer(map, layer, gridData, fillOpacity);
     return;
   }
 
@@ -327,8 +343,6 @@ function addDataLayers(
     promoteId: 'pno',
   });
 
-  const layer = getLayerById(layerId);
-
   map.addLayer({
     id: FILL_LAYER,
     type: 'fill',
@@ -336,7 +350,7 @@ function addDataLayers(
     paint: {
       'fill-color': buildFillColorExpression(layer),
       'fill-color-transition': { duration: 300, delay: 0 },
-      'fill-opacity': BASE_FILL_OPACITY,
+      'fill-opacity': baseFillOpacity(fillOpacity),
       'fill-opacity-transition': { duration: 300, delay: 0 },
     },
   }, beforeLabels(map));
@@ -367,7 +381,8 @@ function addDataLayers(
   }, beforeLabels(map));
 
   // IN-1: hover/selection ring. line-opacity is feature-state driven so the
-  // hover handler only flips state instead of re-running setFilter per frame.
+  // handler only flips state instead of re-running setFilter per frame.
+  // CF-2: also light up on the 'selected' state (the click selection ring).
   map.addLayer({
     id: HIGHLIGHT_LAYER,
     type: 'line',
@@ -375,7 +390,10 @@ function addDataLayers(
     paint: {
       'line-color': theme === 'dark' ? '#f8fafc' : '#0f172a',
       'line-width': 2.5,
-      'line-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 1, 0],
+      'line-opacity': ['case',
+        ['any', ['boolean', ['feature-state', 'hover'], false], ['boolean', ['feature-state', 'selected'], false]],
+        1, 0,
+      ],
     },
   }, beforeLabels(map));
 
@@ -394,7 +412,7 @@ function addDataLayers(
   }, beforeLabels(map));
 
   // IN-1: grid layer added last so LINE_LAYER already exists for beforeId.
-  syncGridLayer(map, layer, gridData);
+  syncGridLayer(map, layer, gridData, fillOpacity);
 }
 
 function updateThemeColors(map: maplibregl.Map, theme: 'dark' | 'light') {
@@ -419,15 +437,23 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
   data,
   leftLayer,
   rightLayer,
+  leftLayerConfig,
+  rightLayerConfig,
   onLeftLayerChange,
   onRightLayerChange,
   colorblind = 'off',
+  fillOpacity = 1,
+  selectedPno = null,
   leftGridData = null,
   rightGridData = null,
   metroAverages,
   onSelectNeighborhood,
 }) => {
   useI18nVersion();
+  // CF-2: prefer the App-level effective (region-rescaled / colorblind) config so the
+  // panes match the main map's colour scale; fall back to the base layer config.
+  const leftConfig = leftLayerConfig ?? getLayerById(leftLayer);
+  const rightConfig = rightLayerConfig ?? getLayerById(rightLayer);
   const leftContainerRef = useRef<HTMLDivElement>(null);
   const rightContainerRef = useRef<HTMLDivElement>(null);
   const leftMapRef = useRef<maplibregl.Map | null>(null);
@@ -456,10 +482,18 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
   const leftGridRef = useRef(leftGridData);
   const rightGridRef = useRef(rightGridData);
   const onSelectRef = useRef(onSelectNeighborhood);
+  // CF-2: effective configs + opacity + selection read by the once-attached effects.
+  const leftConfigRef = useRef(leftConfig);
+  const rightConfigRef = useRef(rightConfig);
+  const fillOpacityRef = useRef(fillOpacity);
+  const prevSelectedRef = useRef<string | null>(null);
   useEffect(() => {
     leftGridRef.current = leftGridData;
     rightGridRef.current = rightGridData;
     onSelectRef.current = onSelectNeighborhood;
+    leftConfigRef.current = leftConfig;
+    rightConfigRef.current = rightConfig;
+    fillOpacityRef.current = fillOpacity;
   });
 
   // Sync handler factory: when one map moves, update the other
@@ -623,14 +657,15 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
 
     const setupMap = (
       map: maplibregl.Map | null,
-      layerId: LayerId,
+      configRef: React.RefObject<LayerConfig>,
       loadedRef: React.RefObject<boolean>,
       gridRef: React.RefObject<FeatureCollection | null>,
     ) => {
       if (!map) return;
-      // Read grid from the ref so a deferred 'load' apply picks up grid data that
-      // arrived between this effect running and the style finishing loading.
-      const apply = () => addDataLayers(map, data, layerId, theme, gridRef.current);
+      // Read config/grid/opacity from refs so a deferred 'load' apply picks up the
+      // latest effective config + grid + opacity that arrived between this effect
+      // running and the style finishing loading.
+      const apply = () => addDataLayers(map, data, configRef.current, theme, gridRef.current, fillOpacityRef.current);
       // Gate on the persistent loaded flag. addDataLayers is idempotent
       // (getSource/getLayer guards + setData refresh), so calling it directly
       // during an in-flight setData is safe; queuing on the one-shot 'load'
@@ -643,8 +678,8 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
       }
     };
 
-    setupMap(leftMapRef.current, leftLayer, leftLoadedRef, leftGridRef);
-    setupMap(rightMapRef.current, rightLayer, rightLoadedRef, rightGridRef);
+    setupMap(leftMapRef.current, leftConfigRef, leftLoadedRef, leftGridRef);
+    setupMap(rightMapRef.current, rightConfigRef, rightLoadedRef, rightGridRef);
 
     return () => {
       for (const { map, fn } of pendingListeners) {
@@ -661,11 +696,10 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
 
     const updateFill = (
       map: maplibregl.Map | null,
-      layerId: LayerId,
+      layer: LayerConfig,
       gridData: FeatureCollection | null,
     ) => {
       if (!map || !map.getLayer(FILL_LAYER)) return;
-      const layer = getLayerById(layerId);
       map.setPaintProperty(FILL_LAYER, 'fill-color', buildFillColorExpression(layer));
       // PO-1: re-target the no-data hatch to the new layer's property.
       if (map.getLayer(NO_DATA_LAYER)) {
@@ -673,12 +707,31 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
       }
       // IN-1: add/refresh/remove the grid layer for the (possibly new) layer.
       // syncGridLayer also restores the postal fill opacity when no grid applies.
-      syncGridLayer(map, layer, gridData);
+      syncGridLayer(map, layer, gridData, fillOpacity);
     };
 
-    updateFill(leftMapRef.current, leftLayer, leftGridData);
-    updateFill(rightMapRef.current, rightLayer, rightGridData);
-  }, [leftLayer, rightLayer, colorblind, data, leftGridData, rightGridData]);
+    // CF-2: use the effective (region-rescaled) configs + opacity, so the panes match
+    // the main map's colour scale and honour the opacity slider.
+    updateFill(leftMapRef.current, leftConfig, leftGridData);
+    updateFill(rightMapRef.current, rightConfig, rightGridData);
+  }, [leftConfig, rightConfig, colorblind, data, leftGridData, rightGridData, fillOpacity]);
+
+  // CF-2: reflect the app-level selection as a 'selected' feature-state on both panes —
+  // the HIGHLIGHT_LAYER ring and the base-fill bump read it, so a click now shows a
+  // visual selection. Nothing set this state before. Re-runs on `data` too because a
+  // GeoJSON setData refresh clears feature-state.
+  useEffect(() => {
+    for (const map of [leftMapRef.current, rightMapRef.current]) {
+      if (!map || !map.getSource(SOURCE_ID)) continue;
+      if (prevSelectedRef.current) {
+        map.setFeatureState({ source: SOURCE_ID, id: prevSelectedRef.current }, { selected: false });
+      }
+      if (selectedPno) {
+        map.setFeatureState({ source: SOURCE_ID, id: selectedPno }, { selected: true });
+      }
+    }
+    prevSelectedRef.current = selectedPno;
+  }, [selectedPno, data]);
 
   // IN-1: per-pane hover (in-map tooltip + highlight ring) and click-to-open.
   // Handlers are attached once and read grid/select via refs, so they never go
@@ -779,9 +832,7 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
     );
   }
 
-  const leftConfig = getLayerById(leftLayer);
-  const rightConfig = getLayerById(rightLayer);
-
+  // leftConfig / rightConfig are the effective configs computed at the top.
   return (
     <div className="relative flex h-full w-full">
       {/* Left map */}

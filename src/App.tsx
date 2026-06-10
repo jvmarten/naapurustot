@@ -466,6 +466,17 @@ const App: React.FC = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps -- qualityVersion signals in-place data mutation for quality_index layer
   }, [activeLayer, comparisonScope, cityFilter, filteredData, qualityVersion, timeYear, timeHistoryProp, colorblind]);
 
+  // CF-2: effective config for the split view's SECONDARY (right) pane — same region
+  // rescale + colorblind palette as effectiveLayer, so split mode no longer renders a
+  // metric with a different (national) colour scale than the main map shows. The time
+  // slider is a primary-map control, so it is intentionally not applied to this pane.
+  const effectiveSecondaryLayer = useMemo(() => {
+    const base = getLayerById(secondaryLayer);
+    if (comparisonScope !== 'region' || cityFilter === 'all' || !filteredData) return base;
+    return rescaleLayerToData(base, filteredData.features);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- qualityVersion signals in-place quality mutation
+  }, [secondaryLayer, comparisonScope, cityFilter, filteredData, qualityVersion, colorblind]);
+
   const handleCityChange = useCallback((city: CityFilter) => {
     trackEvent('switch-city', { city });
     setCityFilter(city);
@@ -1656,9 +1667,13 @@ const App: React.FC = () => {
               data={filteredData}
               leftLayer={activeLayer}
               rightLayer={secondaryLayer}
+              leftLayerConfig={effectiveLayer}
+              rightLayerConfig={effectiveSecondaryLayer}
               onLeftLayerChange={setActiveLayer}
               onRightLayerChange={setSecondaryLayer}
               colorblind={colorblind}
+              fillOpacity={fillOpacity}
+              selectedPno={selected?.pno ?? null}
               leftGridData={gridData}
               rightGridData={secondaryGridData}
               metroAverages={cityAverages}
