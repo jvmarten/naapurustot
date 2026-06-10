@@ -159,6 +159,7 @@
   "panel.building_age": "Keskim. rakennusvuosi",
   "panel.trends": "Kehityssuunnat",
   "panel.distribution": "Jakauma",
+  "panel.sections": "Osiot",
   "panel.dist_better_than": "Parempi kuin {pct} % alueista",
   "panel.dist_sample": "({n} aluetta vertailussa)",
   "summary.title": "Vahvuudet ja heikkoudet",
