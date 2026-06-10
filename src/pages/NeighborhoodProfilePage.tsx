@@ -616,7 +616,16 @@ export const NeighborhoodProfilePage: React.FC = () => {
       {/* Footer */}
       <footer className="border-t border-surface-200 dark:border-surface-800 py-6">
         <div className="max-w-5xl mx-auto px-4 text-center text-xs text-surface-400 dark:text-surface-500">
-          <p>{t('profile.data_sources')}: Tilastokeskus (Paavo), HSL, OpenStreetMap, HSY</p>
+          {/* QW-5: link to the full, per-language sources page instead of a stale
+              hardcoded four-source list (the app now ships ~59 layers from many sources). */}
+          <p>
+            <Link
+              to={lang === 'en' ? '/en/data-sources' : lang === 'sv' ? '/sv/datakallor' : '/tietolahteet'}
+              className="hover:text-brand-600"
+            >
+              {t('profile.data_sources')}
+            </Link>
+          </p>
           <p className="mt-1">
             <Link to="/" className="hover:text-brand-600">naapurustot.fi</Link>
             {' · '}

@@ -26,6 +26,15 @@ import { trackEvent } from '../utils/analytics';
 import { generateScoreCard } from '../utils/scoreCard';
 import { useNotes } from '../hooks/useNotes';
 
+/** QW-5: per-language profile-page path so EN/SV users reach the localized URL
+ *  (/en/area/, /sv/omrade/) instead of the Finnish /alue/ one. Shared by the panel's
+ *  "view full profile" link and the national-result navigation. */
+function profileHref(pno: string, name: string): string {
+  const lang = getLang();
+  const base = lang === 'en' ? '/en/area/' : lang === 'sv' ? '/sv/omrade/' : '/alue/';
+  return `${base}${toSlug(pno, name)}/`;
+}
+
 interface PanelProps {
   data: NeighborhoodProperties;
   metroAverages: Record<string, number>;
@@ -1115,10 +1124,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
   // CF-6b: open a national result. Its centre is unavailable (region_properties is
   // geometry-stripped), so navigate to its profile page rather than fly the map.
   const openNationalResult = useCallback((props: NeighborhoodProperties) => {
-    const slug = toSlug(props.pno, props.nimi || props.namn || props.pno);
-    const lang = getLang();
-    const base = lang === 'en' ? '/en/area/' : lang === 'sv' ? '/sv/omrade/' : '/alue/';
-    navigate(`${base}${slug}/`);
+    navigate(profileHref(props.pno, props.nimi || props.namn || props.pno));
   }, [navigate]);
 
   // CF-12: spatial-neighbour (adjacency) lens — "the cheaper area next door".
@@ -1832,7 +1838,14 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
       {/* Profile page link */}
       {!d._isMetroArea && (
         <a
-          href={`/alue/${toSlug(d.pno, d.nimi)}/`}
+          href={profileHref(d.pno, d.nimi)}
+          onClick={(e) => {
+            // QW-5: client-side nav preserves the map session; let modified/middle
+            // clicks (new tab) fall through to the real localized href.
+            if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+            e.preventDefault();
+            navigate(profileHref(d.pno, d.nimi));
+          }}
           className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl
                      bg-surface-100 dark:bg-surface-900/60 hover:bg-surface-200 dark:hover:bg-surface-800
                      text-sm font-medium text-surface-600 dark:text-surface-300 transition-colors"
