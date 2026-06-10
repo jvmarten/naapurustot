@@ -864,7 +864,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
 
   // QW-3: Bottom sheet state (mobile only) — uses shared useBottomSheet hook
   const sheetRef = useRef<HTMLDivElement>(null);
-  const { sheetHeight, isDragging, snap, handlers: sheetHandlers } = useBottomSheet({
+  const { sheetHeight, isDragging, snap, cycleSnap, handlers: sheetHandlers } = useBottomSheet({
     initialSnap: 'half',
     onClose,
   });
@@ -1973,15 +1973,20 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
         }}
       >
         {/* Drag handle */}
-        <div
-          className="flex items-center justify-center pt-3 pb-2 cursor-grab active:cursor-grabbing touch-none"
+        <button
+          type="button"
+          onClick={cycleSnap}
+          aria-expanded={snap !== 'peek'}
+          aria-label={t('aria.expand_sheet')}
+          className="flex w-full items-center justify-center pt-3 pb-2 cursor-grab active:cursor-grabbing touch-none
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 rounded-t-2xl"
           onTouchStart={sheetHandlers.onTouchStart}
           onTouchMove={sheetHandlers.onTouchMove}
           onTouchEnd={sheetHandlers.onTouchEnd}
           onTouchCancel={sheetHandlers.onTouchCancel}
         >
           <div className="w-10 h-1.5 rounded-full bg-surface-300 dark:bg-surface-600" />
-        </div>
+        </button>
 
         {/* Header */}
         <div className="px-5 pb-3 border-b border-surface-200 dark:border-surface-800/50">

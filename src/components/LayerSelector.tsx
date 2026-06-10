@@ -46,7 +46,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
   const sheetRef = useRef<HTMLDivElement>(null);
 
   // QW-3: Unified bottom sheet drag behavior
-  const { sheetHeight, isDragging, snap, handlers: sheetHandlers } = useBottomSheet({
+  const { sheetHeight, isDragging, snap, cycleSnap, handlers: sheetHandlers } = useBottomSheet({
     initialSnap: 'half',
     halfRatio: 0.7,
     onClose: () => setMobileOpen(false),
@@ -369,15 +369,20 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
             }}
           >
             {/* Drag handle */}
-            <div
-              className="flex items-center justify-center pt-3 pb-2 cursor-grab active:cursor-grabbing touch-none"
+            <button
+              type="button"
+              onClick={cycleSnap}
+              aria-expanded={snap !== 'peek'}
+              aria-label={t('aria.expand_sheet')}
+              className="flex w-full items-center justify-center pt-3 pb-2 cursor-grab active:cursor-grabbing touch-none
+                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 rounded-t-2xl"
               onTouchStart={sheetHandlers.onTouchStart}
               onTouchMove={sheetHandlers.onTouchMove}
               onTouchEnd={sheetHandlers.onTouchEnd}
               onTouchCancel={sheetHandlers.onTouchCancel}
             >
               <div className="w-10 h-1.5 rounded-full bg-surface-300 dark:bg-surface-600" />
-            </div>
+            </button>
 
             <div className="px-4 py-2 border-b border-surface-200 dark:border-surface-700/40 flex items-center justify-between">
               <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400">

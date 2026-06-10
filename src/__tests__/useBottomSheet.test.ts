@@ -203,4 +203,15 @@ describe('useBottomSheet', () => {
     expect(typeof result.current.handlers.onTouchMove).toBe('function');
     expect(typeof result.current.handlers.onTouchEnd).toBe('function');
   });
+
+  it('PO-3: cycleSnap advances peek → half → full → peek', () => {
+    const { result } = renderHook(() => useBottomSheet());
+    expect(result.current.snap).toBe('peek');
+    act(() => { result.current.cycleSnap(); });
+    expect(result.current.snap).toBe('half');
+    act(() => { result.current.cycleSnap(); });
+    expect(result.current.snap).toBe('full');
+    act(() => { result.current.cycleSnap(); });
+    expect(result.current.snap).toBe('peek');
+  });
 });

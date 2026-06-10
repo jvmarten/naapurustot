@@ -129,7 +129,7 @@ export const CustomQualityPanel: React.FC<Props> = ({ weights, onChange, onClose
   }, []);
 
   // MO5: Unified bottom sheet drag behavior (reuses the FilterPanel pattern)
-  const { sheetHeight, isDragging, handlers: sheetHandlers } = useBottomSheet({
+  const { sheetHeight, isDragging, snap, cycleSnap, handlers: sheetHandlers } = useBottomSheet({
     halfRatio: 0.85,
     initialSnap: 'half',
     onClose,
@@ -341,15 +341,20 @@ export const CustomQualityPanel: React.FC<Props> = ({ weights, onChange, onClose
           }}
         >
           {/* Drag handle — functional drag-to-dismiss affordance */}
-          <div
-            className="flex justify-center pt-2 pb-1 cursor-grab active:cursor-grabbing touch-none flex-shrink-0"
+          <button
+            type="button"
+            onClick={cycleSnap}
+            aria-expanded={snap !== 'peek'}
+            aria-label={t('aria.expand_sheet')}
+            className="flex w-full justify-center pt-2 pb-1 cursor-grab active:cursor-grabbing touch-none flex-shrink-0
+                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 rounded-t-2xl"
             onTouchStart={sheetHandlers.onTouchStart}
             onTouchMove={sheetHandlers.onTouchMove}
             onTouchEnd={sheetHandlers.onTouchEnd}
             onTouchCancel={sheetHandlers.onTouchCancel}
           >
             <div className="w-10 h-1 rounded-full bg-surface-300 dark:bg-surface-600" />
-          </div>
+          </button>
           <div className="flex-1 overflow-y-auto pb-safe">
             {content}
           </div>
