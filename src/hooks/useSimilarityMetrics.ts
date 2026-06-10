@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import {
   SIMILARITY_METRIC_KEYS,
   SIMILARITY_WEIGHT_MIN,
@@ -112,12 +112,10 @@ export function useSimilarityMetrics(initialUrlWeights?: Record<string, number> 
     initialUrlWeights ? normalizeWeights(initialUrlWeights) : loadWeights(),
   );
 
-  // Seed localStorage from a shared URL once on mount, so a later reload without the
-  // link keeps the configuration. Runs only when the link actually carried weights.
-  useEffect(() => {
-    if (initialUrlWeights) persist(normalizeWeights(initialUrlWeights));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only seed; initialUrlWeights is read once at startup
-  }, []);
+  // CF-6: a shared link seeds the in-memory weights (initial state above) but is
+  // NOT written to localStorage — the recipient's stored configuration is only
+  // overwritten once they actually change a weight (setWeight/toggle persist). A
+  // reload without the link therefore returns to the recipient's own config.
 
   const setWeight = useCallback((key: string, value: number) => {
     if (!SIMILARITY_METRIC_KEYS.has(key)) return;

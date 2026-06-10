@@ -305,14 +305,14 @@ const App: React.FC = () => {
   const [showCustomQuality, setShowCustomQuality] = useState(false);
   const [filters, setFilters] = useState<FilterCriterion[]>(initialUrl.filters);
   // CF-2: Quality weights persist to localStorage and (when logged in) sync to the backend.
-  const { weights: qualityWeights, setWeights: setQualityWeights } = useQualityWeights(user?.id ?? null);
+  const { weights: qualityWeights, setWeights: setQualityWeights, seedWeights: seedQualityWeights } = useQualityWeights(user?.id ?? null);
   // Memoize isCustomWeights to avoid iterating all QUALITY_FACTORS on every App render
   // (called twice in JSX: LayerSelector + NeighborhoodPanel).
   const customWeights = useMemo(() => isCustomWeights(qualityWeights), [qualityWeights]);
   const [colorblind, setColorblind] = useState(getColorblindMode);
   const [showWizard, setShowWizard] = useState(false);
   // CF-4: persistent, shareable wizard priority profile (localStorage + cloud sync).
-  const { profile: wizardProfile, setProfile: setWizardProfile } = useWizardProfile(user?.id ?? null);
+  const { profile: wizardProfile, setProfile: setWizardProfile, seedProfile: seedWizardProfile } = useWizardProfile(user?.id ?? null);
   const { presets: savedPresets, addPreset: saveFilterPreset, removePreset: removeFilterPreset } = useFilterPresets(user?.id ?? null);
   const [fillOpacity, setFillOpacity] = useState(() => {
     try {
@@ -778,14 +778,16 @@ const App: React.FC = () => {
     if (restoredSomething) restoredPno.current = true;
   }, [data, select, pin, pnoFeatureMap]);
 
-  // CF-1 / QW-2: apply shared analytical state from the URL once on mount. Custom
-  // weights override the locally-stored set (so a shared link reproduces the
-  // author's index); the shortlist is merged so the recipient keeps their own.
+  // CF-1 / QW-2: apply shared analytical state from the URL once on mount. CF-6:
+  // shared weights and wizard profile are *seeded* — reproduced for this session so
+  // the link shows the author's index, but never written to the recipient's
+  // localStorage or synced to their account until they edit them. The shortlist is
+  // merged so the recipient keeps their own.
   useEffect(() => {
-    if (initialUrl.weights) setQualityWeights(initialUrl.weights);
+    if (initialUrl.weights) seedQualityWeights(initialUrl.weights);
     if (initialUrl.shortlist.length > 0) mergeIntoShortlist(initialUrl.shortlist);
     // CF-4: restore a shared wizard priority profile so the finder reopens pre-filled.
-    if (initialUrl.wizardProfile) setWizardProfile(initialUrl.wizardProfile);
+    if (initialUrl.wizardProfile) seedWizardProfile(initialUrl.wizardProfile);
     // CF-9: restore a shared drawn/selected analysis area so AreaSummaryPanel reopens.
     // Free-hand polygons reconstruct immediately (no data needed); select-areas
     // selections only set the pnos here — the latched effect below promotes them

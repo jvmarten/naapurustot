@@ -215,6 +215,10 @@ export function useWizardProfile(userId?: string | null) {
   const [profile, setProfileState] = useState<WizardAnswers>(loadProfile);
   const profileRef = useRef(profile);
   const fromServerRef = useRef(false);
+  // CF-6: true while the profile is a transient seed from a shared link — used for
+  // this session but never persisted or pushed to the account until the recipient
+  // edits it. Cleared on a real edit or when the user's own server profile is adopted.
+  const seededRef = useRef(false);
 
   // Cross-tab sync — adopt a profile changed in another tab, suppressing the
   // server-save echo via fromServerRef.
@@ -234,7 +238,8 @@ export function useWizardProfile(userId?: string | null) {
 
   useEffect(() => {
     profileRef.current = profile;
-    saveProfile(profile);
+    // CF-6: a shared-link seed is held in memory only — not written until the user edits.
+    if (!seededRef.current) saveProfile(profile);
   }, [profile]);
 
   useEffect(() => { userIdRef.current = userId; }, [userId]);
@@ -245,6 +250,8 @@ export function useWizardProfile(userId?: string | null) {
       fromServerRef.current = false;
       return;
     }
+    // CF-6: never push a shared-link seed to the account.
+    if (seededRef.current) return;
     // IN-3: never sync an untouched default profile — it would write an empty blob
     // for every signed-in user who never opened the wizard (the line-24 gate). Since
     // this also gates the timer, the unmount flush below (guarded on saveTimerRef)
@@ -278,15 +285,18 @@ export function useWizardProfile(userId?: string | null) {
       if (cancelled || !data) return;
       const serverProfile = data.wizardProfile;
       if (!serverProfile || typeof serverProfile !== 'object') {
-        if (isCustomWizardAnswers(profileRef.current)) {
+        // CF-6: don't push a shared-link seed up when the account has no profile.
+        if (!seededRef.current && isCustomWizardAnswers(profileRef.current)) {
           api.savePreferences({ wizardProfile: profileRef.current });
         }
         return;
       }
       const server = sanitizeWizardAnswers(serverProfile);
       const serverCustom = isCustomWizardAnswers(server);
-      const localCustom = isCustomWizardAnswers(profileRef.current);
+      // CF-6: a seed isn't local customisation — the user's own server profile wins.
+      const localCustom = !seededRef.current && isCustomWizardAnswers(profileRef.current);
       if (serverCustom && !localCustom) {
+        seededRef.current = false; // adopted profile is owned and must persist
         fromServerRef.current = true;
         setProfileState(server);
       } else if (localCustom && !serverCustom) {
@@ -298,8 +308,16 @@ export function useWizardProfile(userId?: string | null) {
   }, [userId]);
 
   const setProfile = useCallback((next: WizardAnswers) => {
+    seededRef.current = false; // an explicit edit makes the profile owned + persisted
     setProfileState(sanitizeWizardAnswers(next));
   }, []);
 
-  return { profile, setProfile };
+  // CF-6: apply a profile from a shared link for this session only (no persistence
+  // until the user edits it via setProfile).
+  const seedProfile = useCallback((next: WizardAnswers) => {
+    seededRef.current = true;
+    setProfileState(sanitizeWizardAnswers(next));
+  }, []);
+
+  return { profile, setProfile, seedProfile };
 }
