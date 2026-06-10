@@ -197,6 +197,50 @@ export function computeMatchingPnos(
   return pnos;
 }
 
+/** QW-2: one criterion resolved for "Best match" scoring — concrete value bounds
+ *  for the active scope plus the layer's favourable direction. */
+export interface ScoredCriterion {
+  property: string;
+  valueMin: number;
+  valueMax: number;
+  /** false → lower raw values are better (crime, noise, unemployment); else higher. */
+  higherIsBetter: boolean;
+}
+
+/**
+ * QW-2: a 0–1 desirability score for one area against the resolved filter criteria,
+ * direction- AND percentile-aware. Each criterion contributes how far the area's value
+ * sits toward its FAVOURABLE end of [valueMin, valueMax] (the position is flipped when
+ * `higherIsBetter === false`), clamped to [0, 1] so at-rail outliers beyond the bounds
+ * don't blow up the term. Returns the mean over the criteria that could be scored (0 when
+ * none could).
+ *
+ * Replaces the previous `(value - min) / (max - min)` over the stored bounds, which (a)
+ * mixed raw values against 0–100 percentile-mode bounds — making a percentile criterion
+ * dominate the sort by hundreds — and (b) always rewarded higher values, so a safety/noise
+ * filter surfaced the WORST areas first under the "Best match" label. Resolve each criterion
+ * through `resolveCriterionBounds` before calling this.
+ */
+export function bestMatchScore(
+  props: NeighborhoodProperties,
+  criteria: ScoredCriterion[],
+): number {
+  let sum = 0;
+  let n = 0;
+  for (const c of criteria) {
+    const value = props[c.property];
+    if (typeof value !== 'number' || !isFinite(value)) continue;
+    const span = c.valueMax - c.valueMin;
+    let pos = span > 0 ? (value - c.valueMin) / span : 1;
+    if (pos < 0) pos = 0;
+    else if (pos > 1) pos = 1;
+    if (c.higherIsBetter === false) pos = 1 - pos;
+    sum += pos;
+    n += 1;
+  }
+  return n > 0 ? sum / n : 0;
+}
+
 // ─── CF-14: affordability-aware scoring path ────────────────────────────────
 // Optional add-on to the Quality-Index / best-match flow so it can respect
 // "within my budget". A complete NO-OP when the user has entered no usable

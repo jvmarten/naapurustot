@@ -5,7 +5,7 @@ import type { NeighborhoodProperties } from '../utils/metrics';
 import { t, useI18nVersion } from '../utils/i18n';
 import { useBottomSheet } from '../hooks/useBottomSheet';
 
-import { type FilterCriterion, computeMatchingPnos, resolveCriterionBounds } from '../utils/filterUtils';
+import { type FilterCriterion, computeMatchingPnos, resolveCriterionBounds, bestMatchScore, type ScoredCriterion } from '../utils/filterUtils';
 import { getFeatureCenter } from '../utils/geometryFilter';
 import { FilterEmptyIllustration } from './EmptyStateIllustrations';
 import { trackEvent } from '../utils/analytics';
@@ -477,29 +477,34 @@ export const FilterPanel: React.FC<FilterPanelProps> = React.memo(({
     [filters],
   );
 
-  // Sort matching neighborhoods by how many criteria they score well on
-  // Use a simple score: for each criterion, how far into the range (normalized 0-1)
+  // QW-2: rank matching neighborhoods by a direction- and percentile-aware "Best
+  // match" score. Resolve each criterion's bounds for the active scope once (percentile
+  // ranks → concrete quantiles), carry the layer's favourable direction, and skip any
+  // criterion that can't resolve — then bestMatchScore positions each area within its
+  // favourable end. The old path normalized raw values against stored bounds (which are
+  // 0–100 ranks in percentile mode) and always rewarded higher values, so a safety/noise
+  // filter surfaced the WORST areas first.
   const ranked = useMemo(() => {
     if (matchingFeatures.length === 0) return [];
 
+    const scoredCriteria: ScoredCriterion[] = [];
+    for (const rf of resolvedFilters) {
+      const b = resolveCriterionBounds(rf, scopeFeatures);
+      if (!b) continue;
+      scoredCriteria.push({
+        property: b.property,
+        valueMin: b.valueMin,
+        valueMax: b.valueMax,
+        higherIsBetter: rf.layer.higherIsBetter !== false,
+      });
+    }
+
     const items = matchingFeatures.map((f) => {
       const p = f.properties as NeighborhoodProperties;
-      let score = 0;
-      for (const rf of resolvedFilters) {
-        const value = p[rf.layer.property] as number;
-        const range = rf.max - rf.min;
-        if (range > 0) {
-          score += (value - rf.min) / range;
-        } else {
-          score += 1;
-        }
-      }
-      score /= resolvedFilters.length;
-
       return {
         pno: p.pno,
         name: p.nimi || p.pno,
-        score,
+        score: bestMatchScore(p, scoredCriteria),
         feature: f,
         properties: p,
       };
@@ -518,7 +523,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = React.memo(({
     });
 
     return items;
-  }, [matchingFeatures, resolvedFilters, sortKey, sortDir]);
+  }, [matchingFeatures, resolvedFilters, scopeFeatures, sortKey, sortDir]);
 
   // Add a new filter criterion
   const handleAddFilter = useCallback(
