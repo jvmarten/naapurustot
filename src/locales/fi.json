@@ -252,7 +252,7 @@
   "sources.gran_grid": "250 m ruutu",
   "sources.gran_derived": "Johdettu",
   "sources.methodology_heading": "Laatuindeksin menetelmä",
-  "sources.methodology_body": "Laatuindeksi on 0–100 koostepisteytys, joka lasketaan noin 61 osatekijästä kuudessa ulottuvuudessa (turvallisuus, talous, koulutus, palvelut, liikenne ja ympäristö). Kukin mittari normalisoidaan kansalliseen vaihteluväliin (winsoroitu 2.–98. persentiili), jotta alueet ovat vertailukelpoisia koko Suomessa.",
+  "sources.methodology_body": "Laatuindeksi on 0–100 koostepisteytys, joka lasketaan noin 50 osatekijästä neljässä arvioivassa ulottuvuudessa — turvallisuus ja mielenrauha, terveys/luonto/rauha, toimeentulo ja työ sekä arjen sujuvuus — sekä kuvailevat asumis- ja väestötiedot. Kukin mittari normalisoidaan kansalliseen vaihteluväliin (winsoroitu 2.–98. persentiili), jotta alueet ovat vertailukelpoisia koko Suomessa.",
   "sources.quality_note": "Puuttuvat osatekijät jätetään pois ja indeksi normalisoidaan käytettävissä olevien tekijöiden mukaan, joten vähän dataa sisältävät alueet ovat epävarmempia.",
   "privacy.title": "Tietosuoja ja tietojen käsittely",
   "privacy.subtitle": "Tällä sivulla kuvataan, mitä tietoja naapurustot.fi kerää ja miten niitä käsitellään. Kerromme vain sen, mitä palvelu todella tekee.",

@@ -1100,9 +1100,15 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
     setNationalLoading(true);
     loadAllData()
       .then((res) => setNationalFeatures(res.data.features))
-      .catch(() => { /* national similarity unavailable — toggle back to region */ })
+      .catch(() => {
+        // PO-1: the promised fallback was never written, so on an offline failure
+        // nationalFeatures stayed null and this effect refetched the 10.6 MB national
+        // file in a tight loop. Toggle back to region scope (the guard above then
+        // short-circuits) — the same recovery NeighborhoodWizard/CorrelationExplorer use.
+        setScope('region');
+      })
       .finally(() => setNationalLoading(false));
-  }, [similarExpanded, similarityScope, nationalFeatures, nationalLoading]);
+  }, [similarExpanded, similarityScope, nationalFeatures, nationalLoading, setScope]);
 
   const scopeFeatures = similarityScope === 'national' ? nationalFeatures : allFeatures;
   // CF-5: only metrics with a positive weight participate; their weights scale the
