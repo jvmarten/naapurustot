@@ -58,6 +58,7 @@ import { computeQualityIndices, isCustomWeights, type QualityWeights } from './u
 import { getNationalRanges } from './utils/nationalRanges';
 import { buildMetroAreaFeatures, clearMetroAreaCache } from './utils/metroAreas';
 import { useAllCitiesUnionPreload } from './hooks/useAllCitiesUnionPreload';
+import { useBackGesture } from './hooks/useBackGesture';
 import { IS_EMBED, buildEmbedSnippet, buildFullViewUrl, postEmbedHeight } from './utils/embed';
 import { findNeighborhoodForPoint } from './utils/geocode';
 import { loadHomeReference, saveHomeReference } from './utils/homeReference';
@@ -1642,6 +1643,26 @@ const App: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  // CF-5: Back-gesture dismissal of mobile overlays. Any back-dismissable surface
+  // open ⇒ arm a history sentinel so Android Back / iOS edge-swipe closes the
+  // topmost surface instead of leaving the site. Mirrors the Escape cascade order,
+  // with the auth modal (its own document-Escape listener) at the very top.
+  const anyOverlayOpen =
+    showAuth || showShortcuts || selectMode || drawMode || !!drawnPolygon ||
+    showWizard || showCustomQuality || !!selected || showFilter || showRanking;
+  useBackGesture(anyOverlayOpen, () => {
+    if (showAuth) { setShowAuth(false); return; }
+    if (showShortcuts) { setShowShortcuts(false); return; }
+    if (selectMode) { setSelectMode(false); setSelectedAreaPnos([]); return; }
+    if (drawMode) { setDrawMode(false); setDrawVertices([]); drawVerticesRef.current = []; return; }
+    if (drawnPolygon) { handleClearDraw(); return; }
+    if (showWizard) { setShowWizard(false); return; }
+    if (showCustomQuality) { setShowCustomQuality(false); return; }
+    if (selected) { deselect(); return; }
+    if (showFilter) { setShowFilter(false); return; }
+    if (showRanking) { setShowRanking(false); return; }
+  });
 
   // C6: any transient state worth a one-tap reset. Drives the "Clear all" chip.
   const isDirty =
