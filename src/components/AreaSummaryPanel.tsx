@@ -223,7 +223,10 @@ export const AreaSummaryPanel: React.FC<AreaSummaryPanelProps> = React.memo(({ p
       </div>
 
       {/* Mobile: bottom sheet */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-20 max-h-[65vh]
+      <div
+        role="dialog"
+        aria-label={t('draw.area_summary')}
+        className="md:hidden fixed bottom-0 left-0 right-0 z-20 max-h-[65vh]
                       bg-white/95 dark:bg-surface-950/95 backdrop-blur-xl
                       border-t border-surface-200 dark:border-surface-800/50
                       shadow-[0_-4px_30px_rgba(0,0,0,0.15)] rounded-t-2xl">
@@ -239,6 +242,7 @@ export const AreaSummaryPanel: React.FC<AreaSummaryPanelProps> = React.memo(({ p
           <button
             onClick={onClose}
             className="p-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-surface-400"
+            aria-label={t('aria.close')}
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />

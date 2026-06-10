@@ -444,7 +444,10 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pin
       </div>
 
       {/* Mobile: stacked cards in bottom sheet — MO7: hidden when a NeighborhoodPanel mobile sheet is open */}
-      <div className={`md:hidden fixed bottom-0 left-0 right-0 z-20 max-h-[60vh]
+      <div
+        role="dialog"
+        aria-label={t('compare.title')}
+        className={`md:hidden fixed bottom-0 left-0 right-0 z-20 max-h-[60vh]
                       bg-white/95 dark:bg-surface-950/95 backdrop-blur-xl
                       border-t border-surface-200 dark:border-surface-800/50
                       shadow-[0_-4px_30px_rgba(0,0,0,0.15)] rounded-t-2xl ${suppressMobile ? 'hidden' : ''}`}>

@@ -108,6 +108,22 @@ describe('Data-source registry (IN-2)', () => {
     expect(getMetricSource('light_pollution')?.isProxy).toBe(true);
     expect(getMetricSource('hr_mtu')?.isProxy).toBe(false);
   });
+
+  it('flags municipality-distributed metrics as proxy (QW-4)', () => {
+    // Distributed from municipality-level figures down to postal codes (broadband
+    // by municipality; voter turnout / party diversity by within-municipality income
+    // proxy) — must wear the estimate badge, not present as direct postal measurement.
+    expect(getMetricSource('broadband_coverage_pct')?.isProxy).toBe(true);
+    expect(getMetricSource('voter_turnout_pct')?.isProxy).toBe(true);
+    expect(getMetricSource('party_diversity_index')?.isProxy).toBe(true);
+  });
+
+  it('declares air_quality_index granularity honestly as postal (QW-4)', () => {
+    // Nationwide air quality is coarse FMI SILAM model output (~5–10 km) distributed
+    // to postal codes; the 250 m ENFUSER grid is Helsinki-metro only. Declaring
+    // "postal" keeps the registry honest (and within VALID_GRANULARITY).
+    expect(DATA_SOURCE_METRICS.air_quality_index.granularity).toBe('postal');
+  });
 });
 
 describe('latestVintageYear (PO-3)', () => {

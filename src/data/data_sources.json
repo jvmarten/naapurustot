@@ -190,10 +190,10 @@
       "is_proxy": false
     },
     "air_quality_index": {
-      "source": "HSY",
+      "source": "HSY / FMI (ENFUSER, SILAM)",
       "publisher": "hsy",
       "vintage": 2024,
-      "granularity": "250m grid",
+      "granularity": "postal",
       "is_proxy": false
     },
     "crime_index": {
@@ -258,21 +258,21 @@
       "publisher": "tilastokeskus",
       "vintage": 2025,
       "granularity": "postal",
-      "is_proxy": false
+      "is_proxy": true
     },
     "party_diversity_index": {
       "source": "Tilastokeskus (kuntavaalit)",
       "publisher": "tilastokeskus",
       "vintage": 2025,
       "granularity": "postal",
-      "is_proxy": false
+      "is_proxy": true
     },
     "broadband_coverage_pct": {
       "source": "Traficom",
       "publisher": "traficom",
       "vintage": 2024,
       "granularity": "postal",
-      "is_proxy": false
+      "is_proxy": true
     },
     "ev_charging_density": {
       "source": "OpenStreetMap",
@@ -401,7 +401,7 @@
       "note": "note.light_pollution"
     },
     "noise_pollution": {
-      "source": "Helsinki meluselvitys 2022 / HRI pks liikennemelu 2012",
+      "source": "Helsinki meluselvitys 2022 / HRI pks liikennemelu 2012 / Väylävirasto (maantie- ja rautatiemelu) / Tampere",
       "publisher": "hri",
       "vintage": "2012–2022",
       "granularity": "postal",

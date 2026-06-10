@@ -674,7 +674,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = React.memo(({
           <button
             onClick={onClose}
             className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800/60 transition-colors"
-            aria-label="Close filter"
+            aria-label={t('aria.close')}
           >
             <svg className="w-4 h-4 text-surface-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -781,6 +781,8 @@ export const FilterPanel: React.FC<FilterPanelProps> = React.memo(({
         {/* Sheet */}
         <div
           ref={sheetRef}
+          role="dialog"
+          aria-label={t('filter.title')}
           className="fixed bottom-0 left-0 right-0 z-40
                      bg-white/95 dark:bg-surface-950/95 backdrop-blur-xl
                      border-t border-surface-200 dark:border-surface-800/50
@@ -797,6 +799,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = React.memo(({
             onTouchStart={sheetHandlers.onTouchStart}
             onTouchMove={sheetHandlers.onTouchMove}
             onTouchEnd={sheetHandlers.onTouchEnd}
+            onTouchCancel={sheetHandlers.onTouchCancel}
           >
             <div className="w-10 h-1.5 rounded-full bg-surface-300 dark:bg-surface-600" />
           </div>
@@ -808,6 +811,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = React.memo(({
             <button
               onClick={onClose}
               className="p-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-400"
+              aria-label={t('aria.close')}
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />

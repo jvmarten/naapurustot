@@ -76,7 +76,6 @@ PERCENTAGE_FIELDS = [
     "voter_turnout_pct",
     "tree_canopy_pct",
     "single_person_hh_pct",
-    "seniors_alone_pct",
 ]
 
 RANGE_CHECKS = [
@@ -313,6 +312,9 @@ def check_registry_vintage(features: list) -> list[str]:
 MUNICIPALITY_DISTRIBUTED_PROXIES = {
     "crime_index": "fetch_crime_index.py distribute_to_postal_codes()",
     "avg_construction_year": "fetch_building_age.py refine_to_postal_codes()",
+    "broadband_coverage_pct": "fetch_broadband_coverage.py (municipality coverage assigned to each postal code)",
+    "voter_turnout_pct": "fetch_voter_turnout.py distribute_to_postal_codes() (within-municipality income proxy)",
+    "party_diversity_index": "fetch_voter_turnout.py distribute_to_postal_codes() (within-municipality income proxy)",
 }
 
 
@@ -497,11 +499,41 @@ def check_pno_format(features: list) -> list[str]:
     return errors
 
 
+def _run_checks(checks: list) -> int:
+    """Print each check's result and return 1 if any produced errors, else 0."""
+    all_errors: list[str] = []
+    for name, errs in checks:
+        if errs:
+            print(f"\n  FAIL: {name} ({len(errs)} issue(s))")
+            for e in errs:
+                print(f"    - {e}")
+            all_errors.extend(errs)
+        else:
+            print(f"  OK: {name}")
+    if all_errors:
+        print(f"\nValidation FAILED with {len(all_errors)} error(s).")
+        return 1
+    print("\nValidation PASSED.")
+    return 0
+
+
 def main() -> int:
     path = GEOJSON_PATH
     pos_args = [a for a in sys.argv[1:] if not a.startswith("--")]
     if pos_args:
         path = Path(pos_args[0])
+
+    # QW-4: files-only light mode for CI — runs only the registry/provenance
+    # cross-checks (which read JSON files and ignore `features`), skipping the
+    # 39 MB GeoJSON load so honesty drift is caught on every push, fast and
+    # without the geodata present. No third-party deps (stdlib json/pathlib only).
+    if "--files-only" in sys.argv:
+        print("Validating data-source registry + provenance (files-only mode) ...")
+        return _run_checks([
+            ("Registry vintage", check_registry_vintage([])),
+            ("Distributed proxy flags", check_distributed_proxy_flags([])),
+            ("Provenance vintage match", check_provenance_vintage_match([])),
+        ])
 
     print(f"Validating {path} ...")
     if not path.exists():
@@ -516,9 +548,7 @@ def main() -> int:
         write_baseline(features)
         return 0
 
-    all_errors: list[str] = []
-
-    checks = [
+    return _run_checks([
         ("Feature count", check_feature_count(features)),
         ("Required properties", check_required_properties(features)),
         ("All-null properties", check_no_all_null_properties(features)),
@@ -530,23 +560,7 @@ def main() -> int:
         ("Coverage regression", check_coverage_regression(features)),
         ("Geometries", check_geometries(features)),
         ("Postal code format", check_pno_format(features)),
-    ]
-
-    for name, errs in checks:
-        if errs:
-            print(f"\n  FAIL: {name} ({len(errs)} issue(s))")
-            for e in errs:
-                print(f"    - {e}")
-            all_errors.extend(errs)
-        else:
-            print(f"  OK: {name}")
-
-    if all_errors:
-        print(f"\nValidation FAILED with {len(all_errors)} error(s).")
-        return 1
-
-    print("\nValidation PASSED.")
-    return 0
+    ])
 
 
 if __name__ == "__main__":

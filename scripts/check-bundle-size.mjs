@@ -1,0 +1,109 @@
+#!/usr/bin/env node
+/**
+ * Single source of truth for the gzipped app-JS bundle budget (IN-1).
+ *
+ * Called by BOTH `.github/workflows/ci.yml` and `.github/workflows/auto-merge.yml`
+ * so the budget constant and the measurement logic live in exactly one place —
+ * before this, the two workflows carried independent copies of the 280,000-byte
+ * check that could silently drift apart.
+ *
+ * It sums the gzipped size of every app JS chunk in dist/assets EXCEPT maplibre-*
+ * (the irreducible third-party map renderer, the only excluded chunk). Lazy
+ * chunks are included — lazy-loading does NOT exempt code from the budget.
+ *
+ * Side effects:
+ *   - Writes `bundle-size.json` ({ js, css, total }) for baseline caching and
+ *     cross-job forwarding (auto-merge saves it as the new main baseline).
+ *   - If GITHUB_STEP_SUMMARY is set, appends a per-chunk table plus, when a
+ *     `base-bundle-size.json` (restored from the main cache) is present, the
+ *     exact gzip delta of this branch vs main.
+ *   - Exits non-zero (with a ::error:: annotation) when the budget is exceeded.
+ */
+import { readdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { gzipSync } from 'node:zlib';
+import { join } from 'node:path';
+
+// Budget history: 160KB → 210KB (react-router-dom + @turf/union + auth/profile)
+// → 235KB (first FEATURE_ROADMAP batch) → 256000 B (second) → 280000 B (third
+// batch: 36-item roadmap completion + UX-review batch). Keep additions minimal.
+//
+// Measurement basis: this sums Node `zlib.gzipSync` lengths — the honest gzip
+// payload, with no embedded filename/mtime header. The previous inline shell
+// gate used `find … -exec gzip -c`, whose per-file FNAME+MTIME headers inflated
+// the total by ~2 KB across the ~108 chunks. So the number printed here reads
+// ~2 KB BELOW the old gate at the same real bundle; the 280000 B budget is
+// unchanged, which means ~2 KB more genuine headroom than the old method showed.
+const BUDGET = 280_000;
+const ASSETS_DIR = 'dist/assets';
+
+const fmtKB = (b) => (b / 1024).toFixed(2);
+
+const allFiles = readdirSync(ASSETS_DIR);
+const jsFiles = allFiles.filter((f) => f.endsWith('.js') && !f.startsWith('maplibre-'));
+
+let jsTotal = 0;
+const rows = [];
+for (const f of jsFiles) {
+  const gz = gzipSync(readFileSync(join(ASSETS_DIR, f))).length;
+  jsTotal += gz;
+  rows.push({ name: f, gz });
+}
+rows.sort((a, b) => b.gz - a.gz);
+
+let cssTotal = 0;
+for (const f of allFiles.filter((f) => f.endsWith('.css'))) {
+  cssTotal += gzipSync(readFileSync(join(ASSETS_DIR, f))).length;
+}
+
+const headroom = BUDGET - jsTotal;
+console.log(
+  `App JS bundle excluding maplibre (gzipped): ${jsTotal} bytes ` +
+    `(budget ${BUDGET}, headroom ${headroom})`,
+);
+
+writeFileSync(
+  'bundle-size.json',
+  JSON.stringify({ js: jsTotal, css: cssTotal, total: jsTotal + cssTotal }) + '\n',
+);
+
+const summaryPath = process.env.GITHUB_STEP_SUMMARY;
+if (summaryPath) {
+  let base = null;
+  if (existsSync('base-bundle-size.json')) {
+    try {
+      base = JSON.parse(readFileSync('base-bundle-size.json', 'utf8'));
+    } catch {
+      /* malformed cache — fall through to no-baseline path */
+    }
+  }
+  const lines = ['### 📦 Bundle Size Report', ''];
+  if (base && typeof base.js === 'number') {
+    const diff = jsTotal - base.js;
+    const sign = diff > 0 ? '+' : '';
+    const pct = base.js > 0 ? ` (${sign}${((diff / base.js) * 100).toFixed(1)}%)` : '';
+    lines.push('| App JS (excl. maplibre) | This branch | main | Delta |');
+    lines.push('|---|---|---|---|');
+    lines.push(
+      `| Gzipped | ${fmtKB(jsTotal)} KB | ${fmtKB(base.js)} KB | ${sign}${fmtKB(diff)} KB${pct} |`,
+    );
+  } else {
+    lines.push(`**App JS (excl. maplibre), gzipped:** ${fmtKB(jsTotal)} KB`);
+    lines.push('');
+    lines.push('> _No baseline from main yet — delta will appear once a main build is cached._');
+  }
+  lines.push('');
+  lines.push(`**Budget:** ${fmtKB(BUDGET)} KB · **Headroom:** ${fmtKB(headroom)} KB`);
+  lines.push('');
+  lines.push('<details><summary>Per-chunk breakdown</summary>', '');
+  lines.push('| Chunk | Gzipped |', '|---|---|');
+  for (const r of rows) lines.push(`| ${r.name} | ${fmtKB(r.gz)} KB |`);
+  lines.push('', '</details>');
+  writeFileSync(summaryPath, lines.join('\n') + '\n', { flag: 'a' });
+}
+
+if (jsTotal > BUDGET) {
+  console.error(
+    `::error::JS bundle size exceeds ${fmtKB(BUDGET)} KB gzipped budget (${jsTotal} bytes)`,
+  );
+  process.exit(1);
+}

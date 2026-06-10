@@ -110,7 +110,7 @@ export const RankingTable: React.FC<RankingTableProps> = React.memo(({ data, act
         <button
           onClick={onClose}
           className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800/60 transition-colors"
-          aria-label="Close ranking"
+          aria-label={t('aria.close')}
         >
           <svg className="w-4 h-4 text-surface-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />

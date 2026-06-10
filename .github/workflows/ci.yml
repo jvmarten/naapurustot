@@ -52,6 +52,15 @@ jobs:
 
       - run: npm ci
 
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Data registry + provenance cross-check (QW-4)
+        # Fast files-only validation: registry↔provenance vintage match + proxy
+        # flags, reading only JSON (no 39 MB GeoJSON load, no pip deps).
+        run: python scripts/validate_data.py --files-only
+
       - name: Lint
         run: npm run lint
 
@@ -100,55 +109,26 @@ jobs:
             e2e/visual/visual-regression.spec.ts-snapshots/*-actual.png
           retention-days: 14
 
-      - name: Check bundle size (IN-3)
-        run: |
-          # Exclude maplibre (large, irreducible third-party map renderer)
-          JS_SIZE=$(find dist/assets -name '*.js' ! -name 'maplibre-*' -exec gzip -c {} \; | wc -c)
-          echo "App JS bundle excluding maplibre (gzipped): $JS_SIZE bytes"
-          # Fail if app JS bundle exceeds the budget (gzipped, all app chunks excl. maplibre)
-          # Budget history: 160KB → 210KB (react-router-dom + @turf/union + auth/profile),
-          # → 235KB after the first FEATURE_ROADMAP batch, → 250KB (256000 B) after the second,
-          # → 280000 B after the third batch: the full 36-item FEATURE_ROADMAP completion
-          # (affordability calc, plain-language area summary, similarity weight sliders, home
-          # anchor, adjacency, percentile filters/superlatives, drawn-area share URLs,
-          # correlation depth, national-scope toggle, split-map fidelity, GeoJSON/JSON export,
-          # shortlist sharing+cards, notes in export, panel a11y, wizard profile, GDPR UI,
-          # coverage/freshness/note disclosures), then the UX-review batch (search
-          # empty/loading states, focus-visible + menu/dialog a11y, colorblind diverging
-          # palettes, WebGL context-loss recovery, idle/reset/wizard on-map chips,
-          # share-image busy states, safe-area insets, map accessible name/keyboard entry).
-          # Measured 278914 B; ~1KB margin — budget is nearly full, keep additions minimal.
-          # New surfaces are lazy-loaded but the check sums all app chunks.
-          if [ "$JS_SIZE" -gt 280000 ]; then
-            echo "::error::JS bundle size exceeds 280KB gzipped budget ($JS_SIZE bytes)"
-            exit 1
-          fi
+      # Restore the main-branch bundle baseline (saved by auto-merge after each
+      # merge, and by this workflow on direct main pushes) so the script can
+      # print this branch's exact gzip delta vs main. The cache archives the file
+      # as bundle-size.json; rename it before the build writes a fresh one.
+      - name: Restore base branch bundle size
+        uses: actions/cache/restore@v5
+        with:
+          path: bundle-size.json
+          key: bundle-size-main-dummy
+          restore-keys: bundle-size-main-
 
-      - name: Measure bundle sizes (IN-4)
-        id: bundle-size
+      - name: Stash restored baseline
         run: |
-          JS_SIZE=$(find dist/assets -name '*.js' ! -name 'maplibre-*' -exec gzip -c {} \; | wc -c)
-          CSS_SIZE=$(find dist/assets -name '*.css' -exec gzip -c {} \; | wc -c)
-          TOTAL=$((JS_SIZE + CSS_SIZE))
-          echo "js_size=$JS_SIZE" >> "$GITHUB_OUTPUT"
-          echo "css_size=$CSS_SIZE" >> "$GITHUB_OUTPUT"
-          echo "total_size=$TOTAL" >> "$GITHUB_OUTPUT"
-          # Persist for main branch caching
-          printf '{"js":%d,"css":%d,"total":%d}\n' "$JS_SIZE" "$CSS_SIZE" "$TOTAL" > bundle-size.json
-          # Human-readable helper
-          fmt_kb() { echo "scale=2; $1 / 1024" | bc | sed 's/^\./0./'; }
-          JS_KB=$(fmt_kb "$JS_SIZE")
-          CSS_KB=$(fmt_kb "$CSS_SIZE")
-          TOTAL_KB=$(fmt_kb "$TOTAL")
-          # Step summary (always visible)
-          {
-            echo "### 📦 Bundle Size Report"
-            echo "| Asset | Gzipped |"
-            echo "|-------|---------|"
-            echo "| JS (excl. maplibre) | ${JS_KB} KB |"
-            echo "| CSS | ${CSS_KB} KB |"
-            echo "| **Total** | **${TOTAL_KB} KB** |"
-          } >> "$GITHUB_STEP_SUMMARY"
+          if [ -f bundle-size.json ]; then mv bundle-size.json base-bundle-size.json; fi
+
+      - name: Check bundle size + report delta (IN-1)
+        # Single source of truth: scripts/check-bundle-size.mjs holds the 280000 B
+        # budget and the measurement logic, shared with auto-merge.yml. Writes
+        # bundle-size.json and appends a per-chunk table + delta to the step summary.
+        run: npm run bundle:check
 
       - name: Region geodata payload report (IN-6)
         env:
@@ -173,15 +153,6 @@ jobs:
             echo "| ${name} | ${kb} KB${flag} |" >> "$GITHUB_STEP_SUMMARY"
             [ -n "$flag" ] && echo "::warning::Region geodata '${name}' is ${kb} KB gzipped (> ${CAP} KB cap)"
           done
-
-      - name: Restore base branch bundle size
-        if: github.event_name == 'pull_request'
-        id: base-size
-        uses: actions/cache/restore@v5
-        with:
-          path: base-bundle-size.json
-          key: bundle-size-main-dummy
-          restore-keys: bundle-size-main-
 
       - name: Comment bundle size delta on PR
         if: github.event_name == 'pull_request'

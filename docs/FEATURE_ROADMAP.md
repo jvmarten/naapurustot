@@ -20,6 +20,7 @@ CI fails when the gzipped sum of **all** app JS (lazy chunks included, only `map
 
 - Affordability calculator section, neighbor-ring map highlight, duplicate scope pill (removed `6078a54`); idle hint pill and header share button (removed `214673e`); green-space layer (removed `3de51a7` in favor of tree canopy — a re-proposal was refuted during verification); UX-review items O2/O3/X5 (dropped by owner).
 - Owner-excluded data work: national/metro demographic 250 m grid, OSM building footprints, MML elevation, commute/isochrone destination filter.
+- IN-9 (off-droplet nightly DB backups) — dropped 2026-06-10: it is a Manual Setup item gated on an owner-provisioned object-storage bucket + credentials, so it cannot be completed autonomously.
 
 > **Note on item IDs:** fresh IDs for this document; they do **not** map to the 2026-06-03 roadmap's IDs.
 
@@ -501,17 +502,6 @@ CI fails when the gzipped sum of **all** app JS (lazy chunks included, only `map
 | **Dependencies** | None (pairs naturally with IN-5) |
 | **Tag** | Claude Code |
 
-### IN-9 Ship nightly database backups off the droplet
-
-| | |
-|---|---|
-| **What** | Extend the db-backup sidecar (`server/backup.sh`) or add an rclone sidecar service to docker-compose that syncs `./backups` to S3-compatible object storage (e.g. DigitalOcean Spaces) after each nightly gzipped pg_dump, with its own retention window and credentials via `.env` (rclone can be env-var-configured — no new config file). Add a backup-freshness assertion to the daily `health-check.yml` (it already has the fails[] + auto-issue pattern) so a silently failing backup opens a GitHub issue. Document the restore-from-Spaces path in `server/README.md`; update the deployment diagram in `docs/ARCHITECTURE.md`. |
-| **Why** | `server/README.md:184-187` explicitly flags off-droplet copies as recommended-but-unimplemented; today a lost droplet destroys the user database and every daily dump together — the single remaining disaster-recovery gap. 0 bytes. |
-| **Touches** | `server/backup.sh`, `server/docker-compose.yml`, `server/.env.example`, `.github/workflows/health-check.yml`, `server/README.md`, `docs/ARCHITECTURE.md` |
-| **Complexity** | Small |
-| **Dependencies** | None |
-| **Tag** | **Manual Setup** — owner must provision the bucket + credentials, set secrets in `server/.env` and GitHub, and verify a restore. The compose/script/workflow changes themselves are Claude Code-able. |
-
 ---
 
 ## Suggested Sequencing
@@ -544,10 +534,9 @@ The measurement and consolidation work that everything JS-positive depends on, p
 | IN-2 | Server hardening lane | Infrastructure | Small | Claude Code |
 | QW-2 | Filter "Best match" fix | Quick Win | Small | Claude Code |
 | QW-3 | Comparison table honesty | Quick Win | Small | Claude Code |
-| IN-9 | Nightly DB backups off droplet | Infrastructure | Small | Manual Setup |
 | QW-7 | First-run orientation refresh | Quick Win | Small | Claude Code |
 
-**Parallel-safety:** prerender scripts are shared by IN-6 and CF-10 — land IN-6 first (its `prerender-lib.mjs` extraction restructures the scripts), then CF-10 on top. `App.tsx` is shared by CF-2 and CF-10 — merge CF-2 → CF-10. IN-3 follows CF-7 from Batch 1 (it rewrites `useWizardProfile`/`api.ts` the factory consolidated). `docker-compose.yml` + `server/README.md` are shared by IN-2 and IN-9 — merge IN-2 → IN-9; IN-9 needs the owner's bucket/credentials. Locale files are shared by QW-7, IN-3 and CF-18 — merge in that order (distinct keys). QW-2 and QW-3 are collision-free. CF-18 is the only data-pipeline item — start it first (Large; QW-8 in Batch 6 benefits from it).
+**Parallel-safety:** prerender scripts are shared by IN-6 and CF-10 — land IN-6 first (its `prerender-lib.mjs` extraction restructures the scripts), then CF-10 on top. `App.tsx` is shared by CF-2 and CF-10 — merge CF-2 → CF-10. IN-3 follows CF-7 from Batch 1 (it rewrites `useWizardProfile`/`api.ts` the factory consolidated). Locale files are shared by QW-7, IN-3 and CF-18 — merge in that order (distinct keys). QW-2 and QW-3 are collision-free. CF-18 is the only data-pipeline item — start it first (Large; QW-8 in Batch 6 benefits from it).
 
 ### Batch 3 — Unlock wave 1: UI trust, price data, workflow repairs
 
