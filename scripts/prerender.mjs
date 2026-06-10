@@ -330,6 +330,193 @@ function resolveLabel(label, lang) {
   return label[lang] || label.fi;
 }
 
+// ---------------------------------------------------------------------------
+// CF-13: prerender-only profile enrichment from the latent Paavo fields.
+//
+// region_properties.json carries ~177 keys; only ~59 surface as layers. The
+// remainder (full age pyramid, the 21 NACE employment sectors, household income
+// and structure, living space) are real Statistics Finland figures that appear
+// nowhere in the app. We render them into the <noscript> fallback and mirror the
+// headline figures into the Place JSON-LD — the one route exempt from the bundle
+// budget. All strings are inline here (locale keys would consume bundled fi.json).
+//
+// CRITICAL: latent Paavo fields carry raw `-1` confidentiality sentinels for
+// small/suppressed areas — every read is guarded `>= 0`, and `tp_x_tunt`
+// (unknown sector) is excluded, or pages would print "-1".
+// ---------------------------------------------------------------------------
+
+const ENRICH = {
+  fi: {
+    age: 'Ikäjakauma', ageCol: 'Ikäryhmä', count: 'Asukkaita',
+    employment: 'Työpaikat toimialoittain', sectorCol: 'Toimiala', jobs: 'Työpaikkoja',
+    households: 'Taloudet ja tulot',
+    hhCount: 'Asuntokuntia', hhSize: 'Asuntokunnan keskikoko', spacePerPerson: 'Asumisväljyys',
+    onepHouseholds: 'Yhden hengen taloudet',
+    medianHhIncome: 'Asuntokuntien mediaanitulo', meanHhIncome: 'Asuntokuntien keskitulo',
+    lowIncome: 'Alin tuloluokka', midIncome: 'Keskimmäinen tuloluokka', highIncome: 'Ylin tuloluokka',
+    persons: 'henkilöä',
+  },
+  en: {
+    age: 'Age distribution', ageCol: 'Age group', count: 'Residents',
+    employment: 'Jobs by sector', sectorCol: 'Sector', jobs: 'Jobs',
+    households: 'Households & income',
+    hhCount: 'Households', hhSize: 'Average household size', spacePerPerson: 'Living space per person',
+    onepHouseholds: 'One-person households',
+    medianHhIncome: 'Median household income', meanHhIncome: 'Mean household income',
+    lowIncome: 'Lowest income category', midIncome: 'Middle income category', highIncome: 'Highest income category',
+    persons: 'persons',
+  },
+  sv: {
+    age: 'Åldersfördelning', ageCol: 'Åldersgrupp', count: 'Invånare',
+    employment: 'Arbetsplatser efter näringsgren', sectorCol: 'Näringsgren', jobs: 'Arbetsplatser',
+    households: 'Hushåll & inkomst',
+    hhCount: 'Hushåll', hhSize: 'Genomsnittlig hushållsstorlek', spacePerPerson: 'Boendetäthet',
+    onepHouseholds: 'Enpersonshushåll',
+    medianHhIncome: 'Hushållens medianinkomst', meanHhIncome: 'Hushållens medelinkomst',
+    lowIncome: 'Lägsta inkomstklass', midIncome: 'Mellersta inkomstklass', highIncome: 'Högsta inkomstklass',
+    persons: 'personer',
+  },
+};
+
+/** Paavo `he_*` age bands in order, with display ranges (language-neutral). */
+const AGE_BANDS = [
+  ['he_0_2', '0–2'], ['he_3_6', '3–6'], ['he_7_12', '7–12'], ['he_13_15', '13–15'],
+  ['he_16_17', '16–17'], ['he_18_19', '18–19'], ['he_20_24', '20–24'], ['he_25_29', '25–29'],
+  ['he_30_34', '30–34'], ['he_35_39', '35–39'], ['he_40_44', '40–44'], ['he_45_49', '45–49'],
+  ['he_50_54', '50–54'], ['he_55_59', '55–59'], ['he_60_64', '60–64'], ['he_65_69', '65–69'],
+  ['he_70_74', '70–74'], ['he_75_79', '75–79'], ['he_80_84', '80–84'], ['he_85_', '85+'],
+];
+
+/** The 21 NACE sectors (Paavo `tp_*`), excluding `tp_x_tunt` (unknown). */
+const SECTOR_NAMES = {
+  tp_a_maat: { fi: 'A Maa-, metsä- ja kalatalous', en: 'A Agriculture, forestry & fishing', sv: 'A Jord-, skogsbruk & fiske' },
+  tp_b_kaiv: { fi: 'B Kaivostoiminta', en: 'B Mining & quarrying', sv: 'B Utvinning av mineral' },
+  tp_c_teol: { fi: 'C Teollisuus', en: 'C Manufacturing', sv: 'C Tillverkning' },
+  tp_d_ener: { fi: 'D Energiahuolto', en: 'D Electricity & gas supply', sv: 'D Energiförsörjning' },
+  tp_e_vesi: { fi: 'E Vesi- ja jätehuolto', en: 'E Water & waste management', sv: 'E Vatten- & avfallshantering' },
+  tp_f_rake: { fi: 'F Rakentaminen', en: 'F Construction', sv: 'F Byggverksamhet' },
+  tp_g_kaup: { fi: 'G Tukku- ja vähittäiskauppa', en: 'G Wholesale & retail trade', sv: 'G Handel' },
+  tp_h_kulj: { fi: 'H Kuljetus ja varastointi', en: 'H Transportation & storage', sv: 'H Transport & magasinering' },
+  tp_i_majo: { fi: 'I Majoitus- ja ravitsemistoiminta', en: 'I Accommodation & food service', sv: 'I Hotell- & restaurang' },
+  tp_j_info: { fi: 'J Informaatio ja viestintä', en: 'J Information & communication', sv: 'J Information & kommunikation' },
+  tp_k_raho: { fi: 'K Rahoitus- ja vakuutustoiminta', en: 'K Financial & insurance', sv: 'K Finans- & försäkring' },
+  tp_l_kiin: { fi: 'L Kiinteistöala', en: 'L Real estate', sv: 'L Fastighetsverksamhet' },
+  tp_m_erik: { fi: 'M Ammatillinen ja tieteellinen toiminta', en: 'M Professional & scientific', sv: 'M Juridik, ekonomi & vetenskap' },
+  tp_n_hall: { fi: 'N Hallinto- ja tukipalvelut', en: 'N Administrative & support services', sv: 'N Uthyrning & stödtjänster' },
+  tp_o_julk: { fi: 'O Julkinen hallinto', en: 'O Public administration & defence', sv: 'O Offentlig förvaltning' },
+  tp_p_koul: { fi: 'P Koulutus', en: 'P Education', sv: 'P Utbildning' },
+  tp_q_terv: { fi: 'Q Terveys- ja sosiaalipalvelut', en: 'Q Health & social work', sv: 'Q Vård & omsorg' },
+  tp_r_taid: { fi: 'R Taiteet, viihde ja virkistys', en: 'R Arts, entertainment & recreation', sv: 'R Kultur, nöje & fritid' },
+  tp_s_muup: { fi: 'S Muu palvelutoiminta', en: 'S Other service activities', sv: 'S Annan serviceverksamhet' },
+  tp_t_koti: { fi: 'T Kotitalouksien toiminta työnantajina', en: 'T Households as employers', sv: 'T Förvärvsarbete i hushåll' },
+  tp_u_kans: { fi: 'U Kansainväliset organisaatiot', en: 'U Extraterritorial organisations', sv: 'U Internationella organisationer' },
+};
+
+/** Sentinel-safe numeric read of a latent Paavo field (`-1` ⇒ null). Counts
+ *  legitimately reach 0; pass `positive` for averages/levels (household size,
+ *  living space, income) where Paavo also emits a bare 0 to mean "withheld". */
+function paavoNum(props, key, positive = false) {
+  const v = Number(props[key]);
+  if (!Number.isFinite(v)) return null;
+  return positive ? (v > 0 ? v : null) : (v >= 0 ? v : null);
+}
+
+/** Build the CF-13 enrichment tables (age pyramid, sectors, households). */
+function buildEnrichmentSections(props, lang) {
+  const E = ENRICH[lang];
+  const lines = [];
+  const pop = paavoNum(props, 'he_vakiy');
+
+  // Age pyramid — counts + share of population, sentinels skipped.
+  const ageRows = [];
+  for (const [key, range] of AGE_BANDS) {
+    const v = paavoNum(props, key);
+    if (v == null) continue;
+    const share = pop && pop > 0 ? ` (${fmtNum((v / pop) * 100, 1, lang)} %)` : '';
+    ageRows.push(`        <tr><th scope="row">${range}</th><td>${fmtNum(v, 0, lang)}${share}</td></tr>`);
+  }
+  if (ageRows.length > 0) {
+    lines.push(`      <h2>${escapeHtml(E.age)}</h2>`);
+    lines.push(`      <table><thead><tr><th scope="col">${escapeHtml(E.ageCol)}</th><th scope="col">${escapeHtml(E.count)}</th></tr></thead><tbody>`);
+    lines.push(...ageRows);
+    lines.push('      </tbody></table>');
+  }
+
+  // Top-5 employment sectors by job count — share of total jobs.
+  const totalJobs = paavoNum(props, 'tp_tyopy');
+  if (totalJobs && totalJobs > 0) {
+    const sectors = Object.keys(SECTOR_NAMES)
+      .map((key) => ({ key, jobs: paavoNum(props, key) }))
+      .filter((s) => s.jobs != null && s.jobs > 0)
+      .sort((a, b) => b.jobs - a.jobs)
+      .slice(0, 5);
+    if (sectors.length > 0) {
+      lines.push(`      <h2>${escapeHtml(E.employment)}</h2>`);
+      lines.push(`      <table><thead><tr><th scope="col">${escapeHtml(E.sectorCol)}</th><th scope="col">${escapeHtml(E.jobs)}</th></tr></thead><tbody>`);
+      for (const s of sectors) {
+        const name = escapeHtml(SECTOR_NAMES[s.key][lang]);
+        const share = ` (${fmtNum((s.jobs / totalJobs) * 100, 1, lang)} %)`;
+        lines.push(`        <tr><th scope="row">${name}</th><td>${fmtNum(s.jobs, 0, lang)}${share}</td></tr>`);
+      }
+      lines.push('      </tbody></table>');
+    }
+  }
+
+  // Households & income — structure + income mix, sentinels skipped.
+  const hh = paavoNum(props, 'tr_kuty');
+  const hhRows = [];
+  const addRow = (label, value) => hhRows.push(`        <tr><th scope="row">${escapeHtml(label)}</th><td>${value}</td></tr>`);
+  const shareOf = (v, total) => (total && total > 0 ? ` (${fmtNum((v / total) * 100, 1, lang)} %)` : '');
+  if (hh != null) addRow(E.hhCount, fmtNum(hh, 0, lang));
+  const hhSize = paavoNum(props, 'te_takk', true);
+  if (hhSize != null) addRow(E.hhSize, `${fmtNum(hhSize, 1, lang)} ${E.persons}`);
+  const space = paavoNum(props, 'te_as_valj', true);
+  if (space != null) addRow(E.spacePerPerson, `${fmtNum(space, 1, lang)} m²`);
+  const onep = paavoNum(props, 'te_yks');
+  if (onep != null) addRow(E.onepHouseholds, `${fmtNum(onep, 0, lang)}${shareOf(onep, hh)}`);
+  const medInc = paavoNum(props, 'tr_mtu', true);
+  if (medInc != null) addRow(E.medianHhIncome, `${fmtNum(medInc, 0, lang)} €`);
+  const meanInc = paavoNum(props, 'tr_ktu', true);
+  if (meanInc != null) addRow(E.meanHhIncome, `${fmtNum(meanInc, 0, lang)} €`);
+  const low = paavoNum(props, 'tr_pi_tul');
+  const mid = paavoNum(props, 'tr_ke_tul');
+  const high = paavoNum(props, 'tr_hy_tul');
+  if (low != null) addRow(E.lowIncome, `${fmtNum(low, 0, lang)}${shareOf(low, hh)}`);
+  if (mid != null) addRow(E.midIncome, `${fmtNum(mid, 0, lang)}${shareOf(mid, hh)}`);
+  if (high != null) addRow(E.highIncome, `${fmtNum(high, 0, lang)}${shareOf(high, hh)}`);
+  if (hhRows.length > 0) {
+    lines.push(`      <h2>${escapeHtml(E.households)}</h2>`);
+    lines.push('      <table><tbody>');
+    lines.push(...hhRows);
+    lines.push('      </tbody></table>');
+  }
+
+  return lines;
+}
+
+/** CF-13: headline enrichment figures mirrored into the Place JSON-LD. */
+function enrichmentSchemaProps(props) {
+  const out = [];
+  const med = paavoNum(props, 'tr_mtu', true);
+  if (med != null) out.push(['Median household income (EUR)', Math.round(med)]);
+  const mean = paavoNum(props, 'tr_ktu', true);
+  if (mean != null) out.push(['Mean household income (EUR)', Math.round(mean)]);
+  const size = paavoNum(props, 'te_takk', true);
+  if (size != null) out.push(['Average household size (persons)', Math.round(size * 10) / 10]);
+  const space = paavoNum(props, 'te_as_valj', true);
+  if (space != null) out.push(['Living space per person (m²)', Math.round(space * 10) / 10]);
+  const totalJobs = paavoNum(props, 'tp_tyopy');
+  if (totalJobs && totalJobs > 0) {
+    let top = null;
+    for (const key of Object.keys(SECTOR_NAMES)) {
+      const jobs = paavoNum(props, key);
+      if (jobs != null && (top == null || jobs > top.jobs)) top = { key, jobs };
+    }
+    if (top) out.push(['Largest employment sector', SECTOR_NAMES[top.key].en]);
+  }
+  return out;
+}
+
 /** Localized prose used in the <noscript> fallback and meta description. */
 const TEXT = {
   fi: {
@@ -552,6 +739,10 @@ function buildNoscriptContent(props, lang) {
     lines.push('      </tbody></table>');
   }
 
+  // CF-13: deeper real-data tables from the latent Paavo fields (age pyramid,
+  // employment by sector, household income & structure) — bundle-budget-free.
+  lines.push(...buildEnrichmentSections(props, lang));
+
   // CF-11: FAQ — visible Q&A that mirrors the FAQPage JSON-LD (Google requires
   // the structured data to match on-page content).
   const faq = buildFaq(props, lang);
@@ -714,6 +905,11 @@ function buildJsonLd(props, center, url, lang) {
   ];
   for (const [pname, value] of pctProps) {
     if (value != null) additionalProperty.push({ '@type': 'PropertyValue', name: pname, value });
+  }
+  // CF-13: mirror the latent-Paavo headline figures (household income, household
+  // size, living space, largest employment sector) as structured properties.
+  for (const [pname, value] of enrichmentSchemaProps(props)) {
+    additionalProperty.push({ '@type': 'PropertyValue', name: pname, value });
   }
   if (additionalProperty.length > 0) place.additionalProperty = additionalProperty;
 
