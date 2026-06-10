@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import type { Feature, FeatureCollection, Polygon } from 'geojson';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { formatNumber, formatEuro, formatPct, formatDensity, formatEuroSqm } from '../utils/formatting';
@@ -118,6 +118,24 @@ export const AreaSummaryPanel: React.FC<AreaSummaryPanelProps> = React.memo(({ p
   useI18nVersion();
   const { intersecting, stats } = useMemo(() => computeAreaStats(data, selectedPnos), [data, selectedPnos]);
 
+  // PO-2: drawn-area aggregates had zero export affordances. Export the contained
+  // areas as CSV (one row per area) or GeoJSON, reusing the shortlist exporters
+  // (lazy-loaded so export.ts stays out of this chunk).
+  const exportFeatures = useMemo(() => {
+    const set = new Set(selectedPnos ?? intersecting.map((n) => n.pno as string));
+    return data.features.filter((f) => f.properties?.pno && set.has(f.properties.pno as string));
+  }, [data, selectedPnos, intersecting]);
+  const handleExportCsv = useCallback(async () => {
+    if (intersecting.length === 0) return;
+    const { exportShortlistCsv } = await import('../utils/export');
+    exportShortlistCsv(intersecting);
+  }, [intersecting]);
+  const handleExportGeoJson = useCallback(async () => {
+    if (exportFeatures.length === 0) return;
+    const { exportGeoJson } = await import('../utils/export');
+    exportGeoJson(exportFeatures);
+  }, [exportFeatures]);
+
   // Lazy-load @turf/area (~8KB) — only needed for the area display string.
   // Shows neighborhood count immediately, area fills in once the module loads.
   const [drawnArea, setDrawnArea] = useState<string>('');
@@ -147,12 +165,24 @@ export const AreaSummaryPanel: React.FC<AreaSummaryPanelProps> = React.memo(({ p
               {intersecting.length} {t('draw.neighborhoods')}{drawnArea && ` · ${drawnArea}`}
             </span>
           </div>
-          <button
-            onClick={onClose}
-            className="text-xs text-surface-500 hover:text-rose-500 dark:text-surface-400 dark:hover:text-rose-400 transition-colors"
-          >
-            {t('draw.close')}
-          </button>
+          <div className="flex items-center gap-3 text-xs">
+            {intersecting.length > 0 && (
+              <>
+                <button onClick={handleExportCsv} className="text-surface-500 hover:text-brand-600 dark:text-surface-400 dark:hover:text-brand-300 transition-colors" title={t('export.csv')}>
+                  {t('export.csv')}
+                </button>
+                <button onClick={handleExportGeoJson} className="text-surface-500 hover:text-brand-600 dark:text-surface-400 dark:hover:text-brand-300 transition-colors" title={t('export.geojson')}>
+                  {t('export.geojson')}
+                </button>
+              </>
+            )}
+            <button
+              onClick={onClose}
+              className="text-surface-500 hover:text-rose-500 dark:text-surface-400 dark:hover:text-rose-400 transition-colors"
+            >
+              {t('draw.close')}
+            </button>
+          </div>
         </div>
 
         {intersecting.length === 0 ? (
