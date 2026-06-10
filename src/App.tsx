@@ -1991,6 +1991,7 @@ const App: React.FC = () => {
             pinCount={pinned.length}
             onCustomize={handleToggleCustomQuality}
             isCustomWeights={customWeights}
+            qualityWeights={customWeights ? qualityWeights : undefined}
             allFeatures={allFeatures}
             summaryScope={cityFilter === 'all' ? 'national' : 'region'}
             summaryRegion={cityFilter === 'all' ? '' : t('city.' + cityFilter)}

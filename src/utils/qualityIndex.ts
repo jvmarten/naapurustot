@@ -943,8 +943,14 @@ function factorHasData(p: NeighborhoodProperties, factor: QualityFactor): boolea
  * certain than a fully-covered urban one. Descriptive (zero-weight) dimensions are
  * excluded — they don't move the headline score.
  */
-export function computeQualityCoverage(p: NeighborhoodProperties): QualityCoverage {
-  const active = QUALITY_FACTORS.filter((f) => f.defaultWeight !== 0);
+export function computeQualityCoverage(p: NeighborhoodProperties, weights?: QualityWeights): QualityCoverage {
+  // CF-1: audit the factors that actually contribute to the *displayed* score —
+  // i.e. those with a non-zero live weight — not the default-weighted set. Under a
+  // custom/persona lens this surfaces factors the default zeroes (e.g. the Nature
+  // persona's light_pollution) and hides ones it zeroes. Defaults to the documented
+  // weights so callers that don't pass a lens keep the original behaviour.
+  const w = weights ?? getDefaultWeights();
+  const active = QUALITY_FACTORS.filter((f) => (w[f.id] ?? 0) !== 0);
   const byDim = new Map<DimensionId, FactorCoverage[]>();
   for (const f of active) {
     const dim = getFactorDimension(f.id);
@@ -995,17 +1001,38 @@ function personaWeights(emphasis: Record<string, number>): QualityWeights {
   return { ...w, ...emphasis };
 }
 
+// CF-1: weights that give each of the four EVALUATIVE dimensions an equal share
+// (25 each), by scaling every factor's default weight so its dimension re-totals
+// to 25 while keeping the within-dimension factor proportions. Derived from the
+// live QUALITY_DIMENSIONS/FACTOR_DIMENSION so it can never drift from the model
+// (the previous hand-coded "Balanced" preset was stuck on a retired six-dimension
+// shape and contradicted its own "every dimension weighted equally" description).
+function equalDimensionWeights(): QualityWeights {
+  const dimTotal: Record<string, number> = {};
+  for (const f of QUALITY_FACTORS) {
+    const d = getFactorDimension(f.id);
+    dimTotal[d] = (dimTotal[d] ?? 0) + (f.defaultWeight ?? 0);
+  }
+  const evaluativeDims = QUALITY_DIMENSIONS.filter((d) => d.defaultWeight !== 0).length;
+  const target = Math.round(100 / evaluativeDims); // 4 evaluative dimensions → 25 each
+  const w: QualityWeights = {};
+  for (const f of QUALITY_FACTORS) {
+    const d = getFactorDimension(f.id);
+    const total = dimTotal[d] ?? 0;
+    // Descriptive dimensions (housing/demographics, total 0) stay at 0.
+    w[f.id] = total > 0 ? Math.round(((f.defaultWeight ?? 0) / total) * target) : 0;
+  }
+  return w;
+}
+
 const PERSONA_WEIGHTS: Record<string, QualityWeights> = {
-  // The documented, OECD-anchored default (Prosperity emphasized at 30). This is
-  // the out-of-the-box index — distinct from "Balanced".
+  // The documented default (Safety 30 · Health 28 · Livelihood 26 · Everyday 16).
+  // This is the out-of-the-box index — distinct from "Balanced".
   default: getDefaultWeights(),
-  // Balanced = every evaluative dimension weighted equally (20 each), unlike the
-  // Default which leans into Prosperity. Prosperity's 20 is split across its
-  // three factors (7/7/6).
-  balanced: personaWeights({
-    income: 7, employment: 7, education: 6,
-    safety: 20, services: 20, transit: 20, air_quality: 20,
-  }),
+  // Balanced = each of the four evaluative dimensions contributes an equal ~25,
+  // unlike the Default which leans into Safety/Health. Derived from the model so
+  // it stays honest to the persona's "every dimension weighted equally" claim.
+  balanced: equalDimensionWeights(),
   family: personaWeights({
     income: 6, employment: 6, education: 12, safety: 20,
     services: 24, school_quality: 8, transit: 12, air_quality: 12,
