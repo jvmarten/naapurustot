@@ -1107,12 +1107,17 @@ function generatePage(feature, lang) {
   // PO-9: localize og:locale, its two alternates, and the per-area og:image:alt.
   html = localizeOgLocale(html, lang, title);
 
-  // CF-11: strip the template's generic homepage FAQPage so the per-neighbourhood
-  // FAQPage injected below is the only one on the profile (Google expects one per page).
-  html = html.replace(
-    /\s*<script type="application\/ld\+json">(?:(?!<\/script>)[\s\S])*?"FAQPage"(?:(?!<\/script>)[\s\S])*?<\/script>/,
-    '',
-  );
+  // CF-10: strip ALL of the template's homepage-scoped JSON-LD (WebSite,
+  // WebApplication, FAQPage, Organization, Dataset) — none of it describes this
+  // neighbourhood, and leaving five homepage blocks on every profile dilutes the
+  // page's structured data. The profile's own Place/BreadcrumbList/FAQPage are
+  // injected immediately below, so the page still carries exactly the right graph.
+  html = html.replace(/\s*<script type="application\/ld\+json">[\s\S]*?<\/script>/g, '');
+  // …and the now-orphaned "Structured Data:" comments that introduced them.
+  html = html.replace(/\s*<!-- Structured Data:[\s\S]*?-->/g, '');
+  // CF-10: drop the homepage Finnish keywords meta — irrelevant on EN/SV profiles
+  // and a deprecated, spammy signal on every profile.
+  html = html.replace(/\s*<meta name="keywords"[^>]*>/, '');
   // Inject JSON-LD before closing </head>.
   html = html.replace('</head>', `    ${jsonLd}\n  </head>`);
 
@@ -1140,9 +1145,11 @@ function generatePage(feature, lang) {
 // and citable. The <noscript> groups every dataset by publisher with its license,
 // vintage and resolution; a Dataset JSON-LD node lists the publishers as creators.
 const SOURCES_ROUTES = {
-  fi: { path: 'tietolahteet', url: 'https://naapurustot.fi/tietolahteet' },
-  en: { path: 'en/data-sources', url: 'https://naapurustot.fi/en/data-sources' },
-  sv: { path: 'sv/datakallor', url: 'https://naapurustot.fi/sv/datakallor' },
+  // CF-10: trailing slash — the page is served as a directory index, and a request
+  // without the slash 301-redirects to it; canonicalise to the redirect target.
+  fi: { path: 'tietolahteet', url: 'https://naapurustot.fi/tietolahteet/' },
+  en: { path: 'en/data-sources', url: 'https://naapurustot.fi/en/data-sources/' },
+  sv: { path: 'sv/datakallor', url: 'https://naapurustot.fi/sv/datakallor/' },
 };
 
 /**
@@ -1293,9 +1300,10 @@ function buildSourcesJsonLd(lang, canonicalUrl) {
 // matches the in-app PrivacyPage. The <noscript> mirrors every section as
 // semantic HTML; a PrivacyPolicy JSON-LD node makes it machine-readable.
 const PRIVACY_ROUTES = {
-  fi: { path: 'tietosuoja', url: 'https://naapurustot.fi/tietosuoja' },
-  en: { path: 'en/privacy', url: 'https://naapurustot.fi/en/privacy' },
-  sv: { path: 'sv/integritet', url: 'https://naapurustot.fi/sv/integritet' },
+  // CF-10: trailing slash — served as a directory index (see SOURCES_ROUTES).
+  fi: { path: 'tietosuoja', url: 'https://naapurustot.fi/tietosuoja/' },
+  en: { path: 'en/privacy', url: 'https://naapurustot.fi/en/privacy/' },
+  sv: { path: 'sv/integritet', url: 'https://naapurustot.fi/sv/integritet/' },
 };
 
 // Section keys must match src/pages/PrivacyPage.tsx (SECTION_KEYS), each with a

@@ -66,14 +66,14 @@ function toSlug(pno, nimi) {
 
 const urls = [];
 
-// Home page — keeps the build date since it changes every deploy.
-urls.push({
-  loc: `${ORIGIN}/`,
-  priority: '1.0',
-  changefreq: 'weekly',
-  lastmod: today,
-  alternates: { fi: `${ORIGIN}/`, en: `${ORIGIN}/`, sv: `${ORIGIN}/` },
-});
+// Home pages — one per language (CF-10: the EN/SV landings at /en/ and /sv/ are
+// now real prerendered pages, so each gets its own sitemap entry and the hreflang
+// cluster maps the three locales to distinct URLs). Keeps the build date since the
+// landing content changes every deploy.
+const homeAlts = { fi: `${ORIGIN}/`, en: `${ORIGIN}/en/`, sv: `${ORIGIN}/sv/` };
+urls.push({ loc: homeAlts.fi, priority: '1.0', changefreq: 'weekly', lastmod: today, alternates: homeAlts });
+urls.push({ loc: homeAlts.en, priority: '0.9', changefreq: 'weekly', lastmod: today, alternates: homeAlts });
+urls.push({ loc: homeAlts.sv, priority: '0.9', changefreq: 'weekly', lastmod: today, alternates: homeAlts });
 
 // All-areas directory.
 const directory = {
@@ -85,21 +85,22 @@ urls.push({ loc: directory.fi, priority: '0.9', changefreq: 'weekly', alternates
 urls.push({ loc: directory.en, priority: '0.8', changefreq: 'weekly', alternates: directory });
 urls.push({ loc: directory.sv, priority: '0.8', changefreq: 'weekly', alternates: directory });
 
-// CF-9: data sources & methodology page.
+// CF-9: data sources & methodology page. CF-10: trailing slash to match the
+// prerendered canonical (served as a directory index).
 const dataSources = {
-  fi: `${ORIGIN}/tietolahteet`,
-  en: `${ORIGIN}/en/data-sources`,
-  sv: `${ORIGIN}/sv/datakallor`,
+  fi: `${ORIGIN}/tietolahteet/`,
+  en: `${ORIGIN}/en/data-sources/`,
+  sv: `${ORIGIN}/sv/datakallor/`,
 };
 urls.push({ loc: dataSources.fi, priority: '0.5', changefreq: 'monthly', alternates: dataSources });
 urls.push({ loc: dataSources.en, priority: '0.4', changefreq: 'monthly', alternates: dataSources });
 urls.push({ loc: dataSources.sv, priority: '0.4', changefreq: 'monthly', alternates: dataSources });
 
-// PO-14: privacy & data-handling notice page.
+// PO-14: privacy & data-handling notice page. CF-10: trailing slash (directory index).
 const privacy = {
-  fi: `${ORIGIN}/tietosuoja`,
-  en: `${ORIGIN}/en/privacy`,
-  sv: `${ORIGIN}/sv/integritet`,
+  fi: `${ORIGIN}/tietosuoja/`,
+  en: `${ORIGIN}/en/privacy/`,
+  sv: `${ORIGIN}/sv/integritet/`,
 };
 urls.push({ loc: privacy.fi, priority: '0.4', changefreq: 'yearly', alternates: privacy });
 urls.push({ loc: privacy.en, priority: '0.3', changefreq: 'yearly', alternates: privacy });

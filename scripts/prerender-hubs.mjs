@@ -803,6 +803,76 @@ ${buildBestAreasNav(region, lang)}
   });
 }
 
+// --- CF-10: localized EN/SV landing pages ---------------------------------
+// The SPA index.html (served at /) is the Finnish landing. EN/SV visitors had no
+// language-matched entry page, so the home hreflang cluster pointed all three
+// locales at the same Finnish URL. These standalone landings give /en/ and /sv/
+// real, crawlable, translated entry points that link into the localized directory,
+// the top regional hubs, and the interactive map. All strings inline (no bundle).
+const LANDING_TEXT = {
+  en: {
+    title: 'naapurustot.fi — compare Finnish neighbourhoods, districts and suburbs on a map',
+    description: "A free map tool for comparing and exploring Finland's neighbourhoods, districts and suburbs across 50+ indicators — income, housing, services, safety, public transport and environment.",
+    h1: 'Compare Finnish neighbourhoods on a map',
+    intro: (areas, regions, pop) =>
+      `naapurustot.fi covers ${areas} postal code areas across all ${regions} Finnish sub-regions, with a combined population of about ${pop}. Explore each area's statistics — income, housing, services, safety and environment.`,
+    mapCta: 'Open the interactive map',
+    regionsHeading: 'Browse sub-regions',
+    directoryLink: 'All areas in Finland',
+    sourcesNote: 'Every figure comes from open, verifiable public data: Statistics Finland (Paavo), HSL, HSY, OpenStreetMap, the Finnish Police, Traficom and others.',
+  },
+  sv: {
+    title: 'naapurustot.fi — jämför finländska bostadsområden och stadsdelar på en karta',
+    description: 'Ett gratis kartverktyg för att jämföra och utforska Finlands bostadsområden, stadsdelar och förorter med över 50 mätare — inkomst, boende, tjänster, säkerhet, kollektivtrafik och miljö.',
+    h1: 'Jämför finländska bostadsområden på en karta',
+    intro: (areas, regions, pop) =>
+      `naapurustot.fi täcker ${areas} postnummerområden i alla ${regions} finländska regioner, med en sammanlagd befolkning på cirka ${pop}. Utforska varje områdes statistik — inkomst, boende, tjänster, säkerhet och miljö.`,
+    mapCta: 'Öppna den interaktiva kartan',
+    regionsHeading: 'Bläddra bland regioner',
+    directoryLink: 'Alla områden i Finland',
+    sourcesNote: 'Alla uppgifter bygger på öppna, verifierbara offentliga data: Statistikcentralen (Paavo), HSL, HSY, OpenStreetMap, polisen, Traficom med flera.',
+  },
+};
+
+function buildLanding(lang) {
+  const L = LANDING_TEXT[lang];
+  const alternates = { fi: `${ORIGIN}/`, en: `${ORIGIN}/en/`, sv: `${ORIGIN}/sv/` };
+  const topRegions = regions.slice(0, 8);
+  const hubLinks = topRegions
+    .map((r) => `<li><a href="${CITY_PREFIX[lang]}/${escapeHtml(r.id)}/">${escapeHtml(getRegionName(r.id, lang))}</a></li>`)
+    .join('\n        ');
+
+  const body = `      <h1>${escapeHtml(L.h1)}</h1>
+      <p class="lead">${escapeHtml(L.intro(fmtNum(TOTAL_AREAS, lang), regions.length, fmtNum(TOTAL_POP, lang)))}</p>
+      <p><a class="cta" href="/?lang=${lang}">${escapeHtml(L.mapCta)}</a></p>
+      <h2>${escapeHtml(L.regionsHeading)}</h2>
+      <ul>
+        ${hubLinks}
+      </ul>
+      <p><a href="${DIRECTORY_PATH[lang]}">${escapeHtml(L.directoryLink)} →</a></p>
+      <p class="muted">${escapeHtml(L.sourcesNote)}</p>`;
+
+  const collection = {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: L.h1,
+    description: L.description,
+    url: alternates[lang],
+    inLanguage: lang,
+    isPartOf: { '@type': 'WebSite', name: 'naapurustot.fi', url: ORIGIN },
+  };
+  const breadcrumb = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [{ '@type': 'ListItem', position: 1, name: 'naapurustot.fi', item: alternates[lang] }],
+  };
+  const jsonLd = [collection, breadcrumb]
+    .map((o) => `    <script type="application/ld+json">${safeJson(o)}</script>`)
+    .join('\n');
+
+  return htmlPage({ lang, title: L.title, description: L.description, canonical: alternates[lang], alternates, jsonLd, body });
+}
+
 // --- Main ---
 console.log('Prerendering regional hub pages...');
 
@@ -829,6 +899,14 @@ for (const lang of LANGS) {
   mkdirSync(DIR_OUT[lang], { recursive: true });
   writeFileSync(join(DIR_OUT[lang], 'index.html'), buildDirectory(lang));
 }
+
+// CF-10: localized EN/SV landing pages at /en/ and /sv/ (FI landing is the SPA at /).
+for (const lang of ['en', 'sv']) {
+  const dir = join(DIST, lang);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'index.html'), buildLanding(lang));
+}
+console.log('Prerendered 2 localized landing pages (/en/, /sv/).');
 
 let cityCount = 0;
 for (const region of regions) {
