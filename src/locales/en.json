@@ -350,6 +350,7 @@
   "shortlist.title": "Shortlist",
   "shortlist.add": "Add to shortlist",
   "shortlist.remove": "Remove from shortlist",
+  "shortlist.has_note": "Saved note",
   "shortlist.compare": "Compare",
   "shortlist.clear": "Clear",
   "shortlist.areas": "areas",

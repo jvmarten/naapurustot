@@ -1,6 +1,7 @@
-import React, { useCallback, useState, useRef } from 'react';
+import React, { useCallback, useState, useRef, useMemo } from 'react';
 import { t, useI18nVersion } from '../utils/i18n';
 import { exportGeoJson } from '../utils/export';
+import { readNote } from '../hooks/useNotes';
 import { trackEvent } from '../utils/analytics';
 import type { NeighborhoodProperties } from '../utils/metrics';
 
@@ -111,6 +112,13 @@ export const ShortlistTray: React.FC<ShortlistTrayProps> = React.memo(({ entries
     exportShortlistPdf(areas);
   }, [resolveProps]);
 
+  // CF-3: mark chips whose area has a saved visit note, so the private notes are
+  // discoverable from the shortlist. Recomputed when the set of entries changes.
+  const notedPnos = useMemo(
+    () => new Set(entries.filter((e) => readNote(e.pno) !== '').map((e) => e.pno)),
+    [entries],
+  );
+
   if (entries.length === 0) return null;
 
   const sep = <span className="text-surface-300 dark:text-surface-700" aria-hidden>·</span>;
@@ -189,6 +197,13 @@ export const ShortlistTray: React.FC<ShortlistTrayProps> = React.memo(({ entries
               className="inline-flex items-center gap-1 max-w-[180px] pl-2.5 pr-1 py-1 rounded-full text-xs
                          bg-surface-100 dark:bg-surface-800 text-surface-700 dark:text-surface-200"
             >
+              {notedPnos.has(e.pno) && (
+                <span
+                  className="w-1.5 h-1.5 rounded-full bg-brand-500 flex-shrink-0"
+                  aria-label={t('shortlist.has_note')}
+                  title={t('shortlist.has_note')}
+                />
+              )}
               <button onClick={() => onSelect(e.pno)} className="truncate hover:text-brand-600 dark:hover:text-brand-300">
                 {e.name}
               </button>
