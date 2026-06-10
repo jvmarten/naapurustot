@@ -39,6 +39,7 @@ const SERVER_ERROR_KEYS: Record<string, string> = {
   'Invalid username or password': 'auth.error.invalid_credentials',
   'Too many requests. Please try again later.': 'auth.error.rate_limited',
   'Internal server error': 'auth.error.server_error',
+  'Payload too large': 'auth.error.too_large',
 };
 
 function localiseError(message: string): string {

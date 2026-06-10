@@ -669,6 +669,7 @@
   "auth.register": "Register",
   "auth.error.network": "Cannot connect to server — please try again later",
   "auth.error.server_error": "Server error — please try again later",
+  "auth.error.too_large": "Too much data to save — please shorten your notes",
   "auth.error.fields_required": "Username and password are required",
   "auth.error.invalid_username": "Username must be 3–20 characters (letters, numbers, _ or -)",
   "auth.error.password_too_short": "Password must be at least 12 characters",
