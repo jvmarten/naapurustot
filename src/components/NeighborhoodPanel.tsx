@@ -3,7 +3,7 @@ import type { NeighborhoodProperties } from '../utils/metrics';
 import { parseTrendSeries, getMetricSource, vintageFreshness, METRIC_EXPLANATIONS, formatCoveragePct } from '../utils/metrics';
 import { formatNumber, formatEuro, formatPct, formatDiff, diffColor, formatYtlGradeFull, parseSchools, formatDensity, formatEuroSqm } from '../utils/formatting';
 import { t, getLang, useI18nVersion } from '../utils/i18n';
-import { getQualityCategory, QUALITY_CATEGORIES, QUALITY_DIMENSIONS, computeQualityCoverage } from '../utils/qualityIndex';
+import { getQualityCategory, QUALITY_CATEGORIES, QUALITY_DIMENSIONS, computeQualityCoverage, type QualityWeights } from '../utils/qualityIndex';
 import { computeAreaSummary, composeSummarySentences, fillTemplate } from '../utils/areaSummary';
 import { exportCsv, exportPdf, exportGeoJson } from '../utils/export';
 import { TrendSection } from './TrendChart';
@@ -45,6 +45,9 @@ interface PanelProps {
   pinCount?: number;
   onCustomize?: () => void;
   isCustomWeights?: boolean;
+  /** CF-1: the live Quality-Index weights, so the auditability chip enumerates the
+   *  factors actually contributing to the displayed (possibly custom-weighted) score. */
+  qualityWeights?: QualityWeights;
   allFeatures?: GeoJSON.Feature[];
   /** PO-1: 'region' when allFeatures is a single loaded region (cityFilter !== 'all'),
    *  so the area summary says "within {region}" instead of "nationally". */
@@ -672,11 +675,13 @@ QualityBadge.displayName = 'QualityBadge';
 // flagship number auditable by showing how many of the evaluative factors had
 // data for this specific area, grouped by dimension, with missing factors struck
 // through. A low "X/Y" chip flags a confident-looking score built on few inputs.
-const QualityCoverageSection: React.FC<{ props: NeighborhoodProperties; scope?: 'national' | 'region' }> = React.memo(({ props, scope = 'national' }) => {
+const QualityCoverageSection: React.FC<{ props: NeighborhoodProperties; scope?: 'national' | 'region'; qualityWeights?: QualityWeights }> = React.memo(({ props, scope = 'national', qualityWeights }) => {
   useI18nVersion();
   const [open, setOpen] = useState(false);
   const lang = getLang();
-  const coverage = useMemo(() => computeQualityCoverage(props), [props]);
+  // CF-1: audit the live-weighted factors (so the chip matches the displayed score
+  // under a custom/persona lens), not the default-weighted set.
+  const coverage = useMemo(() => computeQualityCoverage(props, qualityWeights), [props, qualityWeights]);
   const dimScores = props.quality_dimension_scores ?? {};
   if (coverage.total === 0) return null;
   const pct = Math.round((coverage.present / coverage.total) * 100);
@@ -812,7 +817,7 @@ const NotesEditor: React.FC<{ pno: string; userId?: string | null }> = React.mem
 });
 NotesEditor.displayName = 'NotesEditor';
 
-export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, allFeatures, summaryScope = 'national', summaryRegion = '', activeLayer, onFlyTo, isFavorite = false, onToggleFavorite, isInShortlist = false, onToggleShortlist, referencePno, referenceName, onSetReference, qualityScope = 'national', onExploreCity, userId, isochroneEnabled = false, isochroneMode = 'walk', isochroneBudget = 20, isochroneLoading = false, isochroneError = false, isochroneActive = false, onIsochroneChange, onIsochroneClear, similarityWeights, onSimilarityWeightChange, onSimilarityToggle }) => {
+export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, qualityWeights, allFeatures, summaryScope = 'national', summaryRegion = '', activeLayer, onFlyTo, isFavorite = false, onToggleFavorite, isInShortlist = false, onToggleShortlist, referencePno, referenceName, onSetReference, qualityScope = 'national', onExploreCity, userId, isochroneEnabled = false, isochroneMode = 'walk', isochroneBudget = 20, isochroneLoading = false, isochroneError = false, isochroneActive = false, onIsochroneChange, onIsochroneClear, similarityWeights, onSimilarityWeightChange, onSimilarityToggle }) => {
   useI18nVersion();
   const eduTotal = useMemo(() =>
     [d.ko_yl_kork, d.ko_al_kork, d.ko_ammat, d.ko_perus]
@@ -1210,7 +1215,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
       )}
 
       {/* CF-8: Quality Index auditability — factor coverage for this area */}
-      {d.quality_index != null && <QualityCoverageSection props={d} scope={qualityScope} />}
+      {d.quality_index != null && <QualityCoverageSection props={d} scope={qualityScope} qualityWeights={qualityWeights} />}
 
       {/* CF-2: auto-composed plain-language strengths & weaknesses from real percentiles */}
       {allFeatures && allFeatures.length > 1 && (
