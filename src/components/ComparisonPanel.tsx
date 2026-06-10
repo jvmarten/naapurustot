@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import type { NeighborhoodProperties } from '../utils/metrics';
-import { formatNumber, formatEuro, formatPct, formatDensity, formatEuroSqm } from '../utils/formatting';
+import { formatEuro, formatPct, formatEuroSqm } from '../utils/formatting';
+import { STAT_SECTIONS, ALL_STATS, findBest, refDeltaOf } from '../utils/comparisonStats';
 import { t, useI18nVersion } from '../utils/i18n';
 import { CompareIllustration } from './EmptyStateIllustrations';
 import { exportComparisonPdf, exportComparisonCsv, exportGeoJson } from '../utils/export';
@@ -20,88 +21,11 @@ interface ComparisonPanelProps {
   suppressMobile?: boolean;
 }
 
-/** CF-5: percentage delta of a value vs the reference baseline, coloured by whether
- *  the direction is favourable. Returns null when either side is missing. */
-function refDeltaOf(
-  val: number | null | undefined,
-  refVal: number | null | undefined,
-  higherIsBetter: boolean,
-): { text: string; cls: string } | null {
-  if (val == null || refVal == null || refVal === 0) return null;
-  const pct = ((val - refVal) / Math.abs(refVal)) * 100;
-  if (Math.abs(pct) < 0.5) return { text: '≈', cls: 'text-surface-400 dark:text-surface-500' };
-  const better = higherIsBetter ? pct > 0 : pct < 0;
-  return {
-    text: `${pct > 0 ? '+' : ''}${pct.toFixed(0)}%`,
-    cls: better ? 'text-emerald-500 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400',
-  };
-}
-
-interface StatDef {
-  label: string;
-  key: string;
-  format: (v: number | null | undefined) => string;
-  higherIsBetter: boolean;
-}
-
-const STAT_SECTIONS: { title: string; stats: StatDef[] }[] = [
-  {
-    title: '',
-    stats: [
-      { label: 'panel.population', key: 'he_vakiy', format: formatNumber, higherIsBetter: true },
-      { label: 'panel.median_income', key: 'hr_mtu', format: formatEuro, higherIsBetter: true },
-      { label: 'panel.unemployment', key: 'unemployment_rate', format: (v) => formatPct(v as number | null), higherIsBetter: false },
-      { label: 'panel.foreign_lang', key: 'foreign_language_pct', format: (v) => formatPct(v as number | null), higherIsBetter: true },
-    ],
-  },
-  {
-    title: 'panel.housing',
-    stats: [
-      { label: 'panel.ownership_rate', key: 'ownership_rate', format: (v) => formatPct(v as number | null), higherIsBetter: true },
-      { label: 'panel.rental_rate', key: 'rental_rate', format: (v) => formatPct(v as number | null), higherIsBetter: true },
-      { label: 'panel.avg_apt_size', key: 'ra_as_kpa', format: (v) => v != null ? `${(v as number).toFixed(1)} m²` : '—', higherIsBetter: true },
-      { label: 'panel.detached_houses', key: 'detached_house_share', format: (v) => formatPct(v as number | null), higherIsBetter: true },
-    ],
-  },
-  {
-    title: 'panel.demographics',
-    stats: [
-      { label: 'panel.population_density', key: 'population_density', format: formatDensity, higherIsBetter: true },
-      { label: 'panel.child_ratio', key: 'child_ratio', format: (v) => formatPct(v as number | null), higherIsBetter: true },
-      { label: 'panel.student_share', key: 'student_share', format: (v) => formatPct(v as number | null), higherIsBetter: true },
-    ],
-  },
-  {
-    title: 'panel.quality_of_life',
-    stats: [
-      { label: 'panel.property_price', key: 'property_price_sqm', format: formatEuroSqm, higherIsBetter: true },
-      { label: 'panel.transit_access', key: 'transit_stop_density', format: (v) => v != null ? `${(v as number).toFixed(1)} /km²` : '—', higherIsBetter: true },
-      { label: 'panel.air_quality', key: 'air_quality_index', format: (v) => v != null ? (v as number).toFixed(1) : '—', higherIsBetter: false },
-    ],
-  },
-];
-
-const ALL_STATS = STAT_SECTIONS.flatMap((s) => s.stats);
-
 const COLUMN_COLORS = [
   'text-brand-600 dark:text-brand-400',
   'text-emerald-500 dark:text-emerald-400',
   'text-amber-500 dark:text-amber-400',
 ];
-
-function findBest(pinned: NeighborhoodProperties[], key: string, higherIsBetter: boolean): string | null {
-  let bestPno: string | null = null;
-  let bestVal: number | null = null;
-  for (const p of pinned) {
-    const v = p[key] as number | null;
-    if (v == null) continue;
-    if (bestVal == null || (higherIsBetter ? v > bestVal : v < bestVal)) {
-      bestVal = v;
-      bestPno = p.pno;
-    }
-  }
-  return bestPno;
-}
 
 /** Mobile card for a single neighborhood in stacked comparison */
 const MobileCard: React.FC<{
