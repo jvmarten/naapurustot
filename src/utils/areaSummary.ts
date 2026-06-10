@@ -179,6 +179,15 @@ export interface ComposeOptions {
   maxPerSentence?: number;
   /** Max sentences emitted overall (default 3). */
   maxSentences?: number;
+  /**
+   * PO-1: cohort scope. 'national' (default) keeps the "nationally" phrasing; 'region'
+   * (with a `region` name) switches to the "within {region}" templates — because the
+   * ranking is against the LOADED cohort, which is a single region when a city is
+   * selected. Asserting "nationally" for a region cohort is a factual error.
+   */
+  scope?: 'national' | 'region';
+  /** The loaded region's display name, for the 'region'-scope templates. */
+  region?: string;
 }
 
 /** Join localized labels into "a, b and c" using the provided connectors. */
@@ -215,13 +224,18 @@ export function composeSummarySentences(
   const maxPerSentence = opts.maxPerSentence ?? 3;
   const maxSentences = opts.maxSentences ?? 3;
   const specs: SummarySentenceSpec[] = [];
+  // PO-1: region scope only kicks in when a region name is supplied.
+  const region = opts.region ?? '';
+  const useRegion = opts.scope === 'region' && region !== '';
+  const k = (base: string) => (useRegion ? `${base}_region` : base);
+  const withRegion = (tokens: Record<string, string>) => (useRegion ? { ...tokens, region } : tokens);
 
   const strong = summary.strong.slice(0, maxPerSentence);
   if (strong.length > 0) {
     const metrics = joinLabels(strong.map((e) => opts.label(e.labelKey)), opts.and, separator);
     specs.push({
-      key: 'summary.sentence.top',
-      tokens: { pct: String(groupTopPct(strong)), metrics },
+      key: k('summary.sentence.top'),
+      tokens: withRegion({ pct: String(groupTopPct(strong)), metrics }),
     });
   }
 
@@ -232,15 +246,15 @@ export function composeSummarySentences(
   if (otherWeak.length > 0) {
     const metrics = joinLabels(otherWeak.map((e) => opts.label(e.labelKey)), opts.and, separator);
     specs.push({
-      key: 'summary.sentence.bottom',
-      tokens: { pct: String(groupBottomPct(otherWeak)), metrics },
+      key: k('summary.sentence.bottom'),
+      tokens: withRegion({ pct: String(groupBottomPct(otherWeak)), metrics }),
     });
   }
 
   if (expensive.length > 0) {
     specs.push({
-      key: 'summary.sentence.expensive',
-      tokens: { pct: String(expensive[0].bottomPct) },
+      key: k('summary.sentence.expensive'),
+      tokens: withRegion({ pct: String(expensive[0].bottomPct) }),
     });
   }
 

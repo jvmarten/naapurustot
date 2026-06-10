@@ -1954,6 +1954,8 @@ const App: React.FC = () => {
             onCustomize={handleToggleCustomQuality}
             isCustomWeights={customWeights}
             allFeatures={allFeatures}
+            summaryScope={cityFilter === 'all' ? 'national' : 'region'}
+            summaryRegion={cityFilter === 'all' ? '' : t('city.' + cityFilter)}
             activeLayer={activeLayer}
             onFlyTo={handleFlyTo}
             isFavorite={isFavorite(selected.pno)}
