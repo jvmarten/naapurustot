@@ -23,6 +23,8 @@ import { createHash } from 'crypto';
 // PO-13: the single card-templating helper (shared with CF-11's runtime
 // shortlist card). Pure SVG → no new client-bundle deps, no rasteriser.
 import { buildSocialCardSvg } from './social-card.mjs';
+// IN-8: slug-alias redirect-stub builder (pure; the module's main is guarded).
+import { buildStubHtml, AREA_PREFIX as ALIAS_AREA_PREFIX } from './update_slug_aliases.mjs';
 // The app's data-processing functions, reused at build time so each page can
 // embed a render-ready payload. Both modules have type-only imports, so Node's
 // TypeScript stripping (Node 22.18+/24) loads them without a build step.
@@ -1466,6 +1468,30 @@ for (const feature of features) {
 }
 
 console.log(`Prerendered ${count} neighbourhoods (${count * 3} HTML files, ${cardsWritten} social cards in dist/og/).`);
+
+// IN-8: write redirect stubs for retired slugs. When a Paavo refresh renames an
+// area, slug_aliases.json records old-slug → pno; we write a tiny canonical+refresh
+// stub at each old URL (all three languages) pointing at the area's current page,
+// so an already-indexed link 301-equivalents to the new URL instead of 404-ing.
+let stubCount = 0;
+try {
+  const aliases = JSON.parse(readFileSync(join(ROOT, 'src', 'data', 'slug_aliases.json'), 'utf-8'));
+  const currentSlugs = new Set(Object.values(aliases.slugs ?? {}));
+  for (const [oldSlug, pno] of Object.entries(aliases.aliases ?? {})) {
+    const newSlug = aliases.slugs?.[pno];
+    // Skip if the alias has no current target, or would shadow a live page.
+    if (!newSlug || currentSlugs.has(oldSlug)) continue;
+    for (const lang of ['fi', 'en', 'sv']) {
+      const dir = join(DIST, ...ALIAS_AREA_PREFIX[lang].split('/'), oldSlug);
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, 'index.html'), buildStubHtml(oldSlug, newSlug, lang));
+      stubCount++;
+    }
+  }
+} catch {
+  // No alias file yet — nothing to stub.
+}
+if (stubCount > 0) console.log(`Prerendered ${stubCount} slug-alias redirect stubs.`);
 
 // CF-9: write the three localized data-sources pages.
 for (const [lang, route] of Object.entries(SOURCES_ROUTES)) {
