@@ -91,6 +91,14 @@ describe('getGridInfo (IN-1 manifest)', () => {
   it('returns undefined for a layer with no grid', () => {
     expect(getGridInfo('median_income')).toBeUndefined();
   });
+
+  it('CF-9: exposes a per-region shard template for the national grid', () => {
+    const lp = getGridInfo('light_pollution');
+    expect(lp?.shardPattern).toBeDefined();
+    expect(lp?.shardPattern).toContain('{region}');
+    // Regional grids are not sharded.
+    expect(getGridInfo('air_quality')?.shardPattern).toBeUndefined();
+  });
 });
 
 describe('useGridData', () => {

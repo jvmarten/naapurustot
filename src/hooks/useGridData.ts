@@ -29,6 +29,11 @@ export interface GridManifestEntry {
   cells: number;
   /** "national" = covers (most of) Finland; "regional" = a limited area only */
   scope: 'national' | 'regional';
+  /** CF-9: for national grids, a path TEMPLATE with a `{region}` placeholder. A
+   *  region session fetches only that region's shard instead of the whole nationwide
+   *  grid; a missing shard falls back to the whole file. Stored as one string (not a
+   *  per-region map) to keep the statically-imported manifest tiny in the JS bundle. */
+  shardPattern?: string;
 }
 
 const GRID_MANIFEST = gridManifest as unknown as Record<string, GridManifestEntry>;
@@ -123,67 +128,93 @@ function parseGridResponse(path: string, json: unknown): FeatureCollection {
  * while data is still loading, or if the grid file doesn't exist.
  * Once loaded, the FeatureCollection is cached in memory.
  */
-export function useGridData(activeLayer: LayerId): GridDataState {
+// CF-9: cap how many grid datasets stay in memory. A nationwide grid is tens of MB
+// parsed; without eviction the cache pinned every grid ever viewed for the session.
+const GRID_LRU_CAP = 2;
+
+export function useGridData(activeLayer: LayerId, cityFilter?: string): GridDataState {
   const [cache, setCache] = useState<Record<string, FeatureCollection>>({});
   const [loading, setLoading] = useState(false);
-  // Track which layers have been fetched (or are being fetched) to avoid
+  // Track which cache keys have been fetched (or are in-flight) to avoid
   // re-triggering the effect when cache state updates.
   const fetchedRef = useRef<Set<string>>(new Set());
+  // CF-9: insertion order of cache keys for LRU eviction.
+  const lruRef = useRef<string[]>([]);
+
+  const entry = GRID_MANIFEST[activeLayer as string];
+  // CF-9: for a national grid in a region-scoped session, fetch only that region's
+  // shard. Falls back to the whole file for ?city=all or when no shard exists.
+  const shardRel = cityFilter && cityFilter !== 'all' && entry?.shardPattern
+    ? entry.shardPattern.replace('{region}', cityFilter)
+    : undefined;
+  const wholePath = entry ? BASE + entry.path : undefined;
+  const path = shardRel ? BASE + shardRel : wholePath;
+  const cacheKey = entry ? `${activeLayer}:${shardRel ? cityFilter : 'all'}` : '';
 
   useEffect(() => {
-    const entry = GRID_MANIFEST[activeLayer as string];
-    const path = entry ? BASE + entry.path : undefined;
-    if (!path) return;
+    if (!path || !cacheKey || !wholePath) return;
     const fetched = fetchedRef.current;
-    if (fetched.has(activeLayer)) {
-      // Already fetched/cached (or a prior in-flight fetch for this layer is still
-      // tracked): nothing to load now, so clear any stale loading flag left behind
-      // by a cancelled fetch of a different layer (the cancelled fetch skips its
-      // own setLoading(false) via the `if (cancelled) return` guard).
+    if (fetched.has(cacheKey)) {
+      // Already fetched/cached (or a prior in-flight fetch is still tracked): clear
+      // any stale loading flag left by a cancelled fetch of a different key.
       setLoading(false);
       return;
     }
-    fetched.add(activeLayer);
+    fetched.add(cacheKey);
 
     let cancelled = false;
     let completed = false;
     setLoading(true);
 
-    fetch(path)
-      .then((res) => {
+    // CF-9: try the region shard; if it is missing (a region with no cells in this
+    // grid), fall back to the whole nationwide file so the layer still renders.
+    const fetchJson = (url: string) =>
+      fetch(url).then((res) => {
         if (!res.ok) throw new Error(`Grid data fetch failed: ${res.status}`);
         return res.json();
-      })
+      });
+    (path === wholePath
+      ? fetchJson(path)
+      : fetchJson(path).catch(() => fetchJson(wholePath)))
       .then((json: unknown) => {
         if (cancelled) return;
         const geojson = parseGridResponse(path, json);
-        setCache((prev) => ({ ...prev, [activeLayer]: geojson }));
+        setCache((prev) => {
+          const next = { ...prev, [cacheKey]: geojson };
+          // CF-9: LRU — keep at most GRID_LRU_CAP datasets resident.
+          const lru = lruRef.current.filter((k) => k !== cacheKey);
+          lru.push(cacheKey);
+          while (lru.length > GRID_LRU_CAP) {
+            const evicted = lru.shift();
+            if (evicted) {
+              delete next[evicted];
+              fetched.delete(evicted); // allow a refetch if revisited
+            }
+          }
+          lruRef.current = lru;
+          return next;
+        });
         setLoading(false);
         completed = true;
       })
       .catch((err: unknown) => {
         if (cancelled) return;
         // Grid data is optional — silently fall back to postal choropleth.
-        // Remove from fetched set so a retry is possible on next layer switch.
-        fetched.delete(activeLayer);
-        console.warn(`Grid data not available for ${activeLayer}:`, err instanceof Error ? err.message : err);
+        fetched.delete(cacheKey);
+        console.warn(`Grid data not available for ${cacheKey}:`, err instanceof Error ? err.message : err);
         setLoading(false);
       });
 
     return () => {
       cancelled = true;
-      // Allow retry on re-visit only if the fetch didn't complete successfully
       if (!completed) {
-        fetched.delete(activeLayer);
-        // The cancelled fetch will skip its own setLoading(false), so clear it
-        // here to avoid leaving the hook stuck at loading:true.
+        fetched.delete(cacheKey);
         setLoading(false);
       }
     };
-  }, [activeLayer]);
+  }, [cacheKey, path, wholePath]);
 
-  const entry = GRID_MANIFEST[activeLayer as string];
   if (!entry) return { gridData: null, loading: false };
 
-  return { gridData: cache[activeLayer] ?? null, loading };
+  return { gridData: cache[cacheKey] ?? null, loading };
 }

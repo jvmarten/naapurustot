@@ -21,7 +21,8 @@
       70.08542
     ],
     "cells": 50594,
-    "scope": "national"
+    "scope": "national",
+    "shardPattern": "data/light_pollution_grid_shards/light_pollution_grid_{region}.geojson"
   },
   "transit_reachability": {
     "path": "data/transit_reachability_grid.topojson",
