@@ -42,6 +42,13 @@ const geojson = JSON.parse(geojsonRaw);
 const features = geojson.features;
 console.log(`  ${features.length} features total`);
 
+// CF-4: municipality name + WGS84 centroid (lat/lon) are baked into the GeoJSON
+// properties by the pipeline (prepare_data.py / scripts on refresh), so they flow
+// through to region_properties.json and the per-region TopoJSON automatically here,
+// and the prerenderer (which reads the GeoJSON directly) inherits them too — the
+// "next steps" outbound links need no municipality table or reprojection in the
+// JS bundle.
+
 // Group features by city (region) property. Features without a known region
 // are grouped under "other" (e.g., postal codes outside configured metro areas
 // when running with --all-finland).
