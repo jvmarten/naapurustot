@@ -2,22 +2,37 @@
 """Fetch property price data (EUR/m2) per postal code from Statistics Finland.
 
 Data source: Statistics Finland PxWeb API
-  Table: statfin_ashi_pxt_13mu.px
-    "Prices per square meter of old dwellings in housing companies
-     and numbers of transactions by postal code area, yearly"
+  Table: ashi / 13mu.px
+    "Prices per square meter of old dwellings in housing companies and numbers
+     of transactions by postal code area, yearly" (2009-2025).
 
-Covers all three metro regions: Helsinki, Tampere, Turku.
+  NOTE on the table id: Statistics Finland migrated PxWeb and renamed the table
+  files. The old form `statfin_ashi_pxt_13mu.px` now returns HTTP 400 — the live
+  id is simply `13mu.px`. The variable *codes* were renamed too (e.g. `Vuosi`->
+  `timeperiod_y`, `Postinumero`->`postinumeroalue_4_20220101`, `Talotyyppi`->
+  `talotyyppi_6_20131021`, `Tiedot`->`contentscode`). This script therefore never
+  hardcodes variable codes: it discovers them from the live metadata by their
+  English/Finnish text and the PxWeb `time` flag, so it survives future renames.
 
-Method:
-  1. Read postal codes from the project GeoJSON (330 postal codes).
-  2. Fetch PxWeb table metadata to discover variable codes and latest period.
-  3. Query the API for the latest 3 years of data (for fallback coverage).
-  4. For each postal code, compute a sales-weighted average across building
-     types (1-room, 2-room, 3-room+ flats, terraced houses).
-  5. Use the latest year with valid data; fall back to prior years if needed.
-  6. Merge with any existing data in property_prices.json (new data takes
-     priority) so that previously-fetched codes are not lost.
-  7. Save to scripts/property_prices.json.
+Method (sales-weighted, multi-year fallback — maximises coverage):
+  1. Read the postal codes we care about from the project GeoJSON (all of Finland).
+  2. Fetch table metadata, discover variable codes + the price and sales-count
+     measures, and list every available year.
+  3. Query the API (chunked by postal code to stay under PxWeb's cell limit) for
+     ALL years x ALL building types (1-/2-/3-room flats, terraced houses) and
+     BOTH measures (EUR/m2 price + number of sales).
+  4. For each postal code, walk years newest -> oldest and use the first year that
+     has data, computing a SALES-COUNT-WEIGHTED mean EUR/m2 across the building
+     types reported that year (falling back to an unweighted mean only if a year
+     reports prices but no sales counts). The newest-year-first walk is the
+     multi-year fallback that lifts coverage well above a single-year query.
+  5. Round to integer EUR/m2 and write {pno: eur_per_m2}, sorted by pno.
+
+Coverage reality: the table lists ~1,724 postal codes but Statistics Finland
+suppresses cells with too few transactions, so ~1,097 codes actually carry a
+non-suppressed price somewhere in 2009-2025. Those ~1,097 are what we can honestly
+report (vs ~455 for the old single-year/single-building-type slice). We never
+fabricate values for the suppressed remainder.
 
 Output format: {"00100": 7350, "33100": 4150, ...}  (EUR/m2, integer)
 
@@ -48,19 +63,33 @@ SCRIPT_DIR = Path(__file__).parent
 GEOJSON_PATH = SCRIPT_DIR.parent / "public" / "data" / "metro_neighborhoods.geojson"
 OUTPUT_FILE = SCRIPT_DIR / "property_prices.json"
 
-# PxWeb table: old dwelling prices by postal code, yearly
-PXWEB_TABLE_URL = (
-    "https://pxdata.stat.fi/PxWeb/api/v1/en/"
-    "StatFin/ashi/statfin_ashi_pxt_13mu.px"
-)
+# PxWeb database (post-migration). The table id is `13mu.px`; if Statistics
+# Finland renames it again we rediscover it from this database listing.
+ASHI_DB_URL = "https://pxdata.stat.fi/PxWeb/api/v1/en/StatFin/ashi/"
+PXWEB_TABLE_URL = ASHI_DB_URL + "13mu.px"
 
-# How many recent years to query for fallback coverage
-FALLBACK_YEARS = 3
+# A browser-like UA — the API rejects some default client signatures.
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/json",
+}
 
-# Retry / rate limit
+# PxWeb caps a single query's data cells (~100k). With all years x all building
+# types x both measures, 500 postal codes -> 500*17*4*2 = 68,000 cells, safely
+# under the limit.
+POSTAL_BATCH_SIZE = 500
+
+# Plausibility guard for old-dwelling EUR/m2 (rural terraced houses really do
+# sell for a few hundred EUR/m2; luxury Helsinki tops out well under 20,000).
+MIN_PRICE = 100
+MAX_PRICE = 20000
+
 MAX_RETRIES = 3
 RETRY_BACKOFF_BASE = 2
-RATE_LIMIT_DELAY = 1.0
+RATE_LIMIT_DELAY = 0.5
 
 
 # ---------------------------------------------------------------------------
@@ -70,8 +99,9 @@ RATE_LIMIT_DELAY = 1.0
 def request_with_retry(method: str, url: str, *, label: str,
                        retries: int = MAX_RETRIES, **kwargs):
     """Execute an HTTP request with exponential-backoff retries."""
-    kwargs.setdefault("timeout", 60)
-    last_exc = None
+    kwargs.setdefault("timeout", 90)
+    kwargs.setdefault("headers", HEADERS)
+    last_exc: Exception | None = None
     for attempt in range(1, retries + 1):
         try:
             r = requests.request(method, url, **kwargs)
@@ -81,291 +111,244 @@ def request_with_retry(method: str, url: str, *, label: str,
             last_exc = exc
             if attempt < retries:
                 wait = RETRY_BACKOFF_BASE ** attempt
-                logger.warning(
-                    "  Retry %d/%d for %s in %ds (%s)",
-                    attempt, retries, label, wait, exc,
-                )
+                logger.warning("  Retry %d/%d for %s in %ds (%s)",
+                               attempt, retries, label, wait, exc)
                 time.sleep(wait)
     raise last_exc  # type: ignore[misc]
 
 
 def rate_limit():
-    """Sleep briefly between API calls to be polite."""
     time.sleep(RATE_LIMIT_DELAY)
 
 
+def chunked(seq, size):
+    for i in range(0, len(seq), size):
+        yield seq[i:i + size]
+
+
 # ---------------------------------------------------------------------------
-# Load our postal codes from GeoJSON
+# Postal codes from GeoJSON
 # ---------------------------------------------------------------------------
 
-def load_our_postal_codes() -> list[str]:
-    """Read the postal codes we need from the project GeoJSON."""
+def load_our_postal_codes() -> set[str]:
+    """Read the postal codes used by the app from the project GeoJSON.
+
+    Returns an empty set if the GeoJSON is unavailable; the caller then falls
+    back to every postal code the API offers.
+    """
+    if not GEOJSON_PATH.exists():
+        logger.warning("GeoJSON not found at %s — using all API postal codes",
+                       GEOJSON_PATH)
+        return set()
     logger.info("Loading postal codes from %s", GEOJSON_PATH)
     with open(GEOJSON_PATH, encoding="utf-8") as f:
         geojson = json.load(f)
-
-    codes = sorted(set(
+    codes = {
         feat["properties"]["pno"]
         for feat in geojson.get("features", [])
         if feat.get("properties", {}).get("pno")
-    ))
+    }
     logger.info("  Found %d postal codes in GeoJSON", len(codes))
     return codes
 
 
 # ---------------------------------------------------------------------------
-# Fetch PxWeb metadata
+# Metadata discovery (resilient to the PxWeb variable-code renames)
 # ---------------------------------------------------------------------------
 
-def fetch_metadata() -> dict:
-    """GET the PxWeb table to discover variable codes and available values.
+def resolve_table_url() -> str:
+    """Return a working table URL, rediscovering the id if the direct one 400s."""
+    try:
+        request_with_retry("GET", PXWEB_TABLE_URL, label="table probe", timeout=30)
+        return PXWEB_TABLE_URL
+    except requests.RequestException as exc:
+        logger.warning("Direct table URL failed (%s); searching ashi listing...", exc)
+        listing = request_with_retry("GET", ASHI_DB_URL, label="ashi listing").json()
+        for entry in listing:
+            text = (entry.get("text") or "").lower()
+            tid = entry.get("id", "")
+            if "13mu" in tid or ("postal code area, yearly" in text):
+                url = ASHI_DB_URL + tid
+                logger.info("  Resolved table to %s", url)
+                return url
+        raise RuntimeError("Could not locate the ashi 13mu table in the listing")
 
-    Returns the parsed JSON metadata.
-    """
-    logger.info("Fetching PxWeb metadata from %s", PXWEB_TABLE_URL)
-    r = request_with_retry("GET", PXWEB_TABLE_URL, label="metadata")
-    meta = r.json()
 
+def fetch_metadata(table_url: str) -> dict:
+    logger.info("Fetching PxWeb metadata from %s", table_url)
+    meta = request_with_retry("GET", table_url, label="metadata").json()
     if not isinstance(meta, dict) or "variables" not in meta:
         raise ValueError("Unexpected metadata format: missing 'variables'")
-
     for var in meta["variables"]:
-        code = var.get("code")
-        text = var.get("text")
-        count = len(var.get("values", []))
-        logger.info("  Variable: code=%r, text=%r, %d values", code, text, count)
-
+        logger.info("  Variable: code=%r text=%r (%d values)",
+                    var.get("code"), var.get("text"), len(var.get("values", [])))
     return meta
 
 
-# ---------------------------------------------------------------------------
-# Build and execute the PxWeb query
-# ---------------------------------------------------------------------------
-
-def find_variable(meta: dict, code_hint: str) -> dict | None:
-    """Find a variable in the metadata by code (case-insensitive)."""
+def _match_var(meta: dict, *, time_flag: bool = False, texts=(), code_prefixes=()):
+    """Find a variable by the PxWeb `time` flag, English/Finnish text, or code prefix."""
+    texts_l = {t.lower() for t in texts}
     for var in meta["variables"]:
-        if var["code"].lower() == code_hint.lower():
+        if time_flag and var.get("time"):
+            return var
+    for var in meta["variables"]:
+        code = (var.get("code") or "").lower()
+        text = (var.get("text") or "").lower()
+        if text in texts_l:
+            return var
+        if any(code.startswith(p) for p in code_prefixes):
             return var
     return None
 
 
-def determine_query_years(meta: dict) -> list[str]:
-    """Pick the latest N non-preliminary years, plus any preliminary year.
+def discover_variables(meta: dict) -> dict:
+    """Map the live (renamed) variable codes to our roles."""
+    year = _match_var(meta, time_flag=True, texts=("year", "vuosi"),
+                      code_prefixes=("vuosi", "timeperiod"))
+    postal = _match_var(meta, texts=("postal code", "postinumero", "postinumeroalue"),
+                        code_prefixes=("postinumero", "pno"))
+    building = _match_var(meta, texts=("building type", "talotyyppi"),
+                          code_prefixes=("talotyyppi",))
+    content = _match_var(meta, texts=("information", "tiedot"),
+                         code_prefixes=("contentscode", "tiedot"))
+    missing = [n for n, v in
+               (("year", year), ("postal", postal),
+                ("building", building), ("information", content)) if v is None]
+    if missing:
+        raise ValueError(f"Could not discover variables: {missing}")
 
-    Returns up to FALLBACK_YEARS year codes, newest first.
-    """
-    year_var = find_variable(meta, "Vuosi")
-    if year_var is None:
-        raise ValueError("Could not find 'Vuosi' (Year) variable in metadata")
+    # Identify the price measure and the sales-count measure within `content`.
+    price_item = count_item = None
+    for code, txt in zip(content["values"],
+                         content.get("valueTexts", content["values"])):
+        tl = txt.lower()
+        if price_item is None and ("eur/m" in tl or "price per square" in tl
+                                   or "hinta" in tl or "neliöhinta" in tl):
+            price_item = code
+        if count_item is None and ("sales" in tl or "number" in tl
+                                   or "transaction" in tl or "lkm" in tl
+                                   or "kauppojen" in tl):
+            count_item = code
+    if price_item is None:
+        price_item = content["values"][0]
+    if count_item is None and len(content["values"]) > 1:
+        count_item = content["values"][1]
 
-    all_years = year_var["values"]
-    year_texts = year_var.get("valueTexts", all_years)
-
-    # Identify preliminary years (marked with *)
-    final_years = []
-    preliminary_years = []
-    for code, text in zip(all_years, year_texts):
-        if "*" in text:
-            preliminary_years.append(code)
-        else:
-            final_years.append(code)
-
-    # Take the latest FALLBACK_YEARS from final, then add preliminary if useful
-    selected = final_years[-FALLBACK_YEARS:]
-
-    # Include the latest preliminary year if it's newer than our selection
-    if preliminary_years:
-        latest_prelim = preliminary_years[-1]
-        if not selected or latest_prelim > selected[-1]:
-            selected.append(latest_prelim)
-
-    # Sort newest first for fallback priority
-    selected.sort(reverse=True)
-    logger.info("  Query years (newest first): %s", selected)
-    return selected
-
-
-def fetch_price_data(meta: dict, our_codes: list[str],
-                     query_years: list[str]) -> list[dict]:
-    """POST a query to the PxWeb API and return the raw data rows.
-
-    Filters to only the postal codes that exist in both our GeoJSON and
-    the API's postal code list.
-    """
-    postal_var = find_variable(meta, "Postinumero")
-    if postal_var is None:
-        raise ValueError("Could not find 'Postinumero' variable in metadata")
-
-    api_codes = set(postal_var["values"])
-    matched_codes = sorted(c for c in our_codes if c in api_codes)
-    missing_codes = sorted(c for c in our_codes if c not in api_codes)
-
-    logger.info("  %d of %d postal codes found in API (%d missing)",
-                len(matched_codes), len(our_codes), len(missing_codes))
-    if missing_codes:
-        logger.info("  Missing from API: %s", missing_codes[:20])
-        if len(missing_codes) > 20:
-            logger.info("  ... and %d more", len(missing_codes) - 20)
-
-    if not matched_codes:
-        raise ValueError("No matching postal codes found in API")
-
-    query = {
-        "query": [
-            {
-                "code": "Vuosi",
-                "selection": {"filter": "item", "values": query_years},
-            },
-            {
-                "code": "Postinumero",
-                "selection": {"filter": "item", "values": matched_codes},
-            },
-            {
-                "code": "Talotyyppi",
-                "selection": {"filter": "all", "values": ["*"]},
-            },
-            {
-                "code": "Tiedot",
-                "selection": {"filter": "all", "values": ["*"]},
-            },
-        ],
-        "response": {"format": "json"},
+    info = {
+        "year_code": year["code"],
+        "postal_code": postal["code"],
+        "building_code": building["code"],
+        "content_code": content["code"],
+        "price_item": price_item,
+        "count_item": count_item,
+        "api_codes": set(postal["values"]),
+        "years": list(year["values"]),
     }
+    logger.info("  Discovered: year=%r postal=%r building=%r content=%r",
+                info["year_code"], info["postal_code"],
+                info["building_code"], info["content_code"])
+    logger.info("  Measures: price=%r count=%r", price_item, count_item)
+    logger.info("  Years %s..%s (%d), postal codes in table: %d",
+                info["years"][0], info["years"][-1],
+                len(info["years"]), len(info["api_codes"]))
+    return info
 
-    logger.info("Querying PxWeb for %d postal codes x %d years...",
-                len(matched_codes), len(query_years))
-    r = request_with_retry(
-        "POST", PXWEB_TABLE_URL, label="price data",
-        json=query, timeout=120,
-    )
-    data = r.json()
 
-    if not isinstance(data, dict) or "data" not in data:
-        raise ValueError("Unexpected response format: missing 'data'")
+# ---------------------------------------------------------------------------
+# Data fetch + sales-weighted multi-year parsing
+# ---------------------------------------------------------------------------
 
-    rows = data["data"]
-    logger.info("  Received %d data rows", len(rows))
+def fetch_rows(table_url: str, info: dict, codes: list[str]) -> list[dict]:
+    """POST chunked queries (all years x all building types x both measures)."""
+    items = [info["price_item"]]
+    if info["count_item"] and info["count_item"] != info["price_item"]:
+        items.append(info["count_item"])
+
+    rows: list[dict] = []
+    batches = list(chunked(codes, POSTAL_BATCH_SIZE))
+    for i, batch in enumerate(batches, 1):
+        query = {
+            "query": [
+                {"code": info["year_code"],
+                 "selection": {"filter": "item", "values": info["years"]}},
+                {"code": info["postal_code"],
+                 "selection": {"filter": "item", "values": batch}},
+                {"code": info["building_code"],
+                 "selection": {"filter": "all", "values": ["*"]}},
+                {"code": info["content_code"],
+                 "selection": {"filter": "item", "values": items}},
+            ],
+            "response": {"format": "json"},
+        }
+        logger.info("  Querying batch %d/%d (%d postal codes)...",
+                    i, len(batches), len(batch))
+        r = request_with_retry("POST", table_url, label=f"data batch {i}",
+                               json=query, timeout=180)
+        data = r.json()
+        if not isinstance(data, dict) or "data" not in data:
+            raise ValueError("Unexpected response format: missing 'data'")
+        rows.extend(data["data"])
+        rate_limit()
+    logger.info("  Received %d data rows total", len(rows))
     return rows
 
 
-# ---------------------------------------------------------------------------
-# Parse rows into per-postal-code prices
-# ---------------------------------------------------------------------------
+def parse_prices(rows: list[dict], years: list[str]) -> tuple[dict[str, int], dict[str, int]]:
+    """Sales-weighted mean EUR/m2 per postal code, newest year that has data.
 
-def parse_price_data(rows: list[dict], query_years: list[str]) -> dict[str, int]:
-    """Parse PxWeb data rows into {postal_code: price_per_sqm}.
-
-    For each postal code:
-    - Collects price and sales count per building type per year.
-    - Computes a sales-weighted average price across building types.
-    - Uses the latest year that has valid data (fallback to older years).
-
-    Args:
-        rows: Raw data rows from PxWeb API.
-        query_years: Years in priority order (newest first).
-
-    Returns:
-        {postal_code: price_eur_per_sqm}
+    Returns (prices, year_usage).
     """
-    # Organize: {postal: {year: {building_type: (price, sales_count)}}}
-    by_postal: dict[str, dict[str, dict[str, tuple[float, float]]]] = {}
+    has_count = any(len(r.get("values", [])) >= 2 for r in rows)
 
+    # {pno: {year: [(price, count), ...]}}
+    by_pno: dict[str, dict[str, list[tuple[float, float]]]] = {}
     for row in rows:
         keys = row.get("key", [])
         vals = row.get("values", [])
-        if len(keys) < 3 or len(vals) < 2:
+        if len(keys) < 3 or not vals:
             continue
-
-        year = keys[0]
-        postal = keys[1][:5]  # ensure 5-digit code
-        btype = keys[2]
+        year, pno = keys[0], keys[1][:5]
         price_str = vals[0]
-        count_str = vals[1]
-
-        # Skip suppressed / missing values
-        if price_str in (".", "..", "...", ""):
+        if price_str in (".", "..", "...", "", None):
             continue
-        if count_str in (".", "..", "...", ""):
-            continue
-
         try:
             price = float(price_str)
-            count = float(count_str)
         except (ValueError, TypeError):
             continue
-
-        if price <= 0 or count <= 0:
+        if price <= 0:
             continue
+        count = 0.0
+        if len(vals) > 1 and vals[1] not in (".", "..", "...", "", None):
+            try:
+                count = float(vals[1])
+            except (ValueError, TypeError):
+                count = 0.0
+        by_pno.setdefault(pno, {}).setdefault(year, []).append((price, count))
 
-        if postal not in by_postal:
-            by_postal[postal] = {}
-        if year not in by_postal[postal]:
-            by_postal[postal][year] = {}
-
-        by_postal[postal][year][btype] = (price, count)
-
-    # Compute weighted average per postal code, using latest available year
-    result: dict[str, int] = {}
+    year_order = sorted(years, reverse=True)  # newest first
+    prices: dict[str, int] = {}
     year_usage: dict[str, int] = {}
-
-    for postal, year_data in by_postal.items():
-        for year in query_years:
-            btypes = year_data.get(year, {})
-            if not btypes:
+    for pno, year_data in by_pno.items():
+        for year in year_order:
+            entries = year_data.get(year)
+            if not entries:
                 continue
-
-            total_weighted = sum(p * c for p, c in btypes.values())
-            total_count = sum(c for _, c in btypes.values())
-
+            total_count = sum(c for _, c in entries)
             if total_count > 0:
-                result[postal] = round(total_weighted / total_count)
+                value = sum(p * c for p, c in entries) / total_count
+            else:
+                # Year reports prices but no sales counts (older pre-2020 cells):
+                # fall back to an unweighted mean so coverage isn't lost.
+                value = sum(p for p, _ in entries) / len(entries)
+            value = round(value)
+            if MIN_PRICE <= value <= MAX_PRICE:
+                prices[pno] = value
                 year_usage[year] = year_usage.get(year, 0) + 1
-                break  # got data from this year, no need to fall back
+                break
 
-    logger.info("  Computed prices for %d postal codes", len(result))
-    for year in query_years:
-        count = year_usage.get(year, 0)
-        if count > 0:
-            logger.info("    %s: %d postal codes", year, count)
-
-    return result
-
-
-# ---------------------------------------------------------------------------
-# Merge with existing data
-# ---------------------------------------------------------------------------
-
-def merge_with_existing(new_data: dict[str, int]) -> dict[str, int]:
-    """Merge new data with any existing property_prices.json.
-
-    New data takes priority; existing data is preserved for postal codes
-    not covered by the new fetch.
-    """
-    if not OUTPUT_FILE.exists():
-        return new_data
-
-    try:
-        with open(OUTPUT_FILE, encoding="utf-8") as f:
-            existing = json.load(f)
-        if not isinstance(existing, dict):
-            return new_data
-
-        logger.info("  Existing file has %d entries", len(existing))
-
-        merged = {k: int(v) for k, v in existing.items()}
-        merged.update(new_data)  # new data takes priority
-
-        added = len(set(new_data) - set(existing))
-        updated = len(set(new_data) & set(existing))
-        preserved = len(set(existing) - set(new_data))
-        logger.info("  Merged: %d added, %d updated, %d preserved from existing",
-                     added, updated, preserved)
-
-        return merged
-    except Exception as e:
-        logger.warning("  Could not read existing file: %s", e)
-        return new_data
+    if has_count:
+        logger.info("  (sales-count weighting active)")
+    return prices, year_usage
 
 
 # ---------------------------------------------------------------------------
@@ -374,74 +357,49 @@ def merge_with_existing(new_data: dict[str, int]) -> dict[str, int]:
 
 def main():
     logger.info("=" * 60)
-    logger.info("Property price data fetch")
-    logger.info("  Source: Statistics Finland PxWeb API")
-    logger.info("  Table: statfin_ashi_pxt_13mu.px")
+    logger.info("Property price fetch — Statistics Finland ashi 13mu")
     logger.info("=" * 60)
 
-    # Step 1: Load our postal codes
     our_codes = load_our_postal_codes()
-    if not our_codes:
-        logger.error("No postal codes found in GeoJSON. Exiting.")
+
+    table_url = resolve_table_url()
+    meta = fetch_metadata(table_url)
+    info = discover_variables(meta)
+
+    # Query intersection of our codes and the table's codes (or all if no GeoJSON).
+    if our_codes:
+        codes = sorted(our_codes & info["api_codes"])
+        logger.info("  %d of %d table postal codes are in our GeoJSON",
+                    len(codes), len(info["api_codes"]))
+    else:
+        codes = sorted(info["api_codes"])
+    if not codes:
+        logger.error("No postal codes to query. Exiting.")
         sys.exit(1)
 
-    # Step 2: Fetch API metadata
-    try:
-        meta = fetch_metadata()
-    except Exception as e:
-        logger.error("Failed to fetch metadata: %s", e)
+    rows = fetch_rows(table_url, info, codes)
+    prices, year_usage = parse_prices(rows, info["years"])
+    if not prices:
+        logger.error("No prices parsed. Exiting.")
         sys.exit(1)
 
-    rate_limit()
-
-    # Step 3: Determine which years to query
-    try:
-        query_years = determine_query_years(meta)
-    except Exception as e:
-        logger.error("Failed to determine query years: %s", e)
-        sys.exit(1)
-
-    # Step 4: Fetch price data from API
-    try:
-        rows = fetch_price_data(meta, our_codes, query_years)
-    except Exception as e:
-        logger.error("Failed to fetch price data: %s", e)
-        sys.exit(1)
-
-    # Step 5: Parse into per-postal-code prices
-    new_data = parse_price_data(rows, query_years)
-    if not new_data:
-        logger.error("No price data parsed from API response. Exiting.")
-        sys.exit(1)
-
-    # Step 6: Merge with existing data (preserve codes not in new fetch)
-    merged = merge_with_existing(new_data)
-
-    # Filter to only codes in our GeoJSON
-    our_codes_set = set(our_codes)
-    final = {k: v for k, v in merged.items() if k in our_codes_set}
-
-    # Step 7: Save
-    logger.info("Saving %d entries to %s", len(final), OUTPUT_FILE)
+    final = dict(sorted(prices.items()))
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
-        json.dump(final, f, indent=2, sort_keys=True, ensure_ascii=False)
+        json.dump(final, f, indent=2, ensure_ascii=False)
 
-    # Summary
+    vals = list(final.values())
+    vals_sorted = sorted(vals)
     logger.info("=" * 60)
     logger.info("Done! %d postal codes with property price data.", len(final))
-
-    helsinki = [c for c in final if c.startswith(("00", "01", "02"))]
-    tampere = [c for c in final if c.startswith(("33", "34", "35", "36", "37", "39"))]
-    turku = [c for c in final if c.startswith(("20", "21"))]
-    logger.info("  Helsinki metro: %d", len(helsinki))
-    logger.info("  Tampere region: %d", len(tampere))
-    logger.info("  Turku region:   %d", len(turku))
-
-    prices = list(final.values())
-    if prices:
-        logger.info("  Price range: %d - %d EUR/m2", min(prices), max(prices))
-        logger.info("  Median: %d EUR/m2", sorted(prices)[len(prices) // 2])
-
+    logger.info("  EUR/m2  min=%d  max=%d  mean=%d  median=%d",
+                min(vals), max(vals), round(sum(vals) / len(vals)),
+                vals_sorted[len(vals_sorted) // 2])
+    logger.info("  Year vintage (value taken from):")
+    for year in sorted(year_usage, reverse=True):
+        logger.info("    %s: %d postal codes", year, year_usage[year])
+    logger.info("  Samples: %s",
+                {k: final[k] for k in list(final)[:5]})
+    logger.info("  Wrote %s", OUTPUT_FILE)
     logger.info("=" * 60)
 
 

@@ -71,9 +71,10 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   // Money is mid-weight (employment 12 > income 10 > education 4) because
   // unemployment harms wellbeing far more than the lost income alone, and
   // education is ~76% redundant with income. Service density is demoted to a
-  // token 3. Most default factors have ~97–100% national coverage; the thin
-  // exceptions are transit (transit_stop_density ~10.9% — Helsinki-region only)
-  // and traffic safety (~72%), both small-weight. computeQualityCoverage exposes
+  // token 3. As of CF-17 every default factor has ~97–100% national coverage
+  // (transit_stop_density is now nationwide via the Digiroad stop register, up
+  // from ~10.9% Helsinki-region only); thin coverage now only affects optional
+  // factors like school_quality (~10%). computeQualityCoverage exposes
   // each factor's national coverage so the panel can tell "no data anywhere" from
   // a genuine local gap. See docs/QUALITY_INDEX.md.
   {

@@ -15,10 +15,10 @@ export default defineConfig({
     __COVERAGE_PCT__: JSON.stringify({
       quality_index: 100,
       hr_mtu: 97.5,
-      transit_stop_density: 10.9,
+      transit_stop_density: 100, // CF-17: now nationwide (Digiroad), was 10.9%
       school_quality_score: 10.3,
-      property_price_sqm: 30.3,
-      rental_price_sqm: 15.7,
+      property_price_sqm: 36.3, // CF-16: sales-weighted multi-year ashi 13mu
+      rental_price_sqm: 18.2, // CF-15: asvu 15fa
     }),
   },
   test: {
