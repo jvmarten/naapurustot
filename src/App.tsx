@@ -2031,6 +2031,7 @@ const App: React.FC = () => {
               data={filteredData}
               onSelect={handleSearch}
               onClose={() => setShowScatter(false)}
+              qualityWeights={qualityWeights}
             />
           </Suspense>
         </ErrorBoundary>
@@ -2045,6 +2046,7 @@ const App: React.FC = () => {
               layerConfig={getLayerById(activeLayer)}
               onSelectRegion={handleExploreCity}
               onClose={() => setShowRegionRanking(false)}
+              qualityWeights={qualityWeights}
             />
           </Suspense>
         </ErrorBoundary>
@@ -2063,6 +2065,7 @@ const App: React.FC = () => {
               onSaveProfile={handleSaveWizardProfile}
               onApplyToMap={handleApplyWizardToMap}
               affordability={affordabilityState}
+              qualityWeights={qualityWeights}
             />
           </Suspense>
         </ErrorBoundary>

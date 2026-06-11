@@ -7,6 +7,8 @@ import { trackEvent } from '../utils/analytics';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { getFeatureCenter } from '../utils/geometryFilter';
 import { loadAllData } from '../utils/dataLoader';
+import { computeQualityIndices, isCustomWeights, type QualityWeights } from '../utils/qualityIndex';
+import { getNationalRanges } from '../utils/nationalRanges';
 import { buildProfileUrl } from '../utils/profileUrl';
 import { ComparisonScopeToggle, type ComparisonScope } from './ComparisonScopeToggle';
 import { defaultWizardAnswers, type WizardAnswers } from '../hooks/useWizardProfile';
@@ -24,6 +26,9 @@ interface WizardProps {
   onSaveProfile?: (answers: WizardAnswers) => void;
   /** CF-4: map the answers onto live Quality Index weights so the map reflects them. */
   onApplyToMap?: (answers: WizardAnswers) => void;
+  /** CF-1pt3: live Quality-Index weights, so national-scope matches score
+   *  quality_index the same as the region map (loadAllData uses default weights). */
+  qualityWeights?: QualityWeights;
   /** CF-14: the user's affordability inputs (income/budget + size), if any. Lets the
    *  wizard fold "within my budget" into the match. Undefined/empty → no affordability UI. */
   affordability?: AffordabilityState;
@@ -356,7 +361,7 @@ function scoreNeighborhoods(
 
 const STEP_COUNT = 4;
 
-export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onClose, onShowOnMap, initialAnswers, onSaveProfile, onApplyToMap, affordability }) => {
+export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onClose, onShowOnMap, initialAnswers, onSaveProfile, onApplyToMap, affordability, qualityWeights }) => {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
   // CF-14: does the user have a usable affordability input (amount + size)? Only
@@ -390,13 +395,22 @@ export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onCl
   const [nationalData, setNationalData] = useState<FeatureCollection | null>(null);
   const [nationalLoading, setNationalLoading] = useState(false);
   useEffect(() => {
-    if (scope !== 'all' || nationalData || nationalLoading) return;
+    if (scope !== 'all') return;
     setNationalLoading(true);
     loadAllData()
-      .then((res) => setNationalData(res.data))
+      .then((res) => {
+        const fc = res.data;
+        // CF-1pt3: re-score nationally with the user's custom weights so wizard
+        // matches use the same quality_index as the region map. loadAllData is
+        // cached → re-running on a weights change is instant.
+        if (qualityWeights && isCustomWeights(qualityWeights)) {
+          computeQualityIndices(fc.features, qualityWeights, getNationalRanges());
+        }
+        setNationalData({ ...fc, features: [...fc.features] });
+      })
       .catch(() => setScope('region')) // national dataset unavailable — fall back
       .finally(() => setNationalLoading(false));
-  }, [scope, nationalData, nationalLoading]);
+  }, [scope, qualityWeights]);
   const isNational = scope === 'all';
   const activeData = isNational ? nationalData : data;
 

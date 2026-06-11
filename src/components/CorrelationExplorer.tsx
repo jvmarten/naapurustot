@@ -8,6 +8,8 @@ import { t, useI18nVersion } from '../utils/i18n';
 import { trackEvent } from '../utils/analytics';
 import { generateCorrelationCard } from '../utils/scoreCard';
 import { loadAllData } from '../utils/dataLoader';
+import { computeQualityIndices, isCustomWeights, type QualityWeights } from '../utils/qualityIndex';
+import { getNationalRanges } from '../utils/nationalRanges';
 import { buildProfileUrl } from '../utils/profileUrl';
 import { ComparisonScopeToggle, type ComparisonScope } from './ComparisonScopeToggle';
 
@@ -15,6 +17,9 @@ interface Props {
   data: FeatureCollection | null;
   onSelect: (pno: string, center: [number, number]) => void;
   onClose: () => void;
+  /** CF-1pt3: live Quality-Index weights, so a national-scope scatter scores
+   *  quality_index the same as the region map (loadAllData uses default weights). */
+  qualityWeights?: QualityWeights;
 }
 
 // Distinct, color-blind-friendly palette cycled across the regions present.
@@ -36,7 +41,7 @@ const SIG_TONE: Record<string, string> = {
 
 interface Pt extends XYPoint { pno: string; name: string; pop: number; region: string; feature: Feature; }
 
-export const CorrelationExplorer: React.FC<Props> = ({ data, onSelect, onClose }) => {
+export const CorrelationExplorer: React.FC<Props> = ({ data, onSelect, onClose, qualityWeights }) => {
   useI18nVersion();
   const navigate = useNavigate();
   const [metricX, setMetricX] = useState<LayerId>('median_income');
@@ -54,13 +59,23 @@ export const CorrelationExplorer: React.FC<Props> = ({ data, onSelect, onClose }
   const [nationalData, setNationalData] = useState<FeatureCollection | null>(null);
   const [nationalLoading, setNationalLoading] = useState(false);
   useEffect(() => {
-    if (scope !== 'all' || nationalData || nationalLoading) return;
+    if (scope !== 'all') return;
     setNationalLoading(true);
     loadAllData()
-      .then((res) => setNationalData(res.data))
+      .then((res) => {
+        const fc = res.data;
+        // CF-1pt3: re-score the national set with the user's custom weights so
+        // quality_index here matches the region map (loadAllData uses default
+        // weights). loadAllData is cached, so re-running on a weights change is
+        // instant; the new wrapper object forces the scatter to recompute.
+        if (qualityWeights && isCustomWeights(qualityWeights)) {
+          computeQualityIndices(fc.features, qualityWeights, getNationalRanges());
+        }
+        setNationalData({ ...fc, features: [...fc.features] });
+      })
       .catch(() => setScope('region')) // national dataset unavailable — fall back
       .finally(() => setNationalLoading(false));
-  }, [scope, nationalData, nationalLoading]);
+  }, [scope, qualityWeights]);
   const isNational = scope === 'all';
   const activeData = isNational ? nationalData : data;
 
