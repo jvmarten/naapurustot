@@ -46,13 +46,32 @@ jobs:
           SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
 
+      # Restore previously-rasterized card PNGs into dist/og BEFORE build:pages writes
+      # the SVGs, so the rasterize step only renders cards that actually changed.
+      # `npm run build` (vite, emptyOutDir) has already run, so this is the first thing
+      # to touch dist/og. The card SVG names are content-hashed, so a restored PNG is
+      # reused only when a current SVG has the identical name (= identical card); the
+      # rasterizer prunes orphans, so the cache never accumulates stale images. Key on
+      # the card-content determinants — the committed data version (build_metadata) and
+      # the card-emitting/templating/rendering scripts — so a code-only deploy is an
+      # exact hit (rasterize skips everything → deploy drops back to ~3 min) and a data
+      # refresh or card-layout change triggers a fresh full rasterize.
+      - name: Restore rasterized social-card cache
+        uses: actions/cache@v4
+        with:
+          path: dist/og
+          key: og-cards-${{ hashFiles('src/data/build_metadata.json', 'scripts/social-card.mjs', 'scripts/prerender.mjs', 'scripts/prerender-hubs.mjs', 'scripts/rasterize-cards.mjs') }}
+          restore-keys: |
+            og-cards-
+
       - run: npm run build:pages
 
       # CF-11: rasterize the per-area/per-region social-card SVGs to PNG (FB/LinkedIn/
       # WhatsApp/X don't render SVG og:images). DEPLOY-ONLY — the ~9,000 PNGs add a few
       # hundred MB to dist/ (within the 1 GB Pages cap) and are pointless for the
       # ci/auto-merge build:pages gates. fonts-dejavu-core gives @resvg an ä/ö/å-capable
-      # font for the card text.
+      # font for the card text. Most of the cards are served from the cache restored
+      # above; only changed cards re-render.
       - name: Install card-rasterizer fonts
         run: sudo apt-get update && sudo apt-get install -y fonts-dejavu-core
       - run: node scripts/rasterize-cards.mjs
