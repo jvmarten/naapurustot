@@ -227,7 +227,7 @@ describe('generateScoreCard', () => {
     // PO-2: the diff now routes through locale-aware formatDiff. Normalise the
     // FI non-breaking thousands separator (jsdom serialises it as &nbsp;) so the
     // comparison is against the same separator formatDiff emits.
-    const norm = (s: string) => s.replace(/&nbsp;| /g, ' ');
+    const norm = (s: string) => s.replace(/&nbsp;|\u00A0/g, ' ');
     const html = norm(appendedElement?.innerHTML ?? '');
     expect(html).toContain(norm(formatDiff(20000, 30000)));
   });

@@ -8,11 +8,16 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
+  # IN-5: actions:write is required to dispatch auto-merge.yml via `gh workflow run`.
+  actions: write
 
 jobs:
   refresh:
     runs-on: ubuntu-latest
+    # IN-5: a cold run re-fetches ~483 Overpass queries plus Paavo/StatFin/grid
+    # sources and rebuilds the 39 MB GeoJSON, well beyond the 6 h default. Cap it
+    # generously so a hung upstream fails the run instead of burning the budget.
+    timeout-minutes: 180
 
     steps:
       - uses: actions/checkout@v5
@@ -24,6 +29,17 @@ jobs:
 
       - name: Install Python dependencies
         run: pip install -r requirements.txt
+
+      # IN-5: Node toolchain to regenerate the app data artifacts (src/data) from the
+      # refreshed GeoJSON. topojson-server is now a pinned devDep, so geo2topo output
+      # is reproducible across runs.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.18.0'
+          cache: npm
+
+      - name: Install Node dependencies
+        run: npm ci
 
       - name: Run data pipeline
         run: python scripts/prepare_data.py
@@ -40,15 +56,18 @@ jobs:
           SIZE=$(stat --format=%s "$GEOJSON")
           echo "GeoJSON file size: $SIZE bytes"
 
-          # Must be at least 100 KB (sanity check — current file is ~1.1 MB)
-          if [ "$SIZE" -lt 102400 ]; then
+          # IN-5: lower sanity bound. The all-Finland file is ~39 MB; anything under
+          # ~5 MB means a truncated/partial pipeline run.
+          if [ "$SIZE" -lt 5242880 ]; then
             echo "::error::GeoJSON file too small ($SIZE bytes) — likely corrupted or truncated"
             exit 1
           fi
 
-          # Must not exceed 10 MB (guard against data explosion)
-          if [ "$SIZE" -gt 10485760 ]; then
-            echo "::error::GeoJSON file too large ($SIZE bytes) — exceeds 10 MB limit"
+          # IN-5: upper guard raised to 60 MB. The committed nationwide GeoJSON is
+          # ~39 MB, so the old 10 MB limit failed EVERY scheduled run since the
+          # all-Finland expansion (the "~1.1 MB" assumption was badly stale).
+          if [ "$SIZE" -gt 62914560 ]; then
+            echo "::error::GeoJSON file too large ($SIZE bytes) — exceeds 60 MB limit"
             exit 1
           fi
 
@@ -66,6 +85,13 @@ jobs:
 
       - name: Validate data quality
         run: python scripts/validate_data.py
+
+      # IN-5: regenerate the artifacts the app actually loads (per-region TopoJSON,
+      # region_properties, ranges, grids, adjacency, slug aliases, build_metadata)
+      # from the refreshed GeoJSON. Previously only the GeoJSON was committed, so even
+      # a merged refresh changed nothing the app served.
+      - name: Rebuild app data artifacts
+        run: npm run build:data
 
       - name: Provenance manifest summary
         if: always()
@@ -109,44 +135,39 @@ jobs:
             public/data/build_metadata.json
           if-no-files-found: warn
 
+      # IN-5: detect changes in the GeoJSON OR the regenerated src/data artifacts —
+      # a refresh that only re-encodes downstream artifacts still needs to ship.
       - name: Check for changes
         id: diff
         run: |
-          git diff --quiet public/data/metro_neighborhoods.geojson && echo "changed=false" >> "$GITHUB_OUTPUT" || echo "changed=true" >> "$GITHUB_OUTPUT"
+          if git diff --quiet public/data/metro_neighborhoods.geojson src/data public/data; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Create PR if data changed
+      # IN-5: push to a claude/* branch and dispatch auto-merge, instead of opening a
+      # GITHUB_TOKEN PR (which triggers ZERO CI — the recursion guard suppresses
+      # workflows on GITHUB_TOKEN pushes). The branch carries the GeoJSON AND the
+      # regenerated artifacts; auto-merge.yml runs the full gate then merges to main.
+      # Note: the same recursion guard means the push itself won't trigger auto-merge,
+      # so we invoke it explicitly via workflow_dispatch (--ref the new branch).
+      - name: Push refresh branch and dispatch auto-merge
         if: steps.diff.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           DATE=$(date +%Y-%m-%d)
-          BRANCH="data-refresh/$DATE"
+          BRANCH="claude/data-refresh-$DATE"
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           git checkout -b "$BRANCH"
-          git add public/data/metro_neighborhoods.geojson
-          git commit -m "chore: refresh neighborhood data ($DATE)"
+          git add public/data/metro_neighborhoods.geojson src/data public/data
+          git commit -m "chore(data): quarterly refresh ($DATE)"
           git push origin "$BRANCH"
 
-          FEATURE_COUNT=$(python3 -c "
-          import json
-          with open('public/data/metro_neighborhoods.geojson') as f:
-              data = json.load(f)
-          print(len(data.get('features', [])))
-          ")
-          SIZE=$(stat --format=%s public/data/metro_neighborhoods.geojson)
-          SIZE_KB=$((SIZE / 1024))
-
-          gh pr create \
-            --title "chore: refresh neighborhood data ($DATE)" \
-            --body "## Data Refresh
-
-          Automated quarterly data refresh from upstream sources.
-
-          - **Date:** $DATE
-          - **Features:** $FEATURE_COUNT postal code areas
-          - **File size:** ${SIZE_KB} KB
-
-          Please review the diff to verify data changes are reasonable before merging."
+          # Hand off to the standard gate+merge pipeline.
+          gh workflow run auto-merge.yml --ref "$BRANCH"
+          echo "Dispatched auto-merge for $BRANCH"

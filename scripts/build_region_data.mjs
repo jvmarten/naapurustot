@@ -17,6 +17,7 @@
 import { execSync } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdirSync, existsSync, unlinkSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
+import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import { buildAdjacencyFromRegions } from './lib/adjacency.mjs';
 import { computeDataUpdateEvents, mergeDataUpdates } from './lib/data-updates.mjs';
@@ -36,7 +37,8 @@ if (!existsSync(geojsonPath)) {
 }
 
 console.log('Reading source GeoJSON...');
-const geojson = JSON.parse(readFileSync(geojsonPath, 'utf-8'));
+const geojsonRaw = readFileSync(geojsonPath, 'utf-8');
+const geojson = JSON.parse(geojsonRaw);
 const features = geojson.features;
 console.log(`  ${features.length} features total`);
 
@@ -259,8 +261,25 @@ const sortedProvenanceMetrics = {};
 for (const k of Object.keys(provenanceMetrics).sort()) sortedProvenanceMetrics[k] = provenanceMetrics[k];
 
 const metadataPath = resolve(rootDir, 'src', 'data', 'build_metadata.json');
+// IN-5: derive `generated` from a hash of the source GeoJSON content instead of
+// Date.now(). This makes build:data idempotent — re-running it against unchanged
+// data reproduces a byte-identical build_metadata.json, which is what the
+// auto-merge idempotency gate (`git diff --exit-code src/data`) checks, and it
+// mechanically enforces the CLAUDE.md "never skip build:data" rule. It is also the
+// correct semantics for the "Data last updated" label: the timestamp only advances
+// when the underlying data actually changes. The timestamp is captured the first
+// time a given dataset is built (during the data refresh) and then preserved across
+// rebuilds of the same data.
+const sourceHash = createHash('sha256').update(geojsonRaw).digest('hex').slice(0, 16);
+let prevMetadata = {};
+try { prevMetadata = JSON.parse(readFileSync(metadataPath, 'utf-8')); } catch { /* first build */ }
+const generated =
+  prevMetadata.source_hash === sourceHash && typeof prevMetadata.generated === 'string'
+    ? prevMetadata.generated
+    : new Date().toISOString();
 const buildMetadata = {
-  generated: new Date().toISOString(),
+  generated,
+  source_hash: sourceHash,
   rows_total: features.length,
   metrics: sortedProvenanceMetrics,
 };
@@ -269,8 +288,7 @@ const buildMetadata = {
 // which drives the indexable "Data updated" changelog and the Atom feed. Real build
 // events only — no fabricated dates. On an unchanged rebuild this is a no-op.
 const dataUpdatesPath = resolve(rootDir, 'src', 'data', 'data_updates.json');
-let prevMetrics = {};
-try { prevMetrics = JSON.parse(readFileSync(metadataPath, 'utf-8')).metrics ?? {}; } catch { /* first build */ }
+const prevMetrics = prevMetadata.metrics ?? {};
 let dataUpdates = [];
 try { dataUpdates = JSON.parse(readFileSync(dataUpdatesPath, 'utf-8')); } catch { /* none yet */ }
 const updateEvents = computeDataUpdateEvents(prevMetrics, sortedProvenanceMetrics, buildMetadata.generated.slice(0, 10));
