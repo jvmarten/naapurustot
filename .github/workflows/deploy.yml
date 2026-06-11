@@ -23,6 +23,9 @@ jobs:
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
+    # Belt-and-suspenders: a hung build (e.g. the card rasterizer regressing again)
+    # should fail fast with a clear message instead of the default 6-hour ceiling.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
         with:
