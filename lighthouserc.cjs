@@ -77,10 +77,13 @@ module.exports = {
     //     current CI hosts land them around ~0.82. A static page dropping below
     //     0.78 indicates a real problem (e.g. main-thread bloat in the
     //     prerender path), so that is the floor — still a hard error.
-    //   - The root SPA boots MapLibre GL (~260 KB gz) and parses 1MB+ of
-    //     TopoJSON before LCP (more now that the default view is all-Finland),
-    //     scoring ~0.40 on CI. It stays a non-blocking *warn*; raise it once
-    //     deferred-map-load / static-hero work lands.
+    //   - The root SPA boots MapLibre GL (~260 KB gz) before LCP, scoring ~0.40
+    //     on CI. CF-8 cut the all-Finland first-paint DATA payload from a ~10.6 MB
+    //     region_properties.json fetch to a ~27 KB gz aggregate (region colours now
+    //     paint from region_aggregates.json), but the LCP bottleneck is the MapLibre
+    //     boot itself, which is unchanged — so the score is still GL-bound and this
+    //     stays a non-blocking *warn*. Promote to error once the map init is deferred
+    //     behind a static hero (the remaining half of this gate's blocker).
     assert: {
       assertMatrix: [
         {

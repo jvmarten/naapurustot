@@ -74,6 +74,45 @@ describe('useMapData', () => {
     expect(loadRegionDataMock).not.toHaveBeenCalled();
   });
 
+  it('skipAllFetch: does not fetch the national set, exposes settled null data (CF-8)', async () => {
+    const { result } = renderHook(() => useMapData('all', { skipAllFetch: true }));
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+    expect(result.current.data).toBeNull();
+    expect(result.current.error).toBeNull();
+    expect(loadAllDataMock).not.toHaveBeenCalled();
+    expect(loadRegionDataMock).not.toHaveBeenCalled();
+  });
+
+  it('skipAllFetch only applies to the all-cities view, not a concrete region (CF-8)', async () => {
+    loadRegionDataMock.mockResolvedValueOnce(emptyResult());
+    const { result } = renderHook(() => useMapData('turku', { skipAllFetch: true }));
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+    expect(loadRegionDataMock).toHaveBeenCalledWith('turku');
+    expect(loadAllDataMock).not.toHaveBeenCalled();
+  });
+
+  it('flipping skipAllFetch off loads the full national set (custom-weights upgrade) (CF-8)', async () => {
+    loadAllDataMock.mockResolvedValueOnce(emptyResult({ hr_mtu: 35000 }));
+    const { result, rerender } = renderHook(({ skip }) => useMapData('all', { skipAllFetch: skip }), {
+      initialProps: { skip: true },
+    });
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+    expect(result.current.data).toBeNull();
+    expect(loadAllDataMock).not.toHaveBeenCalled();
+
+    rerender({ skip: false });
+    await waitFor(() => {
+      expect(result.current.metroAverages.hr_mtu).toBe(35000);
+    });
+    expect(loadAllDataMock).toHaveBeenCalledTimes(1);
+  });
+
   it('loads per-region data when a concrete regionId is provided', async () => {
     loadRegionDataMock.mockResolvedValueOnce(emptyResult());
 

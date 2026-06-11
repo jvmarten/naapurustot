@@ -5,7 +5,7 @@
  * into the app. Bugs here silently corrupt every downstream calculation
  * (quality indices, metro averages, similarity, filters).
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // We can't import processTopology directly (not exported), so we test
 // the numeric coercion logic in isolation and the pipeline integration
@@ -269,5 +269,42 @@ describe('resetDataCache', () => {
     expect(typeof mod.resetDataCache).toBe('function');
     // Should not throw
     mod.resetDataCache();
+  });
+});
+
+// CF-8: the all-cities first paint loads the small region_aggregates.json instead of
+// the full ~10.6 MB national set.
+describe('loadAllAggregates (CF-8)', () => {
+  beforeEach(async () => {
+    const mod = await import('../utils/dataLoader');
+    mod.resetDataCache();
+    vi.restoreAllMocks();
+  });
+
+  it('fetches region_aggregates.json once and caches the result', async () => {
+    const mod = await import('../utils/dataLoader');
+    const payload = { national: { he_vakiy: 100 }, regions: { helsinki_metro: { he_vakiy: 50 } } };
+    const fetchMock = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve(payload) }));
+    vi.stubGlobal('fetch', fetchMock as unknown as typeof fetch);
+
+    const a = await mod.loadAllAggregates();
+    expect(a.national.he_vakiy).toBe(100);
+    expect(a.regions.helsinki_metro.he_vakiy).toBe(50);
+
+    const b = await mod.loadAllAggregates();
+    expect(b).toBe(a); // cached → same resolved object
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('evicts the cache on failure so a later call retries', async () => {
+    const mod = await import('../utils/dataLoader');
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: false, status: 500 })) as unknown as typeof fetch);
+    await expect(mod.loadAllAggregates()).rejects.toThrow();
+
+    // Cache was evicted — the next call fetches again and succeeds.
+    const payload = { national: {}, regions: {} };
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve(payload) })) as unknown as typeof fetch);
+    const a = await mod.loadAllAggregates();
+    expect(a.regions).toEqual({});
   });
 });

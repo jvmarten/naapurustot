@@ -17,10 +17,18 @@ interface MapDataState {
  * When `regionId` is provided, loads only that region's TopoJSON file (lazy).
  * When `regionId` is undefined (i.e. "all" view), loads the combined dataset.
  *
+ * CF-8: pass `{ skipAllFetch: true }` for the all-cities view to *not* download the
+ * ~10.6 MB national set. The view then renders from `region_aggregates.json` (loaded
+ * by `useAllCitiesAggregates`) and this hook exposes `data: null` — so every
+ * `data`-gated path (pnoFeatureMap, drawn-area, quality recompute, deep-link restore)
+ * cleanly no-ops until a trigger flips `skipAllFetch` off and the full set loads.
+ *
  * Processing pipeline: TopoJSON → GeoJSON → filter islands → compute quality indices →
  * compute change metrics → compute quick-win metrics → compute metro averages.
  */
-export function useMapData(regionId?: RegionId | 'all'): MapDataState {
+export function useMapData(regionId?: RegionId | 'all', opts?: { skipAllFetch?: boolean }): MapDataState {
+  // Only meaningful for the all-cities view (regionId 'all' or undefined).
+  const skipAllFetch = !!opts?.skipAllFetch && (regionId === 'all' || regionId == null);
   const [state, setState] = useState<Omit<MapDataState, 'retry'>>({
     data: null,
     loading: true,
@@ -45,6 +53,14 @@ export function useMapData(regionId?: RegionId | 'all'): MapDataState {
 
   useEffect(() => {
     let cancelled = false;
+
+    // CF-8: all-cities aggregate mode — do not fetch the full national set. Expose a
+    // settled null dataset; the all-cities view renders from the prebuilt aggregates.
+    if (skipAllFetch) {
+      setState({ data: null, loading: false, error: null, metroAverages: {} });
+      return () => { cancelled = true; };
+    }
+
     setState({ data: null, loading: true, error: null, metroAverages: {} });
 
     if (attempt > lastResetAttemptRef.current) {
@@ -70,7 +86,7 @@ export function useMapData(regionId?: RegionId | 'all'): MapDataState {
         setState({ data: null, loading: false, error: 'load_failed', metroAverages: {} });
       });
     return () => { cancelled = true; };
-  }, [regionId, attempt]);
+  }, [regionId, attempt, skipAllFetch]);
 
   const retry = useCallback(() => setAttempt((a) => a + 1), []);
 

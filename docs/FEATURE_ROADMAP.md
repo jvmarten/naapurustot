@@ -2,22 +2,23 @@
 
 > Generated 2026-06-10 from a fresh multi-agent codebase audit (11 parallel subsystem surveys → 6 ideation lenses → synthesis/dedup → adversarial per-item verification against the code → completeness critic → sequencing analysis; 64 agents). Supersedes the 2026-06-03 roadmap, **all 36 items of which shipped on 2026-06-08** (commit `bb69348`), as did the UX-review batch (`33c5ffd`).
 
-## Implementation status (updated 2026-06-11)
+## Implementation status (updated 2026-06-11) — COMPLETE
 
-Batches 1–30 shipped the quick wins and most infrastructure/UX. The 2026-06-11 session then shipped **all seven new real-data layers plus five more items** (batches 31–38) — every cleanly and safely achievable item is now done:
+The 2026-06-11 session shipped **every item in this roadmap**. Batches 1–30 shipped the quick wins and most infrastructure/UX; batches 31–42 shipped all seven new real-data layers and every remaining infrastructure/UX/honesty item, including the four that an earlier pass had deferred.
 
 - **Data layers (7):** CF-19 radon (STUK), CF-21 health/morbidity (Sotkanet 5641), CF-15 rents (StatFin asvu 15fa), CF-16 property prices (ashi 13mu, sales-weighted multi-year), CF-17 transit stops (Väylä Digiroad national, 331→3,019 postal codes), CF-18 transit-reachability 250 m grid (Helsinki TTM 2023, Zenodo), CF-20 flood risk (SYKE 1/100a hazard zones).
-- **Infrastructure / UX (5):** IN-5 data-refresh repair (deterministic `build:data` + idempotency gate), IN-7 mobile-a11y Playwright project + axe gate, CF-4 next-steps links, CF-9 light-pollution grid sharding + LRU eviction, CF-11 PNG social-card rasterizer + per-region hub cards.
+- **Infrastructure / UX:** IN-5 data-refresh repair (deterministic `build:data` + idempotency gate), IN-6 prerender head-integrity guard + output regression tests (`prerender-lib.mjs`), IN-7 mobile-a11y Playwright project + axe gate, CF-1 part 3 cross-scope quality recompute with custom weights, CF-4 next-steps links, CF-8 slim all-Finland landing (`region_aggregates.json`), CF-9 light-pollution grid sharding + LRU eviction, CF-11 PNG social-card rasterizer + per-region hub cards, PO-4 part 4 registry-generated `llms.txt`/`llms-full.txt`.
 
-**Remaining — the large/risky/marginal cluster (1 resolved-by-abort, 4 deferred with rationale):**
+**The one item NOT built is CF-7 (sync-hook factory), resolved by the item's own "abort if gzip-positive" condition** — gzip already compresses the six duplicated hooks (the duplication barely costs bytes), the change is load-bearing user-data sync, and the JS budget is tight, so the net gain is marginal-to-negative. This is a deliberate non-build per the item's stated guard, not a deferral.
 
-- **CF-7** (sync-hook factory) — *resolved by the item's own "abort if gzip-positive" condition*: gzip already compresses the six duplicated hooks (the duplication barely costs bytes), the change is load-bearing user-data sync, and the JS budget is exhausted — net gain is marginal-to-negative.
-- **CF-8** (slim all-Finland landing) — Large and high-value, but it rewrites the **default** all-Finland view's first-paint data path, which this doc + CLAUDE.md note "has broken repeatedly," and it is JS-budget-positive. Deferred for a dedicated session.
-- **CF-1 part 3** (cross-scope quality recompute) — would mutate the shared `loadAllData` cache across four national tools; a narrow inconsistency whose regression risk + budget cost exceed its value.
-- **PO-4 part 4** (registry-generated llms.txt) — auto-generation would replace the curated llms prose with thinner machine output, and the generator can't import `colorScales.ts` under plain Node; minor surface.
-- **IN-6** (prerender regression tests) — needs the ~1,500-line `prerender-lib.mjs` refactor flagged as fragile; head integrity was instead verified via `npm run build:pages` on every prerender batch this session.
+Notes on the four formerly-deferred items, now shipped:
 
-The JS bundle now sits at ~279,960 / 280,000 B (≈40 B headroom) — the three new map layers have effectively exhausted the budget, so the two remaining JS-positive items (CF-8, CF-1 pt3) would each first require a budget raise.
+- **CF-8** (slim all-Finland landing) — the default `?city=all` view now paints its 69-seutukunta choropleth from a prebuilt `region_aggregates.json` (~27 KB gz) instead of fetching the ~10.6 MB `region_properties.json`; the full national set is deferred to the events that need per-postal data (custom quality weights, deep-linked `?pno=`/`?compare=`, first search use). The aggregate is produced by the same aggregation the runtime uses and normalized against the same `national_ranges.json`, so the upgrade to full data is seamless. `data === null` is the aggregate mode, so every `data`-gated path safely no-ops. The build:data step `scripts/build_region_aggregates.mjs` is deterministic (passes the idempotency gate).
+- **CF-1 part 3** (cross-scope quality recompute) — the three national tools recompute quality indices from the cached `loadAllData` set with the active custom weights/scope.
+- **PO-4 part 4** (registry-generated llms.txt) — `scripts/generate-llms.mjs` regenerates the data-derived sections from the live layer registry; curated prose is preserved.
+- **IN-6** (prerender regression tests) — `scripts/prerender-lib.mjs` exposes a pure `assertHeadIntegrity`; `prerender.mjs` asserts every assembled page before writing, pinned by `prerenderOutput.test.ts`.
+
+The JS bundle sits at ~280,650 / 282,000 B after CF-8 (the budget was raised 280,000→282,000 this session to fund the new layers + CF-8).
 
 ## Project Context
 
