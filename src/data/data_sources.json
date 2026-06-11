@@ -59,6 +59,16 @@
       "name": "naapurustot.fi (koostettu)",
       "url": "https://naapurustot.fi/",
       "license": "—"
+    },
+    "stuk": {
+      "name": "Säteilyturvakeskus (STUK)",
+      "url": "https://stuk.fi/",
+      "license": "CC BY 4.0"
+    },
+    "thl": {
+      "name": "Terveyden ja hyvinvoinnin laitos (THL)",
+      "url": "https://sotkanet.fi/",
+      "license": "CC BY 4.0"
     }
   },
   "metrics": {
@@ -505,6 +515,22 @@
       "is_proxy": false,
       "stored": false,
       "panel": false
+    },
+    "radon": {
+      "source": "Säteilyturvakeskus (STUK), pientalojen radonpitoisuudet postinumeroalueittain",
+      "publisher": "stuk",
+      "vintage": 2023,
+      "granularity": "postal",
+      "is_proxy": false,
+      "note": "note.radon"
+    },
+    "health_index": {
+      "source": "THL / Kela (Sotkanet, Kansallinen terveysindeksi — sairastavuusindeksi 5641)",
+      "publisher": "thl",
+      "vintage": 2023,
+      "granularity": "postal",
+      "is_proxy": true,
+      "note": "note.health_index"
     }
   }
 }

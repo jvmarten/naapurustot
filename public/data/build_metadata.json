@@ -1,6 +1,6 @@
 {
-  "generated": "2026-06-11T05:56:29.849Z",
-  "source_hash": "fea9caea87976637",
+  "generated": "2026-06-11T06:15:46.544Z",
+  "source_hash": "085d8e25da860dd7",
   "rows_total": 3018,
   "metrics": {
     "air_quality_index": {
@@ -154,6 +154,14 @@
       "is_proxy": false,
       "row_count": 3018,
       "coverage_pct": 100
+    },
+    "health_index": {
+      "source": "THL / Kela (Sotkanet, Kansallinen terveysindeksi — sairastavuusindeksi 5641)",
+      "vintage": 2023,
+      "granularity": "postal",
+      "is_proxy": true,
+      "row_count": 2986,
+      "coverage_pct": 98.9
     },
     "healthcare_density": {
       "source": "OpenStreetMap",
@@ -314,6 +322,14 @@
       "is_proxy": false,
       "row_count": 2995,
       "coverage_pct": 99.2
+    },
+    "radon": {
+      "source": "Säteilyturvakeskus (STUK), pientalojen radonpitoisuudet postinumeroalueittain",
+      "vintage": 2023,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 1567,
+      "coverage_pct": 51.9
     },
     "rental_price_sqm": {
       "source": "Tilastokeskus (PxWeb, asvu 13eb)",

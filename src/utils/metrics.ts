@@ -96,6 +96,9 @@ export interface NeighborhoodProperties {
   transit_stop_density: number | null;
   air_quality_index: number | null;
   crime_index: number | null;
+  // CF-19: indoor radon median Bq/m³ (STUK, postal). CF-21: morbidity index (Sotkanet, proxy).
+  radon: number | null;
+  health_index: number | null;
   daycare_density: number | null;
   school_density: number | null;
   healthcare_density: number | null;
@@ -680,6 +683,8 @@ const METRIC_DEFS: MetricDef[] = [
   { property: 'transit_stop_density', weight: 'population', precision: 1 },
   { property: 'air_quality_index', weight: 'population', precision: 1 },
   { property: 'crime_index', weight: 'population', precision: 1 },
+  { property: 'radon', weight: 'population', precision: 0 },
+  { property: 'health_index', weight: 'population', precision: 1 },
 
   // Services
   { property: 'daycare_density', weight: 'population', precision: 1 },

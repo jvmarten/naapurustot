@@ -789,5 +789,13 @@
   "isochrone.error": "Couldn't load travel-time area",
   "geolocation.denied": "Location permission denied \u2014 enable it in your browser settings",
   "geolocation.unavailable": "Couldn't get your location \u2014 try again",
-  "lang.load_failed": "Couldn't load this language. Showing Finnish."
+  "lang.load_failed": "Couldn't load this language. Showing Finnish.",
+  "layer.radon": "Radon",
+  "panel.radon": "Radon (Bq/m³)",
+  "metric_explanation.radon": "Median indoor radon concentration in single-family homes (Bq/m³) by postal code. Lower is better; 300 Bq/m³ is the action level. Source: STUK.",
+  "note.radon": "STUK single-family-home radon measurements (1980–2023) by postal code; areas with at least 10 measured dwellings. Covers roughly half of all areas; the rest show gray.",
+  "layer.health_index": "Morbidity index",
+  "panel.health_index": "Morbidity index",
+  "metric_explanation.health_index": "THL/Kela age-standardized morbidity index (national health index); 100 = national average, lower is better. Municipal value assigned to postal codes.",
+  "note.health_index": "Municipality-level THL/Kela morbidity index (Sotkanet, 2023) assigned to each municipality's postal codes. An estimate at postal-code level."
 }
