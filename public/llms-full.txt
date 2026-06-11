@@ -146,92 +146,97 @@ Each region below has an overview page at `https://naapurustot.fi/kaupunki/{id}/
 
 ## 4. Data layers
 
-naapurustot.fi presents the following indicators. Each is a "layer" that can be
-shown on the map and appears on every neighbourhood profile page where data is
-available. Percentages, densities and indices are area-level statistics.
+naapurustot.fi presents the following indicators, grouped as in the app. Each is
+an area-level statistic shown on the map and on every neighbourhood profile where
+data is available. This catalogue is generated from the live layer registry.
 
-### Summary
-- **Quality Index** — a composite 0–100 score (see section 5).
+### Quality of Life
+- **Transit Access**
+- **Transit Reachability**
+- **Air Quality**
+- **Walkability Index**
 
-### Income & employment
-- **Median income** — median annual disposable income of inhabitants (EUR).
-- **Income change (%)** — recent change in median income.
-- **Employment rate** — share of working-age residents who are employed.
-- **Unemployment rate** — share of the labour force that is unemployed.
-- **Unemployment change (%)** — recent change in the unemployment rate.
-- **Tech sector jobs** — share of local jobs in the information & communication sector.
-- **Healthcare workers** — share of local jobs in human health & social work.
-- **Manufacturing jobs** — share of local jobs in manufacturing.
-- **Public sector jobs** — share of local jobs in public administration.
-- **Service sector jobs** — share of local jobs in services.
-
-### Education
-- **Higher education** — share of residents with a tertiary degree.
-- **School density** — number of schools in/near the area.
-- **School quality** — average upper-secondary (lukio) examination performance.
+### Trends
+- **Income Change (%)**
+- **Population Change (%)**
+- **Unemployment Change (%)**
+- **Property Price Change**
+- **Crime Change (%)**
 
 ### Demographics
-- **Population density** — inhabitants per square kilometre.
-- **Population change (%)** — recent change in population.
-- **Average age** — mean age of residents.
-- **Young children (0–6)** — share of residents aged 0–6.
-- **Young adults (18–29)** — share of residents aged 18–29.
-- **Elderly (65+)** — share of residents aged 65 or over.
-- **Foreign-language speakers** — share of residents whose first language is not Finnish, Swedish or Sámi.
-- **Gender ratio** — balance of women and men among residents.
-- **Student share** — share of residents who are students.
-- **Pensioner share** — share of residents who are pensioners.
+- **Average Age**
+- **Population Density** — Residents per square kilometer of land area.
+- **Young Children (0-6)** — Share of residents aged 0–6.
+- **Young Adults (18–29)**
+- **Elderly (65+)**
+- **Gender Ratio** — Women per man. 1.0 = balanced, above 1.0 = more women.
+- **Student Share** — Share of working-age residents who are full-time students.
+- **Foreign-Language Speakers**
+- **Pensioner Share**
+- **Single-Person HH**
+- **Single-Parent Households**
+- **Families with Children**
+- **Household Size** — Average number of people per household.
 
-### Households & housing
-- **Home ownership** — share of dwellings that are owner-occupied.
-- **Rental rate** — share of dwellings that are rented.
-- **Rent level** — average rent (EUR per square metre per month).
-- **Property prices** — average dwelling price (EUR per square metre).
-- **Property price change** — recent change in dwelling prices.
-- **Price-to-rent ratio** — purchase price relative to annual rent.
-- **Average apartment size** — mean dwelling floor area (square metres).
-- **Detached houses** — share of detached single-family houses.
-- **Building age** — average construction year of buildings.
-- **New construction** — share of recently built dwellings.
-- **Household size** — average number of people per household.
-- **Single-person households** — share of one-person households.
-- **Single-parent households** — share of single-parent households.
-- **Families with children** — share of households that are families with children.
+### Economy
+- **Median Income**
+- **Unemployment Rate**
+- **Employment Rate** — Share of working-age residents currently employed (ages 15–74).
+- **Higher Education**
+- **Property Prices**
+- **Tech Sector Jobs**
+- **Healthcare Workers**
+- **Manufacturing Jobs**
+- **Public Sector Jobs**
+- **Service Sector Jobs**
 
-### Services & amenities
-- **Grocery stores** — density of grocery shops.
-- **Restaurants & cafés** — density of restaurants and cafés.
-- **Healthcare access** — density of healthcare services.
-- **Daycare density** — density of daycare centres.
-- **Sports facilities** — density of sports and recreation facilities.
-- **EV charging stations** — density of electric-vehicle charging points.
+### Housing
+- **Home Ownership**
+- **Rental Rate**
+- **Avg. Apartment Size**
+- **Detached Houses**
+- **New Construction**
+- **Building Age**
+- **Rent Level**
+- **Price-to-Rent Ratio**
 
-### Transit & mobility
-- **Transit access** — density of public-transport stops.
-- **Transit reachability** — how well the area is reachable by public transport.
-- **Cycling infrastructure** — density of cycling infrastructure.
-- **Walkability** — a walkability index based on amenity proximity.
-- **Traffic accidents** — rate of recorded road traffic accidents.
-
-### Environment
-- **Air quality** — air-quality index.
-- **Tree canopy cover** — share of land under tree canopy (from LiDAR).
-- **Water proximity** — distance to the nearest body of water.
-- **Noise pollution** — modelled environmental noise level (dB).
-- **Light pollution** — night-sky brightness / artificial light radiance.
+### Services
+- **Restaurants & Cafes** — Restaurants and cafes per square kilometer.
+- **Grocery Stores**
+- **Daycare Density** — Daycare centers per square kilometer.
+- **School Density** — Primary and secondary schools per square kilometer.
+- **Healthcare Access**
+- **School Quality**
+- **Sports Facilities**
 
 ### Safety
-- **Crime rate** — a crime index based on recorded offences.
+- **Crime Rate**
+- **Traffic Accidents**
 
-### Connectivity
-- **Broadband coverage** — availability of fixed broadband.
+### Mobility
+- **Cycling Infrastructure**
+- **EV Charging Stations** — Electric vehicle charging points per square kilometer.
 
-### Civic
-- **Voter turnout** — turnout in the most recent municipal election.
-- **Political diversity** — diversity of party support.
+### Environment
+- **Tree Canopy Cover**
+- **Water Proximity**
+- **Light Pollution** — Nighttime radiance (nW/cm²/sr) measured by NASA's VIIRS satellite (Black Marble). Higher means brighter night skies (more light pollution).
+- **Noise Pollution** — Average daytime traffic noise in decibels. Higher is louder.
+- **Radon** — Median indoor radon concentration in single-family homes (Bq/m³) by postal code. Lower is better; 300 Bq/m³ is the action level. Source: STUK.
+- **Flood risk** — Share of the postal area's land inside SYKE's 1/100a flood hazard zone (a flood with a 1% annual probability). Higher = more flood-exposed land. Only within mapped areas; the rest are gray.
 
-Not every metric is available for every area; coverage is best in larger,
-more-populated regions. Missing values are shown as blank, never estimated.
+### Health
+- **Morbidity index** — THL/Kela age-standardized morbidity index (national health index); 100 = national average, lower is better. Municipal value assigned to postal codes.
+
+### Voting & Politics
+- **Voter Turnout**
+- **Political Diversity**
+
+### Connectivity & Infra
+- **Broadband Coverage**
+
+Quality Index is a composite score (see section 5). Not every metric is
+available for every area; missing values are shown as blank, never estimated.
 
 ## 5. The Quality Index
 
@@ -260,21 +265,25 @@ available without running JavaScript.
 
 ## 7. Data sources and licensing
 
+Generated from the data-source registry; every metric traces to one of these
+publishers.
+
 | Source | Provides | Licence |
 |---|---|---|
-| Statistics Finland — Paavo open data | Population, income, employment, education, housing, demographics | CC BY 4.0 |
-| Statistics Finland — PxWeb | Property prices, rental prices, price changes | CC BY 4.0 |
-| Statistics Finland — municipal elections | Voter turnout, political diversity | CC BY 4.0 |
-| HSL / Digitransit | Public-transport stop density, geocoding | Open |
-| Helsinki Region Environmental Services (HSY) | Air-quality index, tree canopy (LiDAR) | CC BY 4.0 |
-| OpenStreetMap contributors | Shops, restaurants, healthcare, schools, daycares, cycling infrastructure, EV charging | ODbL |
-| Finnish Police | Crime index | Open |
-| Traficom | Broadband coverage | Open |
-| Väylävirasto (Finnish Transport Infrastructure Agency) | Traffic accidents | Open |
-| Finnish Matriculation Examination Board (YTL) | Upper-secondary school quality | Open |
-| Finnish Ministry of Education and Culture | Foreign-language speaker share | Open |
-| NASA VIIRS Black Marble | Light pollution (night-light radiance) | Public domain |
-| Helsinki environmental noise modelling / Helsinki Region Infoshare | Noise pollution | Open |
+| Tilastokeskus | Average Age, Avg. Apartment Size, Building Age, Detached Houses, Elderly (65+), Employment Rate, Families with Children, Foreign-Language Speakers, Gender Ratio, Healthcare Workers, Higher Education, Home Ownership, Household Size, Income Change (%), Manufacturing Jobs, Median Income, New Construction, Pensioner Share, Political Diversity, Population Change (%), Population Density, Price-to-Rent Ratio, Property Price Change, Property Prices, Public Sector Jobs, Rent Level, Rental Rate, Service Sector Jobs, Single-Parent Households, Single-Person HH, Student Share, Tech Sector Jobs, Unemployment Change (%), Unemployment Rate, Voter Turnout, Young Adults (18–29), Young Children (0-6) | CC BY 4.0 |
+| OpenStreetMap | Cycling Infrastructure, Daycare Density, EV Charging Stations, Grocery Stores, Healthcare Access, Restaurants & Cafes, School Density, Walkability Index, Water Proximity | ODbL 1.0 |
+| Väylävirasto | Traffic Accidents, Transit Access | CC BY 4.0 |
+| HSY | Air Quality, Tree Canopy Cover | CC BY 4.0 |
+| Poliisi | Crime Change (%), Crime Rate | CC BY 4.0 |
+| LIPAS (Jyväskylän yliopisto) | Sports Facilities | CC BY 4.0 |
+| Traficom | Broadband Coverage | CC BY 4.0 |
+| Helsingin yliopisto, Digital Geography Lab | Transit Reachability | CC BY 4.0 |
+| Ylioppilastutkintolautakunta | School Quality | © YTL (julkinen tilasto) |
+| NASA Black Marble (VIIRS) | Light Pollution | Public domain (NASA) |
+| Helsinki Region Infoshare | Noise Pollution | CC BY 4.0 |
+| Säteilyturvakeskus (STUK) | Radon | CC BY 4.0 |
+| Terveyden ja hyvinvoinnin laitos (THL) | Morbidity index | CC BY 4.0 |
+| Suomen ympäristökeskus (SYKE) | Flood risk | CC BY 4.0 |
 
 ## 8. Update cadence
 
