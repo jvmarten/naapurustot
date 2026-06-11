@@ -1,4 +1,4 @@
-import { defineConfig } from '@playwright/test';
+import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e',
@@ -7,8 +7,9 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
   reporter: process.env.CI ? 'list' : 'html',
-  /* Abort the entire run if it exceeds 5 minutes (prevents CI hangs) */
-  globalTimeout: 300_000,
+  /* Abort the entire run if it exceeds 7 minutes (prevents CI hangs). Raised from
+   * 5 min when IN-7 added the mobile-a11y project (a few extra axe scans). */
+  globalTimeout: 420_000,
   use: {
     baseURL: 'http://localhost:4173',
     trace: 'on-first-retry',
@@ -26,9 +27,19 @@ export default defineConfig({
     {
       name: 'e2e',
       testDir: './e2e',
-      testIgnore: ['**/visual/**'],
+      // mobile-a11y runs only in the dedicated touch project below.
+      testIgnore: ['**/visual/**', '**/mobile-a11y.spec.ts'],
       use: {
         browserName: 'chromium',
+      },
+    },
+    {
+      // IN-7: phone viewport with touch, so the bottom-sheet / mobile-only UI
+      // (which Lighthouse and the desktop e2e project never reach) is axe-scanned.
+      name: 'mobile',
+      testMatch: ['**/mobile-a11y.spec.ts'],
+      use: {
+        ...devices['Pixel 7'],
       },
     },
     {
