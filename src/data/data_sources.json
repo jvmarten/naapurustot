@@ -69,6 +69,11 @@
       "name": "Terveyden ja hyvinvoinnin laitos (THL)",
       "url": "https://sotkanet.fi/",
       "license": "CC BY 4.0"
+    },
+    "helsinki_dgl": {
+      "name": "Helsingin yliopisto, Digital Geography Lab",
+      "url": "https://www.helsinki.fi/en/researchgroups/digital-geography-lab",
+      "license": "CC BY 4.0"
     }
   },
   "metrics": {
@@ -299,10 +304,10 @@
       "is_proxy": false
     },
     "transit_reachability_score": {
-      "source": "HSL / johdettu",
-      "publisher": "hsl",
-      "vintage": 2025,
-      "granularity": "postal",
+      "source": "Helsingin seudun matka-aikamatriisi 2023 (Helsingin yliopisto, Digital Geography Lab; Zenodo 11220980)",
+      "publisher": "helsinki_dgl",
+      "vintage": 2023,
+      "granularity": "250m grid",
       "is_proxy": true,
       "note": "note.transit_reachability"
     },

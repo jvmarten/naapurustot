@@ -70,15 +70,14 @@ describe('hasGridData', () => {
   it('returns true for layers with a built grid in the manifest', () => {
     expect(hasGridData('light_pollution')).toBe(true);
     expect(hasGridData('air_quality')).toBe(true);
+    // CF-18: transit_reachability now has a real 250 m grid (Helsinki TTM 2023).
+    expect(hasGridData('transit_reachability')).toBe(true);
   });
 
   it('returns false for layers without grid data', () => {
     expect(hasGridData('median_income')).toBe(false);
     expect(hasGridData('quality_index')).toBe(false);
     expect(hasGridData('unemployment')).toBe(false);
-    // IN-1: manifest-driven discovery — transit_reachability has no built grid
-    // file, so it is (correctly) absent rather than a hardcoded entry that 404s.
-    expect(hasGridData('transit_reachability')).toBe(false);
   });
 });
 

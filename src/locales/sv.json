@@ -524,7 +524,7 @@
   "source.discontinued": "Källan har upphört — senast publicerad {year}",
   "source.years_ago": "{n} år sedan",
   "note.crime_index": "Polisstatistik på kommunnivå fördelad på postnummer med befolknings-, arbetslöshets- och hyresindikatorer.",
-  "note.transit_reachability": "En regressionsbaserad uppskattning från HSL:s hållplatssignaler, inte en direkt restidsmätning.",
+  "note.transit_reachability": "Kollektivtrafikens tillgänglighet i Helsingforsregionen från Helsingforsregionens restidsmatris 2023 (Helsingfors universitet, Digital Geography Lab): ett verkligt 250 m restidsrutnät; postnummerområdets värde är medelvärdet av rutorna. Täcker endast Helsingforsregionen.",
   "note.avg_construction_year": "Genomsnittligt byggår på kommunnivå förfinat till postnummer med Paavo-byggnadsdata.",
   "note.walkability": "Ett sammansatt index byggt på OpenStreetMaps service-, korsnings- och gatunätsdata.",
   "note.light_pollution": "Baserat på nattljusstrålning från NASA VIIRS Black Marble-satelliten (250 m rutnät).",

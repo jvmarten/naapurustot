@@ -524,7 +524,7 @@
   "source.discontinued": "Source discontinued — last published {year}",
   "source.years_ago": "{n} yr ago",
   "note.crime_index": "Municipality-level police statistics distributed to postal codes using population, unemployment and rental indicators.",
-  "note.transit_reachability": "A regression-based estimate from HSL transit-stop signals, not a direct travel-time measurement.",
+  "note.transit_reachability": "Public-transport reachability for the Helsinki metropolitan area from the Helsinki Region Travel Time Matrix 2023 (University of Helsinki, Digital Geography Lab): a real 250 m travel-time grid; postal-code values are the mean of the grid cells in each area. Covers Helsinki metro only.",
   "note.avg_construction_year": "Municipality-level average construction year refined to postal codes using Paavo building data.",
   "note.walkability": "A composite index built from OpenStreetMap amenity, intersection and street-network data.",
   "note.light_pollution": "Based on NASA VIIRS Black Marble satellite nighttime radiance (250 m grid).",

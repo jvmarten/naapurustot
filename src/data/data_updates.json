@@ -1,6 +1,14 @@
 [
   {
     "date": "2026-06-11",
+    "metric": "transit_reachability_score",
+    "type": "vintage",
+    "from": 2025,
+    "to": 2023,
+    "title": "transit_reachability_score refreshed to 2023 vintage"
+  },
+  {
+    "date": "2026-06-11",
     "metric": "transit_stop_density",
     "type": "vintage",
     "from": 2024,
