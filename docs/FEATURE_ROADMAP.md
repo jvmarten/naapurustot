@@ -2,6 +2,23 @@
 
 > Generated 2026-06-10 from a fresh multi-agent codebase audit (11 parallel subsystem surveys → 6 ideation lenses → synthesis/dedup → adversarial per-item verification against the code → completeness critic → sequencing analysis; 64 agents). Supersedes the 2026-06-03 roadmap, **all 36 items of which shipped on 2026-06-08** (commit `bb69348`), as did the UX-review batch (`33c5ffd`).
 
+## Implementation status (updated 2026-06-11)
+
+Batches 1–30 shipped the quick wins and most infrastructure/UX. The 2026-06-11 session then shipped **all seven new real-data layers plus five more items** (batches 31–38) — every cleanly and safely achievable item is now done:
+
+- **Data layers (7):** CF-19 radon (STUK), CF-21 health/morbidity (Sotkanet 5641), CF-15 rents (StatFin asvu 15fa), CF-16 property prices (ashi 13mu, sales-weighted multi-year), CF-17 transit stops (Väylä Digiroad national, 331→3,019 postal codes), CF-18 transit-reachability 250 m grid (Helsinki TTM 2023, Zenodo), CF-20 flood risk (SYKE 1/100a hazard zones).
+- **Infrastructure / UX (5):** IN-5 data-refresh repair (deterministic `build:data` + idempotency gate), IN-7 mobile-a11y Playwright project + axe gate, CF-4 next-steps links, CF-9 light-pollution grid sharding + LRU eviction, CF-11 PNG social-card rasterizer + per-region hub cards.
+
+**Remaining — the large/risky/marginal cluster (1 resolved-by-abort, 4 deferred with rationale):**
+
+- **CF-7** (sync-hook factory) — *resolved by the item's own "abort if gzip-positive" condition*: gzip already compresses the six duplicated hooks (the duplication barely costs bytes), the change is load-bearing user-data sync, and the JS budget is exhausted — net gain is marginal-to-negative.
+- **CF-8** (slim all-Finland landing) — Large and high-value, but it rewrites the **default** all-Finland view's first-paint data path, which this doc + CLAUDE.md note "has broken repeatedly," and it is JS-budget-positive. Deferred for a dedicated session.
+- **CF-1 part 3** (cross-scope quality recompute) — would mutate the shared `loadAllData` cache across four national tools; a narrow inconsistency whose regression risk + budget cost exceed its value.
+- **PO-4 part 4** (registry-generated llms.txt) — auto-generation would replace the curated llms prose with thinner machine output, and the generator can't import `colorScales.ts` under plain Node; minor surface.
+- **IN-6** (prerender regression tests) — needs the ~1,500-line `prerender-lib.mjs` refactor flagged as fragile; head integrity was instead verified via `npm run build:pages` on every prerender batch this session.
+
+The JS bundle now sits at ~279,960 / 280,000 B (≈40 B headroom) — the three new map layers have effectively exhausted the budget, so the two remaining JS-positive items (CF-8, CF-1 pt3) would each first require a budget raise.
+
 ## Project Context
 
 naapurustot.fi is a static, backend-optional React 19 / TypeScript 5.9 / Vite 8 single-page app on MapLibre GL, live at naapurustot.fi. It renders ~59 postal-code data layers across 3,018 areas in all 69 seutukunnat (lazy per-region TopoJSON) plus two real sub-postal grids (air quality ~250 m, light pollution ~500 m), all from verifiable public sources. On top sits a deep decision layer: Quality Index with personas and per-area coverage auditing, discovery wizard with a persisted priority profile, percentile filters, similarity weights, correlation explorer with R², adjacency analysis, comparison + durable shortlist with share links and PNG cards, GeoJSON/CSV/PDF export, exhaustive shareable URL state with a version guard, and ~27,000 prerendered FI/EN/SV profile/hub pages with per-area SVG social cards, privacy page, and GDPR endpoints. The optional Express 5 + PostgreSQL backend cloud-syncs favorites/shortlist/notes/preferences. CI/CD: lint, tsc, Vitest coverage ratchet, e2e + axe, Lighthouse, bundle budget, payload audit, CodeQL, daily health check, quarterly data refresh.
