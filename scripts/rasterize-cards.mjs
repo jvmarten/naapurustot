@@ -10,8 +10,12 @@
  * sibling .png that already exists is up to date and skipped — incremental across runs.
  *
  * @resvg/resvg-js is a native module (devDependency). Fonts: the card uses
- * "system-ui, sans-serif"; loadSystemFonts pulls the runner's DejaVu/Liberation
- * (covering ä/ö/å) — deploy.yml installs fonts-dejavu-core to guarantee availability.
+ * "system-ui, sans-serif". We load a SMALL FIXED font set (DejaVu Sans regular + bold,
+ * covering Latin + ä/ö/å) ONCE into buffers and reuse them for every card. The earlier
+ * per-card `loadSystemFonts: true` rebuilt the runner's entire font database (hundreds
+ * of MB) on every one of ~9,000 cards, which OOM-killed the GitHub Pages deploy
+ * ("The operation was canceled") — deploy.yml installs fonts-dejavu-core for the paths
+ * below. A one-time system-font fallback covers local runs lacking those files.
  */
 import { readdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { resolve, join } from 'node:path';
@@ -22,6 +26,24 @@ if (!existsSync(ogDir)) {
   console.log('rasterize-cards: dist/og/ not found — nothing to do (run build:pages first).');
   process.exit(0);
 }
+
+// Load the two DejaVu faces once. Reusing buffers across cards keeps each Resvg's
+// font DB to ~2 small files instead of re-scanning the whole system tree per card.
+const FONT_PATHS = [
+  '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+  '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+];
+const fontBuffers = FONT_PATHS.filter(existsSync).map((p) => readFileSync(p));
+// Only fall back to a (one-time) system scan when the bundled fonts are absent, e.g.
+// a local dev run without fonts-dejavu-core — never per card on the deploy runner.
+const fontOption = fontBuffers.length > 0
+  ? { loadSystemFonts: false, fontBuffers, defaultFontFamily: 'DejaVu Sans' }
+  : { loadSystemFonts: true, defaultFontFamily: 'DejaVu Sans' };
+console.log(
+  fontBuffers.length > 0
+    ? `rasterize-cards: using ${fontBuffers.length} bundled font face(s) (no system-font scan).`
+    : 'rasterize-cards: bundled DejaVu fonts not found — falling back to a one-time system-font scan.',
+);
 
 const svgs = readdirSync(ogDir).filter((f) => f.endsWith('.svg'));
 let rendered = 0;
@@ -39,7 +61,7 @@ for (const svgFile of svgs) {
     const svg = readFileSync(join(ogDir, svgFile), 'utf-8');
     const resvg = new Resvg(svg, {
       // The og:image dimensions are fixed at 1200×630 by the SVG itself.
-      font: { loadSystemFonts: true, defaultFontFamily: 'DejaVu Sans' },
+      font: fontOption,
     });
     writeFileSync(pngPath, resvg.render().asPng());
     rendered += 1;
