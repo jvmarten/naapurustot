@@ -298,7 +298,8 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pin
                       <button
                         onClick={() => onUnpin(n.pno)}
                         className="p-0.5 rounded hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-surface-400 hover:text-rose-500"
-                        title="Remove"
+                        title={t('compare.remove')}
+                        aria-label={t('compare.remove')}
                       >
                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

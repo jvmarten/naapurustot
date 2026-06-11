@@ -109,6 +109,9 @@ export function clipGridToData(
 interface GridDataState {
   gridData: FeatureCollection | null;
   loading: boolean;
+  /** E2: true when the grid file failed to load — the choropleth falls back to
+   *  coarse postal data, so the UI must stop asserting grid-level detail. */
+  error: boolean;
 }
 
 function parseGridResponse(path: string, json: unknown): FeatureCollection {
@@ -135,6 +138,7 @@ const GRID_LRU_CAP = 2;
 export function useGridData(activeLayer: LayerId, cityFilter?: string): GridDataState {
   const [cache, setCache] = useState<Record<string, FeatureCollection>>({});
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
   // Track which cache keys have been fetched (or are in-flight) to avoid
   // re-triggering the effect when cache state updates.
   const fetchedRef = useRef<Set<string>>(new Set());
@@ -165,6 +169,7 @@ export function useGridData(activeLayer: LayerId, cityFilter?: string): GridData
     let cancelled = false;
     let completed = false;
     setLoading(true);
+    setError(false);
 
     // CF-9: try the region shard; if it is missing (a region with no cells in this
     // grid), fall back to the whole nationwide file so the layer still renders.
@@ -203,6 +208,9 @@ export function useGridData(activeLayer: LayerId, cityFilter?: string): GridData
         fetched.delete(cacheKey);
         console.warn(`Grid data not available for ${cacheKey}:`, err instanceof Error ? err.message : err);
         setLoading(false);
+        // E2: surface the failure so the Legend can drop the grid-detail badge
+        // instead of asserting ~250 m resolution that isn't loaded.
+        setError(true);
       });
 
     return () => {
@@ -214,7 +222,7 @@ export function useGridData(activeLayer: LayerId, cityFilter?: string): GridData
     };
   }, [cacheKey, path, wholePath]);
 
-  if (!entry) return { gridData: null, loading: false };
+  if (!entry) return { gridData: null, loading: false, error: false };
 
-  return { gridData: cache[cacheKey] ?? null, loading };
+  return { gridData: cache[cacheKey] ?? null, loading, error };
 }

@@ -24,7 +24,9 @@ interface SettingsDropdownProps {
   colorblind: ColorblindType;
   onColorblindChange: (mode: ColorblindType) => void;
   lang: Lang;
-  onLangChange: (lang: Lang) => void;
+  /** L3: returns a promise that settles when the lazy dictionary finishes loading,
+   *  so this control can show an in-flight spinner on the clicked language. */
+  onLangChange: (lang: Lang) => void | Promise<void>;
   fillOpacity: number;
   onFillOpacityChange: (value: number) => void;
   /** QW-1: Re-launches the onboarding tour. */
@@ -114,6 +116,17 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
   // `null` = no fallback shown; otherwise the readOnly textarea displays the value.
   const [copyFallback, setCopyFallback] = useState<string | null>(null);
   const fallbackTextareaRef = useRef<HTMLTextAreaElement>(null);
+  // L3: language whose dictionary is still loading after a click, so the button
+  // shows a spinner instead of feeling unresponsive while the UI sits in Finnish.
+  const [pendingLang, setPendingLang] = useState<Lang | null>(null);
+  const handleLangClick = useCallback((l: Lang) => {
+    if (l === lang) return;
+    const result = onLangChange(l);
+    if (result && typeof (result as Promise<void>).then === 'function') {
+      setPendingLang(l);
+      void (result as Promise<void>).finally(() => setPendingLang((p) => (p === l ? null : p)));
+    }
+  }, [lang, onLangChange]);
   // X1: manual copy from the revealed textarea (mirrors DonateButton's execCommand path).
   const handleManualCopy = useCallback(() => {
     const ta = fallbackTextareaRef.current;
@@ -250,19 +263,35 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
 
           {/* Language picker (FI / EN / SV) */}
           <div className="px-4 py-2.5">
+            {/* O2: label the row like Theme/Colorblind so the FI/EN/SV switch is
+                self-identifying (a globe + "Language" caption), not a bare button row. */}
+            <div className="flex items-center gap-3 mb-2">
+              <svg className="w-4 h-4 text-surface-500 dark:text-surface-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9 9 0 100-18 9 9 0 000 18zm0 0c2.5 0 4.5-4 4.5-9S14.5 3 12 3m0 18c-2.5 0-4.5-4-4.5-9S9.5 3 12 3M3.5 9h17M3.5 15h17" />
+              </svg>
+              <span className="text-xs font-medium text-surface-500 dark:text-surface-400">{t('settings.language')}</span>
+            </div>
             <div className="flex rounded-lg border border-surface-200 dark:border-surface-700/40 overflow-hidden">
               {(['fi', 'en', 'sv'] as const).map((l) => (
                 <button
                   key={l}
                   role="menuitem"
-                  onClick={() => onLangChange(l)}
+                  onClick={() => handleLangClick(l)}
                   aria-pressed={lang === l}
                   className={`flex-1 py-2 text-xs font-semibold uppercase transition-colors
+                    flex items-center justify-center gap-1
                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 ${lang === l
                     ? 'bg-brand-500/15 dark:bg-brand-600/20 text-brand-600 dark:text-brand-300'
                     : 'text-surface-500 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-800'}`}
                 >
                   {l}
+                  {/* L3: in-flight spinner until the lazy dictionary lands. */}
+                  {pendingLang === l && (
+                    <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                  )}
                 </button>
               ))}
             </div>
@@ -410,6 +439,21 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z" />
             </svg>
             <span>{t('privacy.link')}</span>
+          </a>
+
+          {/* X1: Data Sources & Methodology — the desktop-only footer link is
+              unreachable on mobile, so surface it here in the gear menu too. */}
+          <a
+            role="menuitem"
+            href={lang === 'en' ? '/en/data-sources' : lang === 'sv' ? '/sv/datakallor' : '/tietolahteet'}
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200
+                       hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors
+                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 00-1.883 2.542l.857 6a2.25 2.25 0 002.227 1.932H19.05a2.25 2.25 0 002.227-1.932l.857-6a2.25 2.25 0 00-1.883-2.542m-16.5 0V6A2.25 2.25 0 016 3.75h3.879a1.5 1.5 0 011.06.44l2.122 2.12a1.5 1.5 0 001.06.44H18A2.25 2.25 0 0120.25 9v.776" />
+            </svg>
+            <span>{t('footer.sources')}</span>
           </a>
 
           {/* PO-6 / QW-1: Data freshness indicator — build-derived (inlined via the

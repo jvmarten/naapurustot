@@ -11,6 +11,9 @@ interface AreaSummaryPanelProps {
   onClose: () => void;
   /** When provided, filter neighborhoods by these postal codes instead of polygon intersection */
   selectedPnos?: string[];
+  /** M7: hide the mobile sheet when a NeighborhoodPanel sheet is open (both anchor
+   *  `fixed bottom-0 z-20`, so this one would otherwise paint on top). Mirrors ComparisonPanel. */
+  suppressMobile?: boolean;
 }
 
 interface StatDef {
@@ -114,7 +117,7 @@ function computeAreaStats(data: FeatureCollection, selectedPnos?: string[]) {
   return { intersecting, stats };
 }
 
-export const AreaSummaryPanel: React.FC<AreaSummaryPanelProps> = React.memo(({ polygon, data, metroAverages, onClose, selectedPnos }) => {
+export const AreaSummaryPanel: React.FC<AreaSummaryPanelProps> = React.memo(({ polygon, data, metroAverages, onClose, selectedPnos, suppressMobile }) => {
   useI18nVersion();
   const { intersecting, stats } = useMemo(() => computeAreaStats(data, selectedPnos), [data, selectedPnos]);
 
@@ -256,10 +259,10 @@ export const AreaSummaryPanel: React.FC<AreaSummaryPanelProps> = React.memo(({ p
       <div
         role="dialog"
         aria-label={t('draw.area_summary')}
-        className="md:hidden fixed bottom-0 left-0 right-0 z-20 max-h-[65vh]
+        className={`${suppressMobile ? 'hidden' : 'md:hidden'} fixed bottom-0 left-0 right-0 z-20 max-h-[65vh]
                       bg-white/95 dark:bg-surface-950/95 backdrop-blur-xl
                       border-t border-surface-200 dark:border-surface-800/50
-                      shadow-[0_-4px_30px_rgba(0,0,0,0.15)] rounded-t-2xl">
+                      shadow-[0_-4px_30px_rgba(0,0,0,0.15)] rounded-t-2xl`}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-surface-200 dark:border-surface-800/50">
           <div>
             <h2 className="text-sm font-display font-bold text-surface-900 dark:text-white">

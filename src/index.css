@@ -19,9 +19,15 @@
   outline-color: #36adf6;
 }
 
-/* Suppress the stray outline MapLibre's canvas shows on keyboard focus */
+/* A3: the canvas is keyboard-focusable and arrow-pannable, so it must show a
+   visible focus indicator (WCAG 2.4.7). Use an inset ring instead of the stray
+   default outline so sighted keyboard users can tell the map is focused. */
 .maplibregl-canvas:focus-visible {
   outline: none;
+  box-shadow: inset 0 0 0 3px #1d7fd1;
+}
+.dark .maplibregl-canvas:focus-visible {
+  box-shadow: inset 0 0 0 3px #36adf6;
 }
 
 html,
@@ -30,6 +36,24 @@ body,
   height: 100%;
   width: 100%;
   touch-action: manipulation;
+}
+
+/* C1: indeterminate top progress bar shown during region/scope switches (after
+   the first load), instead of the full-screen overlay that blocks the header. */
+@keyframes loading-bar-indeterminate {
+  0% { transform: translateX(-100%); width: 40%; }
+  50% { width: 60%; }
+  100% { transform: translateX(260%); width: 40%; }
+}
+.loading-bar-indeterminate {
+  animation: loading-bar-indeterminate 1.1s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .loading-bar-indeterminate {
+    animation: none;
+    width: 100%;
+    opacity: 0.6;
+  }
 }
 
 @supports (height: 100dvh) {

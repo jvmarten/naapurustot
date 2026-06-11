@@ -225,9 +225,10 @@ function notesHtml(note: string): string {
 function openPrintWindow(html: string): void {
   const w = window.open('', '_blank');
   if (!w) {
-    alert(getLang() === 'fi'
-      ? 'Ponnahdusikkuna estettiin. Salli ponnahdusikkunat ja yritä uudelleen.'
-      : 'Popup was blocked. Please allow popups and try again.');
+    // E8: replace the off-brand, fi/en-only native alert() with the app's styled
+    // top-center toast (via a window event App listens for) and a 3-language key,
+    // so Swedish users no longer get an English dialog.
+    window.dispatchEvent(new CustomEvent('app-toast', { detail: t('export.popup_blocked') }));
     return;
   }
   w.document.write(html);

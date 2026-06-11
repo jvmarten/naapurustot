@@ -92,7 +92,7 @@ const SplitPaneTooltip: React.FC<{
  * IN-1: compact per-pane legend with a coverage-scope badge. Smaller than the
  * main Legend (no proxy/freshness rows) so it fits two side-by-side panes.
  */
-const SplitPaneLegend: React.FC<{ layer: LayerConfig; side: 'left' | 'right' }> = ({ layer, side }) => {
+const SplitPaneLegend: React.FC<{ layer: LayerConfig; side: 'left' | 'right'; gridLoading?: boolean }> = ({ layer, side, gridLoading }) => {
   useI18nVersion();
   const n = layer.stops.length;
   const grid = getGridInfo(layer.id);
@@ -115,6 +115,18 @@ const SplitPaneLegend: React.FC<{ layer: LayerConfig; side: 'left' | 'right' }> 
           <div className="mt-1 flex items-center gap-1 text-[9px] text-surface-400 dark:text-surface-500">
             <span aria-hidden="true">▦</span>
             <span>{t(grid.scope === 'national' ? 'grid.scope_national' : 'grid.scope_regional')}</span>
+          </div>
+        )}
+        {/* L1: the split panes silently downloaded the grid (up to ~11 MB) with no
+            feedback while the badge already claimed grid detail. Mirror the main
+            Legend's spinner. */}
+        {gridLoading && (
+          <div className="mt-1 flex items-center gap-1 text-[9px] text-surface-400 dark:text-surface-500" role="status">
+            <svg className="w-2.5 h-2.5 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            <span>{t('grid.loading')}</span>
           </div>
         )}
         {lowCoverage && coverageLabel != null && (
@@ -162,6 +174,9 @@ interface SplitMapViewProps {
   leftGridData?: FeatureCollection | null;
   /** IN-1: region-clipped fine-grained grid for the right pane's layer (null when none). */
   rightGridData?: FeatureCollection | null;
+  /** L1: true while each pane's grid dataset is still downloading. */
+  leftGridLoading?: boolean;
+  rightGridLoading?: boolean;
   /** IN-1: per-metric region averages, for the hover tooltip's "vs avg" line. */
   metroAverages?: Record<string, number>;
   /** IN-1: open the detail panel when a neighborhood is clicked in either pane. */
@@ -453,6 +468,8 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
   selectedPno = null,
   leftGridData = null,
   rightGridData = null,
+  leftGridLoading = false,
+  rightGridLoading = false,
   metroAverages,
   onSelectNeighborhood,
 }) => {
@@ -476,6 +493,9 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
   // True when MapLibre can't create a WebGL context for either pane — show a
   // fallback message rather than throwing into the ErrorBoundary.
   const [webglFailed, setWebglFailed] = useState(false);
+  // E6: permanent (construction threw → no WebGL, reload futile) vs transient
+  // (context lost → reload helps) — drives the fallback copy + Reload visibility.
+  const [webglPermanent, setWebglPermanent] = useState(false);
 
   // IN-1: per-pane hover tooltip state. Kept local (not the global tooltipStore)
   // so each pane shows the value for ITS OWN layer, positioned inside that pane.
@@ -561,6 +581,7 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
       // fallback instead of crashing.
       console.warn('SplitMapView: failed to initialize WebGL', err);
       createdLeft?.remove();
+      setWebglPermanent(true);
       setWebglFailed(true);
       return;
     }
@@ -575,7 +596,7 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
     // synchronous try/catch above only covers construction; these listeners
     // surface the same fallback UI for a transient loss and clear it if the
     // browser restores the context.
-    const onLost = (ev: Event) => { ev.preventDefault(); setWebglFailed(true); };
+    const onLost = (ev: Event) => { ev.preventDefault(); setWebglPermanent(false); setWebglFailed(true); };
     const onRestored = () => setWebglFailed(false);
     const leftCanvas = leftMap.getCanvas();
     const rightCanvas = rightMap.getCanvas();
@@ -838,14 +859,16 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
           {t('error.webgl_unavailable')}
         </h2>
         <p className="text-sm text-surface-500 dark:text-surface-400 max-w-sm mb-4">
-          {t('error.webgl_context_lost_desc')}
+          {t(webglPermanent ? 'error.webgl_unavailable_desc' : 'error.webgl_context_lost_desc')}
         </p>
-        <button
-          onClick={() => window.location.reload()}
-          className="px-4 py-2 rounded-xl text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors"
-        >
-          {t('error.reload')}
-        </button>
+        {!webglPermanent && (
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 rounded-xl text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors"
+          >
+            {t('error.reload')}
+          </button>
+        )}
       </div>
     );
   }
@@ -856,7 +879,7 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
       {/* Left map */}
       <div className="relative h-full w-1/2 overflow-hidden">
         <div ref={leftContainerRef} className="absolute inset-0" />
-        <div className="absolute top-2 left-2 z-10">
+        <div className="absolute top-[3.5rem] left-2 z-10">
           {onLeftLayerChange ? (
             <SplitLayerPicker value={leftLayer} onChange={onLeftLayerChange} />
           ) : (
@@ -865,7 +888,7 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
             </div>
           )}
         </div>
-        <SplitPaneLegend layer={leftConfig} side="left" />
+        <SplitPaneLegend layer={leftConfig} side="left" gridLoading={leftGridLoading} />
         {leftHover && (
           <SplitPaneTooltip
             hover={leftHover}
@@ -882,7 +905,7 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
       {/* Right map */}
       <div className="relative h-full w-1/2 overflow-hidden">
         <div ref={rightContainerRef} className="absolute inset-0" />
-        <div className="absolute top-2 left-2 z-10">
+        <div className="absolute top-[3.5rem] left-2 z-10">
           {onRightLayerChange ? (
             <SplitLayerPicker value={rightLayer} onChange={onRightLayerChange} />
           ) : (
@@ -891,7 +914,7 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
             </div>
           )}
         </div>
-        <SplitPaneLegend layer={rightConfig} side="right" />
+        <SplitPaneLegend layer={rightConfig} side="right" gridLoading={rightGridLoading} />
         {rightHover && (
           <SplitPaneTooltip
             hover={rightHover}

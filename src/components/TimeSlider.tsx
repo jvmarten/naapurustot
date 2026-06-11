@@ -10,20 +10,27 @@ interface TimeSliderProps {
   onYearChange: (year: number) => void;
   playing: boolean;
   onTogglePlay: () => void;
+  /** M2: suppress on mobile when a full-width area panel covers the bottom band,
+   *  mirroring the Legend/LayerSelector — otherwise it stays trapped behind the sheet. */
+  hidden?: boolean;
 }
 
 /**
  * PO-2: Time slider for historical playback. Appears below the legend only when
  * a time-series metric is active; scrubbing animates the choropleth across years.
  */
-export const TimeSlider: React.FC<TimeSliderProps> = ({ years, currentYear, onYearChange, playing, onTogglePlay }) => {
+export const TimeSlider: React.FC<TimeSliderProps> = ({ years, currentYear, onYearChange, playing, onTogglePlay, hidden }) => {
   useI18nVersion();
   const idx = Math.max(0, years.indexOf(currentYear));
   const minYear = years[0];
   const maxYear = years[years.length - 1];
 
+  // M2: hidden when an area panel covers the bottom band (mobile), like the Legend.
+  if (hidden) return null;
+
   return (
-    <div className="fixed md:absolute bottom-5 md:bottom-8 left-1/2 -translate-x-1/2 z-10">
+    // M2: raised on mobile so it sits above the legend band instead of overlapping it.
+    <div className="fixed md:absolute bottom-[calc(6rem+env(safe-area-inset-bottom))] md:bottom-8 left-1/2 -translate-x-1/2 z-10">
       <div className="flex items-center gap-3 rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md
                      border border-surface-200 dark:border-surface-700/40 shadow-2xl px-3 py-2">
         <button

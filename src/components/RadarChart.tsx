@@ -111,6 +111,18 @@ const RadarChart: React.FC<RadarChartProps> = React.memo(function RadarChart({ d
     [metroAverages],
   );
 
+  // EM4: normalize() maps a missing metric to 0 (plotted at the centre — exactly
+  // where a genuine worst score also lands). Track which axes have NO input so
+  // we can render them distinctly (hollow marker + "no data" in the aria text)
+  // instead of conflating absent data with the lowest possible score.
+  const missing = useMemo(
+    () => AXES.map((a) => {
+      const v = a.extract(data);
+      return v == null || Number.isNaN(v);
+    }),
+    [data],
+  );
+
   // QW-4: Accessibility — build descriptive label with all axis values and the
   // top 2 strongest dimensions so screen readers can convey the chart contents.
   // Computed inline (not memoized) so the t()-built string always reflects the
@@ -123,9 +135,13 @@ const RadarChart: React.FC<RadarChartProps> = React.memo(function RadarChart({ d
     const items = AXES.map((axis, i) => ({
       label: t(axis.key),
       value: Math.round(dataValues[i]),
+      missing: missing[i],
     }));
-    const valuesText = items.map((it) => `${it.label} ${it.value}`).join(', ');
-    const top2 = [...items]
+    const valuesText = items
+      .map((it) => `${it.label} ${it.missing ? t('panel.radar_no_data') : it.value}`)
+      .join(', ');
+    const top2 = items
+      .filter((it) => !it.missing)
       .sort((a, b) => b.value - a.value)
       .slice(0, 2)
       .map((s) => s.label)
@@ -199,11 +215,15 @@ const RadarChart: React.FC<RadarChartProps> = React.memo(function RadarChart({ d
           strokeWidth={2}
         />
 
-        {/* Data points — positions update smoothly via animated values */}
+        {/* Data points — positions update smoothly via animated values. EM4: an
+            axis with no data renders as a hollow ring (not a filled dot) so it
+            doesn't read as a real worst-score vertex at the centre. */}
         {dataValues.map((v, i) => {
           if (!Number.isFinite(v)) return null;
           const [x, y] = pointOnAxis(i, v);
-          return <circle key={i} cx={x} cy={y} r={3} fill="#6366f1" />;
+          return missing[i]
+            ? <circle key={i} cx={x} cy={y} r={3} fill="white" className="dark:fill-surface-900" stroke="#94a3b8" strokeWidth={1.5} />
+            : <circle key={i} cx={x} cy={y} r={3} fill="#6366f1" />;
         })}
 
         {/* Axis labels */}
@@ -235,6 +255,13 @@ const RadarChart: React.FC<RadarChartProps> = React.memo(function RadarChart({ d
           );
         })}
       </svg>
+      {/* EM4: name the axes with no data so a sparse area's hollow vertices aren't
+          misread as genuinely poor scores. */}
+      {missing.some(Boolean) && (
+        <p className="text-[10px] text-surface-400 dark:text-surface-500 text-center max-w-[16rem]">
+          {t('panel.radar_no_data')}: {AXES.filter((_, i) => missing[i]).map((a) => t(a.key)).join(', ')}
+        </p>
+      )}
     </div>
   );
 });

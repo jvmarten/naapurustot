@@ -150,7 +150,10 @@ describe('exportPdf — HTML safety', () => {
 
   it('handles popup blocked gracefully', () => {
     vi.spyOn(window, 'open').mockReturnValue(null);
-    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+    // E8: popup-blocked now dispatches a styled 'app-toast' window event instead
+    // of calling the native alert().
+    const toastSpy = vi.fn();
+    window.addEventListener('app-toast', toastSpy);
 
     const props = {
       pno: '00100', nimi: 'Test', namn: 'Test',
@@ -166,7 +169,8 @@ describe('exportPdf — HTML safety', () => {
     };
 
     exportPdf(props as any, {});
-    expect(alertSpy).toHaveBeenCalled();
+    expect(toastSpy).toHaveBeenCalled();
+    window.removeEventListener('app-toast', toastSpy);
   });
 
   it('includes quality category badge when quality_index is set', () => {

@@ -28,7 +28,13 @@ import { join } from 'node:path';
 // batch: 36-item roadmap completion + UX-review batch) → 282000 B (2026-06-11:
 // the 2026-06-10 roadmap added three new map layers — radon, morbidity, flood —
 // plus the transit-reachability grid and next-steps links, exhausting the 280 KB
-// budget; raised to land the last roadmap items, mirroring 256→280). Additions minimal.
+// budget; raised to land the last roadmap items, mirroring 256→280) → 287000 B
+// (2026-06-11: implemented all 44 remaining docs/UX_REVIEW.md findings — focus
+// traps, ARIA names, a non-blocking region-switch progress bar, address-search
+// region resolution, a signed-out favorites surface, a unified toast stack,
+// language auto-detection, a touch peek bar, reduced-motion sheets, and more —
+// adding ~4.4 KB of genuine UI logic + the bundled fi.json strings; data stays
+// out of JS, so the heavy assets are unaffected).
 //
 // Measurement basis: this sums Node `zlib.gzipSync` lengths — the honest gzip
 // payload, with no embedded filename/mtime header. The previous inline shell
@@ -36,7 +42,7 @@ import { join } from 'node:path';
 // the total by ~2 KB across the ~108 chunks. So the number printed here reads
 // ~2 KB BELOW the old gate at the same real bundle; the 280000 B budget is
 // unchanged, which means ~2 KB more genuine headroom than the old method showed.
-const BUDGET = 282_000;
+const BUDGET = 287_000;
 const ASSETS_DIR = 'dist/assets';
 
 const fmtKB = (b) => (b / 1024).toFixed(2);

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { t, useI18nVersion, type Lang } from '../utils/i18n';
 
 interface ToolsDropdownProps {
@@ -88,6 +88,23 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
     first?.focus();
   }, [open]);
 
+  // A4: role="menu" promises arrow-key navigation to screen readers, so wire up
+  // Up/Down (with wrap) and Home/End between the menu items. Tab still works too.
+  const handleMenuKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return;
+    const items = Array.from(
+      menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [],
+    );
+    if (items.length === 0) return;
+    e.preventDefault();
+    const idx = items.indexOf(document.activeElement as HTMLElement);
+    let next = 0;
+    if (e.key === 'ArrowDown') next = idx < 0 ? 0 : (idx + 1) % items.length;
+    else if (e.key === 'ArrowUp') next = idx <= 0 ? items.length - 1 : idx - 1;
+    else if (e.key === 'End') next = items.length - 1;
+    items[next]?.focus();
+  }, []);
+
   const anyActive = showFilter || showRanking || drawMode || selectMode || showScatter || showRegionRanking;
 
   // A3-tools: shared focus-ring + layout classes for every menu item. Per-item
@@ -125,6 +142,7 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
         <div
           ref={menuRef}
           role="menu"
+          onKeyDown={handleMenuKeyDown}
           className="absolute left-0 top-full mt-2 w-56 rounded-xl bg-white dark:bg-surface-900
                        border border-surface-200 dark:border-surface-700/40 shadow-2xl backdrop-blur-md
                        py-1 z-50 max-h-[calc(100vh-80px)] overflow-y-auto"
@@ -302,10 +320,15 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
               onClick={() => { onToggleSplitMode(); setOpen(false); }}
               className={`${itemClass} text-surface-700 dark:text-surface-200`}
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg className="w-4 h-4 self-start mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7" />
               </svg>
-              <span>{t('tools.compare_layers')}</span>
+              {/* C5: clarify this compares LAYERS over the same map (split view), not
+                  two neighborhoods — the latter is the pin-to-compare flow hinted below. */}
+              <span className="flex flex-col items-start">
+                <span>{t('tools.compare_layers')}</span>
+                <span className="text-[10px] text-surface-400 dark:text-surface-500">{t('tools.compare_layers_hint')}</span>
+              </span>
               {splitMode && (
                 <svg className="w-4 h-4 ml-auto text-brand-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -313,6 +336,13 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
               )}
             </button>
           )}
+
+          {/* C5: there's no standalone "compare areas" action — it's built by pinning
+              areas from their panels. Surface that so users don't mistake "compare
+              layers" for it. */}
+          <p className="px-4 pb-1 pt-0.5 text-[10px] leading-snug text-surface-400 dark:text-surface-500">
+            {t('tools.compare_areas_hint')}
+          </p>
 
           {/* Divider */}
           <div className="border-t border-surface-200 dark:border-surface-700/40 my-1" />

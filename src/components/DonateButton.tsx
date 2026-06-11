@@ -66,8 +66,14 @@ export const DonateButton: React.FC<DonateButtonProps> = ({ variant = 'button' }
       <h3 className="text-sm font-semibold text-surface-800 dark:text-white mb-1">
         {t('donate.title')}
       </h3>
-      <p className="text-xs text-surface-500 dark:text-surface-400 mb-3">
+      <p className="text-xs text-surface-500 dark:text-surface-400 mb-2">
         {t('donate.descriptionShort')}
+      </p>
+
+      {/* X3: legitimacy/intent line so an opaque crypto string isn't the whole pitch.
+          (A conventional payment method is the Manual-Setup item — needs credentials.) */}
+      <p className="text-[11px] text-surface-500 dark:text-surface-400 mb-3 leading-relaxed">
+        {t('donate.legitimacy')}
       </p>
 
       {/* Copyable offer string */}

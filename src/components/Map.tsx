@@ -233,6 +233,10 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   // (whose generic "try again / reload" UI is misleading for a permanent
   // lack of WebGL support).
   const [webglFailed, setWebglFailed] = useState(false);
+  // E6: distinguish a permanent failure (construction threw — the device/browser
+  // has no WebGL, so reloading is futile) from a transient context loss (GPU reset
+  // / tab backgrounding — reloading helps). Drives which copy + whether Reload shows.
+  const [webglPermanent, setWebglPermanent] = useState(false);
   const i18nVersion = useI18nVersion();
 
   // PO-2: Track previous active layer to detect layer switches (skip animation on initial render)
@@ -281,8 +285,10 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         attributionControl: false,
       });
     } catch (err) {
-      // WebGL unavailable — show the fallback instead of crashing.
+      // WebGL unavailable — show the fallback instead of crashing. Construction
+      // failure is permanent for this device (E6): reloading won't help.
       console.warn('Map: failed to initialize WebGL', err);
+      setWebglPermanent(true);
       setWebglFailed(true);
       return;
     }
@@ -295,7 +301,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     // these listeners surface the same fallback UI for a transient loss and clear
     // it if the browser restores the context.
     const canvas = map.getCanvas();
-    const onLost = (ev: Event) => { ev.preventDefault(); setWebglFailed(true); };
+    const onLost = (ev: Event) => { ev.preventDefault(); setWebglPermanent(false); setWebglFailed(true); };
     const onRestored = () => setWebglFailed(false);
     canvas.addEventListener('webglcontextlost', onLost, false);
     canvas.addEventListener('webglcontextrestored', onRestored, false);
@@ -907,15 +913,19 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         }
         return;
       }
-      // PO-2: Animated transition — fade out, swap color, fade back in
-      // Temporarily shorten the opacity transition for a snappy fade-out
-      map.setPaintProperty(FILL_LAYER, 'fill-opacity-transition', { duration: 150, delay: 0 });
-      map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(0));
+      // PO-2 / X5: animated recolor — dip, swap color, fade back in. The dip goes to
+      // a PARTIAL opacity (not 0) so the choropleth never blanks to the bare basemap
+      // mid-switch (which read as a momentary "broken" state and contradicted the
+      // legend, which updates instantly). The color swap still happens at the dimmed
+      // point, so the change isn't a hard cut.
+      const DIP_OPACITY = 0.35;
+      map.setPaintProperty(FILL_LAYER, 'fill-opacity-transition', { duration: 130, delay: 0 });
+      map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(DIP_OPACITY));
 
-      // Also fade grid layer if present
+      // Also dip grid layer if present
       if (map.getLayer(GRID_FILL_LAYER)) {
-        map.setPaintProperty(GRID_FILL_LAYER, 'fill-opacity-transition', { duration: 150, delay: 0 });
-        map.setPaintProperty(GRID_FILL_LAYER, 'fill-opacity', 0);
+        map.setPaintProperty(GRID_FILL_LAYER, 'fill-opacity-transition', { duration: 130, delay: 0 });
+        map.setPaintProperty(GRID_FILL_LAYER, 'fill-opacity', DIP_OPACITY);
       }
 
       layerTransitionRef.current = setTimeout(() => {
@@ -971,7 +981,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
             mapRef.current.setPaintProperty(GRID_FILL_LAYER, 'fill-opacity-transition', { duration: 300, delay: 0 });
           }
         }, 250);
-      }, 180);
+      }, 150);
     } else {
       // Initial render or colorblind toggle — apply immediately (no fade)
       map.setPaintProperty(FILL_LAYER, 'fill-color', buildFillColorExpression(layer));
@@ -1556,14 +1566,18 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
           {t('error.webgl_unavailable')}
         </h2>
         <p className="text-sm text-surface-500 dark:text-surface-400 max-w-sm mb-4">
-          {t('error.webgl_context_lost_desc')}
+          {t(webglPermanent ? 'error.webgl_unavailable_desc' : 'error.webgl_context_lost_desc')}
         </p>
-        <button
-          onClick={() => window.location.reload()}
-          className="px-4 py-2 rounded-xl text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors"
-        >
-          {t('error.reload')}
-        </button>
+        {/* E6: reloading only helps a transient context loss; hide it when the
+            device permanently lacks WebGL. */}
+        {!webglPermanent && (
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 rounded-xl text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors"
+          >
+            {t('error.reload')}
+          </button>
+        )}
       </div>
     );
   }
@@ -1572,7 +1586,11 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     <div
       ref={containerRef}
       className="absolute inset-0"
-      role="application"
+      // A7: only the inner MapLibre canvas (set in the load handler above) carries
+      // role="application" — it's the element that handles keyboard pan/zoom. The
+      // wrapper is a plain named group so screen readers don't hit two nested,
+      // differently-named application regions.
+      role="group"
       aria-label={t('aria.map_region').replace('{layer}', t((layerConfig ?? getLayerById(activeLayer)).labelKey))}
     />
   );

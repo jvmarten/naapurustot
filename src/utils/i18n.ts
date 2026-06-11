@@ -93,6 +93,25 @@ export function setLang(lang: Lang): Promise<void> {
 
 export function getLang(): Lang { return currentLang; }
 
+/**
+ * O2: pick a supported UI language from the browser's preferred languages, or null
+ * if none match (caller falls back to the Finnish default). Returns the first of
+ * `navigator.languages` whose two-letter code is one we support. Pure read — it does
+ * not mutate currentLang; the browser entry (main.tsx) decides whether to apply it,
+ * so tests that render <App/> directly are unaffected.
+ */
+export function detectBrowserLang(): Lang | null {
+  try {
+    if (typeof navigator === 'undefined') return null;
+    const prefs = navigator.languages?.length ? navigator.languages : [navigator.language];
+    for (const pref of prefs) {
+      const code = (pref || '').toLowerCase().slice(0, 2);
+      if (code === 'fi' || code === 'en' || code === 'sv') return code;
+    }
+  } catch { /* navigator unavailable */ }
+  return null;
+}
+
 /** Lang whose dictionary fetch failed (so a banner can offer a retry), else null. */
 export function getLocaleLoadError(): Lang | null { return loadError; }
 

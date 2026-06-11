@@ -162,8 +162,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
           </button>
         </div>
 
+        {/* X2: one-line value proposition — the form otherwise opens straight into
+            a 12-char password prompt with no stated reason to create an account. */}
+        <p className="px-6 pt-4 text-xs text-surface-500 dark:text-surface-400 leading-relaxed">
+          {t('auth.value_prop')}
+        </p>
+
         {/* Form */}
-        <form onSubmit={handleSubmit} className="px-6 pb-6 pt-5 space-y-4">
+        <form onSubmit={handleSubmit} className="px-6 pb-6 pt-4 space-y-4">
           {/* Username */}
           <div>
             <label className="block text-xs font-semibold text-surface-600 dark:text-surface-400 mb-1.5">
