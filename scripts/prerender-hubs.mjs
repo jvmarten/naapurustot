@@ -18,6 +18,10 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { createHash } from 'crypto';
+// CF-11: per-region social card (area count + population), so hub/directory previews
+// stop using the generic shared image.
+import { buildSocialCardSvg } from './social-card.mjs';
 // CF-12: reuse the app's data-processing so ranking pages score quality_index and
 // the quick-win metrics (child_ratio etc.) exactly as the map does. Type-only
 // imports → Node's TypeScript stripping (22.18+/24) loads them without a build.
@@ -232,7 +236,33 @@ thead th{border-bottom-color:#3a424e}
 }`;
 
 /** Build a complete standalone HTML page. */
-function htmlPage({ lang, title, description, canonical, alternates, jsonLd, body }) {
+// CF-11: emit a per-region social-card SVG (area name + count + population) under
+// dist/og/ and return the PNG sibling URL (rasterized in deploy by rasterize-cards.mjs).
+const CARD_DIR = join(DIST, 'og');
+const CARD_LABELS = {
+  fi: { areas: 'Postinumeroalueet', pop: 'Asukkaat' },
+  en: { areas: 'Postal areas', pop: 'Population' },
+  sv: { areas: 'Postnummerområden', pop: 'Invånare' },
+};
+function emitRegionCard(region, regionName, lang) {
+  const L = CARD_LABELS[lang] || CARD_LABELS.fi;
+  const svg = buildSocialCardSvg({
+    name: regionName,
+    quality: null,
+    stats: [
+      { label: L.areas, value: fmtNum(region.count, lang) },
+      { label: L.pop, value: fmtNum(region.totalPop, lang) },
+    ],
+  });
+  mkdirSync(CARD_DIR, { recursive: true });
+  const hash = createHash('sha256').update(svg).digest('hex').slice(0, 10);
+  writeFileSync(join(CARD_DIR, `region-${region.id}-${lang}.${hash}.svg`), svg);
+  return `${ORIGIN}/og/region-${region.id}-${lang}.${hash}.png`;
+}
+
+function htmlPage({ lang, title, description, canonical, alternates, jsonLd, body, ogImage }) {
+  // CF-11: per-page social card (PNG) when provided, else the shared static image.
+  const ogImg = ogImage || `${ORIGIN}/og-image.png`;
   const langLinks = LANGS.map((l) => {
     const label = { fi: 'FI', en: 'EN', sv: 'SV' }[l];
     const current = l === lang ? ' aria-current="true"' : '';
@@ -281,12 +311,13 @@ ${altLinks}
     <meta property="og:url" content="${canonical}" />
     <meta property="og:title" content="${escapeHtml(title)}" />
     <meta property="og:description" content="${escapeHtml(description)}" />
-    <meta property="og:image" content="${ORIGIN}/og-image.png" />
+    <meta property="og:image" content="${ogImg}" />
+    <meta property="og:image:type" content="image/png" />
     <meta property="og:image:alt" content="${escapeHtml(title)}" />
     <meta property="og:locale" content="${OG_LOCALE[lang]}" />
 ${localeAlts}
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:image" content="${ORIGIN}/og-image.png" />
+    <meta name="twitter:image" content="${ogImg}" />
     <style>${STYLE}</style>
 ${jsonLd}
   </head>
@@ -832,6 +863,7 @@ ${buildCiteSection(lang, T.cityTitle(regionName), alternates[lang])}
     alternates,
     jsonLd,
     body,
+    ogImage: emitRegionCard(region, regionName, lang),
   });
 }
 
