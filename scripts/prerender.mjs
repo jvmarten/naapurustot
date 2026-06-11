@@ -25,6 +25,12 @@ import { createHash } from 'crypto';
 import { buildSocialCardSvg } from './social-card.mjs';
 // IN-8: slug-alias redirect-stub builder (pure; the module's main is guarded).
 import { buildStubHtml, AREA_PREFIX as ALIAS_AREA_PREFIX } from './update_slug_aliases.mjs';
+// IN-6: build-time head-integrity guard. The first-match head-token regexes used
+// throughout this file silently corrupt EVERY page if a `<title>`/`</head>`/JSON-LD
+// token ever appears twice (CLAUDE.md "Prerender head-token regexes"). Asserting on
+// each assembled page turns that into a loud build failure instead of ~9,000 broken
+// pages. Pure + side-effect-free, and unit-tested in prerenderOutput.test.ts.
+import { assertHeadIntegrity } from './prerender-lib.mjs';
 // The app's data-processing functions, reused at build time so each page can
 // embed a render-ready payload. Both modules have type-only imports, so Node's
 // TypeScript stripping (Node 22.18+/24) loads them without a build step.
@@ -1534,17 +1540,27 @@ let count = 0;
 for (const feature of features) {
   const slug = toSlug(feature.properties.pno, feature.properties.nimi);
 
+  // IN-6: assert head integrity on every assembled profile before writing — every
+  // area has population, so each page carries exactly one FAQPage and an embedded
+  // profile payload; a duplicated head token or un-stripped homepage JSON-LD fails
+  // the build here instead of silently corrupting the page.
+  const fiHtml = generatePage(feature, 'fi');
+  assertHeadIntegrity(fiHtml, { context: `alue/${slug}`, expectFaq: true, expectProfilePayload: true });
   const fiDir = join(DIST, 'alue', slug);
   mkdirSync(fiDir, { recursive: true });
-  writeFileSync(join(fiDir, 'index.html'), generatePage(feature, 'fi'));
+  writeFileSync(join(fiDir, 'index.html'), fiHtml);
 
+  const enHtml = generatePage(feature, 'en');
+  assertHeadIntegrity(enHtml, { context: `en/area/${slug}`, expectFaq: true, expectProfilePayload: true });
   const enDir = join(DIST, 'en', 'area', slug);
   mkdirSync(enDir, { recursive: true });
-  writeFileSync(join(enDir, 'index.html'), generatePage(feature, 'en'));
+  writeFileSync(join(enDir, 'index.html'), enHtml);
 
+  const svHtml = generatePage(feature, 'sv');
+  assertHeadIntegrity(svHtml, { context: `sv/omrade/${slug}`, expectFaq: true, expectProfilePayload: true });
   const svDir = join(DIST, 'sv', 'omrade', slug);
   mkdirSync(svDir, { recursive: true });
-  writeFileSync(join(svDir, 'index.html'), generatePage(feature, 'sv'));
+  writeFileSync(join(svDir, 'index.html'), svHtml);
 
   // CF-11: oEmbed endpoint per language (referenced by the head link above).
   mkdirSync(oembedDir, { recursive: true });
@@ -1583,16 +1599,22 @@ if (stubCount > 0) console.log(`Prerendered ${stubCount} slug-alias redirect stu
 
 // CF-9: write the three localized data-sources pages.
 for (const [lang, route] of Object.entries(SOURCES_ROUTES)) {
+  const html = generateSourcesPage(lang);
+  // IN-6: these pages keep the homepage JSON-LD (no profile payload, no own FAQ),
+  // so assert the singleton head tokens and JSON-LD validity only.
+  assertHeadIntegrity(html, { context: route.path });
   const dir = join(DIST, ...route.path.split('/'));
   mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, 'index.html'), generateSourcesPage(lang));
+  writeFileSync(join(dir, 'index.html'), html);
 }
 console.log('Prerendered 3 data-sources pages (/tietolahteet, /en/data-sources, /sv/datakallor).');
 
 // PO-14: write the three localized privacy pages.
 for (const [lang, route] of Object.entries(PRIVACY_ROUTES)) {
+  const html = generatePrivacyPage(lang);
+  assertHeadIntegrity(html, { context: route.path }); // IN-6: singleton head tokens + JSON-LD validity
   const dir = join(DIST, ...route.path.split('/'));
   mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, 'index.html'), generatePrivacyPage(lang));
+  writeFileSync(join(dir, 'index.html'), html);
 }
 console.log('Prerendered 3 privacy pages (/tietosuoja, /en/privacy, /sv/integritet).');

@@ -33,7 +33,7 @@ Each of the 69 sub-regions has an overview page that lists all of its neighbourh
 - [Full data, coverage & methodology reference](https://naapurustot.fi/llms-full.txt): Complete catalogue of every data layer with definitions, the regional coverage table, the Quality Index methodology, sources and licensing.
 - [Open data — bulk download & API](https://naapurustot.fi/avoin-data/): The full dataset as CSV (all postal-code areas × ~60 metrics, plus a long-format time series and a codebook with per-column provenance and licensing), and a frozen static JSON API at `https://naapurustot.fi/api/v1/areas/{postal_code}.json`, `https://naapurustot.fi/api/v1/areas.json` and `https://naapurustot.fi/api/v1/metrics.json`.
 
-Primary data sources: Statistics Finland / Tilastokeskus (Paavo open data, property and rental prices, election results), HSL / Digitransit, Helsinki Region Environmental Services HSY, OpenStreetMap, the Finnish Police, Traficom, Väylävirasto, the Finnish Matriculation Examination Board (YTL) and NASA VIIRS. Statistics Finland data is licensed CC BY 4.0; OpenStreetMap data under the ODbL.
+Primary data sources: Tilastokeskus, Väylävirasto, HSY, Poliisi, OpenStreetMap, LIPAS (Jyväskylän yliopisto), Traficom, Helsingin yliopisto, Digital Geography Lab, Ylioppilastutkintolautakunta, NASA Black Marble (VIIRS), Helsinki Region Infoshare, Säteilyturvakeskus (STUK), Terveyden ja hyvinvoinnin laitos (THL), Suomen ympäristökeskus (SYKE). Statistics Finland data is licensed CC BY 4.0; OpenStreetMap data under the ODbL.
 
 ## Attribution
 
