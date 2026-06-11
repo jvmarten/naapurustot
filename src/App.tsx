@@ -48,6 +48,7 @@ const OnboardingTour = lazy(() => import('./components/OnboardingTour').then(m =
 const ShortcutsOverlay = lazy(() => import('./components/ShortcutsOverlay').then(m => ({ default: m.ShortcutsOverlay })));
 const TimeSlider = lazy(() => import('./components/TimeSlider').then(m => ({ default: m.TimeSlider })));
 import { UserMenu, type FavoriteEntry } from './components/UserMenu';
+import { FavoritesButton } from './components/FavoritesButton';
 import { ShortlistTray } from './components/ShortlistTray';
 import { type LayerId, type ColorblindType, getLayerById, getColorblindMode, setColorblindMode, rescaleLayerToData, clearRescaleCache, TIME_SERIES_LAYERS } from './utils/colorScales';
 import { readInitialUrlState, useSyncUrlState, buildViewportShareUrl, buildShortlistShareUrl, type UrlViewport, type UrlDraw } from './hooks/useUrlState';
@@ -103,6 +104,18 @@ const PanelSkeleton: React.FC = () => (
   </div>
 );
 
+// L2: user-initiated lazy modals (AuthModal, ShortcutsOverlay, SplitMapView) were
+// mounted with `fallback={null}`, so on a cold/slow connection the trigger felt dead
+// until the chunk landed. Show a dimmed backdrop + spinner immediately instead.
+const ModalFallback: React.FC = () => (
+  <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm" aria-hidden="true">
+    <svg className="w-8 h-8 animate-spin text-white/80" viewBox="0 0 24 24" fill="none">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+    </svg>
+  </div>
+);
+
 const App: React.FC = () => {
   // City filter — declared before useMapData so the hook can load the right region
   const [cityFilter, setCityFilter] = useState<CityFilter>((initialUrl.city as CityFilter) ?? DEFAULT_CITY);
@@ -151,6 +164,16 @@ const App: React.FC = () => {
   // address-only notices. A bumped key restarts the auto-dismiss on repeats.
   const [toast, setToast] = useState<{ text: string; key: number } | null>(null);
   const showToast = useCallback((text: string) => setToast({ text, key: Date.now() }), []);
+  // O3: a persistent, dismissible on-map hint teaching the central interaction.
+  // Independent of the tour's "seen" flag so tour-skippers and returning visitors
+  // who never selected an area still get a sighted cue (touch has no hover tooltip).
+  const [areaHintDismissed, setAreaHintDismissed] = useState(() => {
+    try { return localStorage.getItem('naapurustot-area-hint-seen') === '1'; } catch { return true; }
+  });
+  const dismissAreaHint = useCallback(() => {
+    setAreaHintDismissed(true);
+    try { localStorage.setItem('naapurustot-area-hint-seen', '1'); } catch { /* unavailable */ }
+  }, []);
   // QW-2: keyboard shortcuts help overlay.
   const [showShortcuts, setShowShortcuts] = useState(false);
   // CF-3: whether the shortlist tray is expanded over an open panel (vs the compact chip).
@@ -203,7 +226,7 @@ const App: React.FC = () => {
   const { selected, select, deselect, pinned, pin, unpin, clearPinned, refreshPinned } = useSelectedNeighborhood();
   const [activeLayer, setActiveLayerRaw] = useState<LayerId>(initialUrl.layer ?? 'quality_index');
   const setActiveLayer = useCallback((layer: LayerId) => { trackEvent('change-layer', { layer }); setActiveLayerRaw(layer); }, []);
-  const { gridData: rawGridData, loading: gridLoading } = useGridData(activeLayer, cityFilter);
+  const { gridData: rawGridData, loading: gridLoading, error: gridError } = useGridData(activeLayer, cityFilter);
   // Clip grid cells to the loaded region so a region-scoped view (e.g. Helsinki
   // Metro) doesn't leak grid cells from other regions (e.g. Turku, Tampere).
   // For the all-cities view this is effectively a no-op (the region covers all
@@ -365,7 +388,7 @@ const App: React.FC = () => {
   // so this is free for the common case. Clipped to the loaded region's bbox so a
   // region view doesn't leak national grid cells (cheaper sync clip than the main
   // pane's async point-in-polygon refine, which is overkill for a comparison pane).
-  const { gridData: rawSecondaryGrid } = useGridData(secondaryLayer, cityFilter);
+  const { gridData: rawSecondaryGrid, loading: secondaryGridLoading } = useGridData(secondaryLayer, cityFilter);
   const secondaryGridData = useMemo(
     () => clipGridToData(rawSecondaryGrid, data),
     [rawSecondaryGrid, data],
@@ -444,6 +467,16 @@ const App: React.FC = () => {
   const effectiveError: boolean = aggMode ? aggError : !!error;
   const effectiveRetry = aggMode ? aggRetry : retry;
   void aggLoading; // aggregate spinner is derived from allViewReady (covers outline load too)
+
+  // C1: the cold first load may show the full-screen wordmark overlay (nothing
+  // is behind it yet), but every later region/scope switch must NOT — a full
+  // takeover that also sits above the header reads like a hard page reload and
+  // locks the toolbar. After the first settle, switches show only a slim,
+  // non-blocking top progress bar so the previous map and all chrome stay usable.
+  const [firstLoadDone, setFirstLoadDone] = useState(false);
+  useEffect(() => {
+    if (!effectiveLoading) setFirstLoadDone(true);
+  }, [effectiveLoading]);
 
   // Recompute metro averages for the selected city.
   // qualityVersion is included so that averages are recalculated after custom quality weight changes
@@ -1014,14 +1047,35 @@ const App: React.FC = () => {
     [],
   );
 
+  // M4: touch has no hover tooltip, so reading a value otherwise requires opening
+  // the heavy sheet. Detect coarse pointers once; on those, a tap shows a compact
+  // peek bar (below) instead of the full panel, so users can compare areas tap-by-tap.
+  const isCoarsePointer = useMemo(
+    () => typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse)').matches,
+    [],
+  );
+  const [peek, setPeek] = useState<NeighborhoodProperties | null>(null);
+
   const handleClick = useCallback(
     (props: NeighborhoodProperties) => {
+      // On touch, a first tap previews; "details" (or a tap while a panel is already
+      // open) selects. Desktop / fine-pointer is unchanged (tap opens the panel).
+      if (isCoarsePointer && !selectedRef.current) {
+        setPeek(props);
+        setTooltipData(null);
+        return;
+      }
       select(props);
+      setPeek(null);
       setTooltipData(null);
       setAriaAnnouncement(`${t('aria.neighborhood_selected')}: ${props.nimi}`);
     },
-    [select],
+    [select, isCoarsePointer],
   );
+
+  const handlePeekDetails = useCallback(() => {
+    if (peek) { select(peek); setPeek(null); }
+  }, [peek, select]);
 
   // Refs for values read inside handleSearch — avoids recreating the callback
   // when filteredData/cityFilter change (which would defeat React.memo on SearchBar).
@@ -1048,11 +1102,46 @@ const App: React.FC = () => {
 
   const handleSearch = useCallback(
     (pno: string, center: [number, number]) => {
-      // Address-only result (no postal code) — fly straight to the geocoded point.
+      // Address-only result (no postal code). C2: on the default all-Finland view
+      // the loaded dataset is geometry-stripped, so the geocoder can't name the
+      // owning postal area — but the area IS covered, it just isn't loaded. Derive
+      // the owning region from the coords and resolve the neighborhood the same way
+      // "Show my area" does, rather than wrongly reporting "no neighborhood data".
       if (!pno) {
+        const target = findRegionForCoords(center[0], center[1]);
+        if (!target) {
+          // Genuinely outside coverage — keep the honest fallback.
+          setFlyTarget({ center });
+          showToast(t('address.no_neighborhood'));
+          return;
+        }
+        if (cityFilterRef.current !== target) {
+          // Switch to the owning region; the geolocation resolver effect selects
+          // the containing neighborhood once that region's geometry loads.
+          pendingGeoRef.current = center;
+          setFlyTarget({ center, zoom: 12 });
+          setCityFilter(target);
+          deselect();
+          showToast(t('city.switched_to').replace('{city}', t('city.' + target)));
+          return;
+        }
+        // Already viewing the right region with geometry — resolve immediately.
+        const current = dataRef.current;
+        if (current) {
+          findNeighborhoodForPoint(center, current.features).then((f) => {
+            if (f?.properties) {
+              const props = f.properties as NeighborhoodProperties;
+              select(props);
+              addRecent({ pno: props.pno, name: props.nimi || props.pno, center: getFeatureCenter(f) });
+              setFlyTarget({ center: getFeatureCenter(f) });
+            } else {
+              setFlyTarget({ center });
+              showToast(t('address.no_neighborhood'));
+            }
+          }).catch(() => { setFlyTarget({ center }); });
+          return;
+        }
         setFlyTarget({ center });
-        // C8: tell the user we have no neighborhood data for this address.
-        showToast(t('address.no_neighborhood'));
         return;
       }
 
@@ -1091,7 +1180,7 @@ const App: React.FC = () => {
         setFlyTarget({ center });
       }
     },
-    [selectAndFly, deselect, showToast],
+    [selectAndFly, deselect, showToast, select, addRecent],
   );
 
   // Resolve a pending cross-subregion search once the target region's geometry
@@ -1189,6 +1278,28 @@ const App: React.FC = () => {
     return () => clearTimeout(id);
   }, [toast]);
 
+  // E8: surface toasts dispatched from non-React utilities (e.g. export.ts's
+  // popup-blocked notice) through the same styled top-center toast channel.
+  useEffect(() => {
+    const onToast = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (typeof detail === 'string') showToast(detail);
+    };
+    window.addEventListener('app-toast', onToast);
+    return () => window.removeEventListener('app-toast', onToast);
+  }, [showToast]);
+
+  // O3: once the user has selected any area they've learned the core interaction —
+  // retire the hint pill permanently.
+  useEffect(() => {
+    if (selected) dismissAreaHint();
+  }, [selected, dismissAreaHint]);
+
+  // M4: a full selection (search, ranking, deep link) supersedes the touch peek.
+  useEffect(() => {
+    if (selected) setPeek(null);
+  }, [selected]);
+
   // PO-2: when the active time-series metric (or its years) changes, snap the
   // slider to the most recent year; deactivate (and stop playback) otherwise.
   useEffect(() => {
@@ -1275,14 +1386,19 @@ const App: React.FC = () => {
     setComparisonScope('all');
   }, [handleCityChange, deselect, clearPinned, handleClearDraw]);
 
-  const handleLangChange = useCallback((next: Lang) => {
-    if (next === lang) return;
+  const handleLangChange = useCallback((next: Lang): Promise<void> => {
+    if (next === lang) return Promise.resolve();
     trackEvent('switch-language', { lang: next });
+    // E7: re-arm the locale-error banner. It's dismissed-once otherwise, so a user
+    // who dismissed one failed en/sv load would never again be told a later switch
+    // failed — silently stranded in Finnish. Every new switch is a fresh attempt.
+    setLocaleErrorDismissed(false);
     // setLang notifies useI18nVersion subscribers synchronously (so the active
     // button highlight updates immediately) and again when the lazy-loaded
     // dictionary arrives (so memoized children re-render with real translations
-    // instead of staying on the Finnish fallback).
-    void setLang(next);
+    // instead of staying on the Finnish fallback). L3: return the promise so the
+    // settings dropdown can show an in-flight spinner until the dictionary lands.
+    return setLang(next);
   }, [lang]);
 
   const handleColorblindChange = useCallback((mode: ColorblindType) => {
@@ -1534,16 +1650,40 @@ const App: React.FC = () => {
   // QW-7: Also skip in embed mode — the chrome the tour points at isn't visible.
   useEffect(() => {
     if (IS_EMBED) return;
-    // CF-8: gate on the rendered view being ready (filteredData), not the raw
-    // national `data` — in the all-cities aggregate mode `data` is null by design.
-    if (effectiveLoading || !filteredData) return;
-    if (initialUrl.pno) return;
+    // O6: the welcome step is anchorless and the tour (z-[100]) renders above the
+    // loading overlay, so start it immediately on a first visit instead of gating
+    // the whole walkthrough behind the heaviest download. The anchored steps resolve
+    // their targets lazily (rAF retry) — by the time a first-timer reads the welcome
+    // and clicks Next, the data has loaded and the chrome is interactive.
+    // O5: skip the generic walkthrough whenever the visitor arrived via a shared/
+    // configured link — not just a deep-linked pno. A link carrying a layer, filter,
+    // comparison, shortlist, wizard profile, drawn area, custom weights, isochrone,
+    // reference, or a specific city was meant to present that content, not an
+    // orientation tour over it.
+    const u = initialUrl;
+    const hasConfiguredState =
+      !!u.pno ||
+      !!u.layer ||
+      u.compare.length > 0 ||
+      (u.city != null && u.city !== 'all') ||
+      u.filters.length > 0 ||
+      u.shortlist.length > 0 ||
+      !!u.weights ||
+      !!u.isochrone ||
+      !!u.draw ||
+      !!u.wizardProfile ||
+      !!u.simWeights ||
+      !!u.ref ||
+      !!u.affordability ||
+      !!u.viewport;
+    if (hasConfiguredState) return;
     if (typeof navigator !== 'undefined' && navigator.webdriver) return;
     try {
       if (localStorage.getItem('naapurustot-onboarding-seen')) return;
     } catch { /* localStorage unavailable */ }
     setShowTour(true);
-  }, [effectiveLoading, filteredData]);
+    // Run once on mount: the start condition no longer depends on load state.
+  }, []);
 
   const handleCloseTour = useCallback(() => {
     try { localStorage.setItem('naapurustot-onboarding-seen', '1'); } catch { /* unavailable */ }
@@ -1758,7 +1898,7 @@ const App: React.FC = () => {
       {/* Map — QW-4: Conditional split view */}
       <ErrorBoundary>
         {splitMode ? (
-          <Suspense fallback={null}>
+          <Suspense fallback={<ModalFallback />}>
             <SplitMapView
               data={filteredData}
               leftLayer={activeLayer}
@@ -1772,6 +1912,8 @@ const App: React.FC = () => {
               selectedPno={selected?.pno ?? null}
               leftGridData={gridData}
               rightGridData={secondaryGridData}
+              leftGridLoading={gridLoading && hasGridData(activeLayer)}
+              rightGridLoading={secondaryGridLoading && hasGridData(secondaryLayer)}
               metroAverages={cityAverages}
               onSelectNeighborhood={handleClick}
             />
@@ -1808,8 +1950,8 @@ const App: React.FC = () => {
         )}
       </ErrorBoundary>
 
-      {/* Skeleton / shimmer loading overlay */}
-      {effectiveLoading && (
+      {/* C1: cold first load — full-screen wordmark overlay (nothing behind it yet). */}
+      {effectiveLoading && !firstLoadDone && (
         <div data-testid="loading-overlay" className="absolute inset-0 z-50 flex items-center justify-center bg-white/80 dark:bg-surface-950/80 backdrop-blur-sm">
           <div className="text-center space-y-4">
             {/* Shimmer placeholder blocks */}
@@ -1824,8 +1966,24 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Error banner */}
-      {effectiveError && <ErrorBanner onRetry={effectiveRetry} />}
+      {/* C1: subsequent region/scope switches — slim, non-blocking progress bar
+          just below the header. The previous map stays visible and all chrome
+          (search, settings, tools, city selector) stays interactive. */}
+      {effectiveLoading && firstLoadDone && (
+        <div
+          data-testid="loading-progress"
+          className="absolute top-12 left-0 right-0 z-40 pointer-events-none"
+          role="status"
+          aria-label={t(cityFilter === 'all' ? 'loading.nationwide' : 'loading.title')}
+        >
+          <div className="h-0.5 w-full overflow-hidden bg-brand-500/20">
+            <div className="loading-bar-indeterminate h-full bg-brand-500" />
+          </div>
+        </div>
+      )}
+
+      {/* E4: the data-load ErrorBanner now lives in the shared top-center
+          notification stack near the other notices (below), so they can't overlap. */}
 
       {/* QW-7: Header is hidden in embed mode so the map renders edge-to-edge. */}
       {!IS_EMBED && (
@@ -1886,6 +2044,16 @@ const App: React.FC = () => {
 
         {/* Right: city selector & auth */}
         <div className="flex items-center gap-1.5 shrink-0">
+          {/* EM1: signed-out users get a favorites surface too — the star toggle
+              persists to localStorage, so they need somewhere to see saved areas. */}
+          {!user && favoriteEntries.length > 0 && (
+            <FavoritesButton
+              favorites={favoriteEntries}
+              onSelectFavorite={handleSelectFavorite}
+              onToggleFavorite={toggleFavorite}
+              onSignIn={() => setShowAuth(true)}
+            />
+          )}
           {user ? (
             <UserMenu user={user} onLogout={logout} favorites={favoriteEntries} onSelectFavorite={handleSelectFavorite} onToggleFavorite={toggleFavorite} onExportData={exportData} onDeleteAccount={deleteAccount} />
           ) : authLoading ? (
@@ -1997,8 +2165,61 @@ const App: React.FC = () => {
         />
       )}
 
+      {/* O3: persistent, dismissible on-map hint teaching the core "click an area"
+          interaction — shown only in the no-selection idle state, gone once an area
+          is selected or it's explicitly dismissed (persisted). */}
+      {!effectiveLoading && !selected && !splitMode && !drawMode && !showTour && !areaHintDismissed && (
+        <div className="fixed md:absolute bottom-[calc(1.5rem+env(safe-area-inset-bottom))] md:bottom-8 left-1/2 -translate-x-1/2 z-20
+                       flex items-center gap-2 px-3 py-1.5 rounded-full shadow-lg backdrop-blur-sm
+                       bg-surface-900/90 dark:bg-white/90 text-white dark:text-surface-900 text-xs font-medium">
+          <span aria-hidden="true">👆</span>
+          <span>{t('map.click_hint_pill')}</span>
+          <button
+            onClick={dismissAreaHint}
+            aria-label={t('aria.close')}
+            className="-mr-1 shrink-0 text-white/70 dark:text-surface-900/70 hover:text-white dark:hover:text-surface-900"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+      )}
+
+      {/* M4: lightweight touch "peek" bar — a single tap shows name + active-layer
+          value + vs-avg so mobile users can compare areas without opening the full
+          sheet each time; "details" opens the panel. Touch/mobile only. */}
+      {peek && !selected && (() => {
+        const prop = effectiveLayer.property;
+        const v = (peek as unknown as Record<string, number | null | undefined>)[prop];
+        const avgV = cityAverages[prop];
+        const delta = (typeof v === 'number' && typeof avgV === 'number') ? v - avgV : null;
+        return (
+          <div className="fixed md:hidden bottom-[calc(1.5rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 z-30
+                         flex items-center gap-3 px-3 py-2 rounded-xl shadow-2xl backdrop-blur-sm max-w-[92vw]
+                         bg-surface-900/95 dark:bg-white/95 text-white dark:text-surface-900" role="status">
+            <div className="min-w-0">
+              <div className="text-xs font-semibold truncate">{peek.nimi || peek.pno}</div>
+              <div className="text-[11px] opacity-80 flex items-center gap-1 tabular-nums">
+                <span>{typeof v === 'number' ? effectiveLayer.format(v) : '—'}</span>
+                {delta != null && (
+                  <span aria-hidden="true">{delta > 0 ? '▲' : delta < 0 ? '▼' : '＝'} {t('tooltip.vs_avg')}</span>
+                )}
+              </div>
+            </div>
+            <button
+              onClick={handlePeekDetails}
+              className="shrink-0 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-brand-600 text-white hover:bg-brand-700 transition-colors"
+            >
+              {t('peek.details')}
+            </button>
+            <button onClick={() => setPeek(null)} aria-label={t('aria.close')} className="shrink-0 text-white/60 dark:text-surface-900/60 hover:text-white dark:hover:text-surface-900">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
+        );
+      })()}
+
       {/* Legend — repositioned for mobile (MO2: suppressed on mobile when an area panel covers it) */}
-      <Legend layerId={activeLayer} colorblind={colorblind} layerConfig={effectiveLayer} lang={lang} gridLoading={gridLoading && hasGridData(activeLayer)} hidden={!!selected} />
+      <Legend layerId={activeLayer} colorblind={colorblind} layerConfig={effectiveLayer} lang={lang} gridLoading={gridLoading && hasGridData(activeLayer)} gridError={gridError && hasGridData(activeLayer)} aggregateScope={cityFilter === 'all'} hidden={!!selected} />
 
       {/* PO-2: Time slider / historical playback (only when a time-series metric is active) */}
       {!IS_EMBED && timeYear != null && availableYears.length > 1 && (
@@ -2009,6 +2230,7 @@ const App: React.FC = () => {
             onYearChange={handleScrubYear}
             playing={timePlaying}
             onTogglePlay={handleToggleTimePlay}
+            hidden={!!selected}
           />
         </Suspense>
       )}
@@ -2184,6 +2406,7 @@ const App: React.FC = () => {
               metroAverages={cityAverages}
               onClose={handleClearDraw}
               selectedPnos={selectedAreaPnos.length > 0 ? selectedAreaPnos : drawnAreaPnos.length > 0 ? drawnAreaPnos : undefined}
+              suppressMobile={!!selected}
             />
           </Suspense>
         </ErrorBoundary>
@@ -2262,47 +2485,55 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* IN-6: Offline indicator */}
-      {isOffline && (
-        <div className="absolute top-12 left-1/2 -translate-x-1/2 z-50 px-3 py-1.5 rounded-lg
-                       bg-amber-500/90 text-white text-xs font-medium backdrop-blur-sm">
-          {t('offline.indicator')}
-        </div>
-      )}
+      {/* E4: single top-center notification stack. One container positions every
+          transient notice and lays them out vertically (priority top→bottom), so
+          realistic combinations (offline + region-load error, geolocation prompt +
+          locale error) no longer render on top of each other at one coordinate.
+          The container is click-through; each notice re-enables pointer events. */}
+      <div className="absolute top-12 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2 w-full max-w-md px-4 pointer-events-none">
+        {/* Data-load failure (highest priority) */}
+        {effectiveError && <ErrorBanner onRetry={effectiveRetry} />}
 
-      {/* QW-3: Geolocation status toast */}
-      {geoStatus && (
+        {/* IN-6: Offline indicator */}
+        {isOffline && (
+          <div className="pointer-events-auto px-3 py-1.5 rounded-lg bg-amber-500/90 text-white text-xs font-medium backdrop-blur-sm">
+            {t('offline.indicator')}
+          </div>
+        )}
+
+        {/* QW-3: Geolocation status toast */}
+        {geoStatus && (
+          <div
+            role="status"
+            className={`pointer-events-auto px-3 py-1.5 rounded-lg text-white text-xs font-medium backdrop-blur-sm
+                       ${geoStatus === 'loading' ? 'bg-brand-700/90' : 'bg-amber-500/90'}`}
+          >
+            {geoStatus === 'loading'
+              ? t('geolocation.using')
+              : geoStatus === 'denied'
+                ? t('geolocation.denied')
+                : geoStatus === 'unavailable'
+                  ? t('geolocation.unavailable')
+                  : t('geolocation.outside')}
+          </div>
+        )}
+
+        {/* C4/C7/C8: shared transient toast (scope rescale note, city switch, address-only) */}
+        {toast && (
+          <div
+            role="status"
+            className="pointer-events-auto max-w-[90vw] px-3 py-1.5 rounded-lg
+                       bg-brand-700/90 text-white text-xs font-medium text-center backdrop-blur-sm shadow-lg"
+          >
+            {toast.text}
+          </div>
+        )}
+
+        {/* E9: locale dictionary load failure — non-blocking notice with retry + dismiss */}
+        {localeLoadError && !localeErrorDismissed && (
         <div
           role="status"
-          className={`absolute top-12 left-1/2 -translate-x-1/2 z-50 px-3 py-1.5 rounded-lg text-white text-xs font-medium backdrop-blur-sm
-                     ${geoStatus === 'loading' ? 'bg-brand-700/90' : 'bg-amber-500/90'}`}
-        >
-          {geoStatus === 'loading'
-            ? t('geolocation.using')
-            : geoStatus === 'denied'
-              ? t('geolocation.denied')
-              : geoStatus === 'unavailable'
-                ? t('geolocation.unavailable')
-                : t('geolocation.outside')}
-        </div>
-      )}
-
-      {/* C4/C7/C8: shared transient toast (scope rescale note, city switch, address-only) */}
-      {toast && (
-        <div
-          role="status"
-          className="absolute top-12 left-1/2 -translate-x-1/2 z-50 max-w-[90vw] px-3 py-1.5 rounded-lg
-                     bg-brand-700/90 text-white text-xs font-medium text-center backdrop-blur-sm shadow-lg"
-        >
-          {toast.text}
-        </div>
-      )}
-
-      {/* E9: locale dictionary load failure — non-blocking notice with retry + dismiss */}
-      {localeLoadError && !localeErrorDismissed && (
-        <div
-          role="status"
-          className="absolute top-12 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-3 py-1.5 rounded-lg
+          className="pointer-events-auto flex items-center gap-2 px-3 py-1.5 rounded-lg
                      bg-amber-500/90 text-white text-xs font-medium backdrop-blur-sm shadow-lg"
         >
           <span>{t('lang.load_failed')}</span>
@@ -2323,7 +2554,8 @@ const App: React.FC = () => {
             </svg>
           </button>
         </div>
-      )}
+        )}
+      </div>
 
       {/* Attribution footer (full attribution hidden in embed mode) */}
       {!IS_EMBED && (
@@ -2385,7 +2617,7 @@ const App: React.FC = () => {
       {/* Auth modal (hidden in embed mode) */}
       {!IS_EMBED && showAuth && (
         <ErrorBoundary>
-          <Suspense fallback={null}>
+          <Suspense fallback={<ModalFallback />}>
             <AuthModal
               onClose={() => setShowAuth(false)}
               onLogin={login}
@@ -2404,7 +2636,7 @@ const App: React.FC = () => {
 
       {/* QW-2: Keyboard shortcuts overlay (hidden in embed mode) */}
       {!IS_EMBED && showShortcuts && (
-        <Suspense fallback={null}>
+        <Suspense fallback={<ModalFallback />}>
           <ShortcutsOverlay onClose={() => setShowShortcuts(false)} />
         </Suspense>
       )}

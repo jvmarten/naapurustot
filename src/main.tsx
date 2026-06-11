@@ -6,7 +6,21 @@ import App from './App';
 import { ThemeProvider } from './hooks/useTheme';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { installChunkReloadHandler } from './utils/chunkReload';
+import { detectBrowserLang, getLang, setLang } from './utils/i18n';
 import './index.css';
+
+// O2: first-visit language auto-detection. Runs only in the browser entry (tests
+// render <App/> directly, so they keep the Finnish default) and only on the map
+// route, when the visitor has neither a stored choice nor an explicit ?lang — so a
+// non-Finnish first-timer isn't dropped into Finnish-only onboarding. A stored
+// choice or ?lang always wins (both are applied before this point).
+try {
+  const hasUrlLang = new URLSearchParams(window.location.search).get('lang');
+  if (window.location.pathname === '/' && !localStorage.getItem('lang') && !hasUrlLang) {
+    const detected = detectBrowserLang();
+    if (detected && detected !== getLang()) void setLang(detected);
+  }
+} catch { /* localStorage / URL unavailable */ }
 
 // Recover from failed dynamic imports caused by stale chunk references after a
 // deployment — installed before any dynamic import fires so the first failure

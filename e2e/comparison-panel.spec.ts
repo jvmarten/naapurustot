@@ -29,8 +29,9 @@ test.describe('pin neighborhoods and comparison panel', () => {
     // Look for at least one stat label in the table (e.g., "Väestö" = Population)
     await expect(comparisonPanel.locator('text=Väestö').first()).toBeVisible();
 
-    // Unpin one neighborhood by clicking its X button in the table header
-    const unpinButtons = comparisonPanel.locator('button[title="Remove"]');
+    // Unpin one neighborhood by clicking its X button in the table header.
+    // A6: the remove control is now localized ("Poista vertailusta") via t('compare.remove').
+    const unpinButtons = comparisonPanel.locator('button[aria-label="Poista vertailusta"]');
     const unpinCount = await unpinButtons.count();
     expect(unpinCount).toBeGreaterThan(0);
     await unpinButtons.first().click();

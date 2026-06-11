@@ -23,6 +23,8 @@ import { loadAllData } from '../utils/dataLoader';
 import { useAnimatedValue } from '../hooks/useAnimatedValue';
 import { useBottomSheet } from '../hooks/useBottomSheet';
 import { useSwipeNavigation } from '../hooks/useSwipeNavigation';
+import { useReducedMotion } from '../hooks/useReducedMotion';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import { trackEvent } from '../utils/analytics';
 import { generateScoreCard } from '../utils/scoreCard';
 import { useNotes } from '../hooks/useNotes';
@@ -796,16 +798,36 @@ const NotesEditor: React.FC<{ pno: string; userId?: string | null }> = React.mem
   // Track once per focus session, not on every keystroke — avoids
   // flooding the analytics endpoint during typing.
   const trackedRef = useRef(false);
+  // X6: a debounced "Saving…/Saved" acknowledgment so the user knows their note
+  // was captured (it autosaves on every keystroke, previously with no feedback).
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const savingTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  React.useEffect(() => () => { clearTimeout(savingTimerRef.current); clearTimeout(savedTimerRef.current); }, []);
   return (
     <div>
-      <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 mb-3">
-        {t('notes.title')}
-      </h3>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500">
+          {t('notes.title')}
+        </h3>
+        {saveState !== 'idle' && (
+          <span className="text-[10px] text-surface-400 dark:text-surface-500" aria-live="polite">
+            {saveState === 'saving' ? t('notes.saving') : t('notes.saved')}
+          </span>
+        )}
+      </div>
       <textarea
         value={note}
         onChange={(e) => {
           if (!trackedRef.current) { trackEvent('add-note'); trackedRef.current = true; }
           setNote(pno, e.target.value);
+          setSaveState('saving');
+          clearTimeout(savingTimerRef.current);
+          clearTimeout(savedTimerRef.current);
+          savingTimerRef.current = setTimeout(() => {
+            setSaveState('saved');
+            savedTimerRef.current = setTimeout(() => setSaveState('idle'), 1500);
+          }, 500);
         }}
         onBlur={() => { trackedRef.current = false; }}
         placeholder={t('notes.placeholder')}
@@ -820,14 +842,29 @@ NotesEditor.displayName = 'NotesEditor';
 
 export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, qualityWeights, allFeatures, summaryScope = 'national', summaryRegion = '', activeLayer, onFlyTo, isFavorite = false, onToggleFavorite, isInShortlist = false, onToggleShortlist, referencePno, referenceName, onSetReference, qualityScope = 'national', onExploreCity, userId, isochroneEnabled = false, isochroneMode = 'walk', isochroneBudget = 20, isochroneLoading = false, isochroneError = false, isochroneActive = false, onIsochroneChange, onIsochroneClear, similarityWeights, onSimilarityWeightChange, onSimilarityToggle }) => {
   useI18nVersion();
+  // M5: honor "Reduce Motion" on the two most frequent mobile interactions (sheet
+  // open/drag, tab-carousel snap), matching the map's reduced-motion fast paths.
+  const reducedMotion = useReducedMotion();
   const eduTotal = useMemo(() =>
     [d.ko_yl_kork, d.ko_al_kork, d.ko_ammat, d.ko_perus]
       .filter((v): v is number => v != null && v > 0)
       .reduce((a, b) => a + b, 0) || 1,
     [d.ko_yl_kork, d.ko_al_kork, d.ko_ammat, d.ko_perus]);
+  // EM5: when every education field is null/zero, eduTotal falls back to 1 and all
+  // four bars render below the 1% threshold — leaving an orphan heading with no
+  // bars (looks broken). Track presence so we can show a "no data" line instead.
+  const hasEduData = useMemo(() =>
+    [d.ko_yl_kork, d.ko_al_kork, d.ko_ammat, d.ko_perus].some((v) => v != null && v > 0),
+    [d.ko_yl_kork, d.ko_al_kork, d.ko_ammat, d.ko_perus]);
 
   // Copy link / share state
   const [copied, setCopied] = useState(false);
+  // E3: URL revealed for manual copy when the clipboard API is blocked/unavailable.
+  const [copyFallbackUrl, setCopyFallbackUrl] = useState<string | null>(null);
+  // E5: transient "couldn't generate image" notice when the share-card export fails.
+  const [imgError, setImgError] = useState(false);
+  const imgErrorTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  React.useEffect(() => () => clearTimeout(imgErrorTimerRef.current), []);
   // L2: per-button busy state + re-entry guard for the share-as-image card.
   const [sharingImage, setSharingImage] = useState(false);
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -858,14 +895,22 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
       }
     }
 
-    // Fallback: copy URL to clipboard
-    if (!navigator.clipboard?.writeText) return;
+    // Fallback: copy URL to clipboard. E3: in an iframe embed, an insecure
+    // context, or with clipboard permission denied, writeText is missing or
+    // rejects — instead of silently doing nothing, reveal the URL for a manual
+    // select-all copy (mirroring SettingsDropdown's share-link fallback).
+    if (!navigator.clipboard?.writeText) {
+      setCopyFallbackUrl(url);
+      return;
+    }
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
       clearTimeout(copiedTimerRef.current);
       copiedTimerRef.current = setTimeout(() => setCopied(false), 2000);
-    } catch { /* clipboard access denied or unavailable */ }
+    } catch {
+      setCopyFallbackUrl(url);
+    }
   }, [d.nimi, d.pno]);
 
   // QW-3: Bottom sheet state (mobile only) — uses shared useBottomSheet hook
@@ -874,6 +919,11 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
     initialSnap: 'half',
     onClose,
   });
+  // A5: at the full snap the sheet declares aria-modal=true (the rest of the page
+  // is announced inert), so it must actually contain Tab focus. Activate the trap
+  // only at full snap — at peek/half the sheet is non-modal and focus stays free.
+  // (On desktop the sheet is display:none and never reaches 'full', so this is a no-op.)
+  useFocusTrap(sheetRef, snap === 'full');
 
   // PO-8: A11y — on open, move keyboard focus into whichever panel container is
   // visible (desktop side panel or mobile sheet), and restore it to the element
@@ -1059,7 +1109,13 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
           if (sharingImage) return;
           trackEvent('export-image');
           setSharingImage(true);
-          generateScoreCard(d, avg).catch(() => { /* html-to-image load failed */ }).finally(() => setSharingImage(false));
+          generateScoreCard(d, avg).catch(() => {
+            // E5: html-to-image chunk failed to load (offline / stale chunk after a
+            // deploy) or rendering threw — tell the user instead of silently reverting.
+            setImgError(true);
+            clearTimeout(imgErrorTimerRef.current);
+            imgErrorTimerRef.current = setTimeout(() => setImgError(false), 3000);
+          }).finally(() => setSharingImage(false));
         }}
         disabled={sharingImage}
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium min-h-[44px] md:min-h-0
@@ -1155,6 +1211,11 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
     return findSimilarNeighborhoods(d, scopeFeatures, 5, metrics, simWeights);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- simWeights tracked via simWeightsKey
   }, [similarExpanded, d, scopeFeatures, simWeightsKey]);
+
+  // EM3: with every metric chip toggled off, `metrics` is empty and `similar`
+  // resolves to [] — indistinguishable from "no similar areas". Detect that state
+  // so we can prompt the user to re-enable a metric instead of showing a blank.
+  const noSimMetrics = !AVAILABLE_SIMILARITY_METRICS.some((m) => metricWeight(m.key as string) > 0);
 
   // CF-6b: open a national result. Its centre is unavailable (region_properties is
   // geometry-stripped), so navigate to its profile page rather than fly the map.
@@ -1284,10 +1345,16 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
         <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 mb-3">
           {t('panel.education')}
         </h3>
-        <BarSegment label={t('panel.higher_edu')} value={d.ko_yl_kork ?? 0} total={eduTotal} color="#a78bfa" />
-        <BarSegment label={t('panel.bachelor')} value={d.ko_al_kork ?? 0} total={eduTotal} color="#818cf8" />
-        <BarSegment label={t('panel.vocational')} value={d.ko_ammat ?? 0} total={eduTotal} color="#6366f1" />
-        <BarSegment label={t('panel.basic')} value={d.ko_perus ?? 0} total={eduTotal} color="#4f46e5" />
+        {hasEduData ? (
+          <>
+            <BarSegment label={t('panel.higher_edu')} value={d.ko_yl_kork ?? 0} total={eduTotal} color="#a78bfa" />
+            <BarSegment label={t('panel.bachelor')} value={d.ko_al_kork ?? 0} total={eduTotal} color="#818cf8" />
+            <BarSegment label={t('panel.vocational')} value={d.ko_ammat ?? 0} total={eduTotal} color="#6366f1" />
+            <BarSegment label={t('panel.basic')} value={d.ko_perus ?? 0} total={eduTotal} color="#4f46e5" />
+          </>
+        ) : (
+          <p className="text-xs text-surface-400 dark:text-surface-500">{t('panel.radar_no_data')}</p>
+        )}
       </div>
 
       {/* Activity status */}
@@ -1786,7 +1853,9 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
                   </div>
                 </div>
               )}
-              {similarityScope === 'national' && nationalLoading && !nationalFeatures ? (
+              {noSimMetrics ? (
+                <div className="px-3 py-2.5 text-xs text-surface-400 dark:text-surface-500">{t('panel.similar_no_metrics')}</div>
+              ) : similarityScope === 'national' && nationalLoading && !nationalFeatures ? (
                 <div className="px-3 py-2.5 text-xs text-surface-400 dark:text-surface-500">{t('loading')}</div>
               ) : (
                 similar.map((s) => {
@@ -2014,7 +2083,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
                    shadow-[0_-4px_30px_rgba(0,0,0,0.15)] rounded-t-2xl flex flex-col overflow-hidden"
         style={{
           height: sheetHeight,
-          transition: isDragging ? 'none' : 'height 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
+          transition: (isDragging || reducedMotion) ? 'none' : 'height 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
         }}
       >
         {/* Drag handle */}
@@ -2130,7 +2199,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
             className="flex h-full"
             style={{
               transform: `translateX(calc(-${activeSection * 100}% + ${dragOffset}px))`,
-              transition: isSnapping ? 'transform 400ms cubic-bezier(0.33, 1, 0.68, 1)' : 'none',
+              transition: (isSnapping && !reducedMotion) ? 'transform 400ms cubic-bezier(0.33, 1, 0.68, 1)' : 'none',
               willChange: 'transform',
             }}
             onTransitionEnd={onTransitionEnd}
@@ -2167,6 +2236,43 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
                        px-4 py-2 rounded-xl bg-surface-900 dark:bg-white text-white dark:text-surface-900
                        text-sm font-medium shadow-lg animate-fade-in">
           {t('compare.max_toast')}
+        </div>
+      )}
+
+      {/* E5: transient share-image failure notice. */}
+      {imgError && (
+        <div className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] md:bottom-6 left-1/2 -translate-x-1/2 z-50
+                       px-4 py-2 rounded-xl bg-surface-900 dark:bg-white text-white dark:text-surface-900
+                       text-sm font-medium shadow-lg animate-fade-in" role="status">
+          {t('share.image_failed')}
+        </div>
+      )}
+
+      {/* E3: clipboard blocked — reveal the link for a manual select-all copy. */}
+      {copyFallbackUrl !== null && (
+        <div className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] md:bottom-6 left-1/2 -translate-x-1/2 z-50
+                       w-[min(92vw,360px)] px-4 py-3 rounded-xl bg-surface-900 dark:bg-surface-800 text-white
+                       shadow-2xl border border-white/10 animate-fade-in" role="status">
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <p className="text-xs font-medium text-amber-300">{t('share.copy_failed')}</p>
+            <button
+              onClick={() => setCopyFallbackUrl(null)}
+              aria-label={t('aria.close')}
+              className="shrink-0 -mt-0.5 text-white/60 hover:text-white"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <textarea
+            readOnly
+            value={copyFallbackUrl}
+            onFocus={(e) => e.currentTarget.select()}
+            rows={2}
+            className="w-full text-[11px] font-mono text-surface-100 bg-surface-950/60
+                       border border-white/10 rounded-lg p-2 resize-none focus:outline-none focus:ring-1 focus:ring-brand-500/50"
+          />
         </div>
       )}
     </>

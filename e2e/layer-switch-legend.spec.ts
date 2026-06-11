@@ -8,10 +8,9 @@ test.describe('layer switching and legend updates', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
     await waitForDataLoaded(page);
-    // Layer panel is minimized by default — expand it
-    const layerHeader = page.locator('text=Aineistot').first();
-    await expect(layerHeader).toBeVisible({ timeout: 5000 });
-    await layerHeader.click();
+    // C4: the layer panel now defaults to expanded — just confirm it's mounted
+    // (clicking the "Aineistot" header would collapse it).
+    await expect(page.locator('text=Aineistot').first()).toBeVisible({ timeout: 5000 });
   });
 
   test('switching layer updates the legend title', async ({ page }) => {
@@ -24,7 +23,7 @@ test.describe('layer switching and legend updates', () => {
     await economyGroup.click();
 
     // Click on "Mediaanitulo" (Median Income) layer
-    const medianIncomeLayer = page.locator('button[role="option"]').filter({ hasText: 'Mediaanitulo' });
+    const medianIncomeLayer = page.locator('button[aria-pressed]').filter({ hasText: 'Mediaanitulo' });
     await expect(medianIncomeLayer).toBeVisible({ timeout: 3000 });
     await medianIncomeLayer.click();
 
@@ -41,7 +40,7 @@ test.describe('layer switching and legend updates', () => {
     await economyGroup.click();
 
     // Click on "Työttömyysaste" (Unemployment Rate)
-    const unemploymentLayer = page.locator('button[role="option"]').filter({ hasText: 'Työttömyysaste' });
+    const unemploymentLayer = page.locator('button[aria-pressed]').filter({ hasText: 'Työttömyysaste' });
     await expect(unemploymentLayer).toBeVisible({ timeout: 3000 });
     await unemploymentLayer.click();
 
@@ -55,8 +54,8 @@ test.describe('layer switching and legend updates', () => {
     const qualityGroup = page.locator('text=Elämänlaatu').first();
     await qualityGroup.click();
 
-    // Verify that layer options exist with role="option"
-    const layerOptions = page.locator('button[role="option"]');
+    // Verify that layer buttons exist (toggle buttons with aria-pressed)
+    const layerOptions = page.locator('button[aria-pressed]');
     const count = await layerOptions.count();
     expect(count).toBeGreaterThan(0);
 
@@ -72,8 +71,8 @@ test.describe('layer switching and legend updates', () => {
     const qualityGroup = page.locator('text=Elämänlaatu').first();
     await qualityGroup.click();
 
-    // The active layer option should have aria-selected="true"
-    const activeOption = page.locator('button[role="option"][aria-selected="true"]');
+    // The active layer button should have aria-pressed="true"
+    const activeOption = page.locator('button[aria-pressed="true"]');
     await expect(activeOption).toBeVisible({ timeout: 3000 });
     await expect(activeOption).toContainText('Laatuindeksi');
   });

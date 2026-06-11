@@ -55,10 +55,16 @@ const RangeSlider: React.FC<{
   valueMax: number;
   step: number;
   color: string;
+  /** A11y: metric name + bound labels and a value formatter, so each thumb gets
+   *  a distinct accessible name and a formatted aria-valuetext (A2). */
+  label: string;
+  minLabel: string;
+  maxLabel: string;
+  formatValue: (v: number) => string;
   /** Atomic update of both thumbs. Debounced inside the slider so the
    *  parent only sees one update per drag session, with both values in sync. */
   onChange: (next: { min: number; max: number }) => void;
-}> = ({ min, max, valueMin, valueMax, step, color, onChange }) => {
+}> = ({ min, max, valueMin, valueMax, step, color, label, minLabel, maxLabel, formatValue, onChange }) => {
   // Local state for smooth visual feedback during drag.
   // Parent callback is debounced to avoid recomputing filter matches + map layers on every tick.
   const [localMin, setLocalMin] = useState(valueMin);
@@ -132,6 +138,8 @@ const RangeSlider: React.FC<{
         step={step}
         value={localMin}
         onChange={(e) => handleMinChange(Number(e.target.value))}
+        aria-label={`${label} – ${minLabel}`}
+        aria-valuetext={formatValue(localMin)}
         className="absolute inset-x-0 appearance-none bg-transparent pointer-events-none
                    [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none
                    [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full
@@ -154,6 +162,8 @@ const RangeSlider: React.FC<{
         step={step}
         value={localMax}
         onChange={(e) => handleMaxChange(Number(e.target.value))}
+        aria-label={`${label} – ${maxLabel}`}
+        aria-valuetext={formatValue(localMax)}
         className="absolute inset-x-0 appearance-none bg-transparent pointer-events-none
                    [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none
                    [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full
@@ -284,6 +294,10 @@ const FilterRow: React.FC<{
         valueMax={criterion.max}
         step={step}
         color={color}
+        label={t(layer.labelKey)}
+        minLabel={t('filter.min')}
+        maxLabel={t('filter.max')}
+        formatValue={(v) => (isPercentile ? `P${Math.round(v)}` : layer.format(v))}
         onChange={(next) => onChange({ ...criterion, min: next.min, max: next.max })}
       />
       <div className="flex justify-between mt-1 text-[10px] text-surface-500 dark:text-surface-400 tabular-nums">

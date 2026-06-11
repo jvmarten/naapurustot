@@ -13,12 +13,19 @@ interface LegendProps {
   lang?: Lang;
   /** L1: true while the active layer's fine-grained grid dataset is still fetching */
   gridLoading?: boolean;
+  /** E2: true when the grid dataset failed to load — drop the grid-detail badge
+   *  and show a "showing postal estimate" note rather than asserting fine resolution. */
+  gridError?: boolean;
+  /** O4: true in the default all-Finland view, where the map shows 69 regional
+   *  aggregates (not postal-code areas) — surfaced as a caption so the coarse blobs
+   *  aren't mistaken for neighborhood-level data. */
+  aggregateScope?: boolean;
   /** MO2: on mobile, suppress the legend when a full-width panel covers it (desktop is md:absolute and unaffected). */
   hidden?: boolean;
 }
 
 // colorblind prop triggers re-render when mode changes (getLayerById reads global state)
-export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: _colorblind, layerConfig, lang: _lang, gridLoading, hidden }) => {
+export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: _colorblind, layerConfig, lang: _lang, gridLoading, gridError, aggregateScope, hidden }) => {
   useI18nVersion();
   const layer = layerConfig ?? getLayerById(layerId);
 
@@ -59,6 +66,13 @@ export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: 
         <div className="text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-2">
           {t(layer.labelKey)}
         </div>
+        {/* O4: signpost the default all-Finland view as regional aggregates so a
+            first-timer doesn't read the 69 coarse blobs as postal-code data. */}
+        {aggregateScope && (
+          <div className="mb-2 max-w-[200px] text-[10px] leading-snug text-surface-500 dark:text-surface-400">
+            {t('legend.aggregate_scope')}
+          </div>
+        )}
         <div className="flex items-center gap-0" role="img" aria-label={rampAria}>
           {layer.colors.map((color, i) => (
             <div key={i} aria-hidden="true" className="w-6 h-3 first:rounded-l last:rounded-r" style={{ backgroundColor: color }} />
@@ -74,10 +88,18 @@ export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: 
             </span>
           ))}
         </div>
-        {grid && (
+        {grid && !gridError && (
           <div className="mt-2 flex items-center gap-1 text-[10px] text-surface-400 dark:text-surface-500">
             <span aria-hidden="true">▦</span>
             <span>{t(grid.scope === 'national' ? 'grid.scope_national' : 'grid.scope_regional')}</span>
+          </div>
+        )}
+        {/* E2: grid file failed — say so instead of leaving the ▦ badge asserting
+            detail that never loaded. */}
+        {grid && gridError && (
+          <div className="mt-2 flex items-start gap-1 text-[10px] text-amber-600 dark:text-amber-400 max-w-[160px] leading-snug">
+            <span aria-hidden="true">⚠</span>
+            <span>{t('grid.unavailable')}</span>
           </div>
         )}
         {/* L1: feedback while the fine-grained grid dataset is still loading. */}
@@ -92,7 +114,11 @@ export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: 
         )}
         {src?.isProxy && (
           <div className="mt-2 flex items-center text-[10px]">
-            <span className="inline-flex items-center rounded px-1 py-px text-[8px] font-semibold uppercase tracking-wide
+            {/* X4: explain the modeled value on hover, matching the panel's badge
+                (which pairs the same badge with an estimate explanation). */}
+            <span
+              title={t('data.estimate_desc')}
+              className="inline-flex items-center rounded px-1 py-px text-[8px] font-semibold uppercase tracking-wide cursor-help
                              bg-amber-400/15 text-amber-600 dark:text-amber-400 border border-amber-400/30">
               {t('data.estimate')}
             </span>

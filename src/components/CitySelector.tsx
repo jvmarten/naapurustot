@@ -80,8 +80,8 @@ export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, on
       <div data-tour-id="cities" ref={ref} className="relative md:hidden">
         <button
           onClick={() => setOpen((prev) => !prev)}
-          className={`flex px-2.5 py-2 rounded-lg text-xs font-semibold transition-all items-center justify-center
-                     min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 cursor-pointer
+          className={`flex gap-1.5 px-2.5 py-2 rounded-lg text-xs font-semibold transition-all items-center justify-center
+                     min-h-[44px] md:min-h-0 cursor-pointer
                      ${open
                        ? 'bg-brand-500/20 text-brand-600 dark:text-brand-300 border border-brand-500/30'
                        : 'text-surface-600 dark:text-white/70 hover:text-surface-900 dark:hover:text-white hover:bg-surface-100 dark:hover:bg-white/10 border border-transparent'
@@ -90,11 +90,14 @@ export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, on
           title={t('city.select')}
         >
           {/* Simple globe icon (stroke) */}
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9 9 0 100-18 9 9 0 000 18z" />
             <path strokeLinecap="round" strokeLinejoin="round" d="M3.6 9h16.8M3.6 15h16.8" />
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 3a15 15 0 014 9 15 15 0 01-4 9 15 15 0 01-4-9 15 15 0 014-9z" />
           </svg>
+          {/* O7: show the current scope so mobile users can tell what geography they're
+              viewing and that this control switches it. */}
+          <span className="max-w-[5.5rem] truncate">{t(value === 'all' ? 'city.all' : `city.${value}`)}</span>
         </button>
 
         {open && (

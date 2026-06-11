@@ -119,14 +119,18 @@ describe('HTML escaping in PDF export', () => {
 
   it('handles popup blocker gracefully', () => {
     vi.spyOn(window, 'open').mockReturnValue(null);
-    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+    // E8: the popup-blocked notice is now a styled toast dispatched via an
+    // 'app-toast' window event (App surfaces it), not a native alert().
+    const toastSpy = vi.fn();
+    window.addEventListener('app-toast', toastSpy);
 
     exportPdf(
       { pno: '00100', nimi: 'Test', namn: 'Test', quality_index: 50 } as NeighborhoodProperties,
       {},
     );
 
-    expect(alertSpy).toHaveBeenCalled();
+    expect(toastSpy).toHaveBeenCalled();
+    window.removeEventListener('app-toast', toastSpy);
   });
 
   it('includes quality category label in output', () => {

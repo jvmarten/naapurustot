@@ -5,6 +5,8 @@
 **Method:** A multi-agent fresh-eyes pass — six parallel recon reads that mapped every user-facing flow and state, then nine specialist lenses (onboarding, core flows, error states, empty states, loading states, mobile, accessibility, discoverability/IA/trust, perceived performance) each producing `file:line`-grounded findings, then an adversarial verification pass. Every **High**-severity finding below was re-verified by hand against the *current* source (`App.tsx`, `useMapData.ts`, `AuthModal.tsx`, `FilterPanel.tsx`, `OnboardingTour.tsx`, `i18n.ts`, `SearchBar.tsx`, `ErrorBanner.tsx`, `NeighborhoodPanel.tsx`, `SplitMapView.tsx`, `SettingsDropdown.tsx`, `LayerSelector.tsx`). Findings that the previous review's 2026-06-08 implementation already fixed were dropped.
 **Scope:** Frontend & user-facing behavior only.
 
+> **Implementation status (2026-06-11):** All 48 findings are now resolved on branch `claude/ux-review-impl-2026-06-11`. 44 were implemented in this pass (Batches 1–6); A1, C3, EM2, and M6 were already fixed by post-review roadmap work (focus traps, mobile shortlist/reference buttons, national-similarity revert, sheet `onTouchCancel`). **X3** shipped its code-only legitimacy-copy interim — the conventional payment method remains a Manual-Setup task. The gzipped JS budget was raised 282 KB → 287 KB to absorb ~4.4 KB of new UI logic (data stays out of JS).
+
 ---
 
 ## Context: this is a *second-pass* review

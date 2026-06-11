@@ -13,6 +13,11 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:4173',
     trace: 'on-first-retry',
+    // Pin the locale to Finnish (the product default) so i18n-dependent assertions
+    // are deterministic. Required since O2 added navigator.language auto-detection:
+    // without this, the runner's en-US locale would flip the UI to English and break
+    // every test that asserts Finnish chrome ("Aineistot", "Vertailu", "Suodata", …).
+    locale: 'fi-FI',
   },
   /* Screenshot comparison settings for visual regression tests */
   expect: {

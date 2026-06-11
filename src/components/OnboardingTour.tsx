@@ -253,12 +253,17 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({ onComplete, skip
         <div aria-hidden="true" className="absolute inset-0 bg-black/65" />
       )}
 
-      {/* Click-blocker — catches clicks outside the popover so users use Next/Back/Skip.
-          Sits below the popover but above the spotlight. */}
+      {/* Click-blocker — catches clicks outside the popover. O1: a click here
+          (the natural reaction to a bright spotlight) ADVANCES the tour rather
+          than permanently skipping it; only the explicit Skip/Finish buttons end
+          it for good. Sits below the popover but above the spotlight. */}
       <button
         type="button"
-        aria-label={t('onboarding.skip')}
-        onClick={() => finish('skipped')}
+        aria-label={t('onboarding.next')}
+        onClick={() => {
+          if (isLast) finish('completed');
+          else setStepIndex((i) => i + 1);
+        }}
         className="absolute inset-0 w-full h-full cursor-default"
         style={{ background: 'transparent' }}
       />

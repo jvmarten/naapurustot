@@ -6,7 +6,14 @@ interface ErrorBannerProps {
 }
 
 export const ErrorBanner: React.FC<ErrorBannerProps> = ({ onRetry }) => (
-  <div className="absolute top-12 left-1/2 -translate-x-1/2 z-50 max-w-md w-full px-4">
+  <div
+    role="alert"
+    aria-live="assertive"
+    aria-atomic="true"
+    // E4: positioned by the shared top-center notification stack in App; this just
+    // re-enables pointer events (the stack container is click-through).
+    className="pointer-events-auto max-w-md w-full"
+  >
     <div className="flex items-center gap-3 rounded-xl bg-rose-50/95 dark:bg-rose-950/90 backdrop-blur-md border border-rose-200 dark:border-rose-800/60 px-4 py-3 shadow-lg">
       <svg
         className="w-5 h-5 shrink-0 text-rose-500 dark:text-rose-400"

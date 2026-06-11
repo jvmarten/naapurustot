@@ -73,8 +73,8 @@ describe('Tooltip', () => {
 describe('LayerSelector', () => {
   it('renders all layer group headers', () => {
     render(<LayerSelector activeLayer="quality_index" onLayerChange={() => {}} />);
-    // Expand the minimized panel first
-    fireEvent.click(screen.getAllByText('layers.title')[0]);
+    // C4: the desktop panel now defaults to expanded, so group headers render
+    // immediately (no expand click needed — clicking the title would collapse it).
     expect(screen.getAllByText('layers.quality').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('layers.demographics').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('layers.economy').length).toBeGreaterThanOrEqual(1);
@@ -83,9 +83,7 @@ describe('LayerSelector', () => {
 
   it('renders layer buttons', () => {
     render(<LayerSelector activeLayer="quality_index" onLayerChange={() => {}} />);
-    // Expand the minimized panel first
-    fireEvent.click(screen.getAllByText('layers.title')[0]);
-    // Should have buttons for layers
+    // C4: panel defaults to expanded, so layer/group buttons render immediately.
     const buttons = screen.getAllByRole('button');
     expect(buttons.length).toBeGreaterThan(5);
   });
@@ -115,9 +113,8 @@ describe('LayerSelector', () => {
     const { container } = render(
       <LayerSelector activeLayer="median_income" onLayerChange={() => {}} />
     );
-    // Expand the minimized panel first
-    fireEvent.click(screen.getAllByText('layers.title')[0]);
-    // The active layer group should have a brand-colored indicator
+    // C4: panel defaults to expanded with the active layer's group auto-opened, so
+    // the brand-colored active indicator renders without an expand click.
     const brandElements = Array.from(container.querySelectorAll('[class*="brand"]'));
     expect(brandElements.length).toBeGreaterThan(0);
   });

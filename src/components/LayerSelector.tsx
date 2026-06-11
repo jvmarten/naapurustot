@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { LAYER_MAP, type LayerId } from '../utils/colorScales';
 import { t, useI18nVersion, type Lang } from '../utils/i18n';
 import { useBottomSheet } from '../hooks/useBottomSheet';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 
 interface LayerSelectorProps {
   activeLayer: LayerId;
@@ -37,13 +38,20 @@ const LAYER_GROUPS: LayerGroup[] = [
 
 export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeLayer, onLayerChange, onCustomizeQuality, isCustomWeights = false, headerSlot, lang: _lang, hidden }) => {
   useI18nVersion();
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(
-    Object.fromEntries(LAYER_GROUPS.map((g) => [g.labelKey, true]))
+  // M5: instant sheet snap when the user prefers reduced motion.
+  const reducedMotion = useReducedMotion();
+  // C4: collapse every group EXCEPT the one holding the active layer, so at
+  // least one set of layers is visible on first paint (and users land near the
+  // metric they're already viewing) instead of an all-collapsed wall of headers.
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(LAYER_GROUPS.map((g) => [g.labelKey, !g.ids.includes(activeLayer)]))
   );
   // PO-3: Layer search filter
   const [layerSearch, setLayerSearch] = useState('');
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [minimized, setMinimized] = useState(true);
+  // C4: desktop panel starts expanded so the 59 layers are discoverable without
+  // a first click into the minimized pill.
+  const [minimized, setMinimized] = useState(false);
   const sheetRef = useRef<HTMLDivElement>(null);
 
   // QW-3: Unified bottom sheet drag behavior
@@ -134,8 +142,13 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
     el?.scrollIntoView({ block: 'nearest' });
   }, [focusedIndex]);
 
+  // A11y: a labelled group of toggle buttons, not a role="listbox" — the container
+  // also holds a search input and collapsible group headers, which a listbox's
+  // content model forbids (axe critical, surfaced once C4 made the panel default to
+  // expanded). Arrow-key roving nav uses data-layer-index, so it's unaffected;
+  // selection is conveyed via aria-pressed on each layer button.
   const layerList = (
-    <div className="p-2 space-y-1" ref={listRef} role="listbox" aria-label={t('layers.title')}>
+    <div className="p-2 space-y-1" ref={listRef} role="group" aria-label={t('layers.title')}>
       {/* PO-3: Search input */}
       <div className="px-2 pb-2 relative">
         <input
@@ -173,8 +186,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
                 onLayerChange(qLayer.id);
                 setMobileOpen(false);
               }}
-              role="option"
-              aria-selected={isActive}
+              aria-pressed={isActive}
               // Always Tab-reachable: quality_index is not part of any LAYER_GROUP,
               // so it is absent from the arrow-key flat list. Without tabIndex=0 it
               // is unreachable by keyboard whenever it is not the active layer.
@@ -263,8 +275,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
                       onLayerChange(layer.id);
                       setMobileOpen(false);
                     }}
-                    role="option"
-                    aria-selected={isActive}
+                    aria-pressed={isActive}
                     tabIndex={isActive ? 0 : -1}
                     className={`flex-1 text-left px-3 py-2.5 md:py-1.5 rounded-lg text-sm transition-all duration-150 min-h-[44px] md:min-h-0 ${
                       isActive
@@ -366,7 +377,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
                        flex flex-col overflow-hidden"
             style={{
               height: `${sheetHeight}px`,
-              transition: isDragging ? 'none' : 'height 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
+              transition: (isDragging || reducedMotion) ? 'none' : 'height 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
             }}
           >
             {/* Drag handle */}
