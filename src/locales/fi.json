@@ -216,6 +216,7 @@
   "panel.no_data_region": "Tältä seutukunnalta ei ole vielä kerätty dataa. Tiedot lisätään myöhemmin.",
   "map.reset_view": "Palaa yleiskuvaan",
   "export.csv": "Lataa CSV",
+  "export.json": "Lataa JSON",
   "export.pdf": "Lataa PDF",
   "export.geojson": "Lataa GeoJSON",
   "export.field": "Kentt\u00e4",

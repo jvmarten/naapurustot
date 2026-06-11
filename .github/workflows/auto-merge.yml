@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - 'claude/**'
+  # IN-5: allow the data-refresh workflow to hand a claude/data-refresh-* branch off
+  # to this pipeline via `gh workflow run auto-merge.yml --ref <branch>` — a
+  # GITHUB_TOKEN push can't trigger the push event above (recursion guard). The jobs
+  # resolve the branch from github.ref_name/github.sha, identical to the push path.
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -66,6 +71,23 @@ jobs:
         # Fast files-only validation: registry↔provenance vintage match + proxy
         # flags, reading only JSON (no 39 MB GeoJSON load, no pip deps).
         run: python scripts/validate_data.py --files-only
+
+      - name: build:data idempotency gate (IN-5)
+        # Mechanically enforce the CLAUDE.md "never skip build:data" rule. Re-running
+        # build:data against the committed GeoJSON must reproduce the committed
+        # src/data + public/data artifacts byte-for-byte. build_region_data.mjs derives
+        # build_metadata's `generated` timestamp from a content hash of the GeoJSON
+        # (not Date.now()) and geo2topo runs from the pinned topojson-server devDep, so
+        # an unchanged dataset yields an empty diff. A non-empty diff means the GeoJSON
+        # (or another build input) was edited without committing the regenerated
+        # artifacts the app actually loads.
+        run: |
+          npm run build:data
+          if ! git diff --quiet -- src/data public/data; then
+            echo "::error::build:data output differs from committed artifacts — run 'npm run build:data' and commit the result."
+            git diff --stat -- src/data public/data
+            exit 1
+          fi
 
       - name: Lint
         run: npm run lint

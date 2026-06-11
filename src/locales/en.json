@@ -216,6 +216,7 @@
   "panel.no_data_region": "No data has been collected for this sub-region yet. It will be added later.",
   "map.reset_view": "Back to overview",
   "export.csv": "Export CSV",
+  "export.json": "Export JSON",
   "export.pdf": "Export PDF",
   "export.geojson": "Download GeoJSON",
   "export.field": "Field",
