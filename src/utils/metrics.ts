@@ -104,6 +104,8 @@ export interface NeighborhoodProperties {
   // CF-19: indoor radon median Bq/m³ (STUK, postal). CF-21: morbidity index (Sotkanet, proxy).
   radon: number | null;
   health_index: number | null;
+  // CF-20: share of postal land inside the SYKE 1/100a flood hazard zone (%).
+  flood_risk_pct: number | null;
   daycare_density: number | null;
   school_density: number | null;
   healthcare_density: number | null;
@@ -690,6 +692,7 @@ const METRIC_DEFS: MetricDef[] = [
   { property: 'crime_index', weight: 'population', precision: 1 },
   { property: 'radon', weight: 'population', precision: 0 },
   { property: 'health_index', weight: 'population', precision: 1 },
+  { property: 'flood_risk_pct', weight: 'population', precision: 1 },
 
   // Services
   { property: 'daycare_density', weight: 'population', precision: 1 },

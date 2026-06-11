@@ -801,5 +801,9 @@
   "nextsteps.heading": "Seuraavat askeleet",
   "nextsteps.buy": "Myytävät asunnot",
   "nextsteps.rent": "Vuokra-asunnot",
-  "nextsteps.visit": "Suunnittele käynti"
+  "nextsteps.visit": "Suunnittele käynti",
+  "layer.flood_risk": "Tulvariski",
+  "panel.flood_risk": "Tulvariski (%)",
+  "metric_explanation.flood_risk": "Osuus postinumeroalueen maa-alasta SYKEn 1/100a tulvavaaravyöhykkeellä (kerran 100 vuodessa toistuva tulva). Suurempi = enemmän tulvalle altista maata. Vain kartoitetuilla alueilla; muut ovat harmaita.",
+  "note.flood_risk": "SYKEn tulvavaarakartat (1/100a, vesistö- ja meritulva). Tulvakartat on tehty vain noin 119 merkittävälle tulvariskialueelle; muut alueet ovat kartoittamattomia (ei tietoa). Lähde: Syke ja ELY-keskukset."
 }

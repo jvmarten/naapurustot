@@ -801,5 +801,9 @@
   "nextsteps.heading": "Nästa steg",
   "nextsteps.buy": "Bostäder till salu",
   "nextsteps.rent": "Hyresbostäder",
-  "nextsteps.visit": "Planera ett besök"
+  "nextsteps.visit": "Planera ett besök",
+  "layer.flood_risk": "Översvämningsrisk",
+  "panel.flood_risk": "Översvämningsrisk (%)",
+  "metric_explanation.flood_risk": "Andel av postnummerområdets landareal inom SYKE:s 1/100a översvämningszon (översvämning med 1 % årlig sannolikhet). Högre = mer översvämningsutsatt mark. Endast inom kartlagda områden; övriga är grå.",
+  "note.flood_risk": "SYKE:s översvämningskartor (1/100a, vattendrag + hav). Översvämningskartor finns bara för ca 119 betydande översvämningsriskområden; övriga områden är okartlagda (ingen data). Källa: Syke och NTM-centralerna."
 }

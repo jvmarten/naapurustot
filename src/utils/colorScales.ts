@@ -72,7 +72,9 @@ export type LayerId =
   | 'building_age'
   // Roadmap CF-19/CF-21: environment & health
   | 'radon'
-  | 'health_index';
+  | 'health_index'
+  // CF-20: flood-risk exposure
+  | 'flood_risk';
 
 // PO-2: layers that carry a 5-year history array and can be scrubbed with the
 // time slider. Maps the active LayerId to the history property whose per-year
@@ -742,6 +744,17 @@ export const LAYERS: LayerConfig[] = [
     colors: ['#1a9850', '#66bd63', '#a6d96a', '#d9ef8b', '#fee08b', '#fdae61', '#f46d43', '#d73027'],
     stops: [85, 92, 97, 100, 104, 108, 115, 130],
     format: age,
+    higherIsBetter: false,
+  },
+  // CF-20: SYKE 1/100a flood hazard exposure (% of postal land in the flood zone).
+  {
+    id: 'flood_risk',
+    labelKey: 'layer.flood_risk',
+    property: 'flood_risk_pct',
+    unit: '%',
+    colors: ['#f7fbff', '#deebf7', '#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#084594'],
+    stops: [0, 0.5, 2, 5, 10, 20, 40, 70],
+    format: pct,
     higherIsBetter: false,
   },
   // Phase 10: Water proximity & building age
