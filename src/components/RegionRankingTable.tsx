@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { type LayerId, type LayerConfig, getLayerById, getColorForValue } from '../utils/colorScales';
 import { t, useI18nVersion } from '../utils/i18n';
 import { loadAllData } from '../utils/dataLoader';
+import { computeQualityIndices, isCustomWeights, type QualityWeights } from '../utils/qualityIndex';
+import { getNationalRanges } from '../utils/nationalRanges';
 import { REGIONS } from '../utils/regions';
 
 interface Props {
@@ -10,6 +12,9 @@ interface Props {
   /** Switch the map to a region (does NOT select a neighborhood). */
   onSelectRegion: (regionId: string) => void;
   onClose: () => void;
+  /** CF-1pt3: the user's live Quality-Index weights, so national scores here match
+   *  the region map (the loadAllData cache is computed with default weights). */
+  qualityWeights?: QualityWeights;
 }
 
 interface RegionAgg {
@@ -48,7 +53,7 @@ function aggregateByRegion(features: GeoJSON.Feature[], property: string): Regio
   }));
 }
 
-export const RegionRankingTable: React.FC<Props> = React.memo(({ activeLayer, layerConfig, onSelectRegion, onClose }) => {
+export const RegionRankingTable: React.FC<Props> = React.memo(({ activeLayer, layerConfig, onSelectRegion, onClose, qualityWeights }) => {
   useI18nVersion();
   const layer = layerConfig ?? getLayerById(activeLayer);
   const [reversed, setReversed] = useState(false);
@@ -59,10 +64,21 @@ export const RegionRankingTable: React.FC<Props> = React.memo(({ activeLayer, la
   useEffect(() => {
     let cancelled = false;
     loadAllData()
-      .then((res) => { if (!cancelled) setFeatures(res.data.features); })
+      .then((res) => {
+        if (cancelled) return;
+        const feats = res.data.features;
+        // CF-1pt3: loadAllData computes quality_index with default weights; re-score
+        // with the user's custom weights (same national ranges) so an area ranks
+        // identically here and on the region map. loadAllData is cached, so re-running
+        // on a weights change is instant; the shared features are mutated consistently.
+        if (qualityWeights && isCustomWeights(qualityWeights)) {
+          computeQualityIndices(feats, qualityWeights, getNationalRanges());
+        }
+        setFeatures([...feats]);
+      })
       .catch(() => { if (!cancelled) setError(true); });
     return () => { cancelled = true; };
-  }, []);
+  }, [qualityWeights]);
 
   const { items, maxVal } = useMemo(() => {
     if (!features) return { items: [] as RegionAgg[], maxVal: 1 };
