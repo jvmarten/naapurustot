@@ -45,6 +45,15 @@ jobs:
 
       - run: npm run build:pages
 
+      # CF-11: rasterize the per-area/per-region social-card SVGs to PNG (FB/LinkedIn/
+      # WhatsApp/X don't render SVG og:images). DEPLOY-ONLY — the ~9,000 PNGs add a few
+      # hundred MB to dist/ (within the 1 GB Pages cap) and are pointless for the
+      # ci/auto-merge build:pages gates. fonts-dejavu-core gives @resvg an ä/ö/å-capable
+      # font for the card text.
+      - name: Install card-rasterizer fonts
+        run: sudo apt-get update && sudo apt-get install -y fonts-dejavu-core
+      - run: node scripts/rasterize-cards.mjs
+
       - run: cp dist/index.html dist/404.html
 
       - uses: actions/upload-pages-artifact@v4

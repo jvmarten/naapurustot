@@ -1145,16 +1145,19 @@ function generatePage(feature, lang) {
   // PO-13: per-area dynamic social card. Each profile gets its own templated SVG
   // card (area name, quality index, percentile badge, key stats), emitted as a
   // content-hashed asset under /og/, replacing the shared /og-image.png. The card
-  // is 1200×630 (the template's og:image:width/height already match), declared as
-  // image/svg+xml via the og:image:type tag added below.
+  // is 1200×630 (the template's og:image:width/height already match).
+  // CF-11: Facebook/LinkedIn/WhatsApp/X do NOT render SVG og:images, so reference the
+  // sibling PNG (rasterized from this SVG by scripts/rasterize-cards.mjs in deploy.yml).
+  // The SVG is still emitted as the rasterizer's input.
   const ogImage = emitCard(props, slug, lang);
+  const ogImagePng = ogImage.replace(/\.svg$/, '.png');
   html = html.replace(
     /<meta property="og:image" content="[^"]*" \/>/,
-    `<meta property="og:image" content="${ogImage}" />\n    <meta property="og:image:type" content="image/svg+xml" />`,
+    `<meta property="og:image" content="${ogImagePng}" />\n    <meta property="og:image:type" content="image/png" />`,
   );
   html = html.replace(
     /<meta name="twitter:image" content="[^"]*" \/>/,
-    `<meta name="twitter:image" content="${ogImage}" />`,
+    `<meta name="twitter:image" content="${ogImagePng}" />`,
   );
 
   // PO-9: localize og:locale, its two alternates, and the per-area og:image:alt.
