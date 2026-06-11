@@ -142,8 +142,13 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
     el?.scrollIntoView({ block: 'nearest' });
   }, [focusedIndex]);
 
+  // A11y: a labelled group of toggle buttons, not a role="listbox" — the container
+  // also holds a search input and collapsible group headers, which a listbox's
+  // content model forbids (axe critical, surfaced once C4 made the panel default to
+  // expanded). Arrow-key roving nav uses data-layer-index, so it's unaffected;
+  // selection is conveyed via aria-pressed on each layer button.
   const layerList = (
-    <div className="p-2 space-y-1" ref={listRef} role="listbox" aria-label={t('layers.title')}>
+    <div className="p-2 space-y-1" ref={listRef} role="group" aria-label={t('layers.title')}>
       {/* PO-3: Search input */}
       <div className="px-2 pb-2 relative">
         <input
@@ -181,8 +186,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
                 onLayerChange(qLayer.id);
                 setMobileOpen(false);
               }}
-              role="option"
-              aria-selected={isActive}
+              aria-pressed={isActive}
               // Always Tab-reachable: quality_index is not part of any LAYER_GROUP,
               // so it is absent from the arrow-key flat list. Without tabIndex=0 it
               // is unreachable by keyboard whenever it is not the active layer.
@@ -271,8 +275,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
                       onLayerChange(layer.id);
                       setMobileOpen(false);
                     }}
-                    role="option"
-                    aria-selected={isActive}
+                    aria-pressed={isActive}
                     tabIndex={isActive ? 0 : -1}
                     className={`flex-1 text-left px-3 py-2.5 md:py-1.5 rounded-lg text-sm transition-all duration-150 min-h-[44px] md:min-h-0 ${
                       isActive
