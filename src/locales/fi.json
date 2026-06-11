@@ -797,5 +797,9 @@
   "layer.health_index": "Sairastavuusindeksi",
   "panel.health_index": "Sairastavuusindeksi",
   "metric_explanation.health_index": "THL:n ja Kelan ikävakioitu sairastavuusindeksi (kansallinen terveysindeksi); 100 = koko maan keskiarvo, pienempi on parempi. Kunnan arvo jaettu postinumeroalueille.",
-  "note.health_index": "Kuntatason THL/Kela-sairastavuusindeksi (Sotkanet, 2023) sijoitettu kunkin kunnan postinumeroalueille. Arvio postinumerotasolla."
+  "note.health_index": "Kuntatason THL/Kela-sairastavuusindeksi (Sotkanet, 2023) sijoitettu kunkin kunnan postinumeroalueille. Arvio postinumerotasolla.",
+  "nextsteps.heading": "Seuraavat askeleet",
+  "nextsteps.buy": "Myytävät asunnot",
+  "nextsteps.rent": "Vuokra-asunnot",
+  "nextsteps.visit": "Suunnittele käynti"
 }

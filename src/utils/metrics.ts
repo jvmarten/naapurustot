@@ -24,6 +24,11 @@ export interface NeighborhoodProperties {
   namn: string;
   /** Municipality code (e.g., "091" for Helsinki, "853" for Turku) */
   kunta: string | null;
+  /** CF-4: municipality name (Tilastokeskus classification), baked at build:data */
+  municipality?: string | null;
+  /** CF-4: WGS84 centroid (baked at build:data) for journey-planner deep links */
+  lat?: number | null;
+  lon?: number | null;
   /** City/region this neighborhood belongs to */
   city: CityId | null;
 

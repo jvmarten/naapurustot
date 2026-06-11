@@ -2771,6 +2771,39 @@ def main():
         logger.info("[dry-run] Exiting without writing output.")
         sys.exit(1 if any(e["fatal"] for e in _errors) else 0)
 
+    # CF-4: bake municipality name + a WGS84 centroid (lat/lon) into each feature so
+    # the "next steps" outbound links (housing portals keyed by municipality, journey
+    # planner keyed by the centroid) work without a municipality table or coordinate
+    # reprojection in the JS bundle. Municipality names come from the real
+    # Tilastokeskus classification (seutukunnat.json); the centroid is the mean of the
+    # geometry vertices (a cheap representative pin), matching build:data's passthrough.
+    try:
+        _seut = json.loads((Path(__file__).parent / "seutukunnat.json").read_text(encoding="utf-8"))
+        _kunta_name = {}
+        for _s in _seut.get("seutukunnat", []):
+            for _c, _n in zip(_s.get("municipality_codes", []), _s.get("municipality_names_fi", [])):
+                _kunta_name[str(_c)] = _n
+
+        def _vertex_mean(geom):
+            if geom is None or geom.is_empty:
+                return None
+            xs, ys = geom.exterior.coords.xy if geom.geom_type == "Polygon" else (None, None)
+            if geom.geom_type == "MultiPolygon":
+                pts = [pt for g in geom.geoms for pt in g.exterior.coords]
+                xs = [p[0] for p in pts]; ys = [p[1] for p in pts]
+            if not xs:
+                return None
+            return (round(sum(xs) / len(xs), 5), round(sum(ys) / len(ys), 5))
+
+        gdf["municipality"] = gdf["kunta"].map(lambda k: _kunta_name.get(str(k)))
+        _cents = gdf.geometry.map(_vertex_mean)
+        gdf["lon"] = _cents.map(lambda c: c[0] if c else None)
+        gdf["lat"] = _cents.map(lambda c: c[1] if c else None)
+        logger.info("CF-4: baked municipality + centroid for %d features",
+                    int(gdf["municipality"].notna().sum()))
+    except Exception as e:  # noqa: BLE001
+        _record_error("bake_municipality_centroid", e)
+
     # --- Write output ---
     out_path.parent.mkdir(parents=True, exist_ok=True)
     gdf.to_file(out_path, driver="GeoJSON")

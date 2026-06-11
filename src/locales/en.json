@@ -797,5 +797,9 @@
   "layer.health_index": "Morbidity index",
   "panel.health_index": "Morbidity index",
   "metric_explanation.health_index": "THL/Kela age-standardized morbidity index (national health index); 100 = national average, lower is better. Municipal value assigned to postal codes.",
-  "note.health_index": "Municipality-level THL/Kela morbidity index (Sotkanet, 2023) assigned to each municipality's postal codes. An estimate at postal-code level."
+  "note.health_index": "Municipality-level THL/Kela morbidity index (Sotkanet, 2023) assigned to each municipality's postal codes. An estimate at postal-code level.",
+  "nextsteps.heading": "Next steps",
+  "nextsteps.buy": "Homes for sale",
+  "nextsteps.rent": "Rental homes",
+  "nextsteps.visit": "Plan a visit"
 }
