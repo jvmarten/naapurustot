@@ -180,7 +180,7 @@ const App: React.FC = () => {
   const { selected, select, deselect, pinned, pin, unpin, clearPinned, refreshPinned } = useSelectedNeighborhood();
   const [activeLayer, setActiveLayerRaw] = useState<LayerId>(initialUrl.layer ?? 'quality_index');
   const setActiveLayer = useCallback((layer: LayerId) => { trackEvent('change-layer', { layer }); setActiveLayerRaw(layer); }, []);
-  const { gridData: rawGridData, loading: gridLoading } = useGridData(activeLayer);
+  const { gridData: rawGridData, loading: gridLoading } = useGridData(activeLayer, cityFilter);
   // Clip grid cells to the loaded region so a region-scoped view (e.g. Helsinki
   // Metro) doesn't leak grid cells from other regions (e.g. Turku, Tampere).
   // For the all-cities view this is effectively a no-op (the region covers all
@@ -334,7 +334,7 @@ const App: React.FC = () => {
   // so this is free for the common case. Clipped to the loaded region's bbox so a
   // region view doesn't leak national grid cells (cheaper sync clip than the main
   // pane's async point-in-polygon refine, which is overkill for a comparison pane).
-  const { gridData: rawSecondaryGrid } = useGridData(secondaryLayer);
+  const { gridData: rawSecondaryGrid } = useGridData(secondaryLayer, cityFilter);
   const secondaryGridData = useMemo(
     () => clipGridToData(rawSecondaryGrid, data),
     [rawSecondaryGrid, data],
