@@ -789,5 +789,13 @@
   "isochrone.error": "Saavutettavuusaluetta ei voitu ladata",
   "geolocation.denied": "Sijaintilupa estetty \u2014 salli sijainti selaimen asetuksista",
   "geolocation.unavailable": "Sijaintia ei saatu \u2014 yritä uudelleen",
-  "lang.load_failed": "Kielen lataaminen epäonnistui. Näytetään suomeksi."
+  "lang.load_failed": "Kielen lataaminen epäonnistui. Näytetään suomeksi.",
+  "layer.radon": "Radon",
+  "panel.radon": "Radon (Bq/m³)",
+  "metric_explanation.radon": "Pientaloasuntojen sisäilman radonpitoisuuden mediaani (Bq/m³) postinumeroalueittain. Pienempi on parempi; 300 Bq/m³ on toimenpidearvo. Lähde: STUK.",
+  "note.radon": "STUKin pientalojen radonmittaukset (1980–2023) postinumeroalueittain; mukana alueet, joilla on vähintään 10 mitattua asuntoa. Kattaa noin puolet alueista, muut näkyvät harmaana.",
+  "layer.health_index": "Sairastavuusindeksi",
+  "panel.health_index": "Sairastavuusindeksi",
+  "metric_explanation.health_index": "THL:n ja Kelan ikävakioitu sairastavuusindeksi (kansallinen terveysindeksi); 100 = koko maan keskiarvo, pienempi on parempi. Kunnan arvo jaettu postinumeroalueille.",
+  "note.health_index": "Kuntatason THL/Kela-sairastavuusindeksi (Sotkanet, 2023) sijoitettu kunkin kunnan postinumeroalueille. Arvio postinumerotasolla."
 }

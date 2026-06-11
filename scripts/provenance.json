@@ -60,6 +60,8 @@
     "voter_turnout_pct": 2025,
     "walkability_index": 2024,
     "water_proximity_m": 2026,
-    "youth_ratio_pct": 2024
+    "youth_ratio_pct": 2024,
+    "radon": 2023,
+    "health_index": 2023
   }
 }

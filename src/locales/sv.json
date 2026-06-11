@@ -789,5 +789,13 @@
   "isochrone.error": "Kunde inte läsa in restidsområde",
   "geolocation.denied": "Platsåtkomst nekad \u2014 aktivera plats i webbläsarens inställningar",
   "geolocation.unavailable": "Kunde inte hämta plats \u2014 försök igen",
-  "lang.load_failed": "Språket kunde inte laddas. Visar finska."
+  "lang.load_failed": "Språket kunde inte laddas. Visar finska.",
+  "layer.radon": "Radon",
+  "panel.radon": "Radon (Bq/m³)",
+  "metric_explanation.radon": "Median för radonhalten inomhus i småhus (Bq/m³) per postnummerområde. Lägre är bättre; 300 Bq/m³ är åtgärdsgränsen. Källa: STUK.",
+  "note.radon": "STUK:s radonmätningar i småhus (1980–2023) per postnummerområde; områden med minst 10 mätta bostäder. Täcker ungefär hälften av områdena, övriga visas grå.",
+  "layer.health_index": "Sjukfrekvensindex",
+  "panel.health_index": "Sjukfrekvensindex",
+  "metric_explanation.health_index": "THL:s och FPA:s åldersstandardiserade sjukfrekvensindex (nationellt hälsoindex); 100 = hela landets medeltal, lägre är bättre. Kommunens värde fördelat på postnummerområden.",
+  "note.health_index": "Sjukfrekvensindex på kommunnivå (THL/FPA, Sotkanet, 2023) tilldelat varje kommuns postnummerområden. En uppskattning på postnummernivå."
 }

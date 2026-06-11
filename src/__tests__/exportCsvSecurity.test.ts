@@ -55,6 +55,8 @@ function makeProps(overrides: Partial<NeighborhoodProperties> = {}): Neighborhoo
     transit_stop_density: 40.0,
     air_quality_index: 30.0,
     crime_index: 70.0,
+    radon: null,
+    health_index: null,
     daycare_density: 3,
     school_density: 2,
     healthcare_density: 4,

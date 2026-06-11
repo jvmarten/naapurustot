@@ -69,7 +69,10 @@ export type LayerId =
   | 'noise_pollution'
   // Phase 10: Water proximity & building age
   | 'water_proximity'
-  | 'building_age';
+  | 'building_age'
+  // Roadmap CF-19/CF-21: environment & health
+  | 'radon'
+  | 'health_index';
 
 // PO-2: layers that carry a 5-year history array and can be scrubbed with the
 // time slider. Maps the active LayerId to the history property whose per-year
@@ -167,6 +170,8 @@ const gini = (v: number) => `${v.toFixed(2)}`;
 const score = (v: number) => `${v.toFixed(0)}/100`;
 const radiance = (v: number) => `${v.toFixed(1)} nW/cm²/sr`;
 const decibel = (v: number) => `${v.toFixed(1)} dB`;
+// CF-19: radon median concentration (whole Bq/m³); CF-21: morbidity index (100 = avg).
+const bq = (v: number) => `${numFmt().format(Math.round(v))} Bq/m³`;
 const years = (v: number) => `${v.toFixed(1)} v`;
 const meters = (v: number) => `${numFmt().format(v)} m`;
 const yearFmt = (v: number) => `${v.toFixed(0)}`;
@@ -715,6 +720,28 @@ export const LAYERS: LayerConfig[] = [
     colors: ['#1a9850', '#66bd63', '#a6d96a', '#d9ef8b', '#fee08b', '#fdae61', '#f46d43', '#d73027'],
     stops: [40, 43, 46, 49, 52, 55, 58, 62],
     format: decibel,
+    higherIsBetter: false,
+  },
+  // CF-19: indoor radon (STUK, postal-code median Bq/m³). 300 = Finnish action level.
+  {
+    id: 'radon',
+    labelKey: 'layer.radon',
+    property: 'radon',
+    unit: 'Bq/m³',
+    colors: ['#1a9850', '#66bd63', '#a6d96a', '#d9ef8b', '#fee08b', '#fdae61', '#f46d43', '#d73027'],
+    stops: [50, 100, 150, 200, 300, 400, 600, 900],
+    format: bq,
+    higherIsBetter: false,
+  },
+  // CF-21: THL/Kela morbidity index (Sotkanet 5641; 100 = national average).
+  {
+    id: 'health_index',
+    labelKey: 'layer.health_index',
+    property: 'health_index',
+    unit: '',
+    colors: ['#1a9850', '#66bd63', '#a6d96a', '#d9ef8b', '#fee08b', '#fdae61', '#f46d43', '#d73027'],
+    stops: [85, 92, 97, 100, 104, 108, 115, 130],
+    format: age,
     higherIsBetter: false,
   },
   // Phase 10: Water proximity & building age

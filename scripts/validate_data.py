@@ -315,6 +315,9 @@ MUNICIPALITY_DISTRIBUTED_PROXIES = {
     "broadband_coverage_pct": "fetch_broadband_coverage.py (municipality coverage assigned to each postal code)",
     "voter_turnout_pct": "fetch_voter_turnout.py distribute_to_postal_codes() (within-municipality income proxy)",
     "party_diversity_index": "fetch_voter_turnout.py distribute_to_postal_codes() (within-municipality income proxy)",
+    # CF-21: THL/Kela morbidity index — a municipality figure assigned to each of its
+    # postal codes (Sotkanet publishes at municipality granularity only).
+    "health_index": "fetch_health_index.py assign_to_postal_codes() (municipality value per postal code)",
 }
 
 

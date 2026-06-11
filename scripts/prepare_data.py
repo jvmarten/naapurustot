@@ -89,6 +89,10 @@ FOREIGN_LANG_FILE = Path(__file__).parent / "foreign_language_pct.json"
 # Postal-code-level crime index (reported crimes per 1,000 residents)
 # Source: Finnish Police (Poliisi) open data
 CRIME_INDEX_FILE = Path(__file__).parent / "crime_index.json"
+# CF-19 radon (STUK, postal) / CF-21 health index (THL/Kela via Sotkanet, muni proxy).
+# Snapshots produced by fetch_radon.py / fetch_health_index.py, joined here.
+RADON_FILE = Path(__file__).parent / "radon.json"
+HEALTH_INDEX_FILE = Path(__file__).parent / "health_index.json"
 
 # Statistics Finland apartment price data by postal code — PxWeb API v1.
 # Table 13mu: "Prices per square meter of old dwellings in housing companies
@@ -751,6 +755,36 @@ def join_crime_index(gdf, crime_data):
         gdf.at[idx, "crime_index"] = float(val) if val is not None else None
 
     matched = gdf["crime_index"].notna().sum()
+    logger.info("  Matched %s/%s postal codes", matched, len(gdf))
+    return gdf
+
+
+def _load_pno_json(path, label):
+    """Load a {pno: value} snapshot JSON, or {} if missing."""
+    logger.info("Loading %s data...", label)
+    if path.exists():
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        logger.info("  Loaded %s postal codes from %s", len(data), path.name)
+        return data
+    logger.warning(" %s not found", path)
+    return {}
+
+
+def _join_pno_value(gdf, data, column, *, as_int=False):
+    """Assign a {pno: value} snapshot to a GeoJSON column, None where absent."""
+    if not data:
+        gdf[column] = None
+        return gdf
+    logger.info("Joining %s data...", column)
+    for idx, row in gdf.iterrows():
+        pno = row.get("postinumeroalue", "") or row.get("pno", "")
+        val = data.get(pno)
+        if val is None:
+            gdf.at[idx, column] = None
+        else:
+            gdf.at[idx, column] = int(val) if as_int else float(val)
+    matched = gdf[column].notna().sum()
     logger.info("  Matched %s/%s postal codes", matched, len(gdf))
     return gdf
 
@@ -2557,6 +2591,10 @@ def main():
 
     crime_data = load_crime_index()
     gdf = join_crime_index(gdf, crime_data)
+
+    # CF-19 radon (postal median Bq/m³) + CF-21 health index (municipality proxy).
+    gdf = _join_pno_value(gdf, _load_pno_json(RADON_FILE, "radon"), "radon", as_int=True)
+    gdf = _join_pno_value(gdf, _load_pno_json(HEALTH_INDEX_FILE, "health index"), "health_index")
 
     # --- Phase 2: External data sources (graceful fallback if APIs unavailable) ---
     _rate_limit()
