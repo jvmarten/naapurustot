@@ -56,8 +56,9 @@ import { computeMetroAverages, timeSeriesYearProp, getAvailableYears } from './u
 import { t, getLang, setLang, useI18nVersion, getLocaleLoadError, retryLocaleLoad, type Lang } from './utils/i18n';
 import { computeQualityIndices, isCustomWeights, type QualityWeights } from './utils/qualityIndex';
 import { getNationalRanges } from './utils/nationalRanges';
-import { buildMetroAreaFeatures, clearMetroAreaCache } from './utils/metroAreas';
+import { buildMetroAreaFeatures, buildMetroAreaFeaturesFromAggregates, clearMetroAreaCache } from './utils/metroAreas';
 import { useAllCitiesUnionPreload } from './hooks/useAllCitiesUnionPreload';
+import { useAllCitiesAggregates } from './hooks/useAllCitiesAggregates';
 import { useBackGesture } from './hooks/useBackGesture';
 import { IS_EMBED, buildEmbedSnippet, buildFullViewUrl, postEmbedHeight } from './utils/embed';
 import { findNeighborhoodForPoint } from './utils/geocode';
@@ -106,12 +107,34 @@ const App: React.FC = () => {
   // City filter — declared before useMapData so the hook can load the right region
   const [cityFilter, setCityFilter] = useState<CityFilter>((initialUrl.city as CityFilter) ?? DEFAULT_CITY);
 
-  // Load only the selected region's data (or combined data for "all" view)
-  const { data, loading, error, metroAverages, retry } = useMapData(cityFilter);
+  // CF-8: the all-Finland landing paints from the small region_aggregates.json, not
+  // the ~10.6 MB national set. The full set is loaded only when a feature genuinely
+  // needs per-postal-code data: a deep-linked ?pno=/?compare= (resolved against the
+  // full set) on boot, or custom quality weights (the effect below flips this on).
+  // Once true it stays true — the full set is then cached, so default-weight renders
+  // from it are byte-equivalent to the aggregate render.
+  const hadInitialNationalNeed = !!initialUrl.pno || (initialUrl.compare?.length ?? 0) > 0;
+  const [needFullNational, setNeedFullNational] = useState(hadInitialNationalNeed);
+  const skipAllFetch = cityFilter === 'all' && !needFullNational;
 
-  // Global all-areas index (properties only) so search finds any area in
-  // Finland regardless of the observed subregion. Shares loadAllData's cache.
+  // Load only the selected region's data (or combined data for "all" view)
+  const { data, loading, error, metroAverages: rawMetroAverages, retry } = useMapData(cityFilter, { skipAllFetch });
+
+  // CF-8: prebuilt per-region aggregates for the all-cities first paint.
+  const { aggregates, loading: aggLoading, error: aggError, retry: aggRetry } = useAllCitiesAggregates(cityFilter);
+
+  // Lightweight all-areas index (pno + names + region) so search finds any area in
+  // Finland regardless of the observed subregion. CF-8: a small dedicated artifact
+  // (~40 KB gz), not the full national set, so it loads eagerly without bloating the
+  // slim all-Finland landing.
   const searchIndex = useSearchIndex();
+
+  // CF-8: in aggregate mode (`data` is null) the all-cities "metro average" comes
+  // from the prebuilt national averages; otherwise from the processed dataset.
+  const metroAverages = useMemo(
+    () => (cityFilter === 'all' && !data && aggregates ? aggregates.national : rawMetroAverages),
+    [cityFilter, data, aggregates, rawMetroAverages],
+  );
 
   // Auth
   const { user, loading: authLoading, login, signup, logout, exportData, deleteAccount } = useAuth();
@@ -311,6 +334,14 @@ const App: React.FC = () => {
   // Memoize isCustomWeights to avoid iterating all QUALITY_FACTORS on every App render
   // (called twice in JSX: LayerSelector + NeighborhoodPanel).
   const customWeights = useMemo(() => isCustomWeights(qualityWeights), [qualityWeights]);
+
+  // CF-8: custom quality weights need per-postal-code recomputation, which the
+  // default-weight aggregates can't provide — so load the full national set when
+  // custom weights are active in the all-cities view. Monotonic: once loaded it
+  // stays (the full set is cached; default-weight renders from it match the aggregates).
+  useEffect(() => {
+    if (cityFilter === 'all' && customWeights) setNeedFullNational(true);
+  }, [cityFilter, customWeights]);
   const [colorblind, setColorblind] = useState(getColorblindMode);
   const [showWizard, setShowWizard] = useState(false);
   // CF-4: persistent, shareable wizard priority profile (localStorage + cloud sync).
@@ -388,13 +419,31 @@ const App: React.FC = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps -- qualityVersion signals in-place data mutation
   }, [data, cityFilter, qualityVersion]);
 
+  // CF-8: in the all-cities view, build the 69 region features from whichever source
+  // is available — the full national dataset once it has loaded (custom weights /
+  // deep link), otherwise the prebuilt aggregates for the slim first paint. Both
+  // attach the same per-region props to the same pre-baked outlines, so the upgrade
+  // from aggregates → full is seamless (no colour shift).
   const allCitiesData = useMemo(() => {
-    if (!data || cityFilter !== 'all') return null;
-    return buildMetroAreaFeatures(data.features) as typeof data;
+    if (cityFilter !== 'all') return null;
+    if (data) return buildMetroAreaFeatures(data.features);
+    if (aggregates) return buildMetroAreaFeaturesFromAggregates(aggregates.regions);
+    return null;
   // eslint-disable-next-line react-hooks/exhaustive-deps -- lang triggers rebuild so metro area names respect language; unionReady signals the pre-baked region outlines fetch resolved; qualityVersion signals in-place data mutation
-  }, [data, cityFilter, lang, unionReady, qualityVersion]);
+  }, [data, aggregates, cityFilter, lang, unionReady, qualityVersion]);
 
   const filteredData = cityFilter === 'all' ? allCitiesData : singleCityData;
+
+  // CF-8: a unified loading/error/retry surface across the two all-cities data paths.
+  // In aggregate mode (`data` is null) the view is "ready" once the metro features
+  // are built (aggregates + outlines), and errors/retries come from the aggregates
+  // fetch; otherwise they track the full-dataset load as before.
+  const aggMode = cityFilter === 'all' && !data;
+  const allViewReady = !!filteredData && filteredData.features.length > 0;
+  const effectiveLoading = aggMode ? (!aggError && !allViewReady) : loading;
+  const effectiveError: boolean = aggMode ? aggError : !!error;
+  const effectiveRetry = aggMode ? aggRetry : retry;
+  void aggLoading; // aggregate spinner is derived from allViewReady (covers outline load too)
 
   // Recompute metro averages for the selected city.
   // qualityVersion is included so that averages are recalculated after custom quality weight changes
@@ -836,10 +885,17 @@ const App: React.FC = () => {
   const allFeatures = useMemo(() => filteredData?.features ?? undefined, [data, cityFilter]);
 
   // Keep URL in sync with current state (including pinned comparisons)
-  // Suppress URL writes until data is loaded and initial URL state (pno, compare) has been consumed
-  // by the restoration effect. Without this, the debounced write fires with empty values during
-  // loading and clears the initial URL params before they can be restored.
-  useSyncUrlState(selected?.pno ?? null, activeLayer, pinnedPnos, cityFilter, !!data, {
+  // Suppress URL writes until the view is ready and initial URL state (pno, compare) has been
+  // consumed by the restoration effect. Without this, the debounced write fires with empty values
+  // during loading and clears the initial URL params before they can be restored.
+  // CF-8: gate on the rendered view, not the raw national `data` — in the all-cities
+  // aggregate mode `data` is null by design, and gating on it would freeze the URL so
+  // layer/selection/scope changes never serialize. BUT when a deep link needs the full
+  // national set (`?pno=`/`?compare=`/custom weights → needFullNational), wait for it
+  // too: `filteredData` goes non-null early from the aggregates, and writing the URL
+  // before the full set loads + the restoration effect runs would clobber the deep
+  // link's pno/compare before they can be restored.
+  useSyncUrlState(selected?.pno ?? null, activeLayer, pinnedPnos, cityFilter, !!filteredData && (!needFullNational || !!data), {
     scope: comparisonScope,
     year: timeYear,
     colorblind,
@@ -1478,14 +1534,16 @@ const App: React.FC = () => {
   // QW-7: Also skip in embed mode — the chrome the tour points at isn't visible.
   useEffect(() => {
     if (IS_EMBED) return;
-    if (loading || !data) return;
+    // CF-8: gate on the rendered view being ready (filteredData), not the raw
+    // national `data` — in the all-cities aggregate mode `data` is null by design.
+    if (effectiveLoading || !filteredData) return;
     if (initialUrl.pno) return;
     if (typeof navigator !== 'undefined' && navigator.webdriver) return;
     try {
       if (localStorage.getItem('naapurustot-onboarding-seen')) return;
     } catch { /* localStorage unavailable */ }
     setShowTour(true);
-  }, [loading, data]);
+  }, [effectiveLoading, filteredData]);
 
   const handleCloseTour = useCallback(() => {
     try { localStorage.setItem('naapurustot-onboarding-seen', '1'); } catch { /* unavailable */ }
@@ -1694,7 +1752,7 @@ const App: React.FC = () => {
   const localeLoadError = getLocaleLoadError();
 
   return (
-    <div id="main" tabIndex={-1} className="h-dvh w-screen overflow-hidden relative focus:outline-none" data-testid="app-root" data-loaded={!loading}>
+    <div id="main" tabIndex={-1} className="h-dvh w-screen overflow-hidden relative focus:outline-none" data-testid="app-root" data-loaded={!effectiveLoading}>
       {/* A1: screen-reader entry point — names the map and points to the keyboard-accessible selection paths (search combobox + ranking table). */}
       <p className="sr-only">{t('aria.map_instructions')}</p>
       {/* Map — QW-4: Conditional split view */}
@@ -1751,7 +1809,7 @@ const App: React.FC = () => {
       </ErrorBoundary>
 
       {/* Skeleton / shimmer loading overlay */}
-      {loading && (
+      {effectiveLoading && (
         <div data-testid="loading-overlay" className="absolute inset-0 z-50 flex items-center justify-center bg-white/80 dark:bg-surface-950/80 backdrop-blur-sm">
           <div className="text-center space-y-4">
             {/* Shimmer placeholder blocks */}
@@ -1767,7 +1825,7 @@ const App: React.FC = () => {
       )}
 
       {/* Error banner */}
-      {error && <ErrorBanner onRetry={retry} />}
+      {effectiveError && <ErrorBanner onRetry={effectiveRetry} />}
 
       {/* QW-7: Header is hidden in embed mode so the map renders edge-to-edge. */}
       {!IS_EMBED && (

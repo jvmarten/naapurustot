@@ -1,10 +1,14 @@
 import type { Feature, FeatureCollection, Polygon, MultiPolygon } from 'geojson';
 import { feature } from 'topojson-client';
 import type { Topology } from 'topojson-specification';
-import type { CityId, NeighborhoodProperties, TrendDataPoint } from './metrics';
-import { computeChangeMetrics, computeMetroAverages, parseTrendSeries } from './metrics';
+import type { CityId, NeighborhoodProperties } from './metrics';
+import { computeChangeMetrics, computeMetroAverages } from './metrics';
 import { REGIONS } from './regions';
 import { t } from './i18n';
+// CF-8: the per-region aggregation is shared with the build-time
+// region_aggregates.json artifact (and lives in a Vite-free module so the build
+// script can import it). aggregateTrendHistories moved there.
+import { aggregateTrendHistories, type RegionAggregateRecord } from './metroAggregation';
 
 // CF-5 Phase D: the "all cities" view uses the full official seutukunta
 // boundaries (src/data/seutukunnat.topojson, all 69 sub-regions) as the
@@ -69,106 +73,6 @@ function ensureOutlinesLoaded(): Promise<void> {
  */
 export function preloadUnion(): Promise<void> {
   return ensureOutlinesLoaded();
-}
-
-/**
- * Aggregate trend history series across neighborhoods for a metro area.
- *
- * - population_history: summed per year
- * - income_history: population-weighted average per year
- * - unemployment_history: population-weighted average per year
- * - property_price_history: population-weighted average per year (CF-7)
- * - crime_index_history: population-weighted average per year (CF-7)
- */
-function aggregateTrendHistories(
-  features: Feature[],
-): Record<string, string> {
-  const result: Record<string, string> = {};
-
-  // Collect parsed series with their population weights
-  const seriesData: {
-    key: string;
-    mode: 'sum' | 'weighted';
-    entries: { series: TrendDataPoint[]; pop: number }[];
-  }[] = [
-    { key: 'population_history', mode: 'sum', entries: [] },
-    { key: 'income_history', mode: 'weighted', entries: [] },
-    { key: 'unemployment_history', mode: 'weighted', entries: [] },
-    { key: 'property_price_history', mode: 'weighted', entries: [] },
-    { key: 'crime_index_history', mode: 'weighted', entries: [] },
-  ];
-
-  for (const f of features) {
-    const p = f.properties as NeighborhoodProperties;
-    const pop = p.he_vakiy;
-    if (pop == null || pop <= 0) continue;
-
-    for (const sd of seriesData) {
-      const series = parseTrendSeries(p[sd.key] as string | null);
-      if (series) {
-        sd.entries.push({ series, pop });
-      }
-    }
-  }
-
-  for (const sd of seriesData) {
-    if (sd.entries.length === 0) continue;
-
-    // Collect all years across all neighborhoods
-    const yearSet = new Set<number>();
-    for (const e of sd.entries) {
-      for (const [year] of e.series) yearSet.add(year);
-    }
-    const years = [...yearSet].sort((a, b) => a - b);
-
-    // Pre-build year→value Maps per entry to replace O(series_length) .find() lookups
-    // in the inner loop. For 5 cities × ~50 neighborhoods × ~10 years this eliminates
-    // thousands of linear scans.
-    const entryMaps = sd.entries.map((e) => {
-      const m = new Map<number, number>();
-      for (const [y, v] of e.series) m.set(y, v);
-      return { map: m, pop: e.pop };
-    });
-
-    const aggregated: TrendDataPoint[] = [];
-    for (const year of years) {
-      if (sd.mode === 'sum') {
-        let total = 0;
-        let count = 0;
-        for (const em of entryMaps) {
-          const val = em.map.get(year);
-          if (val !== undefined) {
-            total += val;
-            count++;
-          }
-        }
-        // Only include years where we have data from most neighborhoods
-        if (count >= sd.entries.length * 0.5) {
-          aggregated.push([year, Math.round(total)]);
-        }
-      } else {
-        // Weighted average
-        let weightedSum = 0;
-        let totalWeight = 0;
-        for (const em of entryMaps) {
-          const val = em.map.get(year);
-          if (val !== undefined) {
-            weightedSum += val * em.pop;
-            totalWeight += em.pop;
-          }
-        }
-        if (totalWeight > 0) {
-          aggregated.push([year, Math.round((weightedSum / totalWeight) * 10) / 10]);
-        }
-      }
-    }
-
-    if (aggregated.length >= 2) {
-      result[sd.key] = JSON.stringify(aggregated);
-    }
-  }
-
-  return result;
 }
 
 function concatPolygonsFallback(cityFeatures: Feature[]): MultiPolygon | Polygon | null {
@@ -405,6 +309,74 @@ export function buildMetroAreaFeatures(
     type: 'FeatureCollection',
     features,
   };
+}
+
+/**
+ * CF-8: build the "all cities" features from the prebuilt per-region aggregate
+ * records (`region_aggregates.json`) instead of the full national feature set.
+ *
+ * The all-Finland landing paints from this — the small artifact + the pre-baked
+ * outlines — so it never downloads the ~10.6 MB region_properties.json before first
+ * paint. The output is byte-equivalent to `buildMetroAreaFeatures(fullNationalData)`
+ * for default weights (both attach the same `buildRegionAggregates`-derived props to
+ * the same pre-baked outline geometry), so when a trigger later loads the full
+ * dataset the view upgrades in place without the region colours shifting.
+ *
+ * Like `buildMetroAreaFeatures`, until the outline file has loaded only the regions
+ * whose outline is cached are emitted; once `preloadUnion()` resolves, the caller's
+ * `unionReady` bump rebuilds with every seutukunta (data + no-data) present. There is
+ * no MultiPolygon-concat fallback here — the aggregate records carry no geometry — so
+ * the view simply waits for the (small) outline fetch rather than flashing internal
+ * postal borders.
+ */
+export function buildMetroAreaFeaturesFromAggregates(
+  regions: Record<string, RegionAggregateRecord>,
+): FeatureCollection {
+  const knownRegions = new Set(Object.keys(REGIONS));
+  const features: Feature<Polygon | MultiPolygon>[] = [];
+  const dataRegions = new Set<string>();
+
+  for (const cityId of Object.keys(regions)) {
+    if (!knownRegions.has(cityId)) continue;
+    const geometry = outlinesByCity.get(cityId);
+    if (!geometry) continue; // outline not loaded yet — emitted on the unionReady rebuild
+    dataRegions.add(cityId);
+    features.push({
+      type: 'Feature',
+      properties: {
+        ...regions[cityId],
+        pno: cityId,
+        nimi: t(`city.${cityId}`),
+        namn: t(`city.${cityId}`),
+        kunta: null,
+        city: cityId,
+        _isMetroArea: true,
+      },
+      geometry,
+    });
+  }
+
+  // Mirror buildMetroAreaFeatures: emit a gray feature for every seutukunta WITHOUT
+  // ingested data so all 69 regions are present, hoverable and clickable.
+  for (const [regionId, geometry] of outlinesByCity) {
+    if (dataRegions.has(regionId)) continue;
+    if (!knownRegions.has(regionId)) continue;
+    features.push({
+      type: 'Feature',
+      properties: {
+        pno: regionId,
+        nimi: t(`city.${regionId}`),
+        namn: t(`city.${regionId}`),
+        kunta: null,
+        city: regionId,
+        _isMetroArea: true,
+        _noData: true,
+      },
+      geometry,
+    });
+  }
+
+  return { type: 'FeatureCollection', features };
 }
 
 /**

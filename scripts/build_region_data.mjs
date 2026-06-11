@@ -165,6 +165,22 @@ console.log(
 console.log('Writing region_properties.json (all-cities aggregation input)...');
 writeFileSync(propertiesOutput, JSON.stringify(features.map((f) => f.properties)));
 
+// CF-8: a tiny eager search index. The all-Finland landing no longer loads the
+// ~10.6 MB region_properties.json (CF-8 paints from region_aggregates.json), so the
+// cross-area search needs its own lightweight source: just the fields search reads —
+// pno + names (display/filter) + city (so handleSearch can resolve a result's owning
+// region and switch to it). ~30 KB gz, loaded on mount so search is instant in every
+// view without pulling the full national set. Same feature order as region_properties.
+const searchIndexOutput = resolve(rootDir, 'src', 'data', 'region_search_index.json');
+writeFileSync(
+  searchIndexOutput,
+  JSON.stringify(features.map((f) => {
+    const p = f.properties || {};
+    return { pno: p.pno, nimi: p.nimi, namn: p.namn, city: p.city };
+  })),
+);
+console.log(`  → region_search_index.json (${features.length} areas)`);
+
 // CF-5 Phase C: pre-compute per-region metric coverage so the CitySelector can
 // surface honest data-density expectations before users click in. A metric is
 // considered "present" for a region when >= COVERAGE_THRESHOLD of the region's
