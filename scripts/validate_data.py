@@ -318,6 +318,10 @@ MUNICIPALITY_DISTRIBUTED_PROXIES = {
     # CF-21: THL/Kela morbidity index — a municipality figure assigned to each of its
     # postal codes (Sotkanet publishes at municipality granularity only).
     "health_index": "fetch_health_index.py assign_to_postal_codes() (municipality value per postal code)",
+    # CF-15: asvu 15fa publishes rents at city/maakunta level; distributed to postal
+    # codes by replaying the 2022 intra-city ratios. price_to_rent_ratio inherits it.
+    "rental_price_sqm": "fetch_rental_prices_municipality.py (city mean × 2022 intra-city ratio per postal code)",
+    "price_to_rent_ratio": "derived from the (proxy) rental_price_sqm and property_price_sqm",
 }
 
 

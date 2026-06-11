@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeQualityCoverage, FACTOR_THIN_COVERAGE_THRESHOLD } from '../utils/qualityIndex';
+import { computeQualityCoverage, FACTOR_THIN_COVERAGE_THRESHOLD, getDefaultWeights } from '../utils/qualityIndex';
 import type { NeighborhoodProperties } from '../utils/metrics';
 
 describe('computeQualityCoverage (CF-8)', () => {
@@ -28,37 +28,51 @@ describe('computeQualityCoverage (CF-8)', () => {
   });
 
   // PO-11: per-factor national coverage so the panel can tell a genuine local gap
-  // from a factor that is thin everywhere (e.g. transit ~11%).
+  // from a factor that is thin everywhere. Transit used to be the canonical thin
+  // factor (~11%) but is nationwide as of CF-17 (Digiroad); school_quality
+  // (~10.3% coverage) is now the thin exemplar.
   describe('national coverage honesty (PO-11)', () => {
-    const transitFactor = (cov: ReturnType<typeof computeQualityCoverage>) =>
-      cov.dimensions.flatMap((d) => d.factors).find((f) => f.id === 'transit')!;
+    const factorById = (cov: ReturnType<typeof computeQualityCoverage>, id: string) =>
+      cov.dimensions.flatMap((d) => d.factors).find((f) => f.id === id)!;
 
-    it('annotates the thin transit factor with its real national coverage', () => {
-      // The test fixture (__COVERAGE_PCT__ in vitest.config.ts) carries the real
-      // measured transit_stop_density coverage of ~10.9%.
+    it('marks the now-nationwide transit factor as well-covered (CF-17)', () => {
+      // The fixture (__COVERAGE_PCT__ in vitest.config.ts) carries the real, post
+      // CF-17 transit_stop_density coverage of 100%.
       const cov = computeQualityCoverage({} as unknown as NeighborhoodProperties);
-      const transit = transitFactor(cov);
-      expect(transit.nationalCoveragePct).toBeCloseTo(10.9, 1);
-      expect(transit.nationalCoveragePct!).toBeLessThan(FACTOR_THIN_COVERAGE_THRESHOLD);
-      expect(transit.nationallyThin).toBe(true);
+      const transit = factorById(cov, 'transit');
+      expect(transit.nationalCoveragePct).toBeCloseTo(100, 1);
+      expect(transit.nationallyThin).toBe(false);
     });
 
-    it('counts a missing transit factor as thin-nationwide, not a local hole', () => {
-      // Area with no transit signal: transit is missing AND sparse everywhere.
-      const cov = computeQualityCoverage({ crime_index: 50 } as unknown as NeighborhoodProperties);
-      const transit = transitFactor(cov);
-      expect(transit.present).toBe(false);
+    // school_quality is zero-weighted by default; activate it via a custom lens so
+    // the thin-coverage annotation (it is ~10.3% nationally) is exercised.
+    const withSchoolWeight = (): Record<string, number> => ({ ...getDefaultWeights(), school_quality: 50 });
+
+    it('annotates the thin school_quality factor with its real national coverage', () => {
+      const cov = computeQualityCoverage({} as unknown as NeighborhoodProperties, withSchoolWeight());
+      const school = factorById(cov, 'school_quality');
+      expect(school.nationalCoveragePct).toBeCloseTo(10.3, 1);
+      expect(school.nationalCoveragePct!).toBeLessThan(FACTOR_THIN_COVERAGE_THRESHOLD);
+      expect(school.nationallyThin).toBe(true);
+    });
+
+    it('counts a missing thin factor as thin-nationwide, not a local hole', () => {
+      // Area with no school-quality signal: missing AND sparse everywhere.
+      const cov = computeQualityCoverage({ crime_index: 50 } as unknown as NeighborhoodProperties, withSchoolWeight());
+      const school = factorById(cov, 'school_quality');
+      expect(school.present).toBe(false);
       expect(cov.missingThinNationally).toBeGreaterThanOrEqual(1);
     });
 
-    it('does not count a present transit factor toward thin-nationwide misses', () => {
-      const withTransit = computeQualityCoverage(
-        { transit_stop_density: 12 } as unknown as NeighborhoodProperties,
+    it('does not count a present thin factor toward thin-nationwide misses', () => {
+      const w = withSchoolWeight();
+      const withSchool = computeQualityCoverage(
+        { school_quality_score: 7.5 } as unknown as NeighborhoodProperties, w,
       );
-      const without = computeQualityCoverage({} as unknown as NeighborhoodProperties);
-      expect(transitFactor(withTransit).present).toBe(true);
-      // Having local transit data removes transit from the thin-nationwide miss count.
-      expect(withTransit.missingThinNationally).toBe(without.missingThinNationally - 1);
+      const without = computeQualityCoverage({} as unknown as NeighborhoodProperties, w);
+      expect(factorById(withSchool, 'school_quality').present).toBe(true);
+      // Having local school data removes it from the thin-nationwide miss count.
+      expect(withSchool.missingThinNationally).toBe(without.missingThinNationally - 1);
     });
   });
 });

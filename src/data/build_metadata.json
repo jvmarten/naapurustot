@@ -1,6 +1,6 @@
 {
-  "generated": "2026-06-11T06:15:46.544Z",
-  "source_hash": "085d8e25da860dd7",
+  "generated": "2026-06-11T06:35:36.664Z",
+  "source_hash": "f902ebab3e4dbf53",
   "rows_total": 3018,
   "metrics": {
     "air_quality_index": {
@@ -284,12 +284,12 @@
       "coverage_pct": 100
     },
     "price_to_rent_ratio": {
-      "source": "Tilastokeskus (PxWeb, asvu 13eb)",
-      "vintage": 2022,
+      "source": "Tilastokeskus (PxWeb, asvu 15fa + ashi 13mu)",
+      "vintage": 2025,
       "granularity": "postal",
-      "is_proxy": false,
-      "row_count": 473,
-      "coverage_pct": 15.7
+      "is_proxy": true,
+      "row_count": 510,
+      "coverage_pct": 16.9
     },
     "property_price_change_pct": {
       "source": "Tilastokeskus (PxWeb)",
@@ -300,12 +300,12 @@
       "coverage_pct": 29.7
     },
     "property_price_sqm": {
-      "source": "Tilastokeskus (PxWeb)",
-      "vintage": 2024,
+      "source": "Tilastokeskus (PxWeb, ashi 13mu)",
+      "vintage": 2025,
       "granularity": "postal",
       "is_proxy": false,
-      "row_count": 913,
-      "coverage_pct": 30.3
+      "row_count": 1097,
+      "coverage_pct": 36.3
     },
     "public_sector_jobs_pct": {
       "source": "Tilastokeskus (Paavo)",
@@ -332,12 +332,12 @@
       "coverage_pct": 51.9
     },
     "rental_price_sqm": {
-      "source": "Tilastokeskus (PxWeb, asvu 13eb)",
-      "vintage": 2022,
+      "source": "Tilastokeskus (PxWeb, asvu 15fa)",
+      "vintage": 2026,
       "granularity": "postal",
-      "is_proxy": false,
-      "row_count": 473,
-      "coverage_pct": 15.7
+      "is_proxy": true,
+      "row_count": 549,
+      "coverage_pct": 18.2
     },
     "rental_rate": {
       "source": "Tilastokeskus (Paavo)",
@@ -436,12 +436,12 @@
       "coverage_pct": 5.5
     },
     "transit_stop_density": {
-      "source": "HSL (Digitransit)",
-      "vintage": 2024,
+      "source": "Väylä (Digiroad — kansallinen pysäkkirekisteri)",
+      "vintage": 2025,
       "granularity": "postal",
       "is_proxy": false,
-      "row_count": 330,
-      "coverage_pct": 10.9
+      "row_count": 3018,
+      "coverage_pct": 100
     },
     "tree_canopy_pct": {
       "source": "HSY (LiDAR maanpeite)",

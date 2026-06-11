@@ -101,9 +101,9 @@
       "is_proxy": false
     },
     "property_price_sqm": {
-      "source": "Tilastokeskus (PxWeb)",
+      "source": "Tilastokeskus (PxWeb, ashi 13mu)",
       "publisher": "tilastokeskus",
-      "vintage": 2024,
+      "vintage": 2025,
       "granularity": "postal",
       "is_proxy": false,
       "note": "note.largest_municipalities"
@@ -193,9 +193,9 @@
       "is_proxy": false
     },
     "transit_stop_density": {
-      "source": "HSL (Digitransit)",
-      "publisher": "hsl",
-      "vintage": 2024,
+      "source": "Väylä (Digiroad — kansallinen pysäkkirekisteri)",
+      "publisher": "vaylavirasto",
+      "vintage": 2025,
       "granularity": "postal",
       "is_proxy": false
     },
@@ -356,21 +356,19 @@
       "is_proxy": false
     },
     "rental_price_sqm": {
-      "source": "Tilastokeskus (PxWeb, asvu 13eb)",
+      "source": "Tilastokeskus (PxWeb, asvu 15fa)",
       "publisher": "tilastokeskus",
-      "vintage": 2022,
+      "vintage": 2026,
       "granularity": "postal",
-      "is_proxy": false,
-      "discontinued": 2022,
+      "is_proxy": true,
       "note": "note.largest_municipalities"
     },
     "price_to_rent_ratio": {
-      "source": "Tilastokeskus (PxWeb, asvu 13eb)",
+      "source": "Tilastokeskus (PxWeb, asvu 15fa + ashi 13mu)",
       "publisher": "tilastokeskus",
-      "vintage": 2022,
+      "vintage": 2025,
       "granularity": "postal",
-      "is_proxy": false,
-      "discontinued": 2022,
+      "is_proxy": true,
       "note": "note.largest_municipalities"
     },
     "walkability_index": {

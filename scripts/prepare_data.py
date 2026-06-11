@@ -912,8 +912,11 @@ def join_property_prices(gdf, price_data):
             with open(PROPERTY_PRICE_FILE, encoding="utf-8") as f:
                 local = json.load(f)
             if local and isinstance(local, dict):
-                merged = {k: float(v) for k, v in local.items()}
-                merged.update(price_data or {})  # API data takes priority
+                # CF-16: the committed property_prices.json is produced by the
+                # sales-count-weighted multi-year ashi 13mu method (fetch_property_prices.py)
+                # and is authoritative; the narrow in-pipeline fetch only fills gaps.
+                merged = {k: float(v) for k, v in (price_data or {}).items()}
+                merged.update({k: float(v) for k, v in local.items()})
                 price_data = merged
                 logger.info("  Merged with local file: %d total entries", len(price_data))
         except Exception:
@@ -1975,8 +1978,11 @@ def join_rental_prices(gdf, rental_data):
             with open(RENTAL_PRICE_FILE, encoding="utf-8") as f:
                 local = json.load(f)
             if local and isinstance(local, dict):
-                merged = {k: float(v) for k, v in local.items()}
-                merged.update(rental_data or {})  # API data takes priority
+                # CF-15: the committed rental_prices.json is produced from asvu 15fa
+                # (fetch_rental_prices_municipality.py) and is authoritative; the dead
+                # asvu 13eb in-pipeline fetch (HTTP 400) only fills gaps from its cache.
+                merged = {k: float(v) for k, v in (rental_data or {}).items()}
+                merged.update({k: float(v) for k, v in local.items()})
                 rental_data = merged
                 logger.info("  Merged with local file: %d total entries", len(rental_data))
         except Exception:

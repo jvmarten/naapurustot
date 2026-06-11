@@ -1,1 +1,34 @@
-[]
+[
+  {
+    "date": "2026-06-11",
+    "metric": "transit_stop_density",
+    "type": "vintage",
+    "from": 2024,
+    "to": 2025,
+    "title": "transit_stop_density refreshed to 2025 vintage"
+  },
+  {
+    "date": "2026-06-11",
+    "metric": "price_to_rent_ratio",
+    "type": "vintage",
+    "from": 2022,
+    "to": 2025,
+    "title": "price_to_rent_ratio refreshed to 2025 vintage"
+  },
+  {
+    "date": "2026-06-11",
+    "metric": "property_price_sqm",
+    "type": "vintage",
+    "from": 2024,
+    "to": 2025,
+    "title": "property_price_sqm refreshed to 2025 vintage"
+  },
+  {
+    "date": "2026-06-11",
+    "metric": "rental_price_sqm",
+    "type": "vintage",
+    "from": 2022,
+    "to": 2026,
+    "title": "rental_price_sqm refreshed to 2026 vintage"
+  }
+]
