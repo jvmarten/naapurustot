@@ -3,7 +3,7 @@
   "lowerPercentile": 0.02,
   "upperPercentile": 0.98,
   "postalCodeCount": 3018,
-  "rangeCount": 165,
+  "rangeCount": 166,
   "ranges": {
     "pinta_ala": {
       "min": 1042118.78,
@@ -819,6 +819,11 @@
       "min": 60.11370980000001,
       "max": 67.4810058,
       "avg": 62.424773462557894
+    },
+    "flood_risk_pct": {
+      "min": 0,
+      "max": 57.74219999999998,
+      "avg": 11.66935378590079
     },
     "traffic_accident_rate": {
       "min": 0.1,

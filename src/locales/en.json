@@ -801,5 +801,9 @@
   "nextsteps.heading": "Next steps",
   "nextsteps.buy": "Homes for sale",
   "nextsteps.rent": "Rental homes",
-  "nextsteps.visit": "Plan a visit"
+  "nextsteps.visit": "Plan a visit",
+  "layer.flood_risk": "Flood risk",
+  "panel.flood_risk": "Flood risk (%)",
+  "metric_explanation.flood_risk": "Share of the postal area's land inside SYKE's 1/100a flood hazard zone (a flood with a 1% annual probability). Higher = more flood-exposed land. Only within mapped areas; the rest are gray.",
+  "note.flood_risk": "SYKE flood hazard maps (1/100a fluvial + coastal). Flood maps exist only for ~119 significant flood-risk sites; other areas are unmapped (no data). Source: Syke and the ELY Centres."
 }

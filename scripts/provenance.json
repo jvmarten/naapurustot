@@ -62,6 +62,7 @@
     "water_proximity_m": 2026,
     "youth_ratio_pct": 2024,
     "radon": 2023,
-    "health_index": 2023
+    "health_index": 2023,
+    "flood_risk_pct": 2024
   }
 }

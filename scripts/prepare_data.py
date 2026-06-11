@@ -93,6 +93,8 @@ CRIME_INDEX_FILE = Path(__file__).parent / "crime_index.json"
 # Snapshots produced by fetch_radon.py / fetch_health_index.py, joined here.
 RADON_FILE = Path(__file__).parent / "radon.json"
 HEALTH_INDEX_FILE = Path(__file__).parent / "health_index.json"
+# CF-20 flood risk (SYKE 1/100a hazard zones, % of postal land exposed).
+FLOOD_RISK_FILE = Path(__file__).parent / "flood_risk.json"
 
 # Statistics Finland apartment price data by postal code — PxWeb API v1.
 # Table 13mu: "Prices per square meter of old dwellings in housing companies
@@ -2598,9 +2600,11 @@ def main():
     crime_data = load_crime_index()
     gdf = join_crime_index(gdf, crime_data)
 
-    # CF-19 radon (postal median Bq/m³) + CF-21 health index (municipality proxy).
+    # CF-19 radon (postal median Bq/m³) + CF-21 health index (municipality proxy)
+    # + CF-20 flood risk (% of postal land in the SYKE 1/100a hazard zone).
     gdf = _join_pno_value(gdf, _load_pno_json(RADON_FILE, "radon"), "radon", as_int=True)
     gdf = _join_pno_value(gdf, _load_pno_json(HEALTH_INDEX_FILE, "health index"), "health_index")
+    gdf = _join_pno_value(gdf, _load_pno_json(FLOOD_RISK_FILE, "flood risk"), "flood_risk_pct")
 
     # --- Phase 2: External data sources (graceful fallback if APIs unavailable) ---
     _rate_limit()

@@ -1,6 +1,6 @@
 {
-  "generated": "2026-06-11T07:19:35.211Z",
-  "source_hash": "06fea3e20676b650",
+  "generated": "2026-06-11T08:35:26.051Z",
+  "source_hash": "20a1776a9d7bbab9",
   "rows_total": 3018,
   "metrics": {
     "air_quality_index": {
@@ -114,6 +114,14 @@
       "is_proxy": false,
       "row_count": 2811,
       "coverage_pct": 93.1
+    },
+    "flood_risk_pct": {
+      "source": "SYKE tulvavaaravyöhykkeet, perusskenaariot (1/100a)",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 1532,
+      "coverage_pct": 50.8
     },
     "foreign_language_pct": {
       "source": "Tilastokeskus",

@@ -41,7 +41,7 @@ function makeProps(overrides: Partial<NeighborhoodProperties> = {}): Neighborhoo
     ownership_rate: null, rental_rate: null, population_density: null, child_ratio: null,
     student_share: null, detached_house_share: null, property_price_sqm: null,
     transit_stop_density: null, air_quality_index: null, crime_index: null,
-    radon: null, health_index: null,
+    radon: null, health_index: null, flood_risk_pct: null,
     daycare_density: null, school_density: null, healthcare_density: null,
     single_person_hh_pct: null, cycling_density: null, restaurant_density: null,
     grocery_density: null, sports_facility_density: null, income_history: null,

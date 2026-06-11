@@ -74,6 +74,11 @@
       "name": "Helsingin yliopisto, Digital Geography Lab",
       "url": "https://www.helsinki.fi/en/researchgroups/digital-geography-lab",
       "license": "CC BY 4.0"
+    },
+    "syke": {
+      "name": "Suomen ympäristökeskus (SYKE)",
+      "url": "https://www.syke.fi/",
+      "license": "CC BY 4.0"
     }
   },
   "metrics": {
@@ -534,6 +539,14 @@
       "granularity": "postal",
       "is_proxy": true,
       "note": "note.health_index"
+    },
+    "flood_risk_pct": {
+      "source": "SYKE tulvavaaravyöhykkeet, perusskenaariot (1/100a)",
+      "publisher": "syke",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "note": "note.flood_risk"
     }
   }
 }
