@@ -27,7 +27,7 @@
  * fonts-dejavu-core for the paths below. A one-time system-font fallback covers local
  * runs lacking those files.
  */
-import { readdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync, existsSync, unlinkSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
@@ -98,6 +98,20 @@ if (batchEnv) {
 }
 
 // ── ORCHESTRATOR: spawn a child per batch. ──
+// First drop orphan PNGs — a content-hashed PNG with no matching SVG is a stale card
+// from an older data/layout version (the SVG name encodes the card's content). The
+// deploy restores dist/og from a cache (see deploy.yml) so only changed cards re-render;
+// pruning orphans keeps that cache from accumulating dead images across deploys.
+const svgStems = new Set(allSvgs.map((f) => f.replace(/\.svg$/, '')));
+let orphans = 0;
+for (const f of readdirSync(ogDir)) {
+  if (f.endsWith('.png') && !svgStems.has(f.replace(/\.png$/, ''))) {
+    unlinkSync(join(ogDir, f));
+    orphans += 1;
+  }
+}
+if (orphans > 0) console.log(`rasterize-cards: pruned ${orphans} orphan PNG(s) (no matching SVG).`);
+
 const missing = allSvgs.filter((f) => !existsSync(pngOf(f)));
 if (missing.length === 0) {
   console.log(`rasterize-cards: all ${allSvgs.length} cards already rasterized — nothing to do.`);
