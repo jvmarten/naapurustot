@@ -1,8 +1,8 @@
 {
   "total": {
     "regions": 69,
-    "topojson_bytes": 17025812,
-    "gzip_bytes": 3771007,
+    "topojson_bytes": 17025802,
+    "gzip_bytes": 3771063,
     "feature_count": 3018
   },
   "regions": {
@@ -47,8 +47,8 @@
       "feature_count": 44
     },
     "helsinki_metro": {
-      "topojson_bytes": 1473172,
-      "gzip_bytes": 320991,
+      "topojson_bytes": 1473162,
+      "gzip_bytes": 321047,
       "feature_count": 296
     },
     "imatra": {

@@ -22,5 +22,17 @@
     ],
     "cells": 50594,
     "scope": "national"
+  },
+  "transit_reachability": {
+    "path": "data/transit_reachability_grid.topojson",
+    "format": "topojson",
+    "bbox": [
+      24.49463,
+      60.10424,
+      25.25911,
+      60.40356
+    ],
+    "cells": 13047,
+    "scope": "regional"
   }
 }

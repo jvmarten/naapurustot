@@ -1,6 +1,6 @@
 {
-  "generated": "2026-06-11T07:02:08.563Z",
-  "source_hash": "c877dea2c66d7771",
+  "generated": "2026-06-11T07:19:35.211Z",
+  "source_hash": "06fea3e20676b650",
   "rows_total": 3018,
   "metrics": {
     "air_quality_index": {
@@ -428,12 +428,12 @@
       "coverage_pct": 72.4
     },
     "transit_reachability_score": {
-      "source": "HSL / johdettu",
-      "vintage": 2025,
-      "granularity": "postal",
+      "source": "Helsingin seudun matka-aikamatriisi 2023 (Helsingin yliopisto, Digital Geography Lab; Zenodo 11220980)",
+      "vintage": 2023,
+      "granularity": "250m grid",
       "is_proxy": true,
-      "row_count": 167,
-      "coverage_pct": 5.5
+      "row_count": 183,
+      "coverage_pct": 6.1
     },
     "transit_stop_density": {
       "source": "Väylä (Digiroad — kansallinen pysäkkirekisteri)",
