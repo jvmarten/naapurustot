@@ -76,7 +76,9 @@ def _request_with_retry(method: str, url: str, *, label: str,
                 logger.warning("  Retry %d/%d for %s in %ds (%s)",
                                attempt, retries, label, wait, exc)
                 time.sleep(wait)
-    raise last_exc  # type: ignore[misc]
+    if last_exc is not None:
+        raise last_exc
+    raise RuntimeError(f"{label} request failed before any attempt (retries={retries})")
 
 
 def fetch_region_to_municipality() -> dict[int, str]:
@@ -121,6 +123,7 @@ def fetch_municipality_values(region_to_muni: dict[int, str]) -> tuple[dict[str,
                 try:
                     result[muni] = float(val)
                 except (ValueError, TypeError):
+                    # Skip rows whose value is non-numeric/None; never fabricate.
                     pass
         if result:
             logger.info("  Got %d municipality values for year %d", len(result), year)

@@ -96,7 +96,9 @@ def request_with_retry(method, url, *, label, retries=MAX_RETRIES, **kwargs):
                 wait = RETRY_BACKOFF_BASE ** attempt
                 logger.warning("  Retry %d/%d for %s in %ds (%s)", attempt, retries, label, wait, exc)
                 time.sleep(wait)
-    raise last_exc  # type: ignore[misc]
+    if last_exc is None:  # only reachable if retries < 1 (no attempt was made)
+        raise RuntimeError(f"request_with_retry made no attempts for {label}")
+    raise last_exc
 
 
 def load_geojson():

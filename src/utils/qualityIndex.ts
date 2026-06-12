@@ -593,7 +593,7 @@ function collectRange(features: GeoJSON.Feature[], prop: keyof NeighborhoodPrope
   let count = 0;
   for (const f of features) {
     const v = (f.properties as NeighborhoodProperties)[prop];
-    if (typeof v === 'number' && v != null && isFinite(v)) {
+    if (typeof v === 'number' && isFinite(v)) {
       if (prop === 'hr_mtu' && v <= 0) continue;
       if (v < min) min = v;
       if (v > max) max = v;

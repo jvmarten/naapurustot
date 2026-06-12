@@ -29,9 +29,8 @@ from pathlib import Path
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-from shapely.geometry import box, shape
+from shapely.geometry import box
 from shapely.ops import unary_union
-from shapely.strtree import STRtree
 
 logging.basicConfig(
     level=logging.INFO,

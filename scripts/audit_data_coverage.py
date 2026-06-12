@@ -190,7 +190,7 @@ def audit(geojson_path: Path):
                     print(f"  Missing in {city}:")
                     for pno, nimi in sorted(areas):
                         print(f"    {pno}  {nimi}")
-        elif missing_by_city is not None and missing_total > 100:
+        elif missing_by_city is not None:
             print(f"  (Too many missing entries to list individually; showing first 10 per city)")
             for city in cities_sorted:
                 areas = missing_by_city.get(city, [])

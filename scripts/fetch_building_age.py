@@ -165,7 +165,9 @@ def _request_with_retry(method: str, url: str, *, label: str,
                     attempt, retries, label, wait, exc,
                 )
                 time.sleep(wait)
-    raise last_exc  # type: ignore[misc]
+    if last_exc is not None:
+        raise last_exc
+    raise RuntimeError(f"{label}: request not attempted (retries={retries})")
 
 
 def _rate_limit():
@@ -606,24 +608,6 @@ def refine_to_postal_codes(
         n = len(sorted_shares)
         muni_median_new[muni] = sorted_shares[n // 2] if n > 0 else 0.0
 
-    # Compute municipality-level median detached share
-    muni_det_shares = {}
-    for rec in postal_records:
-        muni = rec["kunta"]
-        ra_asunn = rec["ra_asunn"]
-        ra_pt_as = rec["ra_pt_as"]
-        if ra_asunn and ra_asunn > 0 and ra_pt_as is not None:
-            share = ra_pt_as / ra_asunn
-            if muni not in muni_det_shares:
-                muni_det_shares[muni] = []
-            muni_det_shares[muni].append(share)
-
-    muni_median_det = {}
-    for muni, shares in muni_det_shares.items():
-        sorted_shares = sorted(shares)
-        n = len(sorted_shares)
-        muni_median_det[muni] = sorted_shares[n // 2] if n > 0 else 0.0
-
     result = {}
     matched = 0
     unmatched = 0
@@ -659,7 +643,6 @@ def refine_to_postal_codes(
         # This is a weaker signal, max +/- 5 years
         if ra_asunn and ra_asunn > 0 and rec["ra_pt_as"] is not None:
             det_share = rec["ra_pt_as"] / ra_asunn
-            median_det = muni_median_det.get(muni, 0.0)
 
             if det_share > 0.15:
                 # High detached house share — suburban areas, tend to be

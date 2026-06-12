@@ -165,7 +165,9 @@ def _request_with_retry(
                     exc,
                 )
                 time.sleep(wait)
-    raise last_exc  # type: ignore[misc]
+    if last_exc is not None:
+        raise last_exc
+    raise RuntimeError(f"{label}: request failed without raising an exception")
 
 
 def _rate_limit() -> None:

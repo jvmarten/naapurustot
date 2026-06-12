@@ -24,8 +24,6 @@ from pathlib import Path
 
 import requests
 
-from regions_config import ALL_MUNICIPALITY_CODES as METRO_MUNICIPALITY_CODES
-
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -54,9 +52,6 @@ OPINTOPOLKU_URLS = [
         "?aktiiviset=true&organisaatiotyyppi=organisaatiotyyppi_02"
     ),
 ]
-
-# Municipality codes — all 69 Finnish seutukunnat
-# (METRO_MUNICIPALITY_CODES is imported from regions_config at the top of the file)
 
 # Output files
 OUTPUT_FILE = Path(__file__).parent / "school_quality.json"
@@ -161,6 +156,7 @@ def fetch_ytl_results():
                         if 0 <= grade <= MAX_GRADE:
                             grades.append(grade)
                     except ValueError:
+                        # Non-numeric grade cell (blank/"-"/text); skip it
                         pass
 
             if grades:

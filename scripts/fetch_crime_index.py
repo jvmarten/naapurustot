@@ -117,7 +117,9 @@ def _request_with_retry(method: str, url: str, *, label: str,
                     attempt, retries, label, wait, exc,
                 )
                 time.sleep(wait)
-    raise last_exc  # type: ignore[misc]
+    if last_exc is not None:
+        raise last_exc
+    raise RuntimeError(f"{label}: request failed without raising an exception")
 
 
 def _rate_limit():
@@ -457,7 +459,7 @@ def distribute_to_postal_codes(
             score * (rec["he_vakiy"] or 0)
             for score, rec in zip(scores, records)
         )
-        mean_score = weighted_score_sum / total_pop if total_pop > 0 else 1.0
+        mean_score = weighted_score_sum / total_pop
 
         if mean_score <= 0:
             mean_score = 1.0
@@ -481,7 +483,7 @@ def distribute_to_postal_codes(
             muni_code, muni_rate, len(records),
             min(rates), max(rates),
             sum(r * (rec["he_vakiy"] or 0) for r, rec in zip(rates, records))
-            / total_pop if total_pop > 0 else 0,
+            / total_pop,
         )
 
     return result
