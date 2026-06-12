@@ -114,7 +114,11 @@ def request_with_retry(method: str, url: str, *, label: str,
                 logger.warning("  Retry %d/%d for %s in %ds (%s)",
                                attempt, retries, label, wait, exc)
                 time.sleep(wait)
-    raise last_exc  # type: ignore[misc]
+    if last_exc is None:
+        # Unreachable in practice: the loop always runs at least once
+        # (retries >= 1), so any failure path sets last_exc before we get here.
+        raise RuntimeError(f"request failed for {label} (no attempts made)")
+    raise last_exc
 
 
 def rate_limit():

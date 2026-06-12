@@ -29,7 +29,7 @@ from pathlib import Path
 import geopandas as gpd
 import requests
 from shapely import STRtree
-from shapely.geometry import Polygon, box
+from shapely.geometry import box
 from shapely.ops import unary_union
 from shapely.validation import make_valid
 

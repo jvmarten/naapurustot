@@ -11,7 +11,6 @@ due to OSM spatial joins.
 
 import json
 import logging
-import sys
 import time
 from pathlib import Path
 
@@ -133,6 +132,7 @@ def fetch_rental_prices():
                     if rent > 0:
                         pno_rents[pno].append(rent)
                 except (ValueError, TypeError):
+                    # Skip non-numeric / malformed rent values from the API.
                     pass
 
     # Average across room types

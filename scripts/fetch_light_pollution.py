@@ -26,7 +26,6 @@ import geopandas as gpd
 import requests
 from shapely import STRtree
 from shapely.geometry import Point
-from shapely.ops import transform as shapely_transform
 from pyproj import Transformer
 
 from regions_config import ALL_BBOXES

@@ -21,8 +21,7 @@ import geopandas as gpd
 import requests
 from pyproj import Transformer
 from shapely import STRtree
-from shapely.geometry import LineString, MultiPolygon, Polygon
-from shapely.ops import transform as shapely_transform
+from shapely.geometry import LineString, Polygon
 
 from regions_config import ALL_BBOXES
 

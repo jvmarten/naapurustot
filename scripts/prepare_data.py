@@ -12,14 +12,13 @@ Supports two modes:
 import argparse
 import json
 import logging
+import math
 import sys
 import time
 from pathlib import Path
 
 import geopandas as gpd
-import pandas as pd
 import requests
-from pyproj import Transformer
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -319,7 +318,11 @@ def _request_with_retry(method, url, *, label, retries=MAX_RETRIES, **kwargs):
                 wait = RETRY_BACKOFF_BASE ** attempt
                 logger.warning("Retry %d/%d for %s in %ds (%s)", attempt, retries, label, wait, exc)
                 time.sleep(wait)
-    raise last_exc  # type: ignore[misc]
+    if last_exc is None:
+        # Unreachable in practice (retries >= 1 always sets last_exc), but guard
+        # against raising None, which would mask the real failure with a TypeError.
+        raise RuntimeError(f"{label}: request failed without capturing an exception")
+    raise last_exc
 
 
 def _fetch_cached(method, url, *, cache_key, label, **kwargs):
@@ -445,9 +448,10 @@ def safe_val(v):
     if v is None or v == -1 or v == -1.0:
         return None
     try:
-        if v != v:  # NaN check (works for numpy and float NaN)
+        if math.isnan(v):  # NaN check (works for float and numpy scalar NaN)
             return None
     except (TypeError, ValueError):
+        # Non-numeric values (e.g. strings) can't be NaN; keep them as-is.
         pass
     return v
 
@@ -457,9 +461,10 @@ def safe_div(a, b):
     if a is None or b is None or b == 0:
         return None
     try:
-        if a != a or b != b:  # NaN check
+        if math.isnan(a) or math.isnan(b):  # NaN check
             return None
     except (TypeError, ValueError):
+        # Non-numeric operands can't be NaN; fall through to the division.
         pass
     return round(a / b * 100, 1)
 
@@ -892,6 +897,7 @@ def fetch_property_prices():
                         if pno not in result or price > result[pno]:
                             result[pno] = price
                     except (ValueError, TypeError):
+                        # Skip rows whose value isn't a parseable number.
                         pass
 
         logger.info("  Parsed property prices for %s postal codes", len(result))
@@ -922,6 +928,7 @@ def join_property_prices(gdf, price_data):
                 price_data = merged
                 logger.info("  Merged with local file: %d total entries", len(price_data))
         except Exception:
+            # Optional local fallback file; ignore if missing/unreadable/invalid.
             pass
 
     if not price_data:
@@ -1082,6 +1089,7 @@ def join_air_quality(gdf, aq_data):
             try:
                 stations.append({"point": Point(float(lon), float(lat)), "aqi": float(aqi)})
             except (ValueError, TypeError):
+                # Skip stations with non-numeric coordinates or AQI.
                 pass
 
     if not stations:
@@ -1954,6 +1962,7 @@ def fetch_rental_prices():
                         if rent > 0:
                             pno_rents[pno].append(rent)
                     except (ValueError, TypeError):
+                        # Skip rows whose value isn't a parseable number.
                         pass
 
         # Average across room types per postal code
@@ -1988,6 +1997,7 @@ def join_rental_prices(gdf, rental_data):
                 rental_data = merged
                 logger.info("  Merged with local file: %d total entries", len(rental_data))
         except Exception:
+            # Optional local fallback file; ignore if missing/unreadable/invalid.
             pass
 
     if not rental_data:
@@ -2214,6 +2224,7 @@ def fetch_property_price_change():
                             if year not in prices_by_pno[pno] or price > prices_by_pno[pno][year]:
                                 prices_by_pno[pno][year] = price
                     except (ValueError, TypeError):
+                        # Skip rows whose value isn't a parseable number.
                         pass
 
         # Compute percentage change

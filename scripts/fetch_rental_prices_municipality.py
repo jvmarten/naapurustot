@@ -121,7 +121,9 @@ def request_with_retry(method, url, *, label, retries=MAX_RETRIES, **kwargs):
                 logger.warning("  Retry %d/%d for %s in %ds (%s)",
                                attempt, retries, label, wait, exc)
                 time.sleep(wait)
-    raise last_exc  # type: ignore[misc]
+    if last_exc is not None:
+        raise last_exc
+    raise RuntimeError(f"{label} request failed after {retries} attempt(s)")
 
 
 # ---------------------------------------------------------------------------

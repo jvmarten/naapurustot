@@ -7,7 +7,6 @@ Data source: Statistics Finland open data (Paavo grid)
 Grid cells contain: population, median income, education level
 """
 
-import json
 import sys
 
 # This script is a placeholder for fetching 250m grid data from Statistics Finland.

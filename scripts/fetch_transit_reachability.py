@@ -28,12 +28,9 @@ Format: {"00100": 85.2, "00120": 72.1, ...}  (postal code -> score 0-100)
 import json
 import logging
 import sys
-import zipfile
-from io import BytesIO
 from pathlib import Path
 
 import geopandas as gpd
-import numpy as np
 import pandas as pd
 import requests
 
@@ -89,13 +86,10 @@ def fetch_travel_time_summary() -> pd.DataFrame:
     # - Or a combined file
 
     grid_url = None
-    tt_url = None
     for f in files:
         name = f.get("key", "")
         if "grid" in name.lower() and name.endswith((".zip", ".shp", ".gpkg")):
             grid_url = f.get("links", {}).get("self", "")
-        elif "pt_" in name.lower() or "travel" in name.lower():
-            tt_url = f.get("links", {}).get("self", "")
 
     if not grid_url:
         logger.warning("Could not find grid shapefile in Zenodo record")
@@ -183,7 +177,7 @@ def main():
 
         # Try fetching just the metadata to confirm the source exists
         try:
-            summary = fetch_travel_time_summary()
+            fetch_travel_time_summary()
         except Exception as e:
             logger.warning("Could not access Zenodo: %s", e)
 

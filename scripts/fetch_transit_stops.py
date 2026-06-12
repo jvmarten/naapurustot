@@ -136,6 +136,8 @@ def fetch_digiroad_stops(session: requests.Session) -> list[dict]:
                         dropped += 1
                         continue
                 except ValueError:
+                    # Unparseable / non-ISO validity date: keep the stop as
+                    # active rather than dropping it on a date-format quirk.
                     pass
             stops.append({"lon": float(coords[0]), "lat": float(coords[1])})
 
@@ -195,6 +197,7 @@ def fetch_nysse_stops(session: requests.Session) -> list[dict]:
                     try:
                         stops.append({"lat": float(parts[0].strip()), "lon": float(parts[1].strip())})
                     except ValueError:
+                        # Skip stops whose "lat,lon" location isn't numeric.
                         pass
         logger.info("  Found %d Nysse stops", len(stops))
         return stops

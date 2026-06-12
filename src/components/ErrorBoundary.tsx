@@ -8,7 +8,6 @@ interface Props {
 
 interface State {
   hasError: boolean;
-  error: Error | null;
   remountKey: number;
   recoveryAttempts: number;
 }
@@ -31,11 +30,11 @@ function isRecoverableReconciliationError(error: Error): boolean {
 export class ErrorBoundary extends React.Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false, error: null, remountKey: 0, recoveryAttempts: 0 };
+    this.state = { hasError: false, remountKey: 0, recoveryAttempts: 0 };
   }
 
-  static getDerivedStateFromError(error: Error): Partial<State> {
-    return { hasError: true, error };
+  static getDerivedStateFromError(): Partial<State> {
+    return { hasError: true };
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
@@ -49,7 +48,6 @@ export class ErrorBoundary extends React.Component<Props, State> {
       queueMicrotask(() => {
         this.setState((s) => ({
           hasError: false,
-          error: null,
           remountKey: s.remountKey + 1,
           recoveryAttempts: s.recoveryAttempts + 1,
         }));
@@ -71,7 +69,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
           </p>
           <div className="flex gap-3">
             <button
-              onClick={() => this.setState((s) => ({ hasError: false, error: null, remountKey: s.remountKey + 1, recoveryAttempts: 0 }))}
+              onClick={() => this.setState((s) => ({ hasError: false, remountKey: s.remountKey + 1, recoveryAttempts: 0 }))}
               className="px-4 py-2 rounded-xl text-sm font-medium bg-surface-200 dark:bg-surface-700 text-surface-900 dark:text-white hover:bg-surface-300 dark:hover:bg-surface-600 transition-colors"
             >
               {t('error.retry')}

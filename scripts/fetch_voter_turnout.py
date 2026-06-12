@@ -19,7 +19,6 @@ Format: {"00100": 72.3, "00120": 68.1, ...}
 import json
 import logging
 import math
-import sys
 from pathlib import Path
 
 import geopandas as gpd

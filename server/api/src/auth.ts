@@ -86,7 +86,10 @@ router.post('/signup', rateLimit(3, 24 * 60 * 60 * 1000, 'signup'), async (req: 
     return;
   }
 
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  // RFC 5321 caps an address at 254 chars; enforce that (and string type) before
+  // the regex test. This is correct validation and also bounds the regex input so
+  // the ambiguous [^\s@]+\.[^\s@]+ alternation can't backtrack on a long string (ReDoS).
+  if (email && (typeof email !== 'string' || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
     res.status(400).json({ error: 'Invalid email format' });
     return;
   }

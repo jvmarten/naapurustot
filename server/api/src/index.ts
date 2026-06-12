@@ -70,6 +70,17 @@ function sameOriginOnly(req: Request, res: Response, next: NextFunction): void {
   res.status(403).json({ error: 'Invalid origin' });
 }
 
+// Strip C0 control characters (incl. CR/LF) and DEL from user-controlled strings
+// before logging, so a crafted request line cannot forge or split log entries.
+function stripControlChars(value: string): string {
+  let out = '';
+  for (const ch of value) {
+    const code = ch.charCodeAt(0);
+    if (code > 31 && code !== 127) { out += ch; }
+  }
+  return out;
+}
+
 // IN-4: a modest per-IP fixed-window limit across the authed API (writes + the heavy
 // GET /auth/export). Generous enough that real use never hits it; signup/login keep
 // their own stricter limiters (separate buckets) inside the router.
@@ -82,7 +93,10 @@ Sentry.setupExpressErrorHandler(app);
 // captured them via the handler above. Stack traces and PII stay in
 // Sentry — the client only sees a generic message.
 app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
-  console.error(`${req.method} ${req.url} error:`, err);
+  // Pass user-controlled request fields as %s data arguments (never as the format
+  // string itself) and strip control chars, to avoid tainted-format-string and
+  // log-injection via a crafted method/URL.
+  console.error('%s %s error:', stripControlChars(String(req.method)), stripControlChars(String(req.url)), err);
   if (!res.headersSent) {
     // IN-4: honor a body-parser 413 (payload too large) so the client can show the
     // right message instead of a misleading 500. Other errors stay generic (no leak).
