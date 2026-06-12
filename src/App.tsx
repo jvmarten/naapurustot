@@ -2219,7 +2219,7 @@ const App: React.FC = () => {
       })()}
 
       {/* Legend — repositioned for mobile (MO2: suppressed on mobile when an area panel covers it) */}
-      <Legend layerId={activeLayer} colorblind={colorblind} layerConfig={effectiveLayer} lang={lang} gridLoading={gridLoading && hasGridData(activeLayer)} gridError={gridError && hasGridData(activeLayer)} aggregateScope={cityFilter === 'all'} hidden={!!selected} />
+      <Legend layerId={activeLayer} colorblind={colorblind} layerConfig={effectiveLayer} lang={lang} gridLoading={gridLoading && hasGridData(activeLayer)} gridError={gridError && hasGridData(activeLayer)} hidden={!!selected} />
 
       {/* PO-2: Time slider / historical playback (only when a time-series metric is active) */}
       {!IS_EMBED && timeYear != null && availableYears.length > 1 && (
