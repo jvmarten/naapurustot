@@ -786,7 +786,6 @@
   "filter.clear_all": "Rensa filter",
   "error.webgl_context_lost_desc": "Kartritningen avbröts. Ladda om sidan för att återställa kartan.",
   "legend.ramp_aria": "{label}: färgskala från {min} till {max}",
-  "legend.aggregate_scope": "Regionala sammanställningar — välj eller klicka på ett område för postnummerdata",
   "error.load_failed_detail": "Kontrollera din anslutning och försök igen.",
   "panel.dist_aria": "{metric}: detta områdes värde {value}, bättre än {pct} % av områdena",
   "compare.max_toast": "Jämför högst 3 områden \u2013 ta bort ett först",

@@ -95,9 +95,6 @@ export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, on
             <path strokeLinecap="round" strokeLinejoin="round" d="M3.6 9h16.8M3.6 15h16.8" />
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 3a15 15 0 014 9 15 15 0 01-4 9 15 15 0 01-4-9 15 15 0 014-9z" />
           </svg>
-          {/* O7: show the current scope so mobile users can tell what geography they're
-              viewing and that this control switches it. */}
-          <span className="max-w-[5.5rem] truncate">{t(value === 'all' ? 'city.all' : `city.${value}`)}</span>
         </button>
 
         {open && (
