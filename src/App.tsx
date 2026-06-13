@@ -1516,7 +1516,9 @@ const App: React.FC = () => {
   // Memoize the headerSlot to avoid creating new React elements on every App render.
   // Without this, LayerSelector (React.memo) re-renders on every unrelated state change.
   const layerSelectorHeaderSlot = useMemo(() => (
-    <div className="rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden">
+    // pointer-events-auto: re-enables events on this child of LayerSelector's
+    // pointer-events-none wrapper (which lets map drags pass through the gap).
+    <div className="pointer-events-auto rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden">
       <ComparisonScopeToggle
         scope={comparisonScope}
         onChange={handleScopeChange}
