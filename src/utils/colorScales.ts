@@ -920,6 +920,65 @@ export function getColorForValue(layer: LayerConfig, value: number | null | unde
   return layer.colors[0];
 }
 
+function hexToRgb(hex: string): [number, number, number] {
+  const c = hex.replace('#', '');
+  return [parseInt(c.slice(0, 2), 16), parseInt(c.slice(2, 4), 16), parseInt(c.slice(4, 6), 16)];
+}
+
+function lerpHex(a: string, b: string, tt: number): string {
+  const [ar, ag, ab] = hexToRgb(a);
+  const [br, bg, bb] = hexToRgb(b);
+  const r = Math.round(ar + (br - ar) * tt);
+  const g = Math.round(ag + (bg - ag) * tt);
+  const bl = Math.round(ab + (bb - ab) * tt);
+  return `#${((1 << 24) | (r << 16) | (g << 8) | bl).toString(16).slice(1)}`;
+}
+
+/**
+ * T3: JS equivalent of buildFillColorExpression's `interpolate ['linear']` — linear
+ * RGB interpolation between the two bracketing stops. Use this (not getColorForValue,
+ * which snaps to the nearest stop) when a UI swatch/badge must match the continuous
+ * on-map fill color exactly for the same value. Returns gray for null/undefined.
+ */
+export function getInterpolatedColor(layer: LayerConfig, value: number | null | undefined): string {
+  if (value == null || !isFinite(value)) return '#d1d5db';
+  const { stops, colors } = layer;
+  const last = stops.length - 1;
+  if (value <= stops[0]) return colors[0];
+  if (value >= stops[last]) return colors[last];
+  for (let i = 0; i < last; i++) {
+    const lo = stops[i];
+    const hi = stops[i + 1];
+    if (value >= lo && value <= hi) {
+      const tt = hi === lo ? 0 : (value - lo) / (hi - lo);
+      return lerpHex(colors[i], colors[i + 1], tt);
+    }
+  }
+  return colors[last];
+}
+
+/**
+ * Pick the foreground (#0f172a near-black vs #ffffff white) with the higher WCAG
+ * contrast against a hex background. Shared so every quality-index swatch (panel,
+ * profile, score card) stays legible on light ramp colors (gold/lime) — white text
+ * would fail contrast there.
+ */
+export function readableTextColor(bgHex: string): string {
+  const c = bgHex.replace('#', '');
+  if (c.length < 6) return '#ffffff';
+  const lin = (v: number) => {
+    const s = v / 255;
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  };
+  const L =
+    0.2126 * lin(parseInt(c.slice(0, 2), 16)) +
+    0.7152 * lin(parseInt(c.slice(2, 4), 16)) +
+    0.0722 * lin(parseInt(c.slice(4, 6), 16));
+  const contrastWhite = 1.05 / (L + 0.05);
+  const contrastDark = (L + 0.05) / 0.05;
+  return contrastDark >= contrastWhite ? '#0f172a' : '#ffffff';
+}
+
 let _rescaleCache: { layerId: string; features: GeoJSON.Feature[]; result: LayerConfig } | null = null;
 
 /**
@@ -1000,7 +1059,7 @@ export function rescaleLayerToData(
  * Build a MapLibre style expression for interpolated fill color.
  * Returns gray (#d1d5db) for features where the property is null/missing.
  */
-export function buildFillColorExpression(layer: LayerConfig, propertyOverride?: string): ExpressionSpecification {
+export function buildFillColorExpression(layer: LayerConfig, propertyOverride?: string, fallbackColor?: string): ExpressionSpecification {
   const prop = propertyOverride ?? layer.property;
   // The typeof guard below ensures we only reach the interpolation for actual numbers,
   // so no coercion fallback is needed. String-encoded numeric properties are converted
@@ -1012,7 +1071,10 @@ export function buildFillColorExpression(layer: LayerConfig, propertyOverride?: 
   }
   // Show gray for features where the property is null/missing/non-numeric.
   // The typeof check prevents non-numeric strings (e.g. "N/A") from being
-  // silently coerced to 0 by the to-number fallback.
+  // silently coerced to 0 by the to-number fallback. T1: when a `fallbackColor`
+  // is given (a region-estimate fill for a price layer), null areas paint that
+  // constant color instead of gray — they're then hatched by NO_DATA_LAYER, so
+  // they read as "sub-region estimate" rather than measured data.
   return [
     'case',
     ['all',
@@ -1021,6 +1083,6 @@ export function buildFillColorExpression(layer: LayerConfig, propertyOverride?: 
       ['==', ['typeof', ['get', prop]], 'number'],
     ],
     interpolation,
-    '#d1d5db',
+    fallbackColor ?? '#d1d5db',
   ] as unknown as ExpressionSpecification;
 }

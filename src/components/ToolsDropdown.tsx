@@ -56,6 +56,13 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
 }) => {
   useI18nVersion();
   const [open, setOpen] = useState(false);
+  // T9: power-user tools live under a collapsible "More tools" section so the menu
+  // opens to a short, everyday list. Auto-expand it when one of those tools is already
+  // active, so reopening the menu shows the active tool's checkmark (mirrors the
+  // LayerSelector group that auto-expands onto the active layer).
+  const [advancedOpen, setAdvancedOpen] = useState(
+    () => !!(showScatter || showRegionRanking || drawMode || selectMode || splitMode),
+  );
   const ref = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -208,6 +215,50 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
             )}
           </button>
 
+          {/* T9: contextual undo actions stay visible (never buried under "More
+              tools") so an active draw/selection or wizard highlight is always
+              clearable in one tap. */}
+          {hasPolygon && onClearDraw && (
+            <button
+              role="menuitem"
+              onClick={() => { onClearDraw(); setOpen(false); }}
+              className={`${itemClass} text-rose-500 dark:text-rose-400`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              <span>{t('draw.clear')}</span>
+            </button>
+          )}
+          {wizardHighlightActive && onClearWizardHighlight && (
+            <button
+              role="menuitem"
+              onClick={() => { onClearWizardHighlight(); setOpen(false); }}
+              className={`${itemClass} text-amber-600 dark:text-amber-400`}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              <span>{t('wizard.clear_highlights')}</span>
+            </button>
+          )}
+
+          {/* T9: "More tools" disclosure — collapses the advanced/analytical tools.
+              role="menuitem" so the menu's arrow-key/Home/End nav and open-focus
+              effect (which query [role="menuitem"]) include this toggle. */}
+          <button
+            role="menuitem"
+            onClick={() => setAdvancedOpen((v) => !v)}
+            aria-expanded={advancedOpen}
+            className={`${itemClass} text-surface-500 dark:text-surface-400 font-semibold uppercase tracking-wider !text-[11px]`}
+          >
+            <svg className={`w-3.5 h-3.5 transition-transform ${advancedOpen ? '' : '-rotate-90'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+            <span>{t('tools.more')}</span>
+          </button>
+
+          {advancedOpen && (<>
           {/* CF-3: Correlation / scatter explorer */}
           {onToggleScatter && (
             <button
@@ -285,34 +336,6 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
             </button>
           )}
 
-          {/* Clear drawn/selected area */}
-          {hasPolygon && onClearDraw && (
-            <button
-              role="menuitem"
-              onClick={() => { onClearDraw(); setOpen(false); }}
-              className={`${itemClass} text-rose-500 dark:text-rose-400`}
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-              <span>{t('draw.clear')}</span>
-            </button>
-          )}
-
-          {/* Clear wizard highlights */}
-          {wizardHighlightActive && onClearWizardHighlight && (
-            <button
-              role="menuitem"
-              onClick={() => { onClearWizardHighlight(); setOpen(false); }}
-              className={`${itemClass} text-amber-600 dark:text-amber-400`}
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-              <span>{t('wizard.clear_highlights')}</span>
-            </button>
-          )}
-
           {/* QW-4: Compare layers (split map) */}
           {onToggleSplitMode && (
             <button
@@ -343,6 +366,7 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
           <p className="px-4 pb-1 pt-0.5 text-[10px] leading-snug text-surface-400 dark:text-surface-500">
             {t('tools.compare_areas_hint')}
           </p>
+          </>)}
 
           {/* Divider */}
           <div className="border-t border-surface-200 dark:border-surface-700/40 my-1" />

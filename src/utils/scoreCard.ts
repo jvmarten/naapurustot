@@ -2,7 +2,16 @@ import type { NeighborhoodProperties } from './metrics';
 import { formatEuro, formatPct, formatEuroSqm, formatDiff, escapeHtml } from './formatting';
 import { t } from './i18n';
 import { getQualityCategory } from './qualityIndex';
+import { getLayerById, getInterpolatedColor, readableTextColor } from './colorScales';
 import { buildFullViewUrl } from './embed';
+
+// T3: inline CSS for a quality-index badge whose color is sampled from the same
+// quality_index map ramp the app uses (matches the panel/profile/map), with a
+// contrast-safe foreground (white text fails on the light gold/lime ramp values).
+function qiBadgeStyle(qi: number): string {
+  const bg = getInterpolatedColor(getLayerById('quality_index'), qi);
+  return `background:${bg};color:${readableTextColor(bg)};`;
+}
 
 /**
  * CF-10: share a generated PNG via the Web Share API (with the deep link) when the
@@ -66,9 +75,9 @@ export async function generateScoreCard(
       </div>
       ${qi != null && cat ? `
       <div style="display: flex; align-items: center; gap: 12px;">
-        <div style="width: 48px; height: 48px; border-radius: 12px; background: ${cat.color};
+        <div style="width: 48px; height: 48px; border-radius: 12px; ${qiBadgeStyle(qi)}
                     display: flex; align-items: center; justify-content: center;
-                    color: white; font-weight: 700; font-size: 18px;">${qi}</div>
+                    font-weight: 700; font-size: 18px;">${qi}</div>
         <div style="font-size: 13px; color: #64748b;">${escapeHtml(t('panel.quality_index'))}</div>
       </div>` : ''}
     </div>
@@ -148,7 +157,7 @@ export async function generateComparisonCard(pinned: NeighborhoodProperties[]): 
       const cat = qi != null ? getQualityCategory(qi) : null;
       return `<td style="${td}">${
         qi != null && cat
-          ? `<span style="display:inline-block;min-width:34px;padding:3px 6px;border-radius:8px;background:${cat.color};color:#fff;font-weight:700;">${qi}</span>`
+          ? `<span style="display:inline-block;min-width:34px;padding:3px 6px;border-radius:8px;${qiBadgeStyle(qi)}font-weight:700;">${qi}</span>`
           : '—'
       }</td>`;
     })
@@ -210,7 +219,7 @@ export async function generateShortlistCard(areas: NeighborhoodProperties[], dee
       const qi = a.quality_index;
       const cat = qi != null ? getQualityCategory(qi) : null;
       const badge = qi != null && cat
-        ? `<div style="flex-shrink:0;width:42px;height:42px;border-radius:10px;background:${cat.color};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:16px;">${qi}</div>`
+        ? `<div style="flex-shrink:0;width:42px;height:42px;border-radius:10px;${qiBadgeStyle(qi)}display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;">${qi}</div>`
         : `<div style="flex-shrink:0;width:42px;height:42px;border-radius:10px;background:#e2e8f0;"></div>`;
       const metrics = cardMetrics
         .map(({ key, label, format }) =>

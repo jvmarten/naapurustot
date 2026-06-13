@@ -8,6 +8,20 @@
   box-sizing: border-box;
 }
 
+/* T6: every scroll region contains its overscroll, so reaching a scroll boundary
+   inside a panel/menu/sheet never chains the scroll up to the document — which on
+   iOS Safari otherwise rubber-bands the whole page and visually "grabs" the map
+   underneath. Targets the Tailwind overflow utilities (only sets overscroll-behavior,
+   so it never conflicts with the `overflow` property each class sets). Covers every
+   scroller in one place instead of a per-component class that's easy to forget. The
+   MapLibre canvas container uses `inset-0`, not these utilities, so map gestures are
+   untouched. */
+.overflow-y-auto,
+.overflow-auto,
+.overflow-y-scroll {
+  overscroll-behavior: contain;
+}
+
 /* A3: global keyboard-focus baseline (brand-500 / brand-400 in dark) */
 :focus-visible {
   outline: 2px solid #0c93e7;
@@ -36,6 +50,12 @@ body,
   height: 100%;
   width: 100%;
   touch-action: manipulation;
+  /* T6: kill iOS Safari pull-to-refresh and document scroll-chaining. The app is a
+     fullscreen map SPA; `overflow:hidden` on #main does NOT stop the viewport-level
+     rubber-band that drags the whole page (map included) when a panel scroller hits
+     its boundary. overscroll-behavior:none is what actually disables it. Panels
+     additionally use Tailwind `overscroll-contain` so their own scroll never chains. */
+  overscroll-behavior: none;
 }
 
 /* C1: indeterminate top progress bar shown during region/scope switches (after

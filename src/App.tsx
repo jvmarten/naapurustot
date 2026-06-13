@@ -68,11 +68,11 @@ import { getFeatureCenter } from './utils/geometryFilter';
 import { toSlug } from './utils/slug';
 import { ISOCHRONE_ENABLED, fetchIsochrone, type IsochroneMode } from './utils/isochrone';
 
-const initialUrl = readInitialUrlState();
-// CF-1: restore colorblind mode + language from a shared URL before first render,
-// so getColorblindMode()/getLang() below pick them up.
-if (initialUrl.colorblind) setColorblindMode(initialUrl.colorblind);
-if (initialUrl.lang) void setLang(initialUrl.lang);
+// T2: the URL snapshot is read per-mount inside <App> (see initialUrl below), NOT
+// at module scope. App is statically imported, so a module-scope read would freeze
+// to the document's FIRST URL and ignore later client-side navigations into `/?pno=`
+// (e.g. the profile page's "Explore on the map" CTA), landing the user on the empty
+// all-Finland view instead of their area.
 
 // QW-3: resolve which region's bounding box contains a coordinate. Region
 // bounds can overlap (irregular seutukunnat → rectangular bboxes), so pick the
@@ -117,6 +117,22 @@ const ModalFallback: React.FC = () => (
 );
 
 const App: React.FC = () => {
+  // T2: snapshot the LIVE URL once per mount (not at module scope). Because react-router
+  // unmounts/remounts <App> on a client-side navigation into `/`, this sees the real
+  // `window.location.search` (e.g. `?pno=00100`) and every initialUrl.* consumer below
+  // works for in-app navigations, not just hard document loads.
+  const initialUrl = useRef(readInitialUrlState()).current;
+  // CF-1: restore colorblind mode + language from a shared URL before first paint, so
+  // getColorblindMode()/getLang() pick them up on this mount's first render. Ref-guarded
+  // so it runs exactly once. (App is not yet an i18n subscriber during its own first
+  // render, so setLang's notify() is a no-op here — no setState-during-render hazard.)
+  const bootRef = useRef(false);
+  if (!bootRef.current) {
+    bootRef.current = true;
+    if (initialUrl.colorblind) setColorblindMode(initialUrl.colorblind);
+    if (initialUrl.lang) void setLang(initialUrl.lang);
+  }
+
   // City filter — declared before useMapData so the hook can load the right region
   const [cityFilter, setCityFilter] = useState<CityFilter>((initialUrl.city as CityFilter) ?? DEFAULT_CITY);
 
@@ -394,7 +410,7 @@ const App: React.FC = () => {
     [rawSecondaryGrid, data],
   );
   const { favorites, isFavorite, toggleFavorite } = useFavorites(user?.id);
-  const { recent, addRecent } = useRecentNeighborhoods();
+  const { recent, addRecent, clearRecent } = useRecentNeighborhoods();
   // QW-2: durable shortlist (distinct from one-tap favorites). QW-2b: cloud-syncs when signed in.
   const { shortlist, isInShortlist, toggleShortlist, removeFromShortlist, clearShortlist, mergeIntoShortlist } = useShortlist(user?.id);
   // CF-14: affordability inputs (localStorage + URL-shared). Hydrates from a shared link;
@@ -506,6 +522,40 @@ const App: React.FC = () => {
         : cityAverages,
     [referenceProps, referencePno, selected?.pno, cityAverages],
   );
+
+  // T1: the selected area's seutukunta (sub-region) housing/rent price averages, used
+  // as a display-only fallback in the panel/profile when the area has no own value.
+  // In a single-region view `cityAverages` already IS this seutukunta's average; in the
+  // all-Finland view, read the prebuilt per-seutukunta aggregates. Only the two price
+  // fields are forwarded (coerced to finite numbers).
+  const selectedRegionAverages = useMemo<Record<string, number> | null>(() => {
+    const city = selected?.city;
+    if (!city) return null;
+    const src: Record<string, unknown> | undefined =
+      cityFilter !== 'all' ? cityAverages : aggregates?.regions?.[city];
+    if (!src) return null;
+    const out: Record<string, number> = {};
+    const pp = src.property_price_sqm;
+    const rp = src.rental_price_sqm;
+    if (typeof pp === 'number' && isFinite(pp)) out.property_price_sqm = pp;
+    if (typeof rp === 'number' && isFinite(rp)) out.rental_price_sqm = rp;
+    return out;
+  }, [selected?.city, cityFilter, cityAverages, aggregates]);
+  const selectedRegionName = selected?.city ? t('city.' + selected.city) : '';
+
+  // T1: in a region view with a housing/rent price layer active, the seutukunta's
+  // average for that metric — drives the map's region-estimate tint and the tooltip
+  // fallback for areas with no own value. Null in the all-Finland view (which shows
+  // region aggregates, not per-area gaps) and during time-scrubbing (the estimate is
+  // not year-matched).
+  const priceFallbackValue = useMemo<number | null>(() => {
+    if (cityFilter === 'all' || timeYear != null) return null;
+    const prop = activeLayer === 'property_price' ? 'property_price_sqm'
+      : activeLayer === 'rental_price' ? 'rental_price_sqm' : null;
+    if (!prop) return null;
+    const v = cityAverages[prop];
+    return typeof v === 'number' && isFinite(v) ? v : null;
+  }, [cityFilter, timeYear, activeLayer, cityAverages]);
   const handleSetReference = useCallback((pno: string | null) => {
     setReferencePno(pno);
     // QW-2: mirror to localStorage so "my home" survives reloads (URL `ref` still
@@ -860,7 +910,7 @@ const App: React.FC = () => {
       }
     }
     if (restoredSomething) restoredPno.current = true;
-  }, [data, select, pin, pnoFeatureMap]);
+  }, [data, select, pin, pnoFeatureMap, initialUrl]);
 
   // CF-1 / QW-2: apply shared analytical state from the URL once on mount. CF-6:
   // shared weights and wizard profile are *seeded* — reproduced for this session so
@@ -1370,7 +1420,7 @@ const App: React.FC = () => {
       isoRestoredRef.current = true;
       void handleIsochroneChange(initialUrl.isochrone.mode, initialUrl.isochrone.budget);
     }
-  }, [selected?.pno, handleIsochroneChange]);
+  }, [selected?.pno, handleIsochroneChange, initialUrl]);
 
   // C6: full reset — return to the default region AND clear all transient state
   // (selection, pins, drawn/selected area, filters, panels, wizard highlight, scope).
@@ -1683,6 +1733,7 @@ const App: React.FC = () => {
     } catch { /* localStorage unavailable */ }
     setShowTour(true);
     // Run once on mount: the start condition no longer depends on load state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initialUrl is a stable mount-time snapshot, read once
   }, []);
 
   const handleCloseTour = useCallback(() => {
@@ -1946,6 +1997,7 @@ const App: React.FC = () => {
             layerConfig={effectiveLayer}
             isochrone={isochronePolygon}
             onMoveEnd={handleMapMoveEnd}
+            priceFallbackValue={priceFallbackValue}
           />
         )}
       </ErrorBoundary>
@@ -2094,6 +2146,7 @@ const App: React.FC = () => {
             searchData={searchIndex}
             onSelect={handleSearch}
             recent={recent}
+            onClearRecent={clearRecent}
             lang={lang}
             homePno={referencePno}
             homeName={referenceName}
@@ -2219,7 +2272,7 @@ const App: React.FC = () => {
       })()}
 
       {/* Legend — repositioned for mobile (MO2: suppressed on mobile when an area panel covers it) */}
-      <Legend layerId={activeLayer} colorblind={colorblind} layerConfig={effectiveLayer} lang={lang} gridLoading={gridLoading && hasGridData(activeLayer)} gridError={gridError && hasGridData(activeLayer)} hidden={!!selected} />
+      <Legend layerId={activeLayer} colorblind={colorblind} layerConfig={effectiveLayer} lang={lang} gridLoading={gridLoading && hasGridData(activeLayer)} gridError={gridError && hasGridData(activeLayer)} hidden={!!selected} subregionEstimate={priceFallbackValue != null} />
 
       {/* PO-2: Time slider / historical playback (only when a time-series metric is active) */}
       {!IS_EMBED && timeYear != null && availableYears.length > 1 && (
@@ -2241,6 +2294,7 @@ const App: React.FC = () => {
         hidden={!!selected}
         effectiveLayer={effectiveLayer}
         metroAverage={(comparisonScope === 'region' ? cityAverages : metroAverages)[effectiveLayer.property]}
+        priceFallbackValue={priceFallbackValue}
       />
 
       {/* Custom quality sliders panel */}
@@ -2284,6 +2338,8 @@ const App: React.FC = () => {
             referencePno={referencePno}
             referenceName={referenceName}
             onSetReference={handleSetReference}
+            regionPriceAverages={selectedRegionAverages}
+            regionName={selectedRegionName}
             qualityScope={comparisonScope === 'region' && cityFilter !== 'all' ? 'region' : 'national'}
             onExploreCity={handleExploreCity}
             userId={user?.id ?? null}
@@ -2630,7 +2686,7 @@ const App: React.FC = () => {
       {/* QW-1: Onboarding tour (hidden in embed mode) */}
       {!IS_EMBED && showTour && (
         <Suspense fallback={null}>
-          <OnboardingTour onComplete={handleCloseTour} skipAuthStep={!!user} />
+          <OnboardingTour onComplete={handleCloseTour} skipAuthStep={!!user} lang={lang} onLangChange={handleLangChange} />
         </Suspense>
       )}
 

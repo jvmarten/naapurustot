@@ -15,7 +15,7 @@ import type { IsochroneMode } from '../utils/isochrone';
 import { findSimilarNeighborhoods, AVAILABLE_SIMILARITY_METRICS, SIMILARITY_WEIGHT_MIN, SIMILARITY_WEIGHT_MAX, SIMILARITY_WEIGHT_DEFAULT } from '../utils/similarity';
 import { resolveNeighborPnos } from '../utils/adjacency';
 import { getFeatureCenter } from '../utils/geometryFilter';
-import { getLayerById, type LayerId } from '../utils/colorScales';
+import { getLayerById, getInterpolatedColor, readableTextColor, type LayerId } from '../utils/colorScales';
 import { histogram, percentileRank, binIndexOf } from '../utils/correlation';
 import { toSlug } from '../utils/slug';
 import { useNavigate } from 'react-router-dom';
@@ -89,6 +89,11 @@ interface PanelProps {
   similarityWeights?: Record<string, number>;
   onSimilarityWeightChange?: (key: string, value: number) => void;
   onSimilarityToggle?: (key: string) => void;
+  /** T1: the selected area's seutukunta (sub-region) averages — used as a display-only
+   *  fallback for housing/rent price when the area has no own value. */
+  regionPriceAverages?: Record<string, number> | null;
+  /** T1: the selected area's seutukunta display name, shown in the fallback disclaimer. */
+  regionName?: string;
 }
 
 /** CF-5: the per-row diff baseline label — the custom reference's name when one is
@@ -104,7 +109,12 @@ const StatRow: React.FC<{
   property?: string;
   /** Optional trend data to render an inline sparkline */
   sparkline?: { data: import('../utils/metrics').TrendDataPoint[]; color?: string } | null;
-}> = React.memo(({ label, value, diff, diffClass, property, sparkline }) => {
+  /** T1: the displayed value is the seutukunta (sub-region) average because this area
+   *  has no own value — render a "Seutuarvio" badge + disclaimer. */
+  subregionEstimate?: boolean;
+  /** T1: the sub-region's display name, interpolated into the disclaimer. */
+  subregionName?: string;
+}> = React.memo(({ label, value, diff, diffClass, property, sparkline, subregionEstimate, subregionName }) => {
   useI18nVersion();
   // CF-5: "vs <reference>" when a custom reference baseline is active, else "vs metro".
   const baselineLabel = React.useContext(BaselineLabelContext);
@@ -223,6 +233,11 @@ const StatRow: React.FC<{
                     {t('data.estimate_desc')}
                   </span>
                 )}
+                {subregionEstimate && (
+                  <span className="block mb-1.5 text-amber-300">
+                    {t('data.subregion_estimate_desc').replace('{region}', subregionName ?? '')}
+                  </span>
+                )}
                 {/* PO-4: registry caveat note (i18n key) — derivation/coverage/mixed-vintage details */}
                 {source.note && (
                   <span className="block mb-1.5 text-surface-200 dark:text-surface-300">
@@ -246,6 +261,13 @@ const StatRow: React.FC<{
       <div className="flex items-center gap-2 text-right">
         {sparkline?.data && sparkline.data.length >= 2 && (
           <Sparkline data={sparkline.data} color={sparkline.color} />
+        )}
+        {subregionEstimate && (
+          <span className="inline-flex items-center rounded px-1 py-px text-[8px] font-semibold uppercase tracking-wide
+                           bg-amber-400/15 text-amber-600 dark:text-amber-400 border border-amber-400/30"
+                title={t('data.subregion_estimate_desc').replace('{region}', subregionName ?? '')}>
+            {t('data.subregion_estimate')}
+          </span>
         )}
         <span className="text-surface-900 dark:text-white font-medium">{value}</span>
         {diff && (
@@ -535,27 +557,6 @@ AreaSummarySection.displayName = 'AreaSummarySection';
  * NeighborhoodPanel. Without this, each animation frame re-evaluates
  * ~1000 lines of JSX just to update a single number.
  */
-/**
- * PO-1b: pick black or white text for a colored chip so it always meets WCAG AA.
- * The Quality Index badge colour ranges red→green; white text fails on the light
- * (orange/yellow) mid-scale values, so choose whichever foreground has the higher
- * contrast against the given background.
- */
-function readableTextColor(bgHex: string): string {
-  const c = bgHex.replace('#', '');
-  if (c.length < 6) return '#ffffff';
-  const lin = (v: number) => {
-    const s = v / 255;
-    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
-  };
-  const L =
-    0.2126 * lin(parseInt(c.slice(0, 2), 16)) +
-    0.7152 * lin(parseInt(c.slice(2, 4), 16)) +
-    0.0722 * lin(parseInt(c.slice(4, 6), 16));
-  const contrastWhite = 1.05 / (L + 0.05);
-  const contrastDark = (L + 0.05) / 0.05;
-  return contrastDark >= contrastWhite ? '#0f172a' : '#ffffff';
-}
 
 const QualityBadge: React.FC<{
   qualityIndex: number;
@@ -566,6 +567,12 @@ const QualityBadge: React.FC<{
   const animatedQi = useAnimatedValue(qualityIndex);
   const qi = animatedQi != null ? Math.round(animatedQi) : qualityIndex;
   const cat = getQualityCategory(qi);
+  // T3: color the swatch/pointer/band-strip from the SAME quality_index ramp the map
+  // fill uses (continuous interpolation, colorblind-aware via getLayerById) so the
+  // panel matches the map exactly. getQualityCategory is kept only for the label text
+  // and the band min/max.
+  const qiLayer = getLayerById('quality_index');
+  const qiColor = getInterpolatedColor(qiLayer, qi);
   const lang = getLang();
   // CF-1: "How is this calculated?" explainer popover.
   const [showHow, setShowHow] = useState(false);
@@ -637,7 +644,7 @@ const QualityBadge: React.FC<{
       <div className="flex items-center gap-3 mb-3">
         <div
           className="w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm"
-          style={{ backgroundColor: cat?.color ?? '#6b7280', color: readableTextColor(cat?.color ?? '#6b7280') }}
+          style={{ backgroundColor: qiColor, color: readableTextColor(qiColor) }}
         >
           {qi}
         </div>
@@ -654,7 +661,7 @@ const QualityBadge: React.FC<{
             <div key={c.min} className="flex-1 flex flex-col items-center gap-1">
               <div
                 className="w-full h-2 rounded-full"
-                style={{ backgroundColor: c.color }}
+                style={{ backgroundColor: getInterpolatedColor(qiLayer, (c.min + c.max) / 2) }}
               />
               <span className="text-[9px] text-surface-600 dark:text-surface-400">{c.label[lang]}</span>
             </div>
@@ -665,7 +672,7 @@ const QualityBadge: React.FC<{
           style={{
             left: `${qi}%`,
             transform: 'translateX(-50%)',
-            backgroundColor: cat?.color ?? '#6b7280',
+            backgroundColor: qiColor,
           }}
         />
       </div>
@@ -840,7 +847,7 @@ const NotesEditor: React.FC<{ pno: string; userId?: string | null }> = React.mem
 });
 NotesEditor.displayName = 'NotesEditor';
 
-export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, qualityWeights, allFeatures, summaryScope = 'national', summaryRegion = '', activeLayer, onFlyTo, isFavorite = false, onToggleFavorite, isInShortlist = false, onToggleShortlist, referencePno, referenceName, onSetReference, qualityScope = 'national', onExploreCity, userId, isochroneEnabled = false, isochroneMode = 'walk', isochroneBudget = 20, isochroneLoading = false, isochroneError = false, isochroneActive = false, onIsochroneChange, onIsochroneClear, similarityWeights, onSimilarityWeightChange, onSimilarityToggle }) => {
+export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, qualityWeights, allFeatures, summaryScope = 'national', summaryRegion = '', activeLayer, onFlyTo, isFavorite = false, onToggleFavorite, isInShortlist = false, onToggleShortlist, referencePno, referenceName, onSetReference, qualityScope = 'national', onExploreCity, userId, isochroneEnabled = false, isochroneMode = 'walk', isochroneBudget = 20, isochroneLoading = false, isochroneError = false, isochroneActive = false, onIsochroneChange, onIsochroneClear, similarityWeights, onSimilarityWeightChange, onSimilarityToggle, regionPriceAverages, regionName }) => {
   useI18nVersion();
   // M5: honor "Reduce Motion" on the two most frequent mobile interactions (sheet
   // open/drag, tab-carousel snap), matching the map's reduced-motion fast paths.
@@ -856,6 +863,12 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
   const hasEduData = useMemo(() =>
     [d.ko_yl_kork, d.ko_al_kork, d.ko_ammat, d.ko_perus].some((v) => v != null && v > 0),
     [d.ko_yl_kork, d.ko_al_kork, d.ko_ammat, d.ko_perus]);
+
+  // T1: housing-sale / rent price fall back to the seutukunta (sub-region) average when
+  // this area has no own value. Display-only — the choropleth/JSON-LD stay real per-area
+  // data. `null` fallback means even the region has no value, so the row keeps showing '—'.
+  const propertyPriceFallback = d.property_price_sqm == null ? (regionPriceAverages?.property_price_sqm ?? null) : null;
+  const rentalPriceFallback = d.rental_price_sqm == null ? (regionPriceAverages?.rental_price_sqm ?? null) : null;
 
   // Copy link / share state
   const [copied, setCopied] = useState(false);
@@ -1421,10 +1434,14 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
           />
           <StatRow
             label={t('panel.rental_price')}
-            value={d.rental_price_sqm != null ? `${Number(d.rental_price_sqm).toFixed(2)} €/m²/kk` : '—'}
-            diff={formatDiff(d.rental_price_sqm, avg.rental_price_sqm)}
+            value={d.rental_price_sqm != null
+              ? `${Number(d.rental_price_sqm).toFixed(2)} €/m²/kk`
+              : (rentalPriceFallback != null ? `${Number(rentalPriceFallback).toFixed(2)} €/m²/kk` : '—')}
+            diff={d.rental_price_sqm != null ? formatDiff(d.rental_price_sqm, avg.rental_price_sqm) : undefined}
             diffClass={diffColor(d.rental_price_sqm, avg.rental_price_sqm, false)}
             property="rental_price_sqm"
+            subregionEstimate={d.rental_price_sqm == null && rentalPriceFallback != null}
+            subregionName={regionName}
           />
           <StatRow
             label={t('panel.price_to_rent')}
@@ -1500,10 +1517,12 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
         <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
           <StatRow
             label={t('panel.property_price')}
-            value={formatEuroSqm(d.property_price_sqm)}
-            diff={formatDiff(d.property_price_sqm, avg.property_price_sqm)}
+            value={d.property_price_sqm != null ? formatEuroSqm(d.property_price_sqm) : (propertyPriceFallback != null ? formatEuroSqm(propertyPriceFallback) : '—')}
+            diff={d.property_price_sqm != null ? formatDiff(d.property_price_sqm, avg.property_price_sqm) : undefined}
             diffClass={diffColor(d.property_price_sqm, avg.property_price_sqm)}
             property="property_price_sqm"
+            subregionEstimate={d.property_price_sqm == null && propertyPriceFallback != null}
+            subregionName={regionName}
           />
           <StatRow
             label={t('panel.property_price_change')}

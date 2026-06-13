@@ -1,11 +1,16 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { t } from '../utils/i18n';
+import { t, useI18nVersion, type Lang } from '../utils/i18n';
 import { trackEvent } from '../utils/analytics';
+import { LanguagePicker } from './LanguagePicker';
 
 interface OnboardingTourProps {
   onComplete: () => void;
   /** When true, omit the sign-in step (user is already authenticated). */
   skipAuthStep?: boolean;
+  /** T5: current UI language + setter, so a first-time visitor can switch from the
+   *  Finnish default to EN/SV from the welcome step without exiting the tour. */
+  lang?: Lang;
+  onLangChange?: (lang: Lang) => void | Promise<void>;
 }
 
 interface Step {
@@ -48,7 +53,11 @@ function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v));
 }
 
-export const OnboardingTour: React.FC<OnboardingTourProps> = ({ onComplete, skipAuthStep = false }) => {
+export const OnboardingTour: React.FC<OnboardingTourProps> = ({ onComplete, skipAuthStep = false, lang, onLangChange }) => {
+  // T5: re-render the tour when the language switches (and when the lazy en/sv
+  // dictionary arrives, replacing the Finnish fallback) — the tour is the contract-
+  // correct subscriber rather than relying on App's re-render.
+  useI18nVersion();
   const steps = useMemo(
     () => (skipAuthStep ? ALL_STEPS.filter((s) => !s.anchors.includes('auth')) : ALL_STEPS),
     [skipAuthStep],
@@ -301,6 +310,16 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({ onComplete, skip
           <p className="mt-3 text-xs text-surface-500 dark:text-surface-400 italic">
             {t(step.hintKey)}
           </p>
+        )}
+
+        {/* T5: language choice on the welcome step. Buttons render inside popoverRef,
+            so the existing Tab focus-trap includes them and the outside-click-advance
+            won't fire on them. Switching keeps the current step — translations swap in
+            place. */}
+        {isFirst && lang && onLangChange && (
+          <div className="mt-4">
+            <LanguagePicker lang={lang} onLangChange={onLangChange} />
+          </div>
         )}
 
         {/* Progress dots */}
