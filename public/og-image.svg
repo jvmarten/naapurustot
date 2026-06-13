@@ -1,34 +1,49 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" fill="none">
-  <rect width="1200" height="630" fill="#1e3a5f"/>
-  <rect x="40" y="40" width="1120" height="550" rx="20" fill="#0f2440" stroke="#2d5a8e" stroke-width="2"/>
-  <!-- Map grid lines -->
-  <g opacity="0.15" stroke="#4a90d9" stroke-width="1">
-    <line x1="100" y1="100" x2="100" y2="530"/>
-    <line x1="250" y1="100" x2="250" y2="530"/>
-    <line x1="400" y1="100" x2="400" y2="530"/>
-    <line x1="550" y1="100" x2="550" y2="530"/>
-    <line x1="700" y1="100" x2="700" y2="530"/>
-    <line x1="100" y1="200" x2="700" y2="200"/>
-    <line x1="100" y1="300" x2="700" y2="300"/>
-    <line x1="100" y1="400" x2="700" y2="400"/>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1e3a5f"/>
+      <stop offset="1" stop-color="#0c1d33"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="40" x2="0" y2="590" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#13294a"/>
+      <stop offset="1" stop-color="#0d1f39"/>
+    </linearGradient>
+    <clipPath id="cardClip">
+      <rect x="40" y="40" width="1120" height="550" rx="24"/>
+    </clipPath>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect x="40" y="40" width="1120" height="550" rx="24" fill="url(#card)" stroke="#2d5a8e" stroke-width="2"/>
+
+  <!-- Decorative neighbourhood mosaic, full-bleed and faint so text stays legible -->
+  <g clip-path="url(#cardClip)">
+    <g opacity="0.10" stroke="#4a90d9" stroke-width="1">
+      <line x1="190" y1="40" x2="190" y2="590"/>
+      <line x1="430" y1="40" x2="430" y2="590"/>
+      <line x1="770" y1="40" x2="770" y2="590"/>
+      <line x1="1010" y1="40" x2="1010" y2="590"/>
+      <line x1="40" y1="190" x2="1160" y2="190"/>
+      <line x1="40" y1="430" x2="1160" y2="430"/>
+    </g>
+    <g opacity="0.16">
+      <path d="M120 130 L250 110 L270 200 L170 230 Z" fill="#3b82f6"/>
+      <path d="M250 110 L390 90 L410 180 L270 200 Z" fill="#60a5fa"/>
+      <path d="M170 230 L270 200 L290 290 L200 310 Z" fill="#2563eb"/>
+      <path d="M270 200 L410 180 L430 270 L290 290 Z" fill="#93c5fd"/>
+      <path d="M390 90 L530 100 L520 190 L410 180 Z" fill="#1d4ed8"/>
+      <path d="M200 310 L290 290 L310 380 L230 400 Z" fill="#60a5fa"/>
+      <path d="M820 360 L950 340 L970 430 L870 460 Z" fill="#2563eb"/>
+      <path d="M950 340 L1060 360 L1040 450 L970 430 Z" fill="#3b82f6"/>
+      <path d="M880 460 L970 430 L990 510 L900 530 Z" fill="#93c5fd"/>
+      <path d="M1010 130 L1090 160 L1070 250 L990 220 Z" fill="#60a5fa"/>
+    </g>
   </g>
-  <!-- Abstract neighborhood shapes -->
-  <g opacity="0.6">
-    <path d="M150 180 L280 160 L300 250 L200 280 Z" fill="#3b82f6"/>
-    <path d="M280 160 L420 140 L440 230 L300 250 Z" fill="#60a5fa"/>
-    <path d="M200 280 L300 250 L320 340 L230 360 Z" fill="#2563eb"/>
-    <path d="M300 250 L440 230 L460 320 L320 340 Z" fill="#93c5fd"/>
-    <path d="M420 140 L560 150 L550 240 L440 230 Z" fill="#1d4ed8"/>
-    <path d="M440 230 L550 240 L540 330 L460 320 Z" fill="#3b82f6"/>
-    <path d="M230 360 L320 340 L340 430 L260 440 Z" fill="#60a5fa"/>
-    <path d="M320 340 L460 320 L470 410 L340 430 Z" fill="#2563eb"/>
-    <path d="M460 320 L540 330 L530 420 L470 410 Z" fill="#93c5fd"/>
-    <path d="M560 150 L660 180 L640 270 L550 240 Z" fill="#60a5fa"/>
-    <path d="M550 240 L640 270 L620 360 L540 330 Z" fill="#3b82f6"/>
-  </g>
-  <!-- Text -->
-  <text x="850" y="260" font-family="system-ui, sans-serif" font-weight="700" font-size="64" fill="white" text-anchor="middle">naapurustot</text>
-  <text x="850" y="260" font-family="system-ui, sans-serif" font-weight="700" font-size="64" fill="#3b82f6" text-anchor="middle" dx="315">.fi</text>
-  <text x="850" y="320" font-family="system-ui, sans-serif" font-weight="400" font-size="24" fill="#94a3b8" text-anchor="middle">Helsingin seudun naapurustot kartalla</text>
-  <text x="850" y="380" font-family="system-ui, sans-serif" font-weight="400" font-size="20" fill="#64748b" text-anchor="middle">35+ mittaria · 160+ naapurustoa · Helsinki · Espoo · Vantaa</text>
+
+  <!-- Centred wordmark + tagline -->
+  <text x="600" y="290" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-weight="800" font-size="92" letter-spacing="-2" text-anchor="middle"><tspan fill="#ffffff">naapurustot</tspan><tspan fill="#4a90d9">.fi</tspan></text>
+
+  <text x="600" y="360" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-weight="500" font-size="34" fill="#cbd5e1" text-anchor="middle">Vertaile koko Suomen asuinalueita kartalla</text>
+
+  <text x="600" y="430" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-weight="400" font-size="24" fill="#7c93b3" text-anchor="middle">Lähes 60 mittaria · 3 000+ postinumeroaluetta · 69 seutukuntaa</text>
 </svg>
