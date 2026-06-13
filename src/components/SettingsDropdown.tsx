@@ -110,6 +110,11 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
 }) => {
   useI18nVersion();
   const [open, setOpen] = useState(false);
+  // T9-style: keep the menu short — only theme + language show by default; the rest
+  // (display tweaks, tour/shortcuts, share/embed) live under a collapsible "More
+  // settings" section. Auto-expand it when a non-default display setting is active so
+  // the user can see/undo it (mirrors ToolsDropdown + the LayerSelector groups).
+  const [advancedOpen, setAdvancedOpen] = useState(() => colorblind !== 'off' || fillOpacity !== 1);
   const ref = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const { mode, setMode } = useTheme();
@@ -257,6 +262,24 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
             <LanguagePicker lang={lang} onLangChange={onLangChange} itemRole="menuitem" />
           </div>
 
+          {/* "More settings" disclosure — collapses the display tweaks, tour/shortcuts,
+              and share/embed actions so the menu opens to a short, everyday list. */}
+          <div className="border-t border-surface-100 dark:border-surface-700/40 my-1" />
+          <button
+            role="menuitem"
+            onClick={() => setAdvancedOpen((v) => !v)}
+            aria-expanded={advancedOpen}
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider
+                       text-surface-500 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors
+                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60"
+          >
+            <svg className={`w-3.5 h-3.5 transition-transform ${advancedOpen ? '' : '-rotate-90'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+            <span>{t('settings.more')}</span>
+          </button>
+
+          {advancedOpen && (<>
           {/* Colorblind mode */}
           <div className="px-4 py-2.5">
             <div className="flex items-center gap-3 mb-2">
@@ -286,11 +309,6 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
 
           {/* Divider */}
           <div className="border-t border-surface-100 dark:border-surface-700/40 my-1" />
-
-          {/* Donate */}
-          <Suspense fallback={null}>
-            <DonateButton variant="menu-item" />
-          </Suspense>
 
           {/* QW-1: Re-launch the onboarding tour */}
           {onShowTour && (
@@ -385,6 +403,13 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
               </button>
             </div>
           )}
+          </>)}
+
+          {/* Donate — always visible support CTA, not tucked under "More settings" */}
+          <div className="border-t border-surface-100 dark:border-surface-700/40 my-1" />
+          <Suspense fallback={null}>
+            <DonateButton variant="menu-item" />
+          </Suspense>
 
           {/* PO-14: privacy & data-handling notice (lang-aware prerendered page) */}
           <div className="border-t border-surface-100 dark:border-surface-700/40 my-1" />
