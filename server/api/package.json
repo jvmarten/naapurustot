@@ -25,7 +25,11 @@
     "@types/jsonwebtoken": "^9.0.9",
     "@types/node": "^22.15.3",
     "@types/pg": "^8.15.2",
-    "tsx": "^4.19.4",
+    "tsx": "^4.22.4",
     "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "esbuild": "^0.28.1",
+    "qs": "^6.15.2"
   }
 }
