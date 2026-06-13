@@ -76,6 +76,13 @@ interface MapProps {
 const EMPTY_SET = new Set<string>();
 const EMPTY_ARRAY: string[] = [];
 
+// T4: only the genuine first <Map> mount (the cold-load landing) skips the initial
+// animated fitBounds — that's where the Helsinki→all-Finland fly-out flash happened.
+// Later remounts (closing split view, WebGL context recovery) capture a live flyTarget
+// that is often bounds-only/zoom-less, so they MUST let the flyTo effect re-fit instead
+// of freezing at the constructor's DEFAULT_ZOOM. Module-scoped so it survives remounts.
+let isFirstMapMount = true;
+
 const LABELS_SOURCE_ID = 'carto-labels';
 const LABELS_LAYER = 'carto-labels';
 
@@ -277,6 +284,10 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   // frame; the flyTo effect skips this identity so it doesn't re-animate to a camera
   // the constructor already set (which caused the world-view fly-out flash on load).
   const initialFlyToRef = useRef(flyTo);
+  // T4: capture whether THIS mount is the genuine first one. Only then is the initial
+  // flyTo skipped — on a remount the constructor can't reproduce a bounds-only/zoom-less
+  // target, so the flyTo effect must run its fitBounds to frame it correctly.
+  const isFirstMountRef = useRef(isFirstMapMount);
 
   // T1: keep the latest price fallback value reachable from effect/setTimeout closures.
   const priceFallbackValueRef = useRef(priceFallbackValue);
@@ -294,6 +305,8 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   // Initialize map
   useEffect(() => {
     if (!containerRef.current) return;
+    // T4: any subsequent <Map> mount is a remount — its flyTo effect must run.
+    isFirstMapMount = false;
 
     let map: maplibregl.Map;
     // T4: paint the FIRST frame at the real target camera (from the mount-time flyTo
@@ -1241,11 +1254,12 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   // FlyTo / fitBounds
   useEffect(() => {
     if (!mapRef.current || !flyTo) return;
-    // T4: the constructor already positioned the map at the mount-time flyTo, so skip
-    // animating to that same target on first run (this is what produced the world-view
-    // fly-out flash). Every later viewport change (deep link, city switch, search
-    // result, "copy link to this view") gets a fresh object identity and still animates.
-    if (flyTo === initialFlyToRef.current) return;
+    // T4: on the genuine first mount the constructor already positioned the map at the
+    // mount-time flyTo, so skip animating to that same target (this is what produced the
+    // world-view fly-out flash). On a REMOUNT the captured target may be bounds-only/
+    // zoom-less, which the constructor can't reproduce — so don't skip there; fall
+    // through to fitBounds. Every later viewport change gets a fresh identity and animates.
+    if (flyTo === initialFlyToRef.current && isFirstMountRef.current) return;
     // PO-1: jump instantly instead of animating the camera under reduce-motion.
     const dur = prefersReducedMotion() ? 0 : 1200;
     if (flyTo.bounds) {
