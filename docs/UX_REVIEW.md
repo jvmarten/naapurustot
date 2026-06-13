@@ -1,477 +1,430 @@
 # UX Review — naapurustot (Fresh Eyes)
 
-**Date:** 2026-06-10
+**Date:** 2026-06-13
 **Reviewer perspective:** A first-time visitor who knows nothing about the project, arriving cold at naapurustot.fi.
-**Method:** A multi-agent fresh-eyes pass — six parallel recon reads that mapped every user-facing flow and state, then nine specialist lenses (onboarding, core flows, error states, empty states, loading states, mobile, accessibility, discoverability/IA/trust, perceived performance) each producing `file:line`-grounded findings, then an adversarial verification pass. Every **High**-severity finding below was re-verified by hand against the *current* source (`App.tsx`, `useMapData.ts`, `AuthModal.tsx`, `FilterPanel.tsx`, `OnboardingTour.tsx`, `i18n.ts`, `SearchBar.tsx`, `ErrorBanner.tsx`, `NeighborhoodPanel.tsx`, `SplitMapView.tsx`, `SettingsDropdown.tsx`, `LayerSelector.tsx`). Findings that the previous review's 2026-06-08 implementation already fixed were dropped.
+**Method:** A fresh multi-agent pass. Ten parallel review lenses (onboarding · search & navigation · data tools · save/account · error states · empty states · loading & perceived performance · mobile · accessibility · discoverability/IA/trust) each read the relevant frontend source and produced `file:line`-grounded findings. **Every finding was then independently re-verified against the *current* source by an adversarial checker** whose default was to reject — confirming the code still exhibits the issue (not already fixed by a prior pass), correcting stale line numbers, and adjusting severity. Of 59 raised findings, **58 were confirmed and 1 was dropped**. Severity reflects the verifier's adjusted rating, and many entries below carry the verifier's caveats (partial mitigations, narrowed blast radius) inline.
 **Scope:** Frontend & user-facing behavior only.
 
-> **Implementation status (2026-06-11):** All 48 findings are now resolved on branch `claude/ux-review-impl-2026-06-11`. 44 were implemented in this pass (Batches 1–6); A1, C3, EM2, and M6 were already fixed by post-review roadmap work (focus traps, mobile shortlist/reference buttons, national-similarity revert, sheet `onTouchCancel`). **X3** shipped its code-only legitimacy-copy interim — the conventional payment method remains a Manual-Setup task. The gzipped JS budget was raised 282 KB → 287 KB to absorb ~4.4 KB of new UI logic (data stays out of JS).
-
----
-
-## Context: this is a *second-pass* review
-
-The previous review (`docs/UX_REVIEW.md`, 2026-06-03) was fully implemented on 2026-06-08 — onboarding tour, retryable data-load banner, no-results search states, focus rings, an `aria-live` region, a skip link, a real mobile bottom-sheet, a privacy page, colorblind palettes, and an axe-core gate all shipped. **The easy wins are already done.** What remains is a second layer of friction: silent failure paths, ARIA semantics that *declare* more than they *deliver*, mobile layout collisions on the newer features, and a few discoverability/trust gaps. None of the findings below restate something the current code already handles — each was checked against live source.
+> **Relationship to the prior review.** The 2026-06-10 review (48 findings) was fully implemented and merged — onboarding tour, language auto-detect, retryable banners, focus rings, a mobile bottom-sheet, the Data Sources/Privacy pages, the X1 mobile-footer surfacing, and more all shipped. None of the findings below restate something the current code already handles; each was re-checked against live source. What remains clusters around code that post-dates those fixes (the **CF-8 slim all-Finland landing**, address search, the settings-menu reorg, split view) and a deeper second layer of ARIA-vs-behavior and shared-device data-safety gaps.
 
 **Severity legend** — *Critical:* blocks or excludes a class of users. *High:* frequent friction or a "looks broken" moment most first-timers hit. *Medium:* noticeable confusion for many. *Low:* polish / edge-case / consistency.
 
-**Severity counts (deduped): 0 critical · 11 high · 27 medium · 10 low (48 findings).**
+**Severity counts: 0 critical · 5 high · 15 medium · 38 low (58 findings).** Two findings are duplicates of the same root cause (see *Dedup* notes on **AY-4** and **ES-6**), so there are **56 unique root issues**.
 
 ---
 
 ## TL;DR
 
-naapurustot remains a genuinely well-built static map app, and the 2026-06 hardening shows. The friction that's left clusters into five patterns:
+naapurustot remains a genuinely well-built, well-hardened static map app. The friction a first-timer hits now clusters into five patterns:
 
-1. **Promises the code doesn't keep.** Several controls *announce* a contract they don't honor: `aria-modal="true"` modals that never trap focus (`AuthModal`, the mobile sheet), a `role="menu"` with no arrow-key navigation (`ToolsDropdown`), a "grid detail" legend badge that stays up after the grid silently failed to load, and a welcome hint that promises neighborhood "exact details" on a map that's actually showing 69 regional blobs.
-2. **Silent failures.** Clipboard-blocked "Copy link", swallowed share-as-image errors (one with no `catch` at all), a national-similarity fetch that fails into a blank list with the toggle stuck on, a grid 404 that just makes the spinner vanish, and a map-load failure that is *never announced to screen readers*.
-3. **Dead-end saves & unreachable flows.** Signed-out users can favorite areas but have **nowhere to see their favorites**; mobile users **can't add to the shortlist or set a reference at all**; the **Data Sources page is unreachable on mobile**; address search returns "no neighborhood" for fully-covered areas on the default screen.
-4. **Mobile layout collisions on the new features.** Split-view layer pickers hide *under* the header; the shortlist tray overflows behind the Layers FAB; reduced-motion is ignored on the sheet and tab carousel.
-5. **The trilingual audience hits a Finnish wall.** No `navigator.language` detection, and the language switch is an unlabeled `FI/EN/SV` row buried in a gear menu — so an English or Swedish first-timer gets the entire onboarding in Finnish.
+1. **The default `?city=all` aggregate landing (CF-8) silently misbehaves.** Because `data` is `null` and only 69 *seutukunta* blobs exist on the flagship first screen, a whole cluster of surfaces break or mislead: saved favorites vanish from the header (**ES-1**, high), shortlist exports no-op with no feedback (**ES-2**), the Filter tool and Wizard rank 69 region blobs while their copy promises "neighborhoods" (**DT-1** high, **DT-2**), an address pick leaves a mismatched query (**SN-5**), and nudging a custom weight triggers a silent ~10.6 MB download with zero loading UI (**LP-1**).
+2. **The search box — the most natural first action — under-delivers.** Enter does nothing (**SN-1**, high), the placeholder never advertises address search (**SN-2**), no-results copy tells users to "switch city" on a view with nothing to switch from (**SN-4**/**ES-6**), and the combobox lies to screen readers about being open (**SN-3**/**AY-4**).
+3. **Account/sync carries real data-safety and trust risk.** On a shared device, logout leaves the previous user's notes on the machine and the next login merges them into a *different* account (**AC-2**, high). Account recovery is promised but impossible, so a forgotten 12-char password is a permanent lockout (**AC-1**, **AC-4**).
+4. **Mobile layout collides on the newer features.** Compare-layers split view is unusable on phones (**MO-1**, high), Android Back exits the site instead of closing sheets (**MO-3**), and bottom-center controls pile up (**MO-2**, **MO-4**, **MO-5**).
+5. **Accessibility promises more than it delivers, and copy is stale.** Missing `aria-live` announcements, roving highlights that never move DOM focus, and `role` declarations that overpromise behavior recur across the app (**AY-1…AY-7**, **ER-3…ER-5**, **LP-5**). Several trust/marketing strings are inaccurate (**ON-1** "large file", **DX-2** "data last updated", **ON-4** dead subtitle, **DX-4** stripped embed attribution, **DX-3** crypto-only donations).
 
 ---
 
 ## The handful that matter most
 
-| # | Finding | Severity | Why it's top |
-|---|---------|----------|--------------|
-| **EM1** | Signed-out users can favorite, but have no surface to see favorites | High | The default user (logged out) stars areas into a void — looks broken |
-| **E1** | Map data-load failure is never announced to screen readers | High | Excludes AT users from the one recovery affordance (Retry) on the most important failure |
-| **C2** | Address search returns "no neighborhood" on the default all-Finland view | High | The most natural first action ("type my street") wrongly fails for covered areas |
-| **C3** | Mobile panel omits shortlist + reference — those flows are unreachable on a phone | High | Excludes most mobile traffic from two core workflows entirely |
-| **C1** | Every region switch throws a full-screen "reload-flash" that also blocks the header | High | Core drill-down feels like a page reload; chrome is unclickable during load |
-| **M1** | Split-view layer pickers sit *under* the header — unusable on mobile | High | Makes the whole compare-layers feature non-functional on phones |
-| **O1** | One stray click on the spotlighted control permanently kills the tour | High | The most natural reaction to a spotlight silently ends onboarding for good |
-| **O2** | No language auto-detect; non-Finnish first-timers get Finnish-only onboarding | High | The trilingual app's designed-for audience hits a wall on arrival |
-| **X1** | Data Sources & Methodology page is unreachable on mobile | High | Mobile majority loses every provenance/trust signal the app has |
-| **A1 / A2** | Auth modal doesn't trap focus; filter sliders have no accessible name | High | Keyboard/SR users can't complete sign-up or operate the Filter tool |
+| ID | Finding | Severity | Why it's top |
+|----|---------|----------|--------------|
+| **AC-2** | Logout leaves the previous user's data on the device; next login merges it into a different account | High | Shared-device privacy breach — A's private notes leak into B's cloud account and corrupt B's data |
+| **ES-1** | Saved favorites silently disappear on the default all-Finland view | High | A returning visitor lands on the flagship view and their saved areas appear lost (button + badge vanish; signed-in users see a false "empty" state) |
+| **SN-1** | Pressing Enter after typing does nothing | High | The most natural desktop flow — type my area, Enter — is a silent no-op, so the primary action looks broken on first use |
+| **DT-1** | Filter tool filters 69 region blobs (not neighborhoods) on the landing view, while its copy says "neighborhoods" | High | From the landing view a first-timer literally cannot filter postal areas, yet every label promises it — the tool quietly does the wrong thing |
+| **MO-1** | "Compare layers" split view is unusable on phones | High | Tapping a Tools entry on a phone yields ~187px panes, a search box covering the left picker, and no touch tooltips — looks and behaves broken |
+| **AC-1** | Account recovery is promised in the UI but no recovery/change-password flow exists | Medium | The UI twice promises email recovery the backend can't deliver; a forgotten 12-char password is an unrecoverable lockout |
+| **ES-2** | Shortlist CSV/PDF/GeoJSON/image-card buttons silently no-op on the all-Finland view | Medium | A returning user with a saved shortlist reliably lands here and watches every export do nothing |
+| **LP-1** | Enabling custom quality weights nationwide silently downloads ~10.6 MB with no feedback | Medium | A headline feature freezes the map for seconds then abruptly recolors — reads as a hang while the user is interacting |
 
 ---
 
 ## 1. Onboarding & first impression
 
-### O1 — One stray click on the spotlighted control permanently kills the tour · **High** · [Claude Code]
-**Problem.** The tour darkens the screen and cuts a bright spotlight hole around a control (e.g. the Layers button), which visually screams "click me." But the entire backdrop is a single transparent `<button>` whose `onClick` calls `finish('skipped')`, and that path writes `localStorage 'naapurustot-onboarding-seen'`. So a first-timer who instinctively clicks the highlighted element — the single most natural reaction to a spotlight — doesn't interact with it; they silently end onboarding for good. The reassurance that the tour is reopenable shows only on the final step they never reach.
-**Where.** `src/components/OnboardingTour.tsx:256-264` (full-screen click-blocker → `finish('skipped')`); `src/components/OnboardingTour.tsx:83-88`; `src/App.tsx:1464-1467` (`handleCloseTour` persists "seen"). *(Verified: the click-blocker is `absolute inset-0` and calls `finish('skipped')`.)*
-**Fix.** Make a backdrop/outside click advance to the next step (or be a no-op), not a permanent skip. Reserve permanent dismissal for the explicit Skip/Finish buttons. At minimum, don't write the "seen" flag when the tour ends via an outside click.
-**Impact.** Most first-timers who reflexively click the highlighted control lose the entire orientation after step 1 and never see it again unless they hunt through Settings.
+### ON-1 — Cold-load overlay tells first-timers the default landing is a "large file" — it isn't anymore · **Low** · [Claude Code]
+**Problem.** On the default `?city=all` cold landing (no deep-link), the full-screen wordmark overlay shows `loading.nationwide` = "Loading nationwide data… (large file)". But per CF-8 that path fetches only `region_aggregates.json` + the seutukunnat outlines (~227 KB gz), **not** the ~10.6 MB national set. The "(large file)" qualifier is stale for the common first-load case; it's accurate only on the rarer deep-linked `needFullNational` boot, which shares the same string.
+**Where.** `src/App.tsx:2018`; strings at `src/locales/{fi,en,sv}.json:812`; gating at `src/App.tsx:147` + `src/hooks/useMapData.ts:57-62`.
+**Fix.** Drop the "(suuri tiedosto)/(large file)/(stor fil)" qualifier in all three locales (or reword to a neutral "Loading Finland…"). If a heavy-download notice is still wanted, gate a *separate* string on `needFullNational`.
 
-### O2 — No language auto-detection; the language switch is also unlabeled · **High** · [Claude Code]
-**Problem.** `currentLang` defaults to `'fi'` and is only overridden by a stored `localStorage 'lang'` or an explicit `?lang` URL param — there is **no `navigator.language` detection anywhere in `src`**. A first-time English or Swedish visitor with no URL param sees the welcome tour, loading copy, skip link, and all chrome in Finnish. Their only escape is a row of unlabeled `FI / EN / SV` buttons buried in the gear Settings dropdown — and unlike the Theme and Colorblind controls in that same menu, the language picker has **no label row**, so it isn't even self-identifying. The app explicitly markets en/sv (`og:locale:alternate`, `hreflang`), so this is a designed-for audience hitting a wall.
-**Where.** `src/utils/i18n.ts:67-73` (defaults `'fi'`, only localStorage override); `src/App.tsx:72` (lang only from URL); `src/components/SettingsDropdown.tsx:251-269` (unlabeled FI/EN/SV row; contrast the theme label at `:217`). *(Verified.)*
-**Fix.** On first load with no stored `lang` and no `?lang`, read `navigator.languages` and pick `en`/`sv` when the user's preferred language matches, falling back to `fi` (the en/sv dicts are already lazy-fetched, and the tour is gated behind data load anyway, so the extra fetch is hidden). Independently, add a small label/globe row above the FI/EN/SV buttons.
-**Impact.** Every non-Finnish first-timer with no `?lang` — a primary audience for a trilingual app — gets onboarding and chrome in a language they may not read, plus a hidden, unlabeled switch to escape it.
+### ON-2 — "Take the tour" is buried under collapsed "More settings"; the reopen note overpromises · **Low** · [Claude Code]
+**Problem.** The reopen reassurance (`onboarding.reopen_note`) renders only on the *last* step (`isLast`), yet every step — including the welcome step — has a Skip button that calls `finish('skipped')`, so an immediate skipper never learns the tour is re-openable. And the "Take the tour" item lives inside the collapsible "More settings" disclosure, which is collapsed by default (auto-expands only for a non-default colorblind/opacity setting) — so "from Settings" is two clicks deeper than implied.
+**Where.** `src/components/OnboardingTour.tsx:359-364` (note) & `:296-302` (Skip on every step); `src/components/SettingsDropdown.tsx:117,282,313-330`.
+**Fix.** Move the "Take the tour" item out of the `advancedOpen` fold into the always-visible part of the menu. Surface the reopen note on the skip path too (e.g. a brief toast on `finish('skipped')`).
 
-### O3 — The core "click an area" instruction lives only inside the tour · **Medium** · [Claude Code]
-**Problem.** The instruction that teaches the app's central interaction — "click any area to see its details" — exists only as the welcome step's hint. It disappears the moment the user advances past step 1, and there's no persistent visible cue anywhere else (the only other guidance is the `sr-only` map-instructions paragraph). A user who taps Skip, or who returns with the "seen" flag set, faces a colored map with no sighted indication of what's clickable — and on touch there's not even a hover tooltip to hint at interactivity.
-**Where.** `src/components/OnboardingTour.tsx:24` + `:295-299` (hint only on welcome step); `src/App.tsx:1653` (sr-only instructions are the only non-tour guidance).
-**Fix.** Add a small dismissible on-map hint pill ("Click an area to see its stats") shown in the no-selection state, with its own persisted dismissal independent of the tour.
-**Impact.** Every tour-skipper and returning visitor who never selected an area — especially on touch.
+### ON-3 — Default Quality Index choropleth has no on-map explanation · **Low** · [Claude Code]
+**Problem.** The default layer is `quality_index`, so a first-timer sees colored region blobs with on-map context limited to the Legend's label + ramp + min/max ticks. Nothing conveys that the index is a *weighted composite*, that higher = better, or links to methodology. The only composite explanation (`panel.quality_coverage_help`) lives inside the NeighborhoodPanel and appears only *after* an area is selected, so tour-skippers and returning users get no headline-metric explanation on the default view.
+**Where.** `src/components/Legend.tsx:62-82` (legend body); default layer at `src/App.tsx:243`; reusable cursor-help pattern at `Legend.tsx:107-117` (currently fires only for proxy layers).
+**Fix.** Add a small "i" affordance to the Legend for composite/derived layers (at minimum `quality_index`) with a one-line explanation linking to `/tietolahteet`, reusing the existing title/cursor-help span. Needs new fi/en/sv keys (none exist today).
 
-### O4 — Default all-Finland view shows region aggregates, but the welcome hint promises neighborhood "exact details" · **Medium** · [Claude Code]
-**Problem.** The default landing scope is `city='all'`, which renders 69 coarse *seutukunta* blobs, not the postal-code neighborhoods the product is about. Yet the welcome hint reads "klikkaa kartalta mitä tahansa aluetta nähdäksesi sen **tarkat tiedot**" (…its exact details), and the search-step copy claims the view "kattaa kaikki Suomen postinumeroalueet." A first-timer who follows the hint clicks a large region and gets a regional *aggregate* panel, not the per-neighborhood detail implied. Nothing on the default map signposts that they're looking at regions or that neighborhood data requires drilling in.
-**Where.** `src/locales/fi.json:693` (click hint) & `:688` (search-step copy); `src/App.tsx:106` + `src/utils/regions.ts:763` (default `'all'`); `src/App.tsx:1334` (region click → aggregate); `src/components/Legend.tsx:56-76` (no scope indicator).
-**Fix.** When scope is `'all'`, add a small legend caption / one-time banner ("Aluekooste — valitse alue tai klikkaa nähdäksesi postinumerotiedot"), and soften the welcome + search copy so it doesn't over-promise postal-code resolution.
-**Impact.** Every first-timer on the default view can misread regional aggregates as neighborhood data and may never discover the drill-down. *(Merges the Onboarding and Core-flows lenses' duplicate reports.)*
+### ON-4 — No persistent tagline; the one subtitle string is dead and stale · **Low** · [Claude Code]
+**Problem.** `app.subtitle` ("Suomen kaupungit" / "Finnish Cities" / "Finlands städer") is defined in all three locales but referenced by **no component** (grep hits only the locale files). The header shows only the wordmark; the cold-load overlay shows only the wordmark + loading status. The copy is also stale — "cities," though the app now covers all 3,018 postal areas across 69 seutukunnat.
+**Where.** `src/locales/{fi,en,sv}.json:3`; header at `src/App.tsx:2093-2095`; overlay at `src/App.tsx:2007-2019`.
+**Fix.** Either delete the dead key, or repurpose with accurate copy (e.g. "Suomen asuinalueet kartalla" / "Finland's neighborhoods on a map") and actually render it under the wordmark or in the overlay.
 
-### O5 — Auto-tour skip-gate only checks `pno`, so shared/configured links still get the blank-slate welcome tour · **Medium** · [Claude Code]
-**Problem.** The first-visit tour is suppressed for deep links only when `initialUrl.pno` is set. Any other restored state — a chosen layer, an active filter, a comparison set, a non-default city, a shortlist, a wizard config — does not suppress it. A newcomer following a link configured to show a specific layer/filter/comparison gets the generic 5-step walkthrough popping over the very content the link was meant to present.
-**Where.** `src/App.tsx:1453-1462` (guard at `:1456` only checks `initialUrl.pno`). *(Verified.)*
-**Fix.** Broaden the guard to skip the auto-tour whenever any meaningful state param is present (layer ≠ default, filters, compare, wizard, shortlist, or city ≠ `'all'`).
-**Impact.** Anyone arriving via a shared/configured link without a selected area sees an orientation tour over content they were sent to look at.
-
-### O6 — Onboarding is gated behind the heaviest payload · **Low** · [Claude Code]
-**Problem.** The auto-tour effect early-returns while `loading || !data`, and the default scope loads the full nationwide dataset whose own overlay copy warns it's a large file. So a cold first-timer stares at a shimmer overlay with no orientation until the biggest download in the app finishes — even though the *welcome* step is anchorless, centered, and needs no map data.
-**Where.** `src/App.tsx:1455` (`if (loading || !data) return;`); `src/App.tsx:1704-1717` (nationwide overlay).
-**Fix.** Show the anchorless welcome step immediately on first visit even while data loads (the tour already sits above the overlay); keep only the *anchored* steps gated on readiness.
-**Impact.** First-timers on slow connections see only a "large file" shimmer before any orientation appears.
-
-### O7 — Mobile city/scope selector is an unlabeled globe icon · **Low** · [Claude Code]
-**Problem.** On mobile the city selector is an icon-only button with no visible current-value text — just a globe glyph; the current scope is exposed only via `aria-label`/`title`. A first-timer on a phone has no on-screen indication that they're in the "Koko Suomi" view, or that this icon controls scope at all. The tour's search step references "the city selector," but on mobile there's no labeled control matching that mental model.
-**Where.** `src/components/CitySelector.tsx:80-98`.
-**Fix.** Show the current scope as a short visible label beside/under the globe icon (abbreviated region name or "Koko Suomi").
-**Impact.** Mobile first-timers can't tell what geographic scope they're viewing or that the globe switches it.
+### ON-5 — Finnish search placeholder implies searching *within* an area rather than *for* one · **Low** · [Claude Code]
+**Problem.** The Finnish placeholder "Hae alueella…" uses the adessive case (*alueella* = "in/at the area"), reading as if search is scoped to a current location — even though search is global. The short form "Hae alue…" is also grammatically truncated. English/Swedish and the empty-state hint all read neutrally, so only Finnish first-timers get the misleading impression.
+**Where.** `src/locales/fi.json:4` (placeholder) & `:5` (placeholder_short); consumed at `src/components/SearchBar.tsx:285,295`.
+**Fix.** Change to a search-*for* phrasing: line 4 → "Hae aluetta tai osoitetta…", line 5 → "Hae aluetta…". No code change needed.
 
 ---
 
-## 2. Core interaction flows
+## 2. Core flows — Search & navigation
 
-### C1 — Every region/city switch throws a full-screen "reload-flash" that also blocks the header · **High** · [Claude Code]
-**Problem.** `useMapData` resets to `{data:null, loading:true}` the instant `cityFilter` changes, and App renders the loading overlay as `absolute inset-0 z-50` with a backdrop-blur, shimmer blocks and a giant centered "naapurustot" wordmark — with **no `pointer-events-none`**. Because `z-50` sits above the `z-20` header, the overlay covers *and blocks* the search box, settings, tools menu and CitySelector for the whole load. So the most natural drill-down (pick a region, or click a seutukunta → "Explore postal codes") blanks the entire screen, reads as a hard page reload, and the user can't change their mind or search mid-load.
-**Where.** `src/App.tsx:1704-1717` (overlay `inset-0 z-50`, no `pointer-events-none`) vs `src/App.tsx:1724` (header `z-20`); `src/hooks/useMapData.ts:41-44` (resets `loading:true` on every `regionId` change). *(Verified directly.)*
-**Fix.** Distinguish cold first-load from subsequent switches: keep the previous map visible (optionally dimmed) and show a slim non-blocking top progress bar instead of the full-screen wordmark takeover. At minimum constrain the overlay below the header (`top-12` not `inset-0`), drop the wordmark after the first successful load, and keep the chrome interactive.
-**Impact.** Hits essentially every engaged first-timer; drilling from the default into any of the 69 regions is the core exploratory action, and each switch feels like a full reload with a locked toolbar. *(Merges the Perceived-performance and Loading-states reports.)*
+### SN-1 — Pressing Enter after typing silently does nothing · **High** · [Claude Code]
+**Problem.** `highlightedIndex` resets to `-1` on every results change and is only advanced by Arrow keys or mouse hover. The Enter handler's two selection branches both require a valid `highlightedIndex`, so pressing Enter with results visible but nothing highlighted runs `e.preventDefault()` and then **does nothing** — no navigation, no submit. The most natural desktop flow ("type my area, Enter") appears broken. (Clicking a result or arrowing down still works, partially mitigating.)
+**Where.** `src/components/SearchBar.tsx:252-259` (Enter case); reset at `:187-189`.
+**Fix.** In the Enter case, before the highlighted-index branches, fall back to the top match when `highlightedIndex < 0`: select `results[0]`, else `addressResults[0]`. The universal "Enter selects the top match" convention.
 
-### C2 — Address search returns "no neighborhood" on the default all-Finland view · **High** · [Claude Code]
-**Problem.** The default view is `?city=all`, where `data` is the geometry-stripped all-cities dataset. In `SearchBar`, `findNeighborhoodForPoint` skips every feature with `!feature.geometry`, so it always returns `null` here; the address pick then falls through to `onSelect('', coords)`, and `handleSearch` shows the toast "Ei naapurustodataa tällä osoitteella / No neighborhood data for this address." A first-timer's most natural action — typing their own street address on the default screen — is met with a "no data" message even though the area is fully covered; it just isn't loaded yet.
-**Where.** `src/components/SearchBar.tsx:155-156` (skips geometry-less features) & `:217-219` (`onSelect('', …)`); handler at `src/App.tsx:980-985`. *(Verified.)*
-**Fix.** In `handleSearch`, when `pno` is empty but `center` is valid, derive the owning region via `findRegionForCoords(center)` (already defined at `App.tsx:78` and used by geolocation), switch to it, and defer point-in-polygon selection using the same pending-resolution pattern as `handleUseLocation` (`App.tsx:1087-1099`). Only show the "no neighborhood" toast when the coords are genuinely outside coverage.
-**Impact.** Hits any first-time user who searches a street address from the default view — a very common entry path — and wrongly tells them their area has no data.
+### SN-2 — Placeholder never signals address search; the clearer string already exists but is unused · **Low** · [Claude Code]
+**Problem.** Address geocoding is a headline capability (debounced Digitransit), yet the placeholder/aria-label is "Search by area…", which reads as name-only. A strictly better string, `search.address_placeholder` = "Search by address or postal code…", is defined in all three locales but **referenced nowhere**. First-timers won't try a street address — the very thing the feature was built for.
+**Where.** `src/components/SearchBar.tsx:295` (placeholder) & `:285` (aria-label); unused string at `src/locales/{fi,en,sv}.json:482`.
+**Fix.** Use `t('search.address_placeholder')` for the desktop placeholder (and aria-label), keeping the short form on the narrow mobile field. Gate the address-capable wording on `GEOCODING_ENABLED` so a keyless build doesn't promise address search it can't deliver.
 
-### C3 — Mobile panel omits shortlist + reference actions — those flows are unreachable on a phone · **High** · [Claude Code]
-**Problem.** The desktop panel header renders four area actions — favorite, shortlist, reference, pin. The mobile bottom-sheet header renders only **favorite + pin**. The shortlist and reference buttons are simply absent on mobile, and there's no other path: the ShortlistTray only lists/removes existing entries and only shows on the idle home view. So a mobile user can never build a shortlist or set a reference baseline at all.
-**Where.** `src/components/NeighborhoodPanel.tsx:1994-1999` (mobile header renders only `{favoriteButton}{pinButton}`); desktop full set referenced nearby. *(Verified: the mobile action row is `{favoriteButton}{pinButton}` only.)*
-**Fix.** Include `{shortlistButton}` (and `{referenceButton}` for non-metro areas) in the mobile header action row, or move them into an overflow menu so both core flows are reachable on touch.
-**Impact.** Excludes all mobile visitors — a large share of first-time traffic — from the shortlist and reference-baseline flows entirely.
+### SN-3 — Recents list and empty/no-result panels are not driven by the combobox keyboard model · **Medium** · [Claude Code]
+**Problem.** When the input is empty/focused, a `role=listbox` of recent areas renders, but `handleKeyDown` computes `totalItems = results.length + addressResults.length` and returns early when that's 0, so the combobox's Arrow/Enter model never traverses recents. Worse, `aria-expanded` is hard-wired to `isOpen && (results>0 || addresses>0)`, so while the recents popup (or the "start typing" hint / no-results panel) is *visibly open*, the combobox reports **collapsed**, and `aria-controls` points at `#search-results-list`, which isn't rendered in those states. Recent options also lack `id`/`aria-selected`. SR users get no signal a popup is open and can't drive it. (They remain Tab-focusable as native buttons, so "mouse-only" overstates — but the documented combobox model is broken.)
+**Where.** `src/components/SearchBar.tsx:233-234` (early bail), `:281` (aria-expanded), `:283` (aria-controls), `:363-401` (recents listbox).
+**Fix.** Give each recent button `id=search-result-N` and let `totalItems`/Arrow/Enter traverse them when the query is empty. Compute `aria-expanded` from whether *any* popup is rendered, point `aria-controls`/`aria-activedescendant` at the live list, and add `aria-selected`.
 
-### C4 — Layer switcher starts minimized with every group collapsed · **Medium** · [Claude Code]
-**Problem.** Switching the mapped metric is the central exploration action, yet on desktop the `LayerSelector` initializes `minimized=true` **and** every group `collapsed=true`, resetting that way on every page load. To change the layer a user must expand the panel, then expand a category, then click a layer — three clicks — and even after expanding they see only group headers, not the ~59 layers. The active metric shows only in the bottom-left Legend, far from the top-right control.
-**Where.** `src/components/LayerSelector.tsx:39-41` (all groups collapsed) & `:45` (`minimized=true`). *(Verified.)*
-**Fix.** Default the desktop panel to expanded, and/or auto-expand the group containing the active layer so at least one set of layers is visible on first paint.
-**Impact.** Many first-timers — especially tour-skippers — won't discover that 59 data layers exist.
+### SN-4 — No-result copy tells users to "try an address" even when address search is disabled · **Medium** · [Claude Code]
+**Problem.** `GEOCODING_ENABLED` is exported but **never imported**, so SearchBar can't gate on it. The geocode effect sets `isGeocoding=true` for every 3+ char query regardless of whether a key exists, so the address header + "Etsitään osoitteita…" row flash for ~300 ms even in keyless builds where `geocodeAddress` always returns `[]`. The settled empty state then advises trying an address (impossible without a key) and to "switch the city" on the default `?city=all` view where there's nothing to switch from. (Production injects the key via `deploy.yml`, so the impossible-advice/flash bite keyless builds only; the contradictory "switch the city" suffix on the all-Finland default view affects every production user.)
+**Where.** `src/utils/geocode.ts:20,36`; `src/components/SearchBar.tsx:116-138,444-454,482-488`; `fi.json:788`.
+**Fix.** Import `GEOCODING_ENABLED`; when false, skip the address header/searching row and use an address-free empty state. Independently, pass `cityFilter` into SearchBar and drop the "switch the city" clause when it's already `all`. *(Dedup: this is the same `search.no_results` string as **ES-6** — sequence them so the edits stack.)*
 
-### C5 — No entry point for "compare neighborhoods," and it's confusable with "compare layers" · **Medium** · [Claude Code]
-**Problem.** The neighborhood-comparison flow can only be started from the per-area "Lisää vertailuun" pin inside an open panel. The Tools menu — the app's discovery hub — has no "compare areas" entry; its closest item is "Vertaa tasoja" (compare *layers* over the same areas), a different feature. A first-timer who opens Tools to compare two neighborhoods finds a "compare" that does something else.
-**Where.** `src/components/ToolsDropdown.tsx:298-315` (only "compare layers"); pin-to-compare only at `src/components/NeighborhoodPanel.tsx:947-971`.
-**Fix.** Add a short hint in Tools (or near the pin) that "pinning areas builds a side-by-side comparison," or rename the split-map item ("Vertaa tasoja (jaettu kartta)") and add a distinct "Vertaile alueita" affordance.
-**Impact.** Users seeking the headline "compare neighborhoods" value proposition may open the wrong tool or never find the pin-to-compare flow.
+### SN-5 — Picking an address from the default all-Finland view leaves a mismatched query and never offers "set as my home" · **Low** · [Claude Code]
+**Problem.** On the default landing, `data` is null, so SearchBar's containment lookup returns null and falls into the `else` branch: `onSelect('', coords)` + `setQuery(addr.label)`. App then switches region and the `pendingGeo` resolver opens the panel via `select(props)` but never updates the query nor surfaces the home nudge. Result: (1) the search field keeps the raw street label while the open panel is titled with the differently-named postal area; (2) the "Set as my home" inline nudge — only created in SearchBar's resolved-neighborhood branch, unreachable on the geometry-stripped all view — never fires on the most common entry path. (The home capability itself isn't lost — the panel still exposes a reference/home toggle — so only the onboarding nudge + cosmetic label mismatch are the gap.)
+**Where.** `src/components/SearchBar.tsx:219-222` (else branch), `:216-218` (nudge); `src/App.tsx:1160-1196` (handleSearch), `:1298-1315` (pendingGeo resolver).
+**Fix.** Have App's resolution path own both the label and the nudge: after `select(props)`, sync the query to the resolved name and conditionally surface the "set as home" prompt (when `props.pno !== referencePno`). Or accept the panel's reference button as the home affordance and just clear/sync the query when the panel opens.
 
----
-
-## 3. Error states & failure handling
-
-### E1 — Map data-load failure is never announced to screen-reader users · **High** · [Claude Code]
-**Problem.** When the initial nationwide fetch (or a region switch) fails, `useMapData` sets `error:'load_failed'` and App renders `<ErrorBanner>` — but the banner's container has **no `role="alert"`, no `aria-live`, no dismiss control**. A sighted user sees a red banner; a blind/low-vision user gets only a blank basemap with **zero** announcement that anything failed, and can't tell "broken" from "empty." This is the single most important failure state and it's silent for AT. (Contrast: the locale-error and geo toasts both use `role="status"`.)
-**Where.** `src/components/ErrorBanner.tsx:8-36` (no role/aria-live); wired at `src/App.tsx:1720`; error set in `src/hooks/useMapData.ts:64-71`. *(Verified — the banner is a plain `<div>`.)*
-**Fix.** Add `role="alert"` `aria-live="assertive"` `aria-atomic` to the banner's outer div so the failure + Retry are announced immediately. Optionally move keyboard focus to the Retry button on first render. *(This also resolves the Accessibility lens's duplicate report.)*
-**Impact.** Screen-reader and keyboard-only users hit a dead, unannounced app whenever a fetch fails (offline, CDN hiccup, region 404) and are excluded from the one recovery affordance.
-
-### E2 — Grid-fetch failure is silent: coarse data shows while the legend still claims grid detail · **Medium** · [Claude Code]
-**Problem.** For grid layers (air_quality, transit_reachability, light_pollution) the topojson is fetched lazily. On a 404/network error the catch only `console.warn`s and calls `setLoading(false)` — the Legend's grid spinner just *disappears* while the "national/regional grid" scope badge stays up, so the UI actively asserts ~250 m detail that isn't there. A first-timer who selected "air quality" for street-level resolution silently gets postal blocks, labeled as grid data, with no retry.
-**Where.** `src/hooks/useGridData.ts:164-171` (silent catch); grid-scope badge `src/components/Legend.tsx:77-82`. *(Verified by the adversarial pass.)*
-**Fix.** Thread a fetch-error flag out of `useGridData`; when set, replace the grid badge with a one-line note ("Detailed grid unavailable — showing postal estimate") plus a retry. At minimum, suppress the grid badge when the grid failed. *(Merges the Error-states and Loading-states reports.)*
-**Impact.** Anyone viewing a grid layer during a transient CDN/file error sees lower-resolution data mislabeled as high-resolution — undermining the app's "lowest-level data" promise.
-
-### E3 — "Copy link" in the area panel and shortlist silently does nothing when the clipboard is blocked · **Medium** · [Claude Code]
-**Problem.** `NeighborhoodPanel`'s `handleCopyLink` early-returns if `navigator.clipboard.writeText` is missing and swallows write rejections in an empty catch; `ShortlistTray`'s share-link does the same. In an iframe embed, an insecure context, or when clipboard permission is denied, the user clicks the primary "Copy link" / "Share" button and gets **nothing** — no toast, no error, no fallback. `SettingsDropdown` already solved this exact case by revealing a manual-copy textarea on failure, so the panel/tray paths are inconsistently degraded.
-**Where.** `src/components/NeighborhoodPanel.tsx:834-840`; `src/components/ShortlistTray.tsx:75,81` (vs the working fallback at `src/components/SettingsDropdown.tsx:156-159,375-398`). *(Verified.)*
-**Fix.** Reuse SettingsDropdown's pattern: on failure (or missing `writeText`) reveal a readonly textarea with the URL pre-selected, or at minimum show a transient "Copy failed — long-press to copy" toast.
-**Impact.** Users in embeds, http origins, or with clipboard denied (a non-trivial slice, especially mobile/in-app browsers) can't share an area and get no feedback.
-
-### E4 — Error and status toasts all stack at one coordinate and overlap illegibly · **Medium** · [Claude Code]
-**Problem.** Every transient overlay renders at the identical absolute position `top-12 left-1/2 -translate-x-1/2 z-50`: the data-load `ErrorBanner`, the offline indicator, the geolocation status, the shared scope/city/address toast, and the locale-load error. Realistic combinations co-occur — going offline triggers both the offline banner and (on a region switch) the ErrorBanner; a geolocation prompt can overlap the locale-error toast — rendering them physically on top of each other with no offset.
-**Where.** `src/components/ErrorBanner.tsx:9`; `src/App.tsx:2130, 2140, 2157, 2168`. *(Verified — ErrorBanner is at `top-12 left-1/2 z-50`.)*
-**Fix.** Introduce a single top-center toast/stack container that lays active notices out vertically (flex column with gap) and assigns priority, instead of each notice absolutely positioning itself at the same coordinate.
-**Impact.** Whenever two notices are active — common in the exact offline/error scenarios where clear messaging matters most — both are mutually obscured.
-
-### E5 — Share-as-image failures are swallowed, and one path has no `catch` at all · **Medium** · [Claude Code]
-**Problem.** The "Share as image" action lazy-imports the heavy html-to-image/scoreCard module. In `NeighborhoodPanel` the failure path is `.catch(() => {})`: if the module fails to load (offline, stale chunk after a deploy) the busy label flips back and nothing is produced. Worse, `ShortlistTray.handleShareImage` has a `try/finally` with **no `catch`**, so a load/render failure becomes an unhandled promise rejection while the user just sees the busy state revert.
-**Where.** `src/components/NeighborhoodPanel.tsx:1019-1035` (esp. `:1024`); `src/components/ShortlistTray.tsx:85-96` (no catch). *(Verified.)*
-**Fix.** Surface a transient "Couldn't generate image, try again" toast in both catch paths, and add an explicit `catch` to `ShortlistTray.handleShareImage`.
-**Impact.** Users on a long-lived tab after a deploy, or offline, click "Share image," see the button flicker, and get silently nothing.
-
-### E6 — WebGL fallback always says "reload," even when the device permanently lacks WebGL · **Medium** · [Claude Code]
-**Problem.** Both `Map.tsx` and `SplitMapView.tsx` render `error.webgl_context_lost_desc` = "Map rendering was interrupted. Reload the page…" for **all** WebGL failures. That copy is correct only for a transient `webglcontextlost` event; the construction-failure path fires when the device/browser simply has no WebGL, where reloading is futile. A correct distinct string `error.webgl_unavailable_desc` ("Your browser or device doesn't support WebGL…") exists in all three locales but is wired up nowhere — confirming the differentiation was intended and dropped.
-**Where.** `src/components/Map.tsx:1505-1523` (uses `:1513`) & `src/components/SplitMapView.tsx:762-780`; construction-failure source `Map.tsx:283-288`; unused correct string `src/locales/{fi,en,sv}.json:200`.
-**Fix.** Track failure origin (a "permanent" flag in the construction catch vs the contextlost listener). For the permanent case show `error.webgl_unavailable_desc` and hide the Reload button; keep Reload only for transient context loss.
-**Impact.** Users on devices without WebGL (older hardware, locked-down browsers, some webviews) are told to reload repeatedly, never understanding the map can't run there.
-
-### E7 — Locale-load error banner is permanently silenced after one dismissal · **Low** · [Claude Code]
-**Problem.** `localeErrorDismissed` initializes `false`, gates the locale-error banner, and is **only ever set to `true`** — never reset on a subsequent language switch or a new fetch failure. So after a user dismisses one failed en/sv dictionary load, every later failed language switch shows no banner: the UI silently stays in Finnish with no explanation and no retry.
-**Where.** `src/App.tsx:121` (init), `:2165` (gate), `:2179` (only ever set true); failure source `src/utils/i18n.ts:48-52,97`. *(Verified.)*
-**Fix.** Reset `localeErrorDismissed` to `false` inside `handleLangChange` (`App.tsx:1206`), or key the dismissal to the specific failing lang and reset when `getLocaleLoadError()` changes.
-**Impact.** Non-Finnish users on flaky networks who dismiss one failure are then stranded in Finnish on every later retry with no indication.
-
-### E8 — Popup-blocked PDF export uses a raw native `alert()`, localized only for Finnish/English · **Low** · [Claude Code]
-**Problem.** When a print/PDF export's `window.open` is blocked, the only feedback is a native browser `alert()` — jarring and inconsistent with the otherwise-styled UI. The message is gated `getLang()==='fi' ? Finnish : English`, so Swedish users (a supported language) get an English alert.
-**Where.** `src/utils/export.ts:206-213`. *(Verified.)*
-**Fix.** Replace the `alert()` with the app's styled toast/`role=status` channel and a proper i18n key (`export.popup_blocked`, fi/en/sv).
-**Impact.** Swedish users see an English error; all users get an off-brand native dialog when popups are blocked.
+### SN-6 — Mobile region switcher is an icon with no visible current-region label · **Low** · [Claude Code]
+**Problem.** On mobile the CitySelector collapses to an icon-only globe button with no text reflecting the current scope, whereas desktop uses a `<select>` that shows the value. Because the default is `?city=all` and search can silently auto-switch the region (surfaced only by a transient "Switched to {city}" toast that auto-dismisses after 4 s), mobile users have no persistent indication of whether they're viewing All Finland or a specific seutukunta.
+**Where.** `src/components/CitySelector.tsx:81-98`; toast lifecycle `src/App.tsx:1325-1329`.
+**Fix.** Render the current selection label next to the globe icon on mobile, at least when `value !== 'all'`. The button already uses `flex gap-1.5 items-center`, so a truncated `<span>{t('city.'+value)}</span>` is low-risk.
 
 ---
 
-## 4. Empty states
+## 3. Core flows — Data tools (layers / filter / compare / wizard / correlation)
 
-### EM1 — Signed-out users can favorite areas but have no surface to see their favorites · **High** · [Claude Code]
-**Problem.** The star toggle in the panel header renders for everyone (it only depends on `onToggleFavorite`), and favorites persist to localStorage even when signed out. But the **only** place favorites are listed is inside `UserMenu`, which is rendered only when `user` is truthy. There are no favorite markers on the map either. So a signed-out first-timer — the default, since accounts are optional — stars several areas, watches each star fill, then has no list, no markers, and no way back. The favorites empty-state illustration + "Mark neighborhoods with a star to save them here" copy *also* live only inside the login-gated menu. By contrast the shortlist (a near-identical feature) **does** have a signed-out surface via the floating ShortlistTray.
-**Where.** `src/App.tsx:1781-1782` (`UserMenu` gated on `user`); `src/components/NeighborhoodPanel.tsx:891-906` (favorite toggle available signed-out); favorites list + empty state only in `UserMenu`. *(Verified: the favorites list lives behind `user ? <UserMenu/> : …`.)*
-**Fix.** Surface favorites for anonymous users too — render a lightweight favorites list/tray not gated on `user` (mirror the ShortlistTray pattern), or move the list into a toolbar control. Keep cloud-sync as an upsell, not a gate. At minimum, on a signed-out user's first favorite, show a one-time toast pointing to where saved areas live.
-**Impact.** Affects every signed-out visitor (the default majority) who tries the prominent star — they save areas into a void, which reads as a broken feature. *(Merges the Empty-states and Core-flows duplicate reports.)*
+### DT-1 — Filter tool silently filters 69 sub-region blobs (not neighborhoods) on the landing view, while its copy promises "neighborhoods" · **High** · [Claude Code]
+**Problem.** On the default `?city=all` view, Filter receives `filteredData = allCitiesData` — the **69 seutukunta aggregate features**, not the 3,018 postal areas. So adding any criterion or tapping a preset ranks at most ~69 region rows whose labels are region names (e.g. "Helsingin seutukunta"), with no indication they're sub-regions. Yet the title ("Etsi naapurustoja"), empty state, and no-match line all say *naapurustoja* (neighborhoods). Unlike the Wizard, FilterPanel has no scope toggle, so from the landing view a first-timer **cannot filter individual postal areas at all** without first knowing to pick a city.
+**Where.** `src/App.tsx:474` (filteredData), `:466-472` (allCitiesData), `:2195-2205` (render); `src/components/FilterPanel.tsx:476-540`, `:521`/`:633` (region-name rows), `:672-676` (empty copy).
+**Fix.** Pass an `isAggregate` prop (`cityFilter==='all'`). Either (a) load the national 3,018-area set via `loadAllData()` like the Wizard does, or (b) keep aggregate mode but show a banner ("Showing 69 sub-regions — pick a city to filter individual neighborhoods") and switch the title/empty/no-match copy + row labels to "sub-regions." Mirroring the Wizard's `ComparisonScopeToggle` is the most consistent option.
 
-### EM2 — National-scope similarity load failure leaves a silent empty list with the toggle stuck on "national" · **Medium** · [Claude Code]
-**Problem.** Switching the Similar section to national scope lazy-loads `loadAllData()`. On failure the catch is **empty** — its own comment says "toggle back to region" but the code does not revert `similarityScope`. After failure `nationalFeatures` is null, so the similar list resolves to `[]`: the toggle still shows "national" selected, but the results area is empty with no spinner, no error, no retry — indistinguishable from "no similar areas exist."
-**Where.** `src/components/NeighborhoodPanel.tsx:1089-1096` (silent catch, no revert) → `:1098,1106-1113` (empty result). *(Verified by the adversarial pass — the catch body is genuinely empty.)*
-**Fix.** In the catch, either revert `setScope('region')` (matching the comment) or set an error flag and render an inline error+retry row (mirroring `IsochroneControls`). Don't leave the national toggle selected with an unexplained empty result.
-**Impact.** Users who pick national scope on a flaky/blocked connection see a blank Similar section that looks like "no matches."
+### DT-2 — Wizard defaults to "within this area" scope when no area exists, scoring region aggregates as matches · **Medium** · [Claude Code]
+**Problem.** On the default all-Finland view, the Wizard receives the 69 region-aggregate features. Because `scope` defaults to `'region'` and `activeData = isNational ? nationalData : data`, a first-timer who opens the wizard (no `cityFilter` guard) and completes the 3 steps gets "Top matches" that are entire seutukunnat, scored from aggregated densities — while the toggle reads "Within this area" even though no single area is selected. (Mitigated: results are real aggregates, and a visible toggle switches to "Koko Suomi" for actual postal areas — but the default is backwards here and the label is wrong.)
+**Where.** `src/components/NeighborhoodWizard.tsx:394` (scope default), `:415` (activeData), `:744-745` (label); `src/App.tsx:2398` (data), `:466-474`.
+**Fix.** Pass `cityFilter` into the Wizard; when `'all'`, initialize `scope` to `'all'` so it scores the national postal-area set by default, and hide or relabel the 'region' option (the "Within this area" string only makes sense with a single region in view).
 
-### EM3 — Deselecting all similarity metrics produces a silent blank with no guidance · **Medium** · [Claude Code]
-**Problem.** In the Similar section the user can toggle each metric chip off. When every chip is off, the panel passes an empty metric list / all-zero weights to `findSimilarNeighborhoods`; every candidate is skipped (`usedWeight === 0`), so the `similar` array is empty and the render maps it to nothing — the chips remain visible but the results area is blank, with no "select at least one metric" hint. A first-timer experimenting with the chips assumes the feature broke.
-**Where.** `src/components/NeighborhoodPanel.tsx:1750-1776` (empty `.map` renders nothing) & `:1106-1113`; `src/utils/similarity.ts:167`.
-**Fix.** When all metrics are off, render an inline hint (new key `panel.similar_no_metrics`: "Select at least one metric to find similar areas") in place of the empty results.
-**Impact.** Hits any user who turns all the per-metric similarity chips off; the feature appears dead with no recovery cue.
+### DT-3 — "Save current filters" uses a native `window.prompt()` dialog · **Low** · [Claude Code]
+**Problem.** Saving a preset uses a blocking native `prompt()` (desktop + mobile) to collect the name — visually jarring against the glass UI, unstyled, not dark-mode themeable.
+**Where.** `src/components/FilterPanel.tsx:756` (desktop), `:898` (mobile).
+**Fix.** Replace both with an inline name field (text input + Save/Cancel row in place of the button), reusing existing input styling. Polish, not a functional fix.
 
-### EM4 — RadarChart plots missing metrics at the center, making "no data" look identical to "worst score" · **Medium** · [Claude Code]
-**Problem.** `normalize()` maps a null/NaN metric to `0`, which plots that axis at the chart center — exactly where a genuine bottom-of-range score also plots. There's no distinct "no data" marker. An area that simply lacks crime, property-price, or education data renders visually identical to one that genuinely scores worst, so a first-timer reading a sparse/low-coverage area's radar misreads data gaps as a terrible score. (The would-be guard at `:204` never fires, because `normalize` already returned a finite `0`.)
-**Where.** `src/components/RadarChart.tsx:84-90` (null → 0 → center); rendered for every selected area at `NeighborhoodPanel.tsx:1276`. *(Verified by the adversarial pass.)*
-**Fix.** Track which axes have null input and render them distinctly — omit the vertex / draw a hollow or dashed marker and add "no data" to the footnote/aria text — so absent metrics aren't conflated with the lowest score.
-**Impact.** Anyone viewing the radar for a partially-covered area (common outside the largest metros); systematically misrepresents data gaps as poor performance.
+### DT-4 — Comparison-scope toggle is a dead, greyed-out control on the default landing · **Low** · [Claude Code]
+**Problem.** On `?city=all` the comparison-scope toggle renders disabled (greyed, `cursor-not-allowed`) and visible on the first screen, where it has no meaning until a city is chosen. Its disabled tooltip is just `t('scope.all')` ("Koko Suomi"), which states the current scope but never explains *why* it's greyed out.
+**Where.** `src/components/ComparisonScopeToggle.tsx:17-28`; `src/App.tsx:1522-1526` (desktop), `:2168-2172` (mobile); rendered via `LayerSelector.tsx:314`.
+**Fix.** In all-Finland mode hide the toggle entirely, or replace it with a one-line hint ("Pick a city to compare within a sub-region"). If kept disabled, give it an explanatory tooltip distinct from `scope.all`. *(The "inverted semantics" sub-claim was rejected — the amber active state is an intentional active-filter cue.)*
 
-### EM5 — Education breakdown shows an orphan heading with no bars when all four values are null/zero · **Low** · [Claude Code]
-**Problem.** The "Education" heading always renders, but each `BarSegment` returns `null` below 1%, and `eduTotal` falls back to `1` when all four education fields are null/zero. For a low-coverage area where `ko_yl_kork/ko_al_kork/ko_ammat/ko_perus` are all null, the section renders the heading followed by nothing — an empty labeled block that looks like a rendering bug.
-**Where.** `src/components/NeighborhoodPanel.tsx:1241-1250` (heading + segments); `:264-265` (segment returns null <1%); `:795-799` (`eduTotal` fallback). *(Verified.)*
-**Fix.** Guard the block: if all four values are null, hide the heading or render an em-dash / "no data" placeholder, consistent with how other missing metrics show "—".
-**Impact.** Edge case for low-coverage areas; an empty headed section reads as a bug.
+### DT-5 — Opening the Filter panel on desktop hides the search bar (exact stacking overlap) · **Low** · [Claude Code]
+**Problem.** On desktop, the opaque 320px Filter panel (`top-14 left-4 z-20`) draws directly on top of the 288px search bar (`top-[3.5rem] left-4 z-10`) — both 56px from top, both `left-4` — fully covering it. The search bar is never hidden/shifted while `showFilter` is true, so search appears to vanish.
+**Where.** `src/components/FilterPanel.tsx:683`; `src/App.tsx:2145`.
+**Fix.** Offset the desktop FilterPanel below the search bar (e.g. `top-28`/`7rem`, adjusting max-height), or hide/shift the search bar while `showFilter` is true.
 
----
+### DT-6 — Correlation explorer permits identical X and Y metrics, producing a meaningless perfect correlation · **Low** · [Claude Code]
+**Problem.** Both axis `<select>`s list the full `LAYERS` set with no exclusion. Setting X = Y produces r = 1.00, R² = 1.00, and a perfect diagonal best-fit line — a confusing degenerate result with no guard, undermining trust in the statistic for legitimate cases.
+**Where.** `src/components/CorrelationExplorer.tsx:208-224`; stats via `src/utils/correlation.ts`.
+**Fix.** Disable (or grey) the option matching the other axis's current value, or when `metricX === metricY` show an inline notice and suppress the r/R² readouts and the fit line. Needs new fi/en/sv keys.
 
-## 5. Loading & async feedback
-
-### L1 — Split-view grid layers download (up to ~11 MB) with no loading indicator · **Medium** · [Claude Code]
-**Problem.** In the main map, picking a grid layer shows a spinner in the Legend while the grid downloads. The split/compare view has none: the right pane's grid hook never even captures the loading flag (`App.tsx:334` destructures only `gridData`), and `SplitPaneLegend` has no loading prop or spinner. `light_pollution_grid.geojson` is 10.82 MB. So a user in split view who picks one of these waits several seconds on a coarse choropleth while the scope badge already reads "▦ national/regional grid" — implying fine detail that's still silently downloading.
-**Where.** `src/App.tsx:334` (only `gridData` destructured); `src/components/SplitMapView.tsx:91-125` (`SplitPaneLegend` has no loading prop); `public/data/light_pollution_grid.geojson` = 10.82 MB.
-**Fix.** Destructure `loading` from `useGridData` for the secondary layer, pass per-pane `gridLoading` into `SplitMapView`, and render the same `role=status` spinner the main Legend uses inside `SplitPaneLegend`.
-**Impact.** Anyone using split view with air-quality or light-pollution (esp. the right pane) sees a multi-second silent wait that reads as "this layer has no detailed data."
-
-### L2 — Clicking "Sign in" (and split view, shortcuts) shows nothing while the lazy chunk downloads · **Medium** · [Claude Code]
-**Problem.** `AuthModal` is lazy-imported and mounted with `Suspense fallback={null}`; the trigger just calls `setShowAuth(true)` with no pending state (the keyboard shortcut `L` too). On a cold/slow connection the auth chunk isn't fetched yet, so clicking "Kirjaudu" produces zero visible change until the chunk lands — the button feels dead and a first-timer clicks repeatedly. The same `fallback={null}` blanks the area when toggling split view (heavy `SplitMapView` chunk) and opening the shortcuts overlay.
-**Where.** `src/App.tsx:46` (lazy AuthModal), `:2249-2257` (`Suspense fallback={null}`), `:1791-1806` (trigger has no pending state).
-**Fix.** Give user-initiated lazy modals a visible fallback — reuse the existing `PanelSkeleton` (`App.tsx:95-102`) or a dimmed backdrop+spinner for `AuthModal`/`ShortcutsOverlay`/`SplitMapView`.
-**Impact.** First-timers on slower networks who try to create an account get a dead-feeling button on the very action the app most wants them to take.
-
-### L3 — Switching language gives no in-flight feedback; the UI stays Finnish then pops · **Medium** · [Claude Code]
-**Problem.** `handleLangChange` calls `void setLang(next)` and ignores the returned promise. `setLang` flips `currentLang` and notifies subscribers synchronously (the language button's highlight/`aria-pressed` flips at once), but the en/sv dictionaries are lazy-fetched and `t()` keeps returning the Finnish fallback until the fetch resolves. So on a slow connection the whole UI sits in Finnish for a noticeable beat after the click, then suddenly re-renders — looking like the click did nothing.
-**Where.** `src/App.tsx:1206-1213`; `src/utils/i18n.ts:81-92, 114-116` (`setLang` returns the pending promise, but no UI consumes it). *(Verified: `setLang` returns the load promise.)*
-**Fix.** Use the promise `setLang` returns: in `SettingsDropdown` track a pending flag for the clicked language and show a tiny inline spinner until it settles. Better still, defer flipping `currentLang` until the new dict loads so the previous language stays rendered (no Finnish-fallback flash). *(Merges the Loading and Perceived-performance reports.)*
-**Impact.** Every non-Finnish first-timer who switches language on a slow network — the toggle feels unresponsive.
+### DT-7 — Split view lets both panes select the same layer, yielding two identical maps · **Low** · [Claude Code]
+**Problem.** The per-pane `SplitLayerPicker` renders every layer for both sides with no cross-exclusion. A user can set left and right to the same layer, producing two identical choropleths and defeating "Compare layers." Nothing flags the identical state.
+**Where.** `src/components/SplitMapView.tsx:17-36` (picker), `:884`/`:910` (uses); wired in `src/App.tsx:1961-1962`.
+**Fix.** Disable/visually mark the other pane's selected layer in each picker, or render a one-line note when `leftLayer === rightLayer`. Needs a new locale key; keep it text-only to avoid the bundle-heavy paint logic.
 
 ---
 
-## 6. Mobile & small-screen experience
+## 4. Save & account flows
 
-### M1 — Split-view layer pickers sit *behind* the top header — unusable on mobile · **High** · [Claude Code]
-**Problem.** In split/compare-layers mode each pane renders its layer `<select>` at `absolute top-2 left-2 z-10` (8px from the top), but the app header is `absolute top-0 h-12 z-20` — a 48px-tall, 80%-opaque bar drawn **on top** (`z-20 > z-10`) across the full width. Both pane pickers fall inside the header band and are visually covered and click-blocked. The single-map convention offsets chrome to `top-[3.5rem]` to clear the header (see `LayerSelector`, `SearchBar`), but the split panes were never given that offset. On phones it compounds: the two maps are a hard 50/50 (`w-1/2`, ~180px each) and `.maplibregl-ctrl-group` zoom buttons are hidden below 768px — so split view is two cramped maps with no working layer picker and no zoom buttons.
-**Where.** `src/components/SplitMapView.tsx:790` & `:816` (pane pickers `absolute top-2 left-2 z-10`); `:786` (root `flex h-full w-full`, no header offset); `src/App.tsx:1724` (header `h-12 z-20`); `src/index.css:157-161` (mobile zoom controls hidden). *(Verified: both pickers are at `top-2 z-10` under the `z-20` header.)*
-**Fix.** Offset both pane control rows below the header (`top-2` → `top-[3.5rem]`, or `pt-12` on the SplitMapView root). On mobile, consider stacking the panes vertically (`flex-col`, each map `h-1/2 w-full`) below ~768px and surfacing a per-pane zoom affordance since the default zoom group is hidden there.
-**Impact.** Every mobile (and desktop) user who opens Compare-layers/split — the pickers look broken and the headline comparison feature is effectively non-functional on phones.
+### AC-2 — Logout leaves the previous user's favorites/shortlist/notes on the device; next login merges them into a different account · **High** · [Claude Code]
+**Problem.** On a shared device, `logout()` only clears the `has_session` flag and in-memory user — it never resets the localStorage-backed favorites/shortlist/notes, which stay visible in the signed-out UI. Worse, the per-hook login-merge effects **union those leftover local items with the next user's server data and save the union back**, leaking A's private free-text notes into B's cloud account and corrupting B's saved data.
+**Where.** `src/hooks/useAuth.ts:96-100` (logout); merge bleed at `useFavorites.ts:90-115`, `useNotes.ts:123-151`, `useShortlist.ts:96-116`; wired at `src/App.tsx:2112`, leftover data re-rendered at `:2103`.
+**Fix.** Add a dedicated `resetLocal()` to each hook that clears in-memory state, the data keys, **and** the matching `*-removed` tombstone keys (without writing *new* tombstones), then call them all from an App-level logout handler wrapping `useAuth.logout()`. Do **not** reuse `clearFavorites`/`clearShortlist` (they add tombstones, which would block the same user re-syncing on next login). Clearing existing tombstones is essential, else A's deletions would suppress B's matching server items. The signed-out→signup conversion merge is unaffected (that data legitimately belongs to that person).
 
-### M2 — Time slider overlaps the Legend on mobile and is never hidden when a panel opens · **Medium** · [Claude Code]
-**Problem.** When a trends/time-series layer is active the `TimeSlider` renders `fixed bottom-5 left-1/2 -translate-x-1/2 z-10` (~20px from bottom, centered, 160px wide). The Legend renders `fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom))] left-3 z-10` — also ~20px from the bottom. On a 360–390px phone the two physically overlap. Worse: the Legend and Layers FAB are suppressed when an area is selected (`hidden={!!selected}`), but the `TimeSlider` is rendered with **no `hidden` prop**, so when a neighborhood is selected it stays at `z-10` trapped behind the `z-20` panel — half-covered and partially tappable through the gap above the sheet.
-**Where.** `src/components/TimeSlider.tsx:26`; `src/App.tsx:1896-1906` (TimeSlider rendered with no `hidden`; cf. Legend at `:1893` which gets `hidden={!!selected}`). *(Verified: TimeSlider has no `hidden` prop while the adjacent Legend does. Scoped to the Trends layer group, hence Medium not High.)*
-**Fix.** Pass `hidden={!!selected}` to `TimeSlider` and have it return null (mirroring Legend/LayerSelector). On mobile, move the slider above the legend band (e.g. `bottom-[calc(7rem+env(safe-area-inset-bottom))]`) or make it full-width centered above the legend.
-**Impact.** First-timers exploring the Trends layers on a phone see the legend and play/scrub control overlapping; selecting an area leaves the slider stuck behind the sheet.
+### AC-1 — Account recovery is promised in the UI but no recovery/change-password flow exists · **Medium** · [Claude Code (honesty fix) / Manual Setup (full email reset)]
+**Problem.** The signup UI labels the optional email "only for account recovery" and the privacy notice repeats it, but **no recovery or password-change mechanism exists**: `server/api/src/auth.ts` has no `/reset`, `/forgot`, or `/change-password` route, the stored email is never used by any route, and UserMenu has no change-password control. A user who supplies an email expecting recovery and forgets their 12-char password is **permanently locked out** of all cloud-synced data. (Blast radius bounded to optional-backend users who opt into email, losing only convenience data — but the copy makes a promise the system can't keep.)
+**Where.** `auth.email_hint` (`fi.json:696`) + `privacy.s_account_b` (`fi.json:270`), rendered at `AuthModal.tsx:241`; no recovery route in `server/api/src/auth.ts:63-375`; no control in `UserMenu.tsx:226-280`.
+**Fix.** *Honesty fix (Claude Code):* change `auth.email_hint`/`privacy.s_account_b` in all three locales so they no longer claim email enables recovery. *Infra-free win (Claude Code):* add a "Change password" control in UserMenu backed by a new authenticated `POST /auth/change-password` (re-hash for the valid session). *Full reset (Manual Setup):* `POST /auth/request-reset` + `/auth/reset` emailing a tokenized link requires SMTP/email infra.
 
-### M3 — Shortlist tray action row overflows with tiny touch targets and overlaps the Layers FAB · **Medium** · [Claude Code]
-**Problem.** The ShortlistTray header packs up to 7 actions (Compare · Share link · Image · CSV · PDF · GeoJSON · Clear) into one `flex items-center gap-2 text-xs` row with no `flex-wrap` and no per-button min-height — bare `text-xs` text buttons. Inside a `w-[min(92vw,560px)]` tray (~331px on a 360px phone) that row can't fit and overflows / crushes the title, and each ~10px text button is far below the 44px touch minimum used elsewhere. The tray (`z-10`, `bottom-20`) and the Layers FAB (`z-30`, bottom-right) are both shown on the idle home view, so the FAB sits on top of the tray's bottom-right "Clear" end.
-**Where.** `src/components/ShortlistTray.tsx:119` (container) & `:126-184` (non-wrapping `text-xs` row); `src/components/LayerSelector.tsx:329` (FAB `z-30`).
-**Fix.** On mobile collapse secondary exports (Image/CSV/PDF/GeoJSON) behind one "Export" overflow, or allow the row to `flex-wrap`; give each action `min-h-[44px]`; raise/shift the tray so it doesn't sit under the bottom-right FAB.
-**Impact.** Mobile users with a shortlist (the core "compare candidates" workflow) get a cramped, overflowing strip with mis-tap-prone targets and a FAB covering part of it.
+### AC-4 — Signup password field has no show/hide toggle despite a 12-char minimum + confirm field · **Medium** · [Claude Code]
+**Problem.** Both password and confirm-password inputs are `type="password"` with `minLength={12}` and no reveal toggle — users type a 12+ char password blind, twice. Because there's no reset flow (see **AC-1**), a consistent mistyped password produces a permanently locked-out account — avoidable friction at the conversion point.
+**Where.** `src/components/AuthModal.tsx:197-207` (password), `:217-227` (confirm).
+**Fix.** Add an eye/show-password toggle inside the input (flips `type`, with `aria-label`/`aria-pressed`). With a reveal toggle, the confirm field can optionally be dropped to reduce friction.
 
-### M4 — No lightweight value preview on touch — reading any value requires opening the full sheet · **Medium** · [Claude Code]
-**Problem.** The hover tooltip (name, value, vs-avg delta) is CSS-hidden on touch via `@media (hover:none) and (pointer:coarse)`. On mobile the only way to see one area's value for the active layer is a full tap that opens the half-screen panel, then close, then tap the next. For a choropleth whose whole point is comparing values, mobile users must repeatedly open and dismiss a heavy sheet to compare even two neighborhoods.
-**Where.** `src/index.css:150-155` (`.tooltip-desktop { display:none }` on coarse pointers); `src/components/NeighborhoodPanel.tsx:1924` (full sheet is the only touch read path).
-**Fix.** Add a lightweight touch "peek" on single tap — a compact one-line bar (name + formatted value + vs-avg) anchored at the bottom that updates per tap, with a "details" affordance to open the full sheet.
-**Impact.** Every mobile visitor comparing areas — the core task is slow because each value read costs a full sheet open/close.
+### AC-3 — Notes are a dead-end save: no list of "areas I noted" · **Low** · [Claude Code]
+**Problem.** Per-area notes have no notes-specific retrieval surface. A note's existence shows only as a dot on ShortlistTray chips; neither the UserMenu favorites list nor the signed-out FavoritesButton list shows a note indicator, and `useNotes` exposes no `listNotedPnos()`. So a note on a non-shortlisted/non-favorited area is durably retrievable only by re-finding that exact area. (Mitigated: selecting an area to write a note adds it to recents — capped at 10 — and bulk export dumps all notes, so the note is never *lost*, only its targeted discoverability is weak.)
+**Where.** `src/components/UserMenu.tsx:181-208` & `FavoritesButton.tsx:69-92` (no indicator); `src/hooks/useNotes.ts:39` (only `readNote`); `ShortlistTray.tsx:139-142,258-264` (sole has-note UI).
+**Fix.** Reuse the `readNote(pno)` has-note dot in the UserMenu and FavoritesButton lists, and/or add a `listNotedPnos()` helper feeding a small "Areas with notes" section.
 
-### M5 — Bottom sheet and tab carousel animate regardless of `prefers-reduced-motion` · **Medium** · [Claude Code]
-**Problem.** The mobile `NeighborhoodPanel` and `LayerSelector` sheets hardcode `transition: 'height 0.3s cubic-bezier(...)'`, and the panel's swipeable tab carousel hardcodes a `transform` transition — none consult the existing `useReducedMotion()` / `prefersReducedMotion()` helper, even though the app already gates the camera `flyTo`, the count-up, and the layer fade on reduced motion. So users who set "Reduce Motion" still get the full sliding/snapping on every sheet open, drag, and tab swipe — the two most frequent mobile interactions.
-**Where.** `src/components/NeighborhoodPanel.tsx:1940` (sheet height) & `:2044` (carousel transform); `src/components/LayerSelector.tsx:366` (sheet height); `src/hooks/useSwipeNavigation.ts:147-150`.
-**Fix.** Read `useReducedMotion()` in the sheet/carousel components and set the transition to `'none'` (instant snap) when reduced motion is preferred, matching the map's fast-path. *(Merges the Mobile and Perceived-performance reports.)*
-**Impact.** Mobile users with vestibular sensitivity who opted out still get sliding sheets and snapping carousels on every interaction.
-
-### M6 — LayerSelector mobile sheet drag handle omits `onTouchCancel`, risking a frozen sheet · **Low** · [Claude Code]
-**Problem.** The shared `useBottomSheet` hook exposes `onTouchCancel` so a system-interrupted drag (incoming notification, multi-touch, OS edge-swipe — where the browser fires `touchcancel` instead of `touchend`) resets `isDragging`/`dragHeight`. The `NeighborhoodPanel` sheet wires all four handlers; the `LayerSelector` sheet wires only `onTouchStart/Move/End`, so a cancelled drag leaves `isDragging` true, the height transition disabled, and the sheet frozen at the last dragged height until the next touch.
-**Where.** `src/components/LayerSelector.tsx:370-377`; cf. `src/components/NeighborhoodPanel.tsx:1944-1950`; the unused cancel path at `src/hooks/useBottomSheet.ts:161-164`.
-**Fix.** Add `onTouchCancel={sheetHandlers.onTouchCancel}` to the LayerSelector drag handle.
-**Impact.** Mobile users interrupted mid-drag of the Layers sheet can briefly land it stuck; self-heals on next touch (low frequency).
-
-### M7 — Area-summary sheet stacks over the neighborhood sheet on mobile (missing `suppressMobile`) · **Low** · [Claude Code]
-**Problem.** `ComparisonPanel` was given a `suppressMobile` prop precisely because it and the `NeighborhoodPanel` mobile sheet both anchor `fixed bottom-0 z-20`. `AreaSummaryPanel`'s mobile sheet is also `md:hidden fixed bottom-0 z-20` but has no such suppression. If a drawn/selected area is active (AreaSummaryPanel showing) and the user taps a single polygon, `NeighborhoodPanel` opens — but because `AreaSummaryPanel` renders later in the DOM at the same `z-20`, it paints on top and covers the just-opened neighborhood sheet.
-**Where.** `src/components/AreaSummaryPanel.tsx:226` (no suppress); `src/App.tsx:2044` (rendered without `suppressMobile`) vs `:1934` (NeighborhoodPanel); pattern at `src/components/ComparisonPanel.tsx`.
-**Fix.** Give `AreaSummaryPanel` a `suppressMobile` prop mirroring `ComparisonPanel` and pass `suppressMobile={!!selected}` (or clear the drawn polygon on single-area select).
-**Impact.** Mobile users who draw/select then tap a polygon get the expected panel hidden behind the area-summary sheet — a "my tap did nothing" moment (reachable only via the draw+select sequence, so lower frequency).
+### AC-5 — Turnstile-blocked error tells a sign-up first-timer to "sign in with an existing account" they don't have · **Low** · [Claude Code]
+**Problem.** The Turnstile widget renders only in signup mode. When its script is blocked, the failure UI shows `auth.error.bot_check_blocked`, which in all three locales ends "…or sign in with an existing account" — meaningless to a first-timer on the signup tab. (Not a dead end: the message also gives the correct fix and a Reload button sits below; the defect is the misleading trailing clause.)
+**Where.** `src/components/Turnstile.tsx:93-111` (renders the string); `fi.json:798`; widget signup-only at `AuthModal.tsx:245`.
+**Fix.** Drop the "or sign in with an existing account" clause from `auth.error.bot_check_blocked` in all three locales; keep the actionable "disable your ad/tracker blocker and reload."
 
 ---
 
-## 7. Accessibility (keyboard, focus, screen reader, motion, contrast)
+## 5. Error states
 
-### A1 — Auth modal (and ShortcutsOverlay) set `aria-modal` but never trap focus · **High** · [Claude Code]
-**Problem.** The sign-in/sign-up dialog declares `role="dialog" aria-modal="true"` (which tells AT the rest of the page is inert) but installs no Tab handler — its only keydown listener is Escape. Focus is moved in on open and restored on close, yet a keyboard/SR user who Tabs past the last element (the privacy link) lands on the map controls / header behind the overlay — content the modal just declared inert. The project already does this right in `OnboardingTour` (a full Tab trap); `AuthModal` and `ShortcutsOverlay` are the inconsistent ones.
-**Where.** `src/components/AuthModal.tsx:109-122` (no Tab handler; only `handleEsc`); `src/components/ShortcutsOverlay.tsx:36-83`; correct pattern at `OnboardingTour.tsx:145-163`. *(Verified: AuthModal's sole keydown handler is Escape.)*
-**Fix.** Add a Tab/Shift+Tab handler cycling focus among the dialog's focusable elements (mirror `OnboardingTour`), or apply `inert`/`aria-hidden` to the background while open. Apply the same to `ShortcutsOverlay`.
-**Impact.** Keyboard-only and SR users creating an account can tab out into background controls announced as inert — breaks the modal contract on the action the app most wants completed.
+### ER-1 — Address-search failures are silently shown as "No results" · **Low** · [Claude Code]
+**Problem.** `geocodeAddress()` collapses every failure mode (non-OK HTTP, 5xx, over-quota, network drop, malformed JSON) into an empty array and explicitly never throws, so SearchBar can't tell "geocoder unreachable/throttled" from "no matches." When `isGeocoding` ends with empty results, the user is told "No results for '{query}'" even though their valid street address was never actually checked.
+**Where.** `src/utils/geocode.ts:63,92-94` (swallowed failures); `src/components/SearchBar.tsx:127-133,482-488`.
+**Fix.** Make `geocodeAddress` distinguish failure from emptiness (throw, or return `{ status: 'error' | 'ok', results }`) on non-OK/network error while still returning `[]` for a successful-empty response. In SearchBar, add an `addressError` state and render a dedicated "Address search unavailable — retry" row, suppressing the generic no-results branch. New `search.address_unavailable`/`search.address_retry` keys (×3 locales).
 
-### A2 — Dual-thumb filter sliders have no accessible name or value text · **High** · [Claude Code]
-**Problem.** Each filter criterion renders two `<input type="range">` thumbs with **zero ARIA** — no `aria-label`, no `aria-labelledby`, no `aria-valuetext`. A screen reader announces both identically as a bare "slider, 50" with no indication of which metric the slider controls (the metric name lives in an unassociated sibling) or whether it's the lower or upper bound; percentile-vs-absolute values aren't conveyed either.
-**Where.** `src/components/FilterPanel.tsx:128-166` (min thumb `128-148`, max thumb `150-166`). *(Verified: both inputs have only styling classes, no ARIA.)*
-**Fix.** Add `aria-label` to each input naming the metric and bound (`${t(layer.labelKey)} – ${t('filter.min')}` / `– max`), and `aria-valuetext` set to the formatted value (`layer.format(value)` or `P${value}`).
-**Impact.** SR users can't meaningfully operate the Filter tool — a core feature — because every slider sounds the same and gives no metric, bound, or formatted value.
+### ER-2 — Locale-load failure strands en/sv users in an all-Finnish UI with a Finnish-only error notice · **Low** · [Claude Code]
+**Problem.** When the lazily-fetched English/Swedish dictionary fails to load, `t()` falls back to Finnish for every key. The amber recovery banner renders its message and Retry label via `t()` while `currentLang` is still the failed en/sv — so the recovery affordance meant for a non-Finnish user is shown in Finnish, the one language they may not read.
+**Where.** `src/App.tsx:2591-2603` (banner); root cause `src/utils/i18n.ts:43-54,132-135`.
+**Fix.** Render this single notice (message + retry/close labels) from a small **hardcoded trilingual constant** keyed by `getLocaleLoadError()`, not via `t()` — by definition that lang's dictionary is the one that failed.
 
-### A3 — The map canvas focus indicator is explicitly removed · **Medium** · [Claude Code]
-**Problem.** MapLibre is initialized without `keyboard:false`, so its handler makes the canvas tab-focusable (`tabindex=0`) and arrow-pannable — but `index.css` deliberately removes the canvas's `:focus-visible` outline. A sighted keyboard-only user who Tabs to the map gets no visible focus indicator at all — they can't tell the map is focused or that arrow keys will pan it (WCAG 2.4.7).
-**Where.** `src/index.css:22-25` (`.maplibregl-canvas:focus-visible { outline: none; }`); focusability set in `src/components/Map.tsx:274-282, 340-341`.
-**Fix.** Replace the blanket `outline:none` with a visible custom focus indicator on the canvas (e.g. an inset box-shadow ring).
-**Impact.** Sighted keyboard users lose track of focus when it reaches the map and get no cue that arrow-key panning is available.
+### ER-3 — Grid-data load failure is never announced and is invisible while a panel is open · **Low** · [Claude Code]
+**Problem.** When a grid layer (air quality ~250 m, light pollution ~500 m) fails to fetch, the map silently degrades to the coarse postal choropleth. The grid-failure notice has **no `role`/`aria-live`** (unlike the sibling loading row, which is `role="status"`), so a SR user is told "loading" and then never told it failed. Additionally the Legend is suppressed on **mobile** when a neighborhood is selected, so mobile users with a panel open get no failure notice and keep believing they're seeing ~250 m detail. (Desktop still shows the amber visual notice with a selection.)
+**Where.** `src/components/Legend.tsx:91-96` (gridError div, no aria-live); `src/hooks/useGridData.ts:205-214`; `src/App.tsx:2277`.
+**Fix.** Add `role="status" aria-live="polite"` to the gridError div. Optionally route the failure through the shared `app-toast` window event so mobile users with an open panel still hear "showing postal estimate."
 
-### A4 — Tools menu uses `role=menu` but implements no arrow-key navigation · **Medium** · [Claude Code]
-**Problem.** The Tools popover sets `role="menu"` with `role="menuitem"` children and moves focus to the first item on open, but provides no Up/Down traversal — only Escape and outside-click. `role="menu"` tells screen readers to enter menu mode where arrow keys are the expected (often only AT-exposed) way to move between items; Tab is non-standard there. Users following the announced semantics press arrows and nothing happens.
-**Where.** `src/components/ToolsDropdown.tsx:124-131` (role=menu) & `:84-89` (focus first item, no arrow handler).
-**Fix.** Either implement roving-tabindex arrow-key navigation (Up/Down between items, Home/End), or drop `role="menu"`/`"menuitem"` in favor of a plain focusable button list so Tab is the documented interaction.
-**Impact.** SR users in menu mode can't navigate the primary feature-discovery hub the way its ARIA role promises.
+### ER-4 — ErrorBoundary fallback isn't announced to assistive tech or focused · **Low** · [Claude Code]
+**Problem.** When a non-recoverable render error trips the boundary wrapping `<Map>`/`<SplitMapView>`, the default fallback renders as a plain `<div>` with no `role="alert"` and no focus management; the Retry button has no `autoFocus`. A keyboard/SR user is left with focus on a detached node and gets no announcement of the crash or the recovery controls. (Common reconciliation errors auto-recover up to 3× before this UI shows, so the trigger is a rare hard crash.)
+**Where.** `src/components/ErrorBoundary.tsx:61-85`; mounted at `src/App.tsx:1952`.
+**Fix.** Give the fallback `role="alert"` and `tabIndex={-1}`, attach a ref, and focus it (or the Retry button) when `hasError` flips true — via `componentDidUpdate` or `autoFocus`.
 
-### A5 — Mobile bottom sheet is `aria-modal` at full snap but does not trap focus · **Medium** · [Claude Code]
-**Problem.** The mobile neighborhood panel sets `aria-modal={snap==='full'}` — true when expanded full-screen — yet intentionally does not trap focus (acknowledged in a comment). With `aria-modal=true`, AT treats everything outside the sheet as inert, but because focus isn't contained, a keyboard/SR user can still Tab out into the map and chrome behind it, contradicting the announced semantics.
-**Where.** `src/components/NeighborhoodPanel.tsx:1924-1942` (aria-modal at `:1928`; no-trap noted at `:850-865`).
-**Fix.** When `snap==='full'`, trap focus within the sheet (or only set `aria-modal` once a real trap/inert background exists); conversely, if focus genuinely should not be trapped, don't set `aria-modal=true`.
-**Impact.** SR users on mobile who expand the area panel can tab into content declared inert — inconsistent structure on the most common mobile interaction.
+### ER-5 — Offline indicator is not announced to screen readers · **Low** · [Claude Code]
+**Problem.** The reactive offline banner is a bare `<div>` with no `role`/`aria-live`, unlike every other notice in the same top-center stack (the data-load ErrorBanner uses `role="alert"`; the geolocation, shared, and locale notices use `role="status"`). SR users get no announcement when the app goes offline — exactly the state change that explains why subsequent loads fail.
+**Where.** `src/App.tsx:2556-2560`.
+**Fix.** Add `role="status" aria-live="polite"` to the offline indicator div.
 
-### A6 — Hardcoded English strings/labels bypass i18n in several controls · **Medium** · [Claude Code]
-**Problem.** Four user-facing controls hardcode English instead of routing through `t()`, so Finnish and Swedish users (including SR users) get English: `RankingTable` close button `aria-label="Close ranking"`, `FilterPanel` close `aria-label="Close filter"`, `LayerSelector` search-clear `aria-label="Clear search"`, and `ComparisonPanel` `title="Remove"` (visible on hover). The sibling `RegionRankingTable` correctly uses `t('aria.close')`, proving the key exists and the inconsistency is accidental.
-**Where.** `src/components/RankingTable.tsx:113`; `src/components/FilterPanel.tsx:677`; `src/components/LayerSelector.tsx:153`; `src/components/ComparisonPanel.tsx:377`. *(Merges the Accessibility and Discoverability lenses.)*
-**Fix.** Replace all four literals with `t()` calls (`t('aria.close')`; add `aria.clear_search` / `compare.remove` keys with fi/en/sv parity).
-**Impact.** All Finnish/Swedish users — the `title="Remove"` tooltip shows English on hover, and SR users on fi/sv hear English on three close/clear controls.
-
-### A7 — Map exposes nested, duplicated `role="application"` regions · **Low** · [Claude Code]
-**Problem.** Both the map wrapper div (`role="application"` + "Kartta, aineisto: {layer}…") and the inner MapLibre canvas (`role="application"` + "Karttanäkymä asuinalueista") carry `role="application"`. This nests one application region inside another with two different names, and applies the heavy-handed role to the outer wrapper that has no keyboard behavior of its own (only the inner canvas pans/zooms).
-**Where.** `src/components/Map.tsx:1529-1530` (container) and `src/components/Map.tsx:340-341` (canvas).
-**Fix.** Keep `role="application"` on only the canvas that handles keys; give the wrapper `role="region"`/`group` with the descriptive name, or reference the sr-only keyboard instructions via `aria-describedby`.
-**Impact.** SR users navigating by landmark hit a redundant, doubly-named application layer with no operable content in the outer one — minor disorientation.
+### ER-6 — Hardcoded English auth error fallbacks shown to fi/sv users · **Low** · [Claude Code]
+**Problem.** useAuth's success guards fall through to hardcoded English strings ('Login failed'/'Signup failed'/'Delete failed') when the server returns a parseable 200 JSON body that omits the expected field. Every other auth error is localized, making these three the sole un-localized gap; a fi/sv user could see raw English inside the otherwise-localized modal.
+**Where.** `src/hooks/useAuth.ts:77,93,119`; rendered at `AuthModal.tsx:249-251`.
+**Fix.** Replace the three literal fallbacks with `t('auth.error.server_error')` (the key already exists in all three locales at line 701); import `t` from `../utils/i18n`.
 
 ---
 
-## 8. Cross-cutting: discoverability, trust & perceived performance
+## 6. Empty states
 
-### X1 — Data Sources & Methodology page is unreachable on mobile · **High** · [Claude Code]
-**Problem.** The Data Sources & Methodology page is the app's central trust artifact — every layer's source, license, vintage, freshness, per-postal coverage, measured-vs-estimate flag, and the Quality Index methodology. It's well-built, but the **only** in-app link lives inside the attribution footer, which is wrapped in `hidden md:block` (desktop only). The mobile-reachable Settings dropdown carries the Privacy link but **no** Data Sources link. So a first-time mobile visitor — likely the majority of traffic — can't reach any provenance/methodology page, undermining the app's "every value traces to a real source" positioning for exactly the audience that can't see the footer.
-**Where.** `src/App.tsx:2192-2205` (footer `hidden md:block` + the sole `footer.sources` link); `src/components/SettingsDropdown.tsx` (privacy link present, **no** sources link — confirmed by search). *(Verified both ends.)*
-**Fix.** Add a "Tietolähteet / Data sources" item to the Settings dropdown beside the privacy link (reuse the lang-aware `href` from `App.tsx:2201`). One anchor tag, reachable everywhere the gear menu is.
-**Impact.** All mobile users lose access to data provenance, freshness, licensing and proxy disclosures — the strongest trust signals the app has.
+### ES-1 — Saved favorites silently disappear from the UI on the default all-Finland view · **High** · [Claude Code]
+**Problem.** On the default `?city=all` view, `data` is null so `pnoFeatureMap` is empty; `favoriteEntries` then drops every postal-code favorite (region-ID favorites survive). For signed-out users with only postal-code favorites the whole FavoritesButton + badge **vanishes** from the header; for signed-in users the UserMenu shows a false "empty favorites" illustration. Postal-code areas are the primary favorite type, so a returning visitor's saved areas appear lost on the flagship view until they drill into the owning region.
+**Where.** `src/App.tsx:1548-1564` (favoriteEntries), `:218-226` (empty pnoFeatureMap when `!data`), `:147,150,480` (aggregate mode), `:2103` (signed-out gate); `UserMenu.tsx:212-224` (false empty state).
+**Fix.** Build a `pno→name` fallback from the eagerly-loaded `searchIndex.features` (which carry pno/nimi/namn/city with `geometry:null`), used when `pnoFeatureMap` has no entry, so postal-code favorites resolve a name on the all-Finland view. Add `searchIndex` to `favoriteEntries`' deps; mirror the existing Swedish-name handling.
 
-### X2 — Auth modal never explains what an account is for · **Medium** · [Claude Code]
-**Problem.** The sign-in/sign-up modal opens straight into tabs and fields (username, 12-char password, optional email, Turnstile) with **zero** value-proposition copy. Nothing tells a first-timer that an account syncs favorites, shortlist, notes and preferences across devices — that benefit is described only on the separate Privacy page. The trigger is just an icon/"Kirjaudu" with no subtitle. A newcomer asked for a 12-character password has no stated reason to create one.
-**Where.** `src/components/AuthModal.tsx:109-266` (no intro copy); `src/App.tsx:1791-1806` (trigger is icon/label only).
-**Fix.** Add a one-line subtitle under the tab header, e.g. `t('auth.value_prop')` = "Luo maksuton tili ja synkronoi suosikit, vertailulista ja muistiinpanot laitteiden välillä." (fi/en/sv parity).
-**Impact.** Every logged-out first-timer who opens auth sees a credential form with no incentive, so most abandon it.
+### ES-2 — Shortlist CSV/PDF/GeoJSON/image-card buttons silently no-op in the all-Finland view · **Medium** · [Claude Code]
+**Problem.** On the default landing (data null), `pnoFeatureMap` is empty so `featureFor` returns null for every shortlisted pno. The export buttons are gated only on `featureFor` being a defined function (always true), so they stay fully visible; clicking any resolves an empty array and silently returns with **zero feedback** (the image handler bails before its `try`, so even its error notice never fires). The shortlist persists and the tray renders on the idle landing (chips even show raw postal codes instead of names), so a returning user reliably hits this.
+**Where.** `src/components/ShortlistTray.tsx:62-70,101-119,121-135,185-221`; root cause `src/App.tsx:147,218-226`, threaded at `:2427`.
+**Fix.** Compute the resolvable count and **disable/hide** the export buttons (tooltip "Open a region to export") when it's 0, or surface the transient-notice pattern instead of a silent return. *Note:* threading from `searchIndex` will NOT make these work (it has no metrics/geometry); to make exports actually function from the all-Finland view, load the full national set on demand (flip `needFullNational`) when an export is invoked.
 
-### X3 — Donations are Bitcoin-Lightning-only and unexplained · **Medium** · [**Manual Setup**]
-**Problem.** The "Tue projektia / Support the project" control offers a single path: a copyable BOLT12 string + QR ("Works with Phoenix, Zeus, and other BOLT 12 compatible wallets"). There's no card/MobilePay/bank option, and no copy explaining who runs naapurustot.fi or what a donation funds. For a general Finnish civic-data audience, Lightning/BOLT12 is a niche method almost no one can act on, and an unexplained opaque crypto string under "support us" erodes trust rather than building it.
-**Where.** `src/components/DonateButton.tsx:9-10` (BOLT12 is the only method) & `:64-115`; `src/locales/fi.json:301-307`, `en.json:302-307`.
-**Fix.** Add a conventional option (MobilePay / bank / Ko-fi / Stripe link) alongside Lightning. **This is the Manual-Setup item** — it requires creating/holding a payment-provider account and credentials, so it can't be completed in a code-only session. *Interim, code-only mitigation:* add a one-line legitimacy/intent statement (who maintains the project, that it's a non-commercial open-data hobby, what funds cover) so the crypto string isn't the entire pitch — that copy change **is** doable in a Claude Code session and can land first.
-**Impact.** Practically everyone who wants to support the project is excluded by the payment method, and the opaque string dents perceived legitimacy for casual viewers.
+### ES-3 — FilterPanel mobile: zero-match empty state and 'Clear all' recovery are hidden behind a collapsed 'Show results' toggle · **Medium** · [Claude Code]
+**Problem.** On mobile, the zero-match empty state (illustration + `filter.no_match` + the one-tap `Clear all` recovery) renders only inside `resultsList`, which the mobile sheet gates behind `mobileResultsOpen` (defaults false). When a user narrows filters to zero matches the sheet shows only "0 matches" + a "Show results" link — and a count of 0 makes "Show results" look pointless, so the guidance and escape hatch go undiscovered. (Filter rows with remove buttons stay visible, so not a total dead-end.)
+**Where.** `src/components/FilterPanel.tsx:939` (`{mobileResultsOpen && resultsList}`), `:464`, `:655-670` (no-match block), `:789` (desktop always renders).
+**Fix.** Render the no-match block on mobile regardless of `mobileResultsOpen`, or auto-open results when `filters.length > 0 && ranked.length === 0`.
 
-### X4 — On-map "Arvio/Estimate" legend badge has no explanation · **Low** · [Claude Code]
-**Problem.** When a proxy/derived layer is active, the Legend shows an amber "Arvio" badge with no tooltip or info affordance. A first-timer sees the badge but can't learn the value is modeled (e.g. municipality figures distributed to postal codes). The `NeighborhoodPanel` does this right — it pairs the identical badge with an explanatory `data.estimate_desc` popover — so the legend is the one place the disclosure lacks its explanation.
-**Where.** `src/components/Legend.tsx:93-100` (badge, no title); contrast `src/components/NeighborhoodPanel.tsx:201-205`.
-**Fix.** Add `title={t('data.estimate_desc')}` to the legend badge span (or a small "i" affordance), matching the panel.
-**Impact.** First-timers exploring proxy layers see an unexplained "Arvio" tag and may distrust or misread the data.
+### ES-4 — Region comparison table shows the same 'no data' message for a load failure as for genuinely empty data, with no retry · **Low** · [Claude Code]
+**Problem.** The error and genuine-empty branches both render `region.comparison.no_data` ("Ei tietoja tälle mittarille"), making a transient load failure indistinguishable from a metric that legitimately has no regional data — with no retry; the user must close and reopen the tool. (Tempered: `loadAllData` is cached and backs the default view, so a rejection here is uncommon.)
+**Where.** `src/components/RegionRankingTable.tsx:79` (error flag), `:140-142` (error branch), `:167-169` (empty branch). Compare `UserMenu.tsx:164-169` (retry affordance).
+**Fix.** Give the error branch its own copy (e.g. `error.region_load_failed`) + a Retry button that resets error state and re-triggers `loadAllData()`, mirroring UserMenu's `retryAllSyncs()`.
 
-### X5 — Layer switch dissolves the choropleth to nothing before recoloring, while the legend updates instantly · **Medium** · [Claude Code]
-**Problem.** On a layer switch the fill fades to opacity 0 over 150ms, the color expression is swapped 180ms later, then faded back in over 200ms. So for ~350ms the choropleth data is gone (only the basemap shows) while the Legend — keyed off `activeLayer` — already shows the new metric's title/ramp. The result is a brief map/legend contradiction and a recolor that never feels instant across 59 layers.
-**Where.** `src/components/Map.tsx:912-974`.
-**Fix.** Crossfade between two stacked fill layers (old colors stay visible while new ones fade in), or fade only to a partial opacity (e.g. 0.3) so data never fully disappears, or shorten the dip. The legend already updates instantly; the map should too.
-**Impact.** Affects every user who toggles layers — the headline interaction — making it feel sluggish and slightly broken.
+### ES-5 — Ranking table empty state is a bare 'Ei tietoja' with no illustration or recovery hint · **Low** · [Claude Code]
+**Problem.** When no area in the loaded region has a value for the active layer (common for sparse/low-coverage layers like the grid overlays), RankingTable renders just centered "Ei tietoja" — inconsistent with the polished, actionable empty states used everywhere else (FilterPanel, UserMenu favorites, ComparisonPanel), giving no clue why the list is empty or what to do.
+**Where.** `src/components/RankingTable.tsx:163-167`; `fi.json` (`ranking.no_data`).
+**Fix.** Replace the bare label with a guided empty state reusing `EmptyStateIllustrations` plus a sentence like "This layer has no data for the loaded areas — try another layer." New copy ×3 locales.
 
-### X6 — Notes textarea autosaves silently with no "saving/saved" acknowledgment · **Low** · [Claude Code]
-**Problem.** The notes field writes on every keystroke via `setNote` but shows no saved/saving indicator. For a logged-out user there's no confirmation the note persisted to localStorage; for a logged-in user it also syncs to the server in the background with no positive signal. After typing and closing the panel, the user has no feedback the input was captured.
-**Where.** `src/components/NeighborhoodPanel.tsx:776-787`.
-**Fix.** Add a subtle debounced "Saving…/Saved" label next to the notes heading (reuse the transient-flag pattern already used for the copy-link confirmation); for logged-in users, reflect the existing sync status.
-**Impact.** Any user who writes a note is left unsure it was stored, reducing trust that the action registered.
+### ES-6 — Search 'no results' copy suggests actions that don't apply at the point it appears · **Low** · [Claude Code]
+**Problem.** The no-results message advises "try an address or change city," but neither applies. Name/code search runs against the **global national index** (all 3,018 areas), so "change city" — a holdover from region-scoped search — can never reveal a missing area. And the message can show at a 2-char query while geocoding only fires at length ≥ 3, so "try an address" is suggested before any geocode was attempted.
+**Where.** `src/components/SearchBar.tsx:482` (no-results gate at length ≥ 2), `:119` (geocoding at length ≥ 3); `fi.json:788`.
+**Fix.** Reword `search.no_results` (×3 locales) to guidance that holds at the threshold and drop "change city" (search is already nationwide) — e.g. "Ei osumia haulle '{query}' — tarkista kirjoitusasu tai jatka osoitteen kirjoittamista." *(Dedup: same string as **SN-4** — sequence so the copy/gating edits stack.)*
+
+---
+
+## 7. Loading states & perceived performance
+
+### LP-1 — Enabling custom quality weights nationwide silently downloads ~10.6 MB with zero loading feedback · **Medium** · [Claude Code]
+**Problem.** In `?city=all`, the first time a user nudges a custom weight, `customWeights` flips `needFullNational`, turning off `skipAllFetch` so `useMapData` re-runs `loadAllData()` for the ~10.6 MB national set. Throughout that fetch `data` stays null, so `aggMode`/`allViewReady` are both true and `effectiveLoading` is **false** — the cold overlay and slim progress bar never appear. The debounced recompute also no-ops under `if (data)`, so the map holds its old default-weight colors. The view only updates when the data-keyed effect recomputes after the bytes arrive — **several seconds of zero feedback followed by an abrupt recolor** right when the user is interacting.
+**Where.** `src/App.tsx:381-383` (trigger), `:147` (skipAllFetch), `:480-482` (effectiveLoading false), `:1033` (null-data no-op), `:2026` (unrendered bar); `useMapData.ts:59-62`.
+**Fix.** Add a pending flag — `const fullNationalPending = cityFilter === 'all' && needFullNational && !data && !error;` — and render the existing slim bar when `firstLoadDone && (effectiveLoading || fullNationalPending)` with a "recomputing nationwide" aria-label. Optionally pass a `recomputing` prop into CustomQualityPanel. *(Note: `aggMode` also masks a failed full-national fetch — consider surfacing that error too.)*
+
+### LP-2 — Profile page loading state is a bare gray 'Ladataan…' line · **Low** · [Claude Code]
+**Problem.** A hard load of a prerendered profile page does **not** hydrate (`main.tsx` calls `createRoot().render()`, not `hydrateRoot`), so the static HTML is replaced on mount. The page is also lazy-loaded, so the sequence is: prerendered content → Suspense spinner → bare "Ladataan…" loading view → full content. The loading view is a single centered pulsing text line with no skeleton/wordmark/stat placeholders — a visible downgrade from the boot placeholder and the map's shimmer.
+**Where.** `src/pages/NeighborhoodProfilePage.tsx:353-358` (loading view), `:65` (`loading=true` init), `:156-166` (payload read in post-paint effect); `src/main.tsx:133`.
+**Fix.** Initialize state synchronously from the embedded payload (in a `useState` initializer; `loading=false` when `readEmbeddedProfile(pno)` returns a value) so prerendered pages skip the loading frame. For the genuine fetch path, replace the bare text with a lightweight skeleton. *(Caveat: the lazy Suspense spinner still flashes while the route chunk downloads.)*
+
+### LP-3 — Auto-detected English/Swedish first-timers see a flash of Finnish on the cold-load overlay and chrome · **Low** · [Claude Code]
+**Problem.** For an auto-detected non-Finnish first-timer, `main.tsx` fires `void setLang(detected)` without awaiting, but en/sv dictionaries are lazy-fetched and `t()` returns the bundled Finnish fallback until the JSON arrives. First paint isn't gated on the active locale, so the cold-load overlay and surrounding chrome render in Finnish, then swap once `useI18nVersion` bumps — a Finnish-then-correct flicker for exactly the users O2 detection is meant to welcome (bounded by the small same-origin asset RTT).
+**Where.** `src/main.tsx:17-23`; `src/utils/i18n.ts:81-92,132-136`; `src/App.tsx:2008-2018,365`.
+**Fix.** Either gate first paint on locale readiness (seed `localeReady` from `getLang()==='fi'`, set true when `setLang` settles, ~1.5 s timeout fallback; add `|| !localeReady` to the cold-overlay condition), or inject a `<link rel="preload" as="fetch" crossorigin>` for the detected locale JSON (reference the hashed `?url` asset path).
+
+### LP-4 — Search shows a premature 'no results' before the global search index has loaded · **Low** · [Claude Code]
+**Problem.** In the default view, `data` is null and the global search index is fetched async on mount. `searchSource = searchData ?? data`, so before the index lands `searchSource` is null and the name scan returns `[]`. For a query that doesn't trigger geocoding — exactly 2 chars, or a full 5-digit postal code — the settled no-results branch fires and shows "no results for {query}" even though the index simply hasn't loaded yet. Narrow window (eager ~40 KB fetch), self-corrects, but produces a transient false "looks broken" state on the very first interaction, most visible on slow connections.
+**Where.** `src/components/SearchBar.tsx:77,79-80,482-488`; wiring `src/App.tsx:159,2148`.
+**Fix.** Gate the no-results branch on the index being available — pass a `searchLoading` prop (`searchIndex == null`) or treat `searchSource == null` as "still loading" and render a subtle loading row instead.
+
+### LP-5 — Cold-load overlay is not announced to assistive tech (no `role="status"`/`aria-busy`) · **Low** · [Claude Code]
+**Problem.** The region-switch progress bar correctly uses `role="status"` + aria-label, but the initial full-screen cold-load overlay is a plain div with no `role`/`aria-live`/`aria-busy`, and the app-root carries only `data-loaded`. A SR user on first load gets no "loading" cue while the app boots and nationwide data resolves.
+**Where.** `src/App.tsx:2008-2020` (overlay), `:1948` (app-root). The global sr-only live region (`:2703`) only carries selection/layer announcements.
+**Fix.** Add `role="status" aria-live="polite"` to the cold-load overlay container, and `aria-busy={effectiveLoading}` on the app-root div.
+
+---
+
+## 8. Mobile
+
+### MO-1 — "Compare layers" split view is unusable on phones · **High** · [Claude Code]
+**Problem.** Split view is reachable on touch (no desktop/touch gate) but not adapted for small screens. The container is `relative flex h-full w-full` with two `h-full w-1/2` panes — no stacking — so on a ~375px phone each pane is ~187px, too narrow for a Finland-wide choropleth. The global SearchBar (gated only by `!IS_EMBED`) renders at `top-[3.5rem] left-3 w-52` directly on top of the **left pane's** SplitLayerPicker (`top-[3.5rem] left-2`), making the left layer unchangeable. Pane hover uses `mousemove` only, so touch users get **no value tooltip** — defeating the feature's purpose. The right pane's NavigationControl also collides with the mobile Layers FAB (not hidden in split mode). Net: tapping Compare layers on a phone yields a screen that looks and behaves broken.
+**Where.** `src/components/SplitMapView.tsx:878-908,834,589-590`; `src/App.tsx:2144-2157,2211-2221`; `ToolsDropdown.tsx:340-361` (ungated item); `LayerSelector.tsx:344` (FAB).
+**Fix.** Make SplitMapView responsive (`flex flex-col md:flex-row`; panes `h-1/2 w-full md:h-full md:w-1/2`; horizontal divider on mobile). Suppress the global SearchBar (and ideally the Layers FAB) while `splitMode` on small screens, or move SplitLayerPicker below the search row. Add a touch path (tap/longpress → `setHover`) for the per-pane readout. *Simplest mitigation:* gate the "Compare layers" item to `md:` (or show a "best on a larger screen" hint on touch).
+
+### MO-2 — Onboarding "click an area" hint and the touch peek bar collide on the very first tap · **Medium** · [Claude Code]
+**Problem.** On a coarse pointer, the first tap sets `peek` and returns **without** selecting, so `selected` stays null and the area-hint is never dismissed (it's only retired when `selected` becomes truthy). The hint (z-20) and the peek bar (z-30) then render simultaneously at the identical bottom-center anchor, stacking the peek over the still-mounted hint — which keeps telling the user to do what they just did.
+**Where.** `src/App.tsx:2226` (hint), `:2245` (peek), `:1109-1124` (handleClick), `:1344-1346` (dismiss effect).
+**Fix.** Add `&& !peek` to the hint render condition (preferred — restores the hint if the user closes the peek without selecting), or call `dismissAreaHint()` in the coarse-pointer branch of `handleClick`.
+
+### MO-3 — Android Back / iOS edge-swipe exits the site instead of closing the mobile Layers sheet or split view · **Medium** · [Claude Code]
+**Problem.** On touch (useBackGesture is coarse-pointer-only), two surfaces aren't back-dismissable. (1) The LayerSelector mobile bottom sheet stores its open state internally and never registers with `useBackGesture`; its only non-button dismissal is a keyboard-Escape handler (useless on touch). (2) `splitMode` is absent from App's `anyOverlayOpen`/`closeTopmost` cascade *and* the Escape cascade, so Compare-layers can only be left via the Tools toggle. Inconsistent with the neighborhood sheet, filter, ranking, draw, and select modes, which are all back-dismissable.
+**Where.** `src/App.tsx:1919-1933` (cascade omits splitMode); `LayerSelector.tsx:51` (internal mobileOpen, no useBackGesture); `useBackGesture.ts:29-49`.
+**Fix.** Add `splitMode` to `anyOverlayOpen` + `closeTopmost` (and the Escape cascade). For the Layers sheet, lift `mobileOpen` to App or call `useBackGesture(mobileOpen, () => setMobileOpen(false))` inside LayerSelector.
+
+### MO-4 — Bottom-center controls pile up on the idle mobile view (shortlist tray vs Clear-all / wizard chips) · **Medium** · [Claude Code]
+**Problem.** In the idle home view the full ShortlistTray always renders on mobile (the collapsed count chip is desktop-only), anchored at `bottom-24` and growing upward. The centered, same-`z-10` Clear-all chip (~80px) sits within the tray's lower span and the wizard-results chip (~128px) falls inside the tall card — painted after the tray with equal z-index, they overlay it as visual junk. (Broader than the wizard case: `isDirty` is also true for active filters or a non-'all' comparison scope, so any idle user with a shortlist + a filter hits it.)
+**Where.** `src/App.tsx:2417-2446` (tray), `:2512-2525` (Clear-all), `:2529-2544` (wizard chip); `ShortlistTray.tsx:149` (`bottom-24`).
+**Fix.** When the full tray shows on the idle view, lift the Clear-all/wizard chips clear of its footprint (bump bottom offsets to ~11rem/14rem when `shortlist.length > 0`), or move the tray higher when `isDirty`, or give mobile a collapsed count chip anchored away from the pills.
+
+### MO-5 — Touch peek bar buttons fall below the 44px touch-target standard used elsewhere · **Low** · [Claude Code]
+**Problem.** The mobile-only peek bar (the primary touch way to read an area's value) uses a details button of `px-2.5 py-1.5 text-[11px]` (≈23-28px tall, no min-height) and a close button that's just a `w-3.5 h-3.5` (14px) SVG with no min hit-area — both well under the `min-h-[44px]`/`min-w-[44px]` convention applied everywhere else (NeighborhoodPanel uses the identical padding but adds `min-h-[44px]`).
+**Where.** `src/App.tsx:2263-2271`.
+**Fix.** Add `min-h-[44px] md:min-h-0` to the details button and wrap the close button with `min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center`.
+
+---
+
+## 9. Accessibility
+
+### AY-1 — Layer list: arrow-key navigation moves a visual-only highlight without moving DOM focus; 58 of 59 layer buttons are `tabIndex=-1` · **Medium** · [Claude Code]
+**Problem.** LayerSelector's arrow-key roving updates only `focusedIndex`, which drives a visual `ring-2` highlight + `scrollIntoView` — it never moves DOM focus and the `role="group"` container has no `aria-activedescendant`. Combined with `tabIndex={isActive ? 0 : -1}` on every button: (a) SR users get **no per-item name/aria-pressed feedback** while arrowing through 59 metrics — the AT cursor stays put; and (b) only the active layer + the standalone quality_index button are Tab-reachable. (Mitigated: sighted keyboard users see the highlight and Enter works; App announces the result after selection — so the control is operable but the AT navigation is broken.)
+**Where.** `src/components/LayerSelector.tsx:279` (tabIndex), `:104-136` (arrow handler), `:139-143` (scroll-only effect), `:151` (role=group, no activedescendant), `:70`.
+**Fix.** Adopt a valid managed-widget pattern: either move DOM focus with the roving index (`.focus()` in the scroll effect; `tabIndex={flatIndex === focusedIndex || isActive ? 0 : -1}`), **or** add `aria-activedescendant` on the container pointing at the highlighted button's id (the pattern SearchBar already uses) and give each button a stable id. Reset `focusedIndex` to the active layer when the panel opens.
+
+### AY-2 — Settings menu declares `role="menu"` but implements no arrow-key navigation or open-focus (and wraps non-menuitem form controls) · **Medium** · [Claude Code]
+**Problem.** SettingsDropdown's open panel is `<div role="menu">` with `role="menuitem"` children, but implements no roving arrow-key navigation (no `onKeyDown`, no `menuRef`) and no move-focus-into-menu-on-open — its only effect handles outside-click + Escape. This breaks the same `role="menu"` contract the sibling ToolsDropdown explicitly honors, and a code comment falsely asserts arrow-key nav exists. The menu also holds controls outside the ARIA menu content model: a native `<select>` and an `<input type=range>` slider.
+**Where.** `src/components/SettingsDropdown.tsx:217,170-189,292,84-92/308`. Contrast `ToolsDropdown.tsx:92-96,100-113,152`.
+**Fix.** *Preferred:* drop `role="menu"`/`menuitem` and use `<div role="group" aria-label={t('settings.title')}>` — Tab already traverses all controls and `aria-pressed` toggles are correct on plain buttons. *Or:* port ToolsDropdown's open-focus + `handleMenuKeyDown` and move the `<select>` and slider out of the `role="menu"` container.
+
+### AY-3 — Quality-Index "How is this calculated?" popover uses `role="dialog"` but can't be closed with Escape, outside-click, or focus management · **Low** · [Claude Code]
+**Problem.** The QualityBadge explainer popover uses `role="dialog"` but provides none of the expected dialog behaviors: no Escape-to-close, no outside-click dismissal, no focus movement/trap — inconsistent with the sibling StatRow info popover (Escape + outside-mousedown + focus restore, and `role="tooltip"`). (Verifier correction: the user is *not* trapped — focus stays on the toggle button, which re-closes it — so the genuine defect is the ARIA-semantics-vs-behavior mismatch, not a trap; hence low.)
+**Where.** `src/components/NeighborhoodPanel.tsx:603-606` (popover), `:578,592-602` (state/toggle). Compare `:138-157` (StatRow).
+**Fix.** Change `role="dialog"` to `role="tooltip"` (or drop the role and rely on `aria-expanded`), and add an effect mirroring StatRow's: on `showHow`, listen for Escape + outside mousedown to close, restoring focus to the toggle.
+
+### AY-4 — Search combobox reports collapsed and offers no arrow-key nav while the Recent/empty popups are shown · **Low** · [Claude Code]
+**Dedup:** same root cause as **SN-3** (SearchBar combobox ARIA). Listed here for the a11y lens; **implement once** — `aria-expanded` hard-wired to `results>0`, `aria-controls` pointing at an unrendered `#search-results-list`, and `totalItems`/`handleKeyDown` excluding recents so arrow keys + `aria-activedescendant` never reach them.
+**Where.** `src/components/SearchBar.tsx:281,283,233-234,363-401`.
+**Fix.** See **SN-3**. (Set `aria-expanded` true whenever any popup is open; resolve the `aria-controls` IDREF to the live list; give recents `id`/`aria-selected` and include them in `totalItems` + the Enter branch.)
+
+### AY-5 — Add-filter dropdown has no ARIA state and no Escape/focus handling · **Low** · [Claude Code]
+**Problem.** FilterPanel's AddFilterDropdown trigger has no `aria-haspopup`/`aria-expanded`, and the popup is a bare `<div>` of buttons with no list/menu role. Its only behavior is close-on-outside-mousedown — no Escape, no focus to first option on open, no return to trigger on close/select. SR users get no signal the button opens a popup; keyboard users can't Escape — inconsistent with ToolsDropdown/SettingsDropdown.
+**Where.** `src/components/FilterPanel.tsx:359-371` (trigger), `:373-399` (popup), `:348-355` (outside-click effect).
+**Fix.** Add `aria-haspopup="listbox"` + `aria-expanded={open}` to the trigger, wrap options in `role="listbox"`/`role="option"`, add an Escape handler that closes and refocuses the trigger, and focus the first option on open.
+
+### AY-6 — Skip-to-content link is hardcoded Finnish for English and Swedish users · **Low** · [Claude Code]
+**Problem.** The skip link (first focusable element) in `index.html` is hardcoded Finnish ("Siirry sisältöön", `lang="fi"`) and never updated, even though App switches `documentElement.lang` at runtime for en/sv. Keyboard/SR users in en/sv get a Finnish-only primary navigation shortcut that mismatches the announced page language.
+**Where.** `index.html:336`; runtime lang switch at `src/App.tsx:1680`.
+**Fix.** Update the static link's `textContent` + `lang` in the same App effect that sets `documentElement.lang` (keeps it available during the boot placeholder phase). Add an `aria.skip_to_content` key to all three locales (none exists today).
+
+### AY-7 — Global single-key shortcuts are not remappable or turn-off-able (WCAG 2.1.4) · **Low** · [Claude Code]
+**Problem.** The window keydown handler registers single non-modifier character shortcuts (`?`, `/`, `[`, `]`, f/r/w/c/s/g/l). It's mitigated by bailing on INPUT/TEXTAREA/contentEditable focus and on Ctrl/Alt/Meta chords, but WCAG 2.1.4 (Level A) additionally requires single-key shortcuts to be remappable, turn-off-able, or active only on component focus — **none exists**, so dictation/speech reaching a focused non-text element (the map canvas, a layer button) can still trigger toggles with no opt-out.
+**Where.** `src/App.tsx:1879-1909` (handler), `:1885-1907` (shortcuts); advertised in `ShortcutsOverlay.tsx:10-22`.
+**Fix.** Add a "keyboard shortcuts: on/off" toggle persisted to localStorage that gates the handler (keep the Escape branch always-on), surfaced in ShortcutsOverlay — satisfies the turn-off provision with minimal code.
+
+---
+
+## 10. Discoverability, IA & trust
+
+### DX-3 — The only way to support the project is a Bitcoin Lightning string, hidden in the gear menu · **Medium** · [Manual Setup]
+**Problem.** The only donation method is a hardcoded BOLT12 Lightning offer shown as a copyable opaque string + QR. There's **no conventional Finnish payment path** (no MobilePay/IBAN/Ko-fi/etc. anywhere in code or locales), so the overwhelming majority of willing visitors can't donate. The button is mounted only in the gear dropdown and absent from the footer (which otherwise lists Contact/Sources/Privacy). The authors' own `donate.legitimacy` disclaimer confirms the trust concern is real but doesn't resolve the accessibility/discoverability gap.
+**Where.** `src/components/DonateButton.tsx:9-10,64-121`; only mount at `SettingsDropdown.tsx:408-412`; footer at `src/App.tsx:2618-2641`.
+**Fix.** Add at least one mainstream payment method (MobilePay, IBAN/bank line, or a Ko-fi/Liberapay/Buy-Me-a-Coffee link) — **Manual Setup**, needs a payment-provider account — and add a small "Support" link to the footer next to Contact/Sources/Privacy.
+
+### DX-4 — Embed mode strips all upstream data-source attribution · **Medium** · [Claude Code]
+**Problem.** In embed mode (`?embed=1`) the attribution footer is removed and the only remaining credit is the watermark, which shows just "naapurustot.fi" linking to the full-view URL. The Legend deliberately omits the source. The removed footer normally lists the actual upstream publishers + license ("Aineisto: Tilastokeskus, HSL, HSY, Poliisi, Kela, THL, Verohallinto, Traficom, Oikeusministeriö, OpenStreetMap (CC BY 4.0)"). So an embed on a third-party site displays CC BY 4.0 data with **no upstream credit and no link to `/tietolahteet`**.
+**Where.** `src/App.tsx:2619` (footer removed in embed), `:2646-2673` (watermark); attribution text `fi.json:227`; Legend omission `Legend.tsx:48-52`.
+**Fix.** Keep a compact always-visible attribution at the watermark anchor — e.g. "Aineisto: Tilastokeskus, HSL, HSY, OSM (CC BY 4.0)" (reuse/shorten `footer.attribution`) with a lang-aware `/tietolahteet` link. Optionally surface the active layer's source/year via `getMetricSource(layer.property)`.
+
+### DX-1 — Contact has no surface on mobile — buried in the desktop-only footer · **Low** · [Claude Code]
+**Problem.** On the map view the only contact affordance (ContactMenu) sits in the attribution footer, which is `hidden md:block`, so it's absent on phones. SettingsDropdown was deliberately extended to re-surface the footer's Privacy and Data Sources links for mobile (explicit X1 comment), but **Contact was not added** — an inconsistent gap. (Not a true dead-end: the email is reachable on mobile via the Privacy page and any profile-page footer.)
+**Where.** `src/App.tsx:2620` (footer hidden), `:2624` (ContactMenu); `SettingsDropdown.tsx:414-442` (Privacy + Data Sources surfaced, no Contact).
+**Fix.** Add a Contact row to SettingsDropdown after the Privacy/Data Sources links, reusing ContactMenu (or a row revealing/copying `info@naapurustot.fi`).
+
+### DX-2 — "Data last updated: <build month>" in Settings overstates data freshness · **Low** · [Claude Code]
+**Problem.** The gear menu renders the site's build month from `__BUILD_DATE__` prefixed by `t('data.last_updated')` ("Data last updated" / "Aineisto päivitetty"). This tells a newcomer the underlying *statistics* are current as of that month, which is false — many layers are 2021-2023 vintages (the panel/legend even show "X years ago" stale badges). The app's own Data Sources page deliberately says "Dataset rebuilt {date}," so the menu wording is internally inconsistent. (Impact limited: a faint 10px gray footnote with a "Data Sources & Methodology" link to the per-layer vintage table directly above it.)
+**Where.** `src/components/SettingsDropdown.tsx:444-453`; key `en.json:539`; honest framing at `DataSourcesPage.tsx:132-137` / `en.json:251`.
+**Fix.** Reword `data.last_updated` (×3 locales) to match the Data Sources page (e.g. "Site/Dataset rebuilt") so the footnote no longer asserts blanket statistics freshness.
+
+### DX-5 — Custom Quality Index — a headline feature — is fronted by an unlabeled icon in the layer list · **Low** · [Claude Code]
+**Problem.** In LayerSelector the only layer-list entry point for the Custom Quality Index is an **icon-only** button (tune/sliders SVG) whose label is carried only by `title` (no visible text, no touch tooltip), so scanning users get no cue it opens a per-dimension weighting tool. The same action inside an opened NeighborhoodPanel uses the identical icon but *adds* visible "Customize"/"Muokkaa" text — so the discoverable affordance only appears after drilling into an area.
+**Where.** `src/components/LayerSelector.tsx:210-227`; labeled sibling at `NeighborhoodPanel.tsx:628-641`.
+**Fix.** Match the panel's labeled button — render the `custom_quality.button` text next to the tune icon (at least when the Quality Index row is active, or whenever space allows).
+
+### DX-6 — "Compare" — the app's headline verb — has no entry in the Tools menu's default list · **Low** · [Claude Code]
+**Problem.** The product's headline verb is "compare neighborhoods," but the Tools menu's always-visible list offers only Show-my-area, Wizard, Filter, and Ranking. Every compare affordance is hidden under the collapsed "More tools" disclosure, and the prominent one there is "Compare *layers*" (split map — two metrics, one map), a confusion the code itself flags. The actual pin-to-compare flow works (NeighborhoodPanel pin button), so the headline action is reachable but never surfaced as a first-class Tools entry.
+**Where.** `src/components/ToolsDropdown.tsx:157-216` (default list), `:339-368` (More tools); `NeighborhoodPanel.tsx:1038-1062` (pin-to-compare).
+**Fix.** Add a clearly-labeled "Compare areas" entry to the default Tools list that explains/initiates the pin flow, kept visually distinct from "Compare layers."
+
+---
+
+## Coverage gaps / follow-up
+
+Areas the synthesis flagged as under-reviewed in this pass — worth a targeted look next time, not findings themselves:
+
+1. **ComparisonPanel / pin-to-compare flow itself** — only its *discoverability* (**DX-6**) was reviewed. Check the pinned-areas table rendering, mobile layout, the "pin one more" empty state, removing pins, and behavior on the data-null `?city=all` view (likely the same empty-`pnoFeatureMap` breakage as **ES-1**/**ES-2**).
+2. **NeighborhoodPanel core content** — beyond the QI popover (**AY-3**): stat rows, the quality-index breakdown, share/copy-link affordances, panel scroll/close behavior, and focus trapping/return on open/close.
+3. **Deep-link / URL-state round-trip** — `?pno`/`?compare` encoding/decoding, back/forward history integrity, the copy-shareable-link affordance. The deferred geo resolution in **SN-5** hints at fragility not fully traced.
+4. **Profile pages (`/alue/...`) beyond the loading frame** (**LP-2**) — content correctness, in-page language switching, the prerendered hub pages, navigation back into the map.
+5. **Grid-overlay UX** (air quality ~250 m, light pollution ~500 m) — only the load-failure announcement (**ER-3**) was covered. Per-cell value readout, legend interaction, zoom-dependent visibility.
+6. **Theme/dark-mode and reduced-motion correctness** across the newer components (split view, correlation explorer, wizard, peek bar) — only the `prompt()` dark-mode gap (**DT-3**) surfaced; a systematic contrast + `prefers-reduced-motion` pass on the `animate-pulse`/transition states is warranted.
+7. **Modal focus management in AuthModal and the onboarding tour** — **AC-4**/**AC-5** covered copy/inputs; whether focus is trapped, where it lands on open, and where it returns on close was not verified.
 
 ---
 
 ## Suggested Sequencing
 
-**How to read this.** The repo auto-merges `claude/*` branches **serially** (shared concurrency group — pushing a second branch cancels an in-flight merge), so "parallel-safe batch" here means: *a set of items that are logically independent — none depends on another's change and none contradicts another — so they can be assigned to separate sessions and merged one after another without rework.* The practical risk isn't logic, it's textual collisions on a few **hotspot files** that many items touch. Within a batch, items that share a hotspot file are flagged `↻file` and should be run sequentially (or expect a trivial rebase); items with no flag touch disjoint files.
+Items within a batch are **file-disjoint** (or touch far-apart, independent regions of `App.tsx`) and are safe to run as **parallel Claude Code sessions**. Batches are ordered by dependency: shared-file work is split across batches so later sessions rebase on earlier ones rather than colliding (e.g. all `useAuth` work lands before secondary `useAuth` edits; the two `search.no_results` edits in **SN-4** and **ES-6** are deliberately separated). Every item is tagged **[CC]** = Claude Code (fully implementable in a session) or **[MS]** = Manual Setup. All items are [CC] except **DX-3**.
 
-**Hotspot files** (touched by many findings — serialize edits): `App.tsx`, `NeighborhoodPanel.tsx`, `Map.tsx`, `SplitMapView.tsx`, `SettingsDropdown.tsx`, `LayerSelector.tsx`, `ShortlistTray.tsx`, `Legend.tsx`, and the three locale JSONs `src/locales/{fi,en,sv}.json` (`ⓛ` = adds locale keys — only one `ⓛ` item per batch, or coordinate the key additions).
+> **Dedup note:** **AY-4 ≡ SN-3** (one SearchBar combobox-ARIA fix) and **ES-6** pairs with **SN-4** (same `search.no_results` string). Implementing **SN-3** (Batch 3) and **SN-4** (Batch 4) makes their later twins largely no-op rebases — do them as a single coherent edit each.
 
-Batches are ordered by **dependency then priority**. Every item is `[Claude Code]` except **X3** (Manual Setup).
+**Batch 1 — Broken core flows on the landing view.** Highest-impact functional breakages; all file-unique or in disjoint `App.tsx` functions.
+- **SN-1** Enter selects top match [CC] · **DT-1** Filter aggregate-scope copy/scope [CC] · **ES-1** Favorites name fallback on all-Finland [CC] · **SN-6** Mobile region-switcher label [CC] · **DT-6** Correlation identical X/Y guard [CC] · **AY-3** QI popover role/dismissal [CC]
 
----
+**Batch 2 — Account & sync data-safety.** All account/auth files; defers secondary `useAuth`/`useNotes` work to later batches.
+- **AC-2** Logout `resetLocal()` + tombstone clear [CC] · **AC-1** Recovery copy honesty + change-password [CC/MS] · **AC-4** Signup show/hide password [CC] · **SN-2** Address-search placeholder [CC]
 
-### Batch 1 — Unblock & make failures honest *(highest impact; files fully disjoint — true parallel)*
-The top "looks broken / excludes users" fixes, each owning a different file.
+**Batch 3 — Mobile split view + shortlist/search a11y on touch.**
+- **MO-1** Responsive split view + search/FAB gating [CC] · **SN-3** Recents in combobox keyboard model [CC] · **ES-2** Disable shortlist exports when unresolvable [CC] · **ER-4** ErrorBoundary `role="alert"` + focus [CC] · **DT-3** Inline filter-preset name field [CC]
 
-| Item | Owns | Notes |
-|------|------|-------|
-| **E1** ErrorBanner `role="alert"`/`aria-live` | `ErrorBanner.tsx` | also resolves the a11y "not announced" report |
-| **A2** Filter slider ARIA | `FilterPanel.tsx` | |
-| **A1** AuthModal + ShortcutsOverlay focus trap | `AuthModal.tsx`, `ShortcutsOverlay.tsx` | |
-| **A3** Map canvas focus ring | `index.css` | |
-| **X1** Data Sources link in Settings | `SettingsDropdown.tsx` | |
-| **C3** Mobile shortlist + reference buttons | `NeighborhoodPanel.tsx` | only NP item this batch |
-| **O1** Stray-click no longer kills the tour | `OnboardingTour.tsx` (+`App.tsx` flag) | only App item this batch |
-| **A7** De-duplicate `role="application"` | `Map.tsx` | only Map item this batch |
+**Batch 4 — Perceived performance + filter/layer-list usability.**
+- **LP-1** Loading bar for on-demand national fetch [CC] · **SN-4** `GEOCODING_ENABLED` gating + no-results copy [CC] · **ES-3** Mobile zero-match empty state [CC] · **LP-2** Profile-page synchronous init + skeleton [CC] · **AY-1** Layer-list roving focus / activedescendant [CC]
 
-### Batch 2 — Core-flow correctness & navigation feel
-Depends on nothing in Batch 1 logically; separated so its `App.tsx`/`LayerSelector`/`Legend` edits don't collide with Batch 1 or 3.
+**Batch 5 — Onboarding, comprehension & all-Finland scope defaults.**
+- **ON-2** Move "Take the tour" + reopen note on skip [CC] · **ON-3** Legend "i" explainer for composite layers [CC] · **SN-5** Address resolution query/home nudge [CC] · **DT-2** Wizard default scope on all-Finland [CC]
 
-| Item | Owns | Notes |
-|------|------|-------|
-| **C1** Region-switch overlay: cold-vs-switch, keep chrome interactive | `App.tsx`, `useMapData.ts` | `↻App.tsx` |
-| **C2** Address search resolves in all-Finland view | `SearchBar.tsx` (+`App.tsx` `handleSearch`) | `↻App.tsx` — run after C1 |
-| **C4** Layer panel defaults to expanded / active group open | `LayerSelector.tsx` | |
-| **E2** Grid-fetch error flag + Legend note | `useGridData.ts`, `Legend.tsx` | |
-| **A4** Tools menu arrow-key navigation | `ToolsDropdown.tsx` | |
-| **M1** Split-view pickers below header (+ mobile stack/zoom) | `SplitMapView.tsx`, `index.css` | |
-| **EM4** RadarChart distinguishes no-data from worst | `RadarChart.tsx` | |
+**Batch 6 — Dropdown/menu ARIA + scope toggle + no-results copy refinement.** (**ES-6** rebases on **SN-4**.)
+- **AY-2** Settings menu role/keyboard semantics [CC] · **AY-5** Add-filter dropdown ARIA [CC] · **ES-6** Drop "change city" from no-results copy [CC] · **ER-3** Grid-failure `aria-live` [CC] · **DT-4** Disabled scope-toggle hint/hide [CC]
 
-### Batch 3 — Empty/loading feedback & the Similar-areas section
-`NeighborhoodPanel.tsx` is heavy here — run the NP items sequentially (`↻NP`).
+**Batch 7 — A11y announcements + skip link + auth/copy honesty.** (**AY-4** is the **SN-3** rebase; **ER-6** rebases on **AC-2**; **DT-7** rebases on **MO-1**.)
+- **ER-5** Offline indicator `role="status"` [CC] · **AY-6** Localized skip link [CC] · **AY-4** Combobox expanded/controls (see SN-3) [CC] · **ER-6** Localize auth error fallbacks [CC] · **DT-7** Split-view identical-layer note [CC]
 
-| Item | Owns | Notes |
-|------|------|-------|
-| **EM1** Signed-out favorites surface (tray/list) | `App.tsx` (+ small new component) | `↻App.tsx` |
-| **EM2** National-similarity failure: revert/retry | `NeighborhoodPanel.tsx` | `↻NP` |
-| **EM3** "Select at least one metric" hint | `NeighborhoodPanel.tsx` ⓛ | `↻NP`; `ⓛ` |
-| **E3** Clipboard-blocked copy fallback | `NeighborhoodPanel.tsx`, `ShortlistTray.tsx` | `↻NP`, `↻ShortlistTray` |
-| **L1** Split-view grid loading spinner | `App.tsx`, `SplitMapView.tsx` | `↻App.tsx` |
-| **EM5** Education orphan-heading guard | `NeighborhoodPanel.tsx` | `↻NP` |
+**Batch 8 — Loading announcement + notes retrieval + geocode errors + empty states.** (Secondary `useNotes`/`geocode.ts`/`LayerSelector` edits, free after Batches 2/4.)
+- **LP-5** Cold-load overlay `role="status"`/`aria-busy` [CC] · **AC-3** Note indicator + `listNotedPnos()` [CC] · **ER-1** Geocode error vs empty distinction [CC] · **ES-5** Guided ranking empty state [CC] · **DX-5** Labeled custom-QI button in layer list [CC]
 
-### Batch 4 — Notifications, lazy-load feedback & i18n correctness
-**E4 depends on E1** (Batch 1) — it consolidates the now-role-annotated ErrorBanner and the other top-center notices into one stack; new-toast items below should adopt it.
+**Batch 9 — Keyboard-shortcut opt-out, locale-fail banner, mobile hint, contact, stale copy.** (Three disjoint far-apart `App.tsx` regions.)
+- **AY-7** Shortcuts on/off toggle [CC] · **MO-2** Hint/peek collision (`&& !peek`) [CC] · **ER-2** Hardcoded trilingual locale-fail banner [CC] · **DX-1** Contact row in mobile gear menu [CC] · **ON-1** Drop "large file" qualifier [CC]
 
-| Item | Owns | Notes |
-|------|------|-------|
-| **E4** Unified top-center toast/stack container | `App.tsx`, `ErrorBanner.tsx` | `↻App.tsx`; depends on **E1** |
-| **E5** Share-image catch + ShortlistTray catch | `NeighborhoodPanel.tsx`, `ShortlistTray.tsx` | `↻NP`, `↻ShortlistTray` |
-| **E8** PDF popup-blocked → styled toast + i18n | `export.ts` ⓛ | `ⓛ`; ideally uses E4 |
-| **A6** Replace hardcoded English labels with `t()` | `RankingTable.tsx`, `FilterPanel.tsx`, `LayerSelector.tsx`, `ComparisonPanel.tsx` ⓛ | `ⓛ` |
-| **E7** Reset locale-error dismissal on lang change | `App.tsx` | `↻App.tsx` — run after E4 |
-| **E6** WebGL permanent-vs-transient messaging | `Map.tsx`, `SplitMapView.tsx` | |
+**Batch 10 — Back-gesture dismissal, embed attribution, compare discoverability, region-table error.** (**DX-6** rebases on **MO-1**.)
+- **MO-3** `splitMode` + Layers sheet in back/Escape cascade [CC] · **DX-4** Embed-mode attribution line [CC] · **DX-6** "Compare areas" Tools entry [CC] · **ES-4** Distinct region-table error + retry [CC]
 
-### Batch 5 — Internationalization reach & onboarding signposting
-Language detection + the scope/onboarding copy fixes. Heavy on locales (`ⓛ`) and `App.tsx`/`SettingsDropdown` — serialize those.
+**Batch 11 — First-paint locale flash, donation channel, trust copy.** (Lone Manual Setup item placed once its deps are clear.)
+- **LP-3** Gate first paint / preload detected locale [CC] · **DX-3** Add a mainstream payment method + footer Support link [**MS**] · **DX-2** Reword "Data last updated" [CC] · **AC-5** Trim Turnstile error clause [CC]
 
-| Item | Owns | Notes |
-|------|------|-------|
-| **O2** `navigator.language` auto-detect + labeled lang switch | `i18n.ts`, `App.tsx`, `SettingsDropdown.tsx` ⓛ | `↻App.tsx`, `↻Settings`, `ⓛ` |
-| **L3** Language-switch in-flight spinner | `SettingsDropdown.tsx`, `i18n.ts` | `↻Settings` — run after O2 |
-| **O4** All-Finland scope signpost + soften copy | `Legend.tsx`, `App.tsx` ⓛ | `↻App.tsx`, `ⓛ` |
-| **O3** Persistent on-map "click an area" hint pill | `App.tsx` ⓛ | `↻App.tsx`, `ⓛ` — run after O4 |
-| **O5** Broaden auto-tour skip-gate | `App.tsx` | `↻App.tsx` |
-| **C5** Disambiguate "compare areas" vs "compare layers" | `ToolsDropdown.tsx` ⓛ | `ⓛ` |
-| **X2** Auth value-prop subtitle | `AuthModal.tsx` ⓛ | `ⓛ` |
+**Batch 12 — Search-index loading, mobile control stacking, filter overlap, dead-string cleanup.**
+- **LP-4** Gate no-results on index availability [CC] · **MO-4** Lift bottom chips clear of the tray [CC] · **DT-5** Offset desktop Filter panel below search bar [CC] · **ON-4** Delete/repurpose dead `app.subtitle` [CC]
 
-### Batch 6 — Mobile polish, perceived performance & remaining low-priority
-Mostly independent polish; `NeighborhoodPanel`/`LayerSelector`/`Map` appear a few times — serialize those.
-
-| Item | Owns | Notes |
-|------|------|-------|
-| **M2** Hide TimeSlider when panel open + de-overlap legend | `TimeSlider.tsx`, `App.tsx` | `↻App.tsx` |
-| **M3** Shortlist tray wrap/touch targets + FAB de-overlap | `ShortlistTray.tsx`, `LayerSelector.tsx` | |
-| **M4** Lightweight touch "peek" value bar | `NeighborhoodPanel.tsx`, `index.css` | `↻NP` |
-| **M5** Honor reduced-motion on sheet + carousel | `NeighborhoodPanel.tsx`, `LayerSelector.tsx`, `useSwipeNavigation.ts` | `↻NP` — run after M4 |
-| **M6** LayerSelector sheet `onTouchCancel` | `LayerSelector.tsx` | run after M3 |
-| **M7** AreaSummaryPanel `suppressMobile` | `AreaSummaryPanel.tsx`, `App.tsx` | `↻App.tsx` |
-| **L2** Visible fallback for lazy modals | `App.tsx` | `↻App.tsx` |
-| **X5** Crossfade layer recolor (no blank gap) | `Map.tsx` | |
-| **A5** Trap focus (or drop `aria-modal`) on full-snap sheet | `NeighborhoodPanel.tsx` | `↻NP` |
-| **O6** Show welcome step during nationwide load | `App.tsx` | `↻App.tsx` |
-| **O7** Visible scope label on mobile globe | `CitySelector.tsx` | |
-| **X4** "Arvio" legend badge tooltip | `Legend.tsx` ⓛ | `ⓛ` |
-| **X6** Notes "Saved/Saving" indicator | `NeighborhoodPanel.tsx` | `↻NP` |
-
-### Manual-Setup track *(independent of all batches — schedule whenever credentials exist)*
-| Item | Why manual | Code-only interim |
-|------|-----------|-------------------|
-| **X3** Add a conventional donation method | Requires a payment-provider account/credentials (MobilePay/Stripe/Ko-fi) | The legitimacy/intent **copy** line is `[Claude Code]` and can ship in Batch 5 |
-
----
-
-### Dependency summary
-- **E1 → E4 → (E5, E7, E8):** add the alert role first, then the unified toast stack, then route new toasts through it.
-- **C1 → C2:** both edit `App.tsx`; land the overlay rework before the search-handler change.
-- **O4 → O3:** signpost the all-Finland scope before adding the on-map hint pill (shared `App.tsx` + locales).
-- **O2 → L3:** auto-detect/label the language control before adding its in-flight spinner (shared `SettingsDropdown`).
-- **M4 → M5, M3 → M6:** the touch-peek and tray reflow land before the reduced-motion / touch-cancel follow-ups on the same files.
-- Everything in **Batch 1** is genuinely independent (disjoint files) and can run fully in parallel.
+**Batch 13 — Remaining touch-target and copy polish.**
+- **MO-5** Peek-bar 44px touch targets [CC] · **ON-5** Fix Finnish "Hae alueella" placeholder grammar [CC]
