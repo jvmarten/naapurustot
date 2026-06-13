@@ -113,7 +113,7 @@ public/data/
 | `VITE_MAP_MIN_ZOOM` / `VITE_MAP_MAX_ZOOM` | `2` / `16` | Zoom limits (min must allow the whole-Finland view, zoom ~4.8) |
 | `VITE_BASEMAP_LIGHT_URL` / `VITE_BASEMAP_DARK_URL` | CARTO | Raster basemap tile URLs |
 | `VITE_BASEMAP_LIGHT_LABELS_URL` / `VITE_BASEMAP_DARK_LABELS_URL` | CARTO | Labels-only overlay drawn above the choropleth |
-| `VITE_DIGITRANSIT_API_KEY` | *(unset)* | Enables travel-time isochrones ([register free](https://digitransit.fi/en/developers/)); unset hides the feature |
+| `VITE_DIGITRANSIT_API_KEY` | *(unset)* | Enables travel-time isochrones **and** street-address search ([register free](https://digitransit.fi/en/developers/)); unset hides isochrones and degrades search to name/postal-code only |
 | `VITE_DIGITRANSIT_ROUTER` | `finland` | Routing graph: `finland`, `hsl`, or `waltti` |
 | `VITE_SENTRY_DSN` | *(unset)* | Enables Sentry error tracking; unset tree-shakes Sentry out entirely |
 | `VITE_API_URL` | `https://api.naapurustot.fi` | Backend API base URL (code default, not in `.env.example`) |

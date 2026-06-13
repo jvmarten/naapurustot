@@ -45,6 +45,10 @@ jobs:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+          # Digitransit subscription key — enables address search (geocode.ts) and
+          # travel-time isochrones (isochrone.ts). Baked into the client bundle (static
+          # app); free + rate-limited, so rotate in the portal if abused.
+          VITE_DIGITRANSIT_API_KEY: ${{ secrets.VITE_DIGITRANSIT_API_KEY }}
 
       # Restore previously-rasterized card PNGs into dist/og BEFORE build:pages writes
       # the SVGs, so the rasterize step only renders cards that actually changed.

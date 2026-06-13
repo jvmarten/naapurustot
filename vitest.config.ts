@@ -26,6 +26,13 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/__tests__/setup.ts'],
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    // Provide a dummy Digitransit key so the geocode/isochrone modules treat their
+    // feature as enabled under test (KEY is read at module-load from import.meta.env).
+    // No test asserts the key-absent/disabled path; their fetches are mocked or fail
+    // gracefully. Without this, geocodeAddress would short-circuit to [] before fetch.
+    env: {
+      VITE_DIGITRANSIT_API_KEY: 'test-key',
+    },
     // IN-5: coverage only runs when --coverage is passed (npm run test:coverage / CI gate).
     // The default `npm run test` stays fast and uncovered. The CI ratchet step compares the
     // generated coverage/coverage-summary.json against the committed coverage-baseline.json.

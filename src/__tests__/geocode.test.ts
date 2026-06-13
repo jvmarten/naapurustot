@@ -89,7 +89,7 @@ describe('geocodeAddress', () => {
     expect(results).toEqual([]);
   });
 
-  it('sends correct boundary parameters to constrain to Helsinki metro', async () => {
+  it('sends correct boundary parameters to constrain to Finland', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve({ features: [] }),
@@ -101,5 +101,19 @@ describe('geocodeAddress', () => {
     expect(url).toContain('boundary.rect.max_lon=31.5');
     expect(url).toContain('boundary.rect.min_lat=59.5');
     expect(url).toContain('boundary.rect.max_lat=70.5');
+  });
+
+  it('sends the digitransit-subscription-key header', async () => {
+    // Regression guard: the API rejects keyless requests with 401, so a missing
+    // header silently broke address search in production. The dummy key comes from
+    // vitest.config.ts test.env.
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ features: [] }),
+    } as Response);
+
+    await geocodeAddress('header_test_query');
+    const init = fetchSpy.mock.calls[0][1] as RequestInit;
+    expect((init.headers as Record<string, string>)['digitransit-subscription-key']).toBe('test-key');
   });
 });
