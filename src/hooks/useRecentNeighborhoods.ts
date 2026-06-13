@@ -48,5 +48,9 @@ export function useRecentNeighborhoods() {
     });
   }, []);
 
-  return { recent, addRecent };
+  // T7: clear the whole list. This hook is local-only (no server sync / tombstones),
+  // so emptying the array is enough — the persist effect above writes [] to localStorage.
+  const clearRecent = useCallback(() => setRecent([]), []);
+
+  return { recent, addRecent, clearRecent };
 }

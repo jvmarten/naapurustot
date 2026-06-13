@@ -4,10 +4,12 @@ import type { Feature, Polygon, MultiPolygon } from 'geojson';
 import { loadNeighborhoodData, loadRegionData } from '../utils/dataLoader';
 import { parseSlug, toSlug } from '../utils/slug';
 import type { NeighborhoodProperties } from '../utils/metrics';
+import { computeMetroAverages } from '../utils/metrics';
 import type { RegionId } from '../utils/regions';
 import { t, getLang, setLang, useI18nVersion, type Lang } from '../utils/i18n';
 import { formatNumber, formatEuro, formatPct, formatDiff } from '../utils/formatting';
 import { getQualityCategory, QUALITY_CATEGORIES } from '../utils/qualityIndex';
+import { getLayerById, getInterpolatedColor, readableTextColor } from '../utils/colorScales';
 import { findSimilarNeighborhoods } from '../utils/similarity';
 import { getFeatureCenter } from '../utils/geometryFilter';
 import { ContactMenu } from '../components/ContactMenu';
@@ -338,6 +340,16 @@ export const NeighborhoodProfilePage: React.FC = () => {
     );
   }, [state]);
 
+  // T1: seutukunta (sub-region) price averages, used as a display-only fallback when
+  // this area lacks its own housing/rent price. Computed from the region's features
+  // (loaded async for the MiniMap), so the estimate appears after that load — the
+  // static/prerendered HTML and JSON-LD keep showing only real per-area data. Declared
+  // before the early returns so the hook order is stable.
+  const regionPriceAvg = useMemo(
+    () => (state?.regionFeatures && state.regionFeatures.length > 0 ? computeMetroAverages(state.regionFeatures) : null),
+    [state?.regionFeatures],
+  );
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white dark:bg-surface-950">
@@ -371,8 +383,19 @@ export const NeighborhoodProfilePage: React.FC = () => {
   const center = getFeatureCenter(state.geoFeature ?? state.feature);
   const qi = d.quality_index != null ? Math.round(d.quality_index) : null;
   const qiCat = getQualityCategory(qi);
+  // T3: match the on-map quality_index fill color (continuous ramp, colorblind-aware).
+  const qiLayer = getLayerById('quality_index');
+  const qiColor = qi != null ? getInterpolatedColor(qiLayer, qi) : '#6b7280';
 
   const cityName = d.city ? t(`city.${d.city}`) : '';
+
+  // T1: resolve the two price fallbacks from the seutukunta averages computed above.
+  const regionPrice = (key: string): number | null => {
+    const v = regionPriceAvg?.[key];
+    return typeof v === 'number' && isFinite(v) ? v : null;
+  };
+  const propertyPriceFallback = d.property_price_sqm == null ? regionPrice('property_price_sqm') : null;
+  const rentalPriceFallback = d.rental_price_sqm == null ? regionPrice('rental_price_sqm') : null;
 
   // SearchBar/NeighborhoodProfilePage display Swedish name when on the Swedish route.
   const displayName = lang === 'sv' && d.namn ? d.namn : d.nimi;
@@ -455,8 +478,8 @@ export const NeighborhoodProfilePage: React.FC = () => {
             </h2>
             <div className="flex items-center gap-4 mb-4">
               <div
-                className="w-14 h-14 rounded-xl flex items-center justify-center text-white font-bold text-xl"
-                style={{ backgroundColor: qiCat.color }}
+                className="w-14 h-14 rounded-xl flex items-center justify-center font-bold text-xl"
+                style={{ backgroundColor: qiColor, color: readableTextColor(qiColor) }}
               >
                 {qi}
               </div>
@@ -470,7 +493,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
             <div className="flex gap-0.5">
               {QUALITY_CATEGORIES.map((c) => (
                 <div key={c.min} className="flex-1 flex flex-col items-center gap-1">
-                  <div className="w-full h-2 rounded-full" style={{ backgroundColor: c.color }} />
+                  <div className="w-full h-2 rounded-full" style={{ backgroundColor: getInterpolatedColor(qiLayer, (c.min + c.max) / 2) }} />
                   <span className="text-[9px] text-surface-500 dark:text-surface-400">{c.label[lang]}</span>
                 </div>
               ))}
@@ -499,11 +522,16 @@ export const NeighborhoodProfilePage: React.FC = () => {
           />
           <StatCard
             label={t('layer.property_price')}
-            value={d.property_price_sqm != null ? `${formatNumber(d.property_price_sqm)} €/m²` : '—'}
+            value={d.property_price_sqm != null
+              ? `${formatNumber(d.property_price_sqm)} €/m²`
+              : (propertyPriceFallback != null ? `${formatNumber(propertyPriceFallback)} €/m²` : '—')}
             rawValue={d.property_price_sqm}
             average={avg.property_price_sqm}
             avgLabel={avgStr(d.property_price_sqm, 'property_price_sqm', v => `${formatNumber(v)} €/m²`)}
             propertyKey="property_price_sqm"
+            subregionEstimate={d.property_price_sqm == null && propertyPriceFallback != null}
+            subregionBadge={t('data.subregion_estimate')}
+            subregionNote={t('data.subregion_estimate_desc').replace('{region}', cityName)}
           />
           <StatCard
             label={t('layer.population_density')}
@@ -550,8 +578,16 @@ export const NeighborhoodProfilePage: React.FC = () => {
             <StatItem label={t('layer.rental')} value={formatPct(d.rental_rate)} />
             <StatItem label={t('layer.apt_size')} value={d.ra_as_kpa != null ? `${d.ra_as_kpa.toFixed(1)} m²` : '—'} />
             <StatItem label={t('layer.detached_houses')} value={formatPct(d.detached_house_share)} />
-            {d.rental_price_sqm != null && (
-              <StatItem label={t('layer.rental_price')} value={`${d.rental_price_sqm.toFixed(2)} €/m²/kk`} />
+            {(d.rental_price_sqm != null || rentalPriceFallback != null) && (
+              <StatItem
+                label={t('layer.rental_price')}
+                value={d.rental_price_sqm != null
+                  ? `${d.rental_price_sqm.toFixed(2)} €/m²/kk`
+                  : `${rentalPriceFallback!.toFixed(2)} €/m²/kk`}
+                estimate={d.rental_price_sqm == null}
+                estimateBadge={t('data.subregion_estimate')}
+                estimateNote={t('data.subregion_estimate_desc').replace('{region}', cityName)}
+              />
             )}
             {d.avg_construction_year != null && (
               <StatItem label={t('layer.building_age')} value={String(Math.round(d.avg_construction_year))} />
@@ -646,10 +682,19 @@ export const NeighborhoodProfilePage: React.FC = () => {
 };
 
 /** Simple stat display for section grids. */
-const StatItem: React.FC<{ label: string; value: string }> = ({ label, value }) => (
+const StatItem: React.FC<{ label: string; value: string; estimate?: boolean; estimateBadge?: string; estimateNote?: string }> = ({ label, value, estimate, estimateBadge, estimateNote }) => (
   <div>
     <div className="text-xs text-surface-500 dark:text-surface-400 mb-1">{label}</div>
-    <div className="text-lg font-semibold">{value}</div>
+    <div className="text-lg font-semibold flex items-center gap-2 flex-wrap">
+      {value}
+      {estimate && estimateBadge && (
+        <span className="inline-flex items-center rounded px-1 py-px text-[9px] font-semibold uppercase tracking-wide
+                         bg-amber-400/15 text-amber-600 dark:text-amber-400 border border-amber-400/30"
+              title={estimateNote}>
+          {estimateBadge}
+        </span>
+      )}
+    </div>
   </div>
 );
 

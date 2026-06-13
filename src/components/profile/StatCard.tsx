@@ -10,6 +10,13 @@ interface StatCardProps {
   avgLabel: string;
   propertyKey: string;
   higherIsBetter?: boolean;
+  /** T1: the value is the seutukunta (sub-region) average (this area has none of its
+   *  own) — show a "Seutuarvio" badge + disclaimer instead of the vs-average diff. */
+  subregionEstimate?: boolean;
+  /** Short estimate badge label (e.g. "Seutuarvio"). */
+  subregionBadge?: string;
+  /** Localized disclaimer line shown in place of the average comparison. */
+  subregionNote?: string;
 }
 
 export const StatCard: React.FC<StatCardProps> = ({
@@ -20,6 +27,9 @@ export const StatCard: React.FC<StatCardProps> = ({
   avgLabel,
   propertyKey,
   higherIsBetter = true,
+  subregionEstimate = false,
+  subregionBadge,
+  subregionNote,
 }) => {
   const source = METRIC_SOURCES[propertyKey];
   const colorClass = diffColor(rawValue, average, higherIsBetter);
@@ -29,13 +39,27 @@ export const StatCard: React.FC<StatCardProps> = ({
       <div className="text-xs font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400 mb-2">
         {label}
       </div>
-      <div className="text-2xl font-bold text-surface-900 dark:text-white mb-1">
+      <div className="text-2xl font-bold text-surface-900 dark:text-white mb-1 flex items-center gap-2 flex-wrap">
         {value}
+        {subregionEstimate && subregionBadge && (
+          <span className="inline-flex items-center rounded px-1 py-px text-[9px] font-semibold uppercase tracking-wide
+                           bg-amber-400/15 text-amber-600 dark:text-amber-400 border border-amber-400/30">
+            {subregionBadge}
+          </span>
+        )}
       </div>
-      {average != null && (
-        <div className={`text-sm ${colorClass}`}>
-          {avgLabel}
-        </div>
+      {subregionEstimate ? (
+        subregionNote && (
+          <div className="text-[11px] text-amber-600 dark:text-amber-400 leading-snug">
+            {subregionNote}
+          </div>
+        )
+      ) : (
+        average != null && (
+          <div className={`text-sm ${colorClass}`}>
+            {avgLabel}
+          </div>
+        )
       )}
       {source && (
         <div className="text-[10px] text-surface-400 dark:text-surface-500 mt-2">

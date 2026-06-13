@@ -5,7 +5,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import type { Feature, FeatureCollection, Polygon, MultiPolygon, Position } from 'geojson';
 import { feature as topoFeature } from 'topojson-client';
 import type { Topology } from 'topojson-specification';
-import { buildFillColorExpression, type LayerId, type LayerConfig, getLayerById } from '../utils/colorScales';
+import { buildFillColorExpression, getInterpolatedColor, type LayerId, type LayerConfig, getLayerById } from '../utils/colorScales';
 import { ensureHatchImage } from '../utils/hatchPattern';
 import { GRID_ZOOM_FADE_IN, buildFillOpacityFadeOut, buildGridFillOpacity } from '../utils/gridFade';
 import type { NeighborhoodProperties } from '../utils/metrics';
@@ -66,11 +66,22 @@ interface MapProps {
   isochrone?: Feature<Polygon | MultiPolygon> | null;
   /** CF-1: fires after the camera settles, so the host can capture the viewport for "copy link to this view". */
   onMoveEnd?: (camera: { center: [number, number]; zoom: number }) => void;
+  /** T1: in a region view with a housing/rent price layer active, the seutukunta's
+   *  average for that metric. Areas with no own value are painted this value's color
+   *  (still hatched, so they read as a sub-region estimate) instead of plain gray. */
+  priceFallbackValue?: number | null;
 }
 
 // Stable empty defaults to avoid creating new references on every render
 const EMPTY_SET = new Set<string>();
 const EMPTY_ARRAY: string[] = [];
+
+// T4: only the genuine first <Map> mount (the cold-load landing) skips the initial
+// animated fitBounds — that's where the Helsinki→all-Finland fly-out flash happened.
+// Later remounts (closing split view, WebGL context recovery) capture a live flyTarget
+// that is often bounds-only/zoom-less, so they MUST let the flyTo effect re-fit instead
+// of freezing at the constructor's DEFAULT_ZOOM. Module-scoped so it survives remounts.
+let isFirstMapMount = true;
 
 const LABELS_SOURCE_ID = 'carto-labels';
 const LABELS_LAYER = 'carto-labels';
@@ -222,7 +233,7 @@ function buildFillOpacity(o: number, overrides?: { matchExpr?: unknown[]; matchV
   return base;
 }
 
-export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1, gridData = null, drawMode = false, onDrawClick, onDrawDoubleClick, drawVertices, drawnPolygon = null, drawnAreaPnos = EMPTY_ARRAY, selectMode = false, selectedAreaPnos = EMPTY_ARRAY, onSelectAreaClick, layerConfig, isochrone = null, onMoveEnd }) => {
+export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1, gridData = null, drawMode = false, onDrawClick, onDrawDoubleClick, drawVertices, drawnPolygon = null, drawnAreaPnos = EMPTY_ARRAY, selectMode = false, selectedAreaPnos = EMPTY_ARRAY, onSelectAreaClick, layerConfig, isochrone = null, onMoveEnd, priceFallbackValue = null }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const hoveredIdRef = useRef<string | null>(null);
@@ -269,17 +280,49 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   // defers — and ensureLayers calls this ref once FILL_LAYER is in place.
   const addGridLayerRef = useRef<(() => void) | null>(null);
 
+  // T4: the mount-time flyTo target. The init effect uses it to position the first
+  // frame; the flyTo effect skips this identity so it doesn't re-animate to a camera
+  // the constructor already set (which caused the world-view fly-out flash on load).
+  const initialFlyToRef = useRef(flyTo);
+  // T4: capture whether THIS mount is the genuine first one. Only then is the initial
+  // flyTo skipped — on a remount the constructor can't reproduce a bounds-only/zoom-less
+  // target, so the flyTo effect must run its fitBounds to frame it correctly.
+  const isFirstMountRef = useRef(isFirstMapMount);
+
+  // T1: keep the latest price fallback value reachable from effect/setTimeout closures.
+  const priceFallbackValueRef = useRef(priceFallbackValue);
+  priceFallbackValueRef.current = priceFallbackValue;
+  // Region-estimate fill color for a price layer (null areas paint this instead of
+  // gray, and are still hatched by NO_DATA_LAYER so they read as a sub-region estimate).
+  // Returns undefined for non-price layers or when no seutukunta average is available.
+  const fillFallbackColor = (l: LayerConfig): string | undefined => {
+    const v = priceFallbackValueRef.current;
+    if (v == null || !isFinite(v)) return undefined;
+    if (l.property !== 'property_price_sqm' && l.property !== 'rental_price_sqm') return undefined;
+    return getInterpolatedColor(l, v);
+  };
+
   // Initialize map
   useEffect(() => {
     if (!containerRef.current) return;
+    // T4: any subsequent <Map> mount is a remount — its flyTo effect must run.
+    isFirstMapMount = false;
 
     let map: maplibregl.Map;
+    // T4: paint the FIRST frame at the real target camera (from the mount-time flyTo
+    // prop) using center+zoom — NOT the Helsinki preset. Previously the map was built
+    // at DEFAULT_CENTER/zoom 9.2 then an animated fitBounds flew out to the all-Finland
+    // overview, which MapLibre's parabolic flight renders as a whole-world zoom-out
+    // flash. center+zoom is also independent of container size, so it avoids the
+    // cold-load "stretched until refresh" race that a bounds-fit hits before resize().
+    const initialCenter = initialFlyToRef.current?.center ?? DEFAULT_CENTER;
+    const initialZoom = initialFlyToRef.current?.zoom ?? DEFAULT_ZOOM;
     try {
       map = new maplibregl.Map({
         container: containerRef.current,
         style: makeStyle(theme),
-        center: DEFAULT_CENTER,
-        zoom: DEFAULT_ZOOM,
+        center: initialCenter,
+        zoom: initialZoom,
         minZoom: MAP_MIN_ZOOM,
         maxZoom: MAP_MAX_ZOOM,
         attributionControl: false,
@@ -448,7 +491,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         type: 'fill',
         source: SOURCE_ID,
         paint: {
-          'fill-color': buildFillColorExpression(layer),
+          'fill-color': buildFillColorExpression(layer, undefined, fillFallbackColor(layer)),
           'fill-color-transition': { duration: 300, delay: 0 },
           'fill-opacity': buildFillOpacity(fillOpacity) as maplibregl.ExpressionSpecification,
           'fill-opacity-transition': { duration: 300, delay: 0 },
@@ -907,7 +950,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       // fill-opacity is set to 0 and the early return leaves the choropleth blank.
       // Mirrors the no-fade branch in the `else` below and the flyTo reduce-motion path.
       if (prefersReducedMotion()) {
-        map.setPaintProperty(FILL_LAYER, 'fill-color', buildFillColorExpression(layer));
+        map.setPaintProperty(FILL_LAYER, 'fill-color', buildFillColorExpression(layer, undefined, fillFallbackColor(layer)));
         if (map.getLayer(GRID_FILL_LAYER) && layer.gridProperty) {
           map.setPaintProperty(GRID_FILL_LAYER, 'fill-color', buildFillColorExpression(layer, layer.gridProperty));
         }
@@ -933,7 +976,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         if (!mapRef.current || !mapRef.current.getLayer(FILL_LAYER)) return;
 
         // Swap the color expression while fully transparent
-        mapRef.current.setPaintProperty(FILL_LAYER, 'fill-color', buildFillColorExpression(layer));
+        mapRef.current.setPaintProperty(FILL_LAYER, 'fill-color', buildFillColorExpression(layer, undefined, fillFallbackColor(layer)));
 
         // Update grid layer color if present
         if (mapRef.current.getLayer(GRID_FILL_LAYER) && layer.gridProperty) {
@@ -983,8 +1026,9 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         }, 250);
       }, 150);
     } else {
-      // Initial render or colorblind toggle — apply immediately (no fade)
-      map.setPaintProperty(FILL_LAYER, 'fill-color', buildFillColorExpression(layer));
+      // Initial render or colorblind toggle — apply immediately (no fade). Also the
+      // path when only priceFallbackValue changed (same active layer): recolor at once.
+      map.setPaintProperty(FILL_LAYER, 'fill-color', buildFillColorExpression(layer, undefined, fillFallbackColor(layer)));
     }
 
     return () => {
@@ -998,7 +1042,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- data/gridData/fillOpacity are guards, not triggers
-  }, [activeLayer, colorblind, layerConfig]);
+  }, [activeLayer, colorblind, layerConfig, priceFallbackValue]);
 
   // Filter-aware rendering: dim non-matching neighborhoods and highlight matching ones.
   // Uses setFilter on an existing layer instead of remove/add to avoid layer recreation overhead.
@@ -1210,6 +1254,12 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   // FlyTo / fitBounds
   useEffect(() => {
     if (!mapRef.current || !flyTo) return;
+    // T4: on the genuine first mount the constructor already positioned the map at the
+    // mount-time flyTo, so skip animating to that same target (this is what produced the
+    // world-view fly-out flash). On a REMOUNT the captured target may be bounds-only/
+    // zoom-less, which the constructor can't reproduce — so don't skip there; fall
+    // through to fitBounds. Every later viewport change gets a fresh identity and animates.
+    if (flyTo === initialFlyToRef.current && isFirstMountRef.current) return;
     // PO-1: jump instantly instead of animating the camera under reduce-motion.
     const dur = prefersReducedMotion() ? 0 : 1200;
     if (flyTo.bounds) {

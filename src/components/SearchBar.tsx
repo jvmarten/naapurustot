@@ -25,9 +25,11 @@ interface SearchBarProps {
   homeName?: string | null;
   /** QW-2: set (or clear, with null) the home/reference baseline. */
   onSetHome?: (pno: string | null) => void;
+  /** T7: clear the entire "recently viewed" list. */
+  onClearRecent?: () => void;
 }
 
-export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchData, onSelect, recent = [], lang, homePno, homeName, onSetHome }) => {
+export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchData, onSelect, recent = [], lang, homePno, homeName, onSetHome, onClearRecent }) => {
   useI18nVersion();
   const displayName = (p: GeoJSON.GeoJsonProperties): string => {
     if (!p) return '';
@@ -364,8 +366,19 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
           aria-label={t('recent.title')}
           className="mt-1.5 rounded-xl bg-white/95 dark:bg-surface-900/95 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden"
         >
-          <div className="px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500">
-            {t('recent.title')}
+          <div className="flex items-center justify-between px-4 py-2">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500">
+              {t('recent.title')}
+            </span>
+            {onClearRecent && (
+              <button
+                type="button"
+                className="text-[11px] font-medium normal-case text-surface-500 dark:text-surface-400 hover:text-rose-500 dark:hover:text-rose-400 transition-colors"
+                onClick={() => { onClearRecent(); trackEvent('clear-recent'); }}
+              >
+                {t('recent.clear')}
+              </button>
+            )}
           </div>
           {recent.slice(0, 5).map((entry) => (
             <button

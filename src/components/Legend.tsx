@@ -18,10 +18,13 @@ interface LegendProps {
   gridError?: boolean;
   /** MO2: on mobile, suppress the legend when a full-width panel covers it (desktop is md:absolute and unaffected). */
   hidden?: boolean;
+  /** T1: true when the map is tinting no-data price areas with the seutukunta average
+   *  (hatched) — show a note explaining the hatched "sub-region estimate" fills. */
+  subregionEstimate?: boolean;
 }
 
 // colorblind prop triggers re-render when mode changes (getLayerById reads global state)
-export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: _colorblind, layerConfig, lang: _lang, gridLoading, gridError, hidden }) => {
+export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: _colorblind, layerConfig, lang: _lang, gridLoading, gridError, hidden, subregionEstimate }) => {
   useI18nVersion();
   const layer = layerConfig ?? getLayerById(layerId);
 
@@ -132,6 +135,13 @@ export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: 
         {partial && !lowCoverage && coverageLabel != null && (
           <div className="mt-2 text-[10px] text-surface-400 dark:text-surface-500 max-w-[160px] leading-snug">
             {t('coverage.caption').replace('{pct}', coverageLabel)}
+          </div>
+        )}
+        {/* T1: explain the hatched fills that carry the seutukunta price estimate. */}
+        {subregionEstimate && (
+          <div className="mt-2 flex items-start gap-1 text-[10px] text-amber-600 dark:text-amber-400 max-w-[170px] leading-snug">
+            <span aria-hidden="true">▦</span>
+            <span>{t('legend.subregion_estimate')}</span>
           </div>
         )}
       </div>

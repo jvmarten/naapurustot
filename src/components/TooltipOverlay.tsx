@@ -14,13 +14,15 @@ interface TooltipOverlayProps {
   hidden: boolean;
   effectiveLayer: LayerConfig;
   metroAverage: number | undefined;
+  /** T1: seutukunta price average shown for price-layer areas with no own value. */
+  priceFallbackValue?: number | null;
 }
 
 /**
  * Self-contained tooltip renderer that subscribes to the tooltip external store.
  * Only this component re-renders on mouse move — the parent App is unaffected.
  */
-export const TooltipOverlay: React.FC<TooltipOverlayProps> = React.memo(({ hidden, effectiveLayer, metroAverage }) => {
+export const TooltipOverlay: React.FC<TooltipOverlayProps> = React.memo(({ hidden, effectiveLayer, metroAverage, priceFallbackValue }) => {
   useI18nVersion();
   const tooltip = useSyncExternalStore(subscribeTooltip, getTooltipSnapshot, getServerSnapshot);
 
@@ -39,16 +41,23 @@ export const TooltipOverlay: React.FC<TooltipOverlayProps> = React.memo(({ hidde
       ? parseSchools(tooltip.props.schools)
       : null;
 
+  const ownValue = isGridCell ? (tooltip.gridValue as number) : (tooltip.props[effectiveLayer.property] as number | null);
+  // T1: a price-layer area with no own value but a seutukunta average shows the
+  // estimate (matching the map's region-estimate tint), captioned as a sub-region
+  // estimate. The "vs avg" comparison is suppressed — it would compare the region
+  // average against itself.
+  const useFallback = !isGridCell && ownValue == null && priceFallbackValue != null;
+
   return (
     <Tooltip
       x={tooltip.x}
       y={tooltip.y}
       name={tooltip.props.nimi || tooltip.props.pno}
-      value={isGridCell ? (tooltip.gridValue as number) : (tooltip.props[effectiveLayer.property] as number | null)}
+      value={useFallback ? priceFallbackValue! : ownValue}
       layer={effectiveLayer}
-      metroAverage={isGridCell ? undefined : metroAverage}
+      metroAverage={isGridCell || useFallback ? undefined : metroAverage}
       schools={schools}
-      cellLabel={isGridCell ? t('tooltip.cell_value') : undefined}
+      cellLabel={isGridCell ? t('tooltip.cell_value') : (useFallback ? t('data.subregion_estimate') : undefined)}
     />
   );
 });
