@@ -83,6 +83,16 @@ const EMPTY_ARRAY: string[] = [];
 // of freezing at the constructor's DEFAULT_ZOOM. Module-scoped so it survives remounts.
 let isFirstMapMount = true;
 
+// Viewport-fit tuning shared by the initial-frame reframe and the flyTo/fitBounds
+// effect. The preset zooms in regions.ts are tuned for wide desktop screens; on a
+// narrow/tall mobile viewport a static zoom crops the area (e.g. all-Finland not fully
+// visible on first load), so bounds-based targets are fitted to the actual viewport.
+const MOBILE_BREAKPOINT = 768;
+// Cap how far a bounds-fit zooms in. Small postal-code bboxes would otherwise fill the
+// whole screen at an aggressive zoom; capping here keeps some surrounding context and
+// matches the 13.5 default used elsewhere for point navigation.
+const FIT_MAX_ZOOM = 13.5;
+
 const LABELS_SOURCE_ID = 'carto-labels';
 const LABELS_LAYER = 'carto-labels';
 
@@ -390,6 +400,16 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         map.getCanvas().setAttribute('role', 'application');
       } catch { /* canvas unavailable */ }
       map.resize();
+      // Reframe the initial bounds-based target to the actual (now-resized) viewport.
+      // The constructor positioned the first frame with the preset center+zoom — tuned
+      // for desktop — and the flyTo effect skips this mount-time target to avoid a
+      // fly-out flash. On a narrow mobile screen that static zoom crops the region (the
+      // all-Finland default no longer shows the whole country), so jump-fit it here.
+      // Runs after resize() so dimensions are correct — no cold-load stretch race.
+      const initTarget = initialFlyToRef.current;
+      if (isFirstMountRef.current && initTarget?.bounds && window.innerWidth < MOBILE_BREAKPOINT) {
+        map.fitBounds(initTarget.bounds, { padding: 40, duration: 0, maxZoom: FIT_MAX_ZOOM });
+      }
       // After paint, double-check dimensions in case layout was still settling.
       requestAnimationFrame(() => requestAnimationFrame(verifySize));
     });
@@ -1263,8 +1283,8 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     // PO-1: jump instantly instead of animating the camera under reduce-motion.
     const dur = prefersReducedMotion() ? 0 : 1200;
     if (flyTo.bounds) {
-      const isMobile = window.innerWidth < 768;
-      mapRef.current.fitBounds(flyTo.bounds, { padding: isMobile ? 40 : 80, duration: dur, maxZoom: 14.5 });
+      const isMobile = window.innerWidth < MOBILE_BREAKPOINT;
+      mapRef.current.fitBounds(flyTo.bounds, { padding: isMobile ? 40 : 80, duration: dur, maxZoom: FIT_MAX_ZOOM });
     } else {
       mapRef.current.flyTo({ center: flyTo.center, zoom: flyTo.zoom ?? 13.5, duration: dur });
     }
