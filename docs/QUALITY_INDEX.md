@@ -98,12 +98,12 @@ preferences sync):
 | Persona | Emphasis |
 |---------|----------|
 | **Default** (the out-of-the-box index) | The OECD-anchored weighting in the table above — Prosperity leans a little heavier (30). |
-| **Balanced** | Every evaluative dimension weighted *exactly equally* (20 each) — distinct from Default. |
+| **Balanced** | Every evaluative dimension weighted *exactly equally* (25 each across the four evaluative dimensions, summing to exactly 100 via largest-remainder allocation) — distinct from Default. |
 | **Family with children** | Services, safety, education |
 | **Young professional (car-free)** | Mobility (transit/cycling/walking), services, prosperity |
 | **Student** | Mobility, services, quiet |
 | **Retiree** | Safety, healthcare services, clean & quiet environment |
-| **Nature & quiet** | Environment, green space, low noise |
+| **Nature & quiet** | Environment, tree canopy, low noise |
 
 "Default" and "Balanced" are deliberately separate: the default is opinionated
 (material conditions weigh somewhat more, per OECD), while "Balanced" is the

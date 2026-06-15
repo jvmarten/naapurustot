@@ -126,6 +126,13 @@
       "granularity": "postal",
       "is_proxy": false
     },
+    "tr_mtu": {
+      "source": "Tilastokeskus (Paavo)",
+      "publisher": "tilastokeskus",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
     "unemployment_rate": {
       "source": "Tilastokeskus (Paavo)",
       "publisher": "tilastokeskus",
@@ -219,6 +226,13 @@
       "is_proxy": false
     },
     "ra_as_kpa": {
+      "source": "Tilastokeskus (Paavo)",
+      "publisher": "tilastokeskus",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "te_as_valj": {
       "source": "Tilastokeskus (Paavo)",
       "publisher": "tilastokeskus",
       "vintage": 2024,

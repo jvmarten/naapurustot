@@ -8,6 +8,7 @@ import { formatYtlGrade, formatYtlGradeFull } from './formatting';
 export type LayerId =
   | 'quality_index'
   | 'median_income'
+  | 'disposable_income'
   | 'unemployment'
   | 'education'
   | 'foreign_lang'
@@ -16,6 +17,7 @@ export type LayerId =
   | 'ownership'
   | 'rental'
   | 'apt_size'
+  | 'living_space'
   | 'detached_houses'
   | 'student_share'
   | 'population_density'
@@ -198,6 +200,17 @@ export const LAYERS: LayerConfig[] = [
     format: euro,
   },
   {
+    // QW-1: median household DISPOSABLE income (tr_mtu, after tax+transfers) —
+    // distinct from median_income (hr_mtu, residents' taxable income).
+    id: 'disposable_income',
+    labelKey: 'layer.disposable_income',
+    property: 'tr_mtu',
+    unit: '€',
+    colors: ['#1a1a2e', '#16213e', '#0f3460', '#1a759f', '#34a0a4', '#76c893', '#b5e48c', '#d9ed92'],
+    stops: [25000, 30000, 35000, 40000, 45000, 50000, 60000, 75000],
+    format: euro,
+  },
+  {
     id: 'unemployment',
     labelKey: 'layer.unemployment',
     property: 'unemployment_rate',
@@ -269,6 +282,17 @@ export const LAYERS: LayerConfig[] = [
     unit: 'm²',
     colors: ['#f2f0f7', '#dadaeb', '#bcbddc', '#9e9ac8', '#807dba', '#6a51a3', '#54278f', '#3f007d'],
     stops: [30, 40, 50, 60, 70, 80, 90, 110],
+    format: sqm,
+  },
+  {
+    // QW-1: living space per person (te_as_valj, m²/person) — the most concrete
+    // crowding signal, distinct from apt_size (ra_as_kpa, dwelling m²).
+    id: 'living_space',
+    labelKey: 'layer.living_space',
+    property: 'te_as_valj',
+    unit: 'm²',
+    colors: ['#f2f0f7', '#dadaeb', '#bcbddc', '#9e9ac8', '#807dba', '#6a51a3', '#54278f', '#3f007d'],
+    stops: [32, 38, 42, 46, 50, 54, 58, 64],
     format: sqm,
   },
   {

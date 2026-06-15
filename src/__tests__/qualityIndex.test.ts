@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { computeQualityIndices, getQualityCategory, QUALITY_CATEGORIES } from '../utils/qualityIndex';
+import {
+  computeQualityIndices,
+  getQualityCategory,
+  QUALITY_CATEGORIES,
+  QUALITY_FACTORS,
+  QUALITY_DIMENSIONS,
+  FACTOR_DIMENSION,
+  getPersonaWeights,
+} from '../utils/qualityIndex';
 import type { Feature } from 'geojson';
 
 function makeFeature(props: Record<string, any>): Feature {
@@ -174,6 +182,47 @@ describe('QUALITY_CATEGORIES', () => {
     expect(QUALITY_CATEGORIES[QUALITY_CATEGORIES.length - 1].max).toBe(100);
     for (let i = 1; i < QUALITY_CATEGORIES.length; i++) {
       expect(QUALITY_CATEGORIES[i].min).toBe(QUALITY_CATEGORIES[i - 1].max);
+    }
+  });
+});
+
+describe('QW-2 opt-in health/climate factors', () => {
+  it('health_index, radon, flood_risk are defaultWeight:0 and mapped to the health dimension', () => {
+    for (const id of ['health_index', 'radon', 'flood_risk']) {
+      const f = QUALITY_FACTORS.find((x) => x.id === id);
+      expect(f, `factor ${id} exists`).toBeDefined();
+      expect(f!.defaultWeight, `${id} defaultWeight`).toBe(0);
+      expect(f!.invert, `${id} invert`).toBe(true);
+      expect(FACTOR_DIMENSION[id], `${id} dimension`).toBe('health');
+    }
+  });
+
+  it('weight-0 factors do not move the default index', () => {
+    const base = { pno: '00100', crime_index: 50, hr_mtu: 25000, unemployment_rate: 5, higher_education_rate: 30 };
+    const withHealth = { ...base, pno: '00200', health_index: 200, radon: 2000, flood_risk_pct: 90 };
+    const mk = (p: Record<string, unknown>): Feature => ({ type: 'Feature', geometry: null as unknown as Feature['geometry'], properties: p });
+    const feats = [mk(base), mk(withHealth)];
+    computeQualityIndices(feats);
+    expect(feats[0].properties!.quality_index).toBe(feats[1].properties!.quality_index);
+  });
+});
+
+describe('PO-5 Balanced persona sums to exactly 100', () => {
+  const balanced = getPersonaWeights('balanced');
+  const evaluative = QUALITY_DIMENSIONS.filter((d) => d.defaultWeight !== 0).map((d) => d.id);
+  const target = Math.round(100 / evaluative.length);
+
+  it('all factor weights sum to exactly 100', () => {
+    const sum = Object.values(balanced).reduce((a, b) => a + b, 0);
+    expect(sum).toBe(100);
+  });
+
+  it('each evaluative dimension totals exactly the equal target (25)', () => {
+    for (const dim of evaluative) {
+      const dimSum = QUALITY_FACTORS
+        .filter((f) => (FACTOR_DIMENSION[f.id] ?? 'demographics') === dim)
+        .reduce((s, f) => s + (balanced[f.id] ?? 0), 0);
+      expect(dimSum, `dimension ${dim}`).toBe(target);
     }
   });
 });

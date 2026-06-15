@@ -102,9 +102,11 @@ describe('colorScales — colorblind mode', () => {
 
   it('handles layers with different stop counts (resample palette)', () => {
     setColorblindMode('protanopia');
-    // 'unemployment' has 10 stops — palette has 8, so it must resample
+    // 'unemployment' has 10 stops — palette has 8, so it must resample. Reference
+    // the layer by id (not a brittle LAYERS[index] that shifts when layers are added).
     const layer = getLayerById('unemployment');
-    expect(layer.colors.length).toBe(LAYERS[2].stops.length);
+    const original = LAYERS.find((l) => l.id === 'unemployment')!;
+    expect(layer.colors.length).toBe(original.stops.length);
     // All colors should still be valid hex
     for (const c of layer.colors) {
       expect(c).toMatch(/^#[0-9a-f]{6}$/i);

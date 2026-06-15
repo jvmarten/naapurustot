@@ -487,6 +487,36 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     invert: true,
     primary: true,
   },
+  // QW-2: opt-in (defaultWeight:0) real population-health + climate factors.
+  // computeQualityIndices skips weight-0 factors, so published headline/persona
+  // scores stay byte-for-byte identical; users activate these via "Show more".
+  // health_index is the Health dimension's first real morbidity OUTCOME (THL/Kela
+  // Sotkanet, 100 = national average → invert); flood_risk is an explicit climate
+  // counterweight to water_proximity's unconditional waterfront reward.
+  {
+    id: 'health_index',
+    label: { fi: 'Sairastavuus', en: 'Morbidity Index', sv: 'Sjukfrekvens' },
+    defaultWeight: 0,
+    properties: ['health_index'],
+    invert: true,
+    primary: false,
+  },
+  {
+    id: 'radon',
+    label: { fi: 'Radon', en: 'Radon', sv: 'Radon' },
+    defaultWeight: 0,
+    properties: ['radon'],
+    invert: true,
+    primary: false,
+  },
+  {
+    id: 'flood_risk',
+    label: { fi: 'Tulvariski', en: 'Flood Risk', sv: 'Översvämningsrisk' },
+    defaultWeight: 0,
+    properties: ['flood_risk_pct'],
+    invert: true,
+    primary: false,
+  },
   // Connectivity & politics
   {
     id: 'broadband',
@@ -845,6 +875,8 @@ export const FACTOR_DIMENSION: Record<string, DimensionId> = {
   // Health, nature & calm
   air_quality: 'health', tree_canopy: 'health', light_pollution: 'health',
   noise_pollution: 'health', water_proximity: 'health',
+  // QW-2: opt-in health/climate factors (defaultWeight:0) under the Health dimension.
+  health_index: 'health', radon: 'health', flood_risk: 'health',
   // Everyday freedom & ease (mobility + everyday services)
   transit: 'everyday', cycling: 'everyday', walkability: 'everyday',
   transit_reachability: 'everyday', ev_charging: 'everyday', broadband: 'everyday',
@@ -1009,19 +1041,37 @@ function personaWeights(emphasis: Record<string, number>): QualityWeights {
 // (the previous hand-coded "Balanced" preset was stuck on a retired six-dimension
 // shape and contradicted its own "every dimension weighted equally" description).
 function equalDimensionWeights(): QualityWeights {
-  const dimTotal: Record<string, number> = {};
-  for (const f of QUALITY_FACTORS) {
-    const d = getFactorDimension(f.id);
-    dimTotal[d] = (dimTotal[d] ?? 0) + (f.defaultWeight ?? 0);
-  }
+  // PO-5: distribute each evaluative dimension's equal target (100 / #evaluative
+  // dimensions) across its factors in proportion to their defaultWeight, using
+  // LARGEST-REMAINDER rounding so each dimension totals EXACTLY the target and
+  // the evaluative dimensions sum to exactly 100. Naive per-factor Math.round let
+  // a dimension re-total to 24/26 and the four to ≠100 — this makes
+  // QUALITY_INDEX.md's "weighted exactly equally" claim literally true.
+  // Descriptive dimensions (housing/demographics, target 0) stay at 0.
   const evaluativeDims = QUALITY_DIMENSIONS.filter((d) => d.defaultWeight !== 0).length;
   const target = Math.round(100 / evaluativeDims); // 4 evaluative dimensions → 25 each
+  const evaluative = new Set<string>(
+    QUALITY_DIMENSIONS.filter((d) => d.defaultWeight !== 0).map((d) => d.id),
+  );
+  const byDim: Record<string, QualityFactor[]> = {};
+  for (const f of QUALITY_FACTORS) (byDim[getFactorDimension(f.id)] ??= []).push(f);
+
   const w: QualityWeights = {};
-  for (const f of QUALITY_FACTORS) {
-    const d = getFactorDimension(f.id);
-    const total = dimTotal[d] ?? 0;
-    // Descriptive dimensions (housing/demographics, total 0) stay at 0.
-    w[f.id] = total > 0 ? Math.round(((f.defaultWeight ?? 0) / total) * target) : 0;
+  for (const f of QUALITY_FACTORS) w[f.id] = 0;
+  for (const [dim, factors] of Object.entries(byDim)) {
+    const dimTotal = factors.reduce((s, f) => s + (f.defaultWeight ?? 0), 0);
+    if (!evaluative.has(dim) || dimTotal <= 0) continue;
+    const parts = factors.map((f) => {
+      const exact = ((f.defaultWeight ?? 0) / dimTotal) * target;
+      return { id: f.id, base: Math.floor(exact), rem: exact - Math.floor(exact) };
+    });
+    for (const p of parts) w[p.id] = p.base;
+    let assigned = parts.reduce((s, p) => s + p.base, 0);
+    // Hand the leftover units (target − Σfloors) to the largest remainders.
+    const order = [...parts].sort((a, b) => b.rem - a.rem);
+    for (let i = 0; assigned < target && order.length; i++, assigned++) {
+      w[order[i % order.length].id] += 1;
+    }
   }
   return w;
 }
