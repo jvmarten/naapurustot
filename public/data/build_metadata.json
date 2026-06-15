@@ -1,6 +1,6 @@
 {
-  "generated": "2026-06-15T11:37:41.914Z",
-  "source_hash": "593214417c382efa",
+  "generated": "2026-06-15T13:04:57.822Z",
+  "source_hash": "f7550ce0a66f7155",
   "rows_total": 3018,
   "metrics": {
     "air_quality_index": {
@@ -419,6 +419,14 @@
       "row_count": 2937,
       "coverage_pct": 97.3
     },
+    "te_as_valj": {
+      "source": "Tilastokeskus (Paavo)",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 2811,
+      "coverage_pct": 93.1
+    },
     "tech_sector_pct": {
       "source": "Tilastokeskus (Paavo)",
       "vintage": 2024,
@@ -426,6 +434,14 @@
       "is_proxy": false,
       "row_count": 2626,
       "coverage_pct": 87
+    },
+    "tr_mtu": {
+      "source": "Tilastokeskus (Paavo)",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 2811,
+      "coverage_pct": 93.1
     },
     "traffic_accident_rate": {
       "source": "Väylävirasto",

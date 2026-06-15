@@ -53,6 +53,10 @@ export interface NeighborhoodProperties {
   hr_mtu: number | null;
   /** Average income (€/year) */
   hr_ktu: number | null;
+  /** QW-1: median household disposable income (€/year, after tax + transfers) */
+  tr_mtu?: number | null;
+  /** QW-1: average household disposable income (€/year, after tax + transfers) */
+  tr_ktu?: number | null;
   /** Employed persons count */
   pt_tyoll: number | null;
   /** Unemployed persons count */
@@ -73,6 +77,8 @@ export interface NeighborhoodProperties {
   te_takk: number | null;
   /** Total households count */
   te_taly: number | null;
+  /** QW-1: living space per person (m²/person) */
+  te_as_valj?: number | null;
   /** Owner-occupied dwellings count */
   te_omis_as: number | null;
   /** Rental dwellings count */
@@ -679,8 +685,11 @@ const METRIC_DEFS: MetricDef[] = [
   // Economy
   { property: 'hr_mtu', weight: 'population', precision: 0, requirePositive: true },
   { property: 'hr_ktu', weight: 'population', precision: 0, requirePositive: true },
+  // QW-1: household disposable income (€/yr) + living space per person (m²).
+  { property: 'tr_mtu', weight: 'household', precision: 0, requirePositive: true },
   { property: 'property_price_sqm', weight: 'population', precision: 0, requirePositive: true },
   { property: 'ra_as_kpa', weight: 'population', precision: 1, requirePositive: true },
+  { property: 'te_as_valj', weight: 'population', precision: 1, requirePositive: true },
 
   // Demographics
   { property: 'he_kika', weight: 'population', precision: 1 },

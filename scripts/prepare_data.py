@@ -808,6 +808,15 @@ def clean_properties(gdf):
     for col in key_fields:
         if col in gdf.columns:
             gdf[col] = gdf[col].apply(lambda v: None if v == -1 or v == -1.0 else v)
+    # QW-1: the Paavo household-income (tr_*) and living-space (te_as_valj) columns
+    # use BOTH -1 and 0 as confidentiality/zero-suppression sentinels (0 is never a
+    # real value for these), so null both — otherwise the 0s pull the color scale
+    # and national p2 range to zero. Targeted so other fields where 0 is legitimate
+    # (counts) are untouched.
+    zero_suppressed_fields = ["tr_mtu", "tr_ktu", "te_as_valj"]
+    for col in zero_suppressed_fields:
+        if col in gdf.columns:
+            gdf[col] = gdf[col].apply(lambda v: None if v in (-1, -1.0, 0, 0.0) else v)
     return gdf
 
 

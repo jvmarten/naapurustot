@@ -88,6 +88,9 @@ RANGE_CHECKS = [
     # Income (€/year) — 0 means suppressed data
     ("hr_mtu", 0, 200_000),
     ("hr_ktu", 0, 200_000),
+    # QW-1: household disposable income (€/yr) + living space per person (m²).
+    ("tr_mtu", 0, 200_000),
+    ("te_as_valj", 0, 200),
     # Average age — 0 means suppressed data
     ("he_kika", 0, 80),
     # Population density (persons/km²)
