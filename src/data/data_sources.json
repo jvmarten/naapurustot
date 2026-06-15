@@ -551,6 +551,22 @@
       "is_proxy": true,
       "panel": false
     },
+    "construction_activity": {
+      "source": "Tilastokeskus (Asuntokanta, valmistumisvuosi 2020–)",
+      "publisher": "tilastokeskus",
+      "vintage": "2020–2025",
+      "granularity": "postal",
+      "is_proxy": true,
+      "panel": false
+    },
+    "active_plan_count": {
+      "source": "Väylävirasto-hankkeet + kuntien vireillä asemakaavat (geometrinen leikkaus, koostettu)",
+      "publisher": "naapurustot",
+      "vintage": 2026,
+      "granularity": "postal",
+      "is_proxy": false,
+      "panel": false
+    },
     "unemployment_change_pct": {
       "source": "Tilastokeskus (Paavo)",
       "publisher": "tilastokeskus",

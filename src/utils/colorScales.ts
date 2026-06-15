@@ -77,7 +77,11 @@ export type LayerId =
   | 'radon'
   | 'health_index'
   // CF-20: flood-risk exposure
-  | 'flood_risk';
+  | 'flood_risk'
+  // CF-11: construction activity (municipal new-dwelling flow, per 1,000 res.)
+  | 'construction_activity'
+  // CF-5: planning & development activity (real geometry-derived per-postal count)
+  | 'active_plan_count';
 
 // PO-2: layers that carry a 5-year history array and can be scrubbed with the
 // time slider. Maps the active LayerId to the history property whose per-year
@@ -180,6 +184,8 @@ const bq = (v: number) => `${numFmt().format(Math.round(v))} Bq/m³`;
 const years = (v: number) => `${v.toFixed(1)} v`;
 const meters = (v: number) => `${numFmt().format(v)} m`;
 const yearFmt = (v: number) => `${v.toFixed(0)}`;
+// CF-5: a whole-number count of nearby kaavat & hankkeet (planning entries).
+const count = (v: number) => numFmt().format(Math.round(v));
 
 export const LAYERS: LayerConfig[] = [
   {
@@ -816,6 +822,36 @@ export const LAYERS: LayerConfig[] = [
     colors: ['#67000d', '#a50f15', '#cb181d', '#ef3b2c', '#fb6a4a', '#fc9272', '#fcbba1', '#fee0d2'],
     stops: [1940, 1955, 1965, 1975, 1985, 1995, 2005, 2015],
     format: yearFmt,
+  },
+  // CF-11: construction activity — new dwellings completed 2020- per 1,000
+  // residents, a municipal new-dwelling FLOW (StatFin raku 15f6) assigned to each
+  // postal code (is_proxy). Sequential, neutral (count/density-like, no
+  // higherIsBetter): the national counterpart to the city-only planning data.
+  {
+    id: 'construction_activity',
+    labelKey: 'layer.construction_activity',
+    property: 'construction_activity',
+    unit: '/1000',
+    colors: ['#f7fcfd', '#e0ecf4', '#bfd3e6', '#9ebcda', '#8c96c6', '#8c6bb1', '#88419d', '#6e016b'],
+    stops: [2, 5, 10, 18, 28, 40, 55, 75],
+    format: perThousand,
+  },
+  // CF-5: planning & development activity — the number of distinct kaavat &
+  // hankkeet (municipal vireillä asemakaavat + Väylävirasto state projects) that
+  // geometrically intersect each postal polygon (build_planning_data.mjs →
+  // area_planning.json, REAL sub-postal geometry, is_proxy:false). Sequential and
+  // NEUTRAL (a count, no higherIsBetter — active development is a preference, not
+  // good/bad, like property_price/foreign_lang). Full national coverage, most
+  // areas honestly 0; the lightest stop reads as "no nearby planning". Distinct
+  // palette (YlGnBu) from construction_activity's BuPu in the same housing group.
+  {
+    id: 'active_plan_count',
+    labelKey: 'layer.active_plan_count',
+    property: 'active_plan_count',
+    unit: '',
+    colors: ['#ffffd9', '#edf8b1', '#c7e9b4', '#7fcdbb', '#41b6c4', '#1d91c0', '#225ea8', '#0c2c84'],
+    stops: [0, 1, 2, 3, 4, 6, 8, 12],
+    format: count,
   },
 ];
 

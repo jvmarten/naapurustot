@@ -135,6 +135,15 @@ export interface NeighborhoodProperties {
   // municipal base projection assigned to postal codes — is_proxy). Optional to
   // match the QW-1 pattern that keeps test fixtures spreading Partial<> valid.
   population_projection_pct?: number | null;
+  // CF-11: construction activity — new dwellings completed 2020- per 1,000
+  // residents (StatFin raku 15f6, municipal new-dwelling flow assigned to postal
+  // codes — is_proxy). Optional to match the QW-1 Partial<> fixture pattern.
+  construction_activity?: number | null;
+  // CF-5: planning & development activity — count of distinct kaavat & hankkeet
+  // geometrically intersecting the postal polygon (build_planning_data.mjs, REAL
+  // sub-postal geometry, is_proxy:false; 0 where no nearby planning). Optional to
+  // match the QW-1 Partial<> fixture pattern.
+  active_plan_count?: number | null;
   // CF-7: crime change derived from crime_index_history
   crime_index_change_pct: number | null;
   // Phase 7: New data layers
@@ -751,6 +760,12 @@ const METRIC_DEFS: MetricDef[] = [
   { property: 'property_price_change_pct', weight: 'population', precision: 1 },
   // CF-6: projected population change % (municipal proxy, population-weighted).
   { property: 'population_projection_pct', weight: 'population', precision: 1 },
+  // CF-11: construction activity (new dwellings/1000 res., municipal proxy).
+  { property: 'construction_activity', weight: 'population', precision: 1 },
+  // CF-5: planning & development activity — count of nearby kaavat & hankkeet
+  // (real per-postal geometry). Population-weighted whole-number count; 0 is a
+  // valid real value (no nearby planning), so NOT requirePositive.
+  { property: 'active_plan_count', weight: 'population', precision: 0 },
   { property: 'school_quality_score', weight: 'population', precision: 0 },
   { property: 'light_pollution', weight: 'population', precision: 1 },
   { property: 'noise_pollution', weight: 'population', precision: 1 },

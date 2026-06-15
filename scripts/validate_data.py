@@ -124,9 +124,16 @@ RANGE_CHECKS = [
     # CF-6: projected population change 2024→2040 (%). Diverging; declining and
     # growing municipalities span well within ±50 (observed ≈ -31..+26).
     ("population_projection_pct", -50, 50),
-    # PLANNING — pre-registered, inert until the data lands (absent props skipped);
-    # planned_area_pct is range-checked 0–100 via PERCENTAGE_FIELDS above.
-    ("active_plan_count", 0, 10_000),
+    # CF-11: construction activity — new dwellings 2020- per 1,000 residents
+    # (municipal flow proxy). Sequential count rate (observed ≈ 0..81).
+    ("construction_activity", 0, 100),
+    # CF-5: planning & development activity — count of distinct kaavat & hankkeet
+    # intersecting each postal polygon (real per-postal geometry, is_proxy:false,
+    # NOT a distributed proxy). 0 is a valid real value (no nearby planning);
+    # build_planning_data caps entries at 12 per pno (observed 0..12).
+    ("active_plan_count", 0, 1_000),
+    # PLANNING — planned_area_pct stays pre-registered until that column lands;
+    # range-checked 0–100 via PERCENTAGE_FIELDS above (absent props skipped).
 ]
 
 
@@ -342,6 +349,10 @@ MUNICIPALITY_DISTRIBUTED_PROXIES = {
     # municipality granularity only; each postal code inherits its municipality's
     # projected 2024→2040 change %.
     "population_projection_pct": "fetch_population_projection.py assign_to_postal_codes() (municipality value per postal code)",
+    # CF-11: StatFin Rakennus- ja asuntotuotanto (raku 15f6) publishes new-dwelling
+    # counts at municipality granularity only; each postal code inherits its
+    # municipality's new-dwellings-per-1,000-residents rate.
+    "construction_activity": "fetch_construction_permits.py assign_to_postal_codes() (municipality value per postal code)",
     # CF-15: asvu 15fa publishes rents at city/maakunta level; distributed to postal
     # codes by replaying the 2022 intra-city ratios. price_to_rent_ratio inherits it.
     "rental_price_sqm": "fetch_rental_prices_municipality.py (city mean × 2022 intra-city ratio per postal code)",

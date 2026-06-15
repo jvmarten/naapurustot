@@ -1,8 +1,16 @@
 {
-  "generated": "2026-06-15T14:57:24.924Z",
-  "source_hash": "a1695a7c7a699091",
+  "generated": "2026-06-15T15:39:17.971Z",
+  "source_hash": "b28160749845d50c",
   "rows_total": 3018,
   "metrics": {
+    "active_plan_count": {
+      "source": "Väylävirasto-hankkeet + kuntien vireillä asemakaavat (geometrinen leikkaus, koostettu)",
+      "vintage": 2026,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 3018,
+      "coverage_pct": 100
+    },
     "air_quality_index": {
       "source": "HSY / FMI (ENFUSER, SILAM)",
       "vintage": 2024,
@@ -42,6 +50,14 @@
       "is_proxy": false,
       "row_count": 2937,
       "coverage_pct": 97.3
+    },
+    "construction_activity": {
+      "source": "Tilastokeskus (Asuntokanta, valmistumisvuosi 2020–)",
+      "vintage": "2020–2025",
+      "granularity": "postal",
+      "is_proxy": true,
+      "row_count": 3018,
+      "coverage_pct": 100
     },
     "crime_index": {
       "source": "Poliisi",

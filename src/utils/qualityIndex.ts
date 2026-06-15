@@ -360,6 +360,19 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     primary: false,
     bipolar: true,
   },
+  // CF-5: planning & development activity — count of nearby kaavat & hankkeet.
+  // Bipolar, defaultWeight:0 so it never moves the published score: an opt-in
+  // "I value an up-and-coming area" weight (positive) — or "I want a settled,
+  // low-churn area" (negative). No objective better direction, hence bipolar.
+  {
+    id: 'planning_activity',
+    label: { fi: 'Kaavoitus- ja hankeaktiivisuus', en: 'Planning & Development Activity', sv: 'Planerings- och projektaktivitet' },
+    defaultWeight: 0,
+    properties: ['active_plan_count'],
+    invert: false,
+    primary: false,
+    bipolar: true,
+  },
   // Employment — employment_rate is directional, sectoral mix is bipolar
   {
     id: 'employment_rate',
@@ -886,7 +899,7 @@ export const FACTOR_DIMENSION: Record<string, DimensionId> = {
   ownership_rate: 'housing', rental_rate: 'housing', apartment_size: 'housing',
   detached_house_share: 'housing', property_price: 'housing', rental_price: 'housing',
   price_to_rent: 'housing', construction_year: 'housing', new_construction: 'housing',
-  population_density: 'housing', population_change: 'housing',
+  population_density: 'housing', population_change: 'housing', planning_activity: 'housing',
   // Demographics & other (descriptive)
   avg_age: 'demographics', youth_ratio: 'demographics', elderly_ratio: 'demographics',
   child_ratio: 'demographics', pensioner_share: 'demographics', student_share: 'demographics',
