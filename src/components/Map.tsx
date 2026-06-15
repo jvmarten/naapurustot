@@ -886,6 +886,22 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     if (mapStyleLoadedRef.current) apply();
   }, [planningDimmed, planningData]);
 
+  // PO-4: a percentile-filter / wizard set can't dim individual grid cells (grids
+  // aren't keyed by pno), so when one is active over a grid layer, dim the WHOLE
+  // grid uniformly — otherwise it floats above the dimmed choropleth looking
+  // unfiltered. The Legend shows a caption that the filter doesn't apply to grids.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapStyleLoadedRef.current) return;
+    if (map.getLayer(GRID_FILL_LAYER) && layerConfig?.gridProperty) {
+      map.setPaintProperty(
+        GRID_FILL_LAYER,
+        'fill-opacity',
+        buildGridFillOpacity(fillOpacity * (planningDimmed ? 0.4 : 1)) as maplibregl.ExpressionSpecification,
+      );
+    }
+  }, [planningDimmed, fillOpacity, gridData, layerConfig]);
+
   // CF-2: click a plan/project → popup with name, status/type, date + source link.
   useEffect(() => {
     const map = mapRef.current;

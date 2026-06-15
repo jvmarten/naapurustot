@@ -1580,7 +1580,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
             label={t('panel.property_price')}
             value={d.property_price_sqm != null ? formatEuroSqm(d.property_price_sqm) : (propertyPriceFallback != null ? formatEuroSqm(propertyPriceFallback) : '—')}
             diff={d.property_price_sqm != null ? formatDiff(d.property_price_sqm, avg.property_price_sqm) : undefined}
-            diffClass={diffColor(d.property_price_sqm, avg.property_price_sqm)}
+            diffClass={diffColor(d.property_price_sqm, avg.property_price_sqm, null)}
             property="property_price_sqm"
             subregionEstimate={d.property_price_sqm == null && propertyPriceFallback != null}
             subregionName={regionName}

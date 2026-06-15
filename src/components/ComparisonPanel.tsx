@@ -86,31 +86,40 @@ const CHART_METRICS: { label: string; key: string; higherIsBetter: boolean; max?
 
 const BAR_COLORS = ['#6366f1', '#10b981', '#f59e0b'];
 
-const ComparisonChart: React.FC<{ pinned: NeighborhoodProperties[] }> = React.memo(({ pinned }) => {
+const ComparisonChart: React.FC<{ pinned: NeighborhoodProperties[]; bestByKey: Record<string, string | null> }> = React.memo(({ pinned, bestByKey }) => {
   useI18nVersion();
   return (
     <div className="px-5 py-4 space-y-5">
       {CHART_METRICS.map((metric) => {
         const values = pinned.map((n) => (n[metric.key] as number | null) ?? 0); // bar geometry only
         const maxVal = metric.max ?? Math.max(...values, 1);
+        // PO-1: badge the best-DIRECTION bar (longer ≠ better for inverted metrics)
+        // using the table's direction-aware precompute; caption the inverted ones.
+        const bestPno = pinned.length > 1 ? bestByKey[metric.key] : null;
         return (
           <div key={metric.key}>
-            <div className="text-xs text-surface-500 dark:text-surface-400 mb-1.5">{t(metric.label)}</div>
+            <div className="text-xs text-surface-500 dark:text-surface-400 mb-1.5 flex items-center gap-1.5">
+              <span>{t(metric.label)}</span>
+              {!metric.higherIsBetter && (
+                <span className="text-[9px] uppercase tracking-wide text-surface-400 dark:text-surface-500">{t('compare.lower_better')}</span>
+              )}
+            </div>
             <div className="space-y-1">
               {pinned.map((n, i) => {
                 const raw = n[metric.key] as number | null;
                 const val = raw ?? 0; // bar width basis; missing data → empty bar
                 const pct = Math.min((val / maxVal) * 100, 100);
+                const isBest = bestPno != null && n.pno === bestPno;
                 return (
                   <div key={n.pno} className="flex items-center gap-2">
                     <span className="w-16 text-[10px] text-surface-500 dark:text-surface-400 truncate">{n.nimi}</span>
                     <div className="flex-1 h-4 bg-surface-100 dark:bg-surface-800 rounded overflow-hidden">
                       <div
                         className="h-full rounded transition-all duration-300"
-                        style={{ width: `${pct}%`, backgroundColor: BAR_COLORS[i] }}
+                        style={{ width: `${pct}%`, backgroundColor: isBest ? '#10b981' : BAR_COLORS[i] }}
                       />
                     </div>
-                    <span className="w-16 text-[10px] text-surface-700 dark:text-surface-300 text-right tabular-nums">
+                    <span className={`w-16 text-[10px] text-right tabular-nums ${isBest ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-surface-700 dark:text-surface-300'}`}>
                       {metric.format(raw)}
                     </span>
                   </div>
@@ -280,7 +289,7 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pin
         </div>
 
         {/* PO-4: Chart view */}
-        {view === 'chart' && <ComparisonChart pinned={pinned} />}
+        {view === 'chart' && <ComparisonChart pinned={pinned} bestByKey={bestByKey} />}
 
         {/* Table view */}
         {view === 'table' && (
