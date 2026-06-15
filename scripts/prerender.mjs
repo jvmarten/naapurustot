@@ -72,6 +72,28 @@ const BUILD_METADATA = (() => {
   }
 })();
 
+// CF-1: per-pno kaavat & hankkeet (zoning plans + infrastructure projects) list,
+// a build input from build_planning_data.mjs (never shipped — like flood_risk.json).
+// Read here to render the "Kaavoitus ja hankkeet lähistöllä" profile section +
+// Place JSON-LD nodes at zero bundle cost. Snapshot + participating cities drive
+// the honest partial-coverage caption.
+const AREA_PLANNING = (() => {
+  try {
+    return JSON.parse(readFileSync(join(ROOT, 'scripts', 'area_planning.json'), 'utf-8'));
+  } catch {
+    return {};
+  }
+})();
+const PLANNING_MANIFEST = (() => {
+  try {
+    return JSON.parse(readFileSync(join(ROOT, 'src', 'data', 'planning_manifest.json'), 'utf-8'));
+  } catch {
+    return { snapshot: '', plans: { cities: [] } };
+  }
+})();
+const PLANNING_SNAPSHOT = PLANNING_MANIFEST.snapshot || '';
+const PLANNING_CITIES = (PLANNING_MANIFEST.plans?.cities ?? []).join(', ');
+
 // Process every feature exactly as the client's dataLoader does (same order),
 // so each page can embed a payload the React app renders from instantly —
 // avoiding the ~1.7 MB region_properties.json fetch before first paint.
@@ -754,6 +776,53 @@ function buildNextStepsHtml(props, lang) {
   return `      <h2>${escapeHtml(L.heading)}</h2>\n      <p>${links.join(' · ')}</p>`;
 }
 
+// CF-1: kaavat & hankkeet ("planning & projects nearby"). Inline FI/EN/SV like
+// NEXTSTEPS_LABELS (no locale-file / bundle cost). Entries come from
+// area_planning.json: {name, kind, ptype, subtype, status, date, url, source}.
+// Coverage is honestly partial — national for state Väylä projects, participating
+// cities only for municipal vireillä asemakaava — framed as a migration phase
+// toward the statutory 2029 Ryhti rollout.
+const PLANNING_LABELS = {
+  fi: {
+    heading: 'Kaavoitus ja hankkeet lähistöllä',
+    status: { vireilla: 'vireillä', luonnos: 'luonnos', ehdotus: 'ehdotus', hyvaksytty: 'hyväksytty', voimassa: 'voimassa', kaynnissa: 'käynnissä' },
+    ptype: { road: 'tiehanke', rail: 'ratahanke', waterway: 'vesiväylähanke', zoning: 'asemakaava' },
+    coverage: (snap, cities) =>
+      `Käynnissä olevat valtion väylähankkeet koko maassa; kuntien vireillä oleva asemakaavoitus osallistuvissa kaupungeissa${cities ? ` (${cities})` : ''}${snap ? ` tilanteessa ${snap}` : ''}. Ei valtakunnallista kaava-aineistoa — kattavuus täydentyy Ryhti-järjestelmän myötä vuoteen 2029 mennessä.`,
+  },
+  en: {
+    heading: 'Planning & projects nearby',
+    status: { vireilla: 'pending', luonnos: 'draft', ehdotus: 'proposal', hyvaksytty: 'approved', voimassa: 'in force', kaynnissa: 'ongoing' },
+    ptype: { road: 'road project', rail: 'rail project', waterway: 'waterway project', zoning: 'detailed plan' },
+    coverage: (snap, cities) =>
+      `Ongoing state transport-infrastructure projects nationwide; in-progress municipal detailed planning in participating cities${cities ? ` (${cities})` : ''}${snap ? ` as of ${snap}` : ''}. Not nationwide zoning data — coverage expands toward the statutory 2029 Ryhti rollout.`,
+  },
+  sv: {
+    heading: 'Planläggning och projekt i närheten',
+    status: { vireilla: 'anhängig', luonnos: 'utkast', ehdotus: 'förslag', hyvaksytty: 'godkänd', voimassa: 'i kraft', kaynnissa: 'pågående' },
+    ptype: { road: 'vägprojekt', rail: 'banprojekt', waterway: 'farledsprojekt', zoning: 'detaljplan' },
+    coverage: (snap, cities) =>
+      `Pågående statliga trafikledsprojekt i hela landet; kommunal detaljplanering under arbete i deltagande städer${cities ? ` (${cities})` : ''}${snap ? ` läget ${snap}` : ''}. Inget riksomfattande planmaterial — täckningen utvidgas mot den lagstadgade Ryhti-övergången 2029.`,
+  },
+};
+function planningEntryHtml(e, L) {
+  const tags = [];
+  if (L.status[e.status]) tags.push(L.status[e.status]);
+  if (L.ptype[e.ptype]) tags.push(L.ptype[e.ptype]);
+  if (e.date) tags.push(e.date);
+  const label = escapeHtml(e.name + (tags.length ? ` (${tags.join(', ')})` : ''));
+  const inner = e.url ? `<a href="${escapeHtml(e.url)}" rel="noopener nofollow">${label}</a>` : label;
+  return `        <li>${inner} — ${escapeHtml(e.source)}</li>`;
+}
+function buildPlanningHtml(props, lang) {
+  const entries = AREA_PLANNING[props.pno];
+  if (!entries || entries.length === 0) return null;
+  const L = PLANNING_LABELS[lang] || PLANNING_LABELS.fi;
+  const items = entries.map((e) => planningEntryHtml(e, L)).join('\n');
+  return `      <h2>${escapeHtml(L.heading)}</h2>\n      <ul>\n${items}\n      </ul>\n` +
+    `      <p>${escapeHtml(L.coverage(PLANNING_SNAPSHOT, PLANNING_CITIES))}</p>`;
+}
+
 function buildNoscriptContent(props, lang) {
   const T = TEXT[lang];
   const displayName = getDisplayName(props, lang);
@@ -801,6 +870,11 @@ function buildNoscriptContent(props, lang) {
 
   const nextStepsHtml = buildNextStepsHtml(props, lang);
   if (nextStepsHtml) lines.push(nextStepsHtml);
+
+  // CF-1: kaavat & hankkeet lähistöllä (national Väylä projects + participating-
+  // city vireillä asemakaava). Omitted for areas with no entry.
+  const planningHtml = buildPlanningHtml(props, lang);
+  if (planningHtml) lines.push(planningHtml);
 
   lines.push(`      <h2>${escapeHtml(T.sourcesHeading)}</h2>`);
   lines.push(`      <p>${escapeHtml(T.sources)}</p>`);
@@ -958,6 +1032,20 @@ function buildJsonLd(props, center, url, lang) {
   // size, living space, largest employment sector) as structured properties.
   for (const [pname, value] of enrichmentSchemaProps(props)) {
     additionalProperty.push({ '@type': 'PropertyValue', name: pname, value });
+  }
+  // CF-1: nearby planning/projects as PropertyValue nodes (name + status + date).
+  const planningEntries = AREA_PLANNING[props.pno];
+  if (planningEntries) {
+    const SL = PLANNING_LABELS.en.status;
+    for (const e of planningEntries) {
+      const tags = [SL[e.status] || e.status];
+      if (e.date) tags.push(e.date);
+      additionalProperty.push({
+        '@type': 'PropertyValue',
+        name: e.kind === 'project' ? 'infrastructureProjectNearby' : 'zoningPlanNearby',
+        value: `${e.name} (${tags.filter(Boolean).join(', ')})`,
+      });
+    }
   }
   if (additionalProperty.length > 0) place.additionalProperty = additionalProperty;
 

@@ -109,6 +109,8 @@ interface UrlState {
   draw: UrlDraw | null;
   // CF-4: shared wizard priority profile, null when absent.
   wizardProfile: WizardAnswers | null;
+  // CF-2: kaavat & hankkeet overlay toggle (shareable).
+  planning: boolean;
 }
 
 /** CF-1: the extra analytical state the URL can carry beyond pno/layer/compare/city. */
@@ -135,6 +137,8 @@ export interface ExtraUrlState {
   draw?: UrlDraw | null;
   /** CF-4: wizard priority profile. */
   wizardProfile?: WizardAnswers | null;
+  /** CF-2: kaavat & hankkeet overlay toggle. */
+  planning?: boolean;
 }
 
 const VALID_CITIES = new Set<string>(['all', ...REGION_IDS]);
@@ -426,6 +430,7 @@ function parseUrl(): UrlState {
   const cbRaw = searchParams.get('cb');
   const langRaw = searchParams.get('lang');
   const refRaw = searchParams.get('ref');
+  const planRaw = searchParams.get('plan');
 
   let weights: QualityWeights | null = null;
   if (qpRaw && VALID_PERSONA.has(qpRaw) && qpRaw !== 'default') weights = getPersonaWeights(qpRaw);
@@ -452,6 +457,7 @@ function parseUrl(): UrlState {
     simWeights: simwRaw ? deserializeSimWeights(simwRaw) : null,
     draw: drawRaw ? deserializeDraw(drawRaw) : null,
     wizardProfile: wpRaw ? deserializeWizardProfile(wpRaw) : null,
+    planning: planRaw === '1',
   };
 }
 
@@ -530,6 +536,8 @@ function serializeUrlParams(pno: string | null, layer: LayerId, comparePnos: str
   if (extras.wizardProfile && isCustomWizardAnswers(extras.wizardProfile)) {
     params.set('wp', serializeWizardProfile(extras.wizardProfile));
   }
+  // CF-2: kaavat & hankkeet overlay toggle (plain boolean flag).
+  if (extras.planning) params.set('plan', '1');
   return params;
 }
 

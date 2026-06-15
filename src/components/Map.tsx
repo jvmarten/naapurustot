@@ -64,6 +64,10 @@ interface MapProps {
   layerConfig?: LayerConfig;
   /** CF-5: travel-time isochrone polygon to overlay for the selected neighborhood. */
   isochrone?: Feature<Polygon | MultiPolygon> | null;
+  /** CF-2: kaavat & hankkeet overlay geometry for the active region (plans +
+   *  projects), or null when the overlay is off. Additive — coexists with any
+   *  active choropleth. */
+  planningData?: FeatureCollection | null;
   /** CF-1: fires after the camera settles, so the host can capture the viewport for "copy link to this view". */
   onMoveEnd?: (camera: { center: [number, number]; zoom: number }) => void;
   /** T1: in a region view with a housing/rent price layer active, the seutukunta's
@@ -95,6 +99,15 @@ const FIT_MAX_ZOOM = 13.5;
 
 const LABELS_SOURCE_ID = 'carto-labels';
 const LABELS_LAYER = 'carto-labels';
+
+/** CF-2: minimal HTML escape for the planning popup's interpolated text/URLs. */
+function escapeAttr(s: string): string {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
 
 /** Resolve a beforeId so the layer is inserted below the labels overlay.
  *  If the caller already specified one, keep it (those layers — e.g. the
@@ -167,6 +180,22 @@ const GRID_FILL_LAYER = 'grid-fill';
 const ISOCHRONE_SOURCE_ID = 'isochrone';
 const ISOCHRONE_FILL_LAYER = 'isochrone-fill';
 const ISOCHRONE_LINE_LAYER = 'isochrone-line';
+
+// CF-2: kaavat & hankkeet additive overlay — plan polygons colored by Ryhti
+// status, project lines colored by type. Sits above the choropleth fill, below
+// selection/hover borders (beforeId=HIGHLIGHT_LAYER), and coexists with any
+// active choropleth (it is NOT a LAYERS choropleth entry).
+const PLANNING_SOURCE_ID = 'planning';
+const PLANNING_FILL_LAYER = 'planning-fill';
+const PLANNING_OUTLINE_LAYER = 'planning-outline';
+const PLANNING_PROJECT_LAYER = 'planning-project';
+const PLANNING_LAYER_IDS = [PLANNING_FILL_LAYER, PLANNING_OUTLINE_LAYER, PLANNING_PROJECT_LAYER];
+// Plan status palette (Ryhti lifecycle); project type palette.
+const PLAN_STATUS_COLOR = ['match', ['get', 'status'],
+  'vireilla', '#f59e0b', 'luonnos', '#3b82f6', 'ehdotus', '#6366f1',
+  'hyvaksytty', '#10b981', 'voimassa', '#94a3b8', '#f59e0b'] as const;
+const PROJECT_TYPE_COLOR = ['match', ['get', 'ptype'],
+  'road', '#f97316', 'rail', '#a855f7', 'waterway', '#06b6d4', '#f97316'] as const;
 
 // CF-5 Phase D1: Finland-wide seutukunta boundary line layer. The data-less
 // gray fills are NOT a separate layer — they are emitted as _noData features
@@ -243,7 +272,7 @@ function buildFillOpacity(o: number, overrides?: { matchExpr?: unknown[]; matchV
   return base;
 }
 
-export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1, gridData = null, drawMode = false, onDrawClick, onDrawDoubleClick, drawVertices, drawnPolygon = null, drawnAreaPnos = EMPTY_ARRAY, selectMode = false, selectedAreaPnos = EMPTY_ARRAY, onSelectAreaClick, layerConfig, isochrone = null, onMoveEnd, priceFallbackValue = null }) => {
+export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1, gridData = null, drawMode = false, onDrawClick, onDrawDoubleClick, drawVertices, drawnPolygon = null, drawnAreaPnos = EMPTY_ARRAY, selectMode = false, selectedAreaPnos = EMPTY_ARRAY, onSelectAreaClick, layerConfig, isochrone = null, planningData = null, onMoveEnd, priceFallbackValue = null }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const hoveredIdRef = useRef<string | null>(null);
@@ -800,6 +829,98 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     else map.on('load', apply);
     return () => { map.off('load', apply); };
   }, [isochrone]);
+
+  // CF-2: kaavat & hankkeet overlay. Additive layers above the choropleth fill,
+  // below selection borders. Plan polygons fill by Ryhti status; project lines
+  // color by type. Cloned from the isochrone effect (mapStyleLoadedRef gate +
+  // load fallback + off cleanup) so it never throws on an in-flight style.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const apply = () => {
+      const remove = () => {
+        for (const l of PLANNING_LAYER_IDS) if (map.getLayer(l)) map.removeLayer(l);
+        if (map.getSource(PLANNING_SOURCE_ID)) map.removeSource(PLANNING_SOURCE_ID);
+      };
+      if (!planningData || planningData.features.length === 0) { remove(); return; }
+      const existing = map.getSource(PLANNING_SOURCE_ID) as maplibregl.GeoJSONSource | undefined;
+      if (existing) { existing.setData(planningData); return; }
+      map.addSource(PLANNING_SOURCE_ID, { type: 'geojson', data: planningData });
+      const before = map.getLayer(HIGHLIGHT_LAYER) ? HIGHLIGHT_LAYER : beforeLabels(map);
+      map.addLayer({
+        id: PLANNING_FILL_LAYER, type: 'fill', source: PLANNING_SOURCE_ID,
+        filter: ['==', ['get', 'kind'], 'plan'],
+        paint: { 'fill-color': PLAN_STATUS_COLOR as unknown as maplibregl.ExpressionSpecification, 'fill-opacity': 0.3 },
+      }, before);
+      map.addLayer({
+        id: PLANNING_OUTLINE_LAYER, type: 'line', source: PLANNING_SOURCE_ID,
+        filter: ['==', ['get', 'kind'], 'plan'],
+        paint: { 'line-color': PLAN_STATUS_COLOR as unknown as maplibregl.ExpressionSpecification, 'line-width': 1.4, 'line-opacity': 0.9 },
+      }, before);
+      map.addLayer({
+        id: PLANNING_PROJECT_LAYER, type: 'line', source: PLANNING_SOURCE_ID,
+        filter: ['==', ['get', 'kind'], 'project'],
+        paint: { 'line-color': PROJECT_TYPE_COLOR as unknown as maplibregl.ExpressionSpecification, 'line-width': 3, 'line-opacity': 0.85 },
+      }, before);
+    };
+    if (mapStyleLoadedRef.current) apply();
+    else map.on('load', apply);
+    return () => { map.off('load', apply); };
+  }, [planningData]);
+
+  // CF-2 + PO-4: honor the active percentile-filter / wizard dimming over the
+  // planning overlay (unlike grid cells, which can't be matched by pno). The
+  // overlay isn't pno-keyed, so dim it UNIFORMLY while a filter/wizard set is
+  // active, so it doesn't read as "unfiltered" floating above dimmed areas.
+  const planningDimmed = (filterActive && filterMatchPnos.size > 0) || wizardHighlightPnos.length > 0;
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const apply = () => {
+      if (!map.getLayer(PLANNING_FILL_LAYER)) return;
+      const m = planningDimmed ? 0.35 : 1;
+      map.setPaintProperty(PLANNING_FILL_LAYER, 'fill-opacity', 0.3 * m);
+      map.setPaintProperty(PLANNING_OUTLINE_LAYER, 'line-opacity', 0.9 * m);
+      map.setPaintProperty(PLANNING_PROJECT_LAYER, 'line-opacity', 0.85 * m);
+    };
+    if (mapStyleLoadedRef.current) apply();
+  }, [planningDimmed, planningData]);
+
+  // CF-2: click a plan/project → popup with name, status/type, date + source link.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const onPlanningClick = (e: maplibregl.MapLayerMouseEvent) => {
+      const f = e.features?.[0];
+      if (!f) return;
+      const p = f.properties as Record<string, string>;
+      const typeLabel = t(`panel.plan_type_${p.ptype}`);
+      const statusLabel = t(`panel.plan_status_${p.status}`);
+      const meta = [typeLabel, statusLabel, p.date].filter(Boolean).map(escapeAttr).join(' · ');
+      const link = p.url
+        ? `<a href="${escapeAttr(p.url)}" target="_blank" rel="noopener noreferrer">${escapeAttr(p.source || '')}</a>`
+        : escapeAttr(p.source || '');
+      new maplibregl.Popup({ closeButton: true, maxWidth: '260px' })
+        .setLngLat(e.lngLat)
+        .setHTML(`<div style="font-size:12px;line-height:1.4"><strong>${escapeAttr(p.name || '')}</strong><br>${meta}<br>${link}</div>`)
+        .addTo(map);
+    };
+    const setCursor = (c: string) => () => { map.getCanvas().style.cursor = c; };
+    const enter = setCursor('pointer');
+    const leave = setCursor('');
+    for (const l of PLANNING_LAYER_IDS) {
+      map.on('click', l, onPlanningClick);
+      map.on('mouseenter', l, enter);
+      map.on('mouseleave', l, leave);
+    }
+    return () => {
+      for (const l of PLANNING_LAYER_IDS) {
+        map.off('click', l, onPlanningClick);
+        map.off('mouseenter', l, enter);
+        map.off('mouseleave', l, leave);
+      }
+    };
+  }, []);
 
   // CF-5 Phase D1: faint Finland-wide seutukunta boundary line. Outlines all 69
   // sub-regions for structural context. Sits beneath the choropleth fill so it

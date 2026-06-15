@@ -32,6 +32,8 @@ const DYNAMIC_PREFIXES = [
   'correlation.sig_',    // CorrelationExplorer → `correlation.sig_${sig}`
   'city.',               // region names → `city.${regionId}` (69 regions)
   'error.',              // NeighborhoodProfilePage → `error.${code}`
+  'panel.plan_type_',    // NeighborhoodPanel → `panel.plan_type_${ptype}` (CF-3)
+  'panel.plan_status_',  // NeighborhoodPanel → `panel.plan_status_${status}` (CF-3)
 ];
 
 // Vite-native source scan: eagerly load every src + scripts code file as raw

@@ -35,6 +35,8 @@ const RegionRankingTable = lazy(() => import('./components/RegionRankingTable').
 import { useMapData } from './hooks/useMapData';
 import { useSearchIndex } from './hooks/useSearchIndex';
 import { useGridData, cellCentroid, clipGridToData, hasGridData } from './hooks/useGridData';
+import { usePlanningOverlay, regionHasPlanningGeometry } from './hooks/usePlanningData';
+import { PlanningControls } from './components/PlanningControls';
 import { useFavorites } from './hooks/useFavorites';
 
 import { useRecentNeighborhoods } from './hooks/useRecentNeighborhoods';
@@ -211,6 +213,13 @@ const App: React.FC = () => {
   // E1: distinguishes a genuine fetch failure (network/HTTP) from an empty area,
   // so the panel can surface an error + retry rather than silently showing nothing.
   const [isochroneError, setIsochroneError] = useState(false);
+
+  // CF-2: kaavat & hankkeet additive map overlay (shareable via ?plan=1). The
+  // overlay coexists with any active choropleth; the hook lazy-fetches only the
+  // active region's planning shards while the toggle is on.
+  const [planningEnabled, setPlanningEnabled] = useState<boolean>(!!initialUrl.planning);
+  const { features: planningOverlay } = usePlanningOverlay(cityFilter, planningEnabled);
+  const handlePlanningToggle = useCallback(() => setPlanningEnabled((v) => !v), []);
 
   // Build a PNO→Feature lookup Map for O(1) feature access.
   // Replaces multiple O(n) .find() scans after quality index recomputation
@@ -995,6 +1004,8 @@ const App: React.FC = () => {
     draw: drawUrlValue,
     // CF-4: shared wizard priority profile (only emitted when non-default).
     wizardProfile,
+    // CF-2: kaavat & hankkeet overlay toggle.
+    planning: planningEnabled,
   });
 
   // Recompute quality indices when custom weights change.
@@ -1998,6 +2009,7 @@ const App: React.FC = () => {
             onSelectAreaClick={handleSelectAreaClick}
             layerConfig={effectiveLayer}
             isochrone={isochronePolygon}
+            planningData={planningOverlay}
             onMoveEnd={handleMapMoveEnd}
             priceFallbackValue={priceFallbackValue}
           />
@@ -2218,6 +2230,14 @@ const App: React.FC = () => {
           lang={lang}
           hidden={!!selected}
         />
+      )}
+
+      {/* CF-2: kaavat & hankkeet overlay toggle — region scope only (the overlay is
+          per-region), hidden behind the open area panel / split view / embed. */}
+      {!IS_EMBED && !selected && !splitMode && cityFilter !== 'all' && regionHasPlanningGeometry(cityFilter) && (
+        <div className="hidden md:block absolute top-[6.75rem] left-3 md:left-4 z-[5] w-52 md:w-64 pointer-events-auto">
+          <PlanningControls enabled={planningEnabled} region={cityFilter} onToggle={handlePlanningToggle} />
+        </div>
       )}
 
       {/* O3: persistent, dismissible on-map hint teaching the core "click an area"

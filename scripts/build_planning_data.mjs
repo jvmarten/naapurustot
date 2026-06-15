@@ -34,6 +34,7 @@ const RAW_DIR = resolve(ROOT, 'scripts', 'planning_raw');
 const GEOJSON = resolve(ROOT, 'public', 'data', 'metro_neighborhoods.geojson');
 const PROJECTS_SHARD_DIR = resolve(ROOT, 'public', 'data', 'planning_projects_shards');
 const PLANS_SHARD_DIR = resolve(ROOT, 'public', 'data', 'planning_plans_shards');
+const AREA_SHARD_DIR = resolve(ROOT, 'public', 'data', 'planning_area_shards');
 const AREA_PLANNING_OUT = resolve(ROOT, 'scripts', 'area_planning.json');
 const MANIFEST_OUT = resolve(ROOT, 'src', 'data', 'planning_manifest.json');
 
@@ -175,6 +176,24 @@ const planCounts = writeShards(PLANS_SHARD_DIR, 'planning_plans', planRegions);
 // ── area_planning.json (build input; never shipped) ──────────────────────────
 writeFileSync(AREA_PLANNING_OUT, JSON.stringify(areaPlanning, null, 0) + '\n');
 
+// ── Per-region pno→entries shards for the in-app panel (CF-3) ─────────────────
+// A free lazy asset fetched only when a panel is open: keeps per-area planning
+// OUT of region_properties.json's ~10.6 MB first-paint payload while giving the
+// panel the exact same entries the prerendered profiles show (one source).
+const pnoRegion = new Map(postal.map((p) => [p.pno, p.region]));
+const areaByRegion = {};
+for (const [pno, entries] of Object.entries(areaPlanning)) {
+  const r = pnoRegion.get(pno) || 'other';
+  (areaByRegion[r] ||= {})[pno] = entries;
+}
+rmSync(AREA_SHARD_DIR, { recursive: true, force: true });
+mkdirSync(AREA_SHARD_DIR, { recursive: true });
+const areaCounts = {};
+for (const [region, map] of Object.entries(areaByRegion).sort()) {
+  writeFileSync(resolve(AREA_SHARD_DIR, `planning_area_${region}.json`), JSON.stringify(map));
+  areaCounts[region] = Object.keys(map).length;
+}
+
 // ── manifest ─────────────────────────────────────────────────────────────────
 // Snapshot date drives the honest "tilanne <snapshot>" coverage caption.
 const snapshot = new Date().toISOString().slice(0, 10);
@@ -192,6 +211,11 @@ const manifest = {
     total: plans.features.length,
     cities: plans.meta.cities ?? [],
     regions: planCounts,
+  },
+  // CF-3: per-region pno→entries shards for the in-app panel list.
+  area: {
+    shardPattern: 'data/planning_area_shards/planning_area_{region}.json',
+    regions: areaCounts,
   },
 };
 writeFileSync(MANIFEST_OUT, JSON.stringify(manifest, null, 2) + '\n');
