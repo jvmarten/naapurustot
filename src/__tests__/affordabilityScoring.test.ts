@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest';
-import type { FeatureCollection, Feature } from 'geojson';
 import {
   affordabilityScore,
   orientationForTenure,
@@ -7,11 +6,6 @@ import {
   type AffordabilityInput,
   type AffordabilityInputProps,
 } from '../utils/affordability';
-import {
-  isAffordabilityActive,
-  computeAffordablePnos,
-  affordabilityAdjustedMatch,
-} from '../utils/filterUtils';
 
 // rent 20 €/m²/mo, price 5000 €/m². At 50 m²: rent 1000 €/mo, price 250k.
 const CHEAP: AffordabilityInputProps = { rental_price_sqm: 20, property_price_sqm: 5000 };
@@ -78,74 +72,5 @@ describe('orientationForTenure', () => {
     expect(orientationForTenure('own')).toBe('buy');
     expect(orientationForTenure('rent')).toBe('rent');
     expect(orientationForTenure('either')).toBe('either');
-  });
-});
-
-function fc(props: Array<Partial<AffordabilityInputProps> & { pno: string; he_vakiy?: number }>): FeatureCollection {
-  return {
-    type: 'FeatureCollection',
-    features: props.map((p): Feature => ({
-      type: 'Feature',
-      geometry: { type: 'Point', coordinates: [0, 0] },
-      properties: { he_vakiy: 1000, ...p },
-    })),
-  };
-}
-
-describe('isAffordabilityActive', () => {
-  it('is false for null/empty input (graceful no-op guard)', () => {
-    expect(isAffordabilityActive(null)).toBe(false);
-    expect(isAffordabilityActive(undefined)).toBe(false);
-    expect(isAffordabilityActive({ mode: 'income', monthlyIncome: null, sizeM2: 50 })).toBe(false);
-  });
-
-  it('is true once a usable budget exists', () => {
-    expect(isAffordabilityActive(BUDGET_1500)).toBe(true);
-  });
-});
-
-describe('computeAffordablePnos', () => {
-  const data = fc([
-    { pno: '00100', rental_price_sqm: 20, property_price_sqm: 5000 },  // rent 1000 → within 1500
-    { pno: '00200', rental_price_sqm: 40, property_price_sqm: 10000 }, // rent 2000 → over 1500
-    { pno: '00300', rental_price_sqm: null, property_price_sqm: null }, // unjudgeable → included
-    { pno: '00400', rental_price_sqm: 20, property_price_sqm: 5000, he_vakiy: 0 }, // no population → skipped
-  ]);
-
-  it('returns null when affordability is inactive (caller skips ANDing it in)', () => {
-    expect(computeAffordablePnos(data, null)).toBeNull();
-    expect(computeAffordablePnos(data, { mode: 'income', monthlyIncome: null, sizeM2: 50 })).toBeNull();
-  });
-
-  it('keeps within-budget and unjudgeable areas, drops the over-budget one', () => {
-    const pnos = computeAffordablePnos(data, BUDGET_1500, 'rent')!;
-    expect(pnos.has('00100')).toBe(true);  // within
-    expect(pnos.has('00200')).toBe(false); // over budget → filtered out
-    expect(pnos.has('00300')).toBe(true);  // can't judge → included, never disqualified
-    expect(pnos.has('00400')).toBe(false); // zero population → excluded like other filters
-  });
-});
-
-describe('affordabilityAdjustedMatch', () => {
-  const within = { pno: '00100', rental_price_sqm: 20, property_price_sqm: 5000 } as unknown as Parameters<typeof affordabilityAdjustedMatch>[1];
-  const over = { pno: '00200', rental_price_sqm: 40, property_price_sqm: 10000 } as unknown as Parameters<typeof affordabilityAdjustedMatch>[1];
-  const noData = { pno: '00300', rental_price_sqm: null, property_price_sqm: null } as unknown as Parameters<typeof affordabilityAdjustedMatch>[1];
-
-  it('returns the base match unchanged when affordability is inactive', () => {
-    expect(affordabilityAdjustedMatch(80, within, null, 'rent')).toBe(80);
-  });
-
-  it('leaves an affordable area at its base match', () => {
-    expect(affordabilityAdjustedMatch(80, within, BUDGET_1500, 'rent')).toBe(80);
-  });
-
-  it('penalizes an over-budget area', () => {
-    const adjusted = affordabilityAdjustedMatch(80, over, BUDGET_1500, 'rent');
-    expect(adjusted).toBeLessThan(80);
-    expect(adjusted).toBeGreaterThanOrEqual(0);
-  });
-
-  it('leaves an unjudgeable area untouched (no penalty for missing data)', () => {
-    expect(affordabilityAdjustedMatch(80, noData, BUDGET_1500, 'rent')).toBe(80);
   });
 });

@@ -10,6 +10,7 @@ import { LAYERS, getLayerById, getColorForValue, buildFillColorExpression } from
 import type { LayerId } from '../utils/colorScales';
 import { setLang as _setLang } from '../utils/i18n';
 import fi from '../locales/fi.json';
+import fiExtra from '../locales/fi-extra.json';
 import en from '../locales/en.json';
 
 describe('Layer configuration consistency', () => {
@@ -133,7 +134,9 @@ describe('Layer configuration consistency', () => {
 
 describe('Layer translation completeness', () => {
   it('Finnish and English translations have the same keys', () => {
-    const fiKeys = new Set(Object.keys(fi));
+    // IN-7: page-only fi keys live in fi-extra.json; the source of truth is the
+    // union (fi ∪ fi-extra). en/sv keep the full key set.
+    const fiKeys = new Set([...Object.keys(fi), ...Object.keys(fiExtra)]);
     const enKeys = new Set(Object.keys(en));
 
     const onlyInFi = [...fiKeys].filter((k) => !enKeys.has(k));

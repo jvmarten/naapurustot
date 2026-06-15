@@ -40,6 +40,36 @@
       "url": "https://vayla.fi/",
       "license": "CC BY 4.0"
     },
+    "helsinki_kaupunki": {
+      "name": "Helsingin kaupunki (asemakaavoitus)",
+      "url": "https://www.hel.fi/fi/kaupunkiymparisto-ja-liikenne",
+      "license": "CC BY 4.0"
+    },
+    "tampere_kaupunki": {
+      "name": "Tampereen kaupunki (asemakaavoitus)",
+      "url": "https://www.tampere.fi/asuminen-ja-ymparisto/kaavoitus",
+      "license": "CC BY 4.0"
+    },
+    "vantaa_kaupunki": {
+      "name": "Vantaan kaupunki (kaavoitus)",
+      "url": "https://www.vantaa.fi/fi/kaavoitus",
+      "license": "CC BY 4.0"
+    },
+    "turku_kaupunki": {
+      "name": "Turun kaupunki (kaavoitus)",
+      "url": "https://www.turku.fi/asuminen-ja-ymparisto/kaupunkisuunnittelu/kaavoitus",
+      "license": "CC BY 4.0"
+    },
+    "jyvaskyla_kaupunki": {
+      "name": "Jyväskylän kaupunki (kaavoitus)",
+      "url": "https://www.jyvaskyla.fi/kaavoitus",
+      "license": "CC BY 4.0"
+    },
+    "ryhti": {
+      "name": "Ryhti / Rakennetun ympäristön tietojärjestelmä (SYKE)",
+      "url": "https://www.syke.fi/ryhti",
+      "license": "CC BY 4.0"
+    },
     "ytl": {
       "name": "Ylioppilastutkintolautakunta",
       "url": "https://www.ylioppilastutkinto.fi/",

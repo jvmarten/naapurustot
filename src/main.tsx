@@ -6,7 +6,7 @@ import App from './App';
 import { ThemeProvider } from './hooks/useTheme';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { installChunkReloadHandler } from './utils/chunkReload';
-import { detectBrowserLang, getLang, setLang } from './utils/i18n';
+import { detectBrowserLang, getLang, setLang, loadFiExtra } from './utils/i18n';
 import './index.css';
 
 // O2: first-visit language auto-detection. Runs only in the browser entry (tests
@@ -36,10 +36,14 @@ const NeighborhoodProfilePage = lazy(() => import('./pages/NeighborhoodProfilePa
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage').then(m => ({ default: m.NotFoundPage })));
 // CF-9: prerendered public data-sources & methodology page (FI/EN/SV).
 // eslint-disable-next-line react-refresh/only-export-components
-const DataSourcesPage = lazy(() => import('./pages/DataSourcesPage').then(m => ({ default: m.DataSourcesPage })));
+const DataSourcesPage = lazy(() =>
+  // IN-7: await the page-only fi strings (fi-extra.json) alongside the chunk so the
+  // page never first-paints raw i18n keys. loadFiExtra never rejects (catch → no-op).
+  Promise.all([import('./pages/DataSourcesPage'), loadFiExtra()]).then(([m]) => ({ default: m.DataSourcesPage })));
 // PO-14: prerendered public privacy & data-handling notice (FI/EN/SV).
 // eslint-disable-next-line react-refresh/only-export-components
-const PrivacyPage = lazy(() => import('./pages/PrivacyPage').then(m => ({ default: m.PrivacyPage })));
+const PrivacyPage = lazy(() =>
+  Promise.all([import('./pages/PrivacyPage'), loadFiExtra()]).then(([m]) => ({ default: m.PrivacyPage })));
 
 // Auto-reload when a new service worker is activated after deployment.
 // This prevents users from being stuck on a stale cached version.

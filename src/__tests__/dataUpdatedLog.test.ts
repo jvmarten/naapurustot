@@ -15,13 +15,20 @@
 import { describe, it, expect } from 'vitest';
 import buildMetadata from '../data/build_metadata.json';
 import fi from '../locales/fi.json';
+import fiExtra from '../locales/fi-extra.json';
 import en from '../locales/en.json';
 import sv from '../locales/sv.json';
 // @ts-expect-error — plain .mjs build helper with no type declarations
 import { computeDataUpdateEvents, mergeDataUpdates } from '../../scripts/lib/data-updates.mjs';
 
 type Dict = Record<string, string>;
-const LOCALES: Record<string, Dict> = { fi: fi as Dict, en: en as Dict, sv: sv as Dict };
+// IN-7: the PO-15 sources.* keys moved to fi-extra.json; merge it into the fi
+// dict so the parity check below sees them (prerender does the same merge).
+const LOCALES: Record<string, Dict> = {
+  fi: { ...(fi as Dict), ...(fiExtra as Dict) },
+  en: en as Dict,
+  sv: sv as Dict,
+};
 
 interface MetricMeta {
   source: string;
