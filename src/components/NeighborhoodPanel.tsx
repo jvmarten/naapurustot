@@ -849,7 +849,9 @@ const NotesEditor: React.FC<{ pno: string; userId?: string | null }> = React.mem
 NotesEditor.displayName = 'NotesEditor';
 
 export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, qualityWeights, allFeatures, summaryScope = 'national', summaryRegion = '', activeLayer, onFlyTo, isFavorite = false, onToggleFavorite, isInShortlist = false, onToggleShortlist, referencePno, referenceName, onSetReference, qualityScope = 'national', onExploreCity, userId, isochroneEnabled = false, isochroneMode = 'walk', isochroneBudget = 20, isochroneLoading = false, isochroneError = false, isochroneActive = false, onIsochroneChange, onIsochroneClear, similarityWeights, onSimilarityWeightChange, onSimilarityToggle, regionPriceAverages, regionName }) => {
-  useI18nVersion();
+  // QW-4: capture the i18n version so memos that build translated strings (the
+  // MOBILE_SECTIONS tab labels) recompute on a language switch / lazy-dict arrival.
+  const i18nVersion = useI18nVersion();
   // M5: honor "Reduce Motion" on the two most frequent mobile interactions (sheet
   // open/drag, tab-carousel snap), matching the map's reduced-motion fast paths.
   const reducedMotion = useReducedMotion();
@@ -970,7 +972,8 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
     t('panel.tab.stats'),
     t('panel.tab.trends'),
     t('panel.tab.similar'),
-  ] as const, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- QW-4: i18nVersion is the dependency (t() reads the active language).
+  ] as const, [i18nVersion]);
   const { activeSection, setActiveSection, dragOffset, isSnapping, isSwiping, handlers: swipeHandlers, onTransitionEnd } = useSwipeNavigation({
     sectionCount: MOBILE_SECTIONS.length,
   });
@@ -2298,18 +2301,20 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
         </div>
       </div>
 
-      {/* QW-2: Toast notification for clipboard copy */}
+      {/* QW-2: Toast notification for clipboard copy. PO-3: role=status so screen
+          readers announce the otherwise-silent confirmation. */}
       {copied && (
-        <div className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] md:bottom-6 left-1/2 -translate-x-1/2 z-50
+        <div role="status" className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] md:bottom-6 left-1/2 -translate-x-1/2 z-50
                        px-4 py-2 rounded-xl bg-surface-900 dark:bg-white text-white dark:text-surface-900
                        text-sm font-medium shadow-lg animate-fade-in">
           {t('panel.copied')}
         </div>
       )}
 
-      {/* C9: transient toast when the compare cap is reached on a touch tap */}
+      {/* C9: transient toast when the compare cap is reached on a touch tap.
+          PO-3: role=status so screen readers hear "limit reached". */}
       {pinToast && (
-        <div className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] md:bottom-6 left-1/2 -translate-x-1/2 z-50
+        <div role="status" className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] md:bottom-6 left-1/2 -translate-x-1/2 z-50
                        px-4 py-2 rounded-xl bg-surface-900 dark:bg-white text-white dark:text-surface-900
                        text-sm font-medium shadow-lg animate-fade-in">
           {t('compare.max_toast')}

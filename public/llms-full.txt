@@ -180,6 +180,7 @@ data is available. This catalogue is generated from the live layer registry.
 
 ### Economy
 - **Median Income**
+- **Disposable Income**
 - **Unemployment Rate**
 - **Employment Rate** — Share of working-age residents currently employed (ages 15–74).
 - **Higher Education**
@@ -194,6 +195,7 @@ data is available. This catalogue is generated from the live layer registry.
 - **Home Ownership**
 - **Rental Rate**
 - **Avg. Apartment Size**
+- **Living Space per Person**
 - **Detached Houses**
 - **New Construction**
 - **Building Age**
@@ -270,7 +272,7 @@ publishers.
 
 | Source | Provides | Licence |
 |---|---|---|
-| Tilastokeskus | Average Age, Avg. Apartment Size, Building Age, Detached Houses, Elderly (65+), Employment Rate, Families with Children, Foreign-Language Speakers, Gender Ratio, Healthcare Workers, Higher Education, Home Ownership, Household Size, Income Change (%), Manufacturing Jobs, Median Income, New Construction, Pensioner Share, Political Diversity, Population Change (%), Population Density, Price-to-Rent Ratio, Property Price Change, Property Prices, Public Sector Jobs, Rent Level, Rental Rate, Service Sector Jobs, Single-Parent Households, Single-Person HH, Student Share, Tech Sector Jobs, Unemployment Change (%), Unemployment Rate, Voter Turnout, Young Adults (18–29), Young Children (0-6) | CC BY 4.0 |
+| Tilastokeskus | Average Age, Avg. Apartment Size, Building Age, Detached Houses, Disposable Income, Elderly (65+), Employment Rate, Families with Children, Foreign-Language Speakers, Gender Ratio, Healthcare Workers, Higher Education, Home Ownership, Household Size, Income Change (%), Living Space per Person, Manufacturing Jobs, Median Income, New Construction, Pensioner Share, Political Diversity, Population Change (%), Population Density, Price-to-Rent Ratio, Property Price Change, Property Prices, Public Sector Jobs, Rent Level, Rental Rate, Service Sector Jobs, Single-Parent Households, Single-Person HH, Student Share, Tech Sector Jobs, Unemployment Change (%), Unemployment Rate, Voter Turnout, Young Adults (18–29), Young Children (0-6) | CC BY 4.0 |
 | OpenStreetMap | Cycling Infrastructure, Daycare Density, EV Charging Stations, Grocery Stores, Healthcare Access, Restaurants & Cafes, School Density, Walkability Index, Water Proximity | ODbL 1.0 |
 | Väylävirasto | Traffic Accidents, Transit Access | CC BY 4.0 |
 | HSY | Air Quality, Tree Canopy Cover | CC BY 4.0 |

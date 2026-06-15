@@ -1484,6 +1484,21 @@ const App: React.FC = () => {
     [filteredData, filters, showFilter],
   );
 
+  // PO-3: announce the percentile-filter / wizard result count to the global ARIA
+  // live region — the count is otherwise shown only visually (FilterPanel / chip),
+  // so screen-reader users get no spoken feedback as 3,018 areas are narrowed.
+  const filterActiveForAria = showFilter && filters.length > 0;
+  useEffect(() => {
+    if (filterActiveForAria) {
+      setAriaAnnouncement(t('aria.filter_results').replace('{n}', String(filterMatchPnos.size)));
+    }
+  }, [filterMatchPnos.size, filterActiveForAria]);
+  useEffect(() => {
+    if (wizardResultPnos.length > 0) {
+      setAriaAnnouncement(t('aria.wizard_results').replace('{n}', String(wizardResultPnos.length)));
+    }
+  }, [wizardResultPnos.length]);
+
   // Close ranking when opening filter and vice versa
   const toggleFilter = useCallback(() => {
     setShowFilter((v) => {
@@ -1689,7 +1704,15 @@ const App: React.FC = () => {
   // Dynamic HTML lang attribute for SEO
   useEffect(() => {
     document.documentElement.lang = lang;
-  }, [lang]);
+    // PO-2: the skip-link (the first focusable element, outside #root) is hardcoded
+    // Finnish in index.html; localize its text + lang so EN/SV SR users don't hear
+    // the Finnish phrase in a Finnish voice on every page's first focus stop.
+    const skip = document.querySelector<HTMLAnchorElement>('a.skip-link');
+    if (skip) {
+      skip.textContent = t('aria.skip_to_content');
+      skip.lang = lang;
+    }
+  }, [lang, i18nVersion]);
 
   // CF-3: re-collapse the shortlist tray to its compact chip on each new selection.
   useEffect(() => { setShortlistExpanded(false); }, [selected?.pno]);
