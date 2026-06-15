@@ -21,10 +21,13 @@ interface LegendProps {
   /** T1: true when the map is tinting no-data price areas with the seutukunta average
    *  (hatched) — show a note explaining the hatched "sub-region estimate" fills. */
   subregionEstimate?: boolean;
+  /** PO-4: true when a percentile filter / wizard highlight is active over a grid
+   *  layer — the filter can't apply to (non-pno-keyed) grid cells, so say so. */
+  gridFilterInactive?: boolean;
 }
 
 // colorblind prop triggers re-render when mode changes (getLayerById reads global state)
-export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: _colorblind, layerConfig, lang: _lang, gridLoading, gridError, hidden, subregionEstimate }) => {
+export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: _colorblind, layerConfig, lang: _lang, gridLoading, gridError, hidden, subregionEstimate, gridFilterInactive }) => {
   useI18nVersion();
   const layer = layerConfig ?? getLayerById(layerId);
 
@@ -84,6 +87,13 @@ export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: 
           <div className="mt-2 flex items-center gap-1 text-[10px] text-surface-400 dark:text-surface-500">
             <span aria-hidden="true">▦</span>
             <span>{t(grid.scope === 'national' ? 'grid.scope_national' : 'grid.scope_regional')}</span>
+          </div>
+        )}
+        {/* PO-4: a filter/wizard set is active but can't apply to grid cells — say so. */}
+        {grid && gridFilterInactive && (
+          <div className="mt-2 flex items-start gap-1 text-[10px] text-surface-500 dark:text-surface-400 max-w-[170px] leading-snug" role="status">
+            <span aria-hidden="true">ⓘ</span>
+            <span>{t('grid.filter_inactive')}</span>
           </div>
         )}
         {/* E2: grid file failed — say so instead of leaving the ▦ badge asserting

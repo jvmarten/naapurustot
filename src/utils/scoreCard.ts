@@ -41,7 +41,9 @@ async function shareOrDownload(dataUrl: string, filename: string, url: string, t
 const METRICS = [
   { key: 'hr_mtu', label: 'panel.median_income', format: formatEuro, higherIsBetter: true },
   { key: 'unemployment_rate', label: 'panel.unemployment', format: (v: number | null) => formatPct(v), higherIsBetter: false },
-  { key: 'property_price_sqm', label: 'panel.property_price', format: formatEuroSqm, higherIsBetter: true },
+  // PO-1: price has no objective "better" direction — neutral, no green/red delta
+  // (a pricier area must not render as if it "won" on the shared score card).
+  { key: 'property_price_sqm', label: 'panel.property_price', format: formatEuroSqm, higherIsBetter: null },
   { key: 'transit_stop_density', label: 'panel.transit_access', format: (v: number | null) => v != null ? `${v.toFixed(1)} /km²` : '—', higherIsBetter: true },
 ] as const;
 
@@ -88,8 +90,9 @@ export async function generateScoreCard(
         const diff = val != null && avg != null ? val - avg : null;
         // PO-2: locale-correct signed diff (was period-decimal toFixed) + i18n "vs metro".
         const diffStr = formatDiff(val, avg);
-        const isGood = diff != null ? (higherIsBetter ? diff > 0 : diff < 0) : false;
-        const diffColor = diff != null ? (diff === 0 ? '#64748b' : isGood ? '#059669' : '#dc2626') : '#64748b';
+        // PO-1: higherIsBetter === null → neutral (no objective better direction).
+        const isGood = diff != null && higherIsBetter !== null ? (higherIsBetter ? diff > 0 : diff < 0) : false;
+        const diffColor = diff != null && higherIsBetter !== null ? (diff === 0 ? '#64748b' : isGood ? '#059669' : '#dc2626') : '#64748b';
         return `
           <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f1f5f9;">
             <span style="font-size: 13px; color: #64748b;">${escapeHtml(t(label))}</span>

@@ -115,10 +115,13 @@ export function formatEuroSqm(v: number | string | null | undefined): string {
 }
 
 /** Return a Tailwind text color class (green or red) based on whether the value beats the average. */
-export function diffColor(value: number | string | null, avg: number | string | null, higherIsBetter = true): string {
+export function diffColor(value: number | string | null, avg: number | string | null, higherIsBetter: boolean | null = true): string {
   const a = toNum(value);
   const b = toNum(avg);
   if (a == null || b == null) return 'text-surface-400';
+  // PO-1: a null direction means there is no objective "better" (e.g. price — a
+  // seller wants high, a buyer wants low), so show it neutral with no +/− color.
+  if (higherIsBetter === null) return 'text-surface-400';
   const diff = a - b;
   const positive = higherIsBetter ? diff >= 0 : diff <= 0;
   return positive ? 'text-emerald-400' : 'text-rose-400';
