@@ -94,6 +94,23 @@ const PLANNING_MANIFEST = (() => {
 const PLANNING_SNAPSHOT = PLANNING_MANIFEST.snapshot || '';
 const PLANNING_CITIES = (PLANNING_MANIFEST.plans?.cities ?? []).join(', ');
 
+// QW-5: adjacency graph (pno → neighbour pnos) + a pno→props lookup, for the
+// within-region "Naapurialueet / Nearby areas" link mesh appended to each profile
+// noscript — turns the star topology (only upward links) into a connected mesh.
+const ADJACENCY = (() => {
+  try {
+    return JSON.parse(readFileSync(join(ROOT, 'src', 'data', 'adjacency.json'), 'utf-8'));
+  } catch {
+    return {};
+  }
+})();
+const AREA_PREFIX = { fi: '/alue', en: '/en/area', sv: '/sv/omrade' };
+const NEARBY_LABELS = { fi: 'Naapurialueet', en: 'Nearby areas', sv: 'Närliggande områden' };
+const PNO_PROPS = new Map();
+for (const f of geojson.features) {
+  if (f.properties?.pno && f.properties?.nimi) PNO_PROPS.set(f.properties.pno, f.properties);
+}
+
 // Process every feature exactly as the client's dataLoader does (same order),
 // so each page can embed a payload the React app renders from instantly —
 // avoiding the ~1.7 MB region_properties.json fetch before first paint.
@@ -823,6 +840,24 @@ function buildPlanningHtml(props, lang) {
     `      <p>${escapeHtml(L.coverage(PLANNING_SNAPSHOT, PLANNING_CITIES))}</p>`;
 }
 
+// QW-5: within-region "Naapurialueet" link mesh. Resolves up to 8 adjacency
+// neighbours that share this area's region to their localized profile URL+name;
+// skips neighbours absent from the dataset or in another seutukunta.
+function buildNearbyHtml(props, lang) {
+  const neighbours = ADJACENCY[props.pno];
+  if (!neighbours || neighbours.length === 0) return null;
+  const links = [];
+  for (const nPno of neighbours) {
+    if (links.length >= 8) break;
+    const np = PNO_PROPS.get(nPno);
+    if (!np || np.city !== props.city) continue; // within-region only
+    const name = escapeHtml(getDisplayName(np, lang));
+    links.push(`<a href="${AREA_PREFIX[lang]}/${toSlug(nPno, np.nimi)}/">${name}</a>`);
+  }
+  if (links.length === 0) return null;
+  return `      <h2>${escapeHtml(NEARBY_LABELS[lang])}</h2>\n      <p>${links.join(' · ')}</p>`;
+}
+
 function buildNoscriptContent(props, lang) {
   const T = TEXT[lang];
   const displayName = getDisplayName(props, lang);
@@ -875,6 +910,10 @@ function buildNoscriptContent(props, lang) {
   // city vireillä asemakaava). Omitted for areas with no entry.
   const planningHtml = buildPlanningHtml(props, lang);
   if (planningHtml) lines.push(planningHtml);
+
+  // QW-5: within-region nearby-areas link mesh (lateral crawl/internal-PageRank).
+  const nearbyHtml = buildNearbyHtml(props, lang);
+  if (nearbyHtml) lines.push(nearbyHtml);
 
   lines.push(`      <h2>${escapeHtml(T.sourcesHeading)}</h2>`);
   lines.push(`      <p>${escapeHtml(T.sources)}</p>`);

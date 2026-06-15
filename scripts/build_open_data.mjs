@@ -245,6 +245,7 @@ const landing = `<!doctype html>
     <title>${esc(L.title)}</title>
     <meta name="description" content="${esc(L.intro)}" />
     <link rel="canonical" href="${ORIGIN}/avoin-data/" />
+    <link rel="alternate" type="application/atom+xml" title="naapurustot.fi data updates" href="${ORIGIN}/data-updates.atom" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="robots" content="index, follow" />
     <style>body{font-family:system-ui,sans-serif;max-width:780px;margin:2rem auto;padding:0 1.25rem;line-height:1.6;color:#1a2230}a{color:#005ea8}h1{margin:.2rem 0}h2{margin-top:2rem;font-size:1.15rem}ul{padding-left:1.2rem}code{background:#f1f3f5;padding:.1rem .3rem;border-radius:4px}@media(prefers-color-scheme:dark){body{background:#0f1318;color:#e6e8ec}a{color:#69b4f0}code{background:#252b34}}</style>
