@@ -98,6 +98,10 @@ FLOOD_RISK_FILE = Path(__file__).parent / "flood_risk.json"
 # projected % population change 2024->2040 per municipality, assigned to each
 # postal code (is_proxy). Snapshot produced by fetch_population_projection.py.
 POPULATION_PROJECTION_FILE = Path(__file__).parent / "population_projection.json"
+# CF-11 construction activity (Tilastokeskus Rakennus- ja asuntotuotanto, raku
+# 15f6): new dwellings completed 2020- per 1,000 residents per municipality,
+# assigned to each postal code (is_proxy). Snapshot by fetch_construction_permits.py.
+CONSTRUCTION_ACTIVITY_FILE = Path(__file__).parent / "construction_activity.json"
 
 # Statistics Finland apartment price data by postal code — PxWeb API v1.
 # Table 13mu: "Prices per square meter of old dwellings in housing companies
@@ -2488,6 +2492,13 @@ def main():
         "population_projection_pct",
     )
 
+    # CF-11 construction activity (StatFin raku 15f6, municipal new-dwelling FLOW
+    # since 2020 per 1,000 residents assigned to each postal code, is_proxy).
+    gdf = _join_pno_value(
+        gdf, _load_pno_json(CONSTRUCTION_ACTIVITY_FILE, "construction activity"),
+        "construction_activity",
+    )
+
     # --- Phase 2: External data sources (graceful fallback if APIs unavailable) ---
     _rate_limit()
     price_data = fetch_property_prices()
@@ -2635,6 +2646,8 @@ def main():
         "avg_construction_year",
         # CF-6: projected population change (municipal proxy)
         "population_projection_pct",
+        # CF-11: construction activity (municipal new-dwelling flow proxy)
+        "construction_activity",
         # Change metrics (derived from historical trends)
         "income_change_pct",
         "population_change_pct",

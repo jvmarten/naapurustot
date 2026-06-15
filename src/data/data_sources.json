@@ -551,6 +551,14 @@
       "is_proxy": true,
       "panel": false
     },
+    "construction_activity": {
+      "source": "Tilastokeskus (Asuntokanta, valmistumisvuosi 2020–)",
+      "publisher": "tilastokeskus",
+      "vintage": "2020–2025",
+      "granularity": "postal",
+      "is_proxy": true,
+      "panel": false
+    },
     "unemployment_change_pct": {
       "source": "Tilastokeskus (Paavo)",
       "publisher": "tilastokeskus",

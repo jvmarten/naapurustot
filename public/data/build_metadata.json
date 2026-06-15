@@ -1,6 +1,6 @@
 {
-  "generated": "2026-06-15T14:57:24.924Z",
-  "source_hash": "a1695a7c7a699091",
+  "generated": "2026-06-15T15:17:01.578Z",
+  "source_hash": "70ead3dc0e9f1a03",
   "rows_total": 3018,
   "metrics": {
     "air_quality_index": {
@@ -42,6 +42,14 @@
       "is_proxy": false,
       "row_count": 2937,
       "coverage_pct": 97.3
+    },
+    "construction_activity": {
+      "source": "Tilastokeskus (Rakennus- ja asuntotuotanto)",
+      "vintage": "2020–2025",
+      "granularity": "postal",
+      "is_proxy": true,
+      "row_count": 3018,
+      "coverage_pct": 100
     },
     "crime_index": {
       "source": "Poliisi",

@@ -77,7 +77,9 @@ export type LayerId =
   | 'radon'
   | 'health_index'
   // CF-20: flood-risk exposure
-  | 'flood_risk';
+  | 'flood_risk'
+  // CF-11: construction activity (municipal new-dwelling flow, per 1,000 res.)
+  | 'construction_activity';
 
 // PO-2: layers that carry a 5-year history array and can be scrubbed with the
 // time slider. Maps the active LayerId to the history property whose per-year
@@ -816,6 +818,19 @@ export const LAYERS: LayerConfig[] = [
     colors: ['#67000d', '#a50f15', '#cb181d', '#ef3b2c', '#fb6a4a', '#fc9272', '#fcbba1', '#fee0d2'],
     stops: [1940, 1955, 1965, 1975, 1985, 1995, 2005, 2015],
     format: yearFmt,
+  },
+  // CF-11: construction activity — new dwellings completed 2020- per 1,000
+  // residents, a municipal new-dwelling FLOW (StatFin raku 15f6) assigned to each
+  // postal code (is_proxy). Sequential, neutral (count/density-like, no
+  // higherIsBetter): the national counterpart to the city-only planning data.
+  {
+    id: 'construction_activity',
+    labelKey: 'layer.construction_activity',
+    property: 'construction_activity',
+    unit: '/1000',
+    colors: ['#f7fcfd', '#e0ecf4', '#bfd3e6', '#9ebcda', '#8c96c6', '#8c6bb1', '#88419d', '#6e016b'],
+    stops: [2, 5, 10, 18, 28, 40, 55, 75],
+    format: perThousand,
   },
 ];
 
