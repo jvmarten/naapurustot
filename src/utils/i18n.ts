@@ -19,6 +19,10 @@ import { useSyncExternalStore } from 'react';
 import fi from '../locales/fi.json';
 import enUrl from '../locales/en.json?url';
 import svUrl from '../locales/sv.json?url';
+// IN-7: page-only Finnish strings (data-sources + privacy bodies) split off the
+// always-bundled fi.json into a lazy ?url asset, loaded on demand by the two
+// lazy pages that render them — reclaims ~2 KB gz off the always-loaded chunk.
+import fiExtraUrl from '../locales/fi-extra.json?url';
 
 export type Lang = 'fi' | 'en' | 'sv';
 
@@ -26,9 +30,11 @@ type Dict = Record<string, string>;
 const FI = fi as Dict;
 const EN: Dict = {};
 const SV: Dict = {};
+const FI_EXTRA: Dict = {};
 
 let enPromise: Promise<void> | null = null;
 let svPromise: Promise<void> | null = null;
+let fiExtraPromise: Promise<void> | null = null;
 
 /** Lang whose dictionary fetch failed (so a banner can offer a retry), else null. */
 let loadError: Lang | null = null;
@@ -62,6 +68,23 @@ function loadSv(): Promise<void> {
   if (svPromise) return svPromise;
   svPromise = loadLocale('sv', svUrl, SV, () => { svPromise = null; });
   return svPromise;
+}
+
+/**
+ * IN-7: lazily fetch the page-only Finnish strings (data-sources + privacy
+ * bodies). Called by the two lazy pages that render them. Core-map keys stay in
+ * the synchronous FI dict, so the map never shows a raw key while this resolves.
+ * A failed fetch is a silent no-op (these strings live on two secondary pages
+ * only) and deliberately does NOT touch the global loadError/retry path, which
+ * exists for the en/sv UI dictionaries.
+ */
+export function loadFiExtra(): Promise<void> {
+  if (fiExtraPromise) return fiExtraPromise;
+  fiExtraPromise = fetch(fiExtraUrl)
+    .then((r) => r.json())
+    .then((d: Dict) => { Object.assign(FI_EXTRA, d); notify(); })
+    .catch(() => { fiExtraPromise = null; });
+  return fiExtraPromise;
 }
 
 let currentLang: Lang = 'fi';
@@ -130,9 +153,9 @@ export function retryLocaleLoad(): void {
 
 /** Look up a translation by key. Returns the key itself if no translation is found. */
 export function t(key: string): string {
-  if (currentLang === 'sv') return SV[key] ?? EN[key] ?? FI[key] ?? key;
-  if (currentLang === 'en') return EN[key] ?? FI[key] ?? key;
-  return FI[key] ?? EN[key] ?? key;
+  if (currentLang === 'sv') return SV[key] ?? EN[key] ?? FI[key] ?? FI_EXTRA[key] ?? key;
+  if (currentLang === 'en') return EN[key] ?? FI[key] ?? FI_EXTRA[key] ?? key;
+  return FI[key] ?? FI_EXTRA[key] ?? EN[key] ?? key;
 }
 
 function subscribeI18n(fn: () => void): () => void {
@@ -158,4 +181,9 @@ export function useI18nVersion(): number {
 export function __testInjectLocale(lang: 'en' | 'sv', data: Dict): void {
   if (lang === 'en') { Object.assign(EN, data); enPromise = Promise.resolve(); }
   else { Object.assign(SV, data); svPromise = Promise.resolve(); }
+}
+
+/** TEST ONLY: synchronously inject the fi-extra page dict (used by setup.ts). */
+export function __testInjectFiExtra(data: Dict): void {
+  Object.assign(FI_EXTRA, data); fiExtraPromise = Promise.resolve();
 }

@@ -76,13 +76,15 @@ PERCENTAGE_FIELDS = [
     "voter_turnout_pct",
     "tree_canopy_pct",
     "single_person_hh_pct",
+    # IN-3: percentage layer that shipped after this list was last extended.
+    "flood_risk_pct",
+    # PLANNING — pre-registered, inert until the column lands (absent props skipped).
+    "planned_area_pct",
 ]
 
 RANGE_CHECKS = [
     # (property, min, max)
     *[(p, 0, 100) for p in PERCENTAGE_FIELDS],
-    # green_space_pct can exceed 100 (green area / built area ratio)
-    ("green_space_pct", 0, 1_000),
     # Income (€/year) — 0 means suppressed data
     ("hr_mtu", 0, 200_000),
     ("hr_ktu", 0, 200_000),
@@ -107,6 +109,18 @@ RANGE_CHECKS = [
     # Noise / light
     ("noise_pollution", 0, 120),
     ("light_pollution", 0, 2000),
+    # IN-3: layers that shipped after this list was last extended and were
+    # bypassing all value-range validation. Bounds are generous (catch unit/scale
+    # mistakes without flagging legitimate outliers); compare national_ranges.json.
+    # Indoor radon (Bq/m³) — Finnish reference level 200–300 (max observed ≈303).
+    ("radon", 0, 2_000),
+    # THL/Kela morbidity index, 100 = national average (observed ≈81–133).
+    ("health_index", 0, 300),
+    # Rent (€/m²/month) (observed ≈10–23).
+    ("rental_price_sqm", 1, 100),
+    # PLANNING — pre-registered, inert until the data lands (absent props skipped);
+    # planned_area_pct is range-checked 0–100 via PERCENTAGE_FIELDS above.
+    ("active_plan_count", 0, 10_000),
 ]
 
 

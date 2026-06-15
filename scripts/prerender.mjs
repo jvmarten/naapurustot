@@ -145,7 +145,13 @@ function summarySentencesFor(props, lang) {
 // UI translations — used to resolve region names and metric labels so that
 // every page uses the same wording as the app, in all three languages.
 const LOCALES = {
-  fi: JSON.parse(readFileSync(join(ROOT, 'src', 'locales', 'fi.json'), 'utf-8')),
+  // IN-7: fi-extra.json holds the page-only fi strings split off fi.json (lazy
+  // ?url asset at runtime); merge it back so the prerendered FI data-sources and
+  // privacy pages still render their headings/bodies.
+  fi: {
+    ...JSON.parse(readFileSync(join(ROOT, 'src', 'locales', 'fi.json'), 'utf-8')),
+    ...JSON.parse(readFileSync(join(ROOT, 'src', 'locales', 'fi-extra.json'), 'utf-8')),
+  },
   en: JSON.parse(readFileSync(join(ROOT, 'src', 'locales', 'en.json'), 'utf-8')),
   sv: JSON.parse(readFileSync(join(ROOT, 'src', 'locales', 'sv.json'), 'utf-8')),
 };

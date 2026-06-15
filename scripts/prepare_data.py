@@ -1167,155 +1167,6 @@ def _overpass_query_all_regions(query_template: str, label: str) -> list:
     return unique
 
 
-def fetch_osm_green_spaces():
-    """Fetch parks, forests, and green spaces from OSM for all supported regions."""
-    logger.info("Fetching green space data from OpenStreetMap...")
-    query = """
-    [out:json][timeout:120];
-    (
-      way["leisure"="park"]({BBOX});
-      way["leisure"="nature_reserve"]({BBOX});
-      way["leisure"="garden"]({BBOX});
-      way["landuse"="forest"]({BBOX});
-      way["landuse"="grass"]({BBOX});
-      way["landuse"="meadow"]({BBOX});
-      way["natural"="wood"]({BBOX});
-      way["natural"="scrub"]({BBOX});
-      way["natural"="heath"]({BBOX});
-      way["boundary"="national_park"]({BBOX});
-      relation["leisure"="park"]({BBOX});
-      relation["leisure"="nature_reserve"]({BBOX});
-      relation["landuse"="forest"]({BBOX});
-      relation["landuse"="grass"]({BBOX});
-      relation["natural"="wood"]({BBOX});
-      relation["boundary"="national_park"]({BBOX});
-      relation["boundary"="protected_area"]({BBOX});
-    );
-    out geom;
-    """
-    return _overpass_query_all_regions(query, "OSM green spaces")
-
-
-def _parse_osm_green_geometries(elements):
-    """Parse OSM elements with full geometry into Shapely polygons."""
-    from shapely.geometry import Polygon, MultiPolygon
-    from shapely.validation import make_valid
-
-    polygons = []
-    for el in elements:
-        try:
-            if el.get("type") == "way" and "geometry" in el:
-                coords = [(pt["lon"], pt["lat"]) for pt in el["geometry"]]
-                if len(coords) >= 4:
-                    poly = Polygon(coords)
-                    if not poly.is_valid:
-                        poly = make_valid(poly)
-                    if not poly.is_empty:
-                        polygons.append(poly)
-            elif el.get("type") == "relation" and "members" in el:
-                outers = []
-                inners = []
-                for m in el["members"]:
-                    if "geometry" not in m:
-                        continue
-                    coords = [(pt["lon"], pt["lat"]) for pt in m["geometry"]]
-                    if len(coords) < 4:
-                        continue
-                    if m.get("role") == "inner":
-                        inners.append(coords)
-                    else:
-                        outers.append(coords)
-                for outer in outers:
-                    try:
-                        poly = Polygon(outer, inners)
-                        if not poly.is_valid:
-                            poly = make_valid(poly)
-                        if not poly.is_empty:
-                            polygons.append(poly)
-                    except Exception:
-                        continue
-        except Exception:
-            continue
-    return polygons
-
-
-def join_green_spaces(gdf, elements):
-    """Calculate green space area coverage (%) per postal code."""
-    if not elements:
-        gdf["green_space_pct"] = None
-        return gdf
-
-    logger.info("Joining green space data (area coverage)...")
-
-    green_polys = _parse_osm_green_geometries(elements)
-    if not green_polys:
-        logger.warning(" no valid green space polygons parsed")
-        gdf["green_space_pct"] = None
-        return gdf
-    logger.info("  Parsed %s green space polygons", len(green_polys))
-
-    from shapely import STRtree
-    from shapely.ops import unary_union
-    from shapely.validation import make_valid
-
-    # Build a GeoDataFrame of green spaces
-    green_gdf = gpd.GeoDataFrame(geometry=green_polys, crs="EPSG:4326")
-
-    # Reproject both to EPSG:3067 (Finnish metre-based CRS) for area calculation
-    gdf_proj = gdf[["geometry"]].to_crs("EPSG:3067")
-    green_gdf_proj = green_gdf.to_crs("EPSG:3067")
-
-    # OSM polygons are repaired at parse time, but the reprojection above can
-    # re-introduce invalidity (a polygon valid in EPSG:4326 can become invalid
-    # in EPSG:3067). Re-validate in the projected CRS so the per-postal-code
-    # unary_union / intersection below cannot raise a GEOS TopologyException.
-    green_gdf_proj["geometry"] = green_gdf_proj.geometry.apply(make_valid)
-    gdf_proj["geometry"] = gdf_proj.geometry.apply(make_valid)
-
-    # Use spatial index to find candidate green spaces per postal code,
-    # then union only the relevant ones (much faster than global unary_union)
-    green_geoms = list(green_gdf_proj.geometry)
-    tree = STRtree(green_geoms)
-
-    green_pct = {}
-    for i, (idx, row) in enumerate(gdf_proj.iterrows()):
-        postal_geom = row.geometry
-        if postal_geom is None or postal_geom.is_empty:
-            continue
-        postal_area = postal_geom.area
-        if postal_area <= 0:
-            continue
-
-        # Find green spaces that intersect this postal code
-        candidates = tree.query(postal_geom)
-        if len(candidates) == 0:
-            green_pct[idx] = 0.0
-            continue
-
-        # Clip candidate green spaces to the postal code boundary and compute area
-        clipped_areas = 0.0
-        candidate_geoms = [green_geoms[c] for c in candidates]
-        local_union = unary_union(candidate_geoms)
-        intersection = postal_geom.intersection(local_union)
-        if not intersection.is_empty:
-            clipped_areas = intersection.area
-
-        green_pct[idx] = round(clipped_areas / postal_area * 100, 1)
-
-        if (i + 1) % 50 == 0:
-            logger.info("  Green space: processed %d/%d postal codes...", i + 1, len(gdf_proj))
-
-    gdf["green_space_pct"] = gdf.index.map(lambda i: green_pct.get(i))
-
-    valid = [v for v in green_pct.values() if v is not None and v > 0]
-    if valid:
-        logger.info("Computed green space coverage for %d postal codes (avg %.1f%%)",
-                     len(valid), sum(valid) / len(valid))
-    else:
-        logger.info("No green space coverage computed")
-    return gdf
-
-
 def fetch_osm_daycares():
     """Fetch daycare/kindergarten locations from OSM."""
     logger.info("Fetching daycare data from OpenStreetMap...")
@@ -2632,10 +2483,6 @@ def main():
 
     # --- Phase 3: OSM-based data sources ---
     _rate_limit()
-    green_data = fetch_osm_green_spaces()
-    gdf = join_green_spaces(gdf, green_data)
-
-    _rate_limit()
     daycare_data = fetch_osm_daycares()
     gdf = join_daycares(gdf, daycare_data)
 
@@ -2745,7 +2592,7 @@ def main():
         # Phase 2: external APIs
         "property_price_sqm", "transit_stop_density", "air_quality_index",
         # Phase 3: OSM-based
-        "green_space_pct", "daycare_density", "school_density",
+        "daycare_density", "school_density",
         "healthcare_density", "restaurant_density", "grocery_density",
         "cycling_density",
         # File-based

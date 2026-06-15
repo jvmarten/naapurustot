@@ -3,7 +3,7 @@
   "lowerPercentile": 0.02,
   "upperPercentile": 0.98,
   "postalCodeCount": 3018,
-  "rangeCount": 166,
+  "rangeCount": 165,
   "ranges": {
     "pinta_ala": {
       "min": 1042118.78,
@@ -664,11 +664,6 @@
       "min": 17.1,
       "max": 27.4,
       "avg": 22.39761431411532
-    },
-    "green_space_pct": {
-      "min": 0,
-      "max": 84.96599999999998,
-      "avg": 41.44648774022528
     },
     "daycare_density": {
       "min": 0,

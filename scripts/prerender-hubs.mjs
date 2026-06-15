@@ -22,6 +22,11 @@ import { createHash } from 'crypto';
 // CF-11: per-region social card (area count + population), so hub/directory previews
 // stop using the generic shared image.
 import { buildSocialCardSvg } from './social-card.mjs';
+// IN-2: shared head-integrity guard — fail the build loudly if a head token
+// doubled, the hreflang cluster broke, or a JSON-LD block is unparseable, instead
+// of silently shipping corrupted hub/ranking/directory/landing pages. htmlPage()
+// is the single choke point every hub builder returns through.
+import { assertHeadIntegrity } from './prerender-lib.mjs';
 // CF-12: reuse the app's data-processing so ranking pages score quality_index and
 // the quick-win metrics (child_ratio etc.) exactly as the map does. Type-only
 // imports → Node's TypeScript stripping (22.18+/24) loads them without a build.
@@ -286,7 +291,7 @@ function htmlPage({ lang, title, description, canonical, alternates, jsonLd, bod
     .map((l) => `    <meta property="og:locale:alternate" content="${OG_LOCALE[l]}" />`)
     .join('\n');
 
-  return `<!doctype html>
+  const html = `<!doctype html>
 <html lang="${lang}">
   <head>
     <meta charset="UTF-8" />
@@ -336,6 +341,11 @@ ${body}
   </body>
 </html>
 `;
+  // IN-2: hubs carry no FAQPage and no profile payload → default flags only
+  // (singleton <title>/</head>/canonical, ≤1 og:url, a non-lonely hreflang
+  // cluster, all JSON-LD parseable). Throws loudly on a template regression.
+  assertHeadIntegrity(html, { context: canonical });
+  return html;
 }
 
 /** Uppercase the first letter (metric labels are lowercase for in-sentence use). */

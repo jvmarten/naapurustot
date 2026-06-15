@@ -37,7 +37,6 @@ EXTERNAL_LAYERS = [
     "water_proximity_m",
     "avg_construction_year",
     "foreign_language_pct",
-    "green_space_pct",
     "daycare_density",
     "school_density",
     "healthcare_density",

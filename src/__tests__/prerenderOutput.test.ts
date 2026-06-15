@@ -66,6 +66,50 @@ function goodSourcesHtml(): string {
 </html>`;
 }
 
+/** IN-2: a well-formed hub/ranking/directory/landing page mirroring
+ *  prerender-hubs.mjs htmlPage(): ItemList + BreadcrumbList JSON-LD, a full
+ *  fi/en/sv + x-default hreflang cluster, single canonical/og:url/title, and NO
+ *  FAQPage / NO profile payload (the default-flag guard htmlPage() now runs). */
+function goodHubHtml(): string {
+  const itemList = JSON.stringify({ '@context': 'https://schema.org', '@type': 'ItemList', itemListElement: [] });
+  const crumb = JSON.stringify({ '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [] });
+  return `<!doctype html>
+<html lang="fi">
+  <head>
+    <title>Helsingin seutukunta – naapurustot.fi</title>
+    <meta name="description" content="Helsingin seutukunnan postinumeroalueet." />
+    <link rel="canonical" href="https://naapurustot.fi/kaupunki/helsinki/" />
+    <link rel="alternate" hreflang="fi" href="https://naapurustot.fi/kaupunki/helsinki/" />
+    <link rel="alternate" hreflang="en" href="https://naapurustot.fi/en/city/helsinki/" />
+    <link rel="alternate" hreflang="sv" href="https://naapurustot.fi/sv/stad/helsinki/" />
+    <link rel="alternate" hreflang="x-default" href="https://naapurustot.fi/kaupunki/helsinki/" />
+    <meta property="og:url" content="https://naapurustot.fi/kaupunki/helsinki/" />
+    <script type="application/ld+json">${itemList}</script>
+    <script type="application/ld+json">${crumb}</script>
+  </head>
+  <body><main></main></body>
+</html>`;
+}
+
+describe('assertHeadIntegrity — hub pages (IN-2)', () => {
+  it('accepts a well-formed hub with no FAQ/payload (default flags)', () => {
+    expect(assertHeadIntegrity(goodHubHtml(), { context: 'kaupunki/helsinki' })).toBe(true);
+  });
+
+  it('throws when a head token is duplicated in a hub', () => {
+    const html = goodHubHtml().replace('</head>', '    <title>Injected</title>\n  </head>');
+    expect(() => assertHeadIntegrity(html, { context: 'dup-title-hub' })).toThrow();
+  });
+
+  it('throws when a hub is left with a single (lonely) hreflang link', () => {
+    const html = goodHubHtml()
+      .replace(/<link rel="alternate" hreflang="en"[^>]*>\n\s*/, '')
+      .replace(/<link rel="alternate" hreflang="sv"[^>]*>\n\s*/, '')
+      .replace(/<link rel="alternate" hreflang="x-default"[^>]*>\n\s*/, '');
+    expect(() => assertHeadIntegrity(html, { context: 'lonely-hreflang-hub' })).toThrow();
+  });
+});
+
 describe('escapeHtml', () => {
   it('escapes the five HTML-significant characters', () => {
     expect(escapeHtml(`Tom & "Jerry" <b>'x'</b>`)).toBe(

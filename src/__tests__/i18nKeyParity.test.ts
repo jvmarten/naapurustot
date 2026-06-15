@@ -9,15 +9,20 @@
  */
 import { describe, it, expect } from 'vitest';
 import fi from '../locales/fi.json';
+import fiExtra from '../locales/fi-extra.json';
 import en from '../locales/en.json';
 import sv from '../locales/sv.json';
 
 type Dict = Record<string, string>;
 const FI = fi as Dict;
+const FI_EXTRA = fiExtra as Dict;
+// IN-7: fi.json was split — page-only keys live in fi-extra.json. The source of
+// truth for parity is the UNION (fi ∪ fi-extra); en/sv keep the full key set.
+const FI_ALL: Dict = { ...FI, ...FI_EXTRA };
 const EN = en as Dict;
 const SV = sv as Dict;
 
-const fiKeys = new Set(Object.keys(FI));
+const fiKeys = new Set(Object.keys(FI_ALL));
 
 function placeholders(value: string): Set<string> {
   return new Set([...value.matchAll(/\{(\w+)\}/g)].map((m) => m[1]));
@@ -43,7 +48,7 @@ describe.each([
     const mismatches: string[] = [];
     for (const key of fiKeys) {
       if (!(key in dict)) continue;
-      const fiPh = placeholders(FI[key]);
+      const fiPh = placeholders(FI_ALL[key]);
       const otherPh = placeholders(dict[key]);
       const same =
         fiPh.size === otherPh.size && [...fiPh].every((p) => otherPh.has(p));
@@ -55,6 +60,7 @@ describe.each([
 
 describe.each([
   ['fi.json', FI],
+  ['fi-extra.json', FI_EXTRA],
   ['en.json', EN],
   ['sv.json', SV],
 ])('%s value integrity', (name, dict) => {
@@ -63,5 +69,12 @@ describe.each([
       .filter(([, v]) => typeof v !== 'string' || v.trim() === '')
       .map(([k]) => k);
     expect(empty, `${name} empty values: ${empty.join(', ')}`).toHaveLength(0);
+  });
+});
+
+describe('fi.json / fi-extra.json split (IN-7)', () => {
+  it('has no key present in both fi.json and fi-extra.json', () => {
+    const both = Object.keys(FI).filter((k) => k in FI_EXTRA);
+    expect(both, `keys duplicated across fi.json and fi-extra.json: ${both.join(', ')}`).toHaveLength(0);
   });
 });
