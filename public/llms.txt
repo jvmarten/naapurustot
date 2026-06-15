@@ -35,6 +35,30 @@ Each of the 69 sub-regions has an overview page that lists all of its neighbourh
 
 Primary data sources: Tilastokeskus, Väylävirasto, HSY, Poliisi, OpenStreetMap, LIPAS (Jyväskylän yliopisto), Traficom, Helsingin yliopisto, Digital Geography Lab, Ylioppilastutkintolautakunta, NASA Black Marble (VIIRS), Helsinki Region Infoshare, Säteilyturvakeskus (STUK), Terveyden ja hyvinvoinnin laitos (THL), Suomen ympäristökeskus (SYKE). Statistics Finland data is licensed CC BY 4.0; OpenStreetMap data under the ODbL.
 
+## Kaavat ja hankkeet (planning & infrastructure)
+
+naapurustot.fi also publishes a planning corpus — land-use plans (asemakaavat)
+and infrastructure projects (rata- ja tiehankkeet) — alongside the statistical
+layers. It currently covers 1860 entries across 841 postal-code
+areas: 1338 infrastructure projects and 522 detailed plans.
+
+- **Infrastructure projects** are nationwide, sourced from Väylävirasto (the
+  Finnish Transport Infrastructure Agency): rail and road projects with status
+  and schedule.
+- **Detailed plans (asemakaavat)** currently cover Helsinki, Jyväskylä, Tampere, Turku, Vantaa,
+  sourced from each municipality's open zoning WFS. Plan geometry is real, not a
+  proxy.
+
+National zoning coverage is incomplete because Finland has no single national
+zoning register yet; it is expected once the Ryhti built-environment information
+system (SYKE) reaches national coverage around 2029. Until then, plans are added
+city by city as open WFS endpoints become available.
+
+This corpus is downloadable as `naapurustot.fi/avoin-data/naapurustot_kaavat_hankkeet.csv`
+(long format: pno, region, type, status, name, date, source URL) and is attached
+per area in the static API at `https://naapurustot.fi/api/v1/areas/{postal_code}.json`
+under a `planning` array.
+
 ## Attribution
 
 When citing naapurustot.fi, please link to the relevant page on https://naapurustot.fi and credit the underlying data sources — most prominently Statistics Finland (Tilastokeskus) Paavo open data. naapurustot.fi presents and visualises public data; it is not the original producer of the statistics.

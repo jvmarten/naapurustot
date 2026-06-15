@@ -303,3 +303,27 @@ naapurustot.fi and the underlying data source — most figures originate from
 Statistics Finland (Tilastokeskus) Paavo open data, licensed CC BY 4.0.
 naapurustot.fi is a visualisation and comparison tool; the authoritative figures
 belong to the cited statistical sources.
+
+## 10. Kaavat ja hankkeet — planning and infrastructure projects
+
+naapurustot.fi also publishes a planning corpus — land-use plans (asemakaavat)
+and infrastructure projects (rata- ja tiehankkeet) — alongside the statistical
+layers. It currently covers 1860 entries across 841 postal-code
+areas: 1338 infrastructure projects and 522 detailed plans.
+
+- **Infrastructure projects** are nationwide, sourced from Väylävirasto (the
+  Finnish Transport Infrastructure Agency): rail and road projects with status
+  and schedule.
+- **Detailed plans (asemakaavat)** currently cover Helsinki, Jyväskylä, Tampere, Turku, Vantaa,
+  sourced from each municipality's open zoning WFS. Plan geometry is real, not a
+  proxy.
+
+National zoning coverage is incomplete because Finland has no single national
+zoning register yet; it is expected once the Ryhti built-environment information
+system (SYKE) reaches national coverage around 2029. Until then, plans are added
+city by city as open WFS endpoints become available.
+
+This corpus is downloadable as `naapurustot.fi/avoin-data/naapurustot_kaavat_hankkeet.csv`
+(long format: pno, region, type, status, name, date, source URL) and is attached
+per area in the static API at `https://naapurustot.fi/api/v1/areas/{postal_code}.json`
+under a `planning` array.

@@ -191,6 +191,14 @@ All map data is produced by the Python pipeline in `scripts/` and baked into sta
 
 Municipality-level metrics distributed to postal codes (crime index, construction year, …) are flagged `is_proxy` in the registry and badged as estimates in the UI.
 
+### Open data
+
+The whole corpus is published for bulk download and as a frozen JSON API, generated at build time by `scripts/build_open_data.mjs` (no bundle cost) into `dist/avoin-data/` and `dist/api/v1/`, with a landing page at [`/avoin-data/`](https://naapurustot.fi/avoin-data/):
+
+- `naapurustot_areas.csv` — every postal-code area × ~150 columns. Beyond the ~60 headline metrics this now also exposes the **latent Paavo decision columns** rendered on every profile: the full single-year age pyramid (`he_*`), workplaces by NACE sector (`tp_*`), household and resident income classes plus disposable income (`tr_mtu`/`tr_ktu`, `hr_*`/`tr_*`), education levels (`ko_*`), main activity (`pt_*`), household tenure/size (`te_*`), and buildings/dwellings by type (`ra_*`). Paavo `-1` confidentiality sentinels are written as blank.
+- `naapurustot_kaavat_hankkeet.csv` — the **planning dataset** in long format (`pno,region,type,status,name,date,source_url,is_proxy`): nationwide Väylävirasto rail/road projects plus detailed plans (asemakaavat) for Helsinki, Tampere, Turku, Vantaa and Jyväskylä. National zoning coverage expands via the Ryhti system (~2029); the same plans are attached per area in the API under a `planning` array.
+- `naapurustot_timeseries.csv`, `codebook.csv`/`codebook.json`, and the API (`/api/v1/areas.json`, `/api/v1/areas/{pno}.json`, `/api/v1/metrics.json`). The landing page carries schema.org `Dataset` JSON-LD with `DataDownload` distributions for Google Dataset Search. Per-column provenance and licensing live in the codebook (Statistics Finland CC BY 4.0, OpenStreetMap ODbL).
+
 ### Rebuilding the data
 
 Only needed when updating the dataset itself:

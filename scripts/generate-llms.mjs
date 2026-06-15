@@ -28,6 +28,8 @@ const registry = JSON.parse(readFileSync(r('src/data/data_sources.json'), 'utf-8
 const buildMeta = JSON.parse(readFileSync(r('src/data/build_metadata.json'), 'utf-8'));
 const colorScalesSrc = readFileSync(r('src/utils/colorScales.ts'), 'utf-8');
 const layerSelectorSrc = readFileSync(r('src/components/LayerSelector.tsx'), 'utf-8');
+const planning = JSON.parse(readFileSync(r('scripts/area_planning.json'), 'utf-8'));
+const planningManifest = JSON.parse(readFileSync(r('src/data/planning_manifest.json'), 'utf-8'));
 
 // --- Static extraction: LAYERS triples (id, labelKey, property) ---
 const layerById = new Map();
@@ -97,6 +99,60 @@ function buildSourcesTable() {
   return lines.join('\n');
 }
 
+// --- Section: Kaavat ja hankkeet (planning corpus, CF-10) ---
+function buildPlanningSection(heading) {
+  let projects = 0;
+  let plans = 0;
+  for (const arr of Object.values(planning)) {
+    for (const e of arr) {
+      if (e.kind === 'plan') plans++;
+      else projects++;
+    }
+  }
+  const pnoCount = Object.keys(planning).length;
+  const planCities = (planningManifest.plans?.cities ?? []).join(', ');
+  return [heading, '',
+    'naapurustot.fi also publishes a planning corpus — land-use plans (asemakaavat)',
+    'and infrastructure projects (rata- ja tiehankkeet) — alongside the statistical',
+    `layers. It currently covers ${projects + plans} entries across ${pnoCount} postal-code`,
+    `areas: ${projects} infrastructure projects and ${plans} detailed plans.`, '',
+    `- **Infrastructure projects** are nationwide, sourced from Väylävirasto (the`,
+    '  Finnish Transport Infrastructure Agency): rail and road projects with status',
+    '  and schedule.',
+    `- **Detailed plans (asemakaavat)** currently cover ${planManifestCityList(planCities)},`,
+    '  sourced from each municipality\'s open zoning WFS. Plan geometry is real, not a',
+    '  proxy.',
+    '',
+    'National zoning coverage is incomplete because Finland has no single national',
+    'zoning register yet; it is expected once the Ryhti built-environment information',
+    'system (SYKE) reaches national coverage around 2029. Until then, plans are added',
+    'city by city as open WFS endpoints become available.',
+    '',
+    'This corpus is downloadable as `naapurustot.fi/avoin-data/naapurustot_kaavat_hankkeet.csv`',
+    '(long format: pno, region, type, status, name, date, source URL) and is attached',
+    'per area in the static API at `https://naapurustot.fi/api/v1/areas/{postal_code}.json`',
+    'under a `planning` array.', ''].join('\n');
+}
+function planManifestCityList(cities) {
+  return cities && cities.length ? cities : 'a small set of cities';
+}
+
+// --- Idempotently insert/replace a "## " section (by its heading) ---
+function upsertSection(text, heading, body, beforeHeading) {
+  const start = text.indexOf(heading);
+  if (start !== -1) {
+    const next = text.indexOf('\n## ', start + heading.length);
+    if (next === -1) return text.slice(0, start) + body.trimEnd() + '\n';
+    return text.slice(0, start) + body.trimEnd() + '\n\n' + text.slice(next + 1);
+  }
+  const section = body.trimEnd() + '\n\n';
+  if (beforeHeading) {
+    const at = text.indexOf(beforeHeading);
+    if (at !== -1) return text.slice(0, at) + section + text.slice(at);
+  }
+  return text.trimEnd() + '\n\n' + body.trimEnd() + '\n';
+}
+
 // --- Splice a regenerated body between two "## N." headers ---
 function replaceSection(text, header, nextHeader, body) {
   const start = text.indexOf(header);
@@ -115,6 +171,8 @@ let full = readFileSync(r('public/llms-full.txt'), 'utf-8');
 full = full.replace(/Last reviewed: \d{4}/, `Last reviewed: ${year}`);
 full = replaceSection(full, '## 4. Data layers', '## 5. ', buildLayerCatalogue());
 full = replaceSection(full, '## 7. Data sources and licensing', '## 8. ', buildSourcesTable());
+const FULL_PLANNING_HEADING = '## 10. Kaavat ja hankkeet — planning and infrastructure projects';
+full = upsertSection(full, FULL_PLANNING_HEADING, buildPlanningSection(FULL_PLANNING_HEADING));
 writeFileSync(r('public/llms-full.txt'), full);
 
 // --- llms.txt: regenerate the "Primary data sources:" sentence ---
@@ -126,6 +184,8 @@ const sourcesSentence = `Primary data sources: ${pubNames.join(', ')}. ` +
   'Statistics Finland data is licensed CC BY 4.0; OpenStreetMap data under the ODbL.';
 let brief = readFileSync(r('public/llms.txt'), 'utf-8');
 brief = brief.replace(/Primary data sources:[^\n]*\n/, sourcesSentence + '\n');
+const BRIEF_PLANNING_HEADING = '## Kaavat ja hankkeet (planning & infrastructure)';
+brief = upsertSection(brief, BRIEF_PLANNING_HEADING, buildPlanningSection(BRIEF_PLANNING_HEADING), '## Attribution');
 writeFileSync(r('public/llms.txt'), brief);
 
 console.log(`generate-llms: regenerated ${layerById.size} layers across ${groups.length} groups, ` +
