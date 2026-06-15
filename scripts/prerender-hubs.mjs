@@ -838,6 +838,7 @@ ${rows}
         </tbody>
       </table>
 ${buildBestAreasNav(region, lang)}
+${buildPlanningNav(region, lang)}
 ${buildCiteSection(lang, T.cityTitle(regionName), alternates[lang])}
       <p><a href="${DIRECTORY_PATH[lang]}">${escapeHtml(T.backToDir)}</a></p>`;
 
@@ -957,6 +958,222 @@ ${buildCiteSection(lang, L.title, alternates[lang])}`;
   return htmlPage({ lang, title: L.title, description: L.description, canonical: alternates[lang], alternates, jsonLd, body });
 }
 
+// --- CF-4: per-municipality planning hubs (/kaavoitus/{kunta}/) -------------
+// A dedicated, indexable planning-hub page family. For every municipality that
+// has any kaavat & hankkeet content (scripts/area_planning.json), emit a
+// trilingual trio listing that municipality's in-progress plans + Väylä projects,
+// linking OUT to the source URLs (rel="noopener nofollow") and IN to the affected
+// /alue/ profiles, with CollectionPage + ItemList JSON-LD. Honest coverage:
+// national Väylä projects everywhere + vireillä asemakaava for the participating
+// cities only — NOT nationwide zoning data. All strings inline (zero bundle).
+const AREA_PLANNING = JSON.parse(readFileSync(join(ROOT, 'scripts', 'area_planning.json'), 'utf-8'));
+const PLANNING_MANIFEST = (() => {
+  try { return JSON.parse(readFileSync(join(ROOT, 'src', 'data', 'planning_manifest.json'), 'utf-8')); }
+  catch { return {}; }
+})();
+const PLANNING_SNAPSHOT = PLANNING_MANIFEST.snapshot || CITE_YEAR;
+const PLANNING_CITIES = (PLANNING_MANIFEST.plans?.cities || []).join(', ');
+
+const PLANNING_PREFIX = { fi: '/kaavoitus', en: '/en/planning', sv: '/sv/planlaggning' };
+function planningPath(slug, lang) { return `${PLANNING_PREFIX[lang]}/${slug}/`; }
+function planningUrl(slug, lang) { return `${ORIGIN}${planningPath(slug, lang)}`; }
+function planningAlternates(slug) {
+  return Object.fromEntries(LANGS.map((l) => [l, planningUrl(slug, l)]));
+}
+const PLANNING_OUT = {
+  fi: (slug) => join(DIST, 'kaavoitus', slug),
+  en: (slug) => join(DIST, 'en', 'planning', slug),
+  sv: (slug) => join(DIST, 'sv', 'planlaggning', slug),
+};
+
+// Localized prose + value labels for the planning hubs (inline; no locale keys).
+const PLANNING_TEXT = {
+  fi: {
+    title: (m) => `Kaavoitus ja hankkeet — ${m} | naapurustot.fi`,
+    h1: (m) => `Kaavoitus ja hankkeet — ${m}`,
+    desc: (m, n) => `${m}: käynnissä olevat kaavat ja hankkeet — ${n} kohdetta. Lähdelinkit ja vaikutusalueet naapurustot.fi-palvelussa.`,
+    intro: (m, n) => `${m}n alueen kaavat ja hankkeet, joita seurataan naapurustot.fi-palvelussa — yhteensä ${n} kohdetta lähdelinkeineen ja vaikutusalueineen.`,
+    coverage: (cities, snap) => `Kansalliset Väylä-hankkeet sekä osallistuvien kaupunkien (${cities}) vireillä olevat asemakaavat tilanteessa ${snap}. Tämä ei ole valtakunnallinen kaavoitusaineisto.`,
+    entriesHeading: 'Kaavat ja hankkeet',
+    areasHeading: 'Vaikutusalueet',
+    crumb: 'Kaavoitus ja hankkeet',
+    crossHeading: 'Kaavoitus ja hankkeet',
+    kindLabel: { project: 'Hanke', plan: 'Kaava' },
+    statusLabel: { kaynnissa: 'käynnissä', vireilla: 'vireillä', hyvaksytty: 'hyväksytty' },
+  },
+  en: {
+    title: (m) => `Planning and projects — ${m} | naapurustot.fi`,
+    h1: (m) => `Planning and projects — ${m}`,
+    desc: (m, n) => `${m}: in-progress plans and infrastructure projects — ${n} items. Source links and affected areas on naapurustot.fi.`,
+    intro: (m, n) => `Plans and infrastructure projects in ${m} tracked on naapurustot.fi — ${n} items in total, with source links and the areas they affect.`,
+    coverage: (cities, snap) => `National Väylä infrastructure projects plus in-progress local plans for participating cities (${cities}) as of ${snap}. This is not nationwide zoning data.`,
+    entriesHeading: 'Plans and projects',
+    areasHeading: 'Affected areas',
+    crumb: 'Planning and projects',
+    crossHeading: 'Planning and projects',
+    kindLabel: { project: 'Project', plan: 'Plan' },
+    statusLabel: { kaynnissa: 'ongoing', vireilla: 'in progress', hyvaksytty: 'approved' },
+  },
+  sv: {
+    title: (m) => `Planläggning och projekt — ${m} | naapurustot.fi`,
+    h1: (m) => `Planläggning och projekt — ${m}`,
+    desc: (m, n) => `${m}: pågående planer och projekt — ${n} objekt. Källänkar och berörda områden på naapurustot.fi.`,
+    intro: (m, n) => `Planer och infrastrukturprojekt i ${m} som följs på naapurustot.fi — totalt ${n} objekt med källänkar och berörda områden.`,
+    coverage: (cities, snap) => `Nationella Väylä-infrastrukturprojekt samt pågående detaljplaner i deltagande städer (${cities}) per ${snap}. Detta är inte rikstäckande planläggningsdata.`,
+    entriesHeading: 'Planer och projekt',
+    areasHeading: 'Berörda områden',
+    crumb: 'Planläggning och projekt',
+    crossHeading: 'Planläggning och projekt',
+    kindLabel: { project: 'Projekt', plan: 'Plan' },
+    statusLabel: { kaynnissa: 'pågående', vireilla: 'under beredning', hyvaksytty: 'godkänd' },
+  },
+};
+
+// Aggregate area_planning.json by municipality (the municipality of each pno comes
+// from its geojson feature). Each entry of a Väylä project repeats across many pnos,
+// so dedupe entries by name|url|date. Only municipalities with ≥1 entry get a hub.
+const propsByPno = new Map();
+for (const f of geojson.features) {
+  const p = f.properties;
+  if (p?.pno) propsByPno.set(String(p.pno), p);
+}
+
+const planningByMuni = new Map();
+for (const [pno, list] of Object.entries(AREA_PLANNING)) {
+  if (!Array.isArray(list) || list.length === 0) continue;
+  const p = propsByPno.get(String(pno));
+  if (!p || !p.municipality) continue;
+  if (!planningByMuni.has(p.municipality)) {
+    planningByMuni.set(p.municipality, {
+      municipality: p.municipality,
+      regionId: p.city || null,
+      areas: [],
+      entries: [],
+      _seen: new Set(),
+    });
+  }
+  const agg = planningByMuni.get(p.municipality);
+  agg.areas.push(p);
+  for (const e of list) {
+    const key = `${e.name}|${e.url}|${e.date || ''}`;
+    if (agg._seen.has(key)) continue;
+    agg._seen.add(key);
+    agg.entries.push(e);
+  }
+}
+
+// region id → its planning municipalities (for the region-hub cross-link row).
+const planningMunisByRegion = new Map();
+for (const agg of planningByMuni.values()) {
+  if (!agg.regionId) continue;
+  if (!planningMunisByRegion.has(agg.regionId)) planningMunisByRegion.set(agg.regionId, []);
+  planningMunisByRegion.get(agg.regionId).push(agg);
+}
+for (const list of planningMunisByRegion.values()) {
+  list.sort((a, b) => b.areas.length - a.areas.length || a.municipality.localeCompare(b.municipality, 'fi'));
+}
+
+/** Region-hub cross-link row to its municipalities' kaavoitus hubs (CF-4). */
+function buildPlanningNav(region, lang) {
+  const munis = planningMunisByRegion.get(region.id);
+  if (!munis || munis.length === 0) return '';
+  const links = munis
+    .map((a) => `<a href="${planningPath(slugify(a.municipality), lang)}">${escapeHtml(a.municipality)}</a>`)
+    .join(' · ');
+  return `      <h2>${escapeHtml(PLANNING_TEXT[lang].crossHeading)}</h2>\n      <p>${links}</p>`;
+}
+
+/** Build one municipality planning hub page. */
+function buildPlanningHub(agg, slug, lang) {
+  const T = PLANNING_TEXT[lang];
+  const muni = agg.municipality;
+  const alternates = planningAlternates(slug);
+  const regionName = agg.regionId ? getRegionName(agg.regionId, lang) : '';
+  const n = agg.entries.length;
+
+  const entryItems = agg.entries.map((e) => {
+    const name = escapeHtml(e.name);
+    const url = escapeHtml(e.url);
+    const meta = [T.kindLabel[e.kind] ?? e.kind, T.statusLabel[e.status] ?? e.status, e.date, e.source]
+      .filter(Boolean)
+      .map(escapeHtml)
+      .join(' · ');
+    return `        <li><a href="${url}" rel="noopener nofollow" target="_blank">${name}</a> <span class="muted">— ${meta}</span></li>`;
+  }).join('\n');
+
+  const areaItems = agg.areas.map((p) => {
+    const name = escapeHtml(getDisplayName(p, lang));
+    const href = `${AREA_PREFIX[lang]}/${escapeHtml(toSlug(p.pno, p.nimi))}/`;
+    return `        <li><a href="${href}">${name}</a> <span class="muted">${escapeHtml(p.pno)}</span></li>`;
+  }).join('\n');
+
+  const crumbs = regionName
+    ? `<p class="crumbs"><a href="/">naapurustot.fi</a> / <a href="${CITY_PREFIX[lang]}/${escapeHtml(agg.regionId)}/">${escapeHtml(regionName)}</a> / ${escapeHtml(T.crumb)}</p>`
+    : `<p class="crumbs"><a href="/">naapurustot.fi</a> / ${escapeHtml(T.crumb)}</p>`;
+  const backLink = regionName
+    ? `\n      <p><a href="${CITY_PREFIX[lang]}/${escapeHtml(agg.regionId)}/">← ${escapeHtml(regionName)}</a></p>`
+    : '';
+
+  const body = `      ${crumbs}
+      <h1>${escapeHtml(T.h1(muni))}</h1>
+      <p class="lead">${escapeHtml(T.intro(muni, n))}</p>
+      <p class="muted">${escapeHtml(T.coverage(PLANNING_CITIES, PLANNING_SNAPSHOT))}</p>
+      <h2>${escapeHtml(T.entriesHeading)} (${n})</h2>
+      <ul>
+${entryItems}
+      </ul>
+      <h2>${escapeHtml(T.areasHeading)} (${agg.areas.length})</h2>
+      <ul>
+${areaItems}
+      </ul>${backLink}`;
+
+  const itemList = {
+    '@type': 'ItemList',
+    numberOfItems: n,
+    itemListElement: agg.entries.map((e, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: e.name,
+      url: e.url,
+    })),
+  };
+  const collection = {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: T.h1(muni),
+    description: T.desc(muni, n),
+    url: alternates[lang],
+    inLanguage: lang,
+    isPartOf: { '@type': 'WebSite', name: 'naapurustot.fi', url: ORIGIN },
+    about: { '@type': 'Place', name: muni, address: { '@type': 'PostalAddress', addressCountry: 'FI' } },
+    mainEntity: itemList,
+  };
+  const crumbList = regionName
+    ? [
+        { '@type': 'ListItem', position: 1, name: 'naapurustot.fi', item: `${ORIGIN}/` },
+        { '@type': 'ListItem', position: 2, name: regionName, item: cityUrl(agg.regionId, lang) },
+        { '@type': 'ListItem', position: 3, name: T.crumb },
+      ]
+    : [
+        { '@type': 'ListItem', position: 1, name: 'naapurustot.fi', item: `${ORIGIN}/` },
+        { '@type': 'ListItem', position: 2, name: T.crumb },
+      ];
+  const breadcrumb = { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: crumbList };
+  const jsonLd = [collection, breadcrumb]
+    .map((o) => `    <script type="application/ld+json">${safeJson(o)}</script>`)
+    .join('\n');
+
+  return htmlPage({
+    lang,
+    title: T.title(muni),
+    description: T.desc(muni, n),
+    canonical: alternates[lang],
+    alternates,
+    jsonLd,
+    body,
+  });
+}
+
 // --- Main ---
 console.log('Prerendering regional hub pages...');
 
@@ -1031,3 +1248,28 @@ for (const region of regions) {
 
 writeFileSync(join(DIST, 'ranking-pages.json'), JSON.stringify(rankingManifest));
 console.log(`Prerendered ${rankingManifest.length} ranking page sets (${rankingManifest.length * 3} HTML files; manifest → dist/ranking-pages.json).`);
+
+// CF-4: per-municipality planning hubs (×3 languages). Sort entries (plans before
+// projects, then by name) and affected areas (largest population first) for a
+// stable, readable page. Emits a {fi,en,sv} alternates manifest so the sitemap
+// lists exactly the pages written.
+const planningManifest = [];
+const planningMunis = [...planningByMuni.values()]
+  .sort((a, b) => b.areas.length - a.areas.length || a.municipality.localeCompare(b.municipality, 'fi'));
+for (const agg of planningMunis) {
+  const slug = slugify(agg.municipality);
+  agg.areas.sort((a, b) => (Number(b.he_vakiy) || 0) - (Number(a.he_vakiy) || 0));
+  agg.entries.sort((a, b) => {
+    if (a.kind !== b.kind) return a.kind === 'plan' ? -1 : 1;
+    return String(a.name).localeCompare(String(b.name), 'fi');
+  });
+  for (const lang of LANGS) {
+    const dir = PLANNING_OUT[lang](slug);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'index.html'), buildPlanningHub(agg, slug, lang));
+  }
+  planningManifest.push(planningAlternates(slug));
+}
+
+writeFileSync(join(DIST, 'kaavoitus-pages.json'), JSON.stringify(planningManifest));
+console.log(`Prerendered ${planningManifest.length} planning hub sets (${planningManifest.length * 3} HTML files; manifest → dist/kaavoitus-pages.json).`);
