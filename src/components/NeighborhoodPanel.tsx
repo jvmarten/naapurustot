@@ -991,6 +991,26 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
     return () => el.removeEventListener('touchmove', handler);
   }, [isSwiping]);
 
+  // CF-7: WAI-ARIA Tabs keyboard support for the mobile section tablist. Arrow/Home/
+  // End move the active tab and follow focus to it (roving tabindex: only the active
+  // tab is in the tab order). Wraps at both ends, per the APG automatic-activation
+  // pattern. Scales to any number of sections — it reads MOBILE_SECTIONS.length.
+  const tablistRef = useRef<HTMLDivElement>(null);
+  const handleTabKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    const count = MOBILE_SECTIONS.length;
+    let next: number;
+    switch (e.key) {
+      case 'ArrowRight': next = (activeSection + 1) % count; break;
+      case 'ArrowLeft': next = (activeSection - 1 + count) % count; break;
+      case 'Home': next = 0; break;
+      case 'End': next = count - 1; break;
+      default: return;
+    }
+    e.preventDefault();
+    setActiveSection(next);
+    tablistRef.current?.querySelector<HTMLButtonElement>(`#section-tab-${next}`)?.focus();
+  }, [activeSection, setActiveSection, MOBILE_SECTIONS.length]);
+
   const favoriteButton = onToggleFavorite && (
     <button
       onClick={() => { trackEvent(isFavorite ? 'unfavorite' : 'favorite'); onToggleFavorite(); }}
@@ -2234,13 +2254,24 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
             </div>
           )}
         </div>
-        {/* PO-3: Section tabs */}
-        <div role="tablist" aria-label={t('panel.sections')} className="flex px-5 pt-3 pb-1 gap-1">
+        {/* PO-3: Section tabs. CF-7: full WAI-ARIA Tabs pattern — roving tabindex
+            (only the active tab is tabbable), arrow/Home/End keyboard nav, and each
+            tab wired to its panel via stable ids (aria-controls ↔ aria-labelledby). */}
+        <div
+          ref={tablistRef}
+          role="tablist"
+          aria-label={t('panel.sections')}
+          className="flex px-5 pt-3 pb-1 gap-1"
+          onKeyDown={handleTabKeyDown}
+        >
           {MOBILE_SECTIONS.map((label, i) => (
             <button
               key={i}
+              id={`section-tab-${i}`}
               role="tab"
               aria-selected={activeSection === i}
+              aria-controls={`section-panel-${i}`}
+              tabIndex={activeSection === i ? 0 : -1}
               onClick={() => setActiveSection(i)}
               className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
                 activeSection === i
@@ -2285,8 +2316,18 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
             onTransitionEnd={onTransitionEnd}
           >
             {mobileSections.map((section, i) => (
+              // CF-7: each pane is a tabpanel labelled by its tab and focusable for
+              // SR users (tabIndex=0). Inactive panes are rendered off-screen (the
+              // translateX carousel), so they're marked `inert` — keeping Tab focus
+              // out of their hidden export buttons / explore links and out of the SR
+              // tree, while leaving swipe/touch behavior untouched.
               <div
                 key={i}
+                id={`section-panel-${i}`}
+                role="tabpanel"
+                aria-labelledby={`section-tab-${i}`}
+                tabIndex={0}
+                inert={i !== activeSection}
                 className={`w-full flex-shrink-0 ${isSwiping ? 'overflow-hidden' : 'overflow-y-auto'}`}
                 style={{ minWidth: '100%' }}
               >
