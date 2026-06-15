@@ -1,6 +1,6 @@
 {
-  "generated": "2026-06-15T13:04:57.822Z",
-  "source_hash": "f7550ce0a66f7155",
+  "generated": "2026-06-15T14:57:24.924Z",
+  "source_hash": "a1695a7c7a699091",
   "rows_total": 3018,
   "metrics": {
     "air_quality_index": {
@@ -288,6 +288,14 @@
       "vintage": 2024,
       "granularity": "postal",
       "is_proxy": false,
+      "row_count": 3018,
+      "coverage_pct": 100
+    },
+    "population_projection_pct": {
+      "source": "Tilastokeskus (Väestöennuste 2024)",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": true,
       "row_count": 3018,
       "coverage_pct": 100
     },

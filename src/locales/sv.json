@@ -39,6 +39,7 @@
   "layer.sports_facilities": "Idrottsanläggningar",
   "layer.income_change": "Inkomstförändring (%)",
   "layer.population_change": "Befolkningsförändring (%)",
+  "layer.population_projection": "Befolkningsprognos (%)",
   "layer.unemployment_change": "Arbetslöshetsförändring (%)",
   "layer.crime_index_change": "Brottsförändring (%)",
   "layer.voter_turnout": "Valdeltagande",

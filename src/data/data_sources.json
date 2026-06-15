@@ -543,6 +543,14 @@
       "is_proxy": false,
       "panel": false
     },
+    "population_projection_pct": {
+      "source": "Tilastokeskus (Väestöennuste 2024)",
+      "publisher": "tilastokeskus",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": true,
+      "panel": false
+    },
     "unemployment_change_pct": {
       "source": "Tilastokeskus (Paavo)",
       "publisher": "tilastokeskus",

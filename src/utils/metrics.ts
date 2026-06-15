@@ -131,6 +131,10 @@ export interface NeighborhoodProperties {
   income_change_pct: number | null;
   population_change_pct: number | null;
   unemployment_change_pct: number | null;
+  // CF-6: projected % population change 2024→2040 (StatFin Väestöennuste 2024,
+  // municipal base projection assigned to postal codes — is_proxy). Optional to
+  // match the QW-1 pattern that keeps test fixtures spreading Partial<> valid.
+  population_projection_pct?: number | null;
   // CF-7: crime change derived from crime_index_history
   crime_index_change_pct: number | null;
   // Phase 7: New data layers
@@ -745,6 +749,8 @@ const METRIC_DEFS: MetricDef[] = [
   { property: 'walkability_index', weight: 'population', precision: 0 },
   { property: 'traffic_accident_rate', weight: 'population', precision: 1 },
   { property: 'property_price_change_pct', weight: 'population', precision: 1 },
+  // CF-6: projected population change % (municipal proxy, population-weighted).
+  { property: 'population_projection_pct', weight: 'population', precision: 1 },
   { property: 'school_quality_score', weight: 'population', precision: 0 },
   { property: 'light_pollution', weight: 'population', precision: 1 },
   { property: 'noise_pollution', weight: 'population', precision: 1 },

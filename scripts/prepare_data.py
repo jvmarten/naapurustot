@@ -94,6 +94,10 @@ RADON_FILE = Path(__file__).parent / "radon.json"
 HEALTH_INDEX_FILE = Path(__file__).parent / "health_index.json"
 # CF-20 flood risk (SYKE 1/100a hazard zones, % of postal land exposed).
 FLOOD_RISK_FILE = Path(__file__).parent / "flood_risk.json"
+# CF-6 population projection (Tilastokeskus Vaestoennuste 2024, vaenn 14wx):
+# projected % population change 2024->2040 per municipality, assigned to each
+# postal code (is_proxy). Snapshot produced by fetch_population_projection.py.
+POPULATION_PROJECTION_FILE = Path(__file__).parent / "population_projection.json"
 
 # Statistics Finland apartment price data by postal code — PxWeb API v1.
 # Table 13mu: "Prices per square meter of old dwellings in housing companies
@@ -2477,6 +2481,13 @@ def main():
     gdf = _join_pno_value(gdf, _load_pno_json(HEALTH_INDEX_FILE, "health index"), "health_index")
     gdf = _join_pno_value(gdf, _load_pno_json(FLOOD_RISK_FILE, "flood risk"), "flood_risk_pct")
 
+    # CF-6 projected population change 2024->2040 (StatFin vaenn 14wx, municipal
+    # base projection assigned to each postal code, is_proxy).
+    gdf = _join_pno_value(
+        gdf, _load_pno_json(POPULATION_PROJECTION_FILE, "population projection"),
+        "population_projection_pct",
+    )
+
     # --- Phase 2: External data sources (graceful fallback if APIs unavailable) ---
     _rate_limit()
     price_data = fetch_property_prices()
@@ -2622,6 +2633,8 @@ def main():
         # Phase 10: Water proximity & building age
         "water_proximity_m",
         "avg_construction_year",
+        # CF-6: projected population change (municipal proxy)
+        "population_projection_pct",
         # Change metrics (derived from historical trends)
         "income_change_pct",
         "population_change_pct",

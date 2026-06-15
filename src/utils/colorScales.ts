@@ -36,6 +36,7 @@ export type LayerId =
   | 'sports_facilities'
   | 'income_change'
   | 'population_change'
+  | 'population_projection'
   | 'unemployment_change'
   | 'crime_index_change'
   // Phase 7: New data layers
@@ -459,6 +460,21 @@ export const LAYERS: LayerConfig[] = [
     id: 'population_change',
     labelKey: 'layer.population_change',
     property: 'population_change_pct',
+    unit: '%',
+    colors: ['#b2182b', '#d6604d', '#f4a582', '#fddbc7', '#d1e5f0', '#92c5de', '#4393c3', '#2166ac'],
+    stops: [-15, -10, -5, 0, 5, 10, 15, 25],
+    format: pct,
+    divergingCenter: 0,
+  },
+  // CF-6: forward-looking projected population change 2024→2040 (StatFin
+  // Väestöennuste 2024, municipal base projection assigned to postal codes —
+  // is_proxy). Same diverging ramp/center as population_change (growth good,
+  // decline bad). Distinct from the backward-looking, real-postal
+  // population_change layer.
+  {
+    id: 'population_projection',
+    labelKey: 'layer.population_projection',
+    property: 'population_projection_pct',
     unit: '%',
     colors: ['#b2182b', '#d6604d', '#f4a582', '#fddbc7', '#d1e5f0', '#92c5de', '#4393c3', '#2166ac'],
     stops: [-15, -10, -5, 0, 5, 10, 15, 25],
