@@ -81,6 +81,9 @@ type PreferencesPayload = {
   filterPresets: unknown[];
   qualityWeights: Record<string, number>;
   wizardProfile?: unknown;
+  // IN-6: server's last-write time for the preferences row (presets + weights +
+  // profile share one timestamp), used for last-write-wins conflict resolution.
+  updatedAt?: string | null;
 };
 
 // CF-7: single-flight cache for GET /auth/preferences. The three preferences-backed
@@ -110,7 +113,7 @@ export const api = {
     request<{ user: ApiUser }>('/auth/me'),
 
   getFavorites: () =>
-    request<{ favorites: string[] }>('/auth/favorites'),
+    request<{ favorites: string[]; updatedAt?: string | null }>('/auth/favorites'),
 
   saveFavorites: (favorites: string[]) =>
     request<{ favorites: string[] }>('/auth/favorites', {
@@ -120,7 +123,7 @@ export const api = {
 
   // QW-2b: shortlist cloud sync (mirrors favorites).
   getShortlist: () =>
-    request<{ shortlist: string[] }>('/auth/shortlist'),
+    request<{ shortlist: string[]; updatedAt?: string | null }>('/auth/shortlist'),
 
   saveShortlist: (shortlist: string[]) =>
     request<{ shortlist: string[] }>('/auth/shortlist', {
@@ -129,7 +132,7 @@ export const api = {
     }),
 
   getNotes: () =>
-    request<{ notes: Record<string, string> }>('/auth/notes'),
+    request<{ notes: Record<string, string>; updatedAt?: string | null }>('/auth/notes'),
 
   saveNotes: (notes: Record<string, string>) =>
     request<{ notes: Record<string, string> }>('/auth/notes', {

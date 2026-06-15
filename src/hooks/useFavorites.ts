@@ -37,6 +37,9 @@ export function useFavorites(userId?: string | null) {
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Track whether the current change came from a server fetch (to avoid echoing it back)
   const fromServerRef = useRef(false);
+  // IN-6: set on the userId null→id login transition, cleared once the on-login merge
+  // resolves; while set the debounced save is skipped so local never pre-empts the merge.
+  const loginMergePendingRef = useRef(false);
 
   // PO-5b: cross-tab sync — adopt favorites changed in another tab, suppressing the
   // server-save echo via fromServerRef.
@@ -62,10 +65,16 @@ export function useFavorites(userId?: string | null) {
 
   // Debounced server save
   useEffect(() => {
+    // IN-6: defer the save on the null→id login transition until the merge below runs
+    // (prevUserIdRef still holds the previous userId — the on-login effect that updates
+    // it is declared after this one and runs later in the same commit).
+    if (userId && userId !== prevUserIdRef.current) loginMergePendingRef.current = true;
+
     if (!userId || fromServerRef.current) {
       fromServerRef.current = false;
       return;
     }
+    if (loginMergePendingRef.current) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       saveTimerRef.current = null;
@@ -110,8 +119,8 @@ export function useFavorites(userId?: string | null) {
       if (merged.length !== serverFavs.length || !merged.every((v, i) => v === serverFavs[i])) {
         api.saveFavorites(merged);
       }
-    });
-    return () => { cancelled = true; };
+    }).finally(() => { loginMergePendingRef.current = false; });
+    return () => { cancelled = true; loginMergePendingRef.current = false; };
   }, [userId]);
 
   // O(1) lookup via Set instead of O(n) Array.includes per call.

@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { getDefaultWeights, isCustomWeights, type QualityWeights } from '../utils/qualityIndex';
 import { api } from '../utils/api';
 import { runSync } from '../utils/syncStatus';
+import { editedAt, markEdited } from '../utils/syncMeta';
 
 const STORAGE_KEY = 'naapurustot-quality-weights';
 
@@ -59,6 +60,10 @@ export function useQualityWeights(userId?: string | null) {
   const prevUserIdRef = useRef<string | null | undefined>(undefined);
   const userIdRef = useRef(userId);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // IN-6: set on the userId null→id login transition and cleared once the on-login
+  // merge resolves. While set, the debounced save is skipped so the local value is
+  // never pushed before the merge decides the winner.
+  const loginMergePendingRef = useRef(false);
 
   // Persist to localStorage on change (cheap, no debounce needed — setter is debounced upstream).
   // CF-6: a shared-link seed is held in memory only — not written until the user edits.
@@ -71,12 +76,21 @@ export function useQualityWeights(userId?: string | null) {
 
   // Debounced server save
   useEffect(() => {
+    // IN-6: on the null→id login transition, defer saving until the on-login merge
+    // (below) picks the winner — otherwise this would push the local (possibly
+    // DEFAULT) weights and the server ON CONFLICT would clobber the user's custom
+    // server-side weights before the merge ran. prevUserIdRef still holds the
+    // previous userId here because the on-login effect that updates it is declared
+    // after this one and runs later in the same commit.
+    if (userId && userId !== prevUserIdRef.current) loginMergePendingRef.current = true;
+
     if (!userId || fromServerRef.current) {
       fromServerRef.current = false;
       return;
     }
     // CF-6: never push a shared-link seed to the account.
     if (seededRef.current) return;
+    if (loginMergePendingRef.current) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       saveTimerRef.current = null;
@@ -109,23 +123,39 @@ export function useQualityWeights(userId?: string | null) {
       // CF-6: a seed doesn't count as local customisation — the user's own server
       // weights take precedence over a shared link, and a seed is never pushed up.
       const localCustom = !seededRef.current && isCustomWeights(weightsRef.current);
-      if (serverCustom && !localCustom) {
-        // Adopt server-side custom weights — local hasn't been touched here.
+      const adoptServer = () => {
         const merged = { ...getDefaultWeights(), ...serverWeights };
         seededRef.current = false; // adopted weights are owned and must persist
         fromServerRef.current = true;
         setWeightsState(merged);
+      };
+      if (serverCustom && !localCustom) {
+        // Adopt server-side custom weights — local hasn't been touched here.
+        adoptServer();
       } else if (localCustom && !serverCustom) {
         // Push local custom weights up — server hasn't been touched yet.
         api.savePreferences({ qualityWeights: weightsRef.current });
+      } else if (serverCustom && localCustom) {
+        // IN-6: both sides diverged — resolve by last-write-wins, comparing the
+        // server row's timestamp against this device's last local edit of the
+        // weights. No reliable server timestamp → leave local as-is (prior rule).
+        const serverMs = data.updatedAt ? Date.parse(data.updatedAt) : NaN;
+        if (Number.isFinite(serverMs)) {
+          if (editedAt('weights') > serverMs) {
+            api.savePreferences({ qualityWeights: weightsRef.current });
+          } else {
+            adoptServer();
+          }
+        }
       }
-      // If both custom or both default: leave local as-is (no clear winner without timestamps).
-    });
-    return () => { cancelled = true; };
+      // If both default: leave local as-is.
+    }).finally(() => { loginMergePendingRef.current = false; });
+    return () => { cancelled = true; loginMergePendingRef.current = false; };
   }, [userId]);
 
   const setWeights = useCallback((next: QualityWeights) => {
     seededRef.current = false; // an explicit edit makes the weights owned + persisted
+    markEdited('weights'); // IN-6: record the local edit time for LWW conflict merges
     setWeightsState(next);
   }, []);
 

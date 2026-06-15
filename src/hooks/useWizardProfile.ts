@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { api } from '../utils/api';
 import { runSync } from '../utils/syncStatus';
+import { editedAt, markEdited } from '../utils/syncMeta';
 import { getDefaultWeights, type QualityWeights } from '../utils/qualityIndex';
 
 /**
@@ -235,6 +236,9 @@ export function useWizardProfile(userId?: string | null) {
   const prevUserIdRef = useRef<string | null | undefined>(undefined);
   const userIdRef = useRef(userId);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // IN-6: set on the userId null→id login transition, cleared once the on-login merge
+  // resolves; while set the debounced save is skipped so local never pre-empts the merge.
+  const loginMergePendingRef = useRef(false);
 
   useEffect(() => {
     profileRef.current = profile;
@@ -246,12 +250,18 @@ export function useWizardProfile(userId?: string | null) {
 
   // Debounced server save
   useEffect(() => {
+    // IN-6: on the null→id login transition, defer saving until the on-login merge
+    // (below) picks the winner (prevUserIdRef still holds the previous userId here —
+    // the effect that updates it runs later in the same commit).
+    if (userId && userId !== prevUserIdRef.current) loginMergePendingRef.current = true;
+
     if (!userId || fromServerRef.current) {
       fromServerRef.current = false;
       return;
     }
     // CF-6: never push a shared-link seed to the account.
     if (seededRef.current) return;
+    if (loginMergePendingRef.current) return;
     // IN-3: never sync an untouched default profile — it would write an empty blob
     // for every signed-in user who never opened the wizard (the line-24 gate). Since
     // this also gates the timer, the unmount flush below (guarded on saveTimerRef)
@@ -295,20 +305,36 @@ export function useWizardProfile(userId?: string | null) {
       const serverCustom = isCustomWizardAnswers(server);
       // CF-6: a seed isn't local customisation — the user's own server profile wins.
       const localCustom = !seededRef.current && isCustomWizardAnswers(profileRef.current);
-      if (serverCustom && !localCustom) {
+      const adoptServer = () => {
         seededRef.current = false; // adopted profile is owned and must persist
         fromServerRef.current = true;
         setProfileState(server);
+      };
+      if (serverCustom && !localCustom) {
+        adoptServer();
       } else if (localCustom && !serverCustom) {
         api.savePreferences({ wizardProfile: profileRef.current });
+      } else if (serverCustom && localCustom) {
+        // IN-6: both sides diverged — last write wins, comparing the server row's
+        // timestamp against this device's last local edit of the profile. No
+        // reliable server timestamp → leave local as-is (prior rule).
+        const serverMs = data.updatedAt ? Date.parse(data.updatedAt) : NaN;
+        if (Number.isFinite(serverMs)) {
+          if (editedAt('wizardProfile') > serverMs) {
+            api.savePreferences({ wizardProfile: profileRef.current });
+          } else {
+            adoptServer();
+          }
+        }
       }
-      // Both custom or both default: leave local as-is (no clear winner without timestamps).
-    });
-    return () => { cancelled = true; };
+      // Both default: leave local as-is.
+    }).finally(() => { loginMergePendingRef.current = false; });
+    return () => { cancelled = true; loginMergePendingRef.current = false; };
   }, [userId]);
 
   const setProfile = useCallback((next: WizardAnswers) => {
     seededRef.current = false; // an explicit edit makes the profile owned + persisted
+    markEdited('wizardProfile'); // IN-6: record local edit time for LWW conflict merges
     setProfileState(sanitizeWizardAnswers(next));
   }, []);
 

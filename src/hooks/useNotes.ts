@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { api } from '../utils/api';
 import { runSync } from '../utils/syncStatus';
 import { addTombstone, clearTombstone, readTombstones } from '../utils/syncTombstones';
+import { editedAt, markEdited } from '../utils/syncMeta';
 
 const STORAGE_KEY = 'naapurustot-notes';
 // CF-6: pnos whose note the user cleared on this device — skipped on the
@@ -40,19 +41,31 @@ export function readNote(pno: string): string {
   return loadNotes()[pno] ?? '';
 }
 
-/** Merge two notes maps. When the same pno exists in both, the longer text wins —
- *  a proxy for "more recently edited" when we don't have per-note timestamps.
+/** Merge two notes maps.
+ *  IN-6: when the same pno exists in both with differing text, last write wins —
+ *  this pno's local last-edit time (syncMeta) is compared against the server store's
+ *  timestamp. Without a server timestamp, fall back to the old longer-text-wins rule.
  *  CF-6: a server note whose pno the user cleared here (tombstoned, and absent
  *  locally) is skipped so a deleted note is not resurrected. */
-function mergeNotes(local: Record<string, string>, server: Record<string, string>): Record<string, string> {
+function mergeNotes(
+  local: Record<string, string>,
+  server: Record<string, string>,
+  serverUpdatedAtMs: number,
+): Record<string, string> {
   const tomb = readTombstones(TOMBSTONE_KEY);
   const merged: Record<string, string> = { ...local };
+  const haveServerTs = Number.isFinite(serverUpdatedAtMs);
   for (const [pno, serverText] of Object.entries(server)) {
     const localText = merged[pno];
     if (!localText) {
       if (!tomb.has(pno)) merged[pno] = serverText;
-    } else if (serverText.length > localText.length) {
-      merged[pno] = serverText;
+    } else if (localText !== serverText) {
+      if (haveServerTs) {
+        // Local note older than (or as old as) the server's last write → server wins.
+        if (editedAt(`notes:${pno}`) <= serverUpdatedAtMs) merged[pno] = serverText;
+      } else if (serverText.length > localText.length) {
+        merged[pno] = serverText;
+      }
     }
   }
   return merged;
@@ -90,13 +103,22 @@ export function useNotes(userId?: string | null) {
   const prevUserIdRef = useRef<string | null | undefined>(undefined);
   const userIdRef = useRef(userId);
   useEffect(() => { userIdRef.current = userId; }, [userId]);
+  // IN-6: set on the userId null→id login transition, cleared once the on-login merge
+  // resolves; while set the debounced save is skipped so local never pre-empts the merge.
+  const loginMergePendingRef = useRef(false);
 
   // Debounced server save (mirrors useFavorites pattern). 1 s after the last change.
   useEffect(() => {
+    // IN-6: defer the save on the null→id login transition until the merge below runs
+    // (prevUserIdRef still holds the previous userId — the on-login effect that updates
+    // it is declared after this one and runs later in the same commit).
+    if (userId && userId !== prevUserIdRef.current) loginMergePendingRef.current = true;
+
     if (!userId || fromServerRef.current) {
       fromServerRef.current = false;
       return;
     }
+    if (loginMergePendingRef.current) return;
     if (serverSaveTimerRef.current) clearTimeout(serverSaveTimerRef.current);
     serverSaveTimerRef.current = setTimeout(() => {
       serverSaveTimerRef.current = null;
@@ -129,7 +151,8 @@ export function useNotes(userId?: string | null) {
     api.getNotes().then(({ data }) => {
       if (cancelled || !data) return;
       const serverNotes = data.notes;
-      const merged = mergeNotes(notesRef.current, serverNotes);
+      const serverMs = data.updatedAt ? Date.parse(data.updatedAt) : NaN;
+      const merged = mergeNotes(notesRef.current, serverNotes, serverMs);
       fromServerRef.current = true;
       setNotes(merged);
       // Persist the server-merged result to localStorage immediately. Unlike the
@@ -146,8 +169,8 @@ export function useNotes(userId?: string | null) {
       if (differs) {
         api.saveNotes(merged);
       }
-    });
-    return () => { cancelled = true; };
+    }).finally(() => { loginMergePendingRef.current = false; });
+    return () => { cancelled = true; loginMergePendingRef.current = false; };
   }, [userId]);
 
   const getNote = useCallback((pno: string): string => notes[pno] ?? '', [notes]);
@@ -158,8 +181,12 @@ export function useNotes(userId?: string | null) {
     // Limit note length to prevent localStorage quota exhaustion
     const trimmed = text.slice(0, 5000);
     // CF-6: a cleared note is a deletion (tombstone it); writing text is a re-add.
-    if (trimmed.trim()) clearTombstone(TOMBSTONE_KEY, pno);
-    else addTombstone(TOMBSTONE_KEY, pno);
+    if (trimmed.trim()) {
+      clearTombstone(TOMBSTONE_KEY, pno);
+      markEdited(`notes:${pno}`); // IN-6: record per-note edit time for LWW conflict merges
+    } else {
+      addTombstone(TOMBSTONE_KEY, pno);
+    }
     setNotes((prev) => {
       const next = { ...prev };
       if (trimmed.trim()) {

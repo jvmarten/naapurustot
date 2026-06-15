@@ -15,7 +15,14 @@ setInterval(() => {
   }
 }, 10 * 60 * 1000).unref();
 
-function getClientIp(req: Request): string {
+/**
+ * Derive the rate-limit identity from a request. Returns the identity string, or
+ * `null` to skip limiting for this request (e.g. a by-userId limiter on an
+ * unauthenticated request — there is no user to key on).
+ */
+export type RateKeyFn = (req: Request) => string | null;
+
+export function getClientIp(req: Request): string {
   // index.ts sets `app.set('trust proxy', 1)` in production, so Express already
   // derives req.ip as the genuine client IP by trusting exactly one hop (the Caddy
   // reverse proxy). Caddy APPENDS the connecting peer to X-Forwarded-For rather than
@@ -26,17 +33,26 @@ function getClientIp(req: Request): string {
 }
 
 /**
- * Rate limiter factory: fixed-window counter per client IP, kept in process
- * memory (resets on restart, not shared across instances). Requests over the
- * limit get 429 with a Retry-After header.
+ * Rate limiter factory: fixed-window counter, kept in process memory (resets on
+ * restart, not shared across instances). Requests over the limit get 429 with a
+ * Retry-After header.
+ *
+ * IN-5: the identity is configurable via `keyFn`. The default keys on client IP
+ * (the per-IP limiter). Passing a userId-deriving keyFn yields a SECOND, per-user
+ * bucket — closing the CGNAT false-throttle (many users behind one NAT IP would
+ * otherwise share a single bucket) and the IP-rotation-per-account abuse gap. A
+ * keyFn returning null skips the request (e.g. an unauthenticated call on a
+ * by-userId limiter), leaving it to the other limiters.
  * @param maxRequests - Maximum requests allowed in the window
  * @param windowMs - Window duration in milliseconds
  * @param prefix - Key prefix to separate different limiters
+ * @param keyFn - Identity extractor (defaults to client IP)
  */
-export function rateLimit(maxRequests: number, windowMs: number, prefix: string) {
+export function rateLimit(maxRequests: number, windowMs: number, prefix: string, keyFn: RateKeyFn = getClientIp) {
   return (req: Request, res: Response, next: NextFunction): void => {
-    const ip = getClientIp(req);
-    const key = `${prefix}:${ip}`;
+    const id = keyFn(req);
+    if (id === null) { next(); return; }
+    const key = `${prefix}:${id}`;
     const now = Date.now();
 
     let bucket = buckets.get(key);
