@@ -1185,6 +1185,14 @@ function generatePage(feature, lang) {
   // Document language must match the page locale.
   html = html.replace('<html lang="fi">', `<html lang="${lang}">`);
 
+  // PO-2: localize the hardcoded-Finnish skip link (the first focusable element)
+  // so EN/SV no-JS / pre-hydration SR users don't hear the Finnish phrase. The
+  // live SPA re-localizes it on mount too (App.tsx lang effect).
+  html = html.replace(
+    /<a class="skip-link" href="#main" lang="[^"]*">[^<]*<\/a>/,
+    `<a class="skip-link" href="#main" lang="${lang}">${escapeHtml(LOCALES[lang]['aria.skip_to_content'])}</a>`,
+  );
+
   // Title.
   html = html.replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(title)}</title>`);
 
