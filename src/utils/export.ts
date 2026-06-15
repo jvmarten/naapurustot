@@ -416,6 +416,48 @@ export function exportComparisonCsv(pinned: NeighborhoodProperties[]): void {
   downloadBlob(blob, `comparison_${slug}.csv`);
 }
 
+/**
+ * CF-8: export the in-app RankingTable as CSV (rank, name, pno, value) \u2014 turns
+ * the ephemeral ranked view into citable, reproducible output. Reuses the shared
+ * escapeCsvField + UTF-8 BOM + downloadBlob (no helper duplicated/exported).
+ */
+export function exportRankingCsv(
+  rows: { rank: number; name: string; pno: string; value: number }[],
+  layerLabel: string,
+): void {
+  if (rows.length === 0) return;
+  const header = ['rank', 'name', 'pno', layerLabel].map(escapeCsvField).join(',');
+  const lines = rows.map((r) =>
+    [String(r.rank), r.name, r.pno, String(r.value)].map(escapeCsvField).join(','),
+  );
+  const csv = [header, ...lines].join('\n');
+  downloadBlob(
+    new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' }),
+    `ranking_${safeFilePart(layerLabel)}.csv`,
+  );
+}
+
+/**
+ * CF-8: export the CorrelationExplorer scatter as CSV (name, pno, X, Y) \u2014 the
+ * two-metric pairs behind the on-screen scatter, for reproducible analysis.
+ */
+export function exportCorrelationCsv(
+  rows: { name: string; pno: string; x: number; y: number }[],
+  labelX: string,
+  labelY: string,
+): void {
+  if (rows.length === 0) return;
+  const header = ['name', 'pno', labelX, labelY].map(escapeCsvField).join(',');
+  const lines = rows.map((r) =>
+    [r.name, r.pno, String(r.x), String(r.y)].map(escapeCsvField).join(','),
+  );
+  const csv = [header, ...lines].join('\n');
+  downloadBlob(
+    new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' }),
+    `correlation_${safeFilePart(labelX)}_${safeFilePart(labelY)}.csv`,
+  );
+}
+
 // \u2500\u2500 CF-10: Machine-readable GeoJSON / JSON data export \u2500\u2500
 //
 // Emits the RAW, unformatted property values (numbers stay numbers, nulls stay

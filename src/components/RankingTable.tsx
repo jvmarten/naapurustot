@@ -4,6 +4,8 @@ import { type LayerId, type LayerConfig, getLayerById, getColorForValue } from '
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { t, useI18nVersion } from '../utils/i18n';
 import { getFeatureCenter } from '../utils/geometryFilter';
+import { exportRankingCsv } from '../utils/export';
+import { buildFullViewUrl } from '../utils/embed';
 
 interface RankingTableProps {
   data: FeatureCollection | null;
@@ -13,6 +15,9 @@ interface RankingTableProps {
   layerConfig?: LayerConfig;
   onSelect: (pno: string, center: [number, number]) => void;
   onClose: () => void;
+  /** CF-8: active region + comparison scope, so the copy-link reproduces the view. */
+  city?: string;
+  scope?: 'all' | 'region';
 }
 
 interface RankedItem {
@@ -25,12 +30,13 @@ interface RankedItem {
 
 // Removed hardcoded LOWER_IS_BETTER set — now uses layer.higherIsBetter from LayerConfig
 
-export const RankingTable: React.FC<RankingTableProps> = React.memo(({ data, activeLayer, layerConfig, onSelect, onClose }) => {
+export const RankingTable: React.FC<RankingTableProps> = React.memo(({ data, activeLayer, layerConfig, onSelect, onClose, city, scope }) => {
   useI18nVersion();
   // Prefer the rescaled config (region-comparison mode) so swatch colors match the
   // map fill and Legend; fall back to the base layer when none is provided.
   const layer = layerConfig ?? getLayerById(activeLayer);
   const [reversed, setReversed] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   // Separate the expensive ranking computation (sorting, center extraction) from
   // the cheap display-order reversal. Before this change, toggling the sort direction
@@ -96,6 +102,39 @@ export const RankingTable: React.FC<RankingTableProps> = React.memo(({ data, act
           </p>
         </div>
         <div className="flex items-center gap-1">
+          {/* CF-8: download the ranked list as CSV (canonical best-first order). */}
+          <button
+            onClick={() => exportRankingCsv(rankedItems, t(layer.labelKey))}
+            className="p-1.5 rounded-lg transition-colors bg-surface-100 dark:bg-surface-800/60 text-surface-600 dark:text-surface-300 hover:bg-surface-200 dark:hover:bg-surface-700/60"
+            aria-label={t('export.csv')}
+            title={t('export.csv')}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
+            </svg>
+          </button>
+          {/* CF-8: copy a deep link that reproduces this choropleth (layer + city + scope). */}
+          <button
+            onClick={() => {
+              const url = buildFullViewUrl({ pno: null, layer: activeLayer, city: city ?? null, scope });
+              navigator.clipboard?.writeText(url)
+                .then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); })
+                .catch(() => {});
+            }}
+            className="p-1.5 rounded-lg transition-colors bg-surface-100 dark:bg-surface-800/60 text-surface-600 dark:text-surface-300 hover:bg-surface-200 dark:hover:bg-surface-700/60"
+            aria-label={t('share.link')}
+            title={copied ? t('panel.copied') : t('share.link')}
+          >
+            {copied ? (
+              <svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+              </svg>
+            )}
+          </button>
           <button
             onClick={() => setReversed(r => !r)}
             className="p-1.5 rounded-lg transition-colors
