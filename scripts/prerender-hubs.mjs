@@ -284,6 +284,14 @@ function htmlPage({ lang, title, description, canonical, alternates, jsonLd, bod
     sv: 'Data: Statistikcentralen (Paavo), HSL, HSY, OpenStreetMap och andra öppna offentliga källor.',
   }[lang];
 
+  // QW-6: discovery links — surface the data-sources page + the open-data
+  // download corpus from the standalone hub/ranking/landing footers.
+  const discovery = {
+    fi: { sources: 'Tietolähteet', sourcesUrl: '/tietolahteet/', open: 'Avoin data' },
+    en: { sources: 'Data sources', sourcesUrl: '/en/data-sources/', open: 'Open data' },
+    sv: { sources: 'Datakällor', sourcesUrl: '/sv/datakallor/', open: 'Öppna data' },
+  }[lang];
+
   // PO-9: localized og:locale (underscore format), its two alternates, and a
   // localized per-page og:image:alt (the page title reads well as alt text).
   const localeAlts = LANGS
@@ -299,6 +307,7 @@ function htmlPage({ lang, title, description, canonical, alternates, jsonLd, bod
     <title>${escapeHtml(title)}</title>
     <meta name="description" content="${escapeHtml(description)}" />
     <link rel="canonical" href="${canonical}" />
+    <link rel="alternate" type="application/atom+xml" title="naapurustot.fi data updates" href="${ORIGIN}/data-updates.atom" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="DC.title" content="${escapeHtml(title)}" />
     <meta name="DC.creator" content="naapurustot.fi" />
@@ -336,7 +345,7 @@ ${body}
     </main>
     <footer class="site-footer">
       <span>${footer}</span>
-      <a href="/">naapurustot.fi</a>
+      <span><a href="${discovery.sourcesUrl}">${discovery.sources}</a> · <a href="/avoin-data/">${discovery.open}</a> · <a href="/">naapurustot.fi</a></span>
     </footer>
   </body>
 </html>
