@@ -7,6 +7,7 @@ import { pearson, bestFit, rSquared, significanceHint, groupedBestFit, type XYPo
 import { t, useI18nVersion } from '../utils/i18n';
 import { trackEvent } from '../utils/analytics';
 import { generateCorrelationCard } from '../utils/scoreCard';
+import { exportCorrelationCsv } from '../utils/export';
 import { loadAllData } from '../utils/dataLoader';
 import { computeQualityIndices, isCustomWeights, type QualityWeights } from '../utils/qualityIndex';
 import { getNationalRanges } from '../utils/nationalRanges';
@@ -324,6 +325,26 @@ export const CorrelationExplorer: React.FC<Props> = ({ data, onSelect, onClose, 
             <span className="font-medium text-surface-700 dark:text-surface-200 truncate max-w-[40vw] md:max-w-[220px]">
               {hoveredPt.name}: {layerX.format(hoveredPt.x)} / {layerY.format(hoveredPt.y)}
             </span>
+          )}
+          {/* CF-8: download the scatter's two-metric XY pairs (name, pno) as CSV. */}
+          {points.length > 0 && (
+            <button
+              onClick={() => {
+                trackEvent('correlation-csv');
+                exportCorrelationCsv(
+                  points.map((p) => ({ name: p.name, pno: p.pno, x: p.x, y: p.y })),
+                  t(layerX.labelKey),
+                  t(layerY.labelKey),
+                );
+              }}
+              className="inline-flex items-center gap-1 shrink-0 px-2 py-1 rounded-lg font-medium text-brand-600 dark:text-brand-300 hover:bg-brand-500/10 dark:hover:bg-brand-600/15 transition-colors"
+              title={t('export.csv')}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
+              </svg>
+              {t('export.csv')}
+            </button>
           )}
           {/* CF-10b: share the scatter as a branded PNG card */}
           {domain && points.length > 0 && (

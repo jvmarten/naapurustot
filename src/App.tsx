@@ -2218,6 +2218,8 @@ const App: React.FC = () => {
               layerConfig={effectiveLayer}
               onSelect={handleSearch}
               onClose={handleCloseRanking}
+              city={cityFilter}
+              scope={comparisonScope}
             />
           </Suspense>
         </ErrorBoundary>
