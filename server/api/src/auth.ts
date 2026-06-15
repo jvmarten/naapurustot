@@ -1,7 +1,7 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import pool from './db.js';
+import { getPool } from './db.js';
 import { rateLimit } from './rateLimit.js';
 import { verifyTurnstile } from './turnstile.js';
 
@@ -59,6 +59,37 @@ function formatUser(row: Record<string, unknown>) {
   };
 }
 
+// IN-5: per-user rate limiting. A request carrying a valid JWT gets a SECOND
+// fixed-window bucket keyed on its userId, in addition to the per-IP limiter
+// mounted in index.ts. This closes the CGNAT false-throttle (many users sharing
+// one NAT IP would otherwise share a single per-IP bucket) and the
+// IP-rotation-per-account abuse gap (rotating source IPs no longer multiplies a
+// single account's write budget). Generous enough that normal use never hits it
+// (the client debounces saves ~1 s apart).
+interface AuthedRequest extends Request { userId?: string | null }
+
+/** Resolve the JWT userId once and stash it on the request, so the per-user limiter
+ *  below can key on it. Handlers still call authenticateToken themselves. */
+function resolveUser(req: Request, _res: Response, next: NextFunction): void {
+  (req as AuthedRequest).userId = authenticateToken(req);
+  next();
+}
+
+const perUserLimiter = rateLimit(120, 60_000, 'authuser', (req) => (req as AuthedRequest).userId ?? null);
+
+/** Apply the per-user limiter to state-changing requests and the heavy GET /export
+ *  (the routes the spec calls out); plain GET reads rely on the per-IP limiter. */
+function perUserLimited(req: Request, res: Response, next: NextFunction): void {
+  const isWrite = req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'OPTIONS';
+  if (isWrite || req.path === '/export') {
+    perUserLimiter(req, res, next);
+    return;
+  }
+  next();
+}
+
+router.use(resolveUser, perUserLimited);
+
 // Signup: 3 per IP per day
 router.post('/signup', rateLimit(3, 24 * 60 * 60 * 1000, 'signup'), async (req: Request, res: Response): Promise<void> => {
   const { username, password, email, displayName, turnstileToken } = req.body;
@@ -102,7 +133,7 @@ router.post('/signup', rateLimit(3, 24 * 60 * 60 * 1000, 'signup'), async (req: 
   }
 
   try {
-    const existing = await pool.query(
+    const existing = await getPool().query(
       'SELECT id FROM users WHERE username = $1',
       [username.toLowerCase()]
     );
@@ -112,7 +143,7 @@ router.post('/signup', rateLimit(3, 24 * 60 * 60 * 1000, 'signup'), async (req: 
     }
 
     if (email) {
-      const emailExists = await pool.query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
+      const emailExists = await getPool().query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
       if (emailExists.rows.length > 0) {
         res.status(409).json({ error: 'Email already registered' });
         return;
@@ -120,7 +151,7 @@ router.post('/signup', rateLimit(3, 24 * 60 * 60 * 1000, 'signup'), async (req: 
     }
 
     const hash = await bcrypt.hash(password, SALT_ROUNDS);
-    const result = await pool.query(
+    const result = await getPool().query(
       `INSERT INTO users (username, password, email, display_name)
        VALUES ($1, $2, $3, $4)
        RETURNING id, username, email, display_name, trust_level, created_at`,
@@ -165,7 +196,7 @@ router.post('/login', rateLimit(10, 15 * 60 * 1000, 'login'), async (req: Reques
     return;
   }
 
-  const result = await pool.query(
+  const result = await getPool().query(
     'SELECT id, username, email, password, display_name, trust_level, created_at FROM users WHERE username = $1',
     [username.toLowerCase()]
   );
@@ -278,14 +309,14 @@ router.get('/export', async (req: Request, res: Response): Promise<void> => {
   }
 
   const [user, favorites, shortlist, notes, preferences] = await Promise.all([
-    pool.query(
+    getPool().query(
       'SELECT id, username, email, display_name, trust_level, created_at, updated_at FROM users WHERE id = $1',
       [userId]
     ),
-    pool.query('SELECT favorites FROM user_favorites WHERE user_id = $1', [userId]),
-    pool.query('SELECT shortlist FROM user_shortlist WHERE user_id = $1', [userId]),
-    pool.query('SELECT notes FROM user_notes WHERE user_id = $1', [userId]),
-    pool.query('SELECT filter_presets, quality_weights, wizard_profile FROM user_preferences WHERE user_id = $1', [userId]),
+    getPool().query('SELECT favorites FROM user_favorites WHERE user_id = $1', [userId]),
+    getPool().query('SELECT shortlist FROM user_shortlist WHERE user_id = $1', [userId]),
+    getPool().query('SELECT notes FROM user_notes WHERE user_id = $1', [userId]),
+    getPool().query('SELECT filter_presets, quality_weights, wizard_profile FROM user_preferences WHERE user_id = $1', [userId]),
   ]);
 
   if (user.rows.length === 0) {
@@ -328,7 +359,7 @@ router.delete('/account', async (req: Request, res: Response): Promise<void> => 
   }
 
   // Deleting the users row cascades to all user_* tables via ON DELETE CASCADE.
-  const result = await pool.query('DELETE FROM users WHERE id = $1', [userId]);
+  const result = await getPool().query('DELETE FROM users WHERE id = $1', [userId]);
   if (result.rowCount === 0) {
     res.clearCookie('token', CLEAR_COOKIE_OPTS);
     res.status(401).json({ error: 'User not found' });
@@ -356,7 +387,7 @@ router.get('/me', async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  const result = await pool.query(
+  const result = await getPool().query(
     'SELECT id, username, email, display_name, trust_level, created_at FROM users WHERE id = $1',
     [userId]
   );
@@ -379,12 +410,14 @@ router.get('/favorites', async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  const result = await pool.query(
-    'SELECT favorites FROM user_favorites WHERE user_id = $1',
+  const result = await getPool().query(
+    'SELECT favorites, updated_at FROM user_favorites WHERE user_id = $1',
     [userId]
   );
   const favorites: string[] = result.rows.length > 0 ? result.rows[0].favorites : [];
-  res.json({ favorites });
+  // IN-6: surface the server's last-write time so the client can resolve a diverged
+  // conflict by last-write-wins against its own per-store edit timestamp.
+  res.json({ favorites, updatedAt: result.rows[0]?.updated_at ?? null });
 });
 
 router.put('/favorites', async (req: Request, res: Response): Promise<void> => {
@@ -413,7 +446,7 @@ router.put('/favorites', async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  await pool.query(
+  await getPool().query(
     `INSERT INTO user_favorites (user_id, favorites, updated_at)
      VALUES ($1, $2, NOW())
      ON CONFLICT (user_id) DO UPDATE SET favorites = $2, updated_at = NOW()`,
@@ -431,12 +464,13 @@ router.get('/shortlist', async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  const result = await pool.query(
-    'SELECT shortlist FROM user_shortlist WHERE user_id = $1',
+  const result = await getPool().query(
+    'SELECT shortlist, updated_at FROM user_shortlist WHERE user_id = $1',
     [userId]
   );
   const shortlist: string[] = result.rows.length > 0 ? result.rows[0].shortlist : [];
-  res.json({ shortlist });
+  // IN-6: surface the server's last-write time for last-write-wins conflict merges.
+  res.json({ shortlist, updatedAt: result.rows[0]?.updated_at ?? null });
 });
 
 router.put('/shortlist', async (req: Request, res: Response): Promise<void> => {
@@ -463,7 +497,7 @@ router.put('/shortlist', async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  await pool.query(
+  await getPool().query(
     `INSERT INTO user_shortlist (user_id, shortlist, updated_at)
      VALUES ($1, $2, NOW())
      ON CONFLICT (user_id) DO UPDATE SET shortlist = $2, updated_at = NOW()`,
@@ -485,12 +519,14 @@ router.get('/notes', async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  const result = await pool.query(
-    'SELECT notes FROM user_notes WHERE user_id = $1',
+  const result = await getPool().query(
+    'SELECT notes, updated_at FROM user_notes WHERE user_id = $1',
     [userId]
   );
   const notes: Record<string, string> = result.rows.length > 0 ? result.rows[0].notes : {};
-  res.json({ notes });
+  // IN-6: surface the store's last-write time; the client resolves per-note conflicts
+  // by comparing it against each note's local last-edit timestamp (last write wins).
+  res.json({ notes, updatedAt: result.rows[0]?.updated_at ?? null });
 });
 
 router.put('/notes', async (req: Request, res: Response): Promise<void> => {
@@ -527,7 +563,7 @@ router.put('/notes', async (req: Request, res: Response): Promise<void> => {
     if (val.trim()) sanitized[key] = val;
   }
 
-  await pool.query(
+  await getPool().query(
     `INSERT INTO user_notes (user_id, notes, updated_at)
      VALUES ($1, $2, NOW())
      ON CONFLICT (user_id) DO UPDATE SET notes = $2, updated_at = NOW()`,
@@ -622,18 +658,22 @@ router.get('/preferences', async (req: Request, res: Response): Promise<void> =>
     return;
   }
 
-  const result = await pool.query(
-    'SELECT filter_presets, quality_weights, wizard_profile FROM user_preferences WHERE user_id = $1',
+  const result = await getPool().query(
+    'SELECT filter_presets, quality_weights, wizard_profile, updated_at FROM user_preferences WHERE user_id = $1',
     [userId]
   );
   if (result.rows.length === 0) {
-    res.json({ filterPresets: [], qualityWeights: {}, wizardProfile: {} });
+    res.json({ filterPresets: [], qualityWeights: {}, wizardProfile: {}, updatedAt: null });
     return;
   }
+  // IN-6: surface the row's last-write time so the client can resolve diverged
+  // quality-weights / wizard-profile conflicts by last-write-wins. (The row carries
+  // a single timestamp covering presets + weights + profile.)
   res.json({
     filterPresets: result.rows[0].filter_presets ?? [],
     qualityWeights: result.rows[0].quality_weights ?? {},
     wizardProfile: result.rows[0].wizard_profile ?? {},
+    updatedAt: result.rows[0].updated_at ?? null,
   });
 });
 
@@ -676,7 +716,7 @@ router.put('/preferences', async (req: Request, res: Response): Promise<void> =>
   }
 
   // COALESCE keeps unspecified fields at their existing values.
-  await pool.query(
+  await getPool().query(
     `INSERT INTO user_preferences (user_id, filter_presets, quality_weights, wizard_profile, updated_at)
      VALUES ($1, COALESCE($2::jsonb, '[]'::jsonb), COALESCE($3::jsonb, '{}'::jsonb), COALESCE($4::jsonb, '{}'::jsonb), NOW())
      ON CONFLICT (user_id) DO UPDATE SET
@@ -687,7 +727,7 @@ router.put('/preferences', async (req: Request, res: Response): Promise<void> =>
     [userId, presetsJson, weightsJson, wizardJson]
   );
 
-  const result = await pool.query(
+  const result = await getPool().query(
     'SELECT filter_presets, quality_weights, wizard_profile FROM user_preferences WHERE user_id = $1',
     [userId]
   );

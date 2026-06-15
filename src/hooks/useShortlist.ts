@@ -45,6 +45,9 @@ export function useShortlist(userId?: string | null) {
   // Track whether the current change came from a server fetch / another tab (to
   // avoid echoing it straight back to the server).
   const fromServerRef = useRef(false);
+  // IN-6: set on the userId null→id login transition, cleared once the on-login merge
+  // resolves; while set the debounced save is skipped so local never pre-empts the merge.
+  const loginMergePendingRef = useRef(false);
 
   // PO-5b: cross-tab consistency — adopt a shortlist changed in another tab,
   // suppressing the server-save echo via fromServerRef.
@@ -68,10 +71,16 @@ export function useShortlist(userId?: string | null) {
 
   // Debounced server save.
   useEffect(() => {
+    // IN-6: defer the save on the null→id login transition until the merge below runs
+    // (prevUserIdRef still holds the previous userId — the on-login effect that updates
+    // it is declared after this one and runs later in the same commit).
+    if (userId && userId !== prevUserIdRef.current) loginMergePendingRef.current = true;
+
     if (!userId || fromServerRef.current) {
       fromServerRef.current = false;
       return;
     }
+    if (loginMergePendingRef.current) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       saveTimerRef.current = null;
@@ -111,8 +120,8 @@ export function useShortlist(userId?: string | null) {
       if (merged.length !== serverList.length || !merged.every((v, i) => v === serverList[i])) {
         api.saveShortlist(merged);
       }
-    });
-    return () => { cancelled = true; };
+    }).finally(() => { loginMergePendingRef.current = false; });
+    return () => { cancelled = true; loginMergePendingRef.current = false; };
   }, [userId]);
 
   const set = useMemo(() => new Set(shortlist), [shortlist]);
