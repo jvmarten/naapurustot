@@ -1,6 +1,7 @@
 {
   "_comment": "IN-3 provenance manifest — the ACTUAL fetched data vintage (year or YYYY-YYYY range) per metric / GeoJSON property, recorded independently of src/data/data_sources.json. validate_data.py::check_provenance_vintage_match cross-checks this against the registry and FAILS the build on any mismatch, so the public source attribution can never silently diverge from what was really pulled. Update this file whenever a fetch script pulls a new period, in lockstep with the matching vintage in data_sources.json. Client-derived metrics with no upstream fetch (e.g. quality_index) are intentionally omitted; see EXEMPT_FROM_PROVENANCE in validate_data.py.",
   "vintages": {
+    "active_plan_count": 2026,
     "air_quality_index": 2024,
     "avg_construction_year": 2025,
     "avg_household_size": 2024,

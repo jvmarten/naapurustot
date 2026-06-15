@@ -41,6 +41,7 @@
   "layer.population_change": "Befolkningsförändring (%)",
   "layer.population_projection": "Befolkningsprognos (%)",
   "layer.construction_activity": "Byggaktivitet",
+  "layer.active_plan_count": "Planerings- och projektaktivitet",
   "layer.unemployment_change": "Arbetslöshetsförändring (%)",
   "layer.crime_index_change": "Brottsförändring (%)",
   "layer.voter_turnout": "Valdeltagande",

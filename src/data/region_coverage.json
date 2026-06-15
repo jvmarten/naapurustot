@@ -1,278 +1,278 @@
 {
   "helsinki_metro": {
-    "present": 171,
-    "total": 173
+    "present": 172,
+    "total": 174
   },
   "raasepori": {
-    "present": 167,
-    "total": 173
+    "present": 168,
+    "total": 174
   },
   "turku": {
-    "present": 168,
-    "total": 173
+    "present": 169,
+    "total": 174
   },
   "riihimaki": {
-    "present": 166,
-    "total": 173
+    "present": 167,
+    "total": 174
   },
   "hameenlinna": {
-    "present": 166,
-    "total": 173
+    "present": 167,
+    "total": 174
   },
   "lahti": {
-    "present": 165,
-    "total": 173
+    "present": 166,
+    "total": 174
   },
   "porvoo": {
-    "present": 166,
-    "total": 173
+    "present": 167,
+    "total": 174
   },
   "loviisa": {
-    "present": 166,
-    "total": 173
+    "present": 167,
+    "total": 174
   },
   "alands_landsbygd": {
-    "present": 162,
-    "total": 173
+    "present": 163,
+    "total": 174
   },
   "aboland_turunmaa": {
-    "present": 164,
-    "total": 173
+    "present": 165,
+    "total": 174
   },
   "tampere": {
-    "present": 167,
-    "total": 173
+    "present": 168,
+    "total": 174
   },
   "mikkeli": {
-    "present": 165,
-    "total": 173
+    "present": 166,
+    "total": 174
   },
   "joutsa": {
-    "present": 166,
-    "total": 173
+    "present": 167,
+    "total": 174
   },
   "loimaa": {
-    "present": 165,
-    "total": 173
+    "present": 166,
+    "total": 174
   },
   "mariehamns_stad": {
-    "present": 163,
-    "total": 173
+    "present": 164,
+    "total": 174
   },
   "alands_skargard": {
-    "present": 156,
-    "total": 173
+    "present": 157,
+    "total": 174
   },
   "vakka_suomi": {
-    "present": 167,
-    "total": 173
+    "present": 168,
+    "total": 174
   },
   "salo": {
-    "present": 166,
-    "total": 173
+    "present": 167,
+    "total": 174
   },
   "rauma": {
-    "present": 164,
-    "total": 173
+    "present": 165,
+    "total": 174
   },
   "saarijarvi_viitasaari": {
-    "present": 164,
-    "total": 173
+    "present": 165,
+    "total": 174
   },
   "imatra": {
-    "present": 165,
-    "total": 173
+    "present": 166,
+    "total": 174
   },
   "pori": {
-    "present": 167,
-    "total": 173
+    "present": 168,
+    "total": 174
   },
   "sydosterbotten": {
-    "present": 165,
-    "total": 173
+    "present": 166,
+    "total": 174
   },
   "forssa": {
-    "present": 165,
-    "total": 173
+    "present": 166,
+    "total": 174
   },
   "pohjois_satakunta": {
-    "present": 164,
-    "total": 173
+    "present": 165,
+    "total": 174
   },
   "etela_pirkanmaa": {
-    "present": 165,
-    "total": 173
+    "present": 166,
+    "total": 174
   },
   "lounais_pirkanmaa": {
-    "present": 166,
-    "total": 173
+    "present": 167,
+    "total": 174
   },
   "vaasa": {
-    "present": 165,
-    "total": 173
+    "present": 166,
+    "total": 174
   },
   "kotka": {
-    "present": 166,
-    "total": 173
+    "present": 167,
+    "total": 174
   },
   "yla_pirkanmaa": {
-    "present": 166,
-    "total": 173
+    "present": 167,
+    "total": 174
   },
   "jamsa": {
-    "present": 166,
-    "total": 173
+    "present": 167,
+    "total": 174
   },
   "jyvaskyla": {
-    "present": 166,
-    "total": 173
+    "present": 167,
+    "total": 174
   },
   "luoteis_pirkanmaa": {
-    "present": 164,
-    "total": 173
+    "present": 165,
+    "total": 174
   },
   "jakobstadsregionen": {
-    "present": 165,
-    "total": 173
+    "present": 166,
+    "total": 174
   },
   "ita_lappi": {
-    "present": 158,
-    "total": 173
+    "present": 159,
+    "total": 174
   },
   "keuruu": {
-    "present": 159,
-    "total": 173
+    "present": 160,
+    "total": 174
   },
   "kemi_tornio": {
-    "present": 165,
-    "total": 173
+    "present": 166,
+    "total": 174
   },
   "aanekoski": {
-    "present": 165,
-    "total": 173
+    "present": 166,
+    "total": 174
   },
   "kouvola": {
-    "present": 165,
-    "total": 173
+    "present": 166,
+    "total": 174
   },
   "suupohja": {
-    "present": 164,
-    "total": 173
+    "present": 165,
+    "total": 174
   },
   "lappeenranta": {
-    "present": 165,
-    "total": 173
+    "present": 166,
+    "total": 174
   },
   "joensuu": {
-    "present": 165,
-    "total": 173
+    "present": 166,
+    "total": 174
   },
   "pieksamaki": {
-    "present": 164,
-    "total": 173
+    "present": 165,
+    "total": 174
   },
   "haapavesi_siikalatva": {
-    "present": 165,
-    "total": 173
+    "present": 166,
+    "total": 174
   },
   "tunturi_lappi": {
-    "present": 158,
-    "total": 173
+    "present": 159,
+    "total": 174
   },
   "oulunkaari": {
-    "present": 165,
-    "total": 173
+    "present": 166,
+    "total": 174
   },
   "savonlinna": {
-    "present": 165,
-    "total": 173
+    "present": 166,
+    "total": 174
   },
   "yla_savo": {
-    "present": 164,
-    "total": 173
+    "present": 165,
+    "total": 174
   },
   "nivala_haapajarvi": {
-    "present": 165,
-    "total": 173
+    "present": 166,
+    "total": 174
   },
   "keski_karjala": {
-    "present": 166,
-    "total": 173
+    "present": 167,
+    "total": 174
   },
   "jarviseutu": {
-    "present": 164,
-    "total": 173
+    "present": 165,
+    "total": 174
   },
   "seinajoki": {
-    "present": 164,
-    "total": 173
+    "present": 165,
+    "total": 174
   },
   "kuusiokunnat": {
-    "present": 164,
-    "total": 173
+    "present": 165,
+    "total": 174
   },
   "kajaani": {
-    "present": 165,
-    "total": 173
+    "present": 166,
+    "total": 174
   },
   "kuopio": {
-    "present": 166,
-    "total": 173
+    "present": 167,
+    "total": 174
   },
   "kokkola": {
-    "present": 165,
-    "total": 173
+    "present": 166,
+    "total": 174
   },
   "ylivieska": {
-    "present": 165,
-    "total": 173
+    "present": 166,
+    "total": 174
   },
   "kaustinen": {
-    "present": 164,
-    "total": 173
+    "present": 165,
+    "total": 174
   },
   "koillis_savo": {
-    "present": 164,
-    "total": 173
+    "present": 165,
+    "total": 174
   },
   "varkaus": {
-    "present": 165,
-    "total": 173
+    "present": 166,
+    "total": 174
   },
   "sisa_savo": {
-    "present": 164,
-    "total": 173
+    "present": 165,
+    "total": 174
   },
   "pohjois_lappi": {
-    "present": 164,
-    "total": 173
+    "present": 165,
+    "total": 174
   },
   "pielisen_karjala": {
-    "present": 164,
-    "total": 173
+    "present": 165,
+    "total": 174
   },
   "raahe": {
-    "present": 165,
-    "total": 173
+    "present": 166,
+    "total": 174
   },
   "kehys_kainuu": {
-    "present": 159,
-    "total": 173
+    "present": 160,
+    "total": 174
   },
   "oulu": {
-    "present": 169,
-    "total": 173
+    "present": 170,
+    "total": 174
   },
   "koillismaa": {
-    "present": 164,
-    "total": 173
+    "present": 165,
+    "total": 174
   },
   "torniolaakso": {
-    "present": 164,
-    "total": 173
+    "present": 165,
+    "total": 174
   },
   "rovaniemi": {
-    "present": 165,
-    "total": 173
+    "present": 166,
+    "total": 174
   }
 }

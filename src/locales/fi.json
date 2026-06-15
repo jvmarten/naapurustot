@@ -41,6 +41,7 @@
   "layer.population_change": "Väestömuutos (%)",
   "layer.population_projection": "Väestöennuste (%)",
   "layer.construction_activity": "Rakentamisen vilkkaus",
+  "layer.active_plan_count": "Kaavoitus- ja hankeaktiivisuus",
   "layer.unemployment_change": "Työttömyysmuutos (%)",
   "layer.crime_index_change": "Rikollisuuden muutos (%)",
   "layer.voter_turnout": "Äänestysprosentti",

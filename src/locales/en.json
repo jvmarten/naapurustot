@@ -41,6 +41,7 @@
   "layer.population_change": "Population Change (%)",
   "layer.population_projection": "Population Projection (%)",
   "layer.construction_activity": "Construction Activity",
+  "layer.active_plan_count": "Planning & Development Activity",
   "layer.unemployment_change": "Unemployment Change (%)",
   "layer.crime_index_change": "Crime Change (%)",
   "layer.voter_turnout": "Voter Turnout",

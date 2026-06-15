@@ -127,9 +127,13 @@ RANGE_CHECKS = [
     # CF-11: construction activity — new dwellings 2020- per 1,000 residents
     # (municipal flow proxy). Sequential count rate (observed ≈ 0..81).
     ("construction_activity", 0, 100),
-    # PLANNING — pre-registered, inert until the data lands (absent props skipped);
-    # planned_area_pct is range-checked 0–100 via PERCENTAGE_FIELDS above.
-    ("active_plan_count", 0, 10_000),
+    # CF-5: planning & development activity — count of distinct kaavat & hankkeet
+    # intersecting each postal polygon (real per-postal geometry, is_proxy:false,
+    # NOT a distributed proxy). 0 is a valid real value (no nearby planning);
+    # build_planning_data caps entries at 12 per pno (observed 0..12).
+    ("active_plan_count", 0, 1_000),
+    # PLANNING — planned_area_pct stays pre-registered until that column lands;
+    # range-checked 0–100 via PERCENTAGE_FIELDS above (absent props skipped).
 ]
 
 

@@ -2,6 +2,7 @@
   "_comment": "IN-3 coverage baseline — per registry metric, the count of features with a non-null value. validate_data.py fails if a populated metric goes all-null or its coverage drops sharply (a silent upstream schema change). Regenerate after an intentional data change: python scripts/validate_data.py --write-baseline",
   "feature_count": 3018,
   "metrics": {
+    "active_plan_count": 3018,
     "air_quality_index": 3018,
     "avg_construction_year": 3018,
     "avg_household_size": 2999,
