@@ -121,6 +121,9 @@ RANGE_CHECKS = [
     ("health_index", 0, 300),
     # Rent (€/m²/month) (observed ≈10–23).
     ("rental_price_sqm", 1, 100),
+    # CF-6: projected population change 2024→2040 (%). Diverging; declining and
+    # growing municipalities span well within ±50 (observed ≈ -31..+26).
+    ("population_projection_pct", -50, 50),
     # PLANNING — pre-registered, inert until the data lands (absent props skipped);
     # planned_area_pct is range-checked 0–100 via PERCENTAGE_FIELDS above.
     ("active_plan_count", 0, 10_000),
@@ -335,6 +338,10 @@ MUNICIPALITY_DISTRIBUTED_PROXIES = {
     # CF-21: THL/Kela morbidity index — a municipality figure assigned to each of its
     # postal codes (Sotkanet publishes at municipality granularity only).
     "health_index": "fetch_health_index.py assign_to_postal_codes() (municipality value per postal code)",
+    # CF-6: StatFin Väestöennuste 2024 (vaenn 14wx) publishes the projection at
+    # municipality granularity only; each postal code inherits its municipality's
+    # projected 2024→2040 change %.
+    "population_projection_pct": "fetch_population_projection.py assign_to_postal_codes() (municipality value per postal code)",
     # CF-15: asvu 15fa publishes rents at city/maakunta level; distributed to postal
     # codes by replaying the 2022 intra-city ratios. price_to_rent_ratio inherits it.
     "rental_price_sqm": "fetch_rental_prices_municipality.py (city mean × 2022 intra-city ratio per postal code)",
