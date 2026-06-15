@@ -24,6 +24,13 @@ const SIMILARITY_METRICS: (keyof NeighborhoodProperties)[] = [
   'crime_index',
   'population_density',
   'child_ratio',
+  // QW-3: environment, health outcome, rental cost and walkability — the axes
+  // users say define "feels like my area". All shipped layers; pure reuse.
+  'air_quality_index',
+  'health_index',
+  'rental_price_sqm',
+  'tree_canopy_pct',
+  'walkability_index',
 ];
 
 /**
@@ -42,6 +49,11 @@ export const AVAILABLE_SIMILARITY_METRICS: { key: keyof NeighborhoodProperties; 
   { key: 'crime_index', labelKey: 'layer.crime_rate' },
   { key: 'population_density', labelKey: 'layer.population_density' },
   { key: 'child_ratio', labelKey: 'layer.child_ratio' },
+  { key: 'air_quality_index', labelKey: 'layer.air_quality' },
+  { key: 'health_index', labelKey: 'layer.health_index' },
+  { key: 'rental_price_sqm', labelKey: 'layer.rental_price' },
+  { key: 'tree_canopy_pct', labelKey: 'layer.tree_canopy' },
+  { key: 'walkability_index', labelKey: 'layer.walkability' },
 ];
 
 /** Valid similarity-metric keys, for validating a persisted user selection. */

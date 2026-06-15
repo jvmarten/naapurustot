@@ -5,6 +5,7 @@ import { formatNumber, formatEuro, formatPct, formatDiff, diffColor, formatYtlGr
 import { t, getLang, useI18nVersion } from '../utils/i18n';
 import { getQualityCategory, QUALITY_CATEGORIES, QUALITY_DIMENSIONS, computeQualityCoverage, type QualityWeights } from '../utils/qualityIndex';
 import { buildNextSteps } from '../utils/nextSteps';
+import { usePlanningArea, planningInfo } from '../hooks/usePlanningData';
 import { computeAreaSummary, composeSummarySentences, fillTemplate } from '../utils/areaSummary';
 import { exportCsv, exportPdf, exportGeoJson, exportJson } from '../utils/export';
 import { TrendSection } from './TrendChart';
@@ -870,6 +871,14 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
   const propertyPriceFallback = d.property_price_sqm == null ? (regionPriceAverages?.property_price_sqm ?? null) : null;
   const rentalPriceFallback = d.rental_price_sqm == null ? (regionPriceAverages?.rental_price_sqm ?? null) : null;
 
+  // CF-3: nearby kaavat & hankkeet for the selected area, lazy-fetched from a free
+  // per-region shard (out of the first-paint payload). Skipped for metro aggregates.
+  const { entries: planningEntries } = usePlanningArea(
+    d._isMetroArea ? undefined : (d.city as string | undefined),
+    d._isMetroArea ? null : d.pno,
+  );
+  const planningSnapshot = planningInfo().snapshot;
+
   // Copy link / share state
   const [copied, setCopied] = useState(false);
   // E3: URL revealed for manual copy when the clipboard API is blocked/unavailable.
@@ -1399,6 +1408,55 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
       {/* QW-1: distribution + percentile of the active layer's metric across the loaded scope */}
       {activeLayer && allFeatures && allFeatures.length > 1 && (
         <DistributionSection activeLayer={activeLayer} props={d} allFeatures={allFeatures} />
+      )}
+
+      {/* CF-3: Kaavat & hankkeet lähistöllä — nearby zoning plans + Väylä projects.
+          Non-color-only status badge; honest partial-coverage caption. Returns
+          nothing when the area has no entries. */}
+      {!d._isMetroArea && planningEntries && planningEntries.length > 0 && (
+        <div className="rounded-xl border border-surface-200 dark:border-surface-800/60 p-3">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400 mb-2">
+            {t('panel.planning_heading')}
+          </h3>
+          <ul className="flex flex-col gap-1.5">
+            {planningEntries.map((e, i) => {
+              const meta = [t(`panel.plan_type_${e.ptype}`), t(`panel.plan_status_${e.status}`), e.date]
+                .filter(Boolean)
+                .join(' · ');
+              const aria = `${e.name}. ${meta}. ${e.source}`;
+              const body = (
+                <>
+                  <span className="block text-sm text-surface-700 dark:text-surface-200">{e.name}</span>
+                  <span className="block text-[11px] text-surface-500 dark:text-surface-400">{meta} — {e.source}</span>
+                </>
+              );
+              return (
+                <li key={i}>
+                  {e.url ? (
+                    <a
+                      href={e.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={aria}
+                      onClick={() => trackEvent(`planning-${e.kind}`)}
+                      className="block min-h-[44px] px-3 py-2 rounded-lg bg-surface-100 dark:bg-surface-900/60
+                                 hover:bg-surface-200 dark:hover:bg-surface-800 transition-colors"
+                    >
+                      {body}
+                    </a>
+                  ) : (
+                    <div className="px-3 py-2 rounded-lg bg-surface-100 dark:bg-surface-900/60" aria-label={aria}>
+                      {body}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+          <p className="text-[11px] text-surface-400 dark:text-surface-500 mt-2 leading-snug">
+            {t('panel.planning_coverage').replace('{date}', planningSnapshot)}
+          </p>
+        </div>
       )}
     </>
   );

@@ -44,6 +44,15 @@ jobs:
       - name: Run data pipeline
         run: python scripts/prepare_data.py
 
+      # IN-1/IN-8: refresh the kaavat & hankkeet raw inputs (national Väylä
+      # projects + participating-city vireillä asemakaava). Each fetcher is
+      # resilient to a single source failing (per-source try/except) and exits
+      # non-zero only on a total collapse — which SHOULD fail the refresh.
+      - name: Refresh planning data (Väylä projects + city zoning)
+        run: |
+          python scripts/fetch_vayla_projects.py
+          python scripts/fetch_city_zoning.py
+
       - name: Validate output (basic)
         run: |
           GEOJSON="public/data/metro_neighborhoods.geojson"
@@ -92,6 +101,12 @@ jobs:
       # a merged refresh changed nothing the app served.
       - name: Rebuild app data artifacts
         run: npm run build:data
+
+      # IN-8: presence guard (fail if a city that had plans now returns nothing,
+      # or the national Väylä feed collapsed) + append a freshness entry to the
+      # Atom feed. The committed planning_baseline.json is the regression baseline.
+      - name: Validate planning data (presence + freshness)
+        run: node scripts/validate_planning.mjs
 
       - name: Provenance manifest summary
         if: always()

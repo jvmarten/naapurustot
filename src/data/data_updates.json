@@ -1,5 +1,11 @@
 [
   {
+    "date": "2026-06-15",
+    "metric": "kaavat_hankkeet",
+    "type": "planning",
+    "title": "Kaavat ja hankkeet päivitetty (5 kuntaa, tilanne 2026-06-15)"
+  },
+  {
     "date": "2026-06-11",
     "metric": "transit_reachability_score",
     "type": "vintage",

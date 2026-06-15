@@ -34,7 +34,13 @@ import { join } from 'node:path';
 // region resolution, a signed-out favorites surface, a unified toast stack,
 // language auto-detection, a touch peek bar, reduced-motion sheets, and more —
 // adding ~4.4 KB of genuine UI logic + the bundled fi.json strings; data stays
-// out of JS, so the heavy assets are unaffected).
+// out of JS, so the heavy assets are unaffected) → 291000 B (2026-06-15: roadmap
+// Batch 2 centerpiece — the kaavat & hankkeet map overlay (CF-2: usePlanningData
+// + Map overlay/popup + PlanningControls + URL flag), the in-panel planning list
+// (CF-3), and the expanded similarity picker (QW-3), ~3.2 KB of UI + bundled
+// fi.json labels. Batch 1 first freed ~2 KB via the fi-extra split + orphan
+// prune; this raise covers the remaining overflow. All planning DATA stays a
+// lazy static shard — zero bundle bytes.
 //
 // Measurement basis: this sums Node `zlib.gzipSync` lengths — the honest gzip
 // payload, with no embedded filename/mtime header. The previous inline shell
@@ -42,7 +48,7 @@ import { join } from 'node:path';
 // the total by ~2 KB across the ~108 chunks. So the number printed here reads
 // ~2 KB BELOW the old gate at the same real bundle; the 280000 B budget is
 // unchanged, which means ~2 KB more genuine headroom than the old method showed.
-const BUDGET = 287_000;
+const BUDGET = 291_000;
 const ASSETS_DIR = 'dist/assets';
 
 const fmtKB = (b) => (b / 1024).toFixed(2);
