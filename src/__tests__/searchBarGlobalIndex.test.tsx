@@ -14,6 +14,8 @@ import { SearchBar } from '../components/SearchBar';
 // Avoid hitting the geocoding network path during these tests.
 vi.mock('../utils/geocode', () => ({
   geocodeAddress: vi.fn().mockResolvedValue([]),
+  geocodeAddressDetailed: vi.fn().mockResolvedValue({ status: 'ok', results: [] }),
+  GEOCODING_ENABLED: true,
 }));
 
 function fc(...areas: Array<{ pno: string; nimi: string; city: string }>): FeatureCollection {

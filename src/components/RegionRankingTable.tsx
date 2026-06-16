@@ -59,6 +59,8 @@ export const RegionRankingTable: React.FC<Props> = React.memo(({ activeLayer, la
   const [reversed, setReversed] = useState(false);
   const [features, setFeatures] = useState<GeoJSON.Feature[] | null>(null);
   const [error, setError] = useState(false);
+  // ES-4: bumped by the Retry button to re-attempt the lazy dataset load.
+  const [retryNonce, setRetryNonce] = useState(0);
 
   // Lazy-load the all-regions dataset (geometry-stripped properties).
   useEffect(() => {
@@ -78,7 +80,7 @@ export const RegionRankingTable: React.FC<Props> = React.memo(({ activeLayer, la
       })
       .catch(() => { if (!cancelled) setError(true); });
     return () => { cancelled = true; };
-  }, [qualityWeights]);
+  }, [qualityWeights, retryNonce]);
 
   const { items, maxVal } = useMemo(() => {
     if (!features) return { items: [] as RegionAgg[], maxVal: 1 };
@@ -137,8 +139,18 @@ export const RegionRankingTable: React.FC<Props> = React.memo(({ activeLayer, la
         {!features && !error && (
           <div className="px-4 py-8 text-center text-sm text-surface-400 dark:text-surface-500">{t('loading.title')}</div>
         )}
+        {/* ES-4: a load failure is distinct from a metric that genuinely has no
+            regional data — say so and offer a retry instead of the ambiguous "no data". */}
         {error && (
-          <div className="px-4 py-8 text-center text-sm text-surface-400 dark:text-surface-500">{t('region.comparison.no_data')}</div>
+          <div className="px-4 py-8 text-center">
+            <p className="text-sm text-surface-400 dark:text-surface-500 mb-3">{t('error.region_load_failed')}</p>
+            <button
+              onClick={() => { setError(false); setRetryNonce((n) => n + 1); }}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-200 dark:bg-surface-700 text-surface-900 dark:text-white hover:bg-surface-300 dark:hover:bg-surface-600 transition-colors"
+            >
+              {t('error.retry')}
+            </button>
+          </div>
         )}
         {displayItems.map((item, i) => {
           const barWidth = maxVal !== 0 ? (Math.abs(item.value!) / maxVal) * 100 : 0;

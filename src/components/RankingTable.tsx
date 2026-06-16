@@ -6,6 +6,7 @@ import { t, useI18nVersion } from '../utils/i18n';
 import { getFeatureCenter } from '../utils/geometryFilter';
 import { exportRankingCsv } from '../utils/export';
 import { buildFullViewUrl } from '../utils/embed';
+import { FilterEmptyIllustration } from './EmptyStateIllustrations';
 
 interface RankingTableProps {
   data: FeatureCollection | null;
@@ -199,9 +200,13 @@ export const RankingTable: React.FC<RankingTableProps> = React.memo(({ data, act
           );
         })}
 
+        {/* ES-5: guided empty state (common for sparse/grid layers) — explains WHY
+            the list is empty and what to do, matching the app's other empty states. */}
         {items.length === 0 && (
-          <div className="px-4 py-8 text-center text-sm text-surface-400 dark:text-surface-500">
-            {t('ranking.no_data')}
+          <div className="px-4 py-8 flex flex-col items-center text-center">
+            <FilterEmptyIllustration className="w-16 h-16 mb-3 text-surface-300 dark:text-surface-600" />
+            <p className="text-sm font-medium text-surface-600 dark:text-surface-300">{t('ranking.no_data')}</p>
+            <p className="mt-1 text-xs text-surface-400 dark:text-surface-500 max-w-[14rem]">{t('ranking.no_data_hint')}</p>
           </div>
         )}
       </div>

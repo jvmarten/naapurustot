@@ -140,6 +140,14 @@ export function useShortlist(userId?: string | null) {
     addTombstones(TOMBSTONE_KEY, shortlistRef.current);
     setShortlist([]);
   }, []);
+  // AC-2: shared-device logout — see useFavorites.resetLocal. Drops the local list
+  // without writing tombstones, clears existing ones, and suppresses the server echo.
+  const resetLocal = useCallback(() => {
+    fromServerRef.current = true;
+    if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
+    try { localStorage.removeItem(TOMBSTONE_KEY); } catch { /* ignore */ }
+    setShortlist([]);
+  }, []);
   // QW-2: adopt postal codes from a shared URL without clobbering the local list.
   // CF-6: importing a shared list is an explicit re-add, so clear any tombstones.
   const mergeIntoShortlist = useCallback((pnos: string[]) => {
@@ -154,5 +162,5 @@ export function useShortlist(userId?: string | null) {
     });
   }, []);
 
-  return { shortlist, isInShortlist, toggleShortlist, removeFromShortlist, clearShortlist, mergeIntoShortlist };
+  return { shortlist, isInShortlist, toggleShortlist, removeFromShortlist, clearShortlist, mergeIntoShortlist, resetLocal };
 }

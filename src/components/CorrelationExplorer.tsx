@@ -211,7 +211,8 @@ export const CorrelationExplorer: React.FC<Props> = ({ data, onSelect, onClose, 
             onChange={(e) => setMetricX(e.target.value as LayerId)}
             className="text-sm text-surface-800 dark:text-surface-100 bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700/40 rounded-lg px-2 py-1.5 dark:[color-scheme:dark]"
           >
-            {LAYERS.map((l) => <option key={l.id} value={l.id}>{t(l.labelKey)}</option>)}
+            {/* DT-6: disable the metric already on the Y axis — X=Y gives a meaningless r=R²=1. */}
+            {LAYERS.map((l) => <option key={l.id} value={l.id} disabled={l.id === metricY}>{t(l.labelKey)}</option>)}
           </select>
         </label>
         <label className="flex flex-col gap-1 text-xs text-surface-500 dark:text-surface-400">
@@ -221,7 +222,8 @@ export const CorrelationExplorer: React.FC<Props> = ({ data, onSelect, onClose, 
             onChange={(e) => setMetricY(e.target.value as LayerId)}
             className="text-sm text-surface-800 dark:text-surface-100 bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700/40 rounded-lg px-2 py-1.5 dark:[color-scheme:dark]"
           >
-            {LAYERS.map((l) => <option key={l.id} value={l.id}>{t(l.labelKey)}</option>)}
+            {/* DT-6: disable the metric already on the X axis — X=Y gives a meaningless r=R²=1. */}
+            {LAYERS.map((l) => <option key={l.id} value={l.id} disabled={l.id === metricX}>{t(l.labelKey)}</option>)}
           </select>
         </label>
         <label className="flex items-center gap-1.5 text-xs text-surface-600 dark:text-surface-300 pb-1.5 cursor-pointer">

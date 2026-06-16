@@ -577,6 +577,27 @@ const QualityBadge: React.FC<{
   const lang = getLang();
   // CF-1: "How is this calculated?" explainer popover.
   const [showHow, setShowHow] = useState(false);
+  // AY-3: dialog-role behaviors the popover declared but never honored. It's a
+  // non-modal informational popover (focus stays on the toggle), so it's really a
+  // tooltip — but it must still dismiss on Escape / outside-click, restoring focus.
+  const howBtnRef = useRef<HTMLButtonElement>(null);
+  const howRef = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!showHow) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.stopPropagation(); setShowHow(false); howBtnRef.current?.focus(); }
+    };
+    const onDown = (e: MouseEvent) => {
+      const node = e.target as Node;
+      if (!howRef.current?.contains(node) && !howBtnRef.current?.contains(node)) setShowHow(false);
+    };
+    document.addEventListener('keydown', onKey, true);
+    document.addEventListener('mousedown', onDown);
+    return () => {
+      document.removeEventListener('keydown', onKey, true);
+      document.removeEventListener('mousedown', onDown);
+    };
+  }, [showHow]);
   const evaluativeDims = QUALITY_DIMENSIONS.filter((d) => d.defaultWeight > 0);
   return (
     <div className="rounded-xl bg-surface-100 dark:bg-surface-900/60 p-4">
@@ -591,6 +612,7 @@ const QualityBadge: React.FC<{
           {/* CF-1: explainer popover */}
           <span className="relative inline-flex">
             <button
+              ref={howBtnRef}
               type="button"
               onClick={() => setShowHow((v) => !v)}
               aria-label={t('quality.how_calculated')}
@@ -603,7 +625,8 @@ const QualityBadge: React.FC<{
             </button>
             {showHow && (
               <span
-                role="dialog"
+                ref={howRef}
+                role="tooltip"
                 aria-label={t('quality.how_calculated')}
                 className="absolute left-0 top-6 z-30 w-64 normal-case tracking-normal rounded-xl bg-white dark:bg-surface-800
                            border border-surface-200 dark:border-surface-700/50 shadow-2xl p-3 text-left"

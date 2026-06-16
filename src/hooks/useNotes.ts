@@ -41,6 +41,20 @@ export function readNote(pno: string): string {
   return loadNotes()[pno] ?? '';
 }
 
+/**
+ * AC-2: clear this device's local notes and their deletion tombstones from
+ * localStorage. Exposed as a standalone function (not just the hook's resetLocal)
+ * because notes are written by the conditionally-mounted NeighborhoodPanel, so the
+ * App-level logout handler must be able to wipe them even when no useNotes is mounted.
+ * Writes no new tombstones, so the SAME user re-syncing on next login is unaffected.
+ */
+export function resetNotesStorage(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(TOMBSTONE_KEY);
+  } catch { /* localStorage unavailable */ }
+}
+
 /** Merge two notes maps.
  *  IN-6: when the same pno exists in both with differing text, last write wins —
  *  this pno's local last-edit time (syncMeta) is compared against the server store's
@@ -208,5 +222,18 @@ export function useNotes(userId?: string | null) {
     }, 500);
   }, []);
 
-  return { getNote, setNote };
+  // AC-2: shared-device logout — drop this device's local notes WITHOUT writing
+  // tombstones, and clear existing ones so they don't suppress the next user's
+  // server notes. Notes are especially sensitive (free text), so leaving them on the
+  // device — and merging them into the next account's cloud store — is a privacy leak.
+  // Suppress the debounced server echo so logout never overwrites the live session.
+  const resetLocal = useCallback((): void => {
+    fromServerRef.current = true;
+    if (localSaveTimerRef.current) { clearTimeout(localSaveTimerRef.current); localSaveTimerRef.current = undefined; }
+    resetNotesStorage();
+    notesRef.current = {};
+    setNotes({});
+  }, []);
+
+  return { getNote, setNote, resetLocal };
 }
