@@ -1670,28 +1670,46 @@ const App: React.FC = () => {
 
   const pendingFavoritePno = useRef<string | null>(null);
   const handleSelectFavorite = useCallback((pno: string) => {
-    // Neighborhood lookup — use pnoFeatureMap for real neighborhoods,
-    // then fall back to filteredData (via ref) for synthetic metro area features
-    const feature = pnoFeatureMapRef.current.get(pno)
-      ?? filteredDataRef.current?.features.find(f => f.properties?.pno === pno);
-    if (feature?.properties) {
-      const city = feature.properties.city as string | undefined;
-      if (city && feature.properties._isMetroArea) {
-        setCityFilter('all');
-      } else if (city && cityFilterRef.current !== 'all' && city !== cityFilterRef.current) {
-        setCityFilter(city as CityFilter);
-        // C7: surface the forced region switch (mirrors handleSearch).
-        showToast(t('city.switched_to').replace('{city}', t('city.' + city)));
-      }
-      select(feature.properties as NeighborhoodProperties);
+    // Geometry is only present in the loaded single-region data (pnoFeatureMap); the
+    // all-Finland view is geometry-stripped. If it's already loaded, select and fly
+    // to the area in place.
+    const localFeature = pnoFeatureMapRef.current.get(pno);
+    if (localFeature?.properties && localFeature.geometry) {
+      selectAndFly(localFeature);
       return;
     }
-    // Metro area favorite when not currently in "all" view — switch and defer selection
+    // Metro-area aggregate favorite (a seutukunta id) — it exists only in the
+    // all-Finland view as a null-geometry feature, so switch there and defer
+    // selection until that data is available.
     if (regionIdSet.has(pno)) {
       pendingFavoritePno.current = pno;
       setCityFilter('all');
+      return;
     }
-  }, [select, setCityFilter, regionIdSet, showToast]);
+    // A postal-code favorite whose subregion isn't loaded: either a different region
+    // than the one in view, or the all-Finland view. Resolve its owning region from
+    // the global index, switch to it, and defer the select-and-fly until that
+    // region's geometry loads — so clicking a favorite always takes you to the area,
+    // mirroring cross-subregion search. (Previously this silently did nothing when
+    // the favorite lived in another subregion.)
+    const targetRegion = pnoRegionMapRef.current.get(pno)
+      ?? (filteredDataRef.current?.features.find(f => f.properties?.pno === pno)
+        ?.properties?.city as CityFilter | undefined);
+    if (targetRegion) {
+      pendingFavoritePno.current = pno;
+      if (targetRegion !== cityFilterRef.current) {
+        setCityFilter(targetRegion);
+        deselect();
+        // C7: surface the forced region switch (mirrors handleSearch).
+        showToast(t('city.switched_to').replace('{city}', t('city.' + targetRegion)));
+      }
+      return;
+    }
+    // Fallback: a feature exists without geometry and we can't resolve its region —
+    // select it so the panel still opens.
+    const fallback = filteredDataRef.current?.features.find(f => f.properties?.pno === pno);
+    if (fallback?.properties) select(fallback.properties as NeighborhoodProperties);
+  }, [selectAndFly, select, deselect, setCityFilter, regionIdSet, showToast]);
 
   // QW-2: shortlist tray entries (pno → name) and the "compare" action, which pins
   // the shortlist up to the comparison max (pin() dedupes + caps internally).
@@ -1723,16 +1741,24 @@ const App: React.FC = () => {
     [shortlist, cityFilter],
   );
 
-  // Resolve pending metro area favorite after allCitiesData becomes available
+  // Resolve a pending favorite once its region's data becomes available. Prefer the
+  // geometry-bearing feature from the loaded single region so we can fly to it; fall
+  // back to the null-geometry all-view feature (metro-area aggregates) and just select.
   useEffect(() => {
     if (!pendingFavoritePno.current || !filteredData) return;
     const pno = pendingFavoritePno.current;
+    const geoFeature = pnoFeatureMap.get(pno);
+    if (geoFeature?.properties && geoFeature.geometry) {
+      pendingFavoritePno.current = null;
+      selectAndFly(geoFeature);
+      return;
+    }
     const feature = filteredData.features.find(f => f.properties?.pno === pno);
     if (feature?.properties) {
       pendingFavoritePno.current = null;
       select(feature.properties as NeighborhoodProperties);
     }
-  }, [filteredData, select]);
+  }, [filteredData, pnoFeatureMap, select, selectAndFly]);
 
   // IN-5: Dynamic SEO — update document title, meta, and canonical when neighborhood selected.
   // Cache meta element refs once to avoid 5 × document.querySelector on every selection change.
