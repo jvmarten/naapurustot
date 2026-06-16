@@ -26,14 +26,36 @@ export interface GeocodeResult {
   coordinates: [number, number]; // [lng, lat]
 }
 
+/**
+ * ER-1: distinguishes a genuine empty result ("no matches") from a failure
+ * ("geocoder unreachable / throttled / malformed response") so the search box
+ * can show a retryable "address search unavailable" notice instead of a
+ * misleading "no results for {query}". `status: 'ok'` means the request
+ * completed (even with zero matches, or when the feature is disabled / the
+ * query is too short); `status: 'error'` means a network/HTTP/parse failure.
+ */
+export interface GeocodeOutcome {
+  status: 'ok' | 'error';
+  results: GeocodeResult[];
+}
+
 /** Geocode a street address or place name. Returns up to 5 results within a Finland-wide
  *  bbox. Resolves to [] on any failure (network error, non-OK response, abort) — it never
  *  throws — and failures are not cached, so the next call retries.
- *  Pass an AbortSignal to cancel in-flight requests when the query changes. */
+ *  Pass an AbortSignal to cancel in-flight requests when the query changes.
+ *  Thin wrapper over {@link geocodeAddressDetailed} kept for back-compat callers/tests. */
 export async function geocodeAddress(query: string, signal?: AbortSignal): Promise<GeocodeResult[]> {
-  if (query.length < 3) return [];
+  return (await geocodeAddressDetailed(query, signal)).results;
+}
+
+/** Like {@link geocodeAddress} but reports whether the lookup succeeded (ER-1).
+ *  A short query or a keyless build resolves to `{ status: 'ok', results: [] }`
+ *  (legitimately empty, not a failure); a network/HTTP/parse failure resolves to
+ *  `{ status: 'error', results: [] }`, and errors are not cached so the next call retries. */
+export async function geocodeAddressDetailed(query: string, signal?: AbortSignal): Promise<GeocodeOutcome> {
+  if (query.length < 3) return { status: 'ok', results: [] };
   // Digitransit requires a subscription key; without it every request 401s, so skip.
-  if (!KEY) return [];
+  if (!KEY) return { status: 'ok', results: [] };
 
   const cacheKey = query.toLowerCase().trim();
   const cached = CACHE.get(cacheKey);
@@ -41,7 +63,7 @@ export async function geocodeAddress(query: string, signal?: AbortSignal): Promi
     // Move to most-recent position for proper LRU eviction
     CACHE.delete(cacheKey);
     CACHE.set(cacheKey, cached);
-    return cached;
+    return { status: 'ok', results: cached };
   }
 
   try {
@@ -60,7 +82,8 @@ export async function geocodeAddress(query: string, signal?: AbortSignal): Promi
       signal,
       headers: { 'digitransit-subscription-key': KEY },
     });
-    if (!response.ok) return [];
+    // Non-OK (5xx, quota, auth) is a failure, not an empty result — and is not cached.
+    if (!response.ok) return { status: 'error', results: [] };
 
     const data = await response.json();
     // Validate each feature shape before casting — a malformed Digitransit
@@ -88,9 +111,12 @@ export async function geocodeAddress(query: string, signal?: AbortSignal): Promi
       if (oldest !== undefined) CACHE.delete(oldest);
     }
     CACHE.set(cacheKey, results);
-    return results;
+    return { status: 'ok', results };
   } catch {
-    return [];
+    // Network drop / abort / malformed JSON — a failure, not an empty result.
+    // Not cached, so the next attempt retries. (Aborted calls are ignored by
+    // the caller via signal.aborted, so flagging them 'error' here is harmless.)
+    return { status: 'error', results: [] };
   }
 }
 

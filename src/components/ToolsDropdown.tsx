@@ -215,6 +215,20 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
             )}
           </button>
 
+          {/* DX-6: "Compare areas" — the product's headline verb — surfaced as a
+              first-class labeled entry in the default list, distinct from "Compare
+              layers" (split map) under More tools. It explains the pin-to-compare flow,
+              which is built from each area's panel rather than a single toggle. */}
+          <div className="flex items-start gap-3 px-4 py-2.5 text-surface-700 dark:text-surface-200">
+            <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+            </svg>
+            <span className="flex flex-col items-start">
+              <span className="text-sm">{t('tools.compare_areas')}</span>
+              <span className="text-[10px] leading-snug text-surface-400 dark:text-surface-500">{t('tools.compare_areas_hint')}</span>
+            </span>
+          </div>
+
           {/* T9: contextual undo actions stay visible (never buried under "More
               tools") so an active draw/selection or wizard highlight is always
               clearable in one tap. */}
@@ -360,12 +374,6 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
             </button>
           )}
 
-          {/* C5: there's no standalone "compare areas" action — it's built by pinning
-              areas from their panels. Surface that so users don't mistake "compare
-              layers" for it. */}
-          <p className="px-4 pb-1 pt-0.5 text-[10px] leading-snug text-surface-400 dark:text-surface-500">
-            {t('tools.compare_areas_hint')}
-          </p>
           </>)}
 
           {/* Divider */}

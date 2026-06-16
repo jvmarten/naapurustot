@@ -28,6 +28,10 @@ function isRecoverableReconciliationError(error: Error): boolean {
 }
 
 export class ErrorBoundary extends React.Component<Props, State> {
+  // ER-4: focus the fallback when it appears so keyboard/SR users aren't stranded
+  // on a detached node and `role="alert"` is announced.
+  private fallbackRef = React.createRef<HTMLDivElement>();
+
   constructor(props: Props) {
     super(props);
     this.state = { hasError: false, remountKey: 0, recoveryAttempts: 0 };
@@ -35,6 +39,13 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   static getDerivedStateFromError(): Partial<State> {
     return { hasError: true };
+  }
+
+  componentDidUpdate(_prevProps: Props, prevState: State) {
+    // ER-4: move focus to the alert region the moment the (default) fallback mounts.
+    if (!prevState.hasError && this.state.hasError && !this.props.fallback) {
+      this.fallbackRef.current?.focus();
+    }
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
@@ -59,7 +70,12 @@ export class ErrorBoundary extends React.Component<Props, State> {
     if (this.state.hasError) {
       if (this.props.fallback) return this.props.fallback;
       return (
-        <div className="flex flex-col items-center justify-center p-8 text-center">
+        <div
+          ref={this.fallbackRef}
+          role="alert"
+          tabIndex={-1}
+          className="flex flex-col items-center justify-center p-8 text-center outline-none"
+        >
           <div className="text-4xl mb-4">⚠</div>
           <h2 className="text-lg font-semibold text-surface-900 dark:text-white mb-2">
             {t('error.boundary_title')}

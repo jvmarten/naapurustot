@@ -32,6 +32,10 @@ interface WizardProps {
   /** CF-14: the user's affordability inputs (income/budget + size), if any. Lets the
    *  wizard fold "within my budget" into the match. Undefined/empty → no affordability UI. */
   affordability?: AffordabilityState;
+  /** DT-2: the current city scope. On the default `?city=all` view `data` is the 69
+   *  region aggregates, so the wizard defaults to national postal-area scope instead of
+   *  "within this area" (which has no single area in view). */
+  cityFilter?: string;
 }
 
 /** CF-5: per-criterion "why it matched" breakdown — the area's actual value against
@@ -361,7 +365,7 @@ function scoreNeighborhoods(
 
 const STEP_COUNT = 4;
 
-export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onClose, onShowOnMap, initialAnswers, onSaveProfile, onApplyToMap, affordability, qualityWeights }) => {
+export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onClose, onShowOnMap, initialAnswers, onSaveProfile, onApplyToMap, affordability, qualityWeights, cityFilter }) => {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
   // CF-14: does the user have a usable affordability input (amount + size)? Only
@@ -391,7 +395,9 @@ export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onCl
   }, [answers]);
   // CF-6: score within this region or across all of Finland. The national dataset
   // (geometry-stripped region_properties.json) is lazy-loaded on first use.
-  const [scope, setScope] = useState<ComparisonScope>('region');
+  // DT-2: on the all-Finland view there is no single region in scope, so default to
+  // national postal-area scope rather than ranking the 69 region aggregates.
+  const [scope, setScope] = useState<ComparisonScope>(cityFilter === 'all' ? 'all' : 'region');
   const [nationalData, setNationalData] = useState<FeatureCollection | null>(null);
   const [nationalLoading, setNationalLoading] = useState(false);
   useEffect(() => {

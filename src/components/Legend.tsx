@@ -1,6 +1,6 @@
 import React from 'react';
 import { getLayerById, type LayerId, type LayerConfig } from '../utils/colorScales';
-import { t, useI18nVersion, type Lang } from '../utils/i18n';
+import { t, useI18nVersion, getLang, type Lang } from '../utils/i18n';
 import { getGridInfo } from '../hooks/useGridData';
 import { getMetricSource, getCoveragePct, isPartialCoverage, isLowCoverage, formatCoveragePct } from '../utils/metrics';
 
@@ -65,8 +65,21 @@ export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: 
   return (
     <div className={`fixed md:absolute bottom-[calc(1.25rem+env(safe-area-inset-bottom))] md:bottom-8 left-3 md:left-4 z-10 ${hidden ? 'hidden md:block' : ''}`}>
       <div className="rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl px-4 py-3">
-        <div className="text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-2">
-          {t(layer.labelKey)}
+        <div className="text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+          <span>{t(layer.labelKey)}</span>
+          {/* ON-3: composite/derived layers (Quality Index) get an "i" linking to the
+              methodology — otherwise the default landing shows colored blobs with no
+              hint that the headline metric is a weighted composite where higher = better. */}
+          {layerId === 'quality_index' && (
+            <a
+              href={getLang() === 'en' ? '/en/data-sources' : getLang() === 'sv' ? '/sv/datakallor' : '/tietolahteet'}
+              title={t('legend.composite_help')}
+              aria-label={t('legend.composite_help')}
+              className="cursor-help text-surface-400 hover:text-brand-600 dark:hover:text-brand-400 normal-case"
+            >
+              ⓘ
+            </a>
+          )}
         </div>
         <div className="flex items-center gap-0" role="img" aria-label={rampAria}>
           {layer.colors.map((color, i) => (
@@ -99,7 +112,7 @@ export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: 
         {/* E2: grid file failed — say so instead of leaving the ▦ badge asserting
             detail that never loaded. */}
         {grid && gridError && (
-          <div className="mt-2 flex items-start gap-1 text-[10px] text-amber-600 dark:text-amber-400 max-w-[160px] leading-snug">
+          <div className="mt-2 flex items-start gap-1 text-[10px] text-amber-600 dark:text-amber-400 max-w-[160px] leading-snug" role="status" aria-live="polite">
             <span aria-hidden="true">⚠</span>
             <span>{t('grid.unavailable')}</span>
           </div>

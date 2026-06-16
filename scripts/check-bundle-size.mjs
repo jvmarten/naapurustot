@@ -41,6 +41,14 @@ import { join } from 'node:path';
 // fi.json labels. Batch 1 first freed ~2 KB via the fi-extra split + orphan
 // prune; this raise covers the remaining overflow. All planning DATA stays a
 // lazy static shard — zero bundle bytes.
+// → 295000 B (2026-06-16: implemented the 2026-06-13 docs/UX_REVIEW.md — 55 of 56
+// findings, all but the lone Manual-Setup payment item DX-3. Adds ~3.4 KB of genuine
+// UI logic + bundled fi.json strings: the all-Finland favorites/shortlist/filter/wizard
+// scope fixes (ES-1, DT-1/DT-2, LP-1), search Enter/recents/address-error handling
+// (SN-1/SN-3/ER-1/LP-4), shared-device logout reset (AC-2), responsive split view +
+// touch readout (MO-1), an auth show-password toggle, a shortcuts on/off toggle, an
+// embed attribution line, ARIA/role corrections, and ~25 trilingual copy/key edits.
+// A few stale findings (AY-6 skip link, ON-4 dead key) were already shipped.
 //
 // Measurement basis: this sums Node `zlib.gzipSync` lengths — the honest gzip
 // payload, with no embedded filename/mtime header. The previous inline shell
@@ -48,7 +56,7 @@ import { join } from 'node:path';
 // the total by ~2 KB across the ~108 chunks. So the number printed here reads
 // ~2 KB BELOW the old gate at the same real bundle; the 280000 B budget is
 // unchanged, which means ~2 KB more genuine headroom than the old method showed.
-const BUDGET = 291_000;
+const BUDGET = 295_000;
 const ASSETS_DIR = 'dist/assets';
 
 const fmtKB = (b) => (b / 1024).toFixed(2);

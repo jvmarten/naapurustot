@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api, type ApiUser } from '../utils/api';
+import { t } from '../utils/i18n';
 
 const AUTH_FLAG = 'has_session';
 
@@ -74,7 +75,7 @@ export function useAuth() {
       setState({ user: data.user, loading: false });
       return null;
     }
-    return error ?? 'Login failed';
+    return error ?? t('auth.error.server_error'); // ER-6: localized, not raw English
   }, []);
 
   const signup = useCallback(async (
@@ -90,7 +91,7 @@ export function useAuth() {
       setState({ user: data.user, loading: false });
       return null;
     }
-    return error ?? 'Signup failed';
+    return error ?? t('auth.error.server_error'); // ER-6: localized, not raw English
   }, []);
 
   const logout = useCallback(async () => {
@@ -116,7 +117,7 @@ export function useAuth() {
       setState({ user: null, loading: false });
       return null;
     }
-    return error ?? 'Delete failed';
+    return error ?? t('auth.error.server_error'); // ER-6: localized, not raw English
   }, []);
 
   return { user: state.user, loading: state.loading, login, signup, logout, exportData, deleteAccount };

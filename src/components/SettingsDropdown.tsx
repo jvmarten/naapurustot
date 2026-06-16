@@ -193,7 +193,7 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
       <button
         ref={triggerRef}
         onClick={() => setOpen((v) => !v)}
-        aria-haspopup="menu"
+        aria-haspopup="true"
         aria-expanded={open}
         className={`flex px-2.5 py-2 rounded-lg text-xs font-semibold transition-all items-center justify-center
                    min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0
@@ -213,8 +213,12 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
       </button>
 
       {open && (
+        // AY-2: a labelled group of controls, NOT a role="menu" — the panel holds a
+        // native <select> and a range slider (forbidden in a menu's content model) and
+        // implements no arrow-key roving, so the menu contract was false. Tab traverses
+        // all controls; toggles convey state via aria-pressed.
         <div
-          role="menu"
+          role="group"
           aria-label={t('settings.title')}
           className="absolute left-0 top-full mt-2 w-56 rounded-xl bg-white dark:bg-surface-900
                        border border-surface-200 dark:border-surface-700/40 shadow-2xl backdrop-blur-md
@@ -227,7 +231,6 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
               {(['system', 'light', 'dark'] as const).map((m) => (
                 <button
                   key={m}
-                  role="menuitem"
                   onClick={() => setMode(m)}
                   title={t(`settings.theme_${m}`)}
                   aria-label={t(`settings.theme_${m}`)}
@@ -257,16 +260,34 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
           </div>
 
           {/* Language picker (FI / EN / SV) — shared LanguagePicker (also used by the
-              onboarding tour). role="menuitem" so this menu's arrow-key nav includes it. */}
+              onboarding tour). */}
           <div className="px-4 py-2.5">
-            <LanguagePicker lang={lang} onLangChange={onLangChange} itemRole="menuitem" />
+            <LanguagePicker lang={lang} onLangChange={onLangChange} />
           </div>
 
-          {/* "More settings" disclosure — collapses the display tweaks, tour/shortcuts,
+          {/* ON-2: "Take the tour" lives in the always-visible part of the menu — it was
+              previously buried two clicks deep inside the collapsed "More settings" fold. */}
+          {onShowTour && (
+            <>
+              <div className="border-t border-surface-100 dark:border-surface-700/40 my-1" />
+              <button
+                onClick={() => { onShowTour(); setOpen(false); }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200
+                           hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors
+                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                </svg>
+                <span>{t('settings.show_tour')}</span>
+              </button>
+            </>
+          )}
+
+          {/* "More settings" disclosure — collapses the display tweaks, shortcuts,
               and share/embed actions so the menu opens to a short, everyday list. */}
           <div className="border-t border-surface-100 dark:border-surface-700/40 my-1" />
           <button
-            role="menuitem"
             onClick={() => setAdvancedOpen((v) => !v)}
             aria-expanded={advancedOpen}
             className="w-full flex items-center gap-3 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider
@@ -310,29 +331,9 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
           {/* Divider */}
           <div className="border-t border-surface-100 dark:border-surface-700/40 my-1" />
 
-          {/* QW-1: Re-launch the onboarding tour */}
-          {onShowTour && (
-            <>
-              <div className="border-t border-surface-100 dark:border-surface-700/40 my-1" />
-              <button
-                role="menuitem"
-                onClick={() => { onShowTour(); setOpen(false); }}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200
-                           hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors
-                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                </svg>
-                <span>{t('settings.show_tour')}</span>
-              </button>
-            </>
-          )}
-
           {/* QW-2: Keyboard shortcuts overlay */}
           {onShowShortcuts && (
             <button
-              role="menuitem"
               onClick={() => { onShowShortcuts(); setOpen(false); }}
               className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200
                          hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors
@@ -348,7 +349,6 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
           {/* CF-1b: Copy a shareable link to the current configured view */}
           {onCopyShareLink && (
             <button
-              role="menuitem"
               onClick={handleShareLinkClick}
               className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200
                          hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors
@@ -365,7 +365,6 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
           {/* QW-7: Copy iframe embed snippet for the current map state */}
           {onCopyEmbed && (
             <button
-              role="menuitem"
               onClick={handleEmbedClick}
               className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200
                          hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors
@@ -414,7 +413,6 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
           {/* PO-14: privacy & data-handling notice (lang-aware prerendered page) */}
           <div className="border-t border-surface-100 dark:border-surface-700/40 my-1" />
           <a
-            role="menuitem"
             href={lang === 'en' ? '/en/privacy' : lang === 'sv' ? '/sv/integritet' : '/tietosuoja'}
             className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200
                        hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors
@@ -429,7 +427,6 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
           {/* X1: Data Sources & Methodology — the desktop-only footer link is
               unreachable on mobile, so surface it here in the gear menu too. */}
           <a
-            role="menuitem"
             href={lang === 'en' ? '/en/data-sources' : lang === 'sv' ? '/sv/datakallor' : '/tietolahteet'}
             className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200
                        hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors
@@ -439,6 +436,20 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
               <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 00-1.883 2.542l.857 6a2.25 2.25 0 002.227 1.932H19.05a2.25 2.25 0 002.227-1.932l.857-6a2.25 2.25 0 00-1.883-2.542m-16.5 0V6A2.25 2.25 0 016 3.75h3.879a1.5 1.5 0 011.06.44l2.122 2.12a1.5 1.5 0 001.06.44H18A2.25 2.25 0 0120.25 9v.776" />
             </svg>
             <span>{t('footer.sources')}</span>
+          </a>
+
+          {/* DX-1: Contact — the footer's ContactMenu is desktop-only (hidden md:block),
+              so mobile users had no contact affordance; mirror it in the gear menu. */}
+          <a
+            href="mailto:info@naapurustot.fi"
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200
+                       hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors
+                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+            <span>{t('footer.contact')}</span>
           </a>
 
           {/* PO-6 / QW-1: Data freshness indicator — build-derived (inlined via the

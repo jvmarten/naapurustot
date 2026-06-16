@@ -56,13 +56,32 @@ interface LoadedState {
   metroAverages: Record<string, number>;
 }
 
+/**
+ * LP-2: build a render-ready LoadedState synchronously from a prerendered page's
+ * embedded payload, so a hard load of a profile page paints content on the FIRST
+ * frame instead of flashing the bare "Ladataan…" loading view (the page does not
+ * hydrate — main.tsx renders fresh — so without this the static HTML is replaced
+ * by a spinner → loading text → content). Returns null when there is no embedded
+ * payload (the genuine in-app fetch path), leaving the loading frame intact there.
+ */
+function initialStateFromEmbedded(slug: string | undefined): LoadedState | null {
+  const pno = slug ? parseSlug(slug) : null;
+  if (!pno) return null;
+  const embedded = readEmbeddedProfile(pno);
+  if (!embedded) return null;
+  const feat = { type: 'Feature', properties: embedded.p, geometry: null } as unknown as Feature;
+  return { feature: feat, geoFeature: null, regionFeatures: [], allFeatures: [], metroAverages: embedded.avg };
+}
+
 export const NeighborhoodProfilePage: React.FC = () => {
   useI18nVersion();
   const { slug } = useParams<{ slug: string }>();
   const location = useLocation();
   const navigate = useNavigate();
-  const [state, setState] = useState<LoadedState | null>(null);
-  const [loading, setLoading] = useState(true);
+  // LP-2: seed synchronously from the prerendered payload so prerendered pages skip
+  // the loading frame entirely (the post-paint effect below re-confirms it).
+  const [state, setState] = useState<LoadedState | null>(() => initialStateFromEmbedded(slug));
+  const [loading, setLoading] = useState(() => initialStateFromEmbedded(slug) == null);
   // Hold an error *code*, not a pre-translated string, so the message re-localizes
   // on language toggle and never leaks a raw English exception to the user.
   const [error, setError] = useState<'invalid_url' | 'not_found' | 'load_failed' | null>(null);

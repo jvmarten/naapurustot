@@ -93,6 +93,11 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({ onComplete, skip
     if (completedRef.current) return;
     completedRef.current = true;
     trackEvent('onboarding', { action: reason, step: stepIndex });
+    // ON-2: a skipper never reaches the last step where the "reopen from Settings"
+    // reassurance lives, so surface it as a brief toast on the skip path.
+    if (reason === 'skipped') {
+      window.dispatchEvent(new CustomEvent('app-toast', { detail: t('onboarding.reopen_note') }));
+    }
     onComplete();
   }, [onComplete, stepIndex]);
 

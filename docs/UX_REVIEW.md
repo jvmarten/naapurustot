@@ -11,6 +11,8 @@
 
 **Severity counts: 0 critical · 5 high · 15 medium · 38 low (58 findings).** Two findings are duplicates of the same root cause (see *Dedup* notes on **AY-4** and **ES-6**), so there are **56 unique root issues**.
 
+> **Implementation status (2026-06-16).** All 55 of the 56 unique findings implementable in a Claude Code session have been shipped (branch `claude/ux-review-impl`). The lone exception is **DX-3** (add a mainstream payment method), which is **[MS]** — it needs a payment-provider account, so only its footer-link half is deferrable to code; left for manual setup. Two findings turned out to be **already shipped** by a prior batch and were verified rather than re-implemented: **AY-6** (the skip link is already localized at runtime via `aria.skip_to_content`) and **ON-4** (the dead `app.subtitle` key was already removed — the unused-key guard would have caught it otherwise). The bundle budget was raised 291 KB → 295 KB to absorb ~3.4 KB of new UI logic + trilingual strings.
+
 ---
 
 ## TL;DR

@@ -4,6 +4,10 @@ import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface ShortcutsOverlayProps {
   onClose: () => void;
+  /** AY-7 (WCAG 2.1.4): whether single-key shortcuts are active. */
+  enabled?: boolean;
+  /** AY-7: toggle single-key shortcuts on/off (persisted by the parent). */
+  onToggleEnabled?: () => void;
 }
 
 /** Keyboard shortcut → label key. Keys are rendered as <kbd> chips. */
@@ -26,7 +30,7 @@ const SHORTCUTS: { keys: string[]; labelKey: string }[] = [
  * `?` (or from Settings). Doubles as feature discovery for tools that live
  * behind dropdown menus.
  */
-export const ShortcutsOverlay: React.FC<ShortcutsOverlayProps> = ({ onClose }) => {
+export const ShortcutsOverlay: React.FC<ShortcutsOverlayProps> = ({ onClose, enabled = true, onToggleEnabled }) => {
   useI18nVersion();
   const closeRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -83,6 +87,23 @@ export const ShortcutsOverlay: React.FC<ShortcutsOverlayProps> = ({ onClose }) =
             </li>
           ))}
         </ul>
+        {/* AY-7 (WCAG 2.1.4): let users turn single-key shortcuts off, so dictation /
+            speech input reaching a focused control can't trigger them. Escape stays on. */}
+        {onToggleEnabled && (
+          <div className="flex items-center justify-between gap-4 px-5 py-3 border-t border-surface-100 dark:border-surface-700/40">
+            <span className="text-sm text-surface-700 dark:text-surface-200">{t('shortcuts.toggle_label')}</span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={enabled}
+              aria-label={t('shortcuts.toggle_label')}
+              onClick={onToggleEnabled}
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 ${enabled ? 'bg-brand-500' : 'bg-surface-300 dark:bg-surface-600'}`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

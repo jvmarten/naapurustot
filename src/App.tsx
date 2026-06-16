@@ -41,6 +41,7 @@ import { useFavorites } from './hooks/useFavorites';
 
 import { useRecentNeighborhoods } from './hooks/useRecentNeighborhoods';
 import { useShortlist } from './hooks/useShortlist';
+import { resetNotesStorage } from './hooks/useNotes';
 import { useSelectedNeighborhood } from './hooks/useSelectedNeighborhood';
 import { useAffordability } from './hooks/useAffordability';
 import { useSimilarityMetrics } from './hooks/useSimilarityMetrics';
@@ -118,6 +119,16 @@ const ModalFallback: React.FC = () => (
   </div>
 );
 
+// ER-2: the locale-load-failure notice must be readable in the language whose
+// dictionary failed — using t() there returns the bundled Finnish fallback, i.e. the
+// one language that user may not read. Hardcoded trilingual copy, keyed by the failed
+// lang, sidesteps the broken dictionary entirely.
+const LOCALE_FAIL_COPY: Record<Lang, { msg: string; retry: string; close: string }> = {
+  fi: { msg: 'Kielen lataus epäonnistui.', retry: 'Yritä uudelleen', close: 'Sulje' },
+  en: { msg: 'Failed to load the selected language.', retry: 'Retry', close: 'Close' },
+  sv: { msg: 'Det gick inte att läsa in språket.', retry: 'Försök igen', close: 'Stäng' },
+};
+
 const App: React.FC = () => {
   // T2: snapshot the LIVE URL once per mount (not at module scope). Because react-router
   // unmounts/remounts <App> on a client-side navigation into `/`, this sees the real
@@ -194,6 +205,16 @@ const App: React.FC = () => {
   }, []);
   // QW-2: keyboard shortcuts help overlay.
   const [showShortcuts, setShowShortcuts] = useState(false);
+  // AY-7 (WCAG 2.1.4): single-key shortcuts must be turn-off-able. Persisted; default on.
+  const [shortcutsEnabled, setShortcutsEnabled] = useState(() => {
+    try { return localStorage.getItem('shortcuts_enabled') !== '0'; } catch { return true; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('shortcuts_enabled', shortcutsEnabled ? '1' : '0'); } catch { /* unavailable */ }
+  }, [shortcutsEnabled]);
+  // Read inside the (mount-once) window keydown handler without re-registering it.
+  const shortcutsEnabledRef = useRef(shortcutsEnabled);
+  shortcutsEnabledRef.current = shortcutsEnabled;
   // CF-3: whether the shortlist tray is expanded over an open panel (vs the compact chip).
   const [shortlistExpanded, setShortlistExpanded] = useState(false);
   // PO-2: time slider / historical playback.
@@ -244,6 +265,20 @@ const App: React.FC = () => {
       const pno = f.properties?.pno;
       const city = f.properties?.city;
       if (pno && city) m.set(pno as string, city as CityFilter);
+    }
+    return m;
+  }, [searchIndex]);
+
+  // ES-1: pno→name from the eagerly-loaded global search index (geometry-stripped,
+  // carries nimi/namn). On the default `?city=all` view `data` is null so pnoFeatureMap
+  // is empty — without this fallback every postal-code favorite would vanish from the
+  // header until the user drilled into its region.
+  const pnoNameMap = useMemo(() => {
+    const m = new globalThis.Map<string, { nimi?: string; namn?: string }>();
+    if (!searchIndex) return m;
+    for (const f of searchIndex.features) {
+      const pno = f.properties?.pno as string | undefined;
+      if (pno) m.set(pno, { nimi: f.properties?.nimi as string | undefined, namn: f.properties?.namn as string | undefined });
     }
     return m;
   }, [searchIndex]);
@@ -418,10 +453,22 @@ const App: React.FC = () => {
     () => clipGridToData(rawSecondaryGrid, data),
     [rawSecondaryGrid, data],
   );
-  const { favorites, isFavorite, toggleFavorite } = useFavorites(user?.id);
+  const { favorites, isFavorite, toggleFavorite, resetLocal: resetFavoritesLocal } = useFavorites(user?.id);
   const { recent, addRecent, clearRecent } = useRecentNeighborhoods();
   // QW-2: durable shortlist (distinct from one-tap favorites). QW-2b: cloud-syncs when signed in.
-  const { shortlist, isInShortlist, toggleShortlist, removeFromShortlist, clearShortlist, mergeIntoShortlist } = useShortlist(user?.id);
+  const { shortlist, isInShortlist, toggleShortlist, removeFromShortlist, clearShortlist, mergeIntoShortlist, resetLocal: resetShortlistLocal } = useShortlist(user?.id);
+  // AC-2: shared-device logout — wipe this device's local favorites/shortlist/notes
+  // (and their deletion tombstones) before clearing the session, so the previous user's
+  // private data can't linger in the signed-out UI or get merged into the NEXT account's
+  // cloud store on their login. resetLocal writes no new tombstones (so the same user
+  // re-syncing later is unaffected) and clears existing ones (so A's deletions don't
+  // suppress B's matching server items).
+  const handleLogout = useCallback(async () => {
+    resetFavoritesLocal();
+    resetShortlistLocal();
+    resetNotesStorage();
+    await logout();
+  }, [logout, resetFavoritesLocal, resetShortlistLocal]);
   // CF-14: affordability inputs (localStorage + URL-shared). Hydrates from a shared link;
   // consumed read-only by the wizard's budget fold since the panel calculator was removed.
   const { state: affordabilityState, urlValue: affordabilityUrl } = useAffordability(initialUrl.affordability);
@@ -491,6 +538,12 @@ const App: React.FC = () => {
   const effectiveLoading = aggMode ? (!aggError && !allViewReady) : loading;
   const effectiveError: boolean = aggMode ? aggError : !!error;
   const effectiveRetry = aggMode ? aggRetry : retry;
+  // LP-1: on `?city=all`, the first custom-weight nudge flips needFullNational and
+  // triggers loadAllData() for the ~10.6 MB national set. Throughout that fetch `data`
+  // stays null so aggMode keeps effectiveLoading false — the slim bar never showed and
+  // the map sat with stale colors for seconds. Surface a pending flag so the existing
+  // progress bar appears while the bytes arrive.
+  const fullNationalPending = cityFilter === 'all' && needFullNational && !data && !error;
   void aggLoading; // aggregate spinner is derived from allViewReady (covers outline load too)
 
   // C1: the cold first load may show the full-screen wordmark overlay (nothing
@@ -499,9 +552,23 @@ const App: React.FC = () => {
   // locks the toolbar. After the first settle, switches show only a slim,
   // non-blocking top progress bar so the previous map and all chrome stay usable.
   const [firstLoadDone, setFirstLoadDone] = useState(false);
+  // LP-3: an auto-detected en/sv first-timer has the right lang set immediately but the
+  // dictionary is lazy-fetched, so t() returns the bundled Finnish fallback until it
+  // lands. Gate first paint on locale readiness so the cold overlay + chrome don't flash
+  // Finnish then swap. fi is bundled (ready at once); tests default to fi, so unaffected.
+  const [localeReady, setLocaleReady] = useState(() => getLang() === 'fi');
+  const localeMountVersionRef = useRef(i18nVersion);
   useEffect(() => {
-    if (!effectiveLoading) setFirstLoadDone(true);
-  }, [effectiveLoading]);
+    if (localeReady) return;
+    // Any bump past the mount version means the lazily-fetched dict settled…
+    if (i18nVersion !== localeMountVersionRef.current) { setLocaleReady(true); return; }
+    // …with a hard cap so a slow/failed locale fetch never blocks first paint.
+    const id = setTimeout(() => setLocaleReady(true), 1500);
+    return () => clearTimeout(id);
+  }, [i18nVersion, localeReady]);
+  useEffect(() => {
+    if (!effectiveLoading && localeReady) setFirstLoadDone(true);
+  }, [effectiveLoading, localeReady]);
 
   // Recompute metro averages for the selected city.
   // qualityVersion is included so that averages are recalculated after custom quality weight changes
@@ -1542,15 +1609,20 @@ const App: React.FC = () => {
   // Memoize the headerSlot to avoid creating new React elements on every App render.
   // Without this, LayerSelector (React.memo) re-renders on every unrelated state change.
   const layerSelectorHeaderSlot = useMemo(() => (
-    // pointer-events-auto: re-enables events on this child of LayerSelector's
-    // pointer-events-none wrapper (which lets map drags pass through the gap).
-    <div className="pointer-events-auto rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden">
-      <ComparisonScopeToggle
-        scope={comparisonScope}
-        onChange={handleScopeChange}
-        disabled={cityFilter === 'all'}
-      />
-    </div>
+    // DT-4: the comparison-scope toggle is meaningless on the all-Finland view (no
+    // sub-region to compare within), so hide it entirely there rather than showing a
+    // greyed-out control whose only tooltip restates the current scope.
+    cityFilter === 'all' ? null : (
+      // pointer-events-auto: re-enables events on this child of LayerSelector's
+      // pointer-events-none wrapper (which lets map drags pass through the gap).
+      <div className="pointer-events-auto rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden">
+        <ComparisonScopeToggle
+          scope={comparisonScope}
+          onChange={handleScopeChange}
+          disabled={false}
+        />
+      </div>
+    )
   ), [comparisonScope, cityFilter, handleScopeChange]);
   // Stable callbacks for NeighborhoodPanel props — prevents new closures on every render
   // which would defeat React.memo on the panel.
@@ -1583,11 +1655,18 @@ const App: React.FC = () => {
         if (regionIdSet.has(pno)) {
           return { pno, name: t(`city.${pno}`) };
         }
+        // ES-1: fall back to the global search index so postal-code favorites resolve a
+        // name on the all-Finland view (where pnoFeatureMap is empty). Lang-aware for sv.
+        const idx = pnoNameMap.get(pno);
+        if (idx) {
+          const name = (lang === 'sv' ? (idx.namn ?? idx.nimi) : (idx.nimi ?? idx.namn)) ?? pno;
+          return { pno, name };
+        }
         return null;
       })
       .filter((e): e is FavoriteEntry => e !== null);
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- lang triggers name refresh; pnoFeatureMap covers real neighborhoods
-  }, [favorites, pnoFeatureMap, regionIdSet, lang]);
+    // `lang` is in deps so favorite names re-localize on language change.
+  }, [favorites, pnoFeatureMap, regionIdSet, pnoNameMap, lang]);
 
   const pendingFavoritePno = useRef<string | null>(null);
   const handleSelectFavorite = useCallback((pno: string) => {
@@ -1869,8 +1948,8 @@ const App: React.FC = () => {
   // QW-4 / QW-2: global keydown — Escape cascade + power-user shortcuts.
   // Uses refs to avoid re-subscribing the listener on every state change
   // (the previous version had a 10-item dependency array that churned constantly).
-  const escapeStateRef = useRef({ selectMode, drawMode, drawnPolygon, showWizard, showCustomQuality, selected, showFilter, showRanking });
-  escapeStateRef.current = { selectMode, drawMode, drawnPolygon, showWizard, showCustomQuality, selected, showFilter, showRanking };
+  const escapeStateRef = useRef({ selectMode, drawMode, drawnPolygon, showWizard, showCustomQuality, selected, showFilter, showRanking, splitMode });
+  escapeStateRef.current = { selectMode, drawMode, drawnPolygon, showWizard, showCustomQuality, selected, showFilter, showRanking, splitMode };
   const escapeActionsRef = useRef({ deselect, handleClearDraw });
   escapeActionsRef.current = { deselect, handleClearDraw };
   // QW-2: shortcut state + actions, read at keypress time to keep the listener stable.
@@ -1907,6 +1986,7 @@ const App: React.FC = () => {
         if (s.selected) { a.deselect(); return; }
         if (s.showFilter) { setShowFilter(false); return; }
         if (s.showRanking) { setShowRanking(false); return; }
+        if (s.splitMode) { setSplitMode(false); return; } // MO-3: Escape leaves Compare layers
         return;
       }
 
@@ -1915,6 +1995,9 @@ const App: React.FC = () => {
       const tag = target?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable) return;
       if (e.ctrlKey || e.altKey || e.metaKey) return;
+      // AY-7 (WCAG 2.1.4): single-key shortcuts are off when the user disabled them.
+      // The Escape cascade above is unaffected (it returns before reaching here).
+      if (!shortcutsEnabledRef.current) return;
 
       if (e.key === '?') { e.preventDefault(); setShowShortcuts((v) => !v); return; }
       // Remaining shortcuts shouldn't fire behind the auth modal.
@@ -1952,7 +2035,7 @@ const App: React.FC = () => {
   // with the auth modal (its own document-Escape listener) at the very top.
   const anyOverlayOpen =
     showAuth || showShortcuts || selectMode || drawMode || !!drawnPolygon ||
-    showWizard || showCustomQuality || !!selected || showFilter || showRanking;
+    showWizard || showCustomQuality || !!selected || showFilter || showRanking || splitMode;
   useBackGesture(anyOverlayOpen, () => {
     if (showAuth) { setShowAuth(false); return; }
     if (showShortcuts) { setShowShortcuts(false); return; }
@@ -1964,6 +2047,7 @@ const App: React.FC = () => {
     if (selected) { deselect(); return; }
     if (showFilter) { setShowFilter(false); return; }
     if (showRanking) { setShowRanking(false); return; }
+    if (splitMode) { setSplitMode(false); return; } // MO-3: Android Back leaves Compare layers
   });
 
   // C6: any transient state worth a one-tap reset. Drives the "Clear all" chip.
@@ -1979,7 +2063,7 @@ const App: React.FC = () => {
   const localeLoadError = getLocaleLoadError();
 
   return (
-    <div id="main" tabIndex={-1} className="h-dvh w-screen overflow-hidden relative focus:outline-none" data-testid="app-root" data-loaded={!effectiveLoading}>
+    <div id="main" tabIndex={-1} className="h-dvh w-screen overflow-hidden relative focus:outline-none" data-testid="app-root" data-loaded={!effectiveLoading} aria-busy={effectiveLoading}>
       {/* A1: screen-reader entry point — names the map and points to the keyboard-accessible selection paths (search combobox + ranking table). */}
       <p className="sr-only">{t('aria.map_instructions')}</p>
       {/* Map — QW-4: Conditional split view */}
@@ -2040,8 +2124,8 @@ const App: React.FC = () => {
       </ErrorBoundary>
 
       {/* C1: cold first load — full-screen wordmark overlay (nothing behind it yet). */}
-      {effectiveLoading && !firstLoadDone && (
-        <div data-testid="loading-overlay" className="absolute inset-0 z-50 flex items-center justify-center bg-white/80 dark:bg-surface-950/80 backdrop-blur-sm">
+      {(effectiveLoading || !localeReady) && !firstLoadDone && (
+        <div data-testid="loading-overlay" role="status" aria-live="polite" className="absolute inset-0 z-50 flex items-center justify-center bg-white/80 dark:bg-surface-950/80 backdrop-blur-sm">
           <div className="text-center space-y-4">
             {/* Shimmer placeholder blocks */}
             <div className="flex flex-col items-center gap-3">
@@ -2058,7 +2142,7 @@ const App: React.FC = () => {
       {/* C1: subsequent region/scope switches — slim, non-blocking progress bar
           just below the header. The previous map stays visible and all chrome
           (search, settings, tools, city selector) stays interactive. */}
-      {effectiveLoading && firstLoadDone && (
+      {(effectiveLoading || fullNationalPending) && firstLoadDone && (
         <div
           data-testid="loading-progress"
           className="absolute top-12 left-0 right-0 z-40 pointer-events-none"
@@ -2144,7 +2228,7 @@ const App: React.FC = () => {
             />
           )}
           {user ? (
-            <UserMenu user={user} onLogout={logout} favorites={favoriteEntries} onSelectFavorite={handleSelectFavorite} onToggleFavorite={toggleFavorite} onExportData={exportData} onDeleteAccount={deleteAccount} />
+            <UserMenu user={user} onLogout={handleLogout} favorites={favoriteEntries} onSelectFavorite={handleSelectFavorite} onToggleFavorite={toggleFavorite} onExportData={exportData} onDeleteAccount={deleteAccount} />
           ) : authLoading ? (
             // L7: while restoring a returning user's session, show a placeholder
             // instead of the Sign-in button to avoid a flash of "Sign in".
@@ -2176,7 +2260,9 @@ const App: React.FC = () => {
       )}
 
       {/* Search bar (hidden in embed mode) */}
-      {!IS_EMBED && (
+      {/* MO-1: suppress the global search while the split-compare view is open — it
+          renders directly over the left pane's layer picker (and is meaningless there). */}
+      {!IS_EMBED && !splitMode && (
         <div data-tour-id="search" className="absolute top-[3.5rem] left-3 md:left-4 z-10 w-52 md:w-72">
           <SearchBar
             data={data}
@@ -2192,10 +2278,11 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Comparison scope toggle — mobile only (desktop rendered inside LayerSelector via headerSlot). Hidden in embed mode. */}
-      {!IS_EMBED && (
+      {/* Comparison scope toggle — mobile only (desktop rendered inside LayerSelector via headerSlot).
+          DT-4: hidden in embed mode and on the all-Finland view (no sub-region to compare within). */}
+      {!IS_EMBED && cityFilter !== 'all' && (
         <div className="absolute top-[3.5rem] right-3 z-10 md:hidden flex items-center gap-1.5">
-          {comparisonScope === 'region' && cityFilter !== 'all' && (
+          {comparisonScope === 'region' && (
             <div className="px-2.5 py-1 rounded-lg bg-amber-500/90 text-white text-[10px] font-semibold backdrop-blur-sm">
               {t('scope.active_hint')}
             </div>
@@ -2203,7 +2290,7 @@ const App: React.FC = () => {
           <ComparisonScopeToggle
             scope={comparisonScope}
             onChange={handleScopeChange}
-            disabled={cityFilter === 'all'}
+            disabled={false}
           />
         </div>
       )}
@@ -2239,6 +2326,7 @@ const App: React.FC = () => {
               savedPresets={savedPresets}
               onSavePreset={saveFilterPreset}
               onRemovePreset={removeFilterPreset}
+              isAggregate={cityFilter === 'all'}
             />
           </Suspense>
         </ErrorBoundary>
@@ -2253,7 +2341,7 @@ const App: React.FC = () => {
           isCustomWeights={customWeights}
           headerSlot={layerSelectorHeaderSlot}
           lang={lang}
-          hidden={!!selected}
+          hidden={!!selected || splitMode}
         />
       )}
 
@@ -2268,7 +2356,7 @@ const App: React.FC = () => {
       {/* O3: persistent, dismissible on-map hint teaching the core "click an area"
           interaction — shown only in the no-selection idle state, gone once an area
           is selected or it's explicitly dismissed (persisted). */}
-      {!effectiveLoading && !selected && !splitMode && !drawMode && !showTour && !areaHintDismissed && (
+      {!effectiveLoading && !selected && !peek && !splitMode && !drawMode && !showTour && !areaHintDismissed && (
         <div className="fixed md:absolute bottom-[calc(1.5rem+env(safe-area-inset-bottom))] md:bottom-8 left-1/2 -translate-x-1/2 z-20
                        flex items-center gap-2 px-3 py-1.5 rounded-full shadow-lg backdrop-blur-sm
                        bg-surface-900/90 dark:bg-white/90 text-white dark:text-surface-900 text-xs font-medium">
@@ -2307,11 +2395,11 @@ const App: React.FC = () => {
             </div>
             <button
               onClick={handlePeekDetails}
-              className="shrink-0 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-brand-600 text-white hover:bg-brand-700 transition-colors"
+              className="shrink-0 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-brand-600 text-white hover:bg-brand-700 transition-colors min-h-[44px] md:min-h-0"
             >
               {t('peek.details')}
             </button>
-            <button onClick={() => setPeek(null)} aria-label={t('aria.close')} className="shrink-0 text-white/60 dark:text-surface-900/60 hover:text-white dark:hover:text-surface-900">
+            <button onClick={() => setPeek(null)} aria-label={t('aria.close')} className="shrink-0 flex items-center justify-center min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 text-white/60 dark:text-surface-900/60 hover:text-white dark:hover:text-surface-900">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
           </div>
@@ -2449,6 +2537,7 @@ const App: React.FC = () => {
               onApplyToMap={handleApplyWizardToMap}
               affordability={affordabilityState}
               qualityWeights={qualityWeights}
+              cityFilter={cityFilter}
             />
           </Suspense>
         </ErrorBoundary>
@@ -2555,7 +2644,9 @@ const App: React.FC = () => {
       {/* C6: one-tap "Clear all" reset chip — shown only when transient state is dirty.
           Suppressed while actively drawing/selecting so it doesn't stack on those hint pills. */}
       {isDirty && !drawMode && !selectMode && (
-        <div className="absolute bottom-[calc(5rem+env(safe-area-inset-bottom))] md:bottom-8 left-1/2 -translate-x-1/2 z-10">
+        // MO-4: when the full shortlist tray is showing on mobile (bottom-24, growing
+        // upward) lift this chip clear of its footprint so they don't pile up.
+        <div className={`absolute ${shortlist.length > 0 ? 'bottom-[calc(11rem+env(safe-area-inset-bottom))]' : 'bottom-[calc(5rem+env(safe-area-inset-bottom))]'} md:bottom-8 left-1/2 -translate-x-1/2 z-10`}>
           <button
             onClick={handleResetView}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-500/90 hover:bg-violet-500
@@ -2572,8 +2663,8 @@ const App: React.FC = () => {
       {/* C10: persistent wizard-results chip — shows the highlighted count with a
           one-tap Clear. Offset above the "Clear all"/draw pills so it doesn't overlap. */}
       {!IS_EMBED && wizardResultPnos.length > 0 && (
-        <div className="absolute bottom-[calc(8rem+env(safe-area-inset-bottom))] md:bottom-[4.5rem] left-1/2 -translate-x-1/2 z-10 flex items-center gap-2.5 pl-3 pr-2 py-1.5 rounded-xl
-                       bg-amber-500/90 text-white text-xs font-medium backdrop-blur-sm shadow-lg">
+        <div className={`absolute ${shortlist.length > 0 ? 'bottom-[calc(14rem+env(safe-area-inset-bottom))]' : 'bottom-[calc(8rem+env(safe-area-inset-bottom))]'} md:bottom-[4.5rem] left-1/2 -translate-x-1/2 z-10 flex items-center gap-2.5 pl-3 pr-2 py-1.5 rounded-xl
+                       bg-amber-500/90 text-white text-xs font-medium backdrop-blur-sm shadow-lg`}>
           <span className="whitespace-nowrap">{t('wizard.results')} · <span className="tabular-nums">{wizardResultPnos.length}</span></span>
           <button
             onClick={handleClearWizardHighlight}
@@ -2597,9 +2688,9 @@ const App: React.FC = () => {
         {/* Data-load failure (highest priority) */}
         {effectiveError && <ErrorBanner onRetry={effectiveRetry} />}
 
-        {/* IN-6: Offline indicator */}
+        {/* IN-6: Offline indicator. ER-5: announce the state change to screen readers. */}
         {isOffline && (
-          <div className="pointer-events-auto px-3 py-1.5 rounded-lg bg-amber-500/90 text-white text-xs font-medium backdrop-blur-sm">
+          <div role="status" aria-live="polite" className="pointer-events-auto px-3 py-1.5 rounded-lg bg-amber-500/90 text-white text-xs font-medium backdrop-blur-sm">
             {t('offline.indicator')}
           </div>
         )}
@@ -2632,24 +2723,28 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* E9: locale dictionary load failure — non-blocking notice with retry + dismiss */}
-        {localeLoadError && !localeErrorDismissed && (
+        {/* E9: locale dictionary load failure — non-blocking notice with retry + dismiss.
+            ER-2: copy comes from the hardcoded trilingual constant (NOT t()), since by
+            definition the failed language's dictionary is the one that's unavailable. */}
+        {localeLoadError && !localeErrorDismissed && (() => {
+        const copy = LOCALE_FAIL_COPY[localeLoadError] ?? LOCALE_FAIL_COPY.fi;
+        return (
         <div
           role="status"
           className="pointer-events-auto flex items-center gap-2 px-3 py-1.5 rounded-lg
                      bg-amber-500/90 text-white text-xs font-medium backdrop-blur-sm shadow-lg"
         >
-          <span>{t('lang.load_failed')}</span>
+          <span>{copy.msg}</span>
           <button
             onClick={retryLocaleLoad}
             className="px-2 py-0.5 rounded-md bg-white/25 hover:bg-white/40 transition-colors font-semibold"
           >
-            {t('error.retry')}
+            {copy.retry}
           </button>
           <button
             onClick={() => setLocaleErrorDismissed(true)}
-            aria-label={t('aria.close')}
-            title={t('aria.close')}
+            aria-label={copy.close}
+            title={copy.close}
             className="p-0.5 rounded-md hover:bg-white/25 transition-colors"
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden="true">
@@ -2657,7 +2752,8 @@ const App: React.FC = () => {
             </svg>
           </button>
         </div>
-        )}
+        );
+        })()}
       </div>
 
       {/* Attribution footer (full attribution hidden in embed mode) */}
@@ -2689,6 +2785,7 @@ const App: React.FC = () => {
 
       {/* QW-3: Embed watermark — "open full view" deep link carrying the full configured state */}
       {IS_EMBED && (
+        <>
         <a
           href={buildFullViewUrl(
             {
@@ -2715,6 +2812,19 @@ const App: React.FC = () => {
           naapurustot<span className="text-brand-600 dark:text-brand-400">.fi</span>
           <span className="ml-1 opacity-60" aria-hidden="true">↗</span>
         </a>
+        {/* DX-4: an embed on a third-party site must still credit the CC BY 4.0 upstream
+            publishers — the full footer attribution is stripped in embed mode. */}
+        <a
+          href={lang === 'en' ? '/en/data-sources' : lang === 'sv' ? '/sv/datakallor' : '/tietolahteet'}
+          target="_top"
+          rel="noopener"
+          className="absolute bottom-2 left-2 z-30 max-w-[60%] truncate px-2 py-1 rounded-md text-[10px]
+                     bg-white/85 dark:bg-surface-900/85 backdrop-blur-sm border border-surface-200/60 dark:border-surface-700/40
+                     text-surface-600 dark:text-surface-300 hover:text-brand-600 dark:hover:text-brand-300 shadow-md transition-colors"
+        >
+          {t('embed.attribution')}
+        </a>
+        </>
       )}
 
       {/* Auth modal (hidden in embed mode) */}
@@ -2740,7 +2850,7 @@ const App: React.FC = () => {
       {/* QW-2: Keyboard shortcuts overlay (hidden in embed mode) */}
       {!IS_EMBED && showShortcuts && (
         <Suspense fallback={<ModalFallback />}>
-          <ShortcutsOverlay onClose={() => setShowShortcuts(false)} />
+          <ShortcutsOverlay onClose={() => setShowShortcuts(false)} enabled={shortcutsEnabled} onToggleEnabled={() => setShortcutsEnabled((v) => !v)} />
         </Suspense>
       )}
 

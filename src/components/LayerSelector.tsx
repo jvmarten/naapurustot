@@ -3,6 +3,7 @@ import { LAYER_MAP, type LayerId } from '../utils/colorScales';
 import { t, useI18nVersion, type Lang } from '../utils/i18n';
 import { useBottomSheet } from '../hooks/useBottomSheet';
 import { useReducedMotion } from '../hooks/useReducedMotion';
+import { useBackGesture } from '../hooks/useBackGesture';
 
 interface LayerSelectorProps {
   activeLayer: LayerId;
@@ -49,6 +50,10 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
   // PO-3: Layer search filter
   const [layerSearch, setLayerSearch] = useState('');
   const [mobileOpen, setMobileOpen] = useState(false);
+  // MO-3: make the mobile Layers sheet back-dismissable (Android Back / iOS edge-swipe),
+  // matching the neighborhood/filter/ranking sheets — its only other dismissal was a
+  // keyboard Escape, useless on touch.
+  useBackGesture(mobileOpen, () => setMobileOpen(false));
   // C4: desktop panel starts expanded so the 59 layers are discoverable without
   // a first click into the minimized pill.
   const [minimized, setMinimized] = useState(false);
@@ -135,12 +140,21 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Scroll focused item into view
+  // AY-1: scroll the focused item into view AND move real DOM focus to it, so a
+  // screen reader announces each layer's name + aria-pressed while arrowing. A
+  // visual-only ring (the old behavior) left the AT cursor stranded and 58/59
+  // buttons were tabIndex=-1. focusedIndex only becomes ≥0 via arrow keys, so this
+  // never steals focus when the panel merely opens.
   useEffect(() => {
     if (focusedIndex < 0) return;
-    const el = listRef.current?.querySelector(`[data-layer-index="${focusedIndex}"]`);
+    const el = listRef.current?.querySelector<HTMLElement>(`[data-layer-index="${focusedIndex}"] button`);
     el?.scrollIntoView({ block: 'nearest' });
+    el?.focus();
   }, [focusedIndex]);
+
+  // AY-1: a filtered list renumbers the flat index, so drop the roving highlight
+  // when the search query changes rather than leaving it on a now-wrong row.
+  useEffect(() => { setFocusedIndex(-1); }, [searchQuery]);
 
   // A11y: a labelled group of toggle buttons, not a role="listbox" — the container
   // also holds a search input and collapsible group headers, which a listbox's
@@ -213,16 +227,19 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
                   e.stopPropagation();
                   onCustomizeQuality!();
                 }}
-                className={`flex-shrink-0 p-1.5 rounded-lg transition-colors min-h-[44px] md:min-h-0 min-w-[32px] flex items-center justify-center ${
+                className={`flex-shrink-0 ${isActive ? 'px-2' : 'p-1.5'} gap-1 rounded-lg transition-colors min-h-[44px] md:min-h-0 min-w-[32px] flex items-center justify-center ${
                   isCustomWeights
                     ? 'text-brand-600 dark:text-brand-400 hover:bg-brand-500/15'
                     : 'text-surface-400 dark:text-surface-500 hover:text-surface-600 dark:hover:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800/60'
                 }`}
                 title={t('custom_quality.button')}
               >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
                 </svg>
+                {/* DX-5: surface the verb when QI is active, so the per-dimension weighting
+                    tool isn't fronted by an unlabeled icon (matches the in-panel button). */}
+                {isActive && <span className="text-[10px] font-semibold whitespace-nowrap">{t('custom_quality.button')}</span>}
               </button>
             )}
           </div>
@@ -276,7 +293,9 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
                       setMobileOpen(false);
                     }}
                     aria-pressed={isActive}
-                    tabIndex={isActive ? 0 : -1}
+                    // AY-1: roving tabindex — the keyboard-focused row (or the active
+                    // layer when nothing is roving) is the single Tab stop.
+                    tabIndex={flatIndex === focusedIndex || (focusedIndex < 0 && isActive) ? 0 : -1}
                     className={`flex-1 text-left px-3 py-2.5 md:py-1.5 rounded-lg text-sm transition-all duration-150 min-h-[44px] md:min-h-0 ${
                       isActive
                         ? 'bg-brand-500/15 dark:bg-brand-600/20 text-brand-600 dark:text-brand-300 font-medium'

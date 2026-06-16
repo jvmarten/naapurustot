@@ -827,8 +827,22 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
       const onClick = (e: maplibregl.MapMouseEvent) => {
         if (!map.getSource(SOURCE_ID) || !map.getLayer(FILL_LAYER)) return;
         const features = map.queryRenderedFeatures(e.point, { layers: [FILL_LAYER] });
-        const props = features[0]?.properties as NeighborhoodProperties | undefined;
-        if (props?.pno) onSelectRef.current?.(props);
+        const feat = features[0];
+        const props = feat?.properties as NeighborhoodProperties | undefined;
+        if (props?.pno) {
+          onSelectRef.current?.(props);
+          // MO-1: touch devices fire no mousemove, so surface this pane's value
+          // readout on tap too — otherwise the comparison's whole point is lost on phones.
+          let gridValue: number | null = null;
+          const cfg = configRef.current;
+          if (gridRef.current && cfg.gridProperty && map.getZoom() >= GRID_ZOOM_FADE_IN && map.getLayer(GRID_FILL_LAYER)) {
+            const cells = map.queryRenderedFeatures(e.point, { layers: [GRID_FILL_LAYER] });
+            const gv = cells[0]?.properties?.[cfg.gridProperty];
+            if (typeof gv === 'number' && isFinite(gv)) gridValue = gv;
+          }
+          setHoverState(props.pno);
+          setHover({ props, x: e.point.x, y: e.point.y, gridValue });
+        }
       };
 
       map.on('mousemove', onMove);
@@ -874,10 +888,18 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
   }
 
   // leftConfig / rightConfig are the effective configs computed at the top.
+  // MO-1: stack the panes vertically on phones (each gets full width) and side-by-side
+  // from md up — two ~187px panes are unusable for a Finland-wide choropleth.
   return (
-    <div className="relative flex h-full w-full">
+    <div className="relative flex flex-col md:flex-row h-full w-full">
+      {/* DT-7: both panes on the same layer makes two identical maps — flag it. */}
+      {onLeftLayerChange && onRightLayerChange && leftLayer === rightLayer && (
+        <div className="absolute top-2 left-1/2 z-30 -translate-x-1/2 rounded-full bg-amber-500/90 px-3 py-1 text-[11px] font-medium text-white shadow-lg pointer-events-none">
+          {t('split.same_layer')}
+        </div>
+      )}
       {/* Left map */}
-      <div className="relative h-full w-1/2 overflow-hidden">
+      <div className="relative h-1/2 w-full md:h-full md:w-1/2 overflow-hidden">
         <div ref={leftContainerRef} className="absolute inset-0" />
         <div className="absolute top-[3.5rem] left-2 z-10">
           {onLeftLayerChange ? (
@@ -899,11 +921,13 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
         )}
       </div>
 
-      {/* Vertical divider */}
-      <div className="absolute left-1/2 top-0 bottom-0 z-20 w-0.5 -translate-x-1/2 bg-slate-400 dark:bg-slate-600 pointer-events-none" />
+      {/* Divider — horizontal when stacked (mobile), vertical when side-by-side (md+) */}
+      <div className="absolute z-20 bg-slate-400 dark:bg-slate-600 pointer-events-none
+                      left-0 right-0 top-1/2 h-0.5 -translate-y-1/2
+                      md:left-1/2 md:right-auto md:top-0 md:bottom-0 md:h-auto md:w-0.5 md:-translate-y-0 md:-translate-x-1/2" />
 
       {/* Right map */}
-      <div className="relative h-full w-1/2 overflow-hidden">
+      <div className="relative h-1/2 w-full md:h-full md:w-1/2 overflow-hidden">
         <div ref={rightContainerRef} className="absolute inset-0" />
         <div className="absolute top-[3.5rem] left-2 z-10">
           {onRightLayerChange ? (

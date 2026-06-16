@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import type { FeatureCollection } from 'geojson';
 import { t, useI18nVersion, type Lang } from '../utils/i18n';
 import type { RecentEntry } from '../hooks/useRecentNeighborhoods';
-import { geocodeAddress, type GeocodeResult } from '../utils/geocode';
+import { geocodeAddressDetailed, GEOCODING_ENABLED, type GeocodeResult } from '../utils/geocode';
 import { getFeatureCenter } from '../utils/geometryFilter';
 import { trackEvent } from '../utils/analytics';
 
@@ -57,6 +57,11 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
   // show a "searching addresses…" hint instead of looking empty. Also gates the
   // C1 no-results branch so the two never both show.
   const [isGeocoding, setIsGeocoding] = useState(false);
+  // ER-1: set when the geocoder failed (network/HTTP/parse) rather than simply
+  // returning no matches, so we can show a retryable notice instead of "no results".
+  const [addressError, setAddressError] = useState(false);
+  // ER-1: bumped by the "retry" affordance to re-run the geocode for the same query.
+  const [geocodeRetry, setGeocodeRetry] = useState(0);
   const geocodeTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const geocodeAbortRef = useRef<AbortController | null>(null);
 
@@ -110,24 +115,40 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
     return { results: scored.slice(0, 8).map((s) => s.f), totalCount: scored.length };
   }, [searchSource, debouncedQuery]);
 
+  // SN-3/AY-4: the recents list participates in the combobox keyboard model when the
+  // query is empty, so Arrow/Enter and aria-activedescendant traverse it like results.
+  const recentItems = useMemo(() => recent.slice(0, 5), [recent]);
+  const recentsActive = isOpen && results.length === 0 && query.length < 2 && recentItems.length > 0;
+
+  // LP-4: on the default all-Finland view `data` is null and the global search index
+  // is fetched async; until it lands `searchSource` is null and the name scan returns []
+  // for any query. Treat that window as "loading" so the no-results branch can't flash.
+  const indexLoading = !searchSource;
+
   // CF-1: Debounced address geocoding — always search for streets/addresses alongside neighborhoods.
   // Uses AbortController to cancel in-flight HTTP requests when the query changes,
   // preventing wasted bandwidth and stale responses from slower earlier requests.
   useEffect(() => {
     if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current);
     if (geocodeAbortRef.current) geocodeAbortRef.current.abort();
-    if (query.length < 3 || /^\d{5}$/.test(query.trim())) {
+    // SN-4: in a keyless build address search is unavailable — never flip the
+    // "searching addresses…" flag (it would flash a header that resolves to nothing)
+    // and never surface an address error.
+    if (!GEOCODING_ENABLED || query.length < 3 || /^\d{5}$/.test(query.trim())) {
       setAddressResults([]);
       setIsGeocoding(false);
+      setAddressError(false);
       return;
     }
     setIsGeocoding(true);
+    setAddressError(false);
     const abortController = new AbortController();
     geocodeAbortRef.current = abortController;
     geocodeTimerRef.current = setTimeout(async () => {
-      const res = await geocodeAddress(query, abortController.signal);
+      const outcome = await geocodeAddressDetailed(query, abortController.signal);
       if (!abortController.signal.aborted) {
-        setAddressResults(res);
+        setAddressResults(outcome.results);
+        setAddressError(outcome.status === 'error'); // ER-1: failure ≠ no matches
         setIsGeocoding(false);
       }
     }, 300);
@@ -135,7 +156,7 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
       if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current);
       abortController.abort();
     };
-  }, [query]);
+  }, [query, geocodeRetry]);
 
   // CF-1: Find which neighborhood contains a geocoded point.
   // Uses lazy-loaded turf modules — cached after first import.
@@ -218,19 +239,31 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
         }
       } else {
         onSelect('', addr.coordinates);
-        setQuery(addr.label);
+        // SN-5: on the all-Finland view `data` is null, so App resolves the area via its
+        // deferred-geo path and opens the panel (which carries the home/reference toggle).
+        // Showing the raw street label here would only mismatch the panel title, so clear it.
+        setQuery(data ? addr.label : '');
       }
     } catch {
       // Fallback: fly to the address coordinates even if point-in-polygon lookup fails
       onSelect('', addr.coordinates);
-      setQuery(addr.label);
+      setQuery(data ? addr.label : '');
     }
     setIsOpen(false);
     setHighlightedIndex(-1);
   }
 
+  function selectRecent(entry: RecentEntry) {
+    onSelect(entry.pno, entry.center);
+    setQuery(entry.name);
+    setIsOpen(false);
+    setHighlightedIndex(-1);
+  }
+
   function handleKeyDown(e: React.KeyboardEvent) {
-    const totalItems = results.length + addressResults.length;
+    // SN-3: when the query is empty the recents list is the active popup, so the
+    // combobox keyboard model traverses it; otherwise it traverses results + addresses.
+    const totalItems = recentsActive ? recentItems.length : results.length + addressResults.length;
     if (!isOpen || totalItems === 0) {
       if (e.key === 'Escape') {
         e.stopPropagation();
@@ -249,14 +282,22 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
         e.preventDefault();
         setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : totalItems - 1));
         break;
-      case 'Enter':
+      case 'Enter': {
         e.preventDefault();
-        if (highlightedIndex >= 0 && highlightedIndex < results.length) {
-          selectResult(results[highlightedIndex]);
-        } else if (highlightedIndex >= results.length && highlightedIndex < totalItems) {
-          selectAddressResult(addressResults[highlightedIndex - results.length]);
+        if (recentsActive) {
+          selectRecent(recentItems[highlightedIndex < 0 ? 0 : highlightedIndex]);
+          break;
+        }
+        // SN-1: with nothing explicitly highlighted, Enter selects the top match
+        // (the universal combobox convention) instead of doing nothing.
+        const idx = highlightedIndex < 0 ? 0 : highlightedIndex;
+        if (idx < results.length) {
+          selectResult(results[idx]);
+        } else if (idx < totalItems) {
+          selectAddressResult(addressResults[idx - results.length]);
         }
         break;
+      }
       case 'Escape':
         e.preventDefault();
         e.stopPropagation();
@@ -278,11 +319,11 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
           ref={inputRef}
           type="text"
           role="combobox"
-          aria-expanded={isOpen && (results.length > 0 || addressResults.length > 0)}
+          aria-expanded={isOpen && (recentsActive || results.length > 0 || addressResults.length > 0)}
           aria-activedescendant={highlightedIndex >= 0 ? `search-result-${highlightedIndex}` : undefined}
           aria-controls="search-results-list"
           aria-autocomplete="list"
-          aria-label={t('search.placeholder')}
+          aria-label={t(GEOCODING_ENABLED ? 'search.address_placeholder' : 'search.placeholder')}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -292,7 +333,7 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
           }}
           onFocus={() => setIsOpen(true)}
           onKeyDown={handleKeyDown}
-          placeholder={isMobileRef.current ? t('search.placeholder_short') : t('search.placeholder')}
+          placeholder={isMobileRef.current ? t('search.placeholder_short') : t(GEOCODING_ENABLED ? 'search.address_placeholder' : 'search.placeholder')}
           className="w-full rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40
                      pl-10 pr-8 py-1.5 md:py-2.5 text-sm md:text-sm text-surface-900 dark:text-white placeholder-surface-400 dark:placeholder-surface-500
                      focus:outline-none focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/30
@@ -359,9 +400,12 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
         </div>
       )}
 
-      {/* PO-5: Recent neighborhoods when input is empty/focused */}
-      {isOpen && results.length === 0 && query.length < 2 && recent.length > 0 && (
+      {/* PO-5: Recent neighborhoods when input is empty/focused.
+          SN-3: when shown, this IS the live combobox popup (id matches aria-controls)
+          and each option is keyboard-navigable via aria-activedescendant. */}
+      {recentsActive && (
         <div
+          id="search-results-list"
           role="listbox"
           aria-label={t('recent.title')}
           className="mt-1.5 rounded-xl bg-white/95 dark:bg-surface-900/95 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden"
@@ -380,18 +424,19 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
               </button>
             )}
           </div>
-          {recent.slice(0, 5).map((entry) => (
+          {recentItems.map((entry, index) => (
             <button
               key={entry.pno}
+              id={`search-result-${index}`}
               role="option"
-              className="w-full text-left px-4 py-2.5 md:py-2 text-sm transition-colors min-h-[44px] md:min-h-0
+              aria-selected={index === highlightedIndex}
+              className={`w-full text-left px-4 py-2.5 md:py-2 text-sm transition-colors min-h-[44px] md:min-h-0
                          border-b border-surface-100 dark:border-surface-800/40 last:border-0
-                         hover:bg-surface-100 dark:hover:bg-surface-800/60"
-              onClick={() => {
-                onSelect(entry.pno, entry.center);
-                setQuery(entry.name);
-                setIsOpen(false);
-              }}
+                         ${index === highlightedIndex
+                           ? 'bg-brand-50 dark:bg-brand-900/30'
+                           : 'hover:bg-surface-100 dark:hover:bg-surface-800/60'}`}
+              onMouseEnter={() => setHighlightedIndex(index)}
+              onClick={() => selectRecent(entry)}
             >
               <span className="text-surface-900 dark:text-white font-medium">{entry.name}</span>
               <span className="text-surface-500 dark:text-surface-400 ml-2">{entry.pno}</span>
@@ -477,9 +522,37 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
         </div>
       )}
 
-      {/* C1: settled no-results state — query is long enough, both searches returned
-          nothing, and geocoding has finished. Mirrors the dropdown container styling. */}
-      {isOpen && debouncedQuery.length >= 2 && results.length === 0 && addressResults.length === 0 && !isGeocoding && (
+      {/* ER-1: the geocoder failed (not merely "no matches") — offer a retry rather
+          than a misleading "no results", and suppress the generic branch below. */}
+      {isOpen && addressError && results.length === 0 && !isGeocoding && (
+        <div className="mt-1.5 rounded-xl bg-white/95 dark:bg-surface-900/95 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden">
+          <div className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm text-surface-500 dark:text-surface-400">
+            <span>{t('search.address_unavailable')}</span>
+            <button
+              type="button"
+              className="shrink-0 font-medium text-brand-600 dark:text-brand-300 hover:underline"
+              onClick={() => setGeocodeRetry((n) => n + 1)}
+            >
+              {t('search.address_retry')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* LP-4: the global search index hasn't loaded yet (default all-Finland view) —
+          show a loading row instead of a premature "no results". */}
+      {isOpen && indexLoading && debouncedQuery.length >= 2 && results.length === 0 && addressResults.length === 0 && !isGeocoding && !addressError && (
+        <div className="mt-1.5 rounded-xl bg-white/95 dark:bg-surface-900/95 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden">
+          <div className="px-4 py-2.5 text-sm text-surface-400 dark:text-surface-500">
+            {t('loading.title')}
+          </div>
+        </div>
+      )}
+
+      {/* C1/ES-6: settled no-results — query long enough, the index is loaded, both
+          searches returned nothing, no geocode error. Copy holds at the threshold and
+          no longer advises "change city" (search is already nationwide). */}
+      {isOpen && !indexLoading && !addressError && debouncedQuery.length >= 2 && results.length === 0 && addressResults.length === 0 && !isGeocoding && (
         <div className="mt-1.5 rounded-xl bg-white/95 dark:bg-surface-900/95 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden">
           <div className="px-4 py-2.5 text-sm text-surface-500 dark:text-surface-400">
             {t('search.no_results').replace('{query}', debouncedQuery)}

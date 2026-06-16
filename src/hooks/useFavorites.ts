@@ -145,5 +145,18 @@ export function useFavorites(userId?: string | null) {
     setFavorites([]);
   }, []);
 
-  return { favorites, isFavorite, toggleFavorite, clearFavorites } as const;
+  // AC-2: shared-device logout. Drop this device's local copy WITHOUT writing
+  // tombstones (those would block the SAME user re-syncing on next login) and
+  // clear any EXISTING tombstones (else they'd suppress the NEXT user's matching
+  // server items). Suppress the debounced server echo so logging out never pushes
+  // an empty list to the still-authenticated session. Distinct from clearFavorites,
+  // which is a deliberate "delete my favorites" and so does write tombstones.
+  const resetLocal = useCallback((): void => {
+    fromServerRef.current = true;
+    if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
+    try { localStorage.removeItem(TOMBSTONE_KEY); } catch { /* ignore */ }
+    setFavorites([]);
+  }, []);
+
+  return { favorites, isFavorite, toggleFavorite, clearFavorites, resetLocal } as const;
 }

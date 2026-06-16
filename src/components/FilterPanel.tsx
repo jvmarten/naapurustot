@@ -27,6 +27,10 @@ interface FilterPanelProps {
   /** Pre-computed matching PNOs from parent — avoids running computeMatchingPnos twice
    *  (App already computes this for the Map's filter highlight layer). */
   matchingPnos?: Set<string>;
+  /** DT-1: true on the default `?city=all` view, where `data` is the 69 seutukunta
+   *  aggregates — not the 3,018 postal areas. Surfaces a banner so the tool's
+   *  "neighborhoods" copy doesn't silently rank sub-regions instead. */
+  isAggregate?: boolean;
 }
 
 /** Get the data range (min stop, max stop) for a layer from its color stops. */
@@ -340,25 +344,40 @@ const AddFilterDropdown: React.FC<{
 }> = ({ filters, onAdd }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  // AY-5: refs for focus management — first option on open, trigger on close.
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
   // Memoize available layers — filters 70+ LAYERS entries, was recalculated
   // on every render (any state change in the parent) without memoization.
   const available = useMemo(() => availableLayers(filters), [filters]);
 
-  // Close dropdown on outside click
+  // Close dropdown on outside click; AY-5: also on Escape, restoring focus to the trigger.
   React.useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); triggerRef.current?.focus(); }
+    };
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    document.addEventListener('keydown', onKey, true);
+    return () => { document.removeEventListener('mousedown', handler); document.removeEventListener('keydown', onKey, true); };
+  }, [open]);
+
+  // AY-5: move focus into the popup (first option) when it opens.
+  React.useEffect(() => {
+    if (open) popupRef.current?.querySelector<HTMLElement>('[role="option"]')?.focus();
   }, [open]);
 
   return (
     <div ref={ref} className="relative">
       <button
+        ref={triggerRef}
         onClick={() => setOpen(!open)}
         disabled={available.length === 0}
+        aria-haspopup="listbox"
+        aria-expanded={open}
         className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium
                    bg-brand-500/10 dark:bg-brand-600/15 text-brand-600 dark:text-brand-300
                    hover:bg-brand-500/20 dark:hover:bg-brand-600/25 transition-colors
@@ -371,12 +390,18 @@ const AddFilterDropdown: React.FC<{
       </button>
 
       {open && (
-        <div className="absolute left-0 right-0 top-full mt-1 z-50 max-h-52 overflow-y-auto
+        <div
+          ref={popupRef}
+          role="listbox"
+          aria-label={t('filter.add')}
+          className="absolute left-0 right-0 top-full mt-1 z-50 max-h-52 overflow-y-auto
                         rounded-lg bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700/40
                         shadow-xl">
           {available.map((layer) => (
             <button
               key={layer.id}
+              role="option"
+              aria-selected={false}
               onClick={() => {
                 trackEvent('add-filter', { metric: layer.id });
                 onAdd(layer.id);
@@ -398,6 +423,59 @@ const AddFilterDropdown: React.FC<{
         </div>
       )}
     </div>
+  );
+};
+
+/* ------------------------------------------------------------------ */
+/* DT-3: inline "save preset" name field (replaces a native prompt())  */
+/* ------------------------------------------------------------------ */
+const SavePresetInline: React.FC<{ onSave: (name: string) => void }> = ({ onSave }) => {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
+
+  const commit = () => {
+    const trimmed = name.trim();
+    if (trimmed) { trackEvent('save-filter-preset'); onSave(trimmed); }
+    setName('');
+    setEditing(false);
+  };
+
+  if (!editing) {
+    return (
+      <button
+        onClick={() => setEditing(true)}
+        className="text-[10px] font-medium text-brand-600 dark:text-brand-400 hover:text-brand-600 dark:hover:text-brand-300 transition-colors"
+      >
+        {t('filter.save_preset')}
+      </button>
+    );
+  }
+  return (
+    <form
+      onSubmit={(e) => { e.preventDefault(); commit(); }}
+      className="flex items-center gap-1"
+    >
+      <input
+        ref={inputRef}
+        type="text"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setName(''); setEditing(false); } }}
+        placeholder={t('filter.preset_name')}
+        aria-label={t('filter.preset_name')}
+        className="flex-1 min-w-0 rounded bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700/40
+                   px-2 py-1 text-[11px] text-surface-900 dark:text-white placeholder-surface-400
+                   focus:outline-none focus:ring-1 focus:ring-brand-500/50"
+      />
+      <button type="submit" className="px-2 py-1 rounded text-[10px] font-semibold bg-brand-500/15 text-brand-600 dark:text-brand-300 hover:bg-brand-500/25 transition-colors">
+        {t('filter.save')}
+      </button>
+      <button type="button" onClick={() => { setName(''); setEditing(false); }} aria-label={t('filter.cancel')} className="px-1.5 py-1 rounded text-[10px] text-surface-400 hover:text-surface-600 dark:hover:text-surface-300">
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+      </button>
+    </form>
   );
 };
 
@@ -452,6 +530,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = React.memo(({
   onSavePreset,
   onRemovePreset,
   matchingPnos: externalMatchingPnos,
+  isAggregate = false,
 }) => {
   useI18nVersion();
   // QW-3: Unified bottom sheet drag behavior
@@ -575,6 +654,22 @@ export const FilterPanel: React.FC<FilterPanelProps> = React.memo(({
     if (validSortKey !== sortKey) setSortKey(validSortKey);
   }, [validSortKey, sortKey]);
 
+  // ES-3: when active filters narrow to zero matches, auto-open the mobile results
+  // pane so the "no match" guidance + one-tap Clear-all aren't hidden behind a
+  // "Show results" link that a 0 count makes look pointless.
+  React.useEffect(() => {
+    if (filters.length > 0 && ranked.length === 0) setMobileResultsOpen(true);
+  }, [filters.length, ranked.length]);
+
+  // DT-1: on the all-Finland view the data is the 69 seutukunta aggregates, not the
+  // 3,018 postal areas — say so, since every label promises "neighborhoods".
+  const aggregateBanner = isAggregate ? (
+    <div className="flex-shrink-0 mx-3 mt-2 flex items-start gap-1.5 rounded-lg bg-amber-500/10 dark:bg-amber-600/15 border border-amber-500/30 px-2.5 py-2 text-[11px] leading-snug text-amber-700 dark:text-amber-300" role="status">
+      <span aria-hidden="true" className="mt-px">ⓘ</span>
+      <span>{t('filter.aggregate_notice')}</span>
+    </div>
+  ) : null;
+
   const sortBar = filters.length > 0 ? (
     <div className="flex items-center gap-1.5 px-4 py-2 border-t border-surface-200 dark:border-surface-700/40 flex-shrink-0">
       <span className="text-[10px] font-medium text-surface-500 dark:text-surface-400 flex-shrink-0">
@@ -679,8 +774,9 @@ export const FilterPanel: React.FC<FilterPanelProps> = React.memo(({
 
   return (
     <>
-      {/* Desktop: panel on left side */}
-      <div className="hidden md:flex absolute top-14 left-4 z-20 w-80 max-h-[calc(100vh-7rem)] flex-col
+      {/* Desktop: panel on left side. DT-5: offset below the search bar (also top-14
+          left-4) so the opaque panel no longer draws directly on top of it. */}
+      <div className="hidden md:flex absolute top-28 left-4 z-20 w-80 max-h-[calc(100vh-9rem)] flex-col
                       rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md
                       border border-surface-200 dark:border-surface-700/40 shadow-2xl">
         {/* Header */}
@@ -700,6 +796,8 @@ export const FilterPanel: React.FC<FilterPanelProps> = React.memo(({
             </svg>
           </button>
         </div>
+
+        {aggregateBanner}
 
         {/* PO-5: Filter presets */}
         {filters.length === 0 && (
@@ -748,19 +846,10 @@ export const FilterPanel: React.FC<FilterPanelProps> = React.memo(({
           </div>
         )}
 
-        {/* Save current filter as preset */}
+        {/* Save current filter as preset (DT-3: inline field, not a native prompt()) */}
         {filters.length > 0 && onSavePreset && (
           <div className="flex-shrink-0 px-3 py-1.5">
-            <button
-              onClick={() => {
-                const name = prompt(t('filter.preset_name'));
-                if (name?.trim()) { trackEvent('save-filter-preset'); onSavePreset(name.trim(), filters); }
-              }}
-              className="text-[10px] font-medium text-brand-600 dark:text-brand-400
-                         hover:text-brand-600 dark:hover:text-brand-300 transition-colors"
-            >
-              {t('filter.save_preset')}
-            </button>
+            <SavePresetInline onSave={(name) => onSavePreset(name, filters)} />
           </div>
         )}
 
@@ -843,6 +932,8 @@ export const FilterPanel: React.FC<FilterPanelProps> = React.memo(({
             </button>
           </div>
 
+          {aggregateBanner}
+
           {/* PO-5: Filter presets (mobile) */}
           {filters.length === 0 && (
             <div className="flex-shrink-0 px-3 py-2 space-y-1.5">
@@ -890,19 +981,10 @@ export const FilterPanel: React.FC<FilterPanelProps> = React.memo(({
             </div>
           )}
 
-          {/* Save current filter as preset (mobile) */}
+          {/* Save current filter as preset (mobile; DT-3: inline field, not prompt()) */}
           {filters.length > 0 && onSavePreset && (
             <div className="flex-shrink-0 px-3 py-1.5">
-              <button
-                onClick={() => {
-                  const name = prompt(t('filter.preset_name'));
-                  if (name?.trim()) { trackEvent('save-filter-preset'); onSavePreset(name.trim(), filters); }
-                }}
-                className="text-[10px] font-medium text-brand-600 dark:text-brand-400
-                           hover:text-brand-600 dark:hover:text-brand-300 transition-colors"
-              >
-                {t('filter.save_preset')}
-              </button>
+              <SavePresetInline onSave={(name) => onSavePreset(name, filters)} />
             </div>
           )}
 

@@ -3,6 +3,7 @@ import { t, useI18nVersion } from '../utils/i18n';
 import type { ApiUser } from '../utils/api';
 import { useSyncStatus, useSessionExpired, retryAllSyncs } from '../utils/syncStatus';
 import { FavoritesEmptyIllustration } from './EmptyStateIllustrations';
+import { readNote } from '../hooks/useNotes';
 
 export interface FavoriteEntry {
   pno: string;
@@ -199,6 +200,11 @@ export const UserMenu: React.FC<UserMenuProps> = React.memo(({ user, onLogout, f
                         onClick={() => { setOpen(false); onSelectFavorite?.(f.pno); }}
                         className="flex-1 flex items-center gap-2.5 min-w-0"
                       >
+                        {/* AC-3: surface a saved note on the favorite, so notes are
+                            retrievable without re-finding the exact area on the map. */}
+                        {readNote(f.pno) !== '' && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-brand-500 shrink-0" aria-label={t('shortlist.has_note')} title={t('shortlist.has_note')} />
+                        )}
                         <span className="truncate">{f.name}</span>
                         <span className="text-xs text-surface-400 dark:text-surface-500 shrink-0">{f.pno}</span>
                       </button>
