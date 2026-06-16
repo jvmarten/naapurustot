@@ -44,6 +44,8 @@ interface SettingsDropdownProps {
   getEmbedSnippet?: () => string;
 }
 
+const CONTACT_EMAIL = 'info@naapurustot.fi';
+
 const CB_OPTIONS: { value: ColorblindType; labelKey: string }[] = [
   { value: 'off', labelKey: 'settings.cb_off' },
   { value: 'protanopia', labelKey: 'settings.cb_protanopia' },
@@ -166,6 +168,25 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
       setCopyFallback(getShareUrl());
     }
   }, [onCopyShareLink, getShareUrl]);
+
+  // DX-1: Contact — mirror the footer's ContactMenu behaviour instead of a
+  // `mailto:` link (which hijacks the click into an external mail client).
+  // Reveal the address inline with copy-to-clipboard; the email stays as
+  // selectable text so it still works where the clipboard API is unavailable.
+  const [contactOpen, setContactOpen] = useState(false);
+  const [contactCopied, setContactCopied] = useState(false);
+  const contactCopyTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(contactCopyTimerRef.current), []);
+  const handleContactCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(CONTACT_EMAIL);
+      setContactCopied(true);
+      clearTimeout(contactCopyTimerRef.current);
+      contactCopyTimerRef.current = setTimeout(() => setContactCopied(false), 2000);
+    } catch {
+      // Clipboard blocked — the address is still visible as selectable text.
+    }
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -439,18 +460,43 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
           </a>
 
           {/* DX-1: Contact — the footer's ContactMenu is desktop-only (hidden md:block),
-              so mobile users had no contact affordance; mirror it in the gear menu. */}
-          <a
-            href="mailto:info@naapurustot.fi"
+              so mobile users had no contact affordance; mirror its reveal-and-copy
+              behaviour here in the gear menu rather than a `mailto:` link. */}
+          <button
+            type="button"
+            onClick={() => setContactOpen((v) => !v)}
+            aria-haspopup="dialog"
+            aria-expanded={contactOpen}
             className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200
-                       hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors
+                       hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors cursor-pointer
                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
             </svg>
             <span>{t('footer.contact')}</span>
-          </a>
+          </button>
+          {contactOpen && (
+            <div role="dialog" aria-label={t('footer.contact')} className="px-4 pb-2.5 pt-0.5">
+              <div className="text-[11px] font-medium text-surface-500 dark:text-surface-400 mb-1">
+                {t('contact.email_label')}
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="select-all text-xs font-semibold text-surface-800 dark:text-surface-100">
+                  {CONTACT_EMAIL}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleContactCopy}
+                  className="shrink-0 rounded-md border border-surface-200 dark:border-surface-700/40 px-1.5 py-0.5
+                             text-[11px] text-surface-600 dark:text-surface-300 cursor-pointer
+                             hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors"
+                >
+                  {contactCopied ? t('contact.copied') : t('contact.copy')}
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* PO-6 / QW-1: Data freshness indicator — build-derived (inlined via the
               __BUILD_DATE__ define so the full build_metadata.json stays out of the bundle). */}

@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { getLayerById, type LayerId, type LayerConfig } from '../utils/colorScales';
-import { t, useI18nVersion, getLang, type Lang } from '../utils/i18n';
+import { t, useI18nVersion, type Lang } from '../utils/i18n';
 import { getGridInfo } from '../hooks/useGridData';
 import { getMetricSource, getCoveragePct, isPartialCoverage, isLowCoverage, formatCoveragePct } from '../utils/metrics';
 
@@ -30,6 +30,27 @@ interface LegendProps {
 export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: _colorblind, layerConfig, lang: _lang, gridLoading, gridError, hidden, subregionEstimate, gridFilterInactive }) => {
   useI18nVersion();
   const layer = layerConfig ?? getLayerById(layerId);
+
+  // ON-3: the Quality Index "i" opens a small inline popover explaining the
+  // composite — it no longer links out to the data-sources page. Closes on
+  // outside-click or Escape.
+  const [helpOpen, setHelpOpen] = useState(false);
+  const helpRef = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!helpOpen) return;
+    const onPointer = (e: MouseEvent) => {
+      if (helpRef.current && !helpRef.current.contains(e.target as Node)) setHelpOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setHelpOpen(false);
+    };
+    document.addEventListener('mousedown', onPointer);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onPointer);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [helpOpen]);
 
   // Show only first and last tick values
   const n = layer.stops.length;
@@ -67,18 +88,36 @@ export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: 
       <div className="rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl px-4 py-3">
         <div className="text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-2 flex items-center gap-1">
           <span>{t(layer.labelKey)}</span>
-          {/* ON-3: composite/derived layers (Quality Index) get an "i" linking to the
-              methodology — otherwise the default landing shows colored blobs with no
-              hint that the headline metric is a weighted composite where higher = better. */}
+          {/* ON-3: composite/derived layers (Quality Index) get an "i" that opens a
+              short popover — the headline metric is a weighted composite where higher
+              = better. The default landing otherwise shows colored blobs with no hint. */}
           {layerId === 'quality_index' && (
-            <a
-              href={getLang() === 'en' ? '/en/data-sources' : getLang() === 'sv' ? '/sv/datakallor' : '/tietolahteet'}
-              title={t('legend.composite_help')}
-              aria-label={t('legend.composite_help')}
-              className="cursor-help text-surface-400 hover:text-brand-600 dark:hover:text-brand-400 normal-case"
-            >
-              ⓘ
-            </a>
+            <span className="relative inline-block" ref={helpRef}>
+              <button
+                type="button"
+                onClick={() => setHelpOpen((v) => !v)}
+                aria-haspopup="dialog"
+                aria-expanded={helpOpen}
+                title={t('legend.composite_help')}
+                aria-label={t('legend.composite_help')}
+                className="cursor-help text-surface-400 hover:text-brand-600 dark:hover:text-brand-400 normal-case bg-transparent border-0 p-0 m-0 leading-none align-middle"
+              >
+                ⓘ
+              </button>
+              {helpOpen && (
+                <div
+                  role="dialog"
+                  aria-label={t(layer.labelKey)}
+                  className="absolute bottom-full left-0 mb-2 z-50 w-max max-w-[16rem] rounded-xl
+                             bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700/40
+                             shadow-2xl px-3 py-2.5 text-left normal-case"
+                >
+                  <p className="text-xs font-normal text-surface-700 dark:text-surface-200 leading-snug whitespace-normal">
+                    {t('legend.composite_help')}
+                  </p>
+                </div>
+              )}
+            </span>
           )}
         </div>
         <div className="flex items-center gap-0" role="img" aria-label={rampAria}>

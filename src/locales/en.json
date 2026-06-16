@@ -799,7 +799,7 @@
   "filter.clear_all": "Clear filters",
   "error.webgl_context_lost_desc": "Map rendering was interrupted. Reload the page to restore the map.",
   "legend.ramp_aria": "{label}: color scale from {min} to {max}",
-  "legend.composite_help": "The Quality Index is a weighted composite of several metrics — higher is better. See methodology.",
+  "legend.composite_help": "The Quality Index is a weighted composite of several metrics — higher is better.",
   "error.load_failed_detail": "Check your connection and try again.",
   "panel.dist_aria": "{metric}: this area's value {value}, better than {pct}% of areas",
   "compare.max_toast": "Compare up to 3 areas \u2014 remove one first",

@@ -754,7 +754,7 @@
   "filter.clear_all": "Tyhjennä suodattimet",
   "error.webgl_context_lost_desc": "Kartan piirto keskeytyi. Lataa sivu uudelleen palauttaaksesi kartan.",
   "legend.ramp_aria": "{label}: väriasteikko arvosta {min} arvoon {max}",
-  "legend.composite_help": "Laatuindeksi on painotettu yhdistelmä useista mittareista — korkeampi on parempi. Katso menetelmä.",
+  "legend.composite_help": "Laatuindeksi on painotettu yhdistelmä useista mittareista — korkeampi on parempi.",
   "error.load_failed_detail": "Tarkista verkkoyhteytesi ja yritä uudelleen.",
   "panel.dist_aria": "{metric}: tämän alueen arvo {value}, parempi kuin {pct} % alueista",
   "compare.max_toast": "Vertaile enintään 3 aluetta \u2013 poista yksi ensin",

@@ -89,18 +89,13 @@ export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, on
           aria-label={t('city.select')}
           title={t('city.select')}
         >
-          {/* Simple globe icon (stroke) */}
+          {/* Simple globe icon (stroke) — icon only; the region name is intentionally
+              omitted on mobile to keep the control a compact, unobtrusive icon. */}
           <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9 9 0 100-18 9 9 0 000 18z" />
             <path strokeLinecap="round" strokeLinejoin="round" d="M3.6 9h16.8M3.6 15h16.8" />
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 3a15 15 0 014 9 15 15 0 01-4 9 15 15 0 01-4-9 15 15 0 014-9z" />
           </svg>
-          {/* SN-6: show the current region so mobile users always know their scope —
-              search can silently switch regions, and the default 'all' is unlabeled.
-              Kept off for 'all' so the idle home view stays an unobtrusive icon. */}
-          {value !== 'all' && (
-            <span className="truncate max-w-[7rem]">{t(`city.${value}`)}</span>
-          )}
         </button>
 
         {open && (
