@@ -1,5 +1,5 @@
 {
-  "snapshot": "2026-06-16",
+  "snapshot": "2026-06-17",
   "projects": {
     "scope": "national",
     "shardPattern": "data/planning_projects_shards/planning_projects_{region}.geojson",

@@ -1,6 +1,6 @@
 {
-  "generated": "2026-06-15T15:39:17.971Z",
-  "source_hash": "b28160749845d50c",
+  "generated": "2026-06-17T08:08:05.563Z",
+  "source_hash": "1bb6a2b3c876f98e",
   "rows_total": 3018,
   "metrics": {
     "active_plan_count": {
@@ -276,8 +276,64 @@
       "coverage_pct": 93.1
     },
     "party_diversity_index": {
-      "source": "Tilastokeskus (kuntavaalit)",
-      "vintage": 2025,
+      "source": "Tilastokeskus (eduskuntavaalit 2023)",
+      "vintage": 2023,
+      "granularity": "postal",
+      "is_proxy": true,
+      "row_count": 3018,
+      "coverage_pct": 100
+    },
+    "party_vote_kesk_pct": {
+      "source": "Tilastokeskus (eduskuntavaalit 2023)",
+      "vintage": 2023,
+      "granularity": "postal",
+      "is_proxy": true,
+      "row_count": 2986,
+      "coverage_pct": 98.9
+    },
+    "party_vote_kok_pct": {
+      "source": "Tilastokeskus (eduskuntavaalit 2023)",
+      "vintage": 2023,
+      "granularity": "postal",
+      "is_proxy": true,
+      "row_count": 2986,
+      "coverage_pct": 98.9
+    },
+    "party_vote_ps_pct": {
+      "source": "Tilastokeskus (eduskuntavaalit 2023)",
+      "vintage": 2023,
+      "granularity": "postal",
+      "is_proxy": true,
+      "row_count": 2986,
+      "coverage_pct": 98.9
+    },
+    "party_vote_rkp_pct": {
+      "source": "Tilastokeskus (eduskuntavaalit 2023)",
+      "vintage": 2023,
+      "granularity": "postal",
+      "is_proxy": true,
+      "row_count": 2818,
+      "coverage_pct": 93.4
+    },
+    "party_vote_sdp_pct": {
+      "source": "Tilastokeskus (eduskuntavaalit 2023)",
+      "vintage": 2023,
+      "granularity": "postal",
+      "is_proxy": true,
+      "row_count": 2986,
+      "coverage_pct": 98.9
+    },
+    "party_vote_vas_pct": {
+      "source": "Tilastokeskus (eduskuntavaalit 2023)",
+      "vintage": 2023,
+      "granularity": "postal",
+      "is_proxy": true,
+      "row_count": 2986,
+      "coverage_pct": 98.9
+    },
+    "party_vote_vihr_pct": {
+      "source": "Tilastokeskus (eduskuntavaalit 2023)",
+      "vintage": 2023,
       "granularity": "postal",
       "is_proxy": true,
       "row_count": 2986,
@@ -290,6 +346,14 @@
       "is_proxy": false,
       "row_count": 2937,
       "coverage_pct": 97.3
+    },
+    "political_lean_index": {
+      "source": "Tilastokeskus (eduskuntavaalit 2023)",
+      "vintage": 2023,
+      "granularity": "postal",
+      "is_proxy": true,
+      "row_count": 2986,
+      "coverage_pct": 98.9
     },
     "population_change_pct": {
       "source": "Tilastokeskus (Paavo)",
@@ -516,12 +580,12 @@
       "coverage_pct": 97.3
     },
     "voter_turnout_pct": {
-      "source": "Tilastokeskus (kuntavaalit)",
-      "vintage": 2025,
+      "source": "Tilastokeskus (eduskuntavaalit 2023)",
+      "vintage": 2023,
       "granularity": "postal",
       "is_proxy": true,
-      "row_count": 2986,
-      "coverage_pct": 98.9
+      "row_count": 3018,
+      "coverage_pct": 100
     },
     "walkability_index": {
       "source": "OpenStreetMap (composite)",

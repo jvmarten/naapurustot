@@ -33,7 +33,7 @@ const LAYER_GROUPS: LayerGroup[] = [
   { labelKey: 'layers.mobility', ids: ['cycling_infra', 'ev_charging_density'] },
   { labelKey: 'layers.environment', ids: ['tree_canopy', 'water_proximity', 'light_pollution', 'noise_pollution', 'radon', 'flood_risk'] },
   { labelKey: 'layers.health', ids: ['health_index'] },
-  { labelKey: 'layers.voting', ids: ['voter_turnout', 'party_diversity'] },
+  { labelKey: 'layers.voting', ids: ['voter_turnout', 'party_diversity', 'political_lean', 'party_kok', 'party_sdp', 'party_ps', 'party_kesk', 'party_vihr', 'party_vas', 'party_rkp'] },
   { labelKey: 'layers.connectivity', ids: ['broadband_coverage'] },
 ];
 

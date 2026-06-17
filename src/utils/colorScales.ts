@@ -42,6 +42,15 @@ export type LayerId =
   // Phase 7: New data layers
   | 'voter_turnout'
   | 'party_diversity'
+  // Voting preferences — 2023 parliamentary election (eduskuntavaalit)
+  | 'political_lean'
+  | 'party_kok'
+  | 'party_sdp'
+  | 'party_ps'
+  | 'party_kesk'
+  | 'party_vihr'
+  | 'party_vas'
+  | 'party_rkp'
   | 'broadband_coverage'
   | 'ev_charging_density'
   | 'tree_canopy'
@@ -529,6 +538,85 @@ export const LAYERS: LayerConfig[] = [
     colors: ['#f7f4f9', '#e7e1ef', '#d4b9da', '#c994c7', '#df65b0', '#e7298a', '#ce1256', '#91003f'],
     stops: [0.4, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.85],
     format: gini,
+  },
+  // Political lean — vote-weighted left–right position (0 = left … 100 = right),
+  // weighted by 2023 party vote shares using Chapel Hill Expert Survey (CHES 2019)
+  // left–right placements. Diverging palette pinned to the ideological midpoint 50
+  // (Finnish convention: red = left, blue = right). Neutral metric, no better/worse.
+  {
+    id: 'political_lean',
+    labelKey: 'layer.political_lean',
+    property: 'political_lean_index',
+    unit: '',
+    colors: ['#b2182b', '#ef8a62', '#fddbc7', '#f7f7f7', '#d1e5f0', '#67a9cf', '#2166ac', '#053061'],
+    stops: [44, 48, 50, 52, 56, 60, 64, 70],
+    format: score,
+    divergingCenter: 50,
+  },
+  // Per-party vote shares (% of valid votes, 2023 parliamentary). Each rendered
+  // alone, so a single-hue ramp per party reads cleanly. Higher ≠ better.
+  {
+    id: 'party_kok',
+    labelKey: 'layer.party_kok',
+    property: 'party_vote_kok_pct',
+    unit: '%',
+    colors: ['#f7fbff', '#deebf7', '#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#084594'],
+    stops: [4, 8, 14, 20, 26, 32, 38, 44],
+    format: pct,
+  },
+  {
+    id: 'party_sdp',
+    labelKey: 'layer.party_sdp',
+    property: 'party_vote_sdp_pct',
+    unit: '%',
+    colors: ['#fff5f0', '#fee0d2', '#fcbba1', '#fc9272', '#fb6a4a', '#ef3b2c', '#cb181d', '#99000d'],
+    stops: [5, 10, 15, 20, 25, 30, 35, 40],
+    format: pct,
+  },
+  {
+    id: 'party_ps',
+    labelKey: 'layer.party_ps',
+    property: 'party_vote_ps_pct',
+    unit: '%',
+    colors: ['#f7f7ff', '#e0e0f0', '#c0c0e0', '#9090c8', '#6060b0', '#404098', '#2a2a80', '#16165a'],
+    stops: [5, 12, 20, 28, 35, 42, 48, 55],
+    format: pct,
+  },
+  {
+    id: 'party_kesk',
+    labelKey: 'layer.party_kesk',
+    property: 'party_vote_kesk_pct',
+    unit: '%',
+    colors: ['#f7fcf5', '#e5f5e0', '#c7e9c0', '#a1d99b', '#74c476', '#41ab5d', '#238b45', '#005a32'],
+    stops: [3, 8, 16, 24, 32, 40, 48, 56],
+    format: pct,
+  },
+  {
+    id: 'party_vihr',
+    labelKey: 'layer.party_vihr',
+    property: 'party_vote_vihr_pct',
+    unit: '%',
+    colors: ['#ffffe5', '#f7fcb9', '#d9f0a3', '#addd8e', '#78c679', '#41ab5d', '#238443', '#005a32'],
+    stops: [1, 2, 4, 6, 8, 10, 12, 15],
+    format: pct,
+  },
+  {
+    id: 'party_vas',
+    labelKey: 'layer.party_vas',
+    property: 'party_vote_vas_pct',
+    unit: '%',
+    colors: ['#fff7f3', '#fde0dd', '#fcc5c0', '#fa9fb5', '#f768a1', '#dd3497', '#ae017e', '#7a0177'],
+    stops: [1, 3, 6, 9, 12, 16, 20, 28],
+    format: pct,
+  },
+  {
+    id: 'party_rkp',
+    labelKey: 'layer.party_rkp',
+    property: 'party_vote_rkp_pct',
+    unit: '%',
+    colors: ['#ffffe5', '#fff7bc', '#fee391', '#fec44f', '#fe9929', '#ec7014', '#cc4c02', '#8c2d04'],
+    stops: [1, 3, 6, 12, 25, 45, 65, 88],
+    format: pct,
   },
   // #8 Internet & Connectivity
   {
