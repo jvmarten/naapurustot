@@ -1,137 +1,161 @@
 # naapurustot.fi — Feature Roadmap
 
-> Generated 2026-06-13 from a fresh multi-agent codebase audit (8 parallel subsystem surveys + 4 live external data-source research dossiers → opportunity brief → 7 ideation lenses + a 3-variant kaavoitukset/hankkeet design panel with a design judge → synthesis/dedup → one adversarial verifier per item against the real code and live data APIs → completeness critic → sequencing; 55 agents). **Supersedes the 2026-06-10 roadmap, every item of which (QW-1…8, CF-1…21, PO-1…5, IN-1…8) shipped and merged.** Recent `main` commits are post-roadmap UX/bug batches, not roadmap items. Item IDs here are **fresh** and do not map to the prior roadmap's IDs.
+> Generated 2026-06-17 from a fresh **63-agent multi-agent codebase audit**: 9 parallel subsystem surveys + 5 live external data-source/competitive research dossiers → 6 ideation lenses → dedup/pre-filter → **one adversarial verifier per candidate** against the real code and live data APIs → completeness critic → dependency sequencing (70 raw candidates → 34 deduped → 33 confirmed + 3 critic additions = **35 items**, 1 rejected on a live-API granularity check). **Supersedes the 2026-06-13 roadmap, whose kaavoitukset & hankkeet centerpiece and nearly all 31 items shipped and merged.** Item IDs here are **fresh** and do not map to the prior roadmap's.
 
-## The headline: the owner's centerpiece — *kaavoitukset & hankkeet* (zoning plans + development/infrastructure projects)
+## The headline
 
-The product currently has **nothing** about what is being planned or built near an area — verified greenfield (zero `kaava`/`hanke`/`asemakaava`/`ryhti`/`vireillä` references in `src/` except one area name in `slug_aliases.json`). No Finnish consumer service combines per-area neighbourhood stats with "what's planned/built nearby" — Oikotie and Etuovi explicitly punt zoning lookup to city sites; municipal/Ryhti viewers are pro-grade and un-aggregated. naapurustot is positioned to be first.
+The planning centerpiece is done, so this roadmap pivots to four reinforcing fronts:
 
-**The honest data reality (this shapes the whole feature):**
+1. **Eight genuinely-new, real-sourced data layers** at postal-or-finer granularity and zero *data*-bundle cost — low-income/segregation (`hr_pi_tul`), job self-sufficiency (`tp_tyopy/pt_tyoll`), distance-to-essential-services (incl. the missing **pharmacy** category), true building-level construction flow from the **Ryhti permit register**, libraries (Kirkanta), protected nature (SYKE), cultural heritage (Museovirasto), and an **FMI 1 km microclimate grid**.
+2. **Closing core capability gaps on the dominant navigation/comparison paths** — accent-folded + municipality search, national filtering across all 3,018 areas, SplitMapView overlay parity, mobile comparison charts, and ranking-table orientation.
+3. **Compounding the SEO / answer-engine moat** with prerendered X-vs-Y pages, Wikidata entity grounding, and Speculation Rules prefetch.
+4. **Hardening the integrity scaffolding the data work depends on** — making the coverage ratchet, the type-check, full data-validation, visual-regression, and server-route gates *actually enforce*; closing a cross-device sync data-loss window; and truing-up drifted docs.
 
-- A **national, machine-readable, postal-or-finer ZONING dataset does not exist today.** The correct long-term source — **Ryhti / RYTJ** (`paikkatiedot.ymparisto.fi/geoserver/ryhti_plan/ogc/features/v1`, OGC API Features, CC BY 4.0, plan-polygon granularity) — is real but effectively empty for the big cities: machine-readable submission is voluntary until end-2028 and **statutory only from 1 Jan 2029**; today it holds ~2 of 18 regions (Etelä-/Pohjois-Savo via the VOOKA pilot). It is the **migration target, not the launch source**.
-- **HAME** (harmonized maakuntakaava) is near-national and CC BY 4.0 but the **wrong granularity** (one regional polygon spans hundreds of postal codes) — use at most as a coarse context note, or skip.
-- **Per-city WFS feeds** are the only source of in-progress (`vireillä`) plan geometry today, and they are fragmented (GeoServer vs Tekla, GeoJSON vs GML, CRS 3879/3878/3133 → all must reproject to EPSG:3067; layer names drift → pin via GetCapabilities each build). Confirmed CC BY 4.0 vireillä feeds: **Helsinki** (`kartta.hel.fi/ws/geoserver/avoindata/wfs`), **Espoo** (`kartat.espoo.fi` Tekla), **Tampere** (`geodata.tampere.fi`, GeoJSON verified), **Vantaa**, **Turku+Kaarina**, **Jyväskylä**. Coverage: top ~6 cities ≈ 35% of population but only a few hundred of 3,018 postal codes; top ~10–15 ≈ ~45–50% population. Acceptable under the documented gray-fallback + "low data" policy — but the label/note **must** say "in-progress municipal planning in participating cities as of <snapshot>, not nationwide." Real geometry → `is_proxy:false`, partial coverage.
-- **The PROJECTS half (*hankkeet*) is genuinely national TODAY.** **Väylävirasto käynnissä olevat väylähankkeet** — OGC API Features `avoinapi.vaylapilvi.fi/vaylatiedot/ogc/features/v1/` (collections `hanketiedot:tiehankkeet`, `:ratahankkeet`, `:ratasuunnitelmat`, `:paattyneet_hankkeet`), CC BY 4.0, point/line geometry, full-country, refreshed daily–weekly; `vaylavirasto` publisher already registered. Caveat: **state** road/rail/waterway only — excludes municipal trams/light rail and city development (those need per-city sources). Every area in Finland gets real *hankkeet* content immediately.
-
-**Buildable shape, in dependency order:** (A) **prerender + panel + hub** content from a build-time pipeline — zero bundle bytes, national via Väylä, highest SEO ROI, ship first (IN-1 → CF-1, CF-3, CF-4, CF-10); (B) an **interactive additive map overlay** modeled on the isochrone effect, funded by a justified BUDGET raise (CF-2); (C) a **neutral planning/development-activity choropleth** (CF-5), backstopped nationally by a StatFin construction-FLOW layer (CF-11). Design the per-area schema around Ryhti's lifecycle vocabulary (`vireillä→ehdotus→hyväksytty→lainvoimainen→kumottu`) so the ~6–10 city adapters can later collapse into one Ryhti fetcher as municipalities onboard through 2029. **Document the 2029 backstop so partial coverage is framed as a migration phase, not a defect.**
+Build-time and static-asset (`?url`) surfaces are favored so the near-zero JS-bundle headroom is respected; the `BUDGET` constant is raised exactly once per batch.
 
 ## The bundle-budget reality (read before implementing anything)
 
-CI fails when the gzipped sum of **all** app JS (lazy chunks included, only `maplibre-*` excluded) exceeds the single `BUDGET` constant in `scripts/check-bundle-size.mjs` (`bundle:check`, called by both `ci.yml` and `auto-merge.yml`). Verified state:
+CI fails when the gzipped sum of **all** app JS (lazy chunks included, only `maplibre-*` excluded) exceeds the single `BUDGET` constant in `scripts/check-bundle-size.mjs` (`bundle:check`, called by both `ci.yml` and `auto-merge.yml`). Verified state on this branch:
 
-1. **`BUDGET = 287_000` bytes; measured usage ≈ 286,676 B gz → ~324 B headroom (effectively zero).** Every JS-touching item below carries a measured/estimated gz byte cost. Raising `BUDGET` for a substantial real batch is **established practice** (history 256→280→282→287) — but exactly **one** item per batch may edit the constant.
-2. **`fi.json` is NOT free** (statically bundled in the ~16 KB i18n chunk, `i18n.ts:19`); **`en.json`/`sv.json` ARE free** (lazy `?url` assets). Prerender text uses **inline FI/EN/SV strings, not locale keys** (the `NEXTSTEPS_LABELS`/CF-13 pattern). Build-time / prerender / static-asset (`?url`, manifest+`fetch`) surfaces cost **zero** bundle bytes — strongly preferred.
-3. **Batch 1 deliberately front-loads the three headroom-freeing items** — QW-9 (remove vestigial affordability plumbing, ~1.5–2.5 KB), IN-7 (split page-only `fi.json` strings to a lazy asset, ~2 KB), QW-8 (prune orphan keys, net-negative) — **freeing ~4 KB** so the planning UI and new data layers can often land without a `BUDGET` raise. Measure with `bundle:check` before every push.
+1. **`BUDGET = 295_000` bytes** (`scripts/check-bundle-size.mjs:59`) — note the prior roadmap and several docs still say 280,000/287,000; those are **stale** (PO-2 fixes the docs). Measure live headroom with `npm run bundle:check` before every push.
+2. **`fi.json` is NOT free** (statically bundled in the i18n chunk); **`en.json`/`sv.json` ARE free** (lazy `?url` assets). Prerender/profile text uses **inline FI/EN/SV strings, not locale keys** wherever possible. Build-time / prerender / static-asset (`?url`, manifest + `fetch`) surfaces cost **zero** bundle bytes — strongly preferred, and every new *data* layer here ships its values that way.
+3. **Exactly one designated item per batch may edit the `BUDGET` constant.** Raising it for a substantial real batch is established practice (history 256→280→282→287→295). Every JS-touching item below carries a `Bundle` estimate.
 
-## Deliberately removed / excluded — do not re-propose
+## Data integrity & granularity (non-negotiable)
 
-Everything in the prior roadmap (all QW/CF/PO/IN items) shipped — treat as done. Owner-excluded (do not re-propose): affordability **calculator** (QW-9 removes only its dead residue, not the feature), neighbor-ring map highlight, duplicate scope pill, idle hint pill, header share button, the green-space **layer** (QW-7 purges only its orphaned column), national/metro demographic 250 m grid, OSM building footprints, MML elevation, commute/isochrone destination filter, off-droplet nightly DB backups. **HAME maakuntakaava** as a primary zoning layer (granularity too coarse) is also excluded by this audit.
+Every value must trace to a **real, verifiable, open-licensed** source — never fabricated, estimated, or placeholder. Prefer postal-or-finer granularity; municipality-level values distributed to postal codes **must** be flagged `is_proxy:true`. Every data layer below names a real source with URL + license + granularity; the one candidate whose premise failed a live-API check was rejected (see below).
 
-### Refuted during verification (considered, rejected)
+## Deliberately excluded — do not re-propose
 
-- **"Trajectory / momentum analysis mode from history arrays"** — already shipped: the five realized-change metrics are a full *Trends* layer group (`colorScales.ts:425+`), `RankingTable` already ranks fastest-improving/declining by any active change layer, and `TrendChart`/`TrendSection` show per-area slope and change %. The only delta (OLS slope vs first-to-last %) is a methodology tweak, not a new surface.
-- **"Remove vestigial affordability scoring (the whole stack)"** — over-scoped/false as written: `affordability.ts` is still used by the live wizard budget fold and hydrates shared `?aff=` links by deliberate design (commit `6078a54`). Only the dead `filterUtils` CF-14 trio is truly removable. (QW-9 below carries the **correct, verified-narrow** version of this cleanup.)
+Owner/prior-audit exclusions: the affordability **calculator**; neighbor-ring map highlight; duplicate scope pill; idle hint pill; header share button; the green-space **layer** (`tree_canopy` supersedes it); the national/metro demographic 250 m grid; OSM building footprints; MML elevation/DEM; commute/isochrone destination filter; off-droplet nightly DB backups; **HAME maakuntakaava** as a primary zoning layer (too coarse). Note: `@turf/union` is already removed and `affordability.ts`/`useAffordability.ts` are out of scope here (still bundled, but a separate cleanup the owner has not requested).
+
+### Considered and rejected during verification
+
+- **"National detailed-plan coverage (asemakaava-aste) layer from Ryhti"** — *data-integrity reject.* The source is real (`pub_valid_ld_plan_ix_gs`, OGC API Features, verified live `numberMatched=5634`, plan-polygon granularity, CC BY 4.0) but **not national in 2026**: a 1,000-feature sample yields only ~9 distinct *small* municipality codes (Siilinjärvi/Pihtipudas-class), a CQL filter for Helsinki (091) returns `numberMatched=0`, and **no metro is present**. A "% of area under a valid detailed plan" metric would be 0/blank for ~99% of the 3,018 areas — either a near-empty layer or a fabricated `0%` implying "no plan exists" when the truth is "municipality not yet in Ryhti". The codebase already made this call (`fetch_city_zoning.py` chose per-city WFS precisely because Ryhti is unpopulated until the **1 Jan 2029** statutory deadline). The Ryhti **permit** register, by contrast, *is* densely populated today — captured as **CF-5**.
+- **Value-pruned (kept off the ~34 cap, fair game later):** school-age-children (7–17) cohort layer; primary-sector employment layer; native View Transitions polish; reset-north/scale-bar affordances; share-`dist`-as-CI-artifact; deterministic-audit CI hygiene; SVG-chart SR text-table alternative (a11y theme is represented by QW-10/PO-4/PO-6); automated source-vintage staleness detector.
 
 ---
 
 ## 1 — Quick Wins
 
-### QW-1 Two latent-Paavo decision layers: disposable household income (`tr_mtu`) + living space per person (`te_as_valj`)
+### QW-1 Job self-sufficiency (työpaikkaomavaraisuus) layer
 
 | | |
 |---|---|
-| **What** | Surface two decision-critical Paavo columns already present on every per-region feature but rendered nowhere as map layers. (1) `tr_mtu` = median household **disposable** income (käytettävissä olevat rahatulot, after tax+transfers), genuinely distinct from the surfaced `median_income` which maps to `hr_mtu` = per-resident state-taxable income (`colorScales.ts:194`). (2) `te_as_valj` = living space m²/person (reuse the sqm formatter, distinct from `apt_size`=`ra_as_kpa`). **Required data-cleanup (the field is NOT clean as-is):** both carry raw Paavo `-1` confidentiality sentinels (188 areas each) + 19 zero-suppression artifacts because `prepare_data.py` `clean_properties()` (lines 799-811) nulls `-1` only for a key-fields list that omits these. Add `tr_mtu`/`tr_ktu`/`te_as_valj` to that list, null the existing `-1`/`0` in the GeoJSON, add a LayerConfig each (euro/sqm), `LAYER_GROUPS` entries (economy / housing), `metrics.ts` typing + `METRIC_DEFS` rows with `requirePositive:true`, registry + provenance rows (Paavo, postal, `is_proxy:false`), labels ×3, then `build:data` so `national_ranges.json` min becomes the real positive p2 (it is currently polluted to `-1`). |
-| **Why** | A relocating household judges "can households like mine afford to *live* here, and how crowded is it?" Median household disposable income answers take-home affordability far better than per-resident taxable income; m²/person is the most concrete crowding signal. CF-13 already prints both as static profile text + JSON-LD (proving the data is real) but they are absent from the interactive map/compare/wizard. ~600–900 B gz (2 LayerConfigs + 2 `LAYER_GROUPS` ids + 2 `METRIC_DEFS` + `fi.json` labels; en/sv free) → small `BUDGET` bump. |
-| **Touches** | `scripts/prepare_data.py`, `public/data/metro_neighborhoods.geojson`, `src/utils/colorScales.ts`, `src/components/LayerSelector.tsx`, `src/utils/metrics.ts`, `src/data/data_sources.json`, `scripts/provenance.json`, `src/data/national_ranges.json`, `src/data/region_properties.json`, `src/locales/{fi,en,sv}.json`, `scripts/check-bundle-size.mjs` |
-| **Complexity** | Medium |
-| **Dependencies** | None |
-| **Tag** | Claude Code |
-
-### QW-2 Wire `health_index`, `radon` and `flood_risk` into the Quality Index as opt-in `defaultWeight:0` factors
-
-| | |
-|---|---|
-| **What** | Add three `QualityFactor` entries to `QUALITY_FACTORS` in `qualityIndex.ts` (the array at 64-552), each `defaultWeight:0` / `primary:false` so published headline/persona scores stay **byte-for-byte identical** (`computeQualityIndices` skips weight-0 factors at 676/695): `health_index` (invert:true), `radon` (invert:true), `flood_risk` (`flood_risk_pct`, invert:true). Add each to `FACTOR_DIMENSION` (837-864) under `health` — `flood_risk` as an explicit counterweight to `water_proximity` (847, invert:true) which today rewards waterfront unconditionally. Labels are inline `{fi,en,sv}` on the factor reusing existing `layer.*` strings → **no locale-file change**. Document in `QUALITY_INDEX.md`; extend `qualityIndex.test.ts` to assert default-weight scores are unchanged and each new factor has a dimension mapping. |
-| **Why** | The Health dimension (weight 28) is built entirely from environmental proxies; `health_index` (THL/Kela Sotkanet morbidity) is the first real population-health **outcome** the index could use, and `flood_risk` is a direct climate counterweight to the unconditional waterfront reward. CF-21 explicitly punted this exact integration as "a follow-up owner decision" because non-zero weights "change everyone's scores"; `defaultWeight:0` resolves that while letting users opt in via "Show more" and the correlation/persona tooling pick them up automatically. ~200–300 B gz (inline labels) — ride the batch raise. |
-| **Touches** | `src/utils/qualityIndex.ts`, `docs/QUALITY_INDEX.md`, `src/__tests__/qualityIndex.test.ts` |
+| **What** | Derive `job_self_sufficiency = round(tp_tyopy / pt_tyoll * 100, 1)` in `prepare_data.py` alongside the existing employment/sector derivations (`tp_tyopy` read at `:642`, `pt_tyoll` at `:659`); propagate into the GeoJSON; run `build:data`. Add a **diverging** LayerConfig (centered at 100 = employment hub vs. commuter/dormitory) to `LAYERS` and the id to the existing `layers.economy` group (there is no "Livelihood" group). In `metrics.ts` mirror the derivation in **two** places: the per-feature derive block (~`:311-362`, like `employment_rate` at `:328`) **and** the metro-aggregate special-ratio section (~`:909-949`) — add a `totalJobs` accumulator (none exists; `result.tp_tyopy` is never emitted) and compute `result.job_self_sufficiency = sum(tp_tyopy)/sum(pt_tyoll)*100`. **Do not** use a jobs-weighted `METRIC_DEFS` row — averaging per-area ratios with differing numerator/denominator bases is mathematically wrong. Add `data_sources.json` + `provenance.json` rows (`is_proxy:false`) and fi/en/sv labels. |
+| **Why** | Highest-ROI, lowest-risk new layer: both inputs are already fetched and stored, so no new source/fetch is needed. Adds a genuinely new "employment hub vs. commuter suburb" axis at 100% postal coverage and strong profile-text material, distinct from `employment_rate` and the sector-share layers. |
+| **Data source** | Statistics Finland Paavo (`tp_tyopy` = workplaces total, `pt_tyoll` = employed residents) — https://stat.fi/tup/paavo/index.html — CC BY 4.0 — postal (3,018), `is_proxy:false` |
+| **Touches** | `scripts/prepare_data.py`, `src/utils/colorScales.ts`, `src/components/LayerSelector.tsx`, `src/utils/metrics.ts`, `src/data/data_sources.json`, `scripts/provenance.json`, `src/locales/{fi,en,sv}.json`, `public/data/metro_neighborhoods.geojson`, `scripts/check-bundle-size.mjs` |
+| **Bundle** | ~300–400 gz B (LayerConfig + fi labels + aggregation code); designated BUDGET-bumper for its batch |
 | **Complexity** | Small |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### QW-3 Expand the similarity-finder metric picker beyond the frozen 10
+### QW-2 Complete CSV/PDF exports — add the ~13 panel metrics missing from `collectStats()`
 
 | | |
 |---|---|
-| **What** | Add five already-shipped, already-labelled metrics to both `SIMILARITY_METRICS` (`similarity.ts:16-27`) and `AVAILABLE_SIMILARITY_METRICS` (34-45): `air_quality_index`, `health_index`, `rental_price_sqm`, `tree_canopy_pct`, `walkability_index` — each reuses an existing `layer.*` key (zero new locale keys) and the existing min-max normalization + per-metric weight machinery; the picker renders straight from the array so **only `similarity.ts` changes**. Note `useSimilarityMetrics.ts:20-24` defaults every key to weight 1, so the five become active by default (consistent with the existing "default selection is all of them" design, but shifts baseline similarity results — verify any snapshot test). |
-| **Why** | "Find similar areas" is frozen at the original 10; environment (air quality, canopy), health outcome, rental cost and walkability are exactly the axes users say define "feels like my area" but can neither select nor weight. All five are real, shipped layers → pure reuse, no new data. ~120–180 B gz (the smallest-cost item in the roadmap). |
-| **Touches** | `src/utils/similarity.ts` |
+| **What** | Extend the `rows` array in `export.ts` `collectStats()` (`:42-84`, the single source feeding `exportCsv`/`exportPdf`/`exportComparison{Pdf,Csv}` and shortlist exports) to include metrics the panel renders but the human-readable exports drop: `price_to_rent_ratio`, `avg_construction_year`, `elderly_ratio_pct`, `avg_household_size`, `property_price_change_pct`, `traffic_accident_rate`, `water_proximity_m`, `cycling_density`, `single_person_hh_pct`, `new_construction_pct`, and the three job-sector pcts. All 13 `panel.*` fi keys already exist and `rawExportProps` (`:477`) already carries these fields — pure formatting reuse. |
+| **Why** | A user exporting CSV/PDF currently gets a strictly smaller dataset than they see on screen — silent under-reporting in the most shareable deliverable. No data-integrity concern (existing real-sourced properties). |
+| **Touches** | `src/utils/export.ts` |
+| **Bundle** | ~150–300 gz B (13 array entries reusing existing formatters + locale keys) |
 | **Complexity** | Small |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### QW-4 Fix mobile section tab labels frozen at first-mount language
+### QW-3 Highlight + scroll-to the selected area in the ranking tables
 
 | | |
 |---|---|
-| **What** | `MOBILE_SECTIONS` (`NeighborhoodPanel.tsx:959-964`) is a `useMemo` with an **empty dependency array**, so the four `t('panel.tab.*')` labels are evaluated once at mount and never recompute. The panel calls `useI18nVersion()` (851) but does not capture/use its value, so the i18n version is absent from the memo deps — defeating the whole point of `useI18nVersion()` for these labels. Fix: capture `const i18nVersion = useI18nVersion()` and add it to the memo deps (or drop the `useMemo` — it only builds a 4-element string array; `useMemo` stays imported by other memos). |
-| **Why** | Direct i18n correctness defect on the primary mobile surface (the `role=tablist` strip at 2177-2192). Two real failure modes: after FI→EN/SV the persistent panel's tab strip stays in the old language while the rest updates; and if the panel mounts before the en/sv dictionary loads, labels freeze at the Finnish fallback even after the dict arrives. ~0 bytes (changes a dependency array). |
-| **Touches** | `src/components/NeighborhoodPanel.tsx` |
+| **What** | Thread the currently-selected pno (`App.tsx` holds `selected?.pno` at `:2109/:2125`; tables rendered at `:2328-2336` and `:2541-2547` receive no `selected` prop) into `RankingTable` and `RegionRankingTable`, style the matching row (highlight + rank badge), and scroll it into view on open via a ref + `scrollIntoView`. `RankingTableProps` (`:11-22`) and `RegionRankingTable` props (`:9-18`) have no `selected` field today. For `RegionRankingTable` the matched row is the selected area's **region** (`selected.city`), since that table ranks the 69 seutukunnat. |
+| **Why** | "Where does my area rank?" is a core decision-support question, currently unanswerable without scanning ~200 rows. Pure prop + styling using data already in scope. |
+| **Touches** | `src/components/RankingTable.tsx`, `src/components/RegionRankingTable.tsx`, `src/App.tsx` |
+| **Bundle** | ~400 gz B (className conditional + ref + `scrollIntoView`) |
 | **Complexity** | Small |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### QW-5 Adjacency-driven "naapurialueet / nearby areas" link mesh in the prerendered profiles
+### QW-4 RegionRankingTable CSV export + copy-deep-link parity
 
 | | |
 |---|---|
-| **What** | `src/data/adjacency.json` (2,975 pno → neighbour lists, rebuilt every refresh) is consumed by the in-app adjacency tool and by **no build surface** (zero references in `prerender.mjs`); prerendered profiles link only upward (region hub, map, directory at `prerender.mjs:802-808`), never laterally. Read `adjacency.json` once at the top of `prerender.mjs`, build a pno→feature map from the existing `features` array (one must be constructed — none exists today), thread it into `buildNoscriptContent`, and append a per-language "Naapurialueet / Nearby areas / Närliggande områden" list (cap ~8, resolve each neighbour to its slug + per-language URL + localized name, skip any absent from the map), with inline FI/EN/SV headings (no locale keys). Within-region only, so links stay inside the seutukunta. Distinct from the shipped (in-app) QW-5. |
-| **Why** | Civic readers and journalists explore by geography ("what about the next neighbourhood over?"); a static profile is currently a dead end except upward. The cheapest crawl-depth / internal-PageRank win on the whole profile surface — turns a star topology into a connected within-region mesh. The graph is already built and committed. 0 bundle bytes (build-time). |
-| **Touches** | `scripts/prerender.mjs` |
+| **What** | Add a CSV-download button (`exportRankingCsv`, `export.ts:424`) and a copy-deep-link button (`buildFullViewUrl`, `embed.ts:58`) to `RegionRankingTable`'s header (currently reverse + close only, `:116-135`), mirroring `RankingTable.tsx:107-138`. Both helpers are already bundled — import them and map `displayItems` (`RegionAgg {regionId,value}` at `:20-25`) to `exportRankingCsv`'s `{rank,name,pno,value}` shape (`regionId→pno`, `regionName(id)→name`). Copy-link is the all-Finland `?layer=X` deep link (`buildFullViewUrl` handles `city:null`). Only `RegionRankingTable.tsx` changes. |
+| **Why** | The 69-seutukunta aggregate ranking is exactly the citable output worth exporting/sharing (journalists, realtors), yet it is the one ranking surface with no export or share affordance — an asymmetric capability gap. |
+| **Touches** | `src/components/RegionRankingTable.tsx` |
+| **Bundle** | ~150–250 gz B (helpers pre-bundled; only two buttons + copied state + row map are new) |
 | **Complexity** | Small |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### QW-6 Atom-feed + open-data discovery links in standalone hub/ranking/landing/open-data page heads
+### QW-5 Re-baseline the toothless coverage ratchet
 
 | | |
 |---|---|
-| **What** | The PO-5 data-updates Atom feed (`dist/data-updates.atom`) is the recurring-visit hook. Its `<link rel="alternate" type="application/atom+xml">` is on `index.html:12` and (because `prerender.mjs` clones `index.html` and strips only JSON-LD/keywords) is carried onto all ~9,000 profiles and the sources pages — but the standalone pages built by `htmlPage()` in `prerender-hubs.mjs` (head template 289-323) omit it, as does the `/avoin-data` landing in `build_open_data.mjs` (240-251). Add the one-line atom alternate `<link>` to both head templates, plus a footer/discovery link to `/tietolahteet` and `/avoin-data`, covering ~1,470 standalone citable pages (69 hubs ×3 + directories + EN/SV landings + ~420 ranking sets ×3 + the open-data landing). |
-| **Why** | Closes the recurring-visit + bulk-download discovery loop on the standalone pages that lack it. Feed readers/crawlers auto-discover the atom `<link>` (more re-crawls); the open-data link surfaces the CSV/codebook/JSON API to researchers landing on a hub or ranking page. 0 bytes (build-time markup). |
-| **Touches** | `scripts/prerender-hubs.mjs`, `scripts/build_open_data.mjs` |
+| **What** | Regenerate `coverage-baseline.json` from a real `vitest run --coverage` (locally `--exclude "**/slugAliases.test.ts"`) and commit the true numbers with a modest safety margin, keeping the `_comment` "may only go up" rule. The file pins statements/branches/functions/lines at 32.27/27.05/25.34/32.91 (single commit `50f664d`, never updated) but actual coverage is ~78/68/71/80 — a ~46 pp gap that `scripts/check-coverage.mjs` (0.5 pp tolerance, wired in `ci.yml:76` + `auto-merge.yml:104`) can never fire on. Only `coverage-baseline.json` changes. **Sequence last** so the re-baseline reflects post-roadmap coverage. |
+| **Why** | The headline CI gate meant to stop coverage regressions is inert — coverage could collapse from 78% to 33% without failing. Re-baselining makes the gate real with zero feature risk and protects every future test-touching PR. |
+| **Touches** | `coverage-baseline.json` |
+| **Bundle** | 0 (build-time) |
 | **Complexity** | Small |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### QW-7 Drop the orphaned `green_space_pct` column end-to-end to shrink first-paint payloads
+### QW-6 Speculation Rules prerender/prefetch in the ~9,000 static pages
 
 | | |
 |---|---|
-| **What** | Purge the dead `green_space_pct` field. The green-space **layer** was deliberately removed (superseded by `tree_canopy`), but the column survives as residue in `prepare_data.py` (`fetch_osm_green_spaces()` L1170, `join_green_spaces()` L1242, call sites L2635-2636, emitted-field list L2748), in `metro_neighborhoods.geojson`, `region_properties.json` (3,018 occurrences), `national_ranges.json`, all 69 `regions/*.topojson`, plus a stale `validate_data.py:85` RANGE_CHECKS row and an `audit_data_coverage.py:40` entry. Stop fetching/joining/emitting it, remove the two stale script rows, and `build:data` so it drops from every artifact. Purges residue of an already-removed layer — does **not** re-introduce the green-space layer. |
-| **Why** | `region_properties.json` (~11 MB) is the universal national first-paint payload and carries this column on each of 3,018 features; every per-region TopoJSON repeats it. Removing a column the app never reads trims runtime fetch bytes for all areas at zero bundle cost, deletes a stale validator row, and eliminates a column with no provenance (it has no `data_sources.json` entry) — consistent with the "leave it out rather than carry unsourced data" policy. 0 bundle bytes. |
-| **Touches** | `scripts/prepare_data.py`, `scripts/validate_data.py`, `scripts/audit_data_coverage.py`, `public/data/metro_neighborhoods.geojson`, `src/data/region_properties.json`, `src/data/national_ranges.json`, `src/data/regions/` |
+| **What** | Inject a `<script type="speculationrules">` JSON block (document rules, `eagerness:'moderate'`, restricted to `/alue/` and hub/ranking link patterns) into the prerendered head via the existing `html.replace('</head>', …)` injection sites in `prerender.mjs` (e.g. `:1342/:1634/:1666`) and `prerender-hubs.mjs` (`htmlPage :337`, ranking `:529`). The block contains no `<title>/<noscript>/</head>` tokens, so it won't trip `assertHeadIntegrity`. Progressive enhancement; unsupported browsers ignore it. Run `build:pages` to verify head integrity. |
+| **Why** | The app already emits ~9,000 static MPA-style pages — exactly the shape this native API targets — so near-instant hub→profile and ranking→profile navigation is a free UX/perf win with zero client JS. |
+| **Touches** | `scripts/prerender.mjs`, `scripts/prerender-hubs.mjs` |
+| **Bundle** | 0 (build-time static HTML) |
 | **Complexity** | Small |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### QW-8 Unused-`fi.json`-key audit + drift guard: prune verified orphans to reclaim bundle headroom
+### QW-7 Make the CI "Type check" step actually check files (`tsc --noEmit` is a no-op)
 
 | | |
 |---|---|
-| **What** | Add a build/test-only unused-key audit for `fi.json` (the statically-bundled locale) and delete only **verified** orphans. Because fi keys are frequently composed at runtime, the scan **must** carry an explicit dynamic-key allowlist or it over-reports massively (a naive scan flags 138 keys, ~120 false positives). Allowlist the used dynamic families: `privacy.s_*`, `summary.sentence.*` incl. `*_region`, `metric_explanation.${property}`, `panel.${property}`, `wizard.size_*`/`wizard.afford_mode_*`, `settings.theme_*`, `correlation.sig_*`, and layer/metric labels. Prune the genuine orphans (verified unreferenced anywhere): `app.subtitle`, `panel.section.{demographics,economy,housing,quality_of_life,health,services,mobility}` (mobile tabs use `panel.tab.*`), `settings.light_mode`/`dark_mode`, `filter.sort_by`/`sort_asc`/`sort_desc`. Add a Vitest guard that fails CI when a non-allowlisted fi key has zero source references (drift prevention). Completes what shipped QW-1 began (it removed only `empty.click_to_explore` and added no guard). |
-| **Why** | Deleting verified-orphan strings shrinks the always-loaded i18n chunk — one of the rare changes that **grows** headroom (~−121 gz bytes for the 13 confident orphans alone), helping fund the centerpiece UI. The audit guard is test/build-time only (0 bundle bytes) and prevents the dead-string drift QW-1 left unguarded. Net bundle cost: **negative**. |
-| **Touches** | `src/locales/fi.json`, `src/__tests__/i18nUnusedKeys.test.ts` |
+| **What** | Replace `npx tsc --noEmit` (`ci.yml:67-68`, `auto-merge.yml:95-96`) with `tsc -b` (or `tsc -p tsconfig.app.json --noEmit`), or delete the redundant step since the Build step already runs `tsc -b` (`package.json` build = `tsc -b && vite build`). The root tsconfig is solution-style (`{files:[],references:[…]}`), so `tsc --noEmit` empirically compiles **0** src files and always passes. |
+| **Why** | The named gate gives false assurance: isolated type errors only surface later in the heavier Build step. Either make the gate real or remove the misleading green check. Codifies the `tsc --noEmit ≠ tsc -b` gotcha already in project memory. |
+| **Touches** | `.github/workflows/ci.yml`, `.github/workflows/auto-merge.yml` |
+| **Bundle** | 0 (CI config) |
 | **Complexity** | Small |
-| **Dependencies** | IN-7 (must scan `fi.json` ∪ `fi-extra.json` after IN-7's split) |
+| **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### QW-9 Remove the vestigial affordability scoring/calculator plumbing to reclaim bundle headroom
+### QW-8 Stop shipping `dist/stats.html` (bundle treemap) to public Pages
 
 | | |
 |---|---|
-| **What** | The owner-removed affordability **calculator** left its compute + state + URL + wizard-fold stack still bundled. Verified: there is **no** affordability input UI anywhere, so `hasAffordability` (`NeighborhoodWizard.tsx:369-372`) can only become true via a legacy `?aff=` share URL nothing can now produce, or a stale localStorage key — so the affordability-match UI block (751-776) and its scoring fold (305-327) are effectively dead. Delete `affordability.ts` (264 lines) and `useAffordability.ts` (86 lines); strip the affordability prop + fold from `NeighborhoodWizard.tsx`; remove the `App.tsx` wiring (import 43, hook call 416-418, `affordability:` extras 992, dirty-check 1729, prop 2405); excise the URL codec (`useUrlState.ts` `UrlAffordability` 59-60, fields 104-105/130-131, serialize/deserialize 212-225, parse 451, write 517-518, debounce key 605/612). Delete the three orphaned test files. Keep the codec version unchanged and **ignore** an inbound `aff` param (old links degrade to no-op). Cleanup of already-removed-feature residue — does **not** re-introduce the calculator. |
-| **Why** | One of the rare changes that **grows** the ~324 B headroom — directly funding the `BUDGET` raises the centerpiece (CF-2/CF-3/CF-5) needs. Estimated net **−1.5 to −2.5 KB gz** (`affordability.ts` ~1.0–1.4 + `useAffordability` ~0.3 + wizard fold/UI ~0.4–0.6 + URL codec ~0.2–0.3; the wizard chunk is lazy but still counts). Also removes a non-functional cost model (3.5% rate / 25% down assumptions) no user can reach. Measure before/after with `bundle:check`. |
-| **Touches** | `src/utils/affordability.ts`, `src/hooks/useAffordability.ts`, `src/components/NeighborhoodWizard.tsx`, `src/App.tsx`, `src/hooks/useUrlState.ts`, `src/__tests__/{affordability,affordabilityScoring,urlStateAffordability}.test.ts` |
-| **Complexity** | Medium |
+| **What** | Extend `stripBuildOnlyData()` (`vite.config.ts:61-88`, today scoped only to `dist/data`) to also delete `dist/stats.html` before deploy, **or** gate `rollup-plugin-visualizer` (`vite.config.ts:180-185`) behind an `ANALYZE` env flag / write the report outside `dist`. The visualizer runs before `stripBuildOnlyData`, so a `closeBundle` deletion runs after the file is written; `deploy.yml:41` builds and `:85-87` uploads all of `dist` with no intervening removal. |
+| **Why** | The visualizer writes a `stats.html` on every build that ships publicly at `naapurustot.fi/stats.html` — an unreferenced asset disclosing the full bundle/module composition of a privacy-first app, plus dead bytes on every deploy. Zero downside to removing. |
+| **Touches** | `vite.config.ts` |
+| **Bundle** | 0 (build config; removes a public asset) |
+| **Complexity** | Small |
+| **Dependencies** | None |
+| **Tag** | Claude Code |
+
+### QW-9 Adapt `theme-color` meta to light/dark for mobile browser chrome
+
+| | |
+|---|---|
+| **What** | Replace the single hardcoded `<meta name="theme-color" content="#1e3a5f">` (`index.html:39`, `prerender-hubs.mjs:320`) with two media-scoped tags (`prefers-color-scheme:dark` keeps `#1e3a5f`, light uses a near-white/light-navy value), update the X6 sync comment in `vite.config.ts:165` (`manifest.theme_color` stays a single baked install-time value), and optionally have `ThemeProvider` (`useTheme.tsx:43-98`) rewrite the active meta when the user picks an explicit non-system mode. Media-scoped `theme-color` is supported by current iOS Safari and Chrome Android. |
+| **Why** | In light theme the app surface is near-white while the mobile address/status bar stays dark navy — a conspicuous theming mismatch where the system-aware theming work stops at the document and never reaches browser chrome. |
+| **Touches** | `index.html`, `scripts/prerender-hubs.mjs`, `vite.config.ts`, `src/hooks/useTheme.tsx` |
+| **Bundle** | ~0 for the HTML tags; ~60–80 gz B only if the optional dynamic rewrite is included |
+| **Complexity** | Small |
+| **Dependencies** | None |
+| **Tag** | Claude Code |
+
+### QW-10 Announce onboarding tour step changes to screen readers
+
+| | |
+|---|---|
+| **What** | The `OnboardingTour` popover moves focus into itself only once on mount (focus effect at `:86-90` has `[]` deps) and is labelled once via `aria-labelledby` (`:235`); advancing/going back swaps `h2#onboarding-title` (`:308`) and body (`:311`) in place with no announcement. Wrap title+body in a `role=group aria-live=polite` container (or re-focus the title per `stepIndex`), optionally routing through the app's `setAriaAnnouncement` live region (`App.tsx:2884`). Add the new key to all three locales. |
+| **Why** | The multi-step walkthrough is fully keyboard-operable but completely silent to screen-reader users stepping through it, so onboarding fails its purpose for AT users — a real WCAG-relevant gap in a first-run flow. |
+| **Touches** | `src/components/OnboardingTour.tsx`, `src/locales/{fi,en,sv}.json` |
+| **Bundle** | ~150 gz B (attributes + optional fi key; en/sv free) |
+| **Complexity** | Small |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
@@ -139,113 +163,181 @@ Everything in the prior roadmap (all QW/CF/PO/IN items) shipped — treat as don
 
 ## 2 — Core Features
 
-### CF-1 Kaavat & hankkeet: prerendered "Kaavoitus ja hankkeet lähistöllä" profile section + Place JSON-LD (ship first)
+### CF-1 Opt-in national filtering across all 3,018 areas
 
 | | |
 |---|---|
-| **What** | Highest-ROI, zero-bundle expression of the centerpiece. In `prerender.mjs`, read `public/data/area_planning.json` at build time and, inside `buildNoscriptContent` (after the CF-4 next-steps push at 796-797, before the sources block at 799-808), append a "Kaavoitus ja hankkeet lähistöllä" / "Planning & projects nearby" / "Planläggning och projekt i närheten" section to each profile noscript, listing each entry `{name, status, date, url, source}` as an outbound `rel="noopener nofollow"` link to the originating city plan page or Väylä hanke page, using **inline FI/EN/SV strings** exactly like `NEXTSTEPS_LABELS` (723-749) — no locale keys. Push each entry into the Place JSON-LD `additionalProperty` array (`buildJsonLd`, 881-956) as `PropertyValue` nodes. Include a one-line honest coverage caption ("käynnissä olevat valtion väylähankkeet koko maassa; kuntien vireillä oleva asemakaavoitus osallistuvissa kaupungeissa tilanteessa &lt;snapshot&gt;; ei valtakunnallinen kaava-aineisto"), framing partial coverage as a migration phase toward the statutory 2029 Ryhti rollout. Areas with no entry omit the section; the national Väylä half keeps most areas non-empty. |
-| **Why** | Closes the verified greenfield centerpiece gap on the surface that costs nothing and ranks: captures dense long-tail SEO/GEO intent ("mitä Pasilaan rakennetaan", "Kalasatama kaavoitus", "Tunnin juna asema") that no Finnish consumer service aggregates, with national Väylä content keeping areas across all of Finland non-empty. Ships before the overlay because it delivers centerpiece value at zero budget risk. 0 bytes (build-time prerender; inline strings; `area_planning.json` is a build input never fetched by the app). |
-| **Touches** | `scripts/prerender.mjs`, `public/data/area_planning.json`, `src/data/data_sources.json` |
-| **Complexity** | Medium |
-| **Dependencies** | IN-1 (produces `area_planning.json`) |
-| **Tag** | Claude Code |
-
-### CF-2 Kaavat & hankkeet: toggleable additive map overlay with status-colored sourced popups + coverage honesty
-
-| | |
-|---|---|
-| **What** | The on-map interactive centerpiece, built as an **additive overlay** modeled on the CF-5 isochrone effect (`Map.tsx:748-782`), **not** a `LAYERS` choropleth entry (LAYERS is single-active, so the overlay must coexist with income/price/safety). New `src/hooks/usePlanningData.ts` is a slim sibling of `useGridData.ts`: reads `planning_manifest.json`, lazy-fetches the active region's projects + plans shards (whole-file fallback, LRU cache, silent error → empty FeatureCollection), returns one merged FeatureCollection. A new `Map.tsx` effect cloned from the isochrone effect (gate on `mapStyleLoadedRef.current` with `apply()`/`map.on('load',apply)` fallback + `off` cleanup) adds one `planning` source plus: a fill for plan polygons colored by **plan status** (`vireillä`/`luonnos`/`ehdotus`/`hyväksytty`/`voimassa`), a line outline, and a circle/symbol layer for project points/lines colored by type (road/rail/waterway), all inserted `beforeId=HIGHLIGHT_LAYER` (same fallback as the isochrone). Click → MapLibre popup with `{name, status, date}` + an outbound `rel="noopener"` source link. **Critical:** unlike the grid fill (`buildGridFillOpacity`, no match expression — so filter/wizard dimming is defeated over it, see PO-4), the planning fill must honor the active filter/wizard dimming. State threads from `App.tsx` as a boolean toggle (mirroring `isochronePolygon`) and into `useUrlState.ts` as a shareable flag alongside `iso`. New `src/components/PlanningControls.tsx` (cloned from `IsochroneControls.tsx`, `aria-pressed` toggles, projects/plans type filters) shows a partial-coverage caption + a status/type swatch legend when the active region has no plan shard. `SplitMapView.tsx` gets the same overlay for parity (it has no isochrone overlay today — follow its grid-effect structure). |
-| **Why** | The distinctive visual identity of the centerpiece — the first Finnish consumer map to show **what is planned/built near an area while keeping any choropleth active**. Popups deliver named+dated+sourced entities; the toggle makes it shareable via URL; the legend/caption keep partial coverage honest. **~2.4–2.8 KB gz** of bundled app JS (hook ~0.6, Map overlay+popup+filter-aware fill ~0.9, controls+legend ~0.5, App/URL ~0.2, SplitMapView ~0.3, `fi.json` labels ~0.3; en/sv free). Requires raising `BUDGET` (or riding Batch 1's freed ~4 KB — measure). All **data** stays zero-bundle (static shards + manifest, exactly like grids). |
-| **Touches** | `src/hooks/usePlanningData.ts`, `src/components/Map.tsx`, `src/components/SplitMapView.tsx`, `src/components/PlanningControls.tsx`, `src/components/Legend.tsx`, `src/App.tsx`, `src/hooks/useUrlState.ts`, `src/locales/{fi,en,sv}.json`, `scripts/check-bundle-size.mjs` |
+| **What** | On the default `?city=all` view, `filteredData` resolves to the 69 seutukunta **aggregates** (`App.tsx:530`; `buildMetroAreaFeatures` collapses even the full national set at `:524`), so `computeMatchingPnos` (`:1550`) cannot rank individual postal areas nationally. Replace the explanatory `isAggregate` banner (`FilterPanel.tsx:666`) with a "Search all 3,018 areas" button that lazy-fetches `region_properties.json` via the existing `loadAllData()` (`dataLoader.ts:190`, a `?url` asset already used by `NeighborhoodWizard.tsx:406`, gated behind explicit click), runs `computeMatchingPnos` + `bestMatchScore` (`filterUtils.ts:154/220`) over the full national set, and renders matches as national-scope results (navigate to profile pages, since aggregate features have `geometry:null`). |
+| **Why** | This is the app's core promise — filter neighborhoods across all of Finland — currently structurally impossible without first choosing one of 69 regions. The single highest-value capability gap for relocating households and journalists who think nationally; documented in `UX_REVIEW.md:113` as the unshipped fix (a). |
+| **Touches** | `src/App.tsx`, `src/components/FilterPanel.tsx`, `src/utils/dataLoader.ts`, `src/utils/filterUtils.ts` |
+| **Bundle** | ~0.8–1.2 KB gz (loader trigger + national-result UI; data is an existing `?url` asset = 0) |
 | **Complexity** | Large |
-| **Dependencies** | IN-1 (shards + `planning_manifest.json`) |
+| **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### CF-3 Kaavat & hankkeet: accessible, mobile-reachable planning list in `NeighborhoodPanel`
+### CF-2 Accent-folded + municipality-aware search
 
 | | |
 |---|---|
-| **What** | Surface the centerpiece interactively for the selected area without bloating first paint. Add a thin hook (sibling to the `useGridData.ts` lazy-fetch + LRU pattern) that fetches the active region's planning shard on demand, and render a read-only "Kaavat & hankkeet lähistöllä" section in `NeighborhoodPanel` by reusing the CF-4 next-steps outbound-link host markup/styling (1982-2010; `rel="noopener noreferrer"`, same null-on-empty contract), gated on `!d._isMetroArea`. Each entry's accessible name announces name+status+date with a **non-color-only** status badge; a coverage caption uses the low-data gray treatment stating scope honestly. On mobile it must be reachable: add it as a dedicated **fifth carousel section** by extending `MOBILE_SECTIONS` (959-964; feeds `useSwipeNavigation` `sectionCount`) with a 44px min tap target, coordinating with the WAI-ARIA carousel work (CF-7). Returns null when the area has no entries. Data stays a free static per-region shard fetched on demand and is kept **out of** `region_properties.json` feature props so it never inflates the ~10.6 MB deferred national fetch. |
-| **Why** | Gives interactive (JS-on) visitors parity with the prerendered profiles so the centerpiece is a usable in-app decision surface, not only crawler-facing and not only discoverable by hunting the map overlay. ~1.0–1.5 KB gz (lazy hook + JSX + 2 `fi.json` heading keys; en/sv free) — shares the batch `BUDGET` raise. Degrades to nothing when a region shard is empty/absent. |
-| **Touches** | `src/hooks/usePlanningData.ts`, `src/components/NeighborhoodPanel.tsx`, `src/locales/{fi,en,sv}.json`, `scripts/check-bundle-size.mjs` |
-| **Complexity** | Medium |
-| **Dependencies** | IN-1; coordinate with CF-2 (shared `usePlanningData.ts`) and CF-7 (mobile carousel) |
-| **Tag** | Claude Code |
-
-### CF-4 Kaavat & hankkeet: indexable `/kaavoitus/{kunta}/` planning hub page family + region-hub cross-links
-
-| | |
-|---|---|
-| **What** | Turn planning data into a dedicated crawl/PageRank hub layer at zero bundle cost. In `prerender-hubs.mjs`, following the ranking page-family precedent (`buildRankingPage`/`rankPath`/`rankAlternates`, all on the self-contained `htmlPage()` helper at 263), emit for each municipality that has any `area_planning.json` content a trilingual trio: `/kaavoitus/{kunta-slug}/` (fi), `/en/planning/{slug}/`, `/sv/planlaggning/{slug}/`. Group postal codes by the per-feature `municipality`/`kunta` properties (present on all 3,018 features). Each page is a crawlable list of that municipality's in-progress plans + major Väylä projects, each row linking **out** to the city kaavoituskatsaus / Väylä hanke source and **in** to the affected `/alue/{slug}/` profiles, with `CollectionPage` + `ItemList` JSON-LD. Add a "Kaavoitus ja hankkeet" cross-link row to each region hub (model on `buildBestAreasNav`, insert in `buildCityHub`). Register the new URLs in `generate-sitemap.mjs` via a `dist/kaavoitus-pages.json` alternates manifest consumed exactly like the existing `ranking-pages.json` block (single source of truth). All copy inline FI/EN/SV (no locale keys). Only municipalities with real content get a page. |
-| **Why** | Creates a municipality-level planning hub that ranks for "kaavoitus {kaupunki}" / planning queries and funnels link equity into the ~9,000 localized profile pages — the cheapest indexable-surface expansion given the near-zero JS headroom. 0 bytes (pure build-time HTML reusing the standalone `htmlPage()` renderer). |
-| **Touches** | `scripts/prerender-hubs.mjs`, `scripts/generate-sitemap.mjs` |
-| **Complexity** | Medium |
-| **Dependencies** | CF-1 (produces `area_planning.json`) |
-| **Tag** | Claude Code |
-
-### CF-5 Kaavoitus- ja hankeaktiivisuus: neutral planning/development-activity choropleth + opt-in `defaultWeight:0` QI factor
-
-| | |
-|---|---|
-| **What** | From the same intersection pipeline, derive a per-postal `active_plan_count` (distinct `vireillä`/`ehdotus` plan polygons **and** Väylä infrastructure features intersecting the postal polygon) as the primary, geometry-type-agnostic metric, optionally also `planned_area_pct` (polygon plans only). Write into the GeoJSON in `prepare_data.py`, then `build:data`. Register a **neutral** informational `LAYERS` choropleth (`higherIsBetter` omitted — active development is a preference, not good/bad; `property_price`/`foreign_language_pct` are existing neutral precedents) via the 7-step add-a-layer flow. **Critical:** `is_proxy:false` (real geometry, sub-postal) — do **not** add to `MUNICIPALITY_DISTRIBUTED_PROXIES`; add a value-range entry + an explicit non-proxy assertion to `validate_data.py`. Gray fallback + "osallistuvat kaupungit; väylähankkeet koko Suomi; tilanne &lt;snapshot&gt;" caption. Optionally wire as a single-direction `defaultWeight:0` descriptive factor in the housing dimension so it never moves published scores but exposes an opt-in "I value an up-and-coming area" weight. Distinct from backward-looking `new_construction_pct` (Paavo dwelling stock) and `avg_construction_year`. |
-| **Why** | Lets a buyer scan a whole region at a glance for where change is concentrated — some want an up-and-coming densifying area, others a settled neighbourhood that won't be a construction site for a decade; today the map answers neither. Fills the space between per-area text and manual overlay inspection. ~300–400 B gz (LayerConfig + `fi.json` label) → small `BUDGET` bump; per-area counts ride existing per-region TopoJSON at zero JS cost. Coverage honestly partial. |
-| **Touches** | `scripts/prepare_data.py`, `public/data/metro_neighborhoods.geojson`, `src/utils/colorScales.ts`, `src/components/LayerSelector.tsx`, `src/utils/metrics.ts`, `src/utils/qualityIndex.ts`, `src/data/data_sources.json`, `scripts/provenance.json`, `scripts/validate_data.py`, `scripts/check-bundle-size.mjs`, `src/locales/{fi,en,sv}.json` |
-| **Complexity** | Medium |
-| **Dependencies** | IN-1; rebases on QW-2/PO-5 (`qualityIndex.ts`) |
-| **Tag** | Claude Code |
-
-### CF-6 Population-projection (väestöennuste) layer — is this area growing or shrinking?
-
-| | |
-|---|---|
-| **What** | A forward-looking projected-population-growth-% diverging choropleth (centered at 0%) from Tilastokeskus StatFin Väestöennuste 2024 (database `vaenn`, CC BY 4.0). Verified live: table `statfin_vaenn_pxt_14wx` publishes projected total population per municipality per year 2024–2045 (published 24.10.2024). New `scripts/fetch_population_projection.py` fetches projected population per kunta, computes growth % over a fixed window (e.g. 2024→2040), assigns each postal code its municipality value via the existing `kunta`/`municipality` join keys — flagged `is_proxy:true` + added to `MUNICIPALITY_DISTRIBUTED_PROXIES` (crime/health precedent). Write to GeoJSON; `build:data`. Register a LayerConfig reusing the `divergingCenter:0` palette of `population_change`, add `LAYER_GROUPS`/metrics/RANGE_CHECK/labels ×3, registry + provenance rows under the registered `tilastokeskus` publisher (granularity `postal`, crime precedent). Bump `BUDGET` ~+1 KB. Genuinely distinct from the historical `population_change_pct` (backward-looking, real postal, `is_proxy:false`). |
-| **Why** | One of a buyer's quietest, most consequential fears is committing a 30-year mortgage to an area the country is leaving — declining municipalities mean closing schools, thinning services, soft resale. The historical layer shows where people *were* going; the official projection shows where they're *expected* to go. Pairs thematically with the centerpiece ("where Finland is growing"). ~300–400 B gz → small `BUDGET` raise (CF-19/20/21 precedent); fetcher/GeoJSON/`src/data` are zero-bundle. Honestly `is_proxy:true`. |
-| **Touches** | `scripts/fetch_population_projection.py`, `scripts/prepare_data.py`, `scripts/validate_data.py`, `src/utils/colorScales.ts`, `src/components/LayerSelector.tsx`, `src/utils/metrics.ts`, `src/data/data_sources.json`, `scripts/provenance.json`, `public/data/metro_neighborhoods.geojson`, `src/locales/{fi,en,sv}.json`, `scripts/check-bundle-size.mjs` |
+| **What** | (1) Factor `slug.ts`'s module-private diacritic strip (`slugify :11-23`) into a shared `foldText()` and apply it to **both** the query and the indexed `nimi/namn/pno` before matching, so "Toolo"→"Töölö", "Aanekoski"→"Äänekoski", "Ahtari"→"Ähtäri" resolve (`SearchBar.tsx:86,95-100` today matches raw `.toLowerCase().includes/startsWith` and falls into the no-results branch at `:555`). Precompute folded fields once per index load. (2) Add the already-baked `municipality` field (`metrics.ts:27-28`; on all 3,018 areas, 308 distinct) to each row of `region_search_index.json` at build time (`build_region_data.mjs:179` emits only `{pno,nimi,namn,city}`) and match it at a lower relevance score, optionally as a result-row subtitle, so typing a town ("Espoo", "Nurmijärvi") finds every area in it. The index is a `?url` asset whose rows spread into feature props (`dataLoader.ts:263-266`) = zero bundle. |
+| **Why** | Both failures silently return "no results" on the dominant navigation path. Accent-insensitivity is critical for non-Finnish keyboards and fast typists; "search by town" is a dominant mental model, using real already-baked Tilastokeskus data. |
+| **Data source** | Statistics Finland Paavo `municipality` field (already in `region_properties.json`) — CC BY 4.0 — postal |
+| **Touches** | `src/components/SearchBar.tsx`, `src/utils/slug.ts`, `src/hooks/useSearchIndex.ts`, `scripts/build_region_data.mjs`, `src/utils/dataLoader.ts` |
+| **Bundle** | ~150–300 gz B (fold helper shared with `slug.ts` + municipality match; index is `?url` = 0) |
 | **Complexity** | Medium |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### CF-7 Complete the WAI-ARIA Tabs pattern for the mobile section carousel
+### CF-3 Low-income share (pienituloisuus) layer + opt-in Quality Index factor
 
 | | |
 |---|---|
-| **What** | PO-3 (prior roadmap) shipped the swipe carousel plus a partial tablist (`role=tablist/tab/aria-selected` at `NeighborhoodPanel.tsx:2177-2192`) and stopped there. Complete the APG Tabs pattern: (1) `ArrowLeft`/`ArrowRight`/`Home`/`End` keydown on the tablist with roving tabindex (active tab `tabindex=0`, others `-1`) that moves DOM focus and calls the already-exposed `setActiveSection` — no hook change; (2) stable ids wiring tab↔pane via `aria-controls`/`aria-labelledby`; (3) `role=tabpanel` on each pane and make the three inactive, off-screen panes **non-focusable** — set `inert` (or `aria-hidden=true` + `tabindex=-1`) so SR/keyboard users cannot Tab into the CSV/PDF/GeoJSON export buttons rendered into every pane (`{section && exportButtons}` at 2235) or the off-screen explore/similar links (translated to `translateX(-100%..-300%)`, clipped only visually). Panes map `MOBILE_SECTIONS`, so the pattern scales automatically to CF-3's fifth section. No new locale keys. |
-| **Why** | Keyboard-only and SR users on the most-used mobile surface cannot move between sections with arrow keys (the canonical tabs interaction), and Tab focus lands on invisible off-screen export buttons/links — confusing SR users and yanking the carousel mid-read. The largest remaining a11y parity gap after the prior roadmap. ~250–400 B gz (keydown + id/aria/inert plumbing) — likely a small `BUDGET` raise or land alongside a JS-saving item. |
-| **Touches** | `src/components/NeighborhoodPanel.tsx` |
+| **What** | Derive `low_income_pct = round(hr_pi_tul/(hr_pi_tul+hr_ke_tul+hr_hy_tul)*100, 1)`, **guarding** the Paavo `-1` suppression sentinel and the zero denominator (emit null/no-data, never a fabricated value — ~74 areas masked, ~17 zero-denom, so ~2,927 usable / ~97% coverage). Propagate to GeoJSON via `prepare_data.py`; run `build:data`. Add a LayerConfig (`higherIsBetter:false`), a `NeighborhoodProperties` field + `computeQuickWinMetrics` derive in `metrics.ts`, an **optional `defaultWeight:0`** Livelihood/Safety `QUALITY_FACTOR` in `qualityIndex.ts` (established opt-in pattern), a `METRIC_DEFS` row, registry + provenance rows (`is_proxy:false`), and fi/en/sv labels. Gray fallback for suppressed/zero-denom areas. `national_ranges.json:183-196` already carries `hr_pi/ke/hy` ranges. |
+| **Why** | The only money signals today are median/average/disposable income; the lower tail — socioeconomic disadvantage and income segregation — is invisible. Arguably the single most decision-relevant missing axis for relocating households and especially the journalist/researcher fairness lens. Real, ~97%-covered Paavo data already loaded; no segregation layer exists today. |
+| **Data source** | Statistics Finland Paavo gross-income-class household counts `hr_pi_tul`/`hr_ke_tul`/`hr_hy_tul` — https://stat.fi/tup/paavo/index.html — CC BY 4.0 — postal, `is_proxy:false`; `-1` and zero-denominator treated as no-data |
+| **Touches** | `scripts/prepare_data.py`, `src/utils/metrics.ts`, `src/utils/colorScales.ts`, `src/utils/qualityIndex.ts`, `src/components/LayerSelector.tsx`, `src/data/data_sources.json`, `scripts/provenance.json`, `src/locales/{fi,en,sv}.json`, `public/data/metro_neighborhoods.geojson`, `scripts/check-bundle-size.mjs` |
+| **Bundle** | ~300–400 gz B (LayerConfig + QI factor + fi labels); designated BUDGET-bumper for its batch |
 | **Complexity** | Medium |
-| **Dependencies** | None (interacts with CF-3's fifth section — sequence CF-3 → CF-7) |
-| **Tag** | Claude Code |
-
-### CF-8 CSV export for the in-app `RankingTable` & `CorrelationExplorer` + a deep link for the ranking view
-
-| | |
-|---|---|
-| **What** | CF-12 (prior roadmap) shipped prerendered ranking **pages**, but the live in-app tools take nothing with you: `RankingTable.tsx` has only sort-toggle + close; `CorrelationExplorer.tsx:329-355` is PNG-only. Add: (1) a "Lataa CSV" download to both — the ranked list (rank, name, pno, value) and the scatter's two-metric XY pairs with name+pno — as two small `exportRankingCsv()`/`exportCorrelationCsv()` in `export.ts` reusing the module-private `escapeCsvField` + `downloadBlob` + UTF-8 BOM (mirroring `exportComparisonCsv`), so no helper is duplicated or made public; (2) a "Kopioi jakolinkki" copy-link on `RankingTable` reproducing the current choropleth via the exported `buildFullViewUrl(layer + city + scope)` — `App.tsx` must pass city/scope to `RankingTable`, which it does not currently receive. **Out of scope (corrected):** the scatter's `metricX/metricY` are not representable in the current URL/embed codec (single `layer` only), so ship CSV for the scatter, copy-link only for the ranking. Reuse existing `export.csv` and `share.link` keys; at most one new "copied" toast key. |
-| **Why** | The two live analysis tools offer no way to take their data with you, while every other panel does. A ranked CSV and a reproducible deep link turn an ephemeral on-screen view into citable, reproducible output for the journalist/researcher lens the product courts. ~150–300 B gz (two tiny CSV builders + two buttons + clipboard handler; `fi.json` ~0 — keys exist). If the measured delta exceeds headroom, bump `BUDGET`. |
-| **Touches** | `src/components/RankingTable.tsx`, `src/components/CorrelationExplorer.tsx`, `src/utils/export.ts`, `src/App.tsx`, `src/locales/{fi,en,sv}.json` |
-| **Complexity** | Small |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### CF-10 Open-data program expansion: latent Paavo columns + planning dataset + schema.org Dataset JSON-LD (Google Dataset Search)
+### CF-4 Distance-to-nearest essential-service access layers (the 15-minute-neighbourhood axis)
 
 | | |
 |---|---|
-| **What** | Three zero-bundle additions to `build_open_data.mjs` (runs in the `build:pages` chain). (1) The `METRIC_COLUMNS` filter at 108 emits only the ~60 registry-labelled metrics, so the latent Paavo fields CF-13 already renders on every profile (full age pyramid, 21 NACE `tp_*` sectors, disposable income `tr_mtu`/`tr_ktu`, income-class mix, living space `te_as_valj`) are **excluded** from `naapurustot_areas.csv`, codebook and `/api/v1` — contradicting the "full dataset" claim. Add a build-only `LATENT_METRIC_INFO` map (FI/EN labels + units + **inline** Paavo source/vintage, like the existing build-only `METRIC_INFO`), relax the filter to include latent fields when present, make `codebookEntry` fall back to it, and apply the Paavo `-1` confidentiality guard (write `''` for values < 0). Keep all provenance **inline** — do **not** add columns to `data_sources.json` (statically bundled via `metrics.ts:4`). (2) [gated on IN-1] Emit the planning dataset: `naapurustot_kaavat_hankkeet.csv` (long format `pno,region,type,status,name,date,source_url,is_proxy`), a `planning[]` array in `/api/v1/areas/{pno}.json`, codebook rows, a landing block, and a "Kaavat ja hankkeet" section in `generate-llms.mjs` describing scope + the 2029 Ryhti backstop. (3) Add a schema.org `Dataset` JSON-LD block to `/avoin-data` with `DataDownload` distribution entries (CSV files + frozen `/api/v1`), license, spatial/temporal coverage — the homepage Dataset block has no distributions today, so the corpus is currently ineligible for Google Dataset Search. |
-| **Why** | For the research/AI-assistant audience the headline promise is the full, raw, citable dataset, but only ~60 of `region_properties.json`'s 183 columns are emitted — the latent fields CF-13 prints as text cannot be downloaded, so the "full dataset" claim is literally false for them. Sub-feature (2) gives the planning corpus a bulk surface; sub-feature (3) opens the high-authority Google Dataset Search channel. 0 bytes (build-time CSV/JSON/HTML; provenance kept inline). |
-| **Touches** | `scripts/build_open_data.mjs`, `scripts/generate-llms.mjs`, `public/llms-full.txt`, `src/data/region_properties.json`, `README.md` |
-| **Complexity** | Medium |
-| **Dependencies** | IN-1 (sub-feature 2 only); sub-features 1 & 3 independently shippable |
+| **What** | Add "distance to nearest" (metres) access metrics for everyday services — grocery, health station, **pharmacy** (brand-new category; nothing matches pharmacy in `colorScales.ts` and it is absent from the national healthcare query at `prepare_data.py:1302-1313`), comprehensive school — computed sub-postal in `prepare_data.py` exactly like the existing `water_proximity_m` layer (`colorScales.ts:810`), reusing `_point_to_pno`/`_build_spatial_index`. Schools use the authoritative StatFin Oppilaitokset point WFS instead of OSM. Register each as a LayerConfig/`LayerId`, a `LAYER_GROUPS` amenity entry, a `METRIC_DEFS` row, registry + provenance rows, and fi/en/sv keys. OSM POIs are already fetched nationally (`prepare_data.py:1173`) — build-time, zero data-bundle. |
+| **Why** | The seven shipped amenity layers are **all** /km² density at postal level, which misleads for the ~95% of Finland outside metros where one central store in a large rural postal code reads as "low density". Distance-to-nearest (metres) is the honest, decision-relevant framing, and pharmacy is a glaring missing everyday service. |
+| **Data source** | OSM `amenity=pharmacy` / `shop=supermarket\|convenience` / `amenity=clinic\|doctors\|hospital` (ODbL 1.0, coordinate-level); Statistics Finland Oppilaitokset point WFS `oppilaitokset:oppilaitokset` (EPSG:3067, national, CC BY 4.0) — https://geo.stat.fi/geoserver/oppilaitokset/wfs . Coordinate→min-distance per postal area, `is_proxy:false` |
+| **Touches** | `scripts/prepare_data.py`, `scripts/fetch_oppilaitokset.py`, `public/data/metro_neighborhoods.geojson`, `src/utils/colorScales.ts`, `src/components/LayerSelector.tsx`, `src/utils/metrics.ts`, `src/data/data_sources.json`, `scripts/provenance.json`, `scripts/check-bundle-size.mjs`, `src/locales/{fi,en,sv}.json` |
+| **Bundle** | ~0.4–1.2 KB gz (data zero-bundle; cost is ~4 LayerConfigs + fi keys). Designated BUDGET-bumper for its batch |
+| **Complexity** | Large |
+| **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### CF-11 National construction-FLOW choropleth (StatFin building permits / completed dwellings per 1,000), `is_proxy:true`
+### CF-5 True building-level construction-flow layer from the Ryhti national permit register
 
 | | |
 |---|---|
-| **What** | A forward-flow "rakentamisen vilkkaus / construction activity" choropleth giving **every** area in Finland a real building-activity signal — the national counterpart to CF-5, whose plan-polygon + Väylä `active_plan_count` resolves to ~0 across most of the country (no city WFS, no Väylä corridor nearby), leaving rural/mid-size-town users with a misleading "nothing happening" reading. New `scripts/fetch_construction_permits.py` pulls granted building permits or completed-dwelling floor area per municipality (trailing 12 months) from StatFin "Rakennus- ja asuntotuotanto" (`ras`, table family `statfin_ras_pxt_*`, CC BY 4.0, municipal), normalizes to a per-1,000-resident FLOW rate, assigns each postal code its municipality value via the `kunta` join keys — flagged `is_proxy:true` + added to `MUNICIPALITY_DISTRIBUTED_PROXIES`. Write to GeoJSON; `build:data`. Register a sequential LayerConfig (`higherIsBetter` omitted, neutral like CF-5), `LAYER_GROUPS`/metrics/RANGE_CHECK/labels ×3, registry + provenance under `tilastokeskus`. Distinct from `new_construction_pct` (Paavo STOCK), `avg_construction_year`, and CF-5 `active_plan_count` (PLANNED, participating-cities + sparse Väylä). |
-| **Why** | Completes the centerpiece's "where is Finland actually building right now" at **national** granularity, correcting the misleading near-zero CF-5 reading outside the ~15 WFS cities. Together with `population_change_pct` (historical), CF-6 (future demand) and CF-5 (planned), it forms the full where-is-this-area-headed picture a 30-year-mortgage buyer needs. ~300–400 B gz → small `BUDGET` bump; fetcher/GeoJSON/`src/data` zero-bundle. Honestly `is_proxy:true` (StatFin publishes only municipal; the finer postal STOCK signal is already `new_construction_pct`). |
-| **Touches** | `scripts/fetch_construction_permits.py`, `scripts/prepare_data.py`, `scripts/validate_data.py`, `src/utils/colorScales.ts`, `src/components/LayerSelector.tsx`, `src/utils/metrics.ts`, `src/data/data_sources.json`, `scripts/provenance.json`, `public/data/metro_neighborhoods.geojson`, `src/locales/{fi,en,sv}.json`, `scripts/check-bundle-size.mjs` |
+| **What** | Upgrade the existing `construction_activity` layer (`data_sources.json:554`, StatFin distributed to postal codes, `is_proxy:true`, built by `fetch_construction_permits.py`) to **coordinate-level** data. A new build-time `fetch_ryhti_permits.py` paginates the Ryhti `open_permit_building` OGC API Features (live ~2.73M national permit points; fields `decision_date`/`construction_action_type`/`apartment_count`/`gross_floor_area` + point geometry) joined with `open_permit_address` (`postal_code`), point-in-polygons new-construction permits from the last N years into the 3,018 postal areas, and computes permits / permitted dwellings / floor-area per 1,000 residents. **Drop `is_proxy` for covered municipalities**; gray fallback elsewhere. Re-baseline `validate_data.py`. **Caveat:** permit submission is voluntary until **31 Dec 2028**, so confirm per-municipality coverage before dropping `is_proxy`. |
+| **Why** | Replaces a fabricated municipal distribution with real building-level data, satisfying the "prefer finer-than-postal" granularity mandate, and gives every covered area a true "how much is being built here" signal from the same Ryhti system the planning centerpiece targets. Unlike the rejected plan-coverage layer, the permit register **is** densely populated today. |
+| **Data source** | Ryhti building-permit OGC API Features `open_permit_building` / `open_permit_address` (SYKE/YM) — https://paikkatiedot.ymparisto.fi/geoserver/ryhti_permit/ogc/features/v1/collections/open_permit_building/items — CC BY 4.0 — building point aggregated to postal, `is_proxy:false` where covered |
+| **Touches** | `scripts/fetch_ryhti_permits.py`, `scripts/prepare_data.py`, `src/utils/colorScales.ts`, `src/utils/metrics.ts`, `src/data/data_sources.json`, `scripts/provenance.json`, `scripts/validate_data.py`, `src/locales/{fi,en,sv}.json`, `public/data/metro_neighborhoods.geojson` |
+| **Bundle** | 0 (build-time; reuses existing layer) or ~150 gz B if relabeled — **not** the batch BUDGET-bumper |
+| **Complexity** | Large |
+| **Dependencies** | None |
+| **Tag** | Claude Code |
+
+### CF-6 Render latent profile enrichment in the interactive React profile page
+
+| | |
+|---|---|
+| **What** | `NeighborhoodProfilePage.tsx` renders only a 6-card stats grid (`:524-579`) + 4 sections (`:582-638`), but the prerendered `<noscript>` (`prerender.mjs buildNoscriptContent :861-929`) additionally shows the full Paavo age pyramid (`he_*`), top-5 NACE-sector employment (`tp_*`), household income/structure (`tr_*`, `hr_mtu`), plain-language strengths/weaknesses (`summarySentencesFor`), a templated FAQ (`buildFaq :961`), kaavat & hankkeet (`buildPlanningHtml`), and a within-region nearby-areas mesh (`buildNearbyHtml`). The data is already in the `loadNeighborhoodData()` payload + `region_properties.json` (185 keys/area). Add lazy section components under `src/components/profile/` so JS visitors reach parity with the crawler/no-JS view; keep en/sv labels as `?url` assets. |
+| **Why** | JS visitors (the majority) currently see strictly **less** than a no-JS crawler or AI agent — the richest, already-loaded content benefits only crawlers. Deepens the page, increases dwell/engagement, and makes the SPA match the structured/no-JS content. Pure render gap, no new data. |
+| **Touches** | `src/pages/NeighborhoodProfilePage.tsx`, `src/components/profile/`, `src/utils/metrics.ts`, `src/locales/fi.json` |
+| **Bundle** | ~0.8–1.5 KB gz (lazy section components); CF-14's batch anchor sizes the raise to cover this |
 | **Complexity** | Medium |
+| **Dependencies** | None |
+| **Tag** | Claude Code |
+
+### CF-7 Prerendered pairwise "X vs Y" comparison pages
+
+| | |
+|---|---|
+| **What** | The in-app `ComparisonPanel` only produces a non-indexable `?compare=` query param. Generate a **bounded** set of static comparison pages (`/vertaa/{alueA}-vs-{alueB}/` + EN `/compare`, SV `/jamfor`) for adjacent / same-region area pairs, driven by `adjacency.json` neighbour pairs + within-region top areas, reusing `comparisonStats.ts` (`refDeltaOf`/`findBest`/`ALL_STATS`, no React deps) and the existing JSON-LD/head-integrity machinery in `prerender-hubs.mjs` (mirror `buildRankingPage :647` / `writeRankingSet :1230` / the `dist/ranking-pages.json` manifest pattern at `:1249`). Each page: a direction-aware comparison table, verifiable "top X%" superlatives, a `FAQPage` block; add to sitemap (`generate-sitemap.mjs :144`) and a kaavoitus-style manifest. Bound volume (adjacency neighbours + region top-N) to avoid combinatorial explosion. |
+| **Why** | "X vs Y" is one of the highest-intent relocation queries and a favourite of AI assistants, yet has no landing page today. Mirrors the shipped ranking-page family, is pure build-time HTML (zero bundle), and gives a citable head-to-head over already-sourced data. |
+| **Touches** | `scripts/prerender-hubs.mjs`, `scripts/generate-sitemap.mjs`, `src/utils/comparisonStats.ts`, `src/data/adjacency.json` |
+| **Bundle** | 0 (build-time prerendered HTML) |
+| **Complexity** | Large |
+| **Dependencies** | None |
+| **Tag** | Claude Code |
+
+### CF-8 Wikidata/Wikipedia entity linking (`Place.sameAs`) in profile + region-hub JSON-LD
+
+| | |
+|---|---|
+| **What** | At build time, attach `sameAs [Wikidata QID URL, Wikipedia article URL]` to the `Place` node of each prerendered area profile (`prerender.mjs buildJsonLd`) and the `about` Place of each region hub (`prerender-hubs.mjs`), plus the client `JsonLd.tsx` Place node. Build a committed `scripts/wikidata_qids.json` id→QID map once via a Wikidata SPARQL query for the 69 seutukunnat (`P31=Q15921476`) and ~310 municipalities, consumed by the prerenderers. (Grep confirms 0 `sameAs`/wikidata occurrences in `prerender.mjs` today.) |
+| **Why** | Entity grounding is the single highest-leverage GEO/answer-engine lever: anchoring each area to its municipality's canonical Wikidata entity lets Google's Knowledge Graph and AI assistants disambiguate the place and cite naapurustot's numbers as the authoritative numeric source. |
+| **Data source** | Wikidata SPARQL/REST (CC0) for QIDs + Wikipedia article URLs (links/IDs only, no copied content); municipality (always) + many districts — https://www.wikidata.org/wiki/Wikidata:Data_access |
+| **Touches** | `scripts/prerender.mjs`, `scripts/prerender-hubs.mjs`, `src/components/profile/JsonLd.tsx`, `scripts/wikidata_qids.json` |
+| **Bundle** | 0 (build-time); client `JsonLd.tsx` adds a few tens of bytes |
+| **Complexity** | Medium |
+| **Dependencies** | None |
+| **Tag** | Claude Code |
+
+### CF-9 ComparisonPanel: multi-series radar + mobile chart parity + winner summary
+
+| | |
+|---|---|
+| **What** | `ComparisonPanel` only offers a bar chart, and the toggle + `ComparisonChart` live inside the desktop-only `hidden md:block` branch (`:209/:219-237/:292`); the mobile branch (`:381-430`) renders only `MobileCard` and never reads `view`, so **mobile users can never reach any comparison chart**. (1) Add an overlaid radar plotting the 2–3 pinned areas as overlapping polygons, reusing `RadarChart`'s axis/normalize machinery extended to N series and deriving axis min/max from `national_ranges.json` (depends on **PO-1**) so rural areas don't peg at the floor. (2) Surface the chart toggle on mobile. (3) Add a one-line synthesis above the table — "Area X leads on N of M directional metrics" — reusing the already-computed `bestByKey` map (`:170-178`). This batch's single BUDGET raise lands here (add `check-bundle-size.mjs` to touches). |
+| **Why** | An overlaid radar is a strong at-a-glance shape comparison for shortlisting; fixes a real mobile-parity gap (mobile users can never reach any comparison chart today) and turns a raw table into an at-a-glance recommendation, using already-loaded data. |
+| **Touches** | `src/components/RadarChart.tsx`, `src/components/ComparisonPanel.tsx`, `src/utils/nationalRanges.ts`, `scripts/check-bundle-size.mjs`, `src/locales/{fi,en,sv}.json` |
+| **Bundle** | ~1–1.5 KB gz (N-series SVG radar + mobile wiring + summary). Designated BUDGET-bumper for its batch |
+| **Complexity** | Medium |
+| **Dependencies** | PO-1 (extends `RadarChart`'s national-range-derived axes to N series) |
+| **Tag** | Claude Code |
+
+### CF-10 Bring the planning + isochrone overlays to SplitMapView (CF-2 parity)
+
+| | |
+|---|---|
+| **What** | The kaavat & hankkeet overlay (plan polygons by Ryhti status + project lines by type + click popups) and the travel-time isochrone exist only on the main map (`Map.tsx` isochrone effect `:794-831`; planning source/layers `:835-869`; click popup `:905-939`). `SplitMapView.tsx` defines no `PLANNING_*`/`ISOCHRONE_*` sources/layers (grep = 0) and `App.tsx:2099-2116` passes no `planningData`/`isochrone` props to it (those props at `:2144-2145` belong to the main `<Map>` only). Clone the main-map planning + isochrone blocks into `SplitMapView`, structured like its existing `syncGridLayer` effect (`:293-358`), and thread the props through `App.tsx`. Reuses existing `usePlanningData` shards — zero new data. (git `54bf809` shipped only config/opacity/selection parity.) |
+| **Why** | Closes an explicitly roadmap-scoped (prior `CF-2`) but **deferred** parity gap: in split-compare mode the planned-development and reachability context silently disappears, so a researcher/journalist comparing two metrics can't see what's being built in either pane, and the two views disagree. |
+| **Data source** | Existing `public/data/planning_*_shards` (Väylä CC BY 4.0 + city WFS CC BY 4.0); no new fetch |
+| **Touches** | `src/components/SplitMapView.tsx`, `src/App.tsx`, `src/hooks/usePlanningData.ts` |
+| **Bundle** | ~0.6–0.9 KB gz (clone of existing overlay code; data is existing static shards) |
+| **Complexity** | Medium |
+| **Dependencies** | None |
+| **Tag** | Claude Code |
+
+### CF-11 Library access layer from the Kirkanta v4 national register
+
+| | |
+|---|---|
+| **What** | New build-time `fetch_libraries.py` pages the Kirkanta v4 API (`with=coordinates,addressInfo`; ~982 service points with lat/lon + zipcode), snaps each point into a postal polygon via `prepare_data.py`'s `_point_to_pno`/`_build_spatial_index`, and computes distance-to-nearest-library (m) and/or libraries per 10k residents per area; join in `prepare_data.py`, run `build:data`. Register a `LayerId`/LayerConfig (align units with existing service layers), a `LAYER_GROUPS` `layers.services` entry (`LayerSelector.tsx:31`), a `metrics.ts` def, registry + provenance row (publisher `kirjastot_fi`, `is_proxy:false`), and fi/en/sv labels. No library category exists today. |
+| **Why** | Libraries are a beloved, universal Finnish everyday service and a category with zero coverage today. An authoritative, complete, live national register beats OSM; directly relevant to families/students; build-time so data is zero-bundle. |
+| **Data source** | Kirjastohakemisto / Kirkanta API v4 — https://api.kirjastot.fi/v4/library?with=coordinates,addressInfo — CC BY 4.0 — coordinate (982 service points), snapped to postal, `is_proxy:false` |
+| **Touches** | `scripts/fetch_libraries.py`, `scripts/prepare_data.py`, `src/utils/colorScales.ts`, `src/utils/metrics.ts`, `src/components/LayerSelector.tsx`, `src/data/data_sources.json`, `scripts/provenance.json`, `src/locales/{fi,en,sv}.json`, `public/data/metro_neighborhoods.geojson` |
+| **Bundle** | 0 (build-time) for data; ~300–400 gz B for LayerConfig + fi labels. Designated BUDGET-bumper for its batch |
+| **Complexity** | Medium |
+| **Dependencies** | None |
+| **Tag** | Claude Code |
+
+### CF-12 National protected-nature & national-park access layer (SYKE)
+
+| | |
+|---|---|
+| **What** | Add a national "distance to nearest protected area / national park" (and/or per-postal %-protected) layer from SYKE Natura 2000 + nature-conservation/wilderness/national-park polygons. Build-time `fetch_protected_areas.py` (mirroring `fetch_tree_canopy.py`), intersect each postal polygon, write into the GeoJSON, run `build:data`; real polygon geometry → `is_proxy:false`. Register a LayerConfig, a `LAYER_GROUPS` Environment entry, a `metrics.ts` def, registry/provenance row, locale keys, and re-baseline `validate_data.py`. Distinct from the **excluded** urban green-space layer — this is statutory conservation/wilderness access. |
+| **Why** | `tree_canopy` (HSY LiDAR) is real but capital-region-heavy, leaving most of Finland with weak "greenery/nature" coverage. SYKE protected areas are national and polygon-precise, answering a distinct relocation question ("how close is real wilderness/nature?") that fills `tree_canopy`'s rural hole. |
+| **Data source** | SYKE Natura 2000 + Luonnonsuojelu- ja erämaa-alueet WFS — https://ckan.ymparisto.fi/dataset/natura2000-alueet — CC BY 4.0 — polygon (national, INSPIRE Protected Sites), aggregated to postal, `is_proxy:false` |
+| **Touches** | `scripts/fetch_protected_areas.py`, `scripts/prepare_data.py`, `src/utils/colorScales.ts`, `src/utils/metrics.ts`, `src/components/LayerSelector.tsx`, `src/data/data_sources.json`, `scripts/provenance.json`, `src/locales/{fi,en,sv}.json`, `public/data/metro_neighborhoods.geojson` |
+| **Bundle** | 0 (build-time) for data; ~300–400 gz B for LayerConfig + fi labels. Designated BUDGET-bumper for its batch |
+| **Complexity** | Medium |
+| **Dependencies** | None |
+| **Tag** | Claude Code |
+
+### CF-13 Cultural-heritage / historic-character layer from Museovirasto WFS
+
+| | |
+|---|---|
+| **What** | New build-time `fetch_heritage.py` + spatial join over Museovirasto's open WFS (`muinaisjäännökset` points/areas, RKY 2009 nationally-significant built-environment polygons, protected buildings) to derive per-postal "protected heritage sites per km²" and/or "share of area inside an RKY zone"; `build:data`. Add a **neutral** LayerConfig (no `higherIsBetter`) + a `LAYER_GROUPS` entry + `metrics.ts` def + registry/provenance (publisher `Museovirasto`, `is_proxy:false`) + fi/en/sv labels. No heritage/protection layer exists today; `building_age` measures construction vintage, orthogonal to legal protection. |
+| **Why** | Captures a genuinely new, decision-relevant "is this an old, characterful, protection-constrained area or a new-build zone?" dimension that pairs with `building_age` and the planning centerpiece. National CC BY 4.0 WFS with real geometry, strong distinctive SEO/profile material. |
+| **Data source** | Museoviraston kulttuuriympäristöaineistot, suojellut kohteet WFS (muinaisjäännökset, RKY 2009, suojellut rakennukset) — endpoint `http://kartta.nba.fi/arcgis/services/WFS/MV_KulttuuriymparistoSuojellut/MapServer/WFSServer` — CC BY 4.0 — point+polygon, national, aggregated to postal, `is_proxy:false` |
+| **Touches** | `scripts/fetch_heritage.py`, `scripts/prepare_data.py`, `src/utils/colorScales.ts`, `src/components/LayerSelector.tsx`, `src/utils/metrics.ts`, `src/data/data_sources.json`, `scripts/provenance.json`, `src/locales/{fi,en,sv}.json`, `public/data/metro_neighborhoods.geojson` |
+| **Bundle** | 0 (build-time) for data; ~300–400 gz B for LayerConfig + fi labels. Designated BUDGET-bumper for its batch |
+| **Complexity** | Medium |
+| **Dependencies** | None |
+| **Tag** | Claude Code |
+
+### CF-14 Microclimate grid overlay (snow-cover days / mean annual temperature) from FMI 1 km gridded observations
+
+| | |
+|---|---|
+| **What** | New build-time `fetch_fmi_climate.py` from the FMI gridded-observations AWS S3 bucket (`fmi-gridded-obs-daily-1km`) aggregates multi-year daily 1 km grids into a climate normal (snow-cover days and/or mean annual temperature), downsamples to the project grid, and emits a new grid shard fetched at runtime as a `?url` asset. Wire via the existing grid machinery: add to `grid_manifest.json` (currently only `air_quality`/`light_pollution`/`transit_reachability`), a `gridProperty` entry + LayerConfig in `colorScales.ts` (selectable in `LayerSelector.tsx`); `useGridData`/`gridFade` handle the rest. Register in registry/provenance (publisher FMI, `is_proxy:false`). Does **not** touch `metrics.ts` or the GeoJSON (grid path). |
+| **Why** | A genuinely new environmental axis (warmth / snow burden) distinct from air quality/light pollution/noise/tree canopy, at 1 km resolution (finer than postal), slotting directly into the shipped grid-overlay pattern so data ships as a `?url` grid shard with zero JS-bundle data cost. Snow-cover days is a concrete relocation signal (heating/maintenance burden). |
+| **Data source** | FMI gridded climate observations on AWS S3 (1 km grids: mean temperature, snow depth, precipitation; 1981–present NetCDF) — https://en.ilmatieteenlaitos.fi/gridded-observations-on-aws-s3 — CC BY 4.0 — 1 km grid (sub-postal), national, `is_proxy:false` |
+| **Touches** | `scripts/fetch_fmi_climate.py`, `scripts/build_grid_data.mjs`, `src/data/grid_manifest.json`, `src/utils/colorScales.ts`, `src/components/LayerSelector.tsx`, `src/data/data_sources.json`, `scripts/provenance.json`, `src/locales/{fi,en,sv}.json`, `scripts/check-bundle-size.mjs` |
+| **Bundle** | 0 (lazy `?url` grid asset) for data; ~250–350 gz B for LayerConfig + manifest entry + fi labels. Designated BUDGET-bumper for its batch (sized to also cover CF-6) |
+| **Complexity** | Large |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
@@ -253,57 +345,75 @@ Everything in the prior roadmap (all QW/CF/PO/IN items) shipped — treat as don
 
 ## 3 — Polish
 
-### PO-1 Comparison honesty: neutral price direction on the share card + main panel, and a direction-aware comparison bar chart
+### PO-1 Derive RadarChart axis min/max from `national_ranges.json` instead of hardcoded constants
 
 | | |
 |---|---|
-| **What** | QW-3 (prior roadmap) shipped neutral price direction only in the comparison **table** (`comparisonStats.ts:59/85/96`). Three trust defects remain on the decide surface. (1) The PNG **share card** hardcodes `property_price_sqm` `higherIsBetter:true` (`scoreCard.ts:44`); `isGood = higherIsBetter ? diff>0 : diff<0` (91) → a pricier-than-metro area's delta renders **green** as if it won. Give it a null/neutral direction in the card's `METRICS` array and treat null as gray with no +/− judgment. (2) The main panel price `StatRow` (`NeighborhoodPanel.tsx:1522`) calls `diffColor` with no direction arg, and `formatting.ts:118` defaults `higherIsBetter=true`, so a higher-than-average price colors emerald — extend `diffColor` to accept `higherIsBetter` of `boolean` or `null` (null → neutral) and pass null for price (mirroring crime/air/traffic rows that pass false). (3) The comparison **bar chart** defines `higherIsBetter` on every `CHART_METRICS` entry (`ComparisonPanel.tsx:79-85`) but never reads it (colors by per-area index only), so a longer crime/unemployment bar reads as "more" with no "worse" cue — thread the parent's existing `bestByKey` precompute (161) into `ComparisonChart` to badge the best-direction bar with the table's emerald cue, and add a "pienempi parempi / lower is better" caption (1 new bundled `fi.json` key) on the inverted metrics. |
-| **Why** | A household's deepest-compare step is shortlisting finalists and sharing the card with a partner/agent, and right now the shareable PNG, the primary panel, and the in-app chart all imply the most expensive (and, for crime/unemployment, the worst) area is the winner — contradicting QW-3's table fix and the data-honesty brand. The share card is the artifact that travels outside the app. ~250–450 B gz (mostly the chart cue + 1 caption key); measure with `bundle:check`, small raise if needed. |
-| **Touches** | `src/utils/scoreCard.ts`, `src/components/ComparisonPanel.tsx`, `src/components/NeighborhoodPanel.tsx`, `src/utils/formatting.ts`, `src/locales/{fi,en,sv}.json`, `src/__tests__/{scoreCard,comparisonPanel}.test.*` |
+| **What** | Replace the baked `AXES` min/max literals in `RadarChart.tsx:20-76` (e.g. transit 5–65, housing 1000–12000, crime cap 170) with lookups into the already-loaded `national_ranges.json` via `nationalRanges.ts` `getNationalRanges` (winsorized p2/p98 bounds), keeping inverted/direction handling. The `radar.services` axis is a composite mean of grocery/healthcare/school_density with no single national key — average those three bounds (all present). Net-zero bundle (constants swapped for an existing-asset lookup). |
+| **Why** | Current caps are metro-centric (national transit max = 17.07 vs hardcoded 65; housing max = 5410 vs 12000), so most of the 3,018 areas peg near the floor and the radar shape misrepresents rural areas; the constants also go stale on every data refresh. A data-honesty + accuracy fix using the live national distribution the app already has. Foundation for CF-9's N-series radar. |
+| **Data source** | Statistics Finland Paavo national ranges already in `src/data/national_ranges.json` — CC BY 4.0 — postal |
+| **Touches** | `src/components/RadarChart.tsx`, `src/utils/nationalRanges.ts` |
+| **Bundle** | ~0 (constants replaced by existing-asset lookup) |
 | **Complexity** | Small |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### PO-2 Localize the skip-to-content link (hardcoded Finnish breaks EN/SV SR users)
+### PO-2 Doc-honesty pass: correct drifted budget / counts / migration claims
 
 | | |
 |---|---|
-| **What** | `index.html:336` hardcodes `<a class="skip-link" href="#main" lang="fi">Siirry sisältöön</a>`. The app sets `documentElement.lang` on every locale change (`App.tsx:1679-1681`) but the skip link keeps Finnish text and an explicit `lang="fi"` override, so EN/SV SR users hear the Finnish phrase in a Finnish voice on the very first focusable element. Add `aria.skip_to_content` (the codebase uses the `aria.*` prefix; no skip key exists today) to all three locales. Fix on two surfaces: **(a) build-time, 0 bytes** — in `prerender.mjs` (which already clones `index.html` and `replace`s `<html lang="fi">`) add an analogous replace rewriting the cloned skip-link text + lang per page language (~9,000 pages); `prerender-hubs.mjs` builds HTML from scratch with **no** skip link today, so add a localized one before `<main>` (parity). **(b) client, ~100–150 B gz** — in the same `App.tsx` lang effect, query the skip link (outside `#root`) and set `textContent` + `lang`. Optionally extract a tiny shared helper for the standalone pages that also set lang. |
-| **Why** | Clear a11y parity defect (mirrors UX_REVIEW AY-6, documented but never shipped) for non-Finnish assistive-tech users on the first focusable element of every page. The build-time half is 0 bytes and covers ~9,000 pages; the client half (~100–150 B gz) fits the ~0.5 KB headroom without raising `BUDGET`. |
-| **Touches** | `index.html`, `src/App.tsx`, `scripts/prerender.mjs`, `scripts/prerender-hubs.mjs`, `src/locales/{fi,en,sv}.json` |
+| **What** | Fix verified-stale numbers/claims across `CLAUDE.md` + `docs/ARCHITECTURE.md` + `docs/QUALITY_INDEX.md`: bundle budget "280,000" → the final `check-bundle-size.mjs` `BUDGET` (currently 295,000, raised once per batch this roadmap); "weightable factors" count → post-roadmap `QUALITY_FACTORS` (+1 from CF-3); "~21 hooks" → ~25; grid section "(air_quality, light_pollution)" → 3+ grids incl. `transit_reachability` (and CF-14's climate grid); remove "no migration system" (`db.ts` now has a forward-only `runMigrations` with `schema_migrations` + advisory lock; fix the stale `db.ts` JSDoc too); "59 layers" → post-roadmap `LAYERS` count; "Map.tsx ~1,500 lines" → ~1806. Derive counts at build time where cheap. **Sequence last** so counts reflect every newly merged layer/factor. |
+| **Why** | These docs are the onboarding/source-of-truth for contributors and for Claude Code itself; drift erodes trust and causes wrong decisions (e.g. assuming "no migration system" and hand-altering tables, or acting on a wrong budget). Pure correctness/credibility win, zero risk. |
+| **Touches** | `docs/ARCHITECTURE.md`, `CLAUDE.md`, `docs/QUALITY_INDEX.md` |
+| **Bundle** | 0 (docs only) |
 | **Complexity** | Small |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### PO-3 Screen-reader feedback parity: silent toasts + unannounced filter/wizard result counts
+### PO-3 Quality-Index honesty gap: a default Safety factor is only 72.4% covered but code/docs claim ~97–100%
 
 | | |
 |---|---|
-| **What** | Two feedback-parity fixes reusing existing surfaces. (1) Add `role="status"` (aria-live=polite) to the two silent transient toasts in `NeighborhoodPanel.tsx`: the "copied" clipboard toast (2244-2249) and the compare-cap `pinToast` (2253-2259). The sibling `imgError` toast (2262-2268) already has `role="status"` — the correct template. (2) Push an "N areas match" / "N areas highlighted" string to the **existing** global ARIA live region (`App.tsx:2703-2705`, fed by `setAriaAnnouncement`) whenever the percentile-filter match set (`filterMatchPnos`, count shown visually only in `FilterPanel`) or the wizard highlight set (`wizardResultPnos`, count shown visually only in a chip) changes, via a small `useEffect` keyed on the set lengths. No new live region. |
-| **Why** | A screen-reader user gets no spoken confirmation of "copied" or "limit reached", and no spoken result count when a filter or the discovery wizard narrows 3,018 areas — the chip count is purely visual. Reuses the one existing global live region. ~150–250 B gz + one `fi.json` key; fits the ~0.5 KB headroom without a raise — measure. |
-| **Touches** | `src/components/NeighborhoodPanel.tsx`, `src/App.tsx`, `src/locales/{fi,en,sv}.json` |
+| **What** | `qualityIndex.ts:74` asserts "every default factor has ~97–100% national coverage" and that thin coverage "only affects optional factors like school_quality", and `QUALITY_INDEX.md:72-77` repeats it — yet `traffic_accidents` (a **default-weighted** Safety factor, `defaultWeight 4`, `primary:true`, reads `traffic_accident_rate`, `qualityIndex.ts:447-454`) has **72.4%** coverage per `build_metadata.json:470-476`, so ~833 postal codes get neutral-50 imputed under all-Finland scope. Correct the comment + methodology doc to acknowledge the ~72% figure (and that thin coverage affects this default factor, not only optional ones). Advisable scope is the **doc/comment fix only** — the existing Väylävirasto data is postal + non-proxy, so a municipal Traficom backfill would *downgrade* granularity. |
+| **Why** | The methodology doc is a core trust artifact for a data-honest product; overstating completeness for a quarter of the country on a headline-affecting factor undermines exactly the honesty positioning the project leans on. Zero-risk doc fix. |
+| **Touches** | `src/utils/qualityIndex.ts`, `docs/QUALITY_INDEX.md` |
+| **Bundle** | 0 (build-time) |
 | **Complexity** | Small |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### PO-4 Honest feedback when a percentile filter or wizard highlight is active over a grid layer
+### PO-4 High-contrast / forced-colors accessibility layer
 
 | | |
 |---|---|
-| **What** | `Map.tsx`'s fill-opacity effect (884-913) only applies "dim non-matching" to `FILL_LAYER` (the postal choropleth, match on `['get','pno']`). When the active layer is one of the three sub-postal grids (air_quality, light_pollution, transit_reachability), the grid branch fades `FILL_LAYER` out and paints grid cells via `buildGridFillOpacity` (`gridFade.ts:43-49`), **neither carrying a match expression** — so an active filter/wizard highlight produces **no visible dimming** over grids, silently misleading the user. Grid cells aren't keyed by pno, so the honest fix is feedback, not faked dimming: (a) dim the whole grid layer uniformly while a filter/wizard set is active so it doesn't read as "unfiltered", and (b) surface a small `role=status` caption in `Legend.tsx` (mirroring the existing `grid.loading`/`subregionEstimate` caption hosts) reading "Suodatin ei koske ruutuaineistoa" / "Filter does not apply to grid data", driven by a new boolean prop set in `App.tsx` from the in-scope `filterActive` + `wizardResultPnos` when `hasGridData(activeLayer)`. Apply the same rule in the layer-switch transition effect (994-997) and to any future planning overlay. |
-| **Why** | Edge-case feedback defect: the percentile filter and wizard are decision-critical tools, yet on the three sub-postal grids the product is proudest of, their core visual affordance disappears with no explanation — the map reads as if nothing is filtered. Restores honest feedback for free (no new data). ~150–300 B gz + 1 `fi.json` key; fits the ~0.5 KB headroom only if kept minimal (single neutral caption, opacity multiplier rather than a new expression) — otherwise fold into a batch raising `BUDGET`. |
-| **Touches** | `src/components/Map.tsx`, `src/components/Legend.tsx`, `src/App.tsx`, `src/locales/{fi,en,sv}.json` |
+| **What** | No `prefers-contrast` or `forced-colors` support exists today (grep over `src/` = 0; existing media blocks are only reduced-motion and coarse-pointer). Add a CSS-only layer in `src/index.css`: `@media (prefers-contrast: more)` strengthens borders, makes translucent `/80` panel backgrounds opaque, and thickens focus rings; `@media (forced-colors: active)` adds `forced-color-adjust` hints and visible borders on legend swatches and map controls so Windows High Contrast users keep affordances. Distinct axis from the existing colorblind palettes. |
+| **Why** | Serves low-vision and Windows High Contrast Mode users — an accessibility population the colorblind palettes don't cover. CSS-only, no JS bundle cost. |
+| **Touches** | `src/index.css` |
+| **Bundle** | 0 (CSS only) |
+| **Complexity** | Medium |
+| **Dependencies** | None |
+| **Tag** | Claude Code |
+
+### PO-5 Add a "no data" hatch swatch to the Legend and SplitPaneLegend
+
+| | |
+|---|---|
+| **What** | Render a small diagonal-hatch swatch labeled "Ei tietoa / No data" in `Legend.tsx` (alongside the ramp at `:123-137`) and in `SplitMapView`'s `SplitPaneLegend` (`:95-141`), reusing `hatchPattern.ts` geometry (45° stripe, `#94a3b8`/`#64748b`) as a CSS `repeating-linear-gradient` (prefer CSS to stay under budget) so the on-map gray hatch is self-explanatory even when the `<50%` `coverage.low_banner` does not fire. Optionally a second swatch for the sub-region "estimate" hatch. Adds 3 short fi keys (en/sv free). |
+| **Why** | On sparse layers the gray hatch can dominate the map, but the legend only shows the color ramp (and a `▦`-glyph banner gated at `<50%`); users can't map the pattern to a meaning. An honesty/legibility win. |
+| **Touches** | `src/components/Legend.tsx`, `src/components/SplitMapView.tsx`, `src/locales/{fi,en,sv}.json` |
+| **Bundle** | ~300 gz B (CSS swatch + 3 fi keys) |
 | **Complexity** | Small |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### PO-5 Quality-Index honesty: fix the "Balanced = 20 each" doc drift and make `equalDimensionWeights` sum to exactly 100
+### PO-6 Promote the map container to a `<main>` landmark + announce language switches
 
 | | |
 |---|---|
-| **What** | Two methodology-honesty defects in a product whose brand **is** transparent methodology. (1) `QUALITY_INDEX.md:101` claims the Balanced persona weights "Every evaluative dimension weighted *exactly equally* (20 each)", but `equalDimensionWeights()` (`qualityIndex.ts:1011-1027`) targets `Math.round(100 / evaluativeDims)` = **25** each across four evaluative dimensions — the "20" is stale from the retired six-dimension model that the code comment itself flags as wrong. Update the doc to ~25 each. (2) The "exactly equally" claim is also imperfect: per-factor `Math.round` lets a dimension re-total to 24 or 26 and the four sum to ≠100 (e.g. 25/25/26/26 = 102). Either soften the doc to "~25 each" **or** (preferred) replace per-factor `Math.round` with a largest-remainder allocation so each evaluative dimension totals exactly 25 and the four sum to exactly 100, making the claim literally true; add a `qualityIndex.test.ts` assertion. (3) Fix the stale "green space" reference in the "Nature & quiet" persona row (`QUALITY_INDEX.md:106`) — the green-space layer was removed for `tree_canopy` (matches QW-7). |
-| **Why** | The methodology doc states a number (20) the engine doesn't use and an exactness claim the rounding violates — a small but concrete credibility leak on the single document that justifies the headline scores to researchers and skeptics. Doc edits + green-space fix are 0 bytes; the optional largest-remainder rounding is ~100–200 B gz — fits the headroom standalone, ride a batch raise to be safe. Making the code match the claim is cheaper to trust than caveating it. |
-| **Touches** | `docs/QUALITY_INDEX.md`, `src/utils/qualityIndex.ts`, `src/__tests__/qualityIndex.test.ts` |
+| **What** | Two a11y fixes: (1) change `<div id="main" tabIndex={-1}>` (`App.tsx:2092`) to `<main id="main">` so the skip link lands on a real landmark, matching `NeighborhoodProfilePage.tsx:456` (single `main` per SPA, block-level so the `h-dvh`/`overflow-hidden` layout holds). (2) Route language switches through the existing `setAriaAnnouncement` live region (`App.tsx:2884`, fed for selection/filter/wizard/layer at `:1199/:1560/:1565/:1833` but never for lang) from `handleLangChange` (`App.tsx:1517-1529`) / `LanguagePicker.tsx` so SR users hear the change and brief loading state. Add the new key to all three locales. |
+| **Why** | On the app's core screen the single most important region is not exposed as "main" (inconsistent with the profile/404 pages), and a content-wide language change is the one large state change the app's live region never announces. Both reuse existing infrastructure. |
+| **Touches** | `src/App.tsx`, `src/components/LanguagePicker.tsx`, `src/locales/{fi,en,sv}.json` |
+| **Bundle** | ~100 gz B (1 `t()` call + a couple keys; en/sv free) |
 | **Complexity** | Small |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
@@ -312,174 +422,181 @@ Everything in the prior roadmap (all QW/CF/PO/IN items) shipped — treat as don
 
 ## 4 — Infrastructure
 
-### IN-1 Kaavat & hankkeet data pipeline: Väylä national projects + city WFS plans → per-area list, geometry shards, manifest
+### IN-1 Gate the full `validate_data.py` on data-touching branches
 
 | | |
 |---|---|
-| **What** | Build-time data backbone for the centerpiece, **zero client JS**. New `scripts/fetch_vayla_projects.py` pulls national projects from the Väylävirasto OGC API Features endpoint (`avoinapi.vaylapilvi.fi/vaylatiedot/ogc/features/v1/`, EPSG:3067, CC BY 4.0; verified collections `hanketiedot:tiehankkeet`, `:ratahankkeet`, `:ratasuunnitelmat`, `:paattyneet_hankkeet` — enumerate `/collections` at fetch time; read `/queryables` + `DescribeFeatureType` first to pin real status/name/schedule field names), normalizing to `{name,type,subtype,status,date,source_url}`. New `scripts/fetch_city_zoning.py` adds per-city `vireillä` asemakaava polygons from confirmed feeds — Helsinki (`kartta.hel.fi/ws/geoserver/avoindata/wfs`, `Kaavahakemisto_alue_kaava_vireilla`, EPSG:3879 — verified), Espoo (`kartat.espoo.fi` Tekla `GIS:Kaavoitushankkeet`), Tampere (`geodata.tampere.fi` GeoServer GeoJSON), Vantaa/Turku/Jyväskylä where a feed exists — each pinning layer names via GetCapabilities, reprojecting to EPSG:3067, mapping statuses onto the Ryhti lifecycle (`vireillä→ehdotus→hyväksytty→lainvoimainen→kumottu`) so adapters can later collapse into one Ryhti fetcher. New `scripts/build_planning_data.mjs` mirrors `build_grid_data.mjs` sharding: shapely-intersects each postal polygon (municipality + WGS84 centroid already baked into `region_properties.json` by the shipped CF-4) to emit (a) a compact per-pno named list to `scripts/area_planning.json` (build input read at prerender, never shipped — same pattern as `scripts/flood_risk.json`; if placed under `public/data/`, add to the `vite.config.ts` `stripBuildOnlyData()` plugin) and (b) per-seutukunta geometry shards `public/data/planning_{projects,plans}_shards/*.geojson` + `src/data/planning_manifest.json` carrying per-region presence, a scope flag (`projects:'national'`, `plans:'partial'`) and the snapshot build date. **Do not** register planning under `data_sources.json` `metrics` (it is geometry/lists, not a numeric choropleth — would trip `validate_data.py::check_provenance_vintage_match`); register only the new city + SYKE/Ryhti **publishers**, and record the planning snapshot vintage in `planning_manifest.json`, not `provenance.json`. Real geometry, never proxied (`is_proxy` N/A). Delete/repurpose the dead `scripts/fetch_grid_data.py` placeholder. Wire both fetchers + the builder into `build:data` and the quarterly refresh. |
-| **Why** | The product has nothing about what is planned/built near an area, and no Finnish consumer service combines neighbourhood stats with nearby plans/projects. The Väylä half is genuinely **national today** so every area gets real content immediately; the city half is honest partial coverage. One pipeline emitting **both** a per-pno list and geometry shards gives all downstream surfaces (CF-1/2/3/4/5/10, IN-8) one source of truth. 0 bytes of app JS (fetchers/builder are build-time; the per-pno list is a build input never shipped; shards are lazy fetch assets like the grids; the manifest is generated). |
-| **Touches** | `scripts/fetch_vayla_projects.py`, `scripts/fetch_city_zoning.py`, `scripts/build_planning_data.mjs`, `scripts/area_planning.json`, `public/data/planning_projects_shards/`, `public/data/planning_plans_shards/`, `src/data/planning_manifest.json`, `src/data/data_sources.json`, `vite.config.ts`, `package.json`, `scripts/fetch_grid_data.py` |
-| **Complexity** | Large |
-| **Dependencies** | None (critical path for CF-1/2/3/5, CF-10 sub-2, IN-8) |
+| **What** | Add a CI job in `auto-merge.yml` (paths filter on `public/data/**` + `scripts/**`) that runs the **full** `python scripts/validate_data.py` — value-range, coverage-regression, all-null, geometry, feature-count, postal-format checks (`:593-605`) against the committed 39 MB GeoJSON. Today `ci.yml:62` and `auto-merge.yml:73` run only `--files-only` (registry/provenance checks at `:572-578`, skipping the GeoJSON); the heavy suite runs solely in `data-refresh.yml:96` (quarterly cron). The push path's only data gate is the `build:data` idempotency check, which verifies reproducibility, not sanity. |
+| **Why** | A hand-edited fetch script + regenerated GeoJSON pushed on a `claude/*` branch merges with no value-range, coverage-drop, or geometry validation — a silently nulled column would ship. Closes a real integrity hole on the manual-data path and **protects every data-layer batch in this roadmap**. |
+| **Touches** | `.github/workflows/auto-merge.yml`, `scripts/validate_data.py` |
+| **Bundle** | 0 (build-time) |
+| **Complexity** | Medium |
+| **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### IN-2 Extend the IN-6 head-integrity guard to `prerender-hubs.mjs` (~10,500 hub, ranking, directory, EN/SV landing pages)
+### IN-2 Expand the `server/api` route test suite (and mirror it into `ci.yml`)
 
 | | |
 |---|---|
-| **What** | The pure `assertHeadIntegrity` from `prerender-lib.mjs` is asserted on every profile/route page in `prerender.mjs` (1548/1554/1560/1605/1615) but `prerender-hubs.mjs` — which writes **all** hub, ranking, directory and EN/SV landing pages — never imports or calls it. Every hub family flows through one assembler, `htmlPage()` (263-339; raw-interpolates `jsonLd`, title/canonical/og:url): `buildDirectory`, `buildLanding`, `buildCityHub`, `buildRankingPage`. Add `import { assertHeadIntegrity } from './prerender-lib.mjs'` and call it once near the end of `htmlPage()` on the assembled string (no expect-flags — hubs have neither FAQPage nor a profile payload), asserting singleton `<title>`/`</head>`/canonical, at-most-one og:url, a complete (non-lonely) hreflang cluster, and parseable JSON-LD. Add fixture tests under `src/__tests__/` (extend `prerenderOutput.test.ts`) covering a well-formed hub passing and a duplicated-token/lonely-hreflang hub throwing. |
-| **Why** | These hub/ranking/directory pages are the citable, rich-results surface the centerpiece planning hubs (CF-4) hang off and rank for, yet they are the one large prerendered surface IN-6 skipped — the guard runs on ~9,000 profiles but never on these ~10,500 pages. Region names, metric titles and breadcrumb labels are interpolated into the head/title; the assertion catches template regressions loudly at build time instead of silently corrupting thousands of pages — exactly the failure mode CLAUDE.md documents. 0 bytes (build/test only). |
-| **Touches** | `scripts/prerender-hubs.mjs`, `src/__tests__/prerenderOutput.test.ts` |
+| **What** | Expand `server/api/src/auth.routes.test.ts` beyond the lone favorites GET/PUT + 401/413/CSRF/429 to cover the untested security/GDPR-critical handlers: signup (`:94`), login incl. invalid-credential/enumeration path (`:184`), logout (`:226`), `/me` (`:373`), notes (`:515/532`), shortlist (`:460/476`), preferences (COALESCE partial-update preserving unspecified fields at `:718-725` + `wizardProfile` persistence at `:707-714`), `/export` payload shape (`:304`), `DELETE /account` (`:348`), and the `db.ts` forward-only migration runner (`:38-87`). The harness (pg-mem + supertest + `createApp`) already exists. **Note:** the server suite is *already* gated for merges — `auto-merge.yml` defines a `server` job (`:229-255`) that merge-to-main depends on (`:258`); do **not** re-add it there. The only remaining wiring is mirroring `npm test` into `ci.yml` (which runs only `npm audit` at `:26-27`) for faster branch-level feedback. |
+| **Why** | The most security-relevant handlers (credential auth, GDPR export/delete, partial-update preferences, schema migrations) have zero route-level tests; the merge gate already runs the suite, so new tests immediately become enforcing. |
+| **Touches** | `server/api/src/auth.routes.test.ts`, `.github/workflows/ci.yml` |
+| **Bundle** | 0 (server-side / build-time; no app JS) |
+| **Complexity** | Medium |
+| **Dependencies** | None |
+| **Tag** | Claude Code |
+
+### IN-3 Add the missing login-merge guard (and tombstones) to `useFilterPresets`
+
+| | |
+|---|---|
+| **What** | Add the `loginMergePendingRef` pattern to `useFilterPresets.ts` so its 1 s debounced PUT (`:116-128`) is deferred during the null→id login transition until the on-login GET/merge resolves (mirroring `useQualityWeights.ts:66/85/93` + `.finally` clear at `:152`), and add deletion tombstones via `syncTombstones.ts` (`mergeRespectingTombstones`/`addTombstone`, keyed on `presetSig`) so a deleted preset isn't resurrected by the pure set-union `mergePresets` (`:59-70`) from a stale server/device copy. Five of the six synced stores got these guards in the prior sync work; filter presets (a list store) got neither. |
+| **Why** | Closes a real (if narrow) cross-device data-loss window and fixes cross-device preset resurrection, bringing the last synced store in line with the conflict-resolution rollout. Pure correctness, near-zero bundle, mirrors proven code. |
+| **Touches** | `src/hooks/useFilterPresets.ts`, `src/utils/syncTombstones.ts` |
+| **Bundle** | ~0.1 KB gz |
 | **Complexity** | Small |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### IN-3 Range-check the four un-validated post-roadmap layers in `validate_data.py`
+### IN-4 Make visual-regression real on the merge path, or remove the dead suite
 
 | | |
 |---|---|
-| **What** | Extend `RANGE_CHECKS` (`validate_data.py:81-110`) to cover the four live layers that shipped after the list was last extended and are currently **not** value-range-validated: `radon` (Bq/m³, ~0–3000; 300 = STUK action level), `health_index` (~0–300, 100 = national average), `flood_risk_pct` (0–100 — also **missing from `PERCENTAGE_FIELDS`** at 66-79, so add it there), and `rental_price_sqm` (~3–80 €/m²/month). All four pass un-bounded today, so an upstream unit/scale change (radon Bq vs pCi, rents flipped to €/month, morbidity rebasing, a SYKE share given as 0–1 vs 0–100) would reach the public choropleth silently. Optionally pre-register the planning fields (`active_plan_count` ≥ 0, `planned_area_pct` 0–100) — `check_value_ranges` skips absent properties, so they're inert until the data lands. **Do not** re-add a coverage-regression diff — `check_coverage_regression` (451-476) already ships. Re-run the validator against the committed GeoJSON to confirm nothing falls outside the new bounds. |
-| **Why** | Closes a real honesty gap: four publicly displayed layers bypass all value-range validation, so an upstream unit/scale change would silently produce a wrong-by-orders-of-magnitude public choropleth that the quarterly refresh would merge unflagged. The coverage-regression guard the original candidate also asked for already exists, so this narrows to the genuinely-missing piece. 0 bytes (Python/CI only). |
-| **Touches** | `scripts/validate_data.py` |
-| **Complexity** | Small |
+| **What** | Either **(a)** add a `workflow_dispatch` job that generates+commits `*-linux.png` baselines on the ubuntu runner and wire a `visual` job into `auto-merge.yml`'s `needs` list; or **(b)** delete `e2e/visual/visual-regression.spec.ts` + the Playwright `visual` project (`playwright.config.ts ~:58-67`). Today there are **0** committed `*-linux.png` baselines (`ci.yml:88-98` self-generates with `--update-snapshots||true` then self-compares = always green) and `auto-merge.yml` has no `visual` job, while `ci.yml` is skipped on `claude/*` (`:11-12/:42-43`) — so visual tests never gate the only path to main. **Recommend (b)** as lower-risk/higher-honesty unless pixel gating is actively wanted. |
+| **Why** | All visual-regression infrastructure is dead weight providing false assurance. Making it real catches CSS/layout regressions on the merge path; removing it deletes a maintenance trap. Either choice resolves the honesty gap. |
+| **Touches** | `.github/workflows/auto-merge.yml`, `.github/workflows/ci.yml`, `e2e/visual/visual-regression.spec.ts`, `playwright.config.ts` |
+| **Bundle** | 0 (build-time) |
+| **Complexity** | Medium |
 | **Dependencies** | None |
 | **Tag** | Claude Code |
 
-### IN-5 Sync backend hardening: migration advisory lock, per-user rate limit, first route-level integration tests
+### IN-5 Make the open-data corpus GIS-joinable and portal-harvestable (lat/lon + GeoJSON + DCAT `data.json`)
 
 | | |
 |---|---|
-| **What** | Three server-only robustness fixes (zero client bytes). (1) Wrap the IN-3-era forward-only migration runner (`server/api/src/db.ts:29-54`, no lock today) in a Postgres session advisory lock (`pg_advisory_xact_lock` around the migrations loop). The API runs as a single `docker compose` service with `restart: unless-stopped`; a crash-loop relaunch (or future multi-replica) can start a second instance mid-migration — both pass the `schema_migrations` check, then the second's `INSERT` hits the PK (23505), rolls back, and crashes startup. It self-heals today only because the single migration is idempotent; the next non-idempotent one could half-apply. (2) Add a second fixed-window bucket keyed on the **authenticated userId** for the write routes + `GET /auth/export`, generalizing `rateLimit.ts` (it currently keys only on client IP). IN-4 shipped a per-IP limiter even though its spec called for per-user — so on shared NAT/CGNAT all users share one bucket (false throttling) while an authenticated abuser rotating IPs is unbounded per account. (3) Add the **first** route-level integration tests — `auth.test.ts` exercises only pure helpers, so the credentialed GET/PUT round-trips, the 413 body-limit dispatch, the `sameOriginOnly` CSRF 403 and the rate-limit 429 have zero coverage; add a pg-mem (preferred over testcontainers — no Docker in CI) suite. |
-| **Why** | The sync backend is the fragile, internet-facing credentialed surface future sync work builds on; it runs in CI via the IN-2-era build+test lane but still has unprotected gaps. The advisory lock de-risks every future schema change; the per-user limiter closes the CGNAT false-throttle / IP-rotation abuse gap IN-4 was specced to close but shipped per-IP; the first route tests cover the auth/sync/GDPR/413/CSRF/429 paths that today have zero assertions. 0 client bundle bytes (server + test only; the dev dependency is never shipped). |
-| **Touches** | `server/api/src/db.ts`, `server/api/src/rateLimit.ts`, `server/api/src/auth.ts`, `server/api/src/index.ts`, `server/api/src/auth.routes.test.ts`, `server/api/package.json` |
+| **What** | Add centroid lat/lon columns to `areas.csv` and the `/api/v1/areas/{pno}.json` records (`ID_COLUMNS` at `build_open_data.mjs:273` omits coordinates today; `region_properties.json` already carries lat/lon + `euref_x/euref_y`), emit a new `/avoin-data/naapurustot_areas.geojson` centroid-points distribution, and publish a **DCAT-AP `/data.json`** catalog (alongside the existing schema.org JSON-LD distribution at `:457`) describing the CSVs + frozen JSON API + codebook so CKAN/DCAT harvesters (avoindata.fi, data.europa.eu) can ingest automatically. Wire the new files into the sitemap. |
+| **Why** | Researchers can't map or spatially join the corpus today even though `region_properties.json` already carries coordinates. Adding centroid lat/lon + a GeoJSON makes it directly GIS-joinable, and a DCAT catalog makes the dataset eligible for automated harvesting — extending reach with zero new external source. |
+| **Data source** | Repackages existing in-repo data: `region_properties.json` lat/lon + `euref_x/euref_y` (ETRS-TM35FIN) from Tilastokeskus Paavo postal-area centroids, CC BY 4.0 — no new external source |
+| **Touches** | `scripts/build_open_data.mjs`, `scripts/generate-sitemap.mjs` |
+| **Bundle** | 0 (build-time) |
 | **Complexity** | Medium |
-| **Dependencies** | None (precedes IN-6's `auth.ts` edits) |
-| **Tag** | Claude Code |
-
-### IN-6 Finish sync conflict resolution: timestamp last-write-wins via `updated_at` + kill the save-on-login race
-
-| | |
-|---|---|
-| **What** | Two sync-trust follow-ups the prior roadmap left undone (CF-6 shipped tombstones + longer-text-wins, not the `updated_at` LWW it also proposed; CF-7's save-on-login race fix was never built — CF-7 aborted on its gzip guard). (1) **Timestamp LWW:** all five user tables carry `updated_at` (`db.ts:67-98`) but no GET endpoint returns it (`auth.ts:387/439/493/633-637`), so the client merges on lossy heuristics — longer-text-wins for notes, "both custom → leave as-is" for weights/profile. Surface `updated_at` in the four GET responses (server SELECT + JSON only — 0 bundle bytes), widen the `api.ts` response types, and resolve diverged conflicts by comparing server `updated_at` against a client-stored per-store last-edit timestamp (per-item for notes) — last write wins. (2) **Kill the save-on-login race:** add a per-hook `loginMergePendingRef` set on the `userId` null→id transition and cleared when the on-login merge resolves, and make each debounced-save effect skip while it is set, so the local value is never pushed before the merge decides the winner — closing the `useQualityWeights` default-weights-on-login clobber (it has no `isCustom` gate) and the weights/profile/list clobber windows. `getPreferences` already dedups concurrent GETs, so no GET-collapse work is needed. |
-| **Why** | The remaining ways a signed-in user silently loses/corrupts saved data across devices: notes merge by longer-text-wins (a shorter, newer edit loses), "both custom" weights/profile keep whichever copy a device happens to hold, and every `userId` transition can push the local value before the merge runs — `useQualityWeights` even pushes **default** weights on login, which the server `ON CONFLICT` overwrites custom weights with. Trust in persistence is a prerequisite for the account feature mattering. Server delta 0 bytes; client delta ~300–550 B gz — tight against ~0.5 KB headroom; measure, small raise justified if it exceeds (closes a real data-loss class). |
-| **Touches** | `server/api/src/auth.ts`, `server/api/src/auth.test.ts`, `src/utils/api.ts`, `src/hooks/{useNotes,useQualityWeights,useWizardProfile,useFavorites,useShortlist}.ts`, `src/__tests__/{useNotes,useQualityWeights}.test.ts` |
-| **Complexity** | Medium |
-| **Dependencies** | IN-5 (shares `auth.ts`) |
-| **Tag** | Claude Code |
-
-### IN-7 Split page-only `fi.json` strings (`sources.*`, privacy body) off the always-loaded i18n chunk
-
-| | |
-|---|---|
-| **What** | `fi.json` is statically imported into the always-loaded i18n chunk (`i18n.ts:19`, full file 15,762 B gz). A measured subset is rendered **only** on lazy, prerendered routes and never by the core map: the 29 `sources.*` keys (`DataSourcesPage.tsx` + `prerender.mjs`) and the 16 privacy-policy body keys (`PrivacyPage.tsx`, excluding `privacy.link`). Move exactly those 45 keys into a new `src/locales/fi-extra.json` fetched as a lazy `?url` asset (mirroring en/sv), loaded on `/tietolahteet` and `/tietosuoja`. Keep the synchronous Finnish fallback intact for every key the core map uses. **Do not** move `metric_explanation.*`, `data.*` badges, `correlation.*`, or `privacy.link` — all render in the core map and would show raw key strings until the lazy fetch resolved. The two lazy page components must await `fi-extra` before first render so their hydrated output matches the prerendered HTML, and `prerender.mjs` must merge `fi-extra.json` into its LOCALES map. Update `i18nKeyParity.test.ts` to compare (`fi.json` ∪ `fi-extra.json`) against en/sv. |
-| **Why** | The budget has ~0.5 KB headroom, blocking new UI. This reclaims a **measured ~1,995 B gz** off the always-loaded core chunk (full `fi.json` 15,762 → 13,767 B gz after the split); the moved strings cost 0 against the core budget once they ship as a lazy `?url` asset like en/sv — roughly 4–5× the durable headroom **without** a `BUDGET` raise. Honest scope note: this is a ~2 KB lever, not the ~16 KB the whole file represents — the larger groups (`metric_explanation`, `correlation`, `data.*`) cannot move because they render in the core map. Net app JS: ~−1,995 B gz. |
-| **Touches** | `src/utils/i18n.ts`, `src/locales/fi.json`, `src/locales/fi-extra.json`, `src/main.tsx`, `src/pages/PrivacyPage.tsx`, `src/pages/DataSourcesPage.tsx`, `scripts/prerender.mjs`, `src/__tests__/i18nKeyParity.test.ts`, `src/__tests__/setup.ts` |
-| **Complexity** | Medium |
-| **Dependencies** | None (precedes QW-8, which must scan `fi.json` ∪ `fi-extra.json`) |
-| **Tag** | Claude Code |
-
-### IN-8 Planning-data integrity & freshness: per-city presence guard + Atom-feed entry on each kaava/hanke refresh
-
-| | |
-|---|---|
-| **What** | Close the one integrity blind spot the centerpiece introduces. The existing coverage-regression guard `check_coverage_regression` (`validate_data.py:451-476`) iterates **only** registry-stored props against `data_baseline.json` — but IN-1 deliberately keeps planning **out** of the metrics registry, so the planning shards/lists get **zero** automated protection. The kaava feeds are also the most fragile inputs in the product: ~6–10 heterogeneous city WFS endpoints whose layer names drift and whose servers go down, all re-fetched unattended on the quarterly cron. A silent fetch failure drops a city's plans, the gray fallback masks it, and the "tilanne &lt;snapshot&gt;" caption keeps claiming freshness. (1) Add a planning presence baseline: record per-city plan/project counts into `planning_manifest.json` (or a sibling `planning_baseline.json`), and add a guard (in `build_planning_data.mjs` or a new `scripts/validate_planning.mjs` wired into the data-refresh validate stage) that **fails the build** when a city that had plans in the baseline now resolves to zero (the planning analog of `check_coverage_regression`), with a `--write-baseline` escape hatch. (2) On a successful planning refresh, append a "Kaavat ja hankkeet päivitetty" entry to `src/data/data_updates.json` so the PO-5-era Atom feed (`generate-feed.mjs` → `dist/data-updates.atom`) surfaces the new snapshot date — the recurring-visit hook CF-4 explicitly punted as out of scope. |
-| **Why** | The centerpiece's only real honesty risk is staleness/silent coverage loss: plans change status weekly and the city feeds are the product's flakiest inputs, yet nothing fails the quarterly refresh when Helsinki or Tampere silently returns nothing. A presence guard makes a dropped feed a loud build failure instead of a thousand profiles quietly losing their "lähistöllä" section while still dated "today". The feed entry turns each refresh into a re-engagement signal for the research/journalist audience. 0 bytes (build/CI + a static JSON changelog). |
-| **Touches** | `scripts/build_planning_data.mjs`, `scripts/validate_planning.mjs`, `src/data/planning_manifest.json`, `src/data/data_updates.json`, `.github/workflows/data-refresh.yml` |
-| **Complexity** | Medium |
-| **Dependencies** | IN-1 |
-| **Tag** | Claude Code |
+| **Dependencies** | None |
+| **Tag** | Claude Code — *with one Manual Setup follow-up:* actual avoindata.fi ingestion needs a one-time harvest-source/organization registration on the portal. The DCAT catalog **enables** harvesting but does not auto-trigger it. |
 
 ---
 
 ## Suggested Sequencing
 
-Each batch is internally parallel-safe for concurrent Claude Code sessions **with the serialization caveats noted**, and depends only on prior batches. **Global caveat for all batches:** auto-merge shares a concurrency group, so a second `claude/*` push cancels an in-flight merge — develop sessions in parallel but **stagger the pushes** (treat each intra-batch "merge order" as the push order), and re-run the i18n key-parity test after every locale edit. **`BUDGET` discipline:** exactly **one** designated item per batch may edit the `scripts/check-bundle-size.mjs` constant. Batch 1 front-loads the headroom-freeing items (QW-9 + IN-7 + QW-8) so the centerpiece UI and new data layers may often land **without** a raise — but every JS-touching item must still measure its gz delta with `bundle:check` before push.
+Each batch is internally parallel-safe for concurrent Claude Code sessions **with the serialization notes stated**, and depends only on prior batches. **Global caveats for every batch:**
 
-**No item is Manual Setup** — all 31 are tagged Claude Code. Operational call-outs (not hand-blocking): IN-1 fetches ~6–10 heterogeneous external endpoints at **build time** (pin layer names via GetCapabilities/DescribeFeatureType; confirm CI/build network egress; any unavailable city feed ships as honest partial coverage); IN-5/IN-6 are server-side and deploy via the separate `deploy-server.yml` (docker compose) pipeline; IN-8 edits the quarterly `data-refresh.yml` cron — verify the new step locally first.
+- **Auto-merge shares one concurrency group**, so a second `claude/*` push cancels an in-flight merge — develop sessions in parallel but **stagger the pushes** (treat each intra-batch order below as the push order).
+- **Exactly one designated item per batch may edit `scripts/check-bundle-size.mjs`** (the BUDGET-bumper, called out per batch). Every JS-touching item must still measure its gz delta with `bundle:check` before push.
+- **Data-layer items each run `build:data`** (regenerating `region_properties.json`/`national_ranges.json`/`regions/*.topojson`); only one item per batch may own the GeoJSON regeneration — noted per batch.
+- Re-run the i18n key-parity test after every locale edit.
 
-### Batch 1 — Foundation: planning data backbone + bundle headroom + build-time guards
+**No item is strictly Manual Setup** — all 35 are implementable in a Claude Code session. The only manual follow-up is IN-5's optional avoindata.fi portal registration. Operational call-outs (not hand-blocking): the data-layer fetchers (CF-4/5/11/12/13/14, QW-1) hit external open WFS/OGC/REST endpoints **at build time** (pin layer names via GetCapabilities; confirm CI/build network egress; any unavailable source ships as honest partial coverage with the gray-fallback policy). IN-2 touches `server/`, deployed via the separate `deploy-server.yml` pipeline.
 
-Zero/negative app-JS — frees ~4 KB headroom for later UI, with no `BUDGET` contention.
+### Batch 1 — Foundation: flagship socioeconomic layer + core search + real CI gates
 
-| Item | Title | Category | Complexity | Tag |
-|---|---|---|---|---|
-| IN-1 | Kaavat & hankkeet data pipeline (Väylä + city WFS → list, shards, manifest) | Infrastructure | Large | Claude Code |
-| QW-9 | Remove vestigial affordability plumbing (frees ~1.5–2.5 KB) | Quick Win | Medium | Claude Code |
-| IN-7 | Split page-only `fi.json` strings into lazy `fi-extra.json` (frees ~2 KB) | Infrastructure | Medium | Claude Code |
-| QW-8 | Unused-`fi.json`-key audit + drift guard | Quick Win | Small | Claude Code |
-| QW-7 | Drop orphaned `green_space_pct` column end-to-end | Quick Win | Small | Claude Code |
-| IN-3 | Range-check the 4 un-validated layers | Infrastructure | Small | Claude Code |
-| IN-2 | Head-integrity guard for `prerender-hubs.mjs` | Infrastructure | Small | Claude Code |
-
-**Parallel-safety:** (1) IN-1 isolated — all-new files + sole editor of `data_sources.json`/`vite.config.ts`/`package.json`/`fetch_grid_data.py`. (2) QW-9 isolated — sole editor of `App.tsx`/`useUrlState.ts`/`NeighborhoodWizard.tsx`. (3) **IN-7 → QW-8** serialize on `fi.json` (IN-7 moves 45 keys to `fi-extra.json`; QW-8 then prunes orphans + adds the drift guard scanning `fi.json` ∪ `fi-extra.json`). (4) **QW-7 → IN-3** serialize on `validate_data.py`; QW-7 solely owns the GeoJSON regeneration here. (5) IN-2 isolated. Files recurring in later batches (`prerender.mjs`, `prerender-hubs.mjs`, `data_sources.json`, `validate_data.py`) are sole-owned here, so downstream batches simply rebase.
-
-### Batch 2 — Planning centerpiece surfaces (consume IN-1) + planning integrity + isolated lanes
+Open with the single most decision-relevant new data axis and the dominant-navigation-path fix, while standing up the integrity scaffolding the rest of the roadmap leans on.
 
 | Item | Title | Category | Complexity | Tag |
 |---|---|---|---|---|
-| CF-1 | Prerendered "Kaavoitus ja hankkeet lähistöllä" profile section + JSON-LD (ship first) | Core | Medium | Claude Code |
-| CF-2 | Toggleable additive map overlay + status-colored sourced popups | Core | Large | Claude Code |
-| CF-3 | Accessible, mobile-reachable planning list in `NeighborhoodPanel` | Core | Medium | Claude Code |
-| IN-8 | Planning-data integrity & freshness (presence guard + feed entry) | Infrastructure | Medium | Claude Code |
-| QW-3 | Expand the similarity-finder metric picker | Quick Win | Small | Claude Code |
-| IN-5 | Sync backend hardening | Infrastructure | Medium | Claude Code |
+| CF-3 | Low-income share layer + opt-in QI factor | Core | Medium | Claude Code |
+| CF-2 | Accent-folded + municipality-aware search | Core | Medium | Claude Code |
+| QW-3 | Highlight + scroll-to selected area in ranking tables | Quick Win | Small | Claude Code |
+| IN-1 | Gate full `validate_data.py` on data branches | Infrastructure | Medium | Claude Code |
+| IN-2 | Expand server route tests + mirror into `ci.yml` | Infrastructure | Medium | Claude Code |
+| PO-1 | Derive RadarChart axes from `national_ranges.json` | Polish | Small | Claude Code |
 
-**Parallel-safety:** all consume IN-1 (now on main). (1) CF-1 sole editor of `prerender.mjs` + `data_sources.json` this batch. (2) **CF-2 → CF-3** serialize on the new `usePlanningData.ts` + locales + `check-bundle-size.mjs`: CF-2 lands first as the authoritative overlay hook and sole owner of any `BUDGET` raise; CF-3 rebases, reusing the hook and adding the panel list + fifth mobile section. (3) IN-8 isolated — must **add** fields to `planning_manifest.json`, not restructure, to stay compatible with CF-2/CF-3's reader. (4) QW-3 isolated (`similarity.ts`). (5) IN-5 isolated (`server/api/*`; precedes IN-6 in Batch 5). **Budget:** Batch 1 freed ~4 KB, so CF-2+CF-3 (~3.7 KB) may fit with no raise — measure; if over, CF-2 owns the single raise.
+**Parallel-safety:** No two items share a file. **CF-3** is the only editor of `colorScales.ts`/`metrics.ts`/`prepare_data.py`/`qualityIndex.ts`/`data_sources.json`/`provenance.json`/GeoJSON here, the sole `build:data` runner, and the **sole BUDGET-raiser**. CF-2 owns `dataLoader.ts`/`build_region_data.mjs`; QW-3 owns `App.tsx` + the ranking tables; IN-1 owns `auto-merge.yml` + `validate_data.py`; IN-2 owns `ci.yml` + `auth.routes.test.ts`; PO-1 owns `RadarChart.tsx`. Only CF-3 adds locale keys. If possible, **merge IN-1 before CF-3** so CF-3 is validated by the new gate. PO-1 also lays the national-range axis foundation CF-9 (Batch 3) extends.
 
-### Batch 3 — Independent decision data layers (serial) + Quality-Index honesty (parallel track)
-
-| Item | Title | Category | Complexity | Tag |
-|---|---|---|---|---|
-| QW-1 | Two latent-Paavo layers (disposable income + living space/person) | Quick Win | Medium | Claude Code |
-| CF-6 | Population-projection (väestöennuste) diverging layer | Core | Medium | Claude Code |
-| CF-11 | National construction-FLOW choropleth (StatFin permits/completions) | Core | Medium | Claude Code |
-| QW-2 | Wire health/radon/flood into the QI as opt-in `defaultWeight:0` factors | Quick Win | Small | Claude Code |
-| PO-5 | Quality-Index honesty: doc drift + `equalDimensionWeights` sums to 100 | Polish | Small | Claude Code |
-
-**Parallel-safety:** two **fully disjoint** tracks. **Track A (data layers) QW-1 → CF-6 → CF-11 strictly serial** — all three edit `prepare_data.py`, the GeoJSON, `colorScales.ts`, `LayerSelector.tsx`, `metrics.ts`, the registries, `validate_data.py`, `check-bundle-size.mjs` and locales, and each runs `build:data` regenerating `region_properties.json`/`national_ranges.json`/`regions/*.topojson`; QW-1 (first) owns the single `BUDGET` raise. **Track B (Quality Index) QW-2 → PO-5 serial** on `qualityIndex.ts` + `QUALITY_INDEX.md` + `qualityIndex.test.ts`. Track B touches none of Track A's files → A and B run fully concurrently; Track B's `qualityIndex.ts` edits land before CF-5 (Batch 4) rebases on them.
-
-### Batch 4 — Planning-derived surfaces: activity choropleth + `/kaavoitus/` hub family + open-data expansion
+### Batch 2 — National reach: 3,018-area filtering + 15-minute access layers
 
 | Item | Title | Category | Complexity | Tag |
 |---|---|---|---|---|
-| CF-5 | Neutral planning/development-activity choropleth + opt-in QI factor | Core | Medium | Claude Code |
-| CF-4 | Indexable `/kaavoitus/{kunta}/` planning hub family + region-hub cross-links | Core | Medium | Claude Code |
-| CF-10 | Open-data expansion: latent Paavo columns + planning dataset + Dataset JSON-LD | Core | Medium | Claude Code |
+| CF-4 | Distance-to-essential-services layers (+ pharmacy) | Core | Large | Claude Code |
+| CF-1 | Opt-in national filtering across 3,018 areas | Core | Large | Claude Code |
+| QW-7 | Fix the no-op CI type-check step | Quick Win | Small | Claude Code |
+| QW-4 | RegionRankingTable CSV + copy-link parity | Quick Win | Small | Claude Code |
+| QW-8 | Stop shipping `dist/stats.html` | Quick Win | Small | Claude Code |
 
-**Parallel-safety:** 3 tracks. CF-5 needs IN-1 + the Batch-3 QI work (merged); CF-4 needs CF-1 (merged); CF-10 sub-2 needs IN-1. (1) CF-5 is the sole data-layer item — owns the pipeline/registry/locale files + `qualityIndex.ts` (rebased on Batch 3) and regenerates `region_properties.json`; owns any `BUDGET` raise. (2) CF-4 isolated (`prerender-hubs.mjs` + `generate-sitemap.mjs`). (3) **CF-5 → CF-10** order on `region_properties.json` (CF-10 only **reads** the regenerated file, no double-write). `build_open_data.mjs` (CF-10) precedes QW-6 in Batch 5.
+**Parallel-safety:** **CF-4** is the sole editor of the layer-registry cluster (`colorScales.ts`/`metrics.ts`/`prepare_data.py`/registries/GeoJSON/locale), the sole `build:data` runner, and the **sole BUDGET-raiser**. CF-1 owns `App.tsx` + `FilterPanel.tsx` + `dataLoader.ts` + `filterUtils.ts` (CF-2's `dataLoader.ts` edits already merged). QW-7 owns `ci.yml` + `auto-merge.yml` (rebasing on IN-1); QW-8 owns `vite.config.ts`; QW-4 owns `RegionRankingTable.tsx` (QW-3 already merged). CI-workflow edits proceed in order IN-1(B1)→QW-7(B2)→IN-4(B3).
 
-### Batch 5 — Interactive polish: panel a11y, comparison honesty, in-app exports, sync trust, static-page discovery
-
-| Item | Title | Category | Complexity | Tag |
-|---|---|---|---|---|
-| QW-4 | Fix mobile section tab labels frozen at first-mount language | Quick Win | Small | Claude Code |
-| CF-7 | Complete the WAI-ARIA Tabs pattern for the mobile section carousel | Core | Medium | Claude Code |
-| PO-1 | Comparison honesty: neutral price + direction-aware bar chart | Polish | Small | Claude Code |
-| CF-8 | CSV export for in-app `RankingTable` & `CorrelationExplorer` + ranking deep link | Core | Small | Claude Code |
-| IN-6 | Finish sync conflict resolution (`updated_at` LWW + kill save-on-login race) | Infrastructure | Medium | Claude Code |
-| QW-5 | Adjacency-driven "naapurialueet" link mesh in prerendered profiles | Quick Win | Small | Claude Code |
-| QW-6 | Atom-feed + open-data discovery links in standalone page heads | Quick Win | Small | Claude Code |
-
-**Parallel-safety:** 5 tracks. (1) **Panel track QW-4 → CF-7 → PO-1** serialize on `NeighborhoodPanel.tsx` (QW-4 memo fix → CF-7 WAI-ARIA over `MOBILE_SECTIONS`, scaling over CF-3's fifth section → PO-1's price-StatRow edit); PO-1 also solely edits `ComparisonPanel.tsx`/`scoreCard.ts`/`formatting.ts`. (2) CF-8 isolated (`export.ts`/`RankingTable.tsx`/`CorrelationExplorer.tsx` + sole `App.tsx` editor this batch). (3) IN-6 isolated (server `auth.ts` rebased on IN-5 + `api.ts` + 5 client hooks + 2 tests). (4) QW-5 isolated (`prerender.mjs`, rebases on CF-1/IN-7). (5) QW-6 isolated (`prerender-hubs.mjs` + `build_open_data.mjs`, rebases on CF-4/CF-10). Locales edited by PO-1 + CF-8 (distinct keys → rebase); first to need `check-bundle-size.mjs` owns any raise.
-
-### Batch 6 — Localization & screen-reader feedback parity
+### Batch 3 — Real building data + comparison upgrades + split-view parity
 
 | Item | Title | Category | Complexity | Tag |
 |---|---|---|---|---|
-| PO-2 | Localize the skip-to-content link | Polish | Small | Claude Code |
-| PO-3 | Screen-reader feedback parity: `role=status` toasts + announced result counts | Polish | Small | Claude Code |
-| PO-4 | Honest feedback when a filter/wizard highlight is active over a grid layer | Polish | Small | Claude Code |
+| CF-5 | True Ryhti building-permit construction-flow layer | Core | Large | Claude Code |
+| CF-9 | ComparisonPanel multi-series radar + mobile parity | Core | Medium | Claude Code |
+| CF-10 | Planning + isochrone overlays in SplitMapView | Core | Medium | Claude Code |
+| CF-7 | Prerendered X-vs-Y comparison pages | Core | Large | Claude Code |
+| IN-4 | Make visual-regression real, or remove the dead suite | Infrastructure | Medium | Claude Code |
 
-**Parallel-safety:** 3 small items; **serialize on `App.tsx` and `src/locales/{fi,en,sv}.json`** (distinct regions/keys → rebase in sequence, suggested PO-2 → PO-3 → PO-4). Outside those two shared surfaces each is isolated: PO-2 also solely edits `index.html`/`prerender.mjs`/`prerender-hubs.mjs` (rebases on QW-5/QW-6); PO-3 also solely edits `NeighborhoodPanel.tsx` (toasts region; the Batch-5 panel track already merged); PO-4 also solely edits `Map.tsx`/`Legend.tsx`. Likely fits the prevailing `BUDGET` — only PO-4 *may* need a small raise. Deliberately last because every member rebases on the heavily-touched `App.tsx` (CF-2 Batch 2, CF-8 Batch 5) and the prerender/panel surfaces settled upstream.
+**Parallel-safety:** **CF-5** owns `colorScales.ts`/`metrics.ts`/`prepare_data.py`/GeoJSON/`validate_data.py` (rebasing on IN-1's gate) and is the only `build:data` runner. **CF-9** owns `RadarChart.tsx` + `ComparisonPanel.tsx` and is the **designated sole BUDGET-raiser** — CF-5 reuses the existing `construction_activity` layer (~0 JS), so CF-9's bump must cover CF-9 (~1.5 KB) + CF-10 (~0.9 KB). CF-10 owns `SplitMapView.tsx` + `App.tsx` + `usePlanningData.ts`; CF-7 owns `prerender-hubs.mjs` + `generate-sitemap.mjs` + `comparisonStats.ts` + `adjacency.json`; IN-4 owns the visual spec + `playwright.config.ts` (its `ci.yml`/`auto-merge.yml` edits follow QW-7). CF-9 depends on PO-1 (merged Batch 1). Two locale-adders (CF-5, CF-9) add distinct append-only keys — stagger their merges.
+
+### Batch 4 — Livelihood axis + entity grounding + accessibility/legibility polish
+
+| Item | Title | Category | Complexity | Tag |
+|---|---|---|---|---|
+| QW-1 | Job self-sufficiency layer | Quick Win | Small | Claude Code |
+| CF-8 | Wikidata/Wikipedia entity linking in JSON-LD | Core | Medium | Claude Code |
+| PO-5 | "No data" hatch swatch in Legend + SplitPaneLegend | Polish | Small | Claude Code |
+| PO-6 | `<main>` landmark + announce language switches | Polish | Small | Claude Code |
+
+**Parallel-safety:** **QW-1** is the sole layer-registry editor, only `build:data` runner, and **sole BUDGET-raiser** (sized to also cover PO-5's ~300 B and CF-8's client tens-of-bytes). CF-8 owns `prerender.mjs` + `prerender-hubs.mjs` + `JsonLd.tsx` + `wikidata_qids.json` (CF-7's `prerender-hubs.mjs` edits already merged). PO-5 owns `Legend.tsx` + `SplitMapView.tsx` (CF-10 already merged). PO-6 owns `App.tsx` + `LanguagePicker.tsx`. Two locale-adders (QW-1, PO-5) — distinct keys, stagger merges.
+
+### Batch 5 — Libraries layer + speculation prefetch + open-data plumbing
+
+| Item | Title | Category | Complexity | Tag |
+|---|---|---|---|---|
+| CF-11 | Library access layer (Kirkanta v4) | Core | Medium | Claude Code |
+| QW-6 | Speculation Rules prefetch in static pages | Quick Win | Small | Claude Code |
+| IN-5 | GIS-joinable + DCAT-harvestable open-data corpus | Infrastructure | Medium | Claude Code* |
+| PO-3 | Fix QI coverage-honesty claim (traffic_accidents 72.4%) | Polish | Small | Claude Code |
+
+**Parallel-safety:** **CF-11** is the sole layer-registry editor, only `build:data` runner, and **sole BUDGET-raiser**. QW-6 owns `prerender.mjs` + `prerender-hubs.mjs` (CF-8's prerender edits already merged). IN-5 owns `build_open_data.mjs` + `generate-sitemap.mjs` (CF-7's sitemap edits already merged). PO-3 owns `qualityIndex.ts` + `QUALITY_INDEX.md` (CF-3's `qualityIndex.ts` edits already merged; PO-2's `QUALITY_INDEX.md` edit deferred to Batch 8). Only CF-11 adds locale keys. *IN-5 has the optional manual portal-registration follow-up.*
+
+### Batch 6 — Protected-nature layer + mobile chrome theming + complete exports
+
+| Item | Title | Category | Complexity | Tag |
+|---|---|---|---|---|
+| CF-12 | National protected-nature / national-park layer (SYKE) | Core | Medium | Claude Code |
+| QW-9 | Light/dark `theme-color` for mobile chrome | Quick Win | Small | Claude Code |
+| QW-2 | Complete CSV/PDF exports (~13 missing metrics) | Quick Win | Small | Claude Code |
+
+**Parallel-safety:** **CF-12** is the sole layer-registry editor, only `build:data` runner, and **sole BUDGET-raiser**. QW-9 owns `index.html` + `prerender-hubs.mjs` + `vite.config.ts` + `useTheme.tsx` (`prerender-hubs.mjs` free again — CF-7/CF-8/QW-6 merged; `vite.config.ts` free — QW-8 merged). QW-2 owns `export.ts`. Only CF-12 adds locale keys.
+
+### Batch 7 — Cultural-heritage layer + sync correctness + onboarding a11y
+
+| Item | Title | Category | Complexity | Tag |
+|---|---|---|---|---|
+| CF-13 | Cultural-heritage / historic-character layer (Museovirasto) | Core | Medium | Claude Code |
+| IN-3 | Login-merge guard + tombstones for `useFilterPresets` | Infrastructure | Small | Claude Code |
+| QW-10 | Announce onboarding tour steps to screen readers | Quick Win | Small | Claude Code |
+
+**Parallel-safety:** **CF-13** is the sole layer-registry editor, only `build:data` runner, and **sole BUDGET-raiser**. IN-3 owns `useFilterPresets.ts` + `syncTombstones.ts`. QW-10 owns `OnboardingTour.tsx`. Two locale-adders (CF-13, QW-10) — distinct keys, stagger merges.
+
+### Batch 8 — Climate grid + profile depth + final doc/coverage truth-up
+
+| Item | Title | Category | Complexity | Tag |
+|---|---|---|---|---|
+| CF-14 | FMI 1 km microclimate grid overlay | Core | Large | Claude Code |
+| CF-6 | Render latent profile enrichment in the React profile page | Core | Medium | Claude Code |
+| PO-4 | High-contrast / forced-colors a11y layer | Polish | Medium | Claude Code |
+| PO-2 | Doc-honesty pass (budget/counts/migration) | Polish | Small | Claude Code |
+| QW-5 | Re-baseline the coverage ratchet | Quick Win | Small | Claude Code |
+
+**Parallel-safety:** **CF-14** owns `colorScales.ts` + `LayerSelector.tsx` + `grid_manifest.json` + `build_grid_data.mjs` (the **grid path** — it does **not** touch `metrics.ts` or the GeoJSON) and is the **sole BUDGET-raiser**, sized to cover CF-6's ~1.5 KB. **CF-6** owns `NeighborhoodProfilePage.tsx` + `src/components/profile/` + `metrics.ts` (disjoint from CF-14, which is why they co-batch) and must **not** edit `check-bundle-size.mjs`. PO-4 owns `index.css`. **PO-2** (`ARCHITECTURE.md`/`CLAUDE.md`/`QUALITY_INDEX.md`) and **QW-5** (`coverage-baseline.json`) are deliberately **last** so counts, BUDGET, and measured coverage reflect every merged layer/factor — run them only after the other Batch-8 items merge. Two locale-adders (CF-14, CF-6 fi) — distinct keys, stagger merges.
 
 ---
 
 ### Cross-batch serialization is free
 
-Because batches merge sequentially, every file shared **across** batches is auto-serialized — each later toucher rebases on the prior batch's merged state: `validate_data.py` (B1 → B3 → B4), `data_sources.json` (B1 → B2 → B3 → B4), `qualityIndex.ts` (B3 → B4), `prerender.mjs` (B1 → B2 → B5 → B6), `prerender-hubs.mjs` (B1 → B4 → B5 → B6), `build_open_data.mjs` (B4 → B5), `App.tsx` (B1 → B2 → B5 → B6), `NeighborhoodPanel.tsx` (B2 → B5 → B6), `useUrlState.ts` (B1 → B2), server `auth.ts` (B2 → B5).
+Because batches merge sequentially, every file shared **across** batches is auto-serialized — each later toucher rebases on the prior batch's merged state: the layer-registry cluster `colorScales.ts`/`metrics.ts`/`prepare_data.py`/`data_sources.json`/`provenance.json`/GeoJSON (one sole owner per batch: CF-3 → CF-4 → CF-5 → QW-1 → CF-11 → CF-12 → CF-13; CF-14 uses the disjoint grid path), `qualityIndex.ts` (CF-3 → PO-3), `validate_data.py` (IN-1 → CF-5), the CI workflows (IN-1 → QW-7 → IN-4 → IN-2), `prerender-hubs.mjs` (CF-7 → CF-8 → QW-6 → QW-9), `App.tsx` (QW-3 → CF-1 → CF-10 → PO-6), `SplitMapView.tsx` (CF-10 → PO-5), and the doc files (PO-3's `QUALITY_INDEX.md` → PO-2).
 
 ---
 
 ### Audit method
 
-This roadmap was produced by a 55-agent workflow: **8 parallel codebase subsystem surveys** (data layers/pipeline, map/overlays, panels/tools/exports, state/sync/backend, SEO/prerender/build, i18n/a11y/mobile/perf, TODOs/git-history, quality-index/regions/similarity) + **4 live external data-source research dossiers** (national Ryhti/RYTJ/SYKE zoning systems, municipal open-zoning WFS feeds, Väylä/rail/light-rail infrastructure projects, licensing + granularity + competitive prior-art) → an **opportunity brief** → **6 ideation lenses + a 3-variant kaavoitukset/hankkeet design panel** (map-overlay vs prerendered-content vs derived-metric) with a **design judge** → a synthesis that deduped 100 raw candidates into 29 → **one adversarial verifier per item** (charged with proving it already shipped, was deliberately removed, violates the bundle/real-data/granularity constraints, or rests on unavailable data — checking file paths, line numbers, git history, and live external APIs/datasets) → a **completeness critic** that added 4 verified items → a sequencing analysis over the verified `touches` lists. 27 of 29 synthesis candidates survived verification (2 refuted — see "Refuted during verification" above); all 4 critic additions survived. External facts checked live during verification include the Väylävirasto OGC API Features collections, the Helsinki/Tampere zoning WFS endpoints, the Ryhti plan API + 2029 statutory deadline, and the StatFin `vaenn` (population projection) and `ras` (construction) PxWeb tables.
+Produced by a 63-agent background workflow: **9 parallel codebase subsystem surveys** (map/viz, data-layers/QI/similarity, panels/exports, state/sync/backend, search/filter/URL, SEO/prerender/open-data, i18n/a11y/mobile, data-pipeline, infra/CI/perf) + **5 live external-data dossiers** (new national open datasets, Ryhti/RYTJ zoning+permit rollout, sub-postal services/amenities, competitive/GEO landscape, frontend/web-platform tech) → **6 ideation lenses** → dedup/pre-filter (70 raw → 34) → **one adversarial verifier per candidate** (charged with proving it already shipped, was excluded, violated the bundle/real-data/granularity constraints, or rested on unavailable data — checking file:line, `git log`, and live external APIs) → a **completeness critic** (added 3 verified items) → a sequencing analysis over the verified `touches` lists. 33 of 34 deduped candidates survived verification (1 rejected — the national asemakaava-coverage layer, on a live `numberMatched=0`-for-Helsinki check). External facts verified live include the Ryhti `ryhti_plan`/`ryhti_permit` OGC API collections (5,634 valid plans vs ~2.73M permit points), the Kirkanta v4 library API (982 points), StatFin Oppilaitokset + 1 km grid, SYKE Natura 2000, Museovirasto WFS, FMI gridded-observations S3, and the verified deadlines (zoning statutory 1 Jan 2029; permit submission voluntary until 31 Dec 2028).
