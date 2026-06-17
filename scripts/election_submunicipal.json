@@ -1,0 +1,2674 @@
+{
+ "00870": {
+  "lean": 55.3,
+  "competitiveness": 0.655,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 31.4,
+   "PS": 13.1,
+   "SDP": 19.6,
+   "KESK": 1.3,
+   "VIHR": 12.9,
+   "VAS": 8.8,
+   "RKP": 5.0,
+   "KD": 1.7
+  },
+  "turnout_pct": 80.4
+ },
+ "00590": {
+  "lean": 53.8,
+  "competitiveness": 0.656,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 29.3,
+   "PS": 12.8,
+   "SDP": 19.7,
+   "KESK": 0.9,
+   "VIHR": 14.6,
+   "VAS": 10.2,
+   "RKP": 4.0,
+   "KD": 1.9
+  },
+  "turnout_pct": 79.5
+ },
+ "00840": {
+  "lean": 54.2,
+  "competitiveness": 0.666,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 29.1,
+   "PS": 12.5,
+   "SDP": 21.6,
+   "KESK": 1.6,
+   "VIHR": 12.2,
+   "VAS": 9.6,
+   "RKP": 4.9,
+   "KD": 2.3
+  },
+  "turnout_pct": 79.3
+ },
+ "00330": {
+  "lean": 57.5,
+  "competitiveness": 0.598,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 43.6,
+   "PS": 6.1,
+   "SDP": 12.6,
+   "KESK": 1.3,
+   "VIHR": 15.1,
+   "VAS": 6.6,
+   "RKP": 9.6,
+   "KD": 1.6
+  },
+  "turnout_pct": 87.1
+ },
+ "00350": {
+  "lean": 52.4,
+  "competitiveness": 0.638,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 29.6,
+   "PS": 8.4,
+   "SDP": 18.8,
+   "KESK": 1.7,
+   "VIHR": 18.0,
+   "VAS": 9.5,
+   "RKP": 6.5,
+   "KD": 2.1
+  },
+  "turnout_pct": 81.4
+ },
+ "00320": {
+  "lean": 50.9,
+  "competitiveness": 0.679,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 26.4,
+   "PS": 8.7,
+   "SDP": 18.6,
+   "KESK": 2.0,
+   "VIHR": 19.4,
+   "VAS": 11.2,
+   "RKP": 5.9,
+   "KD": 2.2
+  },
+  "turnout_pct": 82.6
+ },
+ "00400": {
+  "lean": 49.7,
+  "competitiveness": 0.689,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 21.4,
+   "PS": 10.7,
+   "SDP": 23.2,
+   "KESK": 2.1,
+   "VIHR": 17.6,
+   "VAS": 11.8,
+   "RKP": 4.5,
+   "KD": 2.4
+  },
+  "turnout_pct": 77.3
+ },
+ "00440": {
+  "lean": 51.2,
+  "competitiveness": 0.692,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 22.7,
+   "PS": 12.4,
+   "SDP": 22.5,
+   "KESK": 2.4,
+   "VIHR": 16.1,
+   "VAS": 11.2,
+   "RKP": 3.8,
+   "KD": 2.5
+  },
+  "turnout_pct": 74.5
+ },
+ "00260": {
+  "lean": 56.1,
+  "competitiveness": 0.592,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 42.3,
+   "PS": 5.9,
+   "SDP": 13.7,
+   "KESK": 1.4,
+   "VIHR": 15.1,
+   "VAS": 8.5,
+   "RKP": 8.1,
+   "KD": 1.0
+  },
+  "turnout_pct": 86.5
+ },
+ "00530": {
+  "lean": 43.8,
+  "competitiveness": 0.646,
+  "largest_party": "VAS",
+  "party": {
+   "KOK": 19.1,
+   "PS": 7.4,
+   "SDP": 20.5,
+   "KESK": 1.2,
+   "VIHR": 20.1,
+   "VAS": 22.0,
+   "RKP": 3.6,
+   "KD": 1.2
+  },
+  "turnout_pct": 80.4
+ },
+ "00300": {
+  "lean": 50.9,
+  "competitiveness": 0.679,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 24.9,
+   "PS": 10.6,
+   "SDP": 23.2,
+   "KESK": 1.6,
+   "VIHR": 15.3,
+   "VAS": 11.5,
+   "RKP": 5.1,
+   "KD": 2.0
+  },
+  "turnout_pct": 79.0
+ },
+ "00610": {
+  "lean": 40.7,
+  "competitiveness": 0.638,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 13.3,
+   "PS": 6.7,
+   "SDP": 25.4,
+   "KESK": 1.0,
+   "VIHR": 20.8,
+   "VAS": 23.6,
+   "RKP": 3.3,
+   "KD": 1.3
+  },
+  "turnout_pct": 81.3
+ },
+ "00520": {
+  "lean": 45.8,
+  "competitiveness": 0.665,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 20.8,
+   "PS": 8.4,
+   "SDP": 21.7,
+   "KESK": 1.5,
+   "VIHR": 19.3,
+   "VAS": 18.5,
+   "RKP": 3.2,
+   "KD": 1.2
+  },
+  "turnout_pct": 79.9
+ },
+ "00240": {
+  "lean": 49.9,
+  "competitiveness": 0.683,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 24.0,
+   "PS": 10.4,
+   "SDP": 21.0,
+   "KESK": 1.7,
+   "VIHR": 17.3,
+   "VAS": 13.5,
+   "RKP": 3.7,
+   "KD": 1.9
+  },
+  "turnout_pct": 80.1
+ },
+ "00270": {
+  "lean": 50.1,
+  "competitiveness": 0.666,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 26.6,
+   "PS": 7.5,
+   "SDP": 19.7,
+   "KESK": 1.5,
+   "VIHR": 19.4,
+   "VAS": 11.6,
+   "RKP": 7.0,
+   "KD": 1.6
+  },
+  "turnout_pct": 82.0
+ },
+ "00280": {
+  "lean": 48.2,
+  "competitiveness": 0.662,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 23.0,
+   "PS": 6.8,
+   "SDP": 21.5,
+   "KESK": 1.8,
+   "VIHR": 21.5,
+   "VAS": 12.2,
+   "RKP": 6.9,
+   "KD": 2.4
+  },
+  "turnout_pct": 84.4
+ },
+ "00310": {
+  "lean": 50.4,
+  "competitiveness": 0.682,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 25.0,
+   "PS": 9.3,
+   "SDP": 19.0,
+   "KESK": 2.0,
+   "VIHR": 19.1,
+   "VAS": 12.0,
+   "RKP": 6.0,
+   "KD": 1.7
+  },
+  "turnout_pct": 82.3
+ },
+ "00370": {
+  "lean": 53.8,
+  "competitiveness": 0.658,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 26.7,
+   "PS": 12.3,
+   "SDP": 21.1,
+   "KESK": 2.9,
+   "VIHR": 15.2,
+   "VAS": 8.0,
+   "RKP": 4.5,
+   "KD": 2.8
+  },
+  "turnout_pct": 77.3
+ },
+ "00950": {
+  "lean": 54.3,
+  "competitiveness": 0.66,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 23.9,
+   "PS": 17.4,
+   "SDP": 24.2,
+   "KESK": 1.3,
+   "VIHR": 11.6,
+   "VAS": 9.2,
+   "RKP": 4.4,
+   "KD": 2.2
+  },
+  "turnout_pct": 76.8
+ },
+ "00970": {
+  "lean": 53.2,
+  "competitiveness": 0.652,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 14.7,
+   "PS": 22.0,
+   "SDP": 30.2,
+   "KESK": 1.9,
+   "VIHR": 8.5,
+   "VAS": 9.9,
+   "RKP": 2.3,
+   "KD": 3.1
+  },
+  "turnout_pct": 64.5
+ },
+ "00940": {
+  "lean": 51.7,
+  "competitiveness": 0.66,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 12.5,
+   "PS": 21.9,
+   "SDP": 29.8,
+   "KESK": 1.6,
+   "VIHR": 9.2,
+   "VAS": 11.9,
+   "RKP": 2.2,
+   "KD": 3.2
+  },
+  "turnout_pct": 61.5
+ },
+ "02650": {
+  "lean": 57.5,
+  "competitiveness": 0.646,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 31.3,
+   "PS": 13.7,
+   "SDP": 19.5,
+   "KESK": 3.8,
+   "VIHR": 12.7,
+   "VAS": 4.8,
+   "RKP": 4.5,
+   "KD": 3.4
+  },
+  "turnout_pct": 73.8
+ },
+ "02680": {
+  "lean": 60.7,
+  "competitiveness": 0.588,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 42.1,
+   "PS": 11.5,
+   "SDP": 15.8,
+   "KESK": 4.0,
+   "VIHR": 11.6,
+   "VAS": 2.7,
+   "RKP": 4.2,
+   "KD": 3.0
+  },
+  "turnout_pct": 84.0
+ },
+ "00390": {
+  "lean": 54.5,
+  "competitiveness": 0.662,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 24.0,
+   "PS": 16.2,
+   "SDP": 22.8,
+   "KESK": 2.5,
+   "VIHR": 12.6,
+   "VAS": 8.4,
+   "RKP": 3.5,
+   "KD": 2.7
+  },
+  "turnout_pct": 75.2
+ },
+ "00560": {
+  "lean": 45.2,
+  "competitiveness": 0.666,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 19.1,
+   "PS": 8.0,
+   "SDP": 21.8,
+   "KESK": 1.4,
+   "VIHR": 20.4,
+   "VAS": 18.5,
+   "RKP": 4.3,
+   "KD": 1.4
+  },
+  "turnout_pct": 83.6
+ },
+ "00650": {
+  "lean": 49.8,
+  "competitiveness": 0.673,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 25.0,
+   "PS": 9.8,
+   "SDP": 22.6,
+   "KESK": 2.1,
+   "VIHR": 17.3,
+   "VAS": 12.7,
+   "RKP": 3.0,
+   "KD": 2.2
+  },
+  "turnout_pct": 80.5
+ },
+ "00710": {
+  "lean": 48.8,
+  "competitiveness": 0.688,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 14.2,
+   "PS": 15.9,
+   "SDP": 29.2,
+   "KESK": 2.1,
+   "VIHR": 11.9,
+   "VAS": 14.4,
+   "RKP": 2.3,
+   "KD": 3.0
+  },
+  "turnout_pct": 72.2
+ },
+ "00720": {
+  "lean": 51.6,
+  "competitiveness": 0.689,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 17.7,
+   "PS": 17.2,
+   "SDP": 27.5,
+   "KESK": 2.5,
+   "VIHR": 12.2,
+   "VAS": 10.7,
+   "RKP": 2.5,
+   "KD": 3.1
+  },
+  "turnout_pct": 70.5
+ },
+ "01280": {
+  "lean": 55.3,
+  "competitiveness": 0.644,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 18.3,
+   "PS": 21.6,
+   "SDP": 29.8,
+   "KESK": 2.6,
+   "VIHR": 6.4,
+   "VAS": 8.2,
+   "RKP": 2.2,
+   "KD": 3.5
+  },
+  "turnout_pct": 68.0
+ },
+ "00420": {
+  "lean": 50.5,
+  "competitiveness": 0.67,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 17.6,
+   "PS": 14.8,
+   "SDP": 27.1,
+   "KESK": 2.4,
+   "VIHR": 12.6,
+   "VAS": 11.9,
+   "RKP": 3.6,
+   "KD": 2.8
+  },
+  "turnout_pct": 70.8
+ },
+ "00410": {
+  "lean": 51.4,
+  "competitiveness": 0.671,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 16.2,
+   "PS": 17.9,
+   "SDP": 26.0,
+   "KESK": 2.4,
+   "VIHR": 12.2,
+   "VAS": 11.9,
+   "RKP": 2.5,
+   "KD": 2.9
+  },
+  "turnout_pct": 71.8
+ },
+ "01650": {
+  "lean": 58.5,
+  "competitiveness": 0.64,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 30.1,
+   "PS": 16.3,
+   "SDP": 22.4,
+   "KESK": 3.7,
+   "VIHR": 8.4,
+   "VAS": 5.0,
+   "RKP": 3.1,
+   "KD": 3.4
+  },
+  "turnout_pct": 75.2
+ },
+ "00170": {
+  "lean": 54.5,
+  "competitiveness": 0.621,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 38.9,
+   "PS": 6.6,
+   "SDP": 14.5,
+   "KESK": 1.3,
+   "VIHR": 15.8,
+   "VAS": 10.4,
+   "RKP": 7.2,
+   "KD": 1.2
+  },
+  "turnout_pct": 87.4
+ },
+ "00100": {
+  "lean": 56.0,
+  "competitiveness": 0.599,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 41.6,
+   "PS": 6.5,
+   "SDP": 13.2,
+   "KESK": 1.2,
+   "VIHR": 15.5,
+   "VAS": 8.8,
+   "RKP": 8.1,
+   "KD": 1.0
+  },
+  "turnout_pct": 86.6
+ },
+ "00980": {
+  "lean": 51.2,
+  "competitiveness": 0.668,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 18.2,
+   "PS": 16.0,
+   "SDP": 29.7,
+   "KESK": 1.3,
+   "VIHR": 11.1,
+   "VAS": 10.7,
+   "RKP": 3.7,
+   "KD": 2.7
+  },
+  "turnout_pct": 69.4
+ },
+ "00910": {
+  "lean": 49.2,
+  "competitiveness": 0.676,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 17.9,
+   "PS": 13.7,
+   "SDP": 25.0,
+   "KESK": 1.3,
+   "VIHR": 14.0,
+   "VAS": 14.8,
+   "RKP": 5.0,
+   "KD": 2.3
+  },
+  "turnout_pct": 72.6
+ },
+ "00900": {
+  "lean": 50.7,
+  "competitiveness": 0.669,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 17.7,
+   "PS": 16.8,
+   "SDP": 26.9,
+   "KESK": 1.2,
+   "VIHR": 12.4,
+   "VAS": 12.9,
+   "RKP": 3.6,
+   "KD": 2.4
+  },
+  "turnout_pct": 69.5
+ },
+ "00960": {
+  "lean": 54.0,
+  "competitiveness": 0.67,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 18.5,
+   "PS": 18.8,
+   "SDP": 28.2,
+   "KESK": 1.7,
+   "VIHR": 10.2,
+   "VAS": 7.7,
+   "RKP": 5.7,
+   "KD": 2.8
+  },
+  "turnout_pct": 72.1
+ },
+ "00850": {
+  "lean": 58.9,
+  "competitiveness": 0.619,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 40.2,
+   "PS": 12.4,
+   "SDP": 16.2,
+   "KESK": 1.2,
+   "VIHR": 12.6,
+   "VAS": 5.3,
+   "RKP": 6.0,
+   "KD": 1.1
+  },
+  "turnout_pct": 87.2
+ },
+ "00830": {
+  "lean": 58.8,
+  "competitiveness": 0.594,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 44.5,
+   "PS": 9.5,
+   "SDP": 15.3,
+   "KESK": 1.6,
+   "VIHR": 12.5,
+   "VAS": 5.8,
+   "RKP": 5.3,
+   "KD": 1.6
+  },
+  "turnout_pct": 87.9
+ },
+ "00380": {
+  "lean": 52.8,
+  "competitiveness": 0.688,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 26.9,
+   "PS": 11.1,
+   "SDP": 20.5,
+   "KESK": 1.7,
+   "VIHR": 16.0,
+   "VAS": 9.6,
+   "RKP": 4.6,
+   "KD": 2.6
+  },
+  "turnout_pct": 77.2
+ },
+ "00730": {
+  "lean": 53.7,
+  "competitiveness": 0.673,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 21.3,
+   "PS": 17.8,
+   "SDP": 25.4,
+   "KESK": 2.2,
+   "VIHR": 11.5,
+   "VAS": 9.4,
+   "RKP": 2.6,
+   "KD": 2.9
+  },
+  "turnout_pct": 76.0
+ },
+ "00750": {
+  "lean": 55.3,
+  "competitiveness": 0.65,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 22.6,
+   "PS": 19.2,
+   "SDP": 25.4,
+   "KESK": 2.5,
+   "VIHR": 9.5,
+   "VAS": 8.4,
+   "RKP": 2.1,
+   "KD": 2.8
+  },
+  "turnout_pct": 73.0
+ },
+ "00660": {
+  "lean": 58.7,
+  "competitiveness": 0.6,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 42.1,
+   "PS": 10.4,
+   "SDP": 17.1,
+   "KESK": 1.6,
+   "VIHR": 12.4,
+   "VAS": 5.3,
+   "RKP": 4.0,
+   "KD": 2.2
+  },
+  "turnout_pct": 86.9
+ },
+ "00430": {
+  "lean": 56.0,
+  "competitiveness": 0.647,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 31.0,
+   "PS": 13.9,
+   "SDP": 20.5,
+   "KESK": 2.4,
+   "VIHR": 13.0,
+   "VAS": 7.1,
+   "RKP": 2.9,
+   "KD": 2.5
+  },
+  "turnout_pct": 80.9
+ },
+ "00670": {
+  "lean": 58.9,
+  "competitiveness": 0.591,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 42.1,
+   "PS": 11.0,
+   "SDP": 18.7,
+   "KESK": 1.7,
+   "VIHR": 12.3,
+   "VAS": 4.1,
+   "RKP": 3.4,
+   "KD": 2.2
+  },
+  "turnout_pct": 88.9
+ },
+ "00680": {
+  "lean": 57.9,
+  "competitiveness": 0.625,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 39.2,
+   "PS": 11.6,
+   "SDP": 17.4,
+   "KESK": 2.0,
+   "VIHR": 12.7,
+   "VAS": 6.2,
+   "RKP": 3.6,
+   "KD": 1.6
+  },
+  "turnout_pct": 86.1
+ },
+ "00690": {
+  "lean": 58.0,
+  "competitiveness": 0.606,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 38.0,
+   "PS": 12.4,
+   "SDP": 19.5,
+   "KESK": 1.8,
+   "VIHR": 12.1,
+   "VAS": 5.4,
+   "RKP": 2.9,
+   "KD": 2.1
+  },
+  "turnout_pct": 86.2
+ },
+ "01520": {
+  "lean": 58.8,
+  "competitiveness": 0.642,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 30.7,
+   "PS": 17.0,
+   "SDP": 19.2,
+   "KESK": 3.3,
+   "VIHR": 12.2,
+   "VAS": 4.2,
+   "RKP": 2.7,
+   "KD": 3.0
+  },
+  "turnout_pct": 76.8
+ },
+ "01690": {
+  "lean": 60.5,
+  "competitiveness": 0.629,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 36.8,
+   "PS": 14.6,
+   "SDP": 18.3,
+   "KESK": 3.3,
+   "VIHR": 10.4,
+   "VAS": 2.8,
+   "RKP": 3.7,
+   "KD": 3.3
+  },
+  "turnout_pct": 83.0
+ },
+ "00630": {
+  "lean": 48.6,
+  "competitiveness": 0.669,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 18.3,
+   "PS": 13.2,
+   "SDP": 24.5,
+   "KESK": 1.7,
+   "VIHR": 16.2,
+   "VAS": 14.9,
+   "RKP": 3.5,
+   "KD": 2.3
+  },
+  "turnout_pct": 75.9
+ },
+ "00740": {
+  "lean": 56.3,
+  "competitiveness": 0.656,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 23.8,
+   "PS": 19.0,
+   "SDP": 25.0,
+   "KESK": 2.6,
+   "VIHR": 9.2,
+   "VAS": 7.2,
+   "RKP": 2.3,
+   "KD": 2.9
+  },
+  "turnout_pct": 76.5
+ },
+ "01300": {
+  "lean": 57.3,
+  "competitiveness": 0.638,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 26.4,
+   "PS": 18.4,
+   "SDP": 24.0,
+   "KESK": 3.3,
+   "VIHR": 9.0,
+   "VAS": 6.3,
+   "RKP": 2.4,
+   "KD": 3.1
+  },
+  "turnout_pct": 71.2
+ },
+ "00990": {
+  "lean": 54.3,
+  "competitiveness": 0.655,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 25.1,
+   "PS": 15.9,
+   "SDP": 26.0,
+   "KESK": 2.0,
+   "VIHR": 11.0,
+   "VAS": 8.3,
+   "RKP": 3.3,
+   "KD": 2.6
+  },
+  "turnout_pct": 73.0
+ },
+ "00210": {
+  "lean": 60.6,
+  "competitiveness": 0.588,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 47.2,
+   "PS": 8.1,
+   "SDP": 11.7,
+   "KESK": 1.7,
+   "VIHR": 12.4,
+   "VAS": 4.0,
+   "RKP": 9.1,
+   "KD": 1.3
+  },
+  "turnout_pct": 87.0
+ },
+ "00200": {
+  "lean": 55.6,
+  "competitiveness": 0.606,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 38.3,
+   "PS": 6.2,
+   "SDP": 13.5,
+   "KESK": 1.3,
+   "VIHR": 17.2,
+   "VAS": 7.3,
+   "RKP": 10.6,
+   "KD": 1.4
+  },
+  "turnout_pct": 87.7
+ },
+ "01510": {
+  "lean": 60.0,
+  "competitiveness": 0.642,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 28.5,
+   "PS": 20.3,
+   "SDP": 19.5,
+   "KESK": 3.6,
+   "VIHR": 9.3,
+   "VAS": 4.3,
+   "RKP": 2.8,
+   "KD": 3.5
+  },
+  "turnout_pct": 69.6
+ },
+ "00640": {
+  "lean": 50.4,
+  "competitiveness": 0.667,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 25.1,
+   "PS": 10.4,
+   "SDP": 23.8,
+   "KESK": 2.2,
+   "VIHR": 16.4,
+   "VAS": 11.7,
+   "RKP": 3.3,
+   "KD": 2.1
+  },
+  "turnout_pct": 80.1
+ },
+ "01610": {
+  "lean": 56.8,
+  "competitiveness": 0.675,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 21.2,
+   "PS": 19.4,
+   "SDP": 23.2,
+   "KESK": 4.5,
+   "VIHR": 9.2,
+   "VAS": 6.6,
+   "RKP": 3.2,
+   "KD": 4.2
+  },
+  "turnout_pct": 70.6
+ },
+ "00160": {
+  "lean": 55.7,
+  "competitiveness": 0.615,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 40.6,
+   "PS": 6.9,
+   "SDP": 16.5,
+   "KESK": 1.2,
+   "VIHR": 14.2,
+   "VAS": 8.5,
+   "RKP": 6.6,
+   "KD": 1.2
+  },
+  "turnout_pct": 85.6
+ },
+ "00140": {
+  "lean": 59.8,
+  "competitiveness": 0.572,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 47.4,
+   "PS": 5.9,
+   "SDP": 9.6,
+   "KESK": 1.0,
+   "VIHR": 12.4,
+   "VAS": 5.9,
+   "RKP": 13.2,
+   "KD": 1.2
+  },
+  "turnout_pct": 87.8
+ },
+ "00190": {
+  "lean": 42.6,
+  "competitiveness": 0.715,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 15.7,
+   "PS": 6.3,
+   "SDP": 28.3,
+   "KESK": 1.7,
+   "VIHR": 22.2,
+   "VAS": 18.1,
+   "RKP": 3.6,
+   "KD": 2.7
+  },
+  "turnout_pct": 88.7
+ },
+ "00860": {
+  "lean": 50.3,
+  "competitiveness": 0.682,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 21.0,
+   "PS": 13.9,
+   "SDP": 23.3,
+   "KESK": 1.7,
+   "VIHR": 15.9,
+   "VAS": 12.7,
+   "RKP": 3.4,
+   "KD": 1.9
+  },
+  "turnout_pct": 76.8
+ },
+ "00550": {
+  "lean": 41.6,
+  "competitiveness": 0.665,
+  "largest_party": "VAS",
+  "party": {
+   "KOK": 13.2,
+   "PS": 8.3,
+   "SDP": 21.2,
+   "KESK": 1.4,
+   "VIHR": 20.0,
+   "VAS": 25.0,
+   "RKP": 4.0,
+   "KD": 1.1
+  },
+  "turnout_pct": 79.1
+ },
+ "00510": {
+  "lean": 42.4,
+  "competitiveness": 0.65,
+  "largest_party": "VAS",
+  "party": {
+   "KOK": 17.5,
+   "PS": 7.0,
+   "SDP": 19.5,
+   "KESK": 1.0,
+   "VIHR": 21.5,
+   "VAS": 23.9,
+   "RKP": 3.3,
+   "KD": 1.0
+  },
+  "turnout_pct": 82.5
+ },
+ "00600": {
+  "lean": 43.1,
+  "competitiveness": 0.661,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 13.8,
+   "PS": 9.2,
+   "SDP": 26.5,
+   "KESK": 1.1,
+   "VIHR": 18.5,
+   "VAS": 20.5,
+   "RKP": 3.4,
+   "KD": 1.9
+  },
+  "turnout_pct": 75.9
+ },
+ "00150": {
+  "lean": 56.1,
+  "competitiveness": 0.605,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 40.5,
+   "PS": 6.8,
+   "SDP": 12.9,
+   "KESK": 1.0,
+   "VIHR": 15.2,
+   "VAS": 8.7,
+   "RKP": 9.7,
+   "KD": 0.8
+  },
+  "turnout_pct": 84.4
+ },
+ "00130": {
+  "lean": 60.2,
+  "competitiveness": 0.568,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 48.1,
+   "PS": 5.9,
+   "SDP": 9.4,
+   "KESK": 0.9,
+   "VIHR": 12.0,
+   "VAS": 5.6,
+   "RKP": 13.4,
+   "KD": 1.1
+  },
+  "turnout_pct": 87.8
+ },
+ "00120": {
+  "lean": 55.8,
+  "competitiveness": 0.608,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 40.2,
+   "PS": 6.3,
+   "SDP": 12.5,
+   "KESK": 1.0,
+   "VIHR": 15.5,
+   "VAS": 9.0,
+   "RKP": 9.9,
+   "KD": 0.9
+  },
+  "turnout_pct": 84.8
+ },
+ "00920": {
+  "lean": 50.7,
+  "competitiveness": 0.684,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 16.7,
+   "PS": 16.6,
+   "SDP": 28.2,
+   "KESK": 1.4,
+   "VIHR": 13.0,
+   "VAS": 11.4,
+   "RKP": 2.9,
+   "KD": 3.2
+  },
+  "turnout_pct": 71.8
+ },
+ "00180": {
+  "lean": 54.2,
+  "competitiveness": 0.64,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 34.9,
+   "PS": 8.3,
+   "SDP": 16.8,
+   "KESK": 1.2,
+   "VIHR": 15.8,
+   "VAS": 9.3,
+   "RKP": 6.9,
+   "KD": 1.2
+  },
+  "turnout_pct": 82.0
+ },
+ "00770": {
+  "lean": 55.9,
+  "competitiveness": 0.664,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 17.6,
+   "PS": 24.0,
+   "SDP": 25.2,
+   "KESK": 2.4,
+   "VIHR": 8.2,
+   "VAS": 9.1,
+   "RKP": 1.4,
+   "KD": 3.2
+  },
+  "turnout_pct": 65.8
+ },
+ "00700": {
+  "lean": 52.0,
+  "competitiveness": 0.688,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 17.3,
+   "PS": 18.2,
+   "SDP": 27.7,
+   "KESK": 2.5,
+   "VIHR": 10.4,
+   "VAS": 11.5,
+   "RKP": 2.4,
+   "KD": 2.7
+  },
+  "turnout_pct": 68.0
+ },
+ "00250": {
+  "lean": 51.8,
+  "competitiveness": 0.648,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 32.1,
+   "PS": 7.1,
+   "SDP": 15.4,
+   "KESK": 1.3,
+   "VIHR": 19.1,
+   "VAS": 11.9,
+   "RKP": 7.0,
+   "KD": 1.3
+  },
+  "turnout_pct": 84.3
+ },
+ "00290": {
+  "lean": 50.8,
+  "competitiveness": 0.644,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 31.0,
+   "PS": 6.9,
+   "SDP": 15.8,
+   "KESK": 1.1,
+   "VIHR": 21.5,
+   "VAS": 11.8,
+   "RKP": 5.6,
+   "KD": 0.9
+  },
+  "turnout_pct": 85.4
+ },
+ "00500": {
+  "lean": 41.4,
+  "competitiveness": 0.644,
+  "largest_party": "VAS",
+  "party": {
+   "KOK": 15.5,
+   "PS": 7.2,
+   "SDP": 19.2,
+   "KESK": 0.9,
+   "VIHR": 21.4,
+   "VAS": 25.6,
+   "RKP": 2.8,
+   "KD": 0.9
+  },
+  "turnout_pct": 80.6
+ },
+ "00810": {
+  "lean": 50.0,
+  "competitiveness": 0.672,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 23.2,
+   "PS": 11.7,
+   "SDP": 24.1,
+   "KESK": 1.1,
+   "VIHR": 15.5,
+   "VAS": 12.9,
+   "RKP": 3.7,
+   "KD": 1.7
+  },
+  "turnout_pct": 77.0
+ },
+ "00880": {
+  "lean": 44.9,
+  "competitiveness": 0.672,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 14.9,
+   "PS": 11.8,
+   "SDP": 24.2,
+   "KESK": 0.9,
+   "VIHR": 17.9,
+   "VAS": 19.7,
+   "RKP": 2.6,
+   "KD": 1.9
+  },
+  "turnout_pct": 75.1
+ },
+ "00890": {
+  "lean": 62.4,
+  "competitiveness": 0.645,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 36.0,
+   "PS": 15.9,
+   "SDP": 12.8,
+   "KESK": 1.9,
+   "VIHR": 7.9,
+   "VAS": 3.6,
+   "RKP": 11.0,
+   "KD": 3.1
+  },
+  "turnout_pct": 79.3
+ },
+ "01200": {
+  "lean": 57.0,
+  "competitiveness": 0.651,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 18.5,
+   "PS": 23.0,
+   "SDP": 27.3,
+   "KESK": 3.2,
+   "VIHR": 6.4,
+   "VAS": 6.6,
+   "RKP": 2.8,
+   "KD": 4.6
+  },
+  "turnout_pct": 64.1
+ },
+ "00760": {
+  "lean": 57.0,
+  "competitiveness": 0.635,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 28.6,
+   "PS": 17.6,
+   "SDP": 23.7,
+   "KESK": 2.4,
+   "VIHR": 9.8,
+   "VAS": 6.7,
+   "RKP": 1.9,
+   "KD": 2.7
+  },
+  "turnout_pct": 81.7
+ },
+ "00790": {
+  "lean": 49.9,
+  "competitiveness": 0.688,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 19.7,
+   "PS": 13.0,
+   "SDP": 23.7,
+   "KESK": 2.6,
+   "VIHR": 18.3,
+   "VAS": 11.4,
+   "RKP": 2.4,
+   "KD": 2.4
+  },
+  "turnout_pct": 77.3
+ },
+ "00780": {
+  "lean": 57.3,
+  "competitiveness": 0.633,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 31.3,
+   "PS": 15.8,
+   "SDP": 22.4,
+   "KESK": 2.2,
+   "VIHR": 10.5,
+   "VAS": 6.1,
+   "RKP": 3.0,
+   "KD": 2.4
+  },
+  "turnout_pct": 79.2
+ },
+ "00620": {
+  "lean": 48.2,
+  "competitiveness": 0.673,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 21.2,
+   "PS": 10.5,
+   "SDP": 23.9,
+   "KESK": 1.9,
+   "VIHR": 16.7,
+   "VAS": 15.1,
+   "RKP": 3.7,
+   "KD": 2.1
+  },
+  "turnout_pct": 79.0
+ },
+ "00800": {
+  "lean": 44.3,
+  "competitiveness": 0.664,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 14.9,
+   "PS": 10.4,
+   "SDP": 24.8,
+   "KESK": 1.1,
+   "VIHR": 19.9,
+   "VAS": 18.9,
+   "RKP": 3.0,
+   "KD": 1.6
+  },
+  "turnout_pct": 79.4
+ },
+ "00930": {
+  "lean": 52.6,
+  "competitiveness": 0.665,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 24.9,
+   "PS": 15.2,
+   "SDP": 24.5,
+   "KESK": 1.4,
+   "VIHR": 11.4,
+   "VAS": 12.0,
+   "RKP": 3.3,
+   "KD": 2.1
+  },
+  "turnout_pct": 70.6
+ },
+ "00340": {
+  "lean": 60.8,
+  "competitiveness": 0.545,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 50.4,
+   "PS": 7.2,
+   "SDP": 10.8,
+   "KESK": 1.4,
+   "VIHR": 12.1,
+   "VAS": 4.9,
+   "RKP": 8.2,
+   "KD": 1.7
+  },
+  "turnout_pct": 85.7
+ },
+ "01230": {
+  "lean": 57.7,
+  "competitiveness": 0.656,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 21.2,
+   "PS": 22.8,
+   "SDP": 25.1,
+   "KESK": 2.5,
+   "VIHR": 7.9,
+   "VAS": 6.2,
+   "RKP": 2.8,
+   "KD": 3.7
+  },
+  "turnout_pct": 69.1
+ },
+ "00580": {
+  "lean": 47.1,
+  "competitiveness": 0.658,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 22.5,
+   "PS": 8.6,
+   "SDP": 21.4,
+   "KESK": 1.0,
+   "VIHR": 18.9,
+   "VAS": 16.8,
+   "RKP": 4.8,
+   "KD": 0.8
+  },
+  "turnout_pct": 81.4
+ },
+ "00360": {
+  "lean": 51.9,
+  "competitiveness": 0.705,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 24.2,
+   "PS": 11.7,
+   "SDP": 22.0,
+   "KESK": 2.2,
+   "VIHR": 16.4,
+   "VAS": 9.9,
+   "RKP": 3.9,
+   "KD": 2.7
+  },
+  "turnout_pct": 77.5
+ },
+ "01600": {
+  "lean": 54.5,
+  "competitiveness": 0.648,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 19.7,
+   "PS": 17.9,
+   "SDP": 29.4,
+   "KESK": 4.4,
+   "VIHR": 8.4,
+   "VAS": 7.2,
+   "RKP": 2.6,
+   "KD": 4.1
+  },
+  "turnout_pct": 70.4
+ },
+ "00820": {
+  "lean": 42.9,
+  "competitiveness": 0.656,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 11.3,
+   "PS": 11.7,
+   "SDP": 26.6,
+   "KESK": 1.2,
+   "VIHR": 18.0,
+   "VAS": 21.8,
+   "RKP": 2.1,
+   "KD": 2.1
+  },
+  "turnout_pct": 76.0
+ },
+ "00570": {
+  "lean": 56.3,
+  "competitiveness": 0.617,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 39.8,
+   "PS": 6.9,
+   "SDP": 10.7,
+   "KESK": 0.9,
+   "VIHR": 17.4,
+   "VAS": 7.9,
+   "RKP": 11.0,
+   "KD": 1.3
+  },
+  "turnout_pct": 86.7
+ },
+ "00540": {
+  "lean": 52.1,
+  "competitiveness": 0.625,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 32.7,
+   "PS": 8.4,
+   "SDP": 17.8,
+   "KESK": 0.8,
+   "VIHR": 20.3,
+   "VAS": 10.3,
+   "RKP": 3.9,
+   "KD": 0.8
+  },
+  "turnout_pct": 83.7
+ },
+ "00220": {
+  "lean": 52.7,
+  "competitiveness": 0.665,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 30.4,
+   "PS": 8.5,
+   "SDP": 17.9,
+   "KESK": 1.1,
+   "VIHR": 17.6,
+   "VAS": 9.8,
+   "RKP": 7.3,
+   "KD": 1.1
+  },
+  "turnout_pct": 82.4
+ },
+ "00230": {
+  "lean": 49.9,
+  "competitiveness": 0.712,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 23.9,
+   "PS": 10.6,
+   "SDP": 19.4,
+   "KESK": 2.3,
+   "VIHR": 16.4,
+   "VAS": 15.1,
+   "RKP": 2.5,
+   "KD": 1.9
+  },
+  "turnout_pct": 78.8
+ },
+ "01710": {
+  "lean": 57.7,
+  "competitiveness": 0.663,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 24.5,
+   "PS": 19.5,
+   "SDP": 22.3,
+   "KESK": 4.4,
+   "VIHR": 9.5,
+   "VAS": 6.0,
+   "RKP": 2.4,
+   "KD": 3.9
+  },
+  "turnout_pct": 70.4
+ },
+ "01630": {
+  "lean": 58.1,
+  "competitiveness": 0.646,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 29.5,
+   "PS": 16.2,
+   "SDP": 22.1,
+   "KESK": 3.9,
+   "VIHR": 10.3,
+   "VAS": 4.5,
+   "RKP": 2.8,
+   "KD": 3.4
+  },
+  "turnout_pct": 77.5
+ },
+ "01660": {
+  "lean": 58.6,
+  "competitiveness": 0.651,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 30.1,
+   "PS": 16.8,
+   "SDP": 22.2,
+   "KESK": 4.6,
+   "VIHR": 9.2,
+   "VAS": 4.5,
+   "RKP": 2.4,
+   "KD": 3.5
+  },
+  "turnout_pct": 75.3
+ },
+ "01620": {
+  "lean": 55.6,
+  "competitiveness": 0.67,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 21.3,
+   "PS": 18.0,
+   "SDP": 26.1,
+   "KESK": 4.5,
+   "VIHR": 8.2,
+   "VAS": 7.4,
+   "RKP": 3.7,
+   "KD": 3.6
+  },
+  "turnout_pct": 68.1
+ },
+ "01720": {
+  "lean": 59.7,
+  "competitiveness": 0.64,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 30.7,
+   "PS": 18.4,
+   "SDP": 20.8,
+   "KESK": 4.4,
+   "VIHR": 8.4,
+   "VAS": 4.4,
+   "RKP": 2.5,
+   "KD": 3.6
+  },
+  "turnout_pct": 75.9
+ },
+ "01770": {
+  "lean": 57.5,
+  "competitiveness": 0.672,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 26.5,
+   "PS": 15.6,
+   "SDP": 24.0,
+   "KESK": 4.5,
+   "VIHR": 8.7,
+   "VAS": 4.3,
+   "RKP": 6.0,
+   "KD": 3.9
+  },
+  "turnout_pct": 76.4
+ },
+ "01730": {
+  "lean": 60.8,
+  "competitiveness": 0.662,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 28.4,
+   "PS": 21.1,
+   "SDP": 17.9,
+   "KESK": 4.2,
+   "VIHR": 8.2,
+   "VAS": 4.7,
+   "RKP": 2.8,
+   "KD": 3.7
+  },
+  "turnout_pct": 71.5
+ },
+ "01670": {
+  "lean": 59.0,
+  "competitiveness": 0.64,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 33.4,
+   "PS": 14.2,
+   "SDP": 21.5,
+   "KESK": 3.7,
+   "VIHR": 9.3,
+   "VAS": 3.8,
+   "RKP": 4.0,
+   "KD": 3.8
+  },
+  "turnout_pct": 82.2
+ },
+ "01740": {
+  "lean": 60.4,
+  "competitiveness": 0.635,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 35.4,
+   "PS": 15.4,
+   "SDP": 18.9,
+   "KESK": 3.5,
+   "VIHR": 9.8,
+   "VAS": 3.0,
+   "RKP": 3.7,
+   "KD": 3.4
+  },
+  "turnout_pct": 80.1
+ },
+ "01360": {
+  "lean": 55.2,
+  "competitiveness": 0.655,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 18.2,
+   "PS": 20.9,
+   "SDP": 28.8,
+   "KESK": 3.4,
+   "VIHR": 6.7,
+   "VAS": 8.5,
+   "RKP": 1.8,
+   "KD": 3.9
+  },
+  "turnout_pct": 64.7
+ },
+ "01530": {
+  "lean": 60.7,
+  "competitiveness": 0.639,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 28.8,
+   "PS": 22.1,
+   "SDP": 20.1,
+   "KESK": 3.6,
+   "VIHR": 7.9,
+   "VAS": 4.3,
+   "RKP": 2.5,
+   "KD": 2.6
+  },
+  "turnout_pct": 62.0
+ },
+ "01390": {
+  "lean": 60.2,
+  "competitiveness": 0.642,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 27.7,
+   "PS": 21.5,
+   "SDP": 21.7,
+   "KESK": 4.0,
+   "VIHR": 6.3,
+   "VAS": 5.0,
+   "RKP": 1.9,
+   "KD": 3.8
+  },
+  "turnout_pct": 76.0
+ },
+ "01450": {
+  "lean": 57.9,
+  "competitiveness": 0.662,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 20.9,
+   "PS": 23.6,
+   "SDP": 24.9,
+   "KESK": 3.5,
+   "VIHR": 7.2,
+   "VAS": 6.5,
+   "RKP": 1.3,
+   "KD": 4.0
+  },
+  "turnout_pct": 69.8
+ },
+ "01350": {
+  "lean": 56.4,
+  "competitiveness": 0.66,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 22.8,
+   "PS": 19.5,
+   "SDP": 26.2,
+   "KESK": 3.4,
+   "VIHR": 8.2,
+   "VAS": 7.1,
+   "RKP": 2.0,
+   "KD": 3.5
+  },
+  "turnout_pct": 71.6
+ },
+ "01340": {
+  "lean": 56.5,
+  "competitiveness": 0.681,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 22.4,
+   "PS": 19.4,
+   "SDP": 25.2,
+   "KESK": 3.9,
+   "VIHR": 8.1,
+   "VAS": 7.2,
+   "RKP": 2.0,
+   "KD": 3.7
+  },
+  "turnout_pct": 70.0
+ },
+ "01400": {
+  "lean": 56.6,
+  "competitiveness": 0.654,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 20.6,
+   "PS": 21.3,
+   "SDP": 26.8,
+   "KESK": 4.1,
+   "VIHR": 7.6,
+   "VAS": 6.8,
+   "RKP": 1.9,
+   "KD": 4.1
+  },
+  "turnout_pct": 69.5
+ },
+ "01380": {
+  "lean": 58.3,
+  "competitiveness": 0.655,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 26.2,
+   "PS": 20.0,
+   "SDP": 21.5,
+   "KESK": 2.8,
+   "VIHR": 8.8,
+   "VAS": 6.4,
+   "RKP": 3.0,
+   "KD": 4.4
+  },
+  "turnout_pct": 74.9
+ },
+ "01370": {
+  "lean": 55.4,
+  "competitiveness": 0.697,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 20.5,
+   "PS": 19.0,
+   "SDP": 23.0,
+   "KESK": 3.4,
+   "VIHR": 9.7,
+   "VAS": 9.0,
+   "RKP": 2.9,
+   "KD": 3.8
+  },
+  "turnout_pct": 66.7
+ },
+ "01260": {
+  "lean": 60.6,
+  "competitiveness": 0.65,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 30.5,
+   "PS": 18.8,
+   "SDP": 21.4,
+   "KESK": 4.0,
+   "VIHR": 5.3,
+   "VAS": 4.4,
+   "RKP": 4.1,
+   "KD": 4.5
+  },
+  "turnout_pct": 80.1
+ },
+ "01420": {
+  "lean": 59.7,
+  "competitiveness": 0.63,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 28.8,
+   "PS": 20.9,
+   "SDP": 22.0,
+   "KESK": 3.7,
+   "VIHR": 6.8,
+   "VAS": 5.6,
+   "RKP": 1.5,
+   "KD": 3.9
+  },
+  "turnout_pct": 77.2
+ },
+ "01480": {
+  "lean": 58.1,
+  "competitiveness": 0.662,
+  "largest_party": "SDP",
+  "party": {
+   "KOK": 19.7,
+   "PS": 23.9,
+   "SDP": 26.7,
+   "KESK": 3.6,
+   "VIHR": 5.9,
+   "VAS": 5.9,
+   "RKP": 1.8,
+   "KD": 4.6
+  },
+  "turnout_pct": 66.2
+ },
+ "01490": {
+  "lean": 62.9,
+  "competitiveness": 0.635,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 32.2,
+   "PS": 22.2,
+   "SDP": 17.3,
+   "KESK": 4.3,
+   "VIHR": 5.9,
+   "VAS": 3.6,
+   "RKP": 2.3,
+   "KD": 4.9
+  },
+  "turnout_pct": 79.8
+ },
+ "02970": {
+  "lean": 61.8,
+  "competitiveness": 0.659,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 30.8,
+   "PS": 21.5,
+   "SDP": 17.0,
+   "KESK": 4.5,
+   "VIHR": 7.6,
+   "VAS": 3.9,
+   "RKP": 3.8,
+   "KD": 3.7
+  },
+  "turnout_pct": 79.4
+ },
+ "01700": {
+  "lean": 60.9,
+  "competitiveness": 0.653,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 30.5,
+   "PS": 20.3,
+   "SDP": 16.0,
+   "KESK": 4.0,
+   "VIHR": 9.8,
+   "VAS": 4.8,
+   "RKP": 2.3,
+   "KD": 2.8
+  },
+  "turnout_pct": 70.8
+ },
+ "01750": {
+  "lean": 61.6,
+  "competitiveness": 0.656,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 30.4,
+   "PS": 21.0,
+   "SDP": 15.9,
+   "KESK": 4.5,
+   "VIHR": 8.4,
+   "VAS": 4.3,
+   "RKP": 3.3,
+   "KD": 3.4
+  },
+  "turnout_pct": 73.4
+ },
+ "01760": {
+  "lean": 62.1,
+  "competitiveness": 0.652,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 27.4,
+   "PS": 24.2,
+   "SDP": 18.4,
+   "KESK": 5.2,
+   "VIHR": 5.8,
+   "VAS": 3.9,
+   "RKP": 4.2,
+   "KD": 3.1
+  },
+  "turnout_pct": 75.0
+ },
+ "02920": {
+  "lean": 63.1,
+  "competitiveness": 0.624,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 36.1,
+   "PS": 19.5,
+   "SDP": 16.3,
+   "KESK": 3.7,
+   "VIHR": 7.0,
+   "VAS": 2.6,
+   "RKP": 4.0,
+   "KD": 3.4
+  },
+  "turnout_pct": 80.0
+ },
+ "01680": {
+  "lean": 61.7,
+  "competitiveness": 0.635,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 33.7,
+   "PS": 20.0,
+   "SDP": 18.0,
+   "KESK": 4.0,
+   "VIHR": 7.5,
+   "VAS": 3.9,
+   "RKP": 2.5,
+   "KD": 3.6
+  },
+  "turnout_pct": 79.1
+ },
+ "02620": {
+  "lean": 59.3,
+  "competitiveness": 0.647,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 32.6,
+   "PS": 15.2,
+   "SDP": 19.4,
+   "KESK": 3.1,
+   "VIHR": 10.1,
+   "VAS": 3.7,
+   "RKP": 5.6,
+   "KD": 4.4
+  },
+  "turnout_pct": 76.0
+ },
+ "02660": {
+  "lean": 60.1,
+  "competitiveness": 0.614,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 39.5,
+   "PS": 12.4,
+   "SDP": 16.6,
+   "KESK": 3.9,
+   "VIHR": 11.5,
+   "VAS": 3.3,
+   "RKP": 4.2,
+   "KD": 3.1
+  },
+  "turnout_pct": 80.5
+ },
+ "02730": {
+  "lean": 63.5,
+  "competitiveness": 0.566,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 48.5,
+   "PS": 11.1,
+   "SDP": 12.5,
+   "KESK": 3.4,
+   "VIHR": 8.3,
+   "VAS": 2.1,
+   "RKP": 5.7,
+   "KD": 3.8
+  },
+  "turnout_pct": 86.8
+ },
+ "01640": {
+  "lean": 58.5,
+  "competitiveness": 0.642,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 31.1,
+   "PS": 16.1,
+   "SDP": 21.2,
+   "KESK": 3.7,
+   "VIHR": 9.7,
+   "VAS": 5.1,
+   "RKP": 2.4,
+   "KD": 3.8
+  },
+  "turnout_pct": 77.6
+ },
+ "02320": {
+  "lean": 58.3,
+  "competitiveness": 0.65,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 30.1,
+   "PS": 14.4,
+   "SDP": 22.8,
+   "KESK": 2.6,
+   "VIHR": 8.4,
+   "VAS": 4.0,
+   "RKP": 8.2,
+   "KD": 3.1
+  },
+  "turnout_pct": 73.1
+ },
+ "02380": {
+  "lean": 63.6,
+  "competitiveness": 0.588,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 46.0,
+   "PS": 10.4,
+   "SDP": 11.0,
+   "KESK": 2.2,
+   "VIHR": 7.7,
+   "VAS": 1.7,
+   "RKP": 15.1,
+   "KD": 2.4
+  },
+  "turnout_pct": 85.0
+ },
+ "02360": {
+  "lean": 58.8,
+  "competitiveness": 0.662,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 32.0,
+   "PS": 12.5,
+   "SDP": 20.2,
+   "KESK": 2.7,
+   "VIHR": 9.2,
+   "VAS": 3.6,
+   "RKP": 9.7,
+   "KD": 3.8
+  },
+  "turnout_pct": 78.1
+ },
+ "02230": {
+  "lean": 58.5,
+  "competitiveness": 0.646,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 34.9,
+   "PS": 11.0,
+   "SDP": 18.1,
+   "KESK": 2.2,
+   "VIHR": 10.6,
+   "VAS": 4.3,
+   "RKP": 10.6,
+   "KD": 2.9
+  },
+  "turnout_pct": 75.5
+ },
+ "02260": {
+  "lean": 59.8,
+  "competitiveness": 0.657,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 33.0,
+   "PS": 16.0,
+   "SDP": 16.9,
+   "KESK": 2.5,
+   "VIHR": 11.2,
+   "VAS": 3.6,
+   "RKP": 7.9,
+   "KD": 2.4
+  },
+  "turnout_pct": 76.4
+ },
+ "02270": {
+  "lean": 61.7,
+  "competitiveness": 0.612,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 40.2,
+   "PS": 13.5,
+   "SDP": 14.9,
+   "KESK": 2.3,
+   "VIHR": 9.4,
+   "VAS": 2.7,
+   "RKP": 9.2,
+   "KD": 2.0
+  },
+  "turnout_pct": 79.6
+ },
+ "02760": {
+  "lean": 56.7,
+  "competitiveness": 0.682,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 25.2,
+   "PS": 15.7,
+   "SDP": 22.9,
+   "KESK": 3.2,
+   "VIHR": 10.3,
+   "VAS": 5.6,
+   "RKP": 6.4,
+   "KD": 4.5
+  },
+  "turnout_pct": 69.6
+ },
+ "02770": {
+  "lean": 57.2,
+  "competitiveness": 0.668,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 24.3,
+   "PS": 17.0,
+   "SDP": 23.1,
+   "KESK": 3.0,
+   "VIHR": 9.8,
+   "VAS": 5.1,
+   "RKP": 7.1,
+   "KD": 4.8
+  },
+  "turnout_pct": 68.9
+ },
+ "02700": {
+  "lean": 63.4,
+  "competitiveness": 0.546,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 39.3,
+   "PS": 7.9,
+   "SDP": 8.1,
+   "KESK": 1.7,
+   "VIHR": 5.8,
+   "VAS": 1.7,
+   "RKP": 29.7,
+   "KD": 2.5
+  },
+  "turnout_pct": 79.3
+ },
+ "02810": {
+  "lean": 61.7,
+  "competitiveness": 0.651,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 31.4,
+   "PS": 19.2,
+   "SDP": 16.9,
+   "KESK": 2.4,
+   "VIHR": 8.8,
+   "VAS": 2.9,
+   "RKP": 7.0,
+   "KD": 4.9
+  },
+  "turnout_pct": 79.3
+ },
+ "02740": {
+  "lean": 61.7,
+  "competitiveness": 0.662,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 32.9,
+   "PS": 17.3,
+   "SDP": 16.0,
+   "KESK": 3.6,
+   "VIHR": 7.6,
+   "VAS": 3.2,
+   "RKP": 8.7,
+   "KD": 4.1
+  },
+  "turnout_pct": 72.1
+ },
+ "02940": {
+  "lean": 60.5,
+  "competitiveness": 0.647,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 33.0,
+   "PS": 15.4,
+   "SDP": 17.5,
+   "KESK": 3.5,
+   "VIHR": 9.2,
+   "VAS": 3.1,
+   "RKP": 8.3,
+   "KD": 3.9
+  },
+  "turnout_pct": 78.7
+ },
+ "02820": {
+  "lean": 61.6,
+  "competitiveness": 0.644,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 31.3,
+   "PS": 19.2,
+   "SDP": 16.9,
+   "KESK": 2.5,
+   "VIHR": 8.8,
+   "VAS": 3.0,
+   "RKP": 6.9,
+   "KD": 4.8
+  },
+  "turnout_pct": 78.9
+ },
+ "02980": {
+  "lean": 61.2,
+  "competitiveness": 0.671,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 28.4,
+   "PS": 21.9,
+   "SDP": 17.3,
+   "KESK": 4.7,
+   "VIHR": 8.0,
+   "VAS": 4.3,
+   "RKP": 4.2,
+   "KD": 3.8
+  },
+  "turnout_pct": 79.3
+ },
+ "02720": {
+  "lean": 60.8,
+  "competitiveness": 0.628,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 36.6,
+   "PS": 13.9,
+   "SDP": 16.5,
+   "KESK": 3.1,
+   "VIHR": 9.9,
+   "VAS": 2.9,
+   "RKP": 7.5,
+   "KD": 3.8
+  },
+  "turnout_pct": 80.8
+ },
+ "02600": {
+  "lean": 55.9,
+  "competitiveness": 0.662,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 29.0,
+   "PS": 13.6,
+   "SDP": 20.6,
+   "KESK": 2.7,
+   "VIHR": 13.8,
+   "VAS": 6.1,
+   "RKP": 3.9,
+   "KD": 3.1
+  },
+  "turnout_pct": 73.0
+ },
+ "02140": {
+  "lean": 59.6,
+  "competitiveness": 0.593,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 44.5,
+   "PS": 8.2,
+   "SDP": 14.1,
+   "KESK": 2.6,
+   "VIHR": 13.9,
+   "VAS": 3.5,
+   "RKP": 6.0,
+   "KD": 2.6
+  },
+  "turnout_pct": 85.2
+ },
+ "02750": {
+  "lean": 61.2,
+  "competitiveness": 0.629,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 40.1,
+   "PS": 11.8,
+   "SDP": 14.9,
+   "KESK": 2.4,
+   "VIHR": 9.5,
+   "VAS": 3.1,
+   "RKP": 8.9,
+   "KD": 3.8
+  },
+  "turnout_pct": 77.6
+ },
+ "02630": {
+  "lean": 59.5,
+  "competitiveness": 0.655,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 35.0,
+   "PS": 11.3,
+   "SDP": 16.5,
+   "KESK": 3.1,
+   "VIHR": 10.9,
+   "VAS": 3.3,
+   "RKP": 10.7,
+   "KD": 3.3
+  },
+  "turnout_pct": 77.4
+ },
+ "02610": {
+  "lean": 57.5,
+  "competitiveness": 0.656,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 31.3,
+   "PS": 13.2,
+   "SDP": 19.2,
+   "KESK": 3.3,
+   "VIHR": 11.9,
+   "VAS": 5.1,
+   "RKP": 6.8,
+   "KD": 3.4
+  },
+  "turnout_pct": 73.8
+ },
+ "02710": {
+  "lean": 58.7,
+  "competitiveness": 0.654,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 30.9,
+   "PS": 14.1,
+   "SDP": 19.3,
+   "KESK": 3.5,
+   "VIHR": 10.8,
+   "VAS": 3.8,
+   "RKP": 8.0,
+   "KD": 3.9
+  },
+  "turnout_pct": 76.5
+ },
+ "02180": {
+  "lean": 62.2,
+  "competitiveness": 0.559,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 49.6,
+   "PS": 8.4,
+   "SDP": 12.5,
+   "KESK": 2.3,
+   "VIHR": 11.4,
+   "VAS": 1.8,
+   "RKP": 7.3,
+   "KD": 2.3
+  },
+  "turnout_pct": 87.4
+ },
+ "02130": {
+  "lean": 59.8,
+  "competitiveness": 0.569,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 46.6,
+   "PS": 6.7,
+   "SDP": 13.8,
+   "KESK": 2.9,
+   "VIHR": 14.0,
+   "VAS": 3.0,
+   "RKP": 6.3,
+   "KD": 2.4
+  },
+  "turnout_pct": 86.9
+ },
+ "02200": {
+  "lean": 60.0,
+  "competitiveness": 0.601,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 43.2,
+   "PS": 9.1,
+   "SDP": 14.3,
+   "KESK": 2.0,
+   "VIHR": 12.8,
+   "VAS": 3.4,
+   "RKP": 7.7,
+   "KD": 2.4
+  },
+  "turnout_pct": 82.8
+ },
+ "02250": {
+  "lean": 59.2,
+  "competitiveness": 0.662,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 32.7,
+   "PS": 15.2,
+   "SDP": 18.0,
+   "KESK": 2.2,
+   "VIHR": 11.4,
+   "VAS": 4.3,
+   "RKP": 5.0,
+   "KD": 3.8
+  },
+  "turnout_pct": 68.8
+ },
+ "02280": {
+  "lean": 60.1,
+  "competitiveness": 0.633,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 35.9,
+   "PS": 13.7,
+   "SDP": 17.9,
+   "KESK": 2.8,
+   "VIHR": 10.0,
+   "VAS": 3.3,
+   "RKP": 6.8,
+   "KD": 3.2
+  },
+  "turnout_pct": 76.9
+ },
+ "02210": {
+  "lean": 59.1,
+  "competitiveness": 0.627,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 37.3,
+   "PS": 11.3,
+   "SDP": 18.0,
+   "KESK": 2.4,
+   "VIHR": 11.2,
+   "VAS": 3.7,
+   "RKP": 7.6,
+   "KD": 3.0
+  },
+  "turnout_pct": 78.9
+ },
+ "02780": {
+  "lean": 60.9,
+  "competitiveness": 0.648,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 33.9,
+   "PS": 15.7,
+   "SDP": 16.4,
+   "KESK": 2.8,
+   "VIHR": 9.8,
+   "VAS": 3.0,
+   "RKP": 7.6,
+   "KD": 3.4
+  },
+  "turnout_pct": 76.2
+ },
+ "02340": {
+  "lean": 59.9,
+  "competitiveness": 0.628,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 35.3,
+   "PS": 14.0,
+   "SDP": 18.1,
+   "KESK": 2.8,
+   "VIHR": 11.0,
+   "VAS": 2.8,
+   "RKP": 6.5,
+   "KD": 3.2
+  },
+  "turnout_pct": 81.9
+ },
+ "02330": {
+  "lean": 62.6,
+  "competitiveness": 0.601,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 43.2,
+   "PS": 13.1,
+   "SDP": 14.3,
+   "KESK": 2.6,
+   "VIHR": 8.3,
+   "VAS": 2.6,
+   "RKP": 6.9,
+   "KD": 2.5
+  },
+  "turnout_pct": 80.1
+ },
+ "02240": {
+  "lean": 61.6,
+  "competitiveness": 0.605,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 43.1,
+   "PS": 11.8,
+   "SDP": 15.3,
+   "KESK": 2.6,
+   "VIHR": 9.1,
+   "VAS": 2.9,
+   "RKP": 7.6,
+   "KD": 2.1
+  },
+  "turnout_pct": 78.7
+ },
+ "02300": {
+  "lean": 63.5,
+  "competitiveness": 0.575,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 46.3,
+   "PS": 11.5,
+   "SDP": 12.9,
+   "KESK": 2.1,
+   "VIHR": 7.8,
+   "VAS": 1.8,
+   "RKP": 10.1,
+   "KD": 1.9
+  },
+  "turnout_pct": 83.8
+ },
+ "02170": {
+  "lean": 64.7,
+  "competitiveness": 0.533,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 52.7,
+   "PS": 7.9,
+   "SDP": 8.7,
+   "KESK": 1.4,
+   "VIHR": 7.0,
+   "VAS": 1.8,
+   "RKP": 14.5,
+   "KD": 1.5
+  },
+  "turnout_pct": 86.2
+ },
+ "02100": {
+  "lean": 60.9,
+  "competitiveness": 0.567,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 48.2,
+   "PS": 7.3,
+   "SDP": 12.2,
+   "KESK": 2.3,
+   "VIHR": 12.7,
+   "VAS": 3.0,
+   "RKP": 7.2,
+   "KD": 2.2
+  },
+  "turnout_pct": 86.1
+ },
+ "02120": {
+  "lean": 58.9,
+  "competitiveness": 0.58,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 43.5,
+   "PS": 7.5,
+   "SDP": 14.0,
+   "KESK": 2.0,
+   "VIHR": 15.3,
+   "VAS": 3.3,
+   "RKP": 7.7,
+   "KD": 1.9
+  },
+  "turnout_pct": 85.0
+ },
+ "02110": {
+  "lean": 56.3,
+  "competitiveness": 0.617,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 38.0,
+   "PS": 6.8,
+   "SDP": 15.8,
+   "KESK": 1.8,
+   "VIHR": 17.9,
+   "VAS": 4.4,
+   "RKP": 7.2,
+   "KD": 2.6
+  },
+  "turnout_pct": 87.2
+ },
+ "02150": {
+  "lean": 53.6,
+  "competitiveness": 0.651,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 32.0,
+   "PS": 7.4,
+   "SDP": 10.2,
+   "KESK": 1.7,
+   "VIHR": 26.0,
+   "VAS": 6.0,
+   "RKP": 6.0,
+   "KD": 1.6
+  },
+  "turnout_pct": 85.8
+ },
+ "02160": {
+  "lean": 66.6,
+  "competitiveness": 0.474,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 60.5,
+   "PS": 6.5,
+   "SDP": 5.9,
+   "KESK": 1.3,
+   "VIHR": 6.7,
+   "VAS": 1.0,
+   "RKP": 12.7,
+   "KD": 1.8
+  },
+  "turnout_pct": 89.3
+ },
+ "02860": {
+  "lean": 61.8,
+  "competitiveness": 0.713,
+  "largest_party": "KOK",
+  "party": {
+   "KOK": 31.5,
+   "PS": 19.3,
+   "SDP": 16.8,
+   "KESK": 2.3,
+   "VIHR": 8.8,
+   "VAS": 2.9,
+   "RKP": 7.0,
+   "KD": 4.9
+  },
+  "turnout_pct": 80.2
+ }
+}
