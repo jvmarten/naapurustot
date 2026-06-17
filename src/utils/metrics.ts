@@ -149,6 +149,16 @@ export interface NeighborhoodProperties {
   // Phase 7: New data layers
   voter_turnout_pct: number | null;
   party_diversity_index: number | null;
+  // Voting preferences — 2023 parliamentary election (eduskuntavaalit).
+  // Sub-municipal where current precinct geometry exists, municipal elsewhere.
+  political_lean_index: number | null;
+  party_vote_kok_pct: number | null;
+  party_vote_sdp_pct: number | null;
+  party_vote_ps_pct: number | null;
+  party_vote_kesk_pct: number | null;
+  party_vote_vihr_pct: number | null;
+  party_vote_vas_pct: number | null;
+  party_vote_rkp_pct: number | null;
   broadband_coverage_pct: number | null;
   ev_charging_density: number | null;
   tree_canopy_pct: number | null;
@@ -486,6 +496,9 @@ export const METRIC_EXPLANATIONS: ReadonlySet<string> = new Set([
   'grocery_density', 'daycare_density', 'school_density', 'school_quality_score',
   'healthcare_density', 'sports_facility_density', 'cycling_density',
   'ev_charging_density', 'voter_turnout_pct', 'party_diversity_index',
+  'political_lean_index', 'party_vote_kok_pct', 'party_vote_sdp_pct',
+  'party_vote_ps_pct', 'party_vote_kesk_pct', 'party_vote_vihr_pct',
+  'party_vote_vas_pct', 'party_vote_rkp_pct',
   'broadband_coverage_pct', 'tech_sector_pct', 'healthcare_workers_pct',
   'manufacturing_jobs_pct', 'public_sector_jobs_pct', 'service_sector_jobs_pct',
   'property_price_change_pct',
@@ -734,6 +747,15 @@ const METRIC_DEFS: MetricDef[] = [
   // Phase 7: New layers
   { property: 'voter_turnout_pct', weight: 'population', precision: 1 },
   { property: 'party_diversity_index', weight: 'population', precision: 2 },
+  // Voting preferences (2023 parliamentary) — population-weighted aggregation.
+  { property: 'political_lean_index', weight: 'population', precision: 1 },
+  { property: 'party_vote_kok_pct', weight: 'population', precision: 1 },
+  { property: 'party_vote_sdp_pct', weight: 'population', precision: 1 },
+  { property: 'party_vote_ps_pct', weight: 'population', precision: 1 },
+  { property: 'party_vote_kesk_pct', weight: 'population', precision: 1 },
+  { property: 'party_vote_vihr_pct', weight: 'population', precision: 1 },
+  { property: 'party_vote_vas_pct', weight: 'population', precision: 1 },
+  { property: 'party_vote_rkp_pct', weight: 'population', precision: 1 },
   { property: 'broadband_coverage_pct', weight: 'population', precision: 1 },
   { property: 'ev_charging_density', weight: 'population', precision: 1 },
   { property: 'tree_canopy_pct', weight: 'population', precision: 1 },

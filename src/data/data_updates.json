@@ -1,5 +1,21 @@
 [
   {
+    "date": "2026-06-17",
+    "metric": "party_diversity_index",
+    "type": "vintage",
+    "from": 2025,
+    "to": 2023,
+    "title": "party_diversity_index refreshed to 2023 vintage"
+  },
+  {
+    "date": "2026-06-17",
+    "metric": "voter_turnout_pct",
+    "type": "vintage",
+    "from": 2025,
+    "to": 2023,
+    "title": "voter_turnout_pct refreshed to 2023 vintage"
+  },
+  {
     "date": "2026-06-15",
     "metric": "kaavat_hankkeet",
     "type": "planning",

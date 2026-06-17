@@ -156,11 +156,14 @@ SOTKANET_URL = "https://sotkanet.fi/sotkanet/fi/taulukko"
 
 # --- Phase 7: New data sources ---
 
-# Voter turnout (%) — Statistics Finland / Ministry of Justice
-VOTER_TURNOUT_FILE = Path(__file__).parent / "voter_turnout.json"
-
-# Political diversity index (Shannon diversity of party votes)
-PARTY_DIVERSITY_FILE = Path(__file__).parent / "party_diversity.json"
+# 2023 parliamentary election (eduskuntavaalit) voting-preference metrics.
+# Municipal results (fetch_election_results.py) applied to every postal code in
+# the municipality — the finest resolution the data has for the 251/309
+# municipalities where a precinct already spans several postal codes. The
+# optional sub-municipal file overrides this in the cities that publish current
+# precinct boundaries (sub-municipal refinement step). No income proxy.
+ELECTION_MUNICIPAL_FILE = Path(__file__).parent / "election_municipal.json"
+ELECTION_SUBMUNICIPAL_FILE = Path(__file__).parent / "election_submunicipal.json"
 
 
 # Broadband coverage (% of addresses with 100 Mbit+) — Traficom
@@ -1566,6 +1569,72 @@ def _join_simple_data(gdf, data: dict, column: str, label: str):
     return gdf
 
 
+# 2023 parliamentary election metric -> GeoJSON property mapping. Kept in sync
+# with apply_election_to_geojson.py (both apply the same municipal/sub-municipal
+# precedence so the committed GeoJSON matches a full pipeline rebuild).
+_ELECTION_PARTY_PROPS = {
+    "KOK": "party_vote_kok_pct", "SDP": "party_vote_sdp_pct",
+    "PS": "party_vote_ps_pct", "KESK": "party_vote_kesk_pct",
+    "VIHR": "party_vote_vihr_pct", "VAS": "party_vote_vas_pct",
+    "RKP": "party_vote_rkp_pct",
+}
+_ELECTION_PROPS = ["voter_turnout_pct", "party_diversity_index",
+                   "political_lean_index", *_ELECTION_PARTY_PROPS.values()]
+
+
+def _election_metrics_to_props(m: dict) -> dict:
+    """Map an election metrics record to GeoJSON property values."""
+    party = m.get("party", {})
+    out = {
+        "voter_turnout_pct": m.get("turnout_pct"),
+        "party_diversity_index": m.get("competitiveness"),
+        "political_lean_index": m.get("lean"),
+    }
+    for abbr, prop in _ELECTION_PARTY_PROPS.items():
+        out[prop] = party.get(abbr)
+    return out
+
+
+def join_election_data(gdf):
+    """Join 2023 parliamentary voting-preference metrics onto the GeoDataFrame.
+
+    Tier A: each municipality's real result, applied to every postal code in the
+    municipality (no income proxy). Tier B: where a sub-municipal file exists,
+    precinct-derived per-postal results override Tier A. See the module-level
+    ELECTION_*_FILE docstring.
+    """
+    muni = _load_json_data(ELECTION_MUNICIPAL_FILE, "election (municipal)")
+    sub = _load_json_data(ELECTION_SUBMUNICIPAL_FILE, "election (sub-municipal)")
+    if not muni and not sub:
+        logger.warning("  No election data — voting columns will be null")
+        for prop in _ELECTION_PROPS:
+            gdf[prop] = None
+        return gdf
+
+    logger.info("Joining election data (municipal + sub-municipal override)...")
+    n_muni = n_sub = 0
+    for idx, row in gdf.iterrows():
+        kunta = row.get("kunta")
+        pno = row.get("pno", "") or row.get("postinumeroalue", "")
+        props = {prop: None for prop in _ELECTION_PROPS}
+
+        m = muni.get(kunta) if kunta else None
+        if m:
+            props.update(_election_metrics_to_props(m))
+            n_muni += 1
+        s = sub.get(pno) if pno else None
+        if s:
+            props.update(_election_metrics_to_props(s))
+            n_sub += 1
+
+        for prop, val in props.items():
+            gdf.at[idx, prop] = float(val) if val is not None else None
+
+    logger.info("  Municipal tier: %s postal codes; sub-municipal override: %s",
+                n_muni, n_sub)
+    return gdf
+
+
 def fetch_historical_paavo(latest_year: int):
     """Fetch multi-year Paavo data for time-series trends.
 
@@ -2592,11 +2661,7 @@ def main():
     gdf = _join_simple_data(gdf, noise_data, "noise_pollution", "noise pollution")
 
     # --- Phase 7: New data sources ---
-    voter_data = _load_json_data(VOTER_TURNOUT_FILE, "voter turnout")
-    gdf = _join_simple_data(gdf, voter_data, "voter_turnout_pct", "voter turnout")
-
-    party_data = _load_json_data(PARTY_DIVERSITY_FILE, "party diversity")
-    gdf = _join_simple_data(gdf, party_data, "party_diversity_index", "party diversity")
+    gdf = join_election_data(gdf)
 
 
     broadband_data = _load_json_data(BROADBAND_COVERAGE_FILE, "broadband coverage")
@@ -2649,6 +2714,10 @@ def main():
         "income_history", "population_history", "unemployment_history",
         # Phase 7: new data sources
         "voter_turnout_pct", "party_diversity_index",
+        # Voting preferences (2023 parliamentary)
+        "political_lean_index", "party_vote_kok_pct", "party_vote_sdp_pct",
+        "party_vote_ps_pct", "party_vote_kesk_pct", "party_vote_vihr_pct",
+        "party_vote_vas_pct", "party_vote_rkp_pct",
         "broadband_coverage_pct", "ev_charging_density",
         "tree_canopy_pct", "transit_reachability_score",
         "sports_facility_density",

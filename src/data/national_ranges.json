@@ -3,7 +3,7 @@
   "lowerPercentile": 0.02,
   "upperPercentile": 0.98,
   "postalCodeCount": 3018,
-  "rangeCount": 168,
+  "rangeCount": 176,
   "ranges": {
     "pinta_ala": {
       "min": 1042118.78,
@@ -736,14 +736,14 @@
       "avg": 41.38293571901926
     },
     "voter_turnout_pct": {
-      "min": 47.2,
-      "max": 68.9,
-      "avg": 54.836470194240285
+      "min": 53.7,
+      "max": 74.8,
+      "avg": 66.55440689198225
     },
     "party_diversity_index": {
-      "min": 0.526,
-      "max": 0.923,
-      "avg": 0.7696269256530504
+      "min": 0.339,
+      "max": 0.739,
+      "avg": 0.6476868787276315
     },
     "broadband_coverage_pct": {
       "min": 21,
@@ -834,6 +834,46 @@
       "min": 0,
       "max": 5,
       "avg": 0.6163021868787276
+    },
+    "political_lean_index": {
+      "min": 51.8,
+      "max": 66.7,
+      "avg": 59.548827863362334
+    },
+    "party_vote_kok_pct": {
+      "min": 1.9,
+      "max": 34.6,
+      "avg": 16.248995311453424
+    },
+    "party_vote_sdp_pct": {
+      "min": 5,
+      "max": 33.1,
+      "avg": 17.93523107836547
+    },
+    "party_vote_ps_pct": {
+      "min": 7.8,
+      "max": 36.2,
+      "avg": 22.925351640991245
+    },
+    "party_vote_kesk_pct": {
+      "min": 1.2,
+      "max": 47.3,
+      "avg": 19.063797722705825
+    },
+    "party_vote_vihr_pct": {
+      "min": 0.7700000000000002,
+      "max": 15.3,
+      "avg": 4.2559276624246065
+    },
+    "party_vote_vas_pct": {
+      "min": 0.7,
+      "max": 16.9,
+      "avg": 5.728164768921578
+    },
+    "party_vote_rkp_pct": {
+      "min": 0,
+      "max": 64.2,
+      "avg": 5.034279630943932
     },
     "traffic_accident_rate": {
       "min": 0.1,

@@ -340,8 +340,19 @@ MUNICIPALITY_DISTRIBUTED_PROXIES = {
     "crime_index": "fetch_crime_index.py distribute_to_postal_codes()",
     "avg_construction_year": "fetch_building_age.py refine_to_postal_codes()",
     "broadband_coverage_pct": "fetch_broadband_coverage.py (municipality coverage assigned to each postal code)",
-    "voter_turnout_pct": "fetch_voter_turnout.py distribute_to_postal_codes() (within-municipality income proxy)",
-    "party_diversity_index": "fetch_voter_turnout.py distribute_to_postal_codes() (within-municipality income proxy)",
+    # 2023 parliamentary election (eduskuntavaalit): municipality result applied to
+    # each postal code, refined to sub-municipal in cities that publish current
+    # precinct geometry (build_submunicipal_election.py). No income proxy.
+    "voter_turnout_pct": "fetch_election_results.py + apply_election_to_geojson.py (municipal result per postal code; sub-municipal in cities with precinct geometry)",
+    "party_diversity_index": "fetch_election_results.py + apply_election_to_geojson.py (municipal result per postal code; sub-municipal in cities with precinct geometry)",
+    "political_lean_index": "fetch_election_results.py + apply_election_to_geojson.py (municipal result per postal code; sub-municipal in cities with precinct geometry)",
+    "party_vote_kok_pct": "fetch_election_results.py + apply_election_to_geojson.py (municipal result per postal code; sub-municipal in cities with precinct geometry)",
+    "party_vote_sdp_pct": "fetch_election_results.py + apply_election_to_geojson.py (municipal result per postal code; sub-municipal in cities with precinct geometry)",
+    "party_vote_ps_pct": "fetch_election_results.py + apply_election_to_geojson.py (municipal result per postal code; sub-municipal in cities with precinct geometry)",
+    "party_vote_kesk_pct": "fetch_election_results.py + apply_election_to_geojson.py (municipal result per postal code; sub-municipal in cities with precinct geometry)",
+    "party_vote_vihr_pct": "fetch_election_results.py + apply_election_to_geojson.py (municipal result per postal code; sub-municipal in cities with precinct geometry)",
+    "party_vote_vas_pct": "fetch_election_results.py + apply_election_to_geojson.py (municipal result per postal code; sub-municipal in cities with precinct geometry)",
+    "party_vote_rkp_pct": "fetch_election_results.py + apply_election_to_geojson.py (municipal result per postal code; sub-municipal in cities with precinct geometry)",
     # CF-21: THL/Kela morbidity index — a municipality figure assigned to each of its
     # postal codes (Sotkanet publishes at municipality granularity only).
     "health_index": "fetch_health_index.py assign_to_postal_codes() (municipality value per postal code)",

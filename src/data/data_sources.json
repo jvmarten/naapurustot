@@ -318,16 +318,72 @@
       "is_proxy": false
     },
     "voter_turnout_pct": {
-      "source": "Tilastokeskus (kuntavaalit)",
+      "source": "Tilastokeskus (eduskuntavaalit 2023)",
       "publisher": "tilastokeskus",
-      "vintage": 2025,
+      "vintage": 2023,
       "granularity": "postal",
       "is_proxy": true
     },
     "party_diversity_index": {
-      "source": "Tilastokeskus (kuntavaalit)",
+      "source": "Tilastokeskus (eduskuntavaalit 2023)",
       "publisher": "tilastokeskus",
-      "vintage": 2025,
+      "vintage": 2023,
+      "granularity": "postal",
+      "is_proxy": true
+    },
+    "political_lean_index": {
+      "source": "Tilastokeskus (eduskuntavaalit 2023)",
+      "publisher": "tilastokeskus",
+      "vintage": 2023,
+      "granularity": "postal",
+      "is_proxy": true
+    },
+    "party_vote_kok_pct": {
+      "source": "Tilastokeskus (eduskuntavaalit 2023)",
+      "publisher": "tilastokeskus",
+      "vintage": 2023,
+      "granularity": "postal",
+      "is_proxy": true
+    },
+    "party_vote_sdp_pct": {
+      "source": "Tilastokeskus (eduskuntavaalit 2023)",
+      "publisher": "tilastokeskus",
+      "vintage": 2023,
+      "granularity": "postal",
+      "is_proxy": true
+    },
+    "party_vote_ps_pct": {
+      "source": "Tilastokeskus (eduskuntavaalit 2023)",
+      "publisher": "tilastokeskus",
+      "vintage": 2023,
+      "granularity": "postal",
+      "is_proxy": true
+    },
+    "party_vote_kesk_pct": {
+      "source": "Tilastokeskus (eduskuntavaalit 2023)",
+      "publisher": "tilastokeskus",
+      "vintage": 2023,
+      "granularity": "postal",
+      "is_proxy": true
+    },
+    "party_vote_vihr_pct": {
+      "source": "Tilastokeskus (eduskuntavaalit 2023)",
+      "publisher": "tilastokeskus",
+      "vintage": 2023,
+      "granularity": "postal",
+      "is_proxy": true
+    },
+    "party_vote_vas_pct": {
+      "source": "Tilastokeskus (eduskuntavaalit 2023)",
+      "publisher": "tilastokeskus",
+      "vintage": 2023,
+      "granularity": "postal",
+      "is_proxy": true
+    },
+    "party_vote_rkp_pct": {
+      "source": "Tilastokeskus (eduskuntavaalit 2023)",
+      "publisher": "tilastokeskus",
+      "vintage": 2023,
       "granularity": "postal",
       "is_proxy": true
     },
