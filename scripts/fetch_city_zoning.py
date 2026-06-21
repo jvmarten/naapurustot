@@ -25,9 +25,13 @@ import re
 import sys
 import urllib.request
 import urllib.parse
+from datetime import datetime, timezone
 from pathlib import Path
 
 OUT = Path(__file__).parent / "planning_raw" / "city_plans.geojson"
+# Stamped with the fetch date so build_planning_data.mjs derives the planning
+# snapshot from real data vintage (deterministic), not the build-time clock.
+SNAPSHOT = Path(__file__).parent / "planning_raw" / "snapshot.txt"
 
 # Finland bbox (WGS84) — any feature whose centroid falls outside is dropped as
 # bad geometry (guards against WFS axis-order surprises). lon 19–32, lat 59–71.
@@ -209,6 +213,10 @@ def main() -> int:
                     "_cities": sorted(cities_ok)}, ensure_ascii=False),
         encoding="utf-8",
     )
+    # Advance the planning snapshot only on a successful fetch, so a failed/empty
+    # run can't push the "tilanne <snapshot>" caption past the data it actually has.
+    if out_features:
+        SNAPSHOT.write_text(datetime.now(timezone.utc).date().isoformat() + "\n", encoding="utf-8")
     print(f"Wrote {len(out_features)} city plan features from {len(cities_ok)} cities "
           f"({', '.join(cities_ok)}) -> {OUT.relative_to(Path.cwd())}")
     return 0 if out_features else 1

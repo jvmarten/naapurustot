@@ -61,6 +61,19 @@ We want the lowest-level data possible. The minimum acceptable granularity is **
 
 **Do not create pull requests.** Push your changes to a `claude/*` branch and let the auto-merge workflow (`.github/workflows/auto-merge.yml`) handle merging to main after CI passes. Never open a PR manually or via API. Note: pushing a second `claude/*` branch cancels an in-flight auto-merge run (shared concurrency group) — serialize or stack branches.
 
+### Post-push: verify the auto-merge run (do this every push)
+
+Pushing is not "done" — the merge only lands if all auto-merge jobs (`security`, `checks`, `e2e`, `lighthouse`, `server`) pass. There is no PR and no webhook for branch-push CI, so you must check the run yourself and drive it to green:
+
+1. **Poll the run.** `mcp__github__actions_list` → `list_workflow_runs` for `auto-merge.yml`, `workflow_runs_filter.branch = <your claude/* branch>`. Read `status`/`conclusion` of the newest run (re-poll until `status: "completed"`).
+2. **`conclusion: "success"`** → the merge landed and the branch was auto-deleted. Done.
+3. **`conclusion: "failure"`** → `mcp__github__get_job_logs` with `run_id`, `failed_only: true`, `return_content: true`. Diagnose, fix on the same branch, re-push, and repeat from step 1 until green (re-pushing the *same* branch is safe; pushing a *different* `claude/*` branch cancels the in-flight run). If a failure is genuinely out of scope or you're stuck after a couple of rounds, stop and report the diagnosis instead of looping.
+
+The container is ephemeral, so verify within the session that produced the push. **Known recurring failure modes:**
+
+- **`security` — `npm audit --audit-level=high`** (run for both frontend and `server/api`): a transitive high-severity advisory. Fix by pinning the offending package in the root `package.json` `overrides` to the first patched version *within its parent's compatible major* (e.g. `"undici": "^7.28.0"` to satisfy jsdom's `^7.x`), then `npm install` and re-check `npm audit --audit-level=high`. Don't jump a major (it can break the parent). Moderate-only advisories don't fail the gate.
+- **`checks` — build:data idempotency gate**: re-running `npm run build:data` must reproduce committed `src/data`/`public/data` byte-for-byte. A diff means a generator is non-deterministic — it must derive any timestamp/vintage from committed source data, never `new Date()`/`Date.now()` (e.g. the planning snapshot is read from `scripts/planning_raw/snapshot.txt`, stamped by the fetch scripts at fetch time). Fix the generator; only commit a regenerated artifact when the source data genuinely changed.
+
 ## Code style
 
 - TypeScript strict mode
