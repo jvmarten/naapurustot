@@ -430,14 +430,17 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       } catch { /* canvas unavailable */ }
       map.resize();
       // Reframe the initial bounds-based target to the actual (now-resized) viewport.
-      // The constructor positioned the first frame with the preset center+zoom — tuned
-      // for desktop — and the flyTo effect skips this mount-time target to avoid a
-      // fly-out flash. On a narrow mobile screen that static zoom crops the region (the
-      // all-Finland default no longer shows the whole country), so jump-fit it here.
-      // Runs after resize() so dimensions are correct — no cold-load stretch race.
+      // The constructor positioned the first frame with the preset center+zoom, but a
+      // static zoom doesn't adapt to the viewport: the all-Finland default landed too
+      // zoomed-in on desktop (cropping the country's margins) and cropped the region
+      // outright on narrow mobile. Jump-fit to the bounds here so the first frame matches
+      // the bounds-fit the logo/city reset produces — same padding as the flyTo effect.
+      // The historical fly-out flash came from an *animated* fit off the Helsinki preset;
+      // duration:0 after resize() is an instant snap, so no flash and no cold-load stretch.
       const initTarget = initialFlyToRef.current;
-      if (isFirstMountRef.current && initTarget?.bounds && window.innerWidth < MOBILE_BREAKPOINT) {
-        map.fitBounds(initTarget.bounds, { padding: 40, duration: 0, maxZoom: FIT_MAX_ZOOM });
+      if (isFirstMountRef.current && initTarget?.bounds) {
+        const isMobile = window.innerWidth < MOBILE_BREAKPOINT;
+        map.fitBounds(initTarget.bounds, { padding: isMobile ? 40 : 80, duration: 0, maxZoom: FIT_MAX_ZOOM });
       }
       // After paint, double-check dimensions in case layout was still settling.
       requestAnimationFrame(() => requestAnimationFrame(verifySize));
