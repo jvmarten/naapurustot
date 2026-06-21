@@ -19,6 +19,7 @@ limit=10000 request fetches it whole. Output is committed so the node builder in
 import json
 import sys
 import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
 
 BASE = "https://avoinapi.vaylapilvi.fi/vaylatiedot/ogc/features/v1"
@@ -31,6 +32,9 @@ COLLECTIONS = {
 }
 
 OUT = Path(__file__).parent / "planning_raw" / "vayla_projects.geojson"
+# Stamped with the fetch date so build_planning_data.mjs derives the planning
+# snapshot from real data vintage (deterministic), not the build-time clock.
+SNAPSHOT = Path(__file__).parent / "planning_raw" / "snapshot.txt"
 FALLBACK_URL = "https://vayla.fi/hankkeet"
 
 
@@ -100,6 +104,10 @@ def main() -> int:
         json.dumps({"type": "FeatureCollection", "features": out_features}, ensure_ascii=False),
         encoding="utf-8",
     )
+    # Advance the planning snapshot only on a successful fetch, so a failed/empty
+    # run can't push the "tilanne <snapshot>" caption past the data it actually has.
+    if out_features:
+        SNAPSHOT.write_text(datetime.now(timezone.utc).date().isoformat() + "\n", encoding="utf-8")
     print(f"Wrote {len(out_features)} Väylä project features -> {OUT.relative_to(Path.cwd())}")
     return 0 if out_features else 1
 

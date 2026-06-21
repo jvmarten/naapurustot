@@ -37,6 +37,7 @@ const PLANS_SHARD_DIR = resolve(ROOT, 'public', 'data', 'planning_plans_shards')
 const AREA_SHARD_DIR = resolve(ROOT, 'public', 'data', 'planning_area_shards');
 const AREA_PLANNING_OUT = resolve(ROOT, 'scripts', 'area_planning.json');
 const MANIFEST_OUT = resolve(ROOT, 'src', 'data', 'planning_manifest.json');
+const SNAPSHOT_FILE = resolve(RAW_DIR, 'snapshot.txt');
 
 const MAX_ENTRIES_PER_PNO = 12;
 
@@ -195,8 +196,14 @@ for (const [region, map] of Object.entries(areaByRegion).sort()) {
 }
 
 // ── manifest ─────────────────────────────────────────────────────────────────
-// Snapshot date drives the honest "tilanne <snapshot>" coverage caption.
-const snapshot = new Date().toISOString().slice(0, 10);
+// Snapshot date drives the honest "tilanne <snapshot>" coverage caption. Read it
+// from the committed file the fetch scripts stamp at fetch time — NOT the build
+// clock — so re-running build:data on a later day reproduces byte-identical
+// artifacts (the IN-5 idempotency gate). Falls back to today only if the file is
+// absent (a brand-new source added before its first fetch stamps it).
+const snapshot = existsSync(SNAPSHOT_FILE)
+  ? readFileSync(SNAPSHOT_FILE, 'utf-8').trim()
+  : new Date().toISOString().slice(0, 10);
 const manifest = {
   snapshot,
   projects: {
