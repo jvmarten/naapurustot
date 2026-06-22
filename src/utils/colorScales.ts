@@ -12,6 +12,7 @@ export type LayerId =
   | 'unemployment'
   | 'education'
   | 'foreign_lang'
+  | 'foreign_lang_municipal'
   | 'avg_age'
   | 'pensioners'
   | 'ownership'
@@ -249,6 +250,19 @@ export const LAYERS: LayerConfig[] = [
     id: 'foreign_lang',
     labelKey: 'layer.foreign_lang',
     property: 'foreign_language_pct',
+    unit: '%',
+    colors: ['#f0f0f0', '#d4b9da', '#c994c7', '#df65b0', '#e7298a', '#ce1256', '#980043', '#67001f'],
+    stops: [2, 5, 10, 15, 20, 25, 35, 50],
+    format: pct,
+  },
+  // Municipal foreign-language share (StatFin vaerak 159t) assigned to each postal
+  // code (is_proxy) — a more recent (2025) companion to foreign_lang, whose only
+  // open postal-code source is 2020. Same palette/stops so the two are directly
+  // comparable; the municipal value is uniform across a city's postal codes.
+  {
+    id: 'foreign_lang_municipal',
+    labelKey: 'layer.foreign_lang_municipal',
+    property: 'foreign_language_municipal_pct',
     unit: '%',
     colors: ['#f0f0f0', '#d4b9da', '#c994c7', '#df65b0', '#e7298a', '#ce1256', '#980043', '#67001f'],
     stops: [2, 5, 10, 15, 20, 25, 35, 50],

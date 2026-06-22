@@ -1,6 +1,6 @@
 {
-  "generated": "2026-06-17T08:30:56.723Z",
-  "source_hash": "933d6b23d1cc981c",
+  "generated": "2026-06-22T12:18:17.293Z",
+  "source_hash": "b94cf70a6c52da55",
   "rows_total": 3018,
   "metrics": {
     "active_plan_count": {
@@ -138,6 +138,14 @@
       "is_proxy": false,
       "row_count": 1532,
       "coverage_pct": 50.8
+    },
+    "foreign_language_municipal_pct": {
+      "source": "Tilastokeskus (Väestörakenne, vaerak 159t)",
+      "vintage": 2025,
+      "granularity": "postal",
+      "is_proxy": true,
+      "row_count": 3018,
+      "coverage_pct": 100
     },
     "foreign_language_pct": {
       "source": "Tilastokeskus",
