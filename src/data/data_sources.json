@@ -176,6 +176,13 @@
       "granularity": "postal",
       "is_proxy": false
     },
+    "foreign_language_municipal_pct": {
+      "source": "Tilastokeskus (Väestörakenne, vaerak 159t)",
+      "publisher": "tilastokeskus",
+      "vintage": 2025,
+      "granularity": "postal",
+      "is_proxy": true
+    },
     "population_density": {
       "source": "Tilastokeskus (Paavo)",
       "publisher": "tilastokeskus",

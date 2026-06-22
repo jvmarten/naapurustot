@@ -93,6 +93,10 @@ export interface NeighborhoodProperties {
   higher_education_rate: number | null;
   pensioner_share: number | null;
   foreign_language_pct: number | null;
+  /** Municipal foreign-language share (StatFin vaerak 159t, latest year) assigned
+   *  to each postal code — is_proxy; a more recent companion to the 2020 postal
+   *  foreign_language_pct. Optional (absent in legacy fixtures). */
+  foreign_language_municipal_pct?: number | null;
   quality_index: number | null;
   /** CF-8: per-dimension Quality Index sub-scores (0–100), keyed by DimensionId.
    *  Populated alongside quality_index in computeQualityIndices; absent until then. */
@@ -485,6 +489,7 @@ export interface MetricSource {
 export const METRIC_EXPLANATIONS: ReadonlySet<string> = new Set([
   'he_vakiy', 'hr_mtu', 'hr_ktu', 'unemployment_rate', 'employment_rate',
   'higher_education_rate', 'property_price_sqm', 'foreign_language_pct',
+  'foreign_language_municipal_pct',
   'population_density', 'child_ratio', 'student_share', 'single_person_hh_pct',
   'youth_ratio_pct', 'elderly_ratio_pct', 'gender_ratio', 'avg_household_size',
   'single_parent_hh_pct', 'families_with_children_pct', 'ownership_rate',
@@ -739,6 +744,9 @@ const METRIC_DEFS: MetricDef[] = [
 
   // Demographics
   { property: 'foreign_language_pct', weight: 'population', precision: 1, pctOfPop: true },
+  // Municipal foreign-language share (StatFin 159t) distributed to postal codes
+  // (is_proxy). Same population-weighted treatment as the postal layer above.
+  { property: 'foreign_language_municipal_pct', weight: 'population', precision: 1, pctOfPop: true },
   { property: 'single_person_hh_pct', weight: 'household', precision: 1, pctOfHh: true },
 
   // Mobility

@@ -73,6 +73,7 @@ PERCENTAGE_FIELDS = [
     "student_share",
     "detached_house_share",
     "foreign_language_pct",
+    "foreign_language_municipal_pct",
     "voter_turnout_pct",
     "tree_canopy_pct",
     "single_person_hh_pct",
@@ -364,6 +365,10 @@ MUNICIPALITY_DISTRIBUTED_PROXIES = {
     # counts at municipality granularity only; each postal code inherits its
     # municipality's new-dwellings-per-1,000-residents rate.
     "construction_activity": "fetch_construction_permits.py assign_to_postal_codes() (municipality value per postal code)",
+    # StatFin Väestörakenne (vaerak 159t) publishes the share of foreign-language
+    # speakers at municipality granularity only; each postal code inherits its
+    # municipality's share. Recent companion to the 2020 postal foreign_language_pct.
+    "foreign_language_municipal_pct": "fetch_foreign_language_municipal.py + apply_foreign_language_municipal_to_geojson.py (municipal share per postal code)",
     # CF-15: asvu 15fa publishes rents at city/maakunta level; distributed to postal
     # codes by replaying the 2022 intra-city ratios. price_to_rent_ratio inherits it.
     "rental_price_sqm": "fetch_rental_prices_municipality.py (city mean × 2022 intra-city ratio per postal code)",
