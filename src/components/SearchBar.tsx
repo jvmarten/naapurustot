@@ -47,9 +47,6 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  // Read breakpoint once at mount instead of calling window.innerWidth on every render
-  // (which can trigger layout reflow in some browsers).
-  const isMobileRef = useRef(typeof window !== 'undefined' && window.innerWidth < 768);
 
   // CF-1: Address geocoding state
   const [addressResults, setAddressResults] = useState<GeocodeResult[]>([]);
@@ -315,6 +312,8 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
         </div>
+        {/* SN-2: keep the visible placeholder short ("Search area…") so it never clips in the
+            narrow field; the aria-label below still carries the fuller address/postal-code wording. */}
         <input
           ref={inputRef}
           type="text"
@@ -333,7 +332,7 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
           }}
           onFocus={() => setIsOpen(true)}
           onKeyDown={handleKeyDown}
-          placeholder={isMobileRef.current ? t('search.placeholder_short') : t(GEOCODING_ENABLED ? 'search.address_placeholder' : 'search.placeholder')}
+          placeholder={t('search.placeholder_short')}
           className="w-full rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40
                      pl-10 pr-8 py-1.5 md:py-2.5 text-sm md:text-sm text-surface-900 dark:text-white placeholder-surface-400 dark:placeholder-surface-500
                      focus:outline-none focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/30
