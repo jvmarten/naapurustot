@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import maplibregl from 'maplibre-gl';
 import { prefersReducedMotion } from '../hooks/useReducedMotion';
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -1041,35 +1041,40 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   const wizardHighlightPnosRef = useRef(wizardHighlightPnos);
   wizardHighlightPnosRef.current = wizardHighlightPnos;
 
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !data) return;
-    if (!map.getLayer(FILL_LAYER)) return;
-
-    const layer = layerConfig ?? getLayerById(activeLayer);
-    const useGrid = !!gridData && !!layer.gridProperty;
-
-    if (useGrid) {
-      map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacityFadeOut(fillOpacity));
+  // Apply the correct "resting" fill-opacity for the current render mode — grid
+  // fade-out, filter dim, wizard dim, or plain — reading live slider/state values
+  // from refs. Shared by the opacity-slider effect and the layer-transition
+  // effect's interrupted-dip restore so the two never drift out of sync.
+  const applyRestingFillOpacity = useCallback((map: maplibregl.Map, layer: LayerConfig) => {
+    const o = fillOpacityRef.current;
+    if (gridDataRef.current && layer.gridProperty) {
+      map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacityFadeOut(o));
       if (map.getLayer(GRID_FILL_LAYER)) {
-        map.setPaintProperty(GRID_FILL_LAYER, 'fill-opacity', buildGridFillOpacity(fillOpacity));
+        map.setPaintProperty(GRID_FILL_LAYER, 'fill-opacity', buildGridFillOpacity(o));
       }
     } else if (filterActiveRef.current && filterMatchPnoArrayRef.current.length > 0) {
-      map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(fillOpacity, {
+      map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(o, {
         matchExpr: ['in', ['get', 'pno'], ['literal', filterMatchPnoArrayRef.current]],
         matchVal: 0.8,
         dimVal: 0.15,
       }));
     } else if (wizardHighlightPnosRef.current.length > 0) {
-      map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(fillOpacity, {
+      map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(o, {
         matchExpr: ['in', ['get', 'pno'], ['literal', wizardHighlightPnosRef.current]],
         matchVal: 0.8,
         dimVal: 0.2,
       }));
     } else {
-      map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(fillOpacity));
+      map.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacity(o));
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- filter/wizard state read from refs
+  }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !data) return;
+    if (!map.getLayer(FILL_LAYER)) return;
+    applyRestingFillOpacity(map, layerConfig ?? getLayerById(activeLayer));
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- layer/filter/wizard/grid state read from refs
   }, [fillOpacity]);
 
   // PO-2: Smoothly transition fill color when active layer or colorblind mode changes.
@@ -1082,6 +1087,15 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     const layer = layerConfig ?? getLayerById(activeLayer);
     const isLayerSwitch = prevActiveLayerRef.current !== null && prevActiveLayerRef.current !== activeLayer;
     prevActiveLayerRef.current = activeLayer;
+
+    // PO-2: a layer-switch dip (below) lowers fill-opacity to DIP_OPACITY and relies
+    // on layerTransitionRef's timer to fade it back in. If that timer is still
+    // pending when this effect re-runs, clearing it below would strand the
+    // choropleth at DIP_OPACITY. This happens every time a time-series layer is
+    // selected: the slider auto-snaps to the latest year, re-running this effect as
+    // a non-layer-switch before the dip's fade-back-in fires. Track it so the else
+    // branch can restore the resting opacity instead of leaving the map faded.
+    const dipInterrupted = layerTransitionRef.current !== null;
 
     // Clear any in-flight transition from a previous rapid switch
     if (layerTransitionRef.current) {
@@ -1189,6 +1203,27 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       // Initial render or colorblind toggle — apply immediately (no fade). Also the
       // path when only priceFallbackValue changed (same active layer): recolor at once.
       map.setPaintProperty(FILL_LAYER, 'fill-color', buildFillColorExpression(layer, undefined, fillFallbackColor(layer)));
+      if (dipInterrupted) {
+        // We just cancelled an in-flight layer-switch dip, so fill-opacity is stuck
+        // at DIP_OPACITY with no timer left to fade it back in. Restore the resting
+        // opacity (with a short transition) so the choropleth doesn't stay faded —
+        // PO-2 time-series layers reach here on every selection.
+        map.setPaintProperty(FILL_LAYER, 'fill-opacity-transition', { duration: 200, delay: 0 });
+        if (map.getLayer(GRID_FILL_LAYER)) {
+          map.setPaintProperty(GRID_FILL_LAYER, 'fill-opacity-transition', { duration: 200, delay: 0 });
+        }
+        applyRestingFillOpacity(map, layer);
+        // Return the transition to its default once the fade-in completes (mirrors
+        // the dip's own reset), so later opacity changes animate at the normal rate.
+        layerTransitionResetRef.current = setTimeout(() => {
+          layerTransitionResetRef.current = null;
+          if (!mapRef.current || !mapRef.current.getLayer(FILL_LAYER)) return;
+          mapRef.current.setPaintProperty(FILL_LAYER, 'fill-opacity-transition', { duration: 300, delay: 0 });
+          if (mapRef.current.getLayer(GRID_FILL_LAYER)) {
+            mapRef.current.setPaintProperty(GRID_FILL_LAYER, 'fill-opacity-transition', { duration: 300, delay: 0 });
+          }
+        }, 250);
+      }
     }
 
     return () => {
