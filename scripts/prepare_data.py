@@ -85,12 +85,13 @@ LANG_URL = (
 # Source: Statistics Finland via OKM (Ministry of Education), 2020 data
 FOREIGN_LANG_FILE = Path(__file__).parent / "foreign_language_pct.json"
 
-# Municipal foreign-language share (StatFin Väestörakenne, vaerak 159t): the
-# latest "share of foreign-language speakers, %" per municipality, assigned to
-# each postal code (is_proxy). A more recent (2025) companion to the postal-code
-# 2020 file above — StatFin publishes language no finer than municipality.
-# Snapshot produced by fetch_foreign_language_municipal.py.
-FOREIGN_LANG_MUNICIPAL_FILE = Path(__file__).parent / "foreign_language_municipal.json"
+# Per-postal foreign-language time series (2020..latest), is_proxy for years after
+# 2020: the real 2020 postal distribution (file above) scaled per municipality by
+# the StatFin vaerak 159t municipal share change. 2020 is real; later years are an
+# estimate (StatFin publishes no postal-code language data after the 2020 extract).
+# Snapshot {pno: [[year, value], ...]} produced by fetch_foreign_language_municipal.py
+# + apply_foreign_language_municipal_to_geojson.py.
+FOREIGN_LANG_HISTORY_FILE = Path(__file__).parent / "foreign_language_history.json"
 
 # Postal-code-level crime index (reported crimes per 1,000 residents)
 # Source: Finnish Police (Poliisi) open data
@@ -755,6 +756,46 @@ def join_foreign_language(gdf, lang_data):
         gdf.at[idx, "foreign_language_pct"] = float(pct) if pct is not None else None
 
     matched = gdf["foreign_language_pct"].notna().sum()
+    logger.info("  Matched %s/%s postal codes", matched, len(gdf))
+    return gdf
+
+
+def join_foreign_language_history(gdf):
+    """Join the per-postal foreign-language time series (2020..latest) and refresh
+    the scalar snapshot to its latest year.
+
+    Reads the committed scripts/foreign_language_history.json
+    ({pno: [[year, value], ...]}) — 2020 is real postal data, later years are an
+    is_proxy estimate (2020 distribution scaled by the municipal share change; see
+    apply_foreign_language_municipal_to_geojson.py). Sets:
+      foreign_language_history        JSON-encoded [[year, value], ...]
+      foreign_language_municipal_pct  the latest year's value (scalar snapshot,
+                                      per the project convention snapshot == last
+                                      history point).
+    """
+    gdf["foreign_language_history"] = None
+    if "foreign_language_municipal_pct" not in gdf.columns:
+        gdf["foreign_language_municipal_pct"] = None
+
+    if not FOREIGN_LANG_HISTORY_FILE.exists():
+        logger.warning(" %s not found", FOREIGN_LANG_HISTORY_FILE)
+        return gdf
+
+    with open(FOREIGN_LANG_HISTORY_FILE, encoding="utf-8") as f:
+        history = json.load(f)
+    logger.info("Joining foreign-language history (%d postal codes)...", len(history))
+
+    matched = 0
+    for idx, row in gdf.iterrows():
+        pno = row.get("pno", "") or row.get("postinumeroalue", "")
+        series = history.get(pno)
+        if series and len(series) >= 2:
+            gdf.at[idx, "foreign_language_history"] = json.dumps(series)
+            gdf.at[idx, "foreign_language_municipal_pct"] = float(series[-1][1])
+            matched += 1
+        else:
+            gdf.at[idx, "foreign_language_municipal_pct"] = None
+
     logger.info("  Matched %s/%s postal codes", matched, len(gdf))
     return gdf
 
@@ -2561,12 +2602,10 @@ def main():
     lang_data = load_foreign_language()
     gdf = join_foreign_language(gdf, lang_data)
 
-    # Municipal foreign-language share (StatFin vaerak 159t, latest year assigned
-    # to each postal code, is_proxy) — recent companion to the 2020 postal layer.
-    gdf = _join_pno_value(
-        gdf, _load_pno_json(FOREIGN_LANG_MUNICIPAL_FILE, "foreign language (municipal)"),
-        "foreign_language_municipal_pct",
-    )
+    # Per-postal foreign-language time series (2020 real + later-year estimate
+    # scaled by the StatFin vaerak 159t municipal share change, is_proxy). Sets
+    # both foreign_language_history and the foreign_language_municipal_pct snapshot.
+    gdf = join_foreign_language_history(gdf)
 
     crime_data = load_crime_index()
     gdf = join_crime_index(gdf, crime_data)
@@ -2723,7 +2762,8 @@ def main():
         "healthcare_density", "restaurant_density", "grocery_density",
         "cycling_density",
         # File-based
-        "foreign_language_pct", "foreign_language_municipal_pct", "crime_index",
+        "foreign_language_pct", "foreign_language_municipal_pct",
+        "foreign_language_history", "crime_index",
         # Phase 4: historical time-series
         "income_history", "population_history", "unemployment_history",
         # Phase 7: new data sources

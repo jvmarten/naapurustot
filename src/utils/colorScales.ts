@@ -102,6 +102,10 @@ export const TIME_SERIES_LAYERS: Partial<Record<LayerId, string>> = {
   // CF-7: property prices (€/m²) and crime (per 1,000) now carry a real year series.
   property_price: 'property_price_history',
   crime_rate: 'crime_index_history',
+  // Foreign-language estimate: 2020 is real postal data, 2021- is an is_proxy
+  // estimate (2020 distribution scaled by the municipal share change). Scrub the
+  // slider to compare years; the dedicated foreign_lang layer stays real-2020-only.
+  foreign_lang_municipal: 'foreign_language_history',
 };
 
 /**
@@ -255,10 +259,12 @@ export const LAYERS: LayerConfig[] = [
     stops: [2, 5, 10, 15, 20, 25, 35, 50],
     format: pct,
   },
-  // Municipal foreign-language share (StatFin vaerak 159t) assigned to each postal
-  // code (is_proxy) — a more recent (2025) companion to foreign_lang, whose only
-  // open postal-code source is 2020. Same palette/stops so the two are directly
-  // comparable; the municipal value is uniform across a city's postal codes.
+  // Foreign-language estimate over time (is_proxy). The scalar property holds the
+  // latest year; foreign_language_history carries [[2020, real], [2021, est], ...]
+  // for the time slider. 2020 is the real postal layer (foreign_lang) scaled per
+  // municipality by the StatFin vaerak 159t share change for later years — open
+  // postal-code language data exists only for 2020. Same palette/stops as
+  // foreign_lang so the real-2020 and estimate layers are directly comparable.
   {
     id: 'foreign_lang_municipal',
     labelKey: 'layer.foreign_lang_municipal',

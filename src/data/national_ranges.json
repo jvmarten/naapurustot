@@ -876,9 +876,9 @@
       "avg": 5.027785663591202
     },
     "foreign_language_municipal_pct": {
-      "min": 1.6,
-      "max": 25.9,
-      "avg": 6.854373757455273
+      "min": 0,
+      "max": 28,
+      "avg": 5.417527490836401
     },
     "traffic_accident_rate": {
       "min": 0.1,
