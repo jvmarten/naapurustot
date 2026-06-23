@@ -762,39 +762,8 @@ function collectSections(props) {
   return { sections: out, count };
 }
 
-// CF-4: "next steps" outbound links (mirrors src/utils/nextSteps.ts — the .mjs
-// can't import the TS util, so the small URL logic is replicated here). Labels are
-// inline per-language (no locale-file dependency / bundle cost).
-const NEXTSTEPS_LABELS = {
-  fi: { heading: 'Seuraavat askeleet', buy: 'Myytävät asunnot', rent: 'Vuokra-asunnot', visit: 'Suunnittele käynti' },
-  en: { heading: 'Next steps', buy: 'Homes for sale', rent: 'Rental homes', visit: 'Plan a visit' },
-  sv: { heading: 'Nästa steg', buy: 'Bostäder till salu', rent: 'Hyresbostäder', visit: 'Planera ett besök' },
-};
-function nextStepsCitySlug(name) {
-  return name.toLowerCase().replace(/ä/g, 'a').replace(/ö/g, 'o').replace(/å/g, 'a')
-    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-}
-function buildNextStepsHtml(props, lang) {
-  const L = NEXTSTEPS_LABELS[lang] || NEXTSTEPS_LABELS.fi;
-  const muni = (props.municipality || '').trim();
-  const links = [];
-  if (muni) {
-    const slug = nextStepsCitySlug(muni);
-    if (slug) {
-      links.push(`<a href="https://asunnot.oikotie.fi/myytavat-asunnot/${encodeURIComponent(slug)}" rel="noopener nofollow">${escapeHtml(L.buy)}</a>`);
-      links.push(`<a href="https://www.vuokraovi.com/vuokra-asunnot/${encodeURIComponent(muni)}" rel="noopener nofollow">${escapeHtml(L.rent)}</a>`);
-    }
-  }
-  if (typeof props.lat === 'number' && typeof props.lon === 'number') {
-    const label = encodeURIComponent(props.nimi || muni || '');
-    links.push(`<a href="https://opas.matka.fi/?to=${label}::${props.lat},${props.lon}" rel="noopener nofollow">${escapeHtml(L.visit)}</a>`);
-  }
-  if (links.length === 0) return null;
-  return `      <h2>${escapeHtml(L.heading)}</h2>\n      <p>${links.join(' · ')}</p>`;
-}
-
-// CF-1: kaavat & hankkeet ("planning & projects nearby"). Inline FI/EN/SV like
-// NEXTSTEPS_LABELS (no locale-file / bundle cost). Entries come from
+// CF-1: kaavat & hankkeet ("planning & projects nearby"). Inline FI/EN/SV
+// (no locale-file / bundle cost). Entries come from
 // area_planning.json: {name, kind, ptype, subtype, status, date, url, source}.
 // Coverage is honestly partial — national for state Väylä projects, participating
 // cities only for municipal vireillä asemakaava — framed as a migration phase
@@ -902,9 +871,6 @@ function buildNoscriptContent(props, lang) {
       lines.push(`      <p>${escapeHtml(a)}</p>`);
     }
   }
-
-  const nextStepsHtml = buildNextStepsHtml(props, lang);
-  if (nextStepsHtml) lines.push(nextStepsHtml);
 
   // CF-1: kaavat & hankkeet lähistöllä (national Väylä projects + participating-
   // city vireillä asemakaava). Omitted for areas with no entry.
