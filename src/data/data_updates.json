@@ -3,6 +3,14 @@
     "date": "2026-06-23",
     "metric": "foreign_language_municipal_pct",
     "type": "coverage",
+    "from": 99.4,
+    "to": 100,
+    "title": "foreign_language_municipal_pct coverage changed to 100%"
+  },
+  {
+    "date": "2026-06-23",
+    "metric": "foreign_language_municipal_pct",
+    "type": "coverage",
     "from": 100,
     "to": 99.4,
     "title": "foreign_language_municipal_pct coverage changed to 99.4%"

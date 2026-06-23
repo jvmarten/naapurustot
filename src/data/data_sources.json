@@ -177,12 +177,20 @@
       "is_proxy": false
     },
     "foreign_language_municipal_pct": {
-      "source": "Tilastokeskus (2020 postinumerotaso + Väestörakenne vaerak 159t)",
+      "source": "Tilastokeskus (Väestörakenne, vaerak 159t)",
       "publisher": "tilastokeskus",
       "vintage": 2025,
       "granularity": "postal",
       "is_proxy": true,
       "note": "note.foreign_language_municipal"
+    },
+    "foreign_language_est_pct": {
+      "source": "Tilastokeskus (2020 postinumerotaso + Väestörakenne vaerak 159t)",
+      "publisher": "tilastokeskus",
+      "vintage": 2025,
+      "granularity": "postal",
+      "is_proxy": true,
+      "note": "note.foreign_language_estimate"
     },
     "population_density": {
       "source": "Tilastokeskus (Paavo)",
