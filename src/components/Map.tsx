@@ -1088,16 +1088,10 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     const isLayerSwitch = prevActiveLayerRef.current !== null && prevActiveLayerRef.current !== activeLayer;
     prevActiveLayerRef.current = activeLayer;
 
-    // PO-2: a layer-switch dip (below) lowers fill-opacity to DIP_OPACITY and relies
-    // on layerTransitionRef's timer to fade it back in. If that timer is still
-    // pending when this effect re-runs, clearing it below would strand the
-    // choropleth at DIP_OPACITY. This happens every time a time-series layer is
-    // selected: the slider auto-snaps to the latest year, re-running this effect as
-    // a non-layer-switch before the dip's fade-back-in fires. Track it so the else
-    // branch can restore the resting opacity instead of leaving the map faded.
-    const dipInterrupted = layerTransitionRef.current !== null;
-
-    // Clear any in-flight transition from a previous rapid switch
+    // Clear any in-flight transition from a previous rapid switch. NOTE: this can
+    // cancel a layer-switch dip's pending fade-back-in timer (below), which would
+    // strand fill-opacity at DIP_OPACITY. The else branch guards against that by
+    // always re-asserting the resting opacity — see there.
     if (layerTransitionRef.current) {
       clearTimeout(layerTransitionRef.current);
       layerTransitionRef.current = null;
@@ -1200,30 +1194,22 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         }, 250);
       }, 150);
     } else {
-      // Initial render or colorblind toggle — apply immediately (no fade). Also the
-      // path when only priceFallbackValue changed (same active layer): recolor at once.
+      // Same active layer; only its config changed — colorblind toggle, price
+      // fallback, or (critically) the PO-2 time-series auto-snap-to-latest-year that
+      // fires immediately after a time-series layer is (re)selected. Recolor at once.
       map.setPaintProperty(FILL_LAYER, 'fill-color', buildFillColorExpression(layer, undefined, fillFallbackColor(layer)));
-      if (dipInterrupted) {
-        // We just cancelled an in-flight layer-switch dip, so fill-opacity is stuck
-        // at DIP_OPACITY with no timer left to fade it back in. Restore the resting
-        // opacity (with a short transition) so the choropleth doesn't stay faded —
-        // PO-2 time-series layers reach here on every selection.
-        map.setPaintProperty(FILL_LAYER, 'fill-opacity-transition', { duration: 200, delay: 0 });
-        if (map.getLayer(GRID_FILL_LAYER)) {
-          map.setPaintProperty(GRID_FILL_LAYER, 'fill-opacity-transition', { duration: 200, delay: 0 });
-        }
-        applyRestingFillOpacity(map, layer);
-        // Return the transition to its default once the fade-in completes (mirrors
-        // the dip's own reset), so later opacity changes animate at the normal rate.
-        layerTransitionResetRef.current = setTimeout(() => {
-          layerTransitionResetRef.current = null;
-          if (!mapRef.current || !mapRef.current.getLayer(FILL_LAYER)) return;
-          mapRef.current.setPaintProperty(FILL_LAYER, 'fill-opacity-transition', { duration: 300, delay: 0 });
-          if (mapRef.current.getLayer(GRID_FILL_LAYER)) {
-            mapRef.current.setPaintProperty(GRID_FILL_LAYER, 'fill-opacity-transition', { duration: 300, delay: 0 });
-          }
-        }, 250);
+      // Always re-assert the resting opacity here. A layer-switch dip may have set
+      // fill-opacity to DIP_OPACITY and had its fade-back-in timer cancelled by this
+      // very re-run (the year auto-snap is the LAST transition this effect runs for a
+      // time-series selection, and it always lands here) — without this the choropleth
+      // stays faded. Restoring is idempotent when opacity is already at rest, and the
+      // resting-default transition keeps the rare 0.35 -> full case a smooth fade
+      // rather than a snap. Fixes the faded map on every time-series (re)selection.
+      map.setPaintProperty(FILL_LAYER, 'fill-opacity-transition', { duration: 300, delay: 0 });
+      if (map.getLayer(GRID_FILL_LAYER)) {
+        map.setPaintProperty(GRID_FILL_LAYER, 'fill-opacity-transition', { duration: 300, delay: 0 });
       }
+      applyRestingFillOpacity(map, layer);
     }
 
     return () => {
