@@ -1,6 +1,6 @@
 {
-  "generated": "2026-06-23T09:22:00.360Z",
-  "source_hash": "bf39d0bd02c23d38",
+  "generated": "2026-06-23T12:17:50.402Z",
+  "source_hash": "05f383b30350c586",
   "rows_total": 3018,
   "metrics": {
     "active_plan_count": {
@@ -139,13 +139,21 @@
       "row_count": 1532,
       "coverage_pct": 50.8
     },
-    "foreign_language_municipal_pct": {
+    "foreign_language_est_pct": {
       "source": "Tilastokeskus (2020 postinumerotaso + Väestörakenne vaerak 159t)",
       "vintage": 2025,
       "granularity": "postal",
       "is_proxy": true,
       "row_count": 3001,
       "coverage_pct": 99.4
+    },
+    "foreign_language_municipal_pct": {
+      "source": "Tilastokeskus (Väestörakenne, vaerak 159t)",
+      "vintage": 2025,
+      "granularity": "postal",
+      "is_proxy": true,
+      "row_count": 3018,
+      "coverage_pct": 100
     },
     "foreign_language_pct": {
       "source": "Tilastokeskus",

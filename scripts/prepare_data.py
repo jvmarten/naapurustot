@@ -85,10 +85,17 @@ LANG_URL = (
 # Source: Statistics Finland via OKM (Ministry of Education), 2020 data
 FOREIGN_LANG_FILE = Path(__file__).parent / "foreign_language_pct.json"
 
-# Per-postal foreign-language time series (2020..latest), is_proxy for years after
-# 2020: the real 2020 postal distribution (file above) scaled per municipality by
-# the StatFin vaerak 159t municipal share change. 2020 is real; later years are an
-# estimate (StatFin publishes no postal-code language data after the 2020 extract).
+# Municipal foreign-language share series (StatFin Väestörakenne, vaerak 159t):
+# {kunta: {year: share%}}, 2020..latest. The latest year is assigned flat to every
+# postal code of the municipality (foreign_language_municipal_pct, is_proxy — a real
+# municipal figure shown at a finer granularity). Snapshot by
+# fetch_foreign_language_municipal.py.
+FOREIGN_LANG_MUNICIPAL_FILE = Path(__file__).parent / "foreign_language_municipal.json"
+
+# Per-postal foreign-language ESTIMATE time series (2020..latest), is_proxy for years
+# after 2020: the real 2020 postal distribution (foreign_language_pct) scaled per
+# municipality by the vaerak 159t municipal share change. 2020 is real; later years
+# are an estimate (StatFin publishes no postal-code language data after 2020).
 # Snapshot {pno: [[year, value], ...]} produced by fetch_foreign_language_municipal.py
 # + apply_foreign_language_municipal_to_geojson.py.
 FOREIGN_LANG_HISTORY_FILE = Path(__file__).parent / "foreign_language_history.json"
@@ -760,22 +767,53 @@ def join_foreign_language(gdf, lang_data):
     return gdf
 
 
+def join_foreign_language_municipal(gdf):
+    """Join the real LATEST-year municipal foreign-language share, flat across every
+    postal code of the municipality (foreign_language_municipal_pct, is_proxy).
+
+    Reads scripts/foreign_language_municipal.json ({kunta: {year: share%}}, vaerak
+    159t) and assigns each postal code its municipality's latest-year share.
+    """
+    gdf["foreign_language_municipal_pct"] = None
+    if not FOREIGN_LANG_MUNICIPAL_FILE.exists():
+        logger.warning(" %s not found", FOREIGN_LANG_MUNICIPAL_FILE)
+        return gdf
+
+    with open(FOREIGN_LANG_MUNICIPAL_FILE, encoding="utf-8") as f:
+        muni_series = json.load(f)
+    years = {int(y) for vals in muni_series.values() for y in vals}
+    if not years:
+        logger.warning("  municipal series carries no years")
+        return gdf
+    latest = str(max(years))
+    logger.info("Joining municipal foreign-language share (latest year %s)...", latest)
+
+    matched = 0
+    for idx, row in gdf.iterrows():
+        kunta = str(row.get("kunta", "") or "").zfill(3)
+        val = muni_series.get(kunta, {}).get(latest)
+        if val is not None:
+            gdf.at[idx, "foreign_language_municipal_pct"] = float(val)
+            matched += 1
+
+    logger.info("  Matched %s/%s postal codes", matched, len(gdf))
+    return gdf
+
+
 def join_foreign_language_history(gdf):
-    """Join the per-postal foreign-language time series (2020..latest) and refresh
-    the scalar snapshot to its latest year.
+    """Join the per-postal foreign-language ESTIMATE time series (2020..latest) and
+    its latest-year scalar.
 
     Reads the committed scripts/foreign_language_history.json
     ({pno: [[year, value], ...]}) — 2020 is real postal data, later years are an
     is_proxy estimate (2020 distribution scaled by the municipal share change; see
     apply_foreign_language_municipal_to_geojson.py). Sets:
-      foreign_language_history        JSON-encoded [[year, value], ...]
-      foreign_language_municipal_pct  the latest year's value (scalar snapshot,
-                                      per the project convention snapshot == last
-                                      history point).
+      foreign_language_history   JSON-encoded [[year, value], ...]
+      foreign_language_est_pct   the latest year's value (scalar snapshot, per the
+                                 project convention snapshot == last history point).
     """
     gdf["foreign_language_history"] = None
-    if "foreign_language_municipal_pct" not in gdf.columns:
-        gdf["foreign_language_municipal_pct"] = None
+    gdf["foreign_language_est_pct"] = None
 
     if not FOREIGN_LANG_HISTORY_FILE.exists():
         logger.warning(" %s not found", FOREIGN_LANG_HISTORY_FILE)
@@ -783,7 +821,7 @@ def join_foreign_language_history(gdf):
 
     with open(FOREIGN_LANG_HISTORY_FILE, encoding="utf-8") as f:
         history = json.load(f)
-    logger.info("Joining foreign-language history (%d postal codes)...", len(history))
+    logger.info("Joining foreign-language estimate history (%d postal codes)...", len(history))
 
     matched = 0
     for idx, row in gdf.iterrows():
@@ -791,10 +829,8 @@ def join_foreign_language_history(gdf):
         series = history.get(pno)
         if series and len(series) >= 2:
             gdf.at[idx, "foreign_language_history"] = json.dumps(series)
-            gdf.at[idx, "foreign_language_municipal_pct"] = float(series[-1][1])
+            gdf.at[idx, "foreign_language_est_pct"] = float(series[-1][1])
             matched += 1
-        else:
-            gdf.at[idx, "foreign_language_municipal_pct"] = None
 
     logger.info("  Matched %s/%s postal codes", matched, len(gdf))
     return gdf
@@ -2602,9 +2638,11 @@ def main():
     lang_data = load_foreign_language()
     gdf = join_foreign_language(gdf, lang_data)
 
-    # Per-postal foreign-language time series (2020 real + later-year estimate
-    # scaled by the StatFin vaerak 159t municipal share change, is_proxy). Sets
-    # both foreign_language_history and the foreign_language_municipal_pct snapshot.
+    # Real latest-year municipal foreign-language share, flat per municipality
+    # (foreign_language_municipal_pct, is_proxy) + the per-postal ESTIMATE time
+    # series (foreign_language_history + foreign_language_est_pct, is_proxy: 2020
+    # real, later years scaled by the vaerak 159t municipal share change).
+    gdf = join_foreign_language_municipal(gdf)
     gdf = join_foreign_language_history(gdf)
 
     crime_data = load_crime_index()
@@ -2763,7 +2801,7 @@ def main():
         "cycling_density",
         # File-based
         "foreign_language_pct", "foreign_language_municipal_pct",
-        "foreign_language_history", "crime_index",
+        "foreign_language_est_pct", "foreign_language_history", "crime_index",
         # Phase 4: historical time-series
         "income_history", "population_history", "unemployment_history",
         # Phase 7: new data sources

@@ -74,6 +74,7 @@ PERCENTAGE_FIELDS = [
     "detached_house_share",
     "foreign_language_pct",
     "foreign_language_municipal_pct",
+    "foreign_language_est_pct",
     "voter_turnout_pct",
     "tree_canopy_pct",
     "single_person_hh_pct",
@@ -366,12 +367,16 @@ MUNICIPALITY_DISTRIBUTED_PROXIES = {
     # counts at municipality granularity only; each postal code inherits its
     # municipality's new-dwellings-per-1,000-residents rate.
     "construction_activity": "fetch_construction_permits.py assign_to_postal_codes() (municipality value per postal code)",
-    # Foreign-language estimate after 2020: StatFin publishes postal-code language
-    # data only for 2020 (foreign_language_pct), so later years are estimated by
-    # scaling the real 2020 postal distribution by each municipality's vaerak 159t
-    # share change. The scalar is the latest year; foreign_language_history carries
-    # the [[year, value], ...] series. 2020 itself is real (is_proxy:false there).
-    "foreign_language_municipal_pct": "fetch_foreign_language_municipal.py + apply_foreign_language_municipal_to_geojson.py (2020 postal distribution scaled by municipal share change)",
+    # StatFin Väestörakenne (vaerak 159t) publishes the share of foreign-language
+    # speakers at municipality granularity only; each postal code inherits its
+    # municipality's latest-year share (flat). Current companion to the 2020 postal layer.
+    "foreign_language_municipal_pct": "fetch_foreign_language_municipal.py + apply_foreign_language_municipal_to_geojson.py (latest municipal share per postal code)",
+    # Foreign-language estimate after 2020: StatFin publishes postal-code language data
+    # only for 2020 (foreign_language_pct), so later years are estimated by scaling the
+    # real 2020 postal distribution by each municipality's vaerak 159t share change. The
+    # scalar is the latest year; foreign_language_history carries the [[year, value], ...]
+    # series. 2020 itself is real (the is_proxy:false foreign_language_pct layer).
+    "foreign_language_est_pct": "fetch_foreign_language_municipal.py + apply_foreign_language_municipal_to_geojson.py (2020 postal distribution scaled by municipal share change)",
     # CF-15: asvu 15fa publishes rents at city/maakunta level; distributed to postal
     # codes by replaying the 2022 intra-city ratios. price_to_rent_ratio inherits it.
     "rental_price_sqm": "fetch_rental_prices_municipality.py (city mean × 2022 intra-city ratio per postal code)",

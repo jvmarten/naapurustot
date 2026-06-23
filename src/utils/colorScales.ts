@@ -13,6 +13,7 @@ export type LayerId =
   | 'education'
   | 'foreign_lang'
   | 'foreign_lang_municipal'
+  | 'foreign_lang_estimate'
   | 'avg_age'
   | 'pensioners'
   | 'ownership'
@@ -104,8 +105,9 @@ export const TIME_SERIES_LAYERS: Partial<Record<LayerId, string>> = {
   crime_rate: 'crime_index_history',
   // Foreign-language estimate: 2020 is real postal data, 2021- is an is_proxy
   // estimate (2020 distribution scaled by the municipal share change). Scrub the
-  // slider to compare years; the dedicated foreign_lang layer stays real-2020-only.
-  foreign_lang_municipal: 'foreign_language_history',
+  // slider to compare years; foreign_lang stays real-2020-only and
+  // foreign_lang_municipal shows the flat real current municipal share.
+  foreign_lang_estimate: 'foreign_language_history',
 };
 
 /**
@@ -259,16 +261,28 @@ export const LAYERS: LayerConfig[] = [
     stops: [2, 5, 10, 15, 20, 25, 35, 50],
     format: pct,
   },
-  // Foreign-language estimate over time (is_proxy). The scalar property holds the
-  // latest year; foreign_language_history carries [[2020, real], [2021, est], ...]
-  // for the time slider. 2020 is the real postal layer (foreign_lang) scaled per
-  // municipality by the StatFin vaerak 159t share change for later years — open
-  // postal-code language data exists only for 2020. Same palette/stops as
-  // foreign_lang so the real-2020 and estimate layers are directly comparable.
+  // Real LATEST-year municipal foreign-language share (StatFin vaerak 159t) assigned
+  // flat to every postal code of the municipality (is_proxy — a real municipal figure
+  // shown at a finer granularity). Uniform within each city; same palette/stops as
+  // foreign_lang. A current companion to the 2020 postal layer.
   {
     id: 'foreign_lang_municipal',
     labelKey: 'layer.foreign_lang_municipal',
     property: 'foreign_language_municipal_pct',
+    unit: '%',
+    colors: ['#f0f0f0', '#d4b9da', '#c994c7', '#df65b0', '#e7298a', '#ce1256', '#980043', '#67001f'],
+    stops: [2, 5, 10, 15, 20, 25, 35, 50],
+    format: pct,
+  },
+  // Foreign-language ESTIMATE over time (is_proxy). The scalar holds the latest year;
+  // foreign_language_history carries [[2020, real], [2021, est], ...] for the time
+  // slider. 2020 is the real postal layer (foreign_lang); later years scale that 2020
+  // within-city distribution per municipality by the vaerak 159t share change — open
+  // postal-code language data exists only for 2020. Same palette/stops as foreign_lang.
+  {
+    id: 'foreign_lang_estimate',
+    labelKey: 'layer.foreign_lang_estimate',
+    property: 'foreign_language_est_pct',
     unit: '%',
     colors: ['#f0f0f0', '#d4b9da', '#c994c7', '#df65b0', '#e7298a', '#ce1256', '#980043', '#67001f'],
     stops: [2, 5, 10, 15, 20, 25, 35, 50],
