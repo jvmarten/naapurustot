@@ -131,6 +131,11 @@ export interface NeighborhoodProperties {
   // CF-7: property-price (€/m²) and crime (per 1,000) time-series
   property_price_history: string | null;
   crime_index_history: string | null;
+  // Foreign-language speakers time series: [[2020, real], [2021, est], ...].
+  // 2020 is real postal data; later years are an is_proxy estimate (the 2020
+  // distribution scaled by the StatFin vaerak 159t municipal share change).
+  // Optional (absent in legacy fixtures), like foreign_language_municipal_pct.
+  foreign_language_history?: string | null;
   // CF-4: Computed change metrics (derived from history arrays)
   income_change_pct: number | null;
   population_change_pct: number | null;
@@ -415,7 +420,7 @@ export function computeChangeMetrics(features: GeoJSON.Feature[]): void {
 }
 
 // PO-2: history arrays that back the time slider / historical playback.
-export const TIME_SERIES_HISTORY_PROPS = ['income_history', 'population_history', 'unemployment_history', 'property_price_history', 'crime_index_history'] as const;
+export const TIME_SERIES_HISTORY_PROPS = ['income_history', 'population_history', 'unemployment_history', 'property_price_history', 'crime_index_history', 'foreign_language_history'] as const;
 
 /** Property key holding a single year's materialized value, e.g. `income_history__2023`. */
 export function timeSeriesYearProp(historyProp: string, year: number): string {

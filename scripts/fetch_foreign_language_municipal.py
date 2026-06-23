@@ -1,25 +1,29 @@
 #!/usr/bin/env python3
 """
 Fetch the share of foreign-language speakers (vieraskielisten osuus) per
-municipality from Statistics Finland and assign each postal code its
-municipality's value. This is a *more recent* companion to the postal-code-level
-foreign_language_pct layer, whose only openly-usable national source is a 2020
-extract: Statistics Finland publishes language data no finer than municipality,
-so a current (2025) figure can only be offered at municipal granularity.
+municipality from Statistics Finland, for every reference year from 2020 to the
+latest available. This is the municipal change signal used to roll the real
+postal-code 2020 foreign_language_pct layer forward to later years as a
+within-city estimate (see derive_foreign_language_history in
+apply_foreign_language_municipal_to_geojson.py).
 
-Because the postal-code values are a municipality figure assigned to a finer
-granularity than the source publishes, foreign_language_municipal_pct is flagged
-is_proxy:true in src/data/data_sources.json and listed in
+Statistics Finland publishes language data no finer than municipality, so the
+only openly-usable postal-code figure is a 2020 special extract
+(foreign_language_pct). Later years can therefore be offered only as an
+estimate: the 2020 postal distribution scaled per municipality by how that
+municipality's foreign-language share changed (this file). That estimate is
+flagged is_proxy:true in src/data/data_sources.json and listed in
 MUNICIPALITY_DISTRIBUTED_PROXIES in scripts/validate_data.py (enforced by
 validate_data.py check_distributed_proxy_flags). It complements, and never
-replaces, the real postal-code 2020 layer (which preserves within-city detail).
+replaces, the real 2020 postal layer (which preserves within-city detail).
 
 Data source: Tilastokeskus (Statistics Finland) StatFin PxWeb API
   Statistic: Väestörakenne (Population structure)
   Database:  vaerak
-  Table:     159t -- "Population by origin and background country, sex and ...,
-             municipality" — exposes a ready-computed "Share of foreign-language
-             speakers, %" (content code vaesto_kieli_ulk_p) per municipality.
+  Table:     159t -- "Population according to citizenship, country of birth,
+             language and origin, municipality" — exposes a ready-computed
+             "Share of foreign-language speakers, %" (content code
+             vaesto_kieli_ulk_p) per municipality, 1990-.
   URL:       https://pxdata.stat.fi/PxWeb/api/v1/en/StatFin/vaerak/159t.px
 
 Why 159t (data-availability note): foreign-language share is NOT part of the open
@@ -34,8 +38,9 @@ returns unexpected data, this script aborts with a non-zero exit code rather tha
 writing any fabricated, estimated, or placeholder values.
 
 Output: scripts/foreign_language_municipal.json
-Format: {"00100": 21.2, "33100": 11.4, ...}  (% foreign-language speakers, latest
-        municipal figure assigned to each postal code)
+Format: {"091": {"2020": 16.1, "2021": 17.0, ..., "2025": 21.2}, ...}
+        — % foreign-language speakers per municipality (3-digit kunta code), one
+        entry per reference year from 2020 to the latest available.
 
 Usage:
   python scripts/fetch_foreign_language_municipal.py
@@ -62,7 +67,6 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 SCRIPT_DIR = Path(__file__).parent
-GEOJSON_PATH = SCRIPT_DIR.parent / "public" / "data" / "metro_neighborhoods.geojson"
 OUTPUT_FILE = SCRIPT_DIR / "foreign_language_municipal.json"
 
 # StatFin PxWeb — Population structure (database vaerak, table 159t).
@@ -71,11 +75,15 @@ PXWEB_TABLE_URL = "https://pxdata.stat.fi/PxWeb/api/v1/en/StatFin/vaerak/159t.px
 # Variable codes are date-suffixed in the metadata (e.g. alue_23_20260101); we
 # resolve them by stable prefix so the script survives the annual code rotation.
 AREA_PREFIX = "alue"               # Area: "SSS" (whole country) + "KU###" municipalities
-VAR_YEAR = "timeperiod_y"          # Reference year (we take the latest with data)
+VAR_YEAR = "timeperiod_y"          # Reference year
 VAR_INFO = "contentscode"          # Information dimension
 
 # Ready-computed share of foreign-language speakers, %.
 CONTENT_SHARE = "vaesto_kieli_ulk_p"
+
+# Earliest reference year to fetch. 2020 is the baseline year of the real
+# postal-code layer (foreign_language_pct), so the estimate scales from there.
+START_YEAR = 2020
 
 # Treat the table as having data for a year only if at least this many
 # municipalities return a numeric value (sanity floor; ~309 municipalities exist).
@@ -163,11 +171,11 @@ def _query_year(area_var: dict, muni_codes: list[str], year: str) -> dict[str, f
     return out
 
 
-def fetch_municipal_share() -> tuple[dict[str, float], str]:
-    """Fetch the share of foreign-language speakers per municipality for the
-    latest reference year that actually carries data.
+def fetch_municipal_share_series() -> tuple[dict[str, dict[str, float]], int]:
+    """Fetch the share of foreign-language speakers per municipality for every
+    reference year from START_YEAR to the latest available.
 
-    Returns: ({kunta_code(3-digit): share%}, reference_year)
+    Returns: ({kunta_code(3-digit): {year(str): share%}}, latest_year)
     """
     logger.info("Fetching language metadata from %s", PXWEB_TABLE_URL)
     meta = _request_with_retry("GET", PXWEB_TABLE_URL, label="vaerak 159t metadata").json()
@@ -186,42 +194,35 @@ def fetch_municipal_share() -> tuple[dict[str, float], str]:
         )
 
     year_var = next(v for v in meta["variables"] if v["code"] == VAR_YEAR)
-    # Walk years from newest to oldest, taking the first one with real data.
-    for year in reversed(year_var["values"]):
+    wanted_years = [y for y in year_var["values"] if str(y).isdigit() and int(y) >= START_YEAR]
+    if not wanted_years:
+        raise ValueError(f"No reference years >= {START_YEAR} found in metadata")
+
+    series: dict[str, dict[str, float]] = {}
+    latest_year = 0
+    for year in sorted(wanted_years, key=int):
         shares = _query_year(area_var, muni_codes, year)
         logger.info("  Year %s: %d municipalities with data", year, len(shares))
-        if len(shares) >= MIN_MUNICIPALITIES:
-            return shares, str(year)
-
-    raise ValueError(
-        f"No reference year returned data for >= {MIN_MUNICIPALITIES} municipalities"
-    )
-
-
-# ---------------------------------------------------------------------------
-# Assign municipality values to postal codes
-# ---------------------------------------------------------------------------
-
-def assign_to_postal_codes(
-    geojson: dict, muni_share: dict[str, float],
-) -> dict[str, float]:
-    """Assign each postal code its municipality's foreign-language share."""
-    result: dict[str, float] = {}
-    matched_munis: set[str] = set()
-    for feat in geojson.get("features", []):
-        props = feat.get("properties", {})
-        pno = props.get("pno") or props.get("postinumeroalue")
-        kunta = props.get("kunta")
-        if not pno or kunta is None:
+        if len(shares) < MIN_MUNICIPALITIES:
+            # A future year that exists in metadata but has not been populated yet
+            # (or a one-off sparse year) is skipped rather than treated as fatal.
+            logger.warning("  Year %s skipped (only %d municipalities < %d floor)",
+                           year, len(shares), MIN_MUNICIPALITIES)
             continue
-        val = muni_share.get(str(kunta).zfill(3))
-        if val is not None:
-            result[str(pno)] = val
-            matched_munis.add(str(kunta).zfill(3))
+        for kunta, share in shares.items():
+            series.setdefault(kunta, {})[str(year)] = share
+        latest_year = max(latest_year, int(year))
 
-    logger.info("  Assigned foreign-language share to %d postal codes across %d municipalities",
-                len(result), len(matched_munis))
-    return result
+    if str(START_YEAR) not in {y for vals in series.values() for y in vals}:
+        raise ValueError(
+            f"Baseline year {START_YEAR} returned no data — cannot anchor the estimate"
+        )
+    if latest_year <= START_YEAR:
+        raise ValueError(
+            f"Only the baseline year {START_YEAR} has data — no later year to estimate"
+        )
+
+    return series, latest_year
 
 
 # ---------------------------------------------------------------------------
@@ -230,43 +231,34 @@ def assign_to_postal_codes(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Fetch StatFin municipal foreign-language share (vaerak 159t)"
+        description="Fetch StatFin municipal foreign-language share series (vaerak 159t)"
     )
     parser.parse_args()
 
     logger.info("=" * 60)
-    logger.info("Foreign-language share (Väestörakenne 159t) — municipal proxy")
+    logger.info("Foreign-language share series (Väestörakenne 159t) — municipal")
     logger.info("=" * 60)
 
     try:
-        muni_share, ref_year = fetch_municipal_share()
+        series, latest_year = fetch_municipal_share_series()
     except Exception as exc:
         logger.error("StatFin fetch failed: %s", exc)
         logger.error("Aborting WITHOUT writing — no fabricated data will be produced.")
         sys.exit(1)
 
-    if len(muni_share) < MIN_MUNICIPALITIES:
-        logger.error("Only %d municipalities fetched — too few, aborting.", len(muni_share))
+    if len(series) < MIN_MUNICIPALITIES:
+        logger.error("Only %d municipalities fetched — too few, aborting.", len(series))
         sys.exit(1)
 
-    logger.info("Loading GeoJSON from %s", GEOJSON_PATH)
-    with open(GEOJSON_PATH, encoding="utf-8") as f:
-        geojson = json.load(f)
-
-    postal_values = assign_to_postal_codes(geojson, muni_share)
-    if not postal_values:
-        logger.error("No postal code values produced — aborting without writing.")
-        sys.exit(1)
-
-    sorted_data = dict(sorted(postal_values.items()))
+    # Stable ordering: municipalities, then years ascending within each.
+    sorted_data = {
+        kunta: {y: series[kunta][y] for y in sorted(series[kunta], key=int)}
+        for kunta in sorted(series)
+    }
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         json.dump(sorted_data, f, indent=2, ensure_ascii=False)
-    logger.info("Saved %d entries to %s (reference year %s)",
-                len(sorted_data), OUTPUT_FILE, ref_year)
-
-    vals = list(sorted_data.values())
-    logger.info("  Range: min=%.1f max=%.1f mean=%.1f",
-                min(vals), max(vals), sum(vals) / len(vals))
+    logger.info("Saved %d municipalities (2020..%d) to %s",
+                len(sorted_data), latest_year, OUTPUT_FILE)
 
     # Sanity log: a few notable municipalities (real values).
     samples = {
@@ -274,8 +266,12 @@ def main():
         "564": "Oulu", "853": "Turku", "405": "Lappeenranta",
     }
     for code, name in samples.items():
-        if code in muni_share:
-            logger.info("  %s (%s): %.1f%% foreign-language speakers", name, code, muni_share[code])
+        if code in sorted_data:
+            yrs = sorted_data[code]
+            base = yrs.get(str(START_YEAR))
+            last = yrs.get(str(latest_year))
+            logger.info("  %s (%s): %s%% (2020) -> %s%% (%d)",
+                        name, code, base, last, latest_year)
 
 
 if __name__ == "__main__":
