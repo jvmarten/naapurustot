@@ -99,8 +99,16 @@ export default defineConfig({
     viteCompression({ algorithm: 'gzip', threshold: 1024, filter: /\.(js|css|html|json|topojson|svg)$/ }),
     viteCompression({ algorithm: 'brotliCompress', threshold: 1024, ext: '.br', filter: /\.(js|css|html|json|topojson|svg)$/ }),
     // IN-6: Service Worker & Offline Support
+    //
+    // `prompt` (not `autoUpdate`): a freshly-deployed SW must *wait* instead of
+    // taking control the instant it activates. Under `autoUpdate`, vite-plugin-pwa
+    // force-reloads the page as soon as the new SW controls it — which fired tens
+    // of seconds into a returning user's session and wiped their in-progress work
+    // (draw polygons, notes, mid-comparison). With `prompt`, the new SW stays
+    // waiting and main.tsx's onNeedRefresh decides *when* to apply it (deferred
+    // until the tab is hidden). See src/main.tsx.
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       workbox: {
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // 4 MiB
         // Exclude HTML from precache — navigation requests use NetworkFirst

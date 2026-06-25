@@ -45,11 +45,17 @@ const DataSourcesPage = lazy(() =>
 const PrivacyPage = lazy(() =>
   Promise.all([import('./pages/PrivacyPage'), loadFiExtra()]).then(([m]) => ({ default: m.PrivacyPage })));
 
-// Auto-reload when a new service worker is activated after deployment.
-// This prevents users from being stuck on a stale cached version.
-// Check for updates every 60 seconds so returning tabs pick up deploys fast.
+// Apply a freshly-deployed service worker WITHOUT yanking the page out from
+// under an active user. The PWA is registered in `prompt` mode (vite.config.ts),
+// so a new SW installs and then *waits* — it does not take control (and trigger
+// vite-plugin-pwa's built-in force-reload) on its own. onNeedRefresh fires while
+// it waits, and we choose when to activate it: only once the tab is hidden, so
+// the unavoidable reload never discards draw polygons, notes, or mid-comparison
+// work. (Under the previous `autoUpdate` config onNeedRefresh never ran and the
+// page reloaded ~tens of seconds into a session, resetting whatever the user was
+// doing.) Check for updates every 60 seconds so returning tabs pick up deploys.
 let pendingRefresh = false;
-registerSW({
+const updateSW = registerSW({
   immediate: true,
   onRegisteredSW(_swUrl, registration) {
     if (!registration) return;
@@ -63,17 +69,19 @@ registerSW({
     }, 60_000);
   },
   onNeedRefresh() {
-    // New content available — defer the reload until the user isn't actively
-    // interacting with the page (tab hidden/blurred) to avoid losing unsaved
-    // state like draw polygons, notes, or mid-comparison work.
+    // New content available — defer activation until the user isn't actively
+    // interacting with the page (tab hidden) to avoid losing unsaved state like
+    // draw polygons, notes, or mid-comparison work. updateSW(true) tells the
+    // waiting SW to skipWaiting and reloads the page once it takes control, so
+    // the user comes back to the fresh version instead of being interrupted.
     if (document.hidden) {
-      window.location.reload();
+      void updateSW(true);
     } else if (!pendingRefresh) {
       pendingRefresh = true;
       const onVisChange = () => {
         if (document.hidden) {
           document.removeEventListener('visibilitychange', onVisChange);
-          window.location.reload();
+          void updateSW(true);
         }
       };
       document.addEventListener('visibilitychange', onVisChange);
