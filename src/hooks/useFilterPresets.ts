@@ -155,7 +155,9 @@ export function useFilterPresets(userId?: string | null) {
       // diverged criteria and spuriously fired on mere reordering.
       const differs = canonicalize(merged) !== canonicalize(serverPresets);
       if (differs) {
-        api.savePreferences({ filterPresets: merged });
+        // Use runSync so a transient failure retries with backoff and surfaces in
+        // the sync status, like the debounced save — a bare call would be lost.
+        runSync('presets', () => api.savePreferences({ filterPresets: merged }));
       }
     });
     return () => { cancelled = true; };

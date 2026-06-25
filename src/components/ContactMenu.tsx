@@ -30,7 +30,9 @@ export const ContactMenu: React.FC<ContactMenuProps> = ({ className }) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
+      // Stop the event so it doesn't also trigger App's window-level Escape
+      // cascade; this document listener fires before window in the bubble phase.
+      if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); }
     };
     document.addEventListener('mousedown', onPointer);
     document.addEventListener('keydown', onKey);

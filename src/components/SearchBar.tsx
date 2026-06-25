@@ -340,6 +340,7 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
         />
         {query && (
           <button
+            type="button"
             onClick={() => { setQuery(''); setIsOpen(false); setAddressResults([]); setIsGeocoding(false); setHomePrompt(null); inputRef.current?.focus(); }}
             className="absolute inset-y-0 right-0 flex items-center pr-3 text-surface-400 hover:text-surface-600 dark:hover:text-surface-300"
             aria-label={t('search.clear')}

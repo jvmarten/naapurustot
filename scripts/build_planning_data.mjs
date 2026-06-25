@@ -199,11 +199,16 @@ for (const [region, map] of Object.entries(areaByRegion).sort()) {
 // Snapshot date drives the honest "tilanne <snapshot>" coverage caption. Read it
 // from the committed file the fetch scripts stamp at fetch time — NOT the build
 // clock — so re-running build:data on a later day reproduces byte-identical
-// artifacts (the IN-5 idempotency gate). Falls back to today only if the file is
-// absent (a brand-new source added before its first fetch stamps it).
+// artifacts (the IN-5 idempotency gate). If snapshot.txt is transiently absent,
+// fall back to the snapshot already recorded in the committed manifest so a
+// rebuild stays deterministic; only a truly fresh checkout (neither file present)
+// resorts to the build clock, which is unavoidable.
+const prevSnapshot = existsSync(MANIFEST_OUT)
+  ? (JSON.parse(readFileSync(MANIFEST_OUT, 'utf-8'))?.snapshot ?? null)
+  : null;
 const snapshot = existsSync(SNAPSHOT_FILE)
   ? readFileSync(SNAPSHOT_FILE, 'utf-8').trim()
-  : new Date().toISOString().slice(0, 10);
+  : (prevSnapshot ?? new Date().toISOString().slice(0, 10));
 const manifest = {
   snapshot,
   projects: {

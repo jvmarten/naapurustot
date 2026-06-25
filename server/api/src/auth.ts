@@ -26,14 +26,17 @@ const DUMMY_HASH = '$2b$12$C6UzMDM.H6dfI/f/IKcEeO3ROOkvI7r5/Apx5OAtNgWZ6lyHkVqzG
 
 const USERNAME_RE = /^[a-zA-Z0-9_-]{3,20}$/;
 
-/** Extract and verify JWT from cookie; returns userId or null. */
-function authenticateToken(req: Request): string | null {
+/** Extract and verify JWT from cookie; returns userId or null. When `res` is
+ *  provided and the cookie is present but invalid/expired, clear it so the client
+ *  stops re-sending a stale token on every subsequent request. */
+function authenticateToken(req: Request, res?: Response): string | null {
   const token = req.cookies?.token;
   if (!token) return null;
   try {
     const payload = jwt.verify(token, JWT_SECRET) as { userId: string };
     return payload.userId;
   } catch {
+    if (res) res.clearCookie('token', CLEAR_COOKIE_OPTS);
     return null;
   }
 }
@@ -189,9 +192,12 @@ router.post('/login', rateLimit(10, 15 * 60 * 1000, 'login'), async (req: Reques
     return;
   }
 
-  // Same bcrypt DoS protection as signup — reject absurdly long passwords
-  // before calling bcrypt.compare().
+  // Same bcrypt DoS protection as signup — reject absurdly long passwords. Spend
+  // comparable bcrypt time on a truncated copy first (the cap still prevents the
+  // DoS) so this branch isn't a ~1 ms fast-path that timing can distinguish from a
+  // real wrong-password attempt, which would partially defeat the enumeration defense.
   if (password.length > 1000) {
+    await bcrypt.compare(password.slice(0, 1000), DUMMY_HASH);
     res.status(401).json({ error: 'Invalid username or password' });
     return;
   }
@@ -302,22 +308,37 @@ export function buildExportPayload(parts: {
 
 // Export the full stored record so the user can download all data we hold.
 router.get('/export', async (req: Request, res: Response): Promise<void> => {
-  const userId = authenticateToken(req);
+  const userId = authenticateToken(req, res);
   if (!userId) {
     res.status(401).json({ error: 'Not authenticated' });
     return;
   }
 
-  const [user, favorites, shortlist, notes, preferences] = await Promise.all([
-    getPool().query(
-      'SELECT id, username, email, display_name, trust_level, created_at, updated_at FROM users WHERE id = $1',
-      [userId]
-    ),
-    getPool().query('SELECT favorites FROM user_favorites WHERE user_id = $1', [userId]),
-    getPool().query('SELECT shortlist FROM user_shortlist WHERE user_id = $1', [userId]),
-    getPool().query('SELECT notes FROM user_notes WHERE user_id = $1', [userId]),
-    getPool().query('SELECT filter_presets, quality_weights, wizard_profile FROM user_preferences WHERE user_id = $1', [userId]),
-  ]);
+  // Run all five reads on one connection inside a REPEATABLE READ transaction so
+  // the export is a single consistent snapshot. As independent pool queries, a
+  // concurrent edit between them could yield a mix that never existed at any instant.
+  const client = await getPool().connect();
+  let rows;
+  try {
+    await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ');
+    rows = await Promise.all([
+      client.query(
+        'SELECT id, username, email, display_name, trust_level, created_at, updated_at FROM users WHERE id = $1',
+        [userId]
+      ),
+      client.query('SELECT favorites FROM user_favorites WHERE user_id = $1', [userId]),
+      client.query('SELECT shortlist FROM user_shortlist WHERE user_id = $1', [userId]),
+      client.query('SELECT notes FROM user_notes WHERE user_id = $1', [userId]),
+      client.query('SELECT filter_presets, quality_weights, wizard_profile FROM user_preferences WHERE user_id = $1', [userId]),
+    ]);
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+  const [user, favorites, shortlist, notes, preferences] = rows;
 
   if (user.rows.length === 0) {
     res.clearCookie('token', CLEAR_COOKIE_OPTS);
@@ -346,7 +367,7 @@ router.get('/export', async (req: Request, res: Response): Promise<void> => {
 // Permanently delete the account. The ON DELETE CASCADE FKs on user_favorites,
 // user_shortlist, user_notes and user_preferences remove all dependent rows.
 router.delete('/account', async (req: Request, res: Response): Promise<void> => {
-  const userId = authenticateToken(req);
+  const userId = authenticateToken(req, res);
   if (!userId) {
     res.status(401).json({ error: 'Not authenticated' });
     return;
@@ -404,7 +425,7 @@ router.get('/me', async (req: Request, res: Response): Promise<void> => {
 // ── Favorites sync ──
 
 router.get('/favorites', async (req: Request, res: Response): Promise<void> => {
-  const userId = authenticateToken(req);
+  const userId = authenticateToken(req, res);
   if (!userId) {
     res.status(401).json({ error: 'Not authenticated' });
     return;
@@ -421,7 +442,7 @@ router.get('/favorites', async (req: Request, res: Response): Promise<void> => {
 });
 
 router.put('/favorites', async (req: Request, res: Response): Promise<void> => {
-  const userId = authenticateToken(req);
+  const userId = authenticateToken(req, res);
   if (!userId) {
     res.status(401).json({ error: 'Not authenticated' });
     return;
@@ -458,7 +479,7 @@ router.put('/favorites', async (req: Request, res: Response): Promise<void> => {
 // ── Shortlist sync (QW-2b) ──
 
 router.get('/shortlist', async (req: Request, res: Response): Promise<void> => {
-  const userId = authenticateToken(req);
+  const userId = authenticateToken(req, res);
   if (!userId) {
     res.status(401).json({ error: 'Not authenticated' });
     return;
@@ -474,7 +495,7 @@ router.get('/shortlist', async (req: Request, res: Response): Promise<void> => {
 });
 
 router.put('/shortlist', async (req: Request, res: Response): Promise<void> => {
-  const userId = authenticateToken(req);
+  const userId = authenticateToken(req, res);
   if (!userId) {
     res.status(401).json({ error: 'Not authenticated' });
     return;
@@ -513,7 +534,7 @@ const MAX_NOTE_LEN = 5000;
 const MAX_NOTES = 500;
 
 router.get('/notes', async (req: Request, res: Response): Promise<void> => {
-  const userId = authenticateToken(req);
+  const userId = authenticateToken(req, res);
   if (!userId) {
     res.status(401).json({ error: 'Not authenticated' });
     return;
@@ -530,7 +551,7 @@ router.get('/notes', async (req: Request, res: Response): Promise<void> => {
 });
 
 router.put('/notes', async (req: Request, res: Response): Promise<void> => {
-  const userId = authenticateToken(req);
+  const userId = authenticateToken(req, res);
   if (!userId) {
     res.status(401).json({ error: 'Not authenticated' });
     return;
@@ -652,7 +673,7 @@ export function validateWizardProfile(value: unknown): { ok: true; value: Record
 }
 
 router.get('/preferences', async (req: Request, res: Response): Promise<void> => {
-  const userId = authenticateToken(req);
+  const userId = authenticateToken(req, res);
   if (!userId) {
     res.status(401).json({ error: 'Not authenticated' });
     return;
@@ -678,7 +699,7 @@ router.get('/preferences', async (req: Request, res: Response): Promise<void> =>
 });
 
 router.put('/preferences', async (req: Request, res: Response): Promise<void> => {
-  const userId = authenticateToken(req);
+  const userId = authenticateToken(req, res);
   if (!userId) {
     res.status(401).json({ error: 'Not authenticated' });
     return;

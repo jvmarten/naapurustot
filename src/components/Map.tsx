@@ -1232,7 +1232,10 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !data) return;
-    if (!map.getLayer(FILL_LAYER)) return;
+    // Guard the source too (not just FILL_LAYER): this effect can addLayer with
+    // source: SOURCE_ID below, which throws if the source is somehow absent.
+    // Matches the sibling pinned/select/wizard highlight effects.
+    if (!map.getLayer(FILL_LAYER) || !map.getSource(SOURCE_ID)) return;
 
     const currentOpacity = fillOpacityRef.current;
 
@@ -1299,9 +1302,13 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   onMoveEndRef.current = onMoveEnd;
   const handlersAttachedRef = useRef(false);
 
+  // The handler effect below depends only on whether data exists, not its identity
+  // (it reads everything from refs). Deriving a boolean keeps `data` out of the
+  // effect body so the dependency is honest and statically checkable.
+  const hasData = data != null;
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !data || handlersAttachedRef.current) return;
+    if (!map || !hasData || handlersAttachedRef.current) return;
     handlersAttachedRef.current = true;
 
     // Throttle mousemove processing to once per animation frame.
@@ -1430,7 +1437,13 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       map.off('dblclick', onMapDblClick);
       map.off('moveend', onMapMoveEnd);
     };
-  }, [data]);
+    // Depend only on whether data exists (hasData), not its identity: the guard above
+    // means we must (re-)run when data transitions null↔loaded so the handlers attach
+    // once data (and its source/layer) is present. Depending on `data` itself would
+    // tear down and re-register all 5 listeners on every content refresh (quality
+    // bumps, metro rebuilds) — the churn the comment above warns against. An empty
+    // dep array would never attach, since data is null on first mount.
+  }, [hasData]);
 
   // FlyTo / fitBounds
   useEffect(() => {

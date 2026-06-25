@@ -131,6 +131,25 @@ let pipMods: {
   point: typeof import('@turf/helpers').point;
 } | null = null;
 
+/** Bounding box [minX, minY, maxX, maxY] of a Polygon/MultiPolygon, or null. Used
+ *  as a cheap reject before the expensive point-in-polygon test; region features
+ *  carry no precomputed `bbox` (topojson-client doesn't emit per-feature bboxes). */
+function geometryBbox(geom: GeoJSON.Geometry): [number, number, number, number] | null {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  const scan = (ring: GeoJSON.Position[]): void => {
+    for (const [x, y] of ring) {
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+  };
+  if (geom.type === 'Polygon') geom.coordinates.forEach(scan);
+  else if (geom.type === 'MultiPolygon') geom.coordinates.forEach((poly) => poly.forEach(scan));
+  else return null;
+  return Number.isFinite(minX) ? [minX, minY, maxX, maxY] : null;
+}
+
 /** Find the feature whose polygon contains `coords` ([lng, lat]), or null when none
  *  does. Async because the turf modules are lazy-loaded on first call. */
 export async function findNeighborhoodForPoint(
@@ -149,7 +168,7 @@ export async function findNeighborhoodForPoint(
   const [lng, lat] = coords;
   for (const feature of features) {
     if (!feature.geometry) continue;
-    const bbox = feature.bbox;
+    const bbox = feature.bbox ?? geometryBbox(feature.geometry);
     if (bbox && (lng < bbox[0] || lng > bbox[2] || lat < bbox[1] || lat > bbox[3])) continue;
     try {
       if (booleanPointInPolygon(pt, feature as GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.MultiPolygon>)) {

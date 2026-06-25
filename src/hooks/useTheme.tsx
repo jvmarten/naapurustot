@@ -29,6 +29,9 @@ function getStoredMode(): ThemeMode {
 
 function resolveTheme(mode: ThemeMode): ResolvedTheme {
   if (mode === 'system') {
+    // Guard for non-browser contexts (matches the window-guard convention used by
+    // useReducedMotion/useBackGesture); this runs in a useState initializer.
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return 'light';
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
   return mode;

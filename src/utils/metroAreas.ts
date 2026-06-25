@@ -35,11 +35,17 @@ function ensureOutlinesLoaded(): Promise<void> {
       .then((topo) => {
         const objectName = Object.keys(topo.objects ?? {})[0];
         if (objectName) {
-          const fc = feature(topo, topo.objects[objectName]) as FeatureCollection<OutlineGeometry>;
-          for (const f of fc.features) {
+          const decoded = feature(topo, topo.objects[objectName]);
+          const features = decoded.type === 'FeatureCollection' ? decoded.features : [decoded];
+          for (const f of features) {
             // seutukunnat.topojson keys each boundary by its regions.ts region id.
             const region = (f.properties as { region?: string } | null)?.region;
-            if (region && f.geometry) outlinesByCity.set(region, f.geometry);
+            const g = f.geometry;
+            // Runtime-narrow to OutlineGeometry rather than casting feature()'s
+            // Feature | FeatureCollection result blindly.
+            if (region && g && (g.type === 'Polygon' || g.type === 'MultiPolygon')) {
+              outlinesByCity.set(region, g);
+            }
           }
         }
         if (outlinesByCity.size === 0) {

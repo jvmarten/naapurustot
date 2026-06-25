@@ -161,7 +161,7 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({ onComplete, skip
         const root = popoverRef.current;
         if (!root) return;
         const focusable = root.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+          'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])',
         );
         if (focusable.length === 0) return;
         const first = focusable[0];

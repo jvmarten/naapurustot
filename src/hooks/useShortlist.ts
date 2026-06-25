@@ -116,9 +116,10 @@ export function useShortlist(userId?: string | null) {
       // Suppress the debounced re-save for this particular change.
       fromServerRef.current = true;
       setShortlist(merged);
-      // If merged differs from the server, push it back once.
+      // If merged differs from the server, push it back once. Use runSync so a
+      // transient failure retries with backoff and surfaces in the sync status.
       if (merged.length !== serverList.length || !merged.every((v, i) => v === serverList[i])) {
-        api.saveShortlist(merged);
+        runSync('shortlist', () => api.saveShortlist(merged));
       }
     }).finally(() => { loginMergePendingRef.current = false; });
     return () => { cancelled = true; loginMergePendingRef.current = false; };

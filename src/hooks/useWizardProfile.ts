@@ -297,7 +297,7 @@ export function useWizardProfile(userId?: string | null) {
       if (!serverProfile || typeof serverProfile !== 'object') {
         // CF-6: don't push a shared-link seed up when the account has no profile.
         if (!seededRef.current && isCustomWizardAnswers(profileRef.current)) {
-          api.savePreferences({ wizardProfile: profileRef.current });
+          runSync('wizardProfile', () => api.savePreferences({ wizardProfile: profileRef.current }));
         }
         return;
       }
@@ -313,7 +313,7 @@ export function useWizardProfile(userId?: string | null) {
       if (serverCustom && !localCustom) {
         adoptServer();
       } else if (localCustom && !serverCustom) {
-        api.savePreferences({ wizardProfile: profileRef.current });
+        runSync('wizardProfile', () => api.savePreferences({ wizardProfile: profileRef.current }));
       } else if (serverCustom && localCustom) {
         // IN-6: both sides diverged — last write wins, comparing the server row's
         // timestamp against this device's last local edit of the profile. No
@@ -321,7 +321,7 @@ export function useWizardProfile(userId?: string | null) {
         const serverMs = data.updatedAt ? Date.parse(data.updatedAt) : NaN;
         if (Number.isFinite(serverMs)) {
           if (editedAt('wizardProfile') > serverMs) {
-            api.savePreferences({ wizardProfile: profileRef.current });
+            runSync('wizardProfile', () => api.savePreferences({ wizardProfile: profileRef.current }));
           } else {
             adoptServer();
           }

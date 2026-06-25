@@ -119,7 +119,11 @@ function parseGridResponse(path: string, json: unknown): FeatureCollection {
     const topo = json as Topology;
     const objectName = Object.keys(topo.objects ?? {})[0];
     if (!objectName) throw new Error('Invalid grid TopoJSON: no objects');
-    return feature(topo, topo.objects[objectName]) as FeatureCollection;
+    const decoded = feature(topo, topo.objects[objectName]);
+    if (decoded.type !== 'FeatureCollection') {
+      throw new Error(`Invalid grid TopoJSON: expected FeatureCollection, got ${decoded.type}`);
+    }
+    return decoded;
   }
   return json as FeatureCollection;
 }
@@ -171,16 +175,25 @@ export function useGridData(activeLayer: LayerId, cityFilter?: string): GridData
     setLoading(true);
     setError(false);
 
+    // Abort the (potentially tens-of-MB) in-flight fetch when the effect is torn
+    // down — e.g. the user switches layers mid-load — so its bandwidth isn't wasted.
+    const controller = new AbortController();
+
     // CF-9: try the region shard; if it is missing (a region with no cells in this
     // grid), fall back to the whole nationwide file so the layer still renders.
     const fetchJson = (url: string) =>
-      fetch(url).then((res) => {
+      fetch(url, { signal: controller.signal }).then((res) => {
         if (!res.ok) throw new Error(`Grid data fetch failed: ${res.status}`);
         return res.json();
       });
     (path === wholePath
       ? fetchJson(path)
-      : fetchJson(path).catch(() => fetchJson(wholePath)))
+      : fetchJson(path).catch((err) => {
+          // If the shard fetch was aborted (cleanup runs before this rejects),
+          // don't start the whole-file fallback — we're tearing down.
+          if (cancelled) throw err;
+          return fetchJson(wholePath);
+        }))
       .then((json: unknown) => {
         if (cancelled) return;
         const geojson = parseGridResponse(path, json);
@@ -215,6 +228,7 @@ export function useGridData(activeLayer: LayerId, cityFilter?: string): GridData
 
     return () => {
       cancelled = true;
+      controller.abort();
       if (!completed) {
         fetched.delete(cacheKey);
         setLoading(false);

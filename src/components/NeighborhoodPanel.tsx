@@ -1431,12 +1431,12 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
         </h3>
         <div className="grid grid-cols-2 gap-3">
           {[
-            { label: t('panel.employed'), value: d.pt_tyoll, color: 'bg-emerald-500' },
-            { label: t('panel.unemployed'), value: d.pt_tyott, color: 'bg-rose-500' },
-            { label: t('panel.students'), value: d.pt_opisk, color: 'bg-amber-500' },
-            { label: t('panel.pensioners'), value: d.pt_elakel, color: 'bg-blue-500' },
+            { key: 'employed', label: t('panel.employed'), value: d.pt_tyoll, color: 'bg-emerald-500' },
+            { key: 'unemployed', label: t('panel.unemployed'), value: d.pt_tyott, color: 'bg-rose-500' },
+            { key: 'students', label: t('panel.students'), value: d.pt_opisk, color: 'bg-amber-500' },
+            { key: 'pensioners', label: t('panel.pensioners'), value: d.pt_elakel, color: 'bg-blue-500' },
           ].map((item) => (
-            <div key={item.label} className="bg-surface-100 dark:bg-surface-900/60 rounded-lg p-3">
+            <div key={item.key} className="bg-surface-100 dark:bg-surface-900/60 rounded-lg p-3">
               <div className="flex items-center gap-2 mb-1">
                 <div className={`w-2 h-2 rounded-full ${item.color}`} />
                 <span className="text-xs text-surface-500 dark:text-surface-400">{item.label}</span>
@@ -1464,7 +1464,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
             {t('panel.planning_heading')}
           </h3>
           <ul className="flex flex-col gap-1.5">
-            {planningEntries.map((e, i) => {
+            {planningEntries.map((e) => {
               const meta = [t(`panel.plan_type_${e.ptype}`), t(`panel.plan_status_${e.status}`), e.date]
                 .filter(Boolean)
                 .join(' · ');
@@ -1476,7 +1476,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
                 </>
               );
               return (
-                <li key={i}>
+                <li key={`${e.ptype}-${e.kind}-${e.name}-${e.date ?? ''}`}>
                   {e.url ? (
                     <a
                       href={e.url}

@@ -129,6 +129,10 @@ describe('formatYtlGrade', () => {
     [73.4, 'M+'], // Otaniemi's actual score
     [100, 'L'],
     [0, 'I'],
+    // The YTL scale skips integer 1 (I=0 → A=2). Scores that round into that gap
+    // must render as the next real grade, not a placeholder dash.
+    [10, 'A-'], // mean ≈ 0.70
+    [15, 'A'], //  mean ≈ 1.05
   ])('maps score %f to grade %s', (score, expected) => {
     expect(formatYtlGrade(score)).toBe(expected);
   });

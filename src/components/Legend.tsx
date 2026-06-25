@@ -42,7 +42,9 @@ export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: 
       if (helpRef.current && !helpRef.current.contains(e.target as Node)) setHelpOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setHelpOpen(false);
+      // Stop the event so closing this help popover doesn't also trigger App's
+      // window-level Escape cascade; document fires before window when bubbling.
+      if (e.key === 'Escape') { e.stopPropagation(); setHelpOpen(false); }
     };
     document.addEventListener('mousedown', onPointer);
     document.addEventListener('keydown', onKey);

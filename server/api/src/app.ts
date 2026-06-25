@@ -52,6 +52,24 @@ export function createApp() {
     app.set('trust proxy', 1);
   }
 
+  // Don't advertise the framework (reduces trivial fingerprinting).
+  app.disable('x-powered-by');
+
+  // Baseline security headers for a JSON-only API. We set the few that are
+  // meaningful here explicitly rather than pulling in helmet (whose HTML-oriented
+  // defaults — CSP, COEP — don't apply to a pure data API): block MIME sniffing,
+  // forbid framing, suppress the Referer, and pin HSTS in production (Caddy
+  // terminates TLS in front of this and passes the header through).
+  app.use((_req: Request, res: Response, next: NextFunction) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    if (process.env.NODE_ENV === 'production') {
+      res.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains');
+    }
+    next();
+  });
+
   app.use(cors({
     origin: (origin, callback) => {
       if (!origin || ALLOWED_ORIGINS.includes(origin)) {

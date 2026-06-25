@@ -7,13 +7,16 @@ interface RateBucket {
 
 const buckets = new Map<string, RateBucket>();
 
-// Clean up expired entries every 10 minutes
+// Sweep expired entries periodically. Most windows are short (60 s for the authed
+// limiters), so a long sweep interval lets expired buckets pile up between runs —
+// under an IP/userId-rotation flood that is wasted memory. Sweeping every minute
+// keeps peak accumulation bounded; the O(n) pass over a few thousand keys is cheap.
 setInterval(() => {
   const now = Date.now();
   for (const [key, bucket] of buckets) {
     if (bucket.resetAt <= now) buckets.delete(key);
   }
-}, 10 * 60 * 1000).unref();
+}, 60 * 1000).unref();
 
 /**
  * Derive the rate-limit identity from a request. Returns the identity string, or

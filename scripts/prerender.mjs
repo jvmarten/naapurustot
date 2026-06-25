@@ -244,6 +244,13 @@ function localizeOgLocale(html, lang, imageAlt) {
     /<meta property="og:locale" content="[^"]*" \/>/,
     `<meta property="og:locale" content="${OG_LOCALE[lang]}" />`,
   );
+  // The replacement below maps the Nth og:locale:alternate tag to alternates[N].
+  // That positional assumption silently emits `undefined` if the template's tag
+  // count ever drifts from the two alternates we have — fail loudly instead.
+  const altCount = (html.match(/<meta property="og:locale:alternate" content="[^"]*" \/>/g) || []).length;
+  if (altCount !== alternates.length) {
+    throw new Error(`[prerender] expected ${alternates.length} og:locale:alternate tags in template, found ${altCount}`);
+  }
   let i = 0;
   html = html.replace(
     /<meta property="og:locale:alternate" content="[^"]*" \/>/g,
