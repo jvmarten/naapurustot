@@ -215,9 +215,10 @@ npm run build = tsc -b && vite build
 ├── sentryVitePlugin only when SENTRY_AUTH_TOKEN is set: hidden source
 │   maps uploaded then deleted from dist/
 ├── compression: gzip + Brotli for js/css/html/json/topojson/svg ≥1 KB
-├── VitePWA (autoUpdate): precache js/css/icons only — HTML excluded
+├── VitePWA (prompt): precache js/css/icons only — HTML excluded
 │   (NetworkFirst, 3 s timeout), CARTO tiles CacheFirst (500/30 d),
-│   topojson/geojson StaleWhileRevalidate (20/30 d)
+│   topojson/geojson StaleWhileRevalidate (20/30 d). main.tsx defers
+│   the update reload until the tab is hidden (no mid-session reset)
 ├── stripBuildOnlyData plugin: deletes metro_neighborhoods.geojson and
 │   converted *_grid.geojson from dist/ (≈40 MB of pipeline inputs)
 └── rollup-plugin-visualizer → dist/stats.html
