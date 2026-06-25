@@ -5,7 +5,22 @@
  * wrong neighborhoods shown, 404s on valid URLs).
  */
 import { describe, it, expect } from 'vitest';
-import { toSlug, parseSlug } from '../utils/slug';
+import { toSlug, parseSlug, fold } from '../utils/slug';
+
+describe('fold', () => {
+  it('lowercases and strips Finnish diacritics without slugifying', () => {
+    // Folding is what makes search accent-insensitive: a query and the index are
+    // folded the same way so "Toolo" matches "Töölö".
+    expect(fold('Töölö')).toBe('toolo');
+    expect(fold('Äänekoski')).toBe('aanekoski');
+    expect(fold('Ähtäri')).toBe('ahtari');
+    expect(fold('KALLIO')).toBe('kallio');
+  });
+
+  it('preserves spaces and punctuation (unlike slugify)', () => {
+    expect(fold('Helsinki keskusta - Etu-Töölö')).toBe('helsinki keskusta - etu-toolo');
+  });
+});
 
 describe('toSlug', () => {
   it('creates slug from postal code and Finnish name', () => {

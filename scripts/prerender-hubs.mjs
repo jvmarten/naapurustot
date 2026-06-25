@@ -522,6 +522,63 @@ const regions = [...byRegion.entries()]
 const TOTAL_AREAS = regions.reduce((s, r) => s + r.count, 0);
 const TOTAL_POP = regions.reduce((s, r) => s + r.totalPop, 0);
 
+// --- Group features by municipality (kunta) for municipality-level hub pages ---
+// People search by city/municipality ("Espoo asuinalueet"), but a seutukunta hub
+// bundles several municipalities, so cities like Espoo, Vantaa, Kuopio and Lahti had
+// no landing page. Build one hub per municipality — EXCEPT where a seutukunta contains
+// exactly one municipality (then the region hub already IS that municipality's page, so
+// emitting both would be duplicate content). Municipality name is baked onto every
+// feature by the pipeline; each municipality belongs to exactly one seutukunta.
+const byMunicipality = new Map();
+for (const f of geojson.features) {
+  const p = f.properties;
+  if (!p?.pno || !p?.nimi || !p?.municipality || !p?.city) continue;
+  const name = String(p.municipality);
+  if (!byMunicipality.has(name)) byMunicipality.set(name, { name, regionId: p.city, features: [] });
+  byMunicipality.get(name).features.push(f);
+}
+// Municipalities per seutukunta → the 1:1 regions whose municipality hub we skip.
+const muniCountByRegion = new Map();
+for (const m of byMunicipality.values()) {
+  muniCountByRegion.set(m.regionId, (muniCountByRegion.get(m.regionId) || 0) + 1);
+}
+// Detect the (rare) slugify collision so we can disambiguate deterministically with the
+// numeric kunta code instead of silently overwriting one municipality's pages.
+const muniSlugCounts = new Map();
+for (const m of byMunicipality.values()) {
+  const base = slugify(m.name);
+  muniSlugCounts.set(base, (muniSlugCounts.get(base) || 0) + 1);
+}
+const municipalities = [...byMunicipality.values()]
+  .filter((m) => (muniCountByRegion.get(m.regionId) || 0) > 1)
+  .map((m) => {
+    let totalPop = 0;
+    for (const f of m.features) {
+      if (Number.isFinite(Number(f.properties.he_vakiy))) totalPop += Number(f.properties.he_vakiy);
+    }
+    const base = slugify(m.name);
+    const code = String(m.features[0].properties.kunta || '');
+    const slug = muniSlugCounts.get(base) > 1 && code ? `${base}-${code}` : base;
+    return { name: m.name, regionId: m.regionId, slug, features: m.features, count: m.features.length, totalPop };
+  })
+  .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'fi'));
+// Region id → its municipality hubs, for the "municipalities in this sub-region" nav.
+const muniByRegion = new Map();
+for (const m of municipalities) {
+  if (!muniByRegion.has(m.regionId)) muniByRegion.set(m.regionId, []);
+  muniByRegion.get(m.regionId).push(m);
+}
+
+const MUNI_PREFIX = { fi: '/kunta', en: '/en/municipality', sv: '/sv/kommun' };
+function muniPath(slug, lang) { return `${MUNI_PREFIX[lang]}/${slug}/`; }
+function muniUrl(slug, lang) { return `${ORIGIN}${muniPath(slug, lang)}`; }
+function muniAlternates(slug) { return Object.fromEntries(LANGS.map((l) => [l, muniUrl(slug, l)])); }
+const MUNI_OUT = {
+  fi: (slug) => join(DIST, 'kunta', slug),
+  en: (slug) => join(DIST, 'en', 'municipality', slug),
+  sv: (slug) => join(DIST, 'sv', 'kommun', slug),
+};
+
 function cityUrl(id, lang) { return `${ORIGIN}${CITY_PREFIX[lang]}/${id}/`; }
 function dirUrl(lang) { return `${ORIGIN}${DIRECTORY_PATH[lang]}`; }
 
@@ -837,6 +894,7 @@ function buildCityHub(region, lang) {
 ${rows}
         </tbody>
       </table>
+${buildMunicipalitiesNav(region, lang)}
 ${buildBestAreasNav(region, lang)}
 ${buildPlanningNav(region, lang)}
 ${buildCiteSection(lang, T.cityTitle(regionName), alternates[lang])}
@@ -885,6 +943,142 @@ ${buildCiteSection(lang, T.cityTitle(regionName), alternates[lang])}
     body,
     ogImage: emitRegionCard(region, regionName, lang),
   });
+}
+
+// --- Municipality (kunta) hub page ----------------------------------------
+// Inline localized prose (no bundled locale keys), mirroring the region hub.
+const MUNI_TEXT = {
+  fi: {
+    title: (m) => `${m} — asuinalueet, postinumerot ja tilastot | naapurustot.fi`,
+    desc: (m, n) => `${m}: ${n} postinumeroaluetta ja niiden tilastot naapurustot.fi-palvelussa — tulot, asuminen, palvelut, turvallisuus ja joukkoliikenne.`,
+    intro: (m, n, pop) =>
+      `${m} on suomalainen kunta. naapurustot.fi kattaa kunnassa ${n} postinumeroaluetta, ` +
+      `joiden yhteenlaskettu väkiluku on noin ${pop}. Vertaile kunnan asuinalueita yli 50 mittarilla — ` +
+      `tulot, asuminen, palvelut, turvallisuus ja ympäristö.`,
+    tableCaption: (m) => `${m} — postinumeroalueet`,
+    mapCta: (m) => `Avaa ${m} kartalla`,
+    regionLabel: 'Seutukunta',
+    regionMunisHeading: 'Kunnat tällä seutukunnalla',
+  },
+  en: {
+    title: (m) => `${m} — neighbourhoods, postal codes & statistics | naapurustot.fi`,
+    desc: (m, n) => `${m}: ${n} postal code areas and their statistics on naapurustot.fi — income, housing, services, safety and public transport.`,
+    intro: (m, n, pop) =>
+      `${m} is a Finnish municipality. naapurustot.fi covers ${n} postal code areas in ${m}, ` +
+      `with a combined population of about ${pop}. Compare the municipality's neighbourhoods across 50+ ` +
+      `indicators — income, housing, services, safety and environment.`,
+    tableCaption: (m) => `${m} — postal code areas`,
+    mapCta: (m) => `Open ${m} on the map`,
+    regionLabel: 'Sub-region',
+    regionMunisHeading: 'Municipalities in this sub-region',
+  },
+  sv: {
+    title: (m) => `${m} — bostadsområden, postnummer & statistik | naapurustot.fi`,
+    desc: (m, n) => `${m}: ${n} postnummerområden och deras statistik på naapurustot.fi — inkomst, boende, tjänster, säkerhet och kollektivtrafik.`,
+    intro: (m, n, pop) =>
+      `${m} är en finländsk kommun. naapurustot.fi täcker ${n} postnummerområden i ${m}, ` +
+      `med en sammanlagd befolkning på cirka ${pop}. Jämför kommunens bostadsområden med över 50 mätare — ` +
+      `inkomst, boende, tjänster, säkerhet och miljö.`,
+    tableCaption: (m) => `${m} — postnummerområden`,
+    mapCta: (m) => `Öppna ${m} på kartan`,
+    regionLabel: 'Region',
+    regionMunisHeading: 'Kommuner i denna region',
+  },
+};
+
+function buildMunicipalityHub(muni, lang) {
+  const T = TEXT[lang];
+  const M = MUNI_TEXT[lang];
+  const regionName = getRegionName(muni.regionId, lang);
+  const alternates = muniAlternates(muni.slug);
+
+  const sorted = [...muni.features].sort(
+    (a, b) => (Number(b.properties.he_vakiy) || 0) - (Number(a.properties.he_vakiy) || 0),
+  );
+  const rows = sorted.map((f) => {
+    const p = f.properties;
+    const name = escapeHtml(getDisplayName(p, lang));
+    const href = `${AREA_PREFIX[lang]}/${escapeHtml(toSlug(p.pno, p.nimi))}/`;
+    const pop = Number.isFinite(Number(p.he_vakiy)) ? fmtNum(p.he_vakiy, lang) : T.missing;
+    const income = Number.isFinite(Number(p.hr_mtu)) && Number(p.hr_mtu) > 0
+      ? `${fmtNum(p.hr_mtu, lang)} €`
+      : T.missing;
+    return `        <tr><td><a href="${href}">${name}</a></td>` +
+      `<td>${escapeHtml(p.pno)}</td>` +
+      `<td class="num">${pop}</td>` +
+      `<td class="num">${income}</td></tr>`;
+  }).join('\n');
+
+  const muniEsc = escapeHtml(muni.name);
+  const regionEsc = escapeHtml(regionName);
+  const regionHref = `${CITY_PREFIX[lang]}/${escapeHtml(muni.regionId)}/`;
+  const body = `      <p class="crumbs"><a href="/">naapurustot.fi</a> / <a href="${DIRECTORY_PATH[lang]}">${escapeHtml(T.dirCrumb)}</a> / <a href="${regionHref}">${regionEsc}</a> / ${muniEsc}</p>
+      <h1>${muniEsc}</h1>
+      <p class="lead">${escapeHtml(M.intro(muni.name, muni.count, fmtNum(muni.totalPop, lang)))}</p>
+      <p class="summary"><span>${escapeHtml(T.citySummary(fmtNum(muni.count, lang), fmtNum(muni.totalPop, lang)))}</span></p>
+      <p><a class="cta" href="/?city=${escapeHtml(muni.regionId)}">${escapeHtml(M.mapCta(muni.name))}</a></p>
+      <p>${escapeHtml(M.regionLabel)}: <a href="${regionHref}">${regionEsc}</a></p>
+      <h2>${escapeHtml(T.cityAreasHeading)}</h2>
+      <table>
+        <caption>${escapeHtml(M.tableCaption(muni.name))}</caption>
+        <thead><tr><th scope="col">${escapeHtml(T.colArea)}</th><th scope="col">${escapeHtml(T.colPostal)}</th><th scope="col" class="num">${escapeHtml(T.colPopulation)}</th><th scope="col" class="num">${escapeHtml(T.colIncome)}</th></tr></thead>
+        <tbody>
+${rows}
+        </tbody>
+      </table>
+${buildCiteSection(lang, M.title(muni.name), alternates[lang])}
+      <p><a href="${DIRECTORY_PATH[lang]}">${escapeHtml(T.backToDir)}</a></p>`;
+
+  const collection = {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: muni.name,
+    description: M.desc(muni.name, muni.count),
+    url: alternates[lang],
+    inLanguage: lang,
+    isPartOf: { '@type': 'WebSite', name: 'naapurustot.fi', url: ORIGIN },
+    about: {
+      '@type': 'Place',
+      name: muni.name,
+      address: { '@type': 'PostalAddress', addressLocality: muni.name, addressCountry: 'FI' },
+    },
+  };
+  const breadcrumb = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'naapurustot.fi', item: `${ORIGIN}/` },
+      { '@type': 'ListItem', position: 2, name: T.dirCrumb, item: dirUrl(lang) },
+      { '@type': 'ListItem', position: 3, name: regionName, item: cityUrl(muni.regionId, lang) },
+      { '@type': 'ListItem', position: 4, name: muni.name },
+    ],
+  };
+  const jsonLd = [collection, breadcrumb]
+    .map((o) => `    <script type="application/ld+json">${safeJson(o)}</script>`)
+    .join('\n');
+
+  return htmlPage({
+    lang,
+    title: M.title(muni.name),
+    description: M.desc(muni.name, muni.count),
+    canonical: alternates[lang],
+    alternates,
+    jsonLd,
+    body,
+  });
+}
+
+/** "Municipalities in this sub-region" link list for a multi-municipality region hub. */
+function buildMunicipalitiesNav(region, lang) {
+  const list = muniByRegion.get(region.id);
+  if (!list || list.length === 0) return '';
+  const M = MUNI_TEXT[lang];
+  const items = [...list]
+    .sort((a, b) => a.name.localeCompare(b.name, 'fi'))
+    .map((m) => `<li><a href="${MUNI_PREFIX[lang]}/${escapeHtml(m.slug)}/">${escapeHtml(m.name)}</a></li>`)
+    .join('');
+  return `      <h2>${escapeHtml(M.regionMunisHeading)}</h2>
+      <ul class="muni-nav">${items}</ul>`;
 }
 
 // --- CF-10: localized EN/SV landing pages ---------------------------------
@@ -1220,6 +1414,24 @@ for (const region of regions) {
 }
 
 console.log(`Prerendered ${cityCount} regional hubs + 3 directory pages (${cityCount * 3 + 3} HTML files).`);
+
+// Municipality (kunta) hubs (×3 languages). People search by municipality, but a
+// seutukunta hub bundles several — so each multi-municipality region's municipalities
+// get their own landing page. Emits a {fi,en,sv} alternates manifest so the sitemap
+// lists exactly the pages written.
+let muniCount = 0;
+const muniManifest = [];
+for (const muni of municipalities) {
+  for (const lang of LANGS) {
+    const dir = MUNI_OUT[lang](muni.slug);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'index.html'), buildMunicipalityHub(muni, lang));
+  }
+  muniManifest.push(muniAlternates(muni.slug));
+  muniCount++;
+}
+writeFileSync(join(DIST, 'kunnat-pages.json'), JSON.stringify(muniManifest));
+console.log(`Prerendered ${muniCount} municipality hubs (${muniCount * 3} HTML files; manifest → dist/kunnat-pages.json).`);
 
 // CF-12: ranking pages — national top-50 + per-region top-15 per metric (×3 langs).
 // Emits a manifest of {fi,en,sv} alternates so generate-sitemap.mjs lists exactly

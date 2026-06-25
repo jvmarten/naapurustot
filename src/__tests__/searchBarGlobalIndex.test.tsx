@@ -76,3 +76,51 @@ describe('SearchBar cross-subregion search', () => {
     });
   });
 });
+
+// --- Accent-insensitive + municipality-aware search ---
+function fcMuni(...areas: Array<{ pno: string; nimi: string; city: string; muni?: string }>): FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: areas.map((a) => ({ type: 'Feature', geometry: null, properties: a })),
+  } as unknown as FeatureCollection;
+}
+
+const accentIndex = fcMuni(
+  { pno: '00260', nimi: 'Töölö', city: 'helsinki_metro' },
+  { pno: '44100', nimi: 'Äänekoski Keskusta', city: 'aanekoski' },
+);
+
+describe('SearchBar accent-insensitive search', () => {
+  it('matches a diacritic name typed without diacritics ("Toolo" → "Töölö")', async () => {
+    render(<SearchBar data={null} searchData={accentIndex} onSelect={vi.fn()} />);
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Toolo' } });
+    await waitFor(() => expect(screen.getByText('Töölö')).toBeTruthy());
+  });
+
+  it('matches "Aanekoski" → "Äänekoski Keskusta"', async () => {
+    render(<SearchBar data={null} searchData={accentIndex} onSelect={vi.fn()} />);
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Aanekoski' } });
+    await waitFor(() => expect(screen.getByText('Äänekoski Keskusta')).toBeTruthy());
+  });
+});
+
+describe('SearchBar municipality-aware search', () => {
+  const muniIndex = fcMuni(
+    { pno: '02400', nimi: 'Kirkkonummi Keskus', city: 'helsinki_metro', muni: 'Kirkkonummi' },
+    // Area whose own name does NOT contain its town — only reachable via `muni`.
+    { pno: '02770', nimi: 'Lakisto', city: 'helsinki_metro', muni: 'Espoo' },
+  );
+
+  it("finds a municipality's areas by town name even when the area name is generic", async () => {
+    render(<SearchBar data={null} searchData={muniIndex} onSelect={vi.fn()} />);
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Espoo' } });
+    await waitFor(() => expect(screen.getByText('Lakisto')).toBeTruthy());
+  });
+
+  it('is accent-insensitive on the municipality field too ("Jarvenpaa")', async () => {
+    const idx = fcMuni({ pno: '04400', nimi: 'Keskusta', city: 'helsinki_metro', muni: 'Järvenpää' });
+    render(<SearchBar data={null} searchData={idx} onSelect={vi.fn()} />);
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Jarvenpaa' } });
+    await waitFor(() => expect(screen.getByText('Keskusta')).toBeTruthy());
+  });
+});

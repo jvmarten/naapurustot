@@ -4,6 +4,7 @@ import { t, useI18nVersion, type Lang } from '../utils/i18n';
 import type { RecentEntry } from '../hooks/useRecentNeighborhoods';
 import { geocodeAddressDetailed, GEOCODING_ENABLED, type GeocodeResult } from '../utils/geocode';
 import { getFeatureCenter } from '../utils/geometryFilter';
+import { fold } from '../utils/slug';
 import { trackEvent } from '../utils/analytics';
 
 interface SearchBarProps {
@@ -78,39 +79,62 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
   // subregion are found), falling back to the region-scoped data until it loads.
   const searchSource = searchData ?? data;
 
+  // Pre-fold the search index once per dataset (NOT per keystroke): lowercasing and
+  // stripping diacritics over ~3,000 rows is far too costly to redo on every character,
+  // so cache the folded fields and only recompute when the underlying index changes.
+  // `muni` is the area's municipality name (from the eager search index, with the
+  // region-scoped `municipality` as a fallback) — included so typing a town ("Espoo",
+  // "Nurmijärvi") surfaces its neighbourhoods even when their own names are generic
+  // ("Keskus", "Klaukkala").
+  const foldedIndex = useMemo(() => {
+    if (!searchSource) return null;
+    return searchSource.features.map((f) => {
+      const p = (f.properties ?? {}) as Record<string, unknown>;
+      const muniVal = p.muni ?? p.municipality;
+      return {
+        f,
+        nimi: p.nimi ? fold(String(p.nimi)) : '',
+        namn: p.namn ? fold(String(p.namn)) : '',
+        pno: p.pno ? String(p.pno).toLowerCase() : '',
+        muni: muniVal ? fold(String(muniVal)) : '',
+      };
+    });
+  }, [searchSource]);
+
   const { results, totalCount } = useMemo(() => {
-    if (!searchSource || debouncedQuery.length < 2) return { results: [], totalCount: 0 };
-    const q = debouncedQuery.toLowerCase();
-    // Score matches so exact/prefix hits rank above arbitrary substring matches,
-    // then keep the top 8. Previously the first 8 in dataset order won, so an exact
-    // name match could be pushed out of view by earlier incidental substring matches.
+    if (!foldedIndex || debouncedQuery.length < 2) return { results: [], totalCount: 0 };
+    // Fold the query the same way as the index so accents and Finnish characters never
+    // matter: "Toolo" finds "Töölö", "Aanekoski" finds "Äänekoski". An all-diacritic
+    // query can fold to empty — guard so includes('') doesn't match every row.
+    const q = fold(debouncedQuery);
+    if (!q) return { results: [], totalCount: 0 };
+    // Score matches so exact/prefix hits rank above arbitrary substring matches, with
+    // municipality-only matches ranked last; then keep the top 8. Previously the first 8
+    // in dataset order won, so an exact name match could be pushed out by earlier
+    // incidental substring matches.
     const scored: { f: GeoJSON.Feature; score: number; idx: number }[] = [];
-    let idx = 0;
-    for (const f of searchSource.features) {
-      const p = f.properties;
-      if (!p) { idx++; continue; }
-      const nimi = (p.nimi as string | undefined)?.toLowerCase();
-      const namn = (p.namn as string | undefined)?.toLowerCase();
-      const pno = p.pno as string | undefined;
-      const nimiHit = nimi?.includes(q) ?? false;
-      const namnHit = namn?.includes(q) ?? false;
-      const pnoHit = pno?.startsWith(q) ?? false;
-      if (nimiHit || namnHit || pnoHit) {
-        // lower score = more relevant (same match predicate as before, so totalCount is unchanged)
-        let score = 4; // namn substring fallback
+    for (let idx = 0; idx < foldedIndex.length; idx++) {
+      const { f, nimi, namn, pno, muni } = foldedIndex[idx];
+      const nimiHit = nimi.includes(q);
+      const namnHit = namn.includes(q);
+      const pnoHit = pno.startsWith(q);
+      const muniHit = muni.includes(q);
+      if (nimiHit || namnHit || pnoHit || muniHit) {
+        let score = 5; // municipality substring (broadest, least specific)
         if (nimi === q || namn === q) score = 0;                       // exact name
-        else if (nimi?.startsWith(q) || namn?.startsWith(q)) score = 1; // name prefix
+        else if (nimi.startsWith(q) || namn.startsWith(q)) score = 1;  // name prefix
         else if (pno === q) score = 2;                                 // exact pno
         else if (pnoHit) score = 3;                                    // pno prefix
         else if (nimiHit) score = 3.5;                                 // nimi substring
+        else if (namnHit) score = 4;                                   // namn substring
+        else if (muni.startsWith(q)) score = 4.5;                      // municipality prefix
         scored.push({ f, score, idx });
       }
-      idx++;
     }
     // Stable tie-break on dataset index keeps ordering deterministic.
     scored.sort((a, b) => a.score - b.score || a.idx - b.idx);
     return { results: scored.slice(0, 8).map((s) => s.f), totalCount: scored.length };
-  }, [searchSource, debouncedQuery]);
+  }, [foldedIndex, debouncedQuery]);
 
   // SN-3/AY-4: the recents list participates in the combobox keyboard model when the
   // query is empty, so Arrow/Enter and aria-activedescendant traverse it like results.

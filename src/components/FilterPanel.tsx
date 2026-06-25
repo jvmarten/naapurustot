@@ -661,12 +661,16 @@ export const FilterPanel: React.FC<FilterPanelProps> = React.memo(({
     if (filters.length > 0 && ranked.length === 0) setMobileResultsOpen(true);
   }, [filters.length, ranked.length]);
 
-  // DT-1: on the all-Finland view the data is the 69 seutukunta aggregates, not the
-  // 3,018 postal areas — say so, since every label promises "neighborhoods".
+  // On the all-Finland view the filter ranks every postal area in the country. The
+  // full national set loads on demand once a filter is active (`data` is null until it
+  // resolves), so the banner reflects the live state: an invitation before any filter,
+  // a loading note while the national set downloads, then a positive "all of Finland"
+  // confirmation once areas are rankable. (Previously this said filtering was limited
+  // to regions — no longer true.)
   const aggregateBanner = isAggregate ? (
     <div className="flex-shrink-0 mx-3 mt-2 flex items-start gap-1.5 rounded-lg bg-amber-500/10 dark:bg-amber-600/15 border border-amber-500/30 px-2.5 py-2 text-[11px] leading-snug text-amber-700 dark:text-amber-300" role="status">
       <span aria-hidden="true" className="mt-px">ⓘ</span>
-      <span>{t('filter.aggregate_notice')}</span>
+      <span>{data ? t('filter.national_notice') : filters.length > 0 ? t('filter.national_loading') : t('filter.national_invite')}</span>
     </div>
   ) : null;
 

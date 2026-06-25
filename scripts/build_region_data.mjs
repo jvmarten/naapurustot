@@ -171,12 +171,20 @@ writeFileSync(propertiesOutput, JSON.stringify(features.map((f) => f.properties)
 // pno + names (display/filter) + city (so handleSearch can resolve a result's owning
 // region and switch to it). ~30 KB gz, loaded on mount so search is instant in every
 // view without pulling the full national set. Same feature order as region_properties.
+//
+// `muni` is the municipality NAME (so "Espoo" / "Nurmijärvi" find areas whose own
+// name is a generic "Keskus"/"Kirkonkylä"). The pipeline bakes the human-readable
+// municipality name into the `municipality` property (the numeric `kunta` is just a
+// code and must never be a search target). Only include it when present and when it
+// differs from the area name, so the payload stays minimal and we don't duplicate the
+// name a result already shows.
 const searchIndexOutput = resolve(rootDir, 'src', 'data', 'region_search_index.json');
 writeFileSync(
   searchIndexOutput,
   JSON.stringify(features.map((f) => {
     const p = f.properties || {};
-    return { pno: p.pno, nimi: p.nimi, namn: p.namn, city: p.city };
+    const muni = p.municipality && p.municipality !== p.nimi ? p.municipality : undefined;
+    return { pno: p.pno, nimi: p.nimi, namn: p.namn, city: p.city, muni };
   })),
 );
 console.log(`  → region_search_index.json (${features.length} areas)`);
