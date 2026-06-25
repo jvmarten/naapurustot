@@ -500,6 +500,15 @@ const App: React.FC = () => {
   useEffect(() => {
     if (cityFilter === 'all' && customWeights) setNeedFullNational(true);
   }, [cityFilter, customWeights]);
+
+  // National filtering: on the all-Finland view the map paints from the 69 region
+  // aggregates, but an active filter should rank all 3,018 postal areas — so pull the
+  // full national set (the same opt-in load custom weights use) as soon as the user
+  // adds a filter. Monotonic, and the per-postal data is needed only for the panel,
+  // not the map, so the region choropleth is undisturbed.
+  useEffect(() => {
+    if (cityFilter === 'all' && filters.length > 0) setNeedFullNational(true);
+  }, [cityFilter, filters.length]);
   const [colorblind, setColorblind] = useState(getColorblindMode);
   const [showWizard, setShowWizard] = useState(false);
   // CF-4: persistent, shareable wizard priority profile (localStorage + cloud sync).
@@ -2359,9 +2368,14 @@ const App: React.FC = () => {
         <ErrorBoundary>
           <Suspense fallback={<PanelSkeleton />}>
             <FilterPanel
-              data={filteredData}
+              // All-Finland view ranks the full national set (3,018 postal areas,
+              // loaded on demand once a filter is active) rather than the 69 region
+              // aggregates that `filteredData` collapses to; let the panel compute its
+              // own matches over that set (the parent `filterMatchPnos` is region-scoped
+              // for the map highlight). `data` is null until the national load resolves.
+              data={cityFilter === 'all' ? data : filteredData}
               filters={filters}
-              matchingPnos={filterMatchPnos}
+              matchingPnos={cityFilter === 'all' ? undefined : filterMatchPnos}
               onFiltersChange={setFilters}
               onSelect={handleSearch}
               onClose={handleCloseFilter}

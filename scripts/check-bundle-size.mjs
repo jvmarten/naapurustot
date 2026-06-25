@@ -56,7 +56,14 @@ import { join } from 'node:path';
 // the total by ~2 KB across the ~108 chunks. So the number printed here reads
 // ~2 KB BELOW the old gate at the same real bundle; the 280000 B budget is
 // unchanged, which means ~2 KB more genuine headroom than the old method showed.
-const BUDGET = 295_000;
+// → 297000 B (2026-06-25: top-3 impact batch. (1) National filtering on the default
+// ?city=all view — App opt-in national load on first filter + FilterPanel ranks the
+// full 3,018-area set with national-aware banner copy; (3) accent-insensitive +
+// municipality-aware search — a shared fold() factored out of slug.ts applied to a
+// pre-folded index plus a `muni` predicate. ~0.3 KB of genuine UI/predicate logic over
+// the prior ~0.3 KB headroom. The SEO half of the batch (municipality hub pages,
+// keyword-rich profile titles) is all build-time HTML — zero bundle bytes.
+const BUDGET = 297_000;
 const ASSETS_DIR = 'dist/assets';
 
 const fmtKB = (b) => (b / 1024).toFixed(2);

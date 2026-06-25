@@ -593,6 +593,7 @@ const TEXT = {
     schemaDesc: (name, pno, region) =>
       `${name} (${pno}), ${region} — postinumeroalueen tilastot ja vertailu naapurustot.fi-palvelussa.`,
     descTail: 'Tutustu alueen tilastoihin: asuminen, tulot, palvelut ja ympäristö.',
+    titleCat: 'asuinalue ja tilastot',
     pop: 'Väkiluku',
     income: 'Mediaanitulo',
     descRank: (top) => `Laatuindeksissä koko maan parhaassa ${top} %:ssa.`,
@@ -650,6 +651,7 @@ const TEXT = {
     schemaDesc: (name, pno, region) =>
       `${name} (${pno}), ${region} — postal code area statistics and comparison on naapurustot.fi.`,
     descTail: 'Explore the area statistics: housing, income, services and environment.',
+    titleCat: 'neighbourhood guide & statistics',
     pop: 'Population',
     income: 'Median income',
     descRank: (top) => `Ranks in the top ${top}% nationally for quality of life.`,
@@ -707,6 +709,7 @@ const TEXT = {
     schemaDesc: (name, pno, region) =>
       `${name} (${pno}), ${region} — statistik och jämförelse för postnummerområdet på naapurustot.fi.`,
     descTail: 'Utforska områdets statistik: boende, inkomst, tjänster och miljö.',
+    titleCat: 'bostadsområde och statistik',
     pop: 'Folkmängd',
     income: 'Medianinkomst',
     descRank: (top) => `Hör till de bästa ${top} % i landet i kvalitetsindexet.`,
@@ -1182,7 +1185,14 @@ function generatePage(feature, lang) {
   const region = getRegionName(props.city, lang);
   const displayName = getDisplayName(props, lang);
 
-  const title = `${displayName} (${props.pno}) – naapurustot.fi`;
+  // Keyword-rich <title>: front-load the area name + postal code (what users type),
+  // then add the municipality (when it isn't already the name's prefix) and a localized
+  // category descriptor, so the title carries "asuinalue / neighbourhood / bostadsområde"
+  // and the town name for intent matching. SERPs may visually truncate the tail, but the
+  // extra keywords still count toward ranking. (Previously: just "Name (pno) – …".)
+  const muni = props.municipality ? String(props.municipality) : '';
+  const muniPart = muni && !displayName.toLowerCase().startsWith(muni.toLowerCase()) ? `${muni} ` : '';
+  const title = `${displayName} (${props.pno}) – ${muniPart}${TEXT[lang].titleCat} – naapurustot.fi`;
   const description = buildDescription(props, lang, displayName, region);
 
   const fiUrl = `https://naapurustot.fi/alue/${slug}/`;

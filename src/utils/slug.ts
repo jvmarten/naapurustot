@@ -7,8 +7,19 @@
  * The postal code prefix guarantees uniqueness and enables O(1) lookup.
  */
 
-/** Strip diacritics and Finnish special characters, then slugify. */
-function slugify(text: string): string {
+/**
+ * Lowercase and strip diacritics / Finnish special characters, WITHOUT slugifying.
+ *
+ * Maps `ä→a`, `ö→o`, `å→a` (the standard Finnish folding) before NFD decomposition,
+ * because NFD does not decompose those identically across environments, then removes
+ * any remaining combining marks. Whitespace and punctuation are preserved.
+ *
+ * Used both here (as the first stage of {@link slugify}) and by the search bar to
+ * make queries accent-insensitive — so "Toolo" matches "Töölö" and "Aanekoski"
+ * matches "Äänekoski". Keep the two in lockstep: the slug pipeline and search
+ * folding normalise the same characters the same way.
+ */
+export function fold(text: string): string {
   return text
     .toLowerCase()
     // Replace Finnish characters before NFD decomposition, as NFD may not
@@ -17,7 +28,12 @@ function slugify(text: string): string {
     .replace(/ö/g, 'o')
     .replace(/å/g, 'a')
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '') // remove combining diacritical marks
+    .replace(/[̀-ͯ]/g, ''); // remove combining diacritical marks
+}
+
+/** Strip diacritics and Finnish special characters, then slugify. */
+function slugify(text: string): string {
+  return fold(text)
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '');
 }

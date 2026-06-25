@@ -38,9 +38,11 @@ import regionPropertiesUrl from '../data/region_properties.json?url';
 import regionAggregatesUrl from '../data/region_aggregates.json?url';
 import type { RegionAggregatesData } from './metroAggregation';
 
-// CF-8: a tiny eager search index — pno + names + owning region for every area, so
-// cross-area search works in every view (including the slim all-Finland landing, where
-// the full national set is NOT loaded) without pulling the ~10.6 MB region_properties.
+// CF-8: a tiny eager search index — pno + names + owning region + municipality name
+// for every area, so cross-area search works in every view (including the slim
+// all-Finland landing, where the full national set is NOT loaded) without pulling the
+// ~10.6 MB region_properties. The municipality field lets a town name surface its
+// neighbourhoods even when their own names are generic ("Keskus", "Kirkonkylä").
 import regionSearchIndexUrl from '../data/region_search_index.json?url';
 
 /** Result of loading and processing a TopoJSON dataset. */
@@ -248,16 +250,17 @@ export function loadAllAggregates(): Promise<RegionAggregatesData> {
   return aggregatesCache;
 }
 
-// CF-8: lightweight search index (pno/nimi/namn/city per area), geometry: null.
+// CF-8: lightweight search index (pno/nimi/namn/city/muni per area), geometry: null.
 let searchIndexCache: Promise<FeatureCollection> | null = null;
 
 /**
- * Load the tiny eager search index for cross-area name/postal-code search.
+ * Load the tiny eager search index for cross-area name/postal-code/municipality search.
  *
  * Returns a FeatureCollection of geometry-null features carrying only the fields search
- * needs (pno, nimi, namn, city). A fraction of the full national set, so it loads on
- * mount without weighing down the slim all-Finland landing — search resolves a result's
- * owning region from `city` and lets the per-region geometry load on selection.
+ * needs (pno, nimi, namn, city, and municipality name `muni`). A fraction of the full
+ * national set, so it loads on mount without weighing down the slim all-Finland landing —
+ * search resolves a result's owning region from `city` and lets the per-region geometry
+ * load on selection.
  */
 export function loadSearchIndex(): Promise<FeatureCollection> {
   if (searchIndexCache) return searchIndexCache;
