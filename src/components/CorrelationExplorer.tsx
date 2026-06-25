@@ -178,6 +178,29 @@ export const CorrelationExplorer: React.FC<Props> = ({ data, onSelect, onClose, 
     }
   };
 
+  // Base scatter layer with CONSTANT per-point props, memoized so it is NOT
+  // re-reconciled on hover. In all-Finland scope this is ~3,000 <circle>s; before
+  // this, `hovered` state fed every circle's r/fillOpacity/stroke, so a single
+  // mouseenter/leave (which fire rapidly across a dense cloud) re-rendered and
+  // diffed every circle, stuttering on mid/low-end devices. Now hover only flips
+  // the group opacity (dim-others) and draws one emphasized overlay circle below.
+  const basePoints = useMemo(() => points.map((p) => (
+    <circle
+      key={p.pno}
+      cx={sx(p.x)} cy={sy(p.y)} r={radius(p.pop)}
+      fill={regionColors.get(p.region)}
+      fillOpacity={0.7}
+      className="cursor-pointer"
+      onMouseEnter={() => setHovered(p.pno)}
+      onMouseLeave={() => setHovered((h) => (h === p.pno ? null : h))}
+      onClick={() => handlePointClick(p)}
+    >
+      <title>{`${p.name} (${p.pno})`}</title>
+    </circle>
+  )),
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- sx/sy/radius derive from domain; handlePointClick from stable props/scope (all reflected by points/domain)
+  [points, regionColors, domain]);
+
   const content = (
     <div className="bg-white dark:bg-surface-900 w-full md:max-w-3xl md:rounded-2xl shadow-2xl border border-surface-200 dark:border-surface-700/40 overflow-hidden max-h-[90vh] flex flex-col">
       {/* Header */}
@@ -295,22 +318,22 @@ export const CorrelationExplorer: React.FC<Props> = ({ data, onSelect, onClose, 
                 className="stroke-surface-500 dark:stroke-surface-400" strokeWidth={1.5} strokeDasharray="5 4"
               />
             )}
-            {/* Points */}
-            {points.map((p) => (
+            {/* Points — memoized base layer; hovering only dims the whole group
+                (one attribute write + CSS transition) instead of re-touching every
+                circle. The hovered point is re-drawn emphasized in the overlay below. */}
+            <g opacity={hovered ? 0.4 : 1} className="transition-opacity">
+              {basePoints}
+            </g>
+            {/* Emphasized hovered point, drawn on top. pointer-events-none so the
+                base circle underneath still receives the mouseleave. */}
+            {hoveredPt && (
               <circle
-                key={p.pno}
-                cx={sx(p.x)} cy={sy(p.y)} r={hovered === p.pno ? radius(p.pop) + 2 : radius(p.pop)}
-                fill={regionColors.get(p.region)}
-                fillOpacity={hovered && hovered !== p.pno ? 0.25 : 0.7}
-                stroke={hovered === p.pno ? '#111827' : 'none'} strokeWidth={hovered === p.pno ? 1.5 : 0}
-                className="cursor-pointer transition-[r,fill-opacity]"
-                onMouseEnter={() => setHovered(p.pno)}
-                onMouseLeave={() => setHovered((h) => (h === p.pno ? null : h))}
-                onClick={() => handlePointClick(p)}
-              >
-                <title>{`${p.name} (${p.pno})`}</title>
-              </circle>
-            ))}
+                cx={sx(hoveredPt.x)} cy={sy(hoveredPt.y)} r={radius(hoveredPt.pop) + 2}
+                fill={regionColors.get(hoveredPt.region)} fillOpacity={0.7}
+                stroke="#111827" strokeWidth={1.5}
+                className="pointer-events-none"
+              />
+            )}
           </svg>
         ) : (
           <p className="text-sm text-surface-500 dark:text-surface-400 py-8 text-center">

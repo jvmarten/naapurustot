@@ -19,7 +19,7 @@ import { useFilterPresets } from './hooks/useFilterPresets';
 import { useQualityWeights } from './hooks/useQualityWeights';
 import { useWizardProfile, wizardAnswersToQualityWeights, type WizardAnswers } from './hooks/useWizardProfile';
 import { trackEvent } from './utils/analytics';
-import type { Feature, Polygon, MultiPolygon, Position } from 'geojson';
+import type { Feature, FeatureCollection, Polygon, MultiPolygon, Position } from 'geojson';
 
 // IN-6: Lazy load heavy conditionally-rendered components
 const NeighborhoodPanel = lazy(() => import('./components/NeighborhoodPanel').then(m => ({ default: m.NeighborhoodPanel })));
@@ -93,6 +93,81 @@ function findRegionForCoords(lng: number, lat: number): CityFilter | null {
     if (area < bestArea) { bestArea = area; best = id as CityFilter; }
   }
   return best;
+}
+
+// Convex hull over the selected postal codes' geometry, used to draw the
+// AreaSummaryPanel boundary at the end of a select-areas session. A pure
+// module-scope helper (NOT a useMemo) so it runs only when the selection is
+// *finished* or restored from a URL — never on every select tap. As a memo keyed
+// on the selection it re-ran the full Graham scan over the cumulative
+// full-resolution exterior rings (tens of thousands of vertices in archipelago/
+// Lappi postal codes) on every additional tap, all of it thrown away until
+// "Finish". Output is byte-identical to the old memo (same algorithm).
+function computeSelectionHull(pnos: string[], data: FeatureCollection | null): Feature<Polygon> | null {
+  if (pnos.length === 0 || !data) return null;
+  const pnoSet = new Set(pnos);
+  const selectedFeatures = data.features.filter(
+    (f) => f.properties?.pno && pnoSet.has(f.properties.pno as string)
+  );
+  if (selectedFeatures.length === 0) return null;
+
+  // Collect all exterior ring coordinates from selected features. Append
+  // vertices with a loop, not `push(...ring)` — a postal code's exterior
+  // ring can hold ~11k vertices, and spreading that many call arguments
+  // overflows the stack on iOS WebKit.
+  const allCoords: Position[] = [];
+  for (const f of selectedFeatures) {
+    const geom = f.geometry;
+    if (!geom) continue;
+    if (geom.type === 'Polygon') {
+      for (const c of geom.coordinates[0]) allCoords.push(c);
+    } else if (geom.type === 'MultiPolygon') {
+      for (const poly of geom.coordinates) {
+        for (const c of poly[0]) allCoords.push(c);
+      }
+    }
+  }
+  if (allCoords.length < 3) return null;
+
+  // Simple Graham scan for convex hull
+  const points = allCoords.map(([x, y]) => [x, y] as [number, number]);
+  let pivot = 0;
+  for (let i = 1; i < points.length; i++) {
+    if (points[i][1] < points[pivot][1] || (points[i][1] === points[pivot][1] && points[i][0] < points[pivot][0])) {
+      pivot = i;
+    }
+  }
+  [points[0], points[pivot]] = [points[pivot], points[0]];
+  const p0 = points[0];
+  const rest = points.slice(1).sort((a, b) => {
+    const cross = (a[0] - p0[0]) * (b[1] - p0[1]) - (b[0] - p0[0]) * (a[1] - p0[1]);
+    if (Math.abs(cross) < 1e-10) {
+      const da = (a[0] - p0[0]) ** 2 + (a[1] - p0[1]) ** 2;
+      const db = (b[0] - p0[0]) ** 2 + (b[1] - p0[1]) ** 2;
+      return da - db;
+    }
+    return -cross;
+  });
+  const hull: [number, number][] = [p0];
+  for (const pt of rest) {
+    while (hull.length >= 2) {
+      const a = hull[hull.length - 2];
+      const b = hull[hull.length - 1];
+      const cross = (b[0] - a[0]) * (pt[1] - a[1]) - (b[1] - a[1]) * (pt[0] - a[0]);
+      // Use strict < 0 (not <= 0) to keep collinear points on the hull.
+      if (cross < 0) hull.pop();
+      else break;
+    }
+    hull.push(pt);
+  }
+  if (hull.length < 3) return null;
+  hull.push(hull[0]);
+
+  return {
+    type: 'Feature',
+    properties: {},
+    geometry: { type: 'Polygon', coordinates: [hull] },
+  };
 }
 
 // L3: lightweight Suspense fallback for user-triggered lazy panels — a centered
@@ -772,78 +847,11 @@ const App: React.FC = () => {
     handleDrawDoubleClick();
   }, [handleDrawDoubleClick]);
 
-  const selectedAreaPnoSet = useMemo(() => new Set(selectedAreaPnos), [selectedAreaPnos]);
-
-  // Build union polygon from selected neighborhoods for AreaSummaryPanel.
-  // Depends on `data` (not `filteredData`) because geometry doesn't change on
-  // quality weight adjustments — avoids re-running the Graham scan convex hull
-  // on every quality slider tick.
-  const selectedAreasPolygon = useMemo<Feature<Polygon> | null>(() => {
-    if (selectedAreaPnos.length === 0 || !data) return null;
-    const selectedFeatures = data.features.filter(
-      (f) => f.properties?.pno && selectedAreaPnoSet.has(f.properties.pno as string)
-    );
-    if (selectedFeatures.length === 0) return null;
-
-    // Collect all exterior ring coordinates from selected features. Append
-    // vertices with a loop, not `push(...ring)` — a postal code's exterior
-    // ring can hold ~11k vertices, and spreading that many call arguments
-    // overflows the stack on iOS WebKit.
-    const allCoords: Position[] = [];
-    for (const f of selectedFeatures) {
-      const geom = f.geometry;
-      if (!geom) continue;
-      if (geom.type === 'Polygon') {
-        for (const c of geom.coordinates[0]) allCoords.push(c);
-      } else if (geom.type === 'MultiPolygon') {
-        for (const poly of geom.coordinates) {
-          for (const c of poly[0]) allCoords.push(c);
-        }
-      }
-    }
-    if (allCoords.length < 3) return null;
-
-    // Simple Graham scan for convex hull
-    const points = allCoords.map(([x, y]) => [x, y] as [number, number]);
-    let pivot = 0;
-    for (let i = 1; i < points.length; i++) {
-      if (points[i][1] < points[pivot][1] || (points[i][1] === points[pivot][1] && points[i][0] < points[pivot][0])) {
-        pivot = i;
-      }
-    }
-    [points[0], points[pivot]] = [points[pivot], points[0]];
-    const p0 = points[0];
-    const rest = points.slice(1).sort((a, b) => {
-      const cross = (a[0] - p0[0]) * (b[1] - p0[1]) - (b[0] - p0[0]) * (a[1] - p0[1]);
-      if (Math.abs(cross) < 1e-10) {
-        const da = (a[0] - p0[0]) ** 2 + (a[1] - p0[1]) ** 2;
-        const db = (b[0] - p0[0]) ** 2 + (b[1] - p0[1]) ** 2;
-        return da - db;
-      }
-      return -cross;
-    });
-    const hull: [number, number][] = [p0];
-    for (const pt of rest) {
-      while (hull.length >= 2) {
-        const a = hull[hull.length - 2];
-        const b = hull[hull.length - 1];
-        const cross = (b[0] - a[0]) * (pt[1] - a[1]) - (b[1] - a[1]) * (pt[0] - a[0]);
-        // Use strict < 0 (not <= 0) to keep collinear points on the hull.
-        if (cross < 0) hull.pop();
-        else break;
-      }
-      hull.push(pt);
-    }
-    if (hull.length < 3) return null;
-    hull.push(hull[0]);
-
-    return {
-      type: 'Feature',
-      properties: {},
-      geometry: { type: 'Polygon', coordinates: [hull] },
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- uses data (geometry only) instead of filteredData to avoid recomputing hull on quality weight changes
-  }, [selectedAreaPnoSet, data]);
+  // The selected-areas hull is computed on demand by computeSelectionHull (module
+  // scope) at "Finish" / URL-restore — see handleFinishSelect and the restore
+  // effect below. It is intentionally NOT a useMemo: as a memo it re-ran the full
+  // Graham scan on every select tap (each tap gives selectedAreaPnos a fresh
+  // identity), wasting growing per-tap work that is only ever consumed once.
 
   // Compute PNOs of neighborhoods intersecting with drawn polygon (for boundary snapping).
   // booleanIntersects is lazily imported to keep @turf/boolean-intersects out of the main bundle.
@@ -900,11 +908,12 @@ const App: React.FC = () => {
   }, []);
 
   const handleFinishSelect = useCallback(() => {
-    if (selectedAreasPolygon) {
-      setDrawnPolygon(selectedAreasPolygon);
+    const poly = computeSelectionHull(selectedAreaPnos, data);
+    if (poly) {
+      setDrawnPolygon(poly);
       setSelectMode(false);
     }
-  }, [selectedAreasPolygon]);
+  }, [selectedAreaPnos, data]);
 
   const handleClearDraw = useCallback(() => {
     setDrawnPolygon(null);
@@ -1020,11 +1029,12 @@ const App: React.FC = () => {
   const drawRestoredRef = useRef(initialUrl.draw?.mode !== 'select');
   useEffect(() => {
     if (drawRestoredRef.current) return;
-    if (selectedAreasPolygon) {
+    const poly = computeSelectionHull(selectedAreaPnos, data);
+    if (poly) {
       drawRestoredRef.current = true;
-      setDrawnPolygon(selectedAreasPolygon);
+      setDrawnPolygon(poly);
     }
-  }, [selectedAreasPolygon]);
+  }, [selectedAreaPnos, data]);
 
   // Memoize pinned PNO array to avoid new references on every render.
   // Without this, Map's pinnedPnos useEffect fires on every App re-render,
