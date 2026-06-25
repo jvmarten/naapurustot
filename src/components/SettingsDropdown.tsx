@@ -197,6 +197,10 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        // Consume the event so it doesn't also reach App's window-level Escape
+        // handler (which would e.g. deselect the current neighborhood). This
+        // document listener fires before window in the bubble phase.
+        e.stopPropagation();
         setOpen(false);
         triggerRef.current?.focus();
       }

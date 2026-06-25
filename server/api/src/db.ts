@@ -15,6 +15,9 @@ let poolInstance: pg.Pool | null = null;
 /** Return the shared connection pool, creating it on first use. */
 export function getPool(): pg.Pool {
   if (!poolInstance) {
+    if (!process.env.DATABASE_URL) {
+      throw new Error('DATABASE_URL environment variable is required');
+    }
     poolInstance = new pg.Pool({
       connectionString: process.env.DATABASE_URL,
       connectionTimeoutMillis: 5000,
@@ -89,7 +92,8 @@ async function runMigrations(): Promise<void> {
   }
 }
 
-/** Create tables if they don't exist. Safe to call on every startup; never alters existing tables (no migrations). */
+/** Create tables if they don't exist, then run any pending forward-only migrations.
+ *  Safe (idempotent) to call on every startup. */
 export async function initDb(): Promise<void> {
   const pool = getPool();
   await pool.query(`

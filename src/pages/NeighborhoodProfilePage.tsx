@@ -406,7 +406,9 @@ export const NeighborhoodProfilePage: React.FC = () => {
   const qiLayer = getLayerById('quality_index');
   const qiColor = qi != null ? getInterpolatedColor(qiLayer, qi) : '#6b7280';
 
-  const cityName = d.city ? t(`city.${d.city}`) : '';
+  // Fall back to the same city the breadcrumb href defaults to, so a record
+  // missing `city` still renders visible, consistent link text (rather than '').
+  const cityName = t(`city.${d.city ?? 'helsinki_metro'}`);
 
   // T1: resolve the two price fallbacks from the seutukunta averages computed above.
   const regionPrice = (key: string): number | null => {

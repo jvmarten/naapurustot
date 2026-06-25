@@ -67,6 +67,14 @@ describe('pearson', () => {
     expect(pearson([{ x: 1, y: 1 }, { x: 2, y: 2 }])).toBeNull();
   });
 
+  it('returns null (never NaN) for zero variance on x', () => {
+    // Constant x → undefined correlation. The variance discriminant can round to a
+    // tiny negative, whose sqrt is NaN; the result must collapse to null, not NaN.
+    const r = pearson([{ x: 7, y: 1 }, { x: 7, y: 9 }, { x: 7, y: 4 }, { x: 7, y: 2 }]);
+    expect(r).toBeNull();
+    expect(Number.isNaN(r as number)).toBe(false);
+  });
+
   it('clamps to [-1, 1]', () => {
     const r = pearson([{ x: 1, y: 1.0001 }, { x: 2, y: 2 }, { x: 3, y: 3 }, { x: 4, y: 4 }]);
     expect(r).not.toBeNull();

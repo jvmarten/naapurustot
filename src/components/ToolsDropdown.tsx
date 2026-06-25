@@ -76,6 +76,10 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
     };
     const keyHandler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        // Stop the event before it reaches App's window-level Escape handler
+        // (which would otherwise also cancel selectMode/drawMode/etc.). This
+        // document listener fires before window in the bubble phase.
+        e.stopPropagation();
         setOpen(false);
         triggerRef.current?.focus();
       }

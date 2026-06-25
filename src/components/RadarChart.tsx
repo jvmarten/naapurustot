@@ -83,8 +83,12 @@ const LABEL_RADIUS = RADIUS + 28;
 
 function normalize(value: number | null, min: number, max: number, inverted: boolean): number {
   if (value == null || Number.isNaN(value)) return 0;
+  const range = max - min;
+  // A degenerate (zero-width) axis range would make the ratio 0/0 = NaN and
+  // corrupt the SVG polygon path. Treat it as mid-scale rather than emitting NaN.
+  if (range <= 0) return 50;
   const clamped = Math.max(min, Math.min(max, value));
-  const ratio = (clamped - min) / (max - min);
+  const ratio = (clamped - min) / range;
   const score = inverted ? 1 - ratio : ratio;
   return score * 100;
 }

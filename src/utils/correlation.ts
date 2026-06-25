@@ -21,10 +21,15 @@ export function pearson(points: XYPoint[]): number | null {
     sx += x; sy += y; sxx += x * x; syy += y * y; sxy += x * y;
   }
   const cov = n * sxy - sx * sy;
-  const dx = Math.sqrt(n * sxx - sx * sx);
-  const dy = Math.sqrt(n * syy - sy * sy);
-  if (dx === 0 || dy === 0) return null;
-  const r = cov / (dx * dy);
+  // vx and vy are sums of squared deviations: non-negative in exact arithmetic,
+  // but floating-point rounding can push a zero-variance value slightly below 0.
+  // Taking the sqrt of that yields NaN, which slips past a `=== 0` check
+  // (NaN !== 0) and would propagate out as a NaN "correlation". Reject here.
+  const vx = n * sxx - sx * sx;
+  const vy = n * syy - sy * sy;
+  if (vx <= 0 || vy <= 0) return null;
+  const r = cov / (Math.sqrt(vx) * Math.sqrt(vy));
+  if (!isFinite(r)) return null;
   // Guard against tiny floating-point overshoot beyond [-1, 1].
   return Math.max(-1, Math.min(1, r));
 }
@@ -144,7 +149,7 @@ export type Significance = 'strong' | 'moderate' | 'weak' | 'none';
 export function significanceHint(points: XYPoint[]): Significance {
   const r = pearson(points);
   const n = points.length;
-  if (r == null || n < 3) return 'none';
+  if (r == null || !Number.isFinite(r) || n < 3) return 'none';
   const absR = Math.abs(r);
   if (absR >= 1) return 'strong';
   const df = n - 2;

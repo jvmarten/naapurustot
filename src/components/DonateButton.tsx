@@ -44,18 +44,28 @@ export const DonateButton: React.FC<DonateButtonProps> = ({ variant = 'button' }
   }, []);
 
   const handleCopy = async () => {
+    let copied = false;
     try {
       await navigator.clipboard.writeText(BOLT12_OFFER);
+      copied = true;
     } catch {
       const textarea = document.createElement('textarea');
       textarea.value = BOLT12_OFFER;
       textarea.style.position = 'fixed';
       textarea.style.opacity = '0';
       document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textarea);
+      try {
+        textarea.select();
+        copied = document.execCommand('copy');
+      } catch {
+        copied = false;
+      } finally {
+        // Always remove the textarea, even if execCommand threw, to avoid a DOM leak.
+        document.body.removeChild(textarea);
+      }
     }
+    // Only show the "copied" confirmation when a copy actually succeeded.
+    if (!copied) return;
     setCopied(true);
     if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
     copiedTimerRef.current = setTimeout(() => setCopied(false), 2000);

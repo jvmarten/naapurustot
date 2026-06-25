@@ -116,11 +116,23 @@ export const RankingTable: React.FC<RankingTableProps> = React.memo(({ data, act
           </button>
           {/* CF-8: copy a deep link that reproduces this choropleth (layer + city + scope). */}
           <button
-            onClick={() => {
+            onClick={async () => {
               const url = buildFullViewUrl({ pno: null, layer: activeLayer, city: city ?? null, scope });
-              navigator.clipboard?.writeText(url)
-                .then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); })
-                .catch(() => {});
+              let ok = false;
+              try {
+                await navigator.clipboard.writeText(url);
+                ok = true;
+              } catch {
+                // clipboard API unavailable/blocked (e.g. non-secure context) —
+                // fall back to execCommand instead of silently doing nothing.
+                const ta = document.createElement('textarea');
+                ta.value = url; ta.style.position = 'fixed'; ta.style.opacity = '0';
+                document.body.appendChild(ta);
+                try { ta.select(); ok = document.execCommand('copy'); }
+                catch { ok = false; }
+                finally { document.body.removeChild(ta); }
+              }
+              if (ok) { setCopied(true); setTimeout(() => setCopied(false), 2000); }
             }}
             className="p-1.5 rounded-lg transition-colors bg-surface-100 dark:bg-surface-800/60 text-surface-600 dark:text-surface-300 hover:bg-surface-200 dark:hover:bg-surface-700/60"
             aria-label={t('share.link')}

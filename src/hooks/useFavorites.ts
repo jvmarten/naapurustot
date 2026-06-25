@@ -115,9 +115,11 @@ export function useFavorites(userId?: string | null) {
       // Suppress the debounced re-save for this particular change
       fromServerRef.current = true;
       setFavorites(merged);
-      // If merged differs from server, push the merged result back once (outside any updater).
+      // If merged differs from server, push the merged result back once (outside any
+      // updater). Use runSync so a transient failure retries with backoff and surfaces
+      // in the sync status, like the debounced save above — a bare call would be lost.
       if (merged.length !== serverFavs.length || !merged.every((v, i) => v === serverFavs[i])) {
-        api.saveFavorites(merged);
+        runSync('favorites', () => api.saveFavorites(merged));
       }
     }).finally(() => { loginMergePendingRef.current = false; });
     return () => { cancelled = true; loginMergePendingRef.current = false; };

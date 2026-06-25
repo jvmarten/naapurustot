@@ -94,7 +94,7 @@ export function useNotes(userId?: string | null) {
   // Debounce localStorage writes — typing in the textarea triggers setNote on every
   // keystroke, and JSON.stringify + localStorage.setItem is synchronous main-thread work.
   // Batching saves to every 500ms prevents jank during fast typing.
-  const localSaveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const localSaveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const serverSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Track latest notes for the debounced save callback (avoids side effects in state updaters)
   const notesRef = useRef(notes);
@@ -181,7 +181,9 @@ export function useNotes(userId?: string | null) {
         mergedKeys.length !== serverKeys.length ||
         mergedKeys.some((k) => merged[k] !== serverNotes[k]);
       if (differs) {
-        api.saveNotes(merged);
+        // Use runSync so a transient failure retries with backoff and surfaces in
+        // the sync status, like the debounced save — a bare call would be lost.
+        runSync('notes', () => api.saveNotes(merged));
       }
     }).finally(() => { loginMergePendingRef.current = false; });
     return () => { cancelled = true; loginMergePendingRef.current = false; };

@@ -33,7 +33,9 @@ function getSnapHeight(
   halfRatio: number,
   fullRatio: number,
 ): number {
-  const vh = window.innerHeight;
+  // Guard for non-browser contexts: this runs on the render path (matches the
+  // window-guard convention used elsewhere in the hooks).
+  const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
   switch (snap) {
     case 'peek':
       return peekHeight;

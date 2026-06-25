@@ -1341,14 +1341,20 @@ const App: React.FC = () => {
         // Already viewing the right region with geometry loaded → resolve now.
         const current = dataRef.current;
         if (cityFilterRef.current === target && current) {
-          const f = await findNeighborhoodForPoint(coords, current.features);
-          if (f?.properties) {
-            const props = f.properties as NeighborhoodProperties;
-            select(props);
-            addRecent({ pno: props.pno, name: props.nimi || props.pno, center: getFeatureCenter(f) });
-            setFlyTarget({ center: getFeatureCenter(f) });
-            setGeoStatus(null);
-            return;
+          try {
+            const f = await findNeighborhoodForPoint(coords, current.features);
+            if (f?.properties) {
+              const props = f.properties as NeighborhoodProperties;
+              select(props);
+              addRecent({ pno: props.pno, name: props.nimi || props.pno, center: getFeatureCenter(f) });
+              setFlyTarget({ center: getFeatureCenter(f) });
+              setGeoStatus(null);
+              return;
+            }
+          } catch {
+            // The point-in-polygon helper dynamically imports @turf chunks; if that
+            // load fails the await would otherwise reject unhandled and leave the
+            // status stuck on 'loading'. Fall through to the region-switch path below.
           }
         }
         // Otherwise switch to the user's region; the deferred resolver below

@@ -140,7 +140,11 @@ const YTL_GRADE_LETTERS: Record<number, string> = {
 };
 
 function ytlLetter(n: number): string {
-  return YTL_GRADE_LETTERS[n] ?? '—';
+  // The scale skips 1 (I=0 jumps straight to A=2). Rounding in formatYtlGrade can
+  // produce a computed index of 1 within the I→A gap; map it up to the next real
+  // grade (A) so the gap renders as "A"/"A-" instead of a placeholder dash.
+  const idx = n === 1 ? 2 : n;
+  return YTL_GRADE_LETTERS[idx] ?? '—';
 }
 
 /**

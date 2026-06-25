@@ -75,7 +75,14 @@ function coerceNumericProperties(features: Feature[]): void {
 function processTopology(topo: Topology): ProcessedData {
   const objectName = Object.keys(topo.objects ?? {})[0];
   if (!objectName) throw new Error('Invalid TopoJSON: no objects found');
-  const geojson = feature(topo, topo.objects[objectName]) as FeatureCollection;
+  const decoded = feature(topo, topo.objects[objectName]);
+  // feature() returns Feature | FeatureCollection; our region objects are always
+  // GeometryCollections (→ FeatureCollection). Fail loudly if that ever changes,
+  // rather than casting and crashing later on `.features`.
+  if (decoded.type !== 'FeatureCollection') {
+    throw new Error(`Invalid TopoJSON: expected FeatureCollection from "${objectName}", got ${decoded.type}`);
+  }
+  const geojson = decoded;
 
   coerceNumericProperties(geojson.features);
   geojson.features = filterSmallIslands(geojson.features);
