@@ -13,7 +13,7 @@ import { buildProfileUrl } from '../utils/profileUrl';
 import { ComparisonScopeToggle, type ComparisonScope } from './ComparisonScopeToggle';
 import { defaultWizardAnswers, type WizardAnswers } from '../hooks/useWizardProfile';
 import type { AffordabilityState } from '../hooks/useAffordability';
-import { affordabilityScore, orientationForTenure, type AffordabilityScore } from '../utils/affordability';
+import { scoreFeatureFit, buildFitRanges, type FitContribution, type AffordabilityMatchMode } from '../utils/fitScore';
 
 interface WizardProps {
   data: FeatureCollection | null;
@@ -38,39 +38,31 @@ interface WizardProps {
   cityFilter?: string;
 }
 
-/** CF-5: per-criterion "why it matched" breakdown — the area's actual value against
- *  the threshold/preference the user chose, and whether it helped or hurt the score. */
-interface Contribution {
-  label: string;
-  actual: string;
-  target: string;
-  direction: 'up' | 'down' | 'neutral';
-}
-
 interface ScoredNeighborhood {
   pno: string;
   name: string;
   qualityIndex: number | null;
   score: number;
   reasons: string[];
-  contributions: Contribution[];
+  contributions: FitContribution[];
   center: [number, number];
 }
 
-/** CF-14: how affordability is folded into the wizard result. */
-export type AffordabilityMatchMode = 'off' | 'filter' | 'soft';
+/** CF-14: how affordability is folded into the wizard result. Re-exported from the
+ *  shared scorer for any existing importers. */
+export type { AffordabilityMatchMode };
 
 // CF-4: WizardAnswers/defaultWizardAnswers now live in hooks/useWizardProfile.ts
 // (shared with the persistence hook and the share-URL codec). Aliased here so the
 // existing in-component references stay terse.
 const defaultAnswers = defaultWizardAnswers;
 
-/** Normalize a value within a range to 0-1 */
-function normalize(value: number | null, min: number, max: number): number {
-  if (value == null || max === min) return 0.5;
-  return Math.max(0, Math.min(1, (value - min) / (max - min)));
-}
-
+/**
+ * Rank the loaded areas against the wizard answers. The per-area scoring lives in
+ * the shared scorer (utils/fitScore.ts) so the "Fit for you" badge uses the exact
+ * same algorithm; here it runs against REGION-scoped ranges (buildFitRanges over the
+ * loaded features) and folds in affordability, then returns the top 5 with centroids.
+ */
 function scoreNeighborhoods(
   data: FeatureCollection,
   answers: WizardAnswers,
@@ -84,45 +76,8 @@ function scoreNeighborhoods(
     (f) => f.properties && (f.properties as NeighborhoodProperties).he_vakiy != null,
   );
 
-  // CF-14: build the affordability input once. The orientation follows the wizard's
-  // tenure answer (own → buy, rent → rent, either → cheaper of the two).
-  const affOrientation = orientationForTenure(answers.tenurePreference);
-  const affInput = affordability
-    ? { mode: affordability.mode, monthlyIncome: affordability.income, monthlyBudget: affordability.budget, sizeM2: affordability.sizeM2 ?? 0 }
-    : null;
-  const affActive = affordabilityMode !== 'off' && affInput != null;
-
-  // Collect all property ranges in a single pass over features instead of
-  // iterating once per property (was 9 × ~200 = 1800 iterations, now ~200).
-  const RANGE_KEYS: (keyof NeighborhoodProperties)[] = [
-    'transit_stop_density', 'restaurant_density', 'ra_as_kpa', 'child_ratio',
-    'daycare_density', 'school_density', 'healthcare_density', 'ownership_rate', 'rental_rate',
-  ];
-  const mins: Record<string, number> = {};
-  const maxs: Record<string, number> = {};
-  for (const k of RANGE_KEYS) { mins[k as string] = Infinity; maxs[k as string] = -Infinity; }
-  for (const f of features) {
-    const p = f.properties as NeighborhoodProperties;
-    for (const k of RANGE_KEYS) {
-      const v = p[k] as number | null;
-      if (typeof v === 'number' && isFinite(v)) {
-        const key = k as string;
-        if (v < mins[key]) mins[key] = v;
-        if (v > maxs[key]) maxs[key] = v;
-      }
-    }
-  }
-  const toRange = (k: string) => mins[k] < maxs[k] ? { min: mins[k], max: maxs[k] } : { min: 0, max: 1 };
-
-  const transitRange = toRange('transit_stop_density');
-  const restaurantRange = toRange('restaurant_density');
-  const aptSizeRange = toRange('ra_as_kpa');
-  const childRange = toRange('child_ratio');
-  const daycareRange = toRange('daycare_density');
-  const schoolRange = toRange('school_density');
-  const healthcareRange = toRange('healthcare_density');
-  const ownershipRange = toRange('ownership_rate');
-  const rentalRange = toRange('rental_rate');
+  // Region-scoped normalization ranges, collected once over the loaded features.
+  const ranges = buildFitRanges(features);
 
   // Hold candidates with their feature reference so we can compute centroids
   // only for the final top 5 after sorting.
@@ -132,218 +87,17 @@ function scoreNeighborhoods(
     const p = feature.properties as NeighborhoodProperties;
     if (!p.pno || !p.nimi) continue;
 
-    let score = 0;
-    let totalWeight = 0;
-    const reasons: string[] = [];
-    // CF-5: capture each active criterion's actual value vs the chosen threshold.
-    const contributions: Contribution[] = [];
-    const dirOf = (s: number): Contribution['direction'] => (s > 0.6 ? 'up' : s < 0.4 ? 'down' : 'neutral');
-    const fmtDensity = (v: number | null | undefined) => (v == null ? '—' : `${v.toFixed(1)} /km²`);
-    const fmtPct = (v: number | null | undefined) => (v == null ? '—' : `${Math.round(v)} %`);
+    const res = scoreFeatureFit(p, answers, ranges, affordability, affordabilityMode);
+    if (res.excluded) continue; // CF-14 hard affordability filter dropped this area
 
-    // --- Transit importance ---
-    const transitWeight = answers.transitImportance / 5;
-    if (transitWeight > 0) {
-      const transitScore = normalize(p.transit_stop_density, transitRange.min, transitRange.max);
-      score += transitScore * transitWeight * 2;
-      totalWeight += transitWeight * 2;
-      if (transitScore > 0.7) reasons.push(t('wizard.reason_good_transit'));
-      contributions.push({
-        label: t('wizard.transit_importance'),
-        actual: fmtDensity(p.transit_stop_density),
-        target: `${answers.transitImportance}/5`,
-        direction: dirOf(transitScore),
-      });
-    }
-
-    // --- Quiet vs lively ---
-    if (answers.quietPreference === 'quiet') {
-      const restaurantInv = 1 - normalize(p.restaurant_density, restaurantRange.min, restaurantRange.max);
-      score += restaurantInv * 2;
-      totalWeight += 2;
-      if (restaurantInv > 0.7) reasons.push(t('wizard.reason_quiet'));
-      contributions.push({
-        label: t('wizard.quiet_preference'),
-        actual: fmtDensity(p.restaurant_density),
-        target: t('wizard.pref_quiet'),
-        direction: dirOf(restaurantInv),
-      });
-    } else if (answers.quietPreference === 'lively') {
-      const restaurantScore = normalize(p.restaurant_density, restaurantRange.min, restaurantRange.max);
-      score += restaurantScore * 2;
-      totalWeight += 2;
-      if (restaurantScore > 0.7) reasons.push(t('wizard.reason_lively'));
-      contributions.push({
-        label: t('wizard.quiet_preference'),
-        actual: fmtDensity(p.restaurant_density),
-        target: t('wizard.pref_lively'),
-        direction: dirOf(restaurantScore),
-      });
-    } else {
-      totalWeight += 0.5;
-      score += 0.25;
-    }
-
-    // --- Budget filter ---
-    const price = p.property_price_sqm;
-    const bMin = Math.min(answers.budgetMin, answers.budgetMax);
-    const bMax = Math.max(answers.budgetMin, answers.budgetMax);
-    if (price != null) {
-      const inBudget = price >= bMin && price <= bMax;
-      if (inBudget) {
-        const budgetRange = bMax - bMin;
-        // When range is 0 (min===max), exact match gets full score.
-        // Otherwise compute how close the price is to the midpoint (0–1).
-        const budgetFit = budgetRange === 0
-          ? 1
-          : 1 - Math.abs(price - (bMin + bMax) / 2) / (budgetRange / 2);
-        score += Math.max(0, budgetFit) * 2;
-        totalWeight += 2;
-        reasons.push(t('wizard.reason_budget'));
-      } else {
-        // Penalize out-of-budget neighborhoods
-        score += 0;
-        totalWeight += 2;
-      }
-      contributions.push({
-        label: t('wizard.budget'),
-        actual: `${Math.round(price)} ${t('wizard.budget_unit')}`,
-        target: `${bMin}–${bMax} ${t('wizard.budget_unit')}`,
-        direction: inBudget ? 'up' : 'down',
-      });
-    }
-
-    // --- Apartment size preference ---
-    const sizeScore = (() => {
-      const size = p.ra_as_kpa;
-      if (size == null) return 0.5;
-      const norm = normalize(size, aptSizeRange.min, aptSizeRange.max);
-      switch (answers.sizePreference) {
-        case 'small': return 1 - norm;
-        case 'large': return norm;
-        default: return 1 - Math.abs(norm - 0.5) * 2; // prefer middle
-      }
-    })();
-    score += sizeScore;
-    totalWeight += 1;
-    if (sizeScore > 0.7) reasons.push(t('wizard.reason_apt_size'));
-    contributions.push({
-      label: t('wizard.size_preference'),
-      actual: p.ra_as_kpa != null ? `${p.ra_as_kpa.toFixed(0)} m²` : '—',
-      target: t(`wizard.size_${answers.sizePreference}`),
-      direction: dirOf(sizeScore),
-    });
-
-    // --- Tenure preference ---
-    if (answers.tenurePreference === 'own') {
-      const ownerScore = normalize(p.ownership_rate, ownershipRange.min, ownershipRange.max);
-      score += ownerScore;
-      totalWeight += 1;
-      if (ownerScore > 0.7) reasons.push(t('wizard.reason_ownership'));
-      contributions.push({
-        label: t('wizard.tenure_preference'),
-        actual: fmtPct(p.ownership_rate),
-        target: t('wizard.tenure_own'),
-        direction: dirOf(ownerScore),
-      });
-    } else if (answers.tenurePreference === 'rent') {
-      const rentalScore = normalize(p.rental_rate, rentalRange.min, rentalRange.max);
-      score += rentalScore;
-      totalWeight += 1;
-      if (rentalScore > 0.7) reasons.push(t('wizard.reason_rental'));
-      contributions.push({
-        label: t('wizard.tenure_preference'),
-        actual: fmtPct(p.rental_rate),
-        target: t('wizard.tenure_rent'),
-        direction: dirOf(rentalScore),
-      });
-    } else {
-      totalWeight += 0.5;
-      score += 0.25;
-    }
-
-    // --- Children ---
-    if (answers.hasChildren) {
-      const childScore = normalize(p.child_ratio, childRange.min, childRange.max);
-      const daycareScore = normalize(p.daycare_density, daycareRange.min, daycareRange.max);
-
-      const schoolWeight = answers.schoolImportance / 5;
-      const schoolScore = normalize(p.school_density, schoolRange.min, schoolRange.max);
-
-      score += (childScore + daycareScore + schoolScore * schoolWeight) * 1.5;
-      totalWeight += (2 + schoolWeight) * 1.5;
-
-      if (daycareScore > 0.6) reasons.push(t('wizard.reason_daycare'));
-      if (schoolScore > 0.6) reasons.push(t('wizard.reason_schools'));
-      contributions.push({
-        label: t('wizard.reason_daycare'),
-        actual: fmtDensity(p.daycare_density),
-        target: t('wizard.yes'),
-        direction: dirOf(daycareScore),
-      });
-      contributions.push({
-        label: t('wizard.school_importance'),
-        actual: fmtDensity(p.school_density),
-        target: `${answers.schoolImportance}/5`,
-        direction: dirOf(schoolScore),
-      });
-    }
-
-    // --- Healthcare ---
-    const healthWeight = answers.healthcareImportance / 5;
-    if (healthWeight > 0) {
-      const healthScore = normalize(p.healthcare_density, healthcareRange.min, healthcareRange.max);
-      score += healthScore * healthWeight * 1.5;
-      totalWeight += healthWeight * 1.5;
-      if (healthScore > 0.7) reasons.push(t('wizard.reason_healthcare'));
-      contributions.push({
-        label: t('wizard.healthcare_importance'),
-        actual: fmtDensity(p.healthcare_density),
-        target: `${answers.healthcareImportance}/5`,
-        direction: dirOf(healthScore),
-      });
-    }
-
-    let finalScore = totalWeight > 0 ? score / totalWeight : 0;
-
-    // --- CF-14: affordability fold (only when the user enabled it AND has usable input) ---
-    if (affActive && affInput) {
-      const aff: AffordabilityScore = affordabilityScore(affInput, p, affOrientation);
-      if (aff.applicable) {
-        const overBudget = aff.affordable === false;
-        if (affordabilityMode === 'filter' && overBudget) {
-          // Hard filter: drop the area from the result set entirely.
-          continue;
-        }
-        if (affordabilityMode === 'soft') {
-          // Soft weight: scale the whole match toward 0 as the cost overshoots.
-          finalScore *= aff.weight;
-        }
-        if (!overBudget) reasons.push(t('wizard.reason_within_budget'));
-        // Surface the affordability verdict in the "why it matched" breakdown.
-        contributions.push({
-          label: t('wizard.affordability'),
-          actual: aff.share != null ? `${Math.round(aff.share * 100)} %` : '—',
-          target: t(overBudget ? 'wizard.afford_over' : 'wizard.afford_within'),
-          direction: overBudget ? 'down' : 'up',
-        });
-      }
-    }
-
-    // Deduplicate reasons
-    const uniqueReasons = [...new Set(reasons)];
-
-    // Defer centroid computation to after sort+slice — it iterates every
-    // coordinate of the polygon (~100 points × 200 features = 20k ops) and
-    // only the top 5 centers are ever used for flyTo targets.
     scored.push({
       feature,
       pno: p.pno,
       name: p.nimi,
       qualityIndex: p.quality_index,
-      score: Math.round(finalScore * 100),
-      reasons: uniqueReasons.slice(0, 3),
-      contributions,
+      score: res.score,
+      reasons: res.reasons,
+      contributions: res.contributions,
     });
   }
 

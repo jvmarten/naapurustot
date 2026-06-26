@@ -28,6 +28,8 @@ import { useFocusTrap } from '../hooks/useFocusTrap';
 import { trackEvent } from '../utils/analytics';
 import { generateScoreCard } from '../utils/scoreCard';
 import { useNotes } from '../hooks/useNotes';
+import { FitForYouBadge } from './FitForYouBadge';
+import type { WizardAnswers } from '../hooks/useWizardProfile';
 
 /** QW-5: per-language profile-page path so EN/SV users reach the localized URL
  *  (/en/area/, /sv/omrade/) instead of the Finnish /alue/ one. Shared by the panel's
@@ -94,6 +96,11 @@ interface PanelProps {
   regionPriceAverages?: Record<string, number> | null;
   /** T1: the selected area's seutukunta display name, shown in the fallback disclaimer. */
   regionName?: string;
+  /** "Fit for you": the user's saved priority profile, so the header can show a
+   *  match score for this area (or a CTA to set priorities when none is saved). */
+  wizardProfile?: WizardAnswers | null;
+  /** Open the Neighborhood Finder (from the Fit-for-you badge/CTA). */
+  onOpenWizard?: () => void;
 }
 
 /** CF-5: the per-row diff baseline label — the custom reference's name when one is
@@ -870,10 +877,16 @@ const NotesEditor: React.FC<{ pno: string; userId?: string | null }> = React.mem
 });
 NotesEditor.displayName = 'NotesEditor';
 
-export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, qualityWeights, allFeatures, summaryScope = 'national', summaryRegion = '', activeLayer, onFlyTo, isFavorite = false, onToggleFavorite, isInShortlist = false, onToggleShortlist, referencePno, referenceName, onSetReference, qualityScope = 'national', onExploreCity, userId, isochroneEnabled = false, isochroneMode = 'walk', isochroneBudget = 20, isochroneLoading = false, isochroneError = false, isochroneActive = false, onIsochroneChange, onIsochroneClear, similarityWeights, onSimilarityWeightChange, onSimilarityToggle, regionPriceAverages, regionName }) => {
+export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, qualityWeights, allFeatures, summaryScope = 'national', summaryRegion = '', activeLayer, onFlyTo, isFavorite = false, onToggleFavorite, isInShortlist = false, onToggleShortlist, referencePno, referenceName, onSetReference, qualityScope = 'national', onExploreCity, userId, isochroneEnabled = false, isochroneMode = 'walk', isochroneBudget = 20, isochroneLoading = false, isochroneError = false, isochroneActive = false, onIsochroneChange, onIsochroneClear, similarityWeights, onSimilarityWeightChange, onSimilarityToggle, regionPriceAverages, regionName, wizardProfile, onOpenWizard }) => {
   // QW-4: capture the i18n version so memos that build translated strings (the
   // MOBILE_SECTIONS tab labels) recompute on a language switch / lazy-dict arrival.
   const i18nVersion = useI18nVersion();
+  // "Fit for you": a match score for this area vs the saved priority profile (or a
+  // CTA to set one). Hidden for the all-Finland region aggregates, where a per-area
+  // fit is meaningless, and only when an open-Finder handler is wired in.
+  const fitBadge = (!d._isMetroArea && onOpenWizard)
+    ? <FitForYouBadge data={d} profile={wizardProfile} onSetPriorities={onOpenWizard} />
+    : null;
   // M5: honor "Reduce Motion" on the two most frequent mobile interactions (sheet
   // open/drag, tab-carousel snap), matching the map's reduced-motion fast paths.
   const reducedMotion = useReducedMotion();
@@ -2152,6 +2165,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
               {pinButton}
             </div>
           )}
+          {fitBadge && <div className="mt-3">{fitBadge}</div>}
         </div>
         {panelContent}
         {exportButtons}
@@ -2246,6 +2260,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
               {referenceButton}
             </div>
           )}
+          {fitBadge && <div className="mt-2">{fitBadge}</div>}
         </div>
         {/* PO-3: Section tabs. CF-7: full WAI-ARIA Tabs pattern — roving tabindex
             (only the active tab is tabbable), arrow/Home/End keyboard nav, and each

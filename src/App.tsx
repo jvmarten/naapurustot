@@ -226,13 +226,23 @@ const App: React.FC = () => {
 
   // CF-8: the all-Finland landing paints from the small region_aggregates.json, not
   // the ~10.6 MB national set. The full set is loaded only when a feature genuinely
-  // needs per-postal-code data: a deep-linked ?pno=/?compare= (resolved against the
-  // full set) on boot, or custom quality weights (the effect below flips this on).
+  // needs per-postal-code data across regions: a deep-linked ?compare= on boot, or
+  // custom quality weights / a national filter (the effects below flip this on).
+  // A BARE ?pno= no longer forces it — that deep link is routed to its owning region
+  // instead (the effect near the cross-subregion resolver), so the area draws its
+  // polygon from a ~355 KB region file rather than the 10.6 MB geometry-stripped set.
   // Once true it stays true — the full set is then cached, so default-weight renders
   // from it are byte-equivalent to the aggregate render.
-  const hadInitialNationalNeed = !!initialUrl.pno || (initialUrl.compare?.length ?? 0) > 0;
+  const hadInitialNationalNeed = (initialUrl.compare?.length ?? 0) > 0;
   const [needFullNational, setNeedFullNational] = useState(hadInitialNationalNeed);
   const skipAllFetch = cityFilter === 'all' && !needFullNational;
+  // A bare ?pno= deep link (no compare / national filter) is routed to its owning
+  // region instead of pulling the national set (see the routing effect below).
+  const bareDeepLink = !!initialUrl.pno && !hadInitialNationalNeed && (initialUrl.filters?.length ?? 0) === 0;
+  // Hold URL writes until that async route selects the area, so the debounced empty
+  // write can't clobber the deep link's pno first. True immediately when there is no
+  // bare-pno link to wait for.
+  const [deepLinkSettled, setDeepLinkSettled] = useState(!bareDeepLink);
 
   // Load only the selected region's data (or combined data for "all" view)
   const { data, loading, error, metroAverages: rawMetroAverages, retry } = useMapData(cityFilter, { skipAllFetch });
@@ -1073,7 +1083,7 @@ const App: React.FC = () => {
   // too: `filteredData` goes non-null early from the aggregates, and writing the URL
   // before the full set loads + the restoration effect runs would clobber the deep
   // link's pno/compare before they can be restored.
-  useSyncUrlState(selected?.pno ?? null, activeLayer, pinnedPnos, cityFilter, !!filteredData && (!needFullNational || !!data), {
+  useSyncUrlState(selected?.pno ?? null, activeLayer, pinnedPnos, cityFilter, !!filteredData && (!needFullNational || !!data) && deepLinkSettled, {
     scope: comparisonScope,
     year: timeYear,
     colorblind,
@@ -1341,6 +1351,65 @@ const App: React.FC = () => {
     pendingSearchRef.current = null;
     selectAndFly(feature);
   }, [filteredData, pnoFeatureMap, selectAndFly]);
+
+  // Deep-link region routing (perf + UX): a bare ?pno= link must NOT pull the
+  // geometry-stripped ~10.6 MB national set — it can't even draw the area's polygon.
+  // Resolve the owning region from the eager search index and load just that region's
+  // geometry, exactly like a cross-subregion search (pendingSearchRef → the resolver
+  // above selects + flies once it lands). ?compare needs the national set, and an
+  // active national filter is meant to rank all 3,018 areas, so both keep that load;
+  // custom weights are fine — they recompute on the routed region. Runs once.
+  const deepLinkRoutedRef = useRef(false);
+  useEffect(() => {
+    if (deepLinkRoutedRef.current) return;
+    const pno = initialUrl.pno;
+    if (!bareDeepLink || !pno) return;
+    if (!searchIndex) return; // wait for the eager index that backs pnoRegionMap
+    deepLinkRoutedRef.current = true; // resolve once, hit or miss
+    const region = pnoRegionMap.get(pno);
+    if (!region) {
+      // Not in the index (unknown/garbage pno) → fall back to the national set so the
+      // existing URL-restore path can still try (its prior behavior).
+      setNeedFullNational(true);
+      return;
+    }
+    // Defer selection to the resolver above; no toast — this is a silent route, not a
+    // user-initiated city switch.
+    pendingSearchRef.current = pno;
+    if (region !== cityFilterRef.current) setCityFilter(region);
+  }, [searchIndex, pnoRegionMap, bareDeepLink, initialUrl.pno]);
+
+  // Robustness: if the search index never loads (network failure → it stays null), a
+  // bare ?pno= deep link would otherwise never resolve. After a short grace period,
+  // fall back to the national set so the area still opens (matching prior behavior).
+  useEffect(() => {
+    if (!bareDeepLink || searchIndex || deepLinkRoutedRef.current) return;
+    const id = setTimeout(() => {
+      if (!deepLinkRoutedRef.current) {
+        deepLinkRoutedRef.current = true;
+        setNeedFullNational(true);
+      }
+    }, 5000);
+    return () => clearTimeout(id);
+  }, [searchIndex, bareDeepLink]);
+
+  // Mark the bare-pno deep link "settled" once its routed selection lands (or we fall
+  // back to the national set, or a grace period elapses), so the gated URL writes can
+  // resume without first clobbering the deep link's pno.
+  useEffect(() => {
+    if (deepLinkSettled) return;
+    if (needFullNational || selected?.pno === initialUrl.pno) { setDeepLinkSettled(true); return; }
+    const id = setTimeout(() => setDeepLinkSettled(true), 8000);
+    return () => clearTimeout(id);
+  }, [deepLinkSettled, needFullNational, selected, initialUrl.pno]);
+
+  // "Set your priorities" deep link: the Fit-for-you CTA on profile pages links to
+  // /?finder=1 for visitors without a saved profile — open the Finder on arrival.
+  useEffect(() => {
+    try {
+      if (new URLSearchParams(window.location.search).get('finder') === '1') setShowWizard(true);
+    } catch { /* window.location unavailable */ }
+  }, []);
 
   // QW-3: "Show my area" — geolocate the visitor, switch to their region if
   // needed, and select the containing neighborhood. Graceful fallbacks for
@@ -2531,6 +2600,8 @@ const App: React.FC = () => {
             onSetReference={handleSetReference}
             regionPriceAverages={selectedRegionAverages}
             regionName={selectedRegionName}
+            wizardProfile={wizardProfile}
+            onOpenWizard={handleOpenWizard}
             qualityScope={comparisonScope === 'region' && cityFilter !== 'all' ? 'region' : 'national'}
             onExploreCity={handleExploreCity}
             userId={user?.id ?? null}
@@ -2639,7 +2710,7 @@ const App: React.FC = () => {
       {!IS_EMBED && pinned.length >= 1 && (
         <ErrorBoundary>
           <Suspense fallback={null}>
-            <ComparisonPanel pinned={pinned} onUnpin={unpin} onClear={clearPinned} reference={referenceProps ?? null} referenceName={referenceName} geometryFor={geometryFor} suppressMobile={!!selected} />
+            <ComparisonPanel pinned={pinned} onUnpin={unpin} onClear={clearPinned} reference={referenceProps ?? null} referenceName={referenceName} geometryFor={geometryFor} suppressMobile={!!selected} wizardProfile={wizardProfile} />
           </Suspense>
         </ErrorBoundary>
       )}
