@@ -90,3 +90,56 @@ describe('scoreFeatureFit affordability fold', () => {
     expect(soft.score).toBeLessThanOrEqual(off.score);
   });
 });
+
+describe('scoreFeatureFit foreigners preference', () => {
+  const ranges = getNationalFitRanges();
+
+  it("ranks a diverse area higher than a homogeneous one when 'near'", () => {
+    const near = { ...defaultWizardAnswers, foreignersPreference: 'near' as const };
+    const diverse = scoreFeatureFit(mkArea({ foreign_language_pct: 18 }), near, ranges);
+    const homog = scoreFeatureFit(mkArea({ foreign_language_pct: 1 }), near, ranges);
+    expect(diverse.score).toBeGreaterThan(homog.score);
+  });
+
+  it("ranks a homogeneous area higher than a diverse one when 'away'", () => {
+    const away = { ...defaultWizardAnswers, foreignersPreference: 'away' as const };
+    const diverse = scoreFeatureFit(mkArea({ foreign_language_pct: 18 }), away, ranges);
+    const homog = scoreFeatureFit(mkArea({ foreign_language_pct: 1 }), away, ranges);
+    expect(homog.score).toBeGreaterThan(diverse.score);
+  });
+
+  it('adds no contribution for a neutral foreigners preference', () => {
+    const res = scoreFeatureFit(mkArea({ foreign_language_pct: 18 }), defaultWizardAnswers, ranges);
+    expect(res.contributions.some((c) => c.target === 'wizard.foreigners_near' || c.target === 'wizard.foreigners_away')).toBe(false);
+  });
+});
+
+describe('scoreFeatureFit skip', () => {
+  const ranges = getNationalFitRanges();
+
+  it('drops a skipped criterion from the contributions breakdown', () => {
+    const base = scoreFeatureFit(mkArea(), defaultWizardAnswers, ranges);
+    const skipped = scoreFeatureFit(mkArea(), { ...defaultWizardAnswers, skipped: { budget: true } }, ranges);
+    expect(skipped.contributions.length).toBe(base.contributions.length - 1);
+  });
+
+  it('raises a pricey area\'s score when the budget question is skipped', () => {
+    const pricey = mkArea({ property_price_sqm: 12000 });
+    const withBudget = scoreFeatureFit(pricey, defaultWizardAnswers, ranges);
+    const noBudget = scoreFeatureFit(pricey, { ...defaultWizardAnswers, skipped: { budget: true } }, ranges);
+    expect(noBudget.score).toBeGreaterThan(withBudget.score);
+  });
+
+  it('returns 0 with no contributions when every question is skipped', () => {
+    const allSkipped = {
+      ...defaultWizardAnswers,
+      skipped: {
+        transit: true, quiet: true, foreigners: true, budget: true, size: true,
+        tenure: true, children: true, school: true, healthcare: true,
+      },
+    };
+    const res = scoreFeatureFit(mkArea(), allSkipped, ranges);
+    expect(res.contributions).toHaveLength(0);
+    expect(res.score).toBe(0);
+  });
+});

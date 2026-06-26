@@ -98,6 +98,16 @@ test('validateWizardProfile accepts a well-formed profile (IN-3)', () => {
   assert.equal(v.ok, true);
 });
 
+test('validateWizardProfile accepts the full profile with the new fields (price/foreigners/skip)', () => {
+  const v = validateWizardProfile({
+    transitImportance: 4, quietPreference: 'quiet', budgetAdvanced: true,
+    budgetMin: 1000, budgetMax: 6000, sizePreference: 'medium', tenurePreference: 'either',
+    hasChildren: true, schoolImportance: 5, healthcareImportance: 3,
+    foreignersPreference: 'near', skipped: { transit: true, budget: true },
+  });
+  assert.equal(v.ok, true);
+});
+
 test('validateWizardProfile rejects non-objects, unknown keys, oversized + non-finite values (IN-3)', () => {
   for (const bad of [null, undefined, 'x', 42, [1, 2]]) {
     assert.equal(validateWizardProfile(bad).ok, false, `expected rejection for ${JSON.stringify(bad)}`);
@@ -105,7 +115,16 @@ test('validateWizardProfile rejects non-objects, unknown keys, oversized + non-f
   assert.equal(validateWizardProfile({ evilKey: 1 }).ok, false);
   assert.equal(validateWizardProfile({ quietPreference: 'x'.repeat(21) }).ok, false);
   assert.equal(validateWizardProfile({ transitImportance: Infinity }).ok, false);
+  // A nested object is still rejected for non-skipped keys.
   assert.equal(validateWizardProfile({ hasChildren: { nested: true } }).ok, false);
+});
+
+test('validateWizardProfile guards the nested skipped object (unknown key / non-boolean / array)', () => {
+  assert.equal(validateWizardProfile({ skipped: { transit: true } }).ok, true);
+  assert.equal(validateWizardProfile({ skipped: {} }).ok, true);
+  assert.equal(validateWizardProfile({ skipped: { evil: true } }).ok, false);
+  assert.equal(validateWizardProfile({ skipped: { transit: 1 } }).ok, false);
+  assert.equal(validateWizardProfile({ skipped: [true] }).ok, false);
 });
 
 test('httpErrorStatus reads status/statusCode, defaults to 500 (IN-4)', () => {
