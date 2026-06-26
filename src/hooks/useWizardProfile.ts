@@ -203,6 +203,16 @@ function loadProfile(): WizardAnswers {
   return { ...defaultWizardAnswers };
 }
 
+/**
+ * One-shot read of the persisted priority profile, for surfaces outside the SPA
+ * tree (e.g. the standalone profile page) that want the saved "Fit for you" profile
+ * without mounting the full sync hook. Returns the documented defaults when nothing
+ * is saved or localStorage is unavailable.
+ */
+export function readStoredWizardProfile(): WizardAnswers {
+  return loadProfile();
+}
+
 function saveProfile(a: WizardAnswers): void {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(a)); } catch { /* unavailable */ }
 }

@@ -63,7 +63,15 @@ import { join } from 'node:path';
 // pre-folded index plus a `muni` predicate. ~0.3 KB of genuine UI/predicate logic over
 // the prior ~0.3 KB headroom. The SEO half of the batch (municipality hub pages,
 // keyword-rich profile titles) is all build-time HTML — zero bundle bytes.
-const BUDGET = 297_000;
+// → 300000 B (2026-06-26: "Fit for you" persistent match score + bare ?pno= deep-link
+// region routing. The score reuses the wizard's per-area scorer, extracted into a
+// shared, pure utils/fitScore.ts (region ranges for the wizard, stable national ranges
+// for the badge), surfaced as a small FitForYouBadge on the panel header, the profile
+// page hero, and a comparison row. ~2.5 KB of genuine UI/scoring logic + 4 bundled
+// fi.json `fit.*` strings. The deep-link routing is pure App.tsx control flow (no
+// payload) and is itself a perf win — bare ?pno= now loads a ~355 KB region file
+// instead of the 10.6 MB national set.
+const BUDGET = 300_000;
 const ASSETS_DIR = 'dist/assets';
 
 const fmtKB = (b) => (b / 1024).toFixed(2);

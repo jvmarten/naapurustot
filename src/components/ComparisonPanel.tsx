@@ -1,8 +1,10 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { formatEuro, formatPct, formatEuroSqm } from '../utils/formatting';
 import { STAT_SECTIONS, ALL_STATS, findBest, refDeltaOf } from '../utils/comparisonStats';
 import { t, useI18nVersion } from '../utils/i18n';
+import { isCustomWizardAnswers, type WizardAnswers } from '../hooks/useWizardProfile';
+import { computeNationalFit } from '../utils/fitScore';
 import { CompareIllustration } from './EmptyStateIllustrations';
 import { exportComparisonPdf, exportComparisonCsv, exportGeoJson } from '../utils/export';
 import { generateComparisonCard } from '../utils/scoreCard';
@@ -19,6 +21,9 @@ interface ComparisonPanelProps {
   geometryFor?: (pno: string) => GeoJSON.Geometry | null;
   /** MO7: hide the MOBILE sheet when a NeighborhoodPanel mobile sheet is open (both anchor bottom-0 z-20). Desktop is untouched. */
   suppressMobile?: boolean;
+  /** "Fit for you": the saved priority profile. When custom, each pinned area shows a
+   *  match score row so the comparison ranks by personal fit. */
+  wizardProfile?: WizardAnswers | null;
 }
 
 const COLUMN_COLORS = [
@@ -35,7 +40,9 @@ const MobileCard: React.FC<{
   allPinned: NeighborhoodProperties[];
   bestByKey: Record<string, string | null>;
   reference?: NeighborhoodProperties | null;
-}> = ({ n, color, onUnpin, allPinned, bestByKey, reference }) => (
+  fitScore?: number | null;
+  isBestFit?: boolean;
+}> = ({ n, color, onUnpin, allPinned, bestByKey, reference, fitScore, isBestFit }) => (
   <div className="bg-surface-50 dark:bg-surface-900/60 rounded-xl p-4 relative">
     <div className="flex items-center justify-between mb-3">
       <div>
@@ -52,6 +59,15 @@ const MobileCard: React.FC<{
       </button>
     </div>
     <div className="space-y-1.5">
+      {fitScore != null && (
+        <div className="flex justify-between text-xs">
+          <span className="text-surface-500 dark:text-surface-400">{t('fit.label')}</span>
+          <span className={isBestFit ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-surface-900 dark:text-white font-medium'}>
+            {fitScore}%
+            {isBestFit && <span className="ml-1 text-[9px] uppercase text-emerald-500">{t('compare.best')}</span>}
+          </span>
+        </div>
+      )}
       {ALL_STATS.map((stat) => {
         const val = n[stat.key] as number | null;
         const isBest = allPinned.length > 1 && n.pno === bestByKey[stat.key];
@@ -134,8 +150,31 @@ const ComparisonChart: React.FC<{ pinned: NeighborhoodProperties[]; bestByKey: R
 });
 ComparisonChart.displayName = 'ComparisonChart';
 
-export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pinned, onUnpin, onClear, reference = null, referenceName = null, geometryFor, suppressMobile }) => {
+export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pinned, onUnpin, onClear, reference = null, referenceName = null, geometryFor, suppressMobile, wizardProfile }) => {
   useI18nVersion();
+  // "Fit for you": per-area match score vs the saved priorities (national ranges, so
+  // it reads the same as the panel/profile). Only shown when a custom profile exists.
+  const fitByPno = useMemo(() => {
+    if (!wizardProfile || !isCustomWizardAnswers(wizardProfile)) return null;
+    const m: Record<string, number> = {};
+    // Skip the all-Finland region aggregates — an averaged seutukunta has no
+    // meaningful per-area fit (matches NeighborhoodPanel hiding the badge for them).
+    for (const n of pinned) {
+      if (n._isMetroArea) continue;
+      m[n.pno] = computeNationalFit(n, wizardProfile).score;
+    }
+    return Object.keys(m).length > 0 ? m : null;
+  }, [pinned, wizardProfile]);
+  const bestFitPno = useMemo(() => {
+    if (!fitByPno || pinned.length < 2) return null;
+    let best: string | null = null;
+    let bestScore = -Infinity;
+    for (const n of pinned) {
+      const s = fitByPno[n.pno];
+      if (s != null && s > bestScore) { bestScore = s; best = n.pno; }
+    }
+    return best;
+  }, [fitByPno, pinned]);
   // CF-5: show per-value deltas vs the reference only when it isn't itself the sole pinned area.
   const refActive = !!reference && pinned.some((p) => p.pno !== reference.pno);
   const refCaption = refActive && referenceName
@@ -321,6 +360,29 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pin
               </tr>
             </thead>
             <tbody>
+              {fitByPno && (
+                <tr className="border-t border-surface-100 dark:border-surface-800/30 bg-brand-500/[0.04]">
+                  <td className="px-4 py-2 text-surface-500 dark:text-surface-400 text-xs font-medium">{t('fit.label')}</td>
+                  {pinned.map((n) => {
+                    const s = fitByPno[n.pno];
+                    if (s == null) {
+                      return <td key={n.pno} className="px-3 py-2 text-center text-surface-300 dark:text-surface-600">—</td>;
+                    }
+                    const isBest = bestFitPno === n.pno;
+                    return (
+                      <td
+                        key={n.pno}
+                        className={`px-3 py-2 text-center font-semibold ${isBest ? 'text-emerald-600 dark:text-emerald-400' : 'text-surface-900 dark:text-white'}`}
+                      >
+                        {s}%
+                        {isBest && (
+                          <span className="ml-1 text-[9px] font-semibold uppercase text-emerald-500 dark:text-emerald-400">{t('compare.best')}</span>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              )}
               {STAT_SECTIONS.map((section) => (
                 <React.Fragment key={section.title || '_main'}>
                   {section.title && (
@@ -424,7 +486,7 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pin
         </div>
         <div className="overflow-y-auto p-4 pb-safe space-y-3" style={{ maxHeight: 'calc(60vh - 52px)' }}>
           {pinned.map((n, i) => (
-            <MobileCard key={n.pno} n={n} color={COLUMN_COLORS[i]} onUnpin={onUnpin} allPinned={pinned} bestByKey={bestByKey} reference={refActive ? reference : null} />
+            <MobileCard key={n.pno} n={n} color={COLUMN_COLORS[i]} onUnpin={onUnpin} allPinned={pinned} bestByKey={bestByKey} reference={refActive ? reference : null} fitScore={fitByPno ? fitByPno[n.pno] : null} isBestFit={bestFitPno === n.pno} />
           ))}
         </div>
       </div>

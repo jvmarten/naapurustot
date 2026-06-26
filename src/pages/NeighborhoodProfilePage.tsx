@@ -15,6 +15,8 @@ import { getFeatureCenter } from '../utils/geometryFilter';
 import { ContactMenu } from '../components/ContactMenu';
 import { StatCard } from '../components/profile/StatCard';
 import { JsonLd } from '../components/profile/JsonLd';
+import { FitForYouBadge } from '../components/FitForYouBadge';
+import { readStoredWizardProfile } from '../hooks/useWizardProfile';
 
 const MiniMap = lazy(() => import('../components/profile/MiniMap').then(m => ({ default: m.MiniMap })));
 
@@ -91,6 +93,9 @@ export const NeighborhoodProfilePage: React.FC = () => {
   // Bumped by the Retry button on a `load_failed` error; included in the load
   // effect's deps so incrementing it cleanly re-runs the fetch.
   const [retryCount, setRetryCount] = useState(0);
+  // "Fit for you": the visitor's saved priority profile, read once from localStorage
+  // (client-only; defaults when none saved → the badge shows a CTA instead).
+  const [wizardProfile] = useState(() => readStoredWizardProfile());
 
   // Detect language from URL path:
   //   /sv/omrade/… → Swedish
@@ -521,6 +526,12 @@ export const NeighborhoodProfilePage: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* Fit for you — match score against the visitor's saved priority profile, or a
+            CTA to set priorities. Opens the Neighborhood Finder on the home page. */}
+        <div className="mb-8">
+          <FitForYouBadge data={d} profile={wizardProfile} variant="banner" />
+        </div>
 
         {/* Key Stats Grid */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
