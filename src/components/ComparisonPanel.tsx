@@ -157,8 +157,13 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pin
   const fitByPno = useMemo(() => {
     if (!wizardProfile || !isCustomWizardAnswers(wizardProfile)) return null;
     const m: Record<string, number> = {};
-    for (const n of pinned) m[n.pno] = computeNationalFit(n, wizardProfile).score;
-    return m;
+    // Skip the all-Finland region aggregates — an averaged seutukunta has no
+    // meaningful per-area fit (matches NeighborhoodPanel hiding the badge for them).
+    for (const n of pinned) {
+      if (n._isMetroArea) continue;
+      m[n.pno] = computeNationalFit(n, wizardProfile).score;
+    }
+    return Object.keys(m).length > 0 ? m : null;
   }, [pinned, wizardProfile]);
   const bestFitPno = useMemo(() => {
     if (!fitByPno || pinned.length < 2) return null;
@@ -166,7 +171,7 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pin
     let bestScore = -Infinity;
     for (const n of pinned) {
       const s = fitByPno[n.pno];
-      if (s > bestScore) { bestScore = s; best = n.pno; }
+      if (s != null && s > bestScore) { bestScore = s; best = n.pno; }
     }
     return best;
   }, [fitByPno, pinned]);
@@ -360,6 +365,9 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pin
                   <td className="px-4 py-2 text-surface-500 dark:text-surface-400 text-xs font-medium">{t('fit.label')}</td>
                   {pinned.map((n) => {
                     const s = fitByPno[n.pno];
+                    if (s == null) {
+                      return <td key={n.pno} className="px-3 py-2 text-center text-surface-300 dark:text-surface-600">—</td>;
+                    }
                     const isBest = bestFitPno === n.pno;
                     return (
                       <td
