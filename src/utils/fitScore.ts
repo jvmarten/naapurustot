@@ -45,6 +45,7 @@ export type FitRanges = Record<string, { min: number; max: number }>;
 export const FIT_RANGE_KEYS: (keyof NeighborhoodProperties)[] = [
   'transit_stop_density', 'restaurant_density', 'ra_as_kpa', 'child_ratio',
   'daycare_density', 'school_density', 'healthcare_density', 'ownership_rate', 'rental_rate',
+  'foreign_language_pct',
 ];
 
 /** Normalize a value within a range to 0–1 (0.5 for missing/degenerate ranges). */
@@ -113,6 +114,9 @@ export function scoreFeatureFit(
   affordabilityMode: AffordabilityMatchMode = 'off',
 ): FitResult {
   const R = (k: string) => ranges[k] ?? { min: 0, max: 1 };
+  // A skipped question is ignored entirely — it contributes nothing to score or
+  // totalWeight, so the match % is computed only over the questions the user answered.
+  const skipped = answers.skipped ?? {};
 
   let score = 0;
   let totalWeight = 0;
@@ -124,7 +128,7 @@ export function scoreFeatureFit(
 
   // --- Transit importance ---
   const transitWeight = answers.transitImportance / 5;
-  if (transitWeight > 0) {
+  if (!skipped.transit && transitWeight > 0) {
     const r = R('transit_stop_density');
     const transitScore = normalize(p.transit_stop_density, r.min, r.max);
     score += transitScore * transitWeight * 2;
@@ -139,40 +143,76 @@ export function scoreFeatureFit(
   }
 
   // --- Quiet vs lively ---
-  if (answers.quietPreference === 'quiet') {
-    const r = R('restaurant_density');
-    const restaurantInv = 1 - normalize(p.restaurant_density, r.min, r.max);
-    score += restaurantInv * 2;
-    totalWeight += 2;
-    if (restaurantInv > 0.7) reasons.push(t('wizard.reason_quiet'));
-    contributions.push({
-      label: t('wizard.quiet_preference'),
-      actual: fmtDensity(p.restaurant_density),
-      target: t('wizard.pref_quiet'),
-      direction: dirOf(restaurantInv),
-    });
-  } else if (answers.quietPreference === 'lively') {
-    const r = R('restaurant_density');
-    const restaurantScore = normalize(p.restaurant_density, r.min, r.max);
-    score += restaurantScore * 2;
-    totalWeight += 2;
-    if (restaurantScore > 0.7) reasons.push(t('wizard.reason_lively'));
-    contributions.push({
-      label: t('wizard.quiet_preference'),
-      actual: fmtDensity(p.restaurant_density),
-      target: t('wizard.pref_lively'),
-      direction: dirOf(restaurantScore),
-    });
-  } else {
-    totalWeight += 0.5;
-    score += 0.25;
+  if (!skipped.quiet) {
+    if (answers.quietPreference === 'quiet') {
+      const r = R('restaurant_density');
+      const restaurantInv = 1 - normalize(p.restaurant_density, r.min, r.max);
+      score += restaurantInv * 2;
+      totalWeight += 2;
+      if (restaurantInv > 0.7) reasons.push(t('wizard.reason_quiet'));
+      contributions.push({
+        label: t('wizard.quiet_preference'),
+        actual: fmtDensity(p.restaurant_density),
+        target: t('wizard.pref_quiet'),
+        direction: dirOf(restaurantInv),
+      });
+    } else if (answers.quietPreference === 'lively') {
+      const r = R('restaurant_density');
+      const restaurantScore = normalize(p.restaurant_density, r.min, r.max);
+      score += restaurantScore * 2;
+      totalWeight += 2;
+      if (restaurantScore > 0.7) reasons.push(t('wizard.reason_lively'));
+      contributions.push({
+        label: t('wizard.quiet_preference'),
+        actual: fmtDensity(p.restaurant_density),
+        target: t('wizard.pref_lively'),
+        direction: dirOf(restaurantScore),
+      });
+    } else {
+      totalWeight += 0.5;
+      score += 0.25;
+    }
+  }
+
+  // --- Foreign-language speakers (diversity proxy) ---
+  if (!skipped.foreigners) {
+    // Prefer the postal value; fall back to the estimated/municipal proxies.
+    const fl = p.foreign_language_pct ?? p.foreign_language_est_pct ?? p.foreign_language_municipal_pct ?? null;
+    if (answers.foreignersPreference === 'near') {
+      const r = R('foreign_language_pct');
+      const flScore = normalize(fl, r.min, r.max);
+      score += flScore * 1.5;
+      totalWeight += 1.5;
+      if (flScore > 0.6) reasons.push(t('wizard.reason_diverse'));
+      contributions.push({
+        label: t('wizard.foreigners_preference'),
+        actual: fmtPct(fl),
+        target: t('wizard.foreigners_near'),
+        direction: dirOf(flScore),
+      });
+    } else if (answers.foreignersPreference === 'away') {
+      const r = R('foreign_language_pct');
+      const flInv = 1 - normalize(fl, r.min, r.max);
+      score += flInv * 1.5;
+      totalWeight += 1.5;
+      if (flInv > 0.6) reasons.push(t('wizard.reason_homogeneous'));
+      contributions.push({
+        label: t('wizard.foreigners_preference'),
+        actual: fmtPct(fl),
+        target: t('wizard.foreigners_away'),
+        direction: dirOf(flInv),
+      });
+    } else {
+      totalWeight += 0.5;
+      score += 0.25;
+    }
   }
 
   // --- Budget filter ---
   const price = p.property_price_sqm;
   const bMin = Math.min(answers.budgetMin, answers.budgetMax);
   const bMax = Math.max(answers.budgetMin, answers.budgetMax);
-  if (price != null) {
+  if (!skipped.budget && price != null) {
     const inBudget = price >= bMin && price <= bMax;
     if (inBudget) {
       const budgetRange = bMax - bMin;
@@ -198,87 +238,95 @@ export function scoreFeatureFit(
   }
 
   // --- Apartment size preference ---
-  const sizeScore = (() => {
-    const size = p.ra_as_kpa;
-    if (size == null) return 0.5;
-    const r = R('ra_as_kpa');
-    const norm = normalize(size, r.min, r.max);
-    switch (answers.sizePreference) {
-      case 'small': return 1 - norm;
-      case 'large': return norm;
-      default: return 1 - Math.abs(norm - 0.5) * 2; // prefer middle
-    }
-  })();
-  score += sizeScore;
-  totalWeight += 1;
-  if (sizeScore > 0.7) reasons.push(t('wizard.reason_apt_size'));
-  contributions.push({
-    label: t('wizard.size_preference'),
-    actual: p.ra_as_kpa != null ? `${p.ra_as_kpa.toFixed(0)} m²` : '—',
-    target: t(`wizard.size_${answers.sizePreference}`),
-    direction: dirOf(sizeScore),
-  });
+  if (!skipped.size) {
+    const sizeScore = (() => {
+      const size = p.ra_as_kpa;
+      if (size == null) return 0.5;
+      const r = R('ra_as_kpa');
+      const norm = normalize(size, r.min, r.max);
+      switch (answers.sizePreference) {
+        case 'small': return 1 - norm;
+        case 'large': return norm;
+        default: return 1 - Math.abs(norm - 0.5) * 2; // prefer middle
+      }
+    })();
+    score += sizeScore;
+    totalWeight += 1;
+    if (sizeScore > 0.7) reasons.push(t('wizard.reason_apt_size'));
+    contributions.push({
+      label: t('wizard.size_preference'),
+      actual: p.ra_as_kpa != null ? `${p.ra_as_kpa.toFixed(0)} m²` : '—',
+      target: t(`wizard.size_${answers.sizePreference}`),
+      direction: dirOf(sizeScore),
+    });
+  }
 
   // --- Tenure preference ---
-  if (answers.tenurePreference === 'own') {
-    const r = R('ownership_rate');
-    const ownerScore = normalize(p.ownership_rate, r.min, r.max);
-    score += ownerScore;
-    totalWeight += 1;
-    if (ownerScore > 0.7) reasons.push(t('wizard.reason_ownership'));
-    contributions.push({
-      label: t('wizard.tenure_preference'),
-      actual: fmtPct(p.ownership_rate),
-      target: t('wizard.tenure_own'),
-      direction: dirOf(ownerScore),
-    });
-  } else if (answers.tenurePreference === 'rent') {
-    const r = R('rental_rate');
-    const rentalScore = normalize(p.rental_rate, r.min, r.max);
-    score += rentalScore;
-    totalWeight += 1;
-    if (rentalScore > 0.7) reasons.push(t('wizard.reason_rental'));
-    contributions.push({
-      label: t('wizard.tenure_preference'),
-      actual: fmtPct(p.rental_rate),
-      target: t('wizard.tenure_rent'),
-      direction: dirOf(rentalScore),
-    });
-  } else {
-    totalWeight += 0.5;
-    score += 0.25;
+  if (!skipped.tenure) {
+    if (answers.tenurePreference === 'own') {
+      const r = R('ownership_rate');
+      const ownerScore = normalize(p.ownership_rate, r.min, r.max);
+      score += ownerScore;
+      totalWeight += 1;
+      if (ownerScore > 0.7) reasons.push(t('wizard.reason_ownership'));
+      contributions.push({
+        label: t('wizard.tenure_preference'),
+        actual: fmtPct(p.ownership_rate),
+        target: t('wizard.tenure_own'),
+        direction: dirOf(ownerScore),
+      });
+    } else if (answers.tenurePreference === 'rent') {
+      const r = R('rental_rate');
+      const rentalScore = normalize(p.rental_rate, r.min, r.max);
+      score += rentalScore;
+      totalWeight += 1;
+      if (rentalScore > 0.7) reasons.push(t('wizard.reason_rental'));
+      contributions.push({
+        label: t('wizard.tenure_preference'),
+        actual: fmtPct(p.rental_rate),
+        target: t('wizard.tenure_rent'),
+        direction: dirOf(rentalScore),
+      });
+    } else {
+      totalWeight += 0.5;
+      score += 0.25;
+    }
   }
 
   // --- Children ---
-  if (answers.hasChildren) {
+  if (!skipped.children && answers.hasChildren) {
     const childScore = normalize(p.child_ratio, R('child_ratio').min, R('child_ratio').max);
     const daycareScore = normalize(p.daycare_density, R('daycare_density').min, R('daycare_density').max);
 
-    const schoolWeight = answers.schoolImportance / 5;
+    // The school sub-question can be skipped independently of the children question.
+    const includeSchool = !skipped.school;
+    const schoolWeight = includeSchool ? answers.schoolImportance / 5 : 0;
     const schoolScore = normalize(p.school_density, R('school_density').min, R('school_density').max);
 
     score += (childScore + daycareScore + schoolScore * schoolWeight) * 1.5;
     totalWeight += (2 + schoolWeight) * 1.5;
 
     if (daycareScore > 0.6) reasons.push(t('wizard.reason_daycare'));
-    if (schoolScore > 0.6) reasons.push(t('wizard.reason_schools'));
+    if (includeSchool && schoolScore > 0.6) reasons.push(t('wizard.reason_schools'));
     contributions.push({
       label: t('wizard.reason_daycare'),
       actual: fmtDensity(p.daycare_density),
       target: t('wizard.yes'),
       direction: dirOf(daycareScore),
     });
-    contributions.push({
-      label: t('wizard.school_importance'),
-      actual: fmtDensity(p.school_density),
-      target: `${answers.schoolImportance}/5`,
-      direction: dirOf(schoolScore),
-    });
+    if (includeSchool) {
+      contributions.push({
+        label: t('wizard.school_importance'),
+        actual: fmtDensity(p.school_density),
+        target: `${answers.schoolImportance}/5`,
+        direction: dirOf(schoolScore),
+      });
+    }
   }
 
   // --- Healthcare ---
   const healthWeight = answers.healthcareImportance / 5;
-  if (healthWeight > 0) {
+  if (!skipped.healthcare && healthWeight > 0) {
     const r = R('healthcare_density');
     const healthScore = normalize(p.healthcare_density, r.min, r.max);
     score += healthScore * healthWeight * 1.5;

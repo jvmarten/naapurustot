@@ -28,6 +28,8 @@ const DYNAMIC_PREFIXES = [
   'wizard.afford_mode_', // NeighborhoodWizard → `wizard.afford_mode_${mode}(_hint)`
   'wizard.pref_',        // NeighborhoodWizard → `wizard.pref_${pref}`
   'wizard.tenure_',      // NeighborhoodWizard → `wizard.tenure_${tenure}`
+  'wizard.price_level_', // NeighborhoodWizard → `wizard.price_level_${level}`
+  'wizard.foreigners_',  // NeighborhoodWizard → `wizard.foreigners_${pref}`
   'settings.theme_',     // SettingsDropdown → `settings.theme_${mode}`
   'correlation.sig_',    // CorrelationExplorer → `correlation.sig_${sig}`
   'city.',               // region names → `city.${regionId}` (69 regions)

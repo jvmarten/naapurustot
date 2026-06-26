@@ -11,7 +11,7 @@ import { computeQualityIndices, isCustomWeights, type QualityWeights } from '../
 import { getNationalRanges } from '../utils/nationalRanges';
 import { buildProfileUrl } from '../utils/profileUrl';
 import { ComparisonScopeToggle, type ComparisonScope } from './ComparisonScopeToggle';
-import { defaultWizardAnswers, type WizardAnswers } from '../hooks/useWizardProfile';
+import { defaultWizardAnswers, budgetForPriceLevel, priceLevelFromBudget, type WizardAnswers, type WizardQuestionKey } from '../hooks/useWizardProfile';
 import type { AffordabilityState } from '../hooks/useAffordability';
 import { scoreFeatureFit, buildFitRanges, type FitContribution, type AffordabilityMatchMode } from '../utils/fitScore';
 
@@ -119,6 +119,18 @@ function scoreNeighborhoods(
 
 const STEP_COUNT = 4;
 
+// Shared styling for the 1–5 range sliders (transit, school, healthcare, price tier).
+const RANGE_INPUT_CLASS = `flex-1 h-2 rounded-full appearance-none cursor-pointer
+  bg-surface-200 dark:bg-surface-700
+  [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5
+  [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500
+  [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow-md
+  [&::-webkit-slider-thumb]:cursor-pointer
+  [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5
+  [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-blue-500
+  [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:shadow-md
+  [&::-moz-range-thumb]:cursor-pointer`;
+
 export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onClose, onShowOnMap, initialAnswers, onSaveProfile, onApplyToMap, affordability, qualityWeights, cityFilter }) => {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
@@ -215,6 +227,41 @@ export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onCl
     t('wizard.results'),
   ];
 
+  // Per-question skip: a skipped question is dropped from the match entirely.
+  const isSkipped = (k: WizardQuestionKey) => !!answers.skipped[k];
+  const toggleSkip = (k: WizardQuestionKey) =>
+    setAnswers((a) => ({ ...a, skipped: { ...a.skipped, [k]: !a.skipped[k] } }));
+
+  // Wrap a question with its label and a Skip toggle. When skipped, the inputs are
+  // replaced by a short hint (and excluded from scoring) until the user un-skips.
+  // NB: a plain JSX-returning helper, NOT a component — inlining keeps the controlled
+  // inputs from remounting (and losing focus) on every render.
+  const renderQuestion = (k: WizardQuestionKey, label: string, body: React.ReactNode) => {
+    const skipped = isSkipped(k);
+    return (
+      <div>
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <span className="text-sm font-medium text-surface-700 dark:text-surface-300">{label}</span>
+          <button
+            type="button"
+            onClick={() => toggleSkip(k)}
+            aria-pressed={skipped}
+            className={`flex-shrink-0 text-[11px] font-medium px-2 py-0.5 rounded-md transition-colors
+              ${skipped
+                ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400'
+                : 'text-surface-400 hover:text-surface-600 dark:hover:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-800'
+              }`}
+          >
+            {skipped ? t('wizard.skipped') : t('wizard.skip')}
+          </button>
+        </div>
+        {skipped
+          ? <p className="text-xs italic text-surface-400 dark:text-surface-500">{t('wizard.skip_hint')}</p>
+          : body}
+      </div>
+    );
+  };
+
   const renderStepIndicator = () => (
     <div className="flex items-center gap-2 mb-6">
       {stepTitles.map((_title, i) => (
@@ -251,10 +298,7 @@ export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onCl
       </h3>
 
       {/* Transit importance */}
-      <div>
-        <label className="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-2">
-          {t('wizard.transit_importance')}
-        </label>
+      {renderQuestion('transit', t('wizard.transit_importance'),
         <div className="flex items-center gap-3">
           <span className="text-xs text-surface-400">1</span>
           <input
@@ -263,30 +307,19 @@ export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onCl
             max={5}
             step={1}
             value={answers.transitImportance}
+            aria-label={t('wizard.transit_importance')}
             onChange={(e) => setAnswers((a) => ({ ...a, transitImportance: Number(e.target.value) }))}
-            className="flex-1 h-2 rounded-full appearance-none cursor-pointer
-                       bg-surface-200 dark:bg-surface-700
-                       [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5
-                       [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500
-                       [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow-md
-                       [&::-webkit-slider-thumb]:cursor-pointer
-                       [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5
-                       [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-blue-500
-                       [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:shadow-md
-                       [&::-moz-range-thumb]:cursor-pointer"
+            className={RANGE_INPUT_CLASS}
           />
           <span className="text-xs text-surface-400">5</span>
           <span className="text-sm font-semibold text-blue-500 tabular-nums w-4 text-center">
             {answers.transitImportance}
           </span>
         </div>
-      </div>
+      )}
 
       {/* Quiet vs lively */}
-      <div>
-        <label className="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-2">
-          {t('wizard.quiet_preference')}
-        </label>
+      {renderQuestion('quiet', t('wizard.quiet_preference'),
         <div className="grid grid-cols-3 gap-2">
           {(['quiet', 'neutral', 'lively'] as const).map((pref) => (
             <button
@@ -302,60 +335,108 @@ export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onCl
             </button>
           ))}
         </div>
-      </div>
+      )}
+
+      {/* Near foreign-language speakers? (diversity proxy) */}
+      {renderQuestion('foreigners', t('wizard.foreigners_preference'),
+        <div className="grid grid-cols-3 gap-2">
+          {(['away', 'neutral', 'near'] as const).map((pref) => (
+            <button
+              key={pref}
+              onClick={() => setAnswers((a) => ({ ...a, foreignersPreference: pref }))}
+              className={`px-3 py-2 rounded-xl text-sm font-medium transition-colors
+                ${answers.foreignersPreference === pref
+                  ? 'bg-blue-500 text-white shadow-md'
+                  : 'bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700'
+                }`}
+            >
+              {t(`wizard.foreigners_${pref}`)}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 
-  const renderHousingStep = () => (
+  const renderHousingStep = () => {
+    const priceLevel = priceLevelFromBudget(answers.budgetMin, answers.budgetMax);
+    return (
     <div className="space-y-6">
       <h3 className="text-lg font-bold text-surface-900 dark:text-white">
         {t('wizard.step_housing')}
       </h3>
 
-      {/* Budget range */}
-      <div>
-        <label className="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-2">
-          {t('wizard.budget')}
-        </label>
-        <div className="flex items-center gap-3">
-          <input
-            type="number"
-            min={500}
-            max={15000}
-            step={100}
-            value={answers.budgetMin}
-            aria-label={`${t('wizard.budget')} (min)`}
-            // Ignore empty/non-finite input (so clearing doesn't silently coerce to
-            // Number('') === 0); clamp into range on blur.
-            onChange={(e) => { const n = Number(e.target.value); if (e.target.value !== '' && Number.isFinite(n)) setAnswers((a) => ({ ...a, budgetMin: n })); }}
-            onBlur={() => setAnswers((a) => ({ ...a, budgetMin: Math.min(15000, Math.max(500, Number.isFinite(a.budgetMin) ? a.budgetMin : defaultAnswers.budgetMin)) }))}
-            className="w-24 px-2 py-1.5 text-sm rounded-lg border border-surface-300 dark:border-surface-600
-                       bg-white dark:bg-surface-800 text-surface-900 dark:text-white
-                       focus:ring-2 focus:ring-blue-500 focus:outline-none"
-          />
-          <span className="text-surface-400">—</span>
-          <input
-            type="number"
-            min={500}
-            max={15000}
-            step={100}
-            value={answers.budgetMax}
-            aria-label={`${t('wizard.budget')} (max)`}
-            onChange={(e) => { const n = Number(e.target.value); if (e.target.value !== '' && Number.isFinite(n)) setAnswers((a) => ({ ...a, budgetMax: n })); }}
-            onBlur={() => setAnswers((a) => ({ ...a, budgetMax: Math.min(15000, Math.max(500, Number.isFinite(a.budgetMax) ? a.budgetMax : defaultAnswers.budgetMax)) }))}
-            className="w-24 px-2 py-1.5 text-sm rounded-lg border border-surface-300 dark:border-surface-600
-                       bg-white dark:bg-surface-800 text-surface-900 dark:text-white
-                       focus:ring-2 focus:ring-blue-500 focus:outline-none"
-          />
-          <span className="text-xs text-surface-400">{t('wizard.budget_unit')}</span>
+      {/* Budget — simple "affordable → pricey" slider by default, exact min/max on demand */}
+      {renderQuestion('budget', t('wizard.budget'),
+        <div className="space-y-2">
+          {answers.budgetAdvanced ? (
+            <div className="flex items-center gap-3">
+              <input
+                type="number"
+                min={500}
+                max={15000}
+                step={100}
+                value={answers.budgetMin}
+                aria-label={`${t('wizard.budget')} (min)`}
+                // Ignore empty/non-finite input (so clearing doesn't silently coerce to
+                // Number('') === 0); clamp into range on blur.
+                onChange={(e) => { const n = Number(e.target.value); if (e.target.value !== '' && Number.isFinite(n)) setAnswers((a) => ({ ...a, budgetMin: n })); }}
+                onBlur={() => setAnswers((a) => ({ ...a, budgetMin: Math.min(15000, Math.max(500, Number.isFinite(a.budgetMin) ? a.budgetMin : defaultAnswers.budgetMin)) }))}
+                className="w-24 px-2 py-1.5 text-sm rounded-lg border border-surface-300 dark:border-surface-600
+                           bg-white dark:bg-surface-800 text-surface-900 dark:text-white
+                           focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              />
+              <span className="text-surface-400">—</span>
+              <input
+                type="number"
+                min={500}
+                max={15000}
+                step={100}
+                value={answers.budgetMax}
+                aria-label={`${t('wizard.budget')} (max)`}
+                onChange={(e) => { const n = Number(e.target.value); if (e.target.value !== '' && Number.isFinite(n)) setAnswers((a) => ({ ...a, budgetMax: n })); }}
+                onBlur={() => setAnswers((a) => ({ ...a, budgetMax: Math.min(15000, Math.max(500, Number.isFinite(a.budgetMax) ? a.budgetMax : defaultAnswers.budgetMax)) }))}
+                className="w-24 px-2 py-1.5 text-sm rounded-lg border border-surface-300 dark:border-surface-600
+                           bg-white dark:bg-surface-800 text-surface-900 dark:text-white
+                           focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              />
+              <span className="text-xs text-surface-400">{t('wizard.budget_unit')}</span>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-surface-400 whitespace-nowrap">{t('wizard.price_affordable')}</span>
+                <input
+                  type="range"
+                  min={1}
+                  max={5}
+                  step={1}
+                  value={priceLevel}
+                  aria-label={t('wizard.budget')}
+                  aria-valuetext={t(`wizard.price_level_${priceLevel}`)}
+                  onChange={(e) => { const b = budgetForPriceLevel(Number(e.target.value)); setAnswers((a) => ({ ...a, budgetMin: b.min, budgetMax: b.max })); }}
+                  className={RANGE_INPUT_CLASS}
+                />
+                <span className="text-xs text-surface-400 whitespace-nowrap">{t('wizard.price_pricey')}</span>
+              </div>
+              <p className="text-[11px] text-surface-500 dark:text-surface-400">
+                {t(`wizard.price_level_${priceLevel}`)}
+                <span className="text-surface-400 dark:text-surface-500"> · {answers.budgetMin}–{answers.budgetMax} {t('wizard.budget_unit')}</span>
+              </p>
+            </>
+          )}
+          <button
+            type="button"
+            onClick={() => setAnswers((a) => ({ ...a, budgetAdvanced: !a.budgetAdvanced }))}
+            className="text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:underline"
+          >
+            {answers.budgetAdvanced ? t('wizard.price_simple') : t('wizard.price_advanced')}
+          </button>
         </div>
-      </div>
+      )}
 
       {/* Apartment size preference */}
-      <div>
-        <label className="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-2">
-          {t('wizard.size_preference')}
-        </label>
+      {renderQuestion('size', t('wizard.size_preference'),
         <div className="grid grid-cols-3 gap-2">
           {(['small', 'medium', 'large'] as const).map((size) => (
             <button
@@ -371,13 +452,10 @@ export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onCl
             </button>
           ))}
         </div>
-      </div>
+      )}
 
       {/* Tenure preference */}
-      <div>
-        <label className="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-2">
-          {t('wizard.tenure_preference')}
-        </label>
+      {renderQuestion('tenure', t('wizard.tenure_preference'),
         <div className="grid grid-cols-3 gap-2">
           {(['own', 'rent', 'either'] as const).map((tenure) => (
             <button
@@ -393,9 +471,10 @@ export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onCl
             </button>
           ))}
         </div>
-      </div>
+      )}
     </div>
-  );
+    );
+  };
 
   const renderFamilyStep = () => (
     <div className="space-y-6">
@@ -404,10 +483,7 @@ export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onCl
       </h3>
 
       {/* Has children */}
-      <div>
-        <label className="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-2">
-          {t('wizard.has_children')}
-        </label>
+      {renderQuestion('children', t('wizard.has_children'),
         <div className="grid grid-cols-2 gap-2">
           {[true, false].map((val) => (
             <button
@@ -423,47 +499,31 @@ export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onCl
             </button>
           ))}
         </div>
-      </div>
+      )}
 
-      {/* School importance (shown if has children) */}
-      {answers.hasChildren && (
-        <div>
-          <label className="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-2">
-            {t('wizard.school_importance')}
-          </label>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-surface-400">1</span>
-            <input
-              type="range"
-              min={1}
-              max={5}
-              step={1}
-              value={answers.schoolImportance}
-              onChange={(e) => setAnswers((a) => ({ ...a, schoolImportance: Number(e.target.value) }))}
-              className="flex-1 h-2 rounded-full appearance-none cursor-pointer
-                         bg-surface-200 dark:bg-surface-700
-                         [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5
-                         [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500
-                         [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow-md
-                         [&::-webkit-slider-thumb]:cursor-pointer
-                         [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5
-                         [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-blue-500
-                         [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:shadow-md
-                         [&::-moz-range-thumb]:cursor-pointer"
-            />
-            <span className="text-xs text-surface-400">5</span>
-            <span className="text-sm font-semibold text-blue-500 tabular-nums w-4 text-center">
-              {answers.schoolImportance}
-            </span>
-          </div>
+      {/* School importance (only when the user has children and didn't skip that question) */}
+      {answers.hasChildren && !isSkipped('children') && renderQuestion('school', t('wizard.school_importance'),
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-surface-400">1</span>
+          <input
+            type="range"
+            min={1}
+            max={5}
+            step={1}
+            value={answers.schoolImportance}
+            aria-label={t('wizard.school_importance')}
+            onChange={(e) => setAnswers((a) => ({ ...a, schoolImportance: Number(e.target.value) }))}
+            className={RANGE_INPUT_CLASS}
+          />
+          <span className="text-xs text-surface-400">5</span>
+          <span className="text-sm font-semibold text-blue-500 tabular-nums w-4 text-center">
+            {answers.schoolImportance}
+          </span>
         </div>
       )}
 
       {/* Healthcare importance */}
-      <div>
-        <label className="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-2">
-          {t('wizard.healthcare_importance')}
-        </label>
+      {renderQuestion('healthcare', t('wizard.healthcare_importance'),
         <div className="flex items-center gap-3">
           <span className="text-xs text-surface-400">1</span>
           <input
@@ -472,24 +532,16 @@ export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onCl
             max={5}
             step={1}
             value={answers.healthcareImportance}
+            aria-label={t('wizard.healthcare_importance')}
             onChange={(e) => setAnswers((a) => ({ ...a, healthcareImportance: Number(e.target.value) }))}
-            className="flex-1 h-2 rounded-full appearance-none cursor-pointer
-                       bg-surface-200 dark:bg-surface-700
-                       [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5
-                       [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500
-                       [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow-md
-                       [&::-webkit-slider-thumb]:cursor-pointer
-                       [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5
-                       [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-blue-500
-                       [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:shadow-md
-                       [&::-moz-range-thumb]:cursor-pointer"
+            className={RANGE_INPUT_CLASS}
           />
           <span className="text-xs text-surface-400">5</span>
           <span className="text-sm font-semibold text-blue-500 tabular-nums w-4 text-center">
             {answers.healthcareImportance}
           </span>
         </div>
-      </div>
+      )}
     </div>
   );
 

@@ -647,8 +647,17 @@ function validateQualityWeights(value: unknown): { ok: true; value: Record<strin
 // by sanitizeWizardAnswers on read). Validate it size-capped + key-allowlisted so the
 // authed PUT can't be used to stuff arbitrary JSON into the column.
 const WIZARD_PROFILE_KEYS = new Set([
-  'transitImportance', 'quietPreference', 'budgetMin', 'budgetMax', 'sizePreference',
-  'tenurePreference', 'hasChildren', 'schoolImportance', 'healthcareImportance',
+  'transitImportance', 'quietPreference', 'budgetAdvanced', 'budgetMin', 'budgetMax',
+  'sizePreference', 'tenurePreference', 'hasChildren', 'schoolImportance',
+  'healthcareImportance', 'foreignersPreference', 'skipped',
+]);
+
+// The per-question skip flags the profile's `skipped` object may carry (mirrors the
+// client's WIZARD_QUESTION_KEYS). `skipped` is the one nested object in the profile —
+// validate it key-allowlisted + boolean-valued so the authed PUT still can't stuff
+// arbitrary JSON into the column.
+const WIZARD_SKIP_KEYS = new Set([
+  'transit', 'quiet', 'foreigners', 'budget', 'size', 'tenure', 'children', 'school', 'healthcare',
 ]);
 
 export function validateWizardProfile(value: unknown): { ok: true; value: Record<string, unknown> } | { ok: false; error: string } {
@@ -660,6 +669,20 @@ export function validateWizardProfile(value: unknown): { ok: true; value: Record
   const result: Record<string, unknown> = {};
   for (const [k, v] of entries) {
     if (!WIZARD_PROFILE_KEYS.has(k)) return { ok: false, error: `Unknown wizardProfile key: ${k}` };
+    if (k === 'skipped') {
+      // The only allowed nested object: a bounded map of known question keys → boolean.
+      if (!v || typeof v !== 'object' || Array.isArray(v)) {
+        return { ok: false, error: 'wizardProfile skipped must be an object' };
+      }
+      const skipEntries = Object.entries(v as Record<string, unknown>);
+      if (skipEntries.length > WIZARD_SKIP_KEYS.size) return { ok: false, error: 'Too many skipped keys' };
+      for (const [sk, sv] of skipEntries) {
+        if (!WIZARD_SKIP_KEYS.has(sk)) return { ok: false, error: `Unknown skipped key: ${sk}` };
+        if (typeof sv !== 'boolean') return { ok: false, error: 'skipped values must be boolean' };
+      }
+      result[k] = v;
+      continue;
+    }
     if (typeof v === 'number') {
       if (!isFinite(v)) return { ok: false, error: 'wizardProfile number must be finite' };
     } else if (typeof v === 'string') {
