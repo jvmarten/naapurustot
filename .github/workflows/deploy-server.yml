@@ -23,6 +23,10 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           envs: SENTRY_DSN,SENTRY_RELEASE
           script: |
+            # Stop on the first real failure (e.g. a failed image build) instead of
+            # silently carrying on. The one command allowed to fail (seed-umami) is
+            # explicitly guarded with `|| echo` below.
+            set -e
             cd /opt/naapurustot
             git pull origin main
             cd server
@@ -36,3 +40,25 @@ jobs:
             docker compose exec -T db bash /seed-umami.sh || echo "seed-umami: skipped (umami not ready yet)"
             echo "Deploy complete"
             docker compose ps
+            # Post-deploy health gate (issue #45). appleboy/ssh-action reports the deploy
+            # as "success" based only on the script's final exit code, so an api that
+            # crash-loops at startup used to deploy green and stay down for days. Probe
+            # /health from the caddy container — same docker network, so it works even
+            # while api is restarting (it just connection-refuses) and bypasses TLS/DNS —
+            # and fail the deploy, dumping api logs, if it never serves 200 within ~60s.
+            echo "Verifying api health..."
+            healthy=
+            for attempt in $(seq 1 30); do
+              if docker compose exec -T caddy wget -q -O /dev/null "http://api:3001/health"; then
+                healthy=1
+                echo "api healthy after ${attempt} attempt(s)"
+                break
+              fi
+              sleep 2
+            done
+            if [ -z "$healthy" ]; then
+              echo "::error:: api did not serve 200 from /health within ~60s — deploy failed"
+              docker compose ps
+              docker compose logs --tail=100 api
+              exit 1
+            fi
