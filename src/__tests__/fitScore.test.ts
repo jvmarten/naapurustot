@@ -60,8 +60,8 @@ describe('computeNationalFit', () => {
   });
 
   it('scores an in-budget area higher than an otherwise identical out-of-budget one', () => {
-    // defaultWizardAnswers budget is 1000–6000 €/m².
-    const inBudget = computeNationalFit(mkArea({ property_price_sqm: 4000 }), defaultWizardAnswers);
+    // defaultWizardAnswers budget is 1150–1700 €/m².
+    const inBudget = computeNationalFit(mkArea({ property_price_sqm: 1400 }), defaultWizardAnswers);
     const overBudget = computeNationalFit(mkArea({ property_price_sqm: 9000 }), defaultWizardAnswers);
     expect(inBudget.score).toBeGreaterThan(overBudget.score);
   });

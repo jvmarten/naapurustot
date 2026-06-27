@@ -24,7 +24,7 @@ export interface WizardAnswers {
   transitImportance: number;
   quietPreference: 'quiet' | 'lively' | 'neutral';
   /** Whether the budget question shows the exact min/max inputs (true) or the simple
-   *  "affordable → pricey" slider (false). Presentational only — budgetMin/Max remain
+   *  "affordable → expensive" slider (false). Presentational only — budgetMin/Max remain
    *  the scoring source of truth in both modes. */
   budgetAdvanced: boolean;
   budgetMin: number;
@@ -46,8 +46,8 @@ export const defaultWizardAnswers: WizardAnswers = {
   transitImportance: 3,
   quietPreference: 'neutral',
   budgetAdvanced: false,
-  budgetMin: 1000,
-  budgetMax: 6000,
+  budgetMin: 1150,
+  budgetMax: 1700,
   sizePreference: 'medium',
   tenurePreference: 'either',
   hasChildren: false,
@@ -64,18 +64,22 @@ const BUDGET_MIN = 500;
 const BUDGET_MAX = 15000;
 
 /**
- * The simple "Affordable → Pricey" budget slider's five tiers, each an inclusive
- * €/m² band. Tier 3 equals the documented default budget, so a fresh profile maps to
+ * The simple "Affordable → Expensive" budget slider's five tiers, each an inclusive
+ * €/m² band. The bands are contiguous and non-overlapping, grounded in the real national
+ * price-per-m² distribution (≈ quintiles, median ~1400 €/m²), so each slider position
+ * targets a distinct price segment instead of the heavily-overlapping ranges they
+ * replaced (where the bottom three tiers each matched ~70–80% of areas). Tier 3 straddles
+ * the national median and equals the documented default budget, so a fresh profile maps to
  * the middle of the slider. The advanced mode edits budgetMin/Max directly; the simple
- * slider just writes one of these bands. (priceLevelFromBudget snaps arbitrary
- * advanced ranges back to the nearest tier for display.)
+ * slider just writes one of these bands. (priceLevelFromBudget snaps arbitrary advanced
+ * ranges back to the nearest tier by midpoint for display.)
  */
 export const PRICE_TIERS: ReadonlyArray<{ min: number; max: number }> = [
-  { min: 500, max: 2500 },   // 1 — very affordable
-  { min: 750, max: 4000 },   // 2 — affordable
-  { min: 1000, max: 6000 },  // 3 — mid-range (= default)
-  { min: 3000, max: 9000 },  // 4 — pricey
-  { min: 5000, max: 15000 }, // 5 — premium
+  { min: 500, max: 800 },    // 1 — very affordable (≤ ~p20 of priced areas; 500 = BUDGET_MIN floor)
+  { min: 800, max: 1150 },   // 2 — affordable      (~p20–p40)
+  { min: 1150, max: 1700 },  // 3 — mid-range       (~p40–p60, straddles the median; = default)
+  { min: 1700, max: 2500 },  // 4 — expensive       (~p60–p80)
+  { min: 2500, max: 9000 },  // 5 — premium         (top ~20%, up to the national max ~8500)
 ];
 
 /** The budget band for a 1–5 simple-slider level (clamped). */

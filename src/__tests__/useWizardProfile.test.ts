@@ -132,8 +132,10 @@ describe('price tier helpers', () => {
   });
 
   it('snaps an arbitrary advanced range to the nearest tier by midpoint', () => {
-    // Default 1000–6000 is exactly tier 3.
-    expect(priceLevelFromBudget(1000, 6000)).toBe(3);
+    // The default band (1150–1700) is exactly tier 3.
+    expect(priceLevelFromBudget(1150, 1700)).toBe(3);
+    // An off-tier band snaps to the nearest tier by midpoint (1600 → tier 3, mid 1425).
+    expect(priceLevelFromBudget(1300, 1900)).toBe(3);
     // A very high band lands on the premium tier.
     expect(priceLevelFromBudget(9000, 14000)).toBe(5);
   });
