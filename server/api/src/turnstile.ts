@@ -1,15 +1,22 @@
 const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || '';
+const IS_PROD = process.env.NODE_ENV === 'production';
 const VERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 // Network timeout for the siteverify call. A hung connection to Cloudflare would
 // otherwise block the signup handler indefinitely (Node's fetch has no default
 // timeout); failing closed after this window is far better than stalling.
 const VERIFY_TIMEOUT_MS = 5000;
 
-// Mirror the JWT_SECRET guard in auth.ts: in production a missing secret would
-// make verifyTurnstile() allow-all and silently disable bot protection, so fail
-// loudly at startup instead. Dev/staging (no secret) intentionally skips this.
-if (process.env.NODE_ENV === 'production' && !TURNSTILE_SECRET) {
-  throw new Error('TURNSTILE_SECRET environment variable must be set in production');
+// A missing secret in production must NOT silently allow-all (bot protection off) —
+// but it also must NOT take the whole API down. This used to `throw` at module load,
+// which crash-looped the entire server (issue #45): login, logout, sync and the GDPR
+// endpoints all died over one optional feature's misconfiguration, even though only
+// signup calls verifyTurnstile(). Instead we fail closed on signup (see below) and
+// log loudly here so the misconfiguration is visible in logs/Sentry at startup.
+if (IS_PROD && !TURNSTILE_SECRET) {
+  console.error(
+    'TURNSTILE_SECRET is not set in production — signup is refused (fail-closed) until ' +
+    'it is configured. All other endpoints (login, sync, GDPR) are unaffected.',
+  );
 }
 
 // Optional, opt-in hostname binding. When set (e.g. "naapurustot.fi,www.naapurustot.fi"),
@@ -23,13 +30,14 @@ const ALLOWED_HOSTNAMES = (process.env.TURNSTILE_ALLOWED_HOSTNAMES || '')
 
 /**
  * Verify a Cloudflare Turnstile token against the siteverify API.
- * Allow-all when TURNSTILE_SECRET is unset (dev/staging — every request
- * passes without contacting Cloudflare). Otherwise fails closed: returns
- * false on rejection, hostname-allowlist mismatch, or any network/parse error.
+ * With no secret configured: allow-all in dev/staging (every request passes without
+ * contacting Cloudflare) but fail closed in production (never silently disable bot
+ * protection). With a secret: fails closed on rejection, hostname-allowlist mismatch,
+ * or any network/parse error.
  */
 export async function verifyTurnstile(token: string, ip?: string): Promise<boolean> {
-  // Skip verification if no secret is configured (dev mode)
-  if (!TURNSTILE_SECRET) return true;
+  // No secret configured: allow-all in dev/staging, fail closed in production.
+  if (!TURNSTILE_SECRET) return !IS_PROD;
 
   try {
     const body = new URLSearchParams({ secret: TURNSTILE_SECRET, response: token });
