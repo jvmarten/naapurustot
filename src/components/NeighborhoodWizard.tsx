@@ -366,7 +366,7 @@ export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onCl
         {t('wizard.step_housing')}
       </h3>
 
-      {/* Budget — simple "affordable → pricey" slider by default, exact min/max on demand */}
+      {/* Budget — simple "affordable → expensive" slider by default, exact min/max on demand */}
       {renderQuestion('budget', t('wizard.budget'),
         <div className="space-y-2">
           {answers.budgetAdvanced ? (
