@@ -71,7 +71,15 @@ import { join } from 'node:path';
 // fi.json `fit.*` strings. The deep-link routing is pure App.tsx control flow (no
 // payload) and is itself a perf win — bare ?pno= now loads a ~355 KB region file
 // instead of the 10.6 MB national set.
-const BUDGET = 300_000;
+// → 301500 B (2026-06-27: profile→app conversion + layer-honesty batch. (1) Profile-page
+// mobile sticky CTA bar (Explore-on-map + Fit finder deep-links) + one-tap local Save
+// (reuses useFavorites; merges to the cloud on next sign-in); (2) pre-click coverage /
+// proxy / staleness signals on every LayerSelector row (reuses getCoveragePct / isProxy /
+// vintageFreshness — 4 bundled fi.json `layer_signal.*` strings). ~1.5 KB of genuine UI
+// over the prior ~2.4 KB headroom. The third feature — a cross-region "similar areas
+// elsewhere" link mesh + isSimilarTo JSON-LD on the 9k profile pages — is computed in
+// prerender.mjs at build time, so it adds ZERO bundle bytes.
+const BUDGET = 301_500;
 const ASSETS_DIR = 'dist/assets';
 
 const fmtKB = (b) => (b / 1024).toFixed(2);

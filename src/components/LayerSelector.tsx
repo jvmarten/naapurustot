@@ -1,5 +1,13 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { LAYER_MAP, type LayerId } from '../utils/colorScales';
+import {
+  getCoveragePct,
+  isPartialCoverage,
+  isLowCoverage,
+  formatCoveragePct,
+  getMetricSource,
+  vintageFreshness,
+} from '../utils/metrics';
 import { t, useI18nVersion, type Lang } from '../utils/i18n';
 import { useBottomSheet } from '../hooks/useBottomSheet';
 import { useReducedMotion } from '../hooks/useReducedMotion';
@@ -36,6 +44,68 @@ const LAYER_GROUPS: LayerGroup[] = [
   { labelKey: 'layers.voting', ids: ['voter_turnout', 'party_diversity', 'political_lean', 'party_kok', 'party_sdp', 'party_ps', 'party_kesk', 'party_vihr', 'party_vas', 'party_rkp'] },
   { labelKey: 'layers.connectivity', ids: ['broadband_coverage'] },
 ];
+
+/**
+ * PO-2/PO-3: pre-click honesty signals on a layer row — surfaces sparse coverage,
+ * municipal→postal proxies, and stale vintages BEFORE the user selects a layer and
+ * watches the map turn mostly gray (e.g. transit ~6%, school quality ~10%). All three
+ * derive from the existing build_metadata / data_sources helpers (zero new data).
+ * Returns null when a layer is full-coverage, directly measured, and fresh, so the
+ * common case stays visually clean. Caller must call useI18nVersion() (LayerSelector
+ * does) so the t() titles re-render on a language switch.
+ */
+const LayerSignals: React.FC<{ property: string }> = ({ property }) => {
+  const coverage = getCoveragePct(property);
+  const partial = isPartialCoverage(property);
+  const low = isLowCoverage(property);
+  const src = getMetricSource(property);
+  const proxy = src?.isProxy ?? false;
+  const fresh = vintageFreshness(src?.year);
+  const stale = fresh?.isStale ?? false;
+  if (!partial && !proxy && !stale) return null;
+
+  const coverageTitle =
+    coverage != null
+      ? t(low ? 'layer_signal.low_coverage' : 'layer_signal.partial_coverage').replace('{pct}', formatCoveragePct(coverage))
+      : '';
+  const staleTitle = fresh
+    ? t('layer_signal.stale').replace('{year}', String(fresh.latest)).replace('{years}', String(fresh.yearsAgo))
+    : '';
+
+  return (
+    <span className="ml-auto flex items-center gap-1 shrink-0 pl-1">
+      {partial && coverage != null && (
+        <span
+          title={coverageTitle}
+          aria-label={coverageTitle}
+          className={`text-[9px] font-semibold tabular-nums px-1 py-px rounded ${
+            low
+              ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
+              : 'bg-surface-200/70 dark:bg-surface-700/50 text-surface-500 dark:text-surface-400'
+          }`}
+        >
+          {formatCoveragePct(coverage)}%
+        </span>
+      )}
+      {proxy && (
+        <span
+          title={t('layer_signal.proxy')}
+          aria-label={t('layer_signal.proxy')}
+          className="text-[11px] leading-none font-semibold text-surface-400 dark:text-surface-500"
+        >
+          {'≈'}
+        </span>
+      )}
+      {stale && fresh && (
+        <span title={staleTitle} aria-label={staleTitle} className="text-amber-500/90 dark:text-amber-400/90 flex items-center">
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </span>
+      )}
+    </span>
+  );
+};
 
 export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeLayer, onLayerChange, onCustomizeQuality, isCustomWeights = false, headerSlot, lang: _lang, hidden }) => {
   useI18nVersion();
@@ -304,14 +374,15 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
                           : 'text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800/60 hover:text-surface-900 dark:hover:text-white'
                     }`}
                   >
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
                       <div
                         className="w-3 h-3 md:w-2.5 md:h-2.5 rounded-full flex-shrink-0"
                         style={{
                           backgroundColor: isActive ? layer.colors[5] || layer.colors[3] : '#94a3b8',
                         }}
                       />
-                      {t(layer.labelKey)}
+                      <span className="truncate min-w-0">{t(layer.labelKey)}</span>
+                      <LayerSignals property={layer.property} />
                     </div>
                   </button>
                 </div>

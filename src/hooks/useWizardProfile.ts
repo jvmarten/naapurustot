@@ -473,5 +473,18 @@ export function useWizardProfile(userId?: string | null) {
     setProfileState(sanitizeWizardAnswers(next));
   }, []);
 
-  return { profile, setProfile, seedProfile };
+  // AC-2: shared-device logout — drop this device's local wizard priority profile
+  // (private "Fit for you" answers) so the previous user's data can't linger in the
+  // signed-out UI or be merged into the NEXT account on their login. Resets to the
+  // defaults and suppresses the server echo so logging out never overwrites the
+  // still-authenticated session. Mirrors useFavorites/useShortlist.resetLocal.
+  const resetLocal = useCallback(() => {
+    fromServerRef.current = true;
+    seededRef.current = false;
+    if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
+    try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
+    setProfileState({ ...defaultWizardAnswers });
+  }, []);
+
+  return { profile, setProfile, seedProfile, resetLocal };
 }

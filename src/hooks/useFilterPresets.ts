@@ -176,5 +176,15 @@ export function useFilterPresets(userId?: string | null) {
     });
   }, []);
 
-  return { presets, addPreset, removePreset };
+  // AC-2: shared-device logout — drop this device's local saved filter presets so
+  // the previous user's data can't linger in the signed-out UI or merge into the
+  // NEXT account on their login. Suppresses the server echo so logout never
+  // overwrites the still-authenticated session.
+  const resetLocal = useCallback(() => {
+    fromServerRef.current = true;
+    if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
+    setPresets([]);
+  }, []);
+
+  return { presets, addPreset, removePreset, resetLocal };
 }

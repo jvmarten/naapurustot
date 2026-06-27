@@ -17,6 +17,7 @@ import { StatCard } from '../components/profile/StatCard';
 import { JsonLd } from '../components/profile/JsonLd';
 import { FitForYouBadge } from '../components/FitForYouBadge';
 import { readStoredWizardProfile } from '../hooks/useWizardProfile';
+import { useFavorites } from '../hooks/useFavorites';
 
 const MiniMap = lazy(() => import('../components/profile/MiniMap').then(m => ({ default: m.MiniMap })));
 
@@ -96,6 +97,12 @@ export const NeighborhoodProfilePage: React.FC = () => {
   // "Fit for you": the visitor's saved priority profile, read once from localStorage
   // (client-only; defaults when none saved → the badge shows a CTA instead).
   const [wizardProfile] = useState(() => readStoredWizardProfile());
+  // #2: one-tap Save on the profile page (the highest-traffic, indexed surface),
+  // no account required. Pure-local (no userId) — the value persists to localStorage
+  // and is merged up to the user's cloud favorites the next time they sign in inside
+  // the app, so the profile→app return loop closes without pulling auth onto this page.
+  // Declared above the early returns so the hook order stays stable.
+  const { isFavorite, toggleFavorite } = useFavorites();
 
   // Detect language from URL path:
   //   /sv/omrade/… → Swedish
@@ -403,6 +410,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
   }
 
   const d = state.feature.properties as NeighborhoodProperties;
+  const saved = isFavorite(d.pno);
   const avg = state.metroAverages;
   const center = getFeatureCenter(state.geoFeature ?? state.feature);
   const qi = d.quality_index != null ? Math.round(d.quality_index) : null;
@@ -473,7 +481,26 @@ export const NeighborhoodProfilePage: React.FC = () => {
         {/* Title + Mini Map */}
         <div className="mb-8 md:flex md:gap-8 md:items-start">
           <div className="md:flex-1">
-            <h1 className="text-3xl font-bold mb-2">{displayName}</h1>
+            <div className="flex items-start justify-between gap-3">
+              <h1 className="text-3xl font-bold mb-2">{displayName}</h1>
+              {/* #2: one-tap Save (favorite) — closes the profile→app return loop. */}
+              <button
+                onClick={() => toggleFavorite(d.pno)}
+                aria-pressed={saved}
+                aria-label={saved ? t('favorites.remove') : t('favorites.add')}
+                title={saved ? t('favorites.remove') : t('favorites.add')}
+                className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                  saved
+                    ? 'bg-amber-400/15 text-amber-600 dark:text-amber-400 border-amber-400/40 hover:bg-amber-400/25'
+                    : 'border-surface-300 dark:border-surface-700 text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800'
+                }`}
+              >
+                <svg className="w-4 h-4" fill={saved ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                </svg>
+                <span className="hidden sm:inline">{saved ? t('favorites.remove') : t('favorites.add')}</span>
+              </button>
+            </div>
             <p className="text-surface-500 dark:text-surface-400 mb-4 md:mb-0">
               {altName ? `${altName} · ` : ''}{t('profile.postal_code')} {d.pno} · {cityName}
             </p>
@@ -689,8 +716,8 @@ export const NeighborhoodProfilePage: React.FC = () => {
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-surface-200 dark:border-surface-800 py-6">
+      {/* Footer — extra bottom padding on mobile so its content clears the sticky CTA bar. */}
+      <footer className="border-t border-surface-200 dark:border-surface-800 pt-6 pb-24 md:pb-6">
         <div className="max-w-5xl mx-auto px-4 text-center text-xs text-surface-400 dark:text-surface-500">
           {/* QW-5: link to the full, per-language sources page instead of a stale
               hardcoded four-source list (the app now ships ~59 layers from many sources). */}
@@ -709,6 +736,29 @@ export const NeighborhoodProfilePage: React.FC = () => {
           </p>
         </div>
       </footer>
+
+      {/* #2: mobile sticky CTA bar — hoists the two app entry points above the fold on
+          the highest-traffic, indexed surface. Rendered by React only (NOT baked into the
+          prerendered <noscript> HTML), so crawlers and SEO are unaffected. Primary routes
+          to the live map for this area (/?pno=), secondary opens the "Fit for you" finder. */}
+      <div className="md:hidden fixed bottom-0 inset-x-0 z-40 flex gap-2 px-3 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]
+                      bg-white/95 dark:bg-surface-950/95 backdrop-blur-md border-t border-surface-200 dark:border-surface-800">
+        <Link
+          to={`/?pno=${d.pno}`}
+          className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg bg-brand-700 text-white font-medium text-sm hover:bg-brand-800 transition-colors"
+        >
+          {t('profile.explore_on_map')}
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+          </svg>
+        </Link>
+        <Link
+          to="/?finder=1"
+          className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg border border-surface-300 dark:border-surface-700 text-surface-700 dark:text-surface-200 font-medium text-sm hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors"
+        >
+          {t('fit.cta')}
+        </Link>
+      </div>
     </div>
   );
 };
