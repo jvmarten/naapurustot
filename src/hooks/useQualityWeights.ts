@@ -166,5 +166,17 @@ export function useQualityWeights(userId?: string | null) {
     setWeightsState(next);
   }, []);
 
-  return { weights, setWeights, seedWeights };
+  // AC-2: shared-device logout — drop this device's local custom quality weights so
+  // the previous user's private tuning can't linger in the signed-out UI or merge
+  // into the NEXT account on their login. Resets to defaults and suppresses the
+  // server echo so logout never overwrites the still-authenticated session.
+  const resetLocal = useCallback(() => {
+    fromServerRef.current = true;
+    seededRef.current = false;
+    if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
+    try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
+    setWeightsState(getDefaultWeights());
+  }, []);
+
+  return { weights, setWeights, seedWeights, resetLocal };
 }

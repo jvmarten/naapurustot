@@ -111,6 +111,105 @@ for (const f of geojson.features) {
   if (f.properties?.pno && f.properties?.nimi) PNO_PROPS.set(f.properties.pno, f.properties);
 }
 
+// #3: cross-region "Similar areas elsewhere in Finland" mesh. Precomputed here at
+// BUILD time (zero client-bundle cost) from the committed, geometry-stripped
+// region_properties.json, restricted to HIGH-COVERAGE Paavo demographic/economic axes
+// (all 93–100% national coverage) so sparse layers like transit/prices/schools can't
+// produce junk pairings. Each area gets its top-6 most-similar areas in OTHER
+// seutukunnat, turning the ~9k profile pages from 69 within-region link-islands into
+// one thematically connected graph (crawl depth / internal PageRank / AI relatedness).
+// Deterministic — weighted-normalized Euclidean distance with a stable pno tie-break —
+// so the rendered noscript is byte-stable across reruns.
+const SIMILAR_METRICS = [
+  'hr_mtu',                 // median income
+  'unemployment_rate',
+  'higher_education_rate',
+  'ownership_rate',
+  'population_density',
+  'child_ratio',
+  'he_kika',                // average age
+  'foreign_language_pct',
+];
+const SIMILAR_ELSEWHERE = (() => {
+  let areas;
+  try {
+    areas = JSON.parse(readFileSync(join(ROOT, 'src', 'data', 'region_properties.json'), 'utf-8'));
+  } catch {
+    return {};
+  }
+  if (!Array.isArray(areas) || areas.length === 0) return {};
+
+  // Min/max per metric across all areas, for [0,1] normalization (mirrors the in-app
+  // findSimilarNeighborhoods so static and interactive notions of "similar" agree).
+  const mins = {};
+  const maxs = {};
+  for (const m of SIMILAR_METRICS) {
+    let mn = Infinity;
+    let mx = -Infinity;
+    for (const a of areas) {
+      const v = a[m];
+      if (typeof v === 'number' && isFinite(v)) {
+        if (v < mn) mn = v;
+        if (v > mx) mx = v;
+      }
+    }
+    if (mn < mx) { mins[m] = mn; maxs[m] = mx; }
+  }
+
+  // Normalize each area once.
+  const norm = new Map();
+  for (const a of areas) {
+    const o = {};
+    for (const m of SIMILAR_METRICS) {
+      const v = a[m];
+      if (typeof v === 'number' && isFinite(v) && m in mins) {
+        o[m] = (v - mins[m]) / (maxs[m] - mins[m]);
+      }
+    }
+    norm.set(a.pno, o);
+  }
+
+  const out = {};
+  for (const a of areas) {
+    const an = norm.get(a.pno);
+    // Bounded top-6 (sorted ascending by distance, then pno) — avoids allocating and
+    // fully sorting a ~3k-candidate array per area.
+    const top = [];
+    for (const b of areas) {
+      if (b.pno === a.pno || b.city === a.city) continue; // cross-region only
+      const bn = norm.get(b.pno);
+      let sum = 0;
+      let used = 0;
+      for (const m of SIMILAR_METRICS) {
+        const x = an[m];
+        const y = bn[m];
+        if (typeof x === 'number' && typeof y === 'number') {
+          const dq = x - y;
+          sum += dq * dq;
+          used++;
+        }
+      }
+      // Require substantial overlap (≥5 of the 8 axes). Without this, a data-poor
+      // rural area sharing only population_density with another gets a spurious
+      // near-zero distance and pairs with unrelated data-empty areas.
+      if (used < 5) continue;
+      const dist = Math.sqrt(sum / used);
+      if (top.length === 6 && (dist > top[5].dist || (dist === top[5].dist && b.pno >= top[5].pno))) continue;
+      let i = top.length;
+      while (i > 0 && (dist < top[i - 1].dist || (dist === top[i - 1].dist && b.pno < top[i - 1].pno))) i--;
+      top.splice(i, 0, { pno: b.pno, dist });
+      if (top.length > 6) top.pop();
+    }
+    if (top.length > 0) out[a.pno] = top.map((c) => c.pno);
+  }
+  return out;
+})();
+const SIMILAR_LABELS = {
+  fi: 'Samankaltaiset alueet muualla Suomessa',
+  en: 'Similar areas elsewhere in Finland',
+  sv: 'Liknande områden på andra håll i Finland',
+};
+
 // Process every feature exactly as the client's dataLoader does (same order),
 // so each page can embed a payload the React app renders from instantly —
 // avoiding the ~1.7 MB region_properties.json fetch before first paint.
@@ -837,6 +936,28 @@ function buildNearbyHtml(props, lang) {
   return `      <h2>${escapeHtml(NEARBY_LABELS[lang])}</h2>\n      <p>${links.join(' · ')}</p>`;
 }
 
+// #3: cross-region "Similar areas elsewhere in Finland" link mesh. Resolves this
+// area's precomputed top-6 nationwide lookalikes (SIMILAR_ELSEWHERE, all in OTHER
+// seutukunnat) to their localized profile URL + name, annotating each with its region
+// so the cross-region nature is explicit to readers and crawlers. Complements the
+// within-region buildNearbyHtml: together they connect the page laterally AND across
+// the whole corpus.
+function buildSimilarElsewhereHtml(props, lang) {
+  const sims = SIMILAR_ELSEWHERE[props.pno];
+  if (!sims || sims.length === 0) return null;
+  const links = [];
+  for (const sPno of sims) {
+    const sp = PNO_PROPS.get(sPno);
+    if (!sp) continue;
+    const name = escapeHtml(getDisplayName(sp, lang));
+    const region = getRegionName(sp.city, lang);
+    const label = region ? `${name} (${escapeHtml(region)})` : name;
+    links.push(`<a href="${AREA_PREFIX[lang]}/${toSlug(sPno, sp.nimi)}/">${label}</a>`);
+  }
+  if (links.length === 0) return null;
+  return `      <h2>${escapeHtml(SIMILAR_LABELS[lang])}</h2>\n      <p>${links.join(' · ')}</p>`;
+}
+
 function buildNoscriptContent(props, lang) {
   const T = TEXT[lang];
   const displayName = getDisplayName(props, lang);
@@ -890,6 +1011,11 @@ function buildNoscriptContent(props, lang) {
   // QW-5: within-region nearby-areas link mesh (lateral crawl/internal-PageRank).
   const nearbyHtml = buildNearbyHtml(props, lang);
   if (nearbyHtml) lines.push(nearbyHtml);
+
+  // #3: cross-region "similar areas elsewhere in Finland" mesh — thematic links that
+  // connect the 69 within-region islands into one graph (crawl depth / PageRank).
+  const similarHtml = buildSimilarElsewhereHtml(props, lang);
+  if (similarHtml) lines.push(similarHtml);
 
   lines.push(`      <h2>${escapeHtml(T.sourcesHeading)}</h2>`);
   lines.push(`      <p>${escapeHtml(T.sources)}</p>`);
@@ -1015,6 +1141,23 @@ function buildJsonLd(props, center, url, lang) {
       name: region,
       url: `https://naapurustot.fi${CITY_PREFIX[lang]}/${props.city}/`,
     };
+  }
+  // #3: machine-readable cross-region relatedness — the same top-6 nationwide
+  // lookalikes rendered as crawlable links, exposed to structured-data consumers
+  // (incl. AI answer engines) as Place references.
+  const similarPnos = SIMILAR_ELSEWHERE[props.pno];
+  if (similarPnos && similarPnos.length > 0) {
+    const sim = [];
+    for (const sPno of similarPnos) {
+      const sp = PNO_PROPS.get(sPno);
+      if (!sp) continue;
+      sim.push({
+        '@type': 'Place',
+        name: getDisplayName(sp, lang),
+        url: `https://naapurustot.fi${AREA_PREFIX[lang]}/${toSlug(sPno, sp.nimi)}/`,
+      });
+    }
+    if (sim.length > 0) place.isSimilarTo = sim;
   }
   // CF-11: verifiable national + within-region superlatives as structured
   // properties — quality index, median income and transit reachability. Each

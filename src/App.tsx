@@ -498,7 +498,7 @@ const App: React.FC = () => {
   const [showCustomQuality, setShowCustomQuality] = useState(false);
   const [filters, setFilters] = useState<FilterCriterion[]>(initialUrl.filters);
   // CF-2: Quality weights persist to localStorage and (when logged in) sync to the backend.
-  const { weights: qualityWeights, setWeights: setQualityWeights, seedWeights: seedQualityWeights } = useQualityWeights(user?.id ?? null);
+  const { weights: qualityWeights, setWeights: setQualityWeights, seedWeights: seedQualityWeights, resetLocal: resetQualityWeightsLocal } = useQualityWeights(user?.id ?? null);
   // Memoize isCustomWeights to avoid iterating all QUALITY_FACTORS on every App render
   // (called twice in JSX: LayerSelector + NeighborhoodPanel).
   const customWeights = useMemo(() => isCustomWeights(qualityWeights), [qualityWeights]);
@@ -522,8 +522,8 @@ const App: React.FC = () => {
   const [colorblind, setColorblind] = useState(getColorblindMode);
   const [showWizard, setShowWizard] = useState(false);
   // CF-4: persistent, shareable wizard priority profile (localStorage + cloud sync).
-  const { profile: wizardProfile, setProfile: setWizardProfile, seedProfile: seedWizardProfile } = useWizardProfile(user?.id ?? null);
-  const { presets: savedPresets, addPreset: saveFilterPreset, removePreset: removeFilterPreset } = useFilterPresets(user?.id ?? null);
+  const { profile: wizardProfile, setProfile: setWizardProfile, seedProfile: seedWizardProfile, resetLocal: resetWizardProfileLocal } = useWizardProfile(user?.id ?? null);
+  const { presets: savedPresets, addPreset: saveFilterPreset, removePreset: removeFilterPreset, resetLocal: resetFilterPresetsLocal } = useFilterPresets(user?.id ?? null);
   const [fillOpacity, setFillOpacity] = useState(() => {
     try {
       const saved = localStorage.getItem('naapurustot-fill-opacity');
@@ -551,18 +551,24 @@ const App: React.FC = () => {
   const { recent, addRecent, clearRecent } = useRecentNeighborhoods();
   // QW-2: durable shortlist (distinct from one-tap favorites). QW-2b: cloud-syncs when signed in.
   const { shortlist, isInShortlist, toggleShortlist, removeFromShortlist, clearShortlist, mergeIntoShortlist, resetLocal: resetShortlistLocal } = useShortlist(user?.id);
-  // AC-2: shared-device logout — wipe this device's local favorites/shortlist/notes
-  // (and their deletion tombstones) before clearing the session, so the previous user's
-  // private data can't linger in the signed-out UI or get merged into the NEXT account's
-  // cloud store on their login. resetLocal writes no new tombstones (so the same user
-  // re-syncing later is unaffected) and clears existing ones (so A's deletions don't
-  // suppress B's matching server items).
+  // AC-2: shared-device logout — wipe this device's local copy of EVERY private,
+  // server-synced store (favorites, shortlist, notes, wizard "Fit for you" profile,
+  // custom quality weights, saved filter presets) plus the local browsing history
+  // (recent areas) before clearing the session, so the previous user's data can't
+  // linger in the signed-out UI or get merged into the NEXT account's cloud store on
+  // their login. Each resetLocal writes no new tombstones (so the same user re-syncing
+  // later is unaffected), clears existing ones, and suppresses the server echo so
+  // logout never pushes an emptied store into the still-authenticated session.
   const handleLogout = useCallback(async () => {
     resetFavoritesLocal();
     resetShortlistLocal();
     resetNotesStorage();
+    resetWizardProfileLocal();
+    resetQualityWeightsLocal();
+    resetFilterPresetsLocal();
+    clearRecent();
     await logout();
-  }, [logout, resetFavoritesLocal, resetShortlistLocal]);
+  }, [logout, resetFavoritesLocal, resetShortlistLocal, resetWizardProfileLocal, resetQualityWeightsLocal, resetFilterPresetsLocal, clearRecent]);
   // CF-14: affordability inputs (localStorage + URL-shared). Hydrates from a shared link;
   // consumed read-only by the wizard's budget fold since the panel calculator was removed.
   const { state: affordabilityState, urlValue: affordabilityUrl } = useAffordability(initialUrl.affordability);
