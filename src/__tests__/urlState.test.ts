@@ -494,6 +494,21 @@ describe('useSyncUrlState — IN-3 schema version stamping', () => {
     vi.advanceTimersByTime(150);
     expect(lastUrl()).toBe('/');
   });
+
+  it('keeps a plain English home view clean — lang only, never wp or _v', () => {
+    // Regression (URL pollution): a wizard priority profile saved in localStorage must
+    // never be broadcast into the address bar on a plain load. The profile is a private
+    // local preference that does not change the default map view, so it is no longer a
+    // URL-sync extra at all — a normal home visit carries only honest, view-reflecting
+    // state (here the chosen language), and so never triggers the structured `_v` tag.
+    replaceStateSpy.mockClear();
+    renderHook(() => useSyncUrlState(null, 'quality_index', [], 'all', true, { lang: 'en' }));
+    vi.advanceTimersByTime(150);
+    const url = lastUrl();
+    expect(url).toContain('lang=en');
+    expect(url).not.toContain('wp=');
+    expect(url).not.toContain('_v=');
+  });
 });
 
 describe('buildViewportShareUrl — IN-3 schema version stamping', () => {

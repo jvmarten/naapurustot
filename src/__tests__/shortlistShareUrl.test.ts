@@ -22,8 +22,8 @@ describe('CF-11 buildShortlistShareUrl — scoped sl+city link', () => {
     expect(params.get('sl')).toBe('00100.00200');
     expect(params.get('_v')).toBe(String(URL_SCHEMA_VERSION));
     expect(params.get('city')).toBeNull();
-    // No author state must leak.
-    for (const k of ['pno', 'layer', 'filter', 'qw', 'qp', 'iso', 'compare', 'v', 'simw', 'draw']) {
+    // No author state must leak (incl. the private wizard priority profile `wp`).
+    for (const k of ['pno', 'layer', 'filter', 'qw', 'qp', 'iso', 'compare', 'v', 'simw', 'draw', 'aff', 'wp']) {
       expect(params.get(k)).toBeNull();
     }
   });
