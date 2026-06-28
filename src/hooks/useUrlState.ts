@@ -15,7 +15,7 @@ import {
   SIMILARITY_METRIC_KEYS, SIMILARITY_WEIGHT_MIN, SIMILARITY_WEIGHT_MAX, SIMILARITY_WEIGHT_DEFAULT,
 } from '../utils/similarity';
 import type { WizardAnswers } from './useWizardProfile';
-import { serializeWizardProfile, deserializeWizardProfile, isCustomWizardAnswers } from './useWizardProfile';
+import { deserializeWizardProfile } from './useWizardProfile';
 
 /**
  * IN-3: share-URL schema version.
@@ -135,8 +135,6 @@ export interface ExtraUrlState {
   simWeights?: Record<string, number> | null;
   /** CF-9: drawn/selected analysis area. */
   draw?: UrlDraw | null;
-  /** CF-4: wizard priority profile. */
-  wizardProfile?: WizardAnswers | null;
   /** CF-2: kaavat & hankkeet overlay toggle. */
   planning?: boolean;
 }
@@ -532,10 +530,15 @@ function serializeUrlParams(pno: string | null, layer: LayerId, comparePnos: str
     const draw = serializeDraw(extras.draw);
     if (draw.length > 2) params.set('draw', draw); // skip an empty body (just the mode prefix)
   }
-  // CF-4: wizard priority profile — only when it differs from the defaults.
-  if (extras.wizardProfile && isCustomWizardAnswers(extras.wizardProfile)) {
-    params.set('wp', serializeWizardProfile(extras.wizardProfile));
-  }
+  // CF-4: the wizard priority profile is deliberately NOT serialized here. It is a
+  // private, locally-stored preference (it encodes personal answers like budget and
+  // whether the user has children) that does NOT change the default map view — merely
+  // saving a profile leaves the map identical; only "Apply to map" alters the view, and
+  // that path already serializes as the quality-weight params (qw/qp). Echoing `wp` on
+  // every plain load just polluted the address bar (and dragged in the `_v` tag) with
+  // state the user never chose to share. Incoming `?wp=` links are still honoured on
+  // read (parseUrl → seedWizardProfile), so genuine shared profiles keep pre-filling
+  // the wizard; the app simply never broadcasts the local profile back into the URL.
   // CF-2: kaavat & hankkeet overlay toggle (plain boolean flag).
   if (extras.planning) params.set('plan', '1');
   return params;
@@ -603,7 +606,7 @@ export function buildViewportShareUrl(viewport: UrlViewport | null): string {
  *  URL before the restoration effect has consumed them (e.g., pinned neighborhoods). */
 export function useSyncUrlState(pno: string | null, layer: LayerId, comparePnos: string[] = [], city: string = DEFAULT_CITY, ready = true, extras: ExtraUrlState = {}) {
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const { scope, year, colorblind, lang, ref, filters, weights, isochrone, shortlist, affordability, simWeights, draw, wizardProfile } = extras;
+  const { scope, year, colorblind, lang, ref, filters, weights, isochrone, shortlist, affordability, simWeights, draw } = extras;
   // Depend on serialized keys, not object/array references, so an unchanged value
   // never re-triggers the URL write.
   const filterKey = filters && filters.length > 0 ? serializeFilters(filters) : '';
@@ -613,12 +616,11 @@ export function useSyncUrlState(pno: string | null, layer: LayerId, comparePnos:
   const affKey = affordability ? serializeAffordability(affordability) : '';
   const simwKey = simWeights ? serializeSimWeights(simWeights) : '';
   const drawKey = draw ? serializeDraw(draw) : '';
-  const wpKey = wizardProfile && isCustomWizardAnswers(wizardProfile) ? serializeWizardProfile(wizardProfile) : '';
   useEffect(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
     if (!ready) return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-    timerRef.current = setTimeout(() => writeUrl(pno, layer, comparePnos, city, { scope, year, colorblind, lang, ref, filters, weights, isochrone, shortlist, affordability, simWeights, draw, wizardProfile }), 100);
+    timerRef.current = setTimeout(() => writeUrl(pno, layer, comparePnos, city, { scope, year, colorblind, lang, ref, filters, weights, isochrone, shortlist, affordability, simWeights, draw }), 100);
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- object/array extras are tracked via their serialized *Key deps
-  }, [pno, layer, comparePnos, city, ready, scope, year, colorblind, lang, ref, filterKey, weightsKey, isoKey, shortlistKey, affKey, simwKey, drawKey, wpKey]);
+  }, [pno, layer, comparePnos, city, ready, scope, year, colorblind, lang, ref, filterKey, weightsKey, isoKey, shortlistKey, affKey, simwKey, drawKey]);
 }

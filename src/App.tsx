@@ -1104,8 +1104,10 @@ const App: React.FC = () => {
     simWeights: similarityUrlWeights,
     // CF-9: shared drawn/selected analysis area.
     draw: drawUrlValue,
-    // CF-4: shared wizard priority profile (only emitted when non-default).
-    wizardProfile,
+    // CF-4: the wizard priority profile is intentionally NOT passed here — it is a
+    // private local preference that never changes the default map view, so it is no
+    // longer broadcast into the address bar (see serializeUrlParams). It is still
+    // *read* from an incoming ?wp= link and seeded above (seedWizardProfile).
     // CF-2: kaavat & hankkeet overlay toggle.
     planning: planningEnabled,
   });
