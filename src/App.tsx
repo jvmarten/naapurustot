@@ -1213,19 +1213,41 @@ const App: React.FC = () => {
   );
 
   // M4: touch has no hover tooltip, so reading a value otherwise requires opening
-  // the heavy sheet. Detect coarse pointers once; on those, a tap shows a compact
-  // peek bar (below) instead of the full panel, so users can compare areas tap-by-tap.
+  // the heavy sheet. On coarse pointers a tap shows a compact peek bar (below)
+  // instead of the full panel, so users can compare areas tap-by-tap.
+  //
+  // The peek bar is rendered `md:hidden`, i.e. only on the narrow (mobile) layout.
+  // A touch tablet is a coarse pointer but is usually wide enough for the desktop
+  // (`md+`) layout, where the peek bar is hidden — so gating the peek path on the
+  // pointer type alone made tablet taps highlight the border (hover) and then call
+  // setPeek into a hidden bar, never opening the panel. Require BOTH a coarse
+  // pointer AND a narrow viewport (matching the bar's `md` breakpoint) so wide
+  // touch layouts fall through to the desktop tap-opens-panel behavior. Tracked
+  // reactively so rotating a tablet between layouts switches behavior correctly.
   const isCoarsePointer = useMemo(
     () => typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse)').matches,
     [],
   );
+  const [isNarrowViewport, setIsNarrowViewport] = useState(
+    () => typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(max-width: 767px)').matches,
+  );
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const mq = window.matchMedia('(max-width: 767px)');
+    const onChange = () => setIsNarrowViewport(mq.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  // Peek preview only applies where the peek bar can actually show (narrow + touch).
+  const usePeekOnTap = isCoarsePointer && isNarrowViewport;
   const [peek, setPeek] = useState<NeighborhoodProperties | null>(null);
 
   const handleClick = useCallback(
     (props: NeighborhoodProperties) => {
-      // On touch, a first tap previews; "details" (or a tap while a panel is already
-      // open) selects. Desktop / fine-pointer is unchanged (tap opens the panel).
-      if (isCoarsePointer && !selectedRef.current) {
+      // On narrow touch layouts, a first tap previews; "details" (or a tap while a
+      // panel is already open) selects. Desktop / wide / fine-pointer is unchanged
+      // (tap opens the panel directly).
+      if (usePeekOnTap && !selectedRef.current) {
         setPeek(props);
         setTooltipData(null);
         return;
@@ -1235,7 +1257,7 @@ const App: React.FC = () => {
       setTooltipData(null);
       setAriaAnnouncement(`${t('aria.neighborhood_selected')}: ${props.nimi}`);
     },
-    [select, isCoarsePointer],
+    [select, usePeekOnTap],
   );
 
   const handlePeekDetails = useCallback(() => {
