@@ -79,7 +79,14 @@ import { join } from 'node:path';
 // over the prior ~2.4 KB headroom. The third feature — a cross-region "similar areas
 // elsewhere" link mesh + isSimilarTo JSON-LD on the 9k profile pages — is computed in
 // prerender.mjs at build time, so it adds ZERO bundle bytes.
-const BUDGET = 301_500;
+// → 303000 B (2026-06-29: funnel-impact batch. Item 2 "Finder front door" is the
+// designated bumper: a standing header CTA opening the wizard, one-tap intent presets
+// in the wizard's first step, an onboarding terminus that drops the user into the finder
+// (new OnboardingTour finder step + onLaunchFinder), and ~10 bundled fi.json strings.
+// Also +~0.1 KB from the requestIdleCallback search-index defer (cold-load HM). The SEO
+// prerender mesh (muni rankings + X-vs-Y) and the topojson shrink / mobile-attribution
+// fixes are all build-time / data / CSS → ZERO bundle bytes.)
+const BUDGET = 303_000;
 const ASSETS_DIR = 'dist/assets';
 
 const fmtKB = (b) => (b / 1024).toFixed(2);

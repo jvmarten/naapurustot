@@ -265,7 +265,7 @@ function emitRegionCard(region, regionName, lang) {
   return `${ORIGIN}/og/region-${region.id}-${lang}.${hash}.png`;
 }
 
-function htmlPage({ lang, title, description, canonical, alternates, jsonLd, body, ogImage }) {
+function htmlPage({ lang, title, description, canonical, alternates, jsonLd, body, ogImage, expectFaq }) {
   // CF-11: per-page social card (PNG) when provided, else the shared static image.
   const ogImg = ogImage || `${ORIGIN}/og-image.png`;
   const langLinks = LANGS.map((l) => {
@@ -353,19 +353,22 @@ ${body}
   // IN-2: hubs carry no FAQPage and no profile payload → default flags only
   // (singleton <title>/</head>/canonical, ≤1 og:url, a non-lonely hreflang
   // cluster, all JSON-LD parseable). Throws loudly on a template regression.
-  assertHeadIntegrity(html, { context: canonical });
+  // CF-7: comparison pages DO carry a FAQPage → expectFaq enforces exactly one.
+  assertHeadIntegrity(html, { context: canonical, expectFaq });
   return html;
 }
 
 /** Uppercase the first letter (metric labels are lowercase for in-sentence use). */
 function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
-/** "Best areas by metric" link row for a region hub (only metrics with a page). */
-function buildBestAreasNav(region, lang) {
-  const avail = region.rankings || [];
+/** "Best areas by metric" link row for a region OR municipality hub (only metrics
+ *  with a page). `scope` carries `.rankings` plus the scope identity (kind+id/slug)
+ *  that rankPath needs. */
+function buildBestAreasNav(scope, lang) {
+  const avail = scope.rankings || [];
   if (avail.length === 0) return '';
   const links = avail
-    .map((m) => `<a href="${rankPath(m.slug, region.id, lang)}">${escapeHtml(cap(m.label[lang]))}</a>`)
+    .map((m) => `<a href="${rankPath(m.slug, scope, lang)}">${escapeHtml(cap(m.label[lang]))}</a>`)
     .join(' · ');
   return `      <h2>${escapeHtml(RANK_TEXT[lang].bestHeading)}</h2>\n      <p>${links}</p>`;
 }
@@ -601,6 +604,8 @@ function fmtDec(n, lang, d) {
 
 const RANK_SEGMENT = { fi: 'parhaat', en: 'best', sv: 'basta' };
 const MIN_REGION_RANKED = 6; // a region needs this many covered areas for its own page
+const MIN_MUNI_RANKED = 8;   // a municipality needs this many covered areas per metric
+const NATIONAL_MIN_RANKED = 10; // a sparse metric needs this many to earn a national page
 const REGION_TOP_N = 15;
 const NATIONAL_TOP_N = 50;
 
@@ -629,6 +634,25 @@ const RANKING_METRICS = [
     label: { fi: 'ilmanlaatu', en: 'air quality', sv: 'luftkvalitet' },
     col: { fi: 'Ilmanlaatuindeksi', en: 'Air quality index', sv: 'Luftkvalitetsindex' },
     fmt: (v, lang) => fmtDec(v, lang, 1) },
+  // CF-12 (expanded): four more high-coverage, objective-direction axes. All have
+  // real registry entries and ≥97% national coverage; per-region/muni coverage gates
+  // (MIN_REGION_RANKED / MIN_MUNI_RANKED) keep sparse scopes from emitting thin pages.
+  { slug: 'walkability', property: 'walkability_index', higherIsBetter: true,
+    label: { fi: 'käveltävyys', en: 'walkability', sv: 'gångvänlighet' },
+    col: { fi: 'Käveltävyysindeksi', en: 'Walkability index', sv: 'Gångvänlighetsindex' },
+    fmt: (v, lang) => fmtNum(Math.round(v), lang) },
+  { slug: 'education', property: 'higher_education_rate', higherIsBetter: true,
+    label: { fi: 'koulutustaso', en: 'higher education', sv: 'utbildningsnivå' },
+    col: { fi: 'Korkeakoulutetut', en: 'Higher education', sv: 'Högutbildade' },
+    fmt: (v, lang) => `${fmtDec(v, lang, 1)} %` },
+  { slug: 'students', property: 'student_share', higherIsBetter: true,
+    label: { fi: 'opiskelijat', en: 'students', sv: 'studerande' },
+    col: { fi: 'Opiskelijaosuus', en: 'Student share', sv: 'Studerandeandel' },
+    fmt: (v, lang) => `${fmtDec(v, lang, 1)} %` },
+  { slug: 'employment', property: 'unemployment_rate', higherIsBetter: false,
+    label: { fi: 'matala työttömyys', en: 'low unemployment', sv: 'låg arbetslöshet' },
+    col: { fi: 'Työttömyysaste', en: 'Unemployment rate', sv: 'Arbetslöshet' },
+    fmt: (v, lang) => `${fmtDec(v, lang, 1)} %` },
 ];
 
 const RANK_TEXT = {
@@ -679,14 +703,15 @@ const RANK_TEXT = {
   },
 };
 
-/** Path (no origin) to a ranking page, per scope and language. */
-function rankPath(metricSlug, regionId, lang) {
-  return regionId
-    ? `${CITY_PREFIX[lang]}/${regionId}/${RANK_SEGMENT[lang]}/${metricSlug}/`
-    : `/${[lang === 'fi' ? null : lang, RANK_SEGMENT[lang], metricSlug].filter(Boolean).join('/')}/`;
+/** Path (no origin) to a ranking page, per scope and language.
+ *  scope: null = national | { kind:'region', id } | { kind:'muni', slug }. */
+function rankPath(metricSlug, scope, lang) {
+  if (!scope) return `/${[lang === 'fi' ? null : lang, RANK_SEGMENT[lang], metricSlug].filter(Boolean).join('/')}/`;
+  if (scope.kind === 'muni') return `${MUNI_PREFIX[lang]}/${scope.slug}/${RANK_SEGMENT[lang]}/${metricSlug}/`;
+  return `${CITY_PREFIX[lang]}/${scope.id}/${RANK_SEGMENT[lang]}/${metricSlug}/`;
 }
-function rankAlternates(metricSlug, regionId) {
-  return Object.fromEntries(LANGS.map((l) => [l, `${ORIGIN}${rankPath(metricSlug, regionId, l)}`]));
+function rankAlternates(metricSlug, scope) {
+  return Object.fromEntries(LANGS.map((l) => [l, `${ORIGIN}${rankPath(metricSlug, scope, l)}`]));
 }
 
 /** Rank a feature list by a metric (direction-aware); returns the top-N covered. */
@@ -700,20 +725,23 @@ function rankFeatures(features, metric, topN) {
   return covered.slice(0, topN);
 }
 
-/** Build one ranking page. `region` is null for the national list. */
-function buildRankingPage(metric, lang, region, ranked) {
+/** Build one ranking page. `scope` is null (national) |
+ *  { kind:'region', id } | { kind:'muni', slug, regionId, name }. */
+function buildRankingPage(metric, lang, scope, ranked) {
   const T = RANK_TEXT[lang];
   const label = metric.label[lang];
-  const regionName = region ? getRegionName(region.id, lang) : '';
-  const alternates = rankAlternates(metric.slug, region ? region.id : null);
+  const national = !scope;
+  const isMuni = !!scope && scope.kind === 'muni';
+  const locationName = national ? '' : (isMuni ? scope.name : getRegionName(scope.id, lang));
+  const alternates = rankAlternates(metric.slug, scope);
   const reg = REGISTRY.metrics?.[metric.property] ?? {};
-  const national = !region;
 
   const rows = ranked.map((f, i) => {
     const p = f.properties;
     const name = escapeHtml(getDisplayName(p, lang));
     const href = `${AREA_PREFIX[lang]}/${escapeHtml(toSlug(p.pno, p.nimi))}/`;
     const value = escapeHtml(metric.fmt(Number(p[metric.property]), lang));
+    // The sub-region column only makes sense nationally; region/muni scopes share one.
     const regionCell = national
       ? `<td>${escapeHtml(getRegionName(p.city, lang))}</td>`
       : '';
@@ -722,17 +750,28 @@ function buildRankingPage(metric, lang, region, ranked) {
   }).join('\n');
 
   const regionColHead = national ? `<th scope="col">${escapeHtml(T.colRegion)}</th>` : '';
-  const crumbs = national
-    ? `<p class="crumbs"><a href="/">naapurustot.fi</a> / ${escapeHtml(T.crumbBest)}</p>`
-    : `<p class="crumbs"><a href="/">naapurustot.fi</a> / <a href="${DIRECTORY_PATH[lang]}">${escapeHtml(T.crumbAll)}</a> / <a href="${CITY_PREFIX[lang]}/${escapeHtml(region.id)}/">${escapeHtml(regionName)}</a> / ${escapeHtml(T.crumbBest)}</p>`;
+
+  // Breadcrumb trail + hub back-link deepen with the scope (national → region → muni).
+  const hubPath = national ? DIRECTORY_PATH[lang]
+    : isMuni ? muniPath(scope.slug, lang)
+    : `${CITY_PREFIX[lang]}/${escapeHtml(scope.id)}/`;
+  let crumbs;
+  if (national) {
+    crumbs = `<p class="crumbs"><a href="/">naapurustot.fi</a> / ${escapeHtml(T.crumbBest)}</p>`;
+  } else if (isMuni) {
+    const regionName = getRegionName(scope.regionId, lang);
+    crumbs = `<p class="crumbs"><a href="/">naapurustot.fi</a> / <a href="${DIRECTORY_PATH[lang]}">${escapeHtml(T.crumbAll)}</a> / <a href="${CITY_PREFIX[lang]}/${escapeHtml(scope.regionId)}/">${escapeHtml(regionName)}</a> / <a href="${muniPath(scope.slug, lang)}">${escapeHtml(scope.name)}</a> / ${escapeHtml(T.crumbBest)}</p>`;
+  } else {
+    crumbs = `<p class="crumbs"><a href="/">naapurustot.fi</a> / <a href="${DIRECTORY_PATH[lang]}">${escapeHtml(T.crumbAll)}</a> / <a href="${CITY_PREFIX[lang]}/${escapeHtml(scope.id)}/">${escapeHtml(locationName)}</a> / ${escapeHtml(T.crumbBest)}</p>`;
+  }
 
   const nationalCta = !national
     ? `\n      <p><a href="${rankPath(metric.slug, null, lang)}">${escapeHtml(T.nationalLink)} →</a></p>`
     : '';
 
   const body = `      ${crumbs}
-      <h1>${escapeHtml(T.h1(label, regionName))}</h1>
-      <p class="lead">${escapeHtml(T.intro(label, regionName, ranked.length))}</p>
+      <h1>${escapeHtml(T.h1(label, locationName))}</h1>
+      <p class="lead">${escapeHtml(T.intro(label, locationName, ranked.length))}</p>
       <table>
         <caption>${escapeHtml(T.source(reg.source ?? 'naapurustot.fi', reg.vintage ?? ''))}</caption>
         <thead><tr><th scope="col" class="num">${escapeHtml(T.colRank)}</th><th scope="col">${escapeHtml(T.colArea)}</th><th scope="col">${escapeHtml(TEXT[lang].colPostal)}</th>${regionColHead}<th scope="col" class="num">${escapeHtml(metric.col[lang])}</th></tr></thead>
@@ -740,12 +779,12 @@ function buildRankingPage(metric, lang, region, ranked) {
 ${rows}
         </tbody>
       </table>${nationalCta}
-      <p><a href="${national ? DIRECTORY_PATH[lang] : `${CITY_PREFIX[lang]}/${escapeHtml(region.id)}/`}">← ${escapeHtml(national ? T.crumbAll : regionName)}</a></p>`;
+      <p><a href="${hubPath}">← ${escapeHtml(national ? T.crumbAll : locationName)}</a></p>`;
 
   const itemList = {
     '@context': 'https://schema.org',
     '@type': 'ItemList',
-    name: T.h1(label, regionName),
+    name: T.h1(label, locationName),
     numberOfItems: ranked.length,
     itemListElement: ranked.map((f, i) => ({
       '@type': 'ListItem',
@@ -754,17 +793,28 @@ ${rows}
       url: `${ORIGIN}${AREA_PREFIX[lang]}/${toSlug(f.properties.pno, f.properties.nimi)}/`,
     })),
   };
-  const crumbList = national
-    ? [
-        { '@type': 'ListItem', position: 1, name: 'naapurustot.fi', item: `${ORIGIN}/` },
-        { '@type': 'ListItem', position: 2, name: T.crumbBest },
-      ]
-    : [
-        { '@type': 'ListItem', position: 1, name: 'naapurustot.fi', item: `${ORIGIN}/` },
-        { '@type': 'ListItem', position: 2, name: T.crumbAll, item: dirUrl(lang) },
-        { '@type': 'ListItem', position: 3, name: regionName, item: cityUrl(region.id, lang) },
-        { '@type': 'ListItem', position: 4, name: T.crumbBest },
-      ];
+  let crumbList;
+  if (national) {
+    crumbList = [
+      { '@type': 'ListItem', position: 1, name: 'naapurustot.fi', item: `${ORIGIN}/` },
+      { '@type': 'ListItem', position: 2, name: T.crumbBest },
+    ];
+  } else if (isMuni) {
+    crumbList = [
+      { '@type': 'ListItem', position: 1, name: 'naapurustot.fi', item: `${ORIGIN}/` },
+      { '@type': 'ListItem', position: 2, name: T.crumbAll, item: dirUrl(lang) },
+      { '@type': 'ListItem', position: 3, name: getRegionName(scope.regionId, lang), item: cityUrl(scope.regionId, lang) },
+      { '@type': 'ListItem', position: 4, name: scope.name, item: muniUrl(scope.slug, lang) },
+      { '@type': 'ListItem', position: 5, name: T.crumbBest },
+    ];
+  } else {
+    crumbList = [
+      { '@type': 'ListItem', position: 1, name: 'naapurustot.fi', item: `${ORIGIN}/` },
+      { '@type': 'ListItem', position: 2, name: T.crumbAll, item: dirUrl(lang) },
+      { '@type': 'ListItem', position: 3, name: locationName, item: cityUrl(scope.id, lang) },
+      { '@type': 'ListItem', position: 4, name: T.crumbBest },
+    ];
+  }
   const breadcrumb = { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: crumbList };
   const jsonLd = [itemList, breadcrumb]
     .map((o) => `    <script type="application/ld+json">${safeJson(o)}</script>`)
@@ -772,8 +822,8 @@ ${rows}
 
   return htmlPage({
     lang,
-    title: T.title(label, regionName),
-    description: T.desc(label, regionName, ranked.length),
+    title: T.title(label, locationName),
+    description: T.desc(label, locationName, ranked.length),
     canonical: alternates[lang],
     alternates,
     jsonLd,
@@ -895,7 +945,7 @@ ${rows}
         </tbody>
       </table>
 ${buildMunicipalitiesNav(region, lang)}
-${buildBestAreasNav(region, lang)}
+${buildBestAreasNav({ kind: 'region', id: region.id, rankings: region.rankings }, lang)}
 ${buildPlanningNav(region, lang)}
 ${buildCiteSection(lang, T.cityTitle(regionName), alternates[lang])}
       <p><a href="${DIRECTORY_PATH[lang]}">${escapeHtml(T.backToDir)}</a></p>`;
@@ -1026,6 +1076,7 @@ function buildMunicipalityHub(muni, lang) {
 ${rows}
         </tbody>
       </table>
+${buildBestAreasNav({ kind: 'muni', slug: muni.slug, rankings: muni.rankings }, lang)}
 ${buildCiteSection(lang, M.title(muni.name), alternates[lang])}
       <p><a href="${DIRECTORY_PATH[lang]}">${escapeHtml(T.backToDir)}</a></p>`;
 
@@ -1389,6 +1440,14 @@ for (const region of regions) {
     (m) => region.features.filter((f) => Number.isFinite(Number(f.properties[m.property]))).length >= MIN_REGION_RANKED,
   );
 }
+// CF-12 (muni scope): same coverage gate per municipality, so each /kunta/{slug}/parhaat/
+// page is backed by ≥MIN_MUNI_RANKED real values and the muni hub can cross-link them.
+// Must run before the municipality hubs are written (buildBestAreasNav reads muni.rankings).
+for (const muni of municipalities) {
+  muni.rankings = RANKING_METRICS.filter(
+    (m) => muni.features.filter((f) => Number.isFinite(Number(f.properties[m.property]))).length >= MIN_MUNI_RANKED,
+  );
+}
 
 for (const lang of LANGS) {
   mkdirSync(DIR_OUT[lang], { recursive: true });
@@ -1439,27 +1498,245 @@ console.log(`Prerendered ${muniCount} municipality hubs (${muniCount * 3} HTML f
 const RANKABLE = geojson.features.filter((f) => f.properties?.pno && f.properties?.nimi);
 const rankingManifest = [];
 
-function writeRankingSet(metric, region, ranked) {
+function writeRankingSet(metric, scope, ranked) {
   for (const lang of LANGS) {
-    const dir = join(DIST, ...rankPath(metric.slug, region ? region.id : null, lang).split('/').filter(Boolean));
+    const dir = join(DIST, ...rankPath(metric.slug, scope, lang).split('/').filter(Boolean));
     mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, 'index.html'), buildRankingPage(metric, lang, region, ranked));
+    writeFileSync(join(dir, 'index.html'), buildRankingPage(metric, lang, scope, ranked));
   }
-  rankingManifest.push(rankAlternates(metric.slug, region ? region.id : null));
+  rankingManifest.push(rankAlternates(metric.slug, scope));
 }
 
 for (const metric of RANKING_METRICS) {
   const ranked = rankFeatures(RANKABLE, metric, NATIONAL_TOP_N);
-  if (ranked.length > 0) writeRankingSet(metric, null, ranked);
+  if (ranked.length >= NATIONAL_MIN_RANKED) writeRankingSet(metric, null, ranked);
 }
 for (const region of regions) {
   for (const metric of region.rankings) {
-    writeRankingSet(metric, region, rankFeatures(region.features, metric, REGION_TOP_N));
+    writeRankingSet(metric, { kind: 'region', id: region.id }, rankFeatures(region.features, metric, REGION_TOP_N));
+  }
+}
+let muniRankingSets = 0;
+for (const muni of municipalities) {
+  for (const metric of muni.rankings) {
+    writeRankingSet(
+      metric,
+      { kind: 'muni', slug: muni.slug, regionId: muni.regionId, name: muni.name },
+      rankFeatures(muni.features, metric, REGION_TOP_N),
+    );
+    muniRankingSets++;
   }
 }
 
 writeFileSync(join(DIST, 'ranking-pages.json'), JSON.stringify(rankingManifest));
-console.log(`Prerendered ${rankingManifest.length} ranking page sets (${rankingManifest.length * 3} HTML files; manifest → dist/ranking-pages.json).`);
+console.log(`Prerendered ${rankingManifest.length} ranking page sets (${rankingManifest.length * 3} HTML files; ${muniRankingSets} municipality-scoped; manifest → dist/ranking-pages.json).`);
+
+// ---------------------------------------------------------------------------
+// CF-7: bounded "{A} vs {B}" comparison pages.
+//
+// High-intent "area X vs area Y" queries currently dead-end in the app's
+// non-indexable ?compare= URLs. Emit a static, direction-aware comparison page
+// for ADJACENT area pairs within each region's most-populated areas — reusing the
+// in-app comparison stat set (replicated inline; the .tsx can't be imported here
+// — its formatting→i18n chain reaches Vite-only `?url` assets). Bounded by
+// adjacency ∩ each region's top-N by population so the page count stays sane.
+// All strings are inline trilingual / panel.* locale lookups → zero JS bundle.
+// ---------------------------------------------------------------------------
+
+const COMPARE_PREFIX = { fi: '/vertaa', en: '/en/compare', sv: '/sv/jamfor' };
+const COMPARE_OUT = {
+  fi: (slug) => join(DIST, 'vertaa', slug),
+  en: (slug) => join(DIST, 'en', 'compare', slug),
+  sv: (slug) => join(DIST, 'sv', 'jamfor', slug),
+};
+function comparePath(slug, lang) { return `${COMPARE_PREFIX[lang]}/${slug}/`; }
+function compareUrl(slug, lang) { return `${ORIGIN}${comparePath(slug, lang)}`; }
+function compareAlternates(slug) { return Object.fromEntries(LANGS.map((l) => [l, compareUrl(slug, l)])); }
+
+const COMPARE_TOP_N = 12; // per-region most-populated areas eligible for pairing
+
+// Comparison stats — inline mirror of src/utils/comparisonStats.ts ALL_STATS (keys +
+// directions kept in sync). Labels reuse the panel.* locale strings (free in a build
+// script). higherIsBetter: null = no objective winner (price/tenure/foreign-lang).
+const COMPARE_STATS = [
+  { key: 'quality_index', labelKey: 'panel.quality_index', higherIsBetter: true, fmt: (v, lang) => fmtNum(Math.round(v), lang) },
+  { key: 'he_vakiy', labelKey: 'panel.population', higherIsBetter: true, fmt: (v, lang) => fmtNum(Math.round(v), lang) },
+  { key: 'hr_mtu', labelKey: 'panel.median_income', higherIsBetter: true, fmt: (v, lang) => `${fmtNum(Math.round(v), lang)} €` },
+  { key: 'unemployment_rate', labelKey: 'panel.unemployment', higherIsBetter: false, fmt: (v, lang) => `${fmtDec(v, lang, 1)} %` },
+  { key: 'foreign_language_pct', labelKey: 'panel.foreign_lang', higherIsBetter: null, fmt: (v, lang) => `${fmtDec(v, lang, 1)} %` },
+  { key: 'ownership_rate', labelKey: 'panel.ownership_rate', higherIsBetter: null, fmt: (v, lang) => `${fmtDec(v, lang, 1)} %` },
+  { key: 'rental_rate', labelKey: 'panel.rental_rate', higherIsBetter: null, fmt: (v, lang) => `${fmtDec(v, lang, 1)} %` },
+  { key: 'ra_as_kpa', labelKey: 'panel.avg_apt_size', higherIsBetter: true, fmt: (v, lang) => `${fmtDec(v, lang, 1)} m²` },
+  { key: 'detached_house_share', labelKey: 'panel.detached_houses', higherIsBetter: true, fmt: (v, lang) => `${fmtDec(v, lang, 1)} %` },
+  { key: 'population_density', labelKey: 'panel.population_density', higherIsBetter: true, fmt: (v, lang) => `${fmtNum(Math.round(v), lang)} /km²` },
+  { key: 'child_ratio', labelKey: 'panel.child_ratio', higherIsBetter: true, fmt: (v, lang) => `${fmtDec(v, lang, 1)} %` },
+  { key: 'student_share', labelKey: 'panel.student_share', higherIsBetter: true, fmt: (v, lang) => `${fmtDec(v, lang, 1)} %` },
+  { key: 'property_price_sqm', labelKey: 'panel.property_price', higherIsBetter: null, fmt: (v, lang) => `${fmtNum(Math.round(v), lang)} €/m²` },
+  { key: 'crime_index', labelKey: 'panel.crime_rate', higherIsBetter: false, fmt: (v, lang) => fmtDec(v, lang, 1) },
+  { key: 'walkability_index', labelKey: 'panel.walkability', higherIsBetter: true, fmt: (v, lang) => fmtNum(Math.round(v), lang) },
+  { key: 'transit_stop_density', labelKey: 'panel.transit_access', higherIsBetter: true, fmt: (v, lang) => `${fmtDec(v, lang, 1)} /km²` },
+  { key: 'air_quality_index', labelKey: 'panel.air_quality', higherIsBetter: false, fmt: (v, lang) => fmtDec(v, lang, 1) },
+];
+
+const COMPARE_TEXT = {
+  fi: {
+    title: (a, b) => `${a} vai ${b}? — alueiden vertailu | naapurustot.fi`,
+    h1: (a, b) => `${a} vai ${b}?`,
+    desc: (a, b) => `${a} ja ${b} vierekkäin: tulot, asuminen, turvallisuus, palvelut ja joukkoliikenne. Todelliset arvot avoimesta julkisesta datasta.`,
+    intro: (a, b) => `${a} ja ${b} vertailtuna yli 15 mittarilla, todellisilla arvoilla. "Parempi"-sarake näyttää kumpi alue voittaa mittareilla, joilla on selkeä suunta.`,
+    colMetric: 'Mittari', colBetter: 'Parempi', same: 'Tasan', neither: '—',
+    crumbCompare: 'Alueiden vertailu',
+    faqQ: (a, b) => `Kumpi on parempi, ${a} vai ${b}?`,
+    faqA: (a, b) => `Se riippuu siitä, mikä on sinulle tärkeää. Tällä sivulla ${a} ja ${b} on vertailtu yli 15 todellisella mittarilla (tulot, asuminen, turvallisuus, palvelut ja joukkoliikenne), joten voit painottaa juuri sinulle tärkeitä asioita.`,
+  },
+  en: {
+    title: (a, b) => `${a} vs ${b} — neighbourhood comparison | naapurustot.fi`,
+    h1: (a, b) => `${a} vs ${b}`,
+    desc: (a, b) => `${a} and ${b} side by side: income, housing, safety, services and public transport. Real values from open public data.`,
+    intro: (a, b) => `${a} and ${b} compared across 15+ indicators with real values. The "Better" column shows which area wins on metrics that have an objective direction.`,
+    colMetric: 'Metric', colBetter: 'Better', same: 'Tie', neither: '—',
+    crumbCompare: 'Compare areas',
+    faqQ: (a, b) => `Which is better, ${a} or ${b}?`,
+    faqA: (a, b) => `It depends on what matters to you. This page compares ${a} and ${b} across 15+ real indicators (income, housing, safety, services and public transport) so you can weigh the things that matter to you.`,
+  },
+  sv: {
+    title: (a, b) => `${a} eller ${b}? — jämförelse av områden | naapurustot.fi`,
+    h1: (a, b) => `${a} eller ${b}?`,
+    desc: (a, b) => `${a} och ${b} sida vid sida: inkomst, boende, säkerhet, tjänster och kollektivtrafik. Verkliga värden från öppna offentliga data.`,
+    intro: (a, b) => `${a} och ${b} jämförda med över 15 mätare och verkliga värden. Kolumnen "Bättre" visar vilket område som vinner på mätare med en objektiv riktning.`,
+    colMetric: 'Mätare', colBetter: 'Bättre', same: 'Lika', neither: '—',
+    crumbCompare: 'Jämför områden',
+    faqQ: (a, b) => `Vilket är bättre, ${a} eller ${b}?`,
+    faqA: (a, b) => `Det beror på vad som är viktigt för dig. Den här sidan jämför ${a} och ${b} med över 15 verkliga mätare (inkomst, boende, säkerhet, tjänster och kollektivtrafik) så att du kan väga det som är viktigt för dig.`,
+  },
+};
+
+function buildComparePage(fa, fb, lang) {
+  const T = COMPARE_TEXT[lang];
+  const a = fa.properties, b = fb.properties;
+  const nameA = getDisplayName(a, lang);
+  const nameB = getDisplayName(b, lang);
+  const hrefA = `${AREA_PREFIX[lang]}/${escapeHtml(toSlug(a.pno, a.nimi))}/`;
+  const hrefB = `${AREA_PREFIX[lang]}/${escapeHtml(toSlug(b.pno, b.nimi))}/`;
+  const slug = `${toSlug(a.pno, a.nimi)}-vs-${toSlug(b.pno, b.nimi)}`;
+  const alternates = compareAlternates(slug);
+
+  const rows = COMPARE_STATS.map((s) => {
+    const va = Number(a[s.key]);
+    const vb = Number(b[s.key]);
+    const hasA = Number.isFinite(va);
+    const hasB = Number.isFinite(vb);
+    const cellA = hasA ? escapeHtml(s.fmt(va, lang)) : '—';
+    const cellB = hasB ? escapeHtml(s.fmt(vb, lang)) : '—';
+    let better = T.neither;
+    if (s.higherIsBetter !== null && hasA && hasB) {
+      if (va === vb) better = escapeHtml(T.same);
+      else better = escapeHtml((s.higherIsBetter ? va > vb : va < vb) ? nameA : nameB);
+    }
+    const label = escapeHtml(LOCALES[lang]?.[s.labelKey] || LOCALES.fi[s.labelKey] || s.key);
+    return `        <tr><td>${label}</td><td class="num">${cellA}</td><td class="num">${cellB}</td><td>${better}</td></tr>`;
+  }).join('\n');
+
+  const body = `      <p class="crumbs"><a href="/">naapurustot.fi</a> / ${escapeHtml(T.crumbCompare)}</p>
+      <h1>${escapeHtml(T.h1(nameA, nameB))}</h1>
+      <p class="lead">${escapeHtml(T.intro(nameA, nameB))}</p>
+      <table>
+        <thead><tr><th scope="col">${escapeHtml(T.colMetric)}</th><th scope="col" class="num"><a href="${hrefA}">${escapeHtml(nameA)}</a></th><th scope="col" class="num"><a href="${hrefB}">${escapeHtml(nameB)}</a></th><th scope="col">${escapeHtml(T.colBetter)}</th></tr></thead>
+        <tbody>
+${rows}
+        </tbody>
+      </table>
+      <p><a href="${hrefA}">${escapeHtml(nameA)} →</a> · <a href="${hrefB}">${escapeHtml(nameB)} →</a></p>`;
+
+  const itemList = {
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    name: T.h1(nameA, nameB),
+    numberOfItems: 2,
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: nameA, url: `${ORIGIN}${AREA_PREFIX[lang]}/${toSlug(a.pno, a.nimi)}/` },
+      { '@type': 'ListItem', position: 2, name: nameB, url: `${ORIGIN}${AREA_PREFIX[lang]}/${toSlug(b.pno, b.nimi)}/` },
+    ],
+  };
+  const breadcrumb = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'naapurustot.fi', item: `${ORIGIN}/` },
+      { '@type': 'ListItem', position: 2, name: T.h1(nameA, nameB) },
+    ],
+  };
+  const faq = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: [
+      { '@type': 'Question', name: T.faqQ(nameA, nameB), acceptedAnswer: { '@type': 'Answer', text: T.faqA(nameA, nameB) } },
+    ],
+  };
+  const jsonLd = [itemList, breadcrumb, faq]
+    .map((o) => `    <script type="application/ld+json">${safeJson(o)}</script>`)
+    .join('\n');
+
+  return htmlPage({
+    lang,
+    title: T.title(nameA, nameB),
+    description: T.desc(nameA, nameB),
+    canonical: alternates[lang],
+    alternates,
+    jsonLd,
+    body,
+    expectFaq: true,
+  });
+}
+
+// Bounded pair list: adjacency ∩ each region's top-N most-populated areas, same region.
+const compareFeatByPno = new Map();
+for (const f of geojson.features) {
+  const p = f.properties;
+  if (p?.pno && p?.nimi && p?.city) compareFeatByPno.set(String(p.pno), f);
+}
+const ADJACENCY = (() => {
+  try { return JSON.parse(readFileSync(join(ROOT, 'src', 'data', 'adjacency.json'), 'utf-8')); }
+  catch { return {}; }
+})();
+const comparePairs = [];
+const seenComparePair = new Set();
+for (const region of regions) {
+  const top = [...region.features]
+    .sort((x, y) => (Number(y.properties.he_vakiy) || 0) - (Number(x.properties.he_vakiy) || 0))
+    .slice(0, COMPARE_TOP_N);
+  const topPnos = new Set(top.map((f) => String(f.properties.pno)));
+  for (const f of top) {
+    const pnoA = String(f.properties.pno);
+    for (const nb of ADJACENCY[pnoA] || []) {
+      const pnoB = String(nb);
+      if (!topPnos.has(pnoB)) continue; // same-region pairs only, both in the top-N
+      const [lo, hi] = pnoA < pnoB ? [pnoA, pnoB] : [pnoB, pnoA];
+      const key = `${lo}-vs-${hi}`;
+      if (seenComparePair.has(key)) continue;
+      seenComparePair.add(key);
+      comparePairs.push([lo, hi]);
+    }
+  }
+}
+// Stable order so reruns are byte-identical.
+comparePairs.sort((p, q) => (p[0] === q[0] ? p[1].localeCompare(q[1]) : p[0].localeCompare(q[0])));
+
+const compareManifest = [];
+for (const [lo, hi] of comparePairs) {
+  const fa = compareFeatByPno.get(lo);
+  const fb = compareFeatByPno.get(hi);
+  if (!fa || !fb) continue;
+  const slug = `${toSlug(fa.properties.pno, fa.properties.nimi)}-vs-${toSlug(fb.properties.pno, fb.properties.nimi)}`;
+  for (const lang of LANGS) {
+    const dir = COMPARE_OUT[lang](slug);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'index.html'), buildComparePage(fa, fb, lang));
+  }
+  compareManifest.push(compareAlternates(slug));
+}
+writeFileSync(join(DIST, 'vertaa-pages.json'), JSON.stringify(compareManifest));
+console.log(`Prerendered ${compareManifest.length} comparison page sets (${compareManifest.length * 3} HTML files; manifest → dist/vertaa-pages.json).`);
 
 // CF-4: per-municipality planning hubs (×3 languages). Sort entries (plans before
 // projects, then by name) and affected areas (largest population first) for a
