@@ -30,6 +30,7 @@ const DYNAMIC_PREFIXES = [
   'wizard.tenure_',      // NeighborhoodWizard → `wizard.tenure_${tenure}`
   'wizard.price_level_', // NeighborhoodWizard → `wizard.price_level_${level}`
   'wizard.foreigners_',  // NeighborhoodWizard → `wizard.foreigners_${pref}`
+  'wizard.preset_',      // NeighborhoodWizard → `wizard.preset_${key}` (quick-start intents)
   'settings.theme_',     // SettingsDropdown → `settings.theme_${mode}`
   'correlation.sig_',    // CorrelationExplorer → `correlation.sig_${sig}`
   'city.',               // region names → `city.${regionId}` (69 regions)

@@ -119,6 +119,20 @@ function scoreNeighborhoods(
 
 const STEP_COUNT = 4;
 
+// Activation: one-tap "quick start" intents shown on the first step. Each maps onto a
+// fresh set of wizard answers mirroring the top relocation criteria (Kantar-KAKS:
+// safety/peace, service proximity, public transport, family, affordability) and jumps
+// straight to the ranked results, so the finder pays off in a single tap. The user can
+// step Back to refine any answer afterwards.
+const PRESET_AFFORDABLE = budgetForPriceLevel(2); // tier 2 = "affordable" (~p20–p40 €/m²)
+const PRESETS: ReadonlyArray<{ key: string; answers: Partial<WizardAnswers> }> = [
+  { key: 'safe_quiet', answers: { quietPreference: 'quiet' } },
+  { key: 'services', answers: { healthcareImportance: 5 } },
+  { key: 'transit', answers: { transitImportance: 5 } },
+  { key: 'family', answers: { hasChildren: true, schoolImportance: 5 } },
+  { key: 'affordable', answers: { budgetMin: PRESET_AFFORDABLE.min, budgetMax: PRESET_AFFORDABLE.max } },
+];
+
 // Shared styling for the 1–5 range sliders (transit, school, healthcare, price tier).
 const RANGE_INPUT_CLASS = `flex-1 h-2 rounded-full appearance-none cursor-pointer
   bg-surface-200 dark:bg-surface-700
@@ -749,6 +763,35 @@ export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onCl
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-6 py-5">
           {renderStepIndicator()}
+          {/* Activation: one-tap intent presets on the first step — fill a fresh
+              profile and jump straight to results. */}
+          {step === 0 && (
+            <div className="mb-6">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500 mb-2">
+                {t('wizard.quickstart')}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {PRESETS.map((p) => (
+                  <button
+                    key={p.key}
+                    type="button"
+                    onClick={() => {
+                      setAnswers({ ...defaultAnswers, ...p.answers });
+                      setStep(STEP_COUNT - 1);
+                      trackEvent('wizard-preset', { preset: p.key });
+                    }}
+                    className="px-3 py-1.5 rounded-full text-xs font-medium border transition-colors
+                               bg-surface-50 dark:bg-surface-800 text-surface-700 dark:text-surface-300
+                               border-surface-200 dark:border-surface-700/50
+                               hover:bg-blue-500/10 hover:border-blue-500/40 hover:text-blue-600 dark:hover:text-blue-300
+                               focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                  >
+                    {t(`wizard.preset_${p.key}`)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           {stepContent[step]()}
         </div>
 

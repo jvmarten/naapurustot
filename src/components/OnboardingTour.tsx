@@ -11,6 +11,9 @@ interface OnboardingTourProps {
    *  Finnish default to EN/SV from the welcome step without exiting the tour. */
   lang?: Lang;
   onLangChange?: (lang: Lang) => void | Promise<void>;
+  /** Activation: completing the tour drops the user straight into the Neighborhood
+   *  Finder (the product's core promise) instead of ending on a sign-up ask. */
+  onLaunchFinder?: () => void;
 }
 
 interface Step {
@@ -31,6 +34,9 @@ const ALL_STEPS: Step[] = [
   { anchors: ['search', 'cities'], titleKey: 'onboarding.search.title', bodyKey: 'onboarding.search.body' },
   { anchors: ['tools'], titleKey: 'onboarding.tools.title', bodyKey: 'onboarding.tools.body' },
   { anchors: ['auth'], titleKey: 'onboarding.auth.title', bodyKey: 'onboarding.auth.body' },
+  // Activation: the tour ends on the Finder (the product's core promise), not the
+  // sign-up ask. Completing this step opens the finder via onLaunchFinder.
+  { anchors: ['finder'], titleKey: 'onboarding.finder.title', bodyKey: 'onboarding.finder.body' },
 ];
 
 const POPOVER_W = 320;
@@ -53,7 +59,7 @@ function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v));
 }
 
-export const OnboardingTour: React.FC<OnboardingTourProps> = ({ onComplete, skipAuthStep = false, lang, onLangChange }) => {
+export const OnboardingTour: React.FC<OnboardingTourProps> = ({ onComplete, skipAuthStep = false, lang, onLangChange, onLaunchFinder }) => {
   // T5: re-render the tour when the language switches (and when the lazy en/sv
   // dictionary arrives, replacing the Finnish fallback) — the tour is the contract-
   // correct subscriber rather than relying on App's re-render.
@@ -99,7 +105,10 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({ onComplete, skip
       window.dispatchEvent(new CustomEvent('app-toast', { detail: t('onboarding.reopen_note') }));
     }
     onComplete();
-  }, [onComplete, stepIndex]);
+    // Activation: a real completion drops the user into the Finder rather than leaving
+    // them on the sign-up step. Skippers are left where they are.
+    if (reason === 'completed') onLaunchFinder?.();
+  }, [onComplete, stepIndex, onLaunchFinder]);
 
   // Resolve target rects for all anchors. The chrome may not be mounted on
   // the first paint of step 1, so retry briefly via rAF. Bail after 30 frames
@@ -357,7 +366,7 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({ onComplete, skip
             }}
             className="px-4 py-2 rounded-lg text-xs font-semibold bg-brand-700 hover:bg-brand-800 text-white transition-colors"
           >
-            {isLast ? t('onboarding.finish') : t('onboarding.next')}
+            {isLast ? t('onboarding.finder.cta') : t('onboarding.next')}
           </button>
         </div>
 

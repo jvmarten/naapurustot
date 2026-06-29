@@ -32,13 +32,16 @@ test.describe('neighborhood wizard flow', () => {
     // The transit importance slider should be present
     await expect(page.locator('text=Julkisen liikenteen tärkeys')).toBeVisible();
 
-    // The quiet preference buttons should be present
-    await expect(page.locator('text=Rauhallinen')).toBeVisible();
+    // The quiet preference buttons should be present. Use an exact-name button
+    // locator so the "Turvallinen & rauhallinen" quick-start preset chip (which
+    // also contains "rauhallinen") doesn't collide with the quiet button.
+    const quietButton = page.getByRole('button', { name: 'Rauhallinen', exact: true });
+    await expect(quietButton).toBeVisible();
     await expect(page.locator('text=Neutraali')).toBeVisible();
     await expect(page.locator('text=Vilkas')).toBeVisible();
 
     // Select "Rauhallinen" (Quiet)
-    await page.locator('button:has-text("Rauhallinen")').click();
+    await quietButton.click();
 
     // Click "Seuraava" (Next) to proceed to step 2
     const nextButton = page.locator('button:has-text("Seuraava")');

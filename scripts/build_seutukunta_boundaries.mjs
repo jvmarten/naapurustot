@@ -165,8 +165,13 @@ console.log(`Assigned region IDs to ${outFeatures.length} seutukunnat`);
 // Write intermediate GeoJSON, quantize + simplify into the final topojson.
 writeFileSync(tmpGeojson, JSON.stringify({ type: 'FeatureCollection', features: outFeatures }));
 // Quote paths so spaces in the checkout path don't break the shell command.
+// Quantize to a ~1e4 grid (≈137 m lon / 115 m lat at Finnish latitudes). This is
+// strictly sub-pixel at the zoom levels the outlines render at (5–7; a zoom-7 pixel is
+// ≈575 m here), so there is no visible degradation, but it shrinks the largest
+// first-paint asset by ~37% over the wire vs the previous -q 1e5. Vertex topology is
+// preserved; only coordinate precision drops.
 execSync(
-  `npx -p topojson-server geo2topo -q 1e5 seutukunnat="${tmpGeojson}" > "${tmpQuant}"`,
+  `npx -p topojson-server geo2topo -q 1e4 seutukunnat="${tmpGeojson}" > "${tmpQuant}"`,
   { stdio: 'inherit' },
 );
 execSync(

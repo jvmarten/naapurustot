@@ -179,6 +179,20 @@ try {
   // Manifest absent (hubs not yet prerendered) — sitemap simply omits municipality pages.
 }
 
+// CF-7: "{A} vs {B}" comparison pages (/vertaa/{a}-vs-{b}/). prerender-hubs.mjs writes
+// a manifest of {fi,en,sv} alternates for exactly the pairs it generated — read it so
+// every <loc> resolves to a real file.
+try {
+  const manifest = JSON.parse(readFileSync(join(DIST, 'vertaa-pages.json'), 'utf-8'));
+  for (const alt of manifest) {
+    urls.push({ loc: alt.fi, priority: '0.5', changefreq: 'monthly', alternates: alt });
+    urls.push({ loc: alt.en, priority: '0.4', changefreq: 'monthly', alternates: alt });
+    urls.push({ loc: alt.sv, priority: '0.4', changefreq: 'monthly', alternates: alt });
+  }
+} catch {
+  // Manifest absent (hubs not yet prerendered) — sitemap simply omits comparison pages.
+}
+
 function renderAlternates(alternates) {
   if (!alternates) return '';
   return Object.entries(alternates)
