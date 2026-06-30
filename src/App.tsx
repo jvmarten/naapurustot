@@ -2370,6 +2370,22 @@ const App: React.FC = () => {
           </button>
         </div>
 
+        {/* Mobile brand — flows in the flex layout (rather than absolute-centering,
+            which would overlap the three-item left control group on a narrow phone),
+            centering in the gap between the control groups and truncating if tight.
+            Hidden at `sm`+, where the absolutely-centered wordmark below takes over. */}
+        <div className="flex-1 min-w-0 flex justify-center sm:hidden px-2">
+          <button
+            onClick={handleResetView}
+            className="cursor-pointer bg-transparent border-none truncate"
+            title={t('map.reset_view')}
+          >
+            <h1 className="text-base font-display font-bold text-surface-900 dark:text-white/90 tracking-tight truncate">
+              naapurustot<span className="text-brand-600 dark:text-brand-400">.fi</span>
+            </h1>
+          </button>
+        </div>
+
         {/* Center: brand — absolutely positioned for true centering. Hidden below
             `sm` so it can't collide with the (now three-item) left control group on
             a narrow phone, where the standing Finder CTA takes visual priority. */}
