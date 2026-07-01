@@ -900,7 +900,10 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
       )}
       {/* Left map */}
       <div className="relative h-1/2 w-full md:h-full md:w-1/2 overflow-hidden">
-        <div ref={leftContainerRef} className="absolute inset-0" />
+        {/* h-full w-full: maplibre's `.maplibregl-map{position:relative}` overrides
+            the `absolute` utility once its (lazy) CSS loads after Tailwind, so size
+            the container off the pane directly rather than via inset stretching. */}
+        <div ref={leftContainerRef} className="absolute inset-0 h-full w-full" />
         <div className="absolute top-[3.5rem] left-2 z-10">
           {onLeftLayerChange ? (
             <SplitLayerPicker value={leftLayer} onChange={onLeftLayerChange} />
@@ -928,7 +931,7 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
 
       {/* Right map */}
       <div className="relative h-1/2 w-full md:h-full md:w-1/2 overflow-hidden">
-        <div ref={rightContainerRef} className="absolute inset-0" />
+        <div ref={rightContainerRef} className="absolute inset-0 h-full w-full" />
         <div className="absolute top-[3.5rem] left-2 z-10">
           {onRightLayerChange ? (
             <SplitLayerPicker value={rightLayer} onChange={onRightLayerChange} />

@@ -1829,7 +1829,14 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   return (
     <div
       ref={containerRef}
-      className="absolute inset-0"
+      // h-full w-full (not just absolute inset-0): MapLibre's stylesheet sets
+      // `.maplibregl-map { position: relative }` on this container, and since the
+      // map is React.lazy that CSS is injected *after* Tailwind's `.absolute`
+      // utility — same specificity, later source, so it wins and `absolute inset-0`
+      // silently stops stretching the box (collapses to height 0 → 300px fallback
+      // canvas → blank map). h-full/w-full size it independent of the position
+      // property, so it fills #main whichever rule ends up winning.
+      className="absolute inset-0 h-full w-full"
       // A7: only the inner MapLibre canvas (set in the load handler above) carries
       // role="application" — it's the element that handles keyboard pan/zoom. The
       // wrapper is a plain named group so screen readers don't hit two nested,
