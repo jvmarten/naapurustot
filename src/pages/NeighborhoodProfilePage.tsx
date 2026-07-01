@@ -1,14 +1,14 @@
-import React, { useEffect, useMemo, useState, lazy, Suspense } from 'react';
+import React, { useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { useParams, useLocation, useNavigate, Link } from 'react-router-dom';
 import type { Feature, Polygon, MultiPolygon } from 'geojson';
 import { loadNeighborhoodData, loadRegionData } from '../utils/dataLoader';
 import { parseSlug, toSlug } from '../utils/slug';
 import type { NeighborhoodProperties } from '../utils/metrics';
-import { computeMetroAverages } from '../utils/metrics';
+import { computeMetroAverages, getMetricSource } from '../utils/metrics';
 import type { RegionId } from '../utils/regions';
 import { t, getLang, setLang, useI18nVersion, type Lang } from '../utils/i18n';
 import { formatNumber, formatEuro, formatPct, formatDiff } from '../utils/formatting';
-import { getQualityCategory, QUALITY_CATEGORIES } from '../utils/qualityIndex';
+import { getQualityCategory, QUALITY_CATEGORIES, QUALITY_DIMENSIONS } from '../utils/qualityIndex';
 import { getLayerById, getInterpolatedColor, readableTextColor } from '../utils/colorScales';
 import { findSimilarNeighborhoods } from '../utils/similarity';
 import { getFeatureCenter } from '../utils/geometryFilter';
@@ -440,6 +440,20 @@ export const NeighborhoodProfilePage: React.FC = () => {
   const profileSlug = toSlug(d.pno, d.nimi);
   const canonicalUrl = `https://naapurustot.fi${langPathPrefix[lang]}/${profileSlug}/`;
 
+  // #1 trust: language-aware full-sources page + the distinct publishers behind the
+  // headline stats, surfaced as a compact provenance line under the Quality Index so a
+  // cold Google visitor sees "these numbers come from official sources" above the fold,
+  // not only via a small footer link. Publisher names are proper nouns (Tilastokeskus,
+  // Poliisi, HSY, …), so listing them needs no new translatable strings.
+  const sourcesPath = lang === 'en' ? '/en/data-sources' : lang === 'sv' ? '/sv/datakallor' : '/tietolahteet';
+  const provenancePublishers = Array.from(
+    new Set(
+      ['crime_index', 'hr_mtu', 'unemployment_rate', 'air_quality_index', 'transit_stop_density', 'property_price_sqm']
+        .map((k) => getMetricSource(k)?.publisherName)
+        .filter((n): n is string => !!n),
+    ),
+  );
+
   /** Format a comparison string: "avg: X" with color. */
   const avgStr = (val: number | null, key: string, formatter: (v: number | null) => string) => {
     const a = avg[key];
@@ -504,15 +518,54 @@ export const NeighborhoodProfilePage: React.FC = () => {
             <p className="text-surface-500 dark:text-surface-400 mb-4 md:mb-0">
               {altName ? `${altName} · ` : ''}{t('profile.postal_code')} {d.pno} · {cityName}
             </p>
+            {/* #1 conversion: primary app entry points, above the fold on DESKTOP — the
+                mobile sticky bar (bottom of the tree) already covers small screens, but
+                desktop's only CTA was the very last element in <main>. Main CTA opens the
+                live map for THIS area (/?pno=); secondary opens the "Fit for you" finder. */}
+            <div className="hidden md:flex mt-4 gap-2">
+              <Link
+                to={`/?pno=${d.pno}`}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-700 text-white rounded-lg hover:bg-brand-800 transition-colors font-medium"
+              >
+                {t('profile.explore_on_map')}
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                </svg>
+              </Link>
+              <Link
+                to="/?finder=1"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-surface-300 dark:border-surface-700 text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors font-medium"
+              >
+                {t('fit.cta')}
+              </Link>
+            </div>
           </div>
           {state.geoFeature ? (
             <div className="md:w-80 md:flex-shrink-0">
-              <Suspense fallback={<div className="w-full h-64 md:h-80 rounded-xl bg-surface-100 dark:bg-surface-900/60 animate-pulse" />}>
-                <MiniMap
-                  feature={state.geoFeature}
-                  allFeatures={state.regionFeatures}
-                />
-              </Suspense>
+              {/* #1 conversion: the mini-map LOOKS interactive but MiniMap is
+                  interactive:false — wrap it in a Link so the natural "click the map to
+                  explore" gesture actually opens the live map for this area, with a hover
+                  affordance so the interaction is discoverable on desktop. */}
+              <Link
+                to={`/?pno=${d.pno}`}
+                aria-label={t('profile.explore_on_map')}
+                className="group relative block rounded-xl overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+              >
+                <Suspense fallback={<div className="w-full h-64 md:h-80 rounded-xl bg-surface-100 dark:bg-surface-900/60 animate-pulse" />}>
+                  <MiniMap
+                    feature={state.geoFeature}
+                    allFeatures={state.regionFeatures}
+                  />
+                </Suspense>
+                <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-center gap-1.5 py-2
+                                 bg-gradient-to-t from-black/55 to-transparent text-white text-xs font-medium
+                                 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {t('profile.explore_on_map')}
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                  </svg>
+                </span>
+              </Link>
             </div>
           ) : (!mapResolved && d.city != null) ? (
             // Reserve the map slot while its geometry loads in the background
@@ -526,9 +579,15 @@ export const NeighborhoodProfilePage: React.FC = () => {
         {/* Quality Index Banner */}
         {qi != null && qiCat && (
           <div className="rounded-xl bg-surface-100 dark:bg-surface-900/60 p-6 mb-8">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400 mb-4">
-              {t('panel.quality_index')}
-            </h2>
+            {/* #1 trust: the headline number now carries the same "How is this
+                calculated?" explainer the in-app panel has, so a cold visitor can see
+                what the score means and how it is weighted — not an unexplained figure. */}
+            <div className="flex items-center gap-1 mb-4">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400">
+                {t('panel.quality_index')}
+              </h2>
+              <QualityExplainer lang={lang} />
+            </div>
             <div className="flex items-center gap-4 mb-4">
               <div
                 className="w-14 h-14 rounded-xl flex items-center justify-center font-bold text-xl"
@@ -550,6 +609,17 @@ export const NeighborhoodProfilePage: React.FC = () => {
                   <span className="text-[9px] text-surface-500 dark:text-surface-400">{c.label[lang]}</span>
                 </div>
               ))}
+            </div>
+            {/* #1 trust: compact provenance for the score — real, official publishers
+                behind the data + a link to the full per-source page, right under the
+                headline instead of only in the footer. */}
+            <div className="mt-4 pt-3 border-t border-surface-200/70 dark:border-surface-700/40 text-[11px] leading-snug text-surface-500 dark:text-surface-400">
+              <Link to={sourcesPath} className="hover:text-brand-600 underline decoration-dotted underline-offset-2">
+                {t('profile.data_sources')}
+              </Link>
+              {provenancePublishers.length > 0 && (
+                <span className="text-surface-400 dark:text-surface-500"> · {provenancePublishers.join(' · ')}</span>
+              )}
             </div>
           </div>
         )}
@@ -759,6 +829,72 @@ export const NeighborhoodProfilePage: React.FC = () => {
           {t('fit.cta')}
         </Link>
       </div>
+    </div>
+  );
+};
+
+/**
+ * #1 trust: "How is this calculated?" popover for the Quality Index, mirroring the
+ * in-app NeighborhoodPanel's explainer (reuses the shared quality.* strings and the
+ * QUALITY_DIMENSIONS weights) so the flagship number is auditable on the prerendered
+ * profile page too. Self-contained popover state + outside-click/Escape dismissal.
+ */
+const QualityExplainer: React.FC<{ lang: Lang }> = ({ lang }) => {
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    const onDown = (e: MouseEvent) => {
+      const n = e.target as Node;
+      if (!popRef.current?.contains(n) && !btnRef.current?.contains(n)) setOpen(false);
+    };
+    document.addEventListener('keydown', onKey, true);
+    document.addEventListener('mousedown', onDown);
+    return () => {
+      document.removeEventListener('keydown', onKey, true);
+      document.removeEventListener('mousedown', onDown);
+    };
+  }, [open]);
+  const evaluativeDims = QUALITY_DIMENSIONS.filter((d) => d.defaultWeight > 0);
+  return (
+    <div className="relative inline-flex normal-case tracking-normal">
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-label={t('quality.how_calculated')}
+        aria-expanded={open}
+        className="w-4 h-4 flex items-center justify-center rounded-full text-surface-400 hover:text-brand-600 transition-colors"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      </button>
+      {open && (
+        <div
+          ref={popRef}
+          role="tooltip"
+          className="absolute left-0 top-6 z-30 w-72 rounded-xl bg-white dark:bg-surface-800
+                     border border-surface-200 dark:border-surface-700/50 shadow-2xl p-3 text-left"
+        >
+          <p className="text-[11px] font-normal text-surface-600 dark:text-surface-300 mb-2">
+            {t('quality.explainer')}
+          </p>
+          <ul className="space-y-0.5">
+            {evaluativeDims.map((dm) => (
+              <li key={dm.id} className="flex items-center justify-between text-[11px] font-normal text-surface-700 dark:text-surface-200">
+                <span>{dm.label[lang]}</span>
+                <span className="tabular-nums text-surface-400 dark:text-surface-500">{dm.defaultWeight}%</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-[10px] font-normal text-surface-400 dark:text-surface-500">
+            {t('quality.methodology_note')}
+          </p>
+        </div>
+      )}
     </div>
   );
 };

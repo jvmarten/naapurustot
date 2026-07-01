@@ -1,6 +1,7 @@
 import React from 'react';
-import { METRIC_SOURCES } from '../../utils/metrics';
+import { getMetricSource } from '../../utils/metrics';
 import { diffColor } from '../../utils/formatting';
+import { t } from '../../utils/i18n';
 
 interface StatCardProps {
   label: string;
@@ -31,8 +32,16 @@ export const StatCard: React.FC<StatCardProps> = ({
   subregionBadge,
   subregionNote,
 }) => {
-  const source = METRIC_SOURCES[propertyKey];
+  // #1 trust: resolve the full registry entry (source, vintage, proxy flag, caveat
+  // note) so cold Google traffic sees the same data-honesty signals the in-app panel
+  // shows — not just a bare number. `isProxy` earns an "Estimate" badge; a `note`
+  // (e.g. property price's "largest municipalities only") renders as a caveat line.
+  const source = getMetricSource(propertyKey);
   const colorClass = diffColor(rawValue, average, higherIsBetter);
+  // The sub-region fallback already carries its own amber badge + note, so don't
+  // stack the generic proxy/note signals on top of it.
+  const showProxy = !subregionEstimate && !!source?.isProxy;
+  const showNote = !subregionEstimate && !!source?.note;
 
   return (
     <div className="rounded-xl bg-surface-100 dark:bg-surface-900/60 p-4">
@@ -45,6 +54,15 @@ export const StatCard: React.FC<StatCardProps> = ({
           <span className="inline-flex items-center rounded px-1 py-px text-[9px] font-semibold uppercase tracking-wide
                            bg-amber-400/15 text-amber-600 dark:text-amber-400 border border-amber-400/30">
             {subregionBadge}
+          </span>
+        )}
+        {showProxy && (
+          <span
+            className="inline-flex items-center rounded px-1 py-px text-[9px] font-semibold uppercase tracking-wide
+                       bg-amber-400/15 text-amber-600 dark:text-amber-400 border border-amber-400/30"
+            title={t('layer_signal.proxy')}
+          >
+            {t('data.estimate')}
           </span>
         )}
       </div>
@@ -60,6 +78,11 @@ export const StatCard: React.FC<StatCardProps> = ({
             {avgLabel}
           </div>
         )
+      )}
+      {showNote && source?.note && (
+        <div className="text-[11px] text-amber-600 dark:text-amber-400 leading-snug mt-1">
+          {t(source.note)}
+        </div>
       )}
       {source && (
         <div className="text-[10px] text-surface-400 dark:text-surface-500 mt-2">
