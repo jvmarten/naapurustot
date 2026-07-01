@@ -170,7 +170,7 @@ export const TrendChart: React.FC<TrendChartProps> = React.memo(({ title, data, 
         ))}
       </svg>
       {unit && (
-        <div className="text-[10px] text-surface-400 dark:text-surface-500 text-right -mt-0.5">
+        <div className="text-[10px] text-surface-500 dark:text-surface-400 text-right -mt-0.5">
           {unit}
         </div>
       )}

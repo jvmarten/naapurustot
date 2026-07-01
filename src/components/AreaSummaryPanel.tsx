@@ -164,7 +164,7 @@ export const AreaSummaryPanel: React.FC<AreaSummaryPanelProps> = React.memo(({ p
             <h2 className="text-sm font-display font-bold text-surface-900 dark:text-white">
               {t('draw.area_summary')}
             </h2>
-            <span className="text-xs text-surface-400 dark:text-surface-500">
+            <span className="text-xs text-surface-500 dark:text-surface-400">
               {intersecting.length} {t('draw.neighborhoods')}{drawnArea && ` · ${drawnArea}`}
             </span>
           </div>
@@ -189,7 +189,7 @@ export const AreaSummaryPanel: React.FC<AreaSummaryPanelProps> = React.memo(({ p
         </div>
 
         {intersecting.length === 0 ? (
-          <div className="px-5 py-8 text-center text-sm text-surface-400 dark:text-surface-500">
+          <div className="px-5 py-8 text-center text-sm text-surface-500 dark:text-surface-400">
             {t('draw.no_neighborhoods')}
           </div>
         ) : (
@@ -268,7 +268,7 @@ export const AreaSummaryPanel: React.FC<AreaSummaryPanelProps> = React.memo(({ p
             <h2 className="text-sm font-display font-bold text-surface-900 dark:text-white">
               {t('draw.area_summary')}
             </h2>
-            <span className="text-xs text-surface-400 dark:text-surface-500">
+            <span className="text-xs text-surface-500 dark:text-surface-400">
               {intersecting.length} {t('draw.neighborhoods')}{drawnArea && ` · ${drawnArea}`}
             </span>
           </div>
@@ -284,7 +284,7 @@ export const AreaSummaryPanel: React.FC<AreaSummaryPanelProps> = React.memo(({ p
         </div>
         <div className="overflow-y-auto p-4 pb-safe space-y-2" style={{ maxHeight: 'calc(65vh - 56px)' }}>
           {intersecting.length === 0 ? (
-            <div className="py-6 text-center text-sm text-surface-400 dark:text-surface-500">
+            <div className="py-6 text-center text-sm text-surface-500 dark:text-surface-400">
               {t('draw.no_neighborhoods')}
             </div>
           ) : (

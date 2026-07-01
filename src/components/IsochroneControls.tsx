@@ -49,7 +49,7 @@ export const IsochroneControls: React.FC<Props> = ({ mode, budget, loading, erro
             onClick={() => onChange(m, budget)}
             aria-pressed={active && mode === m}
             className={`flex-1 py-1.5 text-xs font-medium transition-colors ${active && mode === m
-              ? 'bg-brand-500/15 dark:bg-brand-600/20 text-brand-600 dark:text-brand-300'
+              ? 'bg-brand-500/15 dark:bg-brand-600/20 text-brand-700 dark:text-brand-300'
               : 'text-surface-500 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-800'}`}
           >
             {t(MODE_LABEL[m])}
@@ -74,7 +74,7 @@ export const IsochroneControls: React.FC<Props> = ({ mode, budget, loading, erro
       </div>
 
       {loading && (
-        <p className="mt-2 text-[11px] text-surface-400 dark:text-surface-500">{t('isochrone.loading')}</p>
+        <p className="mt-2 text-[11px] text-surface-500 dark:text-surface-400">{t('isochrone.loading')}</p>
       )}
 
       {/* E1: surface a genuine fetch failure (vs. a silently empty area) with a retry. */}

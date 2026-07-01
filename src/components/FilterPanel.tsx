@@ -321,7 +321,7 @@ const FilterRow: React.FC<{
       {/* CF-7: resolved real-value range + superlative hint, shown beneath the slider. */}
       {isPercentile && (
         <div className="mt-1 flex items-center justify-between gap-2 text-[10px]">
-          <span className="text-surface-400 dark:text-surface-500 tabular-nums truncate">
+          <span className="text-surface-500 dark:text-surface-400 tabular-nums truncate">
             {resolved
               ? `${layer.format(resolved.valueMin)} – ${layer.format(resolved.valueMax)}`
               : t('filter.pct_no_data')}
@@ -379,7 +379,7 @@ const AddFilterDropdown: React.FC<{
         aria-haspopup="listbox"
         aria-expanded={open}
         className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium
-                   bg-brand-500/10 dark:bg-brand-600/15 text-brand-600 dark:text-brand-300
+                   bg-brand-500/10 dark:bg-brand-600/15 text-brand-700 dark:text-brand-300
                    hover:bg-brand-500/20 dark:hover:bg-brand-600/25 transition-colors
                    disabled:opacity-40 disabled:cursor-not-allowed"
       >
@@ -469,7 +469,7 @@ const SavePresetInline: React.FC<{ onSave: (name: string) => void }> = ({ onSave
                    px-2 py-1 text-[11px] text-surface-900 dark:text-white placeholder-surface-400
                    focus:outline-none focus:ring-1 focus:ring-brand-500/50"
       />
-      <button type="submit" className="px-2 py-1 rounded text-[10px] font-semibold bg-brand-500/15 text-brand-600 dark:text-brand-300 hover:bg-brand-500/25 transition-colors">
+      <button type="submit" className="px-2 py-1 rounded text-[10px] font-semibold bg-brand-500/15 text-brand-700 dark:text-brand-300 hover:bg-brand-500/25 transition-colors">
         {t('filter.save')}
       </button>
       <button type="button" onClick={() => { setName(''); setEditing(false); }} aria-label={t('filter.cancel')} className="px-1.5 py-1 rounded text-[10px] text-surface-400 hover:text-surface-600 dark:hover:text-surface-300">
@@ -725,7 +725,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = React.memo(({
                      border-b border-surface-100 dark:border-surface-800/30 last:border-0"
           style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 52px' }}
         >
-          <span className="text-xs font-mono text-surface-400 dark:text-surface-500 w-6 text-right flex-shrink-0">
+          <span className="text-xs font-mono text-surface-500 dark:text-surface-400 w-6 text-right flex-shrink-0">
             {sortDir === 'asc' ? ranked.length - i : i + 1}
           </span>
           <div className="flex-1 min-w-0">
@@ -754,13 +754,13 @@ export const FilterPanel: React.FC<FilterPanelProps> = React.memo(({
       {filters.length > 0 && ranked.length === 0 && (
         <div className="px-4 py-8 text-center flex flex-col items-center gap-3">
           <FilterEmptyIllustration className="opacity-60" />
-          <p className="text-sm text-surface-400 dark:text-surface-500">
+          <p className="text-sm text-surface-500 dark:text-surface-400">
             {t('filter.no_match')}
           </p>
           <button
             onClick={() => onFiltersChange([])}
             className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium
-                       bg-brand-500/10 dark:bg-brand-600/15 text-brand-600 dark:text-brand-300
+                       bg-brand-500/10 dark:bg-brand-600/15 text-brand-700 dark:text-brand-300
                        hover:bg-brand-500/20 dark:hover:bg-brand-600/25 transition-colors"
           >
             {t('filter.clear_all')}
@@ -769,7 +769,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = React.memo(({
       )}
 
       {filters.length === 0 && (
-        <div className="px-4 py-8 text-center text-sm text-surface-400 dark:text-surface-500">
+        <div className="px-4 py-8 text-center text-sm text-surface-500 dark:text-surface-400">
           {t('filter.empty')}
         </div>
       )}
@@ -806,7 +806,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = React.memo(({
         {/* PO-5: Filter presets */}
         {filters.length === 0 && (
           <div className="flex-shrink-0 px-3 py-2 space-y-1.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400">
               {t('filter.presets')}
             </span>
             <div className="flex flex-wrap gap-1.5">
@@ -815,7 +815,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = React.memo(({
                   key={preset.labelKey}
                   onClick={() => { trackEvent('apply-preset', { preset: preset.labelKey }); onFiltersChange(preset.criteria); }}
                   className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium
-                             bg-brand-500/10 dark:bg-brand-600/15 text-brand-600 dark:text-brand-300
+                             bg-brand-500/10 dark:bg-brand-600/15 text-brand-700 dark:text-brand-300
                              hover:bg-brand-500/20 dark:hover:bg-brand-600/25 transition-colors"
                 >
                   {t(preset.labelKey)}
@@ -941,7 +941,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = React.memo(({
           {/* PO-5: Filter presets (mobile) */}
           {filters.length === 0 && (
             <div className="flex-shrink-0 px-3 py-2 space-y-1.5">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400">
                 {t('filter.presets')}
               </span>
               <div className="flex flex-wrap gap-1.5">
@@ -950,7 +950,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = React.memo(({
                     key={preset.labelKey}
                     onClick={() => { trackEvent('apply-preset', { preset: preset.labelKey }); onFiltersChange(preset.criteria); }}
                     className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium
-                               bg-brand-500/10 dark:bg-brand-600/15 text-brand-600 dark:text-brand-300
+                               bg-brand-500/10 dark:bg-brand-600/15 text-brand-700 dark:text-brand-300
                                hover:bg-brand-500/20 dark:hover:bg-brand-600/25 transition-colors"
                   >
                     {t(preset.labelKey)}

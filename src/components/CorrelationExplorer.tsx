@@ -209,7 +209,7 @@ export const CorrelationExplorer: React.FC<Props> = ({ data, onSelect, onClose, 
           <h2 className="text-sm font-bold text-surface-900 dark:text-white truncate">{t('correlation.title')}</h2>
           {/* CF-6: region vs all-Finland scope */}
           <ComparisonScopeToggle scope={scope} onChange={setScope} disabled={nationalLoading} />
-          <span className="text-[11px] text-surface-400 dark:text-surface-500 truncate">
+          <span className="text-[11px] text-surface-500 dark:text-surface-400 truncate">
             {t(isNational ? 'scope.all' : 'scope.region')}
           </span>
         </div>
@@ -265,11 +265,11 @@ export const CorrelationExplorer: React.FC<Props> = ({ data, onSelect, onClose, 
         </label>
         <div className="ml-auto flex items-end gap-4 pb-0.5">
           <div className="text-right">
-            <div className="text-[10px] uppercase tracking-wider text-surface-400 dark:text-surface-500">{t('correlation.pearson_r')}</div>
+            <div className="text-[10px] uppercase tracking-wider text-surface-500 dark:text-surface-400">{t('correlation.pearson_r')}</div>
             <div className="text-lg font-bold tabular-nums text-surface-900 dark:text-white">{rText}</div>
           </div>
           <div className="text-right">
-            <div className="text-[10px] uppercase tracking-wider text-surface-400 dark:text-surface-500">{t('correlation.r_squared')}</div>
+            <div className="text-[10px] uppercase tracking-wider text-surface-500 dark:text-surface-400">{t('correlation.r_squared')}</div>
             <div className="text-lg font-bold tabular-nums text-surface-900 dark:text-white">{r2Text}</div>
           </div>
         </div>
@@ -280,7 +280,7 @@ export const CorrelationExplorer: React.FC<Props> = ({ data, onSelect, onClose, 
         <div className="px-5 py-2 flex flex-wrap items-center gap-2 text-[11px] text-surface-500 dark:text-surface-400 border-b border-surface-100 dark:border-surface-800/60">
           <span className={`px-1.5 py-0.5 rounded font-medium ${SIG_TONE[sig]}`}>{sigText}</span>
           <span className="min-w-0">{t('correlation.r_squared_hint').replace('{pct}', r2 == null ? '—' : String(Math.round(r2 * 100)))}</span>
-          {byRegion && <span className="min-w-0 text-surface-400 dark:text-surface-500">· {t('correlation.region_trend_hint')}</span>}
+          {byRegion && <span className="min-w-0 text-surface-500 dark:text-surface-400">· {t('correlation.region_trend_hint')}</span>}
         </div>
       )}
 
@@ -362,7 +362,7 @@ export const CorrelationExplorer: React.FC<Props> = ({ data, onSelect, onClose, 
                   t(layerY.labelKey),
                 );
               }}
-              className="inline-flex items-center gap-1 shrink-0 px-2 py-1 rounded-lg font-medium text-brand-600 dark:text-brand-300 hover:bg-brand-500/10 dark:hover:bg-brand-600/15 transition-colors"
+              className="inline-flex items-center gap-1 shrink-0 px-2 py-1 rounded-lg font-medium text-brand-700 dark:text-brand-300 hover:bg-brand-500/10 dark:hover:bg-brand-600/15 transition-colors"
               title={t('export.csv')}
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -390,7 +390,7 @@ export const CorrelationExplorer: React.FC<Props> = ({ data, onSelect, onClose, 
                 }).catch(() => { /* html-to-image load failed */ }).finally(() => setSharingImage(false));
               }}
               disabled={sharingImage}
-              className="inline-flex items-center gap-1 shrink-0 px-2 py-1 rounded-lg font-medium text-brand-600 dark:text-brand-300 hover:bg-brand-500/10 dark:hover:bg-brand-600/15 transition-colors disabled:opacity-50"
+              className="inline-flex items-center gap-1 shrink-0 px-2 py-1 rounded-lg font-medium text-brand-700 dark:text-brand-300 hover:bg-brand-500/10 dark:hover:bg-brand-600/15 transition-colors disabled:opacity-50"
               title={t('share.image')}
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

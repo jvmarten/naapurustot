@@ -91,7 +91,7 @@ const LayerSignals: React.FC<{ property: string }> = ({ property }) => {
         <span
           title={t('layer_signal.proxy')}
           aria-label={t('layer_signal.proxy')}
-          className="text-[11px] leading-none font-semibold text-surface-400 dark:text-surface-500"
+          className="text-[11px] leading-none font-semibold text-surface-500 dark:text-surface-400"
         >
           {'≈'}
         </span>
@@ -247,7 +247,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
         {layerSearch && (
           <button
             onClick={() => setLayerSearch('')}
-            className="absolute right-4 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-surface-400 dark:text-surface-500 hover:text-surface-600 dark:hover:text-surface-300 hover:bg-surface-200 dark:hover:bg-surface-700/60 transition-colors"
+            className="absolute right-4 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-surface-500 dark:text-surface-400 hover:text-surface-600 dark:hover:text-surface-300 hover:bg-surface-200 dark:hover:bg-surface-700/60 transition-colors"
             aria-label={t('search.clear')}
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -277,7 +277,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
               tabIndex={0}
               className={`flex-1 text-left px-3 py-2.5 md:py-1.5 rounded-lg text-sm transition-all duration-150 min-h-[44px] md:min-h-0 ${
                 isActive
-                  ? 'bg-brand-500/15 dark:bg-brand-600/20 text-brand-600 dark:text-brand-300 font-medium'
+                  ? 'bg-brand-500/15 dark:bg-brand-600/20 text-brand-700 dark:text-brand-300 font-medium'
                   : 'text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800/60 hover:text-surface-900 dark:hover:text-white'
               }`}
             >
@@ -300,7 +300,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
                 className={`flex-shrink-0 ${isActive ? 'px-2' : 'p-1.5'} gap-1 rounded-lg transition-colors min-h-[44px] md:min-h-0 min-w-[32px] flex items-center justify-center ${
                   isCustomWeights
                     ? 'text-brand-600 dark:text-brand-400 hover:bg-brand-500/15'
-                    : 'text-surface-400 dark:text-surface-500 hover:text-surface-600 dark:hover:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800/60'
+                    : 'text-surface-500 dark:text-surface-400 hover:text-surface-600 dark:hover:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800/60'
                 }`}
                 title={t('custom_quality.button')}
               >
@@ -334,12 +334,12 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
               <span className={`text-[10px] font-semibold uppercase tracking-wider ${
                 hasActiveLayer && isCollapsed
                   ? 'text-brand-600 dark:text-brand-400'
-                  : 'text-surface-400 dark:text-surface-500'
+                  : 'text-surface-500 dark:text-surface-400'
               }`}>
                 {t(group.labelKey)}
               </span>
               <svg
-                className={`w-3 h-3 text-surface-400 dark:text-surface-500 transition-transform duration-200 ${
+                className={`w-3 h-3 text-surface-500 dark:text-surface-400 transition-transform duration-200 ${
                   isCollapsed ? '-rotate-90' : ''
                 }`}
                 fill="none"
@@ -368,7 +368,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
                     tabIndex={flatIndex === focusedIndex || (focusedIndex < 0 && isActive) ? 0 : -1}
                     className={`flex-1 text-left px-3 py-2.5 md:py-1.5 rounded-lg text-sm transition-all duration-150 min-h-[44px] md:min-h-0 ${
                       isActive
-                        ? 'bg-brand-500/15 dark:bg-brand-600/20 text-brand-600 dark:text-brand-300 font-medium'
+                        ? 'bg-brand-500/15 dark:bg-brand-600/20 text-brand-700 dark:text-brand-300 font-medium'
                         : isFocused
                           ? 'bg-surface-200 dark:bg-surface-700/60 text-surface-900 dark:text-white ring-2 ring-brand-500/50'
                           : 'text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800/60 hover:text-surface-900 dark:hover:text-white'
@@ -411,7 +411,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
               {t('layers.title')}
             </h3>
             <svg
-              className={`w-3 h-3 text-surface-400 dark:text-surface-500 transition-transform duration-200 ${minimized ? '-rotate-90' : ''}`}
+              className={`w-3 h-3 text-surface-500 dark:text-surface-400 transition-transform duration-200 ${minimized ? '-rotate-90' : ''}`}
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"

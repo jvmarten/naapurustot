@@ -56,10 +56,12 @@ test.describe('naapurustot app', () => {
     await page.goto('/');
     await waitForDataLoaded(page);
 
-    // Click the tools button (wrench icon)
-    const toolsBtn = page.locator('button[title]').first();
-    if (await toolsBtn.isVisible()) {
-      await toolsBtn.click();
-    }
+    // Target the actual Tools button by its accessible name. (The previous
+    // `button[title]`.first() selector grabbed whichever titled button came first in
+    // the DOM — a MapLibre zoom control — and asserted nothing; with the map now
+    // React.lazy'd, that control's mount timing made the meaningless click flaky.)
+    await page.locator('button[aria-label="Työkalut"]').click();
+    // The dropdown should reveal its options (e.g. the filter toggle).
+    await expect(page.locator('text=Suodata').first()).toBeVisible({ timeout: 5000 });
   });
 });

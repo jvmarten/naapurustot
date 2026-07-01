@@ -115,7 +115,7 @@ export const UserMenu: React.FC<UserMenuProps> = React.memo(({ user, onLogout, f
         className={`flex px-2.5 py-2 rounded-lg text-xs font-semibold transition-all items-center justify-center gap-1.5
                    min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0
                    ${open
-                     ? 'bg-brand-500/20 text-brand-600 dark:text-brand-300 border border-brand-500/30'
+                     ? 'bg-brand-500/20 text-brand-700 dark:text-brand-300 border border-brand-500/30'
                      : 'text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 hover:bg-surface-100 dark:hover:bg-white/10 border border-transparent'
                    }`}
         title={syncStatus === 'error' ? `${user.displayName || user.username} — ${t('sync.error')}` : (user.displayName || user.username)}
@@ -139,7 +139,7 @@ export const UserMenu: React.FC<UserMenuProps> = React.memo(({ user, onLogout, f
           {syncStatus !== 'idle' && (
             <div
               className={`flex items-center justify-between gap-2 px-4 py-2 text-[11px] border-b border-surface-100 dark:border-surface-800 ${
-                syncStatus === 'error' ? 'text-amber-600 dark:text-amber-400' : 'text-surface-400 dark:text-surface-500'
+                syncStatus === 'error' ? 'text-amber-600 dark:text-amber-400' : 'text-surface-500 dark:text-surface-400'
               }`}
             >
               <span className="flex items-center gap-1.5">
@@ -175,7 +175,7 @@ export const UserMenu: React.FC<UserMenuProps> = React.memo(({ user, onLogout, f
           {/* Favorites section */}
           {displayFavorites.length > 0 && (
             <div className="border-b border-surface-100 dark:border-surface-800">
-              <p className="px-4 pt-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500">
+              <p className="px-4 pt-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400">
                 {t('favorites.title')}
               </p>
               <div className="px-1.5 pb-1.5 max-h-48 overflow-y-auto">
@@ -206,7 +206,7 @@ export const UserMenu: React.FC<UserMenuProps> = React.memo(({ user, onLogout, f
                           <span className="w-1.5 h-1.5 rounded-full bg-brand-500 shrink-0" aria-label={t('shortlist.has_note')} title={t('shortlist.has_note')} />
                         )}
                         <span className="truncate">{f.name}</span>
-                        <span className="text-xs text-surface-400 dark:text-surface-500 shrink-0">{f.pno}</span>
+                        <span className="text-xs text-surface-500 dark:text-surface-400 shrink-0">{f.pno}</span>
                       </button>
                     </div>
                   );
@@ -217,12 +217,12 @@ export const UserMenu: React.FC<UserMenuProps> = React.memo(({ user, onLogout, f
 
           {displayFavorites.length === 0 && (
             <div className="border-b border-surface-100 dark:border-surface-800">
-              <p className="px-4 pt-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500">
+              <p className="px-4 pt-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400">
                 {t('favorites.title')}
               </p>
               <div className="flex flex-col items-center gap-2 px-4 pt-3 pb-4 text-center">
                 <FavoritesEmptyIllustration className="mx-auto opacity-70" />
-                <p className="text-xs text-surface-400 dark:text-surface-500">
+                <p className="text-xs text-surface-500 dark:text-surface-400">
                   {t('favorites.empty')}
                 </p>
               </div>

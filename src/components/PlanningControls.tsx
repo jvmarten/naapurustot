@@ -71,7 +71,7 @@ export const PlanningControls: React.FC<Props> = ({ enabled, region, onToggle })
               ))}
             </div>
           </div>
-          <p className="text-[11px] text-surface-400 dark:text-surface-500 leading-snug" role="note">
+          <p className="text-[11px] text-surface-500 dark:text-surface-400 leading-snug" role="note">
             {t('planning.coverage').replace('{date}', info.snapshot)}
           </p>
         </>

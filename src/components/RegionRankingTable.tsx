@@ -137,13 +137,13 @@ export const RegionRankingTable: React.FC<Props> = React.memo(({ activeLayer, la
 
       <div className="overflow-y-auto flex-1 min-h-0">
         {!features && !error && (
-          <div className="px-4 py-8 text-center text-sm text-surface-400 dark:text-surface-500">{t('loading.title')}</div>
+          <div className="px-4 py-8 text-center text-sm text-surface-500 dark:text-surface-400">{t('loading.title')}</div>
         )}
         {/* ES-4: a load failure is distinct from a metric that genuinely has no
             regional data — say so and offer a retry instead of the ambiguous "no data". */}
         {error && (
           <div className="px-4 py-8 text-center">
-            <p className="text-sm text-surface-400 dark:text-surface-500 mb-3">{t('error.region_load_failed')}</p>
+            <p className="text-sm text-surface-500 dark:text-surface-400 mb-3">{t('error.region_load_failed')}</p>
             <button
               onClick={() => { setError(false); setRetryNonce((n) => n + 1); }}
               className="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-200 dark:bg-surface-700 text-surface-900 dark:text-white hover:bg-surface-300 dark:hover:bg-surface-600 transition-colors"
@@ -162,10 +162,10 @@ export const RegionRankingTable: React.FC<Props> = React.memo(({ activeLayer, la
               onClick={() => onSelectRegion(item.regionId)}
               className="w-full text-left px-4 py-2 flex items-center gap-3 hover:bg-surface-100 dark:hover:bg-surface-800/60 transition-colors border-b border-surface-100 dark:border-surface-800/30 last:border-0"
             >
-              <span className="text-xs font-mono text-surface-400 dark:text-surface-500 w-6 text-right flex-shrink-0">{rank}</span>
+              <span className="text-xs font-mono text-surface-500 dark:text-surface-400 w-6 text-right flex-shrink-0">{rank}</span>
               <div className="flex-1 min-w-0">
                 <div className="text-sm text-surface-800 dark:text-surface-200 truncate">{regionName(item.regionId)}</div>
-                <div className="text-[10px] text-surface-400 dark:text-surface-500">
+                <div className="text-[10px] text-surface-500 dark:text-surface-400">
                   {muniCount(item.regionId)} {t('region.comparison.municipalities')}
                 </div>
                 <div className="mt-1 h-1.5 w-full bg-surface-100 dark:bg-surface-800 rounded-full overflow-hidden">
@@ -177,12 +177,12 @@ export const RegionRankingTable: React.FC<Props> = React.memo(({ activeLayer, la
           );
         })}
         {features && displayItems.length === 0 && (
-          <div className="px-4 py-8 text-center text-sm text-surface-400 dark:text-surface-500">{t('region.comparison.no_data')}</div>
+          <div className="px-4 py-8 text-center text-sm text-surface-500 dark:text-surface-400">{t('region.comparison.no_data')}</div>
         )}
       </div>
 
       <div className="px-4 py-2 border-t border-surface-200 dark:border-surface-700/40 flex-shrink-0">
-        <p className="text-[10px] text-surface-400 dark:text-surface-500">{displayItems.length} {t('region.comparison.regions')}</p>
+        <p className="text-[10px] text-surface-500 dark:text-surface-400">{displayItems.length} {t('region.comparison.regions')}</p>
       </div>
     </div>
   );

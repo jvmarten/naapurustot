@@ -618,7 +618,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
                 {t('profile.data_sources')}
               </Link>
               {provenancePublishers.length > 0 && (
-                <span className="text-surface-400 dark:text-surface-500"> · {provenancePublishers.join(' · ')}</span>
+                <span className="text-surface-500 dark:text-surface-400"> · {provenancePublishers.join(' · ')}</span>
               )}
             </div>
           </div>
@@ -763,7 +763,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
                   {s.properties.quality_index != null && (
                     <div className="text-xs mt-2">
                       <span className="font-semibold">{Math.round(s.properties.quality_index)}</span>
-                      <span className="text-surface-400 dark:text-surface-500 ml-1">{t('profile.quality_short')}</span>
+                      <span className="text-surface-500 dark:text-surface-400 ml-1">{t('profile.quality_short')}</span>
                     </div>
                   )}
                 </Link>
@@ -788,7 +788,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
 
       {/* Footer — extra bottom padding on mobile so its content clears the sticky CTA bar. */}
       <footer className="border-t border-surface-200 dark:border-surface-800 pt-6 pb-24 md:pb-6">
-        <div className="max-w-5xl mx-auto px-4 text-center text-xs text-surface-400 dark:text-surface-500">
+        <div className="max-w-5xl mx-auto px-4 text-center text-xs text-surface-500 dark:text-surface-400">
           {/* QW-5: link to the full, per-language sources page instead of a stale
               hardcoded four-source list (the app now ships ~59 layers from many sources). */}
           <p>
@@ -886,11 +886,11 @@ const QualityExplainer: React.FC<{ lang: Lang }> = ({ lang }) => {
             {evaluativeDims.map((dm) => (
               <li key={dm.id} className="flex items-center justify-between text-[11px] font-normal text-surface-700 dark:text-surface-200">
                 <span>{dm.label[lang]}</span>
-                <span className="tabular-nums text-surface-400 dark:text-surface-500">{dm.defaultWeight}%</span>
+                <span className="tabular-nums text-surface-500 dark:text-surface-400">{dm.defaultWeight}%</span>
               </li>
             ))}
           </ul>
-          <p className="mt-2 text-[10px] font-normal text-surface-400 dark:text-surface-500">
+          <p className="mt-2 text-[10px] font-normal text-surface-500 dark:text-surface-400">
             {t('quality.methodology_note')}
           </p>
         </div>

@@ -81,7 +81,7 @@ const SplitPaneTooltip: React.FC<{
       </div>
       <div className={value == null ? 'text-surface-400 italic' : 'text-surface-600 dark:text-surface-300'}>
         {fmt}
-        {isGridCell && <span className="ml-1.5 text-[10px] uppercase tracking-wide text-surface-400 dark:text-surface-500">{t('tooltip.cell_value')}</span>}
+        {isGridCell && <span className="ml-1.5 text-[10px] uppercase tracking-wide text-surface-500 dark:text-surface-400">{t('tooltip.cell_value')}</span>}
       </div>
       {cmpText && <div className={`text-xs mt-0.5 ${cmpClass}`}>{cmpText}</div>}
     </div>
@@ -112,7 +112,7 @@ const SplitPaneLegend: React.FC<{ layer: LayerConfig; side: 'left' | 'right'; gr
           <span className="text-[9px] text-surface-500">{layer.format(layer.stops[n - 1])}</span>
         </div>
         {grid && (
-          <div className="mt-1 flex items-center gap-1 text-[9px] text-surface-400 dark:text-surface-500">
+          <div className="mt-1 flex items-center gap-1 text-[9px] text-surface-500 dark:text-surface-400">
             <span aria-hidden="true">▦</span>
             <span>{t(grid.scope === 'national' ? 'grid.scope_national' : 'grid.scope_regional')}</span>
           </div>
@@ -121,7 +121,7 @@ const SplitPaneLegend: React.FC<{ layer: LayerConfig; side: 'left' | 'right'; gr
             feedback while the badge already claimed grid detail. Mirror the main
             Legend's spinner. */}
         {gridLoading && (
-          <div className="mt-1 flex items-center gap-1 text-[9px] text-surface-400 dark:text-surface-500" role="status">
+          <div className="mt-1 flex items-center gap-1 text-[9px] text-surface-500 dark:text-surface-400" role="status">
             <svg className="w-2.5 h-2.5 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />

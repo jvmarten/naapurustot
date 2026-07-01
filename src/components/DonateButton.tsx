@@ -125,7 +125,7 @@ export const DonateButton: React.FC<DonateButtonProps> = ({ variant = 'button' }
         </div>
       )}
 
-      <p className="text-[10px] text-surface-400 dark:text-surface-500">
+      <p className="text-[10px] text-surface-500 dark:text-surface-400">
         {t('donate.hint')}
       </p>
     </div>
@@ -188,7 +188,7 @@ export const DonateButton: React.FC<DonateButtonProps> = ({ variant = 'button' }
             </div>
           )}
 
-          <p className="text-[10px] text-surface-400 dark:text-surface-500">
+          <p className="text-[10px] text-surface-500 dark:text-surface-400">
             {t('donate.hint')}
           </p>
       </div>

@@ -187,7 +187,7 @@ export const RankingTable: React.FC<RankingTableProps> = React.memo(({ data, act
               style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 52px' }}
             >
               {/* Rank */}
-              <span className="text-xs font-mono text-surface-400 dark:text-surface-500 w-6 text-right flex-shrink-0">
+              <span className="text-xs font-mono text-surface-500 dark:text-surface-400 w-6 text-right flex-shrink-0">
                 {item.rank}
               </span>
 
@@ -218,14 +218,14 @@ export const RankingTable: React.FC<RankingTableProps> = React.memo(({ data, act
           <div className="px-4 py-8 flex flex-col items-center text-center">
             <FilterEmptyIllustration className="w-16 h-16 mb-3 text-surface-300 dark:text-surface-600" />
             <p className="text-sm font-medium text-surface-600 dark:text-surface-300">{t('ranking.no_data')}</p>
-            <p className="mt-1 text-xs text-surface-400 dark:text-surface-500 max-w-[14rem]">{t('ranking.no_data_hint')}</p>
+            <p className="mt-1 text-xs text-surface-500 dark:text-surface-400 max-w-[14rem]">{t('ranking.no_data_hint')}</p>
           </div>
         )}
       </div>
 
       {/* Footer */}
       <div className="px-4 py-2 border-t border-surface-200 dark:border-surface-700/40 flex-shrink-0">
-        <p className="text-[10px] text-surface-400 dark:text-surface-500">
+        <p className="text-[10px] text-surface-500 dark:text-surface-400">
           {items.length} {t('ranking.areas')}
         </p>
       </div>

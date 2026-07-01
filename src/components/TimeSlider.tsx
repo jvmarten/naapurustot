@@ -38,7 +38,7 @@ export const TimeSlider: React.FC<TimeSliderProps> = ({ years, currentYear, onYe
           aria-label={playing ? t('time.pause') : t('time.play')}
           title={playing ? t('time.pause') : t('time.play')}
           className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg
-                     bg-brand-500/15 dark:bg-brand-600/20 text-brand-600 dark:text-brand-300
+                     bg-brand-500/15 dark:bg-brand-600/20 text-brand-700 dark:text-brand-300
                      hover:bg-brand-500/25 dark:hover:bg-brand-600/30 transition-colors"
         >
           {playing ? (
@@ -59,7 +59,7 @@ export const TimeSlider: React.FC<TimeSliderProps> = ({ years, currentYear, onYe
             aria-valuetext={String(currentYear)}
             className="w-40 md:w-52 h-1 accent-brand-500 cursor-pointer"
           />
-          <div className="flex justify-between text-[10px] tabular-nums text-surface-400 dark:text-surface-500">
+          <div className="flex justify-between text-[10px] tabular-nums text-surface-500 dark:text-surface-400">
             <span>{minYear}</span>
             <span className="font-semibold text-surface-700 dark:text-surface-200">{currentYear}</span>
             <span>{maxYear}</span>

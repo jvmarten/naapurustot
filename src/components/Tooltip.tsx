@@ -90,7 +90,7 @@ export const Tooltip: React.FC<TooltipProps> = ({ x, y, name, value, layer, metr
       <div className="font-semibold text-surface-900 dark:text-white">{name}</div>
       <div className={`${value == null ? 'text-surface-400 italic' : 'text-surface-600 dark:text-surface-300'}`}>
         {formatted}
-        {cellLabel && <span className="ml-1.5 text-[10px] uppercase tracking-wide text-surface-400 dark:text-surface-500">{cellLabel}</span>}
+        {cellLabel && <span className="ml-1.5 text-[10px] uppercase tracking-wide text-surface-500 dark:text-surface-400">{cellLabel}</span>}
       </div>
       {comparisonText && (
         <div className={`text-xs mt-0.5 ${comparisonClass}`}>

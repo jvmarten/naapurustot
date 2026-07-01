@@ -1,5 +1,10 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
-import { Map } from './components/Map';
+// #3 perf: the MapLibre-backed <Map> is the single largest eager chunk (~44% of app
+// JS, ~1 MB raw). A static import blocks first App mount on its download+parse. Lazy-
+// load it (like SplitMapView already is) so the App shell — header, search, selectors,
+// legend — mounts and the initial region-data fetch runs in PARALLEL with the maplibre
+// parse instead of serializing behind it. maplibre-* is excluded from the bundle-budget
+// gate, so this is budget-neutral. Declared with the other lazy components below.
 import { DEFAULT_CENTER, DEFAULT_ZOOM, CITY_VIEWPORTS } from './utils/mapConstants';
 import { REGION_IDS, DEFAULT_CITY } from './utils/regions';
 import { LayerSelector } from './components/LayerSelector';
@@ -22,6 +27,11 @@ import { trackEvent } from './utils/analytics';
 import type { Feature, FeatureCollection, Polygon, MultiPolygon, Position } from 'geojson';
 
 // IN-6: Lazy load heavy conditionally-rendered components
+// #3 perf: the always-rendered map is lazy too (see the import-site note above) — it is
+// the largest chunk, so deferring it off the critical path is the biggest TTI win. Its
+// muted overlay text (LayerSelector/Legend labels) was bumped to WCAG AA so the a11y gate
+// no longer relies on the map canvas incidentally masking their contrast from axe.
+const Map = lazy(() => import('./components/Map').then(m => ({ default: m.Map })));
 const NeighborhoodPanel = lazy(() => import('./components/NeighborhoodPanel').then(m => ({ default: m.NeighborhoodPanel })));
 const ComparisonPanel = lazy(() => import('./components/ComparisonPanel').then(m => ({ default: m.ComparisonPanel })));
 const RankingTable = lazy(() => import('./components/RankingTable').then(m => ({ default: m.RankingTable })));
@@ -175,7 +185,7 @@ function computeSelectionHull(pnos: string[], data: FeatureCollection | null): F
 // immediate feedback instead of nothing while its chunk downloads.
 const PanelSkeleton: React.FC = () => (
   <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none" aria-hidden="true">
-    <svg className="w-6 h-6 animate-spin text-surface-400 dark:text-surface-500" viewBox="0 0 24 24" fill="none">
+    <svg className="w-6 h-6 animate-spin text-surface-500 dark:text-surface-400" viewBox="0 0 24 24" fill="none">
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
     </svg>
@@ -2240,6 +2250,12 @@ const App: React.FC = () => {
             />
           </Suspense>
         ) : (
+          // #3 perf: fallback={null} — the App shell (header/search/selectors/legend)
+          // renders around this while the maplibre chunk loads, and the cold-load overlay
+          // (below, z-50) already covers the map area during the initial data fetch, so the
+          // brief empty map slot is never seen on first paint. This is what lets the shell
+          // become interactive before ~1 MB of maplibre has parsed.
+          <Suspense fallback={null}>
           <Map
             data={filteredData}
             activeLayer={activeLayer}
@@ -2270,6 +2286,7 @@ const App: React.FC = () => {
             onMoveEnd={handleMapMoveEnd}
             priceFallbackValue={priceFallbackValue}
           />
+          </Suspense>
         )}
       </ErrorBoundary>
 
@@ -2766,7 +2783,7 @@ const App: React.FC = () => {
       {/* CF-6: Draw mode hint with Done button */}
       {drawMode && (
         <div className="absolute bottom-[calc(5rem+env(safe-area-inset-bottom))] md:bottom-8 left-1/2 -translate-x-1/2 z-10 flex items-center gap-3 px-4 py-2 rounded-xl
-                       bg-violet-500/90 text-white text-xs font-medium backdrop-blur-sm shadow-lg">
+                       bg-violet-600 text-white text-xs font-medium backdrop-blur-sm shadow-lg">
           <span className="hidden md:inline">{t('draw.hint_desktop')}</span>
           <span className="md:hidden">{t('draw.hint')}</span>
           {drawVertices.length >= 3 && (
@@ -2783,7 +2800,7 @@ const App: React.FC = () => {
       {/* Select areas mode hint with Done button */}
       {selectMode && (
         <div className="absolute bottom-[calc(5rem+env(safe-area-inset-bottom))] md:bottom-8 left-1/2 -translate-x-1/2 z-10 flex items-center gap-3 px-4 py-2 rounded-xl
-                       bg-violet-500/90 text-white text-xs font-medium backdrop-blur-sm shadow-lg">
+                       bg-violet-600 text-white text-xs font-medium backdrop-blur-sm shadow-lg">
           <span>{t('draw.select_hint')}</span>
           {selectedAreaPnos.length > 0 && (
             <>
@@ -2808,7 +2825,7 @@ const App: React.FC = () => {
         <div className={`absolute ${shortlist.length > 0 ? 'bottom-[calc(11rem+env(safe-area-inset-bottom))]' : 'bottom-[calc(5rem+env(safe-area-inset-bottom))]'} md:bottom-8 left-1/2 -translate-x-1/2 z-10`}>
           <button
             onClick={handleResetView}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-500/90 hover:bg-violet-500
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-700
                        text-white text-xs font-medium backdrop-blur-sm shadow-lg transition-colors"
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
@@ -2918,7 +2935,7 @@ const App: React.FC = () => {
       {/* Attribution footer (full attribution hidden in embed mode) */}
       {!IS_EMBED && (
         <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 hidden md:block">
-          <p className="text-[10px] text-surface-600/70 dark:text-surface-500/70">
+          <p className="text-[10px] text-surface-600 dark:text-surface-400">
             {t('footer.attribution')}
             {' · '}
             <ContactMenu className="underline hover:text-brand-600 dark:hover:text-brand-300" />

@@ -79,7 +79,7 @@ export function refDeltaOf(
 ): { text: string; cls: string } | null {
   if (val == null || refVal == null || refVal === 0) return null;
   const pct = ((val - refVal) / Math.abs(refVal)) * 100;
-  const neutral = 'text-surface-400 dark:text-surface-500';
+  const neutral = 'text-surface-500 dark:text-surface-400';
   if (Math.abs(pct) < 0.5) return { text: '≈', cls: neutral };
   const text = `${pct > 0 ? '+' : ''}${pct.toFixed(0)}%`;
   if (higherIsBetter == null) return { text, cls: neutral };
