@@ -197,7 +197,7 @@ export const CustomQualityPanel: React.FC<Props> = ({ weights, onChange, onClose
       if (inDim.length === 0) return null;
       return (
         <div key={dim.id}>
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500 mt-2 mb-0.5">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400 mt-2 mb-0.5">
             {dim.label[lang]}
           </div>
           {inDim.map(renderOneSlider)}
@@ -247,7 +247,7 @@ export const CustomQualityPanel: React.FC<Props> = ({ weights, onChange, onClose
 
       {/* CF-1: Persona presets — named lenses that reweight the dimensions */}
       <div className="px-5 pt-2 pb-1">
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500 mb-1.5">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400 mb-1.5">
           {t('custom_quality.personas')}
         </div>
         <div className="flex flex-wrap gap-1.5">
@@ -259,7 +259,7 @@ export const CustomQualityPanel: React.FC<Props> = ({ weights, onChange, onClose
               aria-pressed={activePersona === p.id}
               className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors border
                 ${activePersona === p.id
-                  ? 'bg-brand-500/15 dark:bg-brand-600/20 text-brand-600 dark:text-brand-300 border-brand-500/40'
+                  ? 'bg-brand-500/15 dark:bg-brand-600/20 text-brand-700 dark:text-brand-300 border-brand-500/40'
                   : 'bg-surface-100/60 dark:bg-surface-800/60 text-surface-600 dark:text-surface-300 border-transparent hover:bg-surface-200/60 dark:hover:bg-surface-700/60'}`}
             >
               {p.label[lang]}

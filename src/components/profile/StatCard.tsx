@@ -85,7 +85,7 @@ export const StatCard: React.FC<StatCardProps> = ({
         </div>
       )}
       {source && (
-        <div className="text-[10px] text-surface-400 dark:text-surface-500 mt-2">
+        <div className="text-[10px] text-surface-500 dark:text-surface-400 mt-2">
           {source.source} ({source.year})
         </div>
       )}

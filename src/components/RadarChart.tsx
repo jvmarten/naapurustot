@@ -262,7 +262,7 @@ const RadarChart: React.FC<RadarChartProps> = React.memo(function RadarChart({ d
       {/* EM4: name the axes with no data so a sparse area's hollow vertices aren't
           misread as genuinely poor scores. */}
       {missing.some(Boolean) && (
-        <p className="text-[10px] text-surface-400 dark:text-surface-500 text-center max-w-[16rem]">
+        <p className="text-[10px] text-surface-500 dark:text-surface-400 text-center max-w-[16rem]">
           {t('panel.radar_no_data')}: {AXES.filter((_, i) => missing[i]).map((a) => t(a.key)).join(', ')}
         </p>
       )}

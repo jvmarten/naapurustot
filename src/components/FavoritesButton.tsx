@@ -63,7 +63,7 @@ export const FavoritesButton: React.FC<FavoritesButtonProps> = React.memo(({ fav
           className="absolute right-0 top-full mt-2 w-64 rounded-xl bg-white dark:bg-surface-900
                      border border-surface-200 dark:border-surface-700/40 shadow-2xl backdrop-blur-md py-1 z-50"
         >
-          <p className="px-4 pt-2 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500">
+          <p className="px-4 pt-2 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400">
             {t('favorites.title')}
           </p>
           <div className="px-1.5 pb-1.5 max-h-60 overflow-y-auto">
@@ -91,7 +91,7 @@ export const FavoritesButton: React.FC<FavoritesButtonProps> = React.memo(({ fav
                     <span className="w-1.5 h-1.5 rounded-full bg-brand-500 shrink-0" aria-label={t('shortlist.has_note')} title={t('shortlist.has_note')} />
                   )}
                   <span className="truncate">{f.name}</span>
-                  <span className="text-xs text-surface-400 dark:text-surface-500 shrink-0">{f.pno}</span>
+                  <span className="text-xs text-surface-500 dark:text-surface-400 shrink-0">{f.pno}</span>
                 </button>
               </div>
             ))}
@@ -100,7 +100,7 @@ export const FavoritesButton: React.FC<FavoritesButtonProps> = React.memo(({ fav
           <div className="border-t border-surface-100 dark:border-surface-800 px-4 py-2.5">
             <button
               onClick={() => { setOpen(false); onSignIn(); }}
-              className="text-xs font-medium text-brand-600 dark:text-brand-300 hover:underline text-left"
+              className="text-xs font-medium text-brand-700 dark:text-brand-300 hover:underline text-left"
             >
               {t('favorites.sync_upsell')}
             </button>

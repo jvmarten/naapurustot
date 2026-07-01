@@ -379,7 +379,7 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
       {/* QW-2: "set this address's area as my home" prompt after an address resolves. */}
       {onSetHome && homePrompt && (
         <div className="mt-1.5 flex items-center gap-2 rounded-xl bg-brand-500/10 dark:bg-brand-600/15 border border-brand-500/30 px-3 py-2 text-xs shadow-lg backdrop-blur-md">
-          <svg className="w-4 h-4 shrink-0 text-brand-600 dark:text-brand-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <svg className="w-4 h-4 shrink-0 text-brand-700 dark:text-brand-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
           </svg>
           <button
@@ -435,7 +435,7 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
           className="mt-1.5 rounded-xl bg-white/95 dark:bg-surface-900/95 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden"
         >
           <div className="flex items-center justify-between px-4 py-2">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400">
               {t('recent.title')}
             </span>
             {onClearRecent && (
@@ -505,19 +505,19 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
             </button>
           ))}
           {totalCount > 8 && (
-            <div className="px-4 py-2 text-xs text-surface-400 dark:text-surface-500 text-center border-t border-surface-100 dark:border-surface-800/40">
+            <div className="px-4 py-2 text-xs text-surface-500 dark:text-surface-400 text-center border-t border-surface-100 dark:border-surface-800/40">
               {totalCount - 8} {t('search.moreResults')}
             </div>
           )}
           {/* CF-1: Address results */}
           {(addressResults.length > 0 || isGeocoding) && (
             <>
-              <div className="px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500 border-t border-surface-100 dark:border-surface-800/40">
+              <div className="px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400 border-t border-surface-100 dark:border-surface-800/40">
                 {t('search.address_results')}
               </div>
               {/* L4: subtle loading row while geocoding has not yet returned results. */}
               {isGeocoding && addressResults.length === 0 && (
-                <div className="px-4 py-2 text-xs text-surface-400 dark:text-surface-500">
+                <div className="px-4 py-2 text-xs text-surface-500 dark:text-surface-400">
                   {t('search.address_searching')}
                 </div>
               )}
@@ -554,7 +554,7 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
             <span>{t('search.address_unavailable')}</span>
             <button
               type="button"
-              className="shrink-0 font-medium text-brand-600 dark:text-brand-300 hover:underline"
+              className="shrink-0 font-medium text-brand-700 dark:text-brand-300 hover:underline"
               onClick={() => setGeocodeRetry((n) => n + 1)}
             >
               {t('search.address_retry')}
@@ -567,7 +567,7 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
           show a loading row instead of a premature "no results". */}
       {isOpen && indexLoading && debouncedQuery.length >= 2 && results.length === 0 && addressResults.length === 0 && !isGeocoding && !addressError && (
         <div className="mt-1.5 rounded-xl bg-white/95 dark:bg-surface-900/95 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden">
-          <div className="px-4 py-2.5 text-sm text-surface-400 dark:text-surface-500">
+          <div className="px-4 py-2.5 text-sm text-surface-500 dark:text-surface-400">
             {t('loading.title')}
           </div>
         </div>

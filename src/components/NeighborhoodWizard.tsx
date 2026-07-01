@@ -270,7 +270,7 @@ export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onCl
           </button>
         </div>
         {skipped
-          ? <p className="text-xs italic text-surface-400 dark:text-surface-500">{t('wizard.skip_hint')}</p>
+          ? <p className="text-xs italic text-surface-500 dark:text-surface-400">{t('wizard.skip_hint')}</p>
           : body}
       </div>
     );
@@ -435,7 +435,7 @@ export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onCl
               </div>
               <p className="text-[11px] text-surface-500 dark:text-surface-400">
                 {t(`wizard.price_level_${priceLevel}`)}
-                <span className="text-surface-400 dark:text-surface-500"> · {answers.budgetMin}–{answers.budgetMax} {t('wizard.budget_unit')}</span>
+                <span className="text-surface-500 dark:text-surface-400"> · {answers.budgetMin}–{answers.budgetMax} {t('wizard.budget_unit')}</span>
               </p>
             </>
           )}
@@ -567,7 +567,7 @@ export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onCl
         </h3>
         {/* CF-6: region vs all-Finland scope */}
         <div className="flex items-center gap-2 shrink-0">
-          <span className="text-[11px] text-surface-400 dark:text-surface-500">
+          <span className="text-[11px] text-surface-500 dark:text-surface-400">
             {t(isNational ? 'scope.all' : 'scope.region')}
           </span>
           <ComparisonScopeToggle scope={scope} onChange={setScope} disabled={nationalLoading} />
@@ -598,7 +598,7 @@ export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onCl
               </button>
             ))}
           </div>
-          <p className="text-[11px] text-surface-400 dark:text-surface-500">
+          <p className="text-[11px] text-surface-500 dark:text-surface-400">
             {t(`wizard.afford_mode_${affordabilityMode}_hint`)}
           </p>
         </div>
@@ -711,7 +711,7 @@ export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onCl
                       </span>
                       <span className="flex-shrink-0 tabular-nums text-surface-600 dark:text-surface-300">
                         {c.actual}
-                        <span className="text-surface-400 dark:text-surface-500"> · {c.target}</span>
+                        <span className="text-surface-500 dark:text-surface-400"> · {c.target}</span>
                       </span>
                     </div>
                   ))}
@@ -767,7 +767,7 @@ export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onCl
               profile and jump straight to results. */}
           {step === 0 && (
             <div className="mb-6">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500 mb-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400 mb-2">
                 {t('wizard.quickstart')}
               </p>
               <div className="flex flex-wrap gap-2">

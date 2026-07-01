@@ -117,7 +117,7 @@ const ComparisonChart: React.FC<{ pinned: NeighborhoodProperties[]; bestByKey: R
             <div className="text-xs text-surface-500 dark:text-surface-400 mb-1.5 flex items-center gap-1.5">
               <span>{t(metric.label)}</span>
               {!metric.higherIsBetter && (
-                <span className="text-[9px] uppercase tracking-wide text-surface-400 dark:text-surface-500">{t('compare.lower_better')}</span>
+                <span className="text-[9px] uppercase tracking-wide text-surface-500 dark:text-surface-400">{t('compare.lower_better')}</span>
               )}
             </div>
             <div className="space-y-1">
@@ -178,7 +178,7 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pin
   // CF-5: show per-value deltas vs the reference only when it isn't itself the sole pinned area.
   const refActive = !!reference && pinned.some((p) => p.pno !== reference.pno);
   const refCaption = refActive && referenceName
-    ? <span className="text-[10px] font-normal text-surface-400 dark:text-surface-500 ml-1">{t('panel.compared_to').replace('{ref}', referenceName)}</span>
+    ? <span className="text-[10px] font-normal text-surface-500 dark:text-surface-400 ml-1">{t('panel.compared_to').replace('{ref}', referenceName)}</span>
     : null;
   // PO-4: Tab state for chart vs table view
   const [view, setView] = useState<'table' | 'chart'>('table');
@@ -234,7 +234,7 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pin
                     px-4 py-3 md:px-6 md:py-4 items-center gap-3 md:gap-4 ${suppressMobile ? '!hidden md:!flex' : ''}`}
       >
         <CompareIllustration className="w-10 h-10 md:w-12 md:h-12 opacity-60 flex-shrink-0" />
-        <div className="text-sm text-surface-400 dark:text-surface-500">
+        <div className="text-sm text-surface-500 dark:text-surface-400">
           {t('empty.compare_hint')}
           <span className="ml-1.5 text-[10px] font-semibold tabular-nums text-surface-300 dark:text-surface-600">1/2</span>
         </div>

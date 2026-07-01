@@ -54,7 +54,7 @@ export const LanguagePicker: React.FC<LanguagePickerProps> = ({ lang, onLangChan
             className={`flex-1 py-2 text-xs font-semibold uppercase transition-colors
               flex items-center justify-center gap-1
               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 ${lang === l
-              ? 'bg-brand-500/15 dark:bg-brand-600/20 text-brand-600 dark:text-brand-300'
+              ? 'bg-brand-500/15 dark:bg-brand-600/20 text-brand-700 dark:text-brand-300'
               : 'text-surface-500 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-800'}`}
           >
             {l}

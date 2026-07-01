@@ -148,7 +148,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
             className={`flex-1 py-3.5 text-sm font-semibold text-center transition-colors relative focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-inset
               ${mode === 'login'
                 ? 'text-surface-900 dark:text-white'
-                : 'text-surface-400 dark:text-surface-500 hover:text-surface-600 dark:hover:text-surface-300'}`}
+                : 'text-surface-500 dark:text-surface-400 hover:text-surface-600 dark:hover:text-surface-300'}`}
           >
             {t('auth.login')}
             {mode === 'login' && (
@@ -161,7 +161,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
             className={`flex-1 py-3.5 text-sm font-semibold text-center transition-colors relative focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-inset
               ${mode === 'signup'
                 ? 'text-surface-900 dark:text-white'
-                : 'text-surface-400 dark:text-surface-500 hover:text-surface-600 dark:hover:text-surface-300'}`}
+                : 'text-surface-500 dark:text-surface-400 hover:text-surface-600 dark:hover:text-surface-300'}`}
           >
             {t('auth.signup')}
             {mode === 'signup' && (
@@ -268,7 +268,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
               {/* Optional email */}
               <div>
                 <label className="block text-xs font-semibold text-surface-600 dark:text-surface-400 mb-1.5">
-                  {t('auth.email')} <span className="font-normal text-surface-400 dark:text-surface-500">({t('auth.optional')})</span>
+                  {t('auth.email')} <span className="font-normal text-surface-500 dark:text-surface-400">({t('auth.optional')})</span>
                 </label>
                 <input
                   type="email"
@@ -277,7 +277,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
                   className={INPUT_CLASS}
                   placeholder={t('auth.email_placeholder')}
                 />
-                <p className="mt-1 text-[11px] text-surface-400 dark:text-surface-500">{t('auth.email_hint')}</p>
+                <p className="mt-1 text-[11px] text-surface-500 dark:text-surface-400">{t('auth.email_hint')}</p>
               </div>
 
               {/* Turnstile */}
@@ -301,7 +301,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
 
           {/* PO-14: link the privacy & data-handling notice so users see what an
               account stores before creating one. */}
-          <p className="text-center text-[11px] text-surface-400 dark:text-surface-500">
+          <p className="text-center text-[11px] text-surface-500 dark:text-surface-400">
             <a
               href={PRIVACY_PATH[getLang()] ?? PRIVACY_PATH.fi}
               target="_blank"

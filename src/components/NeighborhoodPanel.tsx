@@ -208,7 +208,7 @@ const StatRow: React.FC<{
                           border transition-colors flex-shrink-0 cursor-pointer
                           ${infoOpen
                             ? 'text-brand-600 border-brand-500 bg-brand-500/10'
-                            : 'text-surface-400 dark:text-surface-500 border-surface-300 dark:border-surface-600 hover:text-surface-600 dark:hover:text-surface-300 hover:border-surface-400 dark:hover:border-surface-500'
+                            : 'text-surface-500 dark:text-surface-400 border-surface-300 dark:border-surface-600 hover:text-surface-600 dark:hover:text-surface-300 hover:border-surface-400 dark:hover:border-surface-500'
                           }`}
             >
               i
@@ -367,7 +367,7 @@ const CollapsibleSection: React.FC<{
           {title}
         </h3>
         <svg
-          className={`w-3.5 h-3.5 text-surface-400 dark:text-surface-500 transition-transform duration-200 ${open ? '' : '-rotate-90'}`}
+          className={`w-3.5 h-3.5 text-surface-500 dark:text-surface-400 transition-transform duration-200 ${open ? '' : '-rotate-90'}`}
           fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
         >
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
@@ -446,7 +446,7 @@ const DistributionSection: React.FC<{
           />
         ))}
       </div>
-      <div className="flex justify-between text-[10px] text-surface-400 dark:text-surface-500 mt-1">
+      <div className="flex justify-between text-[10px] text-surface-500 dark:text-surface-400 mt-1">
         <span>{layer.format(hist.min)}</span>
         <span>{layer.format(hist.max)}</span>
       </div>
@@ -455,7 +455,7 @@ const DistributionSection: React.FC<{
           <span className="font-semibold text-brand-600 dark:text-brand-400">
             {t('panel.dist_better_than').replace('{pct}', String(betterPct))}
           </span>{' '}
-          <span className="text-surface-400 dark:text-surface-500">
+          <span className="text-surface-500 dark:text-surface-400">
             {t('panel.dist_sample').replace('{n}', String(n))}
           </span>
         </p>
@@ -644,11 +644,11 @@ const QualityBadge: React.FC<{
                   {evaluativeDims.map((d) => (
                     <li key={d.id} className="flex items-center justify-between text-[11px] font-normal text-surface-700 dark:text-surface-200">
                       <span>{d.label[lang]}</span>
-                      <span className="tabular-nums text-surface-400 dark:text-surface-500">{d.defaultWeight}%</span>
+                      <span className="tabular-nums text-surface-500 dark:text-surface-400">{d.defaultWeight}%</span>
                     </li>
                   ))}
                 </ul>
-                <p className="mt-2 text-[10px] font-normal text-surface-400 dark:text-surface-500">
+                <p className="mt-2 text-[10px] font-normal text-surface-500 dark:text-surface-400">
                   {t('quality.methodology_note')}
                 </p>
               </span>
@@ -747,7 +747,7 @@ const QualityCoverageSection: React.FC<{ props: NeighborhoodProperties; scope?: 
           </span>
         </span>
         <svg
-          className={`w-3.5 h-3.5 text-surface-400 dark:text-surface-500 transition-transform duration-200 ${open ? '' : '-rotate-90'}`}
+          className={`w-3.5 h-3.5 text-surface-500 dark:text-surface-400 transition-transform duration-200 ${open ? '' : '-rotate-90'}`}
           fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
         >
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
@@ -755,7 +755,7 @@ const QualityCoverageSection: React.FC<{ props: NeighborhoodProperties; scope?: 
       </button>
       {open && (
         <div className="pb-2 space-y-2.5">
-          <p className="text-[11px] leading-snug text-surface-400 dark:text-surface-500">{t('panel.quality_coverage_help')}</p>
+          <p className="text-[11px] leading-snug text-surface-500 dark:text-surface-400">{t('panel.quality_coverage_help')}</p>
           {/* PO-11: separate "thin everywhere" gaps from genuine local holes. */}
           {coverage.missingThinNationally > 0 && (
             <p className="text-[11px] leading-snug text-amber-600 dark:text-amber-400">
@@ -763,7 +763,7 @@ const QualityCoverageSection: React.FC<{ props: NeighborhoodProperties; scope?: 
             </p>
           )}
           {/* CF-8: which national-vs-region range the score was normalized against */}
-          <p className="text-[11px] leading-snug text-surface-400 dark:text-surface-500">
+          <p className="text-[11px] leading-snug text-surface-500 dark:text-surface-400">
             <span className="text-surface-500 dark:text-surface-400">{t('panel.quality_scope_label')}:</span>{' '}
             {t(scope === 'region' ? 'panel.quality_scope_region' : 'panel.quality_scope_national')}
           </p>
@@ -778,7 +778,7 @@ const QualityCoverageSection: React.FC<{ props: NeighborhoodProperties; scope?: 
                     <span className="ml-1.5 tabular-nums text-surface-500 dark:text-surface-400">{score}/100</span>
                   )}
                 </span>
-                <span className="text-surface-400 dark:text-surface-500">{dim.present}/{dim.total}</span>
+                <span className="text-surface-500 dark:text-surface-400">{dim.present}/{dim.total}</span>
               </div>
               <div className="flex flex-wrap gap-1 mt-1">
                 {dim.factors.map((f) => {
@@ -848,7 +848,7 @@ const NotesEditor: React.FC<{ pno: string; userId?: string | null }> = React.mem
           {t('notes.title')}
         </h3>
         {saveState !== 'idle' && (
-          <span className="text-[10px] text-surface-400 dark:text-surface-500" aria-live="polite">
+          <span className="text-[10px] text-surface-500 dark:text-surface-400" aria-live="polite">
             {saveState === 'saving' ? t('notes.saving') : t('notes.saved')}
           </span>
         )}
@@ -1199,7 +1199,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
         }}
         disabled={sharingImage}
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium min-h-[44px] md:min-h-0
-                   text-brand-600 dark:text-brand-300
+                   text-brand-700 dark:text-brand-300
                    hover:bg-brand-500/10 dark:hover:bg-brand-600/15 transition-colors disabled:opacity-50"
       >
         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1433,7 +1433,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
             <BarSegment label={t('panel.basic')} value={d.ko_perus ?? 0} total={eduTotal} color="#4f46e5" />
           </>
         ) : (
-          <p className="text-xs text-surface-400 dark:text-surface-500">{t('panel.radar_no_data')}</p>
+          <p className="text-xs text-surface-500 dark:text-surface-400">{t('panel.radar_no_data')}</p>
         )}
       </div>
 
@@ -1511,7 +1511,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
               );
             })}
           </ul>
-          <p className="text-[11px] text-surface-400 dark:text-surface-500 mt-2 leading-snug">
+          <p className="text-[11px] text-surface-500 dark:text-surface-400 mt-2 leading-snug">
             {t('panel.planning_coverage').replace('{date}', planningSnapshot)}
           </p>
         </div>
@@ -1865,7 +1865,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
           <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400 mb-1.5">
             {t('panel.neighbors')}
           </h3>
-          <p className="text-[11px] leading-snug text-surface-400 dark:text-surface-500 mb-2">
+          <p className="text-[11px] leading-snug text-surface-500 dark:text-surface-400 mb-2">
             {t('panel.neighbors_help')}
           </p>
           <div className="flex flex-wrap gap-1.5">
@@ -1899,7 +1899,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
               {t('panel.similar')}
             </h3>
             <svg
-              className={`w-3.5 h-3.5 text-surface-400 dark:text-surface-500 transition-transform duration-200 ${similarExpanded ? '' : '-rotate-90'}`}
+              className={`w-3.5 h-3.5 text-surface-500 dark:text-surface-400 transition-transform duration-200 ${similarExpanded ? '' : '-rotate-90'}`}
               fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
             >
               <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
@@ -1909,7 +1909,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
             <div className="space-y-2">
               {/* CF-5/CF-6: choose which metrics define "similar" and how heavily each weighs */}
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-surface-400 dark:text-surface-500 mb-1.5">
+                <div className="text-[10px] uppercase tracking-wider text-surface-500 dark:text-surface-400 mb-1.5">
                   {t('panel.similar_by')}
                 </div>
                 <div className="flex flex-wrap gap-1">
@@ -1923,7 +1923,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
                         key={key}
                         className={`inline-flex items-center rounded-full text-[11px] border transition-colors ${
                           on
-                            ? 'bg-brand-500/15 text-brand-600 dark:text-brand-300 border-brand-500/40'
+                            ? 'bg-brand-500/15 text-brand-700 dark:text-brand-300 border-brand-500/40'
                             : 'bg-surface-100 dark:bg-surface-900/60 text-surface-500 dark:text-surface-400 border-surface-200 dark:border-surface-700/50'
                         }`}
                       >
@@ -1967,7 +1967,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
               {/* CF-6b: rank within this region or across all of Finland */}
               {!d._isMetroArea && (
                 <div>
-                  <div className="text-[10px] uppercase tracking-wider text-surface-400 dark:text-surface-500 mb-1.5">
+                  <div className="text-[10px] uppercase tracking-wider text-surface-500 dark:text-surface-400 mb-1.5">
                     {t('panel.similar_scope_label')}
                   </div>
                   <div className="flex gap-1">
@@ -1978,7 +1978,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
                         aria-pressed={similarityScope === sc}
                         className={`flex-1 px-2 py-1 rounded-lg text-[11px] font-medium border transition-colors ${
                           similarityScope === sc
-                            ? 'bg-brand-500/15 text-brand-600 dark:text-brand-300 border-brand-500/40'
+                            ? 'bg-brand-500/15 text-brand-700 dark:text-brand-300 border-brand-500/40'
                             : 'bg-surface-100 dark:bg-surface-900/60 text-surface-500 dark:text-surface-400 border-surface-200 dark:border-surface-700/50 hover:border-surface-300 dark:hover:border-surface-600'
                         }`}
                       >
@@ -1989,9 +1989,9 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
                 </div>
               )}
               {noSimMetrics ? (
-                <div className="px-3 py-2.5 text-xs text-surface-400 dark:text-surface-500">{t('panel.similar_no_metrics')}</div>
+                <div className="px-3 py-2.5 text-xs text-surface-500 dark:text-surface-400">{t('panel.similar_no_metrics')}</div>
               ) : similarityScope === 'national' && nationalLoading && !nationalFeatures ? (
-                <div className="px-3 py-2.5 text-xs text-surface-400 dark:text-surface-500">{t('loading')}</div>
+                <div className="px-3 py-2.5 text-xs text-surface-500 dark:text-surface-400">{t('loading')}</div>
               ) : (
                 similar.map((s) => {
                   const national = similarityScope === 'national';

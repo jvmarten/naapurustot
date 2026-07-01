@@ -134,7 +134,7 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
                    min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0
                    focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500
                    ${open || anyActive
-                     ? 'bg-brand-500/20 text-brand-600 dark:text-brand-300 border border-brand-500/30'
+                     ? 'bg-brand-500/20 text-brand-700 dark:text-brand-300 border border-brand-500/30'
                      : 'text-surface-600 dark:text-white/70 hover:text-surface-900 dark:hover:text-white hover:bg-surface-100 dark:hover:bg-white/10 border border-transparent'
                    }`}
         aria-label={t('tools.title')}
@@ -229,7 +229,7 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
             </svg>
             <span className="flex flex-col items-start">
               <span className="text-sm">{t('tools.compare_areas')}</span>
-              <span className="text-[10px] leading-snug text-surface-400 dark:text-surface-500">{t('tools.compare_areas_hint')}</span>
+              <span className="text-[10px] leading-snug text-surface-500 dark:text-surface-400">{t('tools.compare_areas_hint')}</span>
             </span>
           </div>
 
@@ -368,7 +368,7 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
                   two neighborhoods — the latter is the pin-to-compare flow hinted below. */}
               <span className="flex flex-col items-start">
                 <span>{t('tools.compare_layers')}</span>
-                <span className="text-[10px] text-surface-400 dark:text-surface-500">{t('tools.compare_layers_hint')}</span>
+                <span className="text-[10px] text-surface-500 dark:text-surface-400">{t('tools.compare_layers_hint')}</span>
               </span>
               {splitMode && (
                 <svg className="w-4 h-4 ml-auto text-brand-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>

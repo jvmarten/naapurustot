@@ -83,7 +83,7 @@ export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, on
           className={`flex gap-1.5 px-2.5 py-2 rounded-lg text-xs font-semibold transition-all items-center justify-center
                      min-h-[44px] md:min-h-0 cursor-pointer
                      ${open
-                       ? 'bg-brand-500/20 text-brand-600 dark:text-brand-300 border border-brand-500/30'
+                       ? 'bg-brand-500/20 text-brand-700 dark:text-brand-300 border border-brand-500/30'
                        : 'text-surface-600 dark:text-white/70 hover:text-surface-900 dark:hover:text-white hover:bg-surface-100 dark:hover:bg-white/10 border border-transparent'
                      }`}
           aria-label={t('city.select')}
@@ -109,7 +109,7 @@ export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, on
                 }}
                 className={`w-full text-left px-4 py-3 text-sm transition-colors ${
                   opt.id === value
-                    ? 'bg-brand-500/15 text-brand-600 dark:text-brand-300 font-medium'
+                    ? 'bg-brand-500/15 text-brand-700 dark:text-brand-300 font-medium'
                     : 'text-surface-700 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800/60'
                 }`}
               >

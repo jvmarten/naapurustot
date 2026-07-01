@@ -167,7 +167,7 @@ export const ShortlistTray: React.FC<ShortlistTrayProps> = React.memo(({ entries
               target on mobile (the row previously packed up to 7 bare text buttons). */}
           <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-0.5 text-xs
                           [&_button]:inline-flex [&_button]:items-center [&_button]:min-h-[44px] md:[&_button]:min-h-0">
-            <button onClick={onCompare} className="text-brand-600 dark:text-brand-300 font-semibold hover:underline">
+            <button onClick={onCompare} className="text-brand-700 dark:text-brand-300 font-semibold hover:underline">
               {t('shortlist.compare')}
             </button>
             {shareUrl && (

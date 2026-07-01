@@ -69,7 +69,7 @@ export const FitForYouBadge: React.FC<FitForYouBadgeProps> = ({
         href={ctaHref ?? '/?finder=1'}
         className={`flex items-center gap-4 rounded-xl border border-dashed border-surface-300 dark:border-surface-700 p-6 hover:border-brand-500/60 hover:bg-surface-50 dark:hover:bg-surface-900/40 transition-colors ${className}`}
       >
-        <div className="w-14 h-14 rounded-xl flex items-center justify-center bg-brand-500/10 text-brand-600 dark:text-brand-300">
+        <div className="w-14 h-14 rounded-xl flex items-center justify-center bg-brand-500/10 text-brand-700 dark:text-brand-300">
           <TargetIcon className="w-7 h-7" />
         </div>
         <div className="min-w-0">
@@ -109,7 +109,7 @@ export const FitForYouBadge: React.FC<FitForYouBadgeProps> = ({
   }
 
   // Pill CTA (no saved profile) — subtle, opens the Finder.
-  const ctaBase = 'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs ring-1 ring-brand-500/25 bg-brand-500/10 text-brand-600 dark:text-brand-300 transition-colors hover:bg-brand-500/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60';
+  const ctaBase = 'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs ring-1 ring-brand-500/25 bg-brand-500/10 text-brand-700 dark:text-brand-300 transition-colors hover:bg-brand-500/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60';
   return onSetPriorities ? (
     <button type="button" onClick={onSetPriorities} className={`${ctaBase} ${className}`}>
       <TargetIcon className="w-3.5 h-3.5 flex-shrink-0" />

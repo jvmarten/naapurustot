@@ -79,7 +79,7 @@ const OpacitySlider: React.FC<{ fillOpacity: number; onFillOpacityChange: (v: nu
           <path strokeLinecap="round" strokeLinejoin="round" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
         </svg>
         <span className="text-xs font-medium text-surface-500 dark:text-surface-400">{t('settings.opacity')}</span>
-        <span className="ml-auto text-xs tabular-nums text-surface-400 dark:text-surface-500">
+        <span className="ml-auto text-xs tabular-nums text-surface-500 dark:text-surface-400">
           {local}%
         </span>
       </div>
@@ -224,7 +224,7 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
                    min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60
                    ${open
-                     ? 'bg-brand-500/20 text-brand-600 dark:text-brand-300 border border-brand-500/30'
+                     ? 'bg-brand-500/20 text-brand-700 dark:text-brand-300 border border-brand-500/30'
                      : 'text-surface-600 dark:text-white/70 hover:text-surface-900 dark:hover:text-white hover:bg-surface-100 dark:hover:bg-white/10 border border-transparent'
                    }`}
         aria-label={t('settings.title')}
@@ -263,7 +263,7 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
                   className={`flex-1 flex items-center justify-center py-2 transition-colors
                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60
                     ${mode === m
-                      ? 'bg-brand-500/15 dark:bg-brand-600/20 text-brand-600 dark:text-brand-300'
+                      ? 'bg-brand-500/15 dark:bg-brand-600/20 text-brand-700 dark:text-brand-300'
                       : 'text-surface-500 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-800'
                     }`}
                 >
@@ -421,7 +421,7 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
               <button
                 onClick={handleManualCopy}
                 className="mt-2 w-full px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-brand-500/15 dark:bg-brand-600/20
-                           text-brand-600 dark:text-brand-300 hover:bg-brand-500/25 transition-colors
+                           text-brand-700 dark:text-brand-300 hover:bg-brand-500/25 transition-colors
                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60"
               >
                 {t('share.button')}
@@ -508,7 +508,7 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
           {formatBuildDate(__BUILD_DATE__, lang) && (
             <>
               <div className="border-t border-surface-100 dark:border-surface-700/40 my-1" />
-              <div className="px-4 py-2 text-[10px] text-surface-400 dark:text-surface-500">
+              <div className="px-4 py-2 text-[10px] text-surface-500 dark:text-surface-400">
                 {t('data.last_updated')}: {formatBuildDate(__BUILD_DATE__, lang)}
               </div>
             </>
