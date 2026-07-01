@@ -2350,46 +2350,12 @@ const App: React.FC = () => {
             onToggleRegionRanking={handleToggleRegionRanking}
             lang={lang}
           />
-          {/* Activation: standing, primary entry to the Neighborhood Finder (the
-              product's core promise) — previously buried under Tools. Filled brand
-              styling so it reads as the headline action; icon-only on mobile. */}
-          <button
-            data-tour-id="finder"
-            onClick={handleOpenWizard}
-            className="flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-semibold transition-all
-                       min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0
-                       bg-brand-600 text-white hover:bg-brand-700 shadow-sm
-                       focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
-            aria-label={t('wizard.open')}
-            title={t('wizard.open')}
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" />
-            </svg>
-            <span className="hidden lg:inline">{t('wizard.open')}</span>
-          </button>
         </div>
 
-        {/* Mobile brand — flows in the flex layout (rather than absolute-centering,
-            which would overlap the three-item left control group on a narrow phone),
-            centering in the gap between the control groups and truncating if tight.
-            Hidden at `sm`+, where the absolutely-centered wordmark below takes over. */}
-        <div className="flex-1 min-w-0 flex justify-center sm:hidden px-2">
-          <button
-            onClick={handleResetView}
-            className="cursor-pointer bg-transparent border-none truncate"
-            title={t('map.reset_view')}
-          >
-            <h1 className="text-base font-display font-bold text-surface-900 dark:text-white/90 tracking-tight truncate">
-              naapurustot<span className="text-brand-600 dark:text-brand-400">.fi</span>
-            </h1>
-          </button>
-        </div>
-
-        {/* Center: brand — absolutely positioned for true centering. Hidden below
-            `sm` so it can't collide with the (now three-item) left control group on
-            a narrow phone, where the standing Finder CTA takes visual priority. */}
-        <div className="absolute inset-0 hidden sm:flex items-center justify-center pointer-events-none">
+        {/* Center: brand — absolutely positioned for true centering. The
+            Neighborhood Finder lives in the Tools menu, so the left control group
+            stays narrow enough for the wordmark to show on mobile too. */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <button
             onClick={handleResetView}
             className="cursor-pointer bg-transparent border-none truncate pointer-events-auto"

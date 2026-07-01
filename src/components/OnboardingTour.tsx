@@ -35,8 +35,10 @@ const ALL_STEPS: Step[] = [
   { anchors: ['tools'], titleKey: 'onboarding.tools.title', bodyKey: 'onboarding.tools.body' },
   { anchors: ['auth'], titleKey: 'onboarding.auth.title', bodyKey: 'onboarding.auth.body' },
   // Activation: the tour ends on the Finder (the product's core promise), not the
-  // sign-up ask. Completing this step opens the finder via onLaunchFinder.
-  { anchors: ['finder'], titleKey: 'onboarding.finder.title', bodyKey: 'onboarding.finder.body' },
+  // sign-up ask. There is no standing Finder button to spotlight (it lives in the
+  // Tools menu), so this is a centered closing step; completing it opens the finder
+  // via onLaunchFinder.
+  { anchors: [], titleKey: 'onboarding.finder.title', bodyKey: 'onboarding.finder.body' },
 ];
 
 const POPOVER_W = 320;
