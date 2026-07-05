@@ -239,6 +239,17 @@ function makeStyle(theme: 'dark' | 'light'): maplibregl.StyleSpecification {
 const METRO_LINE_LAYER = 'neighborhoods-metro-line';
 const NO_DATA_LAYER = 'neighborhoods-no-data-pattern';
 const HIGHLIGHT_LAYER = 'neighborhoods-highlight';
+
+// Map readability prototype — mirrors Map.tsx. #1 roads-on-top ghost overlay
+// (base raster redrawn above the fill so roads punch back through) and #2
+// softened, zoom-gated postal borders. Keep in sync with Map.tsx.
+const ROAD_OVERLAY_LAYER = 'carto-roads-overlay';
+const ROAD_OVERLAY_OPACITY: Record<'dark' | 'light', number> = { light: 0.45, dark: 0.6 };
+const roadOverlayOpacity = (theme: 'dark' | 'light') =>
+  ['interpolate', ['linear'], ['zoom'], 7.5, 0, 10, ROAD_OVERLAY_OPACITY[theme]] as unknown as maplibregl.ExpressionSpecification;
+const postalBorderColor = (theme: 'dark' | 'light') => (theme === 'dark' ? '#334155' : '#94a3b8');
+const POSTAL_BORDER_WIDTH = ['interpolate', ['linear'], ['zoom'], 8, 0.3, 11, 0.6, 14, 1] as unknown as maplibregl.ExpressionSpecification;
+const POSTAL_BORDER_OPACITY = ['interpolate', ['linear'], ['zoom'], 7, 0.12, 10, 0.32, 13, 0.55] as unknown as maplibregl.ExpressionSpecification;
 // IN-1: per-pane fine-grained grid source/layer, mirroring the main map.
 const GRID_SOURCE_ID = 'grid-cells';
 const GRID_FILL_LAYER = 'grid-fill';
@@ -383,9 +394,9 @@ function addDataLayers(
     source: SOURCE_ID,
     filter: ['!', ['boolean', ['get', '_isMetroArea'], false]],
     paint: {
-      'line-color': theme === 'dark' ? '#1e293b' : '#475569',
-      'line-width': theme === 'dark' ? 0.8 : 1,
-      'line-opacity': 0.6,
+      'line-color': postalBorderColor(theme),
+      'line-width': POSTAL_BORDER_WIDTH,
+      'line-opacity': POSTAL_BORDER_OPACITY,
     },
   }, beforeLabels(map));
 
@@ -433,6 +444,20 @@ function addDataLayers(
     },
   }, beforeLabels(map));
 
+  // #1: roads-on-top ghost overlay (reuses the `carto` raster source), above
+  // the fill but below the borders/highlights.
+  if (ROAD_OVERLAY_OPACITY[theme] > 0 && !map.getLayer(ROAD_OVERLAY_LAYER)) {
+    map.addLayer({
+      id: ROAD_OVERLAY_LAYER,
+      type: 'raster',
+      source: 'carto',
+      paint: {
+        'raster-opacity': roadOverlayOpacity(theme),
+        'raster-contrast': 0.15,
+      },
+    }, LINE_LAYER);
+  }
+
   // IN-1: grid layer added last so LINE_LAYER already exists for beforeId.
   syncGridLayer(map, layer, gridData, fillOpacity);
 }
@@ -440,8 +465,11 @@ function addDataLayers(
 function updateThemeColors(map: maplibregl.Map, theme: 'dark' | 'light') {
   const border = theme === 'dark' ? '#1e293b' : '#475569';
   if (map.getLayer(LINE_LAYER)) {
-    map.setPaintProperty(LINE_LAYER, 'line-color', border);
-    map.setPaintProperty(LINE_LAYER, 'line-width', theme === 'dark' ? 0.8 : 1);
+    // #2: softened postal borders; width/opacity are theme-independent zoom exprs.
+    map.setPaintProperty(LINE_LAYER, 'line-color', postalBorderColor(theme));
+  }
+  if (map.getLayer(ROAD_OVERLAY_LAYER)) {
+    map.setPaintProperty(ROAD_OVERLAY_LAYER, 'raster-opacity', roadOverlayOpacity(theme));
   }
   if (map.getLayer(METRO_LINE_LAYER)) {
     map.setPaintProperty(METRO_LINE_LAYER, 'line-color', border);
