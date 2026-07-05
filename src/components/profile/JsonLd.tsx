@@ -24,6 +24,14 @@ interface JsonLdProps {
    */
   nationalFeatures?: ReadonlyArray<HasProperties | Record<string, unknown>>;
   regionFeatures?: ReadonlyArray<HasProperties | Record<string, unknown>>;
+  /**
+   * Precomputed percentile bundle, baked into the prerendered profile payload. When
+   * supplied it is used directly, so the FAQPage + percentile PropertyValues survive
+   * WITHOUT the national cohort — letting the profile page drop the ~2 MB national
+   * dataset fetch on the prerendered fast path while keeping the structured data intact.
+   * Falls back to computing from `nationalFeatures` (the client-side-navigation path).
+   */
+  percentiles?: NeighbourhoodPercentiles | null;
 }
 
 /** Localized FAQ/percentile copy, mirroring TEXT in scripts/prerender.mjs. */
@@ -229,6 +237,7 @@ export const JsonLd: React.FC<JsonLdProps> = ({
   lang = 'fi',
   nationalFeatures,
   regionFeatures,
+  percentiles,
 }) => {
   const cityName = properties.city ? t(`city.${properties.city}`) : 'Finland';
   // QW-5: language-aware regional-hub path, matching scripts/prerender.mjs's
@@ -245,14 +254,18 @@ export const JsonLd: React.FC<JsonLdProps> = ({
   // supplied. Without them we cannot rank against a real distribution, so we
   // fall back to the legacy behaviour (Place + BreadcrumbList, quality_index as
   // a raw 0–100 score) and skip the FAQPage and percentile properties entirely.
+  // Prefer the precomputed bundle baked into the prerendered payload; only fall back to
+  // computing from the national cohort on the client-side-navigation path (where the
+  // national set is loaded to resolve the target feature and no baked bundle exists).
   const hasCohorts = !!nationalFeatures && nationalFeatures.length > 0;
-  const pct: NeighbourhoodPercentiles | null = hasCohorts
-    ? computeNeighbourhoodPercentiles(
-        properties as unknown as Record<string, unknown>,
-        nationalFeatures as Array<HasProperties | Record<string, unknown>>,
-        (regionFeatures ?? nationalFeatures) as Array<HasProperties | Record<string, unknown>>,
-      )
-    : null;
+  const pct: NeighbourhoodPercentiles | null = percentiles
+    ?? (hasCohorts
+      ? computeNeighbourhoodPercentiles(
+          properties as unknown as Record<string, unknown>,
+          nationalFeatures as Array<HasProperties | Record<string, unknown>>,
+          (regionFeatures ?? nationalFeatures) as Array<HasProperties | Record<string, unknown>>,
+        )
+      : null);
 
   const additionalProperty: Array<Record<string, unknown>> = [];
   if (properties.quality_index != null) {

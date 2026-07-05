@@ -175,6 +175,47 @@ const NO_DATA_LAYER = 'neighborhoods-no-data-pattern';
 const GRID_SOURCE_ID = 'grid-cells';
 const GRID_FILL_LAYER = 'grid-fill';
 
+// Touch/pen ("coarse") pointers can't reliably hit a 1px target: a tap that lands a few
+// pixels off a small or dense urban polygon would otherwise select nothing, which reads
+// as "the map is broken" — worst exactly on the dense Helsinki-metro areas that drive the
+// most engagement. Detect a coarse primary pointer once and, on such a device, fall back
+// to sampling a small ring around a missed tap so the area under the finger still selects.
+// Fine pointers (mouse/trackpad) keep exact 1px hit-testing, so desktop precision is intact.
+const COARSE_POINTER =
+  typeof window !== 'undefined' &&
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(pointer: coarse)').matches;
+
+// Ring radii (screen px) probed on a coarse-pointer miss, nearest first so the closest
+// polygon to the tap wins.
+const TAP_FALLBACK_RADII = [8, 14];
+
+/**
+ * Hit-test the neighbourhood fill at a click/tap point. Tries an exact 1px query first
+ * (unchanged desktop precision); on a coarse pointer that missed, probes a small ring of
+ * points around the tap — nearest radius first — and returns the first polygon found, so
+ * near-misses on small/dense areas still select the intended neighbourhood instead of
+ * silently selecting nothing.
+ */
+function queryNeighborhoodsAt(
+  map: maplibregl.Map,
+  point: maplibregl.Point,
+): maplibregl.MapGeoJSONFeature[] {
+  const exact = map.queryRenderedFeatures(point, { layers: [FILL_LAYER] });
+  if (exact.length > 0 || !COARSE_POINTER) return exact;
+  for (const r of TAP_FALLBACK_RADII) {
+    for (let i = 0; i < 8; i++) {
+      const ang = (i / 8) * Math.PI * 2;
+      const near = map.queryRenderedFeatures(
+        [point.x + Math.cos(ang) * r, point.y + Math.sin(ang) * r],
+        { layers: [FILL_LAYER] },
+      );
+      if (near.length > 0) return near;
+    }
+  }
+  return exact;
+}
+
 // CF-5: travel-time isochrone overlay (sits above the choropleth fill, below
 // selection/hover borders and labels).
 const ISOCHRONE_SOURCE_ID = 'isochrone';
@@ -1395,7 +1436,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         return;
       }
       if (!map.getSource(SOURCE_ID)) return;
-      const features = map.queryRenderedFeatures(e.point, { layers: [FILL_LAYER] });
+      const features = queryNeighborhoodsAt(map, e.point);
       if (features.length > 0) {
         const props = features[0].properties as NeighborhoodProperties;
         if (!props?.pno) return;

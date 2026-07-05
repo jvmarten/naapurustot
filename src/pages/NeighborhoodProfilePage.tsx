@@ -5,6 +5,7 @@ import { loadNeighborhoodData, loadRegionData } from '../utils/dataLoader';
 import { parseSlug, toSlug } from '../utils/slug';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { computeMetroAverages, getMetricSource } from '../utils/metrics';
+import type { NeighbourhoodPercentiles } from '../utils/percentileRanks';
 import type { RegionId } from '../utils/regions';
 import { t, getLang, setLang, useI18nVersion, type Lang } from '../utils/i18n';
 import { formatNumber, formatEuro, formatPct, formatDiff } from '../utils/formatting';
@@ -27,6 +28,12 @@ interface EmbeddedProfile {
   p: NeighborhoodProperties;
   /** Dataset-wide averages, keyed by property name. */
   avg: Record<string, number>;
+  /**
+   * Precomputed national+regional percentile bundle (prerender.mjs). Lets the profile
+   * keep its FAQPage / percentile structured data without fetching the ~2 MB national
+   * dataset. Optional so pre-existing pages (older payloads) still parse.
+   */
+  pct?: NeighbourhoodPercentiles;
 }
 
 /**
@@ -57,6 +64,10 @@ interface LoadedState {
   regionFeatures: Feature[];
   allFeatures: Feature[];
   metroAverages: Record<string, number>;
+  // Precomputed percentile bundle from the prerendered payload (fast path). Null on the
+  // client-side-navigation / non-prerendered path, where <JsonLd /> derives percentiles
+  // from the national cohort (`allFeatures`) that path loads anyway.
+  percentiles: NeighbourhoodPercentiles | null;
 }
 
 /**
@@ -73,7 +84,7 @@ function initialStateFromEmbedded(slug: string | undefined): LoadedState | null 
   const embedded = readEmbeddedProfile(pno);
   if (!embedded) return null;
   const feat = { type: 'Feature', properties: embedded.p, geometry: null } as unknown as Feature;
-  return { feature: feat, geoFeature: null, regionFeatures: [], allFeatures: [], metroAverages: embedded.avg };
+  return { feature: feat, geoFeature: null, regionFeatures: [], allFeatures: [], metroAverages: embedded.avg, percentiles: embedded.pct ?? null };
 }
 
 export const NeighborhoodProfilePage: React.FC = () => {
@@ -140,6 +151,17 @@ export const NeighborhoodProfilePage: React.FC = () => {
 
   const pno = slug ? parseSlug(slug) : null;
 
+  // #1: captured once at mount — the pno + language the page was prerendered for (null pno
+  // when the page was not prerendered). The head effect uses these to leave the richer
+  // prerendered <title>/description/OG/hreflang untouched on the initial prerendered view,
+  // and only take over on client-side navigation to another profile or a language toggle.
+  const [prerenderedPno] = useState<string | null>(() => (pno && readEmbeddedProfile(pno) ? pno : null));
+  const [prerenderedLang] = useState<Lang>(() => pathLang);
+  // Flips true the first time we take over the <head>; from then on we always manage it,
+  // so navigating back to the originally prerendered area doesn't re-skip onto a now-stale
+  // head that an intervening navigation/toggle left behind.
+  const headMutatedRef = useRef(false);
+
   useEffect(() => {
     if (!pno) {
       setError('invalid_url');
@@ -180,10 +202,15 @@ export const NeighborhoodProfilePage: React.FC = () => {
       }
     };
 
-    // Fast path: prerendered pages embed a render-ready payload. Paint the
-    // profile from it immediately, then hydrate the map geometry and the
-    // national dataset (only needed for "similar neighbourhoods") in the
-    // background — neither blocks the largest contentful paint.
+    // Fast path: prerendered pages embed a render-ready payload (props + averages +
+    // precomputed percentiles). Paint the profile from it immediately, then hydrate ONLY
+    // the region geometry in the background (for the MiniMap and the region-scoped
+    // "similar neighbourhoods" grid). Crucially we no longer fetch the ~2 MB national
+    // dataset here: the percentile structured data comes from the baked `pct`, and the
+    // similar grid is sourced from the region's features — so the highest-traffic surface
+    // (SEO landings) drops a 2 MB fetch + 12 MB JSON.parse long-task off the main thread.
+    // The national set is pulled only on genuine in-app profile→profile navigation (the
+    // fallback path below), which needs it to resolve the target feature.
     const embedded = readEmbeddedProfile(pno);
     if (embedded) {
       const feat = { type: 'Feature', properties: embedded.p, geometry: null } as unknown as Feature;
@@ -193,17 +220,11 @@ export const NeighborhoodProfilePage: React.FC = () => {
         regionFeatures: [],
         allFeatures: [],
         metroAverages: embedded.avg,
+        percentiles: embedded.pct ?? null,
       });
       setLoading(false);
 
       void loadGeometry(embedded.p.city);
-      void loadNeighborhoodData()
-        .then(({ data }) => {
-          if (!cancelled) {
-            setState(prev => prev ? { ...prev, allFeatures: data.features } : prev);
-          }
-        })
-        .catch(() => { /* "similar neighbourhoods" stays empty if this fails */ });
 
       return () => { cancelled = true; };
     }
@@ -227,6 +248,9 @@ export const NeighborhoodProfilePage: React.FC = () => {
           regionFeatures: [],
           allFeatures: data.features,
           metroAverages,
+          // No baked bundle on this path — <JsonLd /> derives percentiles from the
+          // national cohort (`allFeatures`) we just loaded.
+          percentiles: null,
         });
         setLoading(false);
         void loadGeometry(feat.properties?.city as RegionId | undefined);
@@ -246,6 +270,17 @@ export const NeighborhoodProfilePage: React.FC = () => {
   useEffect(() => {
     if (state?.feature.properties) {
       const d = state.feature.properties as NeighborhoodProperties;
+      // #1: on the initial prerendered view, the static <head> the prerenderer baked is
+      // already correct AND richer (keyword-front-loaded title + percentile-led meta
+      // description) than anything we can rebuild here — especially now the fast path no
+      // longer loads the national dataset the rich description is derived from. Leave it
+      // untouched; only take over on client-side navigation to a different profile or a
+      // language toggle. Once we DO take over, keep managing it (headMutatedRef) so a
+      // later return to this area/lang doesn't re-skip onto a stale head.
+      if (!headMutatedRef.current && d.pno === prerenderedPno && lang === prerenderedLang) {
+        return undefined;
+      }
+      headMutatedRef.current = true;
       const slug = toSlug(d.pno, d.nimi);
       // Use Swedish name in title when viewing on the Swedish route (falls back to nimi).
       const titleName = lang === 'sv' && d.namn ? d.namn : d.nimi;
@@ -292,24 +327,26 @@ export const NeighborhoodProfilePage: React.FC = () => {
         document.head.appendChild(createdCanonical);
       }
 
-      // Hreflang — always created (not in index.html)
-      const hrefFi = document.createElement('link');
-      hrefFi.rel = 'alternate';
-      hrefFi.hreflang = 'fi';
-      hrefFi.href = canonicalByLang.fi;
-      document.head.appendChild(hrefFi);
-
-      const hrefEn = document.createElement('link');
-      hrefEn.rel = 'alternate';
-      hrefEn.hreflang = 'en';
-      hrefEn.href = canonicalByLang.en;
-      document.head.appendChild(hrefEn);
-
-      const hrefSv = document.createElement('link');
-      hrefSv.rel = 'alternate';
-      hrefSv.hreflang = 'sv';
-      hrefSv.href = canonicalByLang.sv;
-      document.head.appendChild(hrefSv);
+      // Hreflang — index.html and the prerenderer already ship fi/en/sv alternates, so
+      // UPDATE the existing links rather than always appending (which previously left a
+      // duplicate set on the client-navigation/toggle path). Create only if truly absent.
+      const hreflangCleanup: Array<() => void> = [];
+      for (const hl of ['fi', 'en', 'sv'] as const) {
+        const href = canonicalByLang[hl];
+        const existing = document.querySelector(`link[rel="alternate"][hreflang="${hl}"]`);
+        if (existing) {
+          const prev = existing.getAttribute('href');
+          existing.setAttribute('href', href);
+          hreflangCleanup.push(() => { if (prev != null) existing.setAttribute('href', prev); });
+        } else {
+          const link = document.createElement('link');
+          link.rel = 'alternate';
+          link.hreflang = hl;
+          link.href = href;
+          document.head.appendChild(link);
+          hreflangCleanup.push(() => link.remove());
+        }
+      }
 
       // OG/Twitter tags: the prerenderer rewrites these per page, but client-side
       // navigation between profiles (e.g. via "similar neighborhoods") must keep
@@ -344,16 +381,16 @@ export const NeighborhoodProfilePage: React.FC = () => {
           existingCanonical.setAttribute('href', prevCanonicalHref);
         }
         createdCanonical?.remove();
-        hrefFi.remove();
-        hrefEn.remove();
-        hrefSv.remove();
+        for (const undo of hreflangCleanup) undo();
       };
     }
     // No state yet → no head mutations happened, so no cleanup needed.
     return undefined;
   // lang is included so meta description updates when the user toggles language
-  // (t() reads the current global language, which changes when lang state changes)
-  }, [state, lang]);
+  // (t() reads the current global language, which changes when lang state changes).
+  // prerenderedPno/prerenderedLang are mount-stable (never change after first render),
+  // so listing them satisfies exhaustive-deps without adding any re-runs.
+  }, [state, lang, prerenderedPno, prerenderedLang]);
 
   const changeLang = (next: Lang) => {
     if (next === lang) return;
@@ -362,11 +399,17 @@ export const NeighborhoodProfilePage: React.FC = () => {
     if (slug) navigate(`${langPathPrefix[next]}/${slug}`, { replace: true });
   };
 
+  // "Similar neighbourhoods" grid — sourced from the region's own features (loaded for
+  // the MiniMap), NOT the national set, so the prerendered fast path no longer needs to
+  // fetch the ~2 MB national dataset just to fill a below-the-fold grid. On the
+  // client-side-navigation path the region features load the same way. Appears once the
+  // region geometry has loaded; the cross-region SEO link mesh lives in the prerendered
+  // <noscript> and is unaffected.
   const similar = useMemo(() => {
     if (!state) return [];
     return findSimilarNeighborhoods(
       state.feature.properties as NeighborhoodProperties,
-      state.allFeatures,
+      state.regionFeatures,
       5,
     );
   }, [state]);
@@ -464,7 +507,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-white dark:bg-surface-950 text-surface-900 dark:text-white">
-      <JsonLd properties={d} center={center} url={canonicalUrl} lang={lang} nationalFeatures={state.allFeatures} regionFeatures={state.regionFeatures} />
+      <JsonLd properties={d} center={center} url={canonicalUrl} lang={lang} percentiles={state.percentiles} nationalFeatures={state.allFeatures} regionFeatures={state.regionFeatures} />
 
       {/* Header */}
       <header className="border-b border-surface-200 dark:border-surface-800">
