@@ -1473,11 +1473,15 @@ function generatePage(feature, lang) {
     `<noscript>\n    <div style="max-width:820px;margin:2rem auto;padding:1rem;font-family:system-ui,sans-serif;line-height:1.55">\n${noscriptContent}\n    </div>\n  </noscript>`,
   );
 
-  // Embed this neighbourhood's processed properties + the dataset-wide
-  // averages so NeighborhoodProfilePage renders immediately, without first
-  // fetching the national dataset. `<` is escaped so a literal `</script>` in
-  // any string field cannot break out of the element.
-  const payload = JSON.stringify({ p: props, avg: metroAverages }).replace(/</g, '\\u003c');
+  // Embed this neighbourhood's processed properties + the dataset-wide averages +
+  // its precomputed percentile bundle so NeighborhoodProfilePage renders immediately
+  // AND keeps its FAQPage / percentile structured data — all WITHOUT fetching the
+  // ~2 MB national dataset on the prerendered fast path (the client only pulls it now
+  // on genuine in-app profile→profile navigation). `pct` mirrors the same
+  // computeNeighbourhoodPercentiles bundle <JsonLd /> would otherwise derive at
+  // runtime from the national cohort. `<` is escaped so a literal `</script>` in any
+  // string field cannot break out of the element.
+  const payload = JSON.stringify({ p: props, avg: metroAverages, pct: percentilesFor(props) }).replace(/</g, '\\u003c');
   html = html.replace(
     '</body>',
     `    <script id="__naapurustot_profile__" type="application/json">${payload}</script>\n  </body>`,
