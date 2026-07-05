@@ -172,6 +172,34 @@ const FILTER_HIGHLIGHT_LAYER = 'neighborhoods-filter-highlight';
 const WIZARD_HIGHLIGHT_LAYER = 'neighborhoods-wizard-highlight';
 const NO_DATA_LAYER = 'neighborhoods-no-data-pattern';
 
+// ── Map readability prototype ────────────────────────────────────────────────
+// #1 Roads-on-top: a second copy of the base raster drawn ABOVE the choropleth
+// fill at low opacity, so the road network (buried under the fill in the base
+// layer) ghosts back through and gives the eye a structural skeleton to orient
+// by — the main reason a dark-basemap map like peaceandquiet.io reads so cleanly.
+// The overlay reuses the same `carto` raster source as the base layer (one
+// source, two layers) so a theme swap via setTiles updates both. The effect is
+// far stronger on the dark basemap (light roads over dark land); on the light
+// (Positron) basemap it is a subtler wash. Tune per theme; set to 0 to disable.
+const ROAD_OVERLAY_LAYER = 'carto-roads-overlay';
+const ROAD_OVERLAY_OPACITY: Record<'dark' | 'light', number> = { light: 0.45, dark: 0.6 };
+// Fade the overlay in from z7.5→z10 so the all-Finland / regional overview stays
+// clean (a constant wash there just desaturates the region colours) and the road
+// skeleton only appears once you are zoomed into a city — in step with the border
+// fade below. Zoom interpolation is a camera expression, valid for raster-opacity.
+const roadOverlayOpacity = (theme: 'dark' | 'light') =>
+  ['interpolate', ['linear'], ['zoom'], 7.5, 0, 10, ROAD_OVERLAY_OPACITY[theme]] as unknown as maplibregl.ExpressionSpecification;
+
+// #2 Softened postal-code borders: the old #475569 / width-1 / opacity-0.6 stroke
+// around every one of 3,018 polygons turned dense city-centre areas into a
+// "stained glass" mesh. Lighter colour, thinner, and zoom-gated so borders are
+// nearly invisible at overview zoom and only firm up once you are inside a city.
+// (METRO_LINE_LAYER — the region outlines in the all-Finland view — is left
+// prominent on purpose; those few clean outlines are the readable ones.)
+const postalBorderColor = (theme: 'dark' | 'light') => (theme === 'dark' ? '#334155' : '#94a3b8');
+const POSTAL_BORDER_WIDTH = ['interpolate', ['linear'], ['zoom'], 8, 0.3, 11, 0.6, 14, 1] as unknown as maplibregl.ExpressionSpecification;
+const POSTAL_BORDER_OPACITY = ['interpolate', ['linear'], ['zoom'], 7, 0.12, 10, 0.32, 13, 0.55] as unknown as maplibregl.ExpressionSpecification;
+
 const GRID_SOURCE_ID = 'grid-cells';
 const GRID_FILL_LAYER = 'grid-fill';
 
@@ -599,9 +627,9 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         source: SOURCE_ID,
         filter: ['!', ['boolean', ['get', '_isMetroArea'], false]],
         paint: {
-          'line-color': theme === 'dark' ? '#1e293b' : '#475569',
-          'line-width': theme === 'dark' ? 0.8 : 1,
-          'line-opacity': 0.6,
+          'line-color': postalBorderColor(theme),
+          'line-width': POSTAL_BORDER_WIDTH,
+          'line-opacity': POSTAL_BORDER_OPACITY,
         },
       }, beforeLabels(map));
 
@@ -652,6 +680,23 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         },
       }, beforeLabels(map));
 
+      // #1: roads-on-top ghost overlay (see ROAD_OVERLAY_* above). Reuses the
+      // base `carto` raster source; inserted above the fill but below the data
+      // borders/highlights (beforeId=LINE_LAYER) so selection rings stay crisp.
+      if (ROAD_OVERLAY_OPACITY[theme] > 0 && !map.getLayer(ROAD_OVERLAY_LAYER)) {
+        map.addLayer({
+          id: ROAD_OVERLAY_LAYER,
+          type: 'raster',
+          source: 'carto',
+          paint: {
+            'raster-opacity': roadOverlayOpacity(theme),
+            // Nudge contrast so road casings separate from the near-white land
+            // on the light basemap instead of dissolving into a flat grey wash.
+            'raster-contrast': 0.15,
+          },
+        }, LINE_LAYER);
+      }
+
       // FILL_LAYER now exists — flush any pending grid layer that arrived
       // before this effect ran. Without this callback, addGridLayer's
       // beforeId=FILL_LAYER fails silently when grid data wins the race,
@@ -684,8 +729,13 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     const apply = () => {
       const border = theme === 'dark' ? '#1e293b' : '#475569';
       if (map.getLayer(LINE_LAYER)) {
-        map.setPaintProperty(LINE_LAYER, 'line-color', border);
-        map.setPaintProperty(LINE_LAYER, 'line-width', theme === 'dark' ? 0.8 : 1);
+        // #2: postal borders use the softened palette; width/opacity are
+        // zoom expressions (theme-independent) so they need no re-set here.
+        map.setPaintProperty(LINE_LAYER, 'line-color', postalBorderColor(theme));
+      }
+      if (map.getLayer(ROAD_OVERLAY_LAYER)) {
+        // #1: tiles are swapped by the source-swap effect; just retune opacity.
+        map.setPaintProperty(ROAD_OVERLAY_LAYER, 'raster-opacity', roadOverlayOpacity(theme));
       }
       if (map.getLayer(METRO_LINE_LAYER)) {
         map.setPaintProperty(METRO_LINE_LAYER, 'line-color', border);
