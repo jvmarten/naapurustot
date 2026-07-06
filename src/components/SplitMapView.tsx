@@ -244,12 +244,20 @@ const HIGHLIGHT_LAYER = 'neighborhoods-highlight';
 // (base raster redrawn above the fill so roads punch back through) and #2
 // softened, zoom-gated postal borders. Keep in sync with Map.tsx.
 const ROAD_OVERLAY_LAYER = 'carto-roads-overlay';
-const ROAD_OVERLAY_OPACITY: Record<'dark' | 'light', number> = { light: 0.45, dark: 0.6 };
+// Peak overlay opacity dialed back from 0.45/0.6 so the road wash stops muting
+// the choropleth at city zoom (worst in dark). Keep in sync with Map.tsx.
+const ROAD_OVERLAY_OPACITY: Record<'dark' | 'light', number> = { light: 0.4, dark: 0.48 };
 const roadOverlayOpacity = (theme: 'dark' | 'light') =>
   ['interpolate', ['linear'], ['zoom'], 7.5, 0, 10, ROAD_OVERLAY_OPACITY[theme]] as unknown as maplibregl.ExpressionSpecification;
 const postalBorderColor = (theme: 'dark' | 'light') => (theme === 'dark' ? '#334155' : '#94a3b8');
 const POSTAL_BORDER_WIDTH = ['interpolate', ['linear'], ['zoom'], 8, 0.3, 11, 0.6, 14, 1] as unknown as maplibregl.ExpressionSpecification;
 const POSTAL_BORDER_OPACITY = ['interpolate', ['linear'], ['zoom'], 7, 0.12, 10, 0.32, 13, 0.55] as unknown as maplibregl.ExpressionSpecification;
+// Region (metro-area) outlines in the all-Finland view — brought into the same
+// softened palette as postal borders (was #475569/#1e293b, width 1.5, opacity 0.7).
+// Reuses postalBorderColor (the two never coexist); opacity/width ease DOWN as you
+// zoom in since region borders matter most at the overview. Keep in sync with Map.tsx.
+const REGION_BORDER_WIDTH = ['interpolate', ['linear'], ['zoom'], 4, 1.1, 12, 0.6] as unknown as maplibregl.ExpressionSpecification;
+const REGION_BORDER_OPACITY = ['interpolate', ['linear'], ['zoom'], 4, 0.55, 13, 0.3] as unknown as maplibregl.ExpressionSpecification;
 // IN-1: per-pane fine-grained grid source/layer, mirroring the main map.
 const GRID_SOURCE_ID = 'grid-cells';
 const GRID_FILL_LAYER = 'grid-fill';
@@ -407,9 +415,9 @@ function addDataLayers(
     source: SOURCE_ID,
     filter: ['boolean', ['get', '_isMetroArea'], false],
     paint: {
-      'line-color': theme === 'dark' ? '#1e293b' : '#475569',
-      'line-width': 1.5,
-      'line-opacity': 0.7,
+      'line-color': postalBorderColor(theme),
+      'line-width': REGION_BORDER_WIDTH,
+      'line-opacity': REGION_BORDER_OPACITY,
     },
   }, beforeLabels(map));
 
@@ -463,7 +471,6 @@ function addDataLayers(
 }
 
 function updateThemeColors(map: maplibregl.Map, theme: 'dark' | 'light') {
-  const border = theme === 'dark' ? '#1e293b' : '#475569';
   if (map.getLayer(LINE_LAYER)) {
     // #2: softened postal borders; width/opacity are theme-independent zoom exprs.
     map.setPaintProperty(LINE_LAYER, 'line-color', postalBorderColor(theme));
@@ -472,7 +479,8 @@ function updateThemeColors(map: maplibregl.Map, theme: 'dark' | 'light') {
     map.setPaintProperty(ROAD_OVERLAY_LAYER, 'raster-opacity', roadOverlayOpacity(theme));
   }
   if (map.getLayer(METRO_LINE_LAYER)) {
-    map.setPaintProperty(METRO_LINE_LAYER, 'line-color', border);
+    // Region outlines share the softened postal palette; width/opacity are zoom exprs.
+    map.setPaintProperty(METRO_LINE_LAYER, 'line-color', postalBorderColor(theme));
   }
   if (map.getLayer(HIGHLIGHT_LAYER)) {
     map.setPaintProperty(HIGHLIGHT_LAYER, 'line-color', theme === 'dark' ? '#f8fafc' : '#0f172a');

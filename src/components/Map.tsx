@@ -182,7 +182,11 @@ const NO_DATA_LAYER = 'neighborhoods-no-data-pattern';
 // far stronger on the dark basemap (light roads over dark land); on the light
 // (Positron) basemap it is a subtler wash. Tune per theme; set to 0 to disable.
 const ROAD_OVERLAY_LAYER = 'carto-roads-overlay';
-const ROAD_OVERLAY_OPACITY: Record<'dark' | 'light', number> = { light: 0.45, dark: 0.6 };
+// Peak overlay opacity per theme. Dialed back from the initial 0.45/0.6: at city
+// zoom the overlay is a full-strength wash over the choropleth, and the dark
+// basemap raster at 0.6 muted the region colours noticeably (worst in dark mode).
+// Lower peaks keep the road skeleton readable while letting the data colour show.
+const ROAD_OVERLAY_OPACITY: Record<'dark' | 'light', number> = { light: 0.4, dark: 0.48 };
 // Fade the overlay in from z7.5→z10 so the all-Finland / regional overview stays
 // clean (a constant wash there just desaturates the region colours) and the road
 // skeleton only appears once you are zoomed into a city — in step with the border
@@ -199,6 +203,18 @@ const roadOverlayOpacity = (theme: 'dark' | 'light') =>
 const postalBorderColor = (theme: 'dark' | 'light') => (theme === 'dark' ? '#334155' : '#94a3b8');
 const POSTAL_BORDER_WIDTH = ['interpolate', ['linear'], ['zoom'], 8, 0.3, 11, 0.6, 14, 1] as unknown as maplibregl.ExpressionSpecification;
 const POSTAL_BORDER_OPACITY = ['interpolate', ['linear'], ['zoom'], 7, 0.12, 10, 0.32, 13, 0.55] as unknown as maplibregl.ExpressionSpecification;
+
+// Region (metro-area) outlines in the all-Finland view. Previously the one heavy
+// stroke the softened-postal pass left alone: #475569/#1e293b, width 1.5, opacity
+// 0.7 — a hard dark border that clashed with the now-lighter postal mesh. Bring it
+// into the same softened palette — reusing postalBorderColor, since the two never
+// coexist (only metro-area features draw here, only postal features draw there) —
+// so the whole-Finland region borders read as gently as the city postal borders.
+// Unlike postal borders (near-invisible at overview, firming up in-city), region
+// outlines matter MOST at the all-Finland overview (default zoom ~4.8), so
+// opacity/width ease DOWN as you zoom into a region. Kept in sync with SplitMapView.
+const REGION_BORDER_WIDTH = ['interpolate', ['linear'], ['zoom'], 4, 1.1, 12, 0.6] as unknown as maplibregl.ExpressionSpecification;
+const REGION_BORDER_OPACITY = ['interpolate', ['linear'], ['zoom'], 4, 0.55, 13, 0.3] as unknown as maplibregl.ExpressionSpecification;
 
 const GRID_SOURCE_ID = 'grid-cells';
 const GRID_FILL_LAYER = 'grid-fill';
@@ -640,9 +656,9 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         source: SOURCE_ID,
         filter: ['boolean', ['get', '_isMetroArea'], false],
         paint: {
-          'line-color': theme === 'dark' ? '#1e293b' : '#475569',
-          'line-width': 1.5,
-          'line-opacity': 0.7,
+          'line-color': postalBorderColor(theme),
+          'line-width': REGION_BORDER_WIDTH,
+          'line-opacity': REGION_BORDER_OPACITY,
         },
       }, beforeLabels(map));
 
@@ -727,7 +743,6 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     const map = mapRef.current;
     if (!map) return;
     const apply = () => {
-      const border = theme === 'dark' ? '#1e293b' : '#475569';
       if (map.getLayer(LINE_LAYER)) {
         // #2: postal borders use the softened palette; width/opacity are
         // zoom expressions (theme-independent) so they need no re-set here.
@@ -738,7 +753,9 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         map.setPaintProperty(ROAD_OVERLAY_LAYER, 'raster-opacity', roadOverlayOpacity(theme));
       }
       if (map.getLayer(METRO_LINE_LAYER)) {
-        map.setPaintProperty(METRO_LINE_LAYER, 'line-color', border);
+        // Region outlines share the softened postal palette; width/opacity are
+        // theme-independent zoom expressions, so only the colour is re-set here.
+        map.setPaintProperty(METRO_LINE_LAYER, 'line-color', postalBorderColor(theme));
       }
       if (map.getLayer(HIGHLIGHT_LAYER)) {
         map.setPaintProperty(HIGHLIGHT_LAYER, 'line-color', theme === 'dark' ? '#f8fafc' : '#0f172a');
