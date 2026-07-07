@@ -2,7 +2,6 @@ import React, { lazy, Suspense } from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { registerSW } from 'virtual:pwa-register';
-import App from './App';
 import { ThemeProvider } from './hooks/useTheme';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { installChunkReloadHandler } from './utils/chunkReload';
@@ -26,6 +25,18 @@ try {
 // deployment — installed before any dynamic import fires so the first failure
 // is caught.
 installChunkReloadHandler();
+
+// Code-split the whole App shell off the entry chunk. App (~157KB source) statically
+// pulls the entire map experience — LayerSelector, SearchBar, CitySelector, the Map +
+// maplibre, filter/metroAreas/geocode/isochrone — none of which the ~9,000 prerendered
+// profile pages (which clone dist/index.html) ever execute. Making it lazy keeps that
+// code, plus maplibre's modulepreload and render-blocking CSS, out of the entry's static
+// graph, so profile pages download & parse a far smaller entry. The home route is kept
+// off a waterfall by a build-time modulepreload for the App + maplibre chunks (see the
+// injectHomePreloads plugin in vite.config.ts), which prerender.mjs then strips from the
+// profile pages that don't need them.
+// eslint-disable-next-line react-refresh/only-export-components
+const App = lazy(() => import('./App'));
 
 // Lazy-load route-specific pages — most users only interact with the main map.
 // NeighborhoodProfilePage (~21KB source) imports dataLoader, similarity, qualityIndex,
@@ -163,7 +174,21 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             </div>
           }>
             <Routes>
-              <Route path="/" element={<App />} />
+              {/* App is now a lazy chunk. Give the home route its own Suspense with
+                  the branded first-paint placeholder (reusing index.html's .app-boot
+                  styles) so a cold load shows the wordmark, not the bare route
+                  spinner, while the App chunk streams in (modulepreloaded — see
+                  vite.config.ts injectHomePreloads). */}
+              <Route path="/" element={
+                <Suspense fallback={
+                  <div className="app-boot" aria-hidden="true">
+                    <div className="app-boot__mark">naapurustot<span>.fi</span></div>
+                    <div className="app-boot__bar"></div>
+                  </div>
+                }>
+                  <App />
+                </Suspense>
+              } />
               {/* Profile routes are wrapped in an ErrorBoundary so a render-phase
                   crash (e.g. a "Maximum call stack size exceeded" RangeError seen
                   on memory-constrained mobile engines) degrades to a recoverable

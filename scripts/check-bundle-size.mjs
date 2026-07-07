@@ -86,7 +86,19 @@ import { join } from 'node:path';
 // Also +~0.1 KB from the requestIdleCallback search-index defer (cold-load HM). The SEO
 // prerender mesh (muni rankings + X-vs-Y) and the topojson shrink / mobile-attribution
 // fixes are all build-time / data / CSS → ZERO bundle bytes.)
-const BUDGET = 303_000;
+// → 313000 B (2026-07-07: code-split the App shell off the entry chunk (src/main.tsx
+// makes App a lazy import; a vite.config injectHomePreloads plugin re-adds the home-route
+// App + maplibre preloads, which prerender.mjs strips from the ~9,000 cloned profile /
+// sources / privacy pages). This drops the entry from ~85 KB to ~20 KB gzipped and removes
+// maplibre's modulepreload + render-blocking CSS from every profile page — a large win on
+// the primary organic-landing surface. It is NOT new code: the App shell + its ~15 formerly
+// entry-inlined dependencies simply relocate into an App chunk plus shared chunks. That
+// finer-grained splitting costs ~7.2 KB of gzip fragmentation overhead (many small chunks
+// compress worse than one large one; Rolldown exposes no minChunkSize knob to reclaim it),
+// which the summed-all-chunks budget counts. The trade — +7 KB to the total (borne mostly
+// by map-route users, who load it lazily anyway) for -65 KB on the profile critical path —
+// is strongly net-positive for the SEO surface. Headroom set to ~2.7 KB.
+const BUDGET = 313_000;
 const ASSETS_DIR = 'dist/assets';
 
 const fmtKB = (b) => (b / 1024).toFixed(2);

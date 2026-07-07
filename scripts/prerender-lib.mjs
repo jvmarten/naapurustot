@@ -25,6 +25,24 @@ export function escapeHtml(str) {
 const count = (html, re) => (html.match(re) || []).length;
 
 /**
+ * Strip the home-route-only critical-chunk preloads that vite.config.ts's
+ * `injectHomePreloads` plugin adds to dist/index.html — the App + maplibre
+ * modulepreloads and the maplibre CSS preload, each tagged `data-home-preload`.
+ *
+ * prerender.mjs clones dist/index.html for the ~9,000 profile pages plus the
+ * data-sources / privacy pages. None of those routes load the App shell or the full
+ * map (profiles render a lazy MiniMap that re-injects maplibre on demand), so
+ * preloading the ~263 KB maplibre chunk and its CSS on them is pure waste — and the
+ * CSS preload would warm a resource those pages may never use. Matching on the
+ * `data-home-preload` marker keeps this decoupled from chunk hashes and from how many
+ * such tags exist; a 0-match no-op is safe, so it stays correct if the injected set
+ * changes (or the plugin is ever removed).
+ */
+export function stripHomeOnlyPreloads(html) {
+  return html.replace(/[ \t]*<link\b[^>]*\bdata-home-preload\b[^>]*>\r?\n?/g, '');
+}
+
+/**
  * Validate the integrity of a fully-assembled page's <head>. Throws an Error
  * (prefixed with `context`) on any violation, so a malformed clone fails the build
  * instead of shipping ~9,000 corrupted pages.

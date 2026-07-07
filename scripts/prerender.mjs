@@ -30,7 +30,7 @@ import { buildStubHtml, AREA_PREFIX as ALIAS_AREA_PREFIX } from './update_slug_a
 // token ever appears twice (CLAUDE.md "Prerender head-token regexes"). Asserting on
 // each assembled page turns that into a loud build failure instead of ~9,000 broken
 // pages. Pure + side-effect-free, and unit-tested in prerenderOutput.test.ts.
-import { assertHeadIntegrity } from './prerender-lib.mjs';
+import { assertHeadIntegrity, stripHomeOnlyPreloads } from './prerender-lib.mjs';
 // The app's data-processing functions, reused at build time so each page can
 // embed a render-ready payload. Both modules have type-only imports, so Node's
 // TypeScript stripping (Node 22.18+/24) loads them without a build step.
@@ -55,8 +55,12 @@ const ROOT = join(__dirname, '..');
 const DIST = join(ROOT, 'dist');
 const GEOJSON_PATH = join(ROOT, 'public', 'data', 'metro_neighborhoods.geojson');
 
-// Read the built index.html as template.
-const template = readFileSync(join(DIST, 'index.html'), 'utf-8');
+// Read the built index.html as template. Strip the home-route-only App + maplibre
+// preloads (vite.config.ts injectHomePreloads) up front: this template is cloned ONLY
+// for non-home routes (profiles, data-sources, privacy, redirect stubs), none of which
+// load the App shell or the full map, so they must not preload the ~263 KB maplibre
+// chunk or render-block on its CSS. dist/index.html itself (the home route) keeps them.
+const template = stripHomeOnlyPreloads(readFileSync(join(DIST, 'index.html'), 'utf-8'));
 
 // Read GeoJSON.
 const geojson = JSON.parse(readFileSync(GEOJSON_PATH, 'utf-8'));
