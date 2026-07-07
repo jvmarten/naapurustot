@@ -87,6 +87,53 @@ function stripBuildOnlyData(): Plugin {
   }
 }
 
+// Home-route critical-chunk preloads.
+//
+// src/main.tsx code-splits the whole App shell off the entry chunk (so the ~9,000
+// prerendered profile pages, which clone dist/index.html, no longer download &
+// parse the map app — and maplibre's modulepreload + render-blocking CSS drop out
+// of the entry's static graph automatically). The cost is that the home route ('/')
+// would otherwise waterfall: entry → App chunk → Map → maplibre. We restore parallel
+// fetching by injecting, into dist/index.html only, a modulepreload for the App and
+// maplibre chunks plus a NON-render-blocking preload for maplibre's CSS (the actual
+// stylesheet link is injected at runtime by Vite's chunk loader when the Map mounts).
+//
+// Every tag is marked `data-home-preload` so prerender.mjs can strip them from the
+// cloned profile / data-sources / privacy pages — none of those routes load the App
+// shell or the full map (profiles render a lazy MiniMap that re-injects maplibre on
+// demand), so preloading the ~263 KB maplibre chunk there is pure waste.
+function injectHomePreloads(): Plugin {
+  return {
+    name: 'naapurustot-inject-home-preloads',
+    apply: 'build',
+    transformIndexHtml: {
+      order: 'post',
+      handler(html, ctx) {
+        const bundle = ctx.bundle
+        if (!bundle) return html
+        let appHref: string | undefined
+        let maplibreJs: string | undefined
+        let maplibreCss: string | undefined
+        for (const [fileName, output] of Object.entries(bundle)) {
+          if (output.type === 'chunk') {
+            const facade = (output.facadeModuleId ?? '').replace(/\\/g, '/')
+            if (output.name === 'App' || facade.endsWith('/src/App.tsx')) appHref = '/' + fileName
+            else if (output.name === 'maplibre') maplibreJs = '/' + fileName
+          } else if (output.type === 'asset' && /(^|\/)maplibre-[^/]*\.css$/.test(fileName)) {
+            maplibreCss = '/' + fileName
+          }
+        }
+        const mark = { 'data-home-preload': true }
+        const tags = []
+        if (appHref) tags.push({ tag: 'link', injectTo: 'head' as const, attrs: { rel: 'modulepreload', crossorigin: true, href: appHref, ...mark } })
+        if (maplibreJs) tags.push({ tag: 'link', injectTo: 'head' as const, attrs: { rel: 'modulepreload', crossorigin: true, href: maplibreJs, ...mark } })
+        if (maplibreCss) tags.push({ tag: 'link', injectTo: 'head' as const, attrs: { rel: 'preload', as: 'style', crossorigin: true, href: maplibreCss, ...mark } })
+        return { html, tags }
+      },
+    },
+  }
+}
+
 const SENTRY_AUTH_TOKEN = process.env.SENTRY_AUTH_TOKEN
 const SENTRY_ORG = process.env.SENTRY_ORG
 const SENTRY_PROJECT = process.env.SENTRY_PROJECT
@@ -96,6 +143,9 @@ const SENTRY_RELEASE = process.env.VITE_SENTRY_RELEASE
 export default defineConfig({
   plugins: [
     react(),
+    // Re-add the home-route App + maplibre preloads that code-splitting App removed
+    // from the entry's static graph (stripped from cloned profile pages by prerender).
+    injectHomePreloads(),
     viteCompression({ algorithm: 'gzip', threshold: 1024, filter: /\.(js|css|html|json|topojson|svg)$/ }),
     viteCompression({ algorithm: 'brotliCompress', threshold: 1024, ext: '.br', filter: /\.(js|css|html|json|topojson|svg)$/ }),
     // IN-6: Service Worker & Offline Support

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 // @ts-expect-error — plain .mjs build script with no type declarations
-import { escapeHtml, assertHeadIntegrity, replaceOnce } from '../../scripts/prerender-lib.mjs';
+import { escapeHtml, assertHeadIntegrity, replaceOnce, stripHomeOnlyPreloads } from '../../scripts/prerender-lib.mjs';
 
 /**
  * IN-6: prerender output regression tests.
@@ -210,6 +210,43 @@ describe('assertHeadIntegrity — profile payload', () => {
       '<script id="__naapurustot_profile__" type="application/json">{"avg":{}}</script>',
     );
     expect(() => assertHeadIntegrity(html, { context: 'no-p', expectProfilePayload: true })).toThrow(/missing its `p`/);
+  });
+});
+
+describe('stripHomeOnlyPreloads', () => {
+  // Mirrors what vite.config.ts injectHomePreloads emits into dist/index.html.
+  const homeHead = [
+    '    <script type="module" crossorigin src="/assets/index-Byjamx2s.js"></script>',
+    '    <link rel="modulepreload" crossorigin href="/assets/vendor-U9-9Ekmn.js">',
+    '    <link rel="stylesheet" crossorigin href="/assets/index-CwKi8MFi.css">',
+    '    <link rel="modulepreload" crossorigin href="/assets/App-DCYJ3ijF.js" data-home-preload>',
+    '    <link rel="modulepreload" crossorigin href="/assets/maplibre-Bw_DjpE9.js" data-home-preload>',
+    '    <link rel="preload" as="style" crossorigin href="/assets/maplibre-B2k4QVOw.css" data-home-preload>',
+  ].join('\n');
+
+  it('removes every data-home-preload tag (App + maplibre js + maplibre css)', () => {
+    const out = stripHomeOnlyPreloads(homeHead);
+    expect(out).not.toContain('data-home-preload');
+    expect(out).not.toContain('App-DCYJ3ijF.js');
+    expect(out).not.toContain('maplibre-Bw_DjpE9.js');
+    expect(out).not.toContain('maplibre-B2k4QVOw.css');
+  });
+
+  it('keeps the entry script, vendor modulepreload, and index stylesheet (unmarked tags)', () => {
+    const out = stripHomeOnlyPreloads(homeHead);
+    expect(out).toContain('/assets/index-Byjamx2s.js');
+    expect(out).toContain('/assets/vendor-U9-9Ekmn.js');
+    expect(out).toContain('/assets/index-CwKi8MFi.css');
+  });
+
+  it('is a safe no-op when there are no marked tags', () => {
+    const plain = '<head>\n    <link rel="stylesheet" href="/assets/index.css">\n  </head>';
+    expect(stripHomeOnlyPreloads(plain)).toBe(plain);
+  });
+
+  it('tolerates attribute-order variation (marker not last)', () => {
+    const html = '    <link data-home-preload rel="modulepreload" crossorigin href="/assets/App-x.js">\n';
+    expect(stripHomeOnlyPreloads(html)).toBe('');
   });
 });
 
