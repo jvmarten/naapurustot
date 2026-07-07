@@ -2636,8 +2636,6 @@ const App: React.FC = () => {
             isCustomWeights={customWeights}
             qualityWeights={customWeights ? qualityWeights : undefined}
             allFeatures={allFeatures}
-            summaryScope={cityFilter === 'all' ? 'national' : 'region'}
-            summaryRegion={cityFilter === 'all' ? '' : t('city.' + cityFilter)}
             activeLayer={activeLayer}
             onFlyTo={handleFlyTo}
             isFavorite={isFavorite(selected.pno)}
