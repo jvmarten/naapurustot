@@ -134,6 +134,15 @@ if (SENTRY_DSN) {
         /Extension context invalidated/i,
         /message port closed/i,
         /Receiving end does not exist/i,
+        // MapLibre aborts in-flight tile fetches on every pan/zoom; on Safari
+        // the aborted fetch rejects with an unhandled "AbortError: Fetch is
+        // aborted" that Sentry's global onunhandledrejection handler captures.
+        // It is library-internal noise, not a bug — every fetch we abort
+        // ourselves (SearchBar, ShortlistTray, NeighborhoodPanel, useGridData)
+        // already catches its own AbortError. Match the type so we drop it
+        // regardless of each browser's wording ("Fetch is aborted" on Safari,
+        // "The user aborted a request" on Chrome, etc.).
+        /AbortError/,
       ],
       // Drop events whose stack frames all point at extension URLs. Different
       // browsers use different protocols for injected extension scripts.
