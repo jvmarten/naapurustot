@@ -123,4 +123,41 @@ describe('LayerSelector', () => {
     render(<LayerSelector activeLayer="quality_index" onLayerChange={() => {}} />);
     expect(screen.getAllByText('layers.title').length).toBeGreaterThanOrEqual(1);
   });
+
+  // The planning (kaavat & hankkeet) overlay toggle is desktop-only as a floating
+  // panel; on mobile it is folded into the Layers sheet via the `planningSlot`
+  // prop so touch users can enable it at all. These lock in that wiring.
+  describe('planningSlot (mobile)', () => {
+    // The mobile FAB is the only button carrying this aria-label (the desktop
+    // header toggle uses inline text, and the dialog is a div, not a button).
+    const openMobileSheet = (container: HTMLElement) => {
+      const fab = container.querySelector<HTMLButtonElement>('button[aria-label="layers.title"]');
+      fireEvent.click(fab!);
+    };
+
+    it('renders the slot inside the opened mobile sheet', () => {
+      const { container } = render(
+        <LayerSelector
+          activeLayer="quality_index"
+          onLayerChange={() => {}}
+          planningSlot={<div data-testid="planning-slot">PLANNING</div>}
+        />
+      );
+      // Absent until the sheet opens — the slot lives only in the mobile sheet,
+      // never in the desktop dropdown (which has its own floating panel).
+      expect(screen.queryByTestId('planning-slot')).toBeNull();
+      openMobileSheet(container);
+      expect(screen.getByTestId('planning-slot')).toBeInTheDocument();
+    });
+
+    it('omits the planning section when no slot is provided', () => {
+      const { container } = render(
+        <LayerSelector activeLayer="quality_index" onLayerChange={() => {}} />
+      );
+      openMobileSheet(container);
+      // Sheet still opens normally; there is just no planning section.
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(screen.queryByTestId('planning-slot')).toBeNull();
+    });
+  });
 });

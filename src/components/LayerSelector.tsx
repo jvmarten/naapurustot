@@ -19,6 +19,13 @@ interface LayerSelectorProps {
   onCustomizeQuality?: () => void;
   isCustomWeights?: boolean;
   headerSlot?: React.ReactNode;
+  /**
+   * Mobile-only: kaavat & hankkeet overlay controls, folded into the top of the
+   * Layers sheet. On desktop the planning toggle is its own floating panel
+   * (App.tsx), so this slot is rendered only in the `md:hidden` mobile sheet to
+   * avoid duplication. Null/undefined when the active region has no planning data.
+   */
+  planningSlot?: React.ReactNode;
   /** Pass current language to trigger re-render on language change */
   lang?: Lang;
   /** MO2: on mobile, suppress the FAB when a full-width panel covers it (desktop dropdown is unaffected). */
@@ -107,7 +114,7 @@ const LayerSignals: React.FC<{ property: string }> = ({ property }) => {
   );
 };
 
-export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeLayer, onLayerChange, onCustomizeQuality, isCustomWeights = false, headerSlot, lang: _lang, hidden }) => {
+export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeLayer, onLayerChange, onCustomizeQuality, isCustomWeights = false, headerSlot, planningSlot, lang: _lang, hidden }) => {
   useI18nVersion();
   // M5: instant sheet snap when the user prefers reduced motion.
   const reducedMotion = useReducedMotion();
@@ -505,6 +512,15 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
             </div>
 
             <div className="overflow-y-auto flex-1 min-h-0 pb-safe">
+              {/* kaavat & hankkeet overlay — mobile equivalent of the desktop
+                  floating PlanningControls panel; only present for regions that
+                  have planning geometry. Sits above the layer list so it's
+                  discoverable on open rather than buried under 59 layers. */}
+              {planningSlot && (
+                <div className="px-3 pt-3 pb-1 border-b border-surface-200 dark:border-surface-800/50">
+                  {planningSlot}
+                </div>
+              )}
               {layerList}
             </div>
           </div>

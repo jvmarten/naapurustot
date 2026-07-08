@@ -205,6 +205,30 @@ describe('useSyncUrlState', () => {
     expect(lastCall[2]).toBe('/?city=turku');
   });
 
+  it('writes plan=1 to URL when the planning overlay is enabled', () => {
+    replaceStateSpy.mockClear();
+    renderHook(() => useSyncUrlState(null, 'quality_index', [], 'helsinki_metro', true, { planning: true }));
+    vi.advanceTimersByTime(150);
+    const lastCall = replaceStateSpy.mock.calls[replaceStateSpy.mock.calls.length - 1];
+    const url = lastCall[2] as string;
+    expect(url).toContain('plan=1');
+  });
+
+  it('drops the plan param when the planning overlay is toggled off', () => {
+    // Start from a URL that already carries plan=1 so writeUrl actually fires.
+    Object.defineProperty(window, 'location', {
+      value: { search: '?city=helsinki_metro&plan=1', hash: '', pathname: '/' },
+      writable: true,
+      configurable: true,
+    });
+    replaceStateSpy.mockClear();
+    renderHook(() => useSyncUrlState(null, 'quality_index', [], 'helsinki_metro', true, { planning: false }));
+    vi.advanceTimersByTime(150);
+    const lastCall = replaceStateSpy.mock.calls[replaceStateSpy.mock.calls.length - 1];
+    const url = lastCall[2] as string;
+    expect(url).not.toContain('plan=');
+  });
+
   it('produces clean URL when no state is set', () => {
     // Set search to something non-empty so writeUrl actually calls replaceState
     Object.defineProperty(window, 'location', {
