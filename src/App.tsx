@@ -6,7 +6,8 @@ import React, { useState, useCallback, useEffect, useRef, useMemo, lazy, Suspens
 // parse instead of serializing behind it. maplibre-* is excluded from the bundle-budget
 // gate, so this is budget-neutral. Declared with the other lazy components below.
 import { DEFAULT_CENTER, DEFAULT_ZOOM, CITY_VIEWPORTS } from './utils/mapConstants';
-import { REGION_IDS, DEFAULT_CITY } from './utils/regions';
+import { REGION_IDS, DEFAULT_CITY, type RegionId } from './utils/regions';
+import { loadRegionData } from './utils/dataLoader';
 import { LayerSelector } from './components/LayerSelector';
 import { SearchBar } from './components/SearchBar';
 import { ContactMenu } from './components/ContactMenu';
@@ -1855,6 +1856,17 @@ const App: React.FC = () => {
     if (fallback?.properties) select(fallback.properties as NeighborhoodProperties);
   }, [selectAndFly, select, deselect, setCityFilter, regionIdSet, showToast]);
 
+  // RU-B: prefetch a region's postal-code dataset the moment its aggregate is selected
+  // on the all-Finland view (drill-in intent). loadRegionData shares cached in-flight
+  // promises, so the subsequent "Explore this region" click reuses this fetch instead of
+  // starting it cold — the first drill-in is the slowest step to the app's differentiator.
+  // No-op when the region is already loaded/loading, or when a real postal area is selected.
+  useEffect(() => {
+    if (selected?._isMetroArea && selected.pno && regionIdSet.has(selected.pno)) {
+      loadRegionData(selected.pno as RegionId).catch(() => { /* prewarm only; the real load surfaces errors */ });
+    }
+  }, [selected, regionIdSet]);
+
   // QW-2: shortlist tray entries (pno → name) and the "compare" action, which pins
   // the shortlist up to the comparison max (pin() dedupes + caps internally).
   const shortlistEntries = useMemo(
@@ -2574,7 +2586,22 @@ const App: React.FC = () => {
               <div className="text-[11px] opacity-80 flex items-center gap-1 tabular-nums">
                 <span>{typeof v === 'number' ? effectiveLayer.format(v) : '—'}</span>
                 {delta != null && (
-                  <span aria-hidden="true">{delta > 0 ? '▲' : delta < 0 ? '▼' : '＝'} {t('tooltip.vs_avg')}</span>
+                  // RU-C: color the vs-avg direction by metric polarity (green = better,
+                  // red = worse), matching the desktop tooltip. For lower-is-better layers
+                  // (unemployment, crime, pollution, …) a ▲ above the average is *worse*,
+                  // so a neutral gray arrow was misleading.
+                  <span
+                    aria-hidden="true"
+                    className={
+                      delta === 0
+                        ? ''
+                        : (delta > 0) === (effectiveLayer.higherIsBetter !== false)
+                          ? 'text-emerald-400 dark:text-emerald-600'
+                          : 'text-rose-400 dark:text-rose-500'
+                    }
+                  >
+                    {delta > 0 ? '▲' : delta < 0 ? '▼' : '＝'} {t('tooltip.vs_avg')}
+                  </span>
                 )}
               </div>
             </div>
@@ -2723,6 +2750,9 @@ const App: React.FC = () => {
               affordability={affordabilityState}
               qualityWeights={qualityWeights}
               cityFilter={cityFilter}
+              onAddToShortlist={mergeIntoShortlist}
+              onToggleShortlist={toggleShortlist}
+              isInShortlist={isInShortlist}
             />
           </Suspense>
         </ErrorBoundary>
