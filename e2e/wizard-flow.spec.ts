@@ -91,11 +91,11 @@ test.describe('neighborhood wizard flow', () => {
     // The results heading "Parhaat osumat" (Top matches) should appear
     await expect(page.locator('h3:has-text("Parhaat osumat")')).toBeVisible({ timeout: 10000 });
 
-    // Results should show numbered neighborhood matches (at least one)
-    // Each result has a numbered circle (1, 2, 3...) and a name
-    const resultItems = page.locator('button').filter({
-      has: page.locator('.rounded-full.bg-blue-500'),
-    });
+    // Results should show numbered neighborhood matches (at least one). Each result
+    // card is a stretched-link div (the whole card opens the area; a separate "+"
+    // button adds it to the shortlist), so the numbered circle (1, 2, 3…) no longer
+    // sits inside a <button>. Count the circles directly, scoped to the wizard modal.
+    const resultItems = wizardModal.locator('.rounded-full.bg-blue-500');
     const resultCount = await resultItems.count();
     expect(resultCount).toBeGreaterThan(0);
 
