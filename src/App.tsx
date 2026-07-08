@@ -1759,6 +1759,16 @@ const App: React.FC = () => {
       </div>
     )
   ), [comparisonScope, cityFilter, handleScopeChange]);
+  // Mobile-only planning overlay controls, folded into the Layers sheet. On desktop
+  // the same PlanningControls render as a standalone floating panel below (see the
+  // `hidden md:block` block near the LayerSelector); LayerSelector renders this slot
+  // only in its `md:hidden` sheet, so there's no duplication. Region-scoped: null on
+  // the all-Finland view and for regions without any plan/project geometry.
+  const layerSelectorPlanningSlot = useMemo(() => (
+    cityFilter !== 'all' && regionHasPlanningGeometry(cityFilter) ? (
+      <PlanningControls enabled={planningEnabled} region={cityFilter} onToggle={handlePlanningToggle} />
+    ) : null
+  ), [cityFilter, planningEnabled, handlePlanningToggle]);
   // Stable callbacks for NeighborhoodPanel props — prevents new closures on every render
   // which would defeat React.memo on the panel.
   const handleToggleFavorite = useCallback(() => {
@@ -2526,6 +2536,7 @@ const App: React.FC = () => {
           onCustomizeQuality={handleToggleCustomQuality}
           isCustomWeights={customWeights}
           headerSlot={layerSelectorHeaderSlot}
+          planningSlot={layerSelectorPlanningSlot}
           lang={lang}
           hidden={!!selected || splitMode}
         />
