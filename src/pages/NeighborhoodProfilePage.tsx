@@ -511,10 +511,19 @@ export const NeighborhoodProfilePage: React.FC = () => {
 
       {/* Header */}
       <header className="border-b border-surface-200 dark:border-surface-800">
-        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Link to="/" className="text-lg font-bold text-brand-600 hover:text-brand-600 transition-colors">
-            naapurustot.fi
-          </Link>
+        <div className="max-w-5xl mx-auto px-4 py-4 flex items-start justify-between gap-3">
+          <div>
+            <Link to="/" className="text-lg font-bold text-brand-600 hover:text-brand-600 transition-colors">
+              naapurustot.fi
+            </Link>
+            {/* #2: orient the cold organic-search visitor. The ~9,000 prerendered profile
+                pages are the app's dominant first impression, yet nothing here framed what
+                the site IS or its breadth — the value prop lived only in the home onboarding
+                modal a profile visitor never sees. */}
+            <p className="text-[11px] sm:text-xs text-surface-500 dark:text-surface-400 mt-0.5 max-w-md leading-snug">
+              {t('profile.site_tagline')}
+            </p>
+          </div>
           <button
             onClick={() => changeLang(lang === 'fi' ? 'en' : lang === 'en' ? 'sv' : 'fi')}
             className="text-sm text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-200 transition-colors"

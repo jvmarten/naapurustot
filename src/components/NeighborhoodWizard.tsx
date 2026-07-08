@@ -36,6 +36,14 @@ interface WizardProps {
    *  region aggregates, so the wizard defaults to national postal-area scope instead of
    *  "within this area" (which has no single area in view). */
   cityFilter?: string;
+  /** RU-A: add the wizard's matches to the durable shortlist. Works in BOTH scopes —
+   *  the shortlist is pno-based, so national-scope matches (geometry-stripped, no
+   *  Show-on-Map) still get a persistent action instead of only opening a profile. */
+  onAddToShortlist?: (pnos: string[]) => void;
+  /** RU-A: toggle a single match in/out of the shortlist from its result row. */
+  onToggleShortlist?: (pno: string) => void;
+  /** RU-A: whether a pno is already shortlisted, for the per-row toggle state. */
+  isInShortlist?: (pno: string) => boolean;
 }
 
 interface ScoredNeighborhood {
@@ -145,7 +153,7 @@ const RANGE_INPUT_CLASS = `flex-1 h-2 rounded-full appearance-none cursor-pointe
   [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:shadow-md
   [&::-moz-range-thumb]:cursor-pointer`;
 
-export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onClose, onShowOnMap, initialAnswers, onSaveProfile, onApplyToMap, affordability, qualityWeights, cityFilter }) => {
+export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onClose, onShowOnMap, initialAnswers, onSaveProfile, onApplyToMap, affordability, qualityWeights, cityFilter, onAddToShortlist, onToggleShortlist, isInShortlist }) => {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
   // CF-14: does the user have a usable affordability input (amount + size)? Only
@@ -656,69 +664,128 @@ export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onCl
               {t('wizard.show_on_map')}
             </button>
           )}
-          {topMatches.map((match, i) => (
+          {/* RU-A: turn the ephemeral top-5 into a durable, comparable, shareable set.
+              Available in BOTH scopes — national matches can't Show-on-Map (geometry-
+              stripped) but CAN be shortlisted. mergeIntoShortlist dedupes, so re-adds
+              are safe. */}
+          {onAddToShortlist && topMatches.length > 0 && (
             <button
-              key={match.pno}
-              onClick={() => handleResultClick(match.pno, match.name, match.center)}
-              className="w-full text-left p-3 rounded-xl transition-colors
-                         bg-surface-50 dark:bg-surface-800/60 hover:bg-surface-100 dark:hover:bg-surface-700/60
-                         border border-surface-200 dark:border-surface-700/50"
+              type="button"
+              onClick={() => { onAddToShortlist(topMatches.map((m) => m.pno)); trackEvent('wizard-add-shortlist'); }}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium
+                         bg-surface-100 dark:bg-surface-800 text-surface-700 dark:text-surface-300
+                         hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors"
             >
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500 text-white text-xs font-bold
-                                   flex items-center justify-center">
-                    {i + 1}
-                  </span>
-                  <div className="min-w-0">
-                    <div className="text-sm font-semibold text-surface-900 dark:text-white truncate">
-                      {match.name}
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              {t('wizard.add_all_shortlist')}
+            </button>
+          )}
+          {topMatches.map((match, i) => {
+            const inShortlist = isInShortlist?.(match.pno) ?? false;
+            return (
+              // RU-A: stretched-link card. The absolute button fills the card so a tap
+              // anywhere opens the area; the content is pointer-events-none (clicks fall
+              // through to it) EXCEPT the shortlist toggle, which re-enables pointer
+              // events above it. Two sibling buttons — no nested-interactive a11y issue.
+              <div
+                key={match.pno}
+                className="relative rounded-xl transition-colors
+                           bg-surface-50 dark:bg-surface-800/60 hover:bg-surface-100 dark:hover:bg-surface-700/60
+                           border border-surface-200 dark:border-surface-700/50
+                           focus-within:ring-2 focus-within:ring-brand-500/60"
+              >
+                <button
+                  type="button"
+                  onClick={() => handleResultClick(match.pno, match.name, match.center)}
+                  aria-label={match.name}
+                  className="absolute inset-0 z-0 rounded-xl focus:outline-none"
+                />
+                <div className="relative z-[1] p-3 pointer-events-none">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500 text-white text-xs font-bold
+                                       flex items-center justify-center">
+                        {i + 1}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-surface-900 dark:text-white truncate">
+                          {match.name}
+                        </div>
+                        <div className="text-xs text-surface-500 dark:text-surface-400">
+                          {match.pno}
+                          {match.qualityIndex != null && (
+                            <span className="ml-2">
+                              {t('panel.quality_index')}: {match.qualityIndex.toFixed(1)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-xs text-surface-500 dark:text-surface-400">
-                      {match.pno}
-                      {match.qualityIndex != null && (
-                        <span className="ml-2">
-                          {t('panel.quality_index')}: {match.qualityIndex.toFixed(1)}
-                        </span>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className="text-sm font-bold text-blue-500 tabular-nums">
+                        {match.score}%
+                      </span>
+                      {onToggleShortlist && (
+                        <button
+                          type="button"
+                          onClick={() => onToggleShortlist(match.pno)}
+                          aria-pressed={inShortlist}
+                          aria-label={inShortlist ? t('shortlist.remove') : t('shortlist.add')}
+                          title={inShortlist ? t('shortlist.remove') : t('shortlist.add')}
+                          className={`pointer-events-auto -m-1 p-1 rounded-lg transition-colors
+                            focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60
+                            ${inShortlist
+                              ? 'text-blue-500 hover:text-blue-600'
+                              : 'text-surface-400 hover:text-blue-500 hover:bg-surface-100 dark:hover:bg-surface-700'}`}
+                        >
+                          {inShortlist ? (
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                          ) : (
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                            </svg>
+                          )}
+                        </button>
                       )}
                     </div>
                   </div>
-                </div>
-                <div className="flex-shrink-0 text-sm font-bold text-blue-500 tabular-nums">
-                  {match.score}%
+                  {match.reasons.length > 0 && (
+                    <div className="mt-2 ml-8">
+                      <p className="text-xs text-surface-500 dark:text-surface-400">
+                        <span className="font-medium">{t('wizard.why_match')}:</span>{' '}
+                        {match.reasons.join(', ')}
+                      </p>
+                    </div>
+                  )}
+                  {/* CF-5: per-criterion breakdown — actual value vs the chosen threshold */}
+                  {match.contributions.length > 0 && (
+                    <div className="mt-2 ml-8 space-y-0.5">
+                      {match.contributions.slice(0, 6).map((c, ci) => (
+                        <div key={ci} className="flex items-center justify-between gap-2 text-[11px]">
+                          <span className="flex items-center gap-1 text-surface-500 dark:text-surface-400 truncate">
+                            <span aria-hidden className={
+                              c.direction === 'up' ? 'text-emerald-500' : c.direction === 'down' ? 'text-rose-500' : 'text-surface-400'
+                            }>
+                              {c.direction === 'up' ? '▲' : c.direction === 'down' ? '▼' : '•'}
+                            </span>
+                            <span className="truncate">{c.label}</span>
+                          </span>
+                          <span className="flex-shrink-0 tabular-nums text-surface-600 dark:text-surface-300">
+                            {c.actual}
+                            <span className="text-surface-500 dark:text-surface-400"> · {c.target}</span>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
-              {match.reasons.length > 0 && (
-                <div className="mt-2 ml-8">
-                  <p className="text-xs text-surface-500 dark:text-surface-400">
-                    <span className="font-medium">{t('wizard.why_match')}:</span>{' '}
-                    {match.reasons.join(', ')}
-                  </p>
-                </div>
-              )}
-              {/* CF-5: per-criterion breakdown — actual value vs the chosen threshold */}
-              {match.contributions.length > 0 && (
-                <div className="mt-2 ml-8 space-y-0.5">
-                  {match.contributions.slice(0, 6).map((c, ci) => (
-                    <div key={ci} className="flex items-center justify-between gap-2 text-[11px]">
-                      <span className="flex items-center gap-1 text-surface-500 dark:text-surface-400 truncate">
-                        <span aria-hidden className={
-                          c.direction === 'up' ? 'text-emerald-500' : c.direction === 'down' ? 'text-rose-500' : 'text-surface-400'
-                        }>
-                          {c.direction === 'up' ? '▲' : c.direction === 'down' ? '▼' : '•'}
-                        </span>
-                        <span className="truncate">{c.label}</span>
-                      </span>
-                      <span className="flex-shrink-0 tabular-nums text-surface-600 dark:text-surface-300">
-                        {c.actual}
-                        <span className="text-surface-500 dark:text-surface-400"> · {c.target}</span>
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </button>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
