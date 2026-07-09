@@ -1869,9 +1869,21 @@ const App: React.FC = () => {
 
   // QW-2: shortlist tray entries (pno → name) and the "compare" action, which pins
   // the shortlist up to the comparison max (pin() dedupes + caps internally).
+  // ES-1: resolve names with the same fallback chain favorites use — loaded region
+  // feature → region id → the global search index — so chips read as area names on the
+  // geometry-stripped all-Finland view (where pnoFeatureMap is empty) instead of bare
+  // codes. Unlike favorites, an unresolved pno keeps a chip (falls back to the code) so
+  // it stays removable rather than silently vanishing from the tray.
   const shortlistEntries = useMemo(
-    () => shortlist.map((pno) => ({ pno, name: (pnoFeatureMap.get(pno)?.properties?.nimi as string | undefined) ?? pno })),
-    [shortlist, pnoFeatureMap],
+    () => shortlist.map((pno) => {
+      const feature = pnoFeatureMap.get(pno);
+      if (feature) return { pno, name: (feature.properties?.nimi as string) ?? pno };
+      if (regionIdSet.has(pno)) return { pno, name: t(`city.${pno}`) };
+      const idx = pnoNameMap.get(pno);
+      if (idx) return { pno, name: (lang === 'sv' ? (idx.namn ?? idx.nimi) : (idx.nimi ?? idx.namn)) ?? pno };
+      return { pno, name: pno };
+    }),
+    [shortlist, pnoFeatureMap, regionIdSet, pnoNameMap, lang],
   );
   // CF-10: resolve a pno's map feature/geometry for the GeoJSON data exports
   // (shortlist tray + comparison set). Geometry lives only in pnoFeatureMap.
@@ -2763,8 +2775,17 @@ const App: React.FC = () => {
           compact count chip (desktop only — mobile reaches the shortlist via the
           bottom-sheet header buttons) so the flagship synced feature stays reachable
           during the very compare workflow it exists for. */}
-      {!IS_EMBED && !showTour && data && shortlist.length > 0 && (() => {
+      {/* The `data &&` guard was dropped so the tray also shows on the default
+          all-Finland view (skipAllFetch → data is null there), where returning users,
+          ?sl= link recipients, and wizard "add all" land — otherwise the flagship synced
+          shortlist was invisible on its highest-traffic surface. */}
+      {!IS_EMBED && !showTour && shortlist.length > 0 && (() => {
         const idle = !selected && pinned.length === 0;
+        // Geometry/props live only in a loaded region set (pnoFeatureMap); the default
+        // all-Finland view is geometry-stripped, so Compare (pins loaded features) and the
+        // GeoJSON/CSV/PDF/image exports would silently no-op. Hide them there rather than
+        // show dead controls — chips, select, share-link, remove and clear all still work.
+        const hasGeometry = pnoFeatureMap.size > 0;
         if (idle || shortlistExpanded) {
           return (
             <ShortlistTray
@@ -2773,7 +2794,8 @@ const App: React.FC = () => {
               onRemove={removeFromShortlist}
               onCompare={handleCompareShortlist}
               onClear={clearShortlist}
-              featureFor={featureFor}
+              featureFor={hasGeometry ? featureFor : undefined}
+              canCompare={hasGeometry}
               shareUrl={shortlistShareUrl}
               onCollapse={idle ? undefined : () => setShortlistExpanded(false)}
             />
