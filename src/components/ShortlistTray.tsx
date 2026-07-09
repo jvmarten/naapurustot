@@ -25,6 +25,11 @@ interface ShortlistTrayProps {
   /** CF-3: when set, the tray is showing over an open panel (expanded from the
    *  compact chip) — the title becomes a button that collapses it back to the chip. */
   onCollapse?: () => void;
+  /** False on the geometry-stripped all-Finland view, where there are no loaded features
+   *  to pin — the Compare action is hidden there rather than shown as a dead control.
+   *  Defaults to true. (The GeoJSON/CSV/PDF/image exports are hidden the same way by
+   *  simply not passing `featureFor`.) */
+  canCompare?: boolean;
 }
 
 /**
@@ -36,7 +41,7 @@ interface ShortlistTrayProps {
  * minimal `sl`+`city` link), a branded shortlist summary image card, and CSV/PDF
  * export. The card + exports lazy-load their heavy modules on click.
  */
-export const ShortlistTray: React.FC<ShortlistTrayProps> = React.memo(({ entries, onSelect, onRemove, onCompare, onClear, featureFor, shareUrl, onCollapse }) => {
+export const ShortlistTray: React.FC<ShortlistTrayProps> = React.memo(({ entries, onSelect, onRemove, onCompare, onClear, featureFor, shareUrl, onCollapse, canCompare = true }) => {
   useI18nVersion();
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -164,15 +169,20 @@ export const ShortlistTray: React.FC<ShortlistTrayProps> = React.memo(({ entries
             </div>
           )}
           {/* M3: wrap instead of overflowing, and give each action a 44px touch
-              target on mobile (the row previously packed up to 7 bare text buttons). */}
+              target on mobile (the row previously packed up to 7 bare text buttons).
+              Actions are assembled into a list and separators interleaved between them,
+              so hiding Compare (all-Finland) or the exports (no `featureFor`) never leaves
+              a dangling leading `·`. */}
           <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-0.5 text-xs
                           [&_button]:inline-flex [&_button]:items-center [&_button]:min-h-[44px] md:[&_button]:min-h-0">
-            <button onClick={onCompare} className="text-brand-700 dark:text-brand-300 font-semibold hover:underline">
-              {t('shortlist.compare')}
-            </button>
-            {shareUrl && (
-              <>
-                {sep}
+            {(() => {
+              const actions: { id: string; node: React.ReactNode }[] = [];
+              if (canCompare) actions.push({ id: 'compare', node: (
+                <button onClick={onCompare} className="text-brand-700 dark:text-brand-300 font-semibold hover:underline">
+                  {t('shortlist.compare')}
+                </button>
+              ) });
+              if (shareUrl) actions.push({ id: 'share', node: (
                 <button
                   onClick={handleShareLink}
                   className="text-surface-500 hover:text-brand-600 dark:text-surface-400 dark:hover:text-brand-300 transition-colors"
@@ -180,49 +190,55 @@ export const ShortlistTray: React.FC<ShortlistTrayProps> = React.memo(({ entries
                 >
                   {copied ? t('share.link_copied') : t('shortlist.share_link')}
                 </button>
-              </>
-            )}
-            {featureFor && (
-              <>
-                {sep}
-                <button
-                  onClick={handleShareImage}
-                  disabled={busy}
-                  className="text-surface-500 hover:text-brand-600 dark:text-surface-400 dark:hover:text-brand-300 transition-colors disabled:opacity-50"
-                  title={t('share.image')}
-                >
-                  {busy ? t('share.generating') : t('share.image')}
+              ) });
+              if (featureFor) {
+                actions.push({ id: 'image', node: (
+                  <button
+                    onClick={handleShareImage}
+                    disabled={busy}
+                    className="text-surface-500 hover:text-brand-600 dark:text-surface-400 dark:hover:text-brand-300 transition-colors disabled:opacity-50"
+                    title={t('share.image')}
+                  >
+                    {busy ? t('share.generating') : t('share.image')}
+                  </button>
+                ) });
+                actions.push({ id: 'csv', node: (
+                  <button
+                    onClick={handleExportCsv}
+                    className="text-surface-500 hover:text-brand-600 dark:text-surface-400 dark:hover:text-brand-300 transition-colors"
+                    title={t('export.csv')}
+                  >
+                    {t('export.csv')}
+                  </button>
+                ) });
+                actions.push({ id: 'pdf', node: (
+                  <button
+                    onClick={handleExportPdf}
+                    className="text-surface-500 hover:text-brand-600 dark:text-surface-400 dark:hover:text-brand-300 transition-colors"
+                    title={t('export.pdf')}
+                  >
+                    {t('export.pdf')}
+                  </button>
+                ) });
+                actions.push({ id: 'geojson', node: (
+                  <button
+                    onClick={handleExportGeoJson}
+                    className="text-surface-500 hover:text-brand-600 dark:text-surface-400 dark:hover:text-brand-300 transition-colors"
+                    title={t('export.geojson')}
+                  >
+                    {t('export.geojson')}
+                  </button>
+                ) });
+              }
+              actions.push({ id: 'clear', node: (
+                <button onClick={onClear} className="text-surface-500 hover:text-rose-500 dark:text-surface-400 transition-colors">
+                  {t('shortlist.clear')}
                 </button>
-                {sep}
-                <button
-                  onClick={handleExportCsv}
-                  className="text-surface-500 hover:text-brand-600 dark:text-surface-400 dark:hover:text-brand-300 transition-colors"
-                  title={t('export.csv')}
-                >
-                  {t('export.csv')}
-                </button>
-                {sep}
-                <button
-                  onClick={handleExportPdf}
-                  className="text-surface-500 hover:text-brand-600 dark:text-surface-400 dark:hover:text-brand-300 transition-colors"
-                  title={t('export.pdf')}
-                >
-                  {t('export.pdf')}
-                </button>
-                {sep}
-                <button
-                  onClick={handleExportGeoJson}
-                  className="text-surface-500 hover:text-brand-600 dark:text-surface-400 dark:hover:text-brand-300 transition-colors"
-                  title={t('export.geojson')}
-                >
-                  {t('export.geojson')}
-                </button>
-              </>
-            )}
-            {sep}
-            <button onClick={onClear} className="text-surface-500 hover:text-rose-500 dark:text-surface-400 transition-colors">
-              {t('shortlist.clear')}
-            </button>
+              ) });
+              return actions.map((a, i) => (
+                <React.Fragment key={a.id}>{i > 0 && sep}{a.node}</React.Fragment>
+              ));
+            })()}
           </div>
         </div>
         {/* E5: transient image-export failure notice. */}

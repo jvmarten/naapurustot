@@ -381,6 +381,24 @@ function buildDirectoryRankingNav(lang) {
   return `      <h2>${escapeHtml(RANK_TEXT[lang].bestHeading)}</h2>\n      <p>${links}</p>`;
 }
 
+/** Region hub → "popular comparisons" nav. Links to the region's own /vertaa/ pages,
+ *  reusing region.comparePairs (the same bounded set the pages are generated from) so
+ *  every link resolves to a real page. De-orphans the otherwise-unlinked compare mesh. */
+function buildCompareNav(region, lang) {
+  const pairs = region.comparePairs || [];
+  if (pairs.length === 0) return '';
+  const links = pairs.map(([lo, hi]) => {
+    const fa = compareFeatByPno.get(lo);
+    const fb = compareFeatByPno.get(hi);
+    if (!fa || !fb) return '';
+    const slug = `${toSlug(fa.properties.pno, fa.properties.nimi)}-vs-${toSlug(fb.properties.pno, fb.properties.nimi)}`;
+    const label = `${getDisplayName(fa.properties, lang)} vs ${getDisplayName(fb.properties, lang)}`;
+    return `<a href="${comparePath(slug, lang)}">${escapeHtml(label)}</a>`;
+  }).filter(Boolean).join(' · ');
+  if (!links) return '';
+  return `      <h2>${escapeHtml(TEXT[lang].compareHeading)}</h2>\n      <p>${links}</p>`;
+}
+
 // PO-4: a "Cite this page" section with a ready citation string and a BibTeX @misc
 // entry (data vintage as the year), so researchers/journalists can cite a hub.
 const CITE_TEXT = {
@@ -426,6 +444,7 @@ const TEXT = {
     citySummary: (n, pop) => `${n} postinumeroaluetta · noin ${pop} asukasta`,
     cityAreasHeading: 'Postinumeroalueet',
     cityMapCta: (r) => `Avaa ${r} kartalla`,
+    compareHeading: 'Suositut vertailut',
     cityTableCaption: (r) => `${r} — postinumeroalueet`,
     backToDir: '← Kaikki Suomen alueet',
     missing: '—',
@@ -456,6 +475,7 @@ const TEXT = {
     citySummary: (n, pop) => `${n} postal code areas · about ${pop} residents`,
     cityAreasHeading: 'Postal code areas',
     cityMapCta: (r) => `Open ${r} on the map`,
+    compareHeading: 'Popular comparisons',
     cityTableCaption: (r) => `${r} — postal code areas`,
     backToDir: '← All areas in Finland',
     missing: '—',
@@ -486,6 +506,7 @@ const TEXT = {
     citySummary: (n, pop) => `${n} postnummerområden · cirka ${pop} invånare`,
     cityAreasHeading: 'Postnummerområden',
     cityMapCta: (r) => `Öppna ${r} på kartan`,
+    compareHeading: 'Populära jämförelser',
     cityTableCaption: (r) => `${r} — postnummerområden`,
     backToDir: '← Alla områden i Finland',
     missing: '—',
@@ -609,47 +630,51 @@ const NATIONAL_MIN_RANKED = 10; // a sparse metric needs this many to earn a nat
 const REGION_TOP_N = 15;
 const NATIONAL_TOP_N = 50;
 
+// `layer` is the app LayerId (from src/utils/colorScales.ts LAYERS) that renders this
+// metric's choropleth — used by the ranking page's into-app CTA (/?layer=<id>). Note 7
+// of 10 layer ids differ from the geojson property (e.g. hr_mtu→median_income,
+// crime_index→crime_rate); each is verified against colorScales.ts LAYERS.
 const RANKING_METRICS = [
-  { slug: 'quality-index', property: 'quality_index', higherIsBetter: true,
+  { slug: 'quality-index', property: 'quality_index', higherIsBetter: true, layer: 'quality_index',
     label: { fi: 'elämänlaatu', en: 'quality of life', sv: 'livskvalitet' },
     col: { fi: 'Laatuindeksi', en: 'Quality index', sv: 'Kvalitetsindex' },
     fmt: (v, lang) => fmtNum(Math.round(v), lang) },
-  { slug: 'income', property: 'hr_mtu', higherIsBetter: true,
+  { slug: 'income', property: 'hr_mtu', higherIsBetter: true, layer: 'median_income',
     label: { fi: 'mediaanitulot', en: 'median income', sv: 'medianinkomst' },
     col: { fi: 'Mediaanitulo', en: 'Median income', sv: 'Medianinkomst' },
     fmt: (v, lang) => `${fmtNum(Math.round(v), lang)} €` },
-  { slug: 'safety', property: 'crime_index', higherIsBetter: false,
+  { slug: 'safety', property: 'crime_index', higherIsBetter: false, layer: 'crime_rate',
     label: { fi: 'turvallisuus', en: 'safety', sv: 'säkerhet' },
     col: { fi: 'Rikollisuusindeksi', en: 'Crime index', sv: 'Brottsindex' },
     fmt: (v, lang) => fmtDec(v, lang, 1) },
-  { slug: 'families', property: 'child_ratio', higherIsBetter: true,
+  { slug: 'families', property: 'child_ratio', higherIsBetter: true, layer: 'child_ratio',
     label: { fi: 'lapsiperheet', en: 'families with children', sv: 'barnfamiljer' },
     col: { fi: 'Lasten osuus', en: 'Children (0–6) share', sv: 'Andel barn (0–6)' },
     fmt: (v, lang) => `${fmtDec(v, lang, 1)} %` },
-  { slug: 'transit', property: 'transit_stop_density', higherIsBetter: true,
+  { slug: 'transit', property: 'transit_stop_density', higherIsBetter: true, layer: 'transit_access',
     label: { fi: 'joukkoliikenne', en: 'public transport access', sv: 'kollektivtrafik' },
     col: { fi: 'Pysäkkitiheys', en: 'Stop density', sv: 'Hållplatstäthet' },
     fmt: (v, lang) => fmtNum(Math.round(v), lang) },
-  { slug: 'air-quality', property: 'air_quality_index', higherIsBetter: false,
+  { slug: 'air-quality', property: 'air_quality_index', higherIsBetter: false, layer: 'air_quality',
     label: { fi: 'ilmanlaatu', en: 'air quality', sv: 'luftkvalitet' },
     col: { fi: 'Ilmanlaatuindeksi', en: 'Air quality index', sv: 'Luftkvalitetsindex' },
     fmt: (v, lang) => fmtDec(v, lang, 1) },
   // CF-12 (expanded): four more high-coverage, objective-direction axes. All have
   // real registry entries and ≥97% national coverage; per-region/muni coverage gates
   // (MIN_REGION_RANKED / MIN_MUNI_RANKED) keep sparse scopes from emitting thin pages.
-  { slug: 'walkability', property: 'walkability_index', higherIsBetter: true,
+  { slug: 'walkability', property: 'walkability_index', higherIsBetter: true, layer: 'walkability',
     label: { fi: 'käveltävyys', en: 'walkability', sv: 'gångvänlighet' },
     col: { fi: 'Käveltävyysindeksi', en: 'Walkability index', sv: 'Gångvänlighetsindex' },
     fmt: (v, lang) => fmtNum(Math.round(v), lang) },
-  { slug: 'education', property: 'higher_education_rate', higherIsBetter: true,
+  { slug: 'education', property: 'higher_education_rate', higherIsBetter: true, layer: 'education',
     label: { fi: 'koulutustaso', en: 'higher education', sv: 'utbildningsnivå' },
     col: { fi: 'Korkeakoulutetut', en: 'Higher education', sv: 'Högutbildade' },
     fmt: (v, lang) => `${fmtDec(v, lang, 1)} %` },
-  { slug: 'students', property: 'student_share', higherIsBetter: true,
+  { slug: 'students', property: 'student_share', higherIsBetter: true, layer: 'student_share',
     label: { fi: 'opiskelijat', en: 'students', sv: 'studerande' },
     col: { fi: 'Opiskelijaosuus', en: 'Student share', sv: 'Studerandeandel' },
     fmt: (v, lang) => `${fmtDec(v, lang, 1)} %` },
-  { slug: 'employment', property: 'unemployment_rate', higherIsBetter: false,
+  { slug: 'employment', property: 'unemployment_rate', higherIsBetter: false, layer: 'unemployment',
     label: { fi: 'matala työttömyys', en: 'low unemployment', sv: 'låg arbetslöshet' },
     col: { fi: 'Työttömyysaste', en: 'Unemployment rate', sv: 'Arbetslöshet' },
     fmt: (v, lang) => `${fmtDec(v, lang, 1)} %` },
@@ -670,6 +695,7 @@ const RANK_TEXT = {
     crumbBest: 'Parhaat alueet', crumbAll: 'Kaikki alueet',
     bestHeading: 'Parhaat alueet mittareittain',
     nationalLink: 'Koko Suomen lista',
+    mapCta: (m, r) => `Katso ${m} kartalla${r ? ` – ${r}` : ''}`,
   },
   en: {
     title: (m, r) => `Best areas for ${m}${r ? ` in ${r}` : ' in Finland'} | naapurustot.fi`,
@@ -685,6 +711,7 @@ const RANK_TEXT = {
     crumbBest: 'Best areas', crumbAll: 'All areas',
     bestHeading: 'Best areas by metric',
     nationalLink: 'Nationwide list',
+    mapCta: (m, r) => `See ${m} on the map${r ? ` – ${r}` : ''}`,
   },
   sv: {
     title: (m, r) => `Bästa områden för ${m}${r ? ` i ${r}` : ' i Finland'} | naapurustot.fi`,
@@ -700,6 +727,7 @@ const RANK_TEXT = {
     crumbBest: 'Bästa områden', crumbAll: 'Alla områden',
     bestHeading: 'Bästa områden per mätare',
     nationalLink: 'Lista för hela Finland',
+    mapCta: (m, r) => `Se ${m} på kartan${r ? ` – ${r}` : ''}`,
   },
 };
 
@@ -769,6 +797,16 @@ function buildRankingPage(metric, lang, scope, ranked) {
     ? `\n      <p><a href="${rankPath(metric.slug, null, lang)}">${escapeHtml(T.nationalLink)} →</a></p>`
     : '';
 
+  // Into-app CTA: open the interactive map already showing this metric's choropleth for
+  // this scope, so a cold-search visitor lands on the ramp they searched for (not the
+  // default view). National → the all-Finland default (?layer=); region/muni → ?city=
+  // (a muni has no city filter of its own, so it falls back to its owning region).
+  const mapCityId = national ? null : (isMuni ? scope.regionId : scope.id);
+  const mapHref = mapCityId
+    ? `/?city=${escapeHtml(mapCityId)}&amp;layer=${escapeHtml(metric.layer)}`
+    : `/?layer=${escapeHtml(metric.layer)}`;
+  const mapCta = `\n      <p><a class="cta" href="${mapHref}">${escapeHtml(T.mapCta(label, locationName))}</a></p>`;
+
   const body = `      ${crumbs}
       <h1>${escapeHtml(T.h1(label, locationName))}</h1>
       <p class="lead">${escapeHtml(T.intro(label, locationName, ranked.length))}</p>
@@ -778,7 +816,7 @@ function buildRankingPage(metric, lang, scope, ranked) {
         <tbody>
 ${rows}
         </tbody>
-      </table>${nationalCta}
+      </table>${mapCta}${nationalCta}
       <p><a href="${hubPath}">← ${escapeHtml(national ? T.crumbAll : locationName)}</a></p>`;
 
   const itemList = {
@@ -946,6 +984,7 @@ ${rows}
       </table>
 ${buildMunicipalitiesNav(region, lang)}
 ${buildBestAreasNav({ kind: 'region', id: region.id, rankings: region.rankings }, lang)}
+${buildCompareNav(region, lang)}
 ${buildPlanningNav(region, lang)}
 ${buildCiteSection(lang, T.cityTitle(regionName), alternates[lang])}
       <p><a href="${DIRECTORY_PATH[lang]}">${escapeHtml(T.backToDir)}</a></p>`;
@@ -1433,12 +1472,55 @@ const CITY_OUT = {
   sv: (id) => join(DIST, 'sv', 'stad', id),
 };
 
+// --- Comparison-pair infrastructure. Bounded, deterministic per-region pairs shared by
+// BOTH the region hubs' "popular comparisons" nav (buildCompareNav) and the /vertaa/
+// page generation below — one source of truth, so hubs never link to a missing page.
+// Defined here (above the hub write loop) so buildCityHub can reach it at render time.
+const COMPARE_PREFIX = { fi: '/vertaa', en: '/en/compare', sv: '/sv/jamfor' };
+const COMPARE_TOP_N = 12; // per-region most-populated areas eligible for pairing
+const compareFeatByPno = new Map();
+for (const f of geojson.features) {
+  const p = f.properties;
+  if (p?.pno && p?.nimi && p?.city) compareFeatByPno.set(String(p.pno), f);
+}
+const ADJACENCY = (() => {
+  try { return JSON.parse(readFileSync(join(ROOT, 'src', 'data', 'adjacency.json'), 'utf-8')); }
+  catch { return {}; }
+})();
+/** [lo,hi] pno pairs for one region: adjacency ∩ its top-N most-populated areas, same
+ *  region only, deduped, stably sorted. Same-region means no pair spans two regions, so
+ *  flattening these across regions reproduces the old global list exactly. */
+function computeRegionComparePairs(region) {
+  const top = [...region.features]
+    .sort((x, y) => (Number(y.properties.he_vakiy) || 0) - (Number(x.properties.he_vakiy) || 0))
+    .slice(0, COMPARE_TOP_N);
+  const topPnos = new Set(top.map((f) => String(f.properties.pno)));
+  const seen = new Set();
+  const pairs = [];
+  for (const f of top) {
+    const pnoA = String(f.properties.pno);
+    for (const nb of ADJACENCY[pnoA] || []) {
+      const pnoB = String(nb);
+      if (!topPnos.has(pnoB)) continue; // same-region pairs only, both in the top-N
+      const [lo, hi] = pnoA < pnoB ? [pnoA, pnoB] : [pnoB, pnoA];
+      const key = `${lo}-vs-${hi}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      pairs.push([lo, hi]);
+    }
+  }
+  pairs.sort((p, q) => (p[0] === q[0] ? p[1].localeCompare(q[1]) : p[0].localeCompare(q[0])));
+  return pairs;
+}
+
 // CF-12: which metrics earn a per-region ranking page (enough covered areas to
 // rank meaningfully) — attached to each region so its hub can cross-link them.
+// Also precompute each region's compare pairs so the hub can link them.
 for (const region of regions) {
   region.rankings = RANKING_METRICS.filter(
     (m) => region.features.filter((f) => Number.isFinite(Number(f.properties[m.property]))).length >= MIN_REGION_RANKED,
   );
+  region.comparePairs = computeRegionComparePairs(region);
 }
 // CF-12 (muni scope): same coverage gate per municipality, so each /kunta/{slug}/parhaat/
 // page is backed by ≥MIN_MUNI_RANKED real values and the muni hub can cross-link them.
@@ -1543,7 +1625,8 @@ console.log(`Prerendered ${rankingManifest.length} ranking page sets (${rankingM
 // All strings are inline trilingual / panel.* locale lookups → zero JS bundle.
 // ---------------------------------------------------------------------------
 
-const COMPARE_PREFIX = { fi: '/vertaa', en: '/en/compare', sv: '/sv/jamfor' };
+// COMPARE_PREFIX and COMPARE_TOP_N are defined earlier (above the hub write loop) so the
+// region hubs can build compare links; COMPARE_OUT/paths stay here with the page writers.
 const COMPARE_OUT = {
   fi: (slug) => join(DIST, 'vertaa', slug),
   en: (slug) => join(DIST, 'en', 'compare', slug),
@@ -1552,8 +1635,6 @@ const COMPARE_OUT = {
 function comparePath(slug, lang) { return `${COMPARE_PREFIX[lang]}/${slug}/`; }
 function compareUrl(slug, lang) { return `${ORIGIN}${comparePath(slug, lang)}`; }
 function compareAlternates(slug) { return Object.fromEntries(LANGS.map((l) => [l, compareUrl(slug, l)])); }
-
-const COMPARE_TOP_N = 12; // per-region most-populated areas eligible for pairing
 
 // Comparison stats — inline mirror of src/utils/comparisonStats.ts ALL_STATS (keys +
 // directions kept in sync). Labels reuse the panel.* locale strings (free in a build
@@ -1586,6 +1667,7 @@ const COMPARE_TEXT = {
     intro: (a, b) => `${a} ja ${b} vertailtuna yli 15 mittarilla, todellisilla arvoilla. "Parempi"-sarake näyttää kumpi alue voittaa mittareilla, joilla on selkeä suunta.`,
     colMetric: 'Mittari', colBetter: 'Parempi', same: 'Tasan', neither: '—',
     crumbCompare: 'Alueiden vertailu',
+    mapCta: (a, b) => `Vertaa ${a} ja ${b} kartalla`,
     faqQ: (a, b) => `Kumpi on parempi, ${a} vai ${b}?`,
     faqA: (a, b) => `Se riippuu siitä, mikä on sinulle tärkeää. Tällä sivulla ${a} ja ${b} on vertailtu yli 15 todellisella mittarilla (tulot, asuminen, turvallisuus, palvelut ja joukkoliikenne), joten voit painottaa juuri sinulle tärkeitä asioita.`,
   },
@@ -1596,6 +1678,7 @@ const COMPARE_TEXT = {
     intro: (a, b) => `${a} and ${b} compared across 15+ indicators with real values. The "Better" column shows which area wins on metrics that have an objective direction.`,
     colMetric: 'Metric', colBetter: 'Better', same: 'Tie', neither: '—',
     crumbCompare: 'Compare areas',
+    mapCta: (a, b) => `Compare ${a} and ${b} on the map`,
     faqQ: (a, b) => `Which is better, ${a} or ${b}?`,
     faqA: (a, b) => `It depends on what matters to you. This page compares ${a} and ${b} across 15+ real indicators (income, housing, safety, services and public transport) so you can weigh the things that matter to you.`,
   },
@@ -1606,6 +1689,7 @@ const COMPARE_TEXT = {
     intro: (a, b) => `${a} och ${b} jämförda med över 15 mätare och verkliga värden. Kolumnen "Bättre" visar vilket område som vinner på mätare med en objektiv riktning.`,
     colMetric: 'Mätare', colBetter: 'Bättre', same: 'Lika', neither: '—',
     crumbCompare: 'Jämför områden',
+    mapCta: (a, b) => `Jämför ${a} och ${b} på kartan`,
     faqQ: (a, b) => `Vilket är bättre, ${a} eller ${b}?`,
     faqA: (a, b) => `Det beror på vad som är viktigt för dig. Den här sidan jämför ${a} och ${b} med över 15 verkliga mätare (inkomst, boende, säkerhet, tjänster och kollektivtrafik) så att du kan väga det som är viktigt för dig.`,
   },
@@ -1646,6 +1730,7 @@ function buildComparePage(fa, fb, lang) {
 ${rows}
         </tbody>
       </table>
+      <p><a class="cta" href="/?compare=${escapeHtml(a.pno)},${escapeHtml(b.pno)}&amp;city=${escapeHtml(a.city)}">${escapeHtml(T.mapCta(nameA, nameB))}</a></p>
       <p><a href="${hrefA}">${escapeHtml(nameA)} →</a> · <a href="${hrefB}">${escapeHtml(nameB)} →</a></p>`;
 
   const itemList = {
@@ -1689,38 +1774,13 @@ ${rows}
   });
 }
 
-// Bounded pair list: adjacency ∩ each region's top-N most-populated areas, same region.
-const compareFeatByPno = new Map();
-for (const f of geojson.features) {
-  const p = f.properties;
-  if (p?.pno && p?.nimi && p?.city) compareFeatByPno.set(String(p.pno), f);
-}
-const ADJACENCY = (() => {
-  try { return JSON.parse(readFileSync(join(ROOT, 'src', 'data', 'adjacency.json'), 'utf-8')); }
-  catch { return {}; }
-})();
-const comparePairs = [];
-const seenComparePair = new Set();
-for (const region of regions) {
-  const top = [...region.features]
-    .sort((x, y) => (Number(y.properties.he_vakiy) || 0) - (Number(x.properties.he_vakiy) || 0))
-    .slice(0, COMPARE_TOP_N);
-  const topPnos = new Set(top.map((f) => String(f.properties.pno)));
-  for (const f of top) {
-    const pnoA = String(f.properties.pno);
-    for (const nb of ADJACENCY[pnoA] || []) {
-      const pnoB = String(nb);
-      if (!topPnos.has(pnoB)) continue; // same-region pairs only, both in the top-N
-      const [lo, hi] = pnoA < pnoB ? [pnoA, pnoB] : [pnoB, pnoA];
-      const key = `${lo}-vs-${hi}`;
-      if (seenComparePair.has(key)) continue;
-      seenComparePair.add(key);
-      comparePairs.push([lo, hi]);
-    }
-  }
-}
-// Stable order so reruns are byte-identical.
-comparePairs.sort((p, q) => (p[0] === q[0] ? p[1].localeCompare(q[1]) : p[0].localeCompare(q[0])));
+// Bounded pair list: flattened from each region's precomputed pairs (computed above with
+// computeRegionComparePairs). Pairs are same-region, so flattening + a stable global sort
+// reproduces the old single-pass list byte-for-byte — and it's the exact set the region
+// hubs link to (buildCompareNav), so no hub link can point at a page that isn't generated.
+const comparePairs = regions
+  .flatMap((r) => r.comparePairs || [])
+  .sort((p, q) => (p[0] === q[0] ? p[1].localeCompare(q[1]) : p[0].localeCompare(q[0])));
 
 const compareManifest = [];
 for (const [lo, hi] of comparePairs) {
