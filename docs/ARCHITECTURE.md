@@ -154,11 +154,11 @@ See [`QUALITY_INDEX.md`](QUALITY_INDEX.md) for the full methodology. In short: `
 
 ## Internationalization
 
-Three locales — `fi.json`, `en.json`, `sv.json` (flat key-value, ~780 keys each, enforced 1:1 by `i18nKeyParity.test.ts` including placeholder tokens). Finnish is statically bundled; **English and Swedish are `?url` imports fetched at runtime** so ~45 KB of JSON each stays out of the gzipped-JS bundle budget — never convert them to static imports. Fallback chains: sv → en → fi → key; en → fi → key; fi → en → key. `t()` reads module state; `React.memo` components that call `t()` in render **must** also call `useI18nVersion()` (a `useSyncExternalStore` version counter) or they keep showing the Finnish fallback after the lazy dictionary arrives. Language persists in localStorage `lang`, is settable via `?lang=`, and drives `document.documentElement.lang`.
+Three locales — `fi.json`, `en.json`, `sv.json` (flat key-value, ~850 keys each, enforced 1:1 by `i18nKeyParity.test.ts` including placeholder tokens). Finnish is statically bundled; **English and Swedish are `?url` imports fetched at runtime** so ~45 KB of JSON each stays out of the gzipped-JS bundle budget — never convert them to static imports. Fallback chains: sv → en → fi → key; en → fi → key; fi → en → key. `t()` reads module state; `React.memo` components that call `t()` in render **must** also call `useI18nVersion()` (a `useSyncExternalStore` version counter) or they keep showing the Finnish fallback after the lazy dictionary arrives. Language persists in localStorage `lang`, is settable via `?lang=`, and drives `document.documentElement.lang`.
 
 ## Hooks reference
 
-All 21 hooks in `src/hooks/`:
+All 25 hooks in `src/hooks/`:
 
 | Hook | Purpose | Persistence |
 |------|---------|-------------|
@@ -166,6 +166,8 @@ All 21 hooks in `src/hooks/`:
 | `useGridData(layerId)` | Lazy grid overlays via `grid_manifest.json` | memory |
 | `useSearchIndex()` | Geometry-stripped national search index (shares `loadAllData()`'s cache) | memory |
 | `useAllCitiesUnionPreload(city)` | Starts the seutukunta-outlines fetch as soon as the all view is selected; bumps a counter when ready | memory |
+| `useAllCitiesAggregates(city)` | Prebuilt per-region aggregates (`region_aggregates.json`) for the all-Finland view | memory |
+| `usePlanningData` | Lazy loaders for the kaavat & hankkeet (planning) overlay datasets + region manifest | memory |
 | `useSelectedNeighborhood()` | Selected + up to 3 pinned (in-memory; App syncs to URL) | URL via App |
 | `useUrlState` | `readInitialUrlState` / `useSyncUrlState` / share-URL builders | URL |
 | `useTheme()` | dark/light/system Context | `naapurustot-theme` |
@@ -181,12 +183,14 @@ All 21 hooks in `src/hooks/`:
 | `useRecentNeighborhoods()` | Last 10 searched areas (**localStorage**, not sessionStorage) | `naapurustot-recent` |
 | `useBottomSheet(opts)` | Touch-drag sheet with velocity snapping (peek/half/full) | none |
 | `useSwipeNavigation(opts)` | Horizontal section swiping | none |
+| `useBackGesture(active, onClose)` | Hardware back / edge-swipe dismissal of mobile sheets & modals (history-entry based) | none |
+| `useFocusTrap(ref)` | Contain Tab focus within `aria-modal` dialogs | none |
 | `useAnimatedValue(target)` | rAF ease-out count-up; instant under reduced motion | none |
 | `useReducedMotion()` | Reactive `prefers-reduced-motion` (+ non-hook `prefersReducedMotion()`) | none |
 
 ## Code splitting & the bundle budget
 
-CI enforces a hard budget — **280,000 bytes gzipped for the sum of all app JS chunks, lazy ones included**, excluding only the `maplibre` chunk — and the app sits ~1 KB under it. Lazy-loading a dependency does *not* exempt it; keeping data out of JS entirely does. Hence the standing strategy:
+CI enforces a hard budget — **314,000 bytes gzipped for the sum of all app JS chunks, lazy ones included**, excluding only the `maplibre` chunk — and the app sits ~1 KB under it. Lazy-loading a dependency does *not* exempt it; keeping data out of JS entirely does. Hence the standing strategy:
 
 - Manual chunks: `maplibre`, `vendor` (react, react-dom, react-router). Turf modules are deliberately *not* grouped — each feature lazy-imports the one it needs (`@turf/bbox`, `@turf/boolean-point-in-polygon`, `@turf/boolean-intersects`, `@turf/area`, `@turf/helpers`).
 - Heavy data is fetched as hashed static assets, never imported into JS: the 69 region TopoJSONs (`import.meta.glob` with `?url`), `region_properties.json` (~10.6 MB), `adjacency.json`, `en.json`/`sv.json` locales, the seutukunta outlines.
@@ -279,8 +283,8 @@ The profile page reads the prerender-embedded payload for instant paint (guarded
 
 | Workflow | Trigger | Notes |
 |----------|---------|-------|
-| `ci.yml` | push/PR to main | 3 parallel jobs (security audits / lint+type+test+build+e2e+visual+bundle / lighthouse); **skips claude/* PRs entirely**; bundle-delta PR comment; budget 280,000 B gzip |
-| `auto-merge.yml` | push to `claude/**` | The only gate for those branches: 4 parallel jobs mirroring CI (no visual tests), then `merge --no-ff` to main with push-retry/backoff (conflicts fail immediately), branch delete, **explicit** `gh workflow run deploy.yml` (bot pushes don't trigger workflows). Concurrency group cancels an in-flight run when a second claude/* branch pushes — serialize or stack branches |
+| `ci.yml` | push/PR to main | 3 parallel jobs (security audits / lint+type+test+build+e2e+visual+bundle / lighthouse); **skips claude/* PRs entirely**; bundle-delta PR comment; budget 314,000 B gzip (the shared `BUDGET` in `scripts/check-bundle-size.mjs`) |
+| `auto-merge.yml` | push to `claude/**` | The only gate for those branches: parallel jobs mirroring CI (security / checks / data-validation / e2e / lighthouse / server; no visual tests). `data-validation` runs the FULL `validate_data.py` suite when the branch touches `public/data/**` or `scripts/**`, then `merge --no-ff` to main with push-retry/backoff (conflicts fail immediately), branch delete, **explicit** `gh workflow run deploy.yml` (bot pushes don't trigger workflows). Concurrency group cancels an in-flight run when a second claude/* branch pushes — serialize or stack branches |
 | `deploy.yml` | CI success on main / manual | build (+ Sentry secrets) → `build:pages` → 404 fallback copy → GitHub Pages |
 | `deploy-server.yml` | push to main touching `server/**` / manual | SSH → `git pull` → rebuild api → `compose up -d` |
 | `data-refresh.yml` | quarterly cron / manual | pipeline + validation → PR on change |

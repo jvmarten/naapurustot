@@ -161,6 +161,52 @@ jobs:
           path: bundle-size.json
           retention-days: 7
 
+  data-validation:
+    # IN-1: the fast --files-only check above only cross-checks registry/provenance
+    # JSON. The FULL suite (value ranges, coverage regression, all-null columns,
+    # geometry, feature counts) previously ran only in the quarterly data-refresh
+    # cron — so a hand-edited fetch script + regenerated GeoJSON could merge with
+    # no sanity validation. Run it here whenever the branch touches data inputs;
+    # non-data branches skip the heavy steps (job still succeeds so merge-to-main
+    # can depend on it unconditionally).
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Detect data-touching changes
+        id: diff
+        run: |
+          base=$(git merge-base origin/main HEAD || true)
+          if [ -z "$base" ]; then
+            echo "No merge-base with origin/main — validating to be safe."
+            changed=1
+          elif git diff --name-only "$base" HEAD | grep -qE '^(public/data/|scripts/)'; then
+            changed=1
+          else
+            changed=0
+          fi
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-python@v6
+        if: steps.diff.outputs.changed == '1'
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install validation deps
+        if: steps.diff.outputs.changed == '1'
+        # Only shapely is imported (lazily, for the geometry check) beyond the
+        # stdlib — pinned to the same version as requirements.txt without pulling
+        # the full geopandas/fiona pipeline stack.
+        run: python -m pip install --upgrade pip shapely==2.0.6
+
+      - name: Full data validation (IN-1)
+        if: steps.diff.outputs.changed == '1'
+        run: python scripts/validate_data.py
+
   e2e:
     runs-on: ubuntu-latest
     steps:
@@ -255,7 +301,7 @@ jobs:
         run: npm test
 
   merge-to-main:
-    needs: [security, checks, e2e, lighthouse, server]
+    needs: [security, checks, data-validation, e2e, lighthouse, server]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5

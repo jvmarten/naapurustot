@@ -14,6 +14,11 @@ interface OnboardingTourProps {
   /** Activation: completing the tour drops the user straight into the Neighborhood
    *  Finder (the product's core promise) instead of ending on a sign-up ask. */
   onLaunchFinder?: () => void;
+  /** ON-2: false while the cold-load overlay still covers the chrome. Anchored
+   *  steps are gated on this — a spotlight cut before the first load completes
+   *  reveals the blank loading shimmer instead of the control it describes.
+   *  Defaults to true (anchored steps never blocked when the app doesn't wire it). */
+  chromeReady?: boolean;
 }
 
 interface Step {
@@ -29,7 +34,10 @@ interface Step {
 }
 
 const ALL_STEPS: Step[] = [
-  { anchors: [], titleKey: 'onboarding.welcome.title', bodyKey: 'onboarding.welcome.body', hintKey: 'onboarding.click_hint' },
+  // ON-1: no click-hint here — the welcome step fully masks the map and any click
+  // just advances the tour, so teaching "click a seutukunta" at this point invites
+  // an action that is both invisible and non-functional.
+  { anchors: [], titleKey: 'onboarding.welcome.title', bodyKey: 'onboarding.welcome.body' },
   { anchors: ['layers'], titleKey: 'onboarding.layers.title', bodyKey: 'onboarding.layers.body' },
   { anchors: ['search', 'cities'], titleKey: 'onboarding.search.title', bodyKey: 'onboarding.search.body' },
   { anchors: ['tools'], titleKey: 'onboarding.tools.title', bodyKey: 'onboarding.tools.body' },
@@ -37,8 +45,9 @@ const ALL_STEPS: Step[] = [
   // Activation: the tour ends on the Finder (the product's core promise), not the
   // sign-up ask. There is no standing Finder button to spotlight (it lives in the
   // Tools menu), so this is a centered closing step; completing it opens the finder
-  // via onLaunchFinder.
-  { anchors: [], titleKey: 'onboarding.finder.title', bodyKey: 'onboarding.finder.body' },
+  // via onLaunchFinder. ON-1: the click-hint lives here — right before control
+  // returns to the map, where the gesture can actually be performed.
+  { anchors: [], titleKey: 'onboarding.finder.title', bodyKey: 'onboarding.finder.body', hintKey: 'onboarding.click_hint' },
 ];
 
 const POPOVER_W = 320;
@@ -61,7 +70,7 @@ function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v));
 }
 
-export const OnboardingTour: React.FC<OnboardingTourProps> = ({ onComplete, skipAuthStep = false, lang, onLangChange, onLaunchFinder }) => {
+export const OnboardingTour: React.FC<OnboardingTourProps> = ({ onComplete, skipAuthStep = false, lang, onLangChange, onLaunchFinder, chromeReady = true }) => {
   // T5: re-render the tour when the language switches (and when the lazy en/sv
   // dictionary arrives, replacing the Finnish fallback) — the tour is the contract-
   // correct subscriber rather than relying on App's re-render.
@@ -112,6 +121,16 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({ onComplete, skip
     if (reason === 'completed') onLaunchFinder?.();
   }, [onComplete, stepIndex, onLaunchFinder]);
 
+  // Shared advance path (keyboard, click-blocker, Next button). ON-2: an anchored
+  // step reached before the cold-load overlay clears would cut its spotlight onto
+  // the blank shimmer (the overlay sits above all chrome), so hold on the current
+  // (anchorless welcome) step until the app reports the chrome is visible.
+  const advance = useCallback(() => {
+    if (isLast) { finish('completed'); return; }
+    if (!chromeReady && steps[stepIndex + 1]?.anchors.length > 0) return;
+    setStepIndex((i) => i + 1);
+  }, [isLast, finish, chromeReady, steps, stepIndex]);
+
   // Resolve target rects for all anchors. The chrome may not be mounted on
   // the first paint of step 1, so retry briefly via rAF. Bail after 30 frames
   // with whatever resolved — better than blocking the tour entirely if one
@@ -161,9 +180,16 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({ onComplete, skip
         e.stopPropagation();
         finish('skipped');
       } else if (e.key === 'ArrowRight' || e.key === 'Enter') {
+        // AY-2: Enter on a focused control (Back, Skip, a LanguagePicker button…)
+        // must run that control's native activation — a global "Enter = next" made
+        // Back move forward and language selection advance the tour for keyboard
+        // users. ArrowRight stays the unconditional advance key.
+        if (e.key === 'Enter') {
+          const target = e.target as HTMLElement | null;
+          if (target?.closest?.('button, a, input, select, textarea')) return;
+        }
         e.preventDefault();
-        if (isLast) finish('completed');
-        else setStepIndex((i) => i + 1);
+        advance();
       } else if (e.key === 'ArrowLeft') {
         e.preventDefault();
         if (!isFirst) setStepIndex((i) => i - 1);
@@ -190,7 +216,7 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({ onComplete, skip
     // Capture phase so we beat the App-level Escape handler.
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [finish, isFirst, isLast]);
+  }, [finish, isFirst, advance]);
 
   const popoverWidth = Math.min(POPOVER_W, viewport.w - POPOVER_PAD * 2);
 
@@ -285,10 +311,7 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({ onComplete, skip
       <button
         type="button"
         aria-label={t('onboarding.next')}
-        onClick={() => {
-          if (isLast) finish('completed');
-          else setStepIndex((i) => i + 1);
-        }}
+        onClick={advance}
         className="absolute inset-0 w-full h-full cursor-default"
         style={{ background: 'transparent' }}
       />
@@ -362,10 +385,7 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({ onComplete, skip
             {t('onboarding.back')}
           </button>
           <button
-            onClick={() => {
-              if (isLast) finish('completed');
-              else setStepIndex((i) => i + 1);
-            }}
+            onClick={advance}
             className="px-4 py-2 rounded-lg text-xs font-semibold bg-brand-700 hover:bg-brand-800 text-white transition-colors"
           >
             {isLast ? t('onboarding.finder.cta') : t('onboarding.next')}

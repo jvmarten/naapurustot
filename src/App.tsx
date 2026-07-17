@@ -57,6 +57,7 @@ import { useSelectedNeighborhood } from './hooks/useSelectedNeighborhood';
 import { useAffordability } from './hooks/useAffordability';
 import { useSimilarityMetrics } from './hooks/useSimilarityMetrics';
 import { useAuth } from './hooks/useAuth';
+import { resetSyncStatus } from './utils/syncStatus';
 const AuthModal = lazy(() => import('./components/AuthModal').then(m => ({ default: m.AuthModal })));
 const OnboardingTour = lazy(() => import('./components/OnboardingTour').then(m => ({ default: m.OnboardingTour })));
 const ShortcutsOverlay = lazy(() => import('./components/ShortcutsOverlay').then(m => ({ default: m.ShortcutsOverlay })));
@@ -321,7 +322,8 @@ const App: React.FC = () => {
   const handleToggleScatter = useCallback(() => { setShowScatter((v) => { if (!v) trackEvent('open-scatter'); return !v; }); }, []);
   // CF-4: region comparison & ranking.
   const [showRegionRanking, setShowRegionRanking] = useState(false);
-  const handleToggleRegionRanking = useCallback(() => { setShowRegionRanking((v) => { if (!v) trackEvent('open-region-ranking'); return !v; }); }, []);
+  // DT-1: mutually exclusive with the other top-28 left-4 panels (filter, ranking).
+  const handleToggleRegionRanking = useCallback(() => { setShowRegionRanking((v) => { if (!v) { setShowRanking(false); setShowFilter(false); trackEvent('open-region-ranking'); } return !v; }); }, []);
   // CF-5: travel-time isochrone overlay.
   const [isochronePolygon, setIsochronePolygon] = useState<Feature<Polygon | MultiPolygon> | null>(null);
   const [isochroneMode, setIsochroneMode] = useState<IsochroneMode>('walk');
@@ -578,8 +580,26 @@ const App: React.FC = () => {
     resetQualityWeightsLocal();
     resetFilterPresetsLocal();
     clearRecent();
+    // AC-1: clear sync errors/retries too — a stale "Session expired" indicator
+    // otherwise survives logout (and the subsequent re-login, since the merge
+    // usually equals the server and no clearing save ever fires).
+    resetSyncStatus();
     await logout();
   }, [logout, resetFavoritesLocal, resetShortlistLocal, resetWizardProfileLocal, resetQualityWeightsLocal, resetFilterPresetsLocal, clearRecent]);
+  // AC-1: also reset on the login transition, covering paths that don't go through
+  // handleLogout (e.g. the session expiring while signed in, then logging back in).
+  const prevUserIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    const id = user?.id ?? null;
+    if (id != null && prevUserIdRef.current !== id) resetSyncStatus();
+    prevUserIdRef.current = id;
+  }, [user?.id]);
+  // AC-1: the "Session expired — log in again" notice needs a matching control:
+  // clear the dead session's local state, then open the login modal.
+  const handleReLogin = useCallback(async () => {
+    await handleLogout();
+    setShowAuth(true);
+  }, [handleLogout]);
   // CF-14: affordability inputs (localStorage + URL-shared). Hydrates from a shared link;
   // consumed read-only by the wizard's budget fold since the panel calculator was removed.
   const { state: affordabilityState, urlValue: affordabilityUrl } = useAffordability(initialUrl.affordability);
@@ -1701,17 +1721,19 @@ const App: React.FC = () => {
     }
   }, [wizardResultPnos.length]);
 
-  // Close ranking when opening filter and vice versa
+  // Close the other left-anchored tools when opening one — DT-1: all three
+  // (filter, ranking, region ranking) render at the same top-28 left-4 slot, so
+  // any two open at once would stack pixel-for-pixel.
   const toggleFilter = useCallback(() => {
     setShowFilter((v) => {
-      if (!v) { setShowRanking(false); trackEvent('open-filter'); }
+      if (!v) { setShowRanking(false); setShowRegionRanking(false); trackEvent('open-filter'); }
       return !v;
     });
   }, []);
 
   const toggleRanking = useCallback(() => {
     setShowRanking((v) => {
-      if (!v) { setShowFilter(false); trackEvent('open-ranking'); }
+      if (!v) { setShowFilter(false); setShowRegionRanking(false); trackEvent('open-ranking'); }
       return !v;
     });
   }, []);
@@ -2431,7 +2453,7 @@ const App: React.FC = () => {
             />
           )}
           {user ? (
-            <UserMenu user={user} onLogout={handleLogout} favorites={favoriteEntries} onSelectFavorite={handleSelectFavorite} onToggleFavorite={toggleFavorite} onExportData={exportData} onDeleteAccount={deleteAccount} />
+            <UserMenu user={user} onLogout={handleLogout} favorites={favoriteEntries} onSelectFavorite={handleSelectFavorite} onToggleFavorite={toggleFavorite} onExportData={exportData} onDeleteAccount={deleteAccount} onReLogin={handleReLogin} />
           ) : authLoading ? (
             // L7: while restoring a returning user's session, show a placeholder
             // instead of the Sign-in button to avoid a flash of "Sign in".
@@ -2510,6 +2532,7 @@ const App: React.FC = () => {
               onClose={handleCloseRanking}
               city={cityFilter}
               scope={comparisonScope}
+              selectedPno={selected?.pno ?? null}
             />
           </Suspense>
         </ErrorBoundary>
@@ -2550,7 +2573,9 @@ const App: React.FC = () => {
           headerSlot={layerSelectorHeaderSlot}
           planningSlot={layerSelectorPlanningSlot}
           lang={lang}
-          hidden={!!selected || splitMode}
+          // UX MO-2: hide during the touch peek too — a long peeked area name can
+          // reach the bottom-right Layers FAB.
+          hidden={!!selected || !!peek || splitMode}
         />
       )}
 
@@ -2630,8 +2655,9 @@ const App: React.FC = () => {
         );
       })()}
 
-      {/* Legend — repositioned for mobile (MO2: suppressed on mobile when an area panel covers it) */}
-      <Legend layerId={activeLayer} colorblind={colorblind} layerConfig={effectiveLayer} lang={lang} gridLoading={gridLoading && hasGridData(activeLayer)} gridError={gridError && hasGridData(activeLayer)} hidden={!!selected} subregionEstimate={priceFallbackValue != null} gridFilterInactive={hasGridData(activeLayer) && ((showFilter && filters.length > 0) || wizardResultPnos.length > 0)} />
+      {/* Legend — repositioned for mobile (MO2: suppressed on mobile when an area panel covers it;
+          UX MO-2: also during the touch peek — the peek bar paints over the same bottom band) */}
+      <Legend layerId={activeLayer} colorblind={colorblind} layerConfig={effectiveLayer} lang={lang} gridLoading={gridLoading && hasGridData(activeLayer)} gridError={gridError && hasGridData(activeLayer)} hidden={!!selected || !!peek} subregionEstimate={priceFallbackValue != null} gridFilterInactive={hasGridData(activeLayer) && ((showFilter && filters.length > 0) || wizardResultPnos.length > 0)} />
 
       {/* PO-2: Time slider / historical playback (only when a time-series metric is active) */}
       {!IS_EMBED && timeYear != null && availableYears.length > 1 && (
@@ -2742,6 +2768,7 @@ const App: React.FC = () => {
               onSelectRegion={handleExploreCity}
               onClose={() => setShowRegionRanking(false)}
               qualityWeights={qualityWeights}
+              selectedRegion={selected?.city ?? null}
             />
           </Suspense>
         </ErrorBoundary>
@@ -2820,7 +2847,7 @@ const App: React.FC = () => {
       {!IS_EMBED && pinned.length >= 1 && (
         <ErrorBoundary>
           <Suspense fallback={null}>
-            <ComparisonPanel pinned={pinned} onUnpin={unpin} onClear={clearPinned} reference={referenceProps ?? null} referenceName={referenceName} geometryFor={geometryFor} suppressMobile={!!selected} wizardProfile={wizardProfile} />
+            <ComparisonPanel pinned={pinned} onUnpin={unpin} onClear={clearPinned} reference={referenceProps ?? null} referenceName={referenceName} geometryFor={geometryFor} areaPanelOpen={!!selected} wizardProfile={wizardProfile} />
           </Suspense>
         </ErrorBoundary>
       )}
@@ -3080,7 +3107,7 @@ const App: React.FC = () => {
       {/* QW-1: Onboarding tour (hidden in embed mode) */}
       {!IS_EMBED && showTour && (
         <Suspense fallback={null}>
-          <OnboardingTour onComplete={handleCloseTour} skipAuthStep={!!user} lang={lang} onLangChange={handleLangChange} onLaunchFinder={handleOpenWizard} />
+          <OnboardingTour onComplete={handleCloseTour} skipAuthStep={!!user} lang={lang} onLangChange={handleLangChange} onLaunchFinder={handleOpenWizard} chromeReady={firstLoadDone} />
         </Suspense>
       )}
 

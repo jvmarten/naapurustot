@@ -9,6 +9,7 @@ import { CompareIllustration } from './EmptyStateIllustrations';
 import { exportComparisonPdf, exportComparisonCsv, exportGeoJson } from '../utils/export';
 import { generateComparisonCard } from '../utils/scoreCard';
 import { trackEvent } from '../utils/analytics';
+import { ComparisonRadarChart } from './RadarChart';
 
 interface ComparisonPanelProps {
   pinned: NeighborhoodProperties[];
@@ -19,8 +20,10 @@ interface ComparisonPanelProps {
   referenceName?: string | null;
   /** CF-10: resolve a pno's map geometry so the comparison set can export as GeoJSON. */
   geometryFor?: (pno: string) => GeoJSON.Geometry | null;
-  /** MO7: hide the MOBILE sheet when a NeighborhoodPanel mobile sheet is open (both anchor bottom-0 z-20). Desktop is untouched. */
-  suppressMobile?: boolean;
+  /** An area panel (NeighborhoodPanel) is open. MO7: hides the MOBILE sheet (both
+   *  anchor bottom-0 z-20). DT-2: shifts the DESKTOP table right so it centers on
+   *  the map area beside the 380 px panel instead of painting over its bottom. */
+  areaPanelOpen?: boolean;
   /** "Fit for you": the saved priority profile. When custom, each pinned area shows a
    *  match score row so the comparison ranks by personal fit. */
   wizardProfile?: WizardAnswers | null;
@@ -150,7 +153,7 @@ const ComparisonChart: React.FC<{ pinned: NeighborhoodProperties[]; bestByKey: R
 });
 ComparisonChart.displayName = 'ComparisonChart';
 
-export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pinned, onUnpin, onClear, reference = null, referenceName = null, geometryFor, suppressMobile, wizardProfile }) => {
+export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pinned, onUnpin, onClear, reference = null, referenceName = null, geometryFor, areaPanelOpen, wizardProfile }) => {
   useI18nVersion();
   // "Fit for you": per-area match score vs the saved priorities (national ranges, so
   // it reads the same as the panel/profile). Only shown when a custom profile exists.
@@ -180,8 +183,15 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pin
   const refCaption = refActive && referenceName
     ? <span className="text-[10px] font-normal text-surface-500 dark:text-surface-400 ml-1">{t('panel.compared_to').replace('{ref}', referenceName)}</span>
     : null;
-  // PO-4: Tab state for chart vs table view
-  const [view, setView] = useState<'table' | 'chart'>('table');
+  // PO-4: Tab state for table vs chart view; CF-3 adds the overlaid radar. On
+  // mobile 'table' renders the stacked cards instead.
+  const [view, setView] = useState<'table' | 'chart' | 'radar'>('table');
+  // CF-3: series for the overlaid radar — one polygon per pinned area, colored to
+  // match the table columns / bar chart.
+  const radarSeries = useMemo(
+    () => pinned.map((n, i) => ({ name: n.nimi || n.pno, color: BAR_COLORS[i], data: n })),
+    [pinned],
+  );
   // L2: per-button busy state + re-entry guard for the share-as-image card.
   const [sharingImage, setSharingImage] = useState(false);
   // CF-8: Export the entire comparison (table + per-neighborhood detail pages)
@@ -216,12 +226,46 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pin
     return map;
   }, [pinned]);
 
+  // CF-3: one-line synthesis from the already-computed direction-aware winners —
+  // "X leads on N of M metrics". M counts only stats where some area won (i.e.
+  // at least one comparable value exists).
+  const winnerSummary = useMemo(() => {
+    if (pinned.length < 2) return null;
+    const wins: Record<string, number> = {};
+    let contested = 0;
+    for (const key of Object.keys(bestByKey)) {
+      const best = bestByKey[key];
+      if (best == null) continue;
+      contested++;
+      wins[best] = (wins[best] ?? 0) + 1;
+    }
+    let leader: string | null = null;
+    let leaderWins = 0;
+    for (const pno of Object.keys(wins)) {
+      if (wins[pno] > leaderWins) { leaderWins = wins[pno]; leader = pno; }
+    }
+    if (!leader || contested === 0) return null;
+    const area = pinned.find((p) => p.pno === leader);
+    if (!area) return null;
+    // The translated sentence is built at render (not here) so it tracks language
+    // changes — this memo's deps don't change on a locale switch.
+    return { name: area.nimi || area.pno, wins: leaderWins, contested, colorIdx: pinned.indexOf(area) };
+  }, [pinned, bestByKey]);
+  const winnerLine = winnerSummary && (
+    <p className="px-5 pt-2 text-[11px] text-surface-500 dark:text-surface-400">
+      <span className={`font-semibold ${COLUMN_COLORS[winnerSummary.colorIdx] ?? ''}`}>{winnerSummary.name}</span>{' '}
+      {t('compare.leads')
+        .replace('{n}', String(winnerSummary.wins))
+        .replace('{m}', String(winnerSummary.contested))}
+    </p>
+  );
+
   if (pinned.length === 0) return null;
 
   if (pinned.length === 1) {
     // C3/EM2: on mobile this hint was previously `hidden md:flex`, so pinning a
     // single area gave no feedback. Render a compact bottom-anchored pill on
-    // mobile (suppressed when a NeighborhoodPanel sheet is open via suppressMobile),
+    // mobile (suppressed when a NeighborhoodPanel sheet is open via areaPanelOpen),
     // and keep the desktop floating card unchanged at md+.
     return (
       <div
@@ -231,7 +275,7 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pin
                     rounded-t-2xl md:rounded-2xl
                     border-t md:border border-surface-200 dark:border-surface-800/50
                     shadow-[0_-4px_30px_rgba(0,0,0,0.15)] md:shadow-2xl
-                    px-4 py-3 md:px-6 md:py-4 items-center gap-3 md:gap-4 ${suppressMobile ? '!hidden md:!flex' : ''}`}
+                    px-4 py-3 md:px-6 md:py-4 items-center gap-3 md:gap-4 ${areaPanelOpen ? '!hidden md:!flex' : ''}`}
       >
         <CompareIllustration className="w-10 h-10 md:w-12 md:h-12 opacity-60 flex-shrink-0" />
         <div className="text-sm text-surface-500 dark:text-surface-400">
@@ -244,11 +288,15 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pin
 
   return (
     <>
-      {/* Desktop: horizontal table */}
-      <div className="hidden md:block absolute bottom-4 left-1/2 -translate-x-1/2 z-20 w-[95vw] max-w-[800px]
+      {/* Desktop: horizontal table. DT-2: with the 380 px NeighborhoodPanel open,
+          center on the remaining map area (50% + 190px) and cap the width so the
+          table doesn't paint over the panel's bottom section mid-pin-flow. */}
+      <div className={`hidden md:block absolute bottom-4 -translate-x-1/2 z-20 w-[95vw]
                       bg-white/95 dark:bg-surface-950/95 backdrop-blur-xl rounded-2xl
                       border border-surface-200 dark:border-surface-800/50 shadow-2xl
-                      overflow-hidden">
+                      overflow-hidden ${areaPanelOpen
+                        ? 'left-[calc(50%+190px)] max-w-[min(800px,calc(100vw-420px))]'
+                        : 'left-1/2 max-w-[800px]'}`}>
         {/* Header with tab toggle */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-surface-200 dark:border-surface-800/50">
           <div className="flex items-center gap-3">
@@ -272,6 +320,15 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pin
                 }`}
               >
                 {t('compare.chart')}
+              </button>
+              {/* CF-3: overlaid multi-series radar */}
+              <button
+                onClick={() => setView('radar')}
+                className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-colors ${
+                  view === 'radar' ? 'bg-white dark:bg-surface-700 text-surface-900 dark:text-white shadow-sm' : 'text-surface-500 dark:text-surface-400'
+                }`}
+              >
+                {t('compare.radar')}
               </button>
             </div>
           </div>
@@ -327,8 +384,14 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pin
           </div>
         </div>
 
+        {/* CF-3: winner synthesis — which area leads on most metrics */}
+        {winnerLine}
+
         {/* PO-4: Chart view */}
         {view === 'chart' && <ComparisonChart pinned={pinned} bestByKey={bestByKey} />}
+
+        {/* CF-3: overlaid radar view */}
+        {view === 'radar' && <ComparisonRadarChart series={radarSeries} />}
 
         {/* Table view */}
         {view === 'table' && (
@@ -446,7 +509,7 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pin
         className={`md:hidden fixed bottom-0 left-0 right-0 z-20 max-h-[60vh]
                       bg-white/95 dark:bg-surface-950/95 backdrop-blur-xl
                       border-t border-surface-200 dark:border-surface-800/50
-                      shadow-[0_-4px_30px_rgba(0,0,0,0.15)] rounded-t-2xl ${suppressMobile ? 'hidden' : ''}`}>
+                      shadow-[0_-4px_30px_rgba(0,0,0,0.15)] rounded-t-2xl ${areaPanelOpen ? 'hidden' : ''}`}>
         <div className="flex items-center justify-between px-5 py-3 border-b border-surface-200 dark:border-surface-800/50">
           <h2 className="text-sm font-display font-bold text-surface-900 dark:text-white">
             {t('compare.title')}{refCaption}
@@ -484,10 +547,35 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ pin
             </button>
           </div>
         </div>
-        <div className="overflow-y-auto p-4 pb-safe space-y-3" style={{ maxHeight: 'calc(60vh - 52px)' }}>
-          {pinned.map((n, i) => (
-            <MobileCard key={n.pno} n={n} color={COLUMN_COLORS[i]} onUnpin={onUnpin} allPinned={pinned} bestByKey={bestByKey} reference={refActive ? reference : null} fitScore={fitByPno ? fitByPno[n.pno] : null} isBestFit={bestFitPno === n.pno} />
-          ))}
+        {/* CF-3: mobile chart parity — the table/chart/radar toggle was desktop-only,
+            so mobile users could never reach any comparison chart. 'table' renders
+            the stacked cards here. */}
+        <div className="flex items-center gap-2 px-4 pt-3">
+          <div className="flex rounded-lg bg-surface-100 dark:bg-surface-800 p-0.5">
+            {(['table', 'chart', 'radar'] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className={`px-3 py-1.5 rounded-md text-[11px] font-semibold transition-colors min-h-[36px] ${
+                  view === v ? 'bg-white dark:bg-surface-700 text-surface-900 dark:text-white shadow-sm' : 'text-surface-500 dark:text-surface-400'
+                }`}
+              >
+                {t(v === 'table' ? 'compare.cards' : v === 'chart' ? 'compare.chart' : 'compare.radar')}
+              </button>
+            ))}
+          </div>
+        </div>
+        {winnerLine}
+        <div className="overflow-y-auto pb-safe" style={{ maxHeight: 'calc(60vh - 100px)' }}>
+          {view === 'chart' && <ComparisonChart pinned={pinned} bestByKey={bestByKey} />}
+          {view === 'radar' && <ComparisonRadarChart series={radarSeries} />}
+          {view === 'table' && (
+            <div className="p-4 space-y-3">
+              {pinned.map((n, i) => (
+                <MobileCard key={n.pno} n={n} color={COLUMN_COLORS[i]} onUnpin={onUnpin} allPinned={pinned} bestByKey={bestByKey} reference={refActive ? reference : null} fitScore={fitByPno ? fitByPno[n.pno] : null} isBestFit={bestFitPno === n.pno} />
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </>

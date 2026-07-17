@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { REGION_IDS, type RegionId } from '../utils/regions';
 import { t, useI18nVersion, type Lang } from '../utils/i18n';
+import { fold } from '../utils/slug';
 import coverageManifest from '../data/region_coverage.json';
 
 export type CityFilter = RegionId | 'all';
@@ -47,11 +48,20 @@ function getCoverageBadge(regionId: CityFilter): string {
 export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, onChange, lang: _lang }) => {
   useI18nVersion();
   const [open, setOpen] = useState(false);
+  // SN-2: filter text for the mobile popover — 70 rows in a small unsearchable
+  // scroll list made alphabetically-late regions a chore to reach (the desktop
+  // native <select> at least supports type-to-jump). Accent-folded like SearchBar.
+  const [filter, setFilter] = useState('');
   const ref = useRef<HTMLDivElement>(null);
   const options = OPTIONS;
+  const foldedFilter = fold(filter.trim());
+  const visibleOptions = foldedFilter
+    ? options.filter((opt) => fold(t(opt.labelKey)).includes(foldedFilter))
+    : options;
 
   useEffect(() => {
     if (!open) return;
+    setFilter('');
     const handleClick = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
@@ -99,23 +109,41 @@ export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, on
         </button>
 
         {open && (
-          <div className="absolute right-0 top-full mt-2 w-48 max-h-80 overflow-y-auto rounded-xl bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700/40 shadow-2xl backdrop-blur-md z-50 py-1">
-            {options.map((opt) => (
-              <button
-                key={opt.id}
-                onClick={() => {
-                  onChange(opt.id);
-                  setOpen(false);
-                }}
-                className={`w-full text-left px-4 py-3 text-sm transition-colors ${
-                  opt.id === value
-                    ? 'bg-brand-500/15 text-brand-700 dark:text-brand-300 font-medium'
-                    : 'text-surface-700 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800/60'
-                }`}
-              >
-                {t(opt.labelKey)}{getCoverageBadge(opt.id)}
-              </button>
-            ))}
+          <div className="absolute right-0 top-full mt-2 w-48 max-h-80 flex flex-col rounded-xl bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700/40 shadow-2xl backdrop-blur-md z-50 py-1">
+            {/* SN-2: small filter input, mirroring LayerSelector's search field */}
+            <div className="px-2 pb-1 flex-shrink-0">
+              <input
+                type="text"
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                placeholder={t('city.filter_placeholder')}
+                aria-label={t('city.filter_placeholder')}
+                className="w-full rounded-lg bg-surface-100 dark:bg-surface-800 border border-transparent focus:border-brand-500/50
+                           px-3 py-2 text-xs text-surface-900 dark:text-white placeholder-surface-400 dark:placeholder-surface-500
+                           focus:outline-none"
+              />
+            </div>
+            <div className="overflow-y-auto flex-1 min-h-0">
+              {visibleOptions.map((opt) => (
+                <button
+                  key={opt.id}
+                  onClick={() => {
+                    onChange(opt.id);
+                    setOpen(false);
+                  }}
+                  className={`w-full text-left px-4 py-3 text-sm transition-colors ${
+                    opt.id === value
+                      ? 'bg-brand-500/15 text-brand-700 dark:text-brand-300 font-medium'
+                      : 'text-surface-700 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800/60'
+                  }`}
+                >
+                  {t(opt.labelKey)}{getCoverageBadge(opt.id)}
+                </button>
+              ))}
+              {visibleOptions.length === 0 && (
+                <div className="px-4 py-3 text-xs text-surface-500 dark:text-surface-400">{t('city.filter_no_match')}</div>
+              )}
+            </div>
           </div>
         )}
       </div>

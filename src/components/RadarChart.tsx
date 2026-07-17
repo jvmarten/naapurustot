@@ -1,53 +1,56 @@
 import React, { useMemo } from 'react';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { t, useI18nVersion } from '../utils/i18n';
+import { getNationalRanges } from '../utils/nationalRanges';
 
 interface RadarChartProps {
   data: NeighborhoodProperties;
   metroAverages: Record<string, number>;
 }
 
-/** Axis definition: label i18n key, extractor, min, max, inverted */
-interface AxisDef {
+/** Axis definition: label i18n key, extractor, source metric(s), inverted */
+interface AxisSpec {
   key: string;
   extract: (p: NeighborhoodProperties) => number | null;
   extractAvg: (avg: Record<string, number>) => number;
-  min: number;
-  max: number;
+  /** national_ranges.json properties this axis normalizes against; a multi-metric
+   *  (composite) axis averages its constituents' bounds. */
+  metrics: string[];
   inverted: boolean;
 }
 
-const AXES: AxisDef[] = [
+interface AxisDef extends AxisSpec {
+  min: number;
+  max: number;
+}
+
+const AXIS_SPECS: AxisSpec[] = [
   {
     key: 'radar.income',
     extract: (p) => p.hr_mtu,
     extractAvg: (a) => a.hr_mtu,
-    min: 15000,
-    max: 55000,
+    metrics: ['hr_mtu'],
     inverted: false,
   },
   {
     key: 'radar.safety',
     extract: (p) => p.crime_index,
     extractAvg: (a) => a.crime_index,
-    min: 20,
-    max: 170,
+    metrics: ['crime_index'],
     inverted: true,
   },
   {
     key: 'radar.transit',
     extract: (p) => p.transit_stop_density,
     extractAvg: (a) => a.transit_stop_density,
-    min: 5,
-    max: 65,
+    metrics: ['transit_stop_density'],
     inverted: false,
   },
   {
     key: 'radar.education',
     extract: (p) => p.higher_education_rate,
     extractAvg: (a) => a.higher_education_rate,
-    min: 10,
-    max: 80,
+    metrics: ['higher_education_rate'],
     inverted: false,
   },
   {
@@ -61,19 +64,37 @@ const AXES: AxisDef[] = [
     },
     extractAvg: (a) =>
       ((a.grocery_density ?? 0) + (a.healthcare_density ?? 0) + (a.school_density ?? 0)) / 3,
-    min: 0.5,
-    max: 25,
+    metrics: ['grocery_density', 'healthcare_density', 'school_density'],
     inverted: false,
   },
   {
     key: 'radar.housing',
     extract: (p) => p.property_price_sqm,
     extractAvg: (a) => a.property_price_sqm,
-    min: 1000,
-    max: 12000,
+    metrics: ['property_price_sqm'],
     inverted: true,
   },
 ];
+
+// PO-1: axis bounds come from the pre-computed national distribution (winsorized
+// p2/p98 in national_ranges.json) instead of hardcoded metro-centric literals that
+// pegged most of the 3,018 areas near the floor and went stale on data refreshes.
+// A composite axis averages its constituents' bounds. normalize() treats a
+// degenerate (missing-metric) 0-width range as mid-scale, so an absent range key
+// degrades safely rather than corrupting the polygon.
+function axisBounds(metrics: string[]): { min: number; max: number } {
+  const ranges = getNationalRanges();
+  let minSum = 0;
+  let maxSum = 0;
+  for (const m of metrics) {
+    const r = ranges.get(m);
+    minSum += r?.min ?? 0;
+    maxSum += r?.max ?? 0;
+  }
+  return { min: minSum / metrics.length, max: maxSum / metrics.length };
+}
+
+const AXES: AxisDef[] = AXIS_SPECS.map((spec) => ({ ...spec, ...axisBounds(spec.metrics) }));
 
 const NUM_AXES = AXES.length;
 const SIZE = 280;
@@ -269,5 +290,152 @@ const RadarChart: React.FC<RadarChartProps> = React.memo(function RadarChart({ d
     </div>
   );
 });
+
+/** CF-3: one series (a pinned area) in the overlaid comparison radar. */
+export interface RadarSeries {
+  name: string;
+  color: string;
+  data: NeighborhoodProperties;
+}
+
+/**
+ * CF-3: overlaid multi-series radar for the ComparisonPanel — plots the 2–3
+ * pinned areas as overlapping polygons on the same national-range axes the
+ * single-area radar uses, for an at-a-glance shape comparison.
+ */
+export const ComparisonRadarChart: React.FC<{ series: RadarSeries[] }> = React.memo(
+  function ComparisonRadarChart({ series }) {
+    useI18nVersion();
+    const seriesValues = useMemo(
+      () =>
+        series.map((s) =>
+          AXES.map((a) => normalize(a.extract(s.data), a.min, a.max, a.inverted)),
+        ),
+      [series],
+    );
+    const seriesMissing = useMemo(
+      () =>
+        series.map((s) =>
+          AXES.map((a) => {
+            const v = a.extract(s.data);
+            return v == null || Number.isNaN(v);
+          }),
+        ),
+      [series],
+    );
+
+    // Same rationale as the single-area chart: build the t()-dependent string
+    // inline so it always reflects the current language.
+    const ariaLabel = (() => {
+      const perSeries = series.map((s, si) => {
+        const values = AXES.map((axis, i) =>
+          `${t(axis.key)} ${seriesMissing[si][i] ? t('panel.radar_no_data') : Math.round(seriesValues[si][i])}`,
+        ).join(', ');
+        return `${s.name} — ${values}`;
+      });
+      return `${t('compare.radar')}: ${perSeries.join('. ')}.`;
+    })();
+
+    const gridLevels = [20, 40, 60, 80, 100];
+
+    return (
+      <div className="flex flex-col items-center gap-1 px-5 py-4">
+        <svg
+          width={SIZE}
+          height={SIZE}
+          viewBox={`0 0 ${SIZE} ${SIZE}`}
+          className="overflow-visible"
+          role="img"
+          aria-label={ariaLabel}
+        >
+          {gridLevels.map((level) => (
+            <polygon
+              key={level}
+              points={Array.from({ length: NUM_AXES }, (_, i) =>
+                pointOnAxis(i, level).join(','),
+              ).join(' ')}
+              fill="none"
+              className="stroke-surface-200 dark:stroke-surface-700"
+              strokeWidth={level === 100 ? 1 : 0.5}
+            />
+          ))}
+          {AXES.map((_, i) => {
+            const [x, y] = pointOnAxis(i, 100);
+            return (
+              <line
+                key={i}
+                x1={CENTER}
+                y1={CENTER}
+                x2={x}
+                y2={y}
+                className="stroke-surface-300 dark:stroke-surface-600"
+                strokeWidth={0.5}
+              />
+            );
+          })}
+          {series.map((s, si) => (
+            <polygon
+              key={s.name + si}
+              points={polygonPoints(seriesValues[si])}
+              fill={s.color}
+              fillOpacity={0.12}
+              stroke={s.color}
+              strokeWidth={2}
+            />
+          ))}
+          {series.map((s, si) =>
+            seriesValues[si].map((v, i) => {
+              if (!Number.isFinite(v)) return null;
+              const [x, y] = pointOnAxis(i, v);
+              // EM4 (carried over): an axis with no data renders as a hollow ring so
+              // it doesn't read as a genuine worst-score vertex at the centre.
+              return seriesMissing[si][i]
+                ? <circle key={`${si}-${i}`} cx={x} cy={y} r={3} fill="white" className="dark:fill-surface-900" stroke={s.color} strokeWidth={1.5} />
+                : <circle key={`${si}-${i}`} cx={x} cy={y} r={3} fill={s.color} />;
+            }),
+          )}
+          {AXES.map((axis, i) => {
+            const angle = (2 * Math.PI * i) / NUM_AXES - Math.PI / 2;
+            const lx = CENTER + LABEL_RADIUS * Math.cos(angle);
+            const ly = CENTER + LABEL_RADIUS * Math.sin(angle);
+            let textAnchor: 'start' | 'middle' | 'end' = 'middle';
+            if (Math.cos(angle) < -0.1) textAnchor = 'end';
+            else if (Math.cos(angle) > 0.1) textAnchor = 'start';
+            let dy = '0.35em';
+            if (Math.sin(angle) < -0.5) dy = '0em';
+            else if (Math.sin(angle) > 0.5) dy = '0.7em';
+            return (
+              <text
+                key={i}
+                x={lx}
+                y={ly}
+                textAnchor={textAnchor}
+                dy={dy}
+                className="fill-surface-600 dark:fill-surface-300 text-[10px]"
+                style={{ fontSize: 10 }}
+              >
+                {t(axis.key)}
+              </text>
+            );
+          })}
+        </svg>
+        {/* Series legend — the SVG polygons are color-only, so name them. */}
+        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
+          {series.map((s) => (
+            <span key={s.name} className="flex items-center gap-1.5 text-[11px] text-surface-600 dark:text-surface-300">
+              <span aria-hidden className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: s.color }} />
+              {s.name}
+            </span>
+          ))}
+        </div>
+        {seriesMissing.some((m) => m.some(Boolean)) && (
+          <p className="text-[10px] text-surface-500 dark:text-surface-400 text-center max-w-[18rem]">
+            {t('panel.radar_no_data')}: {AXES.filter((_, i) => seriesMissing.some((m) => m[i])).map((a) => t(a.key)).join(', ')}
+          </p>
+        )}
+      </div>
+    );
+  },
+);
 
 export default RadarChart;

@@ -20,9 +20,12 @@ interface UserMenuProps {
   onExportData?: () => Promise<{ data?: Record<string, unknown>; error?: string }>;
   /** CF-13: GDPR account deletion — resolves to null on success or an error string. */
   onDeleteAccount?: () => Promise<string | null>;
+  /** AC-1: recovery for the terminal "session expired" (401) state — clears the
+   *  dead session's local auth state and reopens the login modal. */
+  onReLogin?: () => void;
 }
 
-export const UserMenu: React.FC<UserMenuProps> = React.memo(({ user, onLogout, favorites = [], onSelectFavorite, onToggleFavorite, onExportData, onDeleteAccount }) => {
+export const UserMenu: React.FC<UserMenuProps> = React.memo(({ user, onLogout, favorites = [], onSelectFavorite, onToggleFavorite, onExportData, onDeleteAccount, onReLogin }) => {
   useI18nVersion();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -168,6 +171,15 @@ export const UserMenu: React.FC<UserMenuProps> = React.memo(({ user, onLogout, f
                   className="font-semibold underline hover:text-amber-700 dark:hover:text-amber-300"
                 >
                   {t('error.retry')}
+                </button>
+              )}
+              {/* AC-1: give the "log in again" instruction an actual control. */}
+              {syncStatus === 'error' && sessionExpired && onReLogin && (
+                <button
+                  onClick={() => { setOpen(false); onReLogin(); }}
+                  className="font-semibold underline hover:text-amber-700 dark:hover:text-amber-300"
+                >
+                  {t('auth.login')}
                 </button>
               )}
             </div>

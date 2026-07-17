@@ -3,8 +3,13 @@ import type { FilterCriterion } from '../utils/filterUtils';
 import { LAYERS } from '../utils/colorScales';
 import { runSync } from '../utils/syncStatus';
 import { api } from '../utils/api';
+import { addTombstone, clearTombstone, readTombstones } from '../utils/syncTombstones';
 
 const STORAGE_KEY = 'naapurustot-filter-presets';
+// AC-2: presets the user explicitly deleted on this device — skipped on the
+// login-merge so a deletion is not undone by a stale server copy. (This was the
+// one synced store without tombstones; deleted presets resurrected cross-device.)
+const TOMBSTONE_KEY = 'naapurustot-filter-presets-removed';
 
 const VALID_LAYER_IDS = new Set<string>(LAYERS.map((l) => l.id));
 
@@ -55,13 +60,16 @@ function presetSig(p: SavedPreset): string {
 
 /** Merge presets by (name + criteria) — local order preserved, server-only presets appended.
  *  Deduping by name alone silently dropped a server copy that shared a name with a
- *  locally-edited preset (the common cross-device edit case), losing the user's update. */
+ *  locally-edited preset (the common cross-device edit case), losing the user's update.
+ *  AC-2: server presets tombstoned on this device (and absent locally) are skipped,
+ *  mirroring mergeRespectingTombstones for the other synced stores. */
 function mergePresets(local: SavedPreset[], server: SavedPreset[]): SavedPreset[] {
+  const tomb = readTombstones(TOMBSTONE_KEY);
   const seen = new Set(local.map(presetSig));
   const merged = [...local];
   for (const p of server) {
     const sig = presetSig(p);
-    if (!seen.has(sig)) {
+    if (!seen.has(sig) && !tomb.has(sig)) {
       merged.push(p);
       seen.add(sig);
     }
@@ -104,6 +112,10 @@ export function useFilterPresets(userId?: string | null) {
   const prevUserIdRef = useRef<string | null | undefined>(undefined);
   const userIdRef = useRef(userId);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // AC-2: set on the userId null→id login transition, cleared once the on-login
+  // merge resolves; while set the debounced save is skipped so a local save can't
+  // race (and pre-empt) the merge fetch — mirrors the other five synced stores.
+  const loginMergePendingRef = useRef(false);
 
   useEffect(() => {
     presetsRef.current = presets;
@@ -114,10 +126,16 @@ export function useFilterPresets(userId?: string | null) {
 
   // Debounced server save
   useEffect(() => {
+    // AC-2: defer the save on the login transition until the merge below runs
+    // (prevUserIdRef still holds the previous userId — the on-login effect that
+    // updates it is declared after this one and runs later in the same commit).
+    if (userId && userId !== prevUserIdRef.current) loginMergePendingRef.current = true;
+
     if (!userId || fromServerRef.current) {
       fromServerRef.current = false;
       return;
     }
+    if (loginMergePendingRef.current) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       saveTimerRef.current = null;
@@ -159,11 +177,14 @@ export function useFilterPresets(userId?: string | null) {
         // the sync status, like the debounced save — a bare call would be lost.
         runSync('presets', () => api.savePreferences({ filterPresets: merged }));
       }
-    });
-    return () => { cancelled = true; };
+    }).finally(() => { loginMergePendingRef.current = false; });
+    return () => { cancelled = true; loginMergePendingRef.current = false; };
   }, [userId]);
 
   const addPreset = useCallback((name: string, criteria: FilterCriterion[]) => {
+    // AC-2: re-adding an identical preset forgives its deletion tombstone
+    // (outside the pure state updater), matching the favorites pattern.
+    clearTombstone(TOMBSTONE_KEY, presetSig({ name, criteria }));
     setPresets((prev) => {
       if (prev.length >= 50) return prev;
       return [...prev, { name, criteria }];
@@ -171,6 +192,10 @@ export function useFilterPresets(userId?: string | null) {
   }, []);
 
   const removePreset = useCallback((index: number) => {
+    // AC-2: record the deletion (outside the pure state updater) so the login
+    // merge doesn't resurrect the server's copy of this exact preset.
+    const removed = presetsRef.current[index];
+    if (removed) addTombstone(TOMBSTONE_KEY, presetSig(removed));
     setPresets((prev) => {
       return prev.filter((_, i) => i !== index);
     });
@@ -183,6 +208,9 @@ export function useFilterPresets(userId?: string | null) {
   const resetLocal = useCallback(() => {
     fromServerRef.current = true;
     if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
+    // AC-2: clear existing tombstones on logout (they'd suppress the NEXT user's
+    // matching server presets) without writing new ones — same as the other stores.
+    try { localStorage.removeItem(TOMBSTONE_KEY); } catch { /* ignore */ }
     setPresets([]);
   }, []);
 

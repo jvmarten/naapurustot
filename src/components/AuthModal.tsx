@@ -47,6 +47,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
   // Bumped to remount the Turnstile widget (and thus mint a fresh, unredeemed
   // token) after a failed signup, since tokens are single-use.
   const [turnstileKey, setTurnstileKey] = useState(0);
+  // AC-3: widget lifecycle so the token-missing submit copy can distinguish
+  // "still loading" from "blocked and will never issue a token".
+  const [turnstileStatus, setTurnstileStatus] = useState<'loading' | 'ready' | 'failed'>('loading');
+  // AC-3: count token-less submit attempts — repeated ones mean the challenge is
+  // silently never resolving (blocked script/frame), so stop saying "try again".
+  const emptyTokenAttemptsRef = useRef(0);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -95,8 +101,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
     // Block submit until the Turnstile challenge has produced a token. The server
     // verifies the token AFTER the rate-limit middleware, so an empty-token submit
     // still burns one of the 3 daily signup attempts for a guaranteed 403.
+    // AC-3: say what is actually happening instead of an infinite generic "try
+    // again" — the widget may still be loading, or it may be blocked and will
+    // never issue a token (the app is fully usable without an account).
     if (mode === 'signup' && TURNSTILE_SITE_KEY && !turnstileToken) {
-      setError(t('auth.error.bot_check_failed'));
+      emptyTokenAttemptsRef.current += 1;
+      if (turnstileStatus === 'loading') {
+        setError(t('auth.error.bot_check_loading'));
+      } else if (turnstileStatus === 'failed' || emptyTokenAttemptsRef.current >= 3) {
+        setError(t('auth.error.bot_check_stuck'));
+      } else {
+        setError(t('auth.error.bot_check_failed'));
+      }
       return;
     }
 
@@ -119,7 +135,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
     } else {
       onClose();
     }
-  }, [mode, username, password, confirmPassword, email, turnstileToken, submitting, onLogin, onSignup, onClose]);
+  }, [mode, username, password, confirmPassword, email, turnstileToken, turnstileStatus, submitting, onLogin, onSignup, onClose]);
 
   const switchMode = useCallback((newMode: 'login' | 'signup') => {
     setMode(newMode);
@@ -203,6 +219,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
               className={INPUT_CLASS}
               placeholder={t('auth.username_placeholder')}
               autoComplete="username"
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? 'auth-error' : undefined}
             />
           </div>
 
@@ -221,6 +239,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
                 className={`${INPUT_CLASS} pr-10`}
                 placeholder={t('auth.password_placeholder')}
                 autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                aria-invalid={error ? true : undefined}
+                aria-describedby={error ? 'auth-error' : undefined}
               />
               <button
                 type="button"
@@ -252,6 +272,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
                     className={`${INPUT_CLASS} pr-10`}
                     placeholder={t('auth.confirm_password_placeholder')}
                     autoComplete="new-password"
+                    aria-invalid={error ? true : undefined}
+                    aria-describedby={error ? 'auth-error' : undefined}
                   />
                   <button
                     type="button"
@@ -281,13 +303,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
               </div>
 
               {/* Turnstile */}
-              <Turnstile key={turnstileKey} onToken={setTurnstileToken} />
+              <Turnstile key={turnstileKey} onToken={setTurnstileToken} onStatus={setTurnstileStatus} />
             </>
           )}
 
-          {error && (
-            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-          )}
+          {/* AY-1: always-mounted assertive live region so every auth failure
+              (wrong password, mismatch, bot check, rate limit) is announced to
+              screen readers — a conditionally-mounted plain <p> was silent. */}
+          <div role="alert" aria-live="assertive">
+            {error && (
+              <p id="auth-error" className="text-sm text-red-600 dark:text-red-400">{error}</p>
+            )}
+          </div>
 
           <button
             type="submit"

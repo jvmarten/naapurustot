@@ -159,6 +159,7 @@ data is available. This catalogue is generated from the live layer registry.
 ### Trends
 - **Income Change (%)**
 - **Population Change (%)**
+- **Population Projection (%)**
 - **Unemployment Change (%)**
 - **Property Price Change**
 - **Crime Change (%)**
@@ -172,6 +173,7 @@ data is available. This catalogue is generated from the live layer registry.
 - **Gender Ratio** — Women per man. 1.0 = balanced, above 1.0 = more women.
 - **Student Share** — Share of working-age residents who are full-time students.
 - **Foreign-Language Speakers**
+- **Foreign-Language Speakers (municipal)**
 - **Pensioner Share**
 - **Single-Person HH**
 - **Single-Parent Households**
@@ -198,6 +200,8 @@ data is available. This catalogue is generated from the live layer registry.
 - **Living Space per Person**
 - **Detached Houses**
 - **New Construction**
+- **Construction Activity**
+- **Planning & Development Activity**
 - **Building Age**
 - **Rent Level**
 - **Price-to-Rent Ratio**
@@ -233,6 +237,14 @@ data is available. This catalogue is generated from the live layer registry.
 ### Voting & Politics
 - **Voter Turnout**
 - **Political Diversity**
+- **Political Lean (Left–Right)**
+- **National Coalition (vote share)**
+- **Social Democrats (vote share)**
+- **Finns Party (vote share)**
+- **Centre Party (vote share)**
+- **Green League (vote share)**
+- **Left Alliance (vote share)**
+- **Swedish People's Party (vote share)**
 
 ### Connectivity & Infra
 - **Broadband Coverage**
@@ -272,7 +284,7 @@ publishers.
 
 | Source | Provides | Licence |
 |---|---|---|
-| Tilastokeskus | Average Age, Avg. Apartment Size, Building Age, Detached Houses, Disposable Income, Elderly (65+), Employment Rate, Families with Children, Foreign-Language Speakers, Gender Ratio, Healthcare Workers, Higher Education, Home Ownership, Household Size, Income Change (%), Living Space per Person, Manufacturing Jobs, Median Income, New Construction, Pensioner Share, Political Diversity, Population Change (%), Population Density, Price-to-Rent Ratio, Property Price Change, Property Prices, Public Sector Jobs, Rent Level, Rental Rate, Service Sector Jobs, Single-Parent Households, Single-Person HH, Student Share, Tech Sector Jobs, Unemployment Change (%), Unemployment Rate, Voter Turnout, Young Adults (18–29), Young Children (0-6) | CC BY 4.0 |
+| Tilastokeskus | Average Age, Avg. Apartment Size, Building Age, Centre Party (vote share), Construction Activity, Detached Houses, Disposable Income, Elderly (65+), Employment Rate, Families with Children, Finns Party (vote share), Foreign-Language Speakers, Foreign-Language Speakers (municipal), Gender Ratio, Green League (vote share), Healthcare Workers, Higher Education, Home Ownership, Household Size, Income Change (%), Left Alliance (vote share), Living Space per Person, Manufacturing Jobs, Median Income, National Coalition (vote share), New Construction, Pensioner Share, Political Diversity, Political Lean (Left–Right), Population Change (%), Population Density, Population Projection (%), Price-to-Rent Ratio, Property Price Change, Property Prices, Public Sector Jobs, Rent Level, Rental Rate, Service Sector Jobs, Single-Parent Households, Single-Person HH, Social Democrats (vote share), Student Share, Swedish People's Party (vote share), Tech Sector Jobs, Unemployment Change (%), Unemployment Rate, Voter Turnout, Young Adults (18–29), Young Children (0-6) | CC BY 4.0 |
 | OpenStreetMap | Cycling Infrastructure, Daycare Density, EV Charging Stations, Grocery Stores, Healthcare Access, Restaurants & Cafes, School Density, Walkability Index, Water Proximity | ODbL 1.0 |
 | Väylävirasto | Traffic Accidents, Transit Access | CC BY 4.0 |
 | HSY | Air Quality, Tree Canopy Cover | CC BY 4.0 |
@@ -283,6 +295,7 @@ publishers.
 | Ylioppilastutkintolautakunta | School Quality | © YTL (julkinen tilasto) |
 | NASA Black Marble (VIIRS) | Light Pollution | Public domain (NASA) |
 | Helsinki Region Infoshare | Noise Pollution | CC BY 4.0 |
+| naapurustot.fi (koostettu) | Planning & Development Activity | — |
 | Säteilyturvakeskus (STUK) | Radon | CC BY 4.0 |
 | Terveyden ja hyvinvoinnin laitos (THL) | Morbidity index | CC BY 4.0 |
 | Suomen ympäristökeskus (SYKE) | Flood risk | CC BY 4.0 |
