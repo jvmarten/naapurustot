@@ -264,11 +264,15 @@ export const ShortlistTray: React.FC<ShortlistTrayProps> = React.memo(({ entries
             />
           </div>
         )}
+        {/* MO-1: chip select/remove targets follow the app's 44 px touch standard on
+            mobile (the tray's min-h-[44px] rule covered only the actions row) —
+            ~24 px text chips and a 16 px "×" invited mis-taps and accidental
+            removals on the flagship curated surface. Desktop keeps the compact look. */}
         <div className="flex flex-wrap gap-1.5">
           {entries.map((e) => (
             <span
               key={e.pno}
-              className="inline-flex items-center gap-1 max-w-[180px] pl-2.5 pr-1 py-1 rounded-full text-xs
+              className="inline-flex items-center gap-1 max-w-[220px] md:max-w-[180px] pl-2.5 pr-1 py-0 md:py-1 rounded-full text-xs
                          bg-surface-100 dark:bg-surface-800 text-surface-700 dark:text-surface-200"
             >
               {notedPnos.has(e.pno) && (
@@ -278,14 +282,17 @@ export const ShortlistTray: React.FC<ShortlistTrayProps> = React.memo(({ entries
                   title={t('shortlist.has_note')}
                 />
               )}
-              <button onClick={() => onSelect(e.pno)} className="truncate hover:text-brand-600 dark:hover:text-brand-300">
+              <button
+                onClick={() => onSelect(e.pno)}
+                className="truncate hover:text-brand-600 dark:hover:text-brand-300 min-h-[44px] md:min-h-0"
+              >
                 {e.name}
               </button>
               <button
                 onClick={() => onRemove(e.pno)}
                 aria-label={t('shortlist.remove')}
                 title={t('shortlist.remove')}
-                className="ml-0.5 w-4 h-4 flex items-center justify-center rounded-full text-surface-400 hover:text-rose-500 hover:bg-surface-200 dark:hover:bg-surface-700"
+                className="ml-0.5 min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 md:w-4 md:h-4 flex items-center justify-center rounded-full text-surface-400 hover:text-rose-500 hover:bg-surface-200 dark:hover:bg-surface-700"
               >
                 ×
               </button>

@@ -28,7 +28,7 @@ density is demoted.
 
 ## The dimension model
 
-The ~50 available factors are grouped into **four evaluative dimensions** plus
+The 58 available factors are grouped into **four evaluative dimensions** plus
 two descriptive ones. Each dimension is scored once and then weighted, so each
 concept counts once. The default factor weights within a dimension sum to that
 dimension's target.

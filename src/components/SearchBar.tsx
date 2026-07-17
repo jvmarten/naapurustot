@@ -68,6 +68,24 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
   // acts on it or starts a new search.
   const [homePrompt, setHomePrompt] = useState<{ pno: string; name: string } | null>(null);
 
+  // SN-3: sighted users only ever saw the short "Hae aluetta…" placeholder — the
+  // richer address/postal-code wording lived solely in the aria-label, hiding the
+  // most natural first action (typing a street address). A placeholder can't be
+  // swapped with CSS, so track the md: breakpoint and use the fuller copy where
+  // the wider desktop field has room for it.
+  const [isDesktop, setIsDesktop] = useState(() =>
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(min-width: 768px)').matches,
+  );
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const mq = window.matchMedia('(min-width: 768px)');
+    const onChange = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
   // Debounce the query used for the feature scan. Short delay (80ms) keeps
   // results feeling responsive while collapsing rapid keystrokes into a single scan.
   useEffect(() => {
@@ -356,7 +374,7 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
           }}
           onFocus={() => setIsOpen(true)}
           onKeyDown={handleKeyDown}
-          placeholder={t('search.placeholder_short')}
+          placeholder={t(isDesktop && GEOCODING_ENABLED ? 'search.address_placeholder' : 'search.placeholder_short')}
           className="w-full rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40
                      pl-10 pr-8 py-1.5 md:py-2.5 text-sm md:text-sm text-surface-900 dark:text-white placeholder-surface-400 dark:placeholder-surface-500
                      focus:outline-none focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/30
@@ -486,7 +504,16 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
           aria-label={t('search.results_label')}
           className="mt-1.5 rounded-xl bg-white/95 dark:bg-surface-900/95 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl max-h-[60vh] overflow-y-auto"
         >
-          {results.map((f, index) => (
+          {results.map((f, index) => {
+            // SN-1: Finnish postal-area names are massively duplicated ("Keskusta",
+            // "Kirkonkylä" exist in dozens of towns) and search matches on the
+            // municipality — echo it back as a secondary label so rows are
+            // distinguishable, unless it just repeats the area name.
+            const p = f.properties as Record<string, unknown>;
+            const name = displayName(f.properties);
+            const muni = (p.muni ?? p.municipality) as string | undefined;
+            const showMuni = !!muni && fold(muni) !== fold(name);
+            return (
             <button
               key={f.properties!.pno}
               id={`search-result-${index}`}
@@ -500,10 +527,14 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
               onMouseEnter={() => setHighlightedIndex(index)}
               onClick={() => selectResult(f)}
             >
-              <span className="text-surface-900 dark:text-white font-medium">{displayName(f.properties)}</span>
+              <span className="text-surface-900 dark:text-white font-medium">{name}</span>
+              {showMuni && (
+                <span className="text-surface-500 dark:text-surface-400 ml-1.5">· {muni}</span>
+              )}
               <span className="text-surface-500 dark:text-surface-400 ml-2">{f.properties!.pno}</span>
             </button>
-          ))}
+            );
+          })}
           {totalCount > 8 && (
             <div className="px-4 py-2 text-xs text-surface-500 dark:text-surface-400 text-center border-t border-surface-100 dark:border-surface-800/40">
               {totalCount - 8} {t('search.moreResults')}

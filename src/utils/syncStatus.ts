@@ -137,8 +137,13 @@ export function useSessionExpired(): boolean {
   return useSyncExternalStore(subscribe, getSessionExpired, () => false);
 }
 
-/** TEST ONLY: reset all module state between specs. */
-export function __resetSyncStatus(): void {
+/**
+ * AC-1: reset all sync state (pending retries, errors, the sessionExpired flag).
+ * Called on logout and on a login transition — module state otherwise outlives
+ * the session that produced it: a stale "Session expired" error survived
+ * logout → re-login indefinitely because only a successful save cleared it.
+ */
+export function resetSyncStatus(): void {
   for (const t of retryTimers.values()) clearTimeout(t);
   state = 'idle';
   sessionExpired = false;
@@ -147,4 +152,8 @@ export function __resetSyncStatus(): void {
   retryTimers.clear();
   attempts.clear();
   lastSavers.clear();
+  for (const cb of subscribers) cb();
 }
+
+/** TEST ONLY: reset all module state between specs. */
+export const __resetSyncStatus = resetSyncStatus;

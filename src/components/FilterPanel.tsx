@@ -751,7 +751,17 @@ export const FilterPanel: React.FC<FilterPanelProps> = React.memo(({
         </button>
       ))}
 
-      {filters.length > 0 && ranked.length === 0 && (
+      {/* DT-3: while the on-demand national dataset is still loading (`data` null
+          on ?city=all with a filter active), `ranked` is empty because the query
+          hasn't run yet — show a loading placeholder, not a contradictory
+          "0 results, clear your filters" under the "still loading" banner. */}
+      {filters.length > 0 && ranked.length === 0 && isAggregate && !data && (
+        <div className="px-4 py-8 text-center text-sm text-surface-500 dark:text-surface-400" role="status">
+          {t('filter.national_loading')}
+        </div>
+      )}
+
+      {filters.length > 0 && ranked.length === 0 && !(isAggregate && !data) && (
         <div className="px-4 py-8 text-center flex flex-col items-center gap-3">
           <FilterEmptyIllustration className="opacity-60" />
           <p className="text-sm text-surface-500 dark:text-surface-400">

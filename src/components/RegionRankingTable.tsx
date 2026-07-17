@@ -15,6 +15,9 @@ interface Props {
   /** CF-1pt3: the user's live Quality-Index weights, so national scores here match
    *  the region map (the loadAllData cache is computed with default weights). */
   qualityWeights?: QualityWeights;
+  /** QW-2: the selected area's region (it ranks the 69 seutukunnat, so the match
+   *  is by region) — highlighted, badged and scrolled into view. */
+  selectedRegion?: string | null;
 }
 
 interface RegionAgg {
@@ -53,7 +56,7 @@ function aggregateByRegion(features: GeoJSON.Feature[], property: string): Regio
   }));
 }
 
-export const RegionRankingTable: React.FC<Props> = React.memo(({ activeLayer, layerConfig, onSelectRegion, onClose, qualityWeights }) => {
+export const RegionRankingTable: React.FC<Props> = React.memo(({ activeLayer, layerConfig, onSelectRegion, onClose, qualityWeights, selectedRegion }) => {
   useI18nVersion();
   const layer = layerConfig ?? getLayerById(activeLayer);
   const [reversed, setReversed] = useState(false);
@@ -94,6 +97,13 @@ export const RegionRankingTable: React.FC<Props> = React.memo(({ activeLayer, la
 
   const displayItems = useMemo(() => reversed ? [...items].reverse() : items, [items, reversed]);
 
+  // QW-2: scroll the selected area's region row into view on open / selection /
+  // re-rank (effect, not ref-callback, so it re-fires when the list changes).
+  const selectedRowRef = React.useRef<HTMLButtonElement | null>(null);
+  React.useEffect(() => {
+    selectedRowRef.current?.scrollIntoView({ block: 'center' });
+  }, [selectedRegion, displayItems]);
+
   const regionName = (id: string) => {
     const cfg = (REGIONS as Record<string, { labelKey: string }>)[id];
     return cfg ? t(cfg.labelKey) : id;
@@ -101,7 +111,9 @@ export const RegionRankingTable: React.FC<Props> = React.memo(({ activeLayer, la
   const muniCount = (id: string) => (REGIONS as Record<string, { municipalityCodes: string[] }>)[id]?.municipalityCodes.length ?? 0;
 
   return (
-    <div className="absolute top-14 left-4 z-20 w-80 max-h-[calc(100vh-7rem)] flex flex-col
+    // DT-1: offset below the search bar (top-14 left-4) like FilterPanel — the
+    // opaque panel otherwise draws directly on top of the search input.
+    <div className="absolute top-28 left-4 z-20 w-80 max-h-[calc(100vh-9rem)] flex flex-col
                     rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md
                     border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 border-b border-surface-200 dark:border-surface-700/40 flex-shrink-0">
@@ -156,15 +168,18 @@ export const RegionRankingTable: React.FC<Props> = React.memo(({ activeLayer, la
           const barWidth = maxVal !== 0 ? (Math.abs(item.value!) / maxVal) * 100 : 0;
           const color = getColorForValue(layer, item.value!);
           const rank = reversed ? displayItems.length - i : i + 1;
+          const isSelected = selectedRegion != null && item.regionId === selectedRegion;
           return (
             <button
               key={item.regionId}
+              ref={isSelected ? selectedRowRef : undefined}
               onClick={() => onSelectRegion(item.regionId)}
-              className="w-full text-left px-4 py-2 flex items-center gap-3 hover:bg-surface-100 dark:hover:bg-surface-800/60 transition-colors border-b border-surface-100 dark:border-surface-800/30 last:border-0"
+              aria-current={isSelected || undefined}
+              className={`w-full text-left px-4 py-2 flex items-center gap-3 hover:bg-surface-100 dark:hover:bg-surface-800/60 transition-colors border-b border-surface-100 dark:border-surface-800/30 last:border-0 ${isSelected ? 'bg-brand-50 dark:bg-brand-900/20' : ''}`}
             >
-              <span className="text-xs font-mono text-surface-500 dark:text-surface-400 w-6 text-right flex-shrink-0">{rank}</span>
+              <span className={`text-xs font-mono w-6 text-right flex-shrink-0 ${isSelected ? 'font-bold text-brand-700 dark:text-brand-300' : 'text-surface-500 dark:text-surface-400'}`}>{rank}</span>
               <div className="flex-1 min-w-0">
-                <div className="text-sm text-surface-800 dark:text-surface-200 truncate">{regionName(item.regionId)}</div>
+                <div className={`text-sm truncate ${isSelected ? 'font-semibold text-brand-700 dark:text-brand-300' : 'text-surface-800 dark:text-surface-200'}`}>{regionName(item.regionId)}</div>
                 <div className="text-[10px] text-surface-500 dark:text-surface-400">
                   {muniCount(item.regionId)} {t('region.comparison.municipalities')}
                 </div>

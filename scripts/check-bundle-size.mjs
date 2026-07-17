@@ -98,7 +98,11 @@ import { join } from 'node:path';
 // which the summed-all-chunks budget counts. The trade — +7 KB to the total (borne mostly
 // by map-route users, who load it lazily anyway) for -65 KB on the profile critical path —
 // is strongly net-positive for the SEO surface. Headroom set to ~2.7 KB.
-const BUDGET = 313_000;
+// CF-3 (this batch's designated bumper): +1 KB for the multi-series comparison
+// radar + mobile chart parity + winner synthesis, plus the batch's UX-review
+// fixes (search municipality labels, filterable region list, sync/session
+// recovery, tour keyboard handling). Headroom restored to ~1.2 KB.
+const BUDGET = 314_000;
 const ASSETS_DIR = 'dist/assets';
 
 const fmtKB = (b) => (b / 1024).toFixed(2);

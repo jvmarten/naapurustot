@@ -1022,7 +1022,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
   const favoriteButton = onToggleFavorite && (
     <button
       onClick={() => { trackEvent(isFavorite ? 'unfavorite' : 'favorite'); onToggleFavorite(); }}
-      className={`p-1.5 rounded-lg transition-colors min-h-[44px] md:min-h-0
+      className={`p-1.5 rounded-lg transition-colors min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 flex items-center justify-center
         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-surface-950 ${
         isFavorite
           ? 'text-amber-500 hover:text-amber-600'
@@ -1044,7 +1044,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
   const referenceButton = onSetReference && !d._isMetroArea && (
     <button
       onClick={() => onSetReference(isReference ? null : d.pno)}
-      className={`p-1.5 rounded-lg transition-colors min-h-[44px] md:min-h-0
+      className={`p-1.5 rounded-lg transition-colors min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 flex items-center justify-center
         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-surface-950 ${
         isReference ? 'text-brand-600 hover:text-brand-600' : 'text-surface-400 hover:text-brand-600'
       }`}
@@ -1059,7 +1059,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
   const shortlistButton = onToggleShortlist && (
     <button
       onClick={() => { trackEvent(isInShortlist ? 'shortlist-remove' : 'shortlist-add'); onToggleShortlist(); }}
-      className={`p-1.5 rounded-lg transition-colors min-h-[44px] md:min-h-0
+      className={`p-1.5 rounded-lg transition-colors min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 flex items-center justify-center
         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-surface-950 ${
         isInShortlist ? 'text-brand-600 hover:text-brand-600' : 'text-surface-400 hover:text-brand-600'
       }`}

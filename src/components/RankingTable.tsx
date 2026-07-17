@@ -19,6 +19,9 @@ interface RankingTableProps {
   /** CF-8: active region + comparison scope, so the copy-link reproduces the view. */
   city?: string;
   scope?: 'all' | 'region';
+  /** QW-2: the currently selected area — its row is highlighted, badged and
+   *  scrolled into view so "where does my area rank?" is answered at a glance. */
+  selectedPno?: string | null;
 }
 
 interface RankedItem {
@@ -31,7 +34,7 @@ interface RankedItem {
 
 // Removed hardcoded LOWER_IS_BETTER set — now uses layer.higherIsBetter from LayerConfig
 
-export const RankingTable: React.FC<RankingTableProps> = React.memo(({ data, activeLayer, layerConfig, onSelect, onClose, city, scope }) => {
+export const RankingTable: React.FC<RankingTableProps> = React.memo(({ data, activeLayer, layerConfig, onSelect, onClose, city, scope, selectedPno }) => {
   useI18nVersion();
   // Prefer the rescaled config (region-comparison mode) so swatch colors match the
   // map fill and Legend; fall back to the base layer when none is provided.
@@ -87,9 +90,17 @@ export const RankingTable: React.FC<RankingTableProps> = React.memo(({ data, act
     [rankedItems, reversed],
   );
 
+  // QW-2: scroll the selected area's row into view on open / selection / re-rank.
+  // A ref callback would only fire on mount, so use an effect keyed on the list.
+  const selectedRowRef = React.useRef<HTMLButtonElement | null>(null);
+  React.useEffect(() => {
+    selectedRowRef.current?.scrollIntoView({ block: 'center' });
+  }, [selectedPno, items]);
 
   return (
-    <div className="absolute top-14 left-4 z-20 w-80 max-h-[calc(100vh-7rem)] flex flex-col
+    // DT-1: offset below the search bar (top-14 left-4) like FilterPanel — the
+    // opaque panel otherwise draws directly on top of the search input.
+    <div className="absolute top-28 left-4 z-20 w-80 max-h-[calc(100vh-9rem)] flex flex-col
                     rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md
                     border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden">
       {/* Header */}
@@ -176,24 +187,31 @@ export const RankingTable: React.FC<RankingTableProps> = React.memo(({ data, act
         {items.map((item) => {
           const barWidth = maxVal !== 0 ? (Math.abs(item.value) / maxVal) * 100 : 0;
           const color = getColorForValue(layer, item.value);
+          const isSelected = selectedPno != null && item.pno === selectedPno;
 
           return (
             <button
               key={item.pno}
+              ref={isSelected ? selectedRowRef : undefined}
               onClick={() => onSelect(item.pno, getFeatureCenter(item.feature))}
-              className="w-full text-left px-4 py-2 flex items-center gap-3
+              aria-current={isSelected || undefined}
+              className={`w-full text-left px-4 py-2 flex items-center gap-3
                          hover:bg-surface-100 dark:hover:bg-surface-800/60 transition-colors
-                         border-b border-surface-100 dark:border-surface-800/30 last:border-0"
+                         border-b border-surface-100 dark:border-surface-800/30 last:border-0
+                         ${isSelected ? 'bg-brand-50 dark:bg-brand-900/20' : ''}`}
               style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 52px' }}
             >
-              {/* Rank */}
-              <span className="text-xs font-mono text-surface-500 dark:text-surface-400 w-6 text-right flex-shrink-0">
+              {/* Rank — QW-2: badge the selected area's rank */}
+              <span className={`text-xs font-mono w-6 text-right flex-shrink-0 ${
+                isSelected
+                  ? 'font-bold text-brand-700 dark:text-brand-300'
+                  : 'text-surface-500 dark:text-surface-400'}`}>
                 {item.rank}
               </span>
 
               {/* Name + bar */}
               <div className="flex-1 min-w-0">
-                <div className="text-sm text-surface-800 dark:text-surface-200 truncate">
+                <div className={`text-sm truncate ${isSelected ? 'font-semibold text-brand-700 dark:text-brand-300' : 'text-surface-800 dark:text-surface-200'}`}>
                   {item.name}
                 </div>
                 <div className="mt-1 h-1.5 w-full bg-surface-100 dark:bg-surface-800 rounded-full overflow-hidden">

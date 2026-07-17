@@ -15,6 +15,11 @@ declare global {
 
 interface TurnstileProps {
   onToken: (token: string) => void;
+  /** AC-3: widget lifecycle for the parent's submit-time copy — 'loading' until the
+   *  script + widget are up, 'ready' once the challenge renders, 'failed' when the
+   *  script can't load or the challenge itself errors (so the parent can stop
+   *  telling the user to "try again" at something that can never succeed). */
+  onStatus?: (status: 'loading' | 'ready' | 'failed') => void;
 }
 
 let scriptLoaded = false;
@@ -57,34 +62,44 @@ function cleanupWidget() {
   }
 }
 
-export const Turnstile: React.FC<TurnstileProps> = ({ onToken }) => {
+export const Turnstile: React.FC<TurnstileProps> = ({ onToken, onStatus }) => {
   const onTokenRef = useRef(onToken);
   useEffect(() => { onTokenRef.current = onToken; }, [onToken]);
+  const onStatusRef = useRef(onStatus);
+  useEffect(() => { onStatusRef.current = onStatus; }, [onStatus]);
   const [error, setError] = useState(false);
 
   const callbackRef = useCallback((container: HTMLDivElement | null) => {
     cleanupWidget();
     if (!container || !SITE_KEY) return;
 
+    onStatusRef.current?.('loading');
     ensureScript().then((success) => {
       if (!success || !window.turnstile) {
         setError(true);
+        onStatusRef.current?.('failed');
         return;
       }
       if (!container.isConnected) return;
       activeWidgetId = window.turnstile.render(container, {
         sitekey: SITE_KEY,
-        callback: (token: string) => onTokenRef.current(token),
+        callback: (token: string) => { onStatusRef.current?.('ready'); onTokenRef.current(token); },
         // Turnstile tokens are single-use and expire (~300s). Clear the parent's
         // token on expiry/timeout/error so a stale token is never submitted —
         // submitting a consumed/expired token 403s at the server and would
         // otherwise strand the user on the signup form.
         'expired-callback': () => onTokenRef.current(''),
         'timeout-callback': () => onTokenRef.current(''),
-        'error-callback': () => onTokenRef.current(''),
+        // AC-3: a challenge error means the widget will not issue a token in this
+        // browser — surface that as 'failed' rather than leaving the parent to
+        // loop on "try again".
+        'error-callback': () => { onStatusRef.current?.('failed'); onTokenRef.current(''); },
         theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light',
         size: 'flexible',
       });
+      // Widget rendered — interactive/managed challenges may still take time (or
+      // user action) to issue a token, but the control is up and visible.
+      onStatusRef.current?.('ready');
     });
   }, []);
 

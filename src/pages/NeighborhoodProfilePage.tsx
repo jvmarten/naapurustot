@@ -14,6 +14,7 @@ import { getLayerById, getInterpolatedColor, readableTextColor } from '../utils/
 import { findSimilarNeighborhoods } from '../utils/similarity';
 import { getFeatureCenter } from '../utils/geometryFilter';
 import { ContactMenu } from '../components/ContactMenu';
+import { LanguagePicker } from '../components/LanguagePicker';
 import { StatCard } from '../components/profile/StatCard';
 import { JsonLd } from '../components/profile/JsonLd';
 import { FitForYouBadge } from '../components/FitForYouBadge';
@@ -151,6 +152,12 @@ export const NeighborhoodProfilePage: React.FC = () => {
 
   const pno = slug ? parseSlug(slug) : null;
 
+  // LP-1: mirror of `state` for the load effect, so a client-side profile→profile
+  // navigation can resolve the target from the PREVIOUS page's already-loaded
+  // region features instead of pulling the multi-MB national dataset for one area.
+  const stateRef = useRef(state);
+  useEffect(() => { stateRef.current = state; }, [state]);
+
   // #1: captured once at mount — the pno + language the page was prerendered for (null pno
   // when the page was not prerendered). The head effect uses these to leave the richer
   // prerendered <title>/description/OG/hreflang untouched on the initial prerendered view,
@@ -226,6 +233,29 @@ export const NeighborhoodProfilePage: React.FC = () => {
 
       void loadGeometry(embedded.p.city);
 
+      return () => { cancelled = true; };
+    }
+
+    // LP-1: client-side profile→profile navigation (e.g. a tap on the
+    // "Similar neighbourhoods" grid — region-scoped by construction). The target
+    // usually sits in the previous page's already-loaded region features, geometry
+    // included — resolve it from there instead of downloading + parsing the
+    // multi-MB national dataset to look up one area on a low-powered device.
+    const prev = stateRef.current;
+    const regionFeat = prev?.regionFeatures.find(f => f.properties?.pno === pno);
+    if (regionFeat?.properties) {
+      setState({
+        feature: regionFeat,
+        geoFeature: regionFeat.geometry != null ? (regionFeat as Feature<Polygon | MultiPolygon>) : null,
+        regionFeatures: prev!.regionFeatures,
+        // Carry the national cohort forward if a previous fallback load fetched it;
+        // otherwise JsonLd simply derives what it can from the region features.
+        allFeatures: prev!.allFeatures,
+        metroAverages: prev!.metroAverages,
+        percentiles: null,
+      });
+      setLoading(false);
+      setMapResolved(true);
       return () => { cancelled = true; };
     }
 
@@ -424,7 +454,10 @@ export const NeighborhoodProfilePage: React.FC = () => {
     [state?.regionFeatures],
   );
 
-  if (loading) {
+  // LP-1: full-page spinner only when there is nothing to show yet (hard load of a
+  // non-prerendered page). During client-side navigation the previous profile stays
+  // visible under a light overlay (below) instead of blanking the whole page.
+  if (loading && !state) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white dark:bg-surface-950">
         <div className="animate-pulse text-surface-500">{t('loading')}</div>
@@ -506,7 +539,14 @@ export const NeighborhoodProfilePage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-white dark:bg-surface-950 text-surface-900 dark:text-white">
+    <div className="min-h-screen bg-white dark:bg-surface-950 text-surface-900 dark:text-white" aria-busy={loading}>
+      {/* LP-1: lightweight loading veil over the still-visible previous profile
+          during client-side navigation — replaces the jarring full-page blank. */}
+      {loading && (
+        <div className="fixed inset-0 z-40 bg-white/60 dark:bg-surface-950/60 flex items-center justify-center" role="status">
+          <div className="animate-pulse text-surface-600 dark:text-surface-300">{t('loading')}</div>
+        </div>
+      )}
       <JsonLd properties={d} center={center} url={canonicalUrl} lang={lang} percentiles={state.percentiles} nationalFeatures={state.allFeatures} regionFeatures={state.regionFeatures} />
 
       {/* Header */}
@@ -524,13 +564,13 @@ export const NeighborhoodProfilePage: React.FC = () => {
               {t('profile.site_tagline')}
             </p>
           </div>
-          <button
-            onClick={() => changeLang(lang === 'fi' ? 'en' : lang === 'en' ? 'sv' : 'fi')}
-            className="text-sm text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-200 transition-colors"
-            aria-label={t('aria.language')}
-          >
-            {lang === 'fi' ? 'EN' : lang === 'en' ? 'SV' : 'FI'}
-          </button>
+          {/* DX-1: the shared three-option picker instead of an ambiguous single
+              cycle-button showing only the NEXT language's code — a cold visitor
+              couldn't tell current from target, and reaching SV from FI took two
+              undiscoverable taps on the app's highest-traffic surface. */}
+          <div className="shrink-0 w-36">
+            <LanguagePicker lang={lang} onLangChange={changeLang} showLabel={false} />
+          </div>
         </div>
       </header>
 
@@ -968,26 +1008,33 @@ const StatItem: React.FC<{ label: string; value: string; estimate?: boolean; est
   </div>
 );
 
-/** Collapsible section wrapper. */
+/** Collapsible section wrapper. AY-3: the toggle lives INSIDE a real <h2> (ARIA
+ *  disclosure pattern) with aria-expanded — as a bare <button> these four stat
+ *  sections were invisible to screen-reader heading navigation (the sibling
+ *  Quality Index / Similar blocks already use <h2>s) and never announced state. */
 const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => {
   const [open, setOpen] = useState(true);
   return (
     <section className="mb-8">
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 text-lg font-semibold mb-4 w-full text-left"
-      >
-        <svg
-          className={`w-4 h-4 transition-transform ${open ? 'rotate-90' : ''}`}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
+      <h2 className="text-lg font-semibold mb-4">
+        <button
+          onClick={() => setOpen(!open)}
+          aria-expanded={open}
+          className="flex items-center gap-2 w-full text-left"
         >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-        </svg>
-        {title}
-      </button>
+          <svg
+            className={`w-4 h-4 transition-transform ${open ? 'rotate-90' : ''}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+            aria-hidden="true"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+          {title}
+        </button>
+      </h2>
       {open && children}
     </section>
   );
