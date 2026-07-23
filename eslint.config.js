@@ -32,4 +32,20 @@ export default defineConfig([
       '@typescript-eslint/no-explicit-any': 'off',
     },
   },
+  {
+    // IN-2: lint the build / prerender / data scripts (all .mjs) plus the root
+    // config files. These previously matched no `files` scope, so `eslint .`
+    // enumerated ~4,700 lines of Node scripts (prerender.mjs, prerender-hubs.mjs, …)
+    // and applied an EMPTY ruleset — no no-undef, no-unused-vars, no-unreachable.
+    files: ['**/*.{mjs,js,cjs}'],
+    extends: [js.configs.recommended],
+    languageOptions: {
+      ecmaVersion: 2023,
+      sourceType: 'module',
+      globals: globals.node,
+    },
+    rules: {
+      'no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+    },
+  },
 ])

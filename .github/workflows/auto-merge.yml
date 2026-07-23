@@ -93,7 +93,7 @@ jobs:
         run: npm run lint
 
       - name: Type check
-        run: npx tsc --noEmit
+        run: npx tsc -b --noEmit
 
       - name: Test (with coverage)
         run: npm run test:coverage
