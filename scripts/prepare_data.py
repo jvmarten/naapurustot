@@ -901,16 +901,18 @@ def _join_pno_value(gdf, data, column, *, as_int=False):
 
 
 def clean_properties(gdf):
-    """Replace -1 suppressed values with None in key fields."""
-    key_fields = [
-        "he_vakiy", "he_kika", "ko_ika18y", "ko_yl_kork", "ko_al_kork",
-        "ko_ammat", "ko_perus", "hr_mtu", "hr_ktu", "pt_tyoll", "pt_tyott",
-        "pt_opisk", "pt_elakel", "ra_asunn", "te_takk",
-        "te_omis_as", "te_vuok_as", "te_taly", "ra_as_kpa", "ra_pt_as",
-        "pinta_ala", "he_0_2", "he_3_6",
-    ]
-    for col in key_fields:
-        if col in gdf.columns:
+    """Replace Paavo -1 suppression sentinels with None across all source columns.
+
+    IN-1: Statistics Finland (Paavo) uses -1 as a confidentiality/suppression marker
+    on every he_/ko_/hr_/tr_/te_/ra_/pt_/tp_ column (plus pinta_ala). Sweep the whole
+    prefix set rather than a hand-maintained allowlist, so no suppression sentinel can
+    leak into region_properties.json, the open-data CSV or /api/v1 as if it were a
+    count. The 3 derived *_change_pct metrics legitimately hold real -1.0 % values and
+    are outside this prefix scope, so they are left untouched.
+    """
+    suppression_prefixes = ("he_", "ko_", "hr_", "tr_", "te_", "ra_", "pt_", "tp_")
+    for col in gdf.columns:
+        if col.startswith(suppression_prefixes) or col == "pinta_ala":
             gdf[col] = gdf[col].apply(lambda v: None if v == -1 or v == -1.0 else v)
     # QW-1: the Paavo household-income (tr_*) and living-space (te_as_valj) columns
     # use BOTH -1 and 0 as confidentiality/zero-suppression sentinels (0 is never a

@@ -134,9 +134,84 @@ RANGE_CHECKS = [
     # NOT a distributed proxy). 0 is a valid real value (no nearby planning);
     # build_planning_data caps entries at 12 per pno (observed 0..12).
     ("active_plan_count", 0, 1_000),
+    # IN-1: value-range coverage extended to the remaining stored postal metrics
+    # (previously only ~half were checked). Bounds are generous — set outward of the
+    # observed min/max so they catch unit/scale mistakes without flagging real
+    # outliers. *_index metrics and *_change_pct metrics can legitimately be negative
+    # or exceed 100; new_construction_pct exceeds 100 in fast-growing areas.
+    ("walkability_index", 0, 100),
+    ("water_proximity_m", 0, 50_000),
+    ("avg_construction_year", 1800, 2035),
+    ("avg_household_size", 0, 15),
+    ("gender_ratio", 0, 10),
+    ("ra_as_kpa", 0, 500),
+    ("he_vakiy", 0, 200_000),
+    ("school_quality_score", 0, 100),
+    ("price_to_rent_ratio", 0, 100),
+    ("new_construction_pct", 0, 10_000),
+    ("traffic_accident_rate", 0, 1_000),
+    ("cycling_density", 0, 2_000),
+    ("sports_facility_density", 0, 1_000),
+    ("ev_charging_density", 0, 1_000),
+    ("broadband_coverage_pct", 0, 100),
+    ("political_lean_index", 0, 100),
+    # Employment / sector / demographic shares (%).
+    ("employment_rate", 0, 100),
+    ("elderly_ratio_pct", 0, 100),
+    ("youth_ratio_pct", 0, 100),
+    ("families_with_children_pct", 0, 100),
+    ("single_parent_hh_pct", 0, 100),
+    ("service_sector_jobs_pct", 0, 100),
+    ("manufacturing_jobs_pct", 0, 100),
+    ("healthcare_workers_pct", 0, 100),
+    ("public_sector_jobs_pct", 0, 100),
+    ("tech_sector_pct", 0, 100),
+    ("party_vote_kok_pct", 0, 100),
+    ("party_vote_sdp_pct", 0, 100),
+    ("party_vote_ps_pct", 0, 100),
+    ("party_vote_kesk_pct", 0, 100),
+    ("party_vote_vihr_pct", 0, 100),
+    ("party_vote_vas_pct", 0, 100),
+    ("party_vote_rkp_pct", 0, 100),
+    # Change metrics (%) — legitimately negative; large positives in tiny-base areas.
+    ("crime_index_change_pct", -100, 2_000),
+    ("income_change_pct", -100, 1_000),
+    ("population_change_pct", -100, 5_000),
+    ("property_price_change_pct", -100, 1_000),
+    ("unemployment_change_pct", -100, 5_000),
     # PLANNING — planned_area_pct stays pre-registered until that column lands;
     # range-checked 0–100 via PERCENTAGE_FIELDS above (absent props skipped).
 ]
+
+# ── IN-1: value-level integrity gates ────────────────────────────────
+# Statistics Finland (Paavo) uses -1 as a confidentiality/suppression sentinel
+# across every source column with these prefixes (plus pinta_ala). Suppression
+# must become null in the pipeline — a -1 that survives ships into the open-data
+# CSV and /api/v1 as if it were a real count. Prefix-scoped so the derived
+# *_change_pct metrics, which legitimately hold real -1.0 % values, are exempt.
+SUPPRESSION_PREFIXES = ("he_", "ko_", "hr_", "tr_", "te_", "ra_", "pt_", "tp_")
+
+# Distinctness: fail a postal metric whose distribution is dominated by a single
+# value (the signature of the fabricated 40.0 dB noise floor that covered 74 % of
+# the country). Exempt metrics whose dominant value is a genuine measurement.
+DISTINCTNESS_THRESHOLD = 0.50
+DISTINCTNESS_EXEMPT = {
+    # Real-zero OSM/count metrics: a 0 means "none within this area" — an honest
+    # measurement, not a placeholder — so a high share of identical 0s is expected.
+    "daycare_density", "ev_charging_density", "grocery_density",
+    "healthcare_density", "restaurant_density", "school_density",
+    "public_sector_jobs_pct", "tech_sector_pct",
+    # Known-degenerate, IN-1 follow-up: water_proximity_m is measured from the
+    # polygon edge, so any area touching a stream scores 0 (2,789/3,018). Real but
+    # near-useless; fixing the measurement is separate work.
+    "water_proximity_m",
+}
+
+# A metric derived entirely from a proxy metric inherits the proxy's honesty
+# status — it is no more direct than the series it is computed from. child -> parent.
+DERIVED_PROXY_CHILDREN = {
+    "crime_index_change_pct": "crime_index",
+}
 
 
 def load_geojson(path: Path) -> dict:
@@ -212,6 +287,100 @@ def check_value_ranges(features: list) -> list[str]:
             suffix = f" (+{len(violations) - 5} more)" if len(violations) > 5 else ""
             errors.append(
                 f"Property '{prop}' out of range [{lo}, {hi}]: {details}{suffix}"
+            )
+    return errors
+
+
+def check_no_suppression_sentinels(features: list) -> list[str]:
+    """IN-1: no Paavo -1 suppression sentinel may ship as a value. It must be nulled
+    in the pipeline; a survivor leaks into the public open-data CSV and the frozen
+    /api/v1 JSON as if it were a real count. Prefix-scoped to the Paavo source columns
+    so the derived *_change_pct metrics (which hold real -1.0 % values) are not flagged."""
+    counts: dict[str, int] = {}
+    for f in features:
+        for k, v in (f.get("properties") or {}).items():
+            if (v == -1 or v == -1.0) and (
+                k.startswith(SUPPRESSION_PREFIXES) or k == "pinta_ala"
+            ):
+                counts[k] = counts.get(k, 0) + 1
+    return [
+        f"Property '{k}' has {n} unsuppressed -1 sentinel(s) - Paavo suppression must become null"
+        for k, n in sorted(counts.items())
+    ]
+
+
+def _registry_postal_props() -> list[str]:
+    """Registry metrics stored in the GeoJSON at postal granularity."""
+    if not REGISTRY_PATH.exists():
+        return []
+    try:
+        reg = json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return []
+    return [
+        p
+        for p, e in reg.get("metrics", {}).items()
+        if e.get("stored", True) is not False and e.get("granularity") == "postal"
+    ]
+
+
+def check_value_distinctness(features: list) -> list[str]:
+    """IN-1: catch a fabricated or degenerate postal metric at build time - one where
+    a single value dominates the distribution (the 40.0 dB noise floor covering 74 %
+    of the country was exactly this). Fail when more than DISTINCTNESS_THRESHOLD of a
+    postal metric's non-null values are identical, except metrics on DISTINCTNESS_EXEMPT
+    whose dominant value is a genuine measurement (real-zero OSM counts) or a documented
+    known-degenerate follow-up."""
+    errors: list[str] = []
+    for prop in _registry_postal_props():
+        if prop in DISTINCTNESS_EXEMPT:
+            continue
+        counts: dict = {}
+        total = 0
+        for f in features:
+            v = f["properties"].get(prop)
+            if v is None or isinstance(v, bool) or not isinstance(v, (int, float, str)):
+                continue
+            if isinstance(v, str) and v.strip() == "":
+                continue
+            counts[v] = counts.get(v, 0) + 1
+            total += 1
+        if total < 20:
+            continue
+        mode_val, mode_count = max(counts.items(), key=lambda kv: kv[1])
+        share = mode_count / total
+        if share > DISTINCTNESS_THRESHOLD:
+            errors.append(
+                f"Property '{prop}': {round(share * 100)}% of non-null values are identical "
+                f"({mode_val!r} x{mode_count}/{total}) - fabricated or degenerate? Add to "
+                f"DISTINCTNESS_EXEMPT only if that value is a genuine measurement."
+            )
+    return errors
+
+
+def check_derived_proxy_inheritance(features: list) -> list[str]:
+    """IN-1: a metric derived entirely from a proxy (e.g. a *_change_pct of a
+    municipality-distributed index) must itself be is_proxy:true, or the proxy badge
+    silently disappears for the derived layer. Self-contained - reads only the registry."""
+    if not REGISTRY_PATH.exists():
+        return [f"data-source registry not found: {REGISTRY_PATH}"]
+    try:
+        registry = json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        return [f"data_sources.json is not valid JSON: {exc}"]
+    metrics = registry.get("metrics", {})
+    errors: list[str] = []
+    for child, parent in DERIVED_PROXY_CHILDREN.items():
+        ce, pe = metrics.get(child), metrics.get(parent)
+        if ce is None:
+            errors.append(f"Derived metric '{child}' missing from the registry")
+            continue
+        if pe is None:
+            errors.append(f"Parent metric '{parent}' of '{child}' missing from the registry")
+            continue
+        if pe.get("is_proxy") is True and ce.get("is_proxy") is not True:
+            errors.append(
+                f"Metric '{child}' derives from proxy '{parent}' but is not flagged is_proxy:true"
             )
     return errors
 
@@ -598,6 +767,7 @@ def main() -> int:
         return _run_checks([
             ("Registry vintage", check_registry_vintage([])),
             ("Distributed proxy flags", check_distributed_proxy_flags([])),
+            ("Derived proxy inheritance", check_derived_proxy_inheritance([])),
             ("Provenance vintage match", check_provenance_vintage_match([])),
         ])
 
@@ -619,8 +789,11 @@ def main() -> int:
         ("Required properties", check_required_properties(features)),
         ("All-null properties", check_no_all_null_properties(features)),
         ("Value ranges", check_value_ranges(features)),
+        ("Suppression sentinels", check_no_suppression_sentinels(features)),
+        ("Value distinctness", check_value_distinctness(features)),
         ("Data-source registry", check_data_source_registry(features)),
         ("Distributed proxy flags", check_distributed_proxy_flags(features)),
+        ("Derived proxy inheritance", check_derived_proxy_inheritance(features)),
         ("Registry vintage", check_registry_vintage(features)),
         ("Provenance vintage match", check_provenance_vintage_match(features)),
         ("Coverage regression", check_coverage_regression(features)),

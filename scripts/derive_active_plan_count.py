@@ -12,10 +12,11 @@ build_planning_data.mjs, whose output `scripts/area_planning.json` is a
 absent). This is REAL geometry-derived, sub-postal data — NOT a municipality
 proxy — so it is flagged is_proxy:false in data_sources.json.
 
-Every postal code in the dataset gets a value (0 where no planning is nearby):
-full national coverage, most areas honestly at 0 (the participating-cities scope
-is surfaced by the layer's coverage caption). The pno universe is taken from the
-committed GeoJSON so the snapshot covers exactly the same areas the app loads.
+IN-1: a postal code gets a real count where planning is nearby (>0) or where its
+municipality is one of the 5 that publish a plan WFS (an honest measured 0). Every
+other 0 means "no source for this municipality" and is emitted as null, not a
+fabricated zero. The pno universe is taken from the committed GeoJSON so the
+snapshot covers exactly the same areas the app loads.
 
 Output: scripts/active_plan_count.json — a {pno: int} snapshot (all pnos, sorted,
 indent=2, ensure_ascii=False), mirroring scripts/construction_activity.json. It is
@@ -38,6 +39,7 @@ from pathlib import Path
 ROOT = Path(__file__).parent.parent
 AREA_PLANNING = Path(__file__).parent / "area_planning.json"
 GEOJSON = ROOT / "public" / "data" / "metro_neighborhoods.geojson"
+CITY_PLANS = Path(__file__).parent / "planning_raw" / "city_plans.geojson"
 OUT = Path(__file__).parent / "active_plan_count.json"
 
 
@@ -46,27 +48,35 @@ def main() -> None:
         area_planning = json.load(f)
     counts = {str(pno): len(entries) for pno, entries in area_planning.items()}
 
+    # IN-1: only the municipalities that publish a plan WFS have a real "0 = no plan
+    # nearby". Elsewhere a 0 just means "no source for this municipality" and must be
+    # null. A positive count is always real (incl. national Vaylavirasto projects).
+    served = set(json.loads(CITY_PLANS.read_text(encoding="utf-8"))["_cities"])
+
     with open(GEOJSON, encoding="utf-8") as f:
         geo = json.load(f)
 
-    result: dict[str, int] = {}
+    result: dict[str, int | None] = {}
     for feat in geo["features"]:
         props = feat["properties"]
         pno = str(props.get("postinumeroalue") or props.get("pno") or "")
         if not pno:
             continue
-        result[pno] = int(counts.get(pno, 0))
+        c = int(counts.get(pno, 0))
+        result[pno] = c if (c > 0 or props.get("municipality") in served) else None
 
     result = dict(sorted(result.items()))
     with open(OUT, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
         f.write("\n")
 
-    nonzero = sum(1 for v in result.values() if v > 0)
-    mx = max(result.values()) if result else 0
+    values = [v for v in result.values() if v is not None]
+    nonzero = sum(1 for v in values if v > 0)
+    mx = max(values) if values else 0
     print(
         f"Wrote {OUT.name}: {len(result)} postal codes "
-        f"({nonzero} with active_plan_count > 0, max {mx})."
+        f"({len(values)} with a value, {nonzero} > 0, "
+        f"{len(result) - len(values)} null no-source, max {mx})."
     )
 
 

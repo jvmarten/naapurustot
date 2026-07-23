@@ -11,8 +11,9 @@ Sources:
   - Tampere 2022: City WFS at geodata.tampere.fi (road noise Lden)
 
 Method: area-weighted average of noise zone midpoint dB values per postal code.
-Postal code areas outside any noise contour are assigned a background level of
-40 dB (quiet residential baseline).
+IN-1: postal code areas outside every noise contour get NO value (null) rather than
+a fabricated background floor — an unmeasured area must not ship an invented number.
+Partially-covered areas keep the area-weighted blend of their measured contour(s).
 
 Output: scripts/noise_pollution.json — { postal_code: avg_Lden_dB }
 """
@@ -440,7 +441,7 @@ def compute_noise_per_postal_code(postal_gdf, noise_gdf, label=""):
 
         candidates = list(noise_sindex.intersection(postal_geom.bounds))
         if not candidates:
-            results[pno] = BACKGROUND_DB
+            # IN-1: outside every contour -> unmeasured, emit no value (null).
             continue
 
         weighted_sum = 0.0
@@ -470,7 +471,11 @@ def compute_noise_per_postal_code(postal_gdf, noise_gdf, label=""):
         uncovered = max(0, postal_area - covered_area)
         total_area = max(covered_area, postal_area)
 
-        if total_area > 0:
+        # IN-1: only emit a value when the area actually overlaps a measured contour.
+        # Fully-uncovered areas (covered_area == 0) get null, not the 40 dB floor. The
+        # blend still folds the BACKGROUND_DB baseline into the *measured* result for
+        # partially-covered areas (rounds to >= 40.1, a real signal above the floor).
+        if covered_area > 0 and total_area > 0:
             avg_db = (weighted_sum + uncovered * BACKGROUND_DB) / total_area
             if not math.isnan(avg_db):
                 results[pno] = round(avg_db, 1)
@@ -606,16 +611,15 @@ def main():
         except Exception as e:
             logger.warning("Nationwide Väylävirasto fetch failed: %s", e)
 
-        # Any postal codes still missing get the background floor.
+        # IN-1: postal codes still missing after all phases stay null (unmeasured),
+        # rather than being assigned the fabricated background floor.
         still_missing = [
             p for p in remaining["pno"].tolist() if p not in results
         ]
         if still_missing:
-            for pno in still_missing:
-                results[pno] = BACKGROUND_DB
             logger.info(
-                "Phase 5: assigned background %.0f dB to %d remote postal codes",
-                BACKGROUND_DB, len(still_missing),
+                "Phase 5: %d remote postal codes remain unmeasured (null, no floor)",
+                len(still_missing),
             )
 
     if not results:

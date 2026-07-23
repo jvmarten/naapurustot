@@ -1,6 +1,6 @@
 {
-  "generated": "2026-06-23T12:17:50.402Z",
-  "source_hash": "05f383b30350c586",
+  "generated": "2026-07-23T06:52:46.959Z",
+  "source_hash": "79c41e1f83db8956",
   "rows_total": 3018,
   "metrics": {
     "active_plan_count": {
@@ -8,8 +8,8 @@
       "vintage": 2026,
       "granularity": "postal",
       "is_proxy": false,
-      "row_count": 3018,
-      "coverage_pct": 100
+      "row_count": 905,
+      "coverage_pct": 30
     },
     "air_quality_index": {
       "source": "HSY / FMI (ENFUSER, SILAM)",
@@ -71,7 +71,7 @@
       "source": "Poliisi",
       "vintage": 2023,
       "granularity": "postal",
-      "is_proxy": false,
+      "is_proxy": true,
       "row_count": 3017,
       "coverage_pct": 100
     },
@@ -280,8 +280,8 @@
       "vintage": "2012–2022",
       "granularity": "postal",
       "is_proxy": false,
-      "row_count": 3018,
-      "coverage_pct": 100
+      "row_count": 784,
+      "coverage_pct": 26
     },
     "ownership_rate": {
       "source": "Tilastokeskus (Paavo)",
