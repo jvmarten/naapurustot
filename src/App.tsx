@@ -89,7 +89,13 @@ import { ISOCHRONE_ENABLED, fetchIsochrone, type IsochroneMode } from './utils/i
 // (e.g. the profile page's "Explore on the map" CTA), landing the user on the empty
 // all-Finland view instead of their area.
 
-// QW-3: resolve which region's bounding box contains a coordinate. Region
+// Region deep links (roadmap QW-3): the 69 seutukunta ids as a Set, so a
+// `?pno=<regionId>` link — produced when a visitor clicks a region on the default view
+// and then reloads or shares — is recognised at mount without a lookup into the
+// postal-code-only search index (which contains no region ids).
+const REGION_ID_SET = new Set<string>(REGION_IDS);
+
+// resolve which region's bounding box contains a coordinate. Region
 // bounds can overlap (irregular seutukunnat → rectangular bboxes), so pick the
 // most specific (smallest-area) containing region. Best-effort: the precise
 // neighborhood is then found via point-in-polygon once that region loads.
@@ -1432,6 +1438,10 @@ const App: React.FC = () => {
     if (deepLinkRoutedRef.current) return;
     const pno = initialUrl.pno;
     if (!bareDeepLink || !pno) return;
+    // QW-3: a region-id deep link is restored by the resolver effect below from the
+    // already-loaded 69-region aggregate set — never route it through pnoRegionMap
+    // (postal-only, always a miss), which would fall back to the 12.3 MB national fetch.
+    if (REGION_ID_SET.has(pno)) return;
     if (!searchIndex) return; // wait for the eager index that backs pnoRegionMap
     deepLinkRoutedRef.current = true; // resolve once, hit or miss
     const region = pnoRegionMap.get(pno);
@@ -1447,11 +1457,32 @@ const App: React.FC = () => {
     if (region !== cityFilterRef.current) setCityFilter(region);
   }, [searchIndex, pnoRegionMap, bareDeepLink, initialUrl.pno]);
 
+  // QW-3: restore a region-id deep link (?pno=<regionId>) from the already-built 69-
+  // region aggregate set, with no national fetch. buildMetroAreaFeaturesFromAggregates
+  // only emits a region feature once its outline geometry has loaded, so `find` waits
+  // naturally; selectAndFly then opens the region panel (firing the RU-B region prefetch)
+  // and flies to its outline. Without this, the routing effect above routed a region id
+  // into pnoRegionMap (always a miss) and pulled the 12.3 MB region_properties.json whose
+  // map also lacks region ids — so the selection was lost AND a large fetch was wasted.
+  useEffect(() => {
+    if (deepLinkRoutedRef.current) return;
+    const pno = initialUrl.pno;
+    if (!bareDeepLink || !pno || !REGION_ID_SET.has(pno)) return;
+    if (!filteredData) return; // wait for the aggregate features (+ region outlines)
+    const feature = filteredData.features.find((f) => f.properties?.pno === pno);
+    if (!feature?.properties) return; // outline not loaded yet — re-run on next data change
+    deepLinkRoutedRef.current = true;
+    selectAndFly(feature);
+  }, [filteredData, bareDeepLink, initialUrl.pno, selectAndFly]);
+
   // Robustness: if the search index never loads (network failure → it stays null), a
   // bare ?pno= deep link would otherwise never resolve. After a short grace period,
   // fall back to the national set so the area still opens (matching prior behavior).
   useEffect(() => {
     if (!bareDeepLink || searchIndex || deepLinkRoutedRef.current) return;
+    // QW-3: a region-id link is resolved by the aggregate resolver above, not by the
+    // search index, so a slow or failed index must not drag it into the national fetch.
+    if (initialUrl.pno && REGION_ID_SET.has(initialUrl.pno)) return;
     const id = setTimeout(() => {
       if (!deepLinkRoutedRef.current) {
         deepLinkRoutedRef.current = true;
@@ -1459,7 +1490,7 @@ const App: React.FC = () => {
       }
     }, 5000);
     return () => clearTimeout(id);
-  }, [searchIndex, bareDeepLink]);
+  }, [searchIndex, bareDeepLink, initialUrl.pno]);
 
   // Mark the bare-pno deep link "settled" once its routed selection lands (or we fall
   // back to the national set, or a grace period elapses), so the gated URL writes can
