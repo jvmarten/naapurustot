@@ -1,5 +1,21 @@
 [
   {
+    "date": "2026-07-23",
+    "metric": "active_plan_count",
+    "type": "coverage",
+    "from": 100,
+    "to": 30,
+    "title": "active_plan_count coverage changed to 30%"
+  },
+  {
+    "date": "2026-07-23",
+    "metric": "noise_pollution",
+    "type": "coverage",
+    "from": 100,
+    "to": 26,
+    "title": "noise_pollution coverage changed to 26%"
+  },
+  {
     "date": "2026-06-23",
     "metric": "foreign_language_municipal_pct",
     "type": "coverage",

@@ -652,7 +652,7 @@
       "publisher": "poliisi",
       "vintage": 2023,
       "granularity": "postal",
-      "is_proxy": false,
+      "is_proxy": true,
       "panel": false
     },
     "quality_index": {
