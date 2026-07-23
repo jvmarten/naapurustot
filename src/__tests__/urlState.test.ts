@@ -47,6 +47,15 @@ describe('readInitialUrlState — CF-1 extended state', () => {
     expect(s.colorblind).toBeNull();
     expect(s.lang).toBeNull();
   });
+
+  it('QW-3: accepts a region id as pno (region deep link) and rejects a bogus one', () => {
+    setSearch('?pno=helsinki_metro');
+    expect(readInitialUrlState().pno).toBe('helsinki_metro');
+    setSearch('?pno=00100'); // 5-digit postal code still accepted
+    expect(readInitialUrlState().pno).toBe('00100');
+    setSearch('?pno=not_a_region');
+    expect(readInitialUrlState().pno).toBeNull();
+  });
 });
 
 describe('readInitialUrlState — CF-1 weights / isochrone / viewport, QW-2 shortlist', () => {
