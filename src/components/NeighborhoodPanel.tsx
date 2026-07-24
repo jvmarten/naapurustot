@@ -2063,7 +2063,11 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
     </button>
   ) : null;
 
-  const panelContent = d._noData ? (
+  // PO-2: extract the no-data empty state and the profile CTA so the MOBILE bottom sheet can
+  // reuse them — they previously lived only inside the desktop-only panelContent, so mobile
+  // had no honest no-data state and no route from a selected area to its /alue/ profile. These
+  // are a verbatim hoist (no rendered change on desktop).
+  const noDataContent = (
     // CF-5 Phase D: a seutukunta with no ingested data — the panel still opens
     // (consistent with data regions), it just shows a clean empty state.
     <div className="px-6 py-10 flex flex-col items-center text-center gap-3">
@@ -2074,31 +2078,33 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
         {t('panel.no_data_region')}
       </p>
     </div>
-  ) : (
+  );
+  const profileLink = !d._isMetroArea ? (
+    <a
+      href={profileHref(d.pno, d.nimi)}
+      onClick={(e) => {
+        // QW-5: client-side nav preserves the map session; let modified/middle
+        // clicks (new tab) fall through to the real localized href.
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+        e.preventDefault();
+        navigate(profileHref(d.pno, d.nimi));
+      }}
+      className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl
+                 bg-surface-100 dark:bg-surface-900/60 hover:bg-surface-200 dark:hover:bg-surface-800
+                 text-sm font-medium text-surface-600 dark:text-surface-300 transition-colors"
+    >
+      {t('profile.view_full')}
+      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+      </svg>
+    </a>
+  ) : null;
+
+  const panelContent = d._noData ? noDataContent : (
     <div className="px-6 py-4 space-y-6">
       {exploreButton}
       {sectionOverview}
-      {/* Profile page link */}
-      {!d._isMetroArea && (
-        <a
-          href={profileHref(d.pno, d.nimi)}
-          onClick={(e) => {
-            // QW-5: client-side nav preserves the map session; let modified/middle
-            // clicks (new tab) fall through to the real localized href.
-            if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
-            e.preventDefault();
-            navigate(profileHref(d.pno, d.nimi));
-          }}
-          className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl
-                     bg-surface-100 dark:bg-surface-900/60 hover:bg-surface-200 dark:hover:bg-surface-800
-                     text-sm font-medium text-surface-600 dark:text-surface-300 transition-colors"
-        >
-          {t('profile.view_full')}
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-          </svg>
-        </a>
-      )}
+      {profileLink}
       {sectionTrends}
       {sectionStats}
       {sectionSimilar}
@@ -2269,6 +2275,9 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
         {/* PO-3: Section tabs. CF-7: full WAI-ARIA Tabs pattern — roving tabindex
             (only the active tab is tabbable), arrow/Home/End keyboard nav, and each
             tab wired to its panel via stable ids (aria-controls ↔ aria-labelledby). */}
+        {/* PO-2: a no-data region shows the written empty state on mobile too, instead of a
+            blank 4-tab carousel (the header + action buttons above still render for parity). */}
+        {d._noData ? noDataContent : (<>
         <div
           ref={tablistRef}
           role="tablist"
@@ -2346,12 +2355,14 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
                 <div className="px-6 py-4 pb-safe space-y-6">
                   {i === 0 && exploreButton}
                   {section}
+                  {i === 0 && profileLink}
                   {section && exportButtons}
                 </div>
               </div>
             ))}
           </div>
         </div>
+        </>)}
       </div>
 
       {/* QW-2: Toast notification for clipboard copy. PO-3: role=status so screen
