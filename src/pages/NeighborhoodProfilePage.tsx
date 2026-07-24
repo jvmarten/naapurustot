@@ -612,8 +612,10 @@ export const NeighborhoodProfilePage: React.FC = () => {
 
         {/* CF-1: reverse-nav into the ranking / compare / municipality / planning hub mesh.
             The directory link always shows; the rest render from the prerendered manifest so a
-            crawler (and a returning user) can reach the otherwise-orphaned SEO pages. */}
-        <nav className="text-xs text-surface-500 dark:text-surface-400 mb-6 flex flex-wrap gap-x-4 gap-y-1.5">
+            crawler (and a returning user) can reach the otherwise-orphaned SEO pages. A <div>,
+            not a second <nav> landmark — the breadcrumb above is the page's only nav landmark
+            (two unlabelled navigation landmarks fail axe's landmark-unique / Lighthouse a11y). */}
+        <div className="text-xs text-surface-500 dark:text-surface-400 mb-6 flex flex-wrap gap-x-4 gap-y-1.5">
           <a href={DIRECTORY_URL[lang]} className="hover:text-brand-600">{t('profile.nav_all_areas')}</a>
           {prerenderedNav?.rankings && prerenderedNav.rankings.length > 0 && (
             <span>{t('profile.nav_rankings')}:{' '}
@@ -632,7 +634,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
           {prerenderedNav?.planning && (
             <a href={prerenderedNav.planning.href} className="hover:text-brand-600">{t('profile.nav_planning')}</a>
           )}
-        </nav>
+        </div>
 
         {/* Title + Mini Map */}
         <div className="mb-8 md:flex md:gap-8 md:items-start">
