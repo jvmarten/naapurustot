@@ -167,7 +167,7 @@ export const MiniMap: React.FC<MiniMapProps> = ({ feature, allFeatures }) => {
         aria-label={ariaLabel}
         className="w-full h-64 md:h-80 rounded-xl bg-surface-100 dark:bg-surface-900/60 flex items-center justify-center px-6 text-center"
       >
-        <span className="text-sm text-surface-500 dark:text-surface-400">
+        <span className="text-sm text-surface-600 dark:text-surface-400">
           {t('error.webgl_unavailable')}
         </span>
       </div>

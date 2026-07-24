@@ -111,31 +111,31 @@ describe('formatting — edge cases and correctness', () => {
 
   describe('diffColor', () => {
     it('returns green for value above average (higherIsBetter default)', () => {
-      expect(diffColor(110, 100)).toBe('text-emerald-400');
+      expect(diffColor(110, 100)).toBe('text-emerald-700 dark:text-emerald-400');
     });
 
     it('returns red for value below average', () => {
-      expect(diffColor(90, 100)).toBe('text-rose-400');
+      expect(diffColor(90, 100)).toBe('text-rose-700 dark:text-rose-400');
     });
 
     it('returns green for equal values (>= comparison)', () => {
-      expect(diffColor(100, 100)).toBe('text-emerald-400');
+      expect(diffColor(100, 100)).toBe('text-emerald-700 dark:text-emerald-400');
     });
 
     it('returns green for lower value when higherIsBetter is false', () => {
-      expect(diffColor(5, 10, false)).toBe('text-emerald-400');
+      expect(diffColor(5, 10, false)).toBe('text-emerald-700 dark:text-emerald-400');
     });
 
     it('returns red for higher value when higherIsBetter is false', () => {
-      expect(diffColor(15, 10, false)).toBe('text-rose-400');
+      expect(diffColor(15, 10, false)).toBe('text-rose-700 dark:text-rose-400');
     });
 
     it('returns muted color for null value', () => {
-      expect(diffColor(null, 100)).toBe('text-surface-400');
+      expect(diffColor(null, 100)).toBe('text-surface-600 dark:text-surface-400');
     });
 
     it('returns muted color for null average', () => {
-      expect(diffColor(100, null)).toBe('text-surface-400');
+      expect(diffColor(100, null)).toBe('text-surface-600 dark:text-surface-400');
     });
   });
 });

@@ -83,35 +83,35 @@ describe('formatDiff — edge cases', () => {
 
 describe('diffColor — logic correctness', () => {
   it('returns green when value > avg and higherIsBetter=true', () => {
-    expect(diffColor(60, 50, true)).toBe('text-emerald-400');
+    expect(diffColor(60, 50, true)).toBe('text-emerald-700 dark:text-emerald-400');
   });
 
   it('returns red when value < avg and higherIsBetter=true', () => {
-    expect(diffColor(40, 50, true)).toBe('text-rose-400');
+    expect(diffColor(40, 50, true)).toBe('text-rose-700 dark:text-rose-400');
   });
 
   it('returns green when value < avg and higherIsBetter=false (inverted)', () => {
-    expect(diffColor(40, 50, false)).toBe('text-emerald-400');
+    expect(diffColor(40, 50, false)).toBe('text-emerald-700 dark:text-emerald-400');
   });
 
   it('returns red when value > avg and higherIsBetter=false (inverted)', () => {
-    expect(diffColor(60, 50, false)).toBe('text-rose-400');
+    expect(diffColor(60, 50, false)).toBe('text-rose-700 dark:text-rose-400');
   });
 
   it('returns green when values are equal (>= 0 diff)', () => {
-    expect(diffColor(50, 50, true)).toBe('text-emerald-400');
+    expect(diffColor(50, 50, true)).toBe('text-emerald-700 dark:text-emerald-400');
   });
 
   it('returns neutral when value is null', () => {
-    expect(diffColor(null, 50)).toBe('text-surface-400');
+    expect(diffColor(null, 50)).toBe('text-surface-600 dark:text-surface-400');
   });
 
   it('returns neutral when avg is null', () => {
-    expect(diffColor(50, null)).toBe('text-surface-400');
+    expect(diffColor(50, null)).toBe('text-surface-600 dark:text-surface-400');
   });
 
   it('defaults higherIsBetter to true', () => {
-    expect(diffColor(60, 50)).toBe('text-emerald-400');
+    expect(diffColor(60, 50)).toBe('text-emerald-700 dark:text-emerald-400');
   });
 });
 

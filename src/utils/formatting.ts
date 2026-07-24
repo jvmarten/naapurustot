@@ -118,13 +118,15 @@ export function formatEuroSqm(v: number | string | null | undefined): string {
 export function diffColor(value: number | string | null, avg: number | string | null, higherIsBetter: boolean | null = true): string {
   const a = toNum(value);
   const b = toNum(avg);
-  if (a == null || b == null) return 'text-surface-400';
+  // A11y: light-mode shades meet WCAG AA on the light card background (the 400 shades
+  // are ~1.75–2.8:1 and fail); the dark: variants keep the brighter shade on dark bg.
+  if (a == null || b == null) return 'text-surface-600 dark:text-surface-400';
   // PO-1: a null direction means there is no objective "better" (e.g. price — a
   // seller wants high, a buyer wants low), so show it neutral with no +/− color.
-  if (higherIsBetter === null) return 'text-surface-400';
+  if (higherIsBetter === null) return 'text-surface-600 dark:text-surface-400';
   const diff = a - b;
   const positive = higherIsBetter ? diff >= 0 : diff <= 0;
-  return positive ? 'text-emerald-400' : 'text-rose-400';
+  return positive ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400';
 }
 
 // YTL matriculation grade letters by integer value. The scale skips 1 — it

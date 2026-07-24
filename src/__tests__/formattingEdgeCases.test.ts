@@ -102,38 +102,38 @@ describe('formatDiff — difference calculation', () => {
 
 describe('diffColor — CSS class selection', () => {
   it('green for value > avg when higherIsBetter', () => {
-    expect(diffColor(60, 50, true)).toBe('text-emerald-400');
+    expect(diffColor(60, 50, true)).toBe('text-emerald-700 dark:text-emerald-400');
   });
 
   it('red for value < avg when higherIsBetter', () => {
-    expect(diffColor(40, 50, true)).toBe('text-rose-400');
+    expect(diffColor(40, 50, true)).toBe('text-rose-700 dark:text-rose-400');
   });
 
   it('red for value > avg when higherIsBetter=false (e.g., crime)', () => {
-    expect(diffColor(60, 50, false)).toBe('text-rose-400');
+    expect(diffColor(60, 50, false)).toBe('text-rose-700 dark:text-rose-400');
   });
 
   it('green for value < avg when higherIsBetter=false', () => {
-    expect(diffColor(40, 50, false)).toBe('text-emerald-400');
+    expect(diffColor(40, 50, false)).toBe('text-emerald-700 dark:text-emerald-400');
   });
 
   it('defaults higherIsBetter to true', () => {
-    expect(diffColor(60, 50)).toBe('text-emerald-400');
+    expect(diffColor(60, 50)).toBe('text-emerald-700 dark:text-emerald-400');
   });
 
   it('gray for null value', () => {
-    expect(diffColor(null, 50)).toBe('text-surface-400');
+    expect(diffColor(null, 50)).toBe('text-surface-600 dark:text-surface-400');
   });
 
   it('gray for null avg', () => {
-    expect(diffColor(50, null)).toBe('text-surface-400');
+    expect(diffColor(50, null)).toBe('text-surface-600 dark:text-surface-400');
   });
 
   it('green when equal (diff >= 0) with higherIsBetter', () => {
-    expect(diffColor(50, 50, true)).toBe('text-emerald-400');
+    expect(diffColor(50, 50, true)).toBe('text-emerald-700 dark:text-emerald-400');
   });
 
   it('green when equal (diff <= 0) with higherIsBetter=false', () => {
-    expect(diffColor(50, 50, false)).toBe('text-emerald-400');
+    expect(diffColor(50, 50, false)).toBe('text-emerald-700 dark:text-emerald-400');
   });
 });

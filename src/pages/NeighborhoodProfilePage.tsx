@@ -480,7 +480,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
   if (loading && !state) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white dark:bg-surface-950">
-        <div className="animate-pulse text-surface-500">{t('loading')}</div>
+        <div className="animate-pulse text-surface-600">{t('loading')}</div>
       </div>
     );
   }
@@ -580,7 +580,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
                 pages are the app's dominant first impression, yet nothing here framed what
                 the site IS or its breadth — the value prop lived only in the home onboarding
                 modal a profile visitor never sees. */}
-            <p className="text-[11px] sm:text-xs text-surface-500 dark:text-surface-400 mt-0.5 max-w-md leading-snug">
+            <p className="text-[11px] sm:text-xs text-surface-600 dark:text-surface-400 mt-0.5 max-w-md leading-snug">
               {t('profile.site_tagline')}
             </p>
           </div>
@@ -596,7 +596,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
 
       <main id="main" tabIndex={-1} className="max-w-5xl mx-auto px-4 py-8 focus:outline-none">
         {/* Breadcrumb */}
-        <nav className="text-sm text-surface-500 dark:text-surface-400 mb-6">
+        <nav className="text-sm text-surface-600 dark:text-surface-400 mb-6">
           <Link to="/" className="hover:text-brand-600">{t('app.title')}</Link>
           <span className="mx-2">/</span>
           <a href={`${cityHubPrefix[lang]}/${d.city ?? 'helsinki_metro'}/`} className="hover:text-brand-600">{cityName}</a>
@@ -615,7 +615,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
             crawler (and a returning user) can reach the otherwise-orphaned SEO pages. A <div>,
             not a second <nav> landmark — the breadcrumb above is the page's only nav landmark
             (two unlabelled navigation landmarks fail axe's landmark-unique / Lighthouse a11y). */}
-        <div className="text-xs text-surface-500 dark:text-surface-400 mb-6 flex flex-wrap gap-x-4 gap-y-1.5">
+        <div className="text-xs text-surface-600 dark:text-surface-400 mb-6 flex flex-wrap gap-x-4 gap-y-1.5">
           <a href={DIRECTORY_URL[lang]} className="hover:text-brand-600">{t('profile.nav_all_areas')}</a>
           {prerenderedNav?.rankings && prerenderedNav.rankings.length > 0 && (
             <span>{t('profile.nav_rankings')}:{' '}
@@ -649,7 +649,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
                 title={saved ? t('favorites.remove') : t('favorites.add')}
                 className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
                   saved
-                    ? 'bg-amber-400/15 text-amber-600 dark:text-amber-400 border-amber-400/40 hover:bg-amber-400/25'
+                    ? 'bg-amber-400/15 text-amber-700 dark:text-amber-400 border-amber-400/40 hover:bg-amber-400/25'
                     : 'border-surface-300 dark:border-surface-700 text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800'
                 }`}
               >
@@ -659,7 +659,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
                 <span className="hidden sm:inline">{saved ? t('favorites.remove') : t('favorites.add')}</span>
               </button>
             </div>
-            <p className="text-surface-500 dark:text-surface-400 mb-4 md:mb-0">
+            <p className="text-surface-600 dark:text-surface-400 mb-4 md:mb-0">
               {altName ? `${altName} · ` : ''}{t('profile.postal_code')} {d.pno} · {cityName}
             </p>
             {/* #1 conversion: primary app entry points, above the fold on DESKTOP — the
@@ -727,7 +727,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
                 calculated?" explainer the in-app panel has, so a cold visitor can see
                 what the score means and how it is weighted — not an unexplained figure. */}
             <div className="flex items-center gap-1 mb-4">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-surface-600 dark:text-surface-400">
                 {t('panel.quality_index')}
               </h2>
               <QualityExplainer lang={lang} />
@@ -741,7 +741,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
               </div>
               <div>
                 <span className="text-xl font-semibold">{qiCat.label[lang]}</span>
-                <span className="text-surface-500 dark:text-surface-400 text-sm ml-2">
+                <span className="text-surface-600 dark:text-surface-400 text-sm ml-2">
                   ({qiCat.min}–{qiCat.max})
                 </span>
               </div>
@@ -750,19 +750,19 @@ export const NeighborhoodProfilePage: React.FC = () => {
               {QUALITY_CATEGORIES.map((c) => (
                 <div key={c.min} className="flex-1 flex flex-col items-center gap-1">
                   <div className="w-full h-2 rounded-full" style={{ backgroundColor: getInterpolatedColor(qiLayer, (c.min + c.max) / 2) }} />
-                  <span className="text-[9px] text-surface-500 dark:text-surface-400">{c.label[lang]}</span>
+                  <span className="text-[9px] text-surface-600 dark:text-surface-400">{c.label[lang]}</span>
                 </div>
               ))}
             </div>
             {/* #1 trust: compact provenance for the score — real, official publishers
                 behind the data + a link to the full per-source page, right under the
                 headline instead of only in the footer. */}
-            <div className="mt-4 pt-3 border-t border-surface-200/70 dark:border-surface-700/40 text-[11px] leading-snug text-surface-500 dark:text-surface-400">
+            <div className="mt-4 pt-3 border-t border-surface-200/70 dark:border-surface-700/40 text-[11px] leading-snug text-surface-600 dark:text-surface-400">
               <Link to={sourcesPath} className="hover:text-brand-600 underline decoration-dotted underline-offset-2">
                 {t('profile.data_sources')}
               </Link>
               {provenancePublishers.length > 0 && (
-                <span className="text-surface-500 dark:text-surface-400"> · {provenancePublishers.join(' · ')}</span>
+                <span className="text-surface-600 dark:text-surface-400"> · {provenancePublishers.join(' · ')}</span>
               )}
             </div>
           </div>
@@ -903,11 +903,11 @@ export const NeighborhoodProfilePage: React.FC = () => {
                   className="rounded-xl bg-surface-100 dark:bg-surface-900/60 p-4 hover:bg-surface-200 dark:hover:bg-surface-800 transition-colors"
                 >
                   <div className="font-medium text-sm mb-1">{lang === 'sv' && s.properties.namn ? s.properties.namn : s.properties.nimi}</div>
-                  <div className="text-xs text-surface-500 dark:text-surface-400">{s.properties.pno}</div>
+                  <div className="text-xs text-surface-600 dark:text-surface-400">{s.properties.pno}</div>
                   {s.properties.quality_index != null && (
                     <div className="text-xs mt-2">
                       <span className="font-semibold">{Math.round(s.properties.quality_index)}</span>
-                      <span className="text-surface-500 dark:text-surface-400 ml-1">{t('profile.quality_short')}</span>
+                      <span className="text-surface-600 dark:text-surface-400 ml-1">{t('profile.quality_short')}</span>
                     </div>
                   )}
                 </Link>
@@ -932,7 +932,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
 
       {/* Footer — extra bottom padding on mobile so its content clears the sticky CTA bar. */}
       <footer className="border-t border-surface-200 dark:border-surface-800 pt-6 pb-24 md:pb-6">
-        <div className="max-w-5xl mx-auto px-4 text-center text-xs text-surface-500 dark:text-surface-400">
+        <div className="max-w-5xl mx-auto px-4 text-center text-xs text-surface-600 dark:text-surface-400">
           {/* QW-5: link to the full, per-language sources page instead of a stale
               hardcoded four-source list (the app now ships ~59 layers from many sources). */}
           <p>
@@ -1030,11 +1030,11 @@ const QualityExplainer: React.FC<{ lang: Lang }> = ({ lang }) => {
             {evaluativeDims.map((dm) => (
               <li key={dm.id} className="flex items-center justify-between text-[11px] font-normal text-surface-700 dark:text-surface-200">
                 <span>{dm.label[lang]}</span>
-                <span className="tabular-nums text-surface-500 dark:text-surface-400">{dm.defaultWeight}%</span>
+                <span className="tabular-nums text-surface-600 dark:text-surface-400">{dm.defaultWeight}%</span>
               </li>
             ))}
           </ul>
-          <p className="mt-2 text-[10px] font-normal text-surface-500 dark:text-surface-400">
+          <p className="mt-2 text-[10px] font-normal text-surface-600 dark:text-surface-400">
             {t('quality.methodology_note')}
           </p>
         </div>
@@ -1046,12 +1046,12 @@ const QualityExplainer: React.FC<{ lang: Lang }> = ({ lang }) => {
 /** Simple stat display for section grids. */
 const StatItem: React.FC<{ label: string; value: string; estimate?: boolean; estimateBadge?: string; estimateNote?: string }> = ({ label, value, estimate, estimateBadge, estimateNote }) => (
   <div>
-    <div className="text-xs text-surface-500 dark:text-surface-400 mb-1">{label}</div>
+    <div className="text-xs text-surface-600 dark:text-surface-400 mb-1">{label}</div>
     <div className="text-lg font-semibold flex items-center gap-2 flex-wrap">
       {value}
       {estimate && estimateBadge && (
         <span className="inline-flex items-center rounded px-1 py-px text-[9px] font-semibold uppercase tracking-wide
-                         bg-amber-400/15 text-amber-600 dark:text-amber-400 border border-amber-400/30"
+                         bg-amber-400/15 text-amber-700 dark:text-amber-400 border border-amber-400/30"
               title={estimateNote}>
           {estimateBadge}
         </span>

@@ -107,34 +107,34 @@ describe('formatDiff — deep edge cases', () => {
 describe('diffColor — deep edge cases', () => {
   it('returns correct color when lower is better and value equals avg', () => {
     // diff = 0, higherIsBetter = false → diff <= 0 is true → emerald
-    expect(diffColor(5, 5, false)).toBe('text-emerald-400');
+    expect(diffColor(5, 5, false)).toBe('text-emerald-700 dark:text-emerald-400');
   });
 
   it('returns correct color for exactly equal values (higherIsBetter=true)', () => {
     // diff = 0, higherIsBetter = true → diff >= 0 is true → emerald
-    expect(diffColor(5, 5, true)).toBe('text-emerald-400');
+    expect(diffColor(5, 5, true)).toBe('text-emerald-700 dark:text-emerald-400');
   });
 
   it('handles string inputs', () => {
-    expect(diffColor('100', '50', true)).toBe('text-emerald-400');
-    expect(diffColor('50', '100', true)).toBe('text-rose-400');
+    expect(diffColor('100', '50', true)).toBe('text-emerald-700 dark:text-emerald-400');
+    expect(diffColor('50', '100', true)).toBe('text-rose-700 dark:text-rose-400');
   });
 
   it('returns neutral for NaN value', () => {
-    expect(diffColor(NaN, 5)).toBe('text-surface-400');
+    expect(diffColor(NaN, 5)).toBe('text-surface-600 dark:text-surface-400');
   });
 
   it('returns neutral for NaN avg', () => {
-    expect(diffColor(5, NaN)).toBe('text-surface-400');
+    expect(diffColor(5, NaN)).toBe('text-surface-600 dark:text-surface-400');
   });
 
   it('handles negative values correctly with higherIsBetter=true', () => {
     // -5 vs -10: diff = 5, positive → emerald
-    expect(diffColor(-5, -10, true)).toBe('text-emerald-400');
+    expect(diffColor(-5, -10, true)).toBe('text-emerald-700 dark:text-emerald-400');
   });
 
   it('handles negative values correctly with higherIsBetter=false', () => {
     // -10 vs -5: diff = -5, negative → for lowerIsBetter, diff <= 0 → emerald
-    expect(diffColor(-10, -5, false)).toBe('text-emerald-400');
+    expect(diffColor(-10, -5, false)).toBe('text-emerald-700 dark:text-emerald-400');
   });
 });

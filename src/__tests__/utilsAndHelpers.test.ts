@@ -83,19 +83,19 @@ describe('formatting edge cases', () => {
   });
 
   it('diffColor returns correct class based on higherIsBetter', () => {
-    expect(diffColor(110, 100, true)).toBe('text-emerald-400');  // higher is better, value > avg
-    expect(diffColor(90, 100, true)).toBe('text-rose-400');      // higher is better, value < avg
-    expect(diffColor(110, 100, false)).toBe('text-rose-400');    // lower is better, value > avg
-    expect(diffColor(90, 100, false)).toBe('text-emerald-400');  // lower is better, value < avg
+    expect(diffColor(110, 100, true)).toBe('text-emerald-700 dark:text-emerald-400');  // higher is better, value > avg
+    expect(diffColor(90, 100, true)).toBe('text-rose-700 dark:text-rose-400');      // higher is better, value < avg
+    expect(diffColor(110, 100, false)).toBe('text-rose-700 dark:text-rose-400');    // lower is better, value > avg
+    expect(diffColor(90, 100, false)).toBe('text-emerald-700 dark:text-emerald-400');  // lower is better, value < avg
   });
 
   it('diffColor handles equal values as positive', () => {
-    expect(diffColor(100, 100, true)).toBe('text-emerald-400');
+    expect(diffColor(100, 100, true)).toBe('text-emerald-700 dark:text-emerald-400');
   });
 
   it('diffColor returns neutral for null values', () => {
-    expect(diffColor(null, 100)).toBe('text-surface-400');
-    expect(diffColor(100, null)).toBe('text-surface-400');
+    expect(diffColor(null, 100)).toBe('text-surface-600 dark:text-surface-400');
+    expect(diffColor(100, null)).toBe('text-surface-600 dark:text-surface-400');
   });
 
   it('formatNumber accepts string input and coerces', () => {
