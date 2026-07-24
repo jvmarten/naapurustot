@@ -257,6 +257,12 @@ jobs:
       - name: Prerender profile pages
         run: npm run build:pages
 
+      # IN-3: guard the prerendered page mesh against the GitHub Pages 1 GB cap. This job
+      # has the full build:pages tree (the checks job runs only `npm run build`), and it is
+      # in merge-to-main's needs, so it gates the merge.
+      - name: Guard dist size (IN-3)
+        run: npm run dist:check
+
       - name: Lighthouse CI (IN-3)
         # Mirrors ci.yml's lighthouse job so claude/* branches are gated on the
         # same performance/a11y/SEO thresholds before auto-merge.

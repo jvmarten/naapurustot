@@ -13,6 +13,7 @@
     "test:coverage": "vitest run --coverage",
     "coverage:check": "node scripts/check-coverage.mjs",
     "bundle:check": "node scripts/check-bundle-size.mjs",
+    "dist:check": "node scripts/check-dist-size.mjs --profile pages",
     "test:e2e": "playwright test --project=e2e --project=mobile",
     "test:visual": "playwright test --project=visual",
     "test:visual:update": "playwright test --project=visual --update-snapshots",
