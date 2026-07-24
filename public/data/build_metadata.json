@@ -1,6 +1,6 @@
 {
-  "generated": "2026-07-23T06:52:46.959Z",
-  "source_hash": "79c41e1f83db8956",
+  "generated": "2026-07-24T06:25:33.923Z",
+  "source_hash": "039481a5c013000e",
   "rows_total": 3018,
   "metrics": {
     "active_plan_count": {
@@ -280,8 +280,8 @@
       "vintage": "2012–2022",
       "granularity": "postal",
       "is_proxy": false,
-      "row_count": 784,
-      "coverage_pct": 26
+      "row_count": 3018,
+      "coverage_pct": 100
     },
     "ownership_rate": {
       "source": "Tilastokeskus (Paavo)",

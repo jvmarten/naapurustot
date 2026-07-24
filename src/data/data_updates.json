@@ -1,5 +1,13 @@
 [
   {
+    "date": "2026-07-24",
+    "metric": "noise_pollution",
+    "type": "coverage",
+    "from": 26,
+    "to": 100,
+    "title": "noise_pollution coverage changed to 100%"
+  },
+  {
     "date": "2026-07-23",
     "metric": "active_plan_count",
     "type": "coverage",

@@ -777,10 +777,9 @@ const App: React.FC = () => {
     trackEvent(pno ? 'set-reference' : 'clear-reference');
   }, []);
 
-  // Rescale layer stops to the visible distribution: the 69 region aggregates on the
-  // all-Finland view (QW-2), or the selected region's postal areas when the comparison
-  // scope is 'region'. Uses a ref to return the same object identity when stops haven't
-  // changed, avoiding unnecessary Map layer color transition effects.
+  // Rescale layer stops when comparison scope is 'region' and a specific city is selected.
+  // Uses a ref to return the same object identity when stops haven't changed,
+  // avoiding unnecessary Map layer color transition effects.
   // PO-2: years available for the active time-series metric (single-region only).
   const timeHistoryProp = TIME_SERIES_LAYERS[activeLayer];
   const availableYears = useMemo(() => {
@@ -796,12 +795,7 @@ const App: React.FC = () => {
     if (timeYear != null && timeHistoryProp) {
       return { ...base, property: timeSeriesYearProp(timeHistoryProp, timeYear) };
     }
-    // QW-2: rescale on the all-Finland aggregate view (cityFilter === 'all') too — the
-    // 69 seutukunta averages span a far narrower range than the 3,018 postal areas the
-    // national stops are calibrated for, so quality_index otherwise lands every region
-    // in 2 of 8 colour bands. Still bail to national stops in a region view when the
-    // comparison scope is not 'region', and whenever the feature set is absent.
-    if (!filteredData || (comparisonScope !== 'region' && cityFilter !== 'all')) {
+    if (comparisonScope !== 'region' || cityFilter === 'all' || !filteredData) {
       prevEffectiveLayerRef.current = base;
       return base;
     }
@@ -826,8 +820,7 @@ const App: React.FC = () => {
   // slider is a primary-map control, so it is intentionally not applied to this pane.
   const effectiveSecondaryLayer = useMemo(() => {
     const base = getLayerById(secondaryLayer);
-    // QW-2: mirror effectiveLayer — rescale on the all-Finland aggregate view as well.
-    if (!filteredData || (comparisonScope !== 'region' && cityFilter !== 'all')) return base;
+    if (comparisonScope !== 'region' || cityFilter === 'all' || !filteredData) return base;
     return rescaleLayerToData(base, filteredData.features);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- qualityVersion signals in-place quality mutation
   }, [secondaryLayer, comparisonScope, cityFilter, filteredData, qualityVersion, colorblind]);
