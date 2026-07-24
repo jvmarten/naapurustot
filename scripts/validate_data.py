@@ -205,6 +205,13 @@ DISTINCTNESS_EXEMPT = {
     # polygon edge, so any area touching a stream scores 0 (2,789/3,018). Real but
     # near-useless; fixing the measurement is separate work.
     "water_proximity_m",
+    # Modeled quiet-baseline: measured traffic-noise contours cover ~26 % of areas;
+    # the rest are shown at the 40 dB quiet residential baseline (no major road/rail
+    # nearby), which the layer note states explicitly. This is an intentional modeled
+    # default, not fabricated measurement. FOLLOW-UP: replace the flat baseline with a
+    # distance-to-major-road/rail attenuation model so uncovered areas get a real
+    # gradient (which will also make this exemption unnecessary).
+    "noise_pollution",
 }
 
 # A metric derived entirely from a proxy metric inherits the proxy's honesty
