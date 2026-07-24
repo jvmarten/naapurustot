@@ -364,8 +364,12 @@ function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 /** "Best areas by metric" link row for a region OR municipality hub (only metrics
  *  with a page). `scope` carries `.rankings` plus the scope identity (kind+id/slug)
  *  that rankPath needs. */
-function buildBestAreasNav(scope, lang) {
-  const avail = scope.rankings || [];
+function buildBestAreasNav(scope, lang, opts = {}) {
+  let avail = scope.rankings || [];
+  // CF-1: optional exclude (the current ranking's own metric) + cap, for the sibling-metric
+  // row on ranking pages. Default (no opts) leaves hub-body calls byte-identical.
+  if (opts.excludeSlug) avail = avail.filter((m) => m.slug !== opts.excludeSlug);
+  if (opts.limit) avail = avail.slice(0, opts.limit);
   if (avail.length === 0) return '';
   const links = avail
     .map((m) => `<a href="${rankPath(m.slug, scope, lang)}">${escapeHtml(cap(m.label[lang]))}</a>`)
@@ -374,8 +378,11 @@ function buildBestAreasNav(scope, lang) {
 }
 
 /** National "best areas by metric" link row for the directory page. */
-function buildDirectoryRankingNav(lang) {
-  const links = RANKING_METRICS
+function buildDirectoryRankingNav(lang, opts = {}) {
+  let metrics = RANKING_METRICS;
+  if (opts.excludeSlug) metrics = metrics.filter((m) => m.slug !== opts.excludeSlug);
+  if (opts.limit) metrics = metrics.slice(0, opts.limit);
+  const links = metrics
     .map((m) => `<a href="${rankPath(m.slug, null, lang)}">${escapeHtml(cap(m.label[lang]))}</a>`)
     .join(' · ');
   return `      <h2>${escapeHtml(RANK_TEXT[lang].bestHeading)}</h2>\n      <p>${links}</p>`;
@@ -807,6 +814,12 @@ function buildRankingPage(metric, lang, scope, ranked) {
     : `/?layer=${escapeHtml(metric.layer)}`;
   const mapCta = `\n      <p><a class="cta" href="${mapHref}">${escapeHtml(T.mapCta(label, locationName))}</a></p>`;
 
+  // CF-1: sibling-metric row so a ranking page is not a leaf — links this scope's other
+  // rankings (national → the directory metrics), capped at 8, excluding the current metric.
+  const siblingNav = national
+    ? buildDirectoryRankingNav(lang, { limit: 8, excludeSlug: metric.slug })
+    : buildBestAreasNav(scope, lang, { limit: 8, excludeSlug: metric.slug });
+
   const body = `      ${crumbs}
       <h1>${escapeHtml(T.h1(label, locationName))}</h1>
       <p class="lead">${escapeHtml(T.intro(label, locationName, ranked.length))}</p>
@@ -816,7 +829,7 @@ function buildRankingPage(metric, lang, scope, ranked) {
         <tbody>
 ${rows}
         </tbody>
-      </table>${mapCta}${nationalCta}
+      </table>${mapCta}${nationalCta}${siblingNav ? '\n' + siblingNav : ''}
       <p><a href="${hubPath}">← ${escapeHtml(national ? T.crumbAll : locationName)}</a></p>`;
 
   const itemList = {
@@ -1105,7 +1118,7 @@ function buildMunicipalityHub(muni, lang) {
       <h1>${muniEsc}</h1>
       <p class="lead">${escapeHtml(M.intro(muni.name, muni.count, fmtNum(muni.totalPop, lang)))}</p>
       <p class="summary"><span>${escapeHtml(T.citySummary(fmtNum(muni.count, lang), fmtNum(muni.totalPop, lang)))}</span></p>
-      <p><a class="cta" href="/?city=${escapeHtml(muni.regionId)}">${escapeHtml(M.mapCta(muni.name))}</a></p>
+      <p><a class="cta" href="/?pno=${escapeHtml(String(sorted[0].properties.pno))}">${escapeHtml(M.mapCta(muni.name))}</a></p>
       <p>${escapeHtml(M.regionLabel)}: <a href="${regionHref}">${regionEsc}</a></p>
       <h2>${escapeHtml(T.cityAreasHeading)}</h2>
       <table>
@@ -1116,6 +1129,8 @@ ${rows}
         </tbody>
       </table>
 ${buildBestAreasNav({ kind: 'muni', slug: muni.slug, rankings: muni.rankings }, lang)}
+${buildCompareNav(muni, lang)}
+${buildMuniPlanningNav(muni, lang)}
 ${buildCiteSection(lang, M.title(muni.name), alternates[lang])}
       <p><a href="${DIRECTORY_PATH[lang]}">${escapeHtml(T.backToDir)}</a></p>`;
 
@@ -1367,6 +1382,13 @@ function buildPlanningNav(region, lang) {
   return `      <h2>${escapeHtml(PLANNING_TEXT[lang].crossHeading)}</h2>\n      <p>${links}</p>`;
 }
 
+/** CF-1: municipality hub → its own /kaavoitus/ planning page, when that municipality
+ *  publishes planning data (a real generated page, so no 404). */
+function buildMuniPlanningNav(muni, lang) {
+  if (!planningByMuni.has(muni.name)) return '';
+  return `      <h2>${escapeHtml(PLANNING_TEXT[lang].crossHeading)}</h2>\n      <p><a href="${planningPath(slugify(muni.name), lang)}">${escapeHtml(muni.name)}</a></p>`;
+}
+
 /** Build one municipality planning hub page. */
 function buildPlanningHub(agg, slug, lang) {
   const T = PLANNING_TEXT[lang];
@@ -1529,6 +1551,9 @@ for (const muni of municipalities) {
   muni.rankings = RANKING_METRICS.filter(
     (m) => muni.features.filter((f) => Number.isFinite(Number(f.properties[m.property]))).length >= MIN_MUNI_RANKED,
   );
+  // CF-1: same bounded compare set as regions, so the muni hub can link its /vertaa/ pages
+  // (a subset of the region's — every link resolves to a page that is actually generated).
+  muni.comparePairs = computeRegionComparePairs(muni);
 }
 
 for (const lang of LANGS) {
@@ -1595,7 +1620,8 @@ for (const metric of RANKING_METRICS) {
 }
 for (const region of regions) {
   for (const metric of region.rankings) {
-    writeRankingSet(metric, { kind: 'region', id: region.id }, rankFeatures(region.features, metric, REGION_TOP_N));
+    // CF-1: pass region.rankings so the ranking page can render a sibling-metric row.
+    writeRankingSet(metric, { kind: 'region', id: region.id, rankings: region.rankings }, rankFeatures(region.features, metric, REGION_TOP_N));
   }
 }
 let muniRankingSets = 0;
@@ -1603,7 +1629,7 @@ for (const muni of municipalities) {
   for (const metric of muni.rankings) {
     writeRankingSet(
       metric,
-      { kind: 'muni', slug: muni.slug, regionId: muni.regionId, name: muni.name },
+      { kind: 'muni', slug: muni.slug, regionId: muni.regionId, name: muni.name, rankings: muni.rankings },
       rankFeatures(muni.features, metric, REGION_TOP_N),
     );
     muniRankingSets++;
@@ -1721,7 +1747,7 @@ function buildComparePage(fa, fb, lang) {
     return `        <tr><td>${label}</td><td class="num">${cellA}</td><td class="num">${cellB}</td><td>${better}</td></tr>`;
   }).join('\n');
 
-  const body = `      <p class="crumbs"><a href="/">naapurustot.fi</a> / ${escapeHtml(T.crumbCompare)}</p>
+  const body = `      <p class="crumbs"><a href="/">naapurustot.fi</a> / <a href="${DIRECTORY_PATH[lang]}">${escapeHtml(TEXT[lang].dirCrumb)}</a> / <a href="${CITY_PREFIX[lang]}/${escapeHtml(a.city)}/">${escapeHtml(getRegionName(a.city, lang))}</a> / ${escapeHtml(T.crumbCompare)}</p>
       <h1>${escapeHtml(T.h1(nameA, nameB))}</h1>
       <p class="lead">${escapeHtml(T.intro(nameA, nameB))}</p>
       <table>
@@ -1748,7 +1774,9 @@ ${rows}
     '@type': 'BreadcrumbList',
     itemListElement: [
       { '@type': 'ListItem', position: 1, name: 'naapurustot.fi', item: `${ORIGIN}/` },
-      { '@type': 'ListItem', position: 2, name: T.h1(nameA, nameB) },
+      { '@type': 'ListItem', position: 2, name: TEXT[lang].dirCrumb, item: `${ORIGIN}${DIRECTORY_PATH[lang]}` },
+      { '@type': 'ListItem', position: 3, name: getRegionName(a.city, lang), item: `${ORIGIN}${CITY_PREFIX[lang]}/${a.city}/` },
+      { '@type': 'ListItem', position: 4, name: T.h1(nameA, nameB) },
     ],
   };
   const faq = {
@@ -1822,3 +1850,73 @@ for (const agg of planningMunis) {
 
 writeFileSync(join(DIST, 'kaavoitus-pages.json'), JSON.stringify(planningManifest));
 console.log(`Prerendered ${planningManifest.length} planning hub sets (${planningManifest.length * 3} HTML files; manifest → dist/kaavoitus-pages.json).`);
+
+// CF-1: per-pno reverse-nav manifest — the mechanism that de-orphans the ranking/compare/
+// municipality/planning mesh from the profile pages (the main SEO entry points). Each entry
+// is assembled from the EXACT structures that generated the hub pages (rankFeatures, the
+// bounded comparePairs, planningByMuni, the muni feature sets), so every href points at a
+// page that was actually written — zero 404 drift. Written to scripts/ (gitignored, read by
+// prerender.mjs within the same build:pages run), NOT to dist/, so it never ships.
+const NAV_CAP = 8;
+const areaNav = {};
+function navFor(pno, lang) {
+  const key = String(pno);
+  if (!areaNav[key]) areaNav[key] = {};
+  if (!areaNav[key][lang]) areaNav[key][lang] = { rankings: [], compares: [] };
+  return areaNav[key][lang];
+}
+// Municipality hub per pno.
+for (const muni of municipalities) {
+  for (const f of muni.features) {
+    for (const lang of LANGS) navFor(f.properties.pno, lang).muni = { href: muniPath(muni.slug, lang), label: muni.name };
+  }
+}
+// Planning hub per pno (its municipality publishes planning data).
+for (const p of propsByPno.values()) {
+  if (p.municipality && planningByMuni.has(p.municipality)) {
+    for (const lang of LANGS) navFor(p.pno, lang).planning = { href: planningPath(slugify(p.municipality), lang), label: p.municipality };
+  }
+}
+// Rankings per pno — national + region + muni, mirroring the exact pages written above.
+function addRankingsToNav(scope, metrics, features, topN) {
+  for (const metric of metrics) {
+    const ranked = rankFeatures(features, metric, topN);
+    for (const lang of LANGS) {
+      const href = rankPath(metric.slug, scope, lang);
+      const label = cap(metric.label[lang]);
+      for (const f of ranked) {
+        const nav = navFor(f.properties.pno, lang);
+        if (nav.rankings.length < NAV_CAP) nav.rankings.push({ href, label });
+      }
+    }
+  }
+}
+for (const metric of RANKING_METRICS) {
+  const ranked = rankFeatures(RANKABLE, metric, NATIONAL_TOP_N);
+  if (ranked.length < NATIONAL_MIN_RANKED) continue; // only metrics that earned a national page
+  for (const lang of LANGS) {
+    const href = rankPath(metric.slug, null, lang);
+    const label = cap(metric.label[lang]);
+    for (const f of ranked) {
+      const nav = navFor(f.properties.pno, lang);
+      if (nav.rankings.length < NAV_CAP) nav.rankings.push({ href, label });
+    }
+  }
+}
+for (const region of regions) addRankingsToNav({ kind: 'region', id: region.id }, region.rankings, region.features, REGION_TOP_N);
+for (const muni of municipalities) addRankingsToNav({ kind: 'muni', slug: muni.slug, regionId: muni.regionId, name: muni.name }, muni.rankings, muni.features, REGION_TOP_N);
+// Compares per pno — both members of each generated /vertaa/ pair.
+for (const [lo, hi] of comparePairs) {
+  const fa = compareFeatByPno.get(lo);
+  const fb = compareFeatByPno.get(hi);
+  if (!fa || !fb) continue;
+  const slug = `${toSlug(fa.properties.pno, fa.properties.nimi)}-vs-${toSlug(fb.properties.pno, fb.properties.nimi)}`;
+  for (const lang of LANGS) {
+    const href = comparePath(slug, lang);
+    const label = `${getDisplayName(fa.properties, lang)} vs ${getDisplayName(fb.properties, lang)}`;
+    const na = navFor(lo, lang); if (na.compares.length < NAV_CAP) na.compares.push({ href, label });
+    const nb = navFor(hi, lang); if (nb.compares.length < NAV_CAP) nb.compares.push({ href, label });
+  }
+}
+writeFileSync(join(ROOT, 'scripts', 'area_nav.generated.json'), JSON.stringify(areaNav));
+console.log(`Wrote per-pno reverse-nav manifest (${Object.keys(areaNav).length} pnos → scripts/area_nav.generated.json).`);

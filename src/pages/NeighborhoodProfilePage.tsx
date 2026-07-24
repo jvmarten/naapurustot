@@ -35,7 +35,25 @@ interface EmbeddedProfile {
    * dataset. Optional so pre-existing pages (older payloads) still parse.
    */
   pct?: NeighbourhoodPercentiles;
+  /**
+   * CF-1: reverse-nav links into the ranking / compare / municipality / planning hub mesh for
+   * this area (from the build-time manifest). Present only on prerendered / hard-loaded pages,
+   * so a rendering crawler follows them into the otherwise-orphaned mesh. Optional/nullable.
+   */
+  nav?: {
+    muni?: { href: string; label: string };
+    rankings?: { href: string; label: string }[];
+    compares?: { href: string; label: string }[];
+    planning?: { href: string; label: string };
+  } | null;
 }
+
+/** CF-1: the directory ("all areas") hub, per language — always linked from a profile. */
+const DIRECTORY_URL: Record<Lang, string> = {
+  fi: '/kaupungit/',
+  en: '/en/cities/',
+  sv: '/sv/stader/',
+};
 
 /**
  * Read the data payload embedded by the prerenderer. Returns null when the page
@@ -163,6 +181,8 @@ export const NeighborhoodProfilePage: React.FC = () => {
   // prerendered <title>/description/OG/hreflang untouched on the initial prerendered view,
   // and only take over on client-side navigation to another profile or a language toggle.
   const [prerenderedPno] = useState<string | null>(() => (pno && readEmbeddedProfile(pno) ? pno : null));
+  // CF-1: reverse-nav links embedded on prerendered pages (mount-stable; null on SPA nav).
+  const [prerenderedNav] = useState(() => (pno ? readEmbeddedProfile(pno)?.nav ?? null : null));
   const [prerenderedLang] = useState<Lang>(() => pathLang);
   // Flips true the first time we take over the <head>; from then on we always manage it,
   // so navigating back to the originally prerendered area doesn't re-skip onto a now-stale
@@ -580,8 +600,38 @@ export const NeighborhoodProfilePage: React.FC = () => {
           <Link to="/" className="hover:text-brand-600">{t('app.title')}</Link>
           <span className="mx-2">/</span>
           <a href={`${cityHubPrefix[lang]}/${d.city ?? 'helsinki_metro'}/`} className="hover:text-brand-600">{cityName}</a>
+          {prerenderedNav?.muni && (
+            <>
+              <span className="mx-2">/</span>
+              <a href={prerenderedNav.muni.href} className="hover:text-brand-600">{prerenderedNav.muni.label}</a>
+            </>
+          )}
           <span className="mx-2">/</span>
           <span className="text-surface-900 dark:text-white">{displayName}</span>
+        </nav>
+
+        {/* CF-1: reverse-nav into the ranking / compare / municipality / planning hub mesh.
+            The directory link always shows; the rest render from the prerendered manifest so a
+            crawler (and a returning user) can reach the otherwise-orphaned SEO pages. */}
+        <nav className="text-xs text-surface-500 dark:text-surface-400 mb-6 flex flex-wrap gap-x-4 gap-y-1.5">
+          <a href={DIRECTORY_URL[lang]} className="hover:text-brand-600">{t('profile.nav_all_areas')}</a>
+          {prerenderedNav?.rankings && prerenderedNav.rankings.length > 0 && (
+            <span>{t('profile.nav_rankings')}:{' '}
+              {prerenderedNav.rankings.slice(0, 6).map((r, i) => (
+                <span key={r.href}>{i > 0 && ' · '}<a href={r.href} className="hover:text-brand-600">{r.label}</a></span>
+              ))}
+            </span>
+          )}
+          {prerenderedNav?.compares && prerenderedNav.compares.length > 0 && (
+            <span>{t('profile.nav_compare')}:{' '}
+              {prerenderedNav.compares.slice(0, 4).map((c, i) => (
+                <span key={c.href}>{i > 0 && ' · '}<a href={c.href} className="hover:text-brand-600">{c.label}</a></span>
+              ))}
+            </span>
+          )}
+          {prerenderedNav?.planning && (
+            <a href={prerenderedNav.planning.href} className="hover:text-brand-600">{t('profile.nav_planning')}</a>
+          )}
         </nav>
 
         {/* Title + Mini Map */}

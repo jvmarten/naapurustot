@@ -44,3 +44,7 @@ server/.env
 
 # Server database backups (generated on the host by db-backup container)
 server/backups/
+
+# CF-1: build-internal per-pno reverse-nav manifest (read by prerender within one
+# build:pages run; never committed, never shipped to dist).
+scripts/area_nav.generated.json
