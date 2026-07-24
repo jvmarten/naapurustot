@@ -36,9 +36,14 @@ jobs:
           [ "$code" = "200" ] || fails+=("Backend https://api.naapurustot.fi/health returned $code")
 
           # 2. Deployed site, sitemap, a sample profile, and the data metadata must 200.
+          #    IN-3: /sitemap.xml is now a <sitemapindex>; the crawlable URLs live in
+          #    gzipped children. Ping the largest child (sitemap-alue.xml.gz, 9,054 URLs)
+          #    too — otherwise the index would 200 even if a child were dropped/renamed,
+          #    silently deindexing the profile corpus with no alert.
           for url in \
             "https://naapurustot.fi/" \
             "https://naapurustot.fi/sitemap.xml" \
+            "https://naapurustot.fi/sitemap-alue.xml.gz" \
             "https://naapurustot.fi/alue/00100-helsinki-keskusta-etu-toolo/" \
             "https://naapurustot.fi/data/build_metadata.json"; do
             code=$(http "$url")
