@@ -32,32 +32,34 @@ import { join } from 'node:path';
 
 const MiB = 1024 * 1024;
 
-// Measured 2026-07-24 (this build):
-//   pages  (post build:pages, pre-rasterize) : 557 MB / 41,882 files
-//   deploy (post rasterize, the real upload)  : ~1016 MB / ~50,936 files
-//     = 557 MB mesh  +  ~459 MB of 9,054 card PNGs (~52 KB each; the SVGs stay too).
-// The GitHub Pages published-site cap is 1 GiB (1073.7 MB): the current deploy already
-// sits at ~95% of it. The card-PNG payload is FIXED by the area/region count, so the only
-// thing that grows is the `pages` mesh — a new combinatorial page family (a ranking metric
-// ≈ +600 URLs/locale of prerendered HTML) can push the deploy over the cap. Hence a tight
-// `pages` budget (the meaningful pre-merge early-warning) and a `deploy` backstop just under
-// the hard cap. If either fires, PRUNE (e.g. drop the now-unused dist/og SVGs from the
-// upload, ~22 MB; trim a page family) rather than raising the budget toward 1 GiB.
+// Measured 2026-07-24 in the real jobs:
+//   pages  (ci/auto-merge lighthouse, post build:pages, no og cache) : 557 MB / 41,882 files
+//   deploy (deploy.yml, post rasterize, the actual upload)           : 1382 MB / 65,167 files
+//     — of which dist/og alone is 846 MB / 32,538 files: the deploy restores dist/og from a
+//     prefix-keyed cache (deploy.yml) that has accumulated many data-versions' worth of card
+//     PNGs, far more than the ~9,054 current cards. GitHub Pages accepts this upload today
+//     (prior deploys at ~1382 MB succeed), so the documented "1 GB" limit is NOT hard-enforced
+//     for artifact-based Pages at the uncompressed-tree level — a HARD deploy gate below the
+//     working size would just false-fail production. So:
+//   - `pages` is the HARD pre-merge gate: it measures the DETERMINISTIC prerendered mesh (no
+//     cache, no PNGs), which is the only thing that grows with new page families. Byte-identical
+//     across OSes, so 640 MiB over today's 557 MB never false-fails yet trips on a new family.
+//   - `deploy` is a WARN-ONLY visibility report: it always prints the per-dir breakdown (so the
+//     og-cache bloat is visible every deploy) and emits a ::warning:: past a generous soft
+//     threshold set above today's real size, but NEVER fails the deploy. Follow-ups to reclaim
+//     room: fix the dist/og cache accumulation (32k files ≫ 9k cards) and drop the now-unused
+//     card SVGs from the upload (prerender references the .png).
 const PROFILES = {
-  // Pre-rasterize prerendered page mesh — what the ci.yml / auto-merge.yml lighthouse jobs
-  // produce (no card PNGs, no og cache). ~83 MB headroom over today's 557 MB: normal PRs
-  // move the mesh by <1 MB, but a whole new ranking/compare family (100s of MB) trips it.
   pages: {
+    hard: true,
     budget: 640 * MiB,
     fileBudget: 50_000,
     label: 'Prerendered page mesh (pre-rasterize)',
   },
-  // Full published tree (post-rasterize), the real 1 GiB Pages cap guard. Set just under the
-  // hard cap (~1073.7 MB) so it fails LOUDLY before an upload silently truncates/rejects,
-  // with ~52 MB over today's ~1016 MB so it never false-fails a deploy Pages would accept.
   deploy: {
-    budget: 1068 * MiB,
-    fileBudget: 58_000,
+    hard: false, // visibility + growth warning only — never blocks the deploy (see above)
+    budget: 1600 * MiB,
+    fileBudget: 90_000,
     label: 'Full published site (post-rasterize)',
   },
 };
@@ -146,6 +148,13 @@ if (totalBytes > profile.budget || totalFiles > profile.fileBudget) {
     totalBytes > profile.budget
       ? `size ${fmtMB(totalBytes)} MB exceeds ${fmtMB(profile.budget)} MB budget`
       : `file count ${totalFiles} exceeds ${profile.fileBudget} budget`;
-  console.error(`::error::dist/ ${profile.label} ${why} — prune the page mesh or cards before it hits the 1 GB Pages cap.`);
-  process.exit(1);
+  const msg = `dist/ ${profile.label} ${why} — prune the page mesh or the dist/og card cache.`;
+  if (profile.hard) {
+    // Hard gate (pages): fail the job so growth is caught before merge.
+    console.error(`::error::${msg}`);
+    process.exit(1);
+  }
+  // Warn-only (deploy): the real upload size is cache-driven and known-accepted by Pages,
+  // so surface growth loudly but never block the deploy.
+  console.log(`::warning::${msg}`);
 }
