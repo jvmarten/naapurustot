@@ -7,7 +7,7 @@ import React, { useState, useCallback, useEffect, useRef, useMemo, lazy, Suspens
 // gate, so this is budget-neutral. Declared with the other lazy components below.
 import { DEFAULT_CENTER, DEFAULT_ZOOM, CITY_VIEWPORTS } from './utils/mapConstants';
 import { REGION_IDS, DEFAULT_CITY, type RegionId } from './utils/regions';
-import { loadRegionData } from './utils/dataLoader';
+import { loadRegionData, loadAllData } from './utils/dataLoader';
 import { LayerSelector } from './components/LayerSelector';
 import { SearchBar } from './components/SearchBar';
 import { ContactMenu } from './components/ContactMenu';
@@ -1948,6 +1948,34 @@ const App: React.FC = () => {
     (pno: string): GeoJSON.Geometry | null => pnoFeatureMap.get(pno)?.geometry ?? null,
     [pnoFeatureMap],
   );
+  // CF-3: the shortlist decision table needs each area's full properties (QI / fit / active
+  // metric). On the ?city=all landing pnoFeatureMap is empty (skipAllFetch), so lazily load
+  // region_properties — via the SHARED loadAllData cache, NOT needFullNational (which would
+  // switch the whole map into national mode) — the first time the user opens the table.
+  const [shortlistWantsProps, setShortlistWantsProps] = useState(false);
+  const [shortlistNationalProps, setShortlistNationalProps] = useState<Map<string, NeighborhoodProperties> | null>(null);
+  useEffect(() => {
+    if (!shortlistWantsProps || !skipAllFetch || shortlist.length === 0 || shortlistNationalProps) return;
+    let cancelled = false;
+    loadAllData()
+      .then((res) => {
+        if (cancelled) return;
+        const m = new globalThis.Map<string, NeighborhoodProperties>();
+        for (const f of res.data.features) {
+          const p = f.properties as NeighborhoodProperties | null;
+          if (p?.pno) m.set(String(p.pno), p);
+        }
+        setShortlistNationalProps(m);
+      })
+      .catch(() => { /* table columns fall back to the "no data" cell */ });
+    return () => { cancelled = true; };
+  }, [shortlistWantsProps, skipAllFetch, shortlist.length, shortlistNationalProps]);
+  const shortlistPropsFor = useCallback(
+    (pno: string): NeighborhoodProperties | null =>
+      (pnoFeatureMap.get(pno)?.properties as NeighborhoodProperties | undefined)
+      ?? shortlistNationalProps?.get(pno) ?? null,
+    [pnoFeatureMap, shortlistNationalProps],
+  );
   const handleCompareShortlist = useCallback(() => {
     trackEvent('shortlist-compare');
     for (const pno of shortlist) {
@@ -2856,6 +2884,10 @@ const App: React.FC = () => {
               canCompare={hasGeometry}
               shareUrl={shortlistShareUrl}
               onCollapse={idle ? undefined : () => setShortlistExpanded(false)}
+              propsFor={shortlistPropsFor}
+              layerConfig={effectiveLayer}
+              wizardProfile={wizardProfile}
+              onExpand={() => setShortlistWantsProps(true)}
             />
           );
         }

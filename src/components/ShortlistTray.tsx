@@ -4,6 +4,9 @@ import { exportGeoJson } from '../utils/export';
 import { readNote } from '../hooks/useNotes';
 import { trackEvent } from '../utils/analytics';
 import type { NeighborhoodProperties } from '../utils/metrics';
+import type { LayerConfig } from '../utils/colorScales';
+import { computeNationalFit } from '../utils/fitScore';
+import type { WizardAnswers } from '../hooks/useWizardProfile';
 
 export interface ShortlistEntry {
   pno: string;
@@ -30,7 +33,21 @@ interface ShortlistTrayProps {
    *  Defaults to true. (The GeoJSON/CSV/PDF/image exports are hidden the same way by
    *  simply not passing `featureFor`.) */
   canCompare?: boolean;
+  /** CF-3: resolve a pno's full properties (QI + metrics) for the decision-table columns.
+   *  Works on the ?city=all view too (App lazy-loads region_properties there), where
+   *  featureFor is unavailable. Returns null while properties are still loading. */
+  propsFor?: (pno: string) => NeighborhoodProperties | null;
+  /** CF-3: the active layer's config, for the active-metric column (label + format). */
+  layerConfig?: LayerConfig;
+  /** CF-3: the user's saved wizard profile, for the Fit-for-you % column (null → a CTA cell). */
+  wizardProfile?: WizardAnswers | null;
+  /** CF-3: fired the first time the table view opens, so App can lazily load the
+   *  region_properties the columns need on the ?city=all view (no fetch until then). */
+  onExpand?: () => void;
 }
+
+/** CF-3: decision-table sort key. */
+type SortKey = 'name' | 'qi' | 'fit' | 'layer';
 
 /**
  * QW-2: floating tray on the home view showing the user's shortlist as chips —
@@ -41,7 +58,7 @@ interface ShortlistTrayProps {
  * minimal `sl`+`city` link), a branded shortlist summary image card, and CSV/PDF
  * export. The card + exports lazy-load their heavy modules on click.
  */
-export const ShortlistTray: React.FC<ShortlistTrayProps> = React.memo(({ entries, onSelect, onRemove, onCompare, onClear, featureFor, shareUrl, onCollapse, canCompare = true }) => {
+export const ShortlistTray: React.FC<ShortlistTrayProps> = React.memo(({ entries, onSelect, onRemove, onCompare, onClear, featureFor, shareUrl, onCollapse, canCompare = true, propsFor, layerConfig, wizardProfile, onExpand }) => {
   useI18nVersion();
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -146,6 +163,39 @@ export const ShortlistTray: React.FC<ShortlistTrayProps> = React.memo(({ entries
     [entries],
   );
 
+  // CF-3: the shortlist is the funnel's convergence point — the one surface a returning user
+  // comes back to — but it carried no metric, score or sort. Expand it to a decision table.
+  const [tableView, setTableView] = useState(false);
+  const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'qi', dir: 'desc' });
+  const toggleSort = useCallback((key: SortKey) => {
+    setSort((s) => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: key === 'name' ? 'asc' : 'desc' }));
+  }, []);
+
+  // Resolve each entry's real values. propsFor is null until region_properties loads on the
+  // ?city=all view; rows still render (with explicit "no data" cells), never omitted.
+  const rows = useMemo(() => entries.map((e) => {
+    const p = propsFor?.(e.pno) ?? null;
+    const qiRaw = p?.quality_index;
+    const qi = typeof qiRaw === 'number' && isFinite(qiRaw) ? qiRaw : null;
+    const fit = p && wizardProfile ? computeNationalFit(p, wizardProfile).score : null;
+    const layerRaw = p && layerConfig ? (p as Record<string, unknown>)[layerConfig.property] : null;
+    const layerVal = typeof layerRaw === 'number' && isFinite(layerRaw) ? layerRaw : null;
+    return { pno: e.pno, name: e.name, qi, fit, layerVal };
+  }), [entries, propsFor, wizardProfile, layerConfig]);
+
+  const sortedRows = useMemo(() => {
+    const pick = (r: typeof rows[number]) => sort.key === 'qi' ? r.qi : sort.key === 'fit' ? r.fit : r.layerVal;
+    const dir = sort.dir === 'asc' ? 1 : -1;
+    return [...rows].sort((a, b) => {
+      if (sort.key === 'name') return a.name.localeCompare(b.name) * dir;
+      const av = pick(a), bv = pick(b);
+      if (av == null && bv == null) return a.name.localeCompare(b.name);
+      if (av == null) return 1;   // missing values always sort last, regardless of direction
+      if (bv == null) return -1;
+      return (av - bv) * dir || a.name.localeCompare(b.name);
+    });
+  }, [rows, sort]);
+
   if (entries.length === 0) return null;
 
   const sep = <span className="text-surface-300 dark:text-surface-700" aria-hidden>·</span>;
@@ -155,6 +205,7 @@ export const ShortlistTray: React.FC<ShortlistTrayProps> = React.memo(({ entries
       <div className="pointer-events-auto rounded-2xl bg-white/95 dark:bg-surface-900/95 backdrop-blur-md
                       border border-surface-200 dark:border-surface-700/40 shadow-2xl px-4 py-3">
         <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
           {onCollapse ? (
             <button
               onClick={onCollapse}
@@ -168,6 +219,15 @@ export const ShortlistTray: React.FC<ShortlistTrayProps> = React.memo(({ entries
               {t('shortlist.title')} ({entries.length})
             </div>
           )}
+          {/* CF-3: toggle between the compact chip row and the decision table. */}
+          <button
+            onClick={() => setTableView((v) => { if (!v) onExpand?.(); return !v; })}
+            aria-pressed={tableView}
+            className="text-[10px] font-medium px-1.5 py-0.5 rounded border border-surface-200 dark:border-surface-700/50 text-surface-600 dark:text-surface-400 hover:text-brand-600 dark:hover:text-brand-300"
+          >
+            {tableView ? t('shortlist.chip_view') : t('shortlist.table_view')}
+          </button>
+          </div>
           {/* M3: wrap instead of overflowing, and give each action a 44px touch
               target on mobile (the row previously packed up to 7 bare text buttons).
               Actions are assembled into a list and separators interleaved between them,
@@ -268,6 +328,51 @@ export const ShortlistTray: React.FC<ShortlistTrayProps> = React.memo(({ entries
             mobile (the tray's min-h-[44px] rule covered only the actions row) —
             ~24 px text chips and a 16 px "×" invited mis-taps and accidental
             removals on the flagship curated surface. Desktop keeps the compact look. */}
+        {tableView ? (
+          <div className="overflow-x-auto -mx-1">
+            <table className="w-full text-xs border-collapse">
+              <thead>
+                <tr className="text-[10px] uppercase tracking-wide text-surface-600 dark:text-surface-400 border-b border-surface-200 dark:border-surface-700/40">
+                  {(([
+                    ['name', t('shortlist.col_area')],
+                    ['qi', t('layer.quality_index')],
+                    ['fit', t('shortlist.col_fit')],
+                    ['layer', layerConfig ? t(layerConfig.labelKey) : '—'],
+                  ] as [SortKey, string][]).map(([key, label]) => (
+                    <th key={key} className={`py-1.5 px-1 font-semibold ${key === 'name' ? 'text-left' : 'text-right'}`}>
+                      <button onClick={() => toggleSort(key)} className="inline-flex items-center gap-0.5 hover:text-brand-600 dark:hover:text-brand-300">
+                        {label}{sort.key === key && <span aria-hidden>{sort.dir === 'asc' ? '↑' : '↓'}</span>}
+                      </button>
+                    </th>
+                  )))}
+                  <th className="w-6" aria-hidden />
+                </tr>
+              </thead>
+              <tbody>
+                {sortedRows.map((r) => (
+                  <tr key={r.pno} className="border-b border-surface-100 dark:border-surface-800/60 last:border-0">
+                    <td className="py-1.5 px-1">
+                      <span className="inline-flex items-center gap-1">
+                        {notedPnos.has(r.pno) && <span className="w-1.5 h-1.5 rounded-full bg-brand-500 flex-shrink-0" aria-label={t('shortlist.has_note')} title={t('shortlist.has_note')} />}
+                        <button onClick={() => onSelect(r.pno)} className="truncate max-w-[130px] text-left hover:text-brand-600 dark:hover:text-brand-300 text-surface-800 dark:text-surface-100">{r.name}</button>
+                      </span>
+                    </td>
+                    <td className="py-1.5 px-1 text-right tabular-nums text-surface-700 dark:text-surface-200">{r.qi != null ? Math.round(r.qi) : <span className="text-surface-400">{t('shortlist.no_data')}</span>}</td>
+                    <td className="py-1.5 px-1 text-right tabular-nums">
+                      {r.fit != null
+                        ? <span className="text-surface-700 dark:text-surface-200">{r.fit}%</span>
+                        : <span className="text-brand-600 dark:text-brand-300 text-[10px]">{t('fit.cta')}</span>}
+                    </td>
+                    <td className="py-1.5 px-1 text-right tabular-nums text-surface-700 dark:text-surface-200">{r.layerVal != null && layerConfig ? layerConfig.format(r.layerVal) : <span className="text-surface-400">{t('shortlist.no_data')}</span>}</td>
+                    <td className="py-1.5 px-1 text-right">
+                      <button onClick={() => onRemove(r.pno)} aria-label={t('shortlist.remove')} title={t('shortlist.remove')} className="w-5 h-5 rounded-full text-surface-400 hover:text-rose-500 hover:bg-surface-200 dark:hover:bg-surface-700">×</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
         <div className="flex flex-wrap gap-1.5">
           {entries.map((e) => (
             <span
@@ -299,6 +404,7 @@ export const ShortlistTray: React.FC<ShortlistTrayProps> = React.memo(({ entries
             </span>
           ))}
         </div>
+        )}
       </div>
     </div>
   );
