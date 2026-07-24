@@ -13,6 +13,10 @@
  */
 import rangesData from '../data/national_ranges.json';
 import type { MinMax } from './qualityIndex';
+// CF-2: the 101-point national percentile ladders are a SEPARATE ?url asset (URL string
+// only — the JSON stays out of every JS chunk, exactly like adjacency.json). Do NOT static-
+// import it the way national_ranges.json is imported above, or it charges the full payload.
+import nationalPercentilesUrl from '../data/national_percentiles.json?url';
 
 interface RawRange {
   min: number;
@@ -40,4 +44,35 @@ export function getNationalRanges(): Map<string, MinMax> {
   }
   cached = map;
   return map;
+}
+
+/** One metric's national quantile ladder: 101 ascending breakpoints + the finite count. */
+export interface NationalLadder {
+  /** 101-point p0..p100 quantile curve, ascending — a valid input to percentileRankSorted. */
+  ladder: number[];
+  /** National count of finite values behind this ladder (for the coverage floor). */
+  n: number;
+}
+
+let laddersCache: Promise<Record<string, NationalLadder>> | null = null;
+
+/**
+ * CF-2: lazily fetch + cache the national percentile ladders (a ?url asset, so it never
+ * weighs on the initial bundle). Gives the panel a true national "top X%" standing without
+ * the ~12 MB national property set. Mirrors loadAdjacencyGraph: memoized promise, evicted on
+ * failure so a later call retries.
+ */
+export function loadNationalPercentiles(): Promise<Record<string, NationalLadder>> {
+  if (laddersCache) return laddersCache;
+  laddersCache = fetch(nationalPercentilesUrl)
+    .then((res) => {
+      if (!res.ok) throw new Error(`Failed to load national percentiles: ${res.status}`);
+      return res.json() as Promise<{ metrics: Record<string, NationalLadder> }>;
+    })
+    .then((data) => data.metrics)
+    .catch((err) => {
+      laddersCache = null; // evict so a later call can retry
+      throw err;
+    });
+  return laddersCache;
 }

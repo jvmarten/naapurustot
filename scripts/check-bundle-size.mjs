@@ -102,7 +102,7 @@ import { join } from 'node:path';
 // radar + mobile chart parity + winner synthesis, plus the batch's UX-review
 // fixes (search municipality labels, filterable region list, sync/session
 // recovery, tour keyboard handling). Headroom restored to ~1.2 KB.
-const BUDGET = 314_000;
+const BUDGET = 318_000;
 const ASSETS_DIR = 'dist/assets';
 
 const fmtKB = (b) => (b / 1024).toFixed(2);

@@ -24,10 +24,18 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+// CF-2: reuse the app's summary/percentile metric sets so the national ladder set stays
+// in lockstep, and computeQualityIndices to derive the (unpersisted) quality_index ladder.
+// Node v24 strips TS types natively; build_region_aggregates.mjs already imports these .ts.
+import { computeQualityIndices } from '../src/utils/qualityIndex.ts';
+import { SUMMARY_METRICS } from '../src/utils/areaSummary.ts';
+import { PERCENTILE_METRICS } from '../src/utils/percentileRanks.ts';
 
 const rootDir = resolve(import.meta.dirname, '..');
 const propertiesPath = resolve(rootDir, 'src', 'data', 'region_properties.json');
 const outputPath = resolve(rootDir, 'src', 'data', 'national_ranges.json');
+// CF-2: national percentile ladder asset (a ?url static asset, zero bundle bytes).
+const percentilesPath = resolve(rootDir, 'src', 'data', 'national_percentiles.json');
 
 // Winsorization tails. p2/p98 trims the most extreme 2% on each side so a lone
 // outlier postal code cannot dominate the scale. Mirror this constant in any
@@ -107,6 +115,55 @@ const artifact = {
 
 writeFileSync(outputPath, JSON.stringify(artifact, null, 2) + '\n');
 console.log(`  → national_ranges.json (${count} properties over ${props.length} postal codes)`);
+
+// CF-2: national percentile LADDERS. national_ranges.json carries only winsorized
+// min/max/avg (for QI normalization); it cannot answer "top X% nationally". This second
+// artifact carries a 101-point quantile curve per summary/percentile metric, read via
+// percentileRankSorted, so the panel can state a true national standing WITHOUT fetching
+// the ~12 MB national property set. Shipped as a ?url asset → zero bundle bytes. Idempotent:
+// derives only from the committed region_properties.json + deterministic computeQualityIndices.
+const ladderProps = new Set([
+  ...SUMMARY_METRICS.map((m) => m.prop),
+  ...Object.values(PERCENTILE_METRICS).map((d) => d.prop),
+]);
+// quality_index is derived, not persisted in region_properties (it is an ID_FIELD here), so
+// compute it with DEFAULT weights against the just-built national ranges — the exact
+// derivation build_region_aggregates.mjs uses, keeping the ladder byte-idempotent.
+const nationalRangesMap = new Map(
+  Object.entries(ranges).map(([k, r]) => [k, { min: r.min, max: r.max, avg: r.avg }]),
+);
+const featuresForQi = props.map((p) => ({ properties: p }));
+computeQualityIndices(featuresForQi, undefined, nationalRangesMap);
+// Metrics that drop non-positive placeholders (income), matching areaSummary/collectRange.
+const requirePositiveProps = new Set([
+  'hr_mtu',
+  ...SUMMARY_METRICS.filter((m) => m.requirePositive).map((m) => m.prop),
+]);
+const percentileMetrics = {};
+for (const key of ladderProps) {
+  const requirePositive = requirePositiveProps.has(key);
+  const values = [];
+  for (const p of props) {
+    if (!p) continue;
+    const v = p[key];
+    if (typeof v !== 'number' || !isFinite(v)) continue;
+    if (requirePositive && v <= 0) continue;
+    values.push(v);
+  }
+  if (values.length === 0) continue;
+  values.sort((a, b) => a - b);
+  // 101 quantiles p0..p100; percentileRankSorted binary-searches this ascending ladder.
+  const ladder = Array.from({ length: 101 }, (_, i) => percentile(values, i / 100));
+  percentileMetrics[key] = { ladder, n: values.length };
+}
+const percentilesArtifact = {
+  method: 'quantile-ladder',
+  breakpoints: 101,
+  postalCodeCount: props.length,
+  metrics: percentileMetrics,
+};
+writeFileSync(percentilesPath, JSON.stringify(percentilesArtifact, null, 2) + '\n');
+console.log(`  → national_percentiles.json (${Object.keys(percentileMetrics).length} metric ladders)`);
 // Surface a couple of headline metrics so the build log is auditable.
 for (const key of ['crime_index', 'hr_mtu', 'unemployment_rate', 'air_quality_index']) {
   const r = ranges[key];

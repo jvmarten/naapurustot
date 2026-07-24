@@ -6,6 +6,7 @@ import { t, getLang, useI18nVersion } from '../utils/i18n';
 import { getQualityCategory, QUALITY_CATEGORIES, QUALITY_DIMENSIONS, computeQualityCoverage, type QualityWeights } from '../utils/qualityIndex';
 import { usePlanningArea, planningInfo } from '../hooks/usePlanningData';
 import { computeAreaSummary, fillTemplate } from '../utils/areaSummary';
+import { loadNationalPercentiles, type NationalLadder } from '../utils/nationalRanges';
 import { exportCsv, exportPdf, exportGeoJson, exportJson } from '../utils/export';
 import { TrendSection } from './TrendChart';
 import Sparkline from './Sparkline';
@@ -468,14 +469,44 @@ DistributionSection.displayName = 'DistributionSection';
 const AreaSummarySection: React.FC<{
   props: NeighborhoodProperties;
   allFeatures: GeoJSON.Feature[];
-}> = React.memo(({ props, allFeatures }) => {
+  scope?: 'national' | 'region';
+  region?: string;
+}> = React.memo(({ props, allFeatures, scope, region }) => {
   useI18nVersion();
+  // CF-2: for a real postal area, lazily fetch the national percentile ladders (a ?url asset,
+  // zero bundle) so the standing is a TRUE national "top X%", not a rank against the loaded
+  // region cohort. Metro aggregates (?city=all) rank against the 69 regions, so skip the ladder.
+  const isAggregate = !!props._isMetroArea;
+  const [ladders, setLadders] = useState<Record<string, NationalLadder> | null>(null);
+  useEffect(() => {
+    if (isAggregate) return;
+    let alive = true;
+    loadNationalPercentiles().then((l) => { if (alive) setLadders(l); }).catch(() => {});
+    return () => { alive = false; };
+  }, [isAggregate]);
+
+  const useNational = !!ladders && !isAggregate;
   const summary = useMemo(
-    () => computeAreaSummary(props as Record<string, unknown>, allFeatures),
-    [props, allFeatures],
+    () =>
+      useNational
+        ? computeAreaSummary(props as Record<string, unknown>, [], {
+            nationalLadders: ladders!,
+            population: (props.he_vakiy as number | null | undefined) ?? null,
+          })
+        : computeAreaSummary(props as Record<string, unknown>, allFeatures),
+    [props, allFeatures, ladders, useNational],
   );
 
   if (summary.strong.length === 0 && summary.weak.length === 0) return null;
+
+  // CF-2: label the cohort the standing is measured against. National ladder → "nationally";
+  // otherwise the loaded region cohort → "within {region}" when a region is selected, else the
+  // plain chip (e.g. the ?city=all aggregate view, where the cohort is the 69 regions).
+  const useRegionLabel = !useNational && scope === 'region' && !!region;
+  const topKey = useNational ? 'summary.chip_top_national' : useRegionLabel ? 'summary.chip_top_region' : 'summary.chip_top';
+  const bottomKey = useNational ? 'summary.chip_bottom_national' : useRegionLabel ? 'summary.chip_bottom_region' : 'summary.chip_bottom';
+  const topChip = (pct: number) => fillTemplate(t(topKey), useRegionLabel ? { pct: String(pct), region: region! } : { pct: String(pct) });
+  const bottomChip = (pct: number) => fillTemplate(t(bottomKey), useRegionLabel ? { pct: String(pct), region: region! } : { pct: String(pct) });
 
   return (
     <div className="rounded-xl bg-surface-100 dark:bg-surface-900/60 p-4 space-y-3">
@@ -493,11 +524,11 @@ const AreaSummarySection: React.FC<{
                 key={e.prop}
                 className="inline-flex items-center gap-1 rounded px-1.5 py-px text-[11px] font-medium
                            bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25"
-                title={fillTemplate(t('summary.chip_top'), { pct: String(e.topPct) })}
+                title={topChip(e.topPct)}
               >
                 {t(e.labelKey)}
                 <span className="tabular-nums text-emerald-700 dark:text-emerald-400/70">
-                  {fillTemplate(t('summary.chip_top'), { pct: String(e.topPct) })}
+                  {topChip(e.topPct)}
                 </span>
               </span>
             ))}
@@ -515,11 +546,11 @@ const AreaSummarySection: React.FC<{
                 key={e.prop}
                 className="inline-flex items-center gap-1 rounded px-1.5 py-px text-[11px] font-medium
                            bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-500/25"
-                title={fillTemplate(t('summary.chip_bottom'), { pct: String(e.bottomPct) })}
+                title={bottomChip(e.bottomPct)}
               >
                 {t(e.labelKey)}
                 <span className="tabular-nums text-rose-700 dark:text-rose-400/70">
-                  {fillTemplate(t('summary.chip_bottom'), { pct: String(e.bottomPct) })}
+                  {bottomChip(e.bottomPct)}
                 </span>
               </span>
             ))}
@@ -1344,7 +1375,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
 
       {/* CF-2: auto-composed plain-language strengths & weaknesses from real percentiles */}
       {allFeatures && allFeatures.length > 1 && (
-        <AreaSummarySection props={d} allFeatures={allFeatures} />
+        <AreaSummarySection props={d} allFeatures={allFeatures} scope={qualityScope} region={regionName} />
       )}
 
       {/* CF-5: travel-time isochrone controls (real neighborhoods only; needs a Digitransit key) */}
