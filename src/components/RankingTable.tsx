@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import type { FeatureCollection } from 'geojson';
 import { type LayerId, type LayerConfig, getLayerById, getColorForValue } from '../utils/colorScales';
 import type { NeighborhoodProperties } from '../utils/metrics';
+import { getCoveragePct, formatCoveragePct } from '../utils/metrics';
 import { t, useI18nVersion } from '../utils/i18n';
 import { getFeatureCenter } from '../utils/geometryFilter';
 import { exportRankingCsv } from '../utils/export';
@@ -39,25 +40,34 @@ export const RankingTable: React.FC<RankingTableProps> = React.memo(({ data, act
   // Prefer the rescaled config (region-comparison mode) so swatch colors match the
   // map fill and Legend; fall back to the base layer when none is provided.
   const layer = layerConfig ?? getLayerById(activeLayer);
+  // PO-3: national coverage of the ranked metric, for the header badge (null → omitted).
+  const coverage = getCoveragePct(layer.property);
   const [reversed, setReversed] = useState(false);
   const [copied, setCopied] = useState(false);
 
   // Separate the expensive ranking computation (sorting, center extraction) from
   // the cheap display-order reversal. Before this change, toggling the sort direction
   // recomputed getFeatureCenter for every feature (~200 bounding box scans).
-  const { rankedItems, maxVal } = useMemo(() => {
-    if (!data) return { rankedItems: [], maxVal: 1 };
+  const { rankedItems, maxVal, total, excluded } = useMemo(() => {
+    if (!data) return { rankedItems: [], maxVal: 1, total: 0, excluded: 0 };
 
     const property = layer.property;
     const bestFirst = layer.higherIsBetter !== false;
 
     const entries: { feature: GeoJSON.Feature; value: number }[] = [];
+    // PO-3: count what the ranking drops so the footer states coverage honestly (a ranked
+    // list with a bare total reads as complete). Areas with no metric value and areas with
+    // no population are folded into one "without data" bucket per the roadmap's example math.
+    let noValue = 0;
+    let noPopulation = 0;
     for (const f of data.features) {
       const p = f.properties as NeighborhoodProperties;
       const v = p[property];
-      if (typeof v === 'number' && isFinite(v) && p.he_vakiy != null && p.he_vakiy > 0) {
-        entries.push({ feature: f, value: v });
-      }
+      const hasVal = typeof v === 'number' && isFinite(v);
+      const hasPop = p.he_vakiy != null && p.he_vakiy > 0;
+      if (hasVal && hasPop) entries.push({ feature: f, value: v });
+      else if (!hasVal) noValue++;
+      else noPopulation++;
     }
 
     // Always sort "best first" to assign stable ranks
@@ -81,7 +91,7 @@ export const RankingTable: React.FC<RankingTableProps> = React.memo(({ data, act
       feature: e.feature,
     }));
 
-    return { rankedItems: ranked, maxVal: mx === 0 ? 1 : mx };
+    return { rankedItems: ranked, maxVal: mx === 0 ? 1 : mx, total: data.features.length, excluded: noValue + noPopulation };
   }, [data, layer.property, layer.higherIsBetter]);
 
   // Reverse display order without recomputing centers
@@ -111,6 +121,11 @@ export const RankingTable: React.FC<RankingTableProps> = React.memo(({ data, act
           </h3>
           <p className="text-sm font-medium text-surface-800 dark:text-surface-200 mt-0.5">
             {t(layer.labelKey)}
+            {coverage != null && (
+              <span className="ml-2 text-[10px] font-semibold tabular-nums text-surface-600 dark:text-surface-400">
+                {t('ranking.coverage').replace('{pct}', formatCoveragePct(coverage))}
+              </span>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-1">
@@ -243,8 +258,11 @@ export const RankingTable: React.FC<RankingTableProps> = React.memo(({ data, act
 
       {/* Footer */}
       <div className="px-4 py-2 border-t border-surface-200 dark:border-surface-700/40 flex-shrink-0">
-        <p className="text-[10px] text-surface-500 dark:text-surface-400">
-          {items.length} {t('ranking.areas')}
+        <p className="text-[10px] text-surface-600 dark:text-surface-400">
+          {t('ranking.coverage_summary')
+            .replace('{shown}', rankedItems.length.toLocaleString())
+            .replace('{total}', total.toLocaleString())}
+          {excluded > 0 && ` — ${t('ranking.excluded').replace('{excluded}', excluded.toLocaleString())}`}
         </p>
       </div>
     </div>
