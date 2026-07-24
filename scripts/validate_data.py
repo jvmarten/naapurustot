@@ -141,6 +141,11 @@ RANGE_CHECKS = [
     # or exceed 100; new_construction_pct exceeds 100 in fast-growing areas.
     ("walkability_index", 0, 100),
     ("water_proximity_m", 0, 50_000),
+    # QW-1: low-income household share (%). job_self_sufficiency legitimately exceeds 100
+    # (employment hubs) and reaches tens of thousands in a tiny residential postal code
+    # hosting a large employer (max observed 76,193) — a generous upper bound, not an error.
+    ("low_income_pct", 0, 100),
+    ("job_self_sufficiency", 0, 100_000),
     ("avg_construction_year", 1800, 2035),
     ("avg_household_size", 0, 15),
     ("gender_ratio", 0, 10),

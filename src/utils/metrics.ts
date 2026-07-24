@@ -57,6 +57,14 @@ export interface NeighborhoodProperties {
   tr_mtu?: number | null;
   /** QW-1: average household disposable income (€/year, after tax + transfers) */
   tr_ktu?: number | null;
+  /** QW-1: households in the lowest national income decile (count) */
+  hr_pi_tul?: number | null;
+  /** QW-1: total households (count) — denominator for low_income_pct */
+  hr_tuy?: number | null;
+  /** QW-1: share of households in the lowest national income decile (hr_pi_tul / hr_tuy, %) */
+  low_income_pct?: number | null;
+  /** QW-1: jobs in the area per 100 employed residents (tp_tyopy / pt_tyoll, %); >100 = job hub */
+  job_self_sufficiency?: number | null;
   /** Employed persons count */
   pt_tyoll: number | null;
   /** Unemployed persons count */
@@ -496,7 +504,7 @@ export interface MetricSource {
  * in the info popover alongside the source attribution.
  */
 export const METRIC_EXPLANATIONS: ReadonlySet<string> = new Set([
-  'he_vakiy', 'hr_mtu', 'hr_ktu', 'unemployment_rate', 'employment_rate',
+  'he_vakiy', 'hr_mtu', 'hr_ktu', 'low_income_pct', 'job_self_sufficiency', 'unemployment_rate', 'employment_rate',
   'higher_education_rate', 'property_price_sqm', 'foreign_language_pct',
   'foreign_language_municipal_pct', 'foreign_language_est_pct',
   'population_density', 'child_ratio', 'student_share', 'single_person_hh_pct',
@@ -855,6 +863,11 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
   let totalDwellings = 0;
   let totalPensioners = 0;
   let totalEmployed = 0;
+  // QW-1: sum numerators and denominators for the two derived ratios — NEVER average per-area
+  // ratios. low_income_pct = Σhr_pi_tul / Σhr_tuy; job_self_sufficiency = Σtp_tyopy / Σpt_tyoll.
+  let totalLowIncomeHh = 0;
+  let totalIncomeHh = 0;
+  let totalJobs = 0;
 
   // Per-numerator data-presence flags. Without these, a region that has
   // population but no employment/education/housing counts ingested would
@@ -870,6 +883,8 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
   let hasChildrenData = false;
   let hasPensionerData = false;
   let hasDetachedData = false;
+  let hasLowIncomeData = false;
+  let hasJobsData = false;
 
   for (const f of features) {
     const p = f.properties as NeighborhoodProperties;
@@ -880,6 +895,9 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
 
     // Count-based special metrics
     if (p.pt_tyoll != null) { totalEmployed += p.pt_tyoll; hasEmployedData = true; }
+    if (p.hr_pi_tul != null) { totalLowIncomeHh += p.hr_pi_tul; hasLowIncomeData = true; }
+    if (p.hr_tuy != null) totalIncomeHh += p.hr_tuy;
+    if (p.tp_tyopy != null) { totalJobs += p.tp_tyopy; hasJobsData = true; }
     if (p.pt_tyott != null) { totalUnemployed += p.pt_tyott; hasUnemployedData = true; }
     if (p.ko_yl_kork != null) { totalKoYlKork += p.ko_yl_kork; hasHigherEdData = true; }
     if (p.ko_al_kork != null) { totalKoAlKork += p.ko_al_kork; hasHigherEdData = true; }
@@ -987,6 +1005,13 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
   }
   if (totalDwellings > 0 && hasDetachedData) {
     result.detached_house_share = roundTo((totalDetached / totalDwellings) * 100, 1);
+  }
+  // QW-1: sum-of-numerator / sum-of-denominator ratios (not a mean of per-area ratios).
+  if (totalIncomeHh > 0 && hasLowIncomeData) {
+    result.low_income_pct = roundTo((totalLowIncomeHh / totalIncomeHh) * 100, 1);
+  }
+  if (totalEmployed > 0 && hasJobsData && hasEmployedData) {
+    result.job_self_sufficiency = roundTo((totalJobs / totalEmployed) * 100, 1);
   }
 
   // Raw counts: the panel's Education Breakdown and Activity Status sections

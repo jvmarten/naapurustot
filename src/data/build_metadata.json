@@ -1,6 +1,6 @@
 {
-  "generated": "2026-07-24T06:25:33.923Z",
-  "source_hash": "039481a5c013000e",
+  "generated": "2026-07-24T09:46:06.822Z",
+  "source_hash": "611084e5593c536a",
   "rows_total": 3018,
   "metrics": {
     "active_plan_count": {
@@ -251,6 +251,14 @@
       "row_count": 2938,
       "coverage_pct": 97.3
     },
+    "job_self_sufficiency": {
+      "source": "Tilastokeskus (Paavo)",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 2937,
+      "coverage_pct": 97.3
+    },
     "light_pollution": {
       "source": "NASA VIIRS Black Marble (VNP46A4 nighttime radiance)",
       "vintage": 2026,
@@ -258,6 +266,14 @@
       "is_proxy": true,
       "row_count": 3018,
       "coverage_pct": 100
+    },
+    "low_income_pct": {
+      "source": "Tilastokeskus (Paavo)",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 2927,
+      "coverage_pct": 97
     },
     "manufacturing_jobs_pct": {
       "source": "Tilastokeskus (Paavo)",

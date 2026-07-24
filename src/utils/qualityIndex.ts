@@ -153,6 +153,17 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     primary: false,
   },
   {
+    // QW-1: opt-in low-income-share factor. defaultWeight:0 keeps the published quality_index
+    // byte-identical (a 0-weight factor never moves the score), so build:data stays idempotent.
+    // invert:true — a lower low-income share scores higher.
+    id: 'low_income',
+    label: { fi: 'Pienituloisuus', en: 'Low-income share', sv: 'Låginkomstandel' },
+    defaultWeight: 0,
+    properties: ['low_income_pct'],
+    invert: true,
+    primary: false,
+  },
+  {
     id: 'restaurants',
     label: { fi: 'Ravintolat', en: 'Restaurants', sv: 'Restauranger' },
     defaultWeight: 0,
