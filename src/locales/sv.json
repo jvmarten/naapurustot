@@ -405,6 +405,8 @@
   "shortlist.chip_view": "Lista",
   "shortlist.has_note": "Sparad anteckning",
   "shortlist.compare": "Jämför",
+  "shortlist.compare_truncated": "Jämför {n} av {total} — välj vilka",
+  "shortlist.compare_none": "Inga av dina listade områden finns i den här regionen",
   "shortlist.clear": "Rensa",
   "shortlist.areas": "områden",
   "shortlist.share_link": "Dela lista",

@@ -405,6 +405,8 @@
   "shortlist.chip_view": "Chips",
   "shortlist.has_note": "Saved note",
   "shortlist.compare": "Compare",
+  "shortlist.compare_truncated": "Comparing {n} of {total} — pick which to compare",
+  "shortlist.compare_none": "None of your shortlisted areas are in this region",
   "shortlist.clear": "Clear",
   "shortlist.areas": "areas",
   "shortlist.share_link": "Share list",

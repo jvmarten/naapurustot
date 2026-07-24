@@ -360,6 +360,8 @@
   "shortlist.chip_view": "Lista",
   "shortlist.has_note": "Tallennettu muistiinpano",
   "shortlist.compare": "Vertaile",
+  "shortlist.compare_truncated": "Vertaillaan {n}/{total} aluetta — valitse mitkä",
+  "shortlist.compare_none": "Mikään listasi kohteista ei ole tällä alueella",
   "shortlist.clear": "Tyhjennä",
   "shortlist.areas": "aluetta",
   "shortlist.share_link": "Jaa lista",

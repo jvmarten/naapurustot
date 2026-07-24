@@ -53,7 +53,7 @@ import { useFavorites } from './hooks/useFavorites';
 import { useRecentNeighborhoods } from './hooks/useRecentNeighborhoods';
 import { useShortlist } from './hooks/useShortlist';
 import { resetNotesStorage } from './hooks/useNotes';
-import { useSelectedNeighborhood } from './hooks/useSelectedNeighborhood';
+import { useSelectedNeighborhood, MAX_PINNED } from './hooks/useSelectedNeighborhood';
 import { useAffordability } from './hooks/useAffordability';
 import { useSimilarityMetrics } from './hooks/useSimilarityMetrics';
 import { useAuth } from './hooks/useAuth';
@@ -825,10 +825,28 @@ const App: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- qualityVersion signals in-place quality mutation
   }, [secondaryLayer, comparisonScope, cityFilter, filteredData, qualityVersion, colorblind]);
 
+  // PO-1: clear every transient area-analysis state — draw/select modes, in-progress
+  // vertices, a captured selection AND any finished polygon — in one place. Called
+  // whenever the view switches to all-Finland, where the Draw/Select tools are hidden
+  // and can't capture a postal area. Leaving any of these set strands dead UI on the
+  // region-outline view: a Finish button that silently no-ops, or an empty
+  // AreaSummaryPanel plus a phantom polygon painted over Finland, with no way to dismiss.
+  const resetAreaTools = useCallback(() => {
+    setDrawMode(false);
+    setDrawVertices([]);
+    drawVerticesRef.current = [];
+    setSelectMode(false);
+    setSelectedAreaPnos([]);
+    setDrawnPolygon(null);
+  }, []);
+
   const handleCityChange = useCallback((city: CityFilter) => {
     trackEvent('switch-city', { city });
     setCityFilter(city);
-    if (city === 'all') setComparisonScope('all');
+    if (city === 'all') {
+      setComparisonScope('all');
+      resetAreaTools();
+    }
     deselect();
     const vp = CITY_VIEWPORTS[city];
     if (vp) {
@@ -836,7 +854,7 @@ const App: React.FC = () => {
     } else {
       setFlyTarget({ center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM });
     }
-  }, [deselect]);
+  }, [deselect, resetAreaTools]);
 
   // CF-6: Draw polygon state
   const [drawMode, setDrawMode] = useState(false);
@@ -1881,6 +1899,7 @@ const App: React.FC = () => {
     // selection until that data is available.
     if (regionIdSet.has(pno)) {
       pendingFavoritePno.current = pno;
+      resetAreaTools(); // PO-1: this path jumps to the all view without handleCityChange, so mirror its reset
       setCityFilter('all');
       return;
     }
@@ -1907,7 +1926,7 @@ const App: React.FC = () => {
     // select it so the panel still opens.
     const fallback = filteredDataRef.current?.features.find(f => f.properties?.pno === pno);
     if (fallback?.properties) select(fallback.properties as NeighborhoodProperties);
-  }, [selectAndFly, select, deselect, setCityFilter, regionIdSet, showToast]);
+  }, [selectAndFly, select, deselect, setCityFilter, regionIdSet, showToast, resetAreaTools]);
 
   // RU-B: prefetch a region's postal-code dataset the moment its aggregate is selected
   // on the all-Finland view (drill-in intent). loadRegionData shares cached in-flight
@@ -1977,12 +1996,31 @@ const App: React.FC = () => {
     [pnoFeatureMap, shortlistNationalProps],
   );
   const handleCompareShortlist = useCallback(() => {
-    trackEvent('shortlist-compare');
-    for (const pno of shortlist) {
-      const f = pnoFeatureMapRef.current.get(pno);
-      if (f?.properties) pin(f.properties as NeighborhoodProperties);
+    // PO-1: Compare must be idempotent (replace, not append to whatever is already
+    // pinned) and honest about the MAX_PINNED cap. A shortlist can span regions, so
+    // some pnos won't resolve to a loaded feature — "n of total" is over comparable
+    // areas (resolved.length), not shortlist.length.
+    const resolved = shortlist
+      .map((pno) => pnoFeatureMapRef.current.get(pno)?.properties as NeighborhoodProperties | undefined)
+      .filter((p): p is NeighborhoodProperties => !!p);
+    trackEvent('shortlist-compare', { count: resolved.length });
+    if (resolved.length === 0) {
+      // None of the shortlisted areas belong to the loaded region (a shortlist can span
+      // regions). Do NOT clearPinned() for nothing — that would silently wipe the user's
+      // existing comparison. Say why instead of no-op'ing.
+      showToast(t('shortlist.compare_none'));
+      return;
     }
-  }, [shortlist, pin]);
+    clearPinned();
+    resolved.slice(0, MAX_PINNED).forEach((p) => pin(p));
+    if (resolved.length > MAX_PINNED) {
+      showToast(
+        t('shortlist.compare_truncated')
+          .replace('{n}', String(MAX_PINNED))
+          .replace('{total}', String(resolved.length)),
+      );
+    }
+  }, [shortlist, pin, clearPinned, showToast]);
   // CF-11: a MINIMAL share link carrying ONLY the shortlist + city, so a recipient
   // gets the candidate set on a clean view (none of the author's layer/filter/weight state).
   const shortlistShareUrl = useMemo(
@@ -2310,7 +2348,8 @@ const App: React.FC = () => {
   // with the auth modal (its own document-Escape listener) at the very top.
   const anyOverlayOpen =
     showAuth || showShortcuts || selectMode || drawMode || !!drawnPolygon ||
-    showWizard || showCustomQuality || !!selected || showFilter || showRanking || splitMode;
+    showWizard || showCustomQuality || showScatter || !!selected || !!peek ||
+    pinned.length > 0 || showFilter || showRanking || showRegionRanking || splitMode;
   useBackGesture(anyOverlayOpen, () => {
     if (showAuth) { setShowAuth(false); return; }
     if (showShortcuts) { setShowShortcuts(false); return; }
@@ -2319,9 +2358,19 @@ const App: React.FC = () => {
     if (drawnPolygon) { handleClearDraw(); return; }
     if (showWizard) { setShowWizard(false); return; }
     if (showCustomQuality) { setShowCustomQuality(false); return; }
+    // PO-1: CorrelationExplorer is a z-40 full-screen modal that can cover the
+    // selected panel, so close it before `selected`.
+    if (showScatter) { setShowScatter(false); return; }
     if (selected) { deselect(); return; }
+    // PO-1: the mobile peek strip (z-30) and the compare tray (z-20, ComparisonPanel)
+    // are back-dismissable surfaces too — without these, Back exits the site while they
+    // show. Both render only when !selected, so they sit just below `selected`; peek is
+    // above the tray, and clearPinned mirrors the tray's own onClear.
+    if (peek) { setPeek(null); return; }
+    if (pinned.length) { clearPinned(); return; }
     if (showFilter) { setShowFilter(false); return; }
     if (showRanking) { setShowRanking(false); return; }
+    if (showRegionRanking) { setShowRegionRanking(false); return; } // PO-1: region ranking table
     if (splitMode) { setSplitMode(false); return; } // MO-3: Android Back leaves Compare layers
   });
 
@@ -2471,10 +2520,15 @@ const App: React.FC = () => {
             onToggleSplitMode={handleToggleSplitMode}
             drawMode={drawMode}
             hasPolygon={!!drawnPolygon}
-            onToggleDraw={handleToggleDraw}
+            // PO-1: on the all-Finland view the map shows seutukunta outlines whose
+            // ids are not postal pnos, so Draw / Select can never capture an area
+            // there (data is null and the hull always resolves empty). Hide the dead
+            // tools rather than offer a silent no-op — mirrors the ShortlistTray
+            // hasGeometry gating. onClearDraw stays so a carried-over polygon clears.
+            onToggleDraw={cityFilter === 'all' ? undefined : handleToggleDraw}
             onClearDraw={handleClearDraw}
             selectMode={selectMode}
-            onToggleSelectMode={handleToggleSelectMode}
+            onToggleSelectMode={cityFilter === 'all' ? undefined : handleToggleSelectMode}
             onUseLocation={handleUseLocation}
             showScatter={showScatter}
             onToggleScatter={handleToggleScatter}

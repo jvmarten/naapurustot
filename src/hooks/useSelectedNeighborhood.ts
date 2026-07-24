@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import type { NeighborhoodProperties } from '../utils/metrics';
 
-const MAX_PINNED = 3;
+export const MAX_PINNED = 3;
 
 /**
  * Manages the currently selected neighborhood and up to 3 pinned comparisons.
