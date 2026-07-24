@@ -121,37 +121,37 @@ describe('formatDiff — edge cases', () => {
 
 describe('diffColor — comprehensive', () => {
   it('returns emerald for higher-is-better when value > avg', () => {
-    expect(diffColor(60, 50, true)).toBe('text-emerald-400');
+    expect(diffColor(60, 50, true)).toBe('text-emerald-700 dark:text-emerald-400');
   });
 
   it('returns rose for higher-is-better when value < avg', () => {
-    expect(diffColor(40, 50, true)).toBe('text-rose-400');
+    expect(diffColor(40, 50, true)).toBe('text-rose-700 dark:text-rose-400');
   });
 
   it('returns emerald for equal values (higher-is-better)', () => {
-    expect(diffColor(50, 50, true)).toBe('text-emerald-400');
+    expect(diffColor(50, 50, true)).toBe('text-emerald-700 dark:text-emerald-400');
   });
 
   it('inverts colors when higherIsBetter=false', () => {
     // Lower is better: value < avg → good (emerald)
-    expect(diffColor(40, 50, false)).toBe('text-emerald-400');
+    expect(diffColor(40, 50, false)).toBe('text-emerald-700 dark:text-emerald-400');
     // Lower is better: value > avg → bad (rose)
-    expect(diffColor(60, 50, false)).toBe('text-rose-400');
+    expect(diffColor(60, 50, false)).toBe('text-rose-700 dark:text-rose-400');
   });
 
   it('returns neutral color for null value', () => {
-    expect(diffColor(null, 50)).toBe('text-surface-400');
+    expect(diffColor(null, 50)).toBe('text-surface-600 dark:text-surface-400');
   });
 
   it('returns neutral color for null avg', () => {
-    expect(diffColor(50, null)).toBe('text-surface-400');
+    expect(diffColor(50, null)).toBe('text-surface-600 dark:text-surface-400');
   });
 
   it('accepts string inputs', () => {
-    expect(diffColor('60', '50', true)).toBe('text-emerald-400');
+    expect(diffColor('60', '50', true)).toBe('text-emerald-700 dark:text-emerald-400');
   });
 
   it('defaults higherIsBetter to true', () => {
-    expect(diffColor(60, 50)).toBe('text-emerald-400');
+    expect(diffColor(60, 50)).toBe('text-emerald-700 dark:text-emerald-400');
   });
 });

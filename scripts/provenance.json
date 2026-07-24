@@ -65,6 +65,8 @@
     "single_person_hh_pct": 2023,
     "sports_facility_density": 2025,
     "student_share": 2024,
+    "low_income_pct": 2024,
+    "job_self_sufficiency": 2024,
     "tech_sector_pct": 2024,
     "traffic_accident_rate": 2023,
     "transit_reachability_score": 2023,

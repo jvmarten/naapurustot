@@ -18,7 +18,7 @@
     "test:visual:update": "playwright test --project=visual --update-snapshots",
     "build:data": "node scripts/build_region_data.mjs && node scripts/build_national_ranges.mjs && node scripts/build_region_aggregates.mjs && node scripts/build_grid_data.mjs && node scripts/build_planning_data.mjs && node scripts/update_slug_aliases.mjs",
     "refresh:planning": "python scripts/fetch_vayla_projects.py && python scripts/fetch_city_zoning.py && node scripts/build_planning_data.mjs",
-    "build:pages": "node scripts/prerender.mjs && node scripts/prerender-hubs.mjs && node scripts/build_open_data.mjs && node scripts/generate-sitemap.mjs && node scripts/generate-feed.mjs && node scripts/generate-llms.mjs"
+    "build:pages": "node scripts/prerender-hubs.mjs && node scripts/prerender.mjs && node scripts/build_open_data.mjs && node scripts/generate-sitemap.mjs && node scripts/generate-feed.mjs && node scripts/generate-llms.mjs"
   },
   "dependencies": {
     "@sentry/react": "^10.53.1",

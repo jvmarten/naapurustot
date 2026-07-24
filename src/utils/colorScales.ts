@@ -9,6 +9,8 @@ export type LayerId =
   | 'quality_index'
   | 'median_income'
   | 'disposable_income'
+  | 'low_income'
+  | 'job_self_sufficiency'
   | 'unemployment'
   | 'education'
   | 'foreign_lang'
@@ -183,6 +185,9 @@ function numFmt(): Intl.NumberFormat {
 
 const euro = (v: number) => `${numFmt().format(v)} €`;
 const pct = (v: number) => `${v.toFixed(1)} %`;
+// QW-1: whole-number percent — job_self_sufficiency can reach tens of thousands in a tiny
+// residential postal code hosting a large employer, where a one-decimal format is unusable.
+const wholePct = (v: number) => `${numFmt().format(Math.round(v))} %`;
 const age = (v: number) => `${v.toFixed(1)}`;
 const density = (v: number) => `${numFmt().format(v)} /km²`;
 const sqm = (v: number) => `${v.toFixed(1)} m²`;
@@ -231,6 +236,32 @@ export const LAYERS: LayerConfig[] = [
     colors: ['#1a1a2e', '#16213e', '#0f3460', '#1a759f', '#34a0a4', '#76c893', '#b5e48c', '#d9ed92'],
     stops: [25000, 30000, 35000, 40000, 45000, 50000, 60000, 75000],
     format: euro,
+  },
+  {
+    // QW-1: share of households in the lowest national income decile (hr_pi_tul / hr_tuy).
+    // A new income axis beyond central tendency — two areas with the same €31k median can be
+    // a stable middle-income suburb or a polarised one. Higher share = worse (deep red).
+    id: 'low_income',
+    labelKey: 'layer.low_income',
+    property: 'low_income_pct',
+    unit: '%',
+    colors: ['#fff5f0', '#fee0d2', '#fcbba1', '#fc9272', '#fb6a4a', '#ef3b2c', '#cb181d', '#99000d'],
+    stops: [8, 12, 16, 20, 24, 28, 34, 45],
+    format: pct,
+    higherIsBetter: false,
+  },
+  {
+    // QW-1: jobs located in the area per 100 employed residents (tp_tyopy / pt_tyoll) — the
+    // closest thing to a commute signal at postal granularity. Diverging around 100: blue =
+    // residential/commuter (<100), red = employment hub (>100); city centres exceed 300.
+    id: 'job_self_sufficiency',
+    labelKey: 'layer.job_self_sufficiency',
+    property: 'job_self_sufficiency',
+    unit: '%',
+    colors: ['#2166ac', '#4393c3', '#92c5de', '#d1e5f0', '#fddbc7', '#f4a582', '#d6604d', '#b2182b'],
+    stops: [40, 60, 80, 100, 140, 200, 300, 500],
+    format: wholePct,
+    divergingCenter: 100,
   },
   {
     id: 'unemployment',

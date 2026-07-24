@@ -45,21 +45,21 @@ export const StatCard: React.FC<StatCardProps> = ({
 
   return (
     <div className="rounded-xl bg-surface-100 dark:bg-surface-900/60 p-4">
-      <div className="text-xs font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400 mb-2">
+      <div className="text-xs font-semibold uppercase tracking-wider text-surface-600 dark:text-surface-400 mb-2">
         {label}
       </div>
       <div className="text-2xl font-bold text-surface-900 dark:text-white mb-1 flex items-center gap-2 flex-wrap">
         {value}
         {subregionEstimate && subregionBadge && (
           <span className="inline-flex items-center rounded px-1 py-px text-[9px] font-semibold uppercase tracking-wide
-                           bg-amber-400/15 text-amber-600 dark:text-amber-400 border border-amber-400/30">
+                           bg-amber-400/15 text-amber-700 dark:text-amber-400 border border-amber-400/30">
             {subregionBadge}
           </span>
         )}
         {showProxy && (
           <span
             className="inline-flex items-center rounded px-1 py-px text-[9px] font-semibold uppercase tracking-wide
-                       bg-amber-400/15 text-amber-600 dark:text-amber-400 border border-amber-400/30"
+                       bg-amber-400/15 text-amber-700 dark:text-amber-400 border border-amber-400/30"
             title={t('layer_signal.proxy')}
           >
             {t('data.estimate')}
@@ -68,7 +68,7 @@ export const StatCard: React.FC<StatCardProps> = ({
       </div>
       {subregionEstimate ? (
         subregionNote && (
-          <div className="text-[11px] text-amber-600 dark:text-amber-400 leading-snug">
+          <div className="text-[11px] text-amber-700 dark:text-amber-400 leading-snug">
             {subregionNote}
           </div>
         )
@@ -80,12 +80,12 @@ export const StatCard: React.FC<StatCardProps> = ({
         )
       )}
       {showNote && source?.note && (
-        <div className="text-[11px] text-amber-600 dark:text-amber-400 leading-snug mt-1">
+        <div className="text-[11px] text-amber-700 dark:text-amber-400 leading-snug mt-1">
           {t(source.note)}
         </div>
       )}
       {source && (
-        <div className="text-[10px] text-surface-500 dark:text-surface-400 mt-2">
+        <div className="text-[10px] text-surface-600 dark:text-surface-400 mt-2">
           {source.source} ({source.year})
         </div>
       )}

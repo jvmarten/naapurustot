@@ -671,6 +671,16 @@ def calculate_metrics(gdf):
         else:
             gdf.at[idx, "healthcare_workers_pct"] = None
 
+        # QW-1: low-income household share + job self-sufficiency. safe_val(-1)->None and
+        # safe_div (None/0 denom -> None, else round(a/b*100,1)) reproduce scripts/
+        # derive_qw1_layers.py byte-for-byte, so the offline pass and a full refresh agree.
+        gdf.at[idx, "low_income_pct"] = safe_div(
+            safe_val(row.get("hr_pi_tul")), safe_val(row.get("hr_tuy"))
+        )
+        gdf.at[idx, "job_self_sufficiency"] = safe_div(
+            safe_val(row.get("tp_tyopy")), safe_val(row.get("pt_tyoll"))
+        )
+
         # --- Phase 8: More demographic detail ---
 
         # Employment rate (employed / working-age population)

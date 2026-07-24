@@ -3,7 +3,7 @@
   "lowerPercentile": 0.02,
   "upperPercentile": 0.98,
   "postalCodeCount": 3018,
-  "rangeCount": 178,
+  "rangeCount": 180,
   "ranges": {
     "pinta_ala": {
       "min": 1042118.78,
@@ -884,6 +884,16 @@
       "min": 0,
       "max": 28,
       "avg": 5.417527490836401
+    },
+    "low_income_pct": {
+      "min": 11.8,
+      "max": 38,
+      "avg": 21.559446532285655
+    },
+    "job_self_sufficiency": {
+      "min": 7.4,
+      "max": 387.46799999999985,
+      "avg": 135.8190330268981
     },
     "traffic_accident_rate": {
       "min": 0.1,

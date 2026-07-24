@@ -88,6 +88,18 @@ const AREA_PLANNING = (() => {
     return {};
   }
 })();
+// CF-1: per-pno reverse-nav manifest (muni / rankings / compares / planning links), written
+// by prerender-hubs.mjs earlier in this build:pages run. De-orphans the ranking/compare/
+// municipality/planning mesh from the profile pages (both the <noscript> nav and the embedded
+// __naapurustot_profile__ payload). Missing manifest → the profile pages keep their original
+// three links (graceful degradation), so this is safe even if hubs are skipped.
+const AREA_NAV = (() => {
+  try {
+    return JSON.parse(readFileSync(join(ROOT, 'scripts', 'area_nav.generated.json'), 'utf-8'));
+  } catch {
+    return {};
+  }
+})();
 const PLANNING_MANIFEST = (() => {
   try {
     return JSON.parse(readFileSync(join(ROOT, 'src', 'data', 'planning_manifest.json'), 'utf-8'));
@@ -1030,6 +1042,15 @@ function buildNoscriptContent(props, lang) {
   }
   nav.push(`<a href="/?pno=${pno}">${escapeHtml(T.mapLink)}</a>`);
   nav.push(`<a href="${DIRECTORY_URL[lang]}">${escapeHtml(T.directoryLink)}</a>`);
+  // CF-1: reverse-nav links into the ranking/compare/municipality/planning mesh for this
+  // area (from the build-time manifest; every href is a page that was actually generated).
+  const an = AREA_NAV[String(pno)]?.[lang];
+  if (an) {
+    if (an.muni) nav.push(`<a href="${an.muni.href}">${escapeHtml(an.muni.label)}</a>`);
+    for (const r of an.rankings ?? []) nav.push(`<a href="${r.href}">${escapeHtml(r.label)}</a>`);
+    for (const c of an.compares ?? []) nav.push(`<a href="${c.href}">${escapeHtml(c.label)}</a>`);
+    if (an.planning) nav.push(`<a href="${an.planning.href}">${escapeHtml(an.planning.label)}</a>`);
+  }
   lines.push(`      <p>${nav.join(' · ')}</p>`);
 
   return lines.join('\n');
@@ -1485,7 +1506,7 @@ function generatePage(feature, lang) {
   // computeNeighbourhoodPercentiles bundle <JsonLd /> would otherwise derive at
   // runtime from the national cohort. `<` is escaped so a literal `</script>` in any
   // string field cannot break out of the element.
-  const payload = JSON.stringify({ p: props, avg: metroAverages, pct: percentilesFor(props) }).replace(/</g, '\\u003c');
+  const payload = JSON.stringify({ p: props, avg: metroAverages, pct: percentilesFor(props), nav: AREA_NAV[String(props.pno)]?.[lang] ?? null }).replace(/</g, '\\u003c');
   html = html.replace(
     '</body>',
     `    <script id="__naapurustot_profile__" type="application/json">${payload}</script>\n  </body>`,

@@ -585,6 +585,20 @@
       "granularity": "postal",
       "is_proxy": false
     },
+    "low_income_pct": {
+      "source": "Tilastokeskus (Paavo)",
+      "publisher": "tilastokeskus",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "job_self_sufficiency": {
+      "source": "Tilastokeskus (Paavo)",
+      "publisher": "tilastokeskus",
+      "vintage": 2024,
+      "granularity": "postal",
+      "is_proxy": false
+    },
     "tech_sector_pct": {
       "source": "Tilastokeskus (Paavo)",
       "publisher": "tilastokeskus",
