@@ -5,6 +5,7 @@ import { loadAllData } from '../utils/dataLoader';
 import { computeQualityIndices, isCustomWeights, type QualityWeights } from '../utils/qualityIndex';
 import { getNationalRanges } from '../utils/nationalRanges';
 import { REGIONS } from '../utils/regions';
+import { getCoveragePct, formatCoveragePct } from '../utils/metrics';
 
 interface Props {
   activeLayer: LayerId;
@@ -85,15 +86,20 @@ export const RegionRankingTable: React.FC<Props> = React.memo(({ activeLayer, la
     return () => { cancelled = true; };
   }, [qualityWeights, retryNonce]);
 
-  const { items, maxVal } = useMemo(() => {
-    if (!features) return { items: [] as RegionAgg[], maxVal: 1 };
-    const aggs = aggregateByRegion(features, layer.property).filter((a) => a.value != null);
+  const { items, maxVal, total } = useMemo(() => {
+    if (!features) return { items: [] as RegionAgg[], maxVal: 1, total: 0 };
+    // PO-3: keep the full region set so the footer can report how many regions were dropped
+    // for lacking a population-weighted value, rather than presenting survivors as the total.
+    const allAggs = aggregateByRegion(features, layer.property);
+    const aggs = allAggs.filter((a) => a.value != null);
     const bestFirst = layer.higherIsBetter !== false;
     aggs.sort((a, b) => bestFirst ? (b.value! - a.value!) : (a.value! - b.value!));
     let mx = 0;
     for (const a of aggs) { const abs = Math.abs(a.value!); if (abs > mx) mx = abs; }
-    return { items: aggs, maxVal: mx === 0 ? 1 : mx };
+    return { items: aggs, maxVal: mx === 0 ? 1 : mx, total: allAggs.length };
   }, [features, layer.property, layer.higherIsBetter]);
+  // PO-3: national coverage of the metric, for the header badge (null → omitted).
+  const coverage = getCoveragePct(layer.property);
 
   const displayItems = useMemo(() => reversed ? [...items].reverse() : items, [items, reversed]);
 
@@ -123,6 +129,11 @@ export const RegionRankingTable: React.FC<Props> = React.memo(({ activeLayer, la
           </h3>
           <p className="text-sm font-medium text-surface-800 dark:text-surface-200 mt-0.5">
             {t(layer.labelKey)}
+            {coverage != null && (
+              <span className="ml-2 text-[10px] font-semibold tabular-nums text-surface-600 dark:text-surface-400">
+                {t('ranking.coverage').replace('{pct}', formatCoveragePct(coverage))}
+              </span>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-1">
@@ -197,7 +208,12 @@ export const RegionRankingTable: React.FC<Props> = React.memo(({ activeLayer, la
       </div>
 
       <div className="px-4 py-2 border-t border-surface-200 dark:border-surface-700/40 flex-shrink-0">
-        <p className="text-[10px] text-surface-500 dark:text-surface-400">{displayItems.length} {t('region.comparison.regions')}</p>
+        <p className="text-[10px] text-surface-600 dark:text-surface-400">
+          {t('region.comparison.coverage_summary')
+            .replace('{shown}', displayItems.length.toLocaleString())
+            .replace('{total}', total.toLocaleString())}
+          {total - displayItems.length > 0 && ` — ${t('ranking.excluded').replace('{excluded}', (total - displayItems.length).toLocaleString())}`}
+        </p>
       </div>
     </div>
   );
