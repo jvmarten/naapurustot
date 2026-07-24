@@ -98,12 +98,33 @@ export interface AreaSummaryOptions {
   weakThreshold?: number;
   /** Require this many comparison areas before ranking at all (default 12). */
   minSampleSize?: number;
+  /**
+   * CF-2: national quantile ladders keyed by property (from national_percentiles.json).
+   * When supplied, ranks are computed against the TRUE national distribution (the 101-point
+   * ladder) instead of the `sources` cohort — this is how the panel states "top X% nationally"
+   * without loading the ~12 MB national set. When omitted, the region-cohort path is used.
+   * (Inline type, not imported from nationalRanges, so the .mjs prerenderer that imports this
+   * module never pulls in the `?url` asset import.)
+   */
+  nationalLadders?: Record<string, { ladder: number[]; n: number }>;
+  /**
+   * CF-2: coverage floor — drop a metric whose national ladder has fewer than this many finite
+   * values (default 500). Prevents a "national top 5%" claim resting on ~180 areas
+   * (transit_reachability_score = 183); property_price_sqm (1097) and income (2927) stay.
+   */
+  minNationalN?: number;
+  /** CF-2: the subject area's population (he_vakiy). A tiny base can't make a standing claim. */
+  population?: number | null;
+  /** CF-2: minimum population to make any claim at all (default 200; he_vakiy p5 ≈ 46). */
+  minPopulation?: number;
 }
 
-const DEFAULTS: Required<AreaSummaryOptions> = {
+const DEFAULTS = {
   strongThreshold: 25,
   weakThreshold: 75,
   minSampleSize: 12,
+  minNationalN: 500,
+  minPopulation: 200,
 };
 
 /** Read a finite numeric value from a property bag, or null. */
@@ -129,15 +150,32 @@ export function computeAreaSummary(
   sources: Array<HasProperties | Record<string, unknown>>,
   options: AreaSummaryOptions = {},
 ): AreaSummary {
-  const { strongThreshold, weakThreshold, minSampleSize } = { ...DEFAULTS, ...options };
+  const strongThreshold = options.strongThreshold ?? DEFAULTS.strongThreshold;
+  const weakThreshold = options.weakThreshold ?? DEFAULTS.weakThreshold;
+  const minSampleSize = options.minSampleSize ?? DEFAULTS.minSampleSize;
+  const minNationalN = options.minNationalN ?? DEFAULTS.minNationalN;
+  const minPopulation = options.minPopulation ?? DEFAULTS.minPopulation;
+  const { nationalLadders, population } = options;
   const strong: SummaryEntry[] = [];
   const weak: SummaryEntry[] = [];
+
+  // CF-2: a very small population can't support a credible national/region standing claim
+  // (a 46-person postal code winning "national top 5%" on a volatile rate is noise, not signal).
+  if (population != null && population < minPopulation) return { strong, weak };
 
   for (const m of SUMMARY_METRICS) {
     const value = readVal(props, m.prop, m.requirePositive);
     if (value == null) continue;
-    const sorted = distributionFor(sources, m.prop, { requirePositive: m.requirePositive });
-    if (sorted.length < minSampleSize) continue;
+    let sorted: number[];
+    if (nationalLadders) {
+      // CF-2: rank against the true national ladder, honouring the coverage floor.
+      const nat = nationalLadders[m.prop];
+      if (!nat || nat.n < minNationalN) continue;
+      sorted = nat.ladder;
+    } else {
+      sorted = distributionFor(sources, m.prop, { requirePositive: m.requirePositive });
+      if (sorted.length < minSampleSize) continue;
+    }
     const rank = percentileRankSorted(sorted, value);
     const topPct = topPercentileFromRank(rank, m.higherIsBetter);
     const bottomPct = topPercentileFromRank(rank, !m.higherIsBetter);

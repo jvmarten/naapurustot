@@ -98,6 +98,41 @@ describe('computeAreaSummary', () => {
     expect(strong[0].prop).toBe('quality_index');
     expect(strong[0].topPct).toBeLessThanOrEqual(strong[strong.length - 1].topPct);
   });
+
+  it('CF-2: ranks against the national ladder when supplied, ignoring the sources cohort', () => {
+    const ladder = Array.from({ length: 101 }, (_, i) => 1 + (i / 100) * 99); // p0=1 .. p100=100
+    const props = { crime_index: 5 };
+    // Empty sources — a result here proves the ranking came from the ladder, not the cohort.
+    const { strong } = computeAreaSummary(props, [], {
+      nationalLadders: { crime_index: { ladder, n: 3000 } },
+    });
+    expect(strong.map((e) => e.prop)).toContain('crime_index');
+    // crime is lower-is-better; value 5 near the bottom of 1..100 → a top-few-% standing.
+    expect(strong.find((e) => e.prop === 'crime_index')!.topPct).toBeLessThanOrEqual(10);
+  });
+
+  it('CF-2: skips a metric whose national ladder is below the coverage floor', () => {
+    const ladder = Array.from({ length: 101 }, (_, i) => i); // 0..100
+    const props = { transit_reachability_score: 95 };
+    const { strong, weak } = computeAreaSummary(props, [], {
+      nationalLadders: { transit_reachability_score: { ladder, n: 183 } },
+      minNationalN: 500,
+    });
+    expect(strong.find((e) => e.prop === 'transit_reachability_score')).toBeUndefined();
+    expect(weak.find((e) => e.prop === 'transit_reachability_score')).toBeUndefined();
+  });
+
+  it('CF-2: a tiny-population area makes no national standing claim', () => {
+    const ladder = Array.from({ length: 101 }, (_, i) => i);
+    const props = { crime_index: 0, he_vakiy: 40 };
+    const { strong, weak } = computeAreaSummary(props, [], {
+      nationalLadders: { crime_index: { ladder, n: 3000 } },
+      population: 40,
+      minPopulation: 200,
+    });
+    expect(strong).toHaveLength(0);
+    expect(weak).toHaveLength(0);
+  });
 });
 
 describe('composeSummarySentences', () => {
