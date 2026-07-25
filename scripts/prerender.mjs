@@ -1841,19 +1841,19 @@ for (const feature of features) {
   // profile payload; a duplicated head token or un-stripped homepage JSON-LD fails
   // the build here instead of silently corrupting the page.
   const fiHtml = generatePage(feature, 'fi');
-  assertHeadIntegrity(fiHtml, { context: `alue/${slug}`, expectFaq: true, expectProfilePayload: true });
+  assertHeadIntegrity(fiHtml, { context: `alue/${slug}`, expectFaq: true, expectProfilePayload: true, expectThemeGuard: true });
   const fiDir = join(DIST, 'alue', slug);
   mkdirSync(fiDir, { recursive: true });
   writeFileSync(join(fiDir, 'index.html'), fiHtml);
 
   const enHtml = generatePage(feature, 'en');
-  assertHeadIntegrity(enHtml, { context: `en/area/${slug}`, expectFaq: true, expectProfilePayload: true });
+  assertHeadIntegrity(enHtml, { context: `en/area/${slug}`, expectFaq: true, expectProfilePayload: true, expectThemeGuard: true });
   const enDir = join(DIST, 'en', 'area', slug);
   mkdirSync(enDir, { recursive: true });
   writeFileSync(join(enDir, 'index.html'), enHtml);
 
   const svHtml = generatePage(feature, 'sv');
-  assertHeadIntegrity(svHtml, { context: `sv/omrade/${slug}`, expectFaq: true, expectProfilePayload: true });
+  assertHeadIntegrity(svHtml, { context: `sv/omrade/${slug}`, expectFaq: true, expectProfilePayload: true, expectThemeGuard: true });
   const svDir = join(DIST, 'sv', 'omrade', slug);
   mkdirSync(svDir, { recursive: true });
   writeFileSync(join(svDir, 'index.html'), svHtml);
@@ -1897,8 +1897,9 @@ if (stubCount > 0) console.log(`Prerendered ${stubCount} slug-alias redirect stu
 for (const [lang, route] of Object.entries(SOURCES_ROUTES)) {
   const html = generateSourcesPage(lang);
   // IN-6: these pages keep the homepage JSON-LD (no profile payload, no own FAQ),
-  // so assert the singleton head tokens and JSON-LD validity only.
-  assertHeadIntegrity(html, { context: route.path });
+  // so assert the singleton head tokens and JSON-LD validity only — plus, like every
+  // clone of the template, that its inline JavaScript survived intact.
+  assertHeadIntegrity(html, { context: route.path, expectThemeGuard: true });
   const dir = join(DIST, ...route.path.split('/'));
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, 'index.html'), html);
@@ -1908,7 +1909,7 @@ console.log('Prerendered 3 data-sources pages (/tietolahteet, /en/data-sources, 
 // PO-14: write the three localized privacy pages.
 for (const [lang, route] of Object.entries(PRIVACY_ROUTES)) {
   const html = generatePrivacyPage(lang);
-  assertHeadIntegrity(html, { context: route.path }); // IN-6: singleton head tokens + JSON-LD validity
+  assertHeadIntegrity(html, { context: route.path, expectThemeGuard: true }); // IN-6: singleton head tokens + JSON-LD validity + intact inline JS
   const dir = join(DIST, ...route.path.split('/'));
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, 'index.html'), html);

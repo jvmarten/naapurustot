@@ -12,6 +12,18 @@ import { escapeHtml, assertHeadIntegrity, replaceOnce, stripHomeOnlyPreloads } f
  * so the guard itself can't regress.
  */
 
+/** index.html's inline FOUC theme guard, verbatim in shape — every page cloned from
+ *  the template carries it, so the fixtures below do too. */
+const THEME_GUARD = `    <script>
+      // Prevent flash of wrong theme
+      (function() {
+        var s = 'naapurustot-theme';
+        try { var m = localStorage.getItem(s); } catch(e) {}
+        var dark = m === 'dark' || (m !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+        if (dark) document.documentElement.classList.add('dark');
+      })();
+    </script>`;
+
 /** A realistic, well-formed profile <head> + body payload, mirroring generatePage(). */
 function goodProfileHtml(): string {
   const place = JSON.stringify({ '@context': 'https://schema.org', '@type': 'Place', name: 'Kamppi' });
@@ -33,6 +45,8 @@ function goodProfileHtml(): string {
     <link rel="alternate" hreflang="sv" href="https://naapurustot.fi/sv/omrade/00100-kamppi/" />
     <link rel="alternate" hreflang="x-default" href="https://naapurustot.fi/alue/00100-kamppi/" />
     <meta property="og:url" content="https://naapurustot.fi/alue/00100-kamppi/" />
+${THEME_GUARD}
+    <script type="module" crossorigin src="/assets/index-C-6zelJg.js"></script>
     <script type="application/ld+json">${place}</script>
     <script type="application/ld+json">${crumb}</script>
     <script type="application/ld+json">${faq}</script>
@@ -59,6 +73,7 @@ function goodSourcesHtml(): string {
     <link rel="alternate" hreflang="sv" href="https://naapurustot.fi/sv/datakallor/" />
     <link rel="alternate" hreflang="x-default" href="https://naapurustot.fi/tietolahteet/" />
     <meta property="og:url" content="https://naapurustot.fi/tietolahteet/" />
+${THEME_GUARD}
     <script type="application/ld+json">${homepageFaq}</script>
     <script type="application/ld+json">${dataset}</script>
   </head>
@@ -210,6 +225,65 @@ describe('assertHeadIntegrity — profile payload', () => {
       '<script id="__naapurustot_profile__" type="application/json">{"avg":{}}</script>',
     );
     expect(() => assertHeadIntegrity(html, { context: 'no-p', expectProfilePayload: true })).toThrow(/missing its `p`/);
+  });
+});
+
+describe('assertHeadIntegrity — inline JavaScript integrity', () => {
+  it('accepts template clones whose inline theme guard is intact', () => {
+    expect(assertHeadIntegrity(goodProfileHtml(), { context: 'alue/00100-kamppi', expectFaq: true, expectProfilePayload: true, expectThemeGuard: true })).toBe(true);
+    expect(assertHeadIntegrity(goodSourcesHtml(), { context: 'tietolahteet', expectThemeGuard: true })).toBe(true);
+  });
+
+  it('throws when a regex truncates the inline theme guard mid-statement', () => {
+    // What an over-matching `<script …>…</script>` strip leaves behind: markup that
+    // still looks well-formed, serving ~9,000 pages that throw a SyntaxError which
+    // the browser attributes to the page URL — invisible in Sentry now that
+    // src/utils/sentryFilters.ts drops that (foreign-injected) shape.
+    const html = goodProfileHtml().replace(
+      "        if (dark) document.documentElement.classList.add('dark');\n      })();",
+      "        if (dark) document.documentElement.classList.add('dark');",
+    );
+    expect(() => assertHeadIntegrity(html, { context: 'truncated-inline-js' })).toThrow(
+      /inline <script> does not parse as JavaScript/,
+    );
+  });
+
+  it("throws on the production error shape — an inline script with a stray 'else'", () => {
+    const html = goodHubHtml().replace('</head>', '    <script>if (a) { b(); } else else { c(); }</script>\n  </head>');
+    expect(() => assertHeadIntegrity(html, { context: 'stray-else' })).toThrow(/Unexpected token 'else'/);
+  });
+
+  it('throws when the theme guard is deleted outright from a template clone', () => {
+    const html = goodProfileHtml().replace(THEME_GUARD, '');
+    expect(() => assertHeadIntegrity(html, { context: 'no-theme-guard', expectThemeGuard: true })).toThrow(
+      /expected exactly 1 inline theme guard/,
+    );
+  });
+
+  it('throws when a clone ends up with two theme guards', () => {
+    const html = goodProfileHtml().replace(THEME_GUARD, `${THEME_GUARD}\n${THEME_GUARD}`);
+    expect(() => assertHeadIntegrity(html, { context: 'dup-theme-guard', expectThemeGuard: true })).toThrow(/found 2/);
+  });
+
+  it('judges inert data blocks as JSON, never as JavaScript', () => {
+    // `{"@context": …}` is valid JSON but not a valid JS statement, and the profile
+    // payload is a bare object literal — parsing either as code would fail the build
+    // on every well-formed page.
+    expect(assertHeadIntegrity(goodProfileHtml(), { context: 'data-blocks', expectProfilePayload: true })).toBe(true);
+  });
+
+  it('accepts the template\'s font-swap onload handler and rejects a broken one', () => {
+    const fontLink = (handler: string) =>
+      goodHubHtml().replace('</head>', `    <link rel="stylesheet" href="/f.css" media="print" onload="${handler}" />\n  </head>`);
+    expect(assertHeadIntegrity(fontLink("this.media=&#39;all&#39;"), { context: 'font-swap' })).toBe(true);
+    expect(() => assertHeadIntegrity(fontLink("this.media=&#39;all"), { context: 'broken-handler' })).toThrow(
+      /inline event handler does not parse/,
+    );
+  });
+
+  it('ignores external scripts, which have no inline body to parse', () => {
+    const html = goodHubHtml().replace('</head>', '    <script defer src="https://analytics.naapurustot.fi/script.js"></script>\n  </head>');
+    expect(assertHeadIntegrity(html, { context: 'external-script' })).toBe(true);
   });
 });
 
