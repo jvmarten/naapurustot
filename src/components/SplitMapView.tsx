@@ -10,6 +10,7 @@ import { getCoveragePct, isLowCoverage, formatCoveragePct, type NeighborhoodProp
 import { useTheme } from '../hooks/useTheme';
 import { t, useI18nVersion } from '../utils/i18n';
 import { DEFAULT_CENTER, DEFAULT_ZOOM, MAP_MAX_ZOOM, MAP_MIN_ZOOM } from '../utils/mapConstants';
+import { queryFeaturesSafe } from '../utils/mapQuery';
 
 /**
  * Compact dropdown for choosing a data layer on one side of the split view.
@@ -826,7 +827,7 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
         const e = pending;
         pending = null;
         if (!e || !map.getSource(SOURCE_ID) || !map.getLayer(FILL_LAYER)) return;
-        const features = map.queryRenderedFeatures(e.point, { layers: [FILL_LAYER] });
+        const features = queryFeaturesSafe(map, e.point, [FILL_LAYER]);
         const feat = features[0];
         const pno = feat?.properties?.pno as string | undefined;
         if (feat && pno) {
@@ -837,7 +838,7 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
           let gridValue: number | null = null;
           const cfg = configRef.current;
           if (gridRef.current && cfg.gridProperty && map.getZoom() >= GRID_ZOOM_FADE_IN && map.getLayer(GRID_FILL_LAYER)) {
-            const cells = map.queryRenderedFeatures(e.point, { layers: [GRID_FILL_LAYER] });
+            const cells = queryFeaturesSafe(map, e.point, [GRID_FILL_LAYER]);
             const gv = cells[0]?.properties?.[cfg.gridProperty];
             if (typeof gv === 'number' && isFinite(gv)) gridValue = gv;
           }
@@ -862,7 +863,7 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
       };
       const onClick = (e: maplibregl.MapMouseEvent) => {
         if (!map.getSource(SOURCE_ID) || !map.getLayer(FILL_LAYER)) return;
-        const features = map.queryRenderedFeatures(e.point, { layers: [FILL_LAYER] });
+        const features = queryFeaturesSafe(map, e.point, [FILL_LAYER]);
         const feat = features[0];
         const props = feat?.properties as NeighborhoodProperties | undefined;
         if (props?.pno) {
@@ -872,7 +873,7 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
           let gridValue: number | null = null;
           const cfg = configRef.current;
           if (gridRef.current && cfg.gridProperty && map.getZoom() >= GRID_ZOOM_FADE_IN && map.getLayer(GRID_FILL_LAYER)) {
-            const cells = map.queryRenderedFeatures(e.point, { layers: [GRID_FILL_LAYER] });
+            const cells = queryFeaturesSafe(map, e.point, [GRID_FILL_LAYER]);
             const gv = cells[0]?.properties?.[cfg.gridProperty];
             if (typeof gv === 'number' && isFinite(gv)) gridValue = gv;
           }
@@ -882,12 +883,16 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
       };
 
       map.on('mousemove', onMove);
-      map.on('mouseleave', FILL_LAYER, onLeave);
+      // Map-level 'mouseout', not `on('mouseleave', FILL_LAYER, …)` — same reason as
+      // Map.tsx: the layer-scoped form makes MapLibre run an unguardable, unthrottled
+      // queryRenderedFeatures on every raw pointer move. `process`'s else-branch already
+      // clears hover when the pointer leaves a polygon inside the canvas.
+      map.on('mouseout', onLeave);
       map.on('click', onClick);
       return () => {
         if (rafId !== null) cancelAnimationFrame(rafId);
         map.off('mousemove', onMove);
-        map.off('mouseleave', FILL_LAYER, onLeave);
+        map.off('mouseout', onLeave);
         map.off('click', onClick);
       };
     };
