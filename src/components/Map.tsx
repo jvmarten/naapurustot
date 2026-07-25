@@ -13,6 +13,7 @@ import { useTheme } from '../hooks/useTheme';
 import { trackEvent } from '../utils/analytics';
 import { t, useI18nVersion } from '../utils/i18n';
 import { DEFAULT_CENTER, DEFAULT_ZOOM, MAP_MIN_ZOOM, MAP_MAX_ZOOM } from '../utils/mapConstants';
+import { queryFeaturesSafe } from '../utils/mapQuery';
 // CF-5 Phase D1: pre-baked boundary outlines of all 69 Finnish seutukunnat.
 import seutukunnatUrl from '../data/seutukunnat.topojson?url';
 
@@ -245,14 +246,15 @@ function queryNeighborhoodsAt(
   map: maplibregl.Map,
   point: maplibregl.Point,
 ): maplibregl.MapGeoJSONFeature[] {
-  const exact = map.queryRenderedFeatures(point, { layers: [FILL_LAYER] });
+  const exact = queryFeaturesSafe(map, point, [FILL_LAYER]);
   if (exact.length > 0 || !COARSE_POINTER) return exact;
   for (const r of TAP_FALLBACK_RADII) {
     for (let i = 0; i < 8; i++) {
       const ang = (i / 8) * Math.PI * 2;
-      const near = map.queryRenderedFeatures(
+      const near = queryFeaturesSafe(
+        map,
         [point.x + Math.cos(ang) * r, point.y + Math.sin(ang) * r],
-        { layers: [FILL_LAYER] },
+        [FILL_LAYER],
       );
       if (near.length > 0) return near;
     }
@@ -1032,19 +1034,20 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         .setHTML(`<div style="font-size:12px;line-height:1.4"><strong>${escapeAttr(p.name || '')}</strong><br>${meta}<br>${link}</div>`)
         .addTo(map);
     };
-    const setCursor = (c: string) => () => { map.getCanvas().style.cursor = c; };
-    const enter = setCursor('pointer');
-    const leave = setCursor('');
+    // Click only — deliberately no layer-scoped mouseenter/mouseleave for the cursor.
+    // Each of those would add an unthrottled internal queryRenderedFeatures per raw
+    // pointer move that we cannot guard (see the 'mouseout' note in the handler effect
+    // below, and mapQuery.ts). The cursor is unaffected in practice: FILL_LAYER is added
+    // unfiltered, so it underlies every plan polygon, and processMouseMove already sets
+    // cursor:'pointer' there. The click delegate does query, but only on a discrete click
+    // and only over the `planning` source, whose worker parse has no image/glyph
+    // dependency to suspend on and so cannot hit the corrupt-tile race.
     for (const l of PLANNING_LAYER_IDS) {
       map.on('click', l, onPlanningClick);
-      map.on('mouseenter', l, enter);
-      map.on('mouseleave', l, leave);
     }
     return () => {
       for (const l of PLANNING_LAYER_IDS) {
         map.off('click', l, onPlanningClick);
-        map.off('mouseenter', l, enter);
-        map.off('mouseleave', l, leave);
       }
     };
   }, []);
@@ -1439,7 +1442,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       }
 
       if (!map.getSource(SOURCE_ID)) return;
-      const features = map.queryRenderedFeatures(e.point, { layers: [FILL_LAYER] });
+      const features = queryFeaturesSafe(map, e.point, [FILL_LAYER]);
 
       if (features.length > 0) {
         const feat = features[0];
@@ -1462,7 +1465,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         let gridValue: number | null = null;
         const lyr = effectiveLayerRef.current;
         if (gridDataRef.current && lyr.gridProperty && map.getZoom() >= GRID_ZOOM_FADE_IN && map.getLayer(GRID_FILL_LAYER)) {
-          const cells = map.queryRenderedFeatures(e.point, { layers: [GRID_FILL_LAYER] });
+          const cells = queryFeaturesSafe(map, e.point, [GRID_FILL_LAYER]);
           const gv = cells[0]?.properties?.[lyr.gridProperty];
           if (typeof gv === 'number' && isFinite(gv)) gridValue = gv;
         }
@@ -1531,7 +1534,17 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     };
 
     map.on('mousemove', onMouseMove);
-    map.on('mouseleave', FILL_LAYER, onMouseLeave);
+    // Map-level 'mouseout', NOT the layer-scoped `on('mouseleave', FILL_LAYER, …)` form.
+    // MapLibre implements a layer-scoped mouseleave by synthesizing an *unthrottled*
+    // 'mousemove' delegate that runs queryRenderedFeatures itself on every raw pointer
+    // event — inside the library, so no try/catch of ours can reach it, and it threw
+    // `feature index out of bounds` in production off a corrupt tile (see mapQuery.ts).
+    // Parity: leaving a polygon while staying on the canvas is already handled by
+    // processMouseMove's no-feature branch above; leaving the canvas is exactly what
+    // 'mouseout' reports, from the very same DOM listener the delegate itself used —
+    // and it performs no query. Dropping the delegate also removes one full hit-test
+    // per raw mousemove, which was defeating half of the rAF throttle above.
+    map.on('mouseout', onMouseLeave);
     map.on('click', onMapClick);
     map.on('dblclick', onMapDblClick);
     map.on('moveend', onMapMoveEnd);
@@ -1540,7 +1553,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       handlersAttachedRef.current = false;
       if (rafId !== null) cancelAnimationFrame(rafId);
       map.off('mousemove', onMouseMove);
-      map.off('mouseleave', FILL_LAYER, onMouseLeave);
+      map.off('mouseout', onMouseLeave);
       map.off('click', onMapClick);
       map.off('dblclick', onMapDblClick);
       map.off('moveend', onMapMoveEnd);
