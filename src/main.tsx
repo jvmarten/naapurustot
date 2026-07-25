@@ -5,6 +5,7 @@ import { registerSW } from 'virtual:pwa-register';
 import { ThemeProvider } from './hooks/useTheme';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { installChunkReloadHandler } from './utils/chunkReload';
+import { isInjectedScriptSyntaxError } from './utils/sentryFilters';
 import { detectBrowserLang, getLang, setLang, loadFiExtra } from './utils/i18n';
 import './index.css';
 
@@ -151,6 +152,15 @@ if (SENTRY_DSN) {
         /^moz-extension:\/\//i,
         /^safari-(web-)?extension:\/\//i,
       ],
+      // Android in-app browsers inject their own scripts with
+      // WebView.evaluateJavascript(), whose parse errors the engine attributes to
+      // the *page* URL rather than to a script file — so an unfixable "SyntaxError:
+      // Unexpected token 'else'" from a stale WebView reads as a bug on whichever
+      // profile page it was injected into. denyUrls can't express this (the
+      // filename is our own page), so match on the missing script frame instead.
+      // Syntax errors in code we actually shipped keep their /assets/*.js frame
+      // and still report — see src/utils/sentryFilters.ts.
+      beforeSend: (event) => (isInjectedScriptSyntaxError(event) ? null : event),
     });
   });
 }

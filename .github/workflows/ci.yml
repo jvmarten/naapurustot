@@ -21,11 +21,13 @@ jobs:
           cache: npm
 
       - name: npm audit (frontend)
-        run: npm audit --audit-level=high
+        # Wrapper around `npm audit --json` (scripts/check-audit.mjs): same high/critical
+        # gate, plus a small allowlist of reviewed, expiring exemptions for advisories
+        # whose only fix is a major bump CLAUDE.md warns against taking.
+        run: node scripts/check-audit.mjs
 
       - name: npm audit (server/api)
-        working-directory: server/api
-        run: npm audit --audit-level=high
+        run: node scripts/check-audit.mjs server/api
 
       - uses: actions/setup-python@v6
         with:

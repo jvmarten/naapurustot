@@ -1,3 +1,5 @@
+import { Script } from 'node:vm';
+
 /**
  * IN-6: shared, importable + unit-testable prerender helpers.
  *
@@ -23,6 +25,56 @@ export function escapeHtml(str) {
 }
 
 const count = (html, re) => (html.match(re) || []).length;
+
+/** The localStorage key the FOUC theme guard in index.html reads — the same key
+ *  src/hooks/useTheme.tsx writes, and the marker that identifies the guard in a
+ *  cloned page. */
+const THEME_STORAGE_KEY = 'naapurustot-theme';
+
+/**
+ * Every inline `<script>` the browser EXECUTES, as it appears in the finished page.
+ *
+ * Only classic scripts (no `type`, or an explicit JavaScript type) are returned:
+ * `application/ld+json` and the `application/json` profile payload are inert data
+ * — they are validated as JSON elsewhere and must NOT be parsed as JavaScript
+ * (`{"@context": …}` is not a valid statement). Inline `type="module"` scripts are
+ * skipped too: the template has none, and `import`/`export` at the top level is a
+ * syntax error for the classic-script parser used below.
+ */
+function inlineClassicScripts(html) {
+  const out = [];
+  for (const m of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)) {
+    const [, attrs, body] = m;
+    // Quoted either way, or bare — a missing/empty type means a classic script.
+    const type = attrs.match(/\btype\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/);
+    const mime = (type ? (type[1] ?? type[2] ?? type[3]) : '').trim();
+    if (mime && !/^(text|application)\/javascript$/i.test(mime)) continue;
+    if (body.trim()) out.push(body);
+  }
+  return out;
+}
+
+/**
+ * Every inline event-handler attribute (index.html's `onload="this.media='all'"` and
+ * anything added later), decoded back from escapeHtml'd text. These are executable
+ * JavaScript that a browser attributes to the page URL exactly like an inline
+ * `<script>`, so they are held to the same standard. Script bodies are removed before
+ * scanning so an `on…="…"` substring inside JSON-LD text can't be mistaken for markup.
+ */
+function inlineEventHandlers(html) {
+  const markup = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, '');
+  const out = [];
+  for (const m of markup.matchAll(/\son[a-z]+\s*=\s*"([^"]*)"/gi)) {
+    const code = m[1]
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&amp;/g, '&');
+    if (code.trim()) out.push(code);
+  }
+  return out;
+}
 
 /**
  * Strip the home-route-only critical-chunk preloads that vite.config.ts's
@@ -52,6 +104,8 @@ export function stripHomeOnlyPreloads(html) {
  * @param {string} [opts.context]   label for the error (e.g. the slug)
  * @param {boolean} [opts.expectFaq] require exactly one FAQPage block (profiles)
  * @param {boolean} [opts.expectProfilePayload] require a parseable __naapurustot_profile__
+ * @param {boolean} [opts.expectThemeGuard] require index.html's inline theme guard to
+ *   have survived the clone (pages built from the dist/index.html template)
  */
 export function assertHeadIntegrity(html, opts = {}) {
   const ctx = opts.context ? `[${opts.context}] ` : '';
@@ -78,6 +132,35 @@ export function assertHeadIntegrity(html, opts = {}) {
   const ldBlocks = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)];
   for (const [, json] of ldBlocks) {
     try { JSON.parse(json); } catch (e) { fail(`unparseable JSON-LD block: ${e.message}`); }
+  }
+
+  // Every inline script the browser runs must still parse. This file's regexes
+  // rewrite the cloned template by first match and delete whole
+  // `<script type="application/ld+json">` blocks; one that ever over-matched would
+  // truncate the template's own inline JavaScript (the theme guard sits directly
+  // below the styles the JSON-LD blocks precede) into a syntax error on ~9,000
+  // pages. Browsers attribute an inline parse failure to the page URL, not to a
+  // script file — the exact shape of foreign-injected noise that
+  // src/utils/sentryFilters.ts now drops in production — so this has to fail here
+  // instead. Compile-only: `new Script` parses without running anything.
+  for (const src of inlineClassicScripts(html)) {
+    try { new Script(src); }
+    catch (e) { fail(`inline <script> does not parse as JavaScript: ${e.message}`); }
+  }
+  for (const src of inlineEventHandlers(html)) {
+    // Wrapped so a handler body may legally `return`, as the DOM allows.
+    try { new Script(`(function(event){${src}\n})`); }
+    catch (e) { fail(`inline event handler does not parse as JavaScript: ${e.message} — ${src}`); }
+  }
+
+  if (opts.expectThemeGuard) {
+    // Pages cloned from dist/index.html carry its FOUC guard, which applies the
+    // stored/preferred theme before first paint. Losing it to a regex is invisible
+    // in the markup but flashes a light page at every dark-mode visitor.
+    const guards = inlineClassicScripts(html).filter((s) => s.includes(THEME_STORAGE_KEY));
+    if (guards.length !== 1) {
+      fail(`expected exactly 1 inline theme guard reading '${THEME_STORAGE_KEY}', found ${guards.length}`);
+    }
   }
 
   if (opts.expectFaq) {
