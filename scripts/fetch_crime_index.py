@@ -19,9 +19,15 @@ Method:
      population density, unemployment rate, and rental rate as proxies for
      intra-municipality crime variation (denser, higher-unemployment,
      higher-rental areas tend to have higher crime rates).
-  4. Preserve existing Helsinki metro data (0xxxx postal codes) unless
-     --overwrite is passed.
-  5. Save merged results to scripts/crime_index.json.
+  4. Save results to scripts/crime_index.json, and the statistics year they
+     came from to scripts/crime_index_meta.json.
+
+Every postal code is computed from the same national fetch. An earlier version
+preserved existing 0xxxx (capital region) values unless --overwrite was passed;
+since it never was, those 167 areas stayed frozen on an unrelated 2026-03
+source at roughly half the scale of the rest of the country. Do not
+reintroduce per-region preservation — mixing sources inside one layer puts a
+false discontinuity on the map at every municipal border.
 
 Because the postal-code values are a municipality figure distributed to a finer
 granularity than the source publishes, crime_index is flagged is_proxy:true in
@@ -32,8 +38,8 @@ Format: {"00100": 168.2, "33100": 115.4, "20100": 135.2, ...}
         (reported offences and infractions per 1,000 residents)
 
 Usage:
-  python scripts/fetch_crime_index.py             # Add Tampere+Turku, keep Helsinki
-  python scripts/fetch_crime_index.py --overwrite  # Recompute all regions
+  python scripts/fetch_crime_index.py             # Latest year StatFin publishes
+  python scripts/fetch_crime_index.py --year 2024  # Pin a specific year
 """
 
 import argparse
@@ -45,6 +51,7 @@ from pathlib import Path
 
 import requests
 
+import pxweb
 from regions_config import ALL_MUNICIPALITY_CODES
 
 logging.basicConfig(
@@ -61,20 +68,18 @@ logger = logging.getLogger(__name__)
 SCRIPT_DIR = Path(__file__).parent
 GEOJSON_PATH = SCRIPT_DIR.parent / "public" / "data" / "metro_neighborhoods.geojson"
 OUTPUT_FILE = SCRIPT_DIR / "crime_index.json"
+# Records the statistics year the values above came from, so downstream
+# consumers and the source registry can state it instead of guessing.
+META_FILE = SCRIPT_DIR / "crime_index_meta.json"
 
 # Statistics Finland PxWeb API — crime statistics per municipality
 # Table 13h4: "Offences recorded by year of reporting, figures relative to
 # the population in the municipality"
-PXWEB_TABLE_URL = (
-    "https://pxdata.stat.fi/PxWeb/api/v1/en/"
-    "StatFin/rpk/statfin_rpk_pxt_13h4.px"
-)
+PXWEB_DATABASE = "rpk"
+PXWEB_TABLE_ID = "13h4"
 
 # Fallback: Table 13ex — raw counts by municipality (we compute rate ourselves)
-PXWEB_FALLBACK_URL = (
-    "https://pxdata.stat.fi/PxWeb/api/v1/en/"
-    "StatFin/rpk/statfin_rpk_pxt_13ex.px"
-)
+PXWEB_FALLBACK_TABLE_ID = "13ex"
 
 # Municipality codes — all 69 Finnish seutukunnat (from regions_config)
 # ALL_MUNICIPALITY_CODES is imported at the top of the file.
@@ -82,11 +87,13 @@ PXWEB_FALLBACK_URL = (
 # PxWeb municipality code format
 PXWEB_MUNICIPALITY_CODES = [f"KU{code}" for code in sorted(ALL_MUNICIPALITY_CODES)]
 
-# Preferred year (most recent full year available)
-PREFERRED_YEARS = ["2024", "2023", "2022"]
-
 # Offence category: "Offences and infractions total"
 OFFENCE_TOTAL_CODE = "101T603"
+
+# The year is resolved from the table's own metadata (see pxweb.latest_year).
+# Never hard-code a preferred-year list here: when StatFin publishes a newer
+# year the pipeline must pick it up, and when it renames a variable the fetch
+# must fail loudly rather than silently leaving the shipped data frozen.
 
 # Retry settings
 MAX_RETRIES = 3
@@ -131,45 +138,30 @@ def _rate_limit():
 # Fetch municipality-level crime rates from Statistics Finland
 # ---------------------------------------------------------------------------
 
-def fetch_crime_rates_per_1000() -> dict[str, float]:
+def fetch_crime_rates_per_1000(prefer_year: str | None = None) -> tuple[dict[str, float], str]:
     """Fetch official per-1,000 crime rates by municipality from PxWeb table 13h4.
 
-    Returns: {municipality_code: rate_per_1000, ...}
-             e.g. {"091": 123.07, "837": 102.43, ...}
+    Returns: ({municipality_code: rate_per_1000, ...}, snapshot_year)
+             e.g. ({"091": 123.07, "837": 102.43, ...}, "2025")
+
+    The snapshot year is returned rather than assumed, because downstream
+    (fetch_price_crime_history.build_crime_history) anchors the time series to
+    it — inferring it from the history table instead produced a series whose
+    last point was labelled with a year the snapshot did not come from.
     """
-    logger.info("Fetching crime rate metadata from %s", PXWEB_TABLE_URL)
+    url, meta = pxweb.fetch_table_meta(PXWEB_DATABASE, PXWEB_TABLE_ID)
 
-    # First get metadata to find available years
-    meta_r = _request_with_retry("GET", PXWEB_TABLE_URL, label="crime metadata")
-    meta = meta_r.json()
-
-    variables = meta.get("variables", [])
-    if not variables:
-        raise ValueError("No variables in PxWeb metadata")
-
-    # Find available years
-    available_years = []
-    for var in variables:
-        if var["code"] == "Vuosi":
-            available_years = var["values"]
-            break
-
-    if not available_years:
-        raise ValueError("No year variable found in PxWeb metadata")
-
-    # Select the best available year
-    selected_year = None
-    for year in PREFERRED_YEARS:
-        if year in available_years:
-            selected_year = year
-            break
-
-    if selected_year is None:
-        # Fall back to the latest year available
-        selected_year = available_years[-1]
-
+    selected_year = pxweb.latest_year(meta, prefer=prefer_year)
+    years = pxweb.available_years(meta)
     logger.info("  Using year: %s (available: %s...%s)",
-                selected_year, available_years[0], available_years[-1])
+                selected_year, years[0], years[-1])
+
+    # Resolve variable codes from the table's own metadata — StatFin versions
+    # and renames them (Vuosi -> timeperiod_y, Alue -> alue_28_20210101, ...).
+    year_var = pxweb.year_var_code(meta)
+    area_var = pxweb.var_code_for_value(meta, PXWEB_MUNICIPALITY_CODES[0])
+    offence_var = pxweb.var_code_for_value(meta, OFFENCE_TOTAL_CODE)
+    contents_var = pxweb.var_code_for_value(meta, "rik_1000")
 
     _rate_limit()
 
@@ -177,19 +169,19 @@ def fetch_crime_rates_per_1000() -> dict[str, float]:
     query = {
         "query": [
             {
-                "code": "Vuosi",
+                "code": year_var,
                 "selection": {"filter": "item", "values": [selected_year]},
             },
             {
-                "code": "Alue",
+                "code": area_var,
                 "selection": {"filter": "item", "values": PXWEB_MUNICIPALITY_CODES},
             },
             {
-                "code": "Rikosryhmä ja teonkuvauksen tarkenne",
+                "code": offence_var,
                 "selection": {"filter": "item", "values": [OFFENCE_TOTAL_CODE]},
             },
             {
-                "code": "Tiedot",
+                "code": contents_var,
                 "selection": {"filter": "item", "values": ["rik_1000"]},
             },
         ],
@@ -199,7 +191,7 @@ def fetch_crime_rates_per_1000() -> dict[str, float]:
     logger.info("  Querying per-1,000 crime rates for %d municipalities...",
                 len(PXWEB_MUNICIPALITY_CODES))
     r = _request_with_retry(
-        "POST", PXWEB_TABLE_URL, label="crime data", json=query, timeout=120,
+        "POST", url, label="crime data", json=query, timeout=120,
     )
     data = r.json()
 
@@ -234,53 +226,43 @@ def fetch_crime_rates_per_1000() -> dict[str, float]:
     logger.info("  Fetched crime rates for %d municipalities (year %s)",
                 len(result), selected_year)
 
-    return result
+    return result, selected_year
 
 
-def fetch_crime_rates_fallback() -> dict[str, float]:
+def fetch_crime_rates_fallback(prefer_year: str | None = None) -> tuple[dict[str, float], str]:
     """Fallback: Fetch raw crime counts from table 13ex and compute per-capita
     rates using GeoJSON population data.
 
-    Returns: {municipality_code: rate_per_1000, ...}
+    Returns: ({municipality_code: rate_per_1000, ...}, snapshot_year)
     """
-    logger.info("Trying fallback table: %s", PXWEB_FALLBACK_URL)
+    url, meta = pxweb.fetch_table_meta(PXWEB_DATABASE, PXWEB_FALLBACK_TABLE_ID)
 
-    meta_r = _request_with_retry("GET", PXWEB_FALLBACK_URL, label="fallback metadata")
-    meta = meta_r.json()
-
-    available_years = []
-    for var in meta.get("variables", []):
-        if var["code"] == "Vuosi":
-            available_years = var["values"]
-            break
-
-    selected_year = None
-    for year in PREFERRED_YEARS:
-        if year in available_years:
-            selected_year = year
-            break
-    if selected_year is None:
-        selected_year = available_years[-1] if available_years else "2024"
-
+    selected_year = pxweb.latest_year(meta, prefer=prefer_year)
     logger.info("  Using year: %s", selected_year)
+
+    year_var = pxweb.year_var_code(meta)
+    area_var = pxweb.var_code_for_value(meta, PXWEB_MUNICIPALITY_CODES[0])
+    offence_var = pxweb.var_code_for_value(meta, OFFENCE_TOTAL_CODE)
+    contents_var = pxweb.var_code_for_value(meta, "rikokset_lkm")
+
     _rate_limit()
 
     query = {
         "query": [
             {
-                "code": "Vuosi",
+                "code": year_var,
                 "selection": {"filter": "item", "values": [selected_year]},
             },
             {
-                "code": "Kunta",
+                "code": area_var,
                 "selection": {"filter": "item", "values": PXWEB_MUNICIPALITY_CODES},
             },
             {
-                "code": "Rikosryhmä ja teonkuvauksen tarkenne",
+                "code": offence_var,
                 "selection": {"filter": "item", "values": [OFFENCE_TOTAL_CODE]},
             },
             {
-                "code": "Tiedot",
+                "code": contents_var,
                 "selection": {"filter": "item", "values": ["rikokset_lkm"]},
             },
         ],
@@ -288,7 +270,7 @@ def fetch_crime_rates_fallback() -> dict[str, float]:
     }
 
     r = _request_with_retry(
-        "POST", PXWEB_FALLBACK_URL, label="fallback crime data",
+        "POST", url, label="fallback crime data",
         json=query, timeout=120,
     )
     data = r.json()
@@ -324,7 +306,7 @@ def fetch_crime_rates_fallback() -> dict[str, float]:
 
     logger.info("  Computed rates for %d municipalities (year %s)",
                 len(result), selected_year)
-    return result
+    return result, selected_year
 
 
 def _get_municipality_populations() -> dict[str, int]:
@@ -559,49 +541,39 @@ def load_existing_data() -> dict[str, float]:
 def merge_results(
     existing: dict[str, float],
     new_data: dict[str, float],
-    overwrite: bool = False,
 ) -> dict[str, float]:
-    """Merge new crime data with existing data.
+    """Replace the stored crime index with the freshly computed one.
 
-    By default, preserves existing Helsinki metro data (0xxxx postal codes)
-    and only adds/updates Tampere (33xxx-39xxx) and Turku (20xxx-24xxx).
+    This function used to preserve any existing 0xxxx (capital region) entry
+    unless --overwrite was passed — a leftover from when the app covered only
+    the Helsinki metro and those values came from a different source. Because
+    --overwrite was never passed, 167 capital-region postal codes stayed frozen
+    on a 2026-03 snapshot from an unrelated source while the rest of the
+    country tracked StatFin, roughly halving Helsinki/Espoo/Vantaa's crime
+    index relative to their neighbours and putting a visible discontinuity on
+    the municipal border of the app's most heavily weighted quality factor.
 
-    Args:
-        existing: current crime_index.json contents
-        new_data: newly computed crime rates
-        overwrite: if True, replace all data including Helsinki
-
-    Returns:
-        merged data dict
+    One national fetch now produces every value, so every postal code is on the
+    same source, scale and year. Entries that the current run did not compute
+    are dropped rather than carried forward: a value whose provenance we can no
+    longer state is exactly what this pipeline must not ship.
     """
-    if overwrite:
-        logger.info("Overwrite mode: replacing all data")
-        return new_data
-
-    # Start with existing data
-    merged = dict(existing)
-
-    # Add new data for non-Helsinki postal codes, and for Helsinki codes
-    # that don't already exist
-    added = 0
-    updated = 0
-    preserved = 0
-    for pno, rate in new_data.items():
-        is_helsinki = pno.startswith("0")
-        if is_helsinki and pno in merged:
-            preserved += 1
-            continue
-        if pno in merged:
-            updated += 1
-        else:
-            added += 1
-        merged[pno] = rate
+    dropped = sorted(set(existing) - set(new_data))
+    changed = sum(
+        1 for pno, rate in new_data.items()
+        if pno in existing and abs(existing[pno] - rate) > 1e-9
+    )
+    added = len(set(new_data) - set(existing))
 
     logger.info(
-        "  Merge: %d added, %d updated, %d Helsinki preserved",
-        added, updated, preserved,
+        "  Merge: %d computed (%d new, %d changed), %d stale entries dropped",
+        len(new_data), added, changed, len(dropped),
     )
-    return merged
+    if dropped:
+        logger.info("    dropped: %s%s",
+                    ", ".join(dropped[:10]),
+                    " ..." if len(dropped) > 10 else "")
+    return new_data
 
 
 # ---------------------------------------------------------------------------
@@ -613,9 +585,9 @@ def main():
         description="Fetch crime statistics and update crime_index.json"
     )
     parser.add_argument(
-        "--overwrite",
-        action="store_true",
-        help="Overwrite all existing data including Helsinki metro",
+        "--year",
+        default=None,
+        help="Pin a specific statistics year (default: the newest StatFin publishes)",
     )
     args = parser.parse_args()
 
@@ -625,8 +597,9 @@ def main():
 
     # Step 1: Fetch municipality-level crime rates
     muni_rates = None
+    snapshot_year = None
     try:
-        muni_rates = fetch_crime_rates_per_1000()
+        muni_rates, snapshot_year = fetch_crime_rates_per_1000(args.year)
     except Exception as e:
         logger.warning("Primary table failed: %s", e)
         logger.info("Trying fallback table...")
@@ -634,7 +607,7 @@ def main():
     if not muni_rates:
         try:
             _rate_limit()
-            muni_rates = fetch_crime_rates_fallback()
+            muni_rates, snapshot_year = fetch_crime_rates_fallback(args.year)
         except Exception as e:
             logger.error("Fallback table also failed: %s", e)
             logger.error("Cannot proceed without crime data. Exiting.")
@@ -671,13 +644,29 @@ def main():
 
     # Step 4: Merge with existing data
     existing = load_existing_data()
-    merged = merge_results(existing, new_data, overwrite=args.overwrite)
+    merged = merge_results(existing, new_data)
 
     # Step 5: Save
     logger.info("Saving %d entries to %s", len(merged), OUTPUT_FILE)
     sorted_data = dict(sorted(merged.items()))
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         json.dump(sorted_data, f, indent=2, ensure_ascii=False)
+
+    # Record which year these values are. Downstream consumers must not infer
+    # it: build_crime_history used to assume the newest year in the *history*
+    # table was the snapshot year, which silently mislabelled the series.
+    meta = {
+        "year": snapshot_year,
+        "source": f"Statistics Finland StatFin {PXWEB_DATABASE}/{PXWEB_TABLE_ID}",
+        "offence_group": OFFENCE_TOTAL_CODE,
+        "unit": "offences per 1,000 residents",
+        "municipalities": len(muni_rates),
+        "postal_codes": len(sorted_data),
+    }
+    with open(META_FILE, "w", encoding="utf-8") as f:
+        json.dump(meta, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+    logger.info("Wrote snapshot metadata to %s (year %s)", META_FILE, snapshot_year)
 
     logger.info("Done!")
 

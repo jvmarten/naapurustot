@@ -10,6 +10,12 @@
 const COVERAGE_EPSILON = 0.5;
 
 /** @returns array of { date, metric, type, from, to, title } newest-meaningful events. */
+/** Newest 4-digit year named by a vintage (a number, a year, or a "YYYY–YYYY" range). */
+function latestYear(vintage) {
+  const years = String(vintage ?? '').match(/\d{4}/g);
+  return years ? Math.max(...years.map(Number)) : 0;
+}
+
 export function computeDataUpdateEvents(prevMetrics, newMetrics, date) {
   const events = [];
   for (const metric of Object.keys(newMetrics).sort()) {
@@ -17,9 +23,18 @@ export function computeDataUpdateEvents(prevMetrics, newMetrics, date) {
     const prev = prevMetrics[metric];
     if (!prev) continue; // a brand-new metric is an addition, not a "refresh" — skip the noise
     if (String(prev.vintage) !== String(next.vintage)) {
+      // A vintage that moves *backwards* is not a refresh — it is us correcting a
+      // year we had recorded wrongly, and publishing it as "refreshed to 2018"
+      // would tell readers of the changelog and the Atom feed the opposite of
+      // what happened. Compare the newest year each vintage names, so ranges
+      // ("2012–2022") and plain years are handled the same way.
+      const corrected = latestYear(next.vintage) < latestYear(prev.vintage);
       events.push({
-        date, metric, type: 'vintage', from: prev.vintage ?? null, to: next.vintage ?? null,
-        title: `${metric} refreshed to ${next.vintage} vintage`,
+        date, metric, type: corrected ? 'vintage_correction' : 'vintage',
+        from: prev.vintage ?? null, to: next.vintage ?? null,
+        title: corrected
+          ? `${metric} vintage corrected to ${next.vintage}`
+          : `${metric} refreshed to ${next.vintage} vintage`,
       });
     } else if (Math.abs((Number(prev.coverage_pct) || 0) - (Number(next.coverage_pct) || 0)) >= COVERAGE_EPSILON) {
       events.push({

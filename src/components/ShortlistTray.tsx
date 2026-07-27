@@ -6,7 +6,7 @@ import { trackEvent } from '../utils/analytics';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import type { LayerConfig } from '../utils/colorScales';
 import { computeNationalFit } from '../utils/fitScore';
-import type { WizardAnswers } from '../hooks/useWizardProfile';
+import { isCustomWizardAnswers, type WizardAnswers } from '../hooks/useWizardProfile';
 
 export interface ShortlistEntry {
   pno: string;
@@ -166,6 +166,7 @@ export const ShortlistTray: React.FC<ShortlistTrayProps> = React.memo(({ entries
   // CF-3: the shortlist is the funnel's convergence point — the one surface a returning user
   // comes back to — but it carried no metric, score or sort. Expand it to a decision table.
   const [tableView, setTableView] = useState(false);
+  const hasCustomProfile = !!wizardProfile && isCustomWizardAnswers(wizardProfile);
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'qi', dir: 'desc' });
   const toggleSort = useCallback((key: SortKey) => {
     setSort((s) => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: key === 'name' ? 'asc' : 'desc' }));
@@ -177,11 +178,16 @@ export const ShortlistTray: React.FC<ShortlistTrayProps> = React.memo(({ entries
     const p = propsFor?.(e.pno) ?? null;
     const qiRaw = p?.quality_index;
     const qi = typeof qiRaw === 'number' && isFinite(qiRaw) ? qiRaw : null;
-    const fit = p && wizardProfile ? computeNationalFit(p, wizardProfile).score : null;
+    // Only score fit against a profile the user actually set. `wizardProfile` is
+    // never null — useWizardProfile falls back to defaultWizardAnswers — so a bare
+    // truthiness check published a personalised-looking "Sopivuus %" to every user,
+    // including the majority who never opened the Finder. ComparisonPanel already
+    // gates on isCustomWizardAnswers; this is the same rule.
+    const fit = p && hasCustomProfile ? computeNationalFit(p, wizardProfile!).score : null;
     const layerRaw = p && layerConfig ? (p as Record<string, unknown>)[layerConfig.property] : null;
     const layerVal = typeof layerRaw === 'number' && isFinite(layerRaw) ? layerRaw : null;
     return { pno: e.pno, name: e.name, qi, fit, layerVal };
-  }), [entries, propsFor, wizardProfile, layerConfig]);
+  }), [entries, propsFor, wizardProfile, hasCustomProfile, layerConfig]);
 
   const sortedRows = useMemo(() => {
     const pick = (r: typeof rows[number]) => sort.key === 'qi' ? r.qi : sort.key === 'fit' ? r.fit : r.layerVal;

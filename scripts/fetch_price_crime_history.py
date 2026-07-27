@@ -47,6 +47,7 @@ from pathlib import Path
 import requests
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pxweb  # noqa: E402
 from regions_config import ALL_MUNICIPALITY_CODES  # noqa: E402
 
 logging.basicConfig(
@@ -61,12 +62,13 @@ GEOJSON_PATH = SCRIPT_DIR.parent / "public" / "data" / "metro_neighborhoods.geoj
 PROPERTY_HISTORY_FILE = SCRIPT_DIR / "property_price_history.json"
 CRIME_HISTORY_FILE = SCRIPT_DIR / "crime_index_history.json"
 
-ASHI_URL = (
-    "https://pxdata.stat.fi/PxWeb/api/v1/en/StatFin/ashi/statfin_ashi_pxt_13mu.px"
-)
-RPK_URL = (
-    "https://pxdata.stat.fi/PxWeb/api/v1/en/StatFin/rpk/statfin_rpk_pxt_13h4.px"
-)
+ASHI_TABLE = ("ashi", "13mu")
+RPK_TABLE = ("rpk", "13h4")
+
+# Written by fetch_crime_index.py; states which statistics year the postal
+# crime_index snapshot came from. The history anchors to that year rather than
+# assuming the newest year in this table is the snapshot's year.
+CRIME_INDEX_META_FILE = SCRIPT_DIR / "crime_index_meta.json"
 
 # Sales counts in the ashi table begin in 2020, so sales-weighting (matching the
 # property_price_sqm snapshot) is only possible from then. Keep both new series on
@@ -114,11 +116,23 @@ def find_var(meta, *names):
     return None
 
 
+def var_containing(meta, value):
+    """Return the variable whose value list contains ``value``.
+
+    StatFin versions its variable codes (``Vuosi`` -> ``timeperiod_y``,
+    ``Postinumero`` -> ``postinumeroalue_4_20220101``), so match on a stable
+    value instead of on the code. See scripts/pxweb.py.
+    """
+    for var in meta["variables"]:
+        if value in var.get("values", []):
+            return var
+    raise ValueError(f"No variable in metadata contains value {value!r}")
+
+
 def history_years(meta):
     """Return the sorted year codes >= HISTORY_START_YEAR present in the table."""
-    year_var = find_var(meta, "Vuosi", "Year")
-    if year_var is None:
-        raise ValueError("No year variable in metadata")
+    code = pxweb.year_var_code(meta)
+    year_var = next(v for v in meta["variables"] if v["code"] == code)
     years = []
     for code, text in zip(year_var["values"], year_var.get("valueTexts", year_var["values"])):
         # strip any preliminary "*" marker for the int comparison
@@ -138,36 +152,42 @@ def history_years(meta):
 
 def fetch_property_history(our_codes):
     logger.info("Fetching property-price history from ashi table...")
-    meta = request_with_retry("GET", ASHI_URL, label="ashi meta", timeout=30).json()
+    ashi_url, meta = pxweb.fetch_table_meta(*ASHI_TABLE)
     years = history_years(meta)
     logger.info("  Years: %s", years)
 
-    postal_var = find_var(meta, "Postinumero", "Postal code")
-    if postal_var is None:
-        raise ValueError("No postal-code variable in ashi metadata")
+    postal_var = var_containing(meta, "00100")
     api_codes = set(postal_var["values"])
     matched = sorted(c for c in our_codes if c in api_codes)
     logger.info("  %d of %d postal codes present in ashi", len(matched), len(our_codes))
     if not matched:
         return {}
 
-    info_var = find_var(meta, "Tiedot", "Information")
-    info_vals = info_var["values"] if info_var else ["keskihinta_aritm_nw", "lkm_julk20"]
+    info_var = var_containing(meta, "keskihinta_aritm_nw")
+    info_vals = info_var["values"]
     # price item first, sales-count item second (table order)
     price_item = info_vals[0]
     count_item = info_vals[1] if len(info_vals) > 1 else info_vals[0]
+    # The building-type variable is whichever one is left over — resolving it
+    # positionally beats matching a code StatFin keeps versioning.
+    named = {pxweb.year_var_code(meta), postal_var["code"], info_var["code"]}
+    house_type_var = next(v for v in meta["variables"] if v["code"] not in named)
 
     query = {
         "query": [
-            {"code": "Vuosi", "selection": {"filter": "item", "values": years}},
-            {"code": "Postinumero", "selection": {"filter": "item", "values": matched}},
-            {"code": "Talotyyppi", "selection": {"filter": "all", "values": ["*"]}},
-            {"code": "Tiedot", "selection": {"filter": "item", "values": [price_item, count_item]}},
+            {"code": pxweb.year_var_code(meta),
+             "selection": {"filter": "item", "values": years}},
+            {"code": postal_var["code"],
+             "selection": {"filter": "item", "values": matched}},
+            {"code": house_type_var["code"],
+             "selection": {"filter": "all", "values": ["*"]}},
+            {"code": info_var["code"],
+             "selection": {"filter": "item", "values": [price_item, count_item]}},
         ],
         "response": {"format": "json"},
     }
     time.sleep(RATE_LIMIT_DELAY)
-    data = request_with_retry("POST", ASHI_URL, label="ashi data", json=query, timeout=180).json()
+    data = request_with_retry("POST", ashi_url, label="ashi data", json=query, timeout=180).json()
     rows = data.get("data", [])
     logger.info("  Received %d ashi rows", len(rows))
 
@@ -214,23 +234,26 @@ def fetch_property_history(our_codes):
 def fetch_muni_crime_rates():
     """Return { muni_code: { year(int): rate_per_1000 } } from rpk table 13h4."""
     logger.info("Fetching municipal crime-rate history from rpk table...")
-    meta = request_with_retry("GET", RPK_URL, label="rpk meta", timeout=30).json()
+    rpk_url, meta = pxweb.fetch_table_meta(*RPK_TABLE)
     years = history_years(meta)
     logger.info("  Years: %s", years)
 
     muni_codes = [f"KU{code}" for code in sorted(ALL_MUNICIPALITY_CODES)]
     query = {
         "query": [
-            {"code": "Vuosi", "selection": {"filter": "item", "values": years}},
-            {"code": "Alue", "selection": {"filter": "item", "values": muni_codes}},
-            {"code": "Rikosryhmä ja teonkuvauksen tarkenne",
+            {"code": pxweb.year_var_code(meta),
+             "selection": {"filter": "item", "values": years}},
+            {"code": pxweb.var_code_for_value(meta, muni_codes[0]),
+             "selection": {"filter": "item", "values": muni_codes}},
+            {"code": pxweb.var_code_for_value(meta, OFFENCE_TOTAL_CODE),
              "selection": {"filter": "item", "values": [OFFENCE_TOTAL_CODE]}},
-            {"code": "Tiedot", "selection": {"filter": "item", "values": ["rik_1000"]}},
+            {"code": pxweb.var_code_for_value(meta, "rik_1000"),
+             "selection": {"filter": "item", "values": ["rik_1000"]}},
         ],
         "response": {"format": "json"},
     }
     time.sleep(RATE_LIMIT_DELAY)
-    data = request_with_retry("POST", RPK_URL, label="rpk data", json=query, timeout=180).json()
+    data = request_with_retry("POST", rpk_url, label="rpk data", json=query, timeout=180).json()
     rows = data.get("data", [])
     logger.info("  Received %d rpk rows", len(rows))
 
@@ -252,10 +275,32 @@ def fetch_muni_crime_rates():
     return rates
 
 
-def build_crime_history(features, muni_rates):
+def snapshot_year():
+    """Return the statistics year the shipped crime_index snapshot came from.
+
+    Read from crime_index_meta.json rather than inferred. build_crime_history
+    used to anchor to the newest year in the *history* table, which asserts
+    rather than measures the snapshot's year: when the snapshot lagged the
+    table, every series was published with its last point labelled a year the
+    underlying value did not come from.
+    """
+    if not CRIME_INDEX_META_FILE.exists():
+        raise SystemExit(
+            f"{CRIME_INDEX_META_FILE.name} is missing — run fetch_crime_index.py "
+            "first so the history can be anchored to the snapshot's real year."
+        )
+    with open(CRIME_INDEX_META_FILE, encoding="utf-8") as f:
+        year = json.load(f).get("year")
+    if not year:
+        raise SystemExit(f"{CRIME_INDEX_META_FILE.name} has no 'year'")
+    return int(year)
+
+
+def build_crime_history(features, muni_rates, anchor_year):
     """Scale each postal code's current crime_index by its municipality's real
-    per-1,000 rate trend, anchoring the latest year to the current value."""
+    per-1,000 rate trend, anchoring the snapshot to the year it came from."""
     result = {}
+    skipped_anchor = 0
     for f in features:
         p = f.get("properties", {})
         pno = p.get("pno")
@@ -269,9 +314,12 @@ def build_crime_history(features, muni_rates):
         years = sorted(rates.keys())
         if len(years) < MIN_POINTS:
             continue
-        latest = years[-1]
-        base = rates.get(latest)
+        base = rates.get(anchor_year)
         if not base or base <= 0:
+            # Without the anchor year we cannot place the snapshot on the
+            # trend; emitting a series anchored to some other year would
+            # mislabel it, so skip the area instead.
+            skipped_anchor += 1
             continue
         series = []
         for year in years:
@@ -281,7 +329,11 @@ def build_crime_history(features, muni_rates):
             series.append([year, round(float(crime) * rate / base, 1)])
         if len(series) >= MIN_POINTS:
             result[pno] = series
-    logger.info("  Built crime history for %d postal codes", len(result))
+    logger.info("  Built crime history for %d postal codes (anchored to %d)",
+                len(result), anchor_year)
+    if skipped_anchor:
+        logger.warning("  %d areas skipped: municipality has no %d rate to anchor to",
+                       skipped_anchor, anchor_year)
     return result
 
 
@@ -335,6 +387,8 @@ def apply_to_geojson(geojson, property_history, crime_history):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--apply", action="store_true", help="also patch the GeoJSON in place")
+    ap.add_argument("--skip-property", action="store_true",
+                    help="rebuild only the crime history, leaving property prices untouched")
     args = ap.parse_args()
 
     geojson = load_geojson()
@@ -342,9 +396,14 @@ def main():
     our_codes = sorted({f["properties"]["pno"] for f in features if f.get("properties", {}).get("pno")})
     logger.info("Loaded %d features (%d postal codes)", len(features), len(our_codes))
 
-    property_history = fetch_property_history(our_codes)
+    if args.skip_property:
+        logger.info("Skipping property-price history (--skip-property)")
+        property_history = json.loads(PROPERTY_HISTORY_FILE.read_text(encoding="utf-8")) \
+            if PROPERTY_HISTORY_FILE.exists() else {}
+    else:
+        property_history = fetch_property_history(our_codes)
     muni_rates = fetch_muni_crime_rates()
-    crime_history = build_crime_history(features, muni_rates)
+    crime_history = build_crime_history(features, muni_rates, snapshot_year())
 
     PROPERTY_HISTORY_FILE.write_text(
         json.dumps(property_history, indent=0, sort_keys=True, ensure_ascii=False), encoding="utf-8")
@@ -355,8 +414,12 @@ def main():
     if args.apply:
         apply_to_geojson(geojson, property_history, crime_history)
         with open(GEOJSON_PATH, "w", encoding="utf-8") as f:
-            # Match the existing compact single-line serialization exactly.
-            json.dump(geojson, f, ensure_ascii=False, separators=(",", ":"))
+            # The committed GeoJSON uses Python's DEFAULT serialization
+            # (ensure_ascii=True, ", "/": " separators). Writing it compact
+            # instead rewrites all 44 MB and buries the value change in a
+            # whole-file diff — see scripts/in1_clean.py, which established
+            # this convention.
+            json.dump(geojson, f)
         logger.info("Patched %s", GEOJSON_PATH)
 
     if not property_history and not crime_history:

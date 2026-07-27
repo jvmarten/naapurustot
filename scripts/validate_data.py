@@ -103,7 +103,13 @@ RANGE_CHECKS = [
     ("transit_stop_density", 0, 1_000),
     ("daycare_density", 0, 200),
     ("school_density", 0, 200),
-    ("healthcare_density", 0, 200),
+    # Upper bound raised from 200 for 65130 Hietalahti (Vaasa): a 0.18 km2, zero-
+    # resident postal area that is the central hospital campus, where OSM tags ~40
+    # individual healthcare=* units -> 222.3 /km2. Real count, real ratio, extreme
+    # only because the denominator is a hospital-sized polygon. It was invisible
+    # until the missing Vaasa Overpass cache was fetched. The national colour scale
+    # winsorizes at p2/p98, so the outlier does not flatten the layer.
+    ("healthcare_density", 0, 400),
     ("restaurant_density", 0, 1_000),
     ("grocery_density", 0, 500),
     # Indices
@@ -200,6 +206,14 @@ SUPPRESSION_PREFIXES = ("he_", "ko_", "hr_", "tr_", "te_", "ra_", "pt_", "tp_")
 # value (the signature of the fabricated 40.0 dB noise floor that covered 74 % of
 # the country). Exempt metrics whose dominant value is a genuine measurement.
 DISTINCTNESS_THRESHOLD = 0.50
+
+# grocery_density's zeros are real, so it sits on DISTINCTNESS_EXEMPT below - which
+# means check_dense_urban_zero, not distinctness, is what guards it against a failed
+# Overpass region fetch. Calibrated so that no area passes today while the centre of
+# Tampere (18,057 residents in 4.3 km2, shipped as 0) would have been caught.
+DENSE_URBAN_MIN_POP = 8000
+DENSE_URBAN_MAX_AREA_M2 = 15_000_000
+
 DISTINCTNESS_EXEMPT = {
     # Real-zero OSM/count metrics: a 0 means "none within this area" — an honest
     # measurement, not a placeholder — so a high share of identical 0s is expected.
@@ -366,6 +380,41 @@ def check_value_distinctness(features: list) -> list[str]:
                 f"Property '{prop}': {round(share * 100)}% of non-null values are identical "
                 f"({mode_val!r} x{mode_count}/{total}) - fabricated or degenerate? Add to "
                 f"DISTINCTNESS_EXEMPT only if that value is a genuine measurement."
+            )
+    return errors
+
+
+def check_dense_urban_zero(features: list) -> list[str]:
+    """Catch an Overpass region fetch that failed and shipped as measured zeros.
+
+    grocery_density is on DISTINCTNESS_EXEMPT because 0 genuinely means "no shop
+    inside this postal area", which is the common case: 85 % of Finnish postal
+    areas have none. That exemption also blinds the distinctness check to the one
+    failure mode this metric actually has. When an Overpass region download fails,
+    join_groceries writes 0 for every postal code in it and nothing notices - five
+    of the 69 seutukunta bboxes had no cached response, so 237 areas covering
+    ~536,000 residents shipped a measured-looking 0, the centre of Tampere (18,057
+    residents in 4.3 km2) among them.
+
+    Testing a whole seutukunta for all-zero does not work: density is stores per
+    km2 rounded to one decimal, so a genuine shop in a 5,000 km2 Lapland postal
+    area still rounds to 0.0. Test the opposite end instead - a densely populated,
+    physically small area with no grocery shop at all is not a measurement."""
+    errors: list[str] = []
+    for f in features:
+        p = f["properties"]
+        pop = p.get("he_vakiy")
+        area = p.get("pinta_ala")
+        density = p.get("grocery_density")
+        if density != 0 or not isinstance(pop, (int, float)) or not isinstance(area, (int, float)):
+            continue
+        if pop >= DENSE_URBAN_MIN_POP and 0 < area <= DENSE_URBAN_MAX_AREA_M2:
+            errors.append(
+                f"Postal area {p.get('pno')} has grocery_density 0 with "
+                f"{int(pop):,} residents in {area / 1e6:.1f} km2 - implausible; "
+                f"almost certainly a failed Overpass region fetch shipping as a "
+                f"measured zero. Run `python scripts/refetch_missing_overpass.py`, "
+                f"re-run the grocery surgery and rebuild."
             )
     return errors
 
@@ -803,6 +852,7 @@ def main() -> int:
         ("Value ranges", check_value_ranges(features)),
         ("Suppression sentinels", check_no_suppression_sentinels(features)),
         ("Value distinctness", check_value_distinctness(features)),
+        ("Dense urban zeros", check_dense_urban_zero(features)),
         ("Data-source registry", check_data_source_registry(features)),
         ("Distributed proxy flags", check_distributed_proxy_flags(features)),
         ("Derived proxy inheritance", check_derived_proxy_inheritance(features)),

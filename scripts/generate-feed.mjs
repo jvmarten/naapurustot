@@ -34,10 +34,14 @@ const latest = updates[0]?.date ? isoDay(updates[0].date) : (buildGenerated || '
 const entries = updates.map((u) => {
   const summary = u.type === 'vintage'
     ? `${u.metric} updated from vintage ${u.from} to ${u.to}.`
-    : u.type === 'coverage'
-      ? `${u.metric} coverage changed from ${u.from}% to ${u.to}%.`
-      // IN-8: planning (and any future non-numeric) refresh — the title is self-describing.
-      : u.title;
+    : u.type === 'vintage_correction'
+      // Not new data: the recorded year was wrong and has been corrected. Saying
+      // "updated to 2018" would read as a refresh to eight-year-old data.
+      ? `${u.metric} vintage corrected from ${u.from} to ${u.to} (attribution fix, data unchanged).`
+      : u.type === 'coverage'
+        ? `${u.metric} coverage changed from ${u.from}% to ${u.to}%.`
+        // IN-8: planning (and any future non-numeric) refresh — the title is self-describing.
+        : u.title;
   return `  <entry>
     <title>${esc(u.title)}</title>
     <id>tag:naapurustot.fi,${esc(u.date)}:${esc(u.metric)}:${esc(u.type)}</id>
