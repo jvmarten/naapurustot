@@ -193,28 +193,34 @@ ls -t /opt/naapurustot/server/backups/naapurustot-*.sql.gz | head -1
 If the Umami database is empty or corrupted but the host's `backups/`
 directory is intact:
 
+Use `restore.sh`. It stops the consumers, takes a safety dump of the current
+state, recreates the database **with the correct owner**, restores with
+`ON_ERROR_STOP=1`, and refuses to declare success unless the restored data is
+actually present.
+
 ```bash
 cd /opt/naapurustot/server
 
-# Pick the dump you want to restore (latest shown here)
-LATEST_UMAMI=$(ls -t backups/umami-*.sql.gz | head -1)
-LATEST_API=$(ls -t backups/naapurustot-*.sql.gz | head -1)
+./restore.sh naapurustot          # newest backups/naapurustot-*.sql.gz
+./restore.sh umami                # newest backups/umami-*.sql.gz
+./restore.sh naapurustot backups/naapurustot-20260727-030000.sql.gz  # a specific dump
+```
 
-# Stop Umami / API so they don't see a half-restored DB
-docker compose stop umami api
+> **Do not hand-roll the drop/create.** The previous version of this runbook ran
+> `CREATE DATABASE naapurustot;` as the bootstrap superuser and then piped the
+> dump in as `naapurustot_api`. Since PostgreSQL 15 the `public` schema is owned
+> by `pg_database_owner` and `PUBLIC` has no `CREATE` on it, so every
+> `CREATE TABLE` failed with `permission denied for schema public` — and without
+> `ON_ERROR_STOP=1`, `psql` exited 0 anyway. The result was a silently **empty**
+> database, during an outage, with the operator reasonably concluding the backups
+> were bad. `restore.sh` creates the database with `OWNER naapurustot_api` and
+> asserts a non-zero row count before finishing.
 
-# Drop and recreate the umami DB, then restore. WARNING: this discards the
-# current (empty/corrupted) DB. Make a safety dump first if you're unsure.
-docker compose exec db psql -U umami -d postgres -c "DROP DATABASE umami;"
-docker compose exec db psql -U umami -d postgres -c "CREATE DATABASE umami;"
-gunzip -c "$LATEST_UMAMI" | docker compose exec -T db psql -U umami umami
+Check afterwards:
 
-# Same for the API DB
-docker compose exec db psql -U umami -d postgres -c "DROP DATABASE naapurustot;"
-docker compose exec db psql -U umami -d postgres -c "CREATE DATABASE naapurustot;"
-gunzip -c "$LATEST_API" | docker compose exec -T db psql -U naapurustot_api naapurustot
-
-docker compose start umami api
+```bash
+docker compose ps
+curl -sf https://api.naapurustot.fi/health
 ```
 
 ### When no backup exists ("Websites: No data available")
