@@ -252,6 +252,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
                 <EyeIcon off={showPassword} />
               </button>
             </div>
+            {/* ON-3: the API has no forgot/reset route at all, and the account is
+                pitched as syncing favorites/shortlist/notes across devices — which
+                reads as a backup. Forgetting this password permanently costs the
+                cloud copy and all cross-device access, so say so before they commit
+                rather than after. (A real reset flow needs an email provider and a
+                token table; until then, disclosure is the honest option.) */}
+            {mode === 'signup' && (
+              <p className="mt-1.5 text-[11px] text-surface-500 dark:text-surface-400 leading-snug">
+                {t('auth.password_no_reset')}
+              </p>
+            )}
           </div>
 
           {/* Signup-only fields */}

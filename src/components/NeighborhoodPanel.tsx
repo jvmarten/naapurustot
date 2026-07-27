@@ -2270,6 +2270,28 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
               {referenceButton}
             </div>
           )}
+          {/* MO-3: on mobile the comparison sheet and this area sheet both anchor
+              bottom-0 z-20, so the comparison hard-hides itself whenever an area is
+              selected — and the 1-pin nudge pill is suppressed too. Tapping "add to
+              comparison" therefore looked like nothing happened, with no count and
+              no hint that *closing this sheet* is what reveals the comparison. This
+              row is that missing confirmation; at 2+ it doubles as the way through. */}
+          {isPinned && pinCount >= 2 && (
+            <button
+              onClick={onClose}
+              className="mt-2 w-full flex items-center justify-between gap-2 px-3 py-2.5 min-h-[44px] rounded-lg
+                         bg-brand-50 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300
+                         text-xs font-semibold transition-colors hover:bg-brand-100 dark:hover:bg-brand-900/40"
+            >
+              <span>{t('compare.pinned_reveal').replace('{n}', String(pinCount))}</span>
+              <span aria-hidden="true">→</span>
+            </button>
+          )}
+          {isPinned && pinCount === 1 && (
+            <p className="mt-2 text-[11px] text-surface-500 dark:text-surface-400" role="status">
+              {t('compare.pinned_need_more')}
+            </p>
+          )}
           {fitBadge && <div className="mt-2">{fitBadge}</div>}
         </div>
         {/* PO-3: Section tabs. CF-7: full WAI-ARIA Tabs pattern — roving tabindex

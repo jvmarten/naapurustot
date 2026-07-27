@@ -716,9 +716,42 @@ const App: React.FC = () => {
     const id = setTimeout(() => setLocaleReady(true), 1500);
     return () => clearTimeout(id);
   }, [i18nVersion, localeReady]);
+  // LO-1: whether MapLibre has actually put the choropleth on screen. The cold
+  // overlay used to lift purely on `allViewReady` — the data path is ~180 KB of
+  // pre-quantized JSON, the map path is maplibre-gl (~260 KB gz) plus parse, WebGL
+  // context creation, style load and first tiles, so on a mid-range phone the data
+  // reliably won that race and the overlay unmounted onto an empty page.
+  const [mapReady, setMapReady] = useState(false);
+  const handleMapReady = useCallback(() => setMapReady(true), []);
+  // LO-1 safety valve: the overlay is a courtesy, never a trap. If the map can't
+  // report ready (WebGL blocked, context lost, the lazy chunk failing into the
+  // ErrorBoundary), stop waiting — an empty map with working chrome beats an
+  // indefinite shimmer, and LO-2's stall notice below then covers a data stall.
   useEffect(() => {
-    if (!effectiveLoading && localeReady) setFirstLoadDone(true);
-  }, [effectiveLoading, localeReady]);
+    if (mapReady) return;
+    const id = setTimeout(() => setMapReady(true), 8000);
+    return () => clearTimeout(id);
+  }, [mapReady]);
+  // The split view renders SplitMapView instead of <Map>, so nothing would ever
+  // report ready for a cold `?…s` arrival.
+  const mapPainted = mapReady || splitMode;
+  useEffect(() => {
+    if (!effectiveLoading && localeReady && mapPainted) setFirstLoadDone(true);
+  }, [effectiveLoading, localeReady, mapPainted]);
+
+  // LO-2: `loadAllAggregates`/`useMapData` have no timeout and no AbortController,
+  // so a request that *stalls* rather than fails — the normal flaky-mobile failure
+  // mode — never resolves or rejects. effectiveLoading stayed true, firstLoadDone
+  // never flipped, and the full-screen shimmer stayed mounted forever with no
+  // banner (nothing rejected), no retry and no changing copy. Mirrors the grace
+  // timers already used for this class of hang elsewhere in this file.
+  const coldOverlayVisible = (effectiveLoading || !localeReady || !mapPainted) && !firstLoadDone;
+  const [loadStalled, setLoadStalled] = useState(false);
+  useEffect(() => {
+    if (!coldOverlayVisible) { setLoadStalled(false); return; }
+    const id = setTimeout(() => setLoadStalled(true), 12000);
+    return () => clearTimeout(id);
+  }, [coldOverlayVisible]);
 
   // Recompute metro averages for the selected city.
   // qualityVersion is included so that averages are recalculated after custom quality weight changes
@@ -2462,14 +2495,19 @@ const App: React.FC = () => {
             planningData={planningOverlay}
             onMoveEnd={handleMapMoveEnd}
             priceFallbackValue={priceFallbackValue}
+            onReady={handleMapReady}
           />
           </Suspense>
         )}
       </ErrorBoundary>
 
-      {/* C1: cold first load — full-screen wordmark overlay (nothing behind it yet). */}
-      {(effectiveLoading || !localeReady) && !firstLoadDone && (
-        <div data-testid="loading-overlay" role="status" aria-live="polite" className="absolute inset-0 z-50 flex items-center justify-center bg-white/80 dark:bg-surface-950/80 backdrop-blur-sm">
+      {/* C1: cold first load — full-screen wordmark overlay (nothing behind it yet).
+          LO-1: also held until the map reports it has drawn the choropleth, so the
+          overlay never lifts onto a blank page. LO-2: `pointer-events-none` — this
+          was a plain div that swallowed clicks on the header, search bar and layer
+          FAB behind it for however long the load took. */}
+      {coldOverlayVisible && (
+        <div data-testid="loading-overlay" role="status" aria-live="polite" className="absolute inset-0 z-50 flex items-center justify-center bg-white/80 dark:bg-surface-950/80 backdrop-blur-sm pointer-events-none">
           <div className="text-center space-y-4">
             {/* Shimmer placeholder blocks */}
             <div className="flex flex-col items-center gap-3">
@@ -2479,6 +2517,20 @@ const App: React.FC = () => {
             </div>
             <h1 className="text-xl font-display font-bold text-surface-900 dark:text-white">naapurustot</h1>
             <p className="text-surface-500 dark:text-surface-400 text-sm">{t(cityFilter === 'all' ? 'loading.nationwide' : 'loading.title')}</p>
+            {/* LO-2: a stalled fetch never rejects, so no banner ever fires. After the
+                grace period, say so and offer the retry the overlay already had access
+                to but never exposed. */}
+            {loadStalled && (
+              <div className="pointer-events-auto space-y-2" data-testid="loading-stalled">
+                <p className="text-surface-600 dark:text-surface-300 text-sm max-w-xs mx-auto leading-snug">{t('loading.slow')}</p>
+                <button
+                  onClick={effectiveRetry}
+                  className="px-3 py-2 min-h-[44px] md:min-h-0 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold transition-colors"
+                >
+                  {t('error.retry')}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -2716,7 +2768,9 @@ const App: React.FC = () => {
       {/* O3: persistent, dismissible on-map hint teaching the core "click an area"
           interaction — shown only in the no-selection idle state, gone once an area
           is selected or it's explicitly dismissed (persisted). */}
-      {!effectiveLoading && !selected && !peek && !splitMode && !drawMode && !showTour && !areaHintDismissed && (
+      {/* LO-1: gated on mapPainted too — this pill told first-timers to tap a map
+          that had not been drawn yet. */}
+      {!effectiveLoading && mapPainted && !selected && !peek && !splitMode && !drawMode && !showTour && !areaHintDismissed && (
         <div className="fixed md:absolute bottom-[calc(1.5rem+env(safe-area-inset-bottom))] md:bottom-8 left-1/2 -translate-x-1/2 z-20
                        flex items-center gap-2 px-3 py-1.5 rounded-full shadow-lg backdrop-blur-sm
                        bg-surface-900/90 dark:bg-white/90 text-white dark:text-surface-900 text-xs font-medium">
