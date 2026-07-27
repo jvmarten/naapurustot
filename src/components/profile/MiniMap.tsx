@@ -4,6 +4,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import type { Feature, FeatureCollection, Geometry, Polygon, MultiPolygon } from 'geojson';
 import { useTheme } from '../../hooks/useTheme';
 import { t, useI18nVersion } from '../../utils/i18n';
+import { basemapTileUrl } from '../../utils/basemap';
 
 const BASEMAP_LIGHT = (import.meta.env.VITE_BASEMAP_LIGHT_URL as string) || 'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png';
 const BASEMAP_DARK = (import.meta.env.VITE_BASEMAP_DARK_URL as string) || 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png';
@@ -56,7 +57,7 @@ export const MiniMap: React.FC<MiniMapProps> = ({ feature, allFeatures }) => {
     const geometry = feature.geometry as Geometry | null;
     if (!isPolygonal(geometry)) return;
 
-    const tiles = theme === 'dark' ? BASEMAP_DARK : BASEMAP_LIGHT;
+    const tiles = basemapTileUrl(theme === 'dark' ? BASEMAP_DARK : BASEMAP_LIGHT);
     const bbox = computeBbox(geometry);
 
     let map: maplibregl.Map;

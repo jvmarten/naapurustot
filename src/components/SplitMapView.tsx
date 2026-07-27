@@ -11,6 +11,7 @@ import { useTheme } from '../hooks/useTheme';
 import { t, useI18nVersion } from '../utils/i18n';
 import { DEFAULT_CENTER, DEFAULT_ZOOM, MAP_MAX_ZOOM, MAP_MIN_ZOOM } from '../utils/mapConstants';
 import { queryFeaturesSafe } from '../utils/mapQuery';
+import { basemapTileUrl } from '../utils/basemap';
 
 /**
  * Compact dropdown for choosing a data layer on one side of the split view.
@@ -198,8 +199,8 @@ interface PaneHover {
 }
 
 function makeStyle(theme: 'dark' | 'light'): maplibregl.StyleSpecification {
-  const tiles = theme === 'dark' ? BASEMAP_DARK : BASEMAP_LIGHT;
-  const labelTiles = theme === 'dark' ? BASEMAP_DARK_LABELS : BASEMAP_LIGHT_LABELS;
+  const tiles = basemapTileUrl(theme === 'dark' ? BASEMAP_DARK : BASEMAP_LIGHT);
+  const labelTiles = basemapTileUrl(theme === 'dark' ? BASEMAP_DARK_LABELS : BASEMAP_LIGHT_LABELS);
   return {
     version: 8,
     name: theme === 'dark' ? 'Dark' : 'Light',
@@ -681,8 +682,8 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
   // Switch basemap on theme change, and repaint the border colors in place.
   // Previously theme change rebuilt source + 3 layers on BOTH maps.
   useEffect(() => {
-    const tiles = theme === 'dark' ? BASEMAP_DARK : BASEMAP_LIGHT;
-    const labelTiles = theme === 'dark' ? BASEMAP_DARK_LABELS : BASEMAP_LIGHT_LABELS;
+    const tiles = basemapTileUrl(theme === 'dark' ? BASEMAP_DARK : BASEMAP_LIGHT);
+    const labelTiles = basemapTileUrl(theme === 'dark' ? BASEMAP_DARK_LABELS : BASEMAP_LIGHT_LABELS);
     const pendingListeners: { map: maplibregl.Map; fn: () => void }[] = [];
     const pairs: [React.RefObject<maplibregl.Map | null>, React.RefObject<boolean>][] = [
       [leftMapRef, leftLoadedRef],

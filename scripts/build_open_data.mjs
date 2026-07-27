@@ -22,13 +22,14 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { decodeColumnar } from './lib/columnar.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 const DIST = join(ROOT, 'dist');
 const ORIGIN = 'https://naapurustot.fi';
 
-const PROPS = JSON.parse(readFileSync(join(ROOT, 'src', 'data', 'region_properties.json'), 'utf-8'));
+const PROPS = decodeColumnar(JSON.parse(readFileSync(join(ROOT, 'src', 'data', 'region_properties.json'), 'utf-8')));
 const REGISTRY = JSON.parse(readFileSync(join(ROOT, 'src', 'data', 'data_sources.json'), 'utf-8'));
 const BUILD_METADATA = JSON.parse(readFileSync(join(ROOT, 'src', 'data', 'build_metadata.json'), 'utf-8'));
 // IN-1 planning corpus: { pno: [{ name, kind, ptype, subtype, status, date, url, source }] }.

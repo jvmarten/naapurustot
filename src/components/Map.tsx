@@ -15,6 +15,7 @@ import { trackEvent } from '../utils/analytics';
 import { t, useI18nVersion } from '../utils/i18n';
 import { DEFAULT_CENTER, DEFAULT_ZOOM, MAP_MIN_ZOOM, MAP_MAX_ZOOM } from '../utils/mapConstants';
 import { queryFeaturesSafe } from '../utils/mapQuery';
+import { basemapTileUrl } from '../utils/basemap';
 // CF-5 Phase D1: pre-baked boundary outlines of all 69 Finnish seutukunnat.
 import seutukunnatUrl from '../data/seutukunnat.topojson?url';
 
@@ -128,8 +129,8 @@ function beforeLabels(map: maplibregl.Map, beforeId?: string): string | undefine
 }
 
 function makeStyle(theme: 'dark' | 'light'): maplibregl.StyleSpecification {
-  const tiles = theme === 'dark' ? BASEMAP_DARK : BASEMAP_LIGHT;
-  const labelTiles = theme === 'dark' ? BASEMAP_DARK_LABELS : BASEMAP_LIGHT_LABELS;
+  const tiles = basemapTileUrl(theme === 'dark' ? BASEMAP_DARK : BASEMAP_LIGHT);
+  const labelTiles = basemapTileUrl(theme === 'dark' ? BASEMAP_DARK_LABELS : BASEMAP_LIGHT_LABELS);
   return {
     version: 8,
     name: theme === 'dark' ? 'Dark' : 'Light',
@@ -604,12 +605,12 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
 
     const source = map.getSource('carto') as maplibregl.RasterTileSource | undefined;
     if (source) {
-      const tiles = theme === 'dark' ? BASEMAP_DARK : BASEMAP_LIGHT;
+      const tiles = basemapTileUrl(theme === 'dark' ? BASEMAP_DARK : BASEMAP_LIGHT);
       source.setTiles([tiles]);
     }
     const labelsSource = map.getSource(LABELS_SOURCE_ID) as maplibregl.RasterTileSource | undefined;
     if (labelsSource) {
-      const labelTiles = theme === 'dark' ? BASEMAP_DARK_LABELS : BASEMAP_LIGHT_LABELS;
+      const labelTiles = basemapTileUrl(theme === 'dark' ? BASEMAP_DARK_LABELS : BASEMAP_LIGHT_LABELS);
       labelsSource.setTiles([labelTiles]);
     }
   }, [theme]);

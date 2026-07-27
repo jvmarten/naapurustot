@@ -21,6 +21,7 @@ import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import { buildAdjacencyFromRegions } from './lib/adjacency.mjs';
 import { computeDataUpdateEvents, mergeDataUpdates } from './lib/data-updates.mjs';
+import { encodeColumnar } from './lib/columnar.mjs';
 
 const rootDir = resolve(import.meta.dirname, '..');
 const geojsonPath = resolve(rootDir, 'public', 'data', 'metro_neighborhoods.geojson');
@@ -99,6 +100,23 @@ for (const [regionId, regionFeatures] of byRegion) {
     stdio: 'inherit',
   });
 
+  // Columnar properties: geo2topo copies the full ~198-key property object onto
+  // every geometry in the region, so the key names alone dominate the file.
+  // Store them once per region under `propertiesColumnar` and leave each
+  // geometry holding only its row index. helsinki_metro: 350,718 -> 234,111 B gz
+  // (-33 %). Consumers: dataLoader.processTopology rehydrates after decoding,
+  // and lib/adjacency.mjs resolves the postal code through the same block.
+  {
+    const topology = JSON.parse(readFileSync(topoPath, 'utf-8'));
+    const objectName = Object.keys(topology.objects)[0];
+    const geometries = topology.objects[objectName]?.geometries ?? [];
+    topology.propertiesColumnar = encodeColumnar(
+      geometries.map((g) => g.properties || {}),
+    );
+    geometries.forEach((g, i) => { g.properties = { i }; });
+    writeFileSync(topoPath, JSON.stringify(topology));
+  }
+
   // IN-6: measure the emitted TopoJSON. Read the bytes geo2topo just wrote
   // (rather than re-serializing) so the recorded raw size is exactly the
   // committed artifact, then gzip at a fixed level for a reproducible figure.
@@ -163,7 +181,9 @@ console.log(
 // combined TopoJSON was ~35 MB of dead weight. The properties array is a
 // fraction of that.
 console.log('Writing region_properties.json (all-cities aggregation input)...');
-writeFileSync(propertiesOutput, JSON.stringify(features.map((f) => f.properties)));
+// Columnar: the 198 key names were 71.4 % of this file when repeated once per
+// record. See scripts/lib/columnar.mjs — 2,088,611 B gz -> 1,005,079 B gz.
+writeFileSync(propertiesOutput, JSON.stringify(encodeColumnar(features.map((f) => f.properties))));
 
 // CF-8: a tiny eager search index. The all-Finland landing no longer loads the
 // ~10.6 MB region_properties.json (CF-8 paints from region_aggregates.json), so the
