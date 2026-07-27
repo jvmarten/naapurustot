@@ -5,7 +5,7 @@ import type { FeatureCollection } from 'geojson';
 import { buildFillColorExpression, LAYERS, type LayerId, type LayerConfig, getLayerById } from '../utils/colorScales';
 import { ensureHatchImage } from '../utils/hatchPattern';
 import { buildFillOpacityFadeOut, buildGridFillOpacity, GRID_ZOOM_FADE_IN } from '../utils/gridFade';
-import { getGridInfo } from '../hooks/useGridData';
+import { getGridInfo, hasGridCells } from '../hooks/useGridData';
 import { getCoveragePct, isLowCoverage, formatCoveragePct, type NeighborhoodProperties } from '../utils/metrics';
 import { useTheme } from '../hooks/useTheme';
 import { t, useI18nVersion } from '../utils/i18n';
@@ -277,7 +277,9 @@ function noDataFilter(propertyKey: string): maplibregl.FilterSpecification {
 
 /** IN-1: true when a fine-grained grid should render for this layer + data pair. */
 function gridActive(layer: LayerConfig, gridData: FeatureCollection | null | undefined): boolean {
-  return !!gridData && !!layer.gridProperty;
+  // CF-1: an out-of-region clip leaves an empty (non-null) FeatureCollection —
+  // treating that as an active grid drains the pane to bare basemap.
+  return hasGridCells(gridData) && !!layer.gridProperty;
 }
 
 // IN-1: base postal-fill opacity for the "no grid" case. Kept STATE-DEPENDENT

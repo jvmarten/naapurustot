@@ -8,6 +8,7 @@ import type { Topology } from 'topojson-specification';
 import { buildFillColorExpression, getInterpolatedColor, type LayerId, type LayerConfig, getLayerById } from '../utils/colorScales';
 import { ensureHatchImage } from '../utils/hatchPattern';
 import { GRID_ZOOM_FADE_IN, buildFillOpacityFadeOut, buildGridFillOpacity } from '../utils/gridFade';
+import { hasGridCells } from '../hooks/useGridData';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { useTheme } from '../hooks/useTheme';
 import { trackEvent } from '../utils/analytics';
@@ -819,7 +820,9 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     if (!map) return;
 
     const layer = layerConfig ?? getLayerById(activeLayer);
-    const useGrid = !!gridData && !!layer.gridProperty;
+    // CF-1: cell count, not object identity — an out-of-region clip yields an
+    // empty (but non-null) FeatureCollection. See hasGridCells.
+    const useGrid = hasGridCells(gridData) && !!layer.gridProperty;
 
     const addGridLayer = () => {
       if (map.getLayer(GRID_FILL_LAYER)) map.removeLayer(GRID_FILL_LAYER);
@@ -886,7 +889,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     if (!map.getLayer(FILL_LAYER)) return;
 
     const layer = layerConfig ?? getLayerById(activeLayer);
-    const useGrid = !!gridData && !!layer.gridProperty;
+    const useGrid = hasGridCells(gridData) && !!layer.gridProperty;
 
     if (useGrid) {
       // Postal choropleth stays visible at low zoom (smooth country view) and
@@ -1268,7 +1271,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         mapRef.current.setPaintProperty(FILL_LAYER, 'fill-opacity-transition', { duration: 200, delay: 0 });
         const currentGridData = gridDataRef.current;
         const currentFillOpacity = fillOpacityRef.current;
-        const useGrid = !!currentGridData && !!layer.gridProperty;
+        const useGrid = hasGridCells(currentGridData) && !!layer.gridProperty;
         if (useGrid) {
           mapRef.current.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacityFadeOut(currentFillOpacity));
           if (mapRef.current.getLayer(GRID_FILL_LAYER)) {

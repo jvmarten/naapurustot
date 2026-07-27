@@ -8,6 +8,16 @@ interface TrendChartProps {
   color: string;
   formatValue: (v: number) => string;
   unit?: string;
+  /**
+   * CF-2: metric polarity, mirroring `comparisonStats.refDeltaOf`. Pass `false`
+   * for metrics where a rise is bad (unemployment, crime) so the change label is
+   * coloured by *meaning* rather than by the raw sign — otherwise rising crime
+   * renders emerald and a falling crime rate renders rose, which is the one
+   * surface in the app that contradicts what the number says. Only the hue is
+   * polarity-aware: the ↗/↘ glyph, the plotted line and the aria-label stay
+   * keyed to the actual direction, which is factually correct.
+   */
+  higherIsBetter?: boolean;
 }
 
 const CHART_W = 280;
@@ -20,7 +30,7 @@ const PAD_B = 18;
 const PLOT_W = CHART_W - PAD_L - PAD_R;
 const PLOT_H = CHART_H - PAD_T - PAD_B;
 
-export const TrendChart: React.FC<TrendChartProps> = React.memo(({ title, data, color, formatValue, unit }) => {
+export const TrendChart: React.FC<TrendChartProps> = React.memo(({ title, data, color, formatValue, unit, higherIsBetter }) => {
   useI18nVersion();
   // Stable key for crossfade animation when data changes
   const dataKey = useMemo(() => data?.map(d => `${d[0]}:${d[1]}`).join(',') ?? '', [data]);
@@ -57,6 +67,11 @@ export const TrendChart: React.FC<TrendChartProps> = React.memo(({ title, data, 
   const lastVal = values[values.length - 1];
   const changePct = firstVal !== 0 ? ((lastVal - firstVal) / Math.abs(firstVal) * 100) : null;
   const changeSign = changePct != null && changePct >= 0 ? '+' : '';
+  // CF-2: colour by meaning, not by sign. `higherIsBetter === false` flips which
+  // direction earns emerald; everything else keeps the rise-is-good default.
+  const good = changePct == null
+    ? false
+    : higherIsBetter === false ? changePct < 0 : changePct >= 0;
 
   // QW-4: Accessibility - describe the trend so screen readers can convey
   // start year, end year, start value, end value, and percentage change.
@@ -73,7 +88,7 @@ export const TrendChart: React.FC<TrendChartProps> = React.memo(({ title, data, 
       <div className="flex items-center justify-between mb-1">
         <span className="text-xs font-medium text-surface-600 dark:text-surface-300">{title}</span>
         {changePct != null && (
-        <span className={`text-xs font-semibold ${changePct >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+        <span className={`text-xs font-semibold ${good ? 'text-emerald-500' : 'text-rose-500'}`}>
           {changeSign}{changePct.toFixed(1)}%
           <span className="ml-0.5 text-[10px]">
             {changePct >= 0 ? '\u2197' : '\u2198'}
@@ -249,6 +264,7 @@ export const TrendSection: React.FC<TrendSectionProps> = React.memo(({
             data={unemploymentData}
             color="#f43f5e"
             formatValue={fmtUnemployment}
+            higherIsBetter={false}
           />
         )}
         {propertyPriceData && (
@@ -267,6 +283,7 @@ export const TrendSection: React.FC<TrendSectionProps> = React.memo(({
             color="#8b5cf6"
             formatValue={fmtCrime}
             unit="/1000"
+            higherIsBetter={false}
           />
         )}
       </div>

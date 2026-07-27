@@ -45,7 +45,7 @@ const CorrelationExplorer = lazy(() => import('./components/CorrelationExplorer'
 const RegionRankingTable = lazy(() => import('./components/RegionRankingTable').then(m => ({ default: m.RegionRankingTable })));
 import { useMapData } from './hooks/useMapData';
 import { useSearchIndex } from './hooks/useSearchIndex';
-import { useGridData, cellCentroid, clipGridToData, hasGridData } from './hooks/useGridData';
+import { useGridData, cellCentroid, clipGridToData, hasGridData, hasGridCells } from './hooks/useGridData';
 import { usePlanningOverlay, regionHasPlanningGeometry } from './hooks/usePlanningData';
 import { PlanningControls } from './components/PlanningControls';
 import { useFavorites } from './hooks/useFavorites';
@@ -343,8 +343,15 @@ const App: React.FC = () => {
   // overlay coexists with any active choropleth; the hook lazy-fetches only the
   // active region's planning shards while the toggle is on.
   const [planningEnabled, setPlanningEnabled] = useState<boolean>(!!initialUrl.planning);
-  const { features: planningOverlay } = usePlanningOverlay(cityFilter, planningEnabled);
+  // ER-3: `loading`/`error` were discarded, so a flaky shard rendered as an empty
+  // overlay that reads "nothing is planned here" — the opposite of the truth for
+  // someone checking a prospective home. The failed result is no longer cached, so
+  // a retry is just a remount of the hook's fetch: bump a nonce to force it.
+  const [planningRetryNonce, setPlanningRetryNonce] = useState(0);
+  const { features: planningOverlay, loading: planningLoading, error: planningError } =
+    usePlanningOverlay(cityFilter, planningEnabled, planningRetryNonce);
   const handlePlanningToggle = useCallback(() => setPlanningEnabled((v) => !v), []);
+  const handlePlanningRetry = useCallback(() => setPlanningRetryNonce((n) => n + 1), []);
 
   // Build a PNO→Feature lookup Map for O(1) feature access.
   // Replaces multiple O(n) .find() scans after quality index recomputation
@@ -490,6 +497,12 @@ const App: React.FC = () => {
       });
     return () => { cancelled = true; };
   }, [gridDataBboxClipped, gridClipGeometry]);
+  // CF-1: a regional grid (air quality, transit reachability — Helsinki bbox only)
+  // clipped to another region leaves an empty-but-non-null FeatureCollection. That
+  // is *not* an active grid: the map draws the postal choropleth instead, so every
+  // grid-conditional surface (fade-out opacity ramp, ▦ legend badge, "filter can't
+  // apply to grid cells" note) must key off cell count, not object identity.
+  const gridCellsVisible = hasGridCells(gridData);
   const [wizardResultPnos, setWizardResultPnos] = useState<string[]>([]);
   const [flyTarget, setFlyTarget] = useState<{ center: [number, number]; zoom?: number; bounds?: [number, number, number, number] } | null>(() => {
     // CF-1: an explicit shared viewport takes precedence over the city preset.
@@ -1837,9 +1850,9 @@ const App: React.FC = () => {
   // the all-Finland view and for regions without any plan/project geometry.
   const layerSelectorPlanningSlot = useMemo(() => (
     cityFilter !== 'all' && regionHasPlanningGeometry(cityFilter) ? (
-      <PlanningControls enabled={planningEnabled} region={cityFilter} onToggle={handlePlanningToggle} />
+      <PlanningControls enabled={planningEnabled} region={cityFilter} onToggle={handlePlanningToggle} loading={planningLoading} error={planningError} onRetry={handlePlanningRetry} />
     ) : null
-  ), [cityFilter, planningEnabled, handlePlanningToggle]);
+  ), [cityFilter, planningEnabled, handlePlanningToggle, planningLoading, planningError, handlePlanningRetry]);
   // Stable callbacks for NeighborhoodPanel props — prevents new closures on every render
   // which would defeat React.memo on the panel.
   const handleToggleFavorite = useCallback(() => {
@@ -2696,7 +2709,7 @@ const App: React.FC = () => {
           per-region), hidden behind the open area panel / split view / embed. */}
       {!IS_EMBED && !selected && !splitMode && cityFilter !== 'all' && regionHasPlanningGeometry(cityFilter) && (
         <div className="hidden md:block absolute top-[6.75rem] left-3 md:left-4 z-[5] w-52 md:w-64 pointer-events-auto">
-          <PlanningControls enabled={planningEnabled} region={cityFilter} onToggle={handlePlanningToggle} />
+          <PlanningControls enabled={planningEnabled} region={cityFilter} onToggle={handlePlanningToggle} loading={planningLoading} error={planningError} onRetry={handlePlanningRetry} />
         </div>
       )}
 
@@ -2770,7 +2783,7 @@ const App: React.FC = () => {
 
       {/* Legend — repositioned for mobile (MO2: suppressed on mobile when an area panel covers it;
           UX MO-2: also during the touch peek — the peek bar paints over the same bottom band) */}
-      <Legend layerId={activeLayer} colorblind={colorblind} layerConfig={effectiveLayer} lang={lang} gridLoading={gridLoading && hasGridData(activeLayer)} gridError={gridError && hasGridData(activeLayer)} hidden={!!selected || !!peek} subregionEstimate={priceFallbackValue != null} gridFilterInactive={hasGridData(activeLayer) && ((showFilter && filters.length > 0) || wizardResultPnos.length > 0)} />
+      <Legend layerId={activeLayer} colorblind={colorblind} layerConfig={effectiveLayer} lang={lang} gridLoading={gridLoading && hasGridData(activeLayer)} gridError={gridError && hasGridData(activeLayer)} hidden={!!selected || !!peek} subregionEstimate={priceFallbackValue != null} gridFilterInactive={gridCellsVisible && ((showFilter && filters.length > 0) || wizardResultPnos.length > 0)} gridActive={gridCellsVisible} />
 
       {/* PO-2: Time slider / historical playback (only when a time-series metric is active) */}
       {!IS_EMBED && timeYear != null && availableYears.length > 1 && (

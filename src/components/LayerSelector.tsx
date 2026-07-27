@@ -12,6 +12,17 @@ import { t, useI18nVersion, type Lang } from '../utils/i18n';
 import { useBottomSheet } from '../hooks/useBottomSheet';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useBackGesture } from '../hooks/useBackGesture';
+import { fold } from '../utils/slug';
+
+/**
+ * EM-1: does a layer's translated label match the (already folded) search query?
+ * Module-scope so the keyboard-nav flat list and the render path share one
+ * definition — they must agree exactly, or arrow keys walk rows that aren't
+ * rendered. Accent-folding both sides makes "vaesto"/"aanestys"/"ika" find the
+ * ä/ö labels, matching SearchBar and CitySelector.
+ */
+const labelMatches = (labelKey: string, foldedQuery: string) =>
+  !foldedQuery || fold(t(labelKey)).includes(foldedQuery);
 
 interface LayerSelectorProps {
   activeLayer: LayerId;
@@ -153,7 +164,14 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
 
   // PO-3: normalized search query. Declared above visibleLayers because the
   // keyboard-nav flat list must mirror the render path's visibility rules.
-  const searchQuery = layerSearch.toLowerCase().trim();
+  // EM-1: fold() (not toLowerCase) so "vaesto", "aanestys" and "ika" match the
+  // Finnish labels containing ä/ö — SearchBar and CitySelector already do this,
+  // and a plain lowercase compare made diacritic-free typing match nothing.
+  const searchQuery = fold(layerSearch.trim());
+  // EM-1: quality_index renders above the groups and belongs to none of them, so
+  // the "nothing matched" check has to account for it separately.
+  const qualityIndexLabelKey = LAYER_MAP.get('quality_index')?.labelKey;
+  const qualityIndexMatches = !!qualityIndexLabelKey && labelMatches(qualityIndexLabelKey, searchQuery);
 
   // Build flat list of visible layer IDs for keyboard navigation. Mirrors the
   // render path exactly: groups force-expand while searching, and each id must
@@ -166,7 +184,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
         if (isCollapsed) return [];
         return group.ids.filter((id) => {
           const layer = LAYER_MAP.get(id);
-          return layer ? (!searchQuery || t(layer.labelKey).toLowerCase().includes(searchQuery)) : false;
+          return layer ? labelMatches(layer.labelKey, searchQuery) : false;
         });
       }),
     [collapsed, searchQuery],
@@ -267,7 +285,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
       {(() => {
         const qLayer = LAYER_MAP.get('quality_index');
         if (!qLayer) return null;
-        if (searchQuery && !t(qLayer.labelKey).toLowerCase().includes(searchQuery)) return null;
+        if (!labelMatches(qLayer.labelKey, searchQuery)) return null;
         const isActive = qLayer.id === activeLayer;
         const showEditBtn = qLayer.id === 'quality_index' && onCustomizeQuality;
         return (
@@ -326,7 +344,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
         const groupLayers = group.ids
           .map((id) => LAYER_MAP.get(id))
           .filter(Boolean)
-          .filter((layer) => !searchQuery || t(layer!.labelKey).toLowerCase().includes(searchQuery));
+          .filter((layer) => labelMatches(layer!.labelKey, searchQuery));
         if (groupLayers.length === 0) return null;
         // PO-3: Auto-expand groups when searching
         const isCollapsed = searchQuery ? false : !!collapsed[group.labelKey];
@@ -398,6 +416,26 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
           </div>
         );
       })}
+      {/* EM-1: every group returns null when nothing matches, which rendered the
+          panel body as pure empty space below the input — on mobile, a text box
+          over blank white with no way to tell whether the query missed or the app
+          broke. The clear-search X above is the escape hatch; this is the
+          explanation. `visibleLayers` already mirrors the render path's filter,
+          and quality_index is checked separately because it sits outside every
+          LAYER_GROUP. */}
+      {searchQuery && visibleLayers.length === 0 && !qualityIndexMatches && (
+        <div className="px-3 py-6 text-center" role="status">
+          <p className="text-xs text-surface-500 dark:text-surface-400">
+            {t('layers.no_matches').replace('{query}', layerSearch.trim())}
+          </p>
+          <button
+            onClick={() => setLayerSearch('')}
+            className="mt-2 text-xs font-medium text-brand-600 dark:text-brand-400 hover:underline min-h-[44px] md:min-h-0"
+          >
+            {t('layers.clear_search')}
+          </button>
+        </div>
+      )}
     </div>
   );
 

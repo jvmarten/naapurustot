@@ -78,9 +78,14 @@ async function fetchJson(url: string): Promise<unknown> {
 export function usePlanningOverlay(
   region: string | undefined,
   enabled: boolean,
-): { features: FeatureCollection | null; loading: boolean } {
+  /** ER-3: bump to refetch after a failure (failed results are never cached). */
+  retryNonce = 0,
+): { features: FeatureCollection | null; loading: boolean; error: boolean } {
   const [features, setFeatures] = useState<FeatureCollection | null>(null);
   const [loading, setLoading] = useState(false);
+  // ER-3: a dropped shard used to render as "no plans here" — the exact wrong
+  // answer for someone checking whether a building site is planned next door.
+  const [error, setError] = useState(false);
   const active = enabled && !!region && region !== 'all' && regionHasPlanningGeometry(region);
 
   useEffect(() => {
@@ -90,44 +95,65 @@ export function usePlanningOverlay(
     }
     if (geoCache.has(region)) {
       setFeatures(geoCache.get(region)!);
+      setError(false);
       return;
     }
     let cancelled = false;
     setLoading(true);
+    setError(false);
     const want = [
       MANIFEST.projects.regions[region] ? shardUrl(MANIFEST.projects.shardPattern, region) : null,
       MANIFEST.plans.regions[region] ? shardUrl(MANIFEST.plans.shardPattern, region) : null,
     ].filter(Boolean) as string[];
+    // ER-3: remember whether *any* shard rejected. The per-shard `.catch(() => [])`
+    // below keeps a partial result usable, but the outcome must not be mistaken for
+    // a complete one.
+    let anyFailed = false;
     Promise.all(
-      want.map((u) => fetchJson(u).then((j) => (j as FeatureCollection).features ?? []).catch(() => [])),
+      want.map((u) =>
+        fetchJson(u)
+          .then((j) => (j as FeatureCollection).features ?? [])
+          .catch(() => {
+            anyFailed = true;
+            return [];
+          }),
+      ),
     )
       .then((groups) => {
         if (cancelled) return;
         const merged: FeatureCollection = { type: 'FeatureCollection', features: groups.flat() };
-        geoCache.set(region, merged);
+        // ER-3: only cache a complete result. Caching a partial/empty one pinned the
+        // blank overlay for the whole session — toggling off/on or switching region
+        // and back kept showing "nothing here".
+        if (!anyFailed) geoCache.set(region, merged);
         setFeatures(merged);
+        setError(anyFailed);
         setLoading(false);
       })
       .catch(() => {
         if (cancelled) return;
         setFeatures({ type: 'FeatureCollection', features: [] });
+        setError(true);
         setLoading(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [region, active]);
+  }, [region, active, retryNonce]);
 
-  return { features: active ? features : null, loading };
+  return { features: active ? features : null, loading, error: active && error };
 }
 
 /** CF-3: the selected area's nearby planning entries (panel list). */
 export function usePlanningArea(
   region: string | undefined,
   pno: string | null,
-): { entries: PlanningEntry[] | null; loading: boolean } {
+): { entries: PlanningEntry[] | null; loading: boolean; error: boolean } {
   const [index, setIndex] = useState<Record<string, PlanningEntry[]> | null>(null);
   const [loading, setLoading] = useState(false);
+  // ER-3: same honesty problem as the overlay — a failed shard rendered as
+  // "no nearby plans" in the panel.
+  const [error, setError] = useState(false);
   const hasShard = !!region && region !== 'all' && (MANIFEST.area.regions[region] ?? 0) > 0;
 
   useEffect(() => {
@@ -137,10 +163,12 @@ export function usePlanningArea(
     }
     if (areaCache.has(region)) {
       setIndex(areaCache.get(region)!);
+      setError(false);
       return;
     }
     let cancelled = false;
     setLoading(true);
+    setError(false);
     fetchJson(shardUrl(MANIFEST.area.shardPattern, region))
       .then((j) => {
         if (cancelled) return;
@@ -151,7 +179,10 @@ export function usePlanningArea(
       })
       .catch(() => {
         if (cancelled) return;
-        setIndex({});
+        // Leave `index` null (not `{}`): an empty index is indistinguishable from
+        // "this area has no entries", and it must not be cached either.
+        setIndex(null);
+        setError(true);
         setLoading(false);
       });
     return () => {
@@ -159,5 +190,5 @@ export function usePlanningArea(
     };
   }, [region, hasShard]);
 
-  return { entries: pno && index ? (index[pno] ?? null) : null, loading };
+  return { entries: pno && index ? (index[pno] ?? null) : null, loading, error: hasShard && error };
 }

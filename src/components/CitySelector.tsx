@@ -53,6 +53,7 @@ export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, on
   // native <select> at least supports type-to-jump). Accent-folded like SearchBar.
   const [filter, setFilter] = useState('');
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const options = OPTIONS;
   const foldedFilter = fold(filter.trim());
   const visibleOptions = foldedFilter
@@ -65,8 +66,23 @@ export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, on
     const handleClick = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
+    // AY-3: the popover was dismissable by outside-click only, so a keyboard or
+    // screen-reader user who opened it had no way out. Mirrors ToolsDropdown:
+    // this document listener runs before App's window-level Escape handler, and
+    // stopPropagation keeps that handler from also deselecting an area on the
+    // same press. Focus returns to the trigger so the tab order isn't lost.
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      setOpen(false);
+      triggerRef.current?.focus();
+    };
     document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('keydown', handleKey);
+    };
   }, [open]);
 
   return (
@@ -89,6 +105,7 @@ export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, on
       {/* Mobile: icon button + scrollable dropdown */}
       <div data-tour-id="cities" ref={ref} className="relative md:hidden">
         <button
+          ref={triggerRef}
           onClick={() => setOpen((prev) => !prev)}
           className={`flex gap-1.5 px-2.5 py-2 rounded-lg text-xs font-semibold transition-all items-center justify-center
                      min-h-[44px] md:min-h-0 cursor-pointer
@@ -96,8 +113,14 @@ export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, on
                        ? 'bg-brand-500/20 text-brand-700 dark:text-brand-300 border border-brand-500/30'
                        : 'text-surface-600 dark:text-white/70 hover:text-surface-900 dark:hover:text-white hover:bg-surface-100 dark:hover:bg-white/10 border border-transparent'
                      }`}
-          aria-label={t('city.select')}
+          // AY-3: the label is the control's only text (the globe is icon-only), so
+          // it has to carry the current region — otherwise a screen-reader user has
+          // no way to know which region is active without opening the list. The
+          // popup/expanded pair announces that this opens something, and its state.
+          aria-label={`${t('city.select')}: ${t(`city.${value}`)}`}
           title={t('city.select')}
+          aria-haspopup="listbox"
+          aria-expanded={open}
         >
           {/* Simple globe icon (stroke) — icon only; the region name is intentionally
               omitted on mobile to keep the control a compact, unobtrusive icon. */}
