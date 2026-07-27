@@ -570,7 +570,12 @@ def check_registry_vintage(features: list) -> list[str]:
 # present a distributed estimate as a direct postal-level measurement. Keyed to the
 # distribution logic in the named fetch script.
 MUNICIPALITY_DISTRIBUTED_PROXIES = {
-    "crime_index": "fetch_crime_index.py distribute_to_postal_codes()",
+    # Not distributed — the municipality's own figure, applied unchanged to each
+    # of its postal codes (fetch_crime_index.py assign_to_postal_codes). Still a
+    # proxy: it is a municipal statistic shown on postal geography, never a
+    # measurement of the postal area. Finland publishes no crime statistic below
+    # municipality level, so there is nothing finer to move to.
+    "crime_index": "fetch_crime_index.py assign_to_postal_codes() (municipal figure per postal code)",
     "avg_construction_year": "fetch_building_age.py refine_to_postal_codes()",
     "broadband_coverage_pct": "fetch_broadband_coverage.py (municipality coverage assigned to each postal code)",
     # 2023 parliamentary election (eduskuntavaalit): municipality result applied to

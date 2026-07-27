@@ -15,10 +15,10 @@ Method:
      Statistics Finland (2024 data, or latest available year).
   2. Load postal code areas from the GeoJSON to get the postal-code-to-
      municipality mapping and population/density/income data.
-  3. Distribute the municipality-level rate across postal codes using
-     population density, unemployment rate, and rental rate as proxies for
-     intra-municipality crime variation (denser, higher-unemployment,
-     higher-rental areas tend to have higher crime rates).
+  3. Give every postal code in a municipality that municipality's rate,
+     unchanged. Finland publishes no crime statistic below municipality level,
+     so any within-municipality variation would be invented — see
+     assign_to_postal_codes().
   4. Save results to scripts/crime_index.json, and the statistics year they
      came from to scripts/crime_index_meta.json.
 
@@ -29,8 +29,8 @@ source at roughly half the scale of the rest of the country. Do not
 reintroduce per-region preservation — mixing sources inside one layer puts a
 false discontinuity on the map at every municipal border.
 
-Because the postal-code values are a municipality figure distributed to a finer
-granularity than the source publishes, crime_index is flagged is_proxy:true in
+Because the postal-code values ARE the municipality figure — shown on postal
+geography rather than measured there — crime_index is flagged is_proxy:true in
 src/data/data_sources.json (enforced by validate_data.py check_distributed_proxy_flags).
 
 Output: scripts/crime_index.json
@@ -374,154 +374,73 @@ def _safe_float(v) -> float | None:
 
 
 # ---------------------------------------------------------------------------
-# Distribute municipality-level rates to postal codes
+# Apply municipality-level rates to postal codes
 # ---------------------------------------------------------------------------
 
-def distribute_to_postal_codes(
+def assign_to_postal_codes(
     muni_rates: dict[str, float],
     postal_records: list[dict],
 ) -> dict[str, float]:
-    """Distribute municipality-level crime rates to postal codes using
-    population density, unemployment rate, and rental rate as proxies.
+    """Give every postal code its municipality's official crime rate, unchanged.
 
-    Higher population density, higher unemployment, and higher rental rate
-    (indicating more urban/commercial areas) correlate with higher crime.
+    This used to *spread* the municipal figure across a municipality's postal
+    codes with a composite "crime proxy score" built from population density,
+    unemployment rate and rental rate, scaled so the population-weighted mean
+    came back to the official rate. The spread is gone, because no part of it
+    was an observation of crime:
 
-    For each municipality, we:
-    1. Compute a composite "crime proxy score" for each postal code area
-       from normalized density, unemployment, and rental rate.
-    2. Scale the scores so that the population-weighted mean across all
-       postal codes in the municipality equals the official municipality rate.
-    3. Clamp extreme values to prevent unreasonable outliers.
+      - No crime statistic exists below municipality level in Finland. StatFin
+        table 13h4's area variable offers 330 codes -- 1 whole country, 19
+        maakunta, 308 municipalities -- and no postal codes. There is therefore
+        nothing a within-municipality estimate could ever be validated against.
+      - Measured on the shipped data, the variation it produced was largely a
+        restatement of rent and density: within-municipality correlations were
+        rental_rate +0.58, unemployment +0.43, population +0.33, density +0.27.
+        Two postal codes in one city differed on "crime" mostly because they
+        differed on rent.
+      - It read as precision the source cannot support. 289 of the 308
+        municipalities have more than one postal area, so nearly every
+        multi-area municipality carried invented spread -- rendered to one
+        decimal per area, and feeding the Quality Index (weight 26), the wizard
+        fit score and the "safest areas" rankings as though it were observed.
+
+    Flattening loses no real information: the old spread was already normalised
+    so each municipality's population-weighted mean equalled the official rate,
+    so the municipal signal is identical either way. Only the unvalidatable
+    within-city variation goes.
+
+    crime_index stays is_proxy:true -- it is still a municipal figure shown on
+    postal geography, not a measurement of the postal area. That is exactly how
+    voter_turnout_pct and broadband_coverage_pct already work.
+
+    Do not reintroduce a spread without a real sub-municipal source.
 
     Args:
         muni_rates: {muni_code: crime_rate_per_1000}
-        postal_records: list of postal code records with proxy variables
+        postal_records: postal code records; needs `pno` and `kunta`
 
     Returns:
-        {postal_code: estimated_crime_rate_per_1000}
+        {postal_code: municipality_crime_rate_per_1000}
     """
-    logger.info("Distributing crime rates to postal codes...")
-
-    # Group postal codes by municipality
-    muni_groups: dict[str, list[dict]] = {}
-    for rec in postal_records:
-        kunta = rec["kunta"]
-        if kunta in muni_rates:
-            muni_groups.setdefault(kunta, []).append(rec)
+    logger.info("Applying municipal crime rates to postal codes...")
 
     result: dict[str, float] = {}
-
-    for muni_code, records in muni_groups.items():
-        muni_rate = muni_rates[muni_code]
-
-        if len(records) == 1:
-            # Only one postal code area in this municipality
-            result[records[0]["pno"]] = round(muni_rate, 1)
+    per_muni: dict[str, int] = {}
+    for rec in postal_records:
+        kunta = rec["kunta"]
+        rate = muni_rates.get(kunta)
+        if rate is None:
             continue
+        result[rec["pno"]] = round(rate, 1)
+        per_muni[kunta] = per_muni.get(kunta, 0) + 1
 
-        # Compute proxy scores for each postal code
-        # Use population density, unemployment, and rental rate
-        scores = []
-        for rec in records:
-            score = _compute_crime_proxy_score(rec)
-            scores.append(score)
-
-        # Normalize scores relative to population-weighted average
-        # so that weighted mean of estimates equals the municipality rate
-        total_pop = sum(rec["he_vakiy"] or 0 for rec in records)
-        if total_pop <= 0:
-            # Fall back to equal distribution if no population data
-            for rec in records:
-                result[rec["pno"]] = round(muni_rate, 1)
-            continue
-
-        # Compute population-weighted mean score
-        weighted_score_sum = sum(
-            score * (rec["he_vakiy"] or 0)
-            for score, rec in zip(scores, records)
-        )
-        mean_score = weighted_score_sum / total_pop
-
-        if mean_score <= 0:
-            mean_score = 1.0
-
-        # Scale each postal code's rate
-        for score, rec in zip(scores, records):
-            ratio = score / mean_score
-            estimated_rate = muni_rate * ratio
-
-            # Clamp to reasonable bounds:
-            # - minimum 5 per 1,000 (even quiet residential areas have some crime)
-            # - maximum 4x the municipality rate (city centers)
-            estimated_rate = max(5.0, min(muni_rate * 4.0, estimated_rate))
-            result[rec["pno"]] = round(estimated_rate, 1)
-
-        # Log some stats for this municipality
-        rates = [result[rec["pno"]] for rec in records]
+    if per_muni:
+        biggest = max(per_muni, key=lambda k: per_muni[k])
         logger.info(
-            "  %s: muni_rate=%.1f, distributed to %d areas "
-            "(min=%.1f, max=%.1f, mean=%.1f)",
-            muni_code, muni_rate, len(records),
-            min(rates), max(rates),
-            sum(r * (rec["he_vakiy"] or 0) for r, rec in zip(rates, records))
-            / total_pop,
+            "  %d postal codes across %d municipalities (largest: %s with %d areas)",
+            len(result), len(per_muni), biggest, per_muni[biggest],
         )
-
     return result
-
-
-def _compute_crime_proxy_score(rec: dict) -> float:
-    """Compute a composite proxy score for crime likelihood from postal code
-    characteristics.
-
-    Higher scores indicate areas likely to have higher crime rates.
-    Uses three signals weighted by their typical correlation with crime:
-      - Population density (weight 0.5): denser areas have more opportunity
-        for crime, more commercial activity, nightlife, etc.
-      - Unemployment rate (weight 0.3): unemployment correlates with property
-        crime and some violent crime.
-      - Rental rate (weight 0.2): high rental share indicates transient
-        population, commercial centers, less community cohesion.
-
-    All inputs are log-transformed or scaled to reduce the effect of extreme
-    outliers (e.g., a single very dense city center postal code).
-    """
-    import math
-
-    score = 1.0  # base score
-
-    # Population density: log-scale, centered around typical suburban density
-    # Finnish postal codes range from ~10 to ~25,000 people/km2
-    density = rec.get("population_density")
-    if density and density > 0:
-        # Log transform: ln(density/500) gives 0 at 500/km2 (typical suburb)
-        # positive for denser, negative for sparser
-        density_factor = math.log(density / 500.0)
-        # Scale to a multiplier: each unit of log adds ~20% to crime score
-        score += 0.5 * density_factor * 0.2
-    else:
-        # No density data — use neutral score
-        pass
-
-    # Unemployment rate: higher unemployment -> higher crime
-    # Finnish rates typically range 2-15%
-    unemployment = rec.get("unemployment_rate")
-    if unemployment is not None and unemployment >= 0:
-        # Center around 6% (typical average)
-        unemp_factor = (unemployment - 6.0) / 6.0
-        score += 0.3 * unemp_factor * 0.5
-
-    # Rental rate: higher rental share -> more transient, urban, commercial
-    # Finnish rates range ~15-80%
-    rental_rate = rec.get("rental_rate")
-    if rental_rate is not None and rental_rate > 0:
-        # Center around 35% (typical average)
-        rental_factor = (rental_rate - 35.0) / 35.0
-        score += 0.2 * rental_factor * 0.5
-
-    # Ensure score is positive
-    return max(0.1, score)
 
 
 # ---------------------------------------------------------------------------
@@ -635,7 +554,7 @@ def main():
         sys.exit(1)
 
     # Step 3: Distribute to postal codes
-    new_data = distribute_to_postal_codes(muni_rates, postal_records)
+    new_data = assign_to_postal_codes(muni_rates, postal_records)
     if not new_data:
         logger.error("Distribution produced no results. Exiting without writing.")
         sys.exit(1)
