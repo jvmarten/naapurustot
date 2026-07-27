@@ -93,10 +93,12 @@ const SplitPaneTooltip: React.FC<{
  * IN-1: compact per-pane legend with a coverage-scope badge. Smaller than the
  * main Legend (no proxy/freshness rows) so it fits two side-by-side panes.
  */
-const SplitPaneLegend: React.FC<{ layer: LayerConfig; side: 'left' | 'right'; gridLoading?: boolean }> = ({ layer, side, gridLoading }) => {
+const SplitPaneLegend: React.FC<{ layer: LayerConfig; side: 'left' | 'right'; gridLoading?: boolean; gridActive?: boolean }> = ({ layer, side, gridLoading, gridActive }) => {
   useI18nVersion();
   const n = layer.stops.length;
-  const grid = getGridInfo(layer.id);
+  // CF-1: same gate as the main Legend — outside a regional grid's coverage this
+  // pane draws the postal choropleth, so the ▦ badge must not claim ~250 m detail.
+  const grid = gridActive === false ? undefined : getGridInfo(layer.id);
   const coverage = getCoveragePct(layer.property);
   const lowCoverage = isLowCoverage(layer.property);
   const coverageLabel = coverage != null ? formatCoveragePct(coverage) : null;
@@ -956,7 +958,7 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
             </div>
           )}
         </div>
-        <SplitPaneLegend layer={leftConfig} side="left" gridLoading={leftGridLoading} />
+        <SplitPaneLegend layer={leftConfig} side="left" gridLoading={leftGridLoading} gridActive={hasGridCells(leftGridData)} />
         {leftHover && (
           <SplitPaneTooltip
             hover={leftHover}
@@ -984,7 +986,7 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
             </div>
           )}
         </div>
-        <SplitPaneLegend layer={rightConfig} side="right" gridLoading={rightGridLoading} />
+        <SplitPaneLegend layer={rightConfig} side="right" gridLoading={rightGridLoading} gridActive={hasGridCells(rightGridData)} />
         {rightHover && (
           <SplitPaneTooltip
             hover={rightHover}
