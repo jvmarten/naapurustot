@@ -1245,8 +1245,15 @@ def join_air_quality(gdf, aq_data):
 # Phase 3: OSM-based data (Overpass API)
 # ---------------------------------------------------------------------------
 
-def _overpass_query(query: str, label: str) -> list:
-    """Execute an Overpass API query and return elements, with cache fallback."""
+def _overpass_query(query: str, label: str) -> list | None:
+    """Execute an Overpass API query and return elements, with cache fallback.
+
+    Returns ``None`` — not ``[]`` — when the request failed and no cache exists.
+    The two are very different: ``[]`` means "this bbox genuinely holds none of
+    these POIs", while ``None`` means "we do not know". Collapsing them is what
+    let five failed grocery regions ship as 237 postal codes with a measured-
+    looking density of 0.
+    """
     # Build a stable cache key from the label
     cache_key = f"overpass_{label.replace(' ', '_').replace('(', '').replace(')', '').replace(',', '')}"
     try:
@@ -1266,20 +1273,37 @@ def _overpass_query(query: str, label: str) -> list:
         if cached is not None:
             logger.info("  Using cached data for %s (%s elements)", label, len(cached))
             return cached
-        return []
+        return None
 
 
 def _overpass_query_all_regions(query_template: str, label: str) -> list:
     """Run an Overpass query for all region bounding boxes and combine results.
 
     The *query_template* should use ``{BBOX}`` as a placeholder for the bbox string.
+
+    Aborts if any region could not be fetched. A partial national POI set is
+    indistinguishable downstream from a complete one — the join writes 0 for
+    every postal code in the missing regions and nothing flags it — so the only
+    safe response to an unfetchable region is to stop.
     """
     all_elements: list = []
+    unfetched: list[str] = []
     for bbox in ALL_BBOXES:
         query = query_template.replace("{BBOX}", bbox)
         _rate_limit()
         elements = _overpass_query(query, f"{label} ({bbox})")
+        if elements is None:
+            unfetched.append(bbox)
+            continue
         all_elements.extend(elements)
+
+    if unfetched:
+        raise RuntimeError(
+            f"{label}: {len(unfetched)} of {len(ALL_BBOXES)} regions could not be "
+            f"fetched and have no cache: {', '.join(unfetched)}. Refusing to "
+            f"continue — every postal code in them would be written as a "
+            f"measured 0. Run `python scripts/refetch_missing_overpass.py` and retry."
+        )
     # Deduplicate by element id
     seen: set = set()
     unique: list = []

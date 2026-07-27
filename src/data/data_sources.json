@@ -15,6 +15,16 @@
       "url": "https://www.hsy.fi/",
       "license": "CC BY 4.0"
     },
+    "copernicus": {
+      "name": "Copernicus Land Monitoring Service / EEA",
+      "url": "https://land.copernicus.eu/en/products/high-resolution-layer-tree-cover-density",
+      "license": "Copernicus data — free, full and open (attribution required)"
+    },
+    "fmi": {
+      "name": "Ilmatieteen laitos / HSY",
+      "url": "https://en.ilmatieteenlaitos.fi/open-data",
+      "license": "CC BY 4.0"
+    },
     "poliisi": {
       "name": "Poliisi",
       "url": "https://www.poliisi.fi/",
@@ -271,15 +281,16 @@
     },
     "air_quality_index": {
       "source": "HSY / FMI (ENFUSER, SILAM)",
-      "publisher": "hsy",
-      "vintage": 2024,
+      "publisher": "fmi",
+      "vintage": 2026,
       "granularity": "postal",
-      "is_proxy": false
+      "is_proxy": true,
+      "note": "note.air_quality_index"
     },
     "crime_index": {
-      "source": "Poliisi",
-      "publisher": "poliisi",
-      "vintage": 2023,
+      "source": "Tilastokeskus (StatFin 13h4)",
+      "publisher": "tilastokeskus",
+      "vintage": 2025,
       "granularity": "postal",
       "is_proxy": true,
       "note": "note.crime_index"
@@ -418,11 +429,12 @@
       "is_proxy": false
     },
     "tree_canopy_pct": {
-      "source": "HSY (LiDAR maanpeite)",
-      "publisher": "hsy",
-      "vintage": 2024,
+      "source": "Copernicus HRL Tree Cover Density (HSY LiDAR pääkaupunkiseudulla)",
+      "publisher": "copernicus",
+      "vintage": 2018,
       "granularity": "postal",
-      "is_proxy": false
+      "is_proxy": false,
+      "note": "note.tree_canopy_pct"
     },
     "transit_reachability_score": {
       "source": "Helsingin seudun matka-aikamatriisi 2023 (Helsingin yliopisto, Digital Geography Lab; Zenodo 11220980)",
@@ -662,9 +674,9 @@
       "panel": false
     },
     "crime_index_change_pct": {
-      "source": "Poliisi",
-      "publisher": "poliisi",
-      "vintage": 2023,
+      "source": "Tilastokeskus (StatFin 13h4)",
+      "publisher": "tilastokeskus",
+      "vintage": 2025,
       "granularity": "postal",
       "is_proxy": true,
       "panel": false

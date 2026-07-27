@@ -155,6 +155,41 @@ describe('PO-5 data-updates changelog (Atom feed source)', () => {
     expect(computeDataUpdateEvents({}, { fresh: { vintage: 2024, coverage_pct: 60 } }, '2026-06-10')).toHaveLength(0);
   });
 
+  it('calls a backwards vintage move a correction, never a refresh', () => {
+    // tree_canopy_pct was registered as HSY 2024 while 94.5 % of it is actually
+    // Copernicus HRL 2018. Correcting the year must not publish "refreshed to
+    // 2018 vintage" to the changelog and the Atom feed — that states the
+    // opposite of what happened.
+    const [event] = computeDataUpdateEvents(
+      { tree_canopy_pct: { vintage: 2024, coverage_pct: 100 } },
+      { tree_canopy_pct: { vintage: 2018, coverage_pct: 100 } },
+      '2026-07-27',
+    );
+    expect(event.type).toBe('vintage_correction');
+    expect(event.title).toContain('corrected');
+    expect(event.title).not.toContain('refreshed');
+  });
+
+  it('still calls a forwards vintage move a refresh', () => {
+    const [event] = computeDataUpdateEvents(
+      { crime_index: { vintage: 2023, coverage_pct: 100 } },
+      { crime_index: { vintage: 2025, coverage_pct: 100 } },
+      '2026-07-27',
+    );
+    expect(event.type).toBe('vintage');
+    expect(event.title).toContain('refreshed');
+  });
+
+  it('compares the newest year named by a range vintage', () => {
+    // "2012–2022" -> 2020 is backwards even though 2012 < 2020.
+    const [event] = computeDataUpdateEvents(
+      { noise_pollution: { vintage: '2012–2022', coverage_pct: 26 } },
+      { noise_pollution: { vintage: 2020, coverage_pct: 26 } },
+      '2026-07-27',
+    );
+    expect(event.type).toBe('vintage_correction');
+  });
+
   it('mergeDataUpdates prepends newest events and bounds the log', () => {
     const existing = Array.from({ length: 5 }, (_, i) => ({ metric: `old${i}` }));
     const merged = mergeDataUpdates(existing, [{ metric: 'new1' }, { metric: 'new2' }], 4);

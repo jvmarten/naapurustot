@@ -1,6 +1,6 @@
 {
-  "generated": "2026-07-24T09:46:06.822Z",
-  "source_hash": "611084e5593c536a",
+  "generated": "2026-07-27T13:00:12.182Z",
+  "source_hash": "c00806bfd4f1a877",
   "rows_total": 3018,
   "metrics": {
     "active_plan_count": {
@@ -13,9 +13,9 @@
     },
     "air_quality_index": {
       "source": "HSY / FMI (ENFUSER, SILAM)",
-      "vintage": 2024,
+      "vintage": 2026,
       "granularity": "postal",
-      "is_proxy": false,
+      "is_proxy": true,
       "row_count": 3018,
       "coverage_pct": 100
     },
@@ -60,16 +60,16 @@
       "coverage_pct": 100
     },
     "crime_index": {
-      "source": "Poliisi",
-      "vintage": 2023,
+      "source": "Tilastokeskus (StatFin 13h4)",
+      "vintage": 2025,
       "granularity": "postal",
       "is_proxy": true,
       "row_count": 3018,
       "coverage_pct": 100
     },
     "crime_index_change_pct": {
-      "source": "Poliisi",
-      "vintage": 2023,
+      "source": "Tilastokeskus (StatFin 13h4)",
+      "vintage": 2025,
       "granularity": "postal",
       "is_proxy": true,
       "row_count": 3017,
@@ -588,8 +588,8 @@
       "coverage_pct": 100
     },
     "tree_canopy_pct": {
-      "source": "HSY (LiDAR maanpeite)",
-      "vintage": 2024,
+      "source": "Copernicus HRL Tree Cover Density (HSY LiDAR pääkaupunkiseudulla)",
+      "vintage": 2018,
       "granularity": "postal",
       "is_proxy": false,
       "row_count": 3018,

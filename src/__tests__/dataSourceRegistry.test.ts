@@ -99,8 +99,29 @@ describe('Data-source registry (IN-2)', () => {
 
   it('preserves attribution for a sample of pre-existing layers (no display regression)', () => {
     expect(METRIC_SOURCES.hr_mtu).toEqual({ source: 'Tilastokeskus (Paavo)', year: 2024 });
-    expect(METRIC_SOURCES.crime_index).toEqual({ source: 'Poliisi', year: 2023 });
+    expect(METRIC_SOURCES.crime_index).toEqual({
+      source: 'Tilastokeskus (StatFin 13h4)',
+      year: 2025,
+    });
     expect(METRIC_SOURCES.noise_pollution.year).toBe('2012–2022');
+  });
+
+  it('attributes tree canopy to Copernicus, and dates it to the year it was captured', () => {
+    // 2,851 of 3,018 areas (94.5 %) come from Copernicus HRL Tree Cover Density
+    // 2018; only the 167 capital-region areas use HSY's 2024 LiDAR land cover.
+    // The vintage must be 2018, not a "2018–2024" range: latestVintageYear takes
+    // Math.max over every 4-digit match, so a range would keep the freshness
+    // badge lit over eight-year-old data for 94.5 % of the country.
+    expect(METRIC_SOURCES.tree_canopy_pct.year).toBe(2018);
+    expect(DATA_SOURCE_METRICS.tree_canopy_pct.publisher).toBe('copernicus');
+    expect(latestVintageYear(DATA_SOURCE_METRICS.tree_canopy_pct.vintage)).toBe(2018);
+  });
+
+  it('flags modelled air quality as a proxy (no area has a station reading)', () => {
+    // Every shipped value is model output — SILAM nationally, ENFUSER in the
+    // capital region. The fabricated Turku distance gradient and the hardcoded
+    // Tampere 20.0 baseline are gone; nothing here is a measurement of the area.
+    expect(getMetricSource('air_quality_index')?.isProxy).toBe(true);
   });
 
   it('flags transit_reachability and light_pollution as proxy/estimate (PO-2)', () => {

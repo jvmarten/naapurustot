@@ -1,5 +1,37 @@
 [
   {
+    "date": "2026-07-27",
+    "metric": "air_quality_index",
+    "type": "vintage",
+    "from": 2024,
+    "to": 2026,
+    "title": "air_quality_index refreshed to 2026 vintage"
+  },
+  {
+    "date": "2026-07-27",
+    "metric": "crime_index",
+    "type": "vintage",
+    "from": 2023,
+    "to": 2025,
+    "title": "crime_index refreshed to 2025 vintage"
+  },
+  {
+    "date": "2026-07-27",
+    "metric": "crime_index_change_pct",
+    "type": "vintage",
+    "from": 2023,
+    "to": 2025,
+    "title": "crime_index_change_pct refreshed to 2025 vintage"
+  },
+  {
+    "date": "2026-07-27",
+    "metric": "tree_canopy_pct",
+    "type": "vintage_correction",
+    "from": 2024,
+    "to": 2018,
+    "title": "tree_canopy_pct vintage corrected to 2018"
+  },
+  {
     "date": "2026-07-24",
     "metric": "noise_pollution",
     "type": "coverage",
