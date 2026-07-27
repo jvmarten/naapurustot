@@ -33,6 +33,14 @@ jobs:
             export SENTRY_DSN SENTRY_RELEASE
             docker compose build api
             docker compose up -d
+            # backup.sh is a bind mount (docker-compose.yml: ./backup.sh:/backup.sh:ro),
+            # so editing it changes no service config and `up -d` will NOT recreate
+            # db-backup — the running container stays inside its `while true; sleep
+            # 86400` loop on the old script indefinitely. Worse, `sh` reads a script
+            # by byte offset, so replacing the file under a live shell can mis-parse
+            # mid-loop. Force the recreate so a change to the backup logic actually
+            # takes effect.
+            docker compose up -d --force-recreate db-backup
             # Ensure the Umami website entry exists. Idempotent — uses
             # ON CONFLICT DO NOTHING, so it's a no-op when already seeded
             # but restores it after any DB reset.
@@ -62,3 +70,31 @@ jobs:
               docker compose logs --tail=100 api
               exit 1
             fi
+
+  # Nothing anywhere watched these workflows. There is no PR to annotate and no
+  # webhook, and the only two `if: failure()` steps in the whole tree were an
+  # artifact upload and issue-to-pr. A deploy-only failure -- the card rasterizer
+  # OOMing, an expired SENTRY_AUTH_TOKEN, an upload timeout -- therefore stopped
+  # every merged fix from reaching visitors while CI stayed green on every
+  # branch, and the earliest automated detector was health-check's 200-DAY
+  # data-age threshold. Open an issue instead.
+  notify-failure:
+    needs: [deploy]
+    if: failure()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Open an issue for the failed run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cat > body.md <<EOF
+          deploy-server.yml failed on ${{ github.ref_name }}.
+
+          Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          The API droplet may be running old code, or the post-deploy health gate never saw a 200. Accounts and sync are affected.
+          EOF
+          gh issue create --repo "$GITHUB_REPOSITORY"             --title "Server deploy failed (run ${{ github.run_id }})"             --body-file body.md             || echo "::warning::could not open an issue for this failed run"

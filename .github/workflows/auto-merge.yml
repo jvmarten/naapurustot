@@ -13,6 +13,9 @@ on:
 permissions:
   contents: write
   actions: write
+  # So a failed deploy dispatch can open an issue rather than only logging a
+  # warning nobody reads — that dispatch is the only live path to a deploy.
+  issues: write
 
 concurrency:
   group: auto-merge-to-main
@@ -371,11 +374,37 @@ jobs:
       # Dispatches are best-effort and run after the merge has already landed: a
       # transient GitHub API 500 (or a deploy workflow's own failure) must NOT fail the
       # post-merge job — the next merge re-triggers them. So `if: always()` + `|| echo`.
+      # Retry before giving up, and make a give-up visible. This dispatch is the
+      # ONLY live path to a deploy (deploy.yml's workflow_run trigger can never
+      # fire, because this job pushes main with GITHUB_TOKEN). A bare `|| echo`
+      # meant a transient API error produced no deploy run at all — so there was
+      # nothing red anywhere to notice, and the site silently stopped updating.
       - name: Trigger deploy workflow
         if: success()
-        run: gh workflow run deploy.yml --ref main || echo "deploy dispatch failed (transient) — non-fatal; next merge re-triggers"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for attempt in 1 2 3; do
+            if gh workflow run deploy.yml --ref main; then
+              echo "deploy dispatched (attempt $attempt)"
+              exit 0
+            fi
+            echo "deploy dispatch attempt $attempt failed"
+            sleep $((attempt * 5))
+          done
+          echo "::error::deploy dispatch failed 3 times — the site will NOT update until a deploy runs"
+          cat > body.md <<EOF
+          The merge to main succeeded but dispatching \`deploy.yml\` failed three times,
+          so no deploy run exists and the published site is now behind main.
+
+          Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          Fix: re-run \`deploy.yml\` manually (Actions -> Deploy to GitHub Pages -> Run workflow).
+          EOF
+          gh issue create --repo "$GITHUB_REPOSITORY" \
+            --title "Deploy dispatch failed after merge (run ${{ github.run_id }})" \
+            --body-file body.md \
+            || echo "::warning::could not open an issue for the failed dispatch"
 
       # IN-2: deploy-server.yml's push trigger can never fire (GITHUB_TOKEN pushes are
       # suppressed), so dispatch it explicitly when the merged diff touched server/**.

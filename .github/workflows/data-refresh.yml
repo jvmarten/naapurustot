@@ -186,3 +186,31 @@ jobs:
           # Hand off to the standard gate+merge pipeline.
           gh workflow run auto-merge.yml --ref "$BRANCH"
           echo "Dispatched auto-merge for $BRANCH"
+
+  # Nothing anywhere watched these workflows. There is no PR to annotate and no
+  # webhook, and the only two `if: failure()` steps in the whole tree were an
+  # artifact upload and issue-to-pr. A deploy-only failure -- the card rasterizer
+  # OOMing, an expired SENTRY_AUTH_TOKEN, an upload timeout -- therefore stopped
+  # every merged fix from reaching visitors while CI stayed green on every
+  # branch, and the earliest automated detector was health-check's 200-DAY
+  # data-age threshold. Open an issue instead.
+  notify-failure:
+    needs: [refresh]
+    if: failure()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Open an issue for the failed run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cat > body.md <<EOF
+          data-refresh.yml failed on ${{ github.ref_name }}.
+
+          Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          Source data was not refreshed. This chain is unattended, so nobody is watching it fail.
+          EOF
+          gh issue create --repo "$GITHUB_REPOSITORY"             --title "Scheduled data refresh failed (run ${{ github.run_id }})"             --body-file body.md             || echo "::warning::could not open an issue for this failed run"
