@@ -272,7 +272,9 @@ const App: React.FC = () => {
   // Finland regardless of the observed subregion. CF-8: a small dedicated artifact
   // (~40 KB gz), not the full national set, so it loads eagerly without bloating the
   // slim all-Finland landing.
-  const searchIndex = useSearchIndex();
+  // ER-1: `failed`/`retry` let SearchBar replace a permanent fake "Ladataan…" with
+  // a real retry when the 40 KB index request is dropped.
+  const { index: searchIndex, failed: searchIndexFailed, retry: retrySearchIndex } = useSearchIndex();
 
   // CF-8: in aggregate mode (`data` is null) the all-cities "metro average" comes
   // from the prebuilt national averages; otherwise from the processed dataset.
@@ -613,6 +615,26 @@ const App: React.FC = () => {
     if (id != null && prevUserIdRef.current !== id) resetSyncStatus();
     prevUserIdRef.current = id;
   }, [user?.id]);
+  // CF-3: "Delete account" promised "this permanently deletes your account and all
+  // saved data (favorites, shortlist, notes, presets)" but `deleteAccount` was passed
+  // straight through, so none of the six local stores were cleared — every starred
+  // area, note and shortlist entry survived on the device, and useFavorites' merge
+  // then uploaded those survivors into the *next* account created there. Wrap it
+  // exactly like handleLogout (server-side deletion already worked; this is the
+  // local residue and the re-upload).
+  const handleDeleteAccount = useCallback(async (): Promise<string | null> => {
+    const error = await deleteAccount();
+    if (error) return error;
+    resetFavoritesLocal();
+    resetShortlistLocal();
+    resetNotesStorage();
+    resetWizardProfileLocal();
+    resetQualityWeightsLocal();
+    resetFilterPresetsLocal();
+    clearRecent();
+    resetSyncStatus();
+    return null;
+  }, [deleteAccount, resetFavoritesLocal, resetShortlistLocal, resetWizardProfileLocal, resetQualityWeightsLocal, resetFilterPresetsLocal, clearRecent]);
   // AC-1: the "Session expired — log in again" notice needs a matching control:
   // clear the dead session's local state, then open the login modal.
   const handleReLogin = useCallback(async () => {
@@ -2180,16 +2202,23 @@ const App: React.FC = () => {
     // their targets lazily (rAF retry) — by the time a first-timer reads the welcome
     // and clicks Next, the data has loaded and the chrome is interactive.
     // O5: skip the generic walkthrough whenever the visitor arrived via a shared/
-    // configured link — not just a deep-linked pno. A link carrying a layer, filter,
+    // configured link — not just a deep-linked pno. A link carrying a filter,
     // comparison, shortlist, wizard profile, drawn area, custom weights, isochrone,
-    // reference, or a specific city was meant to present that content, not an
-    // orientation tour over it.
+    // reference or viewport was meant to present that content, not an orientation
+    // tour over it.
+    //
+    // ON-1: `city` and `layer` are deliberately NOT in that list. The largest cold
+    // cohort arrives from Google on one of the ~9,000 prerendered pages and enters
+    // through a generic "open this on the map" CTA (/?city=tampere&layer=quality_index,
+    // built in scripts/prerender-hubs.mjs). That is not a personal, configured link —
+    // it is the front door, and treating it as one dropped exactly the visitors who
+    // most need orienting into an unfamiliar choropleth with a header of unlabeled
+    // icon menus and a 76-layer selector. A pno deep link still bails: those visitors
+    // came for one specific area.
     const u = initialUrl;
     const hasConfiguredState =
       !!u.pno ||
-      !!u.layer ||
       u.compare.length > 0 ||
-      (u.city != null && u.city !== 'all') ||
       u.filters.length > 0 ||
       u.shortlist.length > 0 ||
       !!u.weights ||
@@ -2307,8 +2336,8 @@ const App: React.FC = () => {
   // QW-4 / QW-2: global keydown — Escape cascade + power-user shortcuts.
   // Uses refs to avoid re-subscribing the listener on every state change
   // (the previous version had a 10-item dependency array that churned constantly).
-  const escapeStateRef = useRef({ selectMode, drawMode, drawnPolygon, showWizard, showCustomQuality, selected, showFilter, showRanking, splitMode });
-  escapeStateRef.current = { selectMode, drawMode, drawnPolygon, showWizard, showCustomQuality, selected, showFilter, showRanking, splitMode };
+  const escapeStateRef = useRef({ selectMode, drawMode, drawnPolygon, showWizard, showCustomQuality, selected, showFilter, showRanking, showRegionRanking, splitMode });
+  escapeStateRef.current = { selectMode, drawMode, drawnPolygon, showWizard, showCustomQuality, selected, showFilter, showRanking, showRegionRanking, splitMode };
   const escapeActionsRef = useRef({ deselect, handleClearDraw });
   escapeActionsRef.current = { deselect, handleClearDraw };
   // QW-2: shortcut state + actions, read at keypress time to keep the listener stable.
@@ -2345,6 +2374,10 @@ const App: React.FC = () => {
         if (s.selected) { a.deselect(); return; }
         if (s.showFilter) { setShowFilter(false); return; }
         if (s.showRanking) { setShowRanking(false); return; }
+        // MO-2: the region-comparison table covers most of the map but ignored
+        // Escape entirely — its only exit was a 28 px × icon. Mirrors this key's
+        // position in the back-gesture cascade.
+        if (s.showRegionRanking) { setShowRegionRanking(false); return; }
         if (s.splitMode) { setSplitMode(false); return; } // MO-3: Escape leaves Compare layers
         return;
       }
@@ -2352,7 +2385,12 @@ const App: React.FC = () => {
       // Power-user shortcuts: ignore while typing in a field or holding a chord modifier.
       const target = e.target as HTMLElement | null;
       const tag = target?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable) return;
+      // AY-2: SELECT belongs here. The desktop region picker is a native <select>
+      // with ~70 options, so the natural way to reach "Salon seutukunta" is to Tab
+      // to it and type the first letters — and keydown bubbles to this window
+      // listener. Typing to find a region was firing s (split view), l (login),
+      // g (geolocate), c (quality weights), f/r/w (filter/ranking/wizard).
+      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA' || target?.isContentEditable) return;
       if (e.ctrlKey || e.altKey || e.metaKey) return;
       // AY-7 (WCAG 2.1.4): single-key shortcuts are off when the user disabled them.
       // The Escape cascade above is unaffected (it returns before reaching here).
@@ -2433,7 +2471,12 @@ const App: React.FC = () => {
   const localeLoadError = getLocaleLoadError();
 
   return (
-    <div id="main" tabIndex={-1} className="h-dvh w-screen overflow-hidden relative focus:outline-none" data-testid="app-root" data-loaded={!effectiveLoading} aria-busy={effectiveLoading}>
+    // AY-1: the layout root is a plain div again. It used to carry id="main"
+    // tabIndex={-1} — the target of index.html's "Siirry sisältöön" skip link —
+    // but it *is* the whole app, header included, so activating the link focused
+    // the very wrapper the user was trying to skip past and the next Tab landed on
+    // the header controls. The <main> landmark now starts after </header> below.
+    <div className="h-dvh w-screen overflow-hidden relative" data-testid="app-root" data-loaded={!effectiveLoading} aria-busy={effectiveLoading}>
       {/* A1: screen-reader entry point — names the map and points to the keyboard-accessible selection paths (search combobox + ranking table). */}
       <p className="sr-only">{t('aria.map_instructions')}</p>
       {/* Map — QW-4: Conditional split view */}
@@ -2631,7 +2674,7 @@ const App: React.FC = () => {
             />
           )}
           {user ? (
-            <UserMenu user={user} onLogout={handleLogout} favorites={favoriteEntries} onSelectFavorite={handleSelectFavorite} onToggleFavorite={toggleFavorite} onExportData={exportData} onDeleteAccount={deleteAccount} onReLogin={handleReLogin} />
+            <UserMenu user={user} onLogout={handleLogout} favorites={favoriteEntries} onSelectFavorite={handleSelectFavorite} onToggleFavorite={toggleFavorite} onExportData={exportData} onDeleteAccount={handleDeleteAccount} onReLogin={handleReLogin} />
           ) : authLoading ? (
             // L7: while restoring a returning user's session, show a placeholder
             // instead of the Sign-in button to avoid a flash of "Sign in".
@@ -2662,6 +2705,14 @@ const App: React.FC = () => {
       </header>
       )}
 
+      {/* AY-1: the real main landmark, and the skip link's target. It starts here —
+          after </header> — so "Siirry sisältöön" actually skips the header controls
+          it was supposed to bypass, and screen-reader users finally have a main
+          landmark to jump to (there were zero <main> elements in this file). All
+          children are absolutely/fixed-positioned, so this wrapper adds no box of
+          its own and the layout is unchanged. */}
+      <main id="main" tabIndex={-1} className="focus:outline-none">
+
       {/* Search bar (hidden in embed mode) */}
       {/* MO-1: suppress the global search while the split-compare view is open — it
           renders directly over the left pane's layer picker (and is meaningless there). */}
@@ -2670,6 +2721,8 @@ const App: React.FC = () => {
           <SearchBar
             data={data}
             searchData={searchIndex}
+            searchDataFailed={searchIndexFailed}
+            onRetrySearchData={retrySearchIndex}
             onSelect={handleSearch}
             recent={recent}
             onClearRecent={clearRecent}
@@ -2800,6 +2853,14 @@ const App: React.FC = () => {
                          bg-surface-900/95 dark:bg-white/95 text-white dark:text-surface-900" role="status">
             <div className="min-w-0">
               <div className="text-xs font-semibold truncate">{peek.nimi || peek.pno}</div>
+              {/* MO-1: name the metric. The Legend and the Layers FAB — the only two
+                  on-map elements carrying the active layer's name — are both hidden
+                  while this bar is up, and many formatters emit a bare number with no
+                  unit (`age` is reused for air quality *and* the health index; also
+                  gini, score). Without this line the user saw "Kallio / 23.7 ▲ vs.
+                  keskiarvo" with nothing on screen saying what 23.7 measures — and the
+                  polarity-coloured arrow implied a verdict about an unnamed quantity. */}
+              <div className="text-[10px] uppercase tracking-wide opacity-60 truncate">{t(effectiveLayer.labelKey)}</div>
               <div className="text-[11px] opacity-80 flex items-center gap-1 tabular-nums">
                 <span>{typeof v === 'number' ? effectiveLayer.format(v) : '—'}</span>
                 {delta != null && (
@@ -3306,6 +3367,7 @@ const App: React.FC = () => {
       <div aria-live="polite" aria-atomic="true" className="sr-only">
         {ariaAnnouncement}
       </div>
+      </main>
     </div>
   );
 };

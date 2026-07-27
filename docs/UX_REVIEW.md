@@ -14,6 +14,8 @@
 
 **Counts: 1 critical · 13 high · 4 medium (18 findings).**
 
+> **Status: all 18 implemented (2026-07-27), on `claude/ux-review-impl-2026-07-22`.** Batch 1 = CF-1, CF-2, ER-2, ER-3, EM-1, AY-3; Batch 2 = LO-1, LO-2, MO-3, ON-3; Batch 3 = AY-1, AY-2, MO-2, ER-1; Batch 4 = CF-3, ON-1, MO-1, ON-2. Two deviations from the prescribed fixes, both documented at the call sites: MO-2's back-gesture half had already shipped in the feature roadmap's PO-1, so only the Escape gap remained (added to App's cascade rather than to `RegionRankingTable`, so one cascade owns the order); and ON-3 ships the disclosure only — a real reset route is still **[Manual Setup]** (email provider + token table).
+
 ---
 
 ## TL;DR

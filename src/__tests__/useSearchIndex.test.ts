@@ -5,12 +5,13 @@
  * Invariants:
  *  - CF-8: loads the small dedicated search index (loadSearchIndex), NOT the ~10.6 MB
  *    national set, so search works on the slim all-Finland landing without bloating it.
- *  - Returns null until the index resolves, then the FeatureCollection.
- *  - A failed load leaves the hook at null (search falls back to region data)
- *    rather than throwing.
+ *  - `index` is null until the fetch resolves, then the FeatureCollection.
+ *  - UX ER-1: a failed load sets `failed` (it used to be swallowed by an empty catch,
+ *    leaving the hook null forever behind a permanent fake "Ladataan…"), and `retry`
+ *    re-fetches. Search still falls back to region data when there is any.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
+import { renderHook, waitFor, act } from '@testing-library/react';
 
 vi.mock('../utils/dataLoader', () => ({
   loadSearchIndex: vi.fn(),
@@ -40,21 +41,42 @@ describe('useSearchIndex', () => {
     loadSearchIndexMock.mockResolvedValueOnce(sampleIndex);
 
     const { result } = renderHook(() => useSearchIndex());
-    expect(result.current).toBeNull();
+    expect(result.current.index).toBeNull();
+    expect(result.current.failed).toBe(false);
 
     await waitFor(() => {
-      expect(result.current).toBe(sampleIndex);
+      expect(result.current.index).toBe(sampleIndex);
     });
     expect(loadSearchIndexMock).toHaveBeenCalledTimes(1);
   });
 
-  it('stays null when the load fails (search falls back to region data)', async () => {
+  it('ER-1: reports the failure instead of staying silently null forever', async () => {
     loadSearchIndexMock.mockRejectedValueOnce(new Error('Failed to load search index: 500'));
 
     const { result } = renderHook(() => useSearchIndex());
 
-    // Give the rejected promise a chance to settle.
-    await new Promise((r) => setTimeout(r, 10));
-    expect(result.current).toBeNull();
+    await waitFor(() => {
+      expect(result.current.failed).toBe(true);
+    });
+    expect(result.current.index).toBeNull();
+  });
+
+  it('ER-1: retry() re-fetches and recovers', async () => {
+    loadSearchIndexMock
+      .mockRejectedValueOnce(new Error('Failed to load search index: 500'))
+      .mockResolvedValueOnce(sampleIndex);
+
+    const { result } = renderHook(() => useSearchIndex());
+    await waitFor(() => {
+      expect(result.current.failed).toBe(true);
+    });
+
+    act(() => { result.current.retry(); });
+
+    await waitFor(() => {
+      expect(result.current.index).toBe(sampleIndex);
+    });
+    expect(result.current.failed).toBe(false);
+    expect(loadSearchIndexMock).toHaveBeenCalledTimes(2);
   });
 });

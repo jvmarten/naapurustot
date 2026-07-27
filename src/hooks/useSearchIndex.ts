@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { FeatureCollection } from 'geojson';
 import { loadSearchIndex } from '../utils/dataLoader';
 
@@ -15,15 +15,37 @@ import { loadSearchIndex } from '../utils/dataLoader';
  * the idle fetch lands within ~1.5 s, well inside the bare ?pno= deep-link's grace
  * window, and the per-region dataset covers search until it arrives.
  */
-export function useSearchIndex(): FeatureCollection | null {
+export interface SearchIndexState {
+  index: FeatureCollection | null;
+  /** ER-1: the fetch rejected. Distinct from "not loaded yet" — the UI must offer a
+   *  retry instead of a loading row that never resolves. */
+  failed: boolean;
+  /** ER-1: refetch. `loadSearchIndex` already evicts its cache on failure, so a
+   *  second call really does hit the network again. */
+  retry: () => void;
+}
+
+export function useSearchIndex(): SearchIndexState {
   const [index, setIndex] = useState<FeatureCollection | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const retry = useCallback(() => { setFailed(false); setAttempt((a) => a + 1); }, []);
 
   useEffect(() => {
     let cancelled = false;
     const load = () => {
       loadSearchIndex()
-        .then((fc) => { if (!cancelled) setIndex(fc); })
-        .catch(() => { /* search falls back to the region-scoped dataset */ });
+        .then((fc) => { if (!cancelled) { setIndex(fc); setFailed(false); } })
+        .catch(() => {
+          // ER-1: this used to be an empty catch, so the hook stayed null forever
+          // and SearchBar's `indexLoading = !searchSource` was permanently true —
+          // on the default all-Finland landing (where the region dataset is
+          // deliberately not fetched) one dropped 40 KB request killed search for
+          // the whole session behind a fake "Ladataan…". Search still falls back to
+          // the region-scoped dataset when there is one; the flag is what lets the
+          // UI say so and offer a way out.
+          if (!cancelled) setFailed(true);
+        });
     };
     // Defer past first paint. requestIdleCallback with a bounded timeout keeps the
     // index off the critical path without starving it; the timeout guarantees it
@@ -35,7 +57,7 @@ export function useSearchIndex(): FeatureCollection | null {
     // jsdom / older Safari have no rIC — fall back to a near-immediate timer.
     const handle = setTimeout(load, 1);
     return () => { cancelled = true; clearTimeout(handle); };
-  }, []);
+  }, [attempt]);
 
-  return index;
+  return { index, failed, retry };
 }
