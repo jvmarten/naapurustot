@@ -28,9 +28,15 @@ interface SearchBarProps {
   onSetHome?: (pno: string | null) => void;
   /** T7: clear the entire "recently viewed" list. */
   onClearRecent?: () => void;
+  /** ER-1: the global index fetch rejected. On the all-Finland landing it is the
+   *  only search source, so this must be shown as a retryable failure rather than
+   *  an endless loading row. */
+  searchDataFailed?: boolean;
+  /** ER-1: refetch the global index. */
+  onRetrySearchData?: () => void;
 }
 
-export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchData, onSelect, recent = [], lang, homePno, homeName, onSetHome, onClearRecent }) => {
+export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchData, onSelect, recent = [], lang, homePno, homeName, onSetHome, onClearRecent, searchDataFailed = false, onRetrySearchData }) => {
   useI18nVersion();
   const displayName = (p: GeoJSON.GeoJsonProperties): string => {
     if (!p) return '';
@@ -162,7 +168,11 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
   // LP-4: on the default all-Finland view `data` is null and the global search index
   // is fetched async; until it lands `searchSource` is null and the name scan returns []
   // for any query. Treat that window as "loading" so the no-results branch can't flash.
-  const indexLoading = !searchSource;
+  // ER-1: a *failed* index is not a loading index. `indexLoading` also suppresses
+  // the honest no-results branch, so leaving it true after a rejection left the
+  // dropdown showing "Ladataan aluetietoja…" for the rest of the session.
+  const indexUnavailable = !searchSource && searchDataFailed;
+  const indexLoading = !searchSource && !searchDataFailed;
 
   // CF-1: Debounced address geocoding — always search for streets/addresses alongside neighborhoods.
   // Uses AbortController to cancel in-flight HTTP requests when the query changes,
@@ -594,6 +604,27 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
         </div>
       )}
 
+      {/* ER-1: the index fetch failed and there is no region dataset to fall back on.
+          Mirrors the address-search failure row directly above: say what happened and
+          offer the retry that always would have worked (the cache is evicted on
+          failure, so a second call really does re-fetch). */}
+      {isOpen && indexUnavailable && debouncedQuery.length >= 2 && addressResults.length === 0 && !isGeocoding && (
+        <div className="mt-1.5 rounded-xl bg-white/95 dark:bg-surface-900/95 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden">
+          <div className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm text-surface-500 dark:text-surface-400">
+            <span>{t('search.index_unavailable')}</span>
+            {onRetrySearchData && (
+              <button
+                type="button"
+                className="shrink-0 font-medium text-brand-700 dark:text-brand-300 hover:underline"
+                onClick={onRetrySearchData}
+              >
+                {t('search.address_retry')}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* LP-4: the global search index hasn't loaded yet (default all-Finland view) —
           show a loading row instead of a premature "no results". */}
       {isOpen && indexLoading && debouncedQuery.length >= 2 && results.length === 0 && addressResults.length === 0 && !isGeocoding && !addressError && (
@@ -607,7 +638,7 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
       {/* C1/ES-6: settled no-results — query long enough, the index is loaded, both
           searches returned nothing, no geocode error. Copy holds at the threshold and
           no longer advises "change city" (search is already nationwide). */}
-      {isOpen && !indexLoading && !addressError && debouncedQuery.length >= 2 && results.length === 0 && addressResults.length === 0 && !isGeocoding && (
+      {isOpen && !indexLoading && !indexUnavailable && !addressError && debouncedQuery.length >= 2 && results.length === 0 && addressResults.length === 0 && !isGeocoding && (
         <div className="mt-1.5 rounded-xl bg-white/95 dark:bg-surface-900/95 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden">
           <div className="px-4 py-2.5 text-sm text-surface-500 dark:text-surface-400">
             {t('search.no_results').replace('{query}', debouncedQuery)}

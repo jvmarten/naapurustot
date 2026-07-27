@@ -1,7 +1,7 @@
 {
-  "_comment": "IN-5 coverage ratchet baseline. CI fails if measured coverage drops below these minus the tolerance in scripts/check-coverage.mjs. Raise these numbers (never lower) as coverage improves to lock in gains. Regenerate the measured values with `npm run test:coverage`. QW-3 (2026-07-17): re-baselined from a real coverage run (77.45/68.45/70.81/80.20) — the previous numbers were half the actual coverage and the ratchet could never fire; a ~0.5 pp margin below measured absorbs v8 attribution jitter beyond the checker's own tolerance.",
-  "statements": 77.0,
-  "branches": 68.0,
-  "functions": 70.3,
-  "lines": 79.7
+  "_comment": "IN-5 coverage ratchet baseline. CI fails if measured coverage drops below these minus the tolerance in scripts/check-coverage.mjs. Raise these numbers (never lower) as coverage improves to lock in gains. Regenerate the measured values with `npm run test:coverage`. QW-3 (2026-07-17): re-baselined from a real coverage run (77.45/68.45/70.81/80.20) — the previous numbers were half the actual coverage and the ratchet could never fire; a ~0.5 pp margin below measured absorbs v8 attribution jitter beyond the checker's own tolerance. UX review (2026-07-27): the batch's new error/loading branches first dropped branches to 67.35% and failed this gate; covering them with real tests for UserMenu (sync-status row, favorites row actions, GDPR export/delete) and Legend (grid badge/error/loading/filter captions) took a measured run to 77.98/69.22/71.44/80.81, re-baselined here with the same ~0.5 pp margin.",
+  "statements": 77.5,
+  "branches": 68.7,
+  "functions": 71.0,
+  "lines": 80.3
 }

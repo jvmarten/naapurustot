@@ -45,7 +45,7 @@ const CorrelationExplorer = lazy(() => import('./components/CorrelationExplorer'
 const RegionRankingTable = lazy(() => import('./components/RegionRankingTable').then(m => ({ default: m.RegionRankingTable })));
 import { useMapData } from './hooks/useMapData';
 import { useSearchIndex } from './hooks/useSearchIndex';
-import { useGridData, cellCentroid, clipGridToData, hasGridData } from './hooks/useGridData';
+import { useGridData, cellCentroid, clipGridToData, hasGridData, hasGridCells } from './hooks/useGridData';
 import { usePlanningOverlay, regionHasPlanningGeometry } from './hooks/usePlanningData';
 import { PlanningControls } from './components/PlanningControls';
 import { useFavorites } from './hooks/useFavorites';
@@ -272,7 +272,9 @@ const App: React.FC = () => {
   // Finland regardless of the observed subregion. CF-8: a small dedicated artifact
   // (~40 KB gz), not the full national set, so it loads eagerly without bloating the
   // slim all-Finland landing.
-  const searchIndex = useSearchIndex();
+  // ER-1: `failed`/`retry` let SearchBar replace a permanent fake "Ladataan…" with
+  // a real retry when the 40 KB index request is dropped.
+  const { index: searchIndex, failed: searchIndexFailed, retry: retrySearchIndex } = useSearchIndex();
 
   // CF-8: in aggregate mode (`data` is null) the all-cities "metro average" comes
   // from the prebuilt national averages; otherwise from the processed dataset.
@@ -343,8 +345,15 @@ const App: React.FC = () => {
   // overlay coexists with any active choropleth; the hook lazy-fetches only the
   // active region's planning shards while the toggle is on.
   const [planningEnabled, setPlanningEnabled] = useState<boolean>(!!initialUrl.planning);
-  const { features: planningOverlay } = usePlanningOverlay(cityFilter, planningEnabled);
+  // ER-3: `loading`/`error` were discarded, so a flaky shard rendered as an empty
+  // overlay that reads "nothing is planned here" — the opposite of the truth for
+  // someone checking a prospective home. The failed result is no longer cached, so
+  // a retry is just a remount of the hook's fetch: bump a nonce to force it.
+  const [planningRetryNonce, setPlanningRetryNonce] = useState(0);
+  const { features: planningOverlay, loading: planningLoading, error: planningError } =
+    usePlanningOverlay(cityFilter, planningEnabled, planningRetryNonce);
   const handlePlanningToggle = useCallback(() => setPlanningEnabled((v) => !v), []);
+  const handlePlanningRetry = useCallback(() => setPlanningRetryNonce((n) => n + 1), []);
 
   // Build a PNO→Feature lookup Map for O(1) feature access.
   // Replaces multiple O(n) .find() scans after quality index recomputation
@@ -490,6 +499,12 @@ const App: React.FC = () => {
       });
     return () => { cancelled = true; };
   }, [gridDataBboxClipped, gridClipGeometry]);
+  // CF-1: a regional grid (air quality, transit reachability — Helsinki bbox only)
+  // clipped to another region leaves an empty-but-non-null FeatureCollection. That
+  // is *not* an active grid: the map draws the postal choropleth instead, so every
+  // grid-conditional surface (fade-out opacity ramp, ▦ legend badge, "filter can't
+  // apply to grid cells" note) must key off cell count, not object identity.
+  const gridCellsVisible = hasGridCells(gridData);
   const [wizardResultPnos, setWizardResultPnos] = useState<string[]>([]);
   const [flyTarget, setFlyTarget] = useState<{ center: [number, number]; zoom?: number; bounds?: [number, number, number, number] } | null>(() => {
     // CF-1: an explicit shared viewport takes precedence over the city preset.
@@ -600,6 +615,26 @@ const App: React.FC = () => {
     if (id != null && prevUserIdRef.current !== id) resetSyncStatus();
     prevUserIdRef.current = id;
   }, [user?.id]);
+  // CF-3: "Delete account" promised "this permanently deletes your account and all
+  // saved data (favorites, shortlist, notes, presets)" but `deleteAccount` was passed
+  // straight through, so none of the six local stores were cleared — every starred
+  // area, note and shortlist entry survived on the device, and useFavorites' merge
+  // then uploaded those survivors into the *next* account created there. Wrap it
+  // exactly like handleLogout (server-side deletion already worked; this is the
+  // local residue and the re-upload).
+  const handleDeleteAccount = useCallback(async (): Promise<string | null> => {
+    const error = await deleteAccount();
+    if (error) return error;
+    resetFavoritesLocal();
+    resetShortlistLocal();
+    resetNotesStorage();
+    resetWizardProfileLocal();
+    resetQualityWeightsLocal();
+    resetFilterPresetsLocal();
+    clearRecent();
+    resetSyncStatus();
+    return null;
+  }, [deleteAccount, resetFavoritesLocal, resetShortlistLocal, resetWizardProfileLocal, resetQualityWeightsLocal, resetFilterPresetsLocal, clearRecent]);
   // AC-1: the "Session expired — log in again" notice needs a matching control:
   // clear the dead session's local state, then open the login modal.
   const handleReLogin = useCallback(async () => {
@@ -703,9 +738,42 @@ const App: React.FC = () => {
     const id = setTimeout(() => setLocaleReady(true), 1500);
     return () => clearTimeout(id);
   }, [i18nVersion, localeReady]);
+  // LO-1: whether MapLibre has actually put the choropleth on screen. The cold
+  // overlay used to lift purely on `allViewReady` — the data path is ~180 KB of
+  // pre-quantized JSON, the map path is maplibre-gl (~260 KB gz) plus parse, WebGL
+  // context creation, style load and first tiles, so on a mid-range phone the data
+  // reliably won that race and the overlay unmounted onto an empty page.
+  const [mapReady, setMapReady] = useState(false);
+  const handleMapReady = useCallback(() => setMapReady(true), []);
+  // LO-1 safety valve: the overlay is a courtesy, never a trap. If the map can't
+  // report ready (WebGL blocked, context lost, the lazy chunk failing into the
+  // ErrorBoundary), stop waiting — an empty map with working chrome beats an
+  // indefinite shimmer, and LO-2's stall notice below then covers a data stall.
   useEffect(() => {
-    if (!effectiveLoading && localeReady) setFirstLoadDone(true);
-  }, [effectiveLoading, localeReady]);
+    if (mapReady) return;
+    const id = setTimeout(() => setMapReady(true), 8000);
+    return () => clearTimeout(id);
+  }, [mapReady]);
+  // The split view renders SplitMapView instead of <Map>, so nothing would ever
+  // report ready for a cold `?…s` arrival.
+  const mapPainted = mapReady || splitMode;
+  useEffect(() => {
+    if (!effectiveLoading && localeReady && mapPainted) setFirstLoadDone(true);
+  }, [effectiveLoading, localeReady, mapPainted]);
+
+  // LO-2: `loadAllAggregates`/`useMapData` have no timeout and no AbortController,
+  // so a request that *stalls* rather than fails — the normal flaky-mobile failure
+  // mode — never resolves or rejects. effectiveLoading stayed true, firstLoadDone
+  // never flipped, and the full-screen shimmer stayed mounted forever with no
+  // banner (nothing rejected), no retry and no changing copy. Mirrors the grace
+  // timers already used for this class of hang elsewhere in this file.
+  const coldOverlayVisible = (effectiveLoading || !localeReady || !mapPainted) && !firstLoadDone;
+  const [loadStalled, setLoadStalled] = useState(false);
+  useEffect(() => {
+    if (!coldOverlayVisible) { setLoadStalled(false); return; }
+    const id = setTimeout(() => setLoadStalled(true), 12000);
+    return () => clearTimeout(id);
+  }, [coldOverlayVisible]);
 
   // Recompute metro averages for the selected city.
   // qualityVersion is included so that averages are recalculated after custom quality weight changes
@@ -1837,9 +1905,9 @@ const App: React.FC = () => {
   // the all-Finland view and for regions without any plan/project geometry.
   const layerSelectorPlanningSlot = useMemo(() => (
     cityFilter !== 'all' && regionHasPlanningGeometry(cityFilter) ? (
-      <PlanningControls enabled={planningEnabled} region={cityFilter} onToggle={handlePlanningToggle} />
+      <PlanningControls enabled={planningEnabled} region={cityFilter} onToggle={handlePlanningToggle} loading={planningLoading} error={planningError} onRetry={handlePlanningRetry} />
     ) : null
-  ), [cityFilter, planningEnabled, handlePlanningToggle]);
+  ), [cityFilter, planningEnabled, handlePlanningToggle, planningLoading, planningError, handlePlanningRetry]);
   // Stable callbacks for NeighborhoodPanel props — prevents new closures on every render
   // which would defeat React.memo on the panel.
   const handleToggleFavorite = useCallback(() => {
@@ -2134,16 +2202,23 @@ const App: React.FC = () => {
     // their targets lazily (rAF retry) — by the time a first-timer reads the welcome
     // and clicks Next, the data has loaded and the chrome is interactive.
     // O5: skip the generic walkthrough whenever the visitor arrived via a shared/
-    // configured link — not just a deep-linked pno. A link carrying a layer, filter,
+    // configured link — not just a deep-linked pno. A link carrying a filter,
     // comparison, shortlist, wizard profile, drawn area, custom weights, isochrone,
-    // reference, or a specific city was meant to present that content, not an
-    // orientation tour over it.
+    // reference or viewport was meant to present that content, not an orientation
+    // tour over it.
+    //
+    // ON-1: `city` and `layer` are deliberately NOT in that list. The largest cold
+    // cohort arrives from Google on one of the ~9,000 prerendered pages and enters
+    // through a generic "open this on the map" CTA (/?city=tampere&layer=quality_index,
+    // built in scripts/prerender-hubs.mjs). That is not a personal, configured link —
+    // it is the front door, and treating it as one dropped exactly the visitors who
+    // most need orienting into an unfamiliar choropleth with a header of unlabeled
+    // icon menus and a 76-layer selector. A pno deep link still bails: those visitors
+    // came for one specific area.
     const u = initialUrl;
     const hasConfiguredState =
       !!u.pno ||
-      !!u.layer ||
       u.compare.length > 0 ||
-      (u.city != null && u.city !== 'all') ||
       u.filters.length > 0 ||
       u.shortlist.length > 0 ||
       !!u.weights ||
@@ -2261,8 +2336,8 @@ const App: React.FC = () => {
   // QW-4 / QW-2: global keydown — Escape cascade + power-user shortcuts.
   // Uses refs to avoid re-subscribing the listener on every state change
   // (the previous version had a 10-item dependency array that churned constantly).
-  const escapeStateRef = useRef({ selectMode, drawMode, drawnPolygon, showWizard, showCustomQuality, selected, showFilter, showRanking, splitMode });
-  escapeStateRef.current = { selectMode, drawMode, drawnPolygon, showWizard, showCustomQuality, selected, showFilter, showRanking, splitMode };
+  const escapeStateRef = useRef({ selectMode, drawMode, drawnPolygon, showWizard, showCustomQuality, selected, showFilter, showRanking, showRegionRanking, splitMode });
+  escapeStateRef.current = { selectMode, drawMode, drawnPolygon, showWizard, showCustomQuality, selected, showFilter, showRanking, showRegionRanking, splitMode };
   const escapeActionsRef = useRef({ deselect, handleClearDraw });
   escapeActionsRef.current = { deselect, handleClearDraw };
   // QW-2: shortcut state + actions, read at keypress time to keep the listener stable.
@@ -2299,6 +2374,10 @@ const App: React.FC = () => {
         if (s.selected) { a.deselect(); return; }
         if (s.showFilter) { setShowFilter(false); return; }
         if (s.showRanking) { setShowRanking(false); return; }
+        // MO-2: the region-comparison table covers most of the map but ignored
+        // Escape entirely — its only exit was a 28 px × icon. Mirrors this key's
+        // position in the back-gesture cascade.
+        if (s.showRegionRanking) { setShowRegionRanking(false); return; }
         if (s.splitMode) { setSplitMode(false); return; } // MO-3: Escape leaves Compare layers
         return;
       }
@@ -2306,7 +2385,12 @@ const App: React.FC = () => {
       // Power-user shortcuts: ignore while typing in a field or holding a chord modifier.
       const target = e.target as HTMLElement | null;
       const tag = target?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable) return;
+      // AY-2: SELECT belongs here. The desktop region picker is a native <select>
+      // with ~70 options, so the natural way to reach "Salon seutukunta" is to Tab
+      // to it and type the first letters — and keydown bubbles to this window
+      // listener. Typing to find a region was firing s (split view), l (login),
+      // g (geolocate), c (quality weights), f/r/w (filter/ranking/wizard).
+      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA' || target?.isContentEditable) return;
       if (e.ctrlKey || e.altKey || e.metaKey) return;
       // AY-7 (WCAG 2.1.4): single-key shortcuts are off when the user disabled them.
       // The Escape cascade above is unaffected (it returns before reaching here).
@@ -2387,7 +2471,12 @@ const App: React.FC = () => {
   const localeLoadError = getLocaleLoadError();
 
   return (
-    <div id="main" tabIndex={-1} className="h-dvh w-screen overflow-hidden relative focus:outline-none" data-testid="app-root" data-loaded={!effectiveLoading} aria-busy={effectiveLoading}>
+    // AY-1: the layout root is a plain div again. It used to carry id="main"
+    // tabIndex={-1} — the target of index.html's "Siirry sisältöön" skip link —
+    // but it *is* the whole app, header included, so activating the link focused
+    // the very wrapper the user was trying to skip past and the next Tab landed on
+    // the header controls. The <main> landmark now starts after </header> below.
+    <div className="h-dvh w-screen overflow-hidden relative" data-testid="app-root" data-loaded={!effectiveLoading} aria-busy={effectiveLoading}>
       {/* A1: screen-reader entry point — names the map and points to the keyboard-accessible selection paths (search combobox + ranking table). */}
       <p className="sr-only">{t('aria.map_instructions')}</p>
       {/* Map — QW-4: Conditional split view */}
@@ -2449,14 +2538,19 @@ const App: React.FC = () => {
             planningData={planningOverlay}
             onMoveEnd={handleMapMoveEnd}
             priceFallbackValue={priceFallbackValue}
+            onReady={handleMapReady}
           />
           </Suspense>
         )}
       </ErrorBoundary>
 
-      {/* C1: cold first load — full-screen wordmark overlay (nothing behind it yet). */}
-      {(effectiveLoading || !localeReady) && !firstLoadDone && (
-        <div data-testid="loading-overlay" role="status" aria-live="polite" className="absolute inset-0 z-50 flex items-center justify-center bg-white/80 dark:bg-surface-950/80 backdrop-blur-sm">
+      {/* C1: cold first load — full-screen wordmark overlay (nothing behind it yet).
+          LO-1: also held until the map reports it has drawn the choropleth, so the
+          overlay never lifts onto a blank page. LO-2: `pointer-events-none` — this
+          was a plain div that swallowed clicks on the header, search bar and layer
+          FAB behind it for however long the load took. */}
+      {coldOverlayVisible && (
+        <div data-testid="loading-overlay" role="status" aria-live="polite" className="absolute inset-0 z-50 flex items-center justify-center bg-white/80 dark:bg-surface-950/80 backdrop-blur-sm pointer-events-none">
           <div className="text-center space-y-4">
             {/* Shimmer placeholder blocks */}
             <div className="flex flex-col items-center gap-3">
@@ -2466,6 +2560,20 @@ const App: React.FC = () => {
             </div>
             <h1 className="text-xl font-display font-bold text-surface-900 dark:text-white">naapurustot</h1>
             <p className="text-surface-500 dark:text-surface-400 text-sm">{t(cityFilter === 'all' ? 'loading.nationwide' : 'loading.title')}</p>
+            {/* LO-2: a stalled fetch never rejects, so no banner ever fires. After the
+                grace period, say so and offer the retry the overlay already had access
+                to but never exposed. */}
+            {loadStalled && (
+              <div className="pointer-events-auto space-y-2" data-testid="loading-stalled">
+                <p className="text-surface-600 dark:text-surface-300 text-sm max-w-xs mx-auto leading-snug">{t('loading.slow')}</p>
+                <button
+                  onClick={effectiveRetry}
+                  className="px-3 py-2 min-h-[44px] md:min-h-0 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold transition-colors"
+                >
+                  {t('error.retry')}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -2566,7 +2674,7 @@ const App: React.FC = () => {
             />
           )}
           {user ? (
-            <UserMenu user={user} onLogout={handleLogout} favorites={favoriteEntries} onSelectFavorite={handleSelectFavorite} onToggleFavorite={toggleFavorite} onExportData={exportData} onDeleteAccount={deleteAccount} onReLogin={handleReLogin} />
+            <UserMenu user={user} onLogout={handleLogout} favorites={favoriteEntries} onSelectFavorite={handleSelectFavorite} onToggleFavorite={toggleFavorite} onExportData={exportData} onDeleteAccount={handleDeleteAccount} onReLogin={handleReLogin} />
           ) : authLoading ? (
             // L7: while restoring a returning user's session, show a placeholder
             // instead of the Sign-in button to avoid a flash of "Sign in".
@@ -2597,6 +2705,14 @@ const App: React.FC = () => {
       </header>
       )}
 
+      {/* AY-1: the real main landmark, and the skip link's target. It starts here —
+          after </header> — so "Siirry sisältöön" actually skips the header controls
+          it was supposed to bypass, and screen-reader users finally have a main
+          landmark to jump to (there were zero <main> elements in this file). All
+          children are absolutely/fixed-positioned, so this wrapper adds no box of
+          its own and the layout is unchanged. */}
+      <main id="main" tabIndex={-1} className="focus:outline-none">
+
       {/* Search bar (hidden in embed mode) */}
       {/* MO-1: suppress the global search while the split-compare view is open — it
           renders directly over the left pane's layer picker (and is meaningless there). */}
@@ -2605,6 +2721,8 @@ const App: React.FC = () => {
           <SearchBar
             data={data}
             searchData={searchIndex}
+            searchDataFailed={searchIndexFailed}
+            onRetrySearchData={retrySearchIndex}
             onSelect={handleSearch}
             recent={recent}
             onClearRecent={clearRecent}
@@ -2696,14 +2814,16 @@ const App: React.FC = () => {
           per-region), hidden behind the open area panel / split view / embed. */}
       {!IS_EMBED && !selected && !splitMode && cityFilter !== 'all' && regionHasPlanningGeometry(cityFilter) && (
         <div className="hidden md:block absolute top-[6.75rem] left-3 md:left-4 z-[5] w-52 md:w-64 pointer-events-auto">
-          <PlanningControls enabled={planningEnabled} region={cityFilter} onToggle={handlePlanningToggle} />
+          <PlanningControls enabled={planningEnabled} region={cityFilter} onToggle={handlePlanningToggle} loading={planningLoading} error={planningError} onRetry={handlePlanningRetry} />
         </div>
       )}
 
       {/* O3: persistent, dismissible on-map hint teaching the core "click an area"
           interaction — shown only in the no-selection idle state, gone once an area
           is selected or it's explicitly dismissed (persisted). */}
-      {!effectiveLoading && !selected && !peek && !splitMode && !drawMode && !showTour && !areaHintDismissed && (
+      {/* LO-1: gated on mapPainted too — this pill told first-timers to tap a map
+          that had not been drawn yet. */}
+      {!effectiveLoading && mapPainted && !selected && !peek && !splitMode && !drawMode && !showTour && !areaHintDismissed && (
         <div className="fixed md:absolute bottom-[calc(1.5rem+env(safe-area-inset-bottom))] md:bottom-8 left-1/2 -translate-x-1/2 z-20
                        flex items-center gap-2 px-3 py-1.5 rounded-full shadow-lg backdrop-blur-sm
                        bg-surface-900/90 dark:bg-white/90 text-white dark:text-surface-900 text-xs font-medium">
@@ -2733,6 +2853,14 @@ const App: React.FC = () => {
                          bg-surface-900/95 dark:bg-white/95 text-white dark:text-surface-900" role="status">
             <div className="min-w-0">
               <div className="text-xs font-semibold truncate">{peek.nimi || peek.pno}</div>
+              {/* MO-1: name the metric. The Legend and the Layers FAB — the only two
+                  on-map elements carrying the active layer's name — are both hidden
+                  while this bar is up, and many formatters emit a bare number with no
+                  unit (`age` is reused for air quality *and* the health index; also
+                  gini, score). Without this line the user saw "Kallio / 23.7 ▲ vs.
+                  keskiarvo" with nothing on screen saying what 23.7 measures — and the
+                  polarity-coloured arrow implied a verdict about an unnamed quantity. */}
+              <div className="text-[10px] uppercase tracking-wide opacity-60 truncate">{t(effectiveLayer.labelKey)}</div>
               <div className="text-[11px] opacity-80 flex items-center gap-1 tabular-nums">
                 <span>{typeof v === 'number' ? effectiveLayer.format(v) : '—'}</span>
                 {delta != null && (
@@ -2770,7 +2898,7 @@ const App: React.FC = () => {
 
       {/* Legend — repositioned for mobile (MO2: suppressed on mobile when an area panel covers it;
           UX MO-2: also during the touch peek — the peek bar paints over the same bottom band) */}
-      <Legend layerId={activeLayer} colorblind={colorblind} layerConfig={effectiveLayer} lang={lang} gridLoading={gridLoading && hasGridData(activeLayer)} gridError={gridError && hasGridData(activeLayer)} hidden={!!selected || !!peek} subregionEstimate={priceFallbackValue != null} gridFilterInactive={hasGridData(activeLayer) && ((showFilter && filters.length > 0) || wizardResultPnos.length > 0)} />
+      <Legend layerId={activeLayer} colorblind={colorblind} layerConfig={effectiveLayer} lang={lang} gridLoading={gridLoading && hasGridData(activeLayer)} gridError={gridError && hasGridData(activeLayer)} hidden={!!selected || !!peek} subregionEstimate={priceFallbackValue != null} gridFilterInactive={gridCellsVisible && ((showFilter && filters.length > 0) || wizardResultPnos.length > 0)} gridActive={gridCellsVisible} />
 
       {/* PO-2: Time slider / historical playback (only when a time-series metric is active) */}
       {!IS_EMBED && timeYear != null && availableYears.length > 1 && (
@@ -3239,6 +3367,7 @@ const App: React.FC = () => {
       <div aria-live="polite" aria-atomic="true" className="sr-only">
         {ariaAnnouncement}
       </div>
+      </main>
     </div>
   );
 };

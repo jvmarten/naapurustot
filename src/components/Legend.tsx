@@ -24,10 +24,15 @@ interface LegendProps {
   /** PO-4: true when a percentile filter / wizard highlight is active over a grid
    *  layer — the filter can't apply to (non-pno-keyed) grid cells, so say so. */
   gridFilterInactive?: boolean;
+  /** CF-1: false when the layer *has* a grid in the manifest but none of its cells
+   *  fall inside the current region (regional grids cover the Helsinki bbox only).
+   *  The map then draws the postal choropleth, so the ▦ "fine-grained grid" badge
+   *  must not claim ~250 m detail. Undefined = no grid concern (unit tests, no data yet). */
+  gridActive?: boolean;
 }
 
 // colorblind prop triggers re-render when mode changes (getLayerById reads global state)
-export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: _colorblind, layerConfig, lang: _lang, gridLoading, gridError, hidden, subregionEstimate, gridFilterInactive }) => {
+export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: _colorblind, layerConfig, lang: _lang, gridLoading, gridError, hidden, subregionEstimate, gridFilterInactive, gridActive }) => {
   useI18nVersion();
   const layer = layerConfig ?? getLayerById(layerId);
 
@@ -69,7 +74,10 @@ export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: 
   // IN-1: when the active layer has a fine-grained grid dataset, surface its
   // coverage scope so a "regional" (e.g. Helsinki-only) grid is visibly limited
   // rather than silently masquerading as full-map resolution.
-  const grid = getGridInfo(layerId);
+  // CF-1: ...but only while cells are actually on screen. Outside a regional
+  // grid's coverage the map falls back to the postal choropleth, and the badge
+  // would then assert detail the user is not looking at.
+  const grid = gridActive === false ? undefined : getGridInfo(layerId);
 
   // PO-2: badge layers whose value is a proxy/derived model rather than a direct
   // measurement. Data freshness (vintage) is intentionally NOT shown here — it

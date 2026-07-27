@@ -8,6 +8,7 @@ import type { Topology } from 'topojson-specification';
 import { buildFillColorExpression, getInterpolatedColor, type LayerId, type LayerConfig, getLayerById } from '../utils/colorScales';
 import { ensureHatchImage } from '../utils/hatchPattern';
 import { GRID_ZOOM_FADE_IN, buildFillOpacityFadeOut, buildGridFillOpacity } from '../utils/gridFade';
+import { hasGridCells } from '../hooks/useGridData';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { useTheme } from '../hooks/useTheme';
 import { trackEvent } from '../utils/analytics';
@@ -75,6 +76,12 @@ interface MapProps {
    *  average for that metric. Areas with no own value are painted this value's color
    *  (still hatched, so they read as a sub-region estimate) instead of plain gray. */
   priceFallbackValue?: number | null;
+  /** LO-1: fires once the choropleth layers exist on a loaded style — i.e. the map
+   *  is actually about to paint something, not merely mounted. The host uses it to
+   *  hold the cold-load overlay until there is a map behind it; without it the
+   *  overlay lifted on the (much faster) data fetch and a mid-range phone was left
+   *  looking at an empty page with a "tap an area" hint over nothing. */
+  onReady?: () => void;
 }
 
 // Stable empty defaults to avoid creating new references on every render
@@ -359,7 +366,7 @@ function buildFillOpacity(o: number, overrides?: { matchExpr?: unknown[]; matchV
   return base;
 }
 
-export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1, gridData = null, drawMode = false, onDrawClick, onDrawDoubleClick, drawVertices, drawnPolygon = null, drawnAreaPnos = EMPTY_ARRAY, selectMode = false, selectedAreaPnos = EMPTY_ARRAY, onSelectAreaClick, layerConfig, isochrone = null, planningData = null, onMoveEnd, priceFallbackValue = null }) => {
+export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1, gridData = null, drawMode = false, onDrawClick, onDrawDoubleClick, drawVertices, drawnPolygon = null, drawnAreaPnos = EMPTY_ARRAY, selectMode = false, selectedAreaPnos = EMPTY_ARRAY, onSelectAreaClick, layerConfig, isochrone = null, planningData = null, onMoveEnd, priceFallbackValue = null, onReady }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const hoveredIdRef = useRef<string | null>(null);
@@ -405,6 +412,18 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   // beforeId). When gridData arrives before data, the grid effect's addGridLayer
   // defers — and ensureLayers calls this ref once FILL_LAYER is in place.
   const addGridLayerRef = useRef<(() => void) | null>(null);
+
+  // LO-1: report "the map has something to show" exactly once. Read through refs so
+  // the layer effect never re-runs just because the host passed a new callback
+  // identity, and so a remount can't fire it twice into the same host state.
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
+  const reportedReadyRef = useRef(false);
+  const reportReady = useCallback(() => {
+    if (reportedReadyRef.current) return;
+    reportedReadyRef.current = true;
+    onReadyRef.current?.();
+  }, []);
 
   // T4: the mount-time flyTo target. The init effect uses it to position the first
   // frame; the flyTo effect skips this identity so it doesn't re-animate to a camera
@@ -610,6 +629,9 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       if (map.getSource(SOURCE_ID)) {
         const source = map.getSource(SOURCE_ID) as maplibregl.GeoJSONSource | undefined;
         if (source) source.setData(data);
+        // LO-1: the choropleth is already up (this branch only runs after a first
+        // successful add), so the host's cold overlay must not keep waiting.
+        reportReady();
         return;
       }
 
@@ -720,6 +742,10 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       // beforeId=FILL_LAYER fails silently when grid data wins the race,
       // and air_quality/light_pollution paint nothing until refresh.
       addGridLayerRef.current?.();
+
+      // LO-1: the choropleth (not just the basemap) is now on a loaded style —
+      // this is the earliest honest "there is a map here" signal.
+      reportReady();
     };
 
     // Gate on the persistent mapStyleLoadedRef, not map.isStyleLoaded(): the
@@ -819,7 +845,9 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     if (!map) return;
 
     const layer = layerConfig ?? getLayerById(activeLayer);
-    const useGrid = !!gridData && !!layer.gridProperty;
+    // CF-1: cell count, not object identity — an out-of-region clip yields an
+    // empty (but non-null) FeatureCollection. See hasGridCells.
+    const useGrid = hasGridCells(gridData) && !!layer.gridProperty;
 
     const addGridLayer = () => {
       if (map.getLayer(GRID_FILL_LAYER)) map.removeLayer(GRID_FILL_LAYER);
@@ -886,7 +914,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     if (!map.getLayer(FILL_LAYER)) return;
 
     const layer = layerConfig ?? getLayerById(activeLayer);
-    const useGrid = !!gridData && !!layer.gridProperty;
+    const useGrid = hasGridCells(gridData) && !!layer.gridProperty;
 
     if (useGrid) {
       // Postal choropleth stays visible at low zoom (smooth country view) and
@@ -1268,7 +1296,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         mapRef.current.setPaintProperty(FILL_LAYER, 'fill-opacity-transition', { duration: 200, delay: 0 });
         const currentGridData = gridDataRef.current;
         const currentFillOpacity = fillOpacityRef.current;
-        const useGrid = !!currentGridData && !!layer.gridProperty;
+        const useGrid = hasGridCells(currentGridData) && !!layer.gridProperty;
         if (useGrid) {
           mapRef.current.setPaintProperty(FILL_LAYER, 'fill-opacity', buildFillOpacityFadeOut(currentFillOpacity));
           if (mapRef.current.getLayer(GRID_FILL_LAYER)) {

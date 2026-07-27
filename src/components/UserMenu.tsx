@@ -29,6 +29,7 @@ export const UserMenu: React.FC<UserMenuProps> = React.memo(({ user, onLogout, f
   useI18nVersion();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   // PO-5: surface cloud-sync health (was silently swallowed).
   const syncStatus = useSyncStatus();
   const sessionExpired = useSessionExpired();
@@ -39,12 +40,15 @@ export const UserMenu: React.FC<UserMenuProps> = React.memo(({ user, onLogout, f
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [gdprError, setGdprError] = useState<string | null>(null);
+  // CF-3: brief "account deleted" acknowledgement before the menu closes.
+  const [deleted, setDeleted] = useState(false);
 
   // Reset transient GDPR UI whenever the menu closes.
   useEffect(() => {
     if (!open) {
       setConfirmingDelete(false);
       setGdprError(null);
+      setDeleted(false);
     }
   }, [open]);
 
@@ -83,7 +87,11 @@ export const UserMenu: React.FC<UserMenuProps> = React.memo(({ user, onLogout, f
         setGdprError(error);
         return;
       }
-      setOpen(false);
+      // CF-3: the menu used to just vanish, which — with every favorite, note and
+      // shortlist entry still on screen — read as "nothing happened". Confirm the
+      // deletion, then close.
+      setDeleted(true);
+      setTimeout(() => setOpen(false), 1600);
     } finally {
       setDeleting(false);
     }
@@ -107,14 +115,32 @@ export const UserMenu: React.FC<UserMenuProps> = React.memo(({ user, onLogout, f
         setOpen(false);
       }
     };
+    // AY-3: this menu holds sign-out, the GDPR export and account deletion, and was
+    // dismissable by outside-click alone — a keyboard or screen-reader user who
+    // opened it was stuck. Mirrors ToolsDropdown: the document listener runs ahead
+    // of App's window-level Escape cascade, and stopPropagation prevents that
+    // cascade from also acting on the same keypress.
+    const keyHandler = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      setOpen(false);
+      triggerRef.current?.focus();
+    };
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    document.addEventListener('keydown', keyHandler);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      document.removeEventListener('keydown', keyHandler);
+    };
   }, [open]);
 
   return (
     <div ref={ref} className="relative">
       <button
+        ref={triggerRef}
         onClick={() => setOpen(o => !o)}
+        aria-haspopup="menu"
+        aria-expanded={open}
         className={`flex px-2.5 py-2 rounded-lg text-xs font-semibold transition-all items-center justify-center gap-1.5
                    min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0
                    ${open
@@ -289,6 +315,14 @@ export const UserMenu: React.FC<UserMenuProps> = React.memo(({ user, onLogout, f
                     </button>
                   </div>
                 </div>
+              )}
+
+              {/* CF-3: acknowledge the deletion — including the local wipe the
+                  confirmation copy promises — before the menu closes. */}
+              {deleted && (
+                <p className="px-3 py-1.5 text-xs text-emerald-600 dark:text-emerald-400" role="status">
+                  {t('account.deleted')}
+                </p>
               )}
 
               {gdprError && (

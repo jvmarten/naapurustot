@@ -14,7 +14,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import type { Feature, FeatureCollection } from 'geojson';
-import { useGridData, hasGridData, getGridInfo, cellCentroid, clipGridToData } from '../hooks/useGridData';
+import { useGridData, hasGridData, hasGridCells, getGridInfo, cellCentroid, clipGridToData } from '../hooks/useGridData';
 
 /** Build a 1x1 square grid cell whose centroid is (cx, cy). */
 function cell(cx: number, cy: number, props: Record<string, unknown> = {}): Feature {
@@ -78,6 +78,31 @@ describe('hasGridData', () => {
     expect(hasGridData('median_income')).toBe(false);
     expect(hasGridData('quality_index')).toBe(false);
     expect(hasGridData('unemployment')).toBe(false);
+  });
+});
+
+describe('hasGridCells (UX CF-1)', () => {
+  it('is false for an empty clip result, so the choropleth is not drained', () => {
+    // clipGridToData returns {...grid, features: []} — non-null and truthy —
+    // when a Helsinki-only grid is viewed from another region.
+    const grid: FeatureCollection = { type: 'FeatureCollection', features: [cell(50, 50)] };
+    const region: FeatureCollection = {
+      type: 'FeatureCollection',
+      features: [{
+        type: 'Feature',
+        properties: {},
+        geometry: { type: 'Polygon', coordinates: [[[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]]] },
+      }],
+    };
+    const clipped = clipGridToData(grid, region);
+    expect(clipped).not.toBeNull();
+    expect(hasGridCells(clipped)).toBe(false);
+  });
+
+  it('is true only when cells remain', () => {
+    expect(hasGridCells({ type: 'FeatureCollection', features: [cell(1, 1)] })).toBe(true);
+    expect(hasGridCells(null)).toBe(false);
+    expect(hasGridCells(undefined)).toBe(false);
   });
 });
 

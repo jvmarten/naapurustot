@@ -125,6 +125,12 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({ onComplete, skip
   // step reached before the cold-load overlay clears would cut its spotlight onto
   // the blank shimmer (the overlay sits above all chrome), so hold on the current
   // (anchorless welcome) step until the app reports the chrome is visible.
+  // ON-2: the same condition the bare `return` below uses — surfaced so the UI can
+  // *show* the hold. The tour starts immediately, above the loading overlay, so the
+  // very first interaction a first-timer performs landed on a Next button with no
+  // disabled state, no spinner and no aria-busy, and the full-screen click-blocker
+  // routed to the same dead call. Tapping harder didn't help either.
+  const blocked = !isLast && !chromeReady && (steps[stepIndex + 1]?.anchors.length ?? 0) > 0;
   const advance = useCallback(() => {
     if (isLast) { finish('completed'); return; }
     if (!chromeReady && steps[stepIndex + 1]?.anchors.length > 0) return;
@@ -386,11 +392,28 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({ onComplete, skip
           </button>
           <button
             onClick={advance}
-            className="px-4 py-2 rounded-lg text-xs font-semibold bg-brand-700 hover:bg-brand-800 text-white transition-colors"
+            disabled={blocked}
+            aria-busy={blocked || undefined}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-brand-700 hover:bg-brand-800 text-white transition-colors
+                       disabled:opacity-60 disabled:cursor-wait disabled:hover:bg-brand-700"
           >
+            {blocked && (
+              <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+            )}
             {isLast ? t('onboarding.finder.cta') : t('onboarding.next')}
           </button>
         </div>
+
+        {/* ON-2: explain the hold in the popover, not just on the button — the
+            click-blocker's silence is otherwise unaccountable. */}
+        {blocked && (
+          <p className="mt-2 text-[11px] text-surface-500 dark:text-surface-400" role="status">
+            {t('onboarding.waiting')}
+          </p>
+        )}
 
         {/* Reassure users they can reopen the tour later — last step only. */}
         {isLast && (

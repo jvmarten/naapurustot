@@ -193,18 +193,32 @@ export default defineConfig({
             },
           },
           {
-            // Cache data files (TopoJSON, GeoJSON) — stale-while-revalidate so
-            // users get the cached file instantly AND we refresh from the network
+            // Cache data files (TopoJSON, GeoJSON, JSON) — stale-while-revalidate
+            // so users get the cached file instantly AND we refresh from the network
             // in the background. Previously CacheFirst kept users on a stale
             // grid for up to 30 days after a data update (e.g. extending the
             // light_pollution grid nationally), with only an incognito tab
             // showing the new data.
-            urlPattern: /\.(topojson|geojson)(\?|$)/,
+            //
+            // UX ER-2: `.json` belongs here too. The manifest advertises
+            // `display: standalone`, so the installed app launches offline from the
+            // precached JS/CSS shell — but every asset gating first paint is plain
+            // `.json` (region_aggregates, region_search_index) or degrades a feature
+            // (region_properties, adjacency, the lazily-fetched en/sv locales). With
+            // only topojson|geojson cached, the offline launch produced an instant
+            // shell over an empty map plus a red "loading failed" banner, and a
+            // Finnish UI for en/sv users.
+            urlPattern: /\.(topojson|geojson|json)(\?|$)/,
             handler: 'StaleWhileRevalidate',
             options: {
               cacheName: 'geodata',
               expiration: {
-                maxEntries: 20,
+                // ER-2: 20 was below the working set — a session that visits a few
+                // regions evicted the very aggregates/search-index entries the
+                // landing view needs, so the offline launch failed anyway. A region
+                // shard is ~200 KB, so 100 entries is a ~20 MB worst case that the
+                // browser is free to evict under storage pressure.
+                maxEntries: 100,
                 maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
               },
             },

@@ -5,7 +5,7 @@ import type { FeatureCollection } from 'geojson';
 import { buildFillColorExpression, LAYERS, type LayerId, type LayerConfig, getLayerById } from '../utils/colorScales';
 import { ensureHatchImage } from '../utils/hatchPattern';
 import { buildFillOpacityFadeOut, buildGridFillOpacity, GRID_ZOOM_FADE_IN } from '../utils/gridFade';
-import { getGridInfo } from '../hooks/useGridData';
+import { getGridInfo, hasGridCells } from '../hooks/useGridData';
 import { getCoveragePct, isLowCoverage, formatCoveragePct, type NeighborhoodProperties } from '../utils/metrics';
 import { useTheme } from '../hooks/useTheme';
 import { t, useI18nVersion } from '../utils/i18n';
@@ -93,10 +93,12 @@ const SplitPaneTooltip: React.FC<{
  * IN-1: compact per-pane legend with a coverage-scope badge. Smaller than the
  * main Legend (no proxy/freshness rows) so it fits two side-by-side panes.
  */
-const SplitPaneLegend: React.FC<{ layer: LayerConfig; side: 'left' | 'right'; gridLoading?: boolean }> = ({ layer, side, gridLoading }) => {
+const SplitPaneLegend: React.FC<{ layer: LayerConfig; side: 'left' | 'right'; gridLoading?: boolean; gridActive?: boolean }> = ({ layer, side, gridLoading, gridActive }) => {
   useI18nVersion();
   const n = layer.stops.length;
-  const grid = getGridInfo(layer.id);
+  // CF-1: same gate as the main Legend — outside a regional grid's coverage this
+  // pane draws the postal choropleth, so the ▦ badge must not claim ~250 m detail.
+  const grid = gridActive === false ? undefined : getGridInfo(layer.id);
   const coverage = getCoveragePct(layer.property);
   const lowCoverage = isLowCoverage(layer.property);
   const coverageLabel = coverage != null ? formatCoveragePct(coverage) : null;
@@ -277,7 +279,9 @@ function noDataFilter(propertyKey: string): maplibregl.FilterSpecification {
 
 /** IN-1: true when a fine-grained grid should render for this layer + data pair. */
 function gridActive(layer: LayerConfig, gridData: FeatureCollection | null | undefined): boolean {
-  return !!gridData && !!layer.gridProperty;
+  // CF-1: an out-of-region clip leaves an empty (non-null) FeatureCollection —
+  // treating that as an active grid drains the pane to bare basemap.
+  return hasGridCells(gridData) && !!layer.gridProperty;
 }
 
 // IN-1: base postal-fill opacity for the "no grid" case. Kept STATE-DEPENDENT
@@ -954,7 +958,7 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
             </div>
           )}
         </div>
-        <SplitPaneLegend layer={leftConfig} side="left" gridLoading={leftGridLoading} />
+        <SplitPaneLegend layer={leftConfig} side="left" gridLoading={leftGridLoading} gridActive={hasGridCells(leftGridData)} />
         {leftHover && (
           <SplitPaneTooltip
             hover={leftHover}
@@ -982,7 +986,7 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
             </div>
           )}
         </div>
-        <SplitPaneLegend layer={rightConfig} side="right" gridLoading={rightGridLoading} />
+        <SplitPaneLegend layer={rightConfig} side="right" gridLoading={rightGridLoading} gridActive={hasGridCells(rightGridData)} />
         {rightHover && (
           <SplitPaneTooltip
             hover={rightHover}

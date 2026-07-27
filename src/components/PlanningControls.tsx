@@ -7,6 +7,14 @@ interface Props {
   /** Active region id — gates whether the plan-status legend is meaningful. */
   region: string | undefined;
   onToggle: () => void;
+  /** ER-3: true while the region's planning shards are still fetching. */
+  loading?: boolean;
+  /** ER-3: true when a shard failed. An empty overlay then means "we don't know",
+   *  not "no plans here" — the caption must say which. */
+  error?: boolean;
+  /** ER-3: refetch after a failure (clears nothing else; the failed result was
+   *  deliberately not cached). */
+  onRetry?: () => void;
 }
 
 // Representative swatches (the full status palette lives in Map.tsx PLAN_STATUS_COLOR).
@@ -26,7 +34,7 @@ const TYPE_SWATCHES = [
  * overlay. The overlay is additive (coexists with any active choropleth); the
  * caption keeps the partial municipal coverage honest.
  */
-export const PlanningControls: React.FC<Props> = ({ enabled, region, onToggle }) => {
+export const PlanningControls: React.FC<Props> = ({ enabled, region, onToggle, loading, error, onRetry }) => {
   useI18nVersion();
   const info = planningInfo();
   const showPlans = regionHasPlans(region);
@@ -48,6 +56,32 @@ export const PlanningControls: React.FC<Props> = ({ enabled, region, onToggle })
           {enabled ? t('planning.on') : t('planning.off')}
         </button>
       </div>
+
+      {/* ER-3: the fetch was previously invisible — no spinner, and a failed shard
+          rendered as a blank overlay next to a fully drawn legend, which reads as
+          "nothing is planned here". Say which state we are actually in. */}
+      {enabled && loading && (
+        <p className="flex items-center gap-1.5 text-[11px] text-surface-500 dark:text-surface-400 mb-2" role="status">
+          <svg className="w-3 h-3 animate-spin flex-shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+          {t('planning.loading')}
+        </p>
+      )}
+      {enabled && error && !loading && (
+        <div className="mb-2 flex items-start gap-1.5 text-[11px] text-amber-600 dark:text-amber-400 leading-snug" role="status" aria-live="polite">
+          <span aria-hidden="true">⚠</span>
+          <span>
+            {t('planning.load_failed')}
+            {onRetry && (
+              <button onClick={onRetry} className="ml-1.5 font-semibold underline hover:no-underline">
+                {t('error.retry')}
+              </button>
+            )}
+          </span>
+        </div>
+      )}
 
       {enabled && (
         <>

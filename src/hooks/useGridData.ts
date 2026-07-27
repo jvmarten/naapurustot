@@ -49,6 +49,21 @@ export function getGridInfo(layerId: LayerId): GridManifestEntry | undefined {
 }
 
 /**
+ * True when a grid dataset actually has cells to draw.
+ *
+ * UX CF-1: the region clips below (`clipGridToData` and App's point-in-polygon
+ * refine) return `{...grid, features: []}` — a *non-null* FeatureCollection —
+ * when a regional grid (air quality, transit reachability: Helsinki bbox only)
+ * is viewed from another region. Treating that as "the grid is active" swapped
+ * the postal choropleth to the fade-out opacity ramp and drained the whole map
+ * to bare basemap at every region preset zoom, hiding postal data that exists
+ * nationally. Gate on cell count, never on object identity.
+ */
+export function hasGridCells(grid: FeatureCollection | null | undefined): boolean {
+  return !!grid && grid.features.length > 0;
+}
+
+/**
  * IN-2: centroid of a grid cell, used to decide whether the cell belongs to the
  * loaded region. Grid cells are small (~250 m) axis-aligned rectangles, so the
  * bbox midpoint of the outer ring is an exact, allocation-free stand-in for a
