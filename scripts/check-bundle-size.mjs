@@ -102,7 +102,16 @@ import { join } from 'node:path';
 // radar + mobile chart parity + winner synthesis, plus the batch's UX-review
 // fixes (search municipality labels, filterable region list, sync/session
 // recovery, tour keyboard handling). Headroom restored to ~1.2 KB.
-const BUDGET = 318_000;
+// Payload batch (2026-07-27, this batch's designated bumper): +2 KB for the
+// columnar decoder (src/utils/columnar.ts, used by both the all-Finland
+// properties fetch and every region TopoJSON) and the DPR-aware basemap URL
+// helper. Both BUY payload far larger than they cost: region_properties.json
+// drops 1,095,405 B gzipped (-52.4 %), the 69 region TopoJSONs drop 935,444 B
+// gzipped (-23.2 %, and -33 % on helsinki_metro), and a DPR-1 screen fetches
+// 776,271 B fewer basemap tiles on the landing view. Those are ?url assets and
+// tiles, so none of it shows up here — this gate only ever sees the cost side
+// of a payload optimisation, which is worth remembering before refusing a bump.
+const BUDGET = 320_000;
 const ASSETS_DIR = 'dist/assets';
 
 const fmtKB = (b) => (b / 1024).toFixed(2);

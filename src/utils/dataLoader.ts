@@ -30,6 +30,7 @@ const regionModules = import.meta.glob<string>(
 // (geometry comes from seutukunnat.topojson), so it loads just the properties
 // rather than the ~35 MB combined TopoJSON.
 import regionPropertiesUrl from '../data/region_properties.json?url';
+import { decodeColumnar, type ColumnarPayload } from './columnar';
 
 // CF-8: the small prebuilt per-region aggregate artifact (~69 records, a few KB gz)
 // that drives the all-Finland first paint, so the default landing no longer fetches
@@ -85,6 +86,20 @@ function processTopology(topo: Topology): ProcessedData {
     throw new Error(`Invalid TopoJSON: expected FeatureCollection from "${objectName}", got ${decoded.type}`);
   }
   const geojson = decoded;
+
+  // Region TopoJSONs carry their properties once, column-major, with each
+  // geometry holding only its row index — the ~198 key names were the bulk of
+  // the file. Rehydrate before anything downstream reads a property.
+  const columnar = (topo as unknown as { propertiesColumnar?: ColumnarPayload }).propertiesColumnar;
+  if (columnar) {
+    const records = decodeColumnar<Record<string, unknown>>(columnar);
+    for (const f of geojson.features) {
+      const idx = (f.properties as { i?: number } | null)?.i;
+      if (typeof idx === 'number' && records[idx]) {
+        f.properties = records[idx] as unknown as typeof f.properties;
+      }
+    }
+  }
 
   coerceNumericProperties(geojson.features);
   geojson.features = filterSmallIslands(geojson.features);
@@ -204,7 +219,11 @@ export function loadAllData(): Promise<ProcessedData> {
       if (!res.ok) throw new Error(`Failed to load data: ${res.status}`);
       return res.json();
     })
-    .then((props: Record<string, unknown>[]) => processProperties(props))
+    // The artifact ships column-major (keys stored once, not repeated 3,018
+    // times) — 2.09 MB gz -> 1.01 MB gz. decodeColumnar passes a plain array
+    // through untouched, so a stale cached copy of the old shape still loads.
+    .then((payload: ColumnarPayload | Record<string, unknown>[]) =>
+      processProperties(decodeColumnar<Record<string, unknown>>(payload)))
     .catch((err) => {
       // Evict from cache on failure so the next call retries
       combinedCache = null;

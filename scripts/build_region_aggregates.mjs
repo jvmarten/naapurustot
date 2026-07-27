@@ -29,6 +29,7 @@ import { resolve } from 'node:path';
 import { computeQualityIndices } from '../src/utils/qualityIndex.ts';
 import { computeChangeMetrics, computeQuickWinMetrics } from '../src/utils/metrics.ts';
 import { buildRegionAggregates } from '../src/utils/metroAggregation.ts';
+import { decodeColumnar } from './lib/columnar.mjs';
 
 const rootDir = resolve(import.meta.dirname, '..');
 const propertiesPath = resolve(rootDir, 'src', 'data', 'region_properties.json');
@@ -38,7 +39,7 @@ const outputPath = resolve(rootDir, 'src', 'data', 'region_aggregates.json');
 console.log('Building region_aggregates.json (all-cities first-paint artifact)...');
 
 // The geometry-stripped national properties array (written by build_region_data.mjs).
-const propsArray = JSON.parse(readFileSync(propertiesPath, 'utf-8'));
+const propsArray = decodeColumnar(JSON.parse(readFileSync(propertiesPath, 'utf-8')));
 
 // National normalization ranges (written by build_national_ranges.mjs). Mirror
 // getNationalRanges(): a Map<property, { min, max, avg }>.

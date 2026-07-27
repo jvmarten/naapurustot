@@ -49,6 +49,7 @@ import { computeNeighbourhoodPercentiles } from '../src/utils/percentileRanks.ts
 // direction-aware percentiles as the client panel, so the SEO meta/noscript copy
 // matches the in-app summary exactly.
 import { computeAreaSummary, composeSummarySentences, fillTemplate } from '../src/utils/areaSummary.ts';
+import { decodeColumnar } from './lib/columnar.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -149,7 +150,7 @@ const SIMILAR_METRICS = [
 const SIMILAR_ELSEWHERE = (() => {
   let areas;
   try {
-    areas = JSON.parse(readFileSync(join(ROOT, 'src', 'data', 'region_properties.json'), 'utf-8'));
+    areas = decodeColumnar(JSON.parse(readFileSync(join(ROOT, 'src', 'data', 'region_properties.json'), 'utf-8')));
   } catch {
     return {};
   }

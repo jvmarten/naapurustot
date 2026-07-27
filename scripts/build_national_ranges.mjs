@@ -30,6 +30,7 @@ import { resolve } from 'node:path';
 import { computeQualityIndices } from '../src/utils/qualityIndex.ts';
 import { SUMMARY_METRICS } from '../src/utils/areaSummary.ts';
 import { PERCENTILE_METRICS } from '../src/utils/percentileRanks.ts';
+import { decodeColumnar } from './lib/columnar.mjs';
 
 const rootDir = resolve(import.meta.dirname, '..');
 const propertiesPath = resolve(rootDir, 'src', 'data', 'region_properties.json');
@@ -64,7 +65,7 @@ function percentile(sorted, p) {
 }
 
 console.log('Reading region_properties.json...');
-const props = JSON.parse(readFileSync(propertiesPath, 'utf-8'));
+const props = decodeColumnar(JSON.parse(readFileSync(propertiesPath, 'utf-8')));
 console.log(`  ${props.length} postal codes`);
 
 // Collect every finite numeric value per property, mirroring collectRange in

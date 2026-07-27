@@ -37,10 +37,27 @@ export function accumulateAdjacencyFromTopology(topology, into = {}) {
   const objectName = Object.keys(topology.objects)[0];
   const geometries = topology.objects[objectName]?.geometries ?? [];
 
+  // Region TopoJSONs store their properties once per file, column-major, leaving
+  // each geometry with just a row index — so the postal code has to be resolved
+  // through that block. Reading `geom.properties.postinumeroalue` directly would
+  // find nothing, silently emit an EMPTY adjacency graph, and still be perfectly
+  // deterministic, so the build:data idempotency gate would happily commit it.
+  const columnar = topology.propertiesColumnar;
+  const pnoColumn = columnar
+    ? columnar.cols[columnar.keys.indexOf('postinumeroalue')]
+    : null;
+  const pnoOf = (geom) => (pnoColumn
+    ? pnoColumn[geom.properties?.i]
+    : geom.properties?.postinumeroalue);
+
+  if (columnar && !pnoColumn) {
+    throw new Error('adjacency: region TopoJSON has no postinumeroalue column');
+  }
+
   // arc index -> Set of postal codes that reference it
   const arcToPnos = new Map();
   for (const geom of geometries) {
-    const pno = geom.properties?.postinumeroalue;
+    const pno = pnoOf(geom);
     if (!pno) continue;
     for (const a of flattenArcs(geom.arcs)) {
       const idx = a < 0 ? ~a : a;
