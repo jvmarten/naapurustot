@@ -621,7 +621,7 @@
   "legend.subregion_estimate": "Streckad: regionens genomsnitt (inga områdesdata)",
   "source.discontinued": "Källan har upphört — senast publicerad {year}",
   "source.years_ago": "{n} år sedan",
-  "note.crime_index": "Polisstatistik på kommunnivå fördelad på postnummer med befolknings-, arbetslöshets- och hyresindikatorer.",
+  "note.crime_index": "Brottsstatistik på kommunnivå (Statistikcentralen). Ingen brottsstatistik publiceras under kommunnivå, så alla postnummerområden i samma kommun visar samma tal.",
   "note.air_quality_index": "Modellerad luftkvalitet, inte en mätstationsavläsning. En grov gittermodell (FMI SILAM, ~5–10 km) fördelad på postnummer; huvudstadsregionen använder den finare ENFUSER-modellen.",
   "note.tree_canopy_pct": "Copernicus HRL Tree Cover Density 2018 (10 m) i hela landet; HRM:s LiDAR-marktäcke 2024 i huvudstadsregionen.",
   "note.transit_reachability": "Kollektivtrafikens tillgänglighet i Helsingforsregionen från Helsingforsregionens restidsmatris 2023 (Helsingfors universitet, Digital Geography Lab): ett verkligt 250 m restidsrutnät; postnummerområdets värde är medelvärdet av rutorna. Täcker endast Helsingforsregionen.",

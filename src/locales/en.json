@@ -621,7 +621,7 @@
   "legend.subregion_estimate": "Hatched: sub-region average (no area-level data)",
   "source.discontinued": "Source discontinued — last published {year}",
   "source.years_ago": "{n} yr ago",
-  "note.crime_index": "Municipality-level police statistics distributed to postal codes using population, unemployment and rental indicators.",
+  "note.crime_index": "Municipality-level crime statistics (Statistics Finland). No crime statistic is published below municipality level, so every postal code in a municipality shows the same figure.",
   "note.air_quality_index": "Modelled air quality, not a station reading. A coarse grid model (FMI SILAM, ~5–10 km) distributed to postal codes; the capital region uses the finer ENFUSER model.",
   "note.tree_canopy_pct": "Copernicus HRL Tree Cover Density 2018 (10 m) nationally; HSY LiDAR land cover 2024 in the capital region.",
   "note.transit_reachability": "Public-transport reachability for the Helsinki metropolitan area from the Helsinki Region Travel Time Matrix 2023 (University of Helsinki, Digital Geography Lab): a real 250 m travel-time grid; postal-code values are the mean of the grid cells in each area. Covers Helsinki metro only.",

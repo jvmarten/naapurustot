@@ -576,7 +576,7 @@
   "legend.subregion_estimate": "Viivoitus: seutukunnan keskiarvo (ei alueen omaa tietoa)",
   "source.discontinued": "Lähde lakkautettu — viimeisin julkaisu {year}",
   "source.years_ago": "{n} v sitten",
-  "note.crime_index": "Kuntatason poliisitilasto jaettu postinumeroille väestö-, työttömyys- ja vuokra-asumisindikaattoreilla.",
+  "note.crime_index": "Kuntatason rikostilasto (Tilastokeskus). Rikostilastoa ei julkaista kuntaa tarkemmalla tasolla, joten kaikilla saman kunnan postinumeroalueilla on sama luku.",
   "note.air_quality_index": "Mallinnettu ilmanlaatu, ei mittausasemien lukema. Karkea hilamalli (FMI SILAM, ~5–10 km) jaettu postinumeroalueille; pääkaupunkiseudulla tarkempi ENFUSER-malli.",
   "note.tree_canopy_pct": "Copernicus HRL Tree Cover Density 2018 (10 m) koko maassa; pääkaupunkiseudulla HSY:n LiDAR-maanpeite 2024.",
   "note.transit_reachability": "Julkisen liikenteen saavutettavuus Helsingin seudulla Helsingin seudun matka-aikamatriisista 2023 (Helsingin yliopisto, Digital Geography Lab): aito 250 m matka-aikaruudukko; postinumeroalueen arvo on alueen ruutujen keskiarvo. Kattaa vain Helsingin seudun.",
