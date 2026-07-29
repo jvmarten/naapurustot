@@ -35,20 +35,33 @@ dimension's target.
 
 | Dimension | Weight | Factors (default weights) | Why |
 |-----------|-------:|---------------------------|-----|
-| **Safety & peace of mind** | 19 | Violent crime 15 · traffic safety 4 | Feeling safe is foundational; fear of crime is a large, persistent drag on life satisfaction. The crime figure is *crimes against life and health*, not total offences — see below. |
+| **Safety & peace of mind** | 23 | Violent crime 15 · traffic safety 8 | Feeling safe is foundational; fear of crime is a large, persistent drag on life satisfaction. The crime figure is *crimes against life and health*, not total offences — see below. |
 | **Health, nature & calm** | 28 | Air 9 · tree canopy 8 · quiet (low noise) 7 · water 4 | Clean air, green and blue space and quiet have robust positive effects on physical and mental health. |
 | **Livelihood & purpose** | 26 | Employment 12 · income 10 · education 4 | Unemployment is one of the largest wellbeing shocks; income matters with steep diminishing returns; education is kept small as it is ~76 % redundant with income. |
-| **Everyday freedom & ease** | 16 | Walkability 7 · cycling 3 · transit 3 · essential services 3 | Getting around easily with essentials within reach reduces daily friction; amenity *density* is deliberately demoted. |
+| **Everyday freedom & ease** | 23 | Walkability 7 · transit 7 · essential services 6 · cycling 3 | Getting around easily with essentials within reach reduces daily friction; amenity *density* is deliberately demoted. |
 | **Housing context** | 0 | (descriptive — see below) | No objective "better" direction. |
 | **Demographics & other** | 0 | (descriptive — see below) | No objective "better" direction. |
 
-The four evaluative weights sum to **89**, not 100. `computeQualityIndices`
-divides by the actual total weight, so only the ratios matter; the sum is
-presentational. It was 100 until safety was cut from 30 to 19, and those 11
-points were deliberately **not** redistributed — raising another dimension to
-round the total back up would be an editorial claim nobody made. The ordering —
-a healthy environment first, then livelihood, then safety, then everyday ease —
-is a deliberate editorial stance, not an institutional formula.
+The four evaluative weights sum to 100, so each is readable as a percentage of
+the score. The ordering — a healthy environment first, then livelihood, then
+safety and everyday ease level — is a deliberate editorial stance, not an
+institutional formula.
+
+The 11 points freed by cutting safety from 30 to 23 went to **traffic safety
+(4 → 8), transit (3 → 7) and essential services (3 → 6)**. All three are
+postal-resolution and directly measured, which is the point: the reason safety
+was cut is that crime is a *municipal* number, and weight spent on it cannot
+distinguish two neighbourhoods in the same city. Moving those points onto
+measurements that do vary per postal code raises how much the index can actually
+tell apart, rather than just rounding the total back up.
+
+They deliberately did **not** go to income, employment or education — already 26
+combined and mutually correlated, with education capped at 4 for being ~76 %
+redundant with income — nor to `water_proximity` (2,789 of 3,018 areas read
+exactly 0), `walkability_index` (37 distinct values nationally, 1,412 areas
+sharing one), noise (74 % carry a modelled baseline) or air quality (a coarse
+~5–10 km SILAM grid, flagged `is_proxy`). Weighting a degenerate or coarse metric
+harder buys no discrimination.
 
 ### Why safety is weighted 19 and not 30
 
@@ -90,8 +103,8 @@ target weight** (e.g. Health = air 9 + tree canopy 8 + noise 7 + water 4 = 28),
 this is mathematically equivalent to scoring each dimension once and then
 weighting the dimensions. Splitting Livelihood into employment 12 + income 10 +
 education 4 is what stops affluence being counted several times over: pure
-socioeconomic status now contributes ~26 of 89 rather than ~80 %, leaving real
-room for a healthy environment (28), safety (19) and everyday ease (16).
+socioeconomic status now contributes ~26 % rather than ~80 %, leaving real room
+for a healthy environment (28), safety (23) and everyday ease (23).
 
 The same redundancy argument is why safety is not built from a socioeconomic
 proxy. An earlier pipeline spread the municipal crime rate across postal codes

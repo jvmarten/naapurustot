@@ -29,16 +29,14 @@ describe('getDefaultWeights', () => {
   it('has weights summing to a known value', () => {
     const w = getDefaultWeights();
     const sum = Object.values(w).reduce((a, b) => a + b, 0);
-    // Primary weights sum: safety 15 + income 10 + employment 12 + education 4 +
-    // transit 3 + services 3 + air_quality 9 + cycling 3 + walkability 7 +
-    // traffic_accidents 4 + tree_canopy 8 + noise_pollution 7 + water_proximity 4
-    // = 89; secondary (incl. the opt-in property_crime / total_crime) are 0.
-    // The total is deliberately not 100: weights are relative, and
-    // computeQualityIndices divides by the sum of the active weights, so only
-    // the ratios matter. Cutting safety from 26 to 15 — crime is a municipal
-    // statistic, identical for every postal code in a city — freed 11 points
-    // that were intentionally NOT handed to the other factors.
-    expect(sum).toBe(89);
+    // Primary factors sum to 100; secondary factors (incl. the opt-in
+    // property_crime and total_crime) start at 0.
+    // safety 15 + traffic 8 + air 9 + tree 8 + noise 7 + water 4 + employment 12
+    // + income 10 + education 4 + walkability 7 + transit 7 + services 6 + cycling 3
+    // Safety was cut 26 -> 15 because crime is a municipal statistic and cannot
+    // distinguish neighbourhoods within a city; the freed 11 points went to
+    // traffic (4->8), transit (3->7) and services (3->6), all postal-resolution.
+    expect(sum).toBe(100);
   });
 });
 

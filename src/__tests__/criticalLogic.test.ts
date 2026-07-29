@@ -156,17 +156,17 @@ describe('Quality Category classification', () => {
 });
 
 describe('Quality Weights management', () => {
-  it('default weights sum to 89 (leaving room for secondary factors)', () => {
+  it('default weights sum to 100 (leaving room for secondary factors)', () => {
     const weights = getDefaultWeights();
     const sum = Object.values(weights).reduce((a, b) => a + b, 0);
-    // Primary factors sum to 89, secondary (incl. the opt-in property_crime and
-    // total_crime factors) start at 0. The sum is deliberately not 100: weights are
-    // relative, and computeQualityIndices normalises by the *actual* total weight,
-    // so only the ratios between factors matter. Safety was cut 26 → 15 because
-    // crime is a municipal statistic (identical for every postal code in a city),
-    // and the 11 freed points were deliberately NOT redistributed to the other
-    // factors — their relative shares are unchanged.
-    expect(sum).toBe(89);
+    // Primary factors sum to 100; secondary factors (incl. the opt-in
+    // property_crime and total_crime) start at 0.
+    // safety 15 + traffic 8 + air 9 + tree 8 + noise 7 + water 4 + employment 12
+    // + income 10 + education 4 + walkability 7 + transit 7 + services 6 + cycling 3
+    // Safety was cut 26 -> 15 because crime is a municipal statistic and cannot
+    // distinguish neighbourhoods within a city; the freed 11 points went to
+    // traffic (4->8), transit (3->7) and services (3->6), all postal-resolution.
+    expect(sum).toBe(100);
   });
 
   it('isCustomWeights detects any deviation', () => {
