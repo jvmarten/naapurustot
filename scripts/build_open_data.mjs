@@ -97,6 +97,11 @@ const METRIC_INFO = {
   broadband_coverage_pct: { fi: 'Laajakaistan kattavuus', en: 'Broadband coverage', unit: '%' },
   crime_index: { fi: 'Rikollisuusindeksi', en: 'Crime index', unit: '/1000' },
   crime_index_change_pct: { fi: 'Rikollisuusindeksin muutos', en: 'Crime index change', unit: '%' },
+  // Sub-groups of crime_index, not additions to it: StatFin's seven top-level
+  // offence groups sum exactly to the total, so a consumer must not add these
+  // to crime_index. Both are withheld under 2,000 residents.
+  violent_crime_rate: { fi: 'Väkivaltarikokset', en: 'Violent crime', unit: '/1000' },
+  property_crime_rate: { fi: 'Omaisuusrikokset', en: 'Property crime', unit: '/1000' },
   traffic_accident_rate: { fi: 'Liikenneonnettomuuksien määrä', en: 'Traffic accident rate', unit: '' },
   air_quality_index: { fi: 'Ilmanlaatuindeksi', en: 'Air quality index', unit: '' },
   noise_pollution: { fi: 'Melutaso', en: 'Noise level', unit: 'dB' },
