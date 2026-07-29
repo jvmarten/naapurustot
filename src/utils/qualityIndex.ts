@@ -91,6 +91,20 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   // not move when comparing neighbourhoods — the most common use of this app.
   // 15 keeps a real between-municipality signal without letting a constant
   // dominate. Revisit only if a sub-municipal source ever appears.
+  // The 11 points freed by the safety cut (26 -> 15) were redistributed here, to
+  // bring the primary weights back to a readable 100. They all went to factors
+  // that are POSTAL-resolution and directly measured, because that is the exact
+  // deficiency the safety cut exposed: crime is municipal, so weight spent on it
+  // cannot distinguish two neighbourhoods in one city. Moving weight onto
+  // measurements that DO vary per postal code increases what the index can
+  // actually tell apart.
+  //
+  // They deliberately did NOT go to: income/employment/education (already 26 and
+  // mutually correlated — education is capped at 4 for being ~76 % redundant with
+  // income), water_proximity (2,789 of 3,018 areas read exactly 0), walkability
+  // (37 distinct values nationally, 1,412 areas sharing one), noise (74 % carry a
+  // modelled baseline) or air quality (coarse ~5-10 km SILAM grid, is_proxy).
+  // Weighting a degenerate or coarse metric harder buys nothing.
   {
     id: 'safety',
     label: { fi: 'Turvallisuus', en: 'Safety', sv: 'Säkerhet' },
@@ -148,7 +162,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   {
     id: 'transit',
     label: { fi: 'Joukkoliikenne', en: 'Transit', sv: 'Kollektivtrafik' },
-    defaultWeight: 3,
+    defaultWeight: 7,
     properties: ['transit_stop_density'],
     invert: false,
     primary: true,
@@ -156,7 +170,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   {
     id: 'services',
     label: { fi: 'Palvelut', en: 'Services', sv: 'Tjänster' },
-    defaultWeight: 3,
+    defaultWeight: 6,
     properties: ['healthcare_density', 'school_density', 'daycare_density', 'grocery_density'],
     invert: false,
     primary: true,
@@ -494,7 +508,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   {
     id: 'traffic_accidents',
     label: { fi: 'Liikenneonnettomuudet', en: 'Traffic Accidents', sv: 'Trafikolyckor' },
-    defaultWeight: 4,
+    defaultWeight: 8,
     properties: ['traffic_accident_rate'],
     invert: true,
     primary: true,

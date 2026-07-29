@@ -270,7 +270,7 @@ describe('isCustomWeights', () => {
 });
 
 describe('getDefaultWeights', () => {
-  it('sums primary weights to 89', () => {
+  it('sums primary weights to 100', () => {
     // Not 100, and that is intentional: computeQualityIndices normalises by the
     // sum of the active weights, so the weights are relative and only their
     // ratios matter. The safety cut (26 → 15, because crime is only published at
@@ -280,7 +280,14 @@ describe('getDefaultWeights', () => {
     const primarySum = QUALITY_FACTORS
       .filter((f) => f.primary)
       .reduce((sum, f) => sum + w[f.id], 0);
-    expect(primarySum).toBe(89);
+    // Primary factors sum to 100; secondary factors (incl. the opt-in
+    // property_crime and total_crime) start at 0.
+    // safety 15 + traffic 8 + air 9 + tree 8 + noise 7 + water 4 + employment 12
+    // + income 10 + education 4 + walkability 7 + transit 7 + services 6 + cycling 3
+    // Safety was cut 26 -> 15 because crime is a municipal statistic and cannot
+    // distinguish neighbourhoods within a city; the freed 11 points went to
+    // traffic (4->8), transit (3->7) and services (3->6), all postal-resolution.
+    expect(primarySum).toBe(100);
   });
 
   it('secondary factors have zero default weight', () => {

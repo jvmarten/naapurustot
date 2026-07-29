@@ -176,7 +176,7 @@ describe('getDefaultWeights', () => {
     }
   });
 
-  it('sums primary factor weights to 89', () => {
+  it('sums primary factor weights to 100', () => {
     // Weights are RELATIVE: computeQualityIndices divides by the actual total
     // weight, so only the ratios between factors matter — the total need not be
     // 100. It used to be, but cutting safety from 26 to 15 (crime is a municipal
@@ -186,7 +186,14 @@ describe('getDefaultWeights', () => {
     const total = QUALITY_FACTORS
       .filter((f) => f.primary)
       .reduce((sum, f) => sum + f.defaultWeight, 0);
-    expect(total).toBe(89);
+    // Primary factors sum to 100; secondary factors (incl. the opt-in
+    // property_crime and total_crime) start at 0.
+    // safety 15 + traffic 8 + air 9 + tree 8 + noise 7 + water 4 + employment 12
+    // + income 10 + education 4 + walkability 7 + transit 7 + services 6 + cycling 3
+    // Safety was cut 26 -> 15 because crime is a municipal statistic and cannot
+    // distinguish neighbourhoods within a city; the freed 11 points went to
+    // traffic (4->8), transit (3->7) and services (3->6), all postal-resolution.
+    expect(total).toBe(100);
   });
 });
 

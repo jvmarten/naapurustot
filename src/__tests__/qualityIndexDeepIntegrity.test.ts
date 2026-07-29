@@ -44,7 +44,7 @@ function makeFeature(overrides: Partial<NeighborhoodProperties>): GeoJSON.Featur
 }
 
 describe('getDefaultWeights — structural integrity', () => {
-  it('primary factor weights sum to 89', () => {
+  it('primary factor weights sum to 100', () => {
     // Weights are RELATIVE: computeQualityIndices divides the weighted sum by the
     // actual total weight, so only the ratios between factors matter — the total
     // need not be 100. It is 89 because the safety factor was cut 26 → 15 (crime
@@ -53,7 +53,14 @@ describe('getDefaultWeights — structural integrity', () => {
     // and the freed 11 points were deliberately NOT redistributed to other factors.
     const primary = QUALITY_FACTORS.filter(f => f.primary);
     const sum = primary.reduce((acc, f) => acc + f.defaultWeight, 0);
-    expect(sum).toBe(89);
+    // Primary factors sum to 100; secondary factors (incl. the opt-in
+    // property_crime and total_crime) start at 0.
+    // safety 15 + traffic 8 + air 9 + tree 8 + noise 7 + water 4 + employment 12
+    // + income 10 + education 4 + walkability 7 + transit 7 + services 6 + cycling 3
+    // Safety was cut 26 -> 15 because crime is a municipal statistic and cannot
+    // distinguish neighbourhoods within a city; the freed 11 points went to
+    // traffic (4->8), transit (3->7) and services (3->6), all postal-resolution.
+    expect(sum).toBe(100);
   });
 
   it('secondary factor default weights are all 0', () => {
