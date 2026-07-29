@@ -59,6 +59,7 @@ function makeRealisticFeature(pno: string, overrides: Partial<NeighborhoodProper
       transit_stop_density: 30,
       air_quality_index: 28,
       crime_index: 60,
+      violent_crime_rate: 60,
       daycare_density: 3,
       school_density: 2,
       healthcare_density: 4,
@@ -132,11 +133,16 @@ function makeRealisticFeature(pno: string, overrides: Partial<NeighborhoodProper
 
 describe('Full data pipeline integration', () => {
   const features = [
-    makeRealisticFeature('00100', { hr_mtu: 45000, crime_index: 30, transit_stop_density: 100 }),
-    makeRealisticFeature('00200', { hr_mtu: 25000, crime_index: 120, transit_stop_density: 20 }),
-    makeRealisticFeature('00300', { hr_mtu: 35000, crime_index: 60, transit_stop_density: 50 }),
-    makeRealisticFeature('00400', { hr_mtu: 55000, crime_index: 20, transit_stop_density: 80 }),
-    makeRealisticFeature('00500', { hr_mtu: 20000, crime_index: 150, transit_stop_density: 15 }),
+    // Both crime properties are set per area: the quality index's `safety` factor
+    // reads violent_crime_rate (crimes against life and health), while crime_index
+    // (total recorded offences) remains a similarity metric — exercised by the
+    // findSimilarNeighborhoods test below — and the opt-in `total_crime` factor.
+    // Both share the same ordering, so the crime-driven assertions are unchanged.
+    makeRealisticFeature('00100', { hr_mtu: 45000, crime_index: 30, violent_crime_rate: 30, transit_stop_density: 100 }),
+    makeRealisticFeature('00200', { hr_mtu: 25000, crime_index: 120, violent_crime_rate: 120, transit_stop_density: 20 }),
+    makeRealisticFeature('00300', { hr_mtu: 35000, crime_index: 60, violent_crime_rate: 60, transit_stop_density: 50 }),
+    makeRealisticFeature('00400', { hr_mtu: 55000, crime_index: 20, violent_crime_rate: 20, transit_stop_density: 80 }),
+    makeRealisticFeature('00500', { hr_mtu: 20000, crime_index: 150, violent_crime_rate: 150, transit_stop_density: 15 }),
   ];
 
   it('computeQuickWinMetrics populates derived fields', () => {
@@ -271,7 +277,7 @@ describe('Full data pipeline integration', () => {
 
     computeQualityIndices(features, safetyWeights);
 
-    // Now 00400 (crime_index: 20, lowest) should have best quality
+    // Now 00400 (violent_crime_rate: 20, lowest) should have best quality
     const scores = features.map((f) => ({
       pno: (f.properties as NeighborhoodProperties).pno,
       qi: (f.properties as NeighborhoodProperties).quality_index!,

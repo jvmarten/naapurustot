@@ -25,6 +25,14 @@ function makeFeature(props: Partial<NeighborhoodProperties>, geom?: GeoJSON.Geom
   };
 }
 
+/**
+ * Three realistic areas. Both crime properties are set on purpose: the quality
+ * index's `safety` factor reads `violent_crime_rate` (crimes against life and
+ * health), while `crime_index` (total recorded offences) is still a map layer,
+ * a similarity metric and the opt-in `total_crime` factor — the similarity test
+ * below relies on it. Both carry the same per-area ordering (Tapiola lowest,
+ * Mellunmäki highest), so the crime-driven assertions read the same either way.
+ */
 function buildRealisticDataset(): GeoJSON.Feature[] {
   return [
     makeFeature({
@@ -36,7 +44,7 @@ function buildRealisticDataset(): GeoJSON.Feature[] {
       te_omis_as: 1200, te_taly: 4000, te_vuok_as: 2500,
       he_0_2: 200, he_3_6: 250, pinta_ala: 1_500_000,
       ra_pt_as: 50, ra_asunn: 3000,
-      crime_index: 80, transit_stop_density: 100, air_quality_index: 30,
+      crime_index: 80, violent_crime_rate: 80, transit_stop_density: 100, air_quality_index: 30,
       healthcare_density: 8, school_density: 5, daycare_density: 6, grocery_density: 4,
       property_price_sqm: 7000, foreign_language_pct: 12,
       income_history: JSON.stringify([[2020, 40000], [2023, 45000]]),
@@ -56,7 +64,7 @@ function buildRealisticDataset(): GeoJSON.Feature[] {
       te_omis_as: 2000, te_taly: 5500, te_vuok_as: 3000,
       he_0_2: 600, he_3_6: 700, pinta_ala: 3_000_000,
       ra_pt_as: 200, ra_asunn: 4500,
-      crime_index: 120, transit_stop_density: 30, air_quality_index: 38,
+      crime_index: 120, violent_crime_rate: 120, transit_stop_density: 30, air_quality_index: 38,
       healthcare_density: 3, school_density: 2, daycare_density: 3, grocery_density: 2,
       property_price_sqm: 2500, foreign_language_pct: 35,
       income_history: JSON.stringify([[2020, 20000], [2023, 22000]]),
@@ -76,7 +84,7 @@ function buildRealisticDataset(): GeoJSON.Feature[] {
       te_omis_as: 3000, te_taly: 4500, te_vuok_as: 1200,
       he_0_2: 400, he_3_6: 450, pinta_ala: 4_000_000,
       ra_pt_as: 500, ra_asunn: 3500,
-      crime_index: 40, transit_stop_density: 60, air_quality_index: 24,
+      crime_index: 40, violent_crime_rate: 40, transit_stop_density: 60, air_quality_index: 24,
       healthcare_density: 6, school_density: 4, daycare_density: 5, grocery_density: 3,
       property_price_sqm: 5000, foreign_language_pct: 8,
       income_history: JSON.stringify([[2020, 35000], [2023, 38000]]),
@@ -150,15 +158,15 @@ describe('full data pipeline integration', () => {
     expect(getQI('00100')).toBeGreaterThanOrEqual(0);
     expect(getQI('01600')).toBeGreaterThanOrEqual(0);
 
-    // Now recompute with only safety weight (crime_index inverted)
+    // Now recompute with only safety weight (violent_crime_rate inverted)
     const safetyOnly: QualityWeights = {};
     for (const f of Object.keys(getDefaultWeights())) safetyOnly[f] = 0;
     safetyOnly['safety'] = 100;
 
     computeQualityIndices(features, safetyOnly);
-    // Tapiola has lowest crime → should be ranked #1
+    // Tapiola has lowest violent crime → should be ranked #1
     expect(getQI('02100')).toBe(100);
-    expect(getQI('01600')).toBe(0); // highest crime
+    expect(getQI('01600')).toBe(0); // highest violent crime
 
     // With only employment weight
     const employmentOnly: QualityWeights = {};

@@ -55,7 +55,7 @@ const LAYER_GROUPS: LayerGroup[] = [
   { labelKey: 'layers.economy', ids: ['median_income', 'disposable_income', 'low_income', 'job_self_sufficiency', 'unemployment', 'employment_rate', 'education', 'property_price', 'tech_sector_jobs', 'healthcare_workers', 'manufacturing_jobs', 'public_sector_jobs', 'service_sector_jobs'] },
   { labelKey: 'layers.housing', ids: ['ownership', 'rental', 'apt_size', 'living_space', 'detached_houses', 'new_construction', 'construction_activity', 'active_plan_count', 'building_age', 'rental_price', 'price_to_rent'] },
   { labelKey: 'layers.services', ids: ['restaurant_density', 'grocery_access', 'daycare_density', 'school_density', 'healthcare_access', 'school_quality', 'sports_facilities'] },
-  { labelKey: 'layers.safety', ids: ['crime_rate', 'traffic_accidents'] },
+  { labelKey: 'layers.safety', ids: ['violent_crime', 'property_crime', 'crime_rate', 'traffic_accidents'] },
   { labelKey: 'layers.mobility', ids: ['cycling_infra', 'ev_charging_density'] },
   { labelKey: 'layers.environment', ids: ['tree_canopy', 'water_proximity', 'light_pollution', 'noise_pollution', 'radon', 'flood_risk'] },
   { labelKey: 'layers.health', ids: ['health_index'] },

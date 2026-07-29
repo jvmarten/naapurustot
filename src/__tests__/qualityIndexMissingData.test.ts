@@ -36,7 +36,7 @@ describe('qualityIndex — missing data branches', () => {
 
     computeQualityIndices(features, weights);
 
-    // Both should get null since crime_index is undefined on all features
+    // Both should get null since violent_crime_rate is undefined on all features
     for (const f of features) {
       expect((f.properties as NeighborhoodProperties).quality_index).toBeNull();
     }
@@ -45,9 +45,9 @@ describe('qualityIndex — missing data branches', () => {
   it('falls back to average when a single feature has missing data but others have it', () => {
     // Feature A has data, Feature B has null → B falls back to avg
     const features = [
-      makeFeature({ pno: '00100', crime_index: 10, hr_mtu: 30000, unemployment_rate: 5, higher_education_rate: 40, transit_stop_density: 3, healthcare_density: 1, school_density: 1, daycare_density: 1, grocery_density: 1, air_quality_index: 2 }),
-      makeFeature({ pno: '00200', crime_index: 20, hr_mtu: 40000, unemployment_rate: 3, higher_education_rate: 60, transit_stop_density: 5, healthcare_density: 2, school_density: 2, daycare_density: 2, grocery_density: 2, air_quality_index: 3 }),
-      makeFeature({ pno: '00300', crime_index: null, hr_mtu: null, unemployment_rate: null, higher_education_rate: null }),
+      makeFeature({ pno: '00100', violent_crime_rate: 10, hr_mtu: 30000, unemployment_rate: 5, higher_education_rate: 40, transit_stop_density: 3, healthcare_density: 1, school_density: 1, daycare_density: 1, grocery_density: 1, air_quality_index: 2 }),
+      makeFeature({ pno: '00200', violent_crime_rate: 20, hr_mtu: 40000, unemployment_rate: 3, higher_education_rate: 60, transit_stop_density: 5, healthcare_density: 2, school_density: 2, daycare_density: 2, grocery_density: 2, air_quality_index: 3 }),
+      makeFeature({ pno: '00300', violent_crime_rate: null, hr_mtu: null, unemployment_rate: null, higher_education_rate: null }),
     ];
 
     computeQualityIndices(features);
@@ -65,9 +65,9 @@ describe('qualityIndex — missing data branches', () => {
 
   it('handles feature where hr_mtu is 0 (treated as missing per requirePositive logic)', () => {
     const features = [
-      makeFeature({ pno: '00100', hr_mtu: 30000, crime_index: 5 }),
-      makeFeature({ pno: '00200', hr_mtu: 0, crime_index: 10 }),
-      makeFeature({ pno: '00300', hr_mtu: 50000, crime_index: 15 }),
+      makeFeature({ pno: '00100', hr_mtu: 30000, violent_crime_rate: 5 }),
+      makeFeature({ pno: '00200', hr_mtu: 0, violent_crime_rate: 10 }),
+      makeFeature({ pno: '00300', hr_mtu: 50000, violent_crime_rate: 15 }),
     ];
 
     computeQualityIndices(features);
@@ -82,8 +82,8 @@ describe('qualityIndex — missing data branches', () => {
 
   it('handles dataset where all values for a property are identical (min === max)', () => {
     const features = [
-      makeFeature({ pno: '00100', crime_index: 5, hr_mtu: 30000 }),
-      makeFeature({ pno: '00200', crime_index: 5, hr_mtu: 30000 }),
+      makeFeature({ pno: '00100', violent_crime_rate: 5, hr_mtu: 30000 }),
+      makeFeature({ pno: '00200', violent_crime_rate: 5, hr_mtu: 30000 }),
     ];
 
     computeQualityIndices(features);
@@ -96,8 +96,8 @@ describe('qualityIndex — missing data branches', () => {
 
   it('skips factors with zero weight in custom weights', () => {
     const features = [
-      makeFeature({ pno: '00100', crime_index: 5, hr_mtu: 30000, unemployment_rate: 3, higher_education_rate: 50 }),
-      makeFeature({ pno: '00200', crime_index: 15, hr_mtu: 20000, unemployment_rate: 8, higher_education_rate: 20 }),
+      makeFeature({ pno: '00100', violent_crime_rate: 5, hr_mtu: 30000, unemployment_rate: 3, higher_education_rate: 50 }),
+      makeFeature({ pno: '00200', violent_crime_rate: 15, hr_mtu: 20000, unemployment_rate: 8, higher_education_rate: 20 }),
     ];
 
     // Only safety factor matters
@@ -109,16 +109,16 @@ describe('qualityIndex — missing data branches', () => {
     const a = (features[0].properties as NeighborhoodProperties).quality_index!;
     const b = (features[1].properties as NeighborhoodProperties).quality_index!;
 
-    // Safety is inverted: lower crime = higher score
-    // Feature A (crime=5) should score higher than Feature B (crime=15)
+    // Safety is inverted: lower violent crime = higher score
+    // Feature A (violent crime=5) should score higher than Feature B (violent crime=15)
     expect(a).toBeGreaterThan(b);
   });
 
   it('handles NaN and Infinity values in properties gracefully', () => {
     const features = [
-      makeFeature({ pno: '00100', crime_index: NaN, hr_mtu: Infinity }),
-      makeFeature({ pno: '00200', crime_index: 5, hr_mtu: 30000 }),
-      makeFeature({ pno: '00300', crime_index: 10, hr_mtu: 40000 }),
+      makeFeature({ pno: '00100', violent_crime_rate: NaN, hr_mtu: Infinity }),
+      makeFeature({ pno: '00200', violent_crime_rate: 5, hr_mtu: 30000 }),
+      makeFeature({ pno: '00300', violent_crime_rate: 10, hr_mtu: 40000 }),
     ];
 
     computeQualityIndices(features);
@@ -173,7 +173,7 @@ describe('qualityIndex — isCustomWeights', () => {
 
   it('returns true when any weight differs from default', () => {
     const w = getDefaultWeights();
-    w['safety'] = 50; // default is 25
+    w['safety'] = 50; // default is 15 (cut from 26: crime is a municipal statistic)
     expect(isCustomWeights(w)).toBe(true);
   });
 
@@ -197,13 +197,13 @@ describe('qualityIndex — services factor averages multiple properties', () => 
         pno: '00100',
         healthcare_density: 10, school_density: 10, daycare_density: 10, grocery_density: 10,
         // Zero out other factors for isolation
-        crime_index: 5, hr_mtu: 30000, unemployment_rate: 5, higher_education_rate: 50,
+        violent_crime_rate: 5, hr_mtu: 30000, unemployment_rate: 5, higher_education_rate: 50,
         transit_stop_density: 5, air_quality_index: 2,
       }),
       makeFeature({
         pno: '00200',
         healthcare_density: 0, school_density: 0, daycare_density: 0, grocery_density: 0,
-        crime_index: 5, hr_mtu: 30000, unemployment_rate: 5, higher_education_rate: 50,
+        violent_crime_rate: 5, hr_mtu: 30000, unemployment_rate: 5, higher_education_rate: 50,
         transit_stop_density: 5, air_quality_index: 2,
       }),
     ];

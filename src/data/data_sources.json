@@ -295,6 +295,22 @@
       "is_proxy": true,
       "note": "note.crime_index"
     },
+    "violent_crime_rate": {
+      "source": "Tilastokeskus (StatFin 13h4, henkeen ja terveyteen kohdistuneet rikokset)",
+      "publisher": "tilastokeskus",
+      "vintage": "2021–2025",
+      "granularity": "postal",
+      "is_proxy": true,
+      "note": "note.violent_crime_rate"
+    },
+    "property_crime_rate": {
+      "source": "Tilastokeskus (StatFin 13h4, omaisuusrikokset)",
+      "publisher": "tilastokeskus",
+      "vintage": 2025,
+      "granularity": "postal",
+      "is_proxy": true,
+      "note": "note.property_crime_rate"
+    },
     "restaurant_density": {
       "source": "OpenStreetMap",
       "publisher": "osm",

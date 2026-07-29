@@ -75,8 +75,8 @@ describe('isCustomWeights', () => {
 describe('computeQualityIndices with custom weights', () => {
   it('respects custom weights — safety-only weighting', () => {
     const features = [
-      makeFeature({ crime_index: 20 }),  // low crime = high safety score
-      makeFeature({ crime_index: 100 }), // high crime = low safety score
+      makeFeature({ violent_crime_rate: 20 }),  // low violent crime = high safety score
+      makeFeature({ violent_crime_rate: 100 }), // high violent crime = low safety score
     ];
 
     const weights: QualityWeights = {};
@@ -84,7 +84,7 @@ describe('computeQualityIndices with custom weights', () => {
     weights['safety'] = 100; // only safety matters
 
     computeQualityIndices(features, weights);
-    // Crime is inverted — lower crime = higher quality
+    // Safety is inverted — lower violent crime = higher quality
     expect(features[0].properties!.quality_index).toBeGreaterThan(
       features[1].properties!.quality_index as number,
     );
@@ -108,14 +108,14 @@ describe('computeQualityIndices with custom weights', () => {
 
   it('skips factors with zero weight', () => {
     const features = [
-      makeFeature({ hr_mtu: 50000, crime_index: 200 }), // great income, terrible safety
-      makeFeature({ hr_mtu: 20000, crime_index: 10 }),   // poor income, great safety
+      makeFeature({ hr_mtu: 50000, violent_crime_rate: 200 }), // great income, terrible safety
+      makeFeature({ hr_mtu: 20000, violent_crime_rate: 10 }),   // poor income, great safety
     ];
 
     const weights: QualityWeights = {};
     for (const f of QUALITY_FACTORS) weights[f.id] = 0;
     weights['income'] = 100; // only income matters
-    // safety = 0, so crime_index shouldn't affect the result
+    // safety = 0, so violent_crime_rate shouldn't affect the result
 
     computeQualityIndices(features, weights);
     expect(features[0].properties!.quality_index).toBeGreaterThan(
@@ -126,7 +126,7 @@ describe('computeQualityIndices with custom weights', () => {
   it('handles equal weights for all factors', () => {
     const features = [
       makeFeature({
-        crime_index: 50,
+        violent_crime_rate: 50,
         hr_mtu: 30000,
         unemployment_rate: 10,
         higher_education_rate: 50,

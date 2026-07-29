@@ -19,16 +19,17 @@ function makeFeature(props: Partial<NeighborhoodProperties>): GeoJSON.Feature {
 
 describe('quality index — weight normalization with partial data', () => {
   it('reweights correctly when a feature is missing one factor', () => {
-    // Feature A has all factors, Feature B missing crime_index
+    // Feature A has all factors, Feature B missing the safety factor
+    // (violent_crime_rate — the property the safety factor reads)
     const featureA = makeFeature({
-      crime_index: 50, hr_mtu: 40000, unemployment_rate: 5,
+      violent_crime_rate: 50, hr_mtu: 40000, unemployment_rate: 5,
       higher_education_rate: 60, transit_stop_density: 20,
       healthcare_density: 5, school_density: 3, daycare_density: 4, grocery_density: 2,
       air_quality_index: 25,
     });
     const featureB = makeFeature({
       pno: '00200',
-      crime_index: null, hr_mtu: 40000, unemployment_rate: 5,
+      violent_crime_rate: null, hr_mtu: 40000, unemployment_rate: 5,
       higher_education_rate: 60, transit_stop_density: 20,
       healthcare_density: 5, school_density: 3, daycare_density: 4, grocery_density: 2,
       air_quality_index: 25,
@@ -48,7 +49,7 @@ describe('quality index — weight normalization with partial data', () => {
 
   it('produces null when ALL weighted factors are missing', () => {
     const feature = makeFeature({
-      crime_index: null, hr_mtu: null, unemployment_rate: null,
+      violent_crime_rate: null, hr_mtu: null, unemployment_rate: null,
       higher_education_rate: null, transit_stop_density: null,
       healthcare_density: null, school_density: null, daycare_density: null, grocery_density: null,
       air_quality_index: null,
@@ -59,11 +60,11 @@ describe('quality index — weight normalization with partial data', () => {
 
   it('handles NaN values in properties without crashing', () => {
     const features = [
-      makeFeature({ crime_index: NaN, hr_mtu: 30000, unemployment_rate: 8 }),
-      makeFeature({ pno: '00200', crime_index: 50, hr_mtu: 40000, unemployment_rate: 4 }),
+      makeFeature({ violent_crime_rate: NaN, hr_mtu: 30000, unemployment_rate: 8 }),
+      makeFeature({ pno: '00200', violent_crime_rate: 50, hr_mtu: 40000, unemployment_rate: 4 }),
     ];
     computeQualityIndices(features);
-    // NaN crime_index should be treated as missing, not corrupt the score
+    // NaN violent_crime_rate should be treated as missing, not corrupt the score
     const qi = (features[0].properties as NeighborhoodProperties).quality_index;
     expect(qi).toBeTypeOf('number');
     expect(Number.isNaN(qi)).toBe(false);
@@ -71,8 +72,8 @@ describe('quality index — weight normalization with partial data', () => {
 
   it('Infinity in properties is treated as missing', () => {
     const features = [
-      makeFeature({ crime_index: Infinity, hr_mtu: 30000, unemployment_rate: 5 }),
-      makeFeature({ pno: '00200', crime_index: 50, hr_mtu: 35000, unemployment_rate: 6 }),
+      makeFeature({ violent_crime_rate: Infinity, hr_mtu: 30000, unemployment_rate: 5 }),
+      makeFeature({ pno: '00200', violent_crime_rate: 50, hr_mtu: 35000, unemployment_rate: 6 }),
     ];
     computeQualityIndices(features);
     const qi = (features[0].properties as NeighborhoodProperties).quality_index;
@@ -102,8 +103,9 @@ describe('quality index — custom weight edge cases', () => {
     for (const f of QUALITY_FACTORS) weights[f.id] = 0;
     weights['safety'] = 100;
 
-    const safest = makeFeature({ crime_index: 10 });
-    const riskiest = makeFeature({ pno: '00200', crime_index: 200 });
+    // 'safety' is still the factor id; it now reads violent_crime_rate.
+    const safest = makeFeature({ violent_crime_rate: 10 });
+    const riskiest = makeFeature({ pno: '00200', violent_crime_rate: 200 });
     computeQualityIndices([safest, riskiest], weights);
 
     const qiSafe = (safest.properties as NeighborhoodProperties).quality_index!;

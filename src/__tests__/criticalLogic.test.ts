@@ -28,9 +28,9 @@ function makeFeature(props: Partial<NeighborhoodProperties>): Feature {
 describe('Quality Index — weighted computation integrity', () => {
   it('produces scores in 0–100 range for realistic data', () => {
     const features = [
-      makeFeature({ crime_index: 50, hr_mtu: 30000, unemployment_rate: 5, higher_education_rate: 50, transit_stop_density: 30, healthcare_density: 5, school_density: 3, daycare_density: 4, grocery_density: 6, air_quality_index: 25, pno: '00100', he_vakiy: 1000 }),
-      makeFeature({ crime_index: 150, hr_mtu: 20000, unemployment_rate: 15, higher_education_rate: 20, transit_stop_density: 10, healthcare_density: 1, school_density: 1, daycare_density: 1, grocery_density: 1, air_quality_index: 45, pno: '00200', he_vakiy: 500 }),
-      makeFeature({ crime_index: 20, hr_mtu: 50000, unemployment_rate: 2, higher_education_rate: 75, transit_stop_density: 80, healthcare_density: 10, school_density: 8, daycare_density: 8, grocery_density: 12, air_quality_index: 18, pno: '00300', he_vakiy: 2000 }),
+      makeFeature({ violent_crime_rate: 50, hr_mtu: 30000, unemployment_rate: 5, higher_education_rate: 50, transit_stop_density: 30, healthcare_density: 5, school_density: 3, daycare_density: 4, grocery_density: 6, air_quality_index: 25, pno: '00100', he_vakiy: 1000 }),
+      makeFeature({ violent_crime_rate: 150, hr_mtu: 20000, unemployment_rate: 15, higher_education_rate: 20, transit_stop_density: 10, healthcare_density: 1, school_density: 1, daycare_density: 1, grocery_density: 1, air_quality_index: 45, pno: '00200', he_vakiy: 500 }),
+      makeFeature({ violent_crime_rate: 20, hr_mtu: 50000, unemployment_rate: 2, higher_education_rate: 75, transit_stop_density: 80, healthcare_density: 10, school_density: 8, daycare_density: 8, grocery_density: 12, air_quality_index: 18, pno: '00300', he_vakiy: 2000 }),
     ];
 
     computeQualityIndices(features);
@@ -45,8 +45,8 @@ describe('Quality Index — weighted computation integrity', () => {
 
   it('highest quality neighborhood gets the highest score', () => {
     const features = [
-      makeFeature({ crime_index: 150, hr_mtu: 15000, unemployment_rate: 20, higher_education_rate: 10, transit_stop_density: 5, healthcare_density: 1, school_density: 1, daycare_density: 1, grocery_density: 1, air_quality_index: 50, pno: '00100', he_vakiy: 1000 }),
-      makeFeature({ crime_index: 20, hr_mtu: 55000, unemployment_rate: 1, higher_education_rate: 80, transit_stop_density: 100, healthcare_density: 15, school_density: 10, daycare_density: 10, grocery_density: 15, air_quality_index: 15, pno: '00200', he_vakiy: 1000 }),
+      makeFeature({ violent_crime_rate: 150, hr_mtu: 15000, unemployment_rate: 20, higher_education_rate: 10, transit_stop_density: 5, healthcare_density: 1, school_density: 1, daycare_density: 1, grocery_density: 1, air_quality_index: 50, pno: '00100', he_vakiy: 1000 }),
+      makeFeature({ violent_crime_rate: 20, hr_mtu: 55000, unemployment_rate: 1, higher_education_rate: 80, transit_stop_density: 100, healthcare_density: 15, school_density: 10, daycare_density: 10, grocery_density: 15, air_quality_index: 15, pno: '00200', he_vakiy: 1000 }),
     ];
 
     computeQualityIndices(features);
@@ -61,11 +61,11 @@ describe('Quality Index — weighted computation integrity', () => {
 
   it('custom weights shift scores correctly — zero weight eliminates factor', () => {
     const features = [
-      makeFeature({ crime_index: 200, hr_mtu: 60000, unemployment_rate: 1, higher_education_rate: 80, transit_stop_density: 50, healthcare_density: 5, school_density: 5, daycare_density: 5, grocery_density: 5, air_quality_index: 20, pno: '00100', he_vakiy: 1000 }),
-      makeFeature({ crime_index: 10, hr_mtu: 15000, unemployment_rate: 20, higher_education_rate: 10, transit_stop_density: 5, healthcare_density: 1, school_density: 1, daycare_density: 1, grocery_density: 1, air_quality_index: 50, pno: '00200', he_vakiy: 1000 }),
+      makeFeature({ violent_crime_rate: 200, hr_mtu: 60000, unemployment_rate: 1, higher_education_rate: 80, transit_stop_density: 50, healthcare_density: 5, school_density: 5, daycare_density: 5, grocery_density: 5, air_quality_index: 20, pno: '00100', he_vakiy: 1000 }),
+      makeFeature({ violent_crime_rate: 10, hr_mtu: 15000, unemployment_rate: 20, higher_education_rate: 10, transit_stop_density: 5, healthcare_density: 1, school_density: 1, daycare_density: 1, grocery_density: 1, air_quality_index: 50, pno: '00200', he_vakiy: 1000 }),
     ];
 
-    // Default weights: safety=25%, first neighborhood has high crime → penalized
+    // Default weights: safety=15%, first neighborhood has high violent crime → penalized
     computeQualityIndices(features);
 
     // Now set safety weight to 0, only keep income (first neighborhood is rich)
@@ -93,7 +93,7 @@ describe('Quality Index — weighted computation integrity', () => {
 
   it('handles single feature (min === max) with normalize returning 50', () => {
     const features = [
-      makeFeature({ crime_index: 50, hr_mtu: 30000, unemployment_rate: 5, higher_education_rate: 50, transit_stop_density: 30, healthcare_density: 5, school_density: 3, daycare_density: 4, grocery_density: 6, air_quality_index: 25, pno: '00100', he_vakiy: 1000 }),
+      makeFeature({ violent_crime_rate: 50, hr_mtu: 30000, unemployment_rate: 5, higher_education_rate: 50, transit_stop_density: 30, healthcare_density: 5, school_density: 3, daycare_density: 4, grocery_density: 6, air_quality_index: 25, pno: '00100', he_vakiy: 1000 }),
     ];
 
     computeQualityIndices(features);
@@ -103,24 +103,24 @@ describe('Quality Index — weighted computation integrity', () => {
   });
 
   it('missing data falls back to dataset average (not skipped)', () => {
-    // Feature 1 has all data, feature 2 is missing crime_index
+    // Feature 1 has all data, feature 3 is missing violent_crime_rate (the safety factor's source)
     const features = [
-      makeFeature({ crime_index: 100, hr_mtu: 30000, unemployment_rate: 5, higher_education_rate: 50, transit_stop_density: 30, healthcare_density: 5, school_density: 3, daycare_density: 4, grocery_density: 6, air_quality_index: 25, pno: '00100', he_vakiy: 1000 }),
-      makeFeature({ crime_index: 20, hr_mtu: 30000, unemployment_rate: 5, higher_education_rate: 50, transit_stop_density: 30, healthcare_density: 5, school_density: 3, daycare_density: 4, grocery_density: 6, air_quality_index: 25, pno: '00200', he_vakiy: 1000 }),
+      makeFeature({ violent_crime_rate: 100, hr_mtu: 30000, unemployment_rate: 5, higher_education_rate: 50, transit_stop_density: 30, healthcare_density: 5, school_density: 3, daycare_density: 4, grocery_density: 6, air_quality_index: 25, pno: '00100', he_vakiy: 1000 }),
+      makeFeature({ violent_crime_rate: 20, hr_mtu: 30000, unemployment_rate: 5, higher_education_rate: 50, transit_stop_density: 30, healthcare_density: 5, school_density: 3, daycare_density: 4, grocery_density: 6, air_quality_index: 25, pno: '00200', he_vakiy: 1000 }),
       makeFeature({ hr_mtu: 30000, unemployment_rate: 5, higher_education_rate: 50, transit_stop_density: 30, healthcare_density: 5, school_density: 3, daycare_density: 4, grocery_density: 6, air_quality_index: 25, pno: '00300', he_vakiy: 1000 }),
     ];
 
     computeQualityIndices(features);
     const qi3 = (features[2].properties as NeighborhoodProperties).quality_index;
     expect(qi3).not.toBeNull();
-    // The missing-crime feature should get the average crime score, not be penalized or boosted
+    // The missing-crime feature should get the average safety score, not be penalized or boosted
   });
 
   it('income <= 0 is excluded from range calculation (requirePositive)', () => {
     const features = [
-      makeFeature({ hr_mtu: 0, crime_index: 50, unemployment_rate: 5, higher_education_rate: 50, transit_stop_density: 30, healthcare_density: 5, school_density: 3, daycare_density: 4, grocery_density: 6, air_quality_index: 25, pno: '00100', he_vakiy: 1000 }),
-      makeFeature({ hr_mtu: 30000, crime_index: 50, unemployment_rate: 5, higher_education_rate: 50, transit_stop_density: 30, healthcare_density: 5, school_density: 3, daycare_density: 4, grocery_density: 6, air_quality_index: 25, pno: '00200', he_vakiy: 1000 }),
-      makeFeature({ hr_mtu: 50000, crime_index: 50, unemployment_rate: 5, higher_education_rate: 50, transit_stop_density: 30, healthcare_density: 5, school_density: 3, daycare_density: 4, grocery_density: 6, air_quality_index: 25, pno: '00300', he_vakiy: 1000 }),
+      makeFeature({ hr_mtu: 0, violent_crime_rate: 50, unemployment_rate: 5, higher_education_rate: 50, transit_stop_density: 30, healthcare_density: 5, school_density: 3, daycare_density: 4, grocery_density: 6, air_quality_index: 25, pno: '00100', he_vakiy: 1000 }),
+      makeFeature({ hr_mtu: 30000, violent_crime_rate: 50, unemployment_rate: 5, higher_education_rate: 50, transit_stop_density: 30, healthcare_density: 5, school_density: 3, daycare_density: 4, grocery_density: 6, air_quality_index: 25, pno: '00200', he_vakiy: 1000 }),
+      makeFeature({ hr_mtu: 50000, violent_crime_rate: 50, unemployment_rate: 5, higher_education_rate: 50, transit_stop_density: 30, healthcare_density: 5, school_density: 3, daycare_density: 4, grocery_density: 6, air_quality_index: 25, pno: '00300', he_vakiy: 1000 }),
     ];
 
     computeQualityIndices(features);
@@ -156,11 +156,17 @@ describe('Quality Category classification', () => {
 });
 
 describe('Quality Weights management', () => {
-  it('default weights sum to 100 (leaving room for secondary factors)', () => {
+  it('default weights sum to 89 (leaving room for secondary factors)', () => {
     const weights = getDefaultWeights();
     const sum = Object.values(weights).reduce((a, b) => a + b, 0);
-    // Primary factors sum to 100%, secondary start at 0%
-    expect(sum).toBe(100);
+    // Primary factors sum to 89, secondary (incl. the opt-in property_crime and
+    // total_crime factors) start at 0. The sum is deliberately not 100: weights are
+    // relative, and computeQualityIndices normalises by the *actual* total weight,
+    // so only the ratios between factors matter. Safety was cut 26 → 15 because
+    // crime is a municipal statistic (identical for every postal code in a city),
+    // and the 11 freed points were deliberately NOT redistributed to the other
+    // factors — their relative shares are unchanged.
+    expect(sum).toBe(89);
   });
 
   it('isCustomWeights detects any deviation', () => {

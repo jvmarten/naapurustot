@@ -25,11 +25,11 @@ function makeFeature(props: Partial<NeighborhoodProperties>): GeoJSON.Feature {
 
 describe('computeQualityIndices — critical edge cases', () => {
   it('inverted metrics: higher crime should yield lower quality score', () => {
-    const low = makeFeature({ pno: '00100', crime_index: 1 });
-    const high = makeFeature({ pno: '00200', crime_index: 100 });
+    const low = makeFeature({ pno: '00100', violent_crime_rate: 1 });
+    const high = makeFeature({ pno: '00200', violent_crime_rate: 100 });
     const features = [low, high];
 
-    // Use only safety weight (crime_index, inverted)
+    // Use only safety weight (violent_crime_rate, inverted)
     const weights: QualityWeights = {};
     for (const f of QUALITY_FACTORS) weights[f.id] = 0;
     weights.safety = 100;
@@ -114,7 +114,7 @@ describe('computeQualityIndices — critical edge cases', () => {
   it('partial data: feature missing some factor properties still gets a score', () => {
     // Feature with income but no crime data
     const a = makeFeature({ pno: '00100', hr_mtu: 50000 });
-    const b = makeFeature({ pno: '00200', hr_mtu: 30000, crime_index: 5 });
+    const b = makeFeature({ pno: '00200', hr_mtu: 30000, violent_crime_rate: 5 });
     const features = [a, b];
 
     const weights: QualityWeights = {};
@@ -124,7 +124,7 @@ describe('computeQualityIndices — critical edge cases', () => {
 
     computeQualityIndices(features, weights);
 
-    // Feature a: income=100 (max), safety falls back to metro avg (crime_index=5, range {5,5}) → 50
+    // Feature a: income=100 (max), safety falls back to metro avg (violent_crime_rate=5, range {5,5}) → 50
     // quality_index = (100*50 + 50*50) / 100 = 75
     const scoreA = (a.properties as NeighborhoodProperties).quality_index;
     expect(scoreA).not.toBeNull();
@@ -134,7 +134,7 @@ describe('computeQualityIndices — critical edge cases', () => {
   it('all features missing data for a factor → factor is skipped', () => {
     const a = makeFeature({ pno: '00100', hr_mtu: 40000 });
     const b = makeFeature({ pno: '00200', hr_mtu: 20000 });
-    // Neither has crime_index
+    // Neither has violent_crime_rate (the property the safety factor reads)
 
     const weights: QualityWeights = {};
     for (const f of QUALITY_FACTORS) weights[f.id] = 0;
@@ -174,8 +174,8 @@ describe('computeQualityIndices — critical edge cases', () => {
 
   it('same dataset reference with different weights reuses cached ranges', () => {
     const features = [
-      makeFeature({ pno: '00100', hr_mtu: 30000, crime_index: 10 }),
-      makeFeature({ pno: '00200', hr_mtu: 50000, crime_index: 50 }),
+      makeFeature({ pno: '00100', hr_mtu: 30000, violent_crime_rate: 10 }),
+      makeFeature({ pno: '00200', hr_mtu: 50000, violent_crime_rate: 50 }),
     ];
 
     // First call with income only
@@ -253,7 +253,7 @@ describe('isCustomWeights', () => {
 
   it('returns true when any weight differs from default', () => {
     const w = getDefaultWeights();
-    w.safety = 50; // default is 18
+    w.safety = 50; // default is 15
     expect(isCustomWeights(w)).toBe(true);
   });
 
@@ -270,12 +270,17 @@ describe('isCustomWeights', () => {
 });
 
 describe('getDefaultWeights', () => {
-  it('sums primary weights to 100', () => {
+  it('sums primary weights to 89', () => {
+    // Not 100, and that is intentional: computeQualityIndices normalises by the
+    // sum of the active weights, so the weights are relative and only their
+    // ratios matter. The safety cut (26 → 15, because crime is only published at
+    // municipality level and is therefore constant within a city) freed 11
+    // points that were deliberately left unredistributed.
     const w = getDefaultWeights();
     const primarySum = QUALITY_FACTORS
       .filter((f) => f.primary)
       .reduce((sum, f) => sum + w[f.id], 0);
-    expect(primarySum).toBe(100);
+    expect(primarySum).toBe(89);
   });
 
   it('secondary factors have zero default weight', () => {

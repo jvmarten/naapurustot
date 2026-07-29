@@ -33,10 +33,13 @@ describe('quality index — inverted factor correctness', () => {
     expect(features[1].properties!.quality_index).toBe(0);
   });
 
-  it('crime_index is correctly inverted (lower raw = better score)', () => {
+  it('violent_crime_rate is correctly inverted (lower raw = better score)', () => {
+    // The safety factor reads violent_crime_rate (crimes against life and
+    // health), not crime_index — total offences are 47% property crime and
+    // 22% traffic infractions, so they never measured "safety".
     const features = [
-      makeFeature({ crime_index: 2 }),
-      makeFeature({ crime_index: 20 }),
+      makeFeature({ violent_crime_rate: 2 }),
+      makeFeature({ violent_crime_rate: 20 }),
     ];
     const weights: Record<string, number> = {};
     for (const f of QUALITY_FACTORS) weights[f.id] = 0;
@@ -170,7 +173,7 @@ describe('quality index — weight redistribution', () => {
       makeFeature({ hr_mtu: 20000 }),
       makeFeature({ hr_mtu: 40000 }),
     ];
-    // Use default weights (income=20, safety=25, employment=20, etc.)
+    // Use default weights (employment=12, income=10, safety=15, etc.)
     computeQualityIndices(features);
 
     // With only income: min=20k→0, max=40k→100
@@ -180,13 +183,13 @@ describe('quality index — weight redistribution', () => {
 
   it('zero-weight factors do not contribute to score', () => {
     const features = [
-      makeFeature({ hr_mtu: 50000, crime_index: 100 }),
-      makeFeature({ hr_mtu: 10000, crime_index: 1 }),
+      makeFeature({ hr_mtu: 50000, violent_crime_rate: 100 }),
+      makeFeature({ hr_mtu: 10000, violent_crime_rate: 1 }),
     ];
     const weights: Record<string, number> = {};
     for (const f of QUALITY_FACTORS) weights[f.id] = 0;
     weights.income = 100;
-    // safety=0, so crime_index is ignored
+    // safety=0, so violent_crime_rate is ignored
 
     computeQualityIndices(features, weights);
 

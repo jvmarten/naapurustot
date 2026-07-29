@@ -1,6 +1,6 @@
 {
-  "generated": "2026-07-27T15:50:06.926Z",
-  "source_hash": "f3e0b9e049ba1f66",
+  "generated": "2026-07-29T10:17:58.973Z",
+  "source_hash": "3e1f8575dcd20c74",
   "rows_total": 3018,
   "metrics": {
     "active_plan_count": {
@@ -419,6 +419,14 @@
       "row_count": 510,
       "coverage_pct": 16.9
     },
+    "property_crime_rate": {
+      "source": "Tilastokeskus (StatFin 13h4, omaisuusrikokset)",
+      "vintage": 2025,
+      "granularity": "postal",
+      "is_proxy": true,
+      "row_count": 2835,
+      "coverage_pct": 93.9
+    },
     "property_price_change_pct": {
       "source": "Tilastokeskus (PxWeb)",
       "vintage": "2020–2025",
@@ -610,6 +618,14 @@
       "is_proxy": false,
       "row_count": 2937,
       "coverage_pct": 97.3
+    },
+    "violent_crime_rate": {
+      "source": "Tilastokeskus (StatFin 13h4, henkeen ja terveyteen kohdistuneet rikokset)",
+      "vintage": "2021–2025",
+      "granularity": "postal",
+      "is_proxy": true,
+      "row_count": 2835,
+      "coverage_pct": 93.9
     },
     "voter_turnout_pct": {
       "source": "Tilastokeskus (eduskuntavaalit 2023)",

@@ -41,25 +41,25 @@ describe('computeQualityIndices', () => {
 
   it('CF-8: populates per-dimension sub-scores alongside the headline index', () => {
     const features = [
-      makeFeature({ hr_mtu: 10000, unemployment_rate: 20, crime_index: 200, air_quality_index: 20 }),
-      makeFeature({ hr_mtu: 50000, unemployment_rate: 0, crime_index: 0, air_quality_index: 5 }),
+      makeFeature({ hr_mtu: 10000, unemployment_rate: 20, violent_crime_rate: 200, air_quality_index: 20 }),
+      makeFeature({ hr_mtu: 50000, unemployment_rate: 0, violent_crime_rate: 0, air_quality_index: 5 }),
     ];
     computeQualityIndices(features);
     const dims = features[1].properties!.quality_dimension_scores as Record<string, number>;
     expect(dims).toBeTruthy();
-    // safety (crime) and livelihood (income/employment) are default-weighted dimensions
+    // safety (violent crime) and livelihood (income/employment) are default-weighted dimensions
     expect(typeof dims.safety).toBe('number');
     expect(typeof dims.livelihood).toBe('number');
     expect(dims.safety).toBeGreaterThanOrEqual(0);
     expect(dims.safety).toBeLessThanOrEqual(100);
-    // Feature 1 has the better crime/income/employment → higher safety + livelihood
+    // Feature 1 has the better violent crime/income/employment → higher safety + livelihood
     const dims0 = features[0].properties!.quality_dimension_scores as Record<string, number>;
     expect(dims.safety).toBeGreaterThan(dims0.safety);
     expect(dims.livelihood).toBeGreaterThan(dims0.livelihood);
   });
 
   it('CF-8: clears dimension scores when the index is null', () => {
-    const features = [makeFeature({ hr_mtu: null, unemployment_rate: null, crime_index: null })];
+    const features = [makeFeature({ hr_mtu: null, unemployment_rate: null, violent_crime_rate: null })];
     computeQualityIndices(features);
     expect(features[0].properties!.quality_index).toBeNull();
     expect(features[0].properties!.quality_dimension_scores).toBeNull();
@@ -198,7 +198,7 @@ describe('QW-2 opt-in health/climate factors', () => {
   });
 
   it('weight-0 factors do not move the default index', () => {
-    const base = { pno: '00100', crime_index: 50, hr_mtu: 25000, unemployment_rate: 5, higher_education_rate: 30 };
+    const base = { pno: '00100', violent_crime_rate: 50, hr_mtu: 25000, unemployment_rate: 5, higher_education_rate: 30 };
     const withHealth = { ...base, pno: '00200', health_index: 200, radon: 2000, flood_risk_pct: 90 };
     const mk = (p: Record<string, unknown>): Feature => ({ type: 'Feature', geometry: null as unknown as Feature['geometry'], properties: p });
     const feats = [mk(base), mk(withHealth)];
