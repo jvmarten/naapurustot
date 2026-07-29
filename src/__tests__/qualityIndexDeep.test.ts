@@ -29,8 +29,16 @@ describe('getDefaultWeights', () => {
   it('has weights summing to a known value', () => {
     const w = getDefaultWeights();
     const sum = Object.values(w).reduce((a, b) => a + b, 0);
-    // Primary weights sum: 18+10+10+10+17+18+17 = 100; secondary are 0
-    expect(sum).toBe(100);
+    // Primary weights sum: safety 15 + income 10 + employment 12 + education 4 +
+    // transit 3 + services 3 + air_quality 9 + cycling 3 + walkability 7 +
+    // traffic_accidents 4 + tree_canopy 8 + noise_pollution 7 + water_proximity 4
+    // = 89; secondary (incl. the opt-in property_crime / total_crime) are 0.
+    // The total is deliberately not 100: weights are relative, and
+    // computeQualityIndices divides by the sum of the active weights, so only
+    // the ratios matter. Cutting safety from 26 to 15 — crime is a municipal
+    // statistic, identical for every postal code in a city — freed 11 points
+    // that were intentionally NOT handed to the other factors.
+    expect(sum).toBe(89);
   });
 });
 
@@ -78,8 +86,8 @@ describe('computeQualityIndices — deep edge cases', () => {
     weights.income = 100;
 
     const features = [
-      makeFeature({ hr_mtu: 20000, crime_index: 999 }),
-      makeFeature({ hr_mtu: 50000, crime_index: 1 }),
+      makeFeature({ hr_mtu: 20000, violent_crime_rate: 999 }),
+      makeFeature({ hr_mtu: 50000, violent_crime_rate: 1 }),
     ];
     computeQualityIndices(features, weights);
 
@@ -91,11 +99,11 @@ describe('computeQualityIndices — deep edge cases', () => {
   it('correctly inverts metrics (lower crime = higher score)', () => {
     const weights: Record<string, number> = {};
     for (const f of QUALITY_FACTORS) weights[f.id] = 0;
-    weights.safety = 100; // crime_index, inverted
+    weights.safety = 100; // violent_crime_rate, inverted
 
     const features = [
-      makeFeature({ crime_index: 10 }), // low crime → high safety
-      makeFeature({ crime_index: 100 }), // high crime → low safety
+      makeFeature({ violent_crime_rate: 10 }), // low crime → high safety
+      makeFeature({ violent_crime_rate: 100 }), // high crime → low safety
     ];
     computeQualityIndices(features, weights);
 
@@ -188,7 +196,7 @@ describe('computeQualityIndices — deep edge cases', () => {
         hr_mtu: 15000 + i * 200,
         unemployment_rate: 2 + (i % 25),
         higher_education_rate: 10 + (i % 70),
-        crime_index: 20 + (i % 150),
+        violent_crime_rate: 20 + (i % 150),
         transit_stop_density: 5 + (i % 200),
         air_quality_index: 18 + (i % 30),
       }),

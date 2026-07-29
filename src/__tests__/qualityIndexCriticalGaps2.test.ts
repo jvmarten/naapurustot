@@ -44,7 +44,7 @@ describe('isCustomWeights', () => {
 
   it('returns true when any weight differs from default', () => {
     const weights = getDefaultWeights();
-    weights.safety = 50; // default is 18
+    weights.safety = 50; // default is 15
     expect(isCustomWeights(weights)).toBe(true);
   });
 
@@ -62,10 +62,10 @@ describe('isCustomWeights', () => {
 
 describe('quality factor inversion', () => {
   it('inverted factors (crime, unemployment) give higher scores for lower values', () => {
-    // Test with only the safety factor (crime_index, inverted)
+    // Test with only the safety factor (violent_crime_rate, inverted)
     const features = [
-      makeFeature({ crime_index: 20 }),  // low crime → high quality
-      makeFeature({ crime_index: 100 }), // high crime → low quality
+      makeFeature({ violent_crime_rate: 20 }),  // low crime → high quality
+      makeFeature({ violent_crime_rate: 100 }), // high crime → low quality
     ];
     const weights: Record<string, number> = {};
     for (const f of QUALITY_FACTORS) weights[f.id] = 0;

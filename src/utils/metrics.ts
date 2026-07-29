@@ -123,6 +123,11 @@ export interface NeighborhoodProperties {
   transit_stop_density: number | null;
   air_quality_index: number | null;
   crime_index: number | null;
+  // Crime sub-groups: siblings under crime_index, so they never overlap it.
+  // Municipal figures, withheld below 2,000 residents (small-count noise).
+  // Optional like the other post-launch metrics, so existing fixtures still type.
+  violent_crime_rate?: number | null;
+  property_crime_rate?: number | null;
   // CF-19: indoor radon median Bq/m³ (STUK, postal). CF-21: morbidity index (Sotkanet, proxy).
   radon: number | null;
   health_index: number | null;

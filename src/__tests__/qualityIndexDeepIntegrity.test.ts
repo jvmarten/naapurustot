@@ -27,6 +27,7 @@ function makeFeature(overrides: Partial<NeighborhoodProperties>): GeoJSON.Featur
       unemployment_rate: 7,
       higher_education_rate: 40,
       crime_index: 50,
+      violent_crime_rate: 50,
       transit_stop_density: 30,
       air_quality_index: 25,
       healthcare_density: 3,
@@ -43,10 +44,16 @@ function makeFeature(overrides: Partial<NeighborhoodProperties>): GeoJSON.Featur
 }
 
 describe('getDefaultWeights — structural integrity', () => {
-  it('primary factor weights sum to 100', () => {
+  it('primary factor weights sum to 89', () => {
+    // Weights are RELATIVE: computeQualityIndices divides the weighted sum by the
+    // actual total weight, so only the ratios between factors matter — the total
+    // need not be 100. It is 89 because the safety factor was cut 26 → 15 (crime
+    // is a municipal statistic, identical for every postal code in a city, so at
+    // 26 a quarter of a neighbourhood score could not move between neighbourhoods)
+    // and the freed 11 points were deliberately NOT redistributed to other factors.
     const primary = QUALITY_FACTORS.filter(f => f.primary);
     const sum = primary.reduce((acc, f) => acc + f.defaultWeight, 0);
-    expect(sum).toBe(100);
+    expect(sum).toBe(89);
   });
 
   it('secondary factor default weights are all 0', () => {
@@ -81,9 +88,11 @@ describe('isCustomWeights — edge cases', () => {
 
 describe('computeQualityIndices — factor inversion', () => {
   it('inverted factors: lower raw values → higher quality score', () => {
+    // Safety reads violent_crime_rate (crimes against life and health), not the
+    // total-offences crime_index — which is 47 % property crime and 22 % traffic.
     const features = [
-      makeFeature({ pno: '00100', crime_index: 10 }),
-      makeFeature({ pno: '00200', crime_index: 100 }),
+      makeFeature({ pno: '00100', violent_crime_rate: 10 }),
+      makeFeature({ pno: '00200', violent_crime_rate: 100 }),
     ];
 
     const w: Record<string, number> = {};
@@ -123,9 +132,9 @@ describe('computeQualityIndices — factor inversion', () => {
 describe('computeQualityIndices — missing data handling', () => {
   it('uses metro average as fallback for missing values', () => {
     const features = [
-      makeFeature({ pno: '00100', crime_index: 30 }),
-      makeFeature({ pno: '00200', crime_index: 60 }),
-      makeFeature({ pno: '00300', crime_index: null }),
+      makeFeature({ pno: '00100', violent_crime_rate: 30 }),
+      makeFeature({ pno: '00200', violent_crime_rate: 60 }),
+      makeFeature({ pno: '00300', violent_crime_rate: null }),
     ];
 
     const w: Record<string, number> = {};
@@ -210,11 +219,11 @@ describe('computeQualityIndices — zero-weight factors', () => {
 
 describe('computeQualityIndices — weighted combination', () => {
   it('different weights produce different rankings', () => {
-    // Neighborhood A: high income, high crime
-    // Neighborhood B: low income, low crime
+    // Neighborhood A: high income, high violent crime
+    // Neighborhood B: low income, low violent crime
     const features = [
-      makeFeature({ pno: '00100', hr_mtu: 60000, crime_index: 100 }),
-      makeFeature({ pno: '00200', hr_mtu: 20000, crime_index: 10 }),
+      makeFeature({ pno: '00100', hr_mtu: 60000, violent_crime_rate: 100 }),
+      makeFeature({ pno: '00200', hr_mtu: 20000, violent_crime_rate: 10 }),
     ];
 
     // Income-heavy weights

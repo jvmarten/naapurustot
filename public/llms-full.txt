@@ -218,6 +218,8 @@ data is available. This catalogue is generated from the live layer registry.
 - **Sports Facilities**
 
 ### Safety
+- **Violent Crime**
+- **Property Crime**
 - **Crime Rate**
 - **Traffic Accidents**
 
@@ -286,7 +288,7 @@ publishers.
 
 | Source | Provides | Licence |
 |---|---|---|
-| Tilastokeskus | Average Age, Avg. Apartment Size, Building Age, Centre Party (vote share), Construction Activity, Crime Change (%), Crime Rate, Detached Houses, Disposable Income, Elderly (65+), Employment Rate, Families with Children, Finns Party (vote share), Foreign-Language Speakers, Foreign-Language Speakers (municipal), Gender Ratio, Green League (vote share), Healthcare Workers, Higher Education, Home Ownership, Household Size, Income Change (%), Job Self-sufficiency, Left Alliance (vote share), Living Space per Person, Low-income Share, Manufacturing Jobs, Median Income, National Coalition (vote share), New Construction, Pensioner Share, Political Diversity, Political Lean (Left–Right), Population Change (%), Population Density, Population Projection (%), Price-to-Rent Ratio, Property Price Change, Property Prices, Public Sector Jobs, Rent Level, Rental Rate, Service Sector Jobs, Single-Parent Households, Single-Person HH, Social Democrats (vote share), Student Share, Swedish People's Party (vote share), Tech Sector Jobs, Unemployment Change (%), Unemployment Rate, Voter Turnout, Young Adults (18–29), Young Children (0-6) | CC BY 4.0 |
+| Tilastokeskus | Average Age, Avg. Apartment Size, Building Age, Centre Party (vote share), Construction Activity, Crime Change (%), Crime Rate, Detached Houses, Disposable Income, Elderly (65+), Employment Rate, Families with Children, Finns Party (vote share), Foreign-Language Speakers, Foreign-Language Speakers (municipal), Gender Ratio, Green League (vote share), Healthcare Workers, Higher Education, Home Ownership, Household Size, Income Change (%), Job Self-sufficiency, Left Alliance (vote share), Living Space per Person, Low-income Share, Manufacturing Jobs, Median Income, National Coalition (vote share), New Construction, Pensioner Share, Political Diversity, Political Lean (Left–Right), Population Change (%), Population Density, Population Projection (%), Price-to-Rent Ratio, Property Crime, Property Price Change, Property Prices, Public Sector Jobs, Rent Level, Rental Rate, Service Sector Jobs, Single-Parent Households, Single-Person HH, Social Democrats (vote share), Student Share, Swedish People's Party (vote share), Tech Sector Jobs, Unemployment Change (%), Unemployment Rate, Violent Crime, Voter Turnout, Young Adults (18–29), Young Children (0-6) | CC BY 4.0 |
 | OpenStreetMap | Cycling Infrastructure, Daycare Density, EV Charging Stations, Grocery Stores, Healthcare Access, Restaurants & Cafes, School Density, Walkability Index, Water Proximity | ODbL 1.0 |
 | Väylävirasto | Traffic Accidents, Transit Access | CC BY 4.0 |
 | Ilmatieteen laitos / HSY | Air Quality | CC BY 4.0 |

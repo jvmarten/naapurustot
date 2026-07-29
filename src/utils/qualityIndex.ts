@@ -77,13 +77,49 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   // factors like school_quality (~10%). computeQualityCoverage exposes
   // each factor's national coverage so the panel can tell "no data anywhere" from
   // a genuine local gap. See docs/QUALITY_INDEX.md.
+  // Safety is measured by CRIMES AGAINST LIFE AND HEALTH, not total offences.
+  // Measured nationally for 2025, the total-offences figure this used to read is
+  // 47 % property crime and 22 % traffic infractions; violence is 8 % of it. So
+  // the factor labelled "Turvallisuus" was mostly reporting shoplifting and
+  // speeding tickets.
+  //
+  // Weight cut 26 -> 15. Not because safety matters less, but because the metric
+  // is MUNICIPAL: Finland publishes no crime statistic below municipality level
+  // (StatFin 13h4's area variable is 1 country + 19 maakunta + 308
+  // municipalities, no postal codes). Every postal code in a city therefore
+  // carries the same value, so at 26 a quarter of a *neighbourhood* score could
+  // not move when comparing neighbourhoods — the most common use of this app.
+  // 15 keeps a real between-municipality signal without letting a constant
+  // dominate. Revisit only if a sub-municipal source ever appears.
   {
     id: 'safety',
     label: { fi: 'Turvallisuus', en: 'Safety', sv: 'Säkerhet' },
-    defaultWeight: 26,
-    properties: ['crime_index'],
+    defaultWeight: 15,
+    properties: ['violent_crime_rate'],
     invert: true,
     primary: true,
+  },
+  // Property crime and total offences are opt-in (defaultWeight 0), the same
+  // pattern as low_income. Two reasons: giving property a default weight would
+  // push the combined municipal-resolution weight back toward 26, reinstating
+  // exactly the problem the cut above addresses; and crime_index is the PARENT
+  // of both sub-groups, so weighting it alongside either would count the same
+  // offences twice.
+  {
+    id: 'property_crime',
+    label: { fi: 'Omaisuusrikokset', en: 'Property crime', sv: 'Egendomsbrott' },
+    defaultWeight: 0,
+    properties: ['property_crime_rate'],
+    invert: true,
+    primary: false,
+  },
+  {
+    id: 'total_crime',
+    label: { fi: 'Rikollisuus yhteensä', en: 'All recorded offences', sv: 'Brottslighet totalt' },
+    defaultWeight: 0,
+    properties: ['crime_index'],
+    invert: true,
+    primary: false,
   },
   {
     id: 'income',

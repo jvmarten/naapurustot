@@ -42,6 +42,9 @@ export type LayerId =
   | 'population_projection'
   | 'unemployment_change'
   | 'crime_index_change'
+  // Crime sub-groups. Siblings under the total, so they never double-count it.
+  | 'violent_crime'
+  | 'property_crime'
   // Phase 7: New data layers
   | 'voter_turnout'
   | 'party_diversity'
@@ -440,6 +443,32 @@ export const LAYERS: LayerConfig[] = [
     unit: '/1000',
     colors: ['#f7fcf5', '#d5efcf', '#a1d99b', '#74c476', '#f9d057', '#fd8d3c', '#e5533d', '#b00026'],
     stops: [20, 35, 50, 65, 80, 100, 130, 170],
+    format: perThousand,
+    higherIsBetter: false,
+  },
+  // Crimes against life and health — what "safety" actually means to a resident,
+  // and only 8 % of the total-offences figure above (which is 47 % property and
+  // 22 % traffic infractions). Five-year mean, withheld under 2,000 residents:
+  // at ~8.5 per 1,000 a small municipality sees single digits a year.
+  {
+    id: 'violent_crime',
+    labelKey: 'layer.violent_crime',
+    property: 'violent_crime_rate',
+    unit: '/1000',
+    colors: ['#f7fcf5', '#d5efcf', '#a1d99b', '#74c476', '#f9d057', '#fd8d3c', '#e5533d', '#b00026'],
+    stops: [3, 4.5, 5.5, 6.5, 7.5, 9, 11, 13],
+    format: perThousand,
+    higherIsBetter: false,
+  },
+  // Offences against property — theft, break-ins, damage. The largest single
+  // component of the total and the one most people can act on.
+  {
+    id: 'property_crime',
+    labelKey: 'layer.property_crime',
+    property: 'property_crime_rate',
+    unit: '/1000',
+    colors: ['#f7fcf5', '#d5efcf', '#a1d99b', '#74c476', '#f9d057', '#fd8d3c', '#e5533d', '#b00026'],
+    stops: [14, 19, 24, 30, 36, 44, 55, 70],
     format: perThousand,
     higherIsBetter: false,
   },

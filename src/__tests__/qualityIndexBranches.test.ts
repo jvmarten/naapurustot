@@ -34,6 +34,7 @@ describe('computeQualityIndices — untested branches', () => {
         hr_mtu: 30000,
         unemployment_rate: 10,
         higher_education_rate: 50,
+        violent_crime_rate: 5,
         crime_index: 5,
         transit_stop_density: 3,
         air_quality_index: 2,
@@ -70,10 +71,13 @@ describe('computeQualityIndices — untested branches', () => {
     expect(features[1].properties!.quality_index).not.toBeNull();
   });
 
-  it('correctly inverts scores for crime_index (lower is better)', () => {
+  it('correctly inverts scores for violent_crime_rate (lower is better)', () => {
+    // The safety factor reads violent_crime_rate (crimes against life and health),
+    // not crime_index — total offences are 47% property crime and 22% traffic
+    // infractions, so they are an opt-in factor of their own now.
     const features = [
-      makeFeature({ crime_index: 1 }),   // low crime = high quality
-      makeFeature({ crime_index: 100 }), // high crime = low quality
+      makeFeature({ violent_crime_rate: 1 }),   // low violent crime = high quality
+      makeFeature({ violent_crime_rate: 100 }), // high violent crime = low quality
     ];
     const weights: Record<string, number> = {};
     for (const f of QUALITY_FACTORS) weights[f.id] = 0;
@@ -172,11 +176,17 @@ describe('getDefaultWeights', () => {
     }
   });
 
-  it('sums primary factor weights to 100', () => {
+  it('sums primary factor weights to 89', () => {
+    // Weights are RELATIVE: computeQualityIndices divides by the actual total
+    // weight, so only the ratios between factors matter — the total need not be
+    // 100. It used to be, but cutting safety from 26 to 15 (crime is a municipal
+    // statistic, identical for every postal code in a city, so a quarter of the
+    // score could not move when comparing neighbourhoods) freed 11 points that
+    // were deliberately NOT redistributed to the other factors.
     const total = QUALITY_FACTORS
       .filter((f) => f.primary)
       .reduce((sum, f) => sum + f.defaultWeight, 0);
-    expect(total).toBe(100);
+    expect(total).toBe(89);
   });
 });
 

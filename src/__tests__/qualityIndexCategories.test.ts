@@ -115,8 +115,8 @@ describe('computeQualityIndices — edge cases', () => {
 
   it('produces index between 0 and 100 for normal data', () => {
     const features = [
-      makeFeature({ he_vakiy: 1000, crime_index: 30, hr_mtu: 35000, unemployment_rate: 5, higher_education_rate: 50, transit_stop_density: 40, healthcare_density: 3, school_density: 2, daycare_density: 2, grocery_density: 4, air_quality_index: 25 }),
-      makeFeature({ pno: '00200', he_vakiy: 2000, crime_index: 100, hr_mtu: 20000, unemployment_rate: 15, higher_education_rate: 20, transit_stop_density: 10, healthcare_density: 1, school_density: 1, daycare_density: 1, grocery_density: 1, air_quality_index: 45 }),
+      makeFeature({ he_vakiy: 1000, violent_crime_rate: 30, hr_mtu: 35000, unemployment_rate: 5, higher_education_rate: 50, transit_stop_density: 40, healthcare_density: 3, school_density: 2, daycare_density: 2, grocery_density: 4, air_quality_index: 25 }),
+      makeFeature({ pno: '00200', he_vakiy: 2000, violent_crime_rate: 100, hr_mtu: 20000, unemployment_rate: 15, higher_education_rate: 20, transit_stop_density: 10, healthcare_density: 1, school_density: 1, daycare_density: 1, grocery_density: 1, air_quality_index: 45 }),
     ];
     computeQualityIndices(features);
     for (const f of features) {
@@ -136,8 +136,8 @@ describe('computeQualityIndices — edge cases', () => {
     weights.safety = 100;
 
     const features = [
-      makeFeature({ he_vakiy: 1000, crime_index: 20, hr_mtu: null }),
-      makeFeature({ pno: '00200', he_vakiy: 2000, crime_index: 100, hr_mtu: null }),
+      makeFeature({ he_vakiy: 1000, violent_crime_rate: 20, hr_mtu: null }),
+      makeFeature({ pno: '00200', he_vakiy: 2000, violent_crime_rate: 100, hr_mtu: null }),
     ];
     computeQualityIndices(features, weights);
 
@@ -151,8 +151,8 @@ describe('computeQualityIndices — edge cases', () => {
 
   it('inverted factors score low crime as high quality', () => {
     const features = [
-      makeFeature({ he_vakiy: 1000, crime_index: 10 }),
-      makeFeature({ pno: '00200', he_vakiy: 1000, crime_index: 200 }),
+      makeFeature({ he_vakiy: 1000, violent_crime_rate: 10 }),
+      makeFeature({ pno: '00200', he_vakiy: 1000, violent_crime_rate: 200 }),
     ];
     const weights: QualityWeights = {};
     for (const key of Object.keys(getDefaultWeights())) weights[key] = 0;

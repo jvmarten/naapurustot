@@ -35,16 +35,40 @@ dimension's target.
 
 | Dimension | Weight | Factors (default weights) | Why |
 |-----------|-------:|---------------------------|-----|
-| **Safety & peace of mind** | 30 | Crime 26 · traffic safety 4 | Feeling safe is foundational; fear of crime is a large, persistent drag on life satisfaction. |
+| **Safety & peace of mind** | 19 | Violent crime 15 · traffic safety 4 | Feeling safe is foundational; fear of crime is a large, persistent drag on life satisfaction. The crime figure is *crimes against life and health*, not total offences — see below. |
 | **Health, nature & calm** | 28 | Air 9 · tree canopy 8 · quiet (low noise) 7 · water 4 | Clean air, green and blue space and quiet have robust positive effects on physical and mental health. |
 | **Livelihood & purpose** | 26 | Employment 12 · income 10 · education 4 | Unemployment is one of the largest wellbeing shocks; income matters with steep diminishing returns; education is kept small as it is ~76 % redundant with income. |
 | **Everyday freedom & ease** | 16 | Walkability 7 · cycling 3 · transit 3 · essential services 3 | Getting around easily with essentials within reach reduces daily friction; amenity *density* is deliberately demoted. |
 | **Housing context** | 0 | (descriptive — see below) | No objective "better" direction. |
 | **Demographics & other** | 0 | (descriptive — see below) | No objective "better" direction. |
 
-The four evaluative weights sum to 100. The ordering — safety first, then a
-healthy environment, then livelihood, then everyday ease — is a deliberate
-editorial stance, not an institutional formula.
+The four evaluative weights sum to **89**, not 100. `computeQualityIndices`
+divides by the actual total weight, so only the ratios matter; the sum is
+presentational. It was 100 until safety was cut from 30 to 19, and those 11
+points were deliberately **not** redistributed — raising another dimension to
+round the total back up would be an editorial claim nobody made. The ordering —
+a healthy environment first, then livelihood, then safety, then everyday ease —
+is a deliberate editorial stance, not an institutional formula.
+
+### Why safety is weighted 19 and not 30
+
+Two measurement facts, not a judgement that safety matters less:
+
+1. **It is municipal.** Finland publishes no crime statistic below municipality
+   level — StatFin table `13h4`'s area variable is 1 whole-country + 19 maakunta
+   + 308 municipalities, with no postal codes. Every postal code in a city
+   therefore carries the same value. At weight 26 a quarter of a *neighbourhood*
+   score could not move when comparing neighbourhoods in one city, which is the
+   most common use of the app. The index advertised 100 points of discrimination
+   and delivered 74.
+2. **The old metric was not measuring safety.** It read `crime_index`, i.e. all
+   recorded offences. Measured nationally for 2025, that is 47 % property crime
+   and 22 % traffic infractions; crimes against life and health are 8 % of it.
+   The factor now reads `violent_crime_rate` (crimes against life and health,
+   five-year mean, withheld under 2,000 residents), which is what the label
+   claims. Total offences and property crime remain available as opt-in factors
+   at weight 0 — never alongside each other, since `crime_index` is the parent
+   of both and weighting a parent with its child double-counts.
 
 ### What's deliberately *not* in the default
 
@@ -66,8 +90,17 @@ target weight** (e.g. Health = air 9 + tree canopy 8 + noise 7 + water 4 = 28),
 this is mathematically equivalent to scoring each dimension once and then
 weighting the dimensions. Splitting Livelihood into employment 12 + income 10 +
 education 4 is what stops affluence being counted several times over: pure
-socioeconomic status now contributes ~26 % rather than ~80 %, leaving real room
-for safety (30), a healthy environment (28) and everyday ease (16).
+socioeconomic status now contributes ~26 of 89 rather than ~80 %, leaving real
+room for a healthy environment (28), safety (19) and everyday ease (16).
+
+The same redundancy argument is why safety is not built from a socioeconomic
+proxy. An earlier pipeline spread the municipal crime rate across postal codes
+using density, unemployment and rent; the result correlated +0.58 with rental
+rate within a municipality, so the index would have counted rent and
+unemployment a second and third time under a safety label. Measured at the level
+crime is actually published, crime and income are essentially uncorrelated
+(r = −0.09), which is exactly the sign that the earlier within-city variation was
+manufactured rather than observed.
 
 As of CF-17, every default-weighted factor has ~97–100 % national coverage (Paavo,
 HSY, OSM, and — new — the national Digiroad stop register): **transit**

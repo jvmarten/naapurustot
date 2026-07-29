@@ -4,10 +4,12 @@ import type { NeighborhoodProperties } from '../utils/metrics';
 
 describe('computeQualityCoverage (CF-8)', () => {
   it('counts only factors with data, and dimension sums match the totals', () => {
-    const p = { crime_index: 50, hr_mtu: 30000, unemployment_rate: 8 } as unknown as NeighborhoodProperties;
+    const p = { violent_crime_rate: 50, hr_mtu: 30000, unemployment_rate: 8 } as unknown as NeighborhoodProperties;
     const cov = computeQualityCoverage(p);
     expect(cov.total).toBeGreaterThan(0);
-    // safety (crime), income (hr_mtu) and employment (unemployment) all have data.
+    // safety (violent crime), income (hr_mtu) and employment (unemployment) all have
+    // data. Safety reads violent_crime_rate, not crime_index — the latter is now the
+    // opt-in total_crime factor (defaultWeight 0), which the default lens excludes.
     expect(cov.present).toBe(3);
     expect(cov.present).toBeLessThanOrEqual(cov.total);
     expect(cov.dimensions.reduce((s, d) => s + d.present, 0)).toBe(cov.present);
@@ -58,7 +60,7 @@ describe('computeQualityCoverage (CF-8)', () => {
 
     it('counts a missing thin factor as thin-nationwide, not a local hole', () => {
       // Area with no school-quality signal: missing AND sparse everywhere.
-      const cov = computeQualityCoverage({ crime_index: 50 } as unknown as NeighborhoodProperties, withSchoolWeight());
+      const cov = computeQualityCoverage({ violent_crime_rate: 50 } as unknown as NeighborhoodProperties, withSchoolWeight());
       const school = factorById(cov, 'school_quality');
       expect(school.present).toBe(false);
       expect(cov.missingThinNationally).toBeGreaterThanOrEqual(1);

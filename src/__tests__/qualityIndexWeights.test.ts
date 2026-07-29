@@ -33,8 +33,8 @@ describe('Quality index — custom weights', () => {
   it('produces different rankings when weights change dramatically', () => {
     // Two neighborhoods: A is safe but poor, B is rich but dangerous
     const features = [
-      makeFeature({ pno: 'A', crime_index: 10, hr_mtu: 20000, unemployment_rate: 15, higher_education_rate: 20, transit_stop_density: 10, healthcare_density: 1, daycare_density: 1, school_density: 1, grocery_density: 1, air_quality_index: 20 }),
-      makeFeature({ pno: 'B', crime_index: 200, hr_mtu: 60000, unemployment_rate: 3, higher_education_rate: 70, transit_stop_density: 50, healthcare_density: 5, daycare_density: 5, school_density: 5, grocery_density: 5, air_quality_index: 40 }),
+      makeFeature({ pno: 'A', violent_crime_rate: 10, hr_mtu: 20000, unemployment_rate: 15, higher_education_rate: 20, transit_stop_density: 10, healthcare_density: 1, daycare_density: 1, school_density: 1, grocery_density: 1, air_quality_index: 20 }),
+      makeFeature({ pno: 'B', violent_crime_rate: 200, hr_mtu: 60000, unemployment_rate: 3, higher_education_rate: 70, transit_stop_density: 50, healthcare_density: 5, daycare_density: 5, school_density: 5, grocery_density: 5, air_quality_index: 40 }),
     ];
 
     // Default weights: safety=26, income=10
@@ -97,9 +97,9 @@ describe('Quality index — custom weights', () => {
 describe('Quality index — normalization edge cases', () => {
   it('all neighborhoods with same value get score of 50 (max === min case)', () => {
     const features = [
-      makeFeature({ crime_index: 100 }),
-      makeFeature({ crime_index: 100 }),
-      makeFeature({ crime_index: 100 }),
+      makeFeature({ violent_crime_rate: 100 }),
+      makeFeature({ violent_crime_rate: 100 }),
+      makeFeature({ violent_crime_rate: 100 }),
     ];
 
     const weights: QualityWeights = {};
@@ -133,8 +133,8 @@ describe('Quality index — normalization edge cases', () => {
 
   it('inverted factor (crime) gives higher score to lower value', () => {
     const features = [
-      makeFeature({ pno: 'safe', crime_index: 10 }),
-      makeFeature({ pno: 'dangerous', crime_index: 200 }),
+      makeFeature({ pno: 'safe', violent_crime_rate: 10 }),
+      makeFeature({ pno: 'dangerous', violent_crime_rate: 200 }),
     ];
 
     const weights: QualityWeights = {};
@@ -251,9 +251,14 @@ describe('getDefaultWeights / isCustomWeights', () => {
     const primarySum = QUALITY_FACTORS
       .filter((f) => f.primary)
       .reduce((sum, f) => sum + w[f.id], 0);
-    // Should be 100 (safety 26 + traffic 4 + air 9 + tree 8 + noise 7 + water 4
-    // + employment 12 + income 10 + education 4 + walk 7 + cycling 3 + transit 3 + services 3)
-    expect(primarySum).toBe(100);
+    // 89, not 100: safety was cut 26 -> 15 because crime is a municipal statistic
+    // (Finland publishes none below municipality level), so at 26 a quarter of a
+    // neighbourhood score could not move when comparing neighbourhoods in one city.
+    // The freed 11 points were deliberately NOT redistributed — computeQualityIndices
+    // divides by the actual total weight, so only the ratios matter.
+    // safety 15 + traffic 4 + air 9 + tree 8 + noise 7 + water 4 + employment 12
+    // + income 10 + education 4 + walk 7 + cycling 3 + transit 3 + services 3 = 89
+    expect(primarySum).toBe(89);
   });
 
   it('isCustomWeights returns false for default weights', () => {

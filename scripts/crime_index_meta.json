@@ -4,5 +4,28 @@
   "offence_group": "101T603",
   "unit": "offences per 1,000 residents",
   "municipalities": 308,
-  "postal_codes": 3018
+  "postal_codes": 3018,
+  "violent": {
+    "offence_group": "201T223",
+    "years": [
+      "2021",
+      "2022",
+      "2023",
+      "2024",
+      "2025"
+    ],
+    "vintage": "2021–2025",
+    "min_population": 2000,
+    "municipalities": 251,
+    "postal_codes": 2835
+  },
+  "property": {
+    "offence_group": "101T161",
+    "years": [
+      "2025"
+    ],
+    "vintage": "2025",
+    "municipalities": 251,
+    "postal_codes": 2835
+  }
 }

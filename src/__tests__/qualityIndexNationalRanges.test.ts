@@ -73,7 +73,7 @@ describe('Quality Index — national reference ranges', () => {
   });
 
   it('falls back to the loaded-set range for a property absent from the artifact', () => {
-    // National ranges contain income but NOT crime: crime must min-max locally.
+    // National ranges contain income but NOT violent crime: safety must min-max locally.
     const national = new Map<string, MinMax>([
       ['hr_mtu', { min: 10000, max: 50000, avg: 30000 }],
     ]);
@@ -83,8 +83,8 @@ describe('Quality Index — national reference ranges', () => {
     weights['safety'] = 50;
 
     const features = [
-      makeFeature({ hr_mtu: 30000, crime_index: 50 }),  // income→50 (national); crime→best→100
-      makeFeature({ hr_mtu: 50000, crime_index: 150 }), // income→100 (national); crime→worst→0
+      makeFeature({ hr_mtu: 30000, violent_crime_rate: 50 }),  // income→50 (national); violent crime→best→100
+      makeFeature({ hr_mtu: 50000, violent_crime_rate: 150 }), // income→100 (national); violent crime→worst→0
     ];
     computeQualityIndices(features, weights, national);
 

@@ -3,7 +3,7 @@
   "lowerPercentile": 0.02,
   "upperPercentile": 0.98,
   "postalCodeCount": 3018,
-  "rangeCount": 180,
+  "rangeCount": 182,
   "ranges": {
     "pinta_ala": {
       "min": 1042118.78,
@@ -894,6 +894,16 @@
       "min": 7.4,
       "max": 387.46799999999985,
       "avg": 135.8190330268981
+    },
+    "violent_crime_rate": {
+      "min": 3,
+      "max": 10.6,
+      "avg": 6.510546737213423
+    },
+    "property_crime_rate": {
+      "min": 11.3,
+      "max": 77.4,
+      "avg": 32.405255731922175
     },
     "traffic_accident_rate": {
       "min": 0.1,

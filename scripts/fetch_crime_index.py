@@ -68,8 +68,10 @@ logger = logging.getLogger(__name__)
 SCRIPT_DIR = Path(__file__).parent
 GEOJSON_PATH = SCRIPT_DIR.parent / "public" / "data" / "metro_neighborhoods.geojson"
 OUTPUT_FILE = SCRIPT_DIR / "crime_index.json"
-# Records the statistics year the values above came from, so downstream
-# consumers and the source registry can state it instead of guessing.
+VIOLENT_OUTPUT_FILE = SCRIPT_DIR / "crime_violent.json"
+PROPERTY_OUTPUT_FILE = SCRIPT_DIR / "crime_property.json"
+# Records the statistics years the values above came from, so downstream
+# consumers and the source registry can state them instead of guessing.
 META_FILE = SCRIPT_DIR / "crime_index_meta.json"
 
 # Statistics Finland PxWeb API — crime statistics per municipality
@@ -89,6 +91,42 @@ PXWEB_MUNICIPALITY_CODES = [f"KU{code}" for code in sorted(ALL_MUNICIPALITY_CODE
 
 # Offence category: "Offences and infractions total"
 OFFENCE_TOTAL_CODE = "101T603"
+
+# Offence sub-groups. These are SIBLINGS in the table's own hierarchy: the seven
+# top-level groups sum exactly to OFFENCE_TOTAL_CODE, so they can be published
+# and weighted independently. Never combine a parent with one of its children —
+# "total" already contains both of these, so weighting total alongside violence
+# would count assault twice.
+#
+# Measured nationally for 2025 (offences per 1,000 residents, whole country):
+#   total 101.1 = property 47.3 + traffic 22.4 + other penal code 15.2
+#                 + life & health 8.5 + other Acts 3.2 + public peace 2.8
+#                 + sexual 1.8
+# So the headline "crime rate" is 47 % property and 22 % speeding tickets, and
+# only 8 % violence — which is why "Turvallisuus" now uses the violence group
+# rather than the total.
+OFFENCE_VIOLENT_CODE = "201T223"      # 12 B Crimes against life and health
+OFFENCE_PROPERTY_CODE = "101T161"     # 11 Offences against property
+
+# Violence is ~8.5 per 1,000 nationally, so a small municipality sees single
+# digits per year and one incident swings the rate. Average over several years
+# to damp that, and refuse to publish below a population floor entirely.
+VIOLENT_YEARS = 5
+
+# The floor applies to BOTH sub-groups. Property crime is three times more
+# common and needs no multi-year averaging, but it is just as unstable at the
+# bottom of the population range: measured for 2025, the 57 municipalities under
+# this threshold span 0.0 to 52.1 per 1,000, and Sottunga (97 residents, zero
+# recorded property offences) would otherwise render as the safest place in
+# Finland. Withholding both keeps the two layers on identical coverage, which
+# matters because users will read them side by side.
+CATEGORY_MIN_POPULATION = 2000
+
+# Traffic offences (331_332_501T504) are deliberately NOT published: they are
+# overwhelmingly speeding tickets, and traffic_accident_rate already measures
+# actual harm at postal resolution. Sexual crimes (231T241) are deliberately NOT
+# published either: at 1.8 per 1,000 nationally a couple of cases would swing a
+# small municipality's rate, and that is an irresponsible number to get wrong.
 
 # The year is resolved from the table's own metadata (see pxweb.latest_year).
 # Never hard-code a preferred-year list here: when StatFin publishes a newer
@@ -227,6 +265,63 @@ def fetch_crime_rates_per_1000(prefer_year: str | None = None) -> tuple[dict[str
                 len(result), selected_year)
 
     return result, selected_year
+
+
+def fetch_category_rates(
+    offence_code: str,
+    years: list[str],
+    label: str,
+) -> dict[str, float]:
+    """Fetch one offence group's per-1,000 rate, averaged over ``years``.
+
+    Averaging is what makes a rare category publishable at municipal level: the
+    violence group runs about 8.5 per 1,000 nationally, so a 2,000-resident
+    municipality sees roughly 17 incidents a year and a single bad year would
+    otherwise move it several places in any ranking.
+
+    Municipalities missing a year are averaged over the years they do have, so a
+    boundary change does not silently drop them.
+    """
+    url, meta = pxweb.fetch_table_meta(PXWEB_DATABASE, PXWEB_TABLE_ID)
+    available = set(pxweb.available_years(meta))
+    use = [y for y in years if y in available]
+    if not use:
+        raise ValueError(f"{label}: none of {years} available (have {sorted(available)[-5:]})")
+
+    query = {
+        "query": [
+            {"code": pxweb.year_var_code(meta),
+             "selection": {"filter": "item", "values": use}},
+            {"code": pxweb.var_code_for_value(meta, PXWEB_MUNICIPALITY_CODES[0]),
+             "selection": {"filter": "item", "values": PXWEB_MUNICIPALITY_CODES}},
+            {"code": pxweb.var_code_for_value(meta, offence_code),
+             "selection": {"filter": "item", "values": [offence_code]}},
+            {"code": pxweb.var_code_for_value(meta, "rik_1000"),
+             "selection": {"filter": "item", "values": ["rik_1000"]}},
+        ],
+        "response": {"format": "json"},
+    }
+    logger.info("Fetching %s (%s) for %s...", label, offence_code, ", ".join(use))
+    _rate_limit()
+    r = _request_with_retry("POST", url, label=label, json=query, timeout=120)
+
+    sums: dict[str, list[float]] = {}
+    for row in r.json().get("data", []):
+        keys, vals = row.get("key", []), row.get("values", [])
+        if len(keys) < 2 or not vals:
+            continue
+        val = vals[0]
+        if val in (None, "..", "...", ""):
+            continue
+        try:
+            sums.setdefault(keys[1].replace("KU", "").strip(), []).append(float(val))
+        except (TypeError, ValueError):
+            continue
+
+    result = {m: round(sum(v) / len(v), 2) for m, v in sums.items() if v}
+    logger.info("  %s: %d municipalities, national mean %.2f per 1,000",
+                label, len(result), sum(result.values()) / max(len(result), 1))
+    return result
 
 
 def fetch_crime_rates_fallback(prefer_year: str | None = None) -> tuple[dict[str, float], str]:
@@ -571,7 +666,38 @@ def main():
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         json.dump(sorted_data, f, indent=2, ensure_ascii=False)
 
-    # Record which year these values are. Downstream consumers must not infer
+    # Step 6: the two offence sub-groups that get their own layers. Both are
+    # siblings of each other under the total, so nothing is double-counted.
+    year_i = int(snapshot_year)
+    violent_years = [str(y) for y in range(year_i - VIOLENT_YEARS + 1, year_i + 1)]
+    violent_muni = fetch_category_rates(OFFENCE_VIOLENT_CODE, violent_years, "violent crime")
+    property_muni = fetch_category_rates(OFFENCE_PROPERTY_CODE, [snapshot_year], "property crime")
+
+    # Population floor: below it the counts are small enough that the rate is
+    # noise. Emit nothing rather than a number we cannot stand behind — the map
+    # already renders a missing value as "low data" grey.
+    muni_pop = _get_municipality_populations()
+    for name, rates in (("violent", violent_muni), ("property", property_muni)):
+        withheld = [m for m in rates if muni_pop.get(m, 0) < CATEGORY_MIN_POPULATION]
+        for m in withheld:
+            del rates[m]
+        logger.info(
+            "  %s crime: withheld %d municipalities under %d residents "
+            "(too few incidents to be stable)",
+            name, len(withheld), CATEGORY_MIN_POPULATION,
+        )
+
+    violent_postal = assign_to_postal_codes(violent_muni, postal_records)
+    property_postal = assign_to_postal_codes(property_muni, postal_records)
+    for path, data, name in [
+        (VIOLENT_OUTPUT_FILE, violent_postal, "violent"),
+        (PROPERTY_OUTPUT_FILE, property_postal, "property"),
+    ]:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(dict(sorted(data.items())), f, indent=2, ensure_ascii=False)
+        logger.info("Saved %d %s-crime entries to %s", len(data), name, path.name)
+
+    # Record which years these values are. Downstream consumers must not infer
     # it: build_crime_history used to assume the newest year in the *history*
     # table was the snapshot year, which silently mislabelled the series.
     meta = {
@@ -581,6 +707,21 @@ def main():
         "unit": "offences per 1,000 residents",
         "municipalities": len(muni_rates),
         "postal_codes": len(sorted_data),
+        "violent": {
+            "offence_group": OFFENCE_VIOLENT_CODE,
+            "years": violent_years,
+            "vintage": f"{violent_years[0]}–{violent_years[-1]}",
+            "min_population": CATEGORY_MIN_POPULATION,
+            "municipalities": len(violent_muni),
+            "postal_codes": len(violent_postal),
+        },
+        "property": {
+            "offence_group": OFFENCE_PROPERTY_CODE,
+            "years": [snapshot_year],
+            "vintage": snapshot_year,
+            "municipalities": len(property_muni),
+            "postal_codes": len(property_postal),
+        },
     }
     with open(META_FILE, "w", encoding="utf-8") as f:
         json.dump(meta, f, indent=2, ensure_ascii=False)

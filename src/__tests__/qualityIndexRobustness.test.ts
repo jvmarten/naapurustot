@@ -24,6 +24,7 @@ function makeFeature(overrides: Partial<NeighborhoodProperties>): GeoJSON.Featur
       unemployment_rate: null,
       higher_education_rate: null,
       crime_index: null,
+      violent_crime_rate: null,
       transit_stop_density: null,
       air_quality_index: null,
       healthcare_density: null,
@@ -91,9 +92,11 @@ describe('computeQualityIndices — robustness', () => {
   });
 
   it('inverted factor (crime) gives higher score to lower values', () => {
+    // The safety factor reads violent_crime_rate (crimes against life and health);
+    // crime_index (total offences) is now an opt-in factor at weight 0.
     const features = [
-      makeFeature({ crime_index: 20 }),  // low crime
-      makeFeature({ crime_index: 100 }), // high crime
+      makeFeature({ violent_crime_rate: 20 }),  // low crime
+      makeFeature({ violent_crime_rate: 100 }), // high crime
     ];
     const weights: QualityWeights = {};
     for (const f of QUALITY_FACTORS) weights[f.id] = 0;
@@ -188,8 +191,13 @@ describe('getDefaultWeights', () => {
   it('total default weights sum to expected value', () => {
     const w = getDefaultWeights();
     const total = Object.values(w).reduce((a, b) => a + b, 0);
-    // Primary weights sum to 100 (safety 30 + health 28 + livelihood 26 + everyday 16), secondary all 0
-    expect(total).toBe(100);
+    // Primary weights sum to 89 (safety 19 + health 28 + livelihood 26 + everyday 16),
+    // secondary all 0. The total is deliberately not 100: weights are relative and
+    // computeQualityIndices normalises by their actual sum, so only ratios matter.
+    // The safety dimension dropped 30 → 19 when the safety factor was cut 26 → 15
+    // (crime is a municipal statistic — identical for every postal code in a city),
+    // and the 11 freed points were deliberately NOT redistributed to other factors.
+    expect(total).toBe(89);
   });
 });
 
