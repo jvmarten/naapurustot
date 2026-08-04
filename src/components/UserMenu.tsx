@@ -27,9 +27,12 @@ interface UserMenuProps {
    *  is the password-reset channel — a stolen session must not be able to
    *  repoint it. Resolves to null on success or an error string. */
   onUpdateEmail?: (email: string | null, password: string) => Promise<string | null>;
+  /** Rotate the password from this session. Resolves to null on success or an
+   *  error string. The server keeps this session alive and kills the others. */
+  onChangePassword?: (currentPassword: string, newPassword: string) => Promise<string | null>;
 }
 
-export const UserMenu: React.FC<UserMenuProps> = React.memo(({ user, onLogout, favorites = [], onSelectFavorite, onToggleFavorite, onExportData, onDeleteAccount, onReLogin, onUpdateEmail }) => {
+export const UserMenu: React.FC<UserMenuProps> = React.memo(({ user, onLogout, favorites = [], onSelectFavorite, onToggleFavorite, onExportData, onDeleteAccount, onReLogin, onUpdateEmail, onChangePassword }) => {
   useI18nVersion();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -55,6 +58,15 @@ export const UserMenu: React.FC<UserMenuProps> = React.memo(({ user, onLogout, f
   const [emailSaving, setEmailSaving] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [emailSaved, setEmailSaved] = useState(false);
+  // Password rotation. Separate from the reset-by-email flow: this one requires
+  // the current password and keeps the session alive.
+  const [editingPassword, setEditingPassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordSaved, setPasswordSaved] = useState(false);
 
   // Reset transient GDPR UI whenever the menu closes.
   useEffect(() => {
@@ -65,10 +77,42 @@ export const UserMenu: React.FC<UserMenuProps> = React.memo(({ user, onLogout, f
       setEditingEmail(false);
       setEmailError(null);
       setEmailSaved(false);
+      setEditingPassword(false);
+      setPasswordError(null);
+      setPasswordSaved(false);
       // Never leave a password sitting in component state after the menu closes.
       setEmailPassword('');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
     }
   }, [open]);
+
+  const handleChangePassword = async () => {
+    if (!onChangePassword || passwordSaving) return;
+    setPasswordError(null);
+    // Checked here as well as server-side: a typo in the confirmation should not
+    // cost one of the 10 attempts/hour the credential limiter allows.
+    if (newPassword !== confirmPassword) {
+      setPasswordError(t('auth.passwords_no_match'));
+      return;
+    }
+    setPasswordSaving(true);
+    try {
+      const err = await onChangePassword(currentPassword, newPassword);
+      if (err) {
+        setPasswordError(err);
+        return;
+      }
+      setEditingPassword(false);
+      setPasswordSaved(true);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } finally {
+      setPasswordSaving(false);
+    }
+  };
 
   const handleSaveEmail = async () => {
     if (!onUpdateEmail || emailSaving) return;
@@ -386,6 +430,109 @@ export const UserMenu: React.FC<UserMenuProps> = React.memo(({ user, onLogout, f
                     <button
                       onClick={() => { setEditingEmail(false); setEmailPassword(''); setEmailError(null); }}
                       disabled={emailSaving}
+                      className="flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-surface-700 dark:text-surface-300 bg-surface-100 dark:bg-surface-800 hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors disabled:opacity-50"
+                    >
+                      {t('account.delete_cancel')}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Password rotation. Before this the only way to change a password was
+              to sign out and use the forgot-password mail — making the emergency
+              channel the routine one, and leaving anyone without inbox access
+              unable to change it at all despite being signed in. */}
+          {onChangePassword && (
+            <div className="p-1.5 border-b border-surface-100 dark:border-surface-800">
+              {!editingPassword ? (
+                <div className="px-3 py-2">
+                  <button
+                    onClick={() => {
+                      setCurrentPassword('');
+                      setNewPassword('');
+                      setConfirmPassword('');
+                      setPasswordError(null);
+                      setPasswordSaved(false);
+                      setEditingPassword(true);
+                    }}
+                    className="text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 rounded"
+                  >
+                    {t('account.password_change')}
+                  </button>
+                  {passwordSaved && (
+                    <p className="mt-1.5 text-xs text-emerald-600 dark:text-emerald-400" role="status">
+                      {t('account.password_saved')}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="px-3 py-2 space-y-2">
+                  <label className="block text-[11px] font-semibold text-surface-500 dark:text-surface-400" htmlFor="account-current-password">
+                    {t('account.email_password')}
+                  </label>
+                  <input
+                    id="account-current-password"
+                    type="password"
+                    value={currentPassword}
+                    onChange={e => setCurrentPassword(e.target.value)}
+                    autoComplete="current-password"
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-surface-300 dark:border-surface-600 bg-white dark:bg-surface-800 text-sm text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  />
+                  <label className="block text-[11px] font-semibold text-surface-500 dark:text-surface-400" htmlFor="account-new-password">
+                    {/* NOT reset.new_password: the reset.* fi strings live in
+                        fi-extra.json, which only the lazy page chunks await —
+                        this menu is in the App chunk and would render the raw key. */}
+                    {t('account.password_new')}
+                  </label>
+                  <input
+                    id="account-new-password"
+                    type="password"
+                    value={newPassword}
+                    onChange={e => setNewPassword(e.target.value)}
+                    minLength={12}
+                    autoComplete="new-password"
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-surface-300 dark:border-surface-600 bg-white dark:bg-surface-800 text-sm text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  />
+                  <label className="block text-[11px] font-semibold text-surface-500 dark:text-surface-400" htmlFor="account-confirm-password">
+                    {t('auth.confirm_password')}
+                  </label>
+                  <input
+                    id="account-confirm-password"
+                    type="password"
+                    value={confirmPassword}
+                    onChange={e => setConfirmPassword(e.target.value)}
+                    minLength={12}
+                    autoComplete="new-password"
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-surface-300 dark:border-surface-600 bg-white dark:bg-surface-800 text-sm text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  />
+                  {/* Say up front that other devices will be signed out — it is a
+                      deliberate consequence, and discovering it afterwards on a
+                      phone reads as the account being broken. */}
+                  <p className="text-[11px] text-surface-500 dark:text-surface-400 leading-snug">
+                    {t('account.password_sessions_hint')}
+                  </p>
+                  <div role="alert" aria-live="assertive">
+                    {passwordError && <p className="text-xs text-red-600 dark:text-red-400">{passwordError}</p>}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleChangePassword}
+                      disabled={passwordSaving || !currentPassword || newPassword.length < 12 || !confirmPassword}
+                      className="flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-brand-600 hover:bg-brand-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {passwordSaving ? t('auth.submitting') : t('account.email_save')}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditingPassword(false);
+                        setCurrentPassword('');
+                        setNewPassword('');
+                        setConfirmPassword('');
+                        setPasswordError(null);
+                      }}
+                      disabled={passwordSaving}
                       className="flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-surface-700 dark:text-surface-300 bg-surface-100 dark:bg-surface-800 hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors disabled:opacity-50"
                     >
                       {t('account.delete_cancel')}

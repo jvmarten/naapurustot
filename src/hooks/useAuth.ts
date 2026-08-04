@@ -133,5 +133,17 @@ export function useAuth() {
     return error ?? t('auth.error.server_error');
   }, []);
 
-  return { user: state.user, loading: state.loading, login, signup, logout, exportData, deleteAccount, updateEmail };
+  // Rotate the password from a signed-in session. The server bumps token_version
+  // (killing every other session) and returns a replacement cookie for this one,
+  // so no local auth state needs clearing — we just adopt the returned user.
+  const changePassword = useCallback(async (currentPassword: string, newPassword: string): Promise<string | null> => {
+    const { data, error } = await api.changePassword(currentPassword, newPassword);
+    if (data?.user) {
+      setState({ user: data.user, loading: false });
+      return null;
+    }
+    return error ?? t('auth.error.server_error');
+  }, []);
+
+  return { user: state.user, loading: state.loading, login, signup, logout, exportData, deleteAccount, updateEmail, changePassword };
 }

@@ -284,7 +284,7 @@ const App: React.FC = () => {
   );
 
   // Auth
-  const { user, loading: authLoading, login, signup, logout, exportData, deleteAccount, updateEmail } = useAuth();
+  const { user, loading: authLoading, login, signup, logout, exportData, deleteAccount, updateEmail, changePassword } = useAuth();
   const [showAuth, setShowAuth] = useState(false);
   // QW-1: Onboarding tour
   const [showTour, setShowTour] = useState(false);
@@ -2674,7 +2674,7 @@ const App: React.FC = () => {
             />
           )}
           {user ? (
-            <UserMenu user={user} onLogout={handleLogout} favorites={favoriteEntries} onSelectFavorite={handleSelectFavorite} onToggleFavorite={toggleFavorite} onExportData={exportData} onDeleteAccount={handleDeleteAccount} onReLogin={handleReLogin} onUpdateEmail={updateEmail} />
+            <UserMenu user={user} onLogout={handleLogout} favorites={favoriteEntries} onSelectFavorite={handleSelectFavorite} onToggleFavorite={toggleFavorite} onExportData={exportData} onDeleteAccount={handleDeleteAccount} onReLogin={handleReLogin} onUpdateEmail={updateEmail} onChangePassword={changePassword} />
           ) : authLoading ? (
             // L7: while restoring a returning user's session, show a placeholder
             // instead of the Sign-in button to avoid a flash of "Sign in".

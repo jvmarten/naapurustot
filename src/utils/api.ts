@@ -43,6 +43,7 @@ const SERVER_ERROR_KEYS: Record<string, string> = {
   'Invalid or expired reset link': 'auth.error.reset_link_invalid',
   'Current password is required': 'auth.error.password_required',
   'Incorrect password': 'auth.error.password_incorrect',
+  'New password must be different from the current one': 'auth.error.password_unchanged',
 };
 
 function localiseError(message: string): string {
@@ -140,6 +141,15 @@ export const api = {
     request<{ user: ApiUser }>('/auth/email', {
       method: 'PATCH',
       body: JSON.stringify({ email, password }),
+    }),
+
+  // Rotate the password from a signed-in session. The server revokes every OTHER
+  // session and hands back a replacement cookie for this one, so the caller stays
+  // logged in — unlike resetPassword, which deliberately issues nothing.
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<{ user: ApiUser }>('/auth/password', {
+      method: 'PATCH',
+      body: JSON.stringify({ currentPassword, newPassword }),
     }),
 
   getFavorites: () =>

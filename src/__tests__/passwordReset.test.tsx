@@ -278,3 +278,84 @@ describe('UserMenu — recovery email', () => {
     expect(screen.queryByText(t('account.email_missing'))).toBeNull();
   });
 });
+
+describe('UserMenu — change password', () => {
+  const withEmail = { id: 1, username: 'testuser', displayName: 'Testi', email: 'a@b.fi' } as unknown as ApiUser;
+  const changePassword = vi.fn();
+
+  beforeEach(() => {
+    changePassword.mockReset();
+    changePassword.mockResolvedValue(null);
+  });
+
+  function openMenu() {
+    render(<UserMenu user={withEmail} onLogout={vi.fn()} onChangePassword={changePassword} />);
+    fireEvent.click(screen.getByRole('button', { name: /Testi/ }));
+  }
+
+  function openForm() {
+    openMenu();
+    fireEvent.click(screen.getByText(t('account.password_change')));
+  }
+
+  function fill(current: string, next: string, confirm: string) {
+    fireEvent.change(screen.getByLabelText(t('account.email_password')), { target: { value: current } });
+    fireEvent.change(screen.getByLabelText(t('account.password_new')), { target: { value: next } });
+    fireEvent.change(screen.getByLabelText(t('auth.confirm_password')), { target: { value: confirm } });
+  }
+
+  it('is absent when no handler is wired in', () => {
+    render(<UserMenu user={withEmail} onLogout={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: /Testi/ }));
+    expect(screen.queryByText(t('account.password_change'))).toBeNull();
+  });
+
+  it('warns that other devices will be signed out', () => {
+    openForm();
+    // A deliberate consequence — discovering it later on a phone reads as breakage.
+    expect(screen.getByText(t('account.password_sessions_hint'))).toBeInTheDocument();
+  });
+
+  it('rotates the password and confirms', async () => {
+    openForm();
+    fill('old-password-123', 'a-brand-new-password', 'a-brand-new-password');
+    fireEvent.click(screen.getByRole('button', { name: t('account.email_save') }));
+
+    await waitFor(() => expect(changePassword).toHaveBeenCalledWith('old-password-123', 'a-brand-new-password'));
+    expect(await screen.findByText(t('account.password_saved'))).toBeInTheDocument();
+  });
+
+  it('catches a mismatched confirmation locally, without spending a server attempt', () => {
+    openForm();
+    fill('old-password-123', 'a-brand-new-password', 'a-different-password');
+    fireEvent.click(screen.getByRole('button', { name: t('account.email_save') }));
+
+    expect(screen.getByText(t('auth.passwords_no_match'))).toBeInTheDocument();
+    // The credential limiter allows only 10 attempts an hour — a typo here must
+    // not consume one of them.
+    expect(changePassword).not.toHaveBeenCalled();
+  });
+
+  it('keeps save disabled until every field is valid', () => {
+    openForm();
+    const save = () => screen.getByRole('button', { name: t('account.email_save') });
+    expect(save()).toBeDisabled();
+
+    fill('old-password-123', 'short', 'short');
+    expect(save()).toBeDisabled(); // below the 12-char minimum
+
+    fill('old-password-123', 'a-brand-new-password', 'a-brand-new-password');
+    expect(save()).toBeEnabled();
+  });
+
+  it('surfaces the server rejection and keeps the form open', async () => {
+    changePassword.mockResolvedValue(t('auth.error.password_unchanged'));
+    openForm();
+    fill('old-password-123', 'old-password-123x', 'old-password-123x');
+    fireEvent.click(screen.getByRole('button', { name: t('account.email_save') }));
+
+    expect(await screen.findByText(t('auth.error.password_unchanged'))).toBeInTheDocument();
+    expect(screen.getByLabelText(t('account.password_new'))).toBeInTheDocument();
+    expect(screen.queryByText(t('account.password_saved'))).toBeNull();
+  });
+});
