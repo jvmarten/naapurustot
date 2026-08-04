@@ -4,6 +4,18 @@ import jwt from 'jsonwebtoken';
 import { getPool } from './db.js';
 import { rateLimit } from './rateLimit.js';
 import { verifyTurnstile } from './turnstile.js';
+import { sendPasswordResetEmail } from './mailer.js';
+import {
+  buildResetUrl,
+  generateResetToken,
+  hashResetToken,
+  isWellFormedResetToken,
+  normalizeEmail,
+  normalizeLang,
+  resetTokenExpiry,
+  validateEmail,
+  validatePassword,
+} from './passwordReset.js';
 
 /**
  * Auth + user-data router, mounted at /auth by index.ts. Covers signup/login/
@@ -26,19 +38,26 @@ const DUMMY_HASH = '$2b$12$C6UzMDM.H6dfI/f/IKcEeO3ROOkvI7r5/Apx5OAtNgWZ6lyHkVqzG
 
 const USERNAME_RE = /^[a-zA-Z0-9_-]{3,20}$/;
 
-/** Extract and verify JWT from cookie; returns userId or null. When `res` is
- *  provided and the cookie is present but invalid/expired, clear it so the client
- *  stops re-sending a stale token on every subsequent request. */
+/**
+ * Read the userId resolved by `resolveUser` (which runs on every router request
+ * and does the actual JWT + token-version verification).
+ *
+ * When `res` is provided and a cookie was present but did not resolve to a live
+ * session — expired, tampered, user deleted, or a generation revoked by a
+ * password reset — clear it so the client stops re-sending a dead token.
+ */
 function authenticateToken(req: Request, res?: Response): string | null {
-  const token = req.cookies?.token;
-  if (!token) return null;
-  try {
-    const payload = jwt.verify(token, JWT_SECRET) as { userId: string };
-    return payload.userId;
-  } catch {
-    if (res) res.clearCookie('token', CLEAR_COOKIE_OPTS);
-    return null;
-  }
+  const r = req as AuthedRequest;
+  if (r.userId) return r.userId;
+  if (res && r.hadToken) res.clearCookie('token', CLEAR_COOKIE_OPTS);
+  return null;
+}
+
+/** Sign a session JWT. `tv` pins the token to the user's current credential
+ *  generation — see the token_version migration in db.ts. */
+function signSessionToken(userId: string, tokenVersion: unknown): string {
+  const tv = typeof tokenVersion === 'number' ? tokenVersion : 0;
+  return jwt.sign({ userId, tv }, JWT_SECRET, { expiresIn: '7d' });
 }
 
 function setTokenCookie(res: Response, token: string): void {
@@ -69,12 +88,53 @@ function formatUser(row: Record<string, unknown>) {
 // IP-rotation-per-account abuse gap (rotating source IPs no longer multiplies a
 // single account's write budget). Generous enough that normal use never hits it
 // (the client debounces saves ~1 s apart).
-interface AuthedRequest extends Request { userId?: string | null }
+interface AuthedRequest extends Request { userId?: string | null; hadToken?: boolean }
 
-/** Resolve the JWT userId once and stash it on the request, so the per-user limiter
- *  below can key on it. Handlers still call authenticateToken themselves. */
-function resolveUser(req: Request, _res: Response, next: NextFunction): void {
-  (req as AuthedRequest).userId = authenticateToken(req);
+// A signed token always carries a UUID userId, but check the shape before it
+// reaches the query: a malformed value would make Postgres raise 22P02
+// (invalid input syntax for uuid) and turn a bad cookie into a 500.
+const UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
+/**
+ * Resolve the request's user once, and stash it so the per-user limiter below and
+ * every handler read the same answer.
+ *
+ * Two things happen here. The JWT is verified (signature + expiry), and then its
+ * `tv` claim is checked against `users.token_version`. That second step is what
+ * makes a password reset actually end other sessions: JWTs are stateless and
+ * valid for 7 days, so without a server-side generation counter an attacker's
+ * stolen cookie would keep working for a week after the victim reset their
+ * password — the exact scenario a reset exists to stop. The cost is one indexed
+ * primary-key lookup per authenticated request.
+ *
+ * Tokens issued before token_version shipped have no `tv` claim; those are read
+ * as generation 0, which matches the column default, so the deploy does not sign
+ * existing users out.
+ */
+async function resolveUser(req: Request, _res: Response, next: NextFunction): Promise<void> {
+  const r = req as AuthedRequest;
+  const token = req.cookies?.token;
+  r.hadToken = Boolean(token);
+  r.userId = null;
+  if (!token) { next(); return; }
+
+  let payload: { userId?: unknown; tv?: unknown };
+  try {
+    payload = jwt.verify(token, JWT_SECRET) as { userId?: unknown; tv?: unknown };
+  } catch {
+    next();
+    return;
+  }
+  if (typeof payload?.userId !== 'string' || !UUID_RE.test(payload.userId)) { next(); return; }
+
+  const result = await getPool().query('SELECT token_version FROM users WHERE id = $1', [payload.userId]);
+  if (result.rows.length === 0) { next(); return; }
+
+  const claimed = typeof payload.tv === 'number' ? payload.tv : 0;
+  const current = result.rows[0].token_version ?? 0;
+  if (Number(current) !== claimed) { next(); return; }
+
+  r.userId = payload.userId;
   next();
 }
 
@@ -107,25 +167,23 @@ router.post('/signup', rateLimit(3, 24 * 60 * 60 * 1000, 'signup'), async (req: 
     return;
   }
 
-  if (password.length < 12) {
-    res.status(400).json({ error: 'Password must be at least 12 characters' });
+  // Length floor + the bcrypt-DoS cap (hashing a multi-MB string costs minutes of
+  // CPU). Shared with /reset-password so the two paths can never drift apart.
+  const passwordCheck = validatePassword(password);
+  if (!passwordCheck.ok) {
+    res.status(400).json({ error: passwordCheck.error });
     return;
   }
 
-  // Cap password length to prevent bcrypt DoS — hashing a multi-MB string
-  // can take minutes of CPU time. 1000 chars is far beyond any realistic
-  // password while still blocking abuse.
-  if (password.length > 1000) {
-    res.status(400).json({ error: 'Password must be at most 1000 characters' });
-    return;
-  }
-
-  // RFC 5321 caps an address at 254 chars; enforce that (and string type) before
-  // the regex test. This is correct validation and also bounds the regex input so
-  // the ambiguous [^\s@]+\.[^\s@]+ alternation can't backtrack on a long string (ReDoS).
-  if (email && (typeof email !== 'string' || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
-    res.status(400).json({ error: 'Invalid email format' });
-    return;
+  // RFC 5321 caps an address at 254 chars; validateEmail enforces that (and string
+  // type) before its regex runs, which also bounds the input so the ambiguous
+  // [^\s@]+\.[^\s@]+ alternation can't backtrack on a long string (ReDoS).
+  if (email !== undefined && email !== null && email !== '') {
+    const emailCheck = validateEmail(email);
+    if (!emailCheck.ok) {
+      res.status(400).json({ error: emailCheck.error });
+      return;
+    }
   }
 
   // Verify Turnstile (skipped in dev when no secret is configured)
@@ -157,13 +215,12 @@ router.post('/signup', rateLimit(3, 24 * 60 * 60 * 1000, 'signup'), async (req: 
     const result = await getPool().query(
       `INSERT INTO users (username, password, email, display_name)
        VALUES ($1, $2, $3, $4)
-       RETURNING id, username, email, display_name, trust_level, created_at`,
+       RETURNING id, username, email, display_name, trust_level, created_at, token_version`,
       [username.toLowerCase(), hash, email?.toLowerCase() || null, displayName || null]
     );
 
     const user = result.rows[0];
-    const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
-    setTokenCookie(res, token);
+    setTokenCookie(res, signSessionToken(user.id, user.token_version));
 
     res.status(201).json({ user: formatUser(user) });
   } catch (err: unknown) {
@@ -203,7 +260,7 @@ router.post('/login', rateLimit(10, 15 * 60 * 1000, 'login'), async (req: Reques
   }
 
   const result = await getPool().query(
-    'SELECT id, username, email, password, display_name, trust_level, created_at FROM users WHERE username = $1',
+    'SELECT id, username, email, password, display_name, trust_level, created_at, token_version FROM users WHERE username = $1',
     [username.toLowerCase()]
   );
 
@@ -223,8 +280,7 @@ router.post('/login', rateLimit(10, 15 * 60 * 1000, 'login'), async (req: Reques
     return;
   }
 
-  const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
-  setTokenCookie(res, token);
+  setTokenCookie(res, signSessionToken(user.id, user.token_version));
 
   res.json({ user: formatUser(user) });
 });
@@ -232,6 +288,208 @@ router.post('/login', rateLimit(10, 15 * 60 * 1000, 'login'), async (req: Reques
 router.post('/logout', (_req: Request, res: Response): void => {
   res.clearCookie('token', { httpOnly: true, secure: true, sameSite: 'none', path: '/' });
   res.json({ ok: true });
+});
+
+// ── Password reset ──
+
+/** The one answer /forgot-password ever gives. See the handler for why. */
+const FORGOT_RESPONSE = { ok: true } as const;
+
+/** Every failure mode of /reset-password collapses to this. Distinguishing
+ *  "wrong token" from "expired" from "already used" would tell an attacker
+ *  holding a guessed or stale token which part to vary. */
+const RESET_FAILED = 'Invalid or expired reset link';
+
+/**
+ * Step 1 of the reset: request a link.
+ *
+ * Responds `{ ok: true }` *before* doing any work, unconditionally. That is the
+ * whole design: the response body, status and latency must be identical whether
+ * or not the address belongs to an account, otherwise this endpoint becomes an
+ * oracle for "is this person a user of naapurustot.fi?" — the same enumeration
+ * defence the login route buys with its DUMMY_HASH bcrypt compare. Doing the
+ * lookup and the ~hundreds-of-ms mail send after responding means no branch here
+ * is observable from outside.
+ *
+ * Consequence: nothing after res.json() may touch `res`, and every error must be
+ * swallowed into a log line rather than thrown.
+ */
+router.post('/forgot-password', rateLimit(5, 60 * 60 * 1000, 'forgot'), async (req: Request, res: Response): Promise<void> => {
+  const { email, lang } = req.body ?? {};
+  const mailLang = normalizeLang(lang);
+  const emailCheck = validateEmail(email);
+
+  res.json(FORGOT_RESPONSE);
+
+  if (!emailCheck.ok) return;
+
+  try {
+    const normalized = normalizeEmail(email as string);
+    const found = await getPool().query(
+      'SELECT id, username, email FROM users WHERE email = $1',
+      [normalized]
+    );
+    if (found.rows.length === 0) return;
+    const user = found.rows[0];
+
+    const { token, tokenHash } = generateResetToken();
+
+    // Opportunistic purge — the table is tiny and expires_at is indexed, and the
+    // 5/hour limiter bounds how often this runs. Cheaper than a cron container.
+    await getPool().query('DELETE FROM password_reset_tokens WHERE expires_at < NOW()');
+    // Only the newest link works: supersede any outstanding token for this user
+    // so a request made because an earlier mail was suspected of interception
+    // actually retires that earlier link.
+    await getPool().query('DELETE FROM password_reset_tokens WHERE user_id = $1', [user.id]);
+    await getPool().query(
+      'INSERT INTO password_reset_tokens (token_hash, user_id, expires_at) VALUES ($1, $2, $3)',
+      [tokenHash, user.id, resetTokenExpiry()]
+    );
+
+    const baseUrl = process.env.APP_BASE_URL || 'https://naapurustot.fi';
+    const result = await sendPasswordResetEmail(user.email, buildResetUrl(baseUrl, token, mailLang), user.username, mailLang);
+    if (!result.ok && !result.disabled) {
+      // The address is PII and this line goes to container logs — record that the
+      // send failed and why, never who it was for.
+      console.error('password reset email failed:', result.error);
+    }
+  } catch (err) {
+    console.error('password reset request failed:', err);
+  }
+});
+
+/**
+ * Step 2 of the reset: redeem a link and set the new password.
+ *
+ * The token is consumed by a single conditional UPDATE ... RETURNING rather than
+ * a SELECT-then-UPDATE. That one statement is atomic, so two requests racing with
+ * the same token cannot both observe `used_at IS NULL` and both succeed — and it
+ * needs no explicit row lock.
+ */
+router.post('/reset-password', rateLimit(10, 60 * 60 * 1000, 'reset'), async (req: Request, res: Response): Promise<void> => {
+  const { token, password } = req.body ?? {};
+
+  if (!isWellFormedResetToken(token)) {
+    res.status(400).json({ error: RESET_FAILED });
+    return;
+  }
+  const passwordCheck = validatePassword(password);
+  if (!passwordCheck.ok) {
+    res.status(400).json({ error: passwordCheck.error });
+    return;
+  }
+
+  // Hash before opening the transaction: bcrypt at cost 12 takes a few hundred ms
+  // and there is no reason to hold a pooled connection across it.
+  const hash = await bcrypt.hash(password, SALT_ROUNDS);
+
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    const claimed = await client.query(
+      `UPDATE password_reset_tokens SET used_at = NOW()
+        WHERE token_hash = $1 AND used_at IS NULL AND expires_at > NOW()
+        RETURNING user_id`,
+      [hashResetToken(token)]
+    );
+    if (claimed.rows.length === 0) {
+      await client.query('ROLLBACK');
+      res.status(400).json({ error: RESET_FAILED });
+      return;
+    }
+    const userId = claimed.rows[0].user_id;
+
+    // Bumping token_version is what ends every existing session for this account
+    // (see resolveUser). A reset is often triggered *because* someone else has
+    // access; leaving their 7-day cookie alive would make the reset cosmetic.
+    const updated = await client.query(
+      'UPDATE users SET password = $1, token_version = token_version + 1, updated_at = NOW() WHERE id = $2',
+      [hash, userId]
+    );
+    if (updated.rowCount === 0) {
+      await client.query('ROLLBACK');
+      res.status(400).json({ error: RESET_FAILED });
+      return;
+    }
+    await client.query('DELETE FROM password_reset_tokens WHERE user_id = $1', [userId]);
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+
+  // Deliberately no new session cookie. Whoever completed this proved control of
+  // the mailbox, not knowledge of the account — so they sign in with the password
+  // they just set, like everyone else. Clear any cookie they arrived with: it
+  // belongs to the generation just revoked.
+  res.clearCookie('token', CLEAR_COOKIE_OPTS);
+  res.json({ ok: true });
+});
+
+// ── Email address management ──
+
+/**
+ * Set, change or clear the account's email address.
+ *
+ * Requires the current password even though the caller is already authenticated.
+ * The email is the reset channel, so an attacker sitting on a stolen session
+ * could otherwise point it at their own mailbox and take the account
+ * permanently — re-authenticating here keeps a stolen cookie from escalating
+ * into a stolen account.
+ */
+router.patch('/email', async (req: Request, res: Response): Promise<void> => {
+  const userId = authenticateToken(req, res);
+  if (!userId) {
+    res.status(401).json({ error: 'Not authenticated' });
+    return;
+  }
+
+  const { email, password } = req.body ?? {};
+  if (!password || typeof password !== 'string' || password.length > 1000) {
+    res.status(400).json({ error: 'Current password is required' });
+    return;
+  }
+
+  // `null` / `''` removes the address (and with it the ability to self-recover —
+  // the client warns about that before sending).
+  const clearing = email === null || email === '';
+  if (!clearing) {
+    const emailCheck = validateEmail(email);
+    if (!emailCheck.ok) {
+      res.status(400).json({ error: emailCheck.error });
+      return;
+    }
+  }
+
+  const current = await getPool().query('SELECT password FROM users WHERE id = $1', [userId]);
+  if (current.rows.length === 0) {
+    res.clearCookie('token', CLEAR_COOKIE_OPTS);
+    res.status(401).json({ error: 'User not found' });
+    return;
+  }
+  if (!(await bcrypt.compare(password, current.rows[0].password))) {
+    res.status(403).json({ error: 'Incorrect password' });
+    return;
+  }
+
+  try {
+    const result = await getPool().query(
+      `UPDATE users SET email = $1, updated_at = NOW() WHERE id = $2
+       RETURNING id, username, email, display_name, trust_level, created_at`,
+      [clearing ? null : normalizeEmail(email as string), userId]
+    );
+    res.json({ user: formatUser(result.rows[0]) });
+  } catch (err: unknown) {
+    // The email UNIQUE constraint is the real guarantee (a concurrent PATCH could
+    // otherwise slip between a check and this write).
+    if ((err as { code?: string }).code === '23505') {
+      res.status(409).json({ error: 'Email already registered' });
+      return;
+    }
+    throw err;
+  }
 });
 
 // ── IN-4: request-hardening helpers (wired into index.ts; pure + testable) ──
@@ -391,20 +649,14 @@ router.delete('/account', async (req: Request, res: Response): Promise<void> => 
   res.json({ ok: true });
 });
 
+// Goes through authenticateToken (rather than verifying the JWT inline) so the
+// token_version revocation check in resolveUser applies here too — otherwise a
+// session killed by a password reset would still report itself as signed in, and
+// the client would keep believing it was authenticated.
 router.get('/me', async (req: Request, res: Response): Promise<void> => {
-  const token = req.cookies?.token;
-  if (!token) {
+  const userId = authenticateToken(req, res);
+  if (!userId) {
     res.status(401).json({ error: 'Not authenticated' });
-    return;
-  }
-
-  let userId: string;
-  try {
-    const payload = jwt.verify(token, JWT_SECRET) as { userId: string };
-    userId = payload.userId;
-  } catch {
-    res.clearCookie('token', { httpOnly: true, secure: true, sameSite: 'none', path: '/' });
-    res.status(401).json({ error: 'Invalid token' });
     return;
   }
 

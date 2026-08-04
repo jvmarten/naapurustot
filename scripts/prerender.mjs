@@ -1916,3 +1916,64 @@ for (const [lang, route] of Object.entries(PRIVACY_ROUTES)) {
   writeFileSync(join(dir, 'index.html'), html);
 }
 console.log('Prerendered 3 privacy pages (/tietosuoja, /en/privacy, /sv/integritet).');
+
+// Landing page for the link in a password-reset email.
+//
+// This exists purely so the path RESOLVES on GitHub Pages. public/404.html is the
+// SPA fallback and it redirects any unknown path to `/` keeping only the query
+// string — so without a real prerendered directory here, every emailed link would
+// drop `/uusi-salasana` and dump the user on the map with an orphaned ?token=.
+//
+// One file serves all three languages: the email link carries ?lang, which
+// ResetPasswordPage applies on mount. There is deliberately no localized copy in
+// the markup and no JSON-LD — the page is noindex (it is reachable only with a
+// one-hour single-use token, and has nothing to offer a search engine), so the
+// <noscript> just states that JavaScript is required.
+const RESET_ROUTE = 'uusi-salasana';
+
+function generateResetPage() {
+  const title = 'Uusi salasana – naapurustot.fi';
+  const description = 'Aseta uusi salasana naapurustot.fi-tunnuksellesi.';
+  const canonicalUrl = `https://naapurustot.fi/${RESET_ROUTE}/`;
+
+  let html = template;
+  html = html.replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(title)}</title>`);
+  html = html.replace(/<meta name="description" content="[^"]*" \/>/, `<meta name="description" content="${escapeHtml(description)}" />`);
+  html = html.replace(/<link rel="canonical" href="[^"]*" \/>/, `<link rel="canonical" href="${canonicalUrl}" />`);
+  html = html.replace(/<meta property="og:url" content="[^"]*" \/>/, `<meta property="og:url" content="${canonicalUrl}" />`);
+  html = html.replace(/<meta property="og:title" content="[^"]*" \/>/, `<meta property="og:title" content="${escapeHtml(title)}" />`);
+  html = html.replace(/<meta property="og:description" content="[^"]*" \/>/, `<meta property="og:description" content="${escapeHtml(description)}" />`);
+  html = html.replace(/<meta name="twitter:title" content="[^"]*" \/>/, `<meta name="twitter:title" content="${escapeHtml(title)}" />`);
+  html = html.replace(/<meta name="twitter:description" content="[^"]*" \/>/, `<meta name="twitter:description" content="${escapeHtml(description)}" />`);
+  // Keep it out of the index and out of every sitemap. A reset URL in search
+  // results is noise at best; it also stops the page accruing links that would
+  // outlive the tokens they were minted for.
+  //
+  // REPLACE the template's existing robots tag rather than appending a second
+  // one. Crawlers resolve conflicting robots metas by taking the most
+  // restrictive, so a stray `index, follow` alongside this would still end up
+  // noindex — but only by accident, and it reads as a bug to the next person.
+  const robotsRe = /<meta name="robots" content="[^"]*" \/>/;
+  if (!robotsRe.test(html)) {
+    throw new Error('reset page: no robots meta found in the template to replace');
+  }
+  html = html.replace(robotsRe, '<meta name="robots" content="noindex, nofollow" />');
+  html = html.replace(
+    /<noscript>[\s\S]*?<\/noscript>/,
+    `<noscript>\n    <div style="max-width:820px;margin:2rem auto;padding:1rem;font-family:system-ui,sans-serif;line-height:1.55">\n      <h1>${escapeHtml(title)}</h1>\n      <p>${escapeHtml(description)}</p>\n      <p>JavaScript is required to set a new password.</p>\n    </div>\n  </noscript>`,
+  );
+  return html;
+}
+
+{
+  const html = generateResetPage();
+  assertHeadIntegrity(html, { context: RESET_ROUTE, expectThemeGuard: true });
+  const robotsTags = html.match(/<meta name="robots"/g) ?? [];
+  if (robotsTags.length !== 1 || !html.includes('content="noindex, nofollow"')) {
+    throw new Error(`reset page: expected exactly one noindex robots meta, found ${robotsTags.length}`);
+  }
+  const dir = join(DIST, RESET_ROUTE);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'index.html'), html);
+}
+console.log(`Prerendered the password-reset page (/${RESET_ROUTE}).`);

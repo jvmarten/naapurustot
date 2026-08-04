@@ -241,3 +241,75 @@ describe('api.ts — HTTP client', () => {
     });
   });
 });
+
+describe('api.ts — password reset & email management', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn());
+    setLang('en');
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('forgotPassword() POSTs the address and the UI language', async () => {
+    mockFetchOnceOk({ ok: true });
+    await api.forgotPassword('someone@example.com', 'sv');
+    const [url, init] = (fetch as FetchMock).mock.calls[0];
+    expect(url).toMatch(/\/auth\/forgot-password$/);
+    expect(init.method).toBe('POST');
+    // The language decides which of the three localized mail templates is sent.
+    expect(JSON.parse(init.body)).toEqual({ email: 'someone@example.com', lang: 'sv' });
+  });
+
+  it('forgotPassword() resolves the same way for any address (no enumeration signal)', async () => {
+    mockFetchOnceOk({ ok: true });
+    const known = await api.forgotPassword('real@example.com', 'fi');
+    mockFetchOnceOk({ ok: true });
+    const unknown = await api.forgotPassword('nobody@example.com', 'fi');
+    expect(known).toEqual(unknown);
+    expect(known.error).toBeUndefined();
+  });
+
+  it('resetPassword() POSTs the token and the new password', async () => {
+    mockFetchOnceOk({ ok: true });
+    await api.resetPassword('tok123', 'a-long-enough-password');
+    const [url, init] = (fetch as FetchMock).mock.calls[0];
+    expect(url).toMatch(/\/auth\/reset-password$/);
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body)).toEqual({ token: 'tok123', password: 'a-long-enough-password' });
+  });
+
+  it('resetPassword() localizes the expired/used-link rejection', async () => {
+    mockFetchOnceError(400, { error: 'Invalid or expired reset link' });
+    const result = await api.resetPassword('tok123', 'a-long-enough-password');
+    expect(result.data).toBeUndefined();
+    expect(result.error).toMatch(/invalid or has expired/i);
+  });
+
+  it('updateEmail() PATCHes the address with the current password', async () => {
+    mockFetchOnceOk({ user: { id: 'u1', email: 'new@example.com' } });
+    await api.updateEmail('new@example.com', 'current-password');
+    const [url, init] = (fetch as FetchMock).mock.calls[0];
+    expect(url).toMatch(/\/auth\/email$/);
+    expect(init.method).toBe('PATCH');
+    expect(JSON.parse(init.body)).toEqual({ email: 'new@example.com', password: 'current-password' });
+  });
+
+  it('updateEmail(null) clears the address', async () => {
+    mockFetchOnceOk({ user: { id: 'u1', email: null } });
+    await api.updateEmail(null, 'current-password');
+    expect(JSON.parse((fetch as FetchMock).mock.calls[0][1].body)).toEqual({
+      email: null,
+      password: 'current-password',
+    });
+  });
+
+  it('updateEmail() localizes a rejected password and a taken address', async () => {
+    mockFetchOnceError(403, { error: 'Incorrect password' });
+    expect((await api.updateEmail('a@b.fi', 'wrong')).error).toBe('Incorrect password');
+
+    mockFetchOnceError(409, { error: 'Email already registered' });
+    expect((await api.updateEmail('a@b.fi', 'pw')).error).toMatch(/already registered/i);
+  });
+});

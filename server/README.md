@@ -35,6 +35,9 @@ Internet
 | `POST` | `/auth/signup` | No | 3/IP/day | Create account (requires Turnstile token) |
 | `POST` | `/auth/login` | No | 10/IP/15min | Login (sets httpOnly JWT cookie) |
 | `POST` | `/auth/logout` | No | — | Clear auth cookie |
+| `POST` | `/auth/forgot-password` | No | 5/IP/hour | Email a reset link. **Always** answers `200 {ok:true}` (see below) |
+| `POST` | `/auth/reset-password` | No | 10/IP/hour | Redeem a reset token and set a new password |
+| `PATCH` | `/auth/email` | Yes | — | Set/change/clear the account email (requires the current password) |
 | `GET` | `/auth/me` | Yes | — | Get current user from JWT cookie |
 | `GET` | `/auth/export` | Yes | — | Download the full stored record as JSON (GDPR data export) |
 | `DELETE` | `/auth/account` | Yes | — | Permanently delete the account and all data (GDPR), then clear the cookie |
@@ -70,6 +73,45 @@ portability and erasure directly from the account menu:
 > data; there is no separate privacy-contact address baked into the app. If a
 > data-protection contact is required, add it via the project's existing
 > channels rather than hard-coding a personal email.
+
+### Password reset
+
+`POST /auth/forgot-password` **always** responds `200 {"ok": true}` — for an
+unknown address, a malformed address, and a real one alike — and does so
+*before* the lookup and the mail send. Anything else (a different status, a
+different body, or simply a slower response when the address matched) would turn
+the endpoint into an oracle for "does this person have an account here?". Treat
+that invariant as load-bearing: it is the same account-enumeration defence the
+login route buys with its `DUMMY_HASH` bcrypt compare.
+
+Tokens are 32 random bytes, stored **only** as a SHA-256 hash in
+`password_reset_tokens`, valid for one hour and single-use. Requesting a new link
+retires any outstanding one. Redemption is a single conditional
+`UPDATE … WHERE used_at IS NULL AND expires_at > NOW() RETURNING user_id`, so two
+requests racing with the same token cannot both succeed.
+
+A completed reset increments `users.token_version`. Session JWTs carry the
+matching `tv` claim and `resolveUser` rejects a stale generation, so **resetting
+a password ends every other session** — without this a stolen 7-day cookie would
+outlive the reset that was meant to revoke it. Tokens issued before this shipped
+have no `tv` claim and are read as generation 0 (the column default), so
+deploying it does not sign existing users out.
+
+Reset mail goes out through Resend from a DKIM-verified `naapurustot.fi` (EU
+`eu-west-1` return path), with `Reply-To: info@naapurustot.fi` — the address
+Cloudflare Email Routing forwards to a real inbox. With `RESEND_API_KEY` unset
+the mailer no-ops: nothing is sent, nothing throws, and every other endpoint is
+unaffected.
+
+Because email is **optional** at signup, an account with no address on file
+cannot be recovered. `PATCH /auth/email` (which requires the current password —
+a stolen session must not be able to redirect the reset channel) lets users add
+one later. To see how many accounts are currently unrecoverable:
+
+```bash
+docker compose exec -T db psql -U naapurustot_api -d naapurustot \
+  -c "SELECT count(*) total, count(email) with_email FROM users;"
+```
 
 ## Prerequisites
 
@@ -116,6 +158,9 @@ docker compose logs -f
 | `JWT_SECRET` | Secret for signing JWT auth tokens (must be set in production) |
 | `TURNSTILE_SECRET` | Cloudflare Turnstile secret key (skip in dev to disable bot check) |
 | `TURNSTILE_ALLOWED_HOSTNAMES` | Optional — comma-separated hostnames a Turnstile token must have been solved on (e.g. `naapurustot.fi,www.naapurustot.fi`); empty disables the check |
+| `RESEND_API_KEY` | Optional — Resend "Sending access" key for password-reset mail; empty disables sending (the endpoint still answers 200). **Not** the `gmail-smtp` key — that one is Gmail's "Send mail as" SMTP password for info@naapurustot.fi |
+| `MAIL_FROM` | From address for reset mail (default `noreply@naapurustot.fi`); must be on a Resend-verified domain |
+| `APP_BASE_URL` | Origin used to build reset links (default `https://naapurustot.fi`); must match the deployed frontend |
 | `SENTRY_DSN` | Optional — Sentry error tracking for the API; empty disables Sentry entirely |
 | `SENTRY_RELEASE` | Optional — release identifier attached to Sentry events |
 | `BACKUP_RETENTION_DAYS` | Optional — days of pg_dumps to keep in `./backups/` (default: 14) |

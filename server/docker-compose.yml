@@ -23,6 +23,13 @@ services:
       TURNSTILE_ALLOWED_HOSTNAMES: ${TURNSTILE_ALLOWED_HOSTNAMES:-}
       SENTRY_DSN: ${SENTRY_DSN:-}
       SENTRY_RELEASE: ${SENTRY_RELEASE:-}
+      # Password-reset email (Resend). Unset → mailer.ts no-ops and
+      # /auth/forgot-password still answers 200, so the API runs fine without it.
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      MAIL_FROM: ${MAIL_FROM:-noreply@naapurustot.fi}
+      # Origin used to build reset links. Must match the deployed frontend or
+      # every emailed link 404s.
+      APP_BASE_URL: ${APP_BASE_URL:-https://naapurustot.fi}
       NODE_ENV: production
       PORT: "3001"
     depends_on:

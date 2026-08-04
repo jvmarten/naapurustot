@@ -111,7 +111,13 @@ import { join } from 'node:path';
 // 776,271 B fewer basemap tiles on the landing view. Those are ?url assets and
 // tiles, so none of it shows up here — this gate only ever sees the cost side
 // of a payload optimisation, which is worth remembering before refusing a bump.
-const BUDGET = 320_000;
+// Password reset (2026-08-04): +4 KB for a feature that did not exist at all —
+// the /uusi-salasana page chunk, the forgot-password branch of AuthModal, the
+// recovery-email editor in UserMenu, and their fi.json strings. The page chunk is
+// lazy but still counted (this gate deliberately includes lazy chunks), and it
+// cannot be avoided: public/404.html's SPA fallback drops the path, so the reset
+// link needs a real route rather than a query param on `/`.
+const BUDGET = 324_000;
 const ASSETS_DIR = 'dist/assets';
 
 const fmtKB = (b) => (b / 1024).toFixed(2);

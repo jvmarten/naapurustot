@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { t, getLang } from '../utils/i18n';
+import { api } from '../utils/api';
 import { Turnstile } from './Turnstile';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 
@@ -15,6 +16,8 @@ interface AuthModalProps {
   onLogin: (username: string, password: string) => Promise<string | null>;
   onSignup: (username: string, password: string, turnstileToken: string, email?: string, displayName?: string) => Promise<string | null>;
 }
+
+type Mode = 'login' | 'signup' | 'forgot';
 
 const INPUT_CLASS = 'w-full px-3 py-2.5 rounded-lg border border-surface-300 dark:border-surface-600 bg-white dark:bg-surface-800 text-surface-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-shadow';
 
@@ -36,7 +39,12 @@ const EyeIcon: React.FC<{ off: boolean }> = ({ off }) => (
 const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || '';
 
 export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup }) => {
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
+  const [mode, setMode] = useState<Mode>('login');
+  // Set once a reset request has been sent. The confirmation it shows is
+  // deliberately the same whether or not the address matched an account — the
+  // server answers identically by design, and revealing the difference here would
+  // give back exactly the account-enumeration oracle it refuses to be.
+  const [forgotSent, setForgotSent] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -93,6 +101,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
     if (submitting) return;
     setError(null);
 
+    if (mode === 'forgot') {
+      setSubmitting(true);
+      // The response is ignored on purpose beyond transport failures: the server
+      // returns 200 for a real address, an unknown one and a malformed one alike.
+      const { error: err } = await api.forgotPassword(email, getLang());
+      setSubmitting(false);
+      // Only a network/5xx failure is worth surfacing — anything else would leak
+      // whether the address is registered.
+      if (err) setError(err);
+      else setForgotSent(true);
+      return;
+    }
+
     if (mode === 'signup' && password !== confirmPassword) {
       setError(t('auth.passwords_no_match'));
       return;
@@ -137,9 +158,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
     }
   }, [mode, username, password, confirmPassword, email, turnstileToken, turnstileStatus, submitting, onLogin, onSignup, onClose]);
 
-  const switchMode = useCallback((newMode: 'login' | 'signup') => {
+  const switchMode = useCallback((newMode: Mode) => {
     setMode(newMode);
     setError(null);
+    setForgotSent(false);
   }, []);
 
   return (
@@ -152,11 +174,40 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-label={mode === 'login' ? t('auth.login') : t('auth.signup')}
+        aria-label={mode === 'login' ? t('auth.login') : mode === 'signup' ? t('auth.signup') : t('auth.forgot_title')}
         tabIndex={-1}
         className="w-full max-w-sm mx-4 bg-white dark:bg-surface-900 rounded-2xl shadow-2xl border border-surface-200 dark:border-surface-700/40 overflow-hidden max-h-[90vh] overflow-y-auto outline-none"
       >
-        {/* Tab header */}
+        {/* Reset request replaces the login/signup tabs with its own titled header —
+            it is a detour out of both, so leaving a tab highlighted would misreport
+            where the user is. */}
+        {mode === 'forgot' ? (
+          <div className="flex items-center border-b border-surface-200 dark:border-surface-700/40">
+            <button
+              type="button"
+              onClick={() => switchMode('login')}
+              aria-label={t('auth.forgot_back')}
+              className="px-3 py-3.5 text-surface-400 hover:text-surface-600 dark:hover:text-surface-300 transition-colors rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <span className="flex-1 py-3.5 text-sm font-semibold text-surface-900 dark:text-white">
+              {t('auth.forgot_title')}
+            </span>
+            <button
+              onClick={onClose}
+              aria-label={t('aria.close')}
+              className="px-3 py-3.5 text-surface-400 hover:text-surface-600 dark:hover:text-surface-300 transition-colors rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        ) : (
+        /* Tab header */
         <div className="flex items-center border-b border-surface-200 dark:border-surface-700/40">
           <button
             type="button"
@@ -194,15 +245,72 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
             </svg>
           </button>
         </div>
+        )}
 
         {/* X2: one-line value proposition — the form otherwise opens straight into
             a 12-char password prompt with no stated reason to create an account. */}
         <p className="px-6 pt-4 text-xs text-surface-500 dark:text-surface-400 leading-relaxed">
-          {t('auth.value_prop')}
+          {mode === 'forgot' ? t('auth.forgot_intro') : t('auth.value_prop')}
         </p>
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="px-6 pb-6 pt-4 space-y-4">
+          {mode === 'forgot' ? (
+            forgotSent ? (
+              <>
+                {/* Worded to be true either way: it never confirms the address is
+                    registered, so it cannot be used to probe for accounts. */}
+                <div role="status" className="rounded-lg bg-brand-50 dark:bg-brand-500/10 border border-brand-200 dark:border-brand-500/30 px-4 py-3">
+                  <p className="text-sm text-surface-800 dark:text-surface-100 leading-relaxed">
+                    {t('auth.forgot_sent')}
+                  </p>
+                </div>
+                <p className="text-xs text-surface-500 dark:text-surface-400 leading-relaxed">
+                  {t('auth.forgot_sent_hint')}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => switchMode('login')}
+                  className="w-full py-2.5 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                >
+                  {t('auth.forgot_back')}
+                </button>
+              </>
+            ) : (
+              <>
+                <div>
+                  <label htmlFor="auth-forgot-email" className="block text-xs font-semibold text-surface-600 dark:text-surface-400 mb-1.5">
+                    {t('auth.email')}
+                  </label>
+                  <input
+                    id="auth-forgot-email"
+                    type="email"
+                    required
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    className={INPUT_CLASS}
+                    placeholder={t('auth.email_placeholder')}
+                    autoComplete="email"
+                    aria-invalid={error ? true : undefined}
+                    aria-describedby={error ? 'auth-error' : undefined}
+                  />
+                </div>
+                <div role="alert" aria-live="assertive">
+                  {error && (
+                    <p id="auth-error" className="text-sm text-red-600 dark:text-red-400">{error}</p>
+                  )}
+                </div>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full py-2.5 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                >
+                  {submitting ? t('auth.submitting') : t('auth.forgot_submit')}
+                </button>
+              </>
+            )
+          ) : (
+          <>
           {/* Username */}
           <div>
             <label className="block text-xs font-semibold text-surface-600 dark:text-surface-400 mb-1.5">
@@ -252,17 +360,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
                 <EyeIcon off={showPassword} />
               </button>
             </div>
-            {/* ON-3: the API has no forgot/reset route at all, and the account is
-                pitched as syncing favorites/shortlist/notes across devices — which
-                reads as a backup. Forgetting this password permanently costs the
-                cloud copy and all cross-device access, so say so before they commit
-                rather than after. (A real reset flow needs an email provider and a
-                token table; until then, disclosure is the honest option.) */}
-            {mode === 'signup' && (
-              <p className="mt-1.5 text-[11px] text-surface-500 dark:text-surface-400 leading-snug">
-                {t('auth.password_no_reset')}
-              </p>
-            )}
+            {/* ON-3 originally warned that no reset existed at all. One does now —
+                but only for accounts with an address on file, so the warning moved
+                to the email field below (auth.email_hint), where it is actionable
+                at the moment the user decides whether to fill it in. */}
           </div>
 
           {/* Signup-only fields */}
@@ -336,6 +437,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLogin, onSignup
               ? t('auth.submitting')
               : mode === 'login' ? t('auth.login') : t('auth.signup')}
           </button>
+
+          {/* Reached from login only: on signup there is no password to have
+              forgotten yet, and the address hasn't been registered. */}
+          {mode === 'login' && (
+            <p className="text-center">
+              <button
+                type="button"
+                onClick={() => switchMode('forgot')}
+                className="text-xs text-surface-500 dark:text-surface-400 underline hover:text-brand-600 dark:hover:text-brand-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 rounded"
+              >
+                {t('auth.forgot_link')}
+              </button>
+            </p>
+          )}
+          </>
+          )}
 
           {/* PO-14: link the privacy & data-handling notice so users see what an
               account stores before creating one. */}

@@ -56,6 +56,12 @@ const DataSourcesPage = lazy(() =>
 // eslint-disable-next-line react-refresh/only-export-components
 const PrivacyPage = lazy(() =>
   Promise.all([import('./pages/PrivacyPage'), loadFiExtra()]).then(([m]) => ({ default: m.PrivacyPage })));
+// Landing page for the link in a password-reset email. Prerendered as a real
+// directory (scripts/prerender.mjs) because public/404.html's SPA fallback drops
+// the path and would strand the token on the map route.
+// eslint-disable-next-line react-refresh/only-export-components
+const ResetPasswordPage = lazy(() =>
+  Promise.all([import('./pages/ResetPasswordPage'), loadFiExtra()]).then(([m]) => ({ default: m.ResetPasswordPage })));
 
 // Apply a freshly-deployed service worker WITHOUT yanking the page out from
 // under an active user. The PWA is registered in `prompt` mode (vite.config.ts),
@@ -218,6 +224,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
               <Route path="/tietolahteet" element={<DataSourcesPage lang="fi" />} />
               <Route path="/en/data-sources" element={<DataSourcesPage lang="en" />} />
               <Route path="/sv/datakallor" element={<DataSourcesPage lang="sv" />} />
+              {/* One route for all three languages — the email link carries ?lang. */}
+              <Route path="/uusi-salasana" element={<ResetPasswordPage />} />
               <Route path="/tietosuoja" element={<PrivacyPage lang="fi" />} />
               <Route path="/en/privacy" element={<PrivacyPage lang="en" />} />
               <Route path="/sv/integritet" element={<PrivacyPage lang="sv" />} />
