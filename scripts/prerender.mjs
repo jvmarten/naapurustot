@@ -1919,10 +1919,16 @@ console.log('Prerendered 3 privacy pages (/tietosuoja, /en/privacy, /sv/integrit
 
 // Landing page for the link in a password-reset email.
 //
-// This exists purely so the path RESOLVES on GitHub Pages. public/404.html is the
-// SPA fallback and it redirects any unknown path to `/` keeping only the query
-// string — so without a real prerendered directory here, every emailed link would
-// drop `/uusi-salasana` and dump the user on the map with an orphaned ?token=.
+// This exists so the path resolves as a FIRST-CLASS page on GitHub Pages.
+//
+// Without it the request still works — .github/workflows/deploy.yml copies
+// dist/index.html over dist/404.html, so Pages serves the SPA shell for unknown
+// paths and React Router matches /uusi-salasana client-side with the query intact.
+// (public/404.html, a redirect stub that WOULD drop the path, only survives in
+// local `npm run preview`; the deploy overwrites it.) But that fallback is served
+// with HTTP 404, advertises `robots: index, follow`, points its canonical at `/`,
+// and shows the homepage's marketing <title> — none of which is right for a page
+// people reach from an email. Prerendering gives it a 200, a noindex, and a title.
 //
 // One file serves all three languages: the email link carries ?lang, which
 // ResetPasswordPage applies on mount. There is deliberately no localized copy in

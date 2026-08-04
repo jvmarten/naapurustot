@@ -57,8 +57,9 @@ const DataSourcesPage = lazy(() =>
 const PrivacyPage = lazy(() =>
   Promise.all([import('./pages/PrivacyPage'), loadFiExtra()]).then(([m]) => ({ default: m.PrivacyPage })));
 // Landing page for the link in a password-reset email. Prerendered as a real
-// directory (scripts/prerender.mjs) because public/404.html's SPA fallback drops
-// the path and would strand the token on the map route.
+// directory (scripts/prerender.mjs) so it answers 200 + noindex rather than
+// leaning on the SPA 404 fallback, which serves `index, follow` and a canonical
+// pointing at `/`.
 // eslint-disable-next-line react-refresh/only-export-components
 const ResetPasswordPage = lazy(() =>
   Promise.all([import('./pages/ResetPasswordPage'), loadFiExtra()]).then(([m]) => ({ default: m.ResetPasswordPage })));
