@@ -23,9 +23,13 @@ interface UserMenuProps {
   /** AC-1: recovery for the terminal "session expired" (401) state — clears the
    *  dead session's local auth state and reopens the login modal. */
   onReLogin?: () => void;
+  /** Set/change the recovery email. Takes the current password because the email
+   *  is the password-reset channel — a stolen session must not be able to
+   *  repoint it. Resolves to null on success or an error string. */
+  onUpdateEmail?: (email: string | null, password: string) => Promise<string | null>;
 }
 
-export const UserMenu: React.FC<UserMenuProps> = React.memo(({ user, onLogout, favorites = [], onSelectFavorite, onToggleFavorite, onExportData, onDeleteAccount, onReLogin }) => {
+export const UserMenu: React.FC<UserMenuProps> = React.memo(({ user, onLogout, favorites = [], onSelectFavorite, onToggleFavorite, onExportData, onDeleteAccount, onReLogin, onUpdateEmail }) => {
   useI18nVersion();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -42,6 +46,15 @@ export const UserMenu: React.FC<UserMenuProps> = React.memo(({ user, onLogout, f
   const [gdprError, setGdprError] = useState<string | null>(null);
   // CF-3: brief "account deleted" acknowledgement before the menu closes.
   const [deleted, setDeleted] = useState(false);
+  // Recovery-email editing. Signup makes the address optional, and until this
+  // existed there was no way to add one later — so an account created without one
+  // could never be recovered, no matter how the reset flow behaved.
+  const [editingEmail, setEditingEmail] = useState(false);
+  const [emailValue, setEmailValue] = useState('');
+  const [emailPassword, setEmailPassword] = useState('');
+  const [emailSaving, setEmailSaving] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [emailSaved, setEmailSaved] = useState(false);
 
   // Reset transient GDPR UI whenever the menu closes.
   useEffect(() => {
@@ -49,8 +62,31 @@ export const UserMenu: React.FC<UserMenuProps> = React.memo(({ user, onLogout, f
       setConfirmingDelete(false);
       setGdprError(null);
       setDeleted(false);
+      setEditingEmail(false);
+      setEmailError(null);
+      setEmailSaved(false);
+      // Never leave a password sitting in component state after the menu closes.
+      setEmailPassword('');
     }
   }, [open]);
+
+  const handleSaveEmail = async () => {
+    if (!onUpdateEmail || emailSaving) return;
+    setEmailError(null);
+    setEmailSaving(true);
+    try {
+      const err = await onUpdateEmail(emailValue.trim(), emailPassword);
+      if (err) {
+        setEmailError(err);
+        return;
+      }
+      setEditingEmail(false);
+      setEmailSaved(true);
+      setEmailPassword('');
+    } finally {
+      setEmailSaving(false);
+    }
+  };
 
   const handleExport = async () => {
     if (!onExportData || exporting) return;
@@ -264,6 +300,99 @@ export const UserMenu: React.FC<UserMenuProps> = React.memo(({ user, onLogout, f
                   {t('favorites.empty')}
                 </p>
               </div>
+            </div>
+          )}
+
+          {/* Recovery email. Shown first and, when absent, as a warning rather
+              than a neutral row: without an address the account is genuinely
+              unrecoverable, and that is invisible until the day it matters. */}
+          {onUpdateEmail && (
+            <div className="p-1.5 border-b border-surface-100 dark:border-surface-800">
+              {!editingEmail ? (
+                <div className="px-3 py-2">
+                  {user.email ? (
+                    <>
+                      <p className="text-[11px] font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wide">
+                        {t('account.email_label')}
+                      </p>
+                      <p className="mt-0.5 text-sm text-surface-700 dark:text-surface-300 break-all">{user.email}</p>
+                    </>
+                  ) : (
+                    <div className="flex items-start gap-2">
+                      <svg className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                      </svg>
+                      <p className="text-xs text-surface-600 dark:text-surface-400 leading-relaxed">
+                        {t('account.email_missing')}
+                      </p>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => {
+                      setEmailValue(user.email ?? '');
+                      setEmailPassword('');
+                      setEmailError(null);
+                      setEmailSaved(false);
+                      setEditingEmail(true);
+                    }}
+                    className="mt-1.5 text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 rounded"
+                  >
+                    {user.email ? t('account.email_change') : t('account.email_add')}
+                  </button>
+                  {emailSaved && (
+                    <p className="mt-1.5 text-xs text-emerald-600 dark:text-emerald-400" role="status">
+                      {t('account.email_saved')}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="px-3 py-2 space-y-2">
+                  <label className="block text-[11px] font-semibold text-surface-500 dark:text-surface-400" htmlFor="account-email-input">
+                    {t('account.email_label')}
+                  </label>
+                  <input
+                    id="account-email-input"
+                    type="email"
+                    value={emailValue}
+                    onChange={e => setEmailValue(e.target.value)}
+                    placeholder={t('auth.email_placeholder')}
+                    autoComplete="email"
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-surface-300 dark:border-surface-600 bg-white dark:bg-surface-800 text-sm text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  />
+                  {/* Re-authentication, not a formality: the address being edited
+                      is where reset links go. */}
+                  <label className="block text-[11px] font-semibold text-surface-500 dark:text-surface-400" htmlFor="account-email-password">
+                    {t('account.email_password')}
+                  </label>
+                  <input
+                    id="account-email-password"
+                    type="password"
+                    value={emailPassword}
+                    onChange={e => setEmailPassword(e.target.value)}
+                    autoComplete="current-password"
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-surface-300 dark:border-surface-600 bg-white dark:bg-surface-800 text-sm text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  />
+                  <div role="alert" aria-live="assertive">
+                    {emailError && <p className="text-xs text-red-600 dark:text-red-400">{emailError}</p>}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleSaveEmail}
+                      disabled={emailSaving || !emailValue.trim() || !emailPassword}
+                      className="flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-brand-600 hover:bg-brand-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {emailSaving ? t('auth.submitting') : t('account.email_save')}
+                    </button>
+                    <button
+                      onClick={() => { setEditingEmail(false); setEmailPassword(''); setEmailError(null); }}
+                      disabled={emailSaving}
+                      className="flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-surface-700 dark:text-surface-300 bg-surface-100 dark:bg-surface-800 hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors disabled:opacity-50"
+                    >
+                      {t('account.delete_cancel')}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

@@ -48,6 +48,17 @@ const MIGRATIONS: { id: string; sql: string }[] = [
     id: '001_user_preferences_wizard_profile',
     sql: `ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS wizard_profile JSONB NOT NULL DEFAULT '{}'`,
   },
+  {
+    // Session invalidation for password resets. JWTs are stateless and live 7
+    // days, so without a server-side generation counter a completed reset would
+    // leave an attacker's existing cookie working — defeating the main reason
+    // people reset a password. The token carries `tv`; resolveUser (auth.ts)
+    // compares it against this column and rejects the stale generation.
+    // DEFAULT 0 matches the `tv` fallback for tokens issued before this shipped,
+    // so the deploy does not sign every existing user out.
+    id: '002_users_token_version',
+    sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INTEGER NOT NULL DEFAULT 0`,
+  },
 ];
 
 async function runMigrations(): Promise<void> {
@@ -138,6 +149,23 @@ export async function initDb(): Promise<void> {
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
+  // Password-reset tokens. Only the SHA-256 hash of a token is stored, so a
+  // database dump cannot be replayed against /auth/reset-password. Rows are
+  // single-use (used_at) and time-limited (expires_at); the CASCADE drops them
+  // with the account.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      token_hash TEXT PRIMARY KEY,
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      expires_at TIMESTAMPTZ NOT NULL,
+      used_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  // Supports both hot paths: invalidating a user's outstanding tokens on a
+  // successful reset, and the periodic purge of expired rows.
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_prt_user_id ON password_reset_tokens (user_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_prt_expires_at ON password_reset_tokens (expires_at)`);
   await runMigrations();
   console.log('Database initialized');
 }

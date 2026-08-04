@@ -37,11 +37,20 @@
   "privacy.s_basis_h": "Käsittelyn peruste",
   "privacy.s_basis_b": "Tilin tietoja käsitellään suostumuksesi perusteella: tili syntyy vain, kun itse luot sen, ja voit poistaa sen milloin tahansa. Käsittelyn tarkoitus on yksinomaan tarjota tilin toiminnot — kirjautuminen ja valintojesi synkronointi laitteiden välillä. Emme myy emmekä luovuta tietojasi mainostajille.",
   "privacy.s_thirdparties_h": "Kolmannet osapuolet",
-  "privacy.s_thirdparties_b": "Cloudflare Turnstile: estää automaattiset rekisteröitymiset tilin luonnin yhteydessä.\nSentry: kerää teknisiä virheraportteja palvelun vakauden parantamiseksi.\nUmami: itse ylläpidetty, evästeetön kävijäseuranta, joka ei tunnista yksittäisiä käyttäjiä.\nDigitransit (HSL / Fintraffic): osoitehaku lähettää kirjoittamasi hakutekstin Digitransitin paikannuspalveluun osoitteen löytämiseksi, ja valinnainen matka-aikanäkymä lähettää valitun alueen sijainnin sen reitityspalveluun. Näitä käytetään vain, kun kyseiset toiminnot ovat käytössä.\nKartan taustakuvat ladataan ulkoiselta karttapalvelimelta. Emme käytä mainosseurantaa tai kolmannen osapuolen markkinointievästeitä.",
+  "privacy.s_thirdparties_b": "Cloudflare Turnstile: estää automaattiset rekisteröitymiset tilin luonnin yhteydessä.\nSentry: kerää teknisiä virheraportteja palvelun vakauden parantamiseksi.\nUmami: itse ylläpidetty, evästeetön kävijäseuranta, joka ei tunnista yksittäisiä käyttäjiä.\nResend: lähettää salasanan palautusviestit. Sille välitetään sähköpostiosoitteesi ja käyttäjänimesi vain silloin, kun pyydät salasanan palautusta. Viestit lähetetään EU:n alueella (Irlanti).\nDigitransit (HSL / Fintraffic): osoitehaku lähettää kirjoittamasi hakutekstin Digitransitin paikannuspalveluun osoitteen löytämiseksi, ja valinnainen matka-aikanäkymä lähettää valitun alueen sijainnin sen reitityspalveluun. Näitä käytetään vain, kun kyseiset toiminnot ovat käytössä.\nKartan taustakuvat ladataan ulkoiselta karttapalvelimelta. Emme käytä mainosseurantaa tai kolmannen osapuolen markkinointievästeitä.",
   "privacy.s_retention_h": "Säilytysaika",
   "privacy.s_retention_b": "Tilin tietoja säilytetään niin kauan kuin tili on olemassa. Kun poistat tilisi, kaikki siihen liittyvät tiedot poistetaan pysyvästi. Ilman tiliä tallennettuja paikallisia tietoja säilytetään vain omassa selaimessasi, ja voit tyhjentää ne selaimesi asetuksista.",
   "privacy.s_rights_h": "Tietojesi hallinta",
   "privacy.s_rights_b": "Voit ladata kaikki tiliisi tallennetut tiedot JSON-tiedostona ja poistaa tilisi pysyvästi suoraan palvelussa: kirjaudu sisään ja avaa käyttäjävalikko oikeasta yläkulmasta. Tilin poisto poistaa kaikki tietosi lopullisesti eikä sitä voi peruuttaa.",
   "privacy.s_contact_h": "Yhteydenotot",
-  "privacy.s_contact_b": "Tietosuojaa koskevissa kysymyksissä ja pyynnöissä voit ottaa yhteyttä sähköpostitse:"
+  "privacy.s_contact_b": "Tietosuojaa koskevissa kysymyksissä ja pyynnöissä voit ottaa yhteyttä sähköpostitse:",
+  "reset.title": "Aseta uusi salasana",
+  "reset.intro": "Valitse uusi salasana tunnuksellesi. Vähintään 12 merkkiä.",
+  "reset.new_password": "Uusi salasana",
+  "reset.password_hint": "Vähintään 12 merkkiä",
+  "reset.submit": "Aseta salasana",
+  "reset.success": "Salasana vaihdettu. Voit nyt kirjautua sisään uudella salasanalla.",
+  "reset.success_sessions": "Turvallisuussyistä kaikki muut istunnot kirjattiin ulos — kirjaudu muilla laitteilla uudelleen.",
+  "reset.no_token": "Palautuslinkki puuttuu tai on vaillinainen. Avaa linkki uudelleen sähköpostista tai pyydä uusi.",
+  "reset.back_to_login": "Siirry kirjautumiseen"
 }

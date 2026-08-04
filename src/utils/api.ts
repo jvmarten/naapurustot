@@ -40,6 +40,9 @@ const SERVER_ERROR_KEYS: Record<string, string> = {
   'Too many requests. Please try again later.': 'auth.error.rate_limited',
   'Internal server error': 'auth.error.server_error',
   'Payload too large': 'auth.error.too_large',
+  'Invalid or expired reset link': 'auth.error.reset_link_invalid',
+  'Current password is required': 'auth.error.password_required',
+  'Incorrect password': 'auth.error.password_incorrect',
 };
 
 function localiseError(message: string): string {
@@ -111,6 +114,33 @@ export const api = {
 
   me: () =>
     request<{ user: ApiUser }>('/auth/me'),
+
+  // Request a reset link. The server deliberately answers 200 for every address —
+  // known, unknown or malformed — so callers must NOT try to infer whether the
+  // account exists, and the UI must show the same confirmation either way.
+  forgotPassword: (email: string, lang: string) =>
+    request<{ ok: boolean }>('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email, lang }),
+    }),
+
+  // Redeem a token from the emailed link. On success the server does NOT sign the
+  // user in — proving mailbox control isn't proving knowledge of the account — so
+  // the caller sends them to the login form with the password they just set.
+  resetPassword: (token: string, password: string) =>
+    request<{ ok: boolean }>('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, password }),
+    }),
+
+  // Set, change or (with email: null) clear the account's address. Requires the
+  // current password: the email is the reset channel, so a stolen session must not
+  // be enough to redirect it.
+  updateEmail: (email: string | null, password: string) =>
+    request<{ user: ApiUser }>('/auth/email', {
+      method: 'PATCH',
+      body: JSON.stringify({ email, password }),
+    }),
 
   getFavorites: () =>
     request<{ favorites: string[]; updatedAt?: string | null }>('/auth/favorites'),

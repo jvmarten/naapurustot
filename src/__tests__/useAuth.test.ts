@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 
 const sampleUser = { id: 'u1', username: 'a', email: null, displayName: null, trustLevel: 0, createdAt: 'x' };
 const meMock = vi.fn(() => Promise.resolve({ data: { user: sampleUser } }));
+const updateEmailMock = vi.fn();
 
 vi.mock('../utils/api', () => ({
   api: {
@@ -13,6 +14,7 @@ vi.mock('../utils/api', () => ({
     signup: vi.fn(),
     exportData: vi.fn(),
     deleteAccount: vi.fn(),
+    updateEmail: (...args: unknown[]) => updateEmailMock(...args),
   },
 }));
 
@@ -62,5 +64,46 @@ describe('useAuth — CF-6 cross-tab session sync', () => {
       window.dispatchEvent(new StorageEvent('storage', { key: 'naapurustot-favorites', newValue: null }));
     });
     expect(result.current.user).not.toBeNull();
+  });
+});
+
+describe('useAuth — recovery email', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    meMock.mockClear();
+    updateEmailMock.mockReset();
+  });
+
+  it('adopts the updated user so the menu reflects the new address immediately', async () => {
+    localStorage.setItem('has_session', '1');
+    const { result } = renderHook(() => useAuth());
+    await waitFor(() => expect(result.current.user?.email).toBeNull());
+
+    updateEmailMock.mockResolvedValue({ data: { user: { ...sampleUser, email: 'new@example.com' } } });
+
+    let err: string | null = 'unset';
+    await act(async () => {
+      err = await result.current.updateEmail('new@example.com', 'current-password');
+    });
+
+    expect(err).toBeNull();
+    expect(updateEmailMock).toHaveBeenCalledWith('new@example.com', 'current-password');
+    expect(result.current.user?.email).toBe('new@example.com');
+  });
+
+  it('returns the error and leaves the user untouched when the password is rejected', async () => {
+    localStorage.setItem('has_session', '1');
+    const { result } = renderHook(() => useAuth());
+    await waitFor(() => expect(result.current.user).not.toBeNull());
+
+    updateEmailMock.mockResolvedValue({ error: 'Incorrect password' });
+
+    let err: string | null = null;
+    await act(async () => {
+      err = await result.current.updateEmail('new@example.com', 'wrong');
+    });
+
+    expect(err).toBe('Incorrect password');
+    expect(result.current.user?.email).toBeNull();
   });
 });

@@ -120,5 +120,18 @@ export function useAuth() {
     return error ?? t('auth.error.server_error'); // ER-6: localized, not raw English
   }, []);
 
-  return { user: state.user, loading: state.loading, login, signup, logout, exportData, deleteAccount };
+  // Set, change or clear the account email — the address a password-reset link is
+  // sent to. Requires the current password (the server re-checks it), so a stolen
+  // session can't quietly repoint the recovery channel. Returns null on success or
+  // an error string, matching login/signup.
+  const updateEmail = useCallback(async (email: string | null, password: string): Promise<string | null> => {
+    const { data, error } = await api.updateEmail(email, password);
+    if (data?.user) {
+      setState({ user: data.user, loading: false });
+      return null;
+    }
+    return error ?? t('auth.error.server_error');
+  }, []);
+
+  return { user: state.user, loading: state.loading, login, signup, logout, exportData, deleteAccount, updateEmail };
 }
