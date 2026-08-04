@@ -105,8 +105,8 @@ test('buildResetUrl targets the prerendered directory route and encodes the toke
   assert.equal(url, 'https://naapurustot.fi/uusi-salasana/?token=abc-123_XYZ&lang=en');
 
   // A trailing slash on the base must not produce a double slash — the path has
-  // to match the prerendered directory exactly or GitHub Pages 404s, and the SPA
-  // fallback drops the path (public/404.html), losing the token.
+  // to match the prerendered directory exactly, or Pages falls through to the SPA
+  // 404 shell and the link answers 404 instead of 200.
   assert.equal(
     buildResetUrl('https://naapurustot.fi/', 'tok', 'fi'),
     'https://naapurustot.fi/uusi-salasana/?token=tok&lang=fi',

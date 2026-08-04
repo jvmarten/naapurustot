@@ -8,12 +8,13 @@ import { api } from '../utils/api';
  * (`/uusi-salasana/?token=…&lang=…`).
  *
  * Why one path for all three languages, and why a real directory route:
- * `public/404.html` is the GitHub Pages SPA fallback, and it redirects any
- * unknown path to `/` while KEEPING ONLY the query string — so a client-only
- * route would drop `/uusi-salasana` and strand the user on the map with a
- * dangling `?token=`. The path therefore has to exist as prerendered HTML (see
- * scripts/prerender.mjs), and the cheapest way to keep that to a single file is
- * to carry the language in a query param rather than minting three routes.
+ * GitHub Pages serves the SPA shell for unknown paths (deploy.yml copies
+ * index.html over 404.html), so a client-only route would *function* — but it
+ * would answer HTTP 404 with `robots: index, follow`, a canonical pointing at
+ * `/`, and the homepage's title. scripts/prerender.mjs emits a real directory so
+ * a link arriving from an email gets a 200, a noindex and its own title instead.
+ * Keeping the language in a query param rather than minting three routes is what
+ * keeps that to a single prerendered file.
  *
  * Deliberately NOT signed in on success: redeeming the token proves control of
  * the mailbox, not knowledge of the account, so the server issues no cookie and

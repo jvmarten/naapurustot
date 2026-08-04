@@ -115,8 +115,9 @@ import { join } from 'node:path';
 // the /uusi-salasana page chunk, the forgot-password branch of AuthModal, the
 // recovery-email editor in UserMenu, and their fi.json strings. The page chunk is
 // lazy but still counted (this gate deliberately includes lazy chunks), and it
-// cannot be avoided: public/404.html's SPA fallback drops the path, so the reset
-// link needs a real route rather than a query param on `/`.
+// cannot be avoided: the link needs a real route rather than a query param on `/`,
+// and the page is prerendered so it answers 200 + noindex instead of the SPA
+// fallback's 404 + `index, follow` (see scripts/prerender.mjs).
 const BUDGET = 324_000;
 const ASSETS_DIR = 'dist/assets';
 

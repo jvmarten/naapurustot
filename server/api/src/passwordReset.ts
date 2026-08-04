@@ -103,10 +103,10 @@ export function normalizeEmail(email: string): string {
  * Build the link that goes in the email.
  *
  * A single path for all three languages, with the UI language as a query param:
- * GitHub Pages serves `dist/uusi-salasana/index.html` for it, and the SPA reads
- * both params client-side. (The 404 fallback in public/404.html redirects unknown
- * paths to `/` and DROPS the path, so the route must be a real prerendered
- * directory — see scripts/prerender.mjs.)
+ * GitHub Pages serves the prerendered `dist/uusi-salasana/index.html` for it, and
+ * the SPA reads both params client-side. The trailing slash matters — it is what
+ * makes Pages serve that directory index (and answer 200) rather than falling
+ * through to the SPA 404 shell.
  */
 export function buildResetUrl(baseUrl: string, token: string, lang: MailLang): string {
   const base = baseUrl.replace(/\/+$/, '');
