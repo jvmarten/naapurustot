@@ -303,7 +303,15 @@ test('a completed reset invalidates sessions issued before it', async () => {
   assert.equal(afterReset.status, 401, 'the pre-reset session is dead');
 });
 
-// ── Email management ──
+// ── Email + password management ──
+//
+// BUDGET WARNING: PATCH /email and PATCH /password share one `credential` rate
+// limiter — 10 attempts per hour, keyed on userId. Every test below reuses
+// RESET_USER, and the limiter's buckets are module state that seedResetUser()
+// does NOT reset (it re-creates the row, but the key is the same UUID). The
+// tests currently spend 7 of the 10. Adding a fourth request to any of them will
+// start returning 429 and the failure will look like a broken assertion rather
+// than an exhausted bucket — use a fresh user id if you need more.
 
 test('PATCH /auth/email requires the correct current password', async () => {
   await seedResetUser();
@@ -337,5 +345,79 @@ test('PATCH /auth/email without a session is rejected with 401', async () => {
     .patch('/auth/email')
     .set('Origin', ORIGIN)
     .send({ email: 'x@example.com', password: RESET_PASSWORD });
+  assert.equal(res.status, 401);
+});
+
+// ── Password change (authenticated) ──
+
+test('PATCH /auth/password rotates the password and keeps the caller signed in', async () => {
+  await seedResetUser();
+  const bcrypt = (await import('bcrypt')).default;
+  const cookie = `token=${jwt.sign({ userId: RESET_USER, tv: 0 }, JWT_SECRET, { expiresIn: '7d' })}`;
+
+  const res = await request(app)
+    .patch('/auth/password')
+    .set('Cookie', cookie)
+    .set('Origin', ORIGIN)
+    .send({ currentPassword: RESET_PASSWORD, newPassword: 'a-brand-new-password' });
+  assert.equal(res.status, 200);
+
+  const row = await pool.query('SELECT password, token_version FROM users WHERE id = $1', [RESET_USER]);
+  assert.ok(await bcrypt.compare('a-brand-new-password', row.rows[0].password), 'new password stored');
+  assert.equal(Number(row.rows[0].token_version), 1, 'other sessions revoked');
+
+  // A fresh cookie for the NEW generation must come back, or the caller would be
+  // logged out of the tab they just changed their password in.
+  const setCookie = String(res.headers['set-cookie'] ?? '');
+  assert.match(setCookie, /token=/, 'a replacement session cookie is issued');
+  const reissued = /token=([^;]+)/.exec(setCookie)?.[1] ?? '';
+  const payload = jwt.verify(decodeURIComponent(reissued), JWT_SECRET) as { tv?: number };
+  assert.equal(payload.tv, 1, 'the reissued cookie carries the new generation');
+
+  // And it actually works, while the pre-change cookie does not.
+  assert.equal((await request(app).get('/auth/me').set('Cookie', `token=${reissued}`)).status, 200);
+  assert.equal((await request(app).get('/auth/me').set('Cookie', cookie)).status, 401);
+});
+
+test('PATCH /auth/password rejects a wrong current password and an unchanged new one', async () => {
+  await seedResetUser();
+  const cookie = `token=${jwt.sign({ userId: RESET_USER, tv: 0 }, JWT_SECRET, { expiresIn: '7d' })}`;
+
+  const wrong = await request(app)
+    .patch('/auth/password')
+    .set('Cookie', cookie)
+    .set('Origin', ORIGIN)
+    .send({ currentPassword: 'not-the-right-password', newPassword: 'a-brand-new-password' });
+  assert.equal(wrong.status, 403);
+
+  // Reuse is refused HERE (unlike /reset-password) — silently accepting it would
+  // report a rotation that never happened.
+  const same = await request(app)
+    .patch('/auth/password')
+    .set('Cookie', cookie)
+    .set('Origin', ORIGIN)
+    .send({ currentPassword: RESET_PASSWORD, newPassword: RESET_PASSWORD });
+  assert.equal(same.status, 400);
+  assert.match(same.body.error, /different/i);
+
+  const short = await request(app)
+    .patch('/auth/password')
+    .set('Cookie', cookie)
+    .set('Origin', ORIGIN)
+    .send({ currentPassword: RESET_PASSWORD, newPassword: 'short' });
+  assert.equal(short.status, 400);
+
+  // None of the rejections may have touched the stored credential.
+  const bcrypt = (await import('bcrypt')).default;
+  const row = await pool.query('SELECT password, token_version FROM users WHERE id = $1', [RESET_USER]);
+  assert.ok(await bcrypt.compare(RESET_PASSWORD, row.rows[0].password), 'password unchanged');
+  assert.equal(Number(row.rows[0].token_version), 0, 'no session was revoked by a failed attempt');
+});
+
+test('PATCH /auth/password without a session is rejected with 401', async () => {
+  const res = await request(app)
+    .patch('/auth/password')
+    .set('Origin', ORIGIN)
+    .send({ currentPassword: RESET_PASSWORD, newPassword: 'a-brand-new-password' });
   assert.equal(res.status, 401);
 });

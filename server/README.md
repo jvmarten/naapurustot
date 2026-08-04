@@ -37,7 +37,8 @@ Internet
 | `POST` | `/auth/logout` | No | — | Clear auth cookie |
 | `POST` | `/auth/forgot-password` | No | 5/IP/hour | Email a reset link. **Always** answers `200 {ok:true}` (see below) |
 | `POST` | `/auth/reset-password` | No | 10/IP/hour | Redeem a reset token and set a new password |
-| `PATCH` | `/auth/email` | Yes | — | Set/change/clear the account email (requires the current password) |
+| `PATCH` | `/auth/email` | Yes | 10/user/hour | Set/change/clear the account email (requires the current password) |
+| `PATCH` | `/auth/password` | Yes | 10/user/hour | Change the password from a signed-in session |
 | `GET` | `/auth/me` | Yes | — | Get current user from JWT cookie |
 | `GET` | `/auth/export` | Yes | — | Download the full stored record as JSON (GDPR data export) |
 | `DELETE` | `/auth/account` | Yes | — | Permanently delete the account and all data (GDPR), then clear the cookie |
@@ -102,6 +103,27 @@ Reset mail goes out through Resend from a DKIM-verified `naapurustot.fi` (EU
 Cloudflare Email Routing forwards to a real inbox. With `RESEND_API_KEY` unset
 the mailer no-ops: nothing is sent, nothing throws, and every other endpoint is
 unaffected.
+
+### Changing a password while signed in
+
+`PATCH /auth/password` takes the current password and a new one. It bumps
+`token_version` like a reset does — so every OTHER session dies — but unlike the
+reset it **re-issues the caller's own cookie** against the new generation.
+Otherwise you would change your password and be logged straight out of the tab
+you did it in. The reset path deliberately issues nothing: redeeming a mailed
+token proves control of a mailbox, not knowledge of the account.
+
+It also **rejects reuse** of the current password, which `/auth/reset-password`
+does not. The asymmetry is intentional: people reset because they forgot, and a
+fair number remember partway through, so refusing there is friction on the common
+case against a threat that barely applies (a stolen *cookie* never revealed the
+password, and the `token_version` bump already killed it). Someone deliberately
+rotating has no such excuse, and accepting a no-op would report a rotation that
+did not happen.
+
+Both `PATCH` routes share a `credential` limiter — 10 attempts per hour, keyed on
+userId — because both verify the current password, and a stolen session that
+brute-forces it escalates into a permanently owned account.
 
 Because email is **optional** at signup, an account with no address on file
 cannot be recovered. `PATCH /auth/email` (which requires the current password —

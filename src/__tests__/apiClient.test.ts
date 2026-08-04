@@ -313,3 +313,37 @@ describe('api.ts — password reset & email management', () => {
     expect((await api.updateEmail('a@b.fi', 'pw')).error).toMatch(/already registered/i);
   });
 });
+
+describe('api.ts — change password', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn());
+    setLang('en');
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('changePassword() PATCHes both passwords to /auth/password', async () => {
+    mockFetchOnceOk({ user: { id: 'u1' } });
+    await api.changePassword('old-password-123', 'a-brand-new-password');
+    const [url, init] = (fetch as FetchMock).mock.calls[0];
+    expect(url).toMatch(/\/auth\/password$/);
+    expect(init.method).toBe('PATCH');
+    expect(JSON.parse(init.body)).toEqual({
+      currentPassword: 'old-password-123',
+      newPassword: 'a-brand-new-password',
+    });
+    // Cookie-based auth: the reissued session cookie only comes back if the
+    // request carried credentials in the first place.
+    expect(init.credentials).toBe('include');
+  });
+
+  it('changePassword() localizes the reuse and wrong-password rejections', async () => {
+    mockFetchOnceError(400, { error: 'New password must be different from the current one' });
+    expect((await api.changePassword('a', 'a')).error).toMatch(/must differ/i);
+
+    mockFetchOnceError(403, { error: 'Incorrect password' });
+    expect((await api.changePassword('wrong', 'a-brand-new-password')).error).toBe('Incorrect password');
+  });
+});

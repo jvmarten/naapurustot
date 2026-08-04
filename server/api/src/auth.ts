@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { getPool } from './db.js';
-import { rateLimit } from './rateLimit.js';
+import { getClientIp, rateLimit } from './rateLimit.js';
 import { verifyTurnstile } from './turnstile.js';
 import { sendPasswordResetEmail } from './mailer.js';
 import {
@@ -428,7 +428,28 @@ router.post('/reset-password', rateLimit(10, 60 * 60 * 1000, 'reset'), async (re
   res.json({ ok: true });
 });
 
-// ── Email address management ──
+// ── Credential management (email address, password) ──
+
+/**
+ * Shared limiter for the two routes that verify the CURRENT password
+ * (`PATCH /email`, `PATCH /password`).
+ *
+ * Both are reachable only with a session, so the per-user limiter in this router
+ * already applies — but at 120/min it is far too generous here. An attacker who
+ * has stolen a session cookie but does NOT know the password can otherwise sit on
+ * these endpoints and brute-force it, and success escalates a borrowed session
+ * into a permanently owned account (change the password, or repoint the reset
+ * address). 10 attempts an hour leaves ample room for a genuine typo.
+ *
+ * Keyed on the userId when there is one, falling back to the client IP so an
+ * unauthenticated flood can't bypass the bucket by simply omitting the cookie.
+ */
+const credentialLimiter = rateLimit(
+  10,
+  60 * 60 * 1000,
+  'credential',
+  (req) => (req as AuthedRequest).userId ?? getClientIp(req),
+);
 
 /**
  * Set, change or clear the account's email address.
@@ -439,7 +460,7 @@ router.post('/reset-password', rateLimit(10, 60 * 60 * 1000, 'reset'), async (re
  * permanently — re-authenticating here keeps a stolen cookie from escalating
  * into a stolen account.
  */
-router.patch('/email', async (req: Request, res: Response): Promise<void> => {
+router.patch('/email', credentialLimiter, async (req: Request, res: Response): Promise<void> => {
   const userId = authenticateToken(req, res);
   if (!userId) {
     res.status(401).json({ error: 'Not authenticated' });
@@ -490,6 +511,83 @@ router.patch('/email', async (req: Request, res: Response): Promise<void> => {
     }
     throw err;
   }
+});
+
+/**
+ * Change the password from an authenticated session.
+ *
+ * Distinct from /reset-password, and the differences are deliberate:
+ *
+ *  - **A new cookie IS issued here.** Both routes bump `token_version` to revoke
+ *    every other session, which would otherwise kill the caller's own session
+ *    too — so this one re-signs the caller's cookie with the new generation. On
+ *    the reset path we intentionally do not: whoever redeems a mailed token has
+ *    proved control of a mailbox, not knowledge of the account, so they sign in
+ *    afresh. Here the caller already authenticated, and logging them out of the
+ *    tab they are standing in would read as a bug.
+ *
+ *  - **Reuse is rejected here.** On the reset path it is not: people reset
+ *    because they forgot, and a fair number remember the password partway
+ *    through — refusing it there is friction on the common case for a threat
+ *    that barely applies (a stolen *cookie* never revealed the password, and
+ *    the token_version bump already killed it). Someone deliberately rotating a
+ *    password has no such excuse, and silently accepting a no-op change would
+ *    tell them they had rotated when they had not.
+ */
+router.patch('/password', credentialLimiter, async (req: Request, res: Response): Promise<void> => {
+  const userId = authenticateToken(req, res);
+  if (!userId) {
+    res.status(401).json({ error: 'Not authenticated' });
+    return;
+  }
+
+  const { currentPassword, newPassword } = req.body ?? {};
+  if (!currentPassword || typeof currentPassword !== 'string' || currentPassword.length > 1000) {
+    res.status(400).json({ error: 'Current password is required' });
+    return;
+  }
+  const passwordCheck = validatePassword(newPassword);
+  if (!passwordCheck.ok) {
+    res.status(400).json({ error: passwordCheck.error });
+    return;
+  }
+
+  const current = await getPool().query('SELECT password FROM users WHERE id = $1', [userId]);
+  if (current.rows.length === 0) {
+    res.clearCookie('token', CLEAR_COOKIE_OPTS);
+    res.status(401).json({ error: 'User not found' });
+    return;
+  }
+  const currentHash = current.rows[0].password;
+
+  if (!(await bcrypt.compare(currentPassword, currentHash))) {
+    res.status(403).json({ error: 'Incorrect password' });
+    return;
+  }
+  // Checked against the stored hash rather than by comparing the two plaintexts,
+  // so it still catches reuse when the client sends them in different forms.
+  if (await bcrypt.compare(newPassword, currentHash)) {
+    res.status(400).json({ error: 'New password must be different from the current one' });
+    return;
+  }
+
+  const hash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+  const updated = await getPool().query(
+    `UPDATE users SET password = $1, token_version = token_version + 1, updated_at = NOW()
+      WHERE id = $2
+      RETURNING id, username, email, display_name, trust_level, created_at, token_version`,
+    [hash, userId]
+  );
+  if (updated.rows.length === 0) {
+    res.clearCookie('token', CLEAR_COOKIE_OPTS);
+    res.status(401).json({ error: 'User not found' });
+    return;
+  }
+
+  // Re-issue against the NEW generation — see the note above.
+  const user = updated.rows[0];
+  setTokenCookie(res, signSessionToken(user.id, user.token_version));
+  res.json({ user: formatUser(user) });
 });
 
 // ── IN-4: request-hardening helpers (wired into index.ts; pure + testable) ──
