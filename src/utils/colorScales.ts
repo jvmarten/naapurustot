@@ -1,5 +1,6 @@
 import type { ExpressionSpecification } from '@maplibre/maplibre-gl-style-spec';
 import { formatYtlGrade, formatYtlGradeFull } from './formatting';
+import { getQualityBands } from './qualityBands';
 
 /**
  * Identifier for each data layer available on the map.
@@ -1322,6 +1323,18 @@ export function rescaleLayerToData(
       if (s < center) return negScale != null ? center - (center - s) * negScale : s;
       return posScale != null ? center + (s - center) * posScale : s;
     });
+  } else if (layer.id === 'quality_index') {
+    // The composite's shape is user-controlled, so a LINEAR stretch is not enough:
+    // it gives contrast when the scores are merely narrow (the shipped defaults span
+    // 23-74) but none at all when they bunch at one end (weighting water proximity
+    // alone pins 92 % of areas at the same value). Cutting at the cohort's own
+    // quantiles keeps roughly a seventh of the areas in every colour band whatever
+    // the weighting. qualityBands derives these from the scores computeQualityIndices
+    // just wrote, so they always describe what is on screen.
+    const bands = getQualityBands();
+    newStops = bands && bands.stops.length === n
+      ? bands.stops
+      : layer.stops.map((_, i) => min + (i / (n - 1)) * (max - min));
   } else {
     newStops = layer.stops.map((_, i) => min + (i / (n - 1)) * (max - min));
   }

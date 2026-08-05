@@ -124,7 +124,7 @@ import { join } from 'node:path';
 // batch itself costs ~100 B (a two-significant-figure number format for service
 // densities, which now span 0.0001-237/km² instead of being rounded to one
 // decimal); the rest restores headroom to ~1.2 KB.
-const BUDGET = 326_000;
+const BUDGET = 327_000;
 const ASSETS_DIR = 'dist/assets';
 
 // Second budget: the /live/ realtime sub-app.
