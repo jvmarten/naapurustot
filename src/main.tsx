@@ -63,6 +63,12 @@ const PrivacyPage = lazy(() =>
 // eslint-disable-next-line react-refresh/only-export-components
 const ResetPasswordPage = lazy(() =>
   Promise.all([import('./pages/ResetPasswordPage'), loadFiExtra()]).then(([m]) => ({ default: m.ResetPasswordPage })));
+// /live/ — the realtime surface (sun & shadows first). Its own manualChunks
+// group (`live-*`) held to its own bundle budget, because the map route never
+// loads it; see scripts/check-bundle-size.mjs.
+// eslint-disable-next-line react-refresh/only-export-components
+const LivePage = lazy(() =>
+  Promise.all([import('./live/LivePage'), loadFiExtra()]).then(([m]) => ({ default: m.LivePage })));
 
 // Apply a freshly-deployed service worker WITHOUT yanking the page out from
 // under an active user. The PWA is registered in `prompt` mode (vite.config.ts),
@@ -227,6 +233,12 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
               <Route path="/sv/datakallor" element={<DataSourcesPage lang="sv" />} />
               {/* One route for all three languages — the email link carries ?lang. */}
               <Route path="/uusi-salasana" element={<ResetPasswordPage />} />
+              {/* One word in all three languages (`/live/`, not nyt/now/nu), but
+                  still three distinct URLs — a single URL switching language on
+                  localStorage gives crawlers nothing to hang hreflang on. */}
+              <Route path="/live" element={<LivePage />} />
+              <Route path="/en/live" element={<LivePage />} />
+              <Route path="/sv/live" element={<LivePage />} />
               <Route path="/tietosuoja" element={<PrivacyPage lang="fi" />} />
               <Route path="/en/privacy" element={<PrivacyPage lang="en" />} />
               <Route path="/sv/integritet" element={<PrivacyPage lang="sv" />} />

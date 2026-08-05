@@ -85,7 +85,14 @@ The container is ephemeral, so verify within the session that produced the push.
 
 ### Bundle budget
 
-CI fails if the gzipped sum of **all** app JS (lazy chunks included, only `maplibre-*` excluded) exceeds **314,000 bytes** (the `BUDGET` constant in `scripts/check-bundle-size.mjs`) — enforced in both `ci.yml` and `auto-merge.yml`, with roughly 1 KB of headroom. Lazy-loading does not exempt code from the budget. Keep data out of JS: fetch it as a static asset (`?url` imports) like the locales, region files, and adjacency graph do.
+`scripts/check-bundle-size.mjs` enforces **two** budgets (both in `ci.yml` and `auto-merge.yml`); either one over fails the build.
+
+- **`BUDGET` = 324,000 bytes** — the gzipped sum of all app JS except `maplibre-*` and the `/live/` chunk. This is the map's critical path and runs on roughly 1 KB of headroom. Lazy-loading does not exempt code from it.
+- **`LIVE_BUDGET` = 24,000 bytes** — the `/live/` realtime sub-app, matched by the `LivePage-` chunk prefix.
+
+The split is by *reachability*, not naming: Rolldown folds a module into the `LivePage-` chunk only when the live route is its sole importer, so anything `/live/` shares with the map still counts against `BUDGET`. Do **not** try to force this with a `manualChunks` group — that was tried and backfired twice (it swallowed the `maplibre` chunk, then magneted ~21 KB of shared modules, understating the map budget). Let the natural chunking do it.
+
+Keep data out of JS: fetch it as a static asset (`?url` imports) like the locales, region files, and adjacency graph do.
 
 ### Prerender head-token regexes
 

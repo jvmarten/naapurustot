@@ -110,6 +110,18 @@ pagesUrls.push({ loc: directory.fi, priority: '0.9', changefreq: 'weekly', alter
 pagesUrls.push({ loc: directory.en, priority: '0.8', changefreq: 'weekly', alternates: directory });
 pagesUrls.push({ loc: directory.sv, priority: '0.8', changefreq: 'weekly', alternates: directory });
 
+// The /live/ realtime surface. `changefreq: daily` is honest here in a way it
+// would not be for the static pages above — the page's whole content is the
+// current sun position and today's shadows.
+const live = {
+  fi: `${ORIGIN}/live/`,
+  en: `${ORIGIN}/en/live/`,
+  sv: `${ORIGIN}/sv/live/`,
+};
+pagesUrls.push({ loc: live.fi, priority: '0.7', changefreq: 'daily', alternates: live });
+pagesUrls.push({ loc: live.en, priority: '0.6', changefreq: 'daily', alternates: live });
+pagesUrls.push({ loc: live.sv, priority: '0.6', changefreq: 'daily', alternates: live });
+
 // CF-9: data sources & methodology page. CF-10: trailing slash to match the
 // prerendered canonical (served as a directory index).
 const dataSources = {
