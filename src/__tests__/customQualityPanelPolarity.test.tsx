@@ -1,13 +1,13 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import { CustomQualityPanel } from '../components/CustomQualityPanel';
-import { QUALITY_FACTORS, getDefaultWeights, isPreferenceFactor } from '../utils/qualityIndex';
+import { QUALITY_FACTORS, getDefaultWeights } from '../utils/qualityIndex';
 import { getLang } from '../utils/i18n';
 
 /**
- * The panel is where the polarity model becomes visible: a signed factor must get a
- * −100…+100 track, a fixed-direction one must not, and neither may announce a bare
- * number to a screen reader — "-40" says nothing about which end it favours.
+ * The panel is where the direction model becomes visible: every factor gets a
+ * −100…+100 zero-centred track, and none may announce a bare number to a screen
+ * reader — "-40" says nothing about which end of the metric it favours.
  */
 
 function renderPanel(weights = getDefaultWeights()) {
@@ -22,25 +22,18 @@ function sliderFor(factorId: string): HTMLInputElement | null {
 }
 
 describe('CustomQualityPanel — slider polarity', () => {
-  it('gives signed factors a -100..100 track and fixed-direction factors 0..100', () => {
+  it('gives every rendered factor a zero-centred -100..100 track', () => {
     renderPanel();
-    let checkedSigned = 0;
-    let checkedFixed = 0;
+    let checked = 0;
     for (const f of QUALITY_FACTORS) {
       const el = sliderFor(f.id);
       if (!el) continue; // behind "Show more"
-      if (isPreferenceFactor(f)) {
-        expect(el.min, `${f.id} min`).toBe('-100');
-        checkedSigned++;
-      } else {
-        expect(el.min, `${f.id} min`).toBe('0');
-        checkedFixed++;
-      }
+      expect(el.min, `${f.id} min`).toBe('-100');
       expect(el.max, `${f.id} max`).toBe('100');
+      checked++;
     }
     // Guard against the assertions silently covering nothing.
-    expect(checkedSigned).toBeGreaterThan(0);
-    expect(checkedFixed).toBeGreaterThan(0);
+    expect(checked).toBeGreaterThan(0);
     cleanup();
   });
 
@@ -62,13 +55,23 @@ describe('CustomQualityPanel — slider polarity', () => {
     cleanup();
   });
 
-  it('renders both end labels on a signed slider and none on a fixed one', () => {
+  it('renders both end labels on every visible slider', () => {
     renderPanel();
-    const signedPrimary = QUALITY_FACTORS.filter((f) => f.primary && isPreferenceFactor(f));
-    expect(signedPrimary.length, 'at least one signed primary factor').toBeGreaterThan(0);
+    const primary = QUALITY_FACTORS.filter((f) => f.primary);
+    expect(primary.length, 'at least one primary factor').toBeGreaterThan(0);
     // The end labels are the only thing telling the user which way "+" points.
-    expect(screen.getAllByText(/←/).length).toBe(signedPrimary.length);
-    expect(screen.getAllByText(/→/).length).toBe(signedPrimary.length);
+    expect(screen.getAllByText(/←/).length).toBe(primary.length);
+    expect(screen.getAllByText(/→/).length).toBe(primary.length);
+    cleanup();
+  });
+
+  it('shows the hazard-labelled defaults as negative, not as bare magnitudes', () => {
+    renderPanel();
+    // "Melu -7" reads as "we want less noise, weighted 7" — the default weighting
+    // is legible for the first time.
+    expect(sliderFor('noise_pollution')!.value).toBe('-7');
+    expect(sliderFor('traffic_accidents')!.value).toBe('-8');
+    expect(sliderFor('noise_pollution')!.getAttribute('aria-valuetext')).toContain('7');
     cleanup();
   });
 

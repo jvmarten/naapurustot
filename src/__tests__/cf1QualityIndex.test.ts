@@ -15,7 +15,7 @@ describe('CF-1 Quality Index credibility', () => {
     const dimSums: Record<string, number> = {};
     for (const f of QUALITY_FACTORS) {
       const d = getFactorDimension(f.id);
-      dimSums[d] = (dimSums[d] ?? 0) + (w[f.id] ?? 0);
+      dimSums[d] = (dimSums[d] ?? 0) + Math.abs(w[f.id] ?? 0);
     }
     const evaluative = QUALITY_DIMENSIONS.filter((d) => d.defaultWeight !== 0);
     expect(evaluative.length).toBe(4);

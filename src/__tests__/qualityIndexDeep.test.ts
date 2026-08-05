@@ -28,7 +28,9 @@ describe('getDefaultWeights', () => {
 
   it('has weights summing to a known value', () => {
     const w = getDefaultWeights();
-    const sum = Object.values(w).reduce((a, b) => a + b, 0);
+    // |weight|: hazard-labelled factors carry NEGATIVE defaults now, so it is the
+    // magnitude that adds up to the documented 100.
+    const sum = Object.values(w).reduce((a, b) => a + Math.abs(b), 0);
     // Primary factors sum to 100; secondary factors (incl. the opt-in
     // property_crime and total_crime) start at 0.
     // safety 15 + traffic 8 + air 9 + tree 8 + noise 7 + water 4 + employment 12
@@ -226,7 +228,8 @@ describe('QUALITY_FACTORS integrity', () => {
   it('all primary factors have positive default weights', () => {
     for (const f of QUALITY_FACTORS) {
       if (f.primary) {
-        expect(f.defaultWeight).toBeGreaterThan(0);
+        // Sign carries direction; magnitude carries importance.
+        expect(Math.abs(f.defaultWeight)).toBeGreaterThan(0);
       }
     }
   });

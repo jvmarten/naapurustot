@@ -6,6 +6,40 @@ import { editedAt, markEdited } from '../utils/syncMeta';
 
 const STORAGE_KEY = 'naapurustot-quality-weights';
 
+/**
+ * Factor ids whose label names a hazard. Before every slider became signed
+ * (2026-08-05) these were fixed-direction, so a stored POSITIVE weight meant
+ * "avoiding this matters to me". Under the signed model a positive weight means
+ * "I want more of it" — the exact opposite — so stored weights from before the
+ * change have to be negated once.
+ */
+const HAZARD_FACTOR_IDS = [
+  'property_crime', 'total_crime', 'low_income', 'traffic_accidents', 'light_pollution',
+  'noise_pollution', 'health_index', 'radon', 'flood_risk', 'unemployment_change',
+];
+
+/**
+ * Sentinel recording that a weight map has been through the migration. Stored inside
+ * the map itself (rather than a sibling key) so it travels with the value through
+ * localStorage AND the server round-trip — a user's server-side weights need the same
+ * one-time flip when they land on a fresh device. It passes isValidWeights (the key
+ * regex allows underscores) and is inert everywhere else, because every consumer
+ * iterates QUALITY_FACTORS rather than the map's own keys.
+ */
+const SCHEMA_KEY = 'signed_schema_v2';
+
+/** Negate stored hazard weights once, so a pre-2026-08-05 "quiet matters: 20" does
+ *  not silently become "I want a noisy area". Idempotent via the sentinel. */
+function migrateWeights(w: QualityWeights): QualityWeights {
+  if (w[SCHEMA_KEY] === 1) return w;
+  const out: QualityWeights = { ...w, [SCHEMA_KEY]: 1 };
+  for (const id of HAZARD_FACTOR_IDS) {
+    const v = out[id];
+    if (typeof v === 'number' && v > 0) out[id] = -v;
+  }
+  return out;
+}
+
 function isValidWeights(v: unknown): v is QualityWeights {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return false;
   for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
@@ -23,7 +57,7 @@ function loadWeights(): QualityWeights {
       const parsed = JSON.parse(raw);
       if (isValidWeights(parsed)) {
         // Merge with defaults so newly-added factors get their default weight.
-        return { ...getDefaultWeights(), ...parsed };
+        return migrateWeights({ ...getDefaultWeights(), ...parsed });
       }
     }
   } catch { /* localStorage unavailable or malformed data */ }
@@ -128,9 +162,13 @@ export function useQualityWeights(userId?: string | null) {
     let cancelled = false;
     api.getPreferences().then(({ data }) => {
       if (cancelled || !data) return;
-      const serverWeights = data.qualityWeights;
-      if (!isValidWeights(serverWeights)) return;
-      const serverCustom = isCustomWeights(serverWeights as QualityWeights);
+      const rawServerWeights = data.qualityWeights;
+      if (!isValidWeights(rawServerWeights)) return;
+      // The account may hold weights saved before every slider became signed; flip
+      // the hazard factors before comparing, or an un-migrated server row reads as
+      // "custom" purely because its noise weight still has the old sign.
+      const serverWeights = migrateWeights(rawServerWeights as QualityWeights);
+      const serverCustom = isCustomWeights(serverWeights);
       // CF-6: a seed doesn't count as local customisation — the user's own server
       // weights take precedence over a shared link, and a seed is never pushed up.
       const localCustom = !seededRef.current && isCustomWeights(weightsRef.current);

@@ -2,7 +2,6 @@ import React, { useCallback, useRef, useEffect, useState, useMemo } from 'react'
 import {
   QUALITY_FACTORS, getDefaultWeights, isCustomWeights, type QualityWeights,
   QUALITY_DIMENSIONS, QUALITY_PERSONAS, getPersonaWeights, detectPersona, getFactorDimension,
-  isPreferenceFactor,
 } from '../utils/qualityIndex';
 import { getLang } from '../utils/i18n';
 import { t } from '../utils/i18n';
@@ -15,10 +14,10 @@ interface Props {
   onClose: () => void;
 }
 
-/** Values this close to 0 snap to exactly 0, so dragging a signed slider down to
- *  "ignore this" cannot overshoot into "actively prefer the opposite". Without it
- *  the only way to reach 0 is to land on a single pixel, and a near-miss silently
- *  reverses the factor's meaning rather than just weakening it. */
+/** Values this close to 0 snap to exactly 0, so dragging down to "ignore this"
+ *  cannot overshoot into "actively prefer the opposite". Without it the only way to
+ *  reach 0 is to land on a single pixel, and a near-miss silently reverses the
+ *  factor's meaning rather than just weakening it. */
 const ZERO_DETENT = 4;
 
 const WeightSlider: React.FC<{
@@ -27,8 +26,7 @@ const WeightSlider: React.FC<{
   onChange: (v: number) => void;
   color: string;
   sliderId: string;
-  signed?: boolean;
-}> = ({ label, value, onChange, color, sliderId, signed = false }) => {
+}> = ({ label, value, onChange, color, sliderId }) => {
   // Local state for smooth drag; debounce the expensive parent callback
   // (quality index recomputation across ~200 features + Map source update).
   const [localValue, setLocalValue] = useState(value);
@@ -38,38 +36,30 @@ const WeightSlider: React.FC<{
   useEffect(() => () => clearTimeout(debounceRef.current), []);
 
   const handleChange = (raw: number) => {
-    const v = signed && Math.abs(raw) <= ZERO_DETENT ? 0 : raw;
+    const v = Math.abs(raw) <= ZERO_DETENT ? 0 : raw;
     setLocalValue(v);
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => onChange(v), 200);
   };
 
-  const min = signed ? -100 : 0;
+  const min = -100;
   const max = 100;
   // Thumb position as % of track width
-  const thumbPct = signed ? ((localValue + 100) / 2) : localValue;
+  const thumbPct = (localValue + 100) / 2;
   const trackBg = 'rgb(var(--color-surface-200))';
-  let background: string;
-  if (signed) {
-    // Fill from center (50%) outward to thumb position
-    if (localValue >= 0) {
-      background = `linear-gradient(to right, ${trackBg} 0%, ${trackBg} 50%, ${color} 50%, ${color} ${thumbPct}%, ${trackBg} ${thumbPct}%, ${trackBg} 100%)`;
-    } else {
-      background = `linear-gradient(to right, ${trackBg} 0%, ${trackBg} ${thumbPct}%, ${color} ${thumbPct}%, ${color} 50%, ${trackBg} 50%, ${trackBg} 100%)`;
-    }
-  } else {
-    background = `linear-gradient(to right, ${color} ${thumbPct}%, ${trackBg} ${thumbPct}%)`;
-  }
+  // Fill from centre (50%) outward to the thumb, so the track reads as a direction
+  // plus a magnitude rather than a bare amount.
+  const background = localValue >= 0
+    ? `linear-gradient(to right, ${trackBg} 0%, ${trackBg} 50%, ${color} 50%, ${color} ${thumbPct}%, ${trackBg} ${thumbPct}%, ${trackBg} 100%)`
+    : `linear-gradient(to right, ${trackBg} 0%, ${trackBg} ${thumbPct}%, ${color} ${thumbPct}%, ${color} 50%, ${trackBg} 50%, ${trackBg} 100%)`;
 
-  const displayValue = signed && localValue > 0 ? `+${localValue}` : `${localValue}`;
+  const displayValue = localValue > 0 ? `+${localValue}` : `${localValue}`;
 
-  // The bare number is meaningless to a screen reader on a signed slider — "-40"
-  // says nothing about which end of the metric it favours. Spell the direction out.
+  // The bare number is meaningless to a screen reader — "-40" says nothing about
+  // which end of the metric it favours. Spell the direction out.
   const valueText = localValue === 0
     ? t('custom_quality.aria_ignored')
-    : !signed
-      ? `${t('custom_quality.aria_importance')} ${localValue}`
-      : `${Math.abs(localValue)} — ${t(localValue > 0 ? 'custom_quality.aria_prefer_more' : 'custom_quality.aria_prefer_less')}`;
+    : `${Math.abs(localValue)} — ${t(localValue > 0 ? 'custom_quality.aria_prefer_more' : 'custom_quality.aria_prefer_less')}`;
 
   return (
     <div className="py-2">
@@ -80,12 +70,10 @@ const WeightSlider: React.FC<{
         </span>
       </div>
       <div className="relative">
-        {signed && (
-          <div
-            aria-hidden
-            className="absolute top-1/2 left-1/2 w-px h-3 -translate-x-1/2 -translate-y-1/2 bg-surface-400 dark:bg-surface-500 pointer-events-none"
-          />
-        )}
+        <div
+          aria-hidden
+          className="absolute top-1/2 left-1/2 w-px h-3 -translate-x-1/2 -translate-y-1/2 bg-surface-400 dark:bg-surface-500 pointer-events-none"
+        />
         <input
           type="range"
           min={min}
@@ -111,14 +99,12 @@ const WeightSlider: React.FC<{
           .slider-${sliderId}::-moz-range-thumb { background-color: ${color}; }
         `}</style>
       </div>
-      {signed && (
-        // Which way is "+"? Never make the user infer it from the factor's name —
-        // half the labels name a desirable quantity and half a neutral one.
-        <div aria-hidden className="flex justify-between mt-0.5 text-[9px] leading-none text-surface-400 dark:text-surface-500">
-          <span>← {t('custom_quality.dir_less')}</span>
-          <span>{t('custom_quality.dir_more')} →</span>
-        </div>
-      )}
+      {/* Which way is "+"? Never make the user infer it from the factor's name —
+          some labels name a desirable quantity, some a hazard, most neither. */}
+      <div aria-hidden className="flex justify-between mt-0.5 text-[9px] leading-none text-surface-400 dark:text-surface-500">
+        <span>← {t('custom_quality.dir_less')}</span>
+        <span>{t('custom_quality.dir_more')} →</span>
+      </div>
     </div>
   );
 };
@@ -210,7 +196,6 @@ export const CustomQualityPanel: React.FC<Props> = ({ weights, onChange, onClose
           onChange={(v) => handleChange(factor.id, v)}
           color={FACTOR_COLORS[factor.id] ?? '#6b7280'}
           sliderId={factor.id}
-          signed={isPreferenceFactor(factor)}
         />
       </div>
     );

@@ -201,53 +201,67 @@ it is reached via its region or via the national aggregate.
 
 ## Direction: which end of a metric is "good"
 
-Normalizing a metric says how much of it an area has; it does not say whether
-more of it is better. Two separate things answer that, and the index keeps them
-apart on purpose.
+Normalizing a metric says how much of it an area has; it does not say whether more
+of it is better. Two separate things answer that, and the index keeps them apart on
+purpose.
 
-**`invert` is a fact about the data.** It is true when the raw column runs
-opposite to the factor's own label: `water_proximity_m` is a distance while the
-label is "Veden läheisyys" (proximity), and `unemployment_rate` is the inverse of
-the label "Työllisyys". Applying it yields a score that means *how much of the
-labelled quantity this area has* — nothing more. A factor whose label already
-names the raw quantity (`noise_pollution` → "Melu") is **not** inverted.
+**`invert` is a fact about the data.** It is true when the raw column runs opposite
+to the factor's own label: `water_proximity_m` is a distance while the label is
+"Veden läheisyys" (proximity), and `unemployment_rate` is the inverse of the label
+"Työllisyys". Applying it yields a score that means *how much of the labelled
+quantity this area has* — nothing more. A factor whose label already names the raw
+quantity (`noise_pollution` → "Melu") is **not** inverted.
 
-**`polarity` is a product decision about that labelled quantity**, and it is the
-only thing that ever reads the sign of a weight:
+**The sign of the weight is the user's preferred direction**, and `invert` never
+consults it, so the two compose instead of cancelling. **Every factor is signed**:
+each slider runs −100…+100 with zero in the middle, where
 
-| Polarity | Slider | Meaning |
-| --- | --- | --- |
-| `more-is-better` | 0…100 | More of the labelled quantity is better — Safety, Air Quality, Broadband, School Quality, Tree Canopy. |
-| `less-is-better` | 0…100 | The label names a hazard, so less of it is better — Noise, Radon, Flood Risk, Traffic Accidents, crime. |
-| `preference` | −100…+100 | No objective better direction. The sign picks it: **+** favours more of the labelled quantity, **−** favours less. |
+- **+** favours areas with *more* of the labelled quantity,
+- **−** favours areas with *less* of it,
+- **0** drops the factor from the index entirely.
 
-43 of the 61 factors are `preference`. That covers everything descriptive
-(demographics, housing composition, tenure, sectoral employment, prices) and the
-whole built-environment cluster — transit, services, groceries, restaurants,
-walkability, cycling, sports facilities, EV charging, water proximity, income and
-education. "I want a quiet rural spot with no bus stop and no supermarket" is a
-mainstream Finnish search, and it is only expressible because those sliders run
-both ways.
+Because `invert` lands first, **"+" means the same thing on every slider** — more of
+whatever the slider is named after — whether that is "Asukastiheys", "Veden
+läheisyys" or "Melu". The panel spells the two ends out (`← vähemmän` / `enemmän →`),
+snaps to zero near the middle so dragging down to "ignore this" cannot overshoot
+into "prefer the opposite", and announces the direction in words to screen readers
+rather than leaving a bare "−40" to be interpreted.
 
-The remaining 18 are fixed-direction. They are hazards (crime, traffic accidents,
-air quality, noise, radon, flood risk, morbidity, light pollution, low-income
-share, unemployment) and utilities whose negative half would be incoherent
-(broadband, school quality, employment). **A user who tolerates a hazard sets its
-weight to 0** — that is what "I don't care about this" means. The negative half is
-deliberately not offered, because "I want more radon" is not a housing
-preference, and because the index is presented with category labels running from
-*Vältä* to *Erinomainen*: painting the country's highest-crime postal codes green
-and calling them excellent is not a search result this tool should produce.
+A weight's **magnitude** sets the factor's share of the index; only its sign chooses
+a direction. So −60 and +60 pull equally hard, in opposite directions.
 
-Because `invert` is applied first and never consults the sign, **"+" means the
-same thing on every signed slider** — more of whatever the slider is named after —
-whether that is "Asukastiheys" or "Veden läheisyys". The panel still spells the
-two ends out (`← vähemmän` / `enemmän →`) and announces the direction in words to
-screen readers, rather than leaving a bare "−40" to be interpreted.
+### Why hazards carry negative default weights
 
-A weight's **magnitude** always sets the factor's share of the index; only its
-sign chooses a direction. So −60 and +60 pull equally hard, in opposite
-directions.
+The corollary of a uniform "+" is that factors whose label names a hazard are
+counted **negatively** by default. The default index weighs traffic accidents at
+**−8** and noise at **−7** — read as "we want less of these, weighted 8 and 7". This
+is not a change in what the index computes; it is the same arithmetic, written so
+that a weight map states its own direction. Reading the defaults now tells you both
+what is counted and which way it points.
+
+Factors whose label names something desirable keep positive defaults, with `invert`
+doing the reconciliation where the raw column disagrees — Safety **+15** reads
+`violent_crime_rate` inverted, Employment **+12** reads `unemployment_rate`
+inverted.
+
+### What the signed sliders buy
+
+Everything descriptive — demographics, housing composition, tenure, sectoral
+employment, prices, party support — has no better direction at all, so the sign is
+the only way to express a preference. The built-environment cluster (transit,
+services, groceries, restaurants, walkability, cycling, sports facilities, EV
+charging, water proximity) is the same: "I want a quiet rural spot with no bus stop
+and no supermarket" is a mainstream Finnish search and is only expressible because
+those sliders run both ways.
+
+Signing the hazards too means the index can be pointed at things it would not
+recommend — a positive weight on crime or radon ranks the *worst* areas highest.
+That is a deliberate consequence of letting users define their own lens rather than
+having the tool refuse. It is worth remembering when reading a customised score:
+the category labels still run *Vältä* → *Erinomainen*, but under a custom weighting
+they describe fit to that weighting, not a general verdict. Profile pages reached
+in-app after a weight change are badged *mukautettu* for exactly this reason; the
+published, prerendered scores always use the documented defaults.
 
 ## Data sources
 

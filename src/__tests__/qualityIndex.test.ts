@@ -193,9 +193,8 @@ describe('QW-2 opt-in health/climate factors', () => {
       expect(f, `factor ${id} exists`).toBeDefined();
       expect(f!.defaultWeight, `${id} defaultWeight`).toBe(0);
       // These three labels ("Sairastavuus", "Radon", "Tulvariski") name the raw
-      // quantity, so the direction lives in `polarity`, not `invert` — and being
-      // hazards they are fixed-direction, never signed.
-      expect(f!.polarity, `${id} polarity`).toBe('less-is-better');
+      // quantity, so invert stays false and a user who wants less of them sets a
+      // NEGATIVE weight. Nothing to avoid at defaultWeight 0.
       expect(f!.invert, `${id} invert`).toBe(false);
       expect(FACTOR_DIMENSION[id], `${id} dimension`).toBe('health');
     }
@@ -217,7 +216,9 @@ describe('PO-5 Balanced persona sums to exactly 100', () => {
   const target = Math.round(100 / evaluative.length);
 
   it('all factor weights sum to exactly 100', () => {
-    const sum = Object.values(balanced).reduce((a, b) => a + b, 0);
+    // Magnitudes: the Balanced preset inherits the defaults' signs, so the two
+    // hazard-labelled factors contribute negatively.
+    const sum = Object.values(balanced).reduce((a, b) => a + Math.abs(b), 0);
     expect(sum).toBe(100);
   });
 
@@ -225,7 +226,7 @@ describe('PO-5 Balanced persona sums to exactly 100', () => {
     for (const dim of evaluative) {
       const dimSum = QUALITY_FACTORS
         .filter((f) => (FACTOR_DIMENSION[f.id] ?? 'demographics') === dim)
-        .reduce((s, f) => s + (balanced[f.id] ?? 0), 0);
+        .reduce((s, f) => s + Math.abs(balanced[f.id] ?? 0), 0);
       expect(dimSum, `dimension ${dim}`).toBe(target);
     }
   });
