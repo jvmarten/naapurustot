@@ -141,6 +141,15 @@ export interface NeighborhoodProperties {
   restaurant_density: number | null;
   grocery_density: number | null;
   sports_facility_density: number | null;
+  /** Raw OSM facility counts the *_density values above are derived from.
+   *  These are what the profile page shows: "6 grocery stores" is a claim we can
+   *  stand behind, where the density it used to round to ("0") was not. Absent
+   *  on region aggregates, where a count has no population-weighted meaning. */
+  grocery_count?: number | null;
+  school_count?: number | null;
+  daycare_count?: number | null;
+  healthcare_count?: number | null;
+  restaurant_count?: number | null;
   // Historical time-series data (JSON-encoded arrays of [year, value] pairs)
   income_history: string | null;
   population_history: string | null;
@@ -749,7 +758,7 @@ const METRIC_DEFS: MetricDef[] = [
 
   // Quality of life
   { property: 'quality_index', weight: 'population', precision: 1 },
-  { property: 'transit_stop_density', weight: 'population', precision: 1 },
+  { property: 'transit_stop_density', weight: 'population', precision: 4 },
   { property: 'air_quality_index', weight: 'population', precision: 1 },
   { property: 'crime_index', weight: 'population', precision: 1 },
   { property: 'radon', weight: 'population', precision: 0 },
@@ -757,12 +766,12 @@ const METRIC_DEFS: MetricDef[] = [
   { property: 'flood_risk_pct', weight: 'population', precision: 1 },
 
   // Services
-  { property: 'daycare_density', weight: 'population', precision: 1 },
-  { property: 'school_density', weight: 'population', precision: 1 },
-  { property: 'healthcare_density', weight: 'population', precision: 1 },
-  { property: 'restaurant_density', weight: 'population', precision: 1 },
-  { property: 'grocery_density', weight: 'population', precision: 1 },
-  { property: 'sports_facility_density', weight: 'population', precision: 1 },
+  { property: 'daycare_density', weight: 'population', precision: 4 },
+  { property: 'school_density', weight: 'population', precision: 4 },
+  { property: 'healthcare_density', weight: 'population', precision: 4 },
+  { property: 'restaurant_density', weight: 'population', precision: 4 },
+  { property: 'grocery_density', weight: 'population', precision: 4 },
+  { property: 'sports_facility_density', weight: 'population', precision: 4 },
 
   // Demographics
   { property: 'foreign_language_pct', weight: 'population', precision: 1, pctOfPop: true },
@@ -774,7 +783,7 @@ const METRIC_DEFS: MetricDef[] = [
   { property: 'single_person_hh_pct', weight: 'household', precision: 1, pctOfHh: true },
 
   // Mobility
-  { property: 'cycling_density', weight: 'population', precision: 1 },
+  { property: 'cycling_density', weight: 'population', precision: 4 },
 
   // Phase 7: New layers
   { property: 'voter_turnout_pct', weight: 'population', precision: 1 },
@@ -789,7 +798,7 @@ const METRIC_DEFS: MetricDef[] = [
   { property: 'party_vote_vas_pct', weight: 'population', precision: 1 },
   { property: 'party_vote_rkp_pct', weight: 'population', precision: 1 },
   { property: 'broadband_coverage_pct', weight: 'population', precision: 1 },
-  { property: 'ev_charging_density', weight: 'population', precision: 1 },
+  { property: 'ev_charging_density', weight: 'population', precision: 4 },
   { property: 'tree_canopy_pct', weight: 'population', precision: 1 },
   { property: 'transit_reachability_score', weight: 'population', precision: 1 },
   { property: 'youth_ratio_pct', weight: 'population', precision: 1, pctOfPop: true },

@@ -488,18 +488,23 @@ interface FilterPreset {
 }
 
 const FILTER_PRESETS: FilterPreset[] = [
+  // Thresholds are calibrated against the actual national distributions. The
+  // previous ones were set when the densities were stored at one decimal and
+  // assumed urban-scale values: "Families" (daycare >= 2/km²) matched 49 of
+  // 3,018 areas and "Commuters" (transit >= 40/km², where the national maximum
+  // is 58.5) matched seven. Both now select a usable slice of the country.
   {
     labelKey: 'filter.preset_families',
     criteria: [
       { layerId: 'child_ratio', min: 6, max: 20 },
-      { layerId: 'daycare_density', min: 2, max: 20 },
+      { layerId: 'daycare_density', min: 0.15, max: 20 },
     ],
   },
   {
     labelKey: 'filter.preset_commuters',
     criteria: [
-      { layerId: 'transit_access', min: 40, max: 200 },
-      { layerId: 'cycling_infra', min: 20, max: 150 },
+      { layerId: 'transit_access', min: 5, max: 200 },
+      { layerId: 'cycling_infra', min: 5, max: 300 },
     ],
   },
   {

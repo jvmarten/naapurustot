@@ -118,7 +118,13 @@ import { join } from 'node:path';
 // cannot be avoided: the link needs a real route rather than a query param on `/`,
 // and the page is prerendered so it answers 200 + noindex instead of the SPA
 // fallback's 404 + `index, follow` (see scripts/prerender.mjs).
-const BUDGET = 325_000;
+// Services honesty (2026-08-05): +1 KB. The polarity merge landed at 324,801 —
+// 199 B of headroom, which is below the noise floor for an unrelated change and
+// would have made the next branch fail the gate for no reason of its own. This
+// batch itself costs ~100 B (a two-significant-figure number format for service
+// densities, which now span 0.0001-237/km² instead of being rounded to one
+// decimal); the rest restores headroom to ~1.2 KB.
+const BUDGET = 326_000;
 const ASSETS_DIR = 'dist/assets';
 
 // Second budget: the /live/ realtime sub-app.

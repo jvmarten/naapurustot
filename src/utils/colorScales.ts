@@ -176,10 +176,13 @@ import { getLang } from './i18n';
 let _fmtLocale = '';
 let _fmtNum: Intl.NumberFormat | null = null;
 
-function numFmt(): Intl.NumberFormat {
+function numFmt(opts?: Intl.NumberFormatOptions): Intl.NumberFormat {
   // PO-7: Swedish maps to sv-SE (was silently falling through to fi-FI).
   const lang = getLang();
   const loc = lang === 'en' ? 'en-US' : lang === 'sv' ? 'sv-SE' : 'fi-FI';
+  // Only the default (option-less) formatter is cached — it is the hot one, hit
+  // on every tooltip repaint. Callers passing options are rare (legend rows).
+  if (opts) return new Intl.NumberFormat(loc, opts);
   if (_fmtNum && _fmtLocale === loc) return _fmtNum;
   _fmtLocale = loc;
   _fmtNum = new Intl.NumberFormat(loc);
@@ -192,7 +195,17 @@ const pct = (v: number) => `${v.toFixed(1)} %`;
 // residential postal code hosting a large employer, where a one-decimal format is unusable.
 const wholePct = (v: number) => `${numFmt().format(Math.round(v))} %`;
 const age = (v: number) => `${v.toFixed(1)}`;
-const density = (v: number) => `${numFmt().format(v)} /km²`;
+// Service densities in Finland are genuinely long-tailed: the median non-zero
+// grocery density is 0.04/km² and the max is 14.5. Intl's default 3-decimal cap
+// renders the small end as "0,004" — technically right, but three near-identical
+// legend rows. Two significant figures below 1 keeps them distinguishable
+// without inventing precision.
+const density = (v: number) => {
+  const abs = Math.abs(v);
+  const opts: Intl.NumberFormatOptions =
+    abs > 0 && abs < 1 ? { maximumSignificantDigits: 2 } : { maximumFractionDigits: 1 };
+  return `${numFmt(opts).format(v)} /km²`;
+};
 const sqm = (v: number) => `${v.toFixed(1)} m²`;
 const euroSqm = (v: number) => `${numFmt().format(v)} €/m²`;
 const euroSqmMonth = (v: number) => `${v.toFixed(2)} €/m²/kk`;
@@ -473,13 +486,19 @@ export const LAYERS: LayerConfig[] = [
     higherIsBetter: false,
   },
   // --- Phase 3: Services & Amenities ---
+  // Stops for the service layers are the 12/26/40/54/68/80/90/97th percentiles of
+  // the NON-ZERO values, rounded for legibility. The previous round numbers
+  // (0.5, 1, 2, ... ) predated the rounding fix and assumed urban-scale
+  // densities: only 3-8 % of postal areas reached even the first stop, so
+  // 92-97 % of the country shared one flat colour and the top two stops were
+  // unreachable nationally. See scripts/services_honesty_2026_08.py.
   {
     id: 'daycare_density',
     labelKey: 'layer.daycare_density',
     property: 'daycare_density',
     unit: '/km²',
     colors: ['#f7fbff', '#deebf7', '#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#084594'],
-    stops: [0.5, 1, 2, 3, 5, 8, 12, 20],
+    stops: [0.007, 0.02, 0.05, 0.15, 0.4, 0.8, 1.5, 4],
     format: density,
   },
   {
@@ -488,7 +507,7 @@ export const LAYERS: LayerConfig[] = [
     property: 'school_density',
     unit: '/km²',
     colors: ['#f7fbff', '#deebf7', '#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#084594'],
-    stops: [0.5, 1, 2, 3, 5, 8, 12, 20],
+    stops: [0.006, 0.01, 0.02, 0.035, 0.09, 0.25, 0.75, 2],
     format: density,
   },
   {
@@ -497,7 +516,7 @@ export const LAYERS: LayerConfig[] = [
     property: 'healthcare_density',
     unit: '/km²',
     colors: ['#fff5eb', '#fee6ce', '#fdd0a2', '#fdae6b', '#fd8d3c', '#f16913', '#d94801', '#8c2d04'],
-    stops: [0.5, 1, 2, 4, 6, 10, 15, 25],
+    stops: [0.006, 0.01, 0.025, 0.06, 0.2, 0.6, 1.5, 7.5],
     format: density,
   },
   {
@@ -506,7 +525,7 @@ export const LAYERS: LayerConfig[] = [
     property: 'restaurant_density',
     unit: '/km²',
     colors: ['#ffffcc', '#ffeda0', '#fed976', '#feb24c', '#fd8d3c', '#fc4e2a', '#e31a1c', '#b10026'],
-    stops: [5, 10, 20, 40, 80, 150, 300, 600],
+    stops: [0.007, 0.015, 0.03, 0.065, 0.2, 0.7, 2.5, 14],
     format: density,
   },
   {
@@ -515,25 +534,32 @@ export const LAYERS: LayerConfig[] = [
     property: 'grocery_density',
     unit: '/km²',
     colors: ['#f7fcf0', '#e0f3db', '#ccebc5', '#a8ddb5', '#7bccc4', '#4eb3d3', '#2b8cbe', '#08589e'],
-    stops: [0.5, 1, 2, 4, 6, 10, 15, 25],
+    stops: [0.005, 0.01, 0.02, 0.055, 0.2, 0.5, 1, 3],
     format: density,
   },
   {
+    // LIPAS is still stored at one decimal — its upstream API 500s reproducibly
+    // at page 271 of the 489-page walk, so it could not be refetched at the new
+    // precision. These stops therefore sit on the 0.1 quantisation grid rather
+    // than on percentiles; revisit once fetch_lipas.py can complete a run.
     id: 'sports_facilities',
     labelKey: 'layer.sports_facilities',
     property: 'sports_facility_density',
     unit: '/km²',
     colors: ['#f7fcf5', '#d5efcf', '#a1d99b', '#74c476', '#41ab5d', '#238b45', '#006d2c', '#00441b'],
-    stops: [0.5, 1, 2, 4, 6, 10, 15, 25],
+    stops: [0.1, 0.2, 0.3, 0.5, 1, 2, 4, 10],
     format: density,
   },
   {
+    // NOTE: this counts OSM way *records*, not length, so it partly measures how
+    // finely contributors split ways. Replacing it with real km/km² from
+    // Digiroad (dr_tielinkki, linkkityyp=8) is tracked separately.
     id: 'cycling_infra',
     labelKey: 'layer.cycling_infra',
     property: 'cycling_density',
     unit: '/km²',
     colors: ['#f7fcf5', '#e5f5e0', '#c7e9c0', '#a1d99b', '#74c476', '#41ab5d', '#238b45', '#005a32'],
-    stops: [2, 5, 10, 20, 40, 60, 100, 150],
+    stops: [0.045, 0.15, 0.35, 1, 5, 19, 47, 100],
     format: density,
   },
   {

@@ -428,6 +428,10 @@ function formatMetric(value, fmt, lang) {
     case 'db': return `${fmtNum(n, 1, lang)} dB`;
     case 'year': return String(Math.round(n));
     case 'int': return fmtNum(Math.round(n), 0, lang);
+    // Service densities span 0.0001-237/km². One decimal renders the whole
+    // rural half of the country as "0,0" — the same rounding that used to be
+    // baked into the data itself. Two significant figures below 1.
+    case 'density': return n > 0 && n < 1 ? fmtNum(n, 4, lang).replace(/0+$/, '') : fmtNum(n, 1, lang);
     default: return fmtNum(n, 1, lang);
   }
 }
@@ -437,6 +441,9 @@ function roundForSchema(value, fmt) {
   const n = Number(value);
   if (fmt === 'rent_sqm') return Math.round(n * 100) / 100;
   if (fmt === 'pct' || fmt === 'dec1' || fmt === 'db' || fmt === 'sqm') return Math.round(n * 10) / 10;
+  // Keep the precision the data carries — a schema.org PropertyValue of 0 for
+  // an area with six grocery stores is a machine-readable false claim.
+  if (fmt === 'density') return Math.round(n * 10000) / 10000;
   return Math.round(n);
 }
 
@@ -480,14 +487,20 @@ const SECTIONS = [
     { prop: 'detached_house_share', label: 'layer.detached_houses', fmt: 'pct', schema: 'Detached houses (%)' },
     { prop: 'avg_construction_year', label: 'layer.building_age', fmt: 'year', schema: 'Average construction year' },
   ] },
+  // Counts, not densities, for the five layers that carry one — same reasoning
+  // as the profile page these pages mirror. Rendering the density at one decimal
+  // put "0" on ~2,800 of the 3,018 /alue/ pages and emitted it as a schema.org
+  // PropertyValue, which is a machine-readable false claim about a real place.
+  // sports/transit have no count, so they keep the density and a label that
+  // carries the /km² unit.
   { id: 'services', metrics: [
-    { prop: 'grocery_density', label: 'layer.grocery_access', fmt: 'dec1', schema: 'Grocery store density' },
-    { prop: 'restaurant_density', label: 'layer.restaurant_density', fmt: 'dec1', schema: 'Restaurant density' },
-    { prop: 'school_density', label: 'layer.school_density', fmt: 'dec1', schema: 'School density' },
-    { prop: 'daycare_density', label: 'layer.daycare_density', fmt: 'dec1', schema: 'Daycare density' },
-    { prop: 'healthcare_density', label: 'layer.healthcare_access', fmt: 'dec1', schema: 'Healthcare density' },
-    { prop: 'sports_facility_density', label: 'layer.sports_facilities', fmt: 'dec1', schema: 'Sports facility density' },
-    { prop: 'transit_stop_density', label: 'layer.transit_access', fmt: 'dec1', schema: 'Transit stop density' },
+    { prop: 'grocery_count', label: 'layer.grocery_access', fmt: 'int', schema: 'Grocery stores' },
+    { prop: 'restaurant_count', label: 'layer.restaurant_density', fmt: 'int', schema: 'Restaurants and cafes' },
+    { prop: 'school_count', label: 'layer.school_density', fmt: 'int', schema: 'Schools' },
+    { prop: 'daycare_count', label: 'layer.daycare_density', fmt: 'int', schema: 'Daycares' },
+    { prop: 'healthcare_count', label: 'layer.healthcare_access', fmt: 'int', schema: 'Healthcare facilities' },
+    { prop: 'sports_facility_density', label: 'panel.sports_facilities', fmt: 'density', schema: 'Sports facility density' },
+    { prop: 'transit_stop_density', label: 'panel.transit_access', fmt: 'density', schema: 'Transit stop density' },
   ] },
   { id: 'environment', metrics: [
     { prop: 'air_quality_index', label: 'layer.air_quality', fmt: 'dec1', schema: 'Air quality index' },

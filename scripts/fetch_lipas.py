@@ -31,6 +31,10 @@ OUTPUT_FILE = OUT_DIR / "sports_facility_density.json"
 
 LIPAS_URL = "https://api.lipas.fi/v2/sports-sites"
 PAGE_SIZE = 100
+# LIPAS 500s intermittently partway through the ~489-page walk; retry before
+# giving up, and give up loudly rather than writing a truncated dataset.
+PAGE_RETRIES = 4
+PAGE_RETRY_DELAY = 3
 
 # Municipality codes for all 69 Finnish seutukunnat (from regions_config).
 # LIPAS city-codes are integers, so strip the zero-padding from the 3-digit
@@ -64,14 +68,31 @@ def fetch_lipas_facilities() -> list[dict]:
             "page": page,
             "statuses": "active,out-of-service-temporarily",
         }
-        try:
-            r = requests.get(LIPAS_URL, params=params, timeout=30,
-                             headers={"User-Agent": "naapurustot.fi/data-pipeline"})
-            r.raise_for_status()
-            response = r.json()
-        except Exception as e:
-            logger.warning("  LIPAS API error on page %d: %s", page, e)
-            break
+        # Retry, then abort — never break out with a partial page set. LIPAS
+        # returns an intermittent 500 partway through the ~489-page walk, and
+        # `break` used to accept whatever had arrived so far and write it as a
+        # complete national dataset: every postal code past the failure point
+        # silently became a measured-looking density of 0. This is the same
+        # failure mode _overpass_query_all_regions already refuses to tolerate.
+        response = None
+        for attempt in range(1, PAGE_RETRIES + 1):
+            try:
+                r = requests.get(LIPAS_URL, params=params, timeout=30,
+                                 headers={"User-Agent": "naapurustot.fi/data-pipeline"})
+                r.raise_for_status()
+                response = r.json()
+                break
+            except Exception as e:
+                if attempt == PAGE_RETRIES:
+                    raise RuntimeError(
+                        f"LIPAS page {page} of {total_pages} failed after "
+                        f"{PAGE_RETRIES} attempts: {e}. Refusing to write a "
+                        f"truncated national dataset — every postal code past "
+                        f"this page would ship as a measured 0."
+                    ) from e
+                logger.warning("  LIPAS API error on page %d (attempt %d/%d): %s",
+                               page, attempt, PAGE_RETRIES, e)
+                time.sleep(PAGE_RETRY_DELAY * attempt)
 
         # V2 API wraps results: {"items": [...], "pagination": {...}}
         items = response.get("items", [])
@@ -163,7 +184,11 @@ def compute_density(postal: gpd.GeoDataFrame, facilities: list[dict]) -> dict[st
         area_m2 = row.geometry.area if row.geometry else 0
         area_km2 = area_m2 / 1_000_000
         if area_km2 > 0:
-            result[pno] = round(count / area_km2, 1)
+            # 4 decimals, not 1: at one decimal anything below 0.05/km2 becomes
+            # exactly 0.0, and the median Finnish postal area is 52 km2 — so a
+            # single real sports facility rounded away across most of the
+            # country. See prepare_data.POI_DENSITY_DECIMALS.
+            result[pno] = round(count / area_km2, 4)
 
     return result
 

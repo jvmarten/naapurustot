@@ -268,6 +268,12 @@ npm run build:data
                               # else served raw; writes grid_manifest.json
 ```
 
+### Density precision (do not lower it)
+
+Every per-km² metric is stored at **4 decimals** (`prepare_data.POI_DENSITY_DECIMALS`, mirrored in `fetch_lipas.py`, `fetch_ev_charging.py`, `fetch_transit_stops.py`, and `METRIC_DEFS` in `src/utils/metrics.ts`). This is not cosmetic. Densities were stored at 1 decimal until 2026-08, which meant anything below 0.05/km² became exactly `0.0` — and since the median Finnish postal area is 52 km² and 2,238 of the 3,018 areas exceed 20 km², *a single real shop, school or clinic rounded away in three-quarters of the country*. 3,169 (metric, area) pairs shipped a measured-looking zero with a facility actually inside the polygon. Four decimals is the coarsest precision at which nothing can: the largest postal area (99800 Ivalo, 7,143.8 km²) yields 1/7143.8 = 0.00014.
+
+The five consumer-facing service layers also persist the raw integer count (`grocery_count`, `school_count`, `daycare_count`, `healthcare_count`, `restaurant_count`) alongside the density. The count is what the profile page renders — "6 grocery stores" is a claim we can stand behind; the density it used to round to was not. `validate_data.check_dense_urban_zero` hard-fails on a positive count with a zero density. `cycling_density` deliberately has no count: it counts OSM way *records*, so it measures how finely contributors split ways rather than any physical quantity.
+
 Proxy metrics (municipality-level values distributed to postal codes — crime index, construction year; regression-based transit reachability outside Helsinki) must carry `is_proxy: true` in `data_sources.json`; validation hard-fails otherwise and the UI badges them as estimates. The rental-price PxWeb table was retired upstream: its fetch 400s *by design* and falls back to the committed snapshot — don't "fix" it. `data-refresh.yml` re-runs the pipeline quarterly and opens a PR on changes.
 
 ## Routing & prerendered pages

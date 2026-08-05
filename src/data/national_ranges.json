@@ -3,7 +3,7 @@
   "lowerPercentile": 0.02,
   "upperPercentile": 0.98,
   "postalCodeCount": 3018,
-  "rangeCount": 182,
+  "rangeCount": 187,
   "ranges": {
     "pinta_ala": {
       "min": 1042118.78,
@@ -667,33 +667,33 @@
     },
     "daycare_density": {
       "min": 0,
-      "max": 2.3,
-      "avg": 0.1789595758780649
+      "max": 2.3331799999999996,
+      "avg": 0.18035172299536115
     },
     "school_density": {
       "min": 0,
-      "max": 1.6659999999999853,
-      "avg": 0.1368787276341948
+      "max": 1.655387999999997,
+      "avg": 0.14092852882703774
     },
     "healthcare_density": {
       "min": 0,
-      "max": 2.431999999999971,
-      "avg": 0.2774685222001325
+      "max": 2.4302459999999715,
+      "avg": 0.27880967528164347
     },
     "restaurant_density": {
       "min": 0,
-      "max": 9.265999999999986,
-      "avg": 0.9976143141153081
+      "max": 9.23804199999999,
+      "avg": 1.0006800861497684
     },
     "grocery_density": {
       "min": 0,
-      "max": 1.9,
-      "avg": 0.1525844930417494
+      "max": 1.883726,
+      "avg": 0.15472998674618954
     },
     "cycling_density": {
       "min": 0,
-      "max": 96.7,
-      "avg": 8.179688535453943
+      "max": 96.747896,
+      "avg": 8.18078081510935
     },
     "single_person_hh_pct": {
       "min": 19.840000000000003,
@@ -904,6 +904,31 @@
       "min": 11.3,
       "max": 77.4,
       "avg": 32.405255731922175
+    },
+    "grocery_count": {
+      "min": 0,
+      "max": 6,
+      "avg": 0.8240556660039762
+    },
+    "healthcare_count": {
+      "min": 0,
+      "max": 8.659999999999854,
+      "avg": 0.9148442677269715
+    },
+    "school_count": {
+      "min": 0,
+      "max": 7,
+      "avg": 1.1318754141815772
+    },
+    "daycare_count": {
+      "min": 0,
+      "max": 8,
+      "avg": 0.9294234592445328
+    },
+    "restaurant_count": {
+      "min": 0,
+      "max": 31,
+      "avg": 3.4271040424121937
     },
     "traffic_accident_rate": {
       "min": 0.1,
