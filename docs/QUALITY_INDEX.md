@@ -199,6 +199,56 @@ it is reached via its region or via the national aggregate.
 > published score relative to the earlier region-relative behaviour. The
 > methodology and its category wording remain open to editorial revision.
 
+## Direction: which end of a metric is "good"
+
+Normalizing a metric says how much of it an area has; it does not say whether
+more of it is better. Two separate things answer that, and the index keeps them
+apart on purpose.
+
+**`invert` is a fact about the data.** It is true when the raw column runs
+opposite to the factor's own label: `water_proximity_m` is a distance while the
+label is "Veden läheisyys" (proximity), and `unemployment_rate` is the inverse of
+the label "Työllisyys". Applying it yields a score that means *how much of the
+labelled quantity this area has* — nothing more. A factor whose label already
+names the raw quantity (`noise_pollution` → "Melu") is **not** inverted.
+
+**`polarity` is a product decision about that labelled quantity**, and it is the
+only thing that ever reads the sign of a weight:
+
+| Polarity | Slider | Meaning |
+| --- | --- | --- |
+| `more-is-better` | 0…100 | More of the labelled quantity is better — Safety, Air Quality, Broadband, School Quality, Tree Canopy. |
+| `less-is-better` | 0…100 | The label names a hazard, so less of it is better — Noise, Radon, Flood Risk, Traffic Accidents, crime. |
+| `preference` | −100…+100 | No objective better direction. The sign picks it: **+** favours more of the labelled quantity, **−** favours less. |
+
+43 of the 61 factors are `preference`. That covers everything descriptive
+(demographics, housing composition, tenure, sectoral employment, prices) and the
+whole built-environment cluster — transit, services, groceries, restaurants,
+walkability, cycling, sports facilities, EV charging, water proximity, income and
+education. "I want a quiet rural spot with no bus stop and no supermarket" is a
+mainstream Finnish search, and it is only expressible because those sliders run
+both ways.
+
+The remaining 18 are fixed-direction. They are hazards (crime, traffic accidents,
+air quality, noise, radon, flood risk, morbidity, light pollution, low-income
+share, unemployment) and utilities whose negative half would be incoherent
+(broadband, school quality, employment). **A user who tolerates a hazard sets its
+weight to 0** — that is what "I don't care about this" means. The negative half is
+deliberately not offered, because "I want more radon" is not a housing
+preference, and because the index is presented with category labels running from
+*Vältä* to *Erinomainen*: painting the country's highest-crime postal codes green
+and calling them excellent is not a search result this tool should produce.
+
+Because `invert` is applied first and never consults the sign, **"+" means the
+same thing on every signed slider** — more of whatever the slider is named after —
+whether that is "Asukastiheys" or "Veden läheisyys". The panel still spells the
+two ends out (`← vähemmän` / `enemmän →`) and announces the direction in words to
+screen readers, rather than leaving a bare "−40" to be interpreted.
+
+A weight's **magnitude** always sets the factor's share of the index; only its
+sign chooses a direction. So −60 and +60 pull equally hard, in opposite
+directions.
+
 ## Data sources
 
 Every factor traces to a real source — Statistics Finland (Paavo), HSL/HSY,

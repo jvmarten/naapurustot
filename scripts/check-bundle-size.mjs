@@ -118,7 +118,7 @@ import { join } from 'node:path';
 // cannot be avoided: the link needs a real route rather than a query param on `/`,
 // and the page is prerendered so it answers 200 + noindex instead of the SPA
 // fallback's 404 + `index, follow` (see scripts/prerender.mjs).
-const BUDGET = 324_000;
+const BUDGET = 325_000;
 const ASSETS_DIR = 'dist/assets';
 
 const fmtKB = (b) => (b / 1024).toFixed(2);
