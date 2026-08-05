@@ -2,6 +2,7 @@ import React, { useCallback, useRef, useEffect, useState, useMemo } from 'react'
 import {
   QUALITY_FACTORS, getDefaultWeights, isCustomWeights, type QualityWeights,
   QUALITY_DIMENSIONS, QUALITY_PERSONAS, getPersonaWeights, detectPersona, getFactorDimension,
+  isPreferenceFactor,
 } from '../utils/qualityIndex';
 import { getLang } from '../utils/i18n';
 import { t } from '../utils/i18n';
@@ -14,14 +15,20 @@ interface Props {
   onClose: () => void;
 }
 
+/** Values this close to 0 snap to exactly 0, so dragging a signed slider down to
+ *  "ignore this" cannot overshoot into "actively prefer the opposite". Without it
+ *  the only way to reach 0 is to land on a single pixel, and a near-miss silently
+ *  reverses the factor's meaning rather than just weakening it. */
+const ZERO_DETENT = 4;
+
 const WeightSlider: React.FC<{
   label: string;
   value: number;
   onChange: (v: number) => void;
   color: string;
   sliderId: string;
-  bipolar?: boolean;
-}> = ({ label, value, onChange, color, sliderId, bipolar = false }) => {
+  signed?: boolean;
+}> = ({ label, value, onChange, color, sliderId, signed = false }) => {
   // Local state for smooth drag; debounce the expensive parent callback
   // (quality index recomputation across ~200 features + Map source update).
   const [localValue, setLocalValue] = useState(value);
@@ -30,19 +37,20 @@ const WeightSlider: React.FC<{
   useEffect(() => { setLocalValue(value); }, [value]);
   useEffect(() => () => clearTimeout(debounceRef.current), []);
 
-  const handleChange = (v: number) => {
+  const handleChange = (raw: number) => {
+    const v = signed && Math.abs(raw) <= ZERO_DETENT ? 0 : raw;
     setLocalValue(v);
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => onChange(v), 200);
   };
 
-  const min = bipolar ? -100 : 0;
+  const min = signed ? -100 : 0;
   const max = 100;
   // Thumb position as % of track width
-  const thumbPct = bipolar ? ((localValue + 100) / 2) : localValue;
+  const thumbPct = signed ? ((localValue + 100) / 2) : localValue;
   const trackBg = 'rgb(var(--color-surface-200))';
   let background: string;
-  if (bipolar) {
+  if (signed) {
     // Fill from center (50%) outward to thumb position
     if (localValue >= 0) {
       background = `linear-gradient(to right, ${trackBg} 0%, ${trackBg} 50%, ${color} 50%, ${color} ${thumbPct}%, ${trackBg} ${thumbPct}%, ${trackBg} 100%)`;
@@ -53,18 +61,26 @@ const WeightSlider: React.FC<{
     background = `linear-gradient(to right, ${color} ${thumbPct}%, ${trackBg} ${thumbPct}%)`;
   }
 
-  const displayValue = bipolar && localValue > 0 ? `+${localValue}` : `${localValue}`;
+  const displayValue = signed && localValue > 0 ? `+${localValue}` : `${localValue}`;
+
+  // The bare number is meaningless to a screen reader on a signed slider — "-40"
+  // says nothing about which end of the metric it favours. Spell the direction out.
+  const valueText = localValue === 0
+    ? t('custom_quality.aria_ignored')
+    : !signed
+      ? `${t('custom_quality.aria_importance')} ${localValue}`
+      : `${Math.abs(localValue)} — ${t(localValue > 0 ? 'custom_quality.aria_prefer_more' : 'custom_quality.aria_prefer_less')}`;
 
   return (
     <div className="py-2">
       <div className="flex items-center justify-between mb-1.5">
-        <span className="text-sm text-surface-700 dark:text-surface-300">{label}</span>
+        <span id={`qw-label-${sliderId}`} className="text-sm text-surface-700 dark:text-surface-300">{label}</span>
         <span className="text-xs font-semibold text-surface-500 dark:text-surface-400 tabular-nums w-10 text-right">
           {displayValue}
         </span>
       </div>
       <div className="relative">
-        {bipolar && (
+        {signed && (
           <div
             aria-hidden
             className="absolute top-1/2 left-1/2 w-px h-3 -translate-x-1/2 -translate-y-1/2 bg-surface-400 dark:bg-surface-500 pointer-events-none"
@@ -76,6 +92,8 @@ const WeightSlider: React.FC<{
           max={max}
           step={1}
           value={localValue}
+          aria-labelledby={`qw-label-${sliderId}`}
+          aria-valuetext={valueText}
           onChange={(e) => handleChange(Number(e.target.value))}
           className={`slider-${sliderId} relative w-full h-2 rounded-full appearance-none cursor-pointer
                      [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4
@@ -93,6 +111,14 @@ const WeightSlider: React.FC<{
           .slider-${sliderId}::-moz-range-thumb { background-color: ${color}; }
         `}</style>
       </div>
+      {signed && (
+        // Which way is "+"? Never make the user infer it from the factor's name —
+        // half the labels name a desirable quantity and half a neutral one.
+        <div aria-hidden className="flex justify-between mt-0.5 text-[9px] leading-none text-surface-400 dark:text-surface-500">
+          <span>← {t('custom_quality.dir_less')}</span>
+          <span>{t('custom_quality.dir_more')} →</span>
+        </div>
+      )}
     </div>
   );
 };
@@ -184,7 +210,7 @@ export const CustomQualityPanel: React.FC<Props> = ({ weights, onChange, onClose
           onChange={(v) => handleChange(factor.id, v)}
           color={FACTOR_COLORS[factor.id] ?? '#6b7280'}
           sliderId={factor.id}
-          bipolar={factor.bipolar}
+          signed={isPreferenceFactor(factor)}
         />
       </div>
     );
@@ -242,6 +268,9 @@ export const CustomQualityPanel: React.FC<Props> = ({ weights, onChange, onClose
       <div className="px-5 pt-3 pb-1">
         <p className="text-xs text-surface-500 dark:text-surface-400">
           {t('custom_quality.description')}
+        </p>
+        <p className="text-xs text-surface-500 dark:text-surface-400 mt-1">
+          {t('custom_quality.signed_hint')}
         </p>
       </div>
 
@@ -303,16 +332,28 @@ export const CustomQualityPanel: React.FC<Props> = ({ weights, onChange, onClose
       {totalWeight > 0 && (
         <div className="px-5 pb-4">
           <div className="flex gap-0.5 h-2 rounded-full overflow-hidden">
-            {QUALITY_FACTORS.filter((f) => (weights[f.id] ?? 0) !== 0).map((f) => (
-              <div
-                key={f.id}
-                className="h-full transition-all duration-300"
-                style={{
-                  width: `${(Math.abs(weights[f.id] ?? 0) / totalWeight) * 100}%`,
-                  backgroundColor: FACTOR_COLORS[f.id] ?? '#6b7280',
-                }}
-              />
-            ))}
+            {QUALITY_FACTORS.filter((f) => (weights[f.id] ?? 0) !== 0).map((f) => {
+              const w = weights[f.id] ?? 0;
+              const c = FACTOR_COLORS[f.id] ?? '#6b7280';
+              // The bar is sized by |weight|, so a −60 and a +60 segment are the same
+              // width. Hatch the inverted ones so the bar doesn't read as "all of this
+              // is what I want more of".
+              const inverted = w < 0;
+              return (
+                <div
+                  key={f.id}
+                  title={`${f.label[lang]}: ${w > 0 ? '+' : ''}${w}`}
+                  className="h-full transition-all duration-300"
+                  style={{
+                    width: `${(Math.abs(w) / totalWeight) * 100}%`,
+                    backgroundColor: c,
+                    backgroundImage: inverted
+                      ? 'repeating-linear-gradient(45deg, rgba(255,255,255,0.55) 0 2px, transparent 2px 4px)'
+                      : undefined,
+                  }}
+                />
+              );
+            })}
           </div>
         </div>
       )}

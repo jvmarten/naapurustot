@@ -9,7 +9,7 @@ import type { NeighbourhoodPercentiles } from '../utils/percentileRanks';
 import type { RegionId } from '../utils/regions';
 import { t, getLang, setLang, useI18nVersion, type Lang } from '../utils/i18n';
 import { formatNumber, formatEuro, formatPct, formatDiff } from '../utils/formatting';
-import { getQualityCategory, QUALITY_CATEGORIES, QUALITY_DIMENSIONS } from '../utils/qualityIndex';
+import { getQualityCategory, QUALITY_CATEGORIES, QUALITY_DIMENSIONS, isCustomWeights } from '../utils/qualityIndex';
 import { getLayerById, getInterpolatedColor, readableTextColor } from '../utils/colorScales';
 import { findSimilarNeighborhoods } from '../utils/similarity';
 import { getFeatureCenter } from '../utils/geometryFilter';
@@ -19,6 +19,7 @@ import { StatCard } from '../components/profile/StatCard';
 import { JsonLd } from '../components/profile/JsonLd';
 import { FitForYouBadge } from '../components/FitForYouBadge';
 import { readStoredWizardProfile } from '../hooks/useWizardProfile';
+import { readStoredQualityWeights } from '../hooks/useQualityWeights';
 import { useFavorites } from '../hooks/useFavorites';
 
 const MiniMap = lazy(() => import('../components/profile/MiniMap').then(m => ({ default: m.MiniMap })));
@@ -87,6 +88,13 @@ interface LoadedState {
   // client-side-navigation / non-prerendered path, where <JsonLd /> derives percentiles
   // from the national cohort (`allFeatures`) that path loads anyway.
   percentiles: NeighbourhoodPercentiles | null;
+  /**
+   * True when `feature` came from the prerendered embedded payload, which is always
+   * built with getDefaultWeights(). False on the two in-app paths, which read the
+   * dataLoader cache that App.tsx mutates in place with the visitor's own quality
+   * weights — so the headline score there may be a private lens, not the published one.
+   */
+  defaultWeighted: boolean;
 }
 
 /**
@@ -103,7 +111,7 @@ function initialStateFromEmbedded(slug: string | undefined): LoadedState | null 
   const embedded = readEmbeddedProfile(pno);
   if (!embedded) return null;
   const feat = { type: 'Feature', properties: embedded.p, geometry: null } as unknown as Feature;
-  return { feature: feat, geoFeature: null, regionFeatures: [], allFeatures: [], metroAverages: embedded.avg, percentiles: embedded.pct ?? null };
+  return { feature: feat, geoFeature: null, regionFeatures: [], allFeatures: [], metroAverages: embedded.avg, percentiles: embedded.pct ?? null, defaultWeighted: true };
 }
 
 export const NeighborhoodProfilePage: React.FC = () => {
@@ -248,6 +256,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
         allFeatures: [],
         metroAverages: embedded.avg,
         percentiles: embedded.pct ?? null,
+        defaultWeighted: true,
       });
       setLoading(false);
 
@@ -273,6 +282,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
         allFeatures: prev!.allFeatures,
         metroAverages: prev!.metroAverages,
         percentiles: null,
+        defaultWeighted: prev!.defaultWeighted,
       });
       setLoading(false);
       setMapResolved(true);
@@ -301,6 +311,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
           // No baked bundle on this path — <JsonLd /> derives percentiles from the
           // national cohort (`allFeatures`) we just loaded.
           percentiles: null,
+          defaultWeighted: false,
         });
         setLoading(false);
         void loadGeometry(feat.properties?.city as RegionId | undefined);
@@ -510,6 +521,11 @@ export const NeighborhoodProfilePage: React.FC = () => {
   const avg = state.metroAverages;
   const center = getFeatureCenter(state.geoFeature ?? state.feature);
   const qi = d.quality_index != null ? Math.round(d.quality_index) : null;
+  // computeQualityIndices mutates the shared dataLoader cache in place, so arriving
+  // here from the map or the wizard carries the visitor's own weighting onto a page
+  // that otherwise presents the published four-dimension methodology. Say so rather
+  // than passing a private lens off as the documented score.
+  const qiCustom = !state.defaultWeighted && isCustomWeights(readStoredQualityWeights());
   const qiCat = getQualityCategory(qi);
   // T3: match the on-map quality_index fill color (continuous ramp, colorblind-aware).
   const qiLayer = getLayerById('quality_index');
@@ -730,6 +746,12 @@ export const NeighborhoodProfilePage: React.FC = () => {
               <h2 className="text-xs font-semibold uppercase tracking-wider text-surface-600 dark:text-surface-400">
                 {t('panel.quality_index')}
               </h2>
+              {qiCustom && (
+                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full
+                                 bg-brand-500/15 dark:bg-brand-600/20 text-brand-700 dark:text-brand-300">
+                  {t('custom_quality.custom_label')}
+                </span>
+              )}
               <QualityExplainer lang={lang} />
             </div>
             <div className="flex items-center gap-4 mb-4">

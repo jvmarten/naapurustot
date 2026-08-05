@@ -192,7 +192,11 @@ describe('QW-2 opt-in health/climate factors', () => {
       const f = QUALITY_FACTORS.find((x) => x.id === id);
       expect(f, `factor ${id} exists`).toBeDefined();
       expect(f!.defaultWeight, `${id} defaultWeight`).toBe(0);
-      expect(f!.invert, `${id} invert`).toBe(true);
+      // These three labels ("Sairastavuus", "Radon", "Tulvariski") name the raw
+      // quantity, so the direction lives in `polarity`, not `invert` — and being
+      // hazards they are fixed-direction, never signed.
+      expect(f!.polarity, `${id} polarity`).toBe('less-is-better');
+      expect(f!.invert, `${id} invert`).toBe(false);
       expect(FACTOR_DIMENSION[id], `${id} dimension`).toBe('health');
     }
   });

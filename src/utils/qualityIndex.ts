@@ -25,6 +25,23 @@ import { getCoveragePct, type NeighborhoodProperties } from './metrics.ts';
  *
  * Each metric is min-max normalized across all neighborhoods, then combined
  * using the (custom) weights.
+ *
+ * DIRECTION. Two independent things decide which end of a metric is "good", and
+ * conflating them is how the sign of a weight stops meaning one thing:
+ *
+ *   `invert`   — a DATA fact. The raw column runs opposite to the factor's label
+ *                (`water_proximity_m` is a distance, the label is proximity).
+ *   `polarity` — a PRODUCT decision about the labelled quantity: fixed direction
+ *                ('more-is-better' / 'less-is-better') or user-chosen via the
+ *                weight's sign ('preference'). Only this reads the sign.
+ *
+ * Because `invert` is applied first and never consults the sign, the score handed
+ * to `polarity` always means "how much of the LABELLED quantity this area has".
+ * That is what makes "+" mean the same thing — more of what the slider is named
+ * after — on all 43 signed sliders, whether the label is "Asukastiheys" or
+ * "Veden läheisyys". The 18 fixed-direction factors are hazards and utilities
+ * where the negative half would be incoherent ("I want more radon"); there, 0
+ * already expresses "I don't care", so no sign is offered.
  */
 
 /** Per-metric normalization range: `min`/`max` bound the 0–100 min-max scaling;
@@ -40,25 +57,56 @@ function normalize(value: number, { min, max }: MinMax): number {
   return Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100));
 }
 
+/**
+ * Whether the user gets to choose the direction of a factor, and if not, which
+ * direction is fixed. This is a PRODUCT decision about the factor's *labelled*
+ * quantity — deliberately separate from `invert`, which is a DATA fact about the
+ * raw column. Keeping them apart is what makes the sign of a weight mean the same
+ * thing on every slider (see the QualityFactor docs below).
+ *
+ *   'more-is-better'  — fixed direction, unsigned 0–100 slider. More of the
+ *                       labelled quantity is better (Safety, Air Quality, Broadband).
+ *   'less-is-better'  — fixed direction, unsigned 0–100 slider. The label names a
+ *                       hazard, so less of it is better (Noise, Radon, Flood Risk).
+ *                       A user who tolerates the hazard sets the weight to 0; the
+ *                       negative side is deliberately NOT offered, because "I want
+ *                       more radon" is not a housing preference.
+ *   'preference'      — signed −100…+100 slider. No objective better direction, so
+ *                       the sign picks it: positive = more of the labelled quantity
+ *                       is better, negative = less of it is better.
+ */
+export type FactorPolarity = 'more-is-better' | 'less-is-better' | 'preference';
+
 /** Definition of a single quality factor */
 export interface QualityFactor {
   id: string;
   label: { fi: string; en: string; sv: string };
-  defaultWeight: number; // 0–100 (or -100–100 if bipolar) slider default
+  /** Slider default: 0–100, or −100…+100 when `polarity` is 'preference'. */
+  defaultWeight: number;
   /** Property key(s) on NeighborhoodProperties to read */
   properties: (keyof NeighborhoodProperties)[];
-  /** If true, lower raw values = higher quality score. Ignored when `bipolar` is true. */
+  /**
+   * DATA fact, not a preference: true when the raw column runs OPPOSITE to the
+   * factor's own label — `water_proximity_m` is a distance while the label is
+   * "proximity", `unemployment_rate` is the inverse of the label "Employment".
+   * Applying it yields a score meaning "how much of the LABELLED quantity this
+   * area has", regardless of whether more of it is desirable. Whether more is
+   * desirable is `polarity`'s job, and only `polarity` ever consults the weight's
+   * sign — so the two compose instead of silently cancelling each other out.
+   *
+   * A factor whose label already names the raw quantity (`noise_pollution` →
+   * "Noise") is invert:false with polarity:'less-is-better', NOT invert:true.
+   */
   invert: boolean;
   /** If true, shown by default in the panel. Factors with defaultWeight > 0 are always primary. */
   primary: boolean;
-  /**
-   * If true, the slider ranges from -100 to +100 and the user picks direction via sign:
-   *   positive weight → higher raw values score higher;
-   *   negative weight → lower raw values score higher.
-   * Used for metrics with no objective "better" direction (demographics, housing
-   * composition, sectoral employment, etc.).
-   */
-  bipolar?: boolean;
+  /** Fixed direction, or user-chosen via the weight's sign. See FactorPolarity. */
+  polarity: FactorPolarity;
+}
+
+/** True when this factor's slider is signed (−100…+100) and the user picks direction. */
+export function isPreferenceFactor(f: QualityFactor): boolean {
+  return f.polarity === 'preference';
 }
 
 export const QUALITY_FACTORS: QualityFactor[] = [
@@ -112,6 +160,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['violent_crime_rate'],
     invert: true,
     primary: true,
+    polarity: 'more-is-better',
   },
   // Property crime and total offences are opt-in (defaultWeight 0), the same
   // pattern as low_income. Two reasons: giving property a default weight would
@@ -124,16 +173,18 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     label: { fi: 'Omaisuusrikokset', en: 'Property crime', sv: 'Egendomsbrott' },
     defaultWeight: 0,
     properties: ['property_crime_rate'],
-    invert: true,
+    invert: false,
     primary: false,
+    polarity: 'less-is-better',
   },
   {
     id: 'total_crime',
     label: { fi: 'Rikollisuus yhteensä', en: 'All recorded offences', sv: 'Brottslighet totalt' },
     defaultWeight: 0,
     properties: ['crime_index'],
-    invert: true,
+    invert: false,
     primary: false,
+    polarity: 'less-is-better',
   },
   {
     id: 'income',
@@ -142,6 +193,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['hr_mtu'],
     invert: false,
     primary: true,
+    polarity: 'preference',
   },
   {
     id: 'employment',
@@ -150,6 +202,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['unemployment_rate'],
     invert: true,
     primary: true,
+    polarity: 'more-is-better',
   },
   {
     id: 'education',
@@ -158,6 +211,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['higher_education_rate'],
     invert: false,
     primary: true,
+    polarity: 'preference',
   },
   {
     id: 'transit',
@@ -166,6 +220,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['transit_stop_density'],
     invert: false,
     primary: true,
+    polarity: 'preference',
   },
   {
     id: 'services',
@@ -174,6 +229,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['healthcare_density', 'school_density', 'daycare_density', 'grocery_density'],
     invert: false,
     primary: true,
+    polarity: 'preference',
   },
   {
     id: 'air_quality',
@@ -182,6 +238,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['air_quality_index'],
     invert: true,
     primary: true,
+    polarity: 'more-is-better',
   },
   // --- Secondary factors: hidden by default, available via "Show more" ---
   // All defaultWeight: 0 so they don't affect the index unless the user activates them.
@@ -193,6 +250,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['cycling_density'],
     invert: false,
     primary: true,
+    polarity: 'preference',
   },
   {
     id: 'grocery_access',
@@ -201,6 +259,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['grocery_density'],
     invert: false,
     primary: false,
+    polarity: 'preference',
   },
   {
     // QW-1: opt-in low-income-share factor. defaultWeight:0 keeps the published quality_index
@@ -210,8 +269,9 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     label: { fi: 'Pienituloisuus', en: 'Low-income share', sv: 'Låginkomstandel' },
     defaultWeight: 0,
     properties: ['low_income_pct'],
-    invert: true,
+    invert: false,
     primary: false,
+    polarity: 'less-is-better',
   },
   {
     id: 'restaurants',
@@ -220,8 +280,9 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['restaurant_density'],
     invert: false,
     primary: false,
+    polarity: 'preference',
   },
-  // Demographics — bipolar (no objective "better" direction)
+  // Demographics — polarity:'preference' (no objective "better" direction)
   {
     id: 'avg_age',
     label: { fi: 'Keski-ikä', en: 'Average Age', sv: 'Medelålder' },
@@ -229,7 +290,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['he_kika'],
     invert: false,
     primary: false,
-    bipolar: true,
+    polarity: 'preference',
   },
   {
     id: 'youth_ratio',
@@ -238,7 +299,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['youth_ratio_pct'],
     invert: false,
     primary: false,
-    bipolar: true,
+    polarity: 'preference',
   },
   {
     id: 'elderly_ratio',
@@ -247,7 +308,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['elderly_ratio_pct'],
     invert: false,
     primary: false,
-    bipolar: true,
+    polarity: 'preference',
   },
   {
     id: 'child_ratio',
@@ -256,7 +317,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['child_ratio'],
     invert: false,
     primary: false,
-    bipolar: true,
+    polarity: 'preference',
   },
   {
     id: 'pensioner_share',
@@ -265,7 +326,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['pensioner_share'],
     invert: false,
     primary: false,
-    bipolar: true,
+    polarity: 'preference',
   },
   {
     id: 'student_share',
@@ -274,7 +335,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['student_share'],
     invert: false,
     primary: false,
-    bipolar: true,
+    polarity: 'preference',
   },
   {
     id: 'gender_ratio',
@@ -283,7 +344,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['gender_ratio'],
     invert: false,
     primary: false,
-    bipolar: true,
+    polarity: 'preference',
   },
   {
     id: 'foreign_language',
@@ -292,7 +353,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['foreign_language_pct'],
     invert: false,
     primary: false,
-    bipolar: true,
+    polarity: 'preference',
   },
   {
     id: 'single_parent_hh',
@@ -301,7 +362,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['single_parent_hh_pct'],
     invert: false,
     primary: false,
-    bipolar: true,
+    polarity: 'preference',
   },
   {
     id: 'families_with_children',
@@ -310,7 +371,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['families_with_children_pct'],
     invert: false,
     primary: false,
-    bipolar: true,
+    polarity: 'preference',
   },
   {
     id: 'single_person_hh',
@@ -319,7 +380,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['single_person_hh_pct'],
     invert: false,
     primary: false,
-    bipolar: true,
+    polarity: 'preference',
   },
   {
     id: 'household_size',
@@ -328,7 +389,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['avg_household_size'],
     invert: false,
     primary: false,
-    bipolar: true,
+    polarity: 'preference',
   },
   {
     id: 'population_density',
@@ -337,9 +398,9 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['population_density'],
     invert: false,
     primary: false,
-    bipolar: true,
+    polarity: 'preference',
   },
-  // Housing — bipolar (composition/preference, not quality)
+  // Housing — polarity:'preference' (composition/taste, not quality)
   {
     id: 'ownership_rate',
     label: { fi: 'Omistusasuminen', en: 'Ownership Rate', sv: 'Ägarboende' },
@@ -347,7 +408,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['ownership_rate'],
     invert: false,
     primary: false,
-    bipolar: true,
+    polarity: 'preference',
   },
   {
     id: 'rental_rate',
@@ -356,7 +417,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['rental_rate'],
     invert: false,
     primary: false,
-    bipolar: true,
+    polarity: 'preference',
   },
   {
     id: 'apartment_size',
@@ -365,7 +426,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['ra_as_kpa'],
     invert: false,
     primary: false,
-    bipolar: true,
+    polarity: 'preference',
   },
   {
     id: 'detached_house_share',
@@ -374,7 +435,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['detached_house_share'],
     invert: false,
     primary: false,
-    bipolar: true,
+    polarity: 'preference',
   },
   {
     id: 'property_price',
@@ -383,7 +444,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['property_price_sqm'],
     invert: false,
     primary: false,
-    bipolar: true,
+    polarity: 'preference',
   },
   {
     id: 'rental_price',
@@ -392,7 +453,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['rental_price_sqm'],
     invert: false,
     primary: false,
-    bipolar: true,
+    polarity: 'preference',
   },
   {
     id: 'price_to_rent',
@@ -401,7 +462,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['price_to_rent_ratio'],
     invert: false,
     primary: false,
-    bipolar: true,
+    polarity: 'preference',
   },
   {
     id: 'construction_year',
@@ -410,7 +471,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['avg_construction_year'],
     invert: false,
     primary: false,
-    bipolar: true,
+    polarity: 'preference',
   },
   {
     id: 'new_construction',
@@ -419,12 +480,12 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['new_construction_pct'],
     invert: false,
     primary: false,
-    bipolar: true,
+    polarity: 'preference',
   },
   // CF-5: planning & development activity — count of nearby kaavat & hankkeet.
-  // Bipolar, defaultWeight:0 so it never moves the published score: an opt-in
+  // polarity:'preference', defaultWeight:0 so it never moves the published score: an opt-in
   // "I value an up-and-coming area" weight (positive) — or "I want a settled,
-  // low-churn area" (negative). No objective better direction, hence bipolar.
+  // low-churn area" (negative). No objective better direction, hence 'preference'.
   {
     id: 'planning_activity',
     label: { fi: 'Kaavoitus- ja hankeaktiivisuus', en: 'Planning & Development Activity', sv: 'Planerings- och projektaktivitet' },
@@ -432,9 +493,9 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['active_plan_count'],
     invert: false,
     primary: false,
-    bipolar: true,
+    polarity: 'preference',
   },
-  // Employment — employment_rate is directional, sectoral mix is bipolar
+  // Employment — employment_rate has a fixed direction, sectoral mix is 'preference'
   {
     id: 'employment_rate',
     label: { fi: 'Työllisyysaste', en: 'Employment Rate', sv: 'Sysselsättningsgrad' },
@@ -442,6 +503,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['employment_rate'],
     invert: false,
     primary: false,
+    polarity: 'more-is-better',
   },
   {
     id: 'tech_sector',
@@ -450,7 +512,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['tech_sector_pct'],
     invert: false,
     primary: false,
-    bipolar: true,
+    polarity: 'preference',
   },
   {
     id: 'healthcare_sector',
@@ -459,7 +521,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['healthcare_workers_pct'],
     invert: false,
     primary: false,
-    bipolar: true,
+    polarity: 'preference',
   },
   {
     id: 'manufacturing_sector',
@@ -468,7 +530,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['manufacturing_jobs_pct'],
     invert: false,
     primary: false,
-    bipolar: true,
+    polarity: 'preference',
   },
   {
     id: 'public_sector',
@@ -477,7 +539,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['public_sector_jobs_pct'],
     invert: false,
     primary: false,
-    bipolar: true,
+    polarity: 'preference',
   },
   {
     id: 'service_sector',
@@ -486,7 +548,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['service_sector_jobs_pct'],
     invert: false,
     primary: false,
-    bipolar: true,
+    polarity: 'preference',
   },
   // Environment & mobility
   {
@@ -496,6 +558,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['walkability_index'],
     invert: false,
     primary: true,
+    polarity: 'preference',
   },
   {
     id: 'sports_facilities',
@@ -504,14 +567,16 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['sports_facility_density'],
     invert: false,
     primary: false,
+    polarity: 'preference',
   },
   {
     id: 'traffic_accidents',
     label: { fi: 'Liikenneonnettomuudet', en: 'Traffic Accidents', sv: 'Trafikolyckor' },
     defaultWeight: 8,
     properties: ['traffic_accident_rate'],
-    invert: true,
+    invert: false,
     primary: true,
+    polarity: 'less-is-better',
   },
   {
     id: 'transit_reachability',
@@ -520,6 +585,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['transit_reachability_score'],
     invert: false,
     primary: false,
+    polarity: 'preference',
   },
   {
     id: 'ev_charging',
@@ -528,6 +594,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['ev_charging_density'],
     invert: false,
     primary: false,
+    polarity: 'preference',
   },
   {
     id: 'tree_canopy',
@@ -536,22 +603,25 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['tree_canopy_pct'],
     invert: false,
     primary: true,
+    polarity: 'more-is-better',
   },
   {
     id: 'light_pollution',
     label: { fi: 'Valosaaste', en: 'Light Pollution', sv: 'Ljusförorening' },
     defaultWeight: 0,
     properties: ['light_pollution'],
-    invert: true,
+    invert: false,
     primary: false,
+    polarity: 'less-is-better',
   },
   {
     id: 'noise_pollution',
     label: { fi: 'Melu', en: 'Noise Pollution', sv: 'Buller' },
     defaultWeight: 7,
     properties: ['noise_pollution'],
-    invert: true,
+    invert: false,
     primary: true,
+    polarity: 'less-is-better',
   },
   {
     id: 'water_proximity',
@@ -560,6 +630,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['water_proximity_m'],
     invert: true,
     primary: true,
+    polarity: 'preference',
   },
   // QW-2: opt-in (defaultWeight:0) real population-health + climate factors.
   // computeQualityIndices skips weight-0 factors, so published headline/persona
@@ -572,24 +643,27 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     label: { fi: 'Sairastavuus', en: 'Morbidity Index', sv: 'Sjukfrekvens' },
     defaultWeight: 0,
     properties: ['health_index'],
-    invert: true,
+    invert: false,
     primary: false,
+    polarity: 'less-is-better',
   },
   {
     id: 'radon',
     label: { fi: 'Radon', en: 'Radon', sv: 'Radon' },
     defaultWeight: 0,
     properties: ['radon'],
-    invert: true,
+    invert: false,
     primary: false,
+    polarity: 'less-is-better',
   },
   {
     id: 'flood_risk',
     label: { fi: 'Tulvariski', en: 'Flood Risk', sv: 'Översvämningsrisk' },
     defaultWeight: 0,
     properties: ['flood_risk_pct'],
-    invert: true,
+    invert: false,
     primary: false,
+    polarity: 'less-is-better',
   },
   // Connectivity & politics
   {
@@ -599,6 +673,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['broadband_coverage_pct'],
     invert: false,
     primary: false,
+    polarity: 'more-is-better',
   },
   {
     id: 'voter_turnout',
@@ -607,7 +682,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['voter_turnout_pct'],
     invert: false,
     primary: false,
-    bipolar: true,
+    polarity: 'preference',
   },
   {
     id: 'party_diversity',
@@ -616,7 +691,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['party_diversity_index'],
     invert: false,
     primary: false,
-    bipolar: true,
+    polarity: 'preference',
   },
   // Education
   {
@@ -626,6 +701,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['school_quality_score'],
     invert: false,
     primary: false,
+    polarity: 'more-is-better',
   },
   // Trends
   {
@@ -635,6 +711,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['income_change_pct'],
     invert: false,
     primary: false,
+    polarity: 'more-is-better',
   },
   {
     id: 'population_change',
@@ -643,15 +720,16 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     properties: ['population_change_pct'],
     invert: false,
     primary: false,
-    bipolar: true,
+    polarity: 'preference',
   },
   {
     id: 'unemployment_change',
     label: { fi: 'Työttömyyden muutos', en: 'Unemployment Change', sv: 'Arbetslöshetsförändring' },
     defaultWeight: 0,
     properties: ['unemployment_change_pct'],
-    invert: true,
+    invert: false,
     primary: false,
+    polarity: 'less-is-better',
   },
 ];
 
@@ -745,7 +823,23 @@ function getFactorScore(
   }
   if (scores.length === 0) return null;
   const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+  // `invert` only reconciles the raw column with the factor's LABEL, so the return
+  // value always means "how much of the labelled quantity this area has" (0–100).
+  // Desirability is resolved separately, in computeQualityIndices, from `polarity`.
   return factor.invert ? 100 - avg : avg;
+}
+
+/**
+ * Turn "how much of the labelled quantity this area has" into "how well that
+ * matches the user", by resolving the factor's polarity against the weight's sign.
+ * Only 'preference' factors read the sign — hazards ('less-is-better') keep a fixed
+ * direction whatever the sign, so a hand-crafted `?qw=radon:-80` link can never
+ * flip the index into rewarding radon.
+ */
+function applyPolarity(labelScore: number, factor: QualityFactor, weight: number): number {
+  if (factor.polarity === 'less-is-better') return 100 - labelScore;
+  if (factor.polarity === 'preference' && weight < 0) return 100 - labelScore;
+  return labelScore;
 }
 
 /**
@@ -765,7 +859,7 @@ export function computeQualityIndices(
   const neutralizeMissing = nationalRanges != null;
 
   // Collect all needed ranges (includes metro averages for missing data fallback).
-  // Bipolar factors with negative weight are still active, so use abs.
+  // A negative preference weight is still an active factor, so gate on abs.
   //
   // When `nationalRanges` is supplied (the default "Whole of Finland" scope),
   // normalize each metric against the pre-computed national distribution so a
@@ -797,10 +891,9 @@ export function computeQualityIndices(
       const factorWeight = w[factor.id] ?? 0;
       const absWeight = Math.abs(factorWeight);
       if (absWeight <= 0) continue;
-      let score = getFactorScore(p, factor, ranges, neutralizeMissing);
-      if (score == null) continue;
-      // Bipolar factor with negative weight: user prefers lower values, so flip score.
-      if (factor.bipolar && factorWeight < 0) score = 100 - score;
+      const labelScore = getFactorScore(p, factor, ranges, neutralizeMissing);
+      if (labelScore == null) continue;
+      const score = applyPolarity(labelScore, factor, factorWeight);
       scores.push({ value: score, weight: absWeight });
       const dim = getFactorDimension(factor.id);
       const acc = dimAcc.get(dim) ?? { weighted: 0, weight: 0 };

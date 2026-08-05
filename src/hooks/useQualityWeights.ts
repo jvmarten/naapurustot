@@ -34,6 +34,17 @@ function saveWeights(weights: QualityWeights): void {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(weights)); } catch { /* unavailable */ }
 }
 
+/**
+ * Read the persisted weights without mounting the hook. The profile page needs
+ * this to tell whether the quality_index it is about to render was produced under
+ * the documented default weighting or under the visitor's own lens: computeQualityIndices
+ * mutates the shared dataLoader cache in place, so an in-app navigation to /alue/
+ * carries the customised score over with it. Read-only — no persistence, no sync.
+ */
+export function readStoredQualityWeights(): QualityWeights {
+  return loadWeights();
+}
+
 /** Manage the user's custom quality-index weights.
  *  Persists to localStorage always; syncs to server when `userId` is provided. */
 export function useQualityWeights(userId?: string | null) {
