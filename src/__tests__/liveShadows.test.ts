@@ -4,21 +4,14 @@ import {
   parseLevelsTag,
   heightFromTags,
   offsetPoint,
-  shadowRings,
-  type Building,
-  type Ring,
+  sweptRings,
+  emitSweptPath,
+  signedArea2,
+  shadowLengthMetres,
+  simplifyProjected,
+  type Pt,
 } from '../live/shadows';
 import { defaultEnabledFeeds, sanitizeEnabled, ALL_FEEDS } from '../live/feeds';
-
-/** A 20 m square building, roughly 20 m on a side, near Helsinki centre. */
-const SQUARE: Ring = [
-  [24.9384, 60.1699],
-  [24.93876, 60.1699],
-  [24.93876, 60.17008],
-  [24.9384, 60.17008],
-  [24.9384, 60.1699],
-];
-const BUILDING: Building = { ring: SQUARE, height: 20, estimated: false };
 
 describe('parseHeightTag', () => {
   it('accepts the forms OSM actually contains', () => {
@@ -106,48 +99,128 @@ describe('offsetPoint', () => {
   });
 });
 
-describe('shadowRings', () => {
-  it('casts nothing once the sun is at or below the horizon', () => {
-    expect(shadowRings(BUILDING, 0, 180)).toEqual([]);
-    expect(shadowRings(BUILDING, -10, 180)).toEqual([]);
+/**
+ * A 40x20 px rectangle in SCREEN space — the coordinates the renderer actually
+ * feeds the emitter. These tests deliberately target `emitSweptPath`/`sweptRings`
+ * rather than any lon/lat twin: the render path is where the winding bug lived,
+ * and a test that guards a parallel implementation guards nothing.
+ */
+const RECT: Pt[] = [
+  [100, 100],
+  [140, 100],
+  [140, 120],
+  [100, 120],
+  [100, 100],
+];
+
+/** Winding number of a set of rings about a point. Non-zero => nonzero-fill paints it. */
+function windingAt(rings: Pt[][], px: number, py: number): number {
+  let w = 0;
+  for (const ring of rings) {
+    for (let i = 0; i < ring.length - 1; i++) {
+      const [x1, y1] = ring[i];
+      const [x2, y2] = ring[i + 1];
+      const side = (x2 - x1) * (py - y1) - (px - x1) * (y2 - y1);
+      if (y1 <= py) {
+        if (y2 > py && side > 0) w++;
+      } else if (y2 <= py && side < 0) {
+        w--;
+      }
+    }
+  }
+  return w;
+}
+
+describe('shadowLengthMetres', () => {
+  it('lengthens as the sun drops and vanishes below the horizon', () => {
+    expect(shadowLengthMetres(20, 45)).toBeCloseTo(20, 5);
+    expect(shadowLengthMetres(20, 10)).toBeGreaterThan(shadowLengthMetres(20, 60));
+    expect(shadowLengthMetres(20, 0)).toBe(0);
+    expect(shadowLengthMetres(20, -5)).toBe(0);
   });
 
-  it('returns the footprint, its translation, and one sweep quad per edge', () => {
-    const rings = shadowRings(BUILDING, 45, 0);
-    // SQUARE is closed, so it has 5 points = 4 edges.
-    expect(rings).toHaveLength(2 + 4);
-    expect(rings[0]).toEqual(SQUARE);
+  it('clamps a near-horizon shadow instead of emitting a kilometres-long smear', () => {
+    // At 0.05 degrees a 20 m building would geometrically cast ~23 km.
+    expect(shadowLengthMetres(20, 0.05)).toBe(2000);
+  });
+});
+
+describe('emitSweptPath', () => {
+  it('emits nothing for a degenerate footprint', () => {
+    expect(sweptRings([[0, 0], [1, 1], [0, 0]] as Pt[], 10, 10)).toEqual([]);
   });
 
-  it('translates the shadow along the shadow bearing, not the sun bearing', () => {
-    // Bearing 0 = due north, so every translated vertex must move north.
-    const rings = shadowRings(BUILDING, 45, 0);
-    const translated = rings[1];
-    for (let i = 0; i < SQUARE.length; i++) {
-      expect(translated[i][1]).toBeGreaterThan(SQUARE[i][1]);
+  it('emits just the footprint when there is no offset', () => {
+    const rings = sweptRings(RECT, 0, 0);
+    expect(rings).toHaveLength(1);
+  });
+
+  it('gives every emitted ring the same orientation', () => {
+    // The nonzero fill rule unions a set of polygons only when they all wind the
+    // same way; mixed orientations SUBTRACT where they overlap.
+    for (const [dx, dy] of [[30, 0], [0, 40], [25, 25], [-60, 15], [-10, -80]]) {
+      const signs = sweptRings(RECT, dx, dy)
+        .map((r) => Math.sign(signedArea2(r)))
+        .filter((sign) => sign !== 0);
+      expect(signs.length, `offset ${dx},${dy} produced no drawable rings`).toBeGreaterThan(0);
+      expect(new Set(signs).size, `offset ${dx},${dy} produced mixed winding`).toBe(1);
     }
   });
 
-  it('lengthens the shadow as the sun drops', () => {
-    const northLatAt = (altitude: number) => shadowRings(BUILDING, altitude, 0)[1][0][1];
-    expect(northLatAt(20)).toBeGreaterThan(northLatAt(60));
+  it('keeps the corridor filled for a long offset, in every direction', () => {
+    // THE regression: with mixed winding the sweep quads cancel to a winding
+    // number of zero once the offset is long, and the shadow renders invisible —
+    // worst at a low sun, which is exactly when shadows matter most.
+    for (const [dx, dy] of [[300, 0], [0, 300], [200, 200], [-250, 120], [-90, -300]]) {
+      const rings = sweptRings(RECT, dx, dy);
+      // Midpoint between the footprint centre and where it lands.
+      const cx = 120 + dx / 2;
+      const cy = 110 + dy / 2;
+      expect(
+        windingAt(rings, cx, cy),
+        `corridor cancelled to winding 0 for offset ${dx},${dy} — it would render invisible`,
+      ).not.toBe(0);
+    }
   });
 
-  it('clamps an extreme near-horizon shadow instead of emitting a kilometres-long smear', () => {
-    // At 0.05° a 20 m building would geometrically cast ~23 km.
-    const translated = shadowRings(BUILDING, 0.05, 0)[1];
-    const metresNorth = (translated[0][1] - SQUARE[0][1]) * 111_320;
-    expect(metresNorth).toBeLessThanOrEqual(2001);
-    expect(metresNorth).toBeGreaterThan(1999);
+  it('covers both the footprint and its landing point', () => {
+    const rings = sweptRings(RECT, 300, 0);
+    expect(windingAt(rings, 120, 110), 'footprint unfilled').not.toBe(0);
+    expect(windingAt(rings, 420, 110), 'translated copy unfilled').not.toBe(0);
   });
 
-  it('produces sweep quads that join each footprint edge to its translation', () => {
-    const rings = shadowRings(BUILDING, 45, 0);
-    const quad = rings[2];
-    expect(quad).toHaveLength(5);
-    expect(quad[0]).toEqual(SQUARE[0]);
-    expect(quad[1]).toEqual(SQUARE[1]);
-    expect(quad[4]).toEqual(SQUARE[0]);
+  it('leaves the area outside the sweep alone', () => {
+    const rings = sweptRings(RECT, 300, 0);
+    // Well behind the building, opposite the shadow direction.
+    expect(windingAt(rings, -200, 110)).toBe(0);
+    // Far to the side.
+    expect(windingAt(rings, 120, 900)).toBe(0);
+  });
+
+  it('writes straight into a Path2D-shaped sink without allocating rings', () => {
+    let ops = 0;
+    emitSweptPath(
+      { moveTo: () => { ops++; }, lineTo: () => { ops++; }, closePath: () => { ops++; } },
+      RECT,
+      50,
+      50,
+    );
+    expect(ops).toBeGreaterThan(0);
+  });
+});
+
+describe('simplifyProjected', () => {
+  it('drops sub-pixel detail but keeps the ring closed', () => {
+    const dense: Pt[] = [[0, 0], [0.2, 0], [0.4, 0], [40, 0], [40, 20], [0, 20], [0, 0]];
+    const out = simplifyProjected(dense, 1.5);
+    expect(out.length).toBeLessThan(dense.length);
+    expect(out[0]).toEqual(dense[0]);
+    expect(out[out.length - 1]).toEqual(dense[dense.length - 1]);
+  });
+
+  it('never collapses a ring below a drawable triangle', () => {
+    const tiny: Pt[] = [[0, 0], [0.1, 0], [0.1, 0.1], [0, 0.1], [0, 0]];
+    expect(simplifyProjected(tiny, 50).length).toBeGreaterThanOrEqual(4);
   });
 });
 

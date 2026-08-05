@@ -6,7 +6,16 @@ import { t, getLang, setLang, useI18nVersion, type Lang } from '../utils/i18n';
 import { useTheme } from '../hooks/useTheme';
 import { FeedSidebar } from './FeedSidebar';
 import { defaultEnabledFeeds, sanitizeEnabled } from './feeds';
-import { shadowRings, type Bbox, type Building } from './shadows';
+import {
+  offsetPoint,
+  emitSweptPath,
+  orientProjected,
+  simplifyProjected,
+  shadowLengthMetres,
+  type Bbox,
+  type Building,
+  type Pt,
+} from './shadows';
 import { resolveBuildings, type HeightSource } from './buildingShards';
 
 /**
@@ -102,6 +111,10 @@ export const LivePage: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const mapRef = useRef<MaplibreMap | null>(null);
   const buildingsRef = useRef<Building[]>([]);
+  /** Footprints projected to screen space, keyed by the camera state that produced them. */
+  const projectedRef = useRef<{ key: string; items: { points: Pt[]; height: number }[] } | null>(null);
+  /** Pending coalesced repaint, so several triggers in one frame do one draw. */
+  const rafRef = useRef(0);
   /** Bumped once the map exists, to re-run the effect that binds its listeners. */
   const [mapReady, setMapReady] = useState(0);
   // Read by the construction effect, which must not re-run on a theme change —
@@ -162,27 +175,74 @@ export const LivePage: React.FC = () => {
     if (!shadowsOn || sun.altitude <= 0) return;
 
     const bearing = shadowBearing(sun.azimuth);
+
+    // Project each footprint ONCE per camera position and cache it. Scrubbing the
+    // time slider then costs arithmetic instead of ~21,000 map.project() calls a
+    // frame, which was pinning a scrub at ~83 ms (12 fps). The cache key is the
+    // full camera state, so any pan/zoom/rotate/pitch invalidates it.
+    const c = map.getCenter();
+    const cameraKey = `${c.lng},${c.lat},${map.getZoom()},${map.getBearing()},${map.getPitch()},${width}x${height}`;
+    if (projectedRef.current?.key !== cameraKey) {
+      projectedRef.current = {
+        key: cameraKey,
+        items: buildingsRef.current.map((b) => ({
+          // Orientation normalised once here, so the per-frame emitter can write
+          // the footprint and its translation verbatim.
+          points: orientProjected(
+            simplifyProjected(
+              b.ring.map((coord) => {
+                const p = map.project(coord);
+                return [p.x, p.y] as Pt;
+              }),
+            ),
+          ),
+          height: b.height,
+        })),
+      };
+    }
+
+    // One screen-space displacement vector per metre of shadow. Mercator scale
+    // varies negligibly across a city-sized viewport, so deriving it once at the
+    // centre is accurate to well under a pixel here and removes the per-vertex
+    // geodesic offset entirely.
+    const origin = map.project([c.lng, c.lat]);
+    const probeMetres = 1000;
+    const probeLngLat = offsetPoint(c.lng, c.lat, probeMetres, bearing);
+    const probe = map.project(probeLngLat);
+    const ux = (probe.x - origin.x) / probeMetres;
+    const uy = (probe.y - origin.y) / probeMetres;
+
     // ONE path for every ring of every building — see the file header for why
     // this is not a per-polygon fill.
     const path = new Path2D();
-    for (const building of buildingsRef.current) {
-      for (const ring of shadowRings(building, sun.altitude, bearing)) {
-        let first = true;
-        for (const [lon, lat] of ring) {
-          const p = map.project([lon, lat]);
-          if (first) {
-            path.moveTo(p.x, p.y);
-            first = false;
-          } else {
-            path.lineTo(p.x, p.y);
-          }
-        }
-        path.closePath();
-      }
+    for (const item of projectedRef.current.items) {
+      const metres = shadowLengthMetres(item.height, sun.altitude);
+      if (metres <= 0) continue;
+      emitSweptPath(path, item.points, ux * metres, uy * metres);
     }
     ctx.fillStyle = SHADOW_FILL[theme];
     ctx.fill(path, 'nonzero');
   }, [shadowsOn, sun.altitude, sun.azimuth, theme]);
+
+  /**
+   * Coalesce repaints into one per animation frame.
+   *
+   * A single slider step used to repaint twice — once from the state effect and
+   * once from MapLibre's `render` — and both did the full path build. Collapsing
+   * them halves the per-step cost and caps the layer at the display's rate no
+   * matter how many triggers arrive.
+   */
+  const scheduleDraw = useCallback(() => {
+    if (rafRef.current) return;
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = 0;
+      draw();
+    });
+  }, [draw]);
+
+  useEffect(() => () => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+  }, []);
 
   // Map construction. Runs once — camera changes go through the map instance.
   //
@@ -268,6 +328,7 @@ export const LivePage: React.FC = () => {
       if (map.getZoom() < MIN_SHADOW_ZOOM) {
         setTooCoarse(true);
         buildingsRef.current = [];
+        projectedRef.current = null;
         setCoverage(null);
         draw();
         return;
@@ -289,6 +350,7 @@ export const LivePage: React.FC = () => {
         resolveBuildings(bbox, controller.signal)
           .then(({ buildings, total, source }) => {
             buildingsRef.current = buildings;
+            projectedRef.current = null;
             setCoverage({ withHeight: buildings.length, total, source });
             setLoading(false);
             draw();
@@ -302,7 +364,7 @@ export const LivePage: React.FC = () => {
     };
 
     map.on('moveend', refresh);
-    map.on('render', draw);
+    map.on('render', scheduleDraw);
     // Kick the first fetch immediately rather than waiting for the map's 'load'
     // event. The camera is fully defined the moment the map is constructed, so
     // getBounds()/getZoom() are already answerable — whereas 'load' also waits on
@@ -312,15 +374,15 @@ export const LivePage: React.FC = () => {
 
     return () => {
       map.off('moveend', refresh);
-      map.off('render', draw);
+      map.off('render', scheduleDraw);
       if (timer) clearTimeout(timer);
       controller?.abort();
     };
-  }, [draw, mapReady]);
+  }, [draw, scheduleDraw, mapReady]);
 
   useEffect(() => {
-    draw();
-  }, [draw]);
+    scheduleDraw();
+  }, [scheduleDraw]);
 
   // Follow the site-wide light/dark choice by swapping the raster tile URLs in
   // place. Deliberately not `setStyle` — that tears down and rebuilds every
