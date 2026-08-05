@@ -1,16 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import type { Feature } from 'geojson';
 import {
-  QUALITY_FACTORS, computeQualityIndices, isPreferenceFactor,
+  QUALITY_FACTORS, computeQualityIndices, getDefaultWeights, FACTOR_DIMENSION,
   type QualityWeights, type QualityFactor,
 } from '../utils/qualityIndex';
 
 /**
- * Guards the factor-polarity model: `invert` reconciles the raw column with the
- * factor's LABEL (a data fact), `polarity` decides whether the user may choose a
- * direction (a product decision). Before the split these were one flag plus an
- * undocumented second one, and they silently cancelled each other out whenever
- * both applied — so the invariants below are the whole point of the refactor.
+ * Guards the direction model: `invert` reconciles the raw column with the factor's
+ * LABEL (a data fact), and the SIGN of the weight carries the user's preferred
+ * direction. Before they were split these were one flag plus an undocumented second
+ * one that silently cancelled it out, so the invariants below are the whole point.
  */
 
 // Two areas per factor: HI carries the top of every source property, LO the bottom.
@@ -40,9 +39,9 @@ function scoreHi(factor: QualityFactor, weight: number): number {
 }
 
 /**
- * The factors that carried `invert: true` before the polarity split. Under the old
- * single-flag model a positive weight on one of these scored the HIGH-raw area 0.
- * Anything that changes here changes a shipped score, so it must be deliberate.
+ * How each factor scored a HIGH raw value under the ORIGINAL single-`invert` model,
+ * at its then-positive default weight. Anything that changes here changes a shipped
+ * score, so it must be deliberate.
  */
 const LEGACY_INVERTED = new Set([
   'safety', 'property_crime', 'total_crime', 'employment', 'air_quality', 'low_income',
@@ -50,77 +49,92 @@ const LEGACY_INVERTED = new Set([
   'health_index', 'radon', 'flood_risk', 'unemployment_change',
 ]);
 
-/** Fixed-direction factors: hazards, plus utilities whose negative half is incoherent. */
-const FIXED_DIRECTION = [
-  'safety', 'property_crime', 'total_crime', 'employment', 'air_quality', 'low_income',
-  'traffic_accidents', 'light_pollution', 'noise_pollution', 'health_index', 'radon',
-  'flood_risk', 'broadband', 'school_quality', 'employment_rate', 'tree_canopy',
-  'income_change', 'unemployment_change',
+/** Factors whose LABEL names a hazard, so the default weighting points negative. */
+const HAZARD_LABELLED = [
+  'property_crime', 'total_crime', 'low_income', 'traffic_accidents', 'light_pollution',
+  'noise_pollution', 'health_index', 'radon', 'flood_risk', 'unemployment_change',
 ];
 
-describe('factor polarity — model integrity', () => {
-  it('every factor declares a polarity, and isPreferenceFactor agrees with it', () => {
+const PARTY_FACTORS = [
+  'party_kok', 'party_sdp', 'party_ps', 'party_kesk',
+  'party_vihr', 'party_vas', 'party_rkp', 'political_lean',
+];
+
+describe('direction model — every factor is signed', () => {
+  it('no factor carries a leftover polarity field', () => {
     for (const f of QUALITY_FACTORS) {
-      expect(['more-is-better', 'less-is-better', 'preference'], `${f.id} polarity`).toContain(f.polarity);
-      expect(isPreferenceFactor(f), `${f.id} isPreferenceFactor`).toBe(f.polarity === 'preference');
+      expect(f, `${f.id}`).not.toHaveProperty('polarity');
     }
   });
 
-  it('exactly the hazard/utility factors are fixed-direction; everything else is signed', () => {
-    const fixed = QUALITY_FACTORS.filter((f) => f.polarity !== 'preference').map((f) => f.id);
-    expect(fixed.sort()).toEqual([...FIXED_DIRECTION].sort());
-    expect(QUALITY_FACTORS.filter(isPreferenceFactor)).toHaveLength(QUALITY_FACTORS.length - FIXED_DIRECTION.length);
+  it('a hazard-labelled factor points negative by default, never positive', () => {
+    for (const id of HAZARD_LABELLED) {
+      const f = QUALITY_FACTORS.find((x) => x.id === id);
+      expect(f, `factor ${id} exists`).toBeDefined();
+      expect(f!.defaultWeight, `${id} defaultWeight`).toBeLessThanOrEqual(0);
+      // The label names the raw quantity, so invert has no work to do.
+      expect(f!.invert, `${id} invert`).toBe(false);
+    }
   });
 
-  it('no fixed-direction factor carries a negative default weight', () => {
-    for (const f of QUALITY_FACTORS) {
-      if (f.polarity !== 'preference') expect(f.defaultWeight, `${f.id}`).toBeGreaterThanOrEqual(0);
-    }
+  it('the two hazards that carry default weight are exactly -8 and -7', () => {
+    const w = getDefaultWeights();
+    expect(w.traffic_accidents).toBe(-8);
+    expect(w.noise_pollution).toBe(-7);
   });
 });
 
-describe('factor polarity — behaviour is unchanged for positive weights', () => {
-  // The refactor re-encodes direction across all 61 factors. This is the guard that
-  // it re-encoded rather than redirected: every shipped (non-negative) weight must
-  // score exactly as it did under the single `invert` flag.
-  it.each(QUALITY_FACTORS.map((f) => [f.id, f] as const))(
-    '%s scores the same as the legacy invert flag at +100',
+describe('direction model — the default weighting is unchanged', () => {
+  // Every factor is signed now, and ten of them flipped their default's sign to say
+  // so. This is the guard that the re-encoding changed no shipped score: scored at
+  // its own default weight, each factor must still rank areas exactly as it used to.
+  const weighted = QUALITY_FACTORS.filter((f) => f.defaultWeight !== 0);
+
+  it('covers every default-weighted factor', () => {
+    expect(weighted.length).toBeGreaterThan(10);
+  });
+
+  it.each(weighted.map((f) => [f.id, f] as const))(
+    '%s ranks areas the same as the legacy invert flag did',
     (_id, factor) => {
-      expect(scoreHi(factor, 100)).toBe(LEGACY_INVERTED.has(factor.id) ? 0 : 100);
+      expect(scoreHi(factor, factor.defaultWeight)).toBe(LEGACY_INVERTED.has(factor.id) ? 0 : 100);
     },
   );
 });
 
-describe('factor polarity — fixed-direction factors ignore the sign', () => {
-  // A hand-crafted `?qw=radon:-80` passes every validator (they only range-check
-  // -100..100), so the compute path itself has to refuse to flip a hazard.
-  it.each(FIXED_DIRECTION)('%s scores identically at -100 and +100', (id) => {
-    const factor = QUALITY_FACTORS.find((f) => f.id === id)!;
-    expect(scoreHi(factor, -100)).toBe(scoreHi(factor, 100));
-  });
-});
-
-describe('factor polarity — "+" means the same thing on every signed slider', () => {
-  it.each(QUALITY_FACTORS.filter(isPreferenceFactor).map((f) => [f.id, f] as const))(
+describe('direction model — "+" means the same thing on every slider', () => {
+  it.each(QUALITY_FACTORS.map((f) => [f.id, f] as const))(
     '%s: +100 favours more of the labelled quantity, -100 favours less',
     (_id, factor) => {
       // The labelled quantity runs with the raw column unless `invert` says otherwise
-      // (water_proximity_m is a distance; its label is "proximity").
+      // (water_proximity_m is a distance; its label is "Veden läheisyys").
       const hiHasMoreOfLabel = !factor.invert;
       expect(scoreHi(factor, 100)).toBe(hiHasMoreOfLabel ? 100 : 0);
       expect(scoreHi(factor, -100)).toBe(hiHasMoreOfLabel ? 0 : 100);
     },
   );
+
+  it('magnitude, not sign, sets a factor\'s share of the index', () => {
+    const a = mk('00100', { transit_stop_density: 40, hr_mtu: 60000 });
+    const b = mk('00200', { transit_stop_density: 1, hr_mtu: 20000 });
+    const weights: QualityWeights = {};
+    for (const f of QUALITY_FACTORS) weights[f.id] = 0;
+    weights.income = 50;
+    weights.transit = -50;
+    computeQualityIndices([a, b], weights);
+    // A: income 100, transit mirrored to 0 → 50. B: income 0, transit mirrored to 100 → 50.
+    expect((a.properties as { quality_index: number }).quality_index).toBe(50);
+    expect((b.properties as { quality_index: number }).quality_index).toBe(50);
+  });
 });
 
-describe('factor polarity — invert and preference compose (the case that used to cancel)', () => {
-  // water_proximity is the only invert:true signed factor, and the exact shape the
-  // old model broke on: two flips applied in sequence made the negative half a no-op.
+describe('direction model — invert and sign compose (the case that used to cancel)', () => {
+  // water_proximity is the shape the old model broke on: two flips applied in
+  // sequence made the negative half a silent no-op.
   const factor = QUALITY_FACTORS.find((f) => f.id === 'water_proximity')!;
 
-  it('is invert:true with polarity preference', () => {
+  it('is invert:true — the raw column is a distance, the label is proximity', () => {
     expect(factor.invert).toBe(true);
-    expect(factor.polarity).toBe('preference');
   });
 
   it('+100 prefers being near water (a low distance in metres)', () => {
@@ -134,7 +148,7 @@ describe('factor polarity — invert and preference compose (the case that used 
     expect((far.properties as { quality_index: number }).quality_index).toBe(0);
   });
 
-  it('-100 prefers being away from water — the half that silently did nothing before', () => {
+  it('-100 prefers being away from water', () => {
     const near = mk('00100', { water_proximity_m: 50 });
     const far = mk('00200', { water_proximity_m: 5000 });
     const weights: QualityWeights = {};
@@ -146,29 +160,67 @@ describe('factor polarity — invert and preference compose (the case that used 
   });
 });
 
-describe('factor polarity — the newly signed factors', () => {
-  // The point of the change: "I want a quiet rural spot" was previously inexpressible.
-  it('a negative transit weight ranks the areas with fewest stops highest', () => {
-    const urban = mk('00100', { transit_stop_density: 40 });
-    const rural = mk('00200', { transit_stop_density: 1 });
+describe('direction model — hazards are now signable too', () => {
+  it('a negative noise weight is what the default does; positive seeks noise', () => {
+    const loud = mk('00100', { noise_pollution: 80 });
+    const quiet = mk('00200', { noise_pollution: 5 });
     const weights: QualityWeights = {};
     for (const f of QUALITY_FACTORS) weights[f.id] = 0;
-    weights.transit = -80;
-    computeQualityIndices([urban, rural], weights);
-    expect((rural.properties as { quality_index: number }).quality_index).toBe(100);
-    expect((urban.properties as { quality_index: number }).quality_index).toBe(0);
+
+    weights.noise_pollution = -50;
+    computeQualityIndices([loud, quiet], weights);
+    expect((quiet.properties as { quality_index: number }).quality_index).toBe(100);
+
+    weights.noise_pollution = 50;
+    computeQualityIndices([loud, quiet], weights);
+    expect((loud.properties as { quality_index: number }).quality_index).toBe(100);
+  });
+});
+
+describe('party-support factors', () => {
+  it('all eight exist, are opt-in, and sit in the descriptive dimension', () => {
+    for (const id of PARTY_FACTORS) {
+      const f = QUALITY_FACTORS.find((x) => x.id === id);
+      expect(f, `factor ${id} exists`).toBeDefined();
+      expect(f!.defaultWeight, `${id} defaultWeight`).toBe(0);
+      expect(f!.primary, `${id} primary`).toBe(false);
+      expect(f!.invert, `${id} invert`).toBe(false);
+      expect(FACTOR_DIMENSION[id], `${id} dimension`).toBe('demographics');
+    }
   });
 
-  it('magnitude, not sign, sets a signed factor\'s share of the index', () => {
-    const a = mk('00100', { transit_stop_density: 40, hr_mtu: 60000 });
-    const b = mk('00200', { transit_stop_density: 1, hr_mtu: 20000 });
+  it('each reads a real vote-share property that exists in the dataset', () => {
+    const expected: Record<string, string> = {
+      party_kok: 'party_vote_kok_pct', party_sdp: 'party_vote_sdp_pct',
+      party_ps: 'party_vote_ps_pct', party_kesk: 'party_vote_kesk_pct',
+      party_vihr: 'party_vote_vihr_pct', party_vas: 'party_vote_vas_pct',
+      party_rkp: 'party_vote_rkp_pct', political_lean: 'political_lean_index',
+    };
+    for (const [id, prop] of Object.entries(expected)) {
+      const f = QUALITY_FACTORS.find((x) => x.id === id)!;
+      expect(f.properties).toEqual([prop]);
+    }
+  });
+
+  it('carry zero default weight, so the published index is untouched', () => {
+    const base = mk('00100', { hr_mtu: 30000, unemployment_rate: 8 });
+    const withParties = mk('00200', {
+      hr_mtu: 30000, unemployment_rate: 8,
+      party_vote_kok_pct: 40, party_vote_vas_pct: 2, political_lean_index: 90,
+    });
+    computeQualityIndices([base, withParties]);
+    expect((base.properties as { quality_index: number }).quality_index)
+      .toBe((withParties.properties as { quality_index: number }).quality_index);
+  });
+
+  it('a negative party weight seeks areas where that party polls lower', () => {
+    const red = mk('00100', { party_vote_vas_pct: 25 });
+    const blue = mk('00200', { party_vote_vas_pct: 3 });
     const weights: QualityWeights = {};
     for (const f of QUALITY_FACTORS) weights[f.id] = 0;
-    weights.income = 50;
-    weights.transit = -50;
-    computeQualityIndices([a, b], weights);
-    // A: income 100, transit flipped to 0 → 50. B: income 0, transit flipped to 100 → 50.
-    expect((a.properties as { quality_index: number }).quality_index).toBe(50);
-    expect((b.properties as { quality_index: number }).quality_index).toBe(50);
+    weights.party_vas = -60;
+    computeQualityIndices([red, blue], weights);
+    expect((blue.properties as { quality_index: number }).quality_index).toBe(100);
+    expect((red.properties as { quality_index: number }).quality_index).toBe(0);
   });
 });

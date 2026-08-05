@@ -52,7 +52,7 @@ describe('getDefaultWeights — structural integrity', () => {
     // 26 a quarter of a neighbourhood score could not move between neighbourhoods)
     // and the freed 11 points were deliberately NOT redistributed to other factors.
     const primary = QUALITY_FACTORS.filter(f => f.primary);
-    const sum = primary.reduce((acc, f) => acc + f.defaultWeight, 0);
+    const sum = primary.reduce((acc, f) => acc + Math.abs(f.defaultWeight), 0);
     // Primary factors sum to 100; secondary factors (incl. the opt-in
     // property_crime and total_crime) start at 0.
     // safety 15 + traffic 8 + air 9 + tree 8 + noise 7 + water 4 + employment 12

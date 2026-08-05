@@ -279,7 +279,7 @@ describe('getDefaultWeights', () => {
     const w = getDefaultWeights();
     const primarySum = QUALITY_FACTORS
       .filter((f) => f.primary)
-      .reduce((sum, f) => sum + w[f.id], 0);
+      .reduce((sum, f) => sum + Math.abs(w[f.id]), 0);
     // Primary factors sum to 100; secondary factors (incl. the opt-in
     // property_crime and total_crime) start at 0.
     // safety 15 + traffic 8 + air 9 + tree 8 + noise 7 + water 4 + employment 12

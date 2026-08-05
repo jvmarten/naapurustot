@@ -29,7 +29,8 @@ describe('getDefaultWeights', () => {
     const weights = getDefaultWeights();
     for (const factor of QUALITY_FACTORS) {
       if (factor.primary) {
-        expect(weights[factor.id]).toBeGreaterThan(0);
+        // Hazard-labelled primaries (traffic accidents, noise) point negative.
+        expect(Math.abs(weights[factor.id])).toBeGreaterThan(0);
       } else {
         expect(weights[factor.id]).toBe(0);
       }

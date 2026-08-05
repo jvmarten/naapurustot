@@ -248,9 +248,12 @@ describe('Quality index — multi-property factors (services)', () => {
 describe('getDefaultWeights / isCustomWeights', () => {
   it('default weights sum is documented correctly', () => {
     const w = getDefaultWeights();
+    // |weight|: hazard-labelled factors carry negative defaults now (traffic
+    // accidents -8, noise -7 — "we want less of these"), and it is the magnitude
+    // that adds up to the documented 100.
     const primarySum = QUALITY_FACTORS
       .filter((f) => f.primary)
-      .reduce((sum, f) => sum + w[f.id], 0);
+      .reduce((sum, f) => sum + Math.abs(w[f.id]), 0);
     // Primary factors sum to 100; secondary factors (incl. the opt-in
     // property_crime and total_crime) start at 0.
     // safety 15 + traffic 8 + air 9 + tree 8 + noise 7 + water 4 + employment 12
