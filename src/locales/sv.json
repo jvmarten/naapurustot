@@ -222,6 +222,7 @@
   "error.boundary_title": "Något gick fel",
   "error.boundary_description": "Ett oväntat fel inträffade",
   "error.reload": "Ladda om",
+  "error.go_back": "Gå tillbaka",
   "error.webgl_unavailable": "Kartan är inte tillgänglig",
   "error.webgl_unavailable_desc": "Din webbläsare eller enhet stöder inte WebGL, som krävs för att visa kartan.",
   "loading.title": "Läser in områdesdata…",

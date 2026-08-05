@@ -222,6 +222,7 @@
   "error.boundary_title": "Jokin meni pieleen",
   "error.boundary_description": "Odottamaton virhe tapahtui",
   "error.reload": "Lataa uudelleen",
+  "error.go_back": "Palaa takaisin",
   "error.webgl_unavailable": "Kartta ei ole k\u00e4ytett\u00e4viss\u00e4",
   "error.webgl_unavailable_desc": "Selaimesi tai laitteesi ei tue WebGL:\u00e4\u00e4, jota kartan n\u00e4ytt\u00e4minen edellytt\u00e4\u00e4.",
   "loading.title": "Ladataan aluetietoja\u2026",
