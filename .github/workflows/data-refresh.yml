@@ -53,6 +53,19 @@ jobs:
           python scripts/fetch_vayla_projects.py
           python scripts/fetch_city_zoning.py
 
+      # Refresh the /live/ shadow layer's measured building heights from the City
+      # of Helsinki 3D city model. Slow (tens of WFS pages per square kilometre),
+      # which is fine on this quarterly cadence and is exactly why it is a
+      # build-time fetch rather than a runtime query.
+      #
+      # `continue-on-error`: the shadow layer degrades to the OpenStreetMap
+      # fallback when the shard is stale or missing, so an unreachable city-model
+      # WFS must not fail a refresh that is mostly about Paavo statistics. The
+      # script itself already refuses to overwrite a good shard with an empty one.
+      - name: Refresh Helsinki building heights (/live/ shadows)
+        continue-on-error: true
+        run: python scripts/fetch_helsinki_buildings.py
+
       - name: Validate output (basic)
         run: |
           GEOJSON="public/data/metro_neighborhoods.geojson"

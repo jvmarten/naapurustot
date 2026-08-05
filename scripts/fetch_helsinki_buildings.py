@@ -71,8 +71,20 @@ PAGE_SIZE = 200
 # GK25FIN units (metres) keeps a downtown tile's response to a few tens of MB.
 TILE_METRES = 1000
 
-# Full Helsinki extent in EPSG:3879, from the city model's own published bounds.
-DEFAULT_BBOX = (25494000, 6669000, 25515000, 6689000)
+# Central Helsinki in EPSG:3879 — the extent that is actually SHIPPED, so a
+# scheduled refresh reproduces the committed shard instead of silently changing
+# what the app serves.
+#
+# Deliberately not the city's full extent. That is roughly 420 tiles against a
+# public WFS at tens of seconds each — hours of CI for an artifact an order of
+# magnitude larger, to cover suburbs where the shadow layer is far less useful
+# and OSM already fills in. This 6x6 km box yields 9,146 buildings / 1.5 MB
+# TopoJSON (399 kB gzipped) and covers the dense core where shadows matter.
+#
+# Widening it is a real decision with a real payload cost, so make it here rather
+# than by passing --bbox in CI: the committed default and the shipped data must
+# not be able to disagree.
+DEFAULT_BBOX = (25494000, 6671000, 25500000, 6677000)
 
 # Only what a 2D shadow needs. Cuts the response ~45 % versus the full feature by
 # dropping the LOD2 wall/roof surfaces we never read.
