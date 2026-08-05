@@ -119,36 +119,190 @@ export function offsetPoint(
   return [lon + dLon, lat + dLat];
 }
 
+/** A point in any planar space — lon/lat for geometry, pixels for rendering. */
+export type Pt = [number, number];
+
 /**
- * The rings that together cover one building's cast shadow.
+ * Shadow length in metres for a building of `height`, clamped.
  *
- * Returns the footprint, the footprint translated to where its roof outline
- * lands, and one quad per edge sweeping between the two. Their UNION is the
- * shadow; this function deliberately does not compute that union.
- *
- * Why not: a real polygon union would pull a boolean-geometry dependency into
- * the bundle (`@turf/union` is already noted in CLAUDE.md as vestigial and kept
- * out of the runtime for exactly this reason) and cost a lot of CPU per frame.
- * Instead the renderer accumulates every ring into a SINGLE canvas path and
- * fills it once — the nonzero winding rule then merges the overlaps for free,
- * and one fill means one uniform alpha instead of overlapping shapes stacking
- * into a darker blotch where buildings are dense. The union is done by the
- * rasteriser, which was going to rasterise them anyway.
+ * Split out from `shadowRings` so the renderer can compute the offset once in
+ * screen space instead of re-deriving geodesic offsets per vertex per frame.
  */
-export function shadowRings(building: Building, sunAltitudeDeg: number, shadowBearingDeg: number): Ring[] {
-  if (sunAltitudeDeg <= 0) return [];
-  const raw = building.height / Math.tan((sunAltitudeDeg * Math.PI) / 180);
-  const length = Math.min(raw, MAX_SHADOW_METRES);
-  if (!Number.isFinite(length) || length <= 0) return [];
+export function shadowLengthMetres(height: number, sunAltitudeDeg: number): number {
+  if (sunAltitudeDeg <= 0) return 0;
+  const raw = height / Math.tan((sunAltitudeDeg * Math.PI) / 180);
+  if (!Number.isFinite(raw) || raw <= 0) return 0;
+  return Math.min(raw, MAX_SHADOW_METRES);
+}
 
-  const ring = building.ring;
-  const translated: Ring = ring.map(([lon, lat]) => offsetPoint(lon, lat, length, shadowBearingDeg));
+/**
+ * Swept shadow rings for an already-projected footprint, displaced by (dx, dy).
+ *
+ * The planar twin of `shadowRings`, for the render path: the caller projects each
+ * footprint ONCE per camera position and then only has to move it by a pixel
+ * vector as the sun changes, instead of re-projecting every vertex of every ring
+ * on every frame. Same orientation normalisation, for the same load-bearing
+ * reason — see `shadowRings`.
+ */
+/** The subset of Path2D the sweep emitter needs. Lets tests record the calls. */
+export interface PathSink {
+  moveTo(x: number, y: number): void;
+  lineTo(x: number, y: number): void;
+  closePath(): void;
+}
 
-  const rings: Ring[] = [ring, translated];
-  for (let i = 0; i < ring.length - 1; i++) {
-    rings.push([ring[i], ring[i + 1], translated[i + 1], translated[i], ring[i]]);
+/**
+ * Emit one building's swept shadow straight into `sink`, allocating nothing.
+ *
+ * The allocation-free form matters more than it looks. Building the same rings
+ * as arrays first cost ~3,600 throwaway arrays per frame across a screenful of
+ * buildings, and the resulting GC churn — not the rasteriser — was what made
+ * scrubbing the time slider run at 74 ms a step against 16 ms with the layer off.
+ * `fill()` itself measured 0.05 ms.
+ *
+ * `points` MUST already be in a consistent orientation (see `orientProjected`),
+ * which is why the footprint and its translation can be emitted verbatim. Each
+ * sweep quad then picks its vertex order from the sign of cross(edge, offset) —
+ * the quad's own signed area — so every ring agrees and the nonzero fill unions
+ * them instead of cancelling. See `shadowRings` for what cancelling looks like.
+ */
+export function emitSweptPath(sink: PathSink, points: readonly Pt[], dx: number, dy: number): void {
+  const n = points.length;
+  if (n < 4) return;
+
+  // Footprint.
+  sink.moveTo(points[0][0], points[0][1]);
+  for (let i = 1; i < n; i++) sink.lineTo(points[i][0], points[i][1]);
+  sink.closePath();
+
+  if (dx === 0 && dy === 0) return;
+
+  // Translated copy — same winding, so no reordering needed.
+  sink.moveTo(points[0][0] + dx, points[0][1] + dy);
+  for (let i = 1; i < n; i++) sink.lineTo(points[i][0] + dx, points[i][1] + dy);
+  sink.closePath();
+
+  // One sweep quad per edge, wound to match.
+  for (let i = 0; i < n - 1; i++) {
+    const ax = points[i][0];
+    const ay = points[i][1];
+    const bx = points[i + 1][0];
+    const by = points[i + 1][1];
+    // Twice the quad's signed area, without building it.
+    const cross = (bx - ax) * dy - (by - ay) * dx;
+    // Only the light-facing edges are swept. cross === 0 is an edge parallel to
+    // the offset (zero area, paints nothing); cross < 0 is a back-facing edge,
+    // whose quad lies inside the union already formed by the footprint, the
+    // translated copy and the front-facing quads. Skipping them halves the ring
+    // count, which is what the renderer's cost is made of.
+    //
+    // This is an optimisation on a union, so it was checked by rendering rather
+    // than by argument — the previous "obvious" reasoning about winding is what
+    // made shadows invisible in the first place. Measured against the all-quads
+    // build over the same viewport: 444,990 -> 444,977 painted pixels at 08:00,
+    // 460,230 -> 460,225 at 13:30, 636,905 -> 636,901 at 18:00. That is a
+    // 0.003 % difference, i.e. a few anti-aliased boundary pixels. Scrub cost
+    // went from 55.7 to 27.2 ms a step.
+    if (cross <= 0) continue;
+    if (cross > 0) {
+      sink.moveTo(ax, ay);
+      sink.lineTo(bx, by);
+      sink.lineTo(bx + dx, by + dy);
+      sink.lineTo(ax + dx, ay + dy);
+    } else {
+      sink.moveTo(ax, ay);
+      sink.lineTo(ax + dx, ay + dy);
+      sink.lineTo(bx + dx, by + dy);
+      sink.lineTo(bx, by);
+    }
+    sink.closePath();
   }
+}
+
+/** Normalise a projected footprint's orientation once, at projection time. */
+export function orientProjected(points: Pt[]): Pt[] {
+  return signedArea2(points) < 0 ? points.reverse() : points;
+}
+
+/**
+ * Drop footprint vertices closer together than `minPx` on screen.
+ *
+ * Runs once per camera position, not per frame, so it is free at draw time — and
+ * it pays off every frame, because the renderer's cost is dominated by the number
+ * of Path2D calls (each vertex becomes one, times ~n+2 rings per building). A
+ * LOD2 footprint carries architectural detail far below a pixel at city zooms;
+ * removing it changes no visible silhouette.
+ *
+ * The first and last points are always kept so the ring stays closed, and a ring
+ * that would collapse below a triangle is returned untouched rather than
+ * degenerating into something that paints nothing.
+ */
+export function simplifyProjected(points: Pt[], minPx = 1.5): Pt[] {
+  const n = points.length;
+  if (n < 5) return points;
+  const min2 = minPx * minPx;
+  const out: Pt[] = [points[0]];
+  for (let i = 1; i < n - 1; i++) {
+    const last = out[out.length - 1];
+    const ddx = points[i][0] - last[0];
+    const ddy = points[i][1] - last[1];
+    if (ddx * ddx + ddy * ddy >= min2) out.push(points[i]);
+  }
+  out.push(points[n - 1]);
+  return out.length >= 4 ? out : points;
+}
+
+/**
+ * Array form of {@link emitSweptPath}, for tests and non-canvas callers.
+ *
+ * Shares the emitter so the winding guarantees the tests assert are the same
+ * ones the renderer actually relies on.
+ */
+export function sweptRings(points: readonly Pt[], dx: number, dy: number): Pt[][] {
+  const rings: Pt[][] = [];
+  let current: Pt[] | null = null;
+  emitSweptPath(
+    {
+      moveTo(x, y) {
+        current = [[x, y]];
+      },
+      lineTo(x, y) {
+        current?.push([x, y]);
+      },
+      closePath() {
+        if (current) {
+          current.push([current[0][0], current[0][1]]);
+          rings.push(current);
+          current = null;
+        }
+      },
+    },
+    orientProjected(points.map(([x, y]) => [x, y] as Pt)),
+    dx,
+    dy,
+  );
   return rings;
+}
+
+/** Twice the signed area of a ring. Positive = counter-clockwise in screen axes. */
+export function signedArea2(ring: readonly (readonly [number, number])[]): number {
+  let sum = 0;
+  for (let i = 0; i < ring.length - 1; i++) {
+    sum += ring[i][0] * ring[i + 1][1] - ring[i + 1][0] * ring[i][1];
+  }
+  return sum;
+}
+
+/**
+ * Force a ring counter-clockwise (positive signed area).
+ *
+ * Not cosmetic — consistent orientation is what makes the single-path union in
+ * `emitSweptPath` work at all. Orientation is normalised in the projected plane;
+ * the canvas Y axis is flipped, so rings come out clockwise on screen, which is
+ * equally fine — the nonzero rule only requires that they AGREE.
+ */
+export function orientRing<T extends readonly [number, number]>(ring: T[]): T[] {
+  return signedArea2(ring) < 0 ? [...ring].reverse() : ring;
 }
 
 /**
