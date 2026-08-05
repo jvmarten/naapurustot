@@ -413,25 +413,35 @@ function fmtNum(n, decimals, lang) {
   });
 }
 
-const PER_MONTH = { fi: '/kk', en: '/mo', sv: '/mån' };
-
 /** Human-readable formatting of a metric value for the visible fallback. */
 function formatMetric(value, fmt, lang) {
   const n = Number(value);
   switch (fmt) {
     case 'euro': return `${fmtNum(Math.round(n), 0, lang)} €`;
     case 'price_sqm': return `${fmtNum(Math.round(n), 0, lang)} €/m²`;
-    case 'rent_sqm': return `${fmtNum(n, 2, lang)} €/m²${PER_MONTH[lang]}`;
+    // The month suffix lives in the locale files (profile.unit_per_month) so this
+    // page and its React counterpart can't drift apart on it.
+    case 'rent_sqm': return `${fmtNum(n, 2, lang)} €/m²${LOCALES[lang]['profile.unit_per_month']}`;
     case 'pct': return `${fmtNum(n, 1, lang)} %`;
     case 'sqm': return `${fmtNum(n, 1, lang)} m²`;
     case 'meters': return `${fmtNum(Math.round(n), 0, lang)} m`;
     case 'db': return `${fmtNum(n, 1, lang)} dB`;
     case 'year': return String(Math.round(n));
+    case 'years': return `${fmtNum(n, 1, lang)} ${LOCALES[lang]['profile.unit_years']}`;
     case 'int': return fmtNum(Math.round(n), 0, lang);
+    // 0-100 index — written "68/100" here and in the map legend, so the scale
+    // travels with the number instead of leaving a bare "68,0".
+    case 'score': return `${fmtNum(Math.round(n), 0, lang)}/100`;
+    // Reported crimes per 1,000 residents per year — a bare "145,4" reads as an
+    // absolute count of crimes without it.
+    case 'per1000': return `${fmtNum(n, 1, lang)} /1000`;
+    // Whole-number density (population): the value is in the hundreds or
+    // thousands, so it needs the unit but not a decimal.
+    case 'density_int': return `${fmtNum(Math.round(n), 0, lang)} /km²`;
     // Service densities span 0.0001-237/km². One decimal renders the whole
     // rural half of the country as "0,0" — the same rounding that used to be
     // baked into the data itself. Two significant figures below 1.
-    case 'density': return n > 0 && n < 1 ? fmtNum(n, 4, lang).replace(/0+$/, '') : fmtNum(n, 1, lang);
+    case 'density': return `${n > 0 && n < 1 ? fmtNum(n, 4, lang).replace(/0+$/, '') : fmtNum(n, 1, lang)} /km²`;
     default: return fmtNum(n, 1, lang);
   }
 }
@@ -440,7 +450,10 @@ function formatMetric(value, fmt, lang) {
 function roundForSchema(value, fmt) {
   const n = Number(value);
   if (fmt === 'rent_sqm') return Math.round(n * 100) / 100;
-  if (fmt === 'pct' || fmt === 'dec1' || fmt === 'db' || fmt === 'sqm') return Math.round(n * 10) / 10;
+  // `years`/`score`/`per1000` only add a display unit to what were `dec1`
+  // metrics — the machine-readable value keeps the precision it always had.
+  if (fmt === 'pct' || fmt === 'dec1' || fmt === 'db' || fmt === 'sqm'
+      || fmt === 'years' || fmt === 'score' || fmt === 'per1000') return Math.round(n * 10) / 10;
   // Keep the precision the data carries — a schema.org PropertyValue of 0 for
   // an area with six grocery stores is a machine-readable false claim.
   if (fmt === 'density') return Math.round(n * 10000) / 10000;
@@ -465,8 +478,8 @@ const POPULATION_LABEL = { fi: 'Väkiluku', en: 'Population', sv: 'Folkmängd' }
 const SECTIONS = [
   { id: 'demographics', metrics: [
     { prop: 'he_vakiy', label: POPULATION_LABEL, fmt: 'int', schema: 'Population' },
-    { prop: 'population_density', label: 'layer.population_density', fmt: 'int', schema: 'Population density (per km²)' },
-    { prop: 'he_kika', label: 'layer.avg_age', fmt: 'dec1', schema: 'Average age (years)' },
+    { prop: 'population_density', label: 'layer.population_density', fmt: 'density_int', schema: 'Population density (per km²)' },
+    { prop: 'he_kika', label: 'layer.avg_age', fmt: 'years', schema: 'Average age (years)' },
     { prop: 'child_ratio', label: 'layer.child_ratio', fmt: 'pct', schema: 'Young children 0–6 (%)' },
     { prop: 'foreign_language_pct', label: 'layer.foreign_lang', fmt: 'pct', schema: 'Foreign-language speakers (%)' },
     { prop: 'pensioner_share', label: 'layer.pensioners', fmt: 'pct', schema: 'Pensioners (%)' },
@@ -491,15 +504,16 @@ const SECTIONS = [
   // as the profile page these pages mirror. Rendering the density at one decimal
   // put "0" on ~2,800 of the 3,018 /alue/ pages and emitted it as a schema.org
   // PropertyValue, which is a machine-readable false claim about a real place.
-  // sports/transit have no count, so they keep the density and a label that
-  // carries the /km² unit.
+  // sports/transit have no count, so they keep the density and carry /km² in
+  // the value. The counts use the profile.svc_* labels rather than the map's
+  // layer names, which describe the per-km² layer, not a tally.
   { id: 'services', metrics: [
-    { prop: 'grocery_count', label: 'layer.grocery_access', fmt: 'int', schema: 'Grocery stores' },
-    { prop: 'restaurant_count', label: 'layer.restaurant_density', fmt: 'int', schema: 'Restaurants and cafes' },
-    { prop: 'school_count', label: 'layer.school_density', fmt: 'int', schema: 'Schools' },
-    { prop: 'daycare_count', label: 'layer.daycare_density', fmt: 'int', schema: 'Daycares' },
-    { prop: 'healthcare_count', label: 'layer.healthcare_access', fmt: 'int', schema: 'Healthcare facilities' },
-    { prop: 'sports_facility_density', label: 'panel.sports_facilities', fmt: 'density', schema: 'Sports facility density' },
+    { prop: 'grocery_count', label: 'profile.svc_grocery', fmt: 'int', schema: 'Grocery stores' },
+    { prop: 'restaurant_count', label: 'profile.svc_restaurant', fmt: 'int', schema: 'Restaurants and cafes' },
+    { prop: 'school_count', label: 'profile.svc_school', fmt: 'int', schema: 'Schools' },
+    { prop: 'daycare_count', label: 'profile.svc_daycare', fmt: 'int', schema: 'Daycares' },
+    { prop: 'healthcare_count', label: 'profile.svc_healthcare', fmt: 'int', schema: 'Healthcare facilities' },
+    { prop: 'sports_facility_density', label: 'layer.sports_facilities', fmt: 'density', schema: 'Sports facility density' },
     { prop: 'transit_stop_density', label: 'panel.transit_access', fmt: 'density', schema: 'Transit stop density' },
   ] },
   { id: 'environment', metrics: [
@@ -507,8 +521,8 @@ const SECTIONS = [
     { prop: 'tree_canopy_pct', label: 'layer.tree_canopy', fmt: 'pct', schema: 'Tree canopy cover (%)' },
     { prop: 'water_proximity_m', label: 'layer.water_proximity', fmt: 'meters', schema: 'Distance to water (m)' },
     { prop: 'noise_pollution', label: 'layer.noise_pollution', fmt: 'db', schema: 'Noise level (dB)' },
-    { prop: 'walkability_index', label: 'layer.walkability', fmt: 'dec1', schema: 'Walkability index' },
-    { prop: 'crime_index', label: 'layer.crime_rate', fmt: 'dec1', schema: 'Crime index' },
+    { prop: 'walkability_index', label: 'layer.walkability', fmt: 'score', schema: 'Walkability index' },
+    { prop: 'crime_index', label: 'layer.crime_rate', fmt: 'per1000', schema: 'Crime index' },
   ] },
 ];
 

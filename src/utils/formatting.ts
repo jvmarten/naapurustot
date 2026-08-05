@@ -78,6 +78,20 @@ export function formatPct(v: number | string | null | undefined, decimals = 1): 
   return `${sign}${getFixedFormatter(decimals).format(Math.abs(n))} %`;
 }
 
+/**
+ * Format a number with a fixed decimal count in the active locale ("48,0" in
+ * fi/sv, "48.0" in en). Use instead of `.toFixed()` anywhere the result is
+ * shown to the user: toFixed always emits a dot, so a Finnish page ends up
+ * mixing "48.0 v" with the Intl-formatted "39,7 %" right beside it.
+ */
+export function formatDecimal(v: number | string | null | undefined, decimals = 1): string {
+  const n = toNum(v);
+  if (n == null) return '—';
+  // ASCII "-" rather than Intl's fi-FI U+2212, matching formatPct/formatDiff.
+  const sign = n < 0 ? '-' : '';
+  return `${sign}${getFixedFormatter(decimals).format(Math.abs(n))}`;
+}
+
 /** Format the difference between a value and average with a +/- sign (locale decimals). */
 export function formatDiff(value: number | string | null, avg: number | string | null): string {
   const a = toNum(value);
@@ -105,6 +119,37 @@ export function formatDensity(v: number | string | null | undefined): string {
   const n = toNum(v);
   if (n == null) return '—';
   return `${getNumberFormatter().format(Math.round(n))} /km²`;
+}
+
+// Two-significant-digit formatter, cached per locale — the sub-1 branch of
+// formatFineDensity below.
+const sigFmtCache = new Map<string, Intl.NumberFormat>();
+function getSigFormatter(): Intl.NumberFormat {
+  const loc = localeTag();
+  let fmt = sigFmtCache.get(loc);
+  if (!fmt) {
+    fmt = new Intl.NumberFormat(loc, { maximumSignificantDigits: 2 });
+    sigFmtCache.set(loc, fmt);
+  }
+  return fmt;
+}
+
+/**
+ * Format a fine-grained per-km² density (e.g. "13,8 /km²", "0,4 /km²").
+ *
+ * Service and transit densities span 0.0001–237/km², so `formatDensity`'s
+ * whole-number rounding is wrong for them: it renders a real 0.4 stops/km² as
+ * "0" — 1,379 of the 3,018 areas for transit stops alone, the same false zero
+ * the data pipeline stores 4 decimals to avoid. Below 1 this keeps two
+ * significant digits instead, matching the map legend's `density` formatter
+ * (colorScales.ts) so the profile page and the map agree.
+ */
+export function formatFineDensity(v: number | string | null | undefined): string {
+  const n = toNum(v);
+  if (n == null) return '—';
+  const abs = Math.abs(n);
+  const fmt = abs > 0 && abs < 1 ? getSigFormatter() : getFixedFormatter(1);
+  return `${fmt.format(n)} /km²`;
 }
 
 /** Format a number as €/m² (e.g., "3 500 €/m²"). Uses cached Intl.NumberFormat. */
