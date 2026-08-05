@@ -94,6 +94,12 @@ The split is by *reachability*, not naming: Rolldown folds a module into the `Li
 
 Keep data out of JS: fetch it as a static asset (`?url` imports) like the locales, region files, and adjacency graph do.
 
+### Density metrics: 4 decimals, never 1
+
+Per-km² metrics are stored at 4 decimals (`prepare_data.POI_DENSITY_DECIMALS`, mirrored in `fetch_lipas.py`, `fetch_ev_charging.py`, `fetch_transit_stops.py` and `METRIC_DEFS`). At 1 decimal anything below 0.05/km² becomes exactly `0.0`, and the median Finnish postal area is 52 km² — so one real facility rounds away across three-quarters of the country (this shipped for months: 3,169 false zeros). The five service layers also carry a raw `*_count`; `validate_data.py` hard-fails on a positive count with a zero density. See `docs/ARCHITECTURE.md` → "Density precision".
+
+A partial national fetch must never be written. `_overpass_query` rejects responses carrying a `remark` (Overpass reports server-side timeouts as HTTP 200), `_overpass_query_all_regions` aborts if any of the 69 bboxes is unfetchable, and `fetch_lipas.py` retries then raises rather than writing a truncated page walk. Every one of these guards exists because the alternative silently shipped as measured zeros.
+
 ### Prerender head-token regexes
 
 `scripts/prerender.mjs` clones `dist/index.html` using first-match regexes over `<title>`, `<noscript>`, and `</head>`. Never put those tokens in index.html's head — even inside comments — or all ~9,000 prerendered pages silently corrupt. Run `npm run build:pages` to catch it.

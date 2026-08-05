@@ -132,6 +132,55 @@ describe('Layer configuration consistency', () => {
   });
 });
 
+describe('Service-density stop calibration', () => {
+  // Regression guard for the 2026-08 services pass. Densities used to be stored
+  // at one decimal, so these layers' stops were set for urban-scale values
+  // (grocery started at 0.5/km²) — but the national p95 is 0.7 and 92.7 % of
+  // postal areas fell below the FIRST stop, leaving the map one flat colour and
+  // the top two stops unreachable. Stops are now percentiles of the real
+  // non-zero distribution. If someone "tidies" them back to round numbers this
+  // fails. See scripts/services_honesty_2026_08.py.
+  const SERVICE_LAYERS = [
+    'grocery_access', 'daycare_density', 'school_density',
+    'healthcare_access', 'restaurant_density',
+  ] as const;
+
+  it('service layers resolve real rural densities below the old 0.5/km² floor', () => {
+    for (const id of SERVICE_LAYERS) {
+      const layer = getLayerById(id as LayerId)!;
+      expect(layer, `Layer "${id}" not found`).toBeTruthy();
+      // One facility in a median 52 km² postal area is 0.019/km². The first stop
+      // must sit below that, or such an area is painted as if it had nothing.
+      expect(
+        layer.stops[0],
+        `Layer "${id}" first stop ${layer.stops[0]} is above the density of a ` +
+        `single facility in a median-sized Finnish postal area (0.019/km²)`,
+      ).toBeLessThan(0.019);
+    }
+  });
+
+  it('service layer stops are strictly increasing', () => {
+    for (const id of SERVICE_LAYERS) {
+      const { stops } = getLayerById(id as LayerId)!;
+      for (let i = 1; i < stops.length; i++) {
+        expect(
+          stops[i],
+          `Layer "${id}" stop ${i} (${stops[i]}) must exceed stop ${i - 1} (${stops[i - 1]})`,
+        ).toBeGreaterThan(stops[i - 1]);
+      }
+    }
+  });
+
+  it('formats sub-unit densities without collapsing them to zero', () => {
+    const layer = getLayerById('grocery_access')!;
+    // 6 shops in Ylivieska Keskus (252.3 km²) = 0.0238/km². This rendered as
+    // "0" before the fix, on a page that also claimed 0 grocery stores.
+    const formatted = layer.format!(0.0238);
+    expect(formatted).not.toMatch(/^0\s/);
+    expect(formatted).toMatch(/0[.,]024/);
+  });
+});
+
 describe('Layer translation completeness', () => {
   it('Finnish and English translations have the same keys', () => {
     // IN-7: page-only fi keys live in fi-extra.json; the source of truth is the

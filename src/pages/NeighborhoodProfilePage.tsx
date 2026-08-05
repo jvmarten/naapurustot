@@ -892,14 +892,23 @@ export const NeighborhoodProfilePage: React.FC = () => {
 
         {/* Services Section */}
         <Section title={t('profile.services')}>
+          {/* Counts, not densities. This block used to render
+              Math.round(<density per km²>) under a label with no unit, so 2,798
+              of the 3,018 profile pages stated "0 grocery stores" — including
+              84100 Ylivieska Keskus, which has six. The count is the quantity a
+              reader wants and the one we can actually stand behind; the density
+              stays on the map, where it is comparable across areas. */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {d.grocery_density != null && <StatItem label={t('layer.grocery_access')} value={formatNumber(Math.round(d.grocery_density))} />}
-            {d.restaurant_density != null && <StatItem label={t('layer.restaurant_density')} value={formatNumber(Math.round(d.restaurant_density))} />}
-            {d.school_density != null && <StatItem label={t('layer.school_density')} value={formatNumber(Math.round(d.school_density))} />}
-            {d.daycare_density != null && <StatItem label={t('layer.daycare_density')} value={formatNumber(Math.round(d.daycare_density))} />}
-            {d.healthcare_density != null && <StatItem label={t('layer.healthcare_access')} value={formatNumber(Math.round(d.healthcare_density))} />}
-            {d.sports_facility_density != null && <StatItem label={t('layer.sports_facilities')} value={formatNumber(Math.round(d.sports_facility_density))} />}
+            {d.grocery_count != null && <StatItem label={t('layer.grocery_access')} value={formatNumber(d.grocery_count)} />}
+            {d.restaurant_count != null && <StatItem label={t('layer.restaurant_density')} value={formatNumber(d.restaurant_count)} />}
+            {d.school_count != null && <StatItem label={t('layer.school_density')} value={formatNumber(d.school_count)} />}
+            {d.daycare_count != null && <StatItem label={t('layer.daycare_density')} value={formatNumber(d.daycare_count)} />}
+            {d.healthcare_count != null && <StatItem label={t('layer.healthcare_access')} value={formatNumber(d.healthcare_count)} />}
+            {/* LIPAS ships a density, not a count (see colorScales), so this one
+                keeps the per-km² label rather than pretending to be a tally. */}
+            {d.sports_facility_density != null && <StatItem label={t('panel.sports_facilities')} value={formatNumber(d.sports_facility_density)} />}
           </div>
+          <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">{t('profile.services_source')}</p>
         </Section>
 
         {/* Environment Section */}

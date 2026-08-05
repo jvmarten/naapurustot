@@ -168,11 +168,15 @@ def calculate_walkability(features):
         comp_values[comp] = sorted(vals)
 
     def percentile_score(value, sorted_vals):
+        # Mid-rank, matching prepare_data._percentile_score. A `<=` count puts a
+        # value at the top of its own tie block, which scored 299 all-zero areas
+        # at 76/100 on walkability.
         if not sorted_vals or value is None:
             return None
         n = len(sorted_vals)
-        count_le = sum(1 for v in sorted_vals if v <= value)
-        return round(count_le / n * 100, 1)
+        count_lt = sum(1 for v in sorted_vals if v < value)
+        count_eq = sum(1 for v in sorted_vals if v == value)
+        return round((count_lt + count_eq / 2) / n * 100, 1)
 
     count = 0
     for feat in features:

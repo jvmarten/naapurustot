@@ -234,7 +234,9 @@ def compute_density(postal: gpd.GeoDataFrame, stops: list[dict]) -> dict[str, fl
         area_km2 = areas_m2.loc[idx] / 1_000_000
         if area_km2 <= 0:
             continue
-        result[pno] = round(counts.get(pno, 0) / area_km2, 1)
+        # 4 decimals, not 1 — one decimal zeroes a real stop in any area over
+        # 20 km2. See prepare_data.POI_DENSITY_DECIMALS.
+        result[pno] = round(counts.get(pno, 0) / area_km2, 4)
     return result
 
 

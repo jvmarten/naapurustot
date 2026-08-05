@@ -137,7 +137,9 @@ def main():
         area_km2 = proj_geom.area / 1_000_000
 
         if area_km2 > 0:
-            density = round(count / area_km2, 1)
+            # 4 decimals, not 1 — one decimal zeroes a real charging station in
+            # any area over 20 km2. See prepare_data.POI_DENSITY_DECIMALS.
+            density = round(count / area_km2, 4)
             result[pno] = density
 
     logger.info("Computed EV charging density for %d postal codes", len(result))

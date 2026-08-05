@@ -398,13 +398,28 @@ def _detect_latest_paavo_year() -> int:
         if years:
             logger.info("Detected Paavo years: %s", years)
             for year in years:
-                test_url = WFS_FEATURE_TEMPLATE.format(year=year) + "&count=1"
+                # Probe a batch, not one feature, and check that the workplace
+                # block is actually populated. Statistics Finland publishes the
+                # next year's layer as a queryable shell first: pno_tilasto_2026
+                # answers GetFeature and carries a real he_vakiy, but every one of
+                # its 26 tp_* columns is 0. A probe that only asked "does this
+                # return HTTP 200" would adopt it and silently zero every
+                # workplace metric in the dataset.
+                test_url = WFS_FEATURE_TEMPLATE.format(year=year) + "&count=50"
                 try:
-                    _request_with_retry("GET", test_url, label=f"Paavo probe {year}", timeout=30)
+                    r = _request_with_retry("GET", test_url, label=f"Paavo probe {year}", timeout=30)
+                    feats = (r.json() or {}).get("features") or []
+                    if not feats:
+                        raise RuntimeError("no features returned")
+                    if not any((f.get("properties") or {}).get("tp_tyopy") for f in feats):
+                        raise RuntimeError(
+                            "tp_tyopy is zero/absent across the whole probe batch — "
+                            "the workplace block is an unpublished placeholder"
+                        )
                     logger.info("Using Paavo year: %d", year)
                     return year
-                except Exception:
-                    logger.warning("  Paavo year %d not queryable, trying older...", year)
+                except Exception as e:
+                    logger.warning("  Paavo year %d unusable (%s), trying older...", year, e)
             logger.warning("  No Paavo year was queryable, using fallback: %d", WFS_FALLBACK_YEAR)
             return WFS_FALLBACK_YEAR
     except Exception as e:
@@ -1263,6 +1278,15 @@ def _overpass_query(query: str, label: str) -> list | None:
             timeout=120,
         )
         data = r.json()
+        # Overpass reports a server-side timeout or memory exhaustion as HTTP 200
+        # with a `remark` and a short (often empty) element list. Reading only
+        # `elements` caches that truncated answer as if it were complete, which is
+        # exactly the failure `_overpass_query_all_regions` refuses to tolerate —
+        # so surface it as a failure instead. refetch_missing_overpass.py has
+        # always done this; prepare_data did not.
+        remark = data.get("remark")
+        if remark:
+            raise RuntimeError(f"Overpass returned a remark (truncated answer): {remark}")
         elements = data.get("elements", [])
         logger.info("  Fetched %s elements for %s", len(elements), label)
         _save_cache(cache_key, elements)
@@ -1316,6 +1340,44 @@ def _overpass_query_all_regions(query_template: str, label: str) -> list:
     return unique
 
 
+# 1 / 7143.8 km2 (99800 Ivalo, the largest postal area in Finland) = 0.00014, so
+# four decimals is the coarsest precision at which no real facility can round to
+# zero. At the one decimal this used to use, anything below 0.05/km2 became
+# exactly 0.0 — and since the median postal area is 52 km2 and 2,238 of the 3,018
+# areas exceed 20 km2, a single real shop, school or clinic rounded away in
+# three-quarters of the country. 3,169 (metric, area) pairs shipped a
+# measured-looking 0.0 with at least one facility actually inside the polygon;
+# 84100 Ylivieska Keskus (13,623 residents, 252 km2) did it for grocery, school,
+# daycare and healthcare at once. See scripts/services_honesty_2026_08.py.
+POI_DENSITY_DECIMALS = 4
+
+
+def _assign_poi_density(gdf, counts: dict, density_key: str, count_key: str | None = None):
+    """Write a POI density — and the raw count it came from — onto every row.
+
+    The count is the honest, showable quantity ("6 grocery stores" is true and
+    checkable, where "0.0 /km2" is false), so the five consumer-facing service
+    layers persist it alongside the density and the profile page renders it.
+    cycling_density passes count_key=None on purpose: it counts `out center`
+    points of way *records*, which measures how finely contributors split ways
+    rather than any physical quantity, so publishing it as a number of things
+    would be a new false claim.
+    """
+    for idx, row in gdf.iterrows():
+        pno = row.get("pno", "")
+        count = counts.get(pno, 0)
+        area_m2 = safe_val(row.get("pinta_ala"))
+        if area_m2 is not None and area_m2 > 0:
+            gdf.at[idx, density_key] = round(count / (area_m2 / 1_000_000), POI_DENSITY_DECIMALS)
+            if count_key:
+                gdf.at[idx, count_key] = count
+        else:
+            # No area to divide by: the density is genuinely unknown, not zero.
+            gdf.at[idx, density_key] = None
+            if count_key:
+                gdf.at[idx, count_key] = None
+
+
 def fetch_osm_daycares():
     """Fetch daycare/kindergarten locations from OSM."""
     logger.info("Fetching daycare data from OpenStreetMap...")
@@ -1354,14 +1416,7 @@ def join_daycares(gdf, elements):
         if pno is not None:
             counts[pno] = counts.get(pno, 0) + 1
 
-    for idx, row in gdf.iterrows():
-        pno = row.get("pno", "")
-        count = counts.get(pno, 0)
-        area_m2 = safe_val(row.get("pinta_ala"))
-        if area_m2 is not None and area_m2 > 0:
-            gdf.at[idx, "daycare_density"] = round(count / (area_m2 / 1_000_000), 1)
-        else:
-            gdf.at[idx, "daycare_density"] = None
+    _assign_poi_density(gdf, counts, "daycare_density", "daycare_count")
 
     logger.info("  Computed daycare density for %s postal codes", len(counts))
     return gdf
@@ -1403,14 +1458,7 @@ def join_schools(gdf, elements):
         if pno is not None:
             counts[pno] = counts.get(pno, 0) + 1
 
-    for idx, row in gdf.iterrows():
-        pno = row.get("pno", "")
-        count = counts.get(pno, 0)
-        area_m2 = safe_val(row.get("pinta_ala"))
-        if area_m2 is not None and area_m2 > 0:
-            gdf.at[idx, "school_density"] = round(count / (area_m2 / 1_000_000), 1)
-        else:
-            gdf.at[idx, "school_density"] = None
+    _assign_poi_density(gdf, counts, "school_density", "school_count")
 
     logger.info("  Computed school density for %s postal codes", len(counts))
     return gdf
@@ -1458,14 +1506,7 @@ def join_healthcare(gdf, elements):
         if pno is not None:
             counts[pno] = counts.get(pno, 0) + 1
 
-    for idx, row in gdf.iterrows():
-        pno = row.get("pno", "")
-        count = counts.get(pno, 0)
-        area_m2 = safe_val(row.get("pinta_ala"))
-        if area_m2 is not None and area_m2 > 0:
-            gdf.at[idx, "healthcare_density"] = round(count / (area_m2 / 1_000_000), 1)
-        else:
-            gdf.at[idx, "healthcare_density"] = None
+    _assign_poi_density(gdf, counts, "healthcare_density", "healthcare_count")
 
     logger.info("  Computed healthcare density for %s postal codes", len(counts))
     return gdf
@@ -1509,14 +1550,7 @@ def join_restaurants(gdf, elements):
         if pno is not None:
             counts[pno] = counts.get(pno, 0) + 1
 
-    for idx, row in gdf.iterrows():
-        pno = row.get("pno", "")
-        count = counts.get(pno, 0)
-        area_m2 = safe_val(row.get("pinta_ala"))
-        if area_m2 is not None and area_m2 > 0:
-            gdf.at[idx, "restaurant_density"] = round(count / (area_m2 / 1_000_000), 1)
-        else:
-            gdf.at[idx, "restaurant_density"] = None
+    _assign_poi_density(gdf, counts, "restaurant_density", "restaurant_count")
 
     logger.info("  Computed restaurant density for %s postal codes", len(counts))
     return gdf
@@ -1560,14 +1594,7 @@ def join_groceries(gdf, elements):
         if pno is not None:
             counts[pno] = counts.get(pno, 0) + 1
 
-    for idx, row in gdf.iterrows():
-        pno = row.get("pno", "")
-        count = counts.get(pno, 0)
-        area_m2 = safe_val(row.get("pinta_ala"))
-        if area_m2 is not None and area_m2 > 0:
-            gdf.at[idx, "grocery_density"] = round(count / (area_m2 / 1_000_000), 1)
-        else:
-            gdf.at[idx, "grocery_density"] = None
+    _assign_poi_density(gdf, counts, "grocery_density", "grocery_count")
 
     logger.info("  Computed grocery density for %s postal codes", len(counts))
     return gdf
@@ -1625,14 +1652,7 @@ def join_cycling(gdf, elements):
                 counts[pno] = counts.get(pno, 0) + 1
                 break
 
-    for idx, row in gdf.iterrows():
-        pno = row.get("pno", "")
-        count = counts.get(pno, 0)
-        area_m2 = safe_val(row.get("pinta_ala"))
-        if area_m2 is not None and area_m2 > 0:
-            gdf.at[idx, "cycling_density"] = round(count / (area_m2 / 1_000_000), 1)
-        else:
-            gdf.at[idx, "cycling_density"] = None
+    _assign_poi_density(gdf, counts, "cycling_density")
 
     logger.info("  Computed cycling density for %s postal codes", len(counts))
     return gdf
@@ -2131,13 +2151,22 @@ def calculate_walkability(gdf):
         comp_values[comp] = sorted(vals) if vals else []
 
     def _percentile_score(value, sorted_vals):
-        """Return 0-100 percentile score for a value within sorted_vals."""
+        """Return 0-100 mid-rank percentile score for a value within sorted_vals.
+
+        Mid-rank, not `<=`. Counting ties as "less than or equal" puts a value at
+        the TOP of its own tie block, so the single most common value in a
+        sparse metric scores as if it beat every area that shares it. With the
+        OSM service densities that was catastrophic: 299 areas whose six
+        walkability components are all exactly 0 scored 76/100, and the national
+        scale never went below 64. Splitting the tie block puts them at its
+        midpoint instead, which is what a percentile means.
+        """
         if not sorted_vals or value is None:
             return None
         n = len(sorted_vals)
-        # Count values less than or equal
-        count_le = sum(1 for v in sorted_vals if v <= value)
-        return round(count_le / n * 100, 1)
+        count_lt = sum(1 for v in sorted_vals if v < value)
+        count_eq = sum(1 for v in sorted_vals if v == value)
+        return round((count_lt + count_eq / 2) / n * 100, 1)
 
     count = 0
     for idx, row in gdf.iterrows():

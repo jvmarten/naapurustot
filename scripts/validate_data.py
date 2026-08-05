@@ -214,6 +214,19 @@ DISTINCTNESS_THRESHOLD = 0.50
 DENSE_URBAN_MIN_POP = 8000
 DENSE_URBAN_MAX_AREA_M2 = 15_000_000
 
+# The five OSM service layers that carry the raw count they were derived from.
+# density_key -> count_key. A positive count with a zero density means a real
+# facility was rounded away; check_dense_urban_zero makes that a hard error.
+COUNTED_SERVICE_LAYERS = {
+    "grocery_density": "grocery_count",
+    "school_density": "school_count",
+    "daycare_density": "daycare_count",
+    "healthcare_density": "healthcare_count",
+    "restaurant_density": "restaurant_count",
+}
+# Must match prepare_data.POI_DENSITY_DECIMALS.
+POI_DENSITY_DECIMALS = 4
+
 DISTINCTNESS_EXEMPT = {
     # Real-zero OSM/count metrics: a 0 means "none within this area" — an honest
     # measurement, not a placeholder — so a high share of identical 0s is expected.
@@ -396,16 +409,36 @@ def check_dense_urban_zero(features: list) -> list[str]:
     ~536,000 residents shipped a measured-looking 0, the centre of Tampere (18,057
     residents in 4.3 km2) among them.
 
-    Testing a whole seutukunta for all-zero does not work: density is stores per
-    km2 rounded to one decimal, so a genuine shop in a 5,000 km2 Lapland postal
-    area still rounds to 0.0. Test the opposite end instead - a densely populated,
-    physically small area with no grocery shop at all is not a measurement."""
+    Testing a whole seutukunta for all-zero does not work: a genuine shop in a
+    5,000 km2 Lapland postal area used to round to 0.0 at the one decimal the
+    density was stored at. Test the opposite end instead - a densely populated,
+    physically small area with no grocery shop at all is not a measurement.
+
+    Since 2026-08 the five service layers also carry the raw `*_count` they were
+    derived from (scripts/services_honesty_2026_08.py), which makes a much
+    stricter check possible and no longer heuristic: a positive count must never
+    coexist with a zero density. That is precisely the defect the one-decimal
+    rounding used to create 3,169 times, and it is now a hard error rather than
+    something only a population/area proxy could hint at."""
     errors: list[str] = []
     for f in features:
         p = f["properties"]
         pop = p.get("he_vakiy")
         area = p.get("pinta_ala")
         density = p.get("grocery_density")
+
+        for density_key, count_key in COUNTED_SERVICE_LAYERS.items():
+            c = p.get(count_key)
+            d = p.get(density_key)
+            if isinstance(c, (int, float)) and c >= 1 and d == 0:
+                errors.append(
+                    f"Postal area {p.get('pno')} has {count_key} {int(c)} but "
+                    f"{density_key} 0 - a real facility has been rounded away into "
+                    f"a measured-looking zero. Densities must keep "
+                    f"{POI_DENSITY_DECIMALS} decimals; re-run "
+                    f"`python scripts/services_honesty_2026_08.py` and rebuild."
+                )
+
         if density != 0 or not isinstance(pop, (int, float)) or not isinstance(area, (int, float)):
             continue
         if pop >= DENSE_URBAN_MIN_POP and 0 < area <= DENSE_URBAN_MAX_AREA_M2:
