@@ -75,7 +75,13 @@ function stripBuildOnlyData(): Plugin {
         const isMonolith = f === 'metro_neighborhoods.geojson'
         const isConvertedGrid =
           f.endsWith('_grid.geojson') && files.includes(f.replace(/\.geojson$/, '.topojson'))
-        if (isMonolith || isConvertedGrid) {
+        // Same rule for the /live/ building shards: scripts/build_buildings_data.mjs
+        // converts buildings_*.geojson to TopoJSON and the runtime only ever fetches
+        // the TopoJSON, so shipping the ~2x larger GeoJSON source would be pure dead
+        // weight in dist (3 MB for Helsinki alone).
+        const isConvertedBuildings =
+          /^buildings_.*\.geojson$/.test(f) && files.includes(f.replace(/\.geojson$/, '.topojson'))
+        if (isMonolith || isConvertedGrid || isConvertedBuildings) {
           rmSync(joinPath(dataDir, f))
           removed.push(f)
         }

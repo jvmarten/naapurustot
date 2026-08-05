@@ -6,7 +6,8 @@ import { t, getLang, setLang, useI18nVersion, type Lang } from '../utils/i18n';
 import { useTheme } from '../hooks/useTheme';
 import { FeedSidebar } from './FeedSidebar';
 import { defaultEnabledFeeds, sanitizeEnabled } from './feeds';
-import { fetchBuildings, shadowRings, type Bbox, type Building } from './shadows';
+import { shadowRings, type Bbox, type Building } from './shadows';
+import { resolveBuildings, type HeightSource } from './buildingShards';
 
 /**
  * /live/ — the realtime surface.
@@ -113,7 +114,7 @@ export const LivePage: React.FC = () => {
   const [center, setCenter] = useState<[number, number]>(DEFAULT_CENTER);
   const [enabled, setEnabled] = useState<Set<string>>(readStoredFeeds);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [coverage, setCoverage] = useState<{ withHeight: number; total: number } | null>(null);
+  const [coverage, setCoverage] = useState<{ withHeight: number; total: number; source: HeightSource } | null>(null);
   const [tooCoarse, setTooCoarse] = useState(false);
   const [loading, setLoading] = useState(false);
   const [fetchFailed, setFetchFailed] = useState(false);
@@ -285,10 +286,10 @@ export const LivePage: React.FC = () => {
         };
         setLoading(true);
         setFetchFailed(false);
-        fetchBuildings(bbox, controller.signal)
-          .then(({ buildings, total }) => {
+        resolveBuildings(bbox, controller.signal)
+          .then(({ buildings, total, source }) => {
             buildingsRef.current = buildings;
-            setCoverage({ withHeight: buildings.length, total });
+            setCoverage({ withHeight: buildings.length, total, source });
             setLoading(false);
             draw();
           })
@@ -430,9 +431,15 @@ export const LivePage: React.FC = () => {
                 <span className="text-amber-600 dark:text-amber-400">{t('live.shadow.failed')}</span>
               ) : coverage ? (
                 <span className="text-surface-600 dark:text-surface-300">
-                  {t('live.shadow.coverage')
-                    .replace('{n}', String(coverage.withHeight))
-                    .replace('{total}', String(coverage.total))}
+                  {/* Source-aware, because the two tiers mean different things: the
+                      city model has a measured height for every building (so a
+                      "n of m" ratio would always read 100 % and tell nobody
+                      anything), whereas OSM's gaps are the whole point. */}
+                  {coverage.source === 'city_model'
+                    ? t('live.shadow.coverage_measured').replace('{n}', String(coverage.withHeight))
+                    : t('live.shadow.coverage')
+                        .replace('{n}', String(coverage.withHeight))
+                        .replace('{total}', String(coverage.total))}
                 </span>
               ) : null}
             </div>

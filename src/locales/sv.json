@@ -1007,5 +1007,6 @@
   "live.sun.sunset": "Solnedgång",
   "live.sun.day_length": "Dagens längd",
   "live.page.title": "Direkt: sol och byggnadsskuggor på kartan",
-  "live.page.description": "Se var solen når och var byggnaderna kastar sina skuggor, när som helst. Realtidsdata för finländska bostadsområden."
+  "live.page.description": "Se var solen når och var byggnaderna kastar sina skuggor, när som helst. Realtidsdata för finländska bostadsområden.",
+  "live.shadow.coverage_measured": "{n} byggnader i vy. Höjderna är uppmätta från Helsingfors 3D-stadsmodell."
 }
