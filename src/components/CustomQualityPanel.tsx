@@ -66,9 +66,9 @@ const WeightSlider: React.FC<{
   // The bare number is meaningless to a screen reader on a signed slider — "-40"
   // says nothing about which end of the metric it favours. Spell the direction out.
   const valueText = localValue === 0
-    ? `${Math.abs(localValue)} — ${t('custom_quality.aria_ignored')}`
+    ? t('custom_quality.aria_ignored')
     : !signed
-      ? `${localValue} — ${t('custom_quality.aria_importance')}`
+      ? `${t('custom_quality.aria_importance')} ${localValue}`
       : `${Math.abs(localValue)} — ${t(localValue > 0 ? 'custom_quality.aria_prefer_more' : 'custom_quality.aria_prefer_less')}`;
 
   return (
