@@ -64,9 +64,10 @@ const PrivacyPage = lazy(() =>
 // eslint-disable-next-line react-refresh/only-export-components
 const ResetPasswordPage = lazy(() =>
   Promise.all([import('./pages/ResetPasswordPage'), loadFiExtra()]).then(([m]) => ({ default: m.ResetPasswordPage })));
-// /live/ — the realtime surface (sun & shadows first). Its own manualChunks
-// group (`live-*`) held to its own bundle budget, because the map route never
-// loads it; see scripts/check-bundle-size.mjs.
+// /live/ — the realtime surface (sun & shadows first). Rolldown names this lazy
+// chunk `LivePage-*` and folds every live-only module into it, which is what
+// check-bundle-size.mjs holds to a separate budget: the map route never imports
+// it, so its bytes are not on the map's critical path.
 // eslint-disable-next-line react-refresh/only-export-components
 const LivePage = lazy(() =>
   Promise.all([import('./live/LivePage'), loadFiExtra()]).then(([m]) => ({ default: m.LivePage })));
