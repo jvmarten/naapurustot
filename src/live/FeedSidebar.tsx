@@ -30,8 +30,8 @@ const Toggle: React.FC<{ on: boolean; accent: string; disabled: boolean }> = ({ 
     aria-hidden="true"
     className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors ${
       disabled ? 'opacity-40' : ''
-    }`}
-    style={{ backgroundColor: on ? accent : 'rgb(71 85 105)' }}
+    } ${on ? '' : 'bg-surface-300 dark:bg-surface-600'}`}
+    style={on ? { backgroundColor: accent } : undefined}
   >
     <span
       className="absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform"
@@ -53,9 +53,9 @@ export const FeedSidebar: React.FC<FeedSidebarProps> = ({ enabled, onToggle, onS
 
   const rowLabel = (feed: Feed) => (
     <span className="flex min-w-0 flex-col">
-      <span className="truncate text-sm text-surface-100">{t(feed.labelKey)}</span>
+      <span className="truncate text-sm text-surface-800 dark:text-surface-100">{t(feed.labelKey)}</span>
       {feed.coverage === 'urban' && (
-        <span className="text-[10px] uppercase tracking-wide text-surface-400">
+        <span className="text-[10px] uppercase tracking-wide text-surface-500 dark:text-surface-400">
           {t('live.coverage.urban')}
         </span>
       )}
@@ -64,7 +64,7 @@ export const FeedSidebar: React.FC<FeedSidebarProps> = ({ enabled, onToggle, onS
 
   return (
     <aside
-      className="flex h-full w-64 shrink-0 flex-col border-r border-surface-800 bg-surface-950/95 text-surface-100"
+      className="flex h-full w-64 shrink-0 flex-col border-r border-surface-200 bg-surface-50 text-surface-900 dark:border-surface-800 dark:bg-surface-950/95 dark:text-surface-100"
       aria-label={t('live.filters.title')}
     >
       <div className="flex items-center gap-2 px-4 py-3">
@@ -72,7 +72,7 @@ export const FeedSidebar: React.FC<FeedSidebarProps> = ({ enabled, onToggle, onS
         <button
           type="button"
           onClick={() => onSetAll(true)}
-          className="text-xs text-sky-400 hover:underline"
+          className="text-xs text-brand-600 hover:underline dark:text-brand-400"
         >
           {t('live.filters.all')}
         </button>
@@ -80,7 +80,7 @@ export const FeedSidebar: React.FC<FeedSidebarProps> = ({ enabled, onToggle, onS
         <button
           type="button"
           onClick={() => onSetAll(false)}
-          className="text-xs text-surface-400 hover:underline"
+          className="text-xs text-surface-500 hover:underline dark:text-surface-400"
         >
           {t('live.filters.clear')}
         </button>
@@ -88,7 +88,7 @@ export const FeedSidebar: React.FC<FeedSidebarProps> = ({ enabled, onToggle, onS
           type="button"
           onClick={onClose}
           aria-label={t('live.filters.close')}
-          className="ml-1 text-surface-400 hover:text-white"
+          className="ml-1 text-surface-500 hover:text-surface-900 dark:text-surface-400 dark:hover:text-white"
         >
           ×
         </button>
@@ -120,7 +120,7 @@ export const FeedSidebar: React.FC<FeedSidebarProps> = ({ enabled, onToggle, onS
                 >
                   {t(group.labelKey)}
                 </span>
-                <span className="text-[11px] text-surface-500">
+                <span className="text-[11px] text-surface-400 dark:text-surface-500">
                   {onCount}/{liveCount}
                 </span>
               </button>
@@ -138,13 +138,13 @@ export const FeedSidebar: React.FC<FeedSidebarProps> = ({ enabled, onToggle, onS
                           aria-pressed={on}
                           onClick={() => onToggle(feed.id)}
                           className={`flex w-full items-center gap-3 px-4 py-1.5 text-left ${
-                            disabled ? 'cursor-not-allowed' : 'hover:bg-surface-900'
+                            disabled ? 'cursor-not-allowed' : 'hover:bg-surface-100 dark:hover:bg-surface-900'
                           }`}
                         >
                           <Toggle on={on} accent={group.accent} disabled={disabled} />
                           {rowLabel(feed)}
                           {disabled && (
-                            <span className="ml-auto shrink-0 rounded bg-surface-800 px-1.5 py-0.5 text-[10px] text-surface-400">
+                            <span className="ml-auto shrink-0 rounded bg-surface-200 px-1.5 py-0.5 text-[10px] text-surface-600 dark:bg-surface-800 dark:text-surface-400">
                               {t('live.status.planned')}
                             </span>
                           )}

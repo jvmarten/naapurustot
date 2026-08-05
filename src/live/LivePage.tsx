@@ -3,6 +3,7 @@ import type { Map as MaplibreMap } from 'maplibre-gl';
 import { sunPosition, sunTimes, shadowBearing, shadowLengthRatio } from '../utils/sun';
 import { basemapTileUrl } from '../utils/basemap';
 import { t, getLang, setLang, useI18nVersion, type Lang } from '../utils/i18n';
+import { useTheme } from '../hooks/useTheme';
 import { FeedSidebar } from './FeedSidebar';
 import { defaultEnabledFeeds, sanitizeEnabled } from './feeds';
 import { fetchBuildings, shadowRings, type Bbox, type Building } from './shadows';
@@ -23,12 +24,25 @@ import { fetchBuildings, shadowRings, type Bbox, type Building } from './shadows
  * union for free, so no boolean-geometry dependency enters the bundle.
  */
 
+// Same four basemap URLs the main map uses, so /live/ renders in whichever theme
+// the visitor already chose site-wide rather than forcing its own.
+const BASEMAP_LIGHT =
+  (import.meta.env.VITE_BASEMAP_LIGHT_URL as string) ||
+  'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png';
 const BASEMAP_DARK =
   (import.meta.env.VITE_BASEMAP_DARK_URL as string) ||
   'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png';
+const BASEMAP_LIGHT_LABELS =
+  (import.meta.env.VITE_BASEMAP_LIGHT_LABELS_URL as string) ||
+  'https://basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}@2x.png';
 const BASEMAP_DARK_LABELS =
   (import.meta.env.VITE_BASEMAP_DARK_LABELS_URL as string) ||
   'https://basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}@2x.png';
+
+const tilesFor = (theme: 'dark' | 'light') =>
+  basemapTileUrl(theme === 'dark' ? BASEMAP_DARK : BASEMAP_LIGHT);
+const labelTilesFor = (theme: 'dark' | 'light') =>
+  basemapTileUrl(theme === 'dark' ? BASEMAP_DARK_LABELS : BASEMAP_LIGHT_LABELS);
 
 /** Helsinki centre — the densest place where OSM actually has building heights. */
 const DEFAULT_CENTER: [number, number] = [24.9384, 60.1699];
@@ -48,7 +62,20 @@ const MIN_SHADOW_ZOOM = 14.5;
 /** Quiet period after the map stops moving before we ask Overpass for anything. */
 const FETCH_DEBOUNCE_MS = 700;
 
-const SHADOW_FILL = 'rgba(8, 15, 30, 0.55)';
+/**
+ * Shadow ink, per theme.
+ *
+ * Not one colour with one alpha: a shadow has to read as *shade* against the
+ * basemap it falls on. On the dark basemap a near-black fill is nearly
+ * invisible, so the dark theme uses a lighter, bluer ink at higher alpha; on the
+ * light basemap a soft navy at lower alpha reads as shadow instead of as a hole
+ * punched through the map.
+ */
+const SHADOW_FILL = {
+  dark: 'rgba(120, 150, 200, 0.30)',
+  light: 'rgba(30, 45, 80, 0.28)',
+} as const;
+
 const STORAGE_KEY = 'live.feeds';
 
 function readStoredFeeds(): Set<string> {
@@ -69,12 +96,18 @@ function clockTime(date: Date | null): string {
 
 export const LivePage: React.FC = () => {
   useI18nVersion();
+  const { theme } = useTheme();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const mapRef = useRef<MaplibreMap | null>(null);
   const buildingsRef = useRef<Building[]>([]);
   /** Bumped once the map exists, to re-run the effect that binds its listeners. */
   const [mapReady, setMapReady] = useState(0);
+  // Read by the construction effect, which must not re-run on a theme change —
+  // rebuilding the map would throw away the camera. The effect below swaps the
+  // tile URLs in place instead.
+  const themeRef = useRef(theme);
+  themeRef.current = theme;
 
   const [when, setWhen] = useState<Date>(() => new Date());
   const [center, setCenter] = useState<[number, number]>(DEFAULT_CENTER);
@@ -146,9 +179,9 @@ export const LivePage: React.FC = () => {
         path.closePath();
       }
     }
-    ctx.fillStyle = SHADOW_FILL;
+    ctx.fillStyle = SHADOW_FILL[theme];
     ctx.fill(path, 'nonzero');
-  }, [shadowsOn, sun.altitude, sun.azimuth]);
+  }, [shadowsOn, sun.altitude, sun.azimuth, theme]);
 
   // Map construction. Runs once — camera changes go through the map instance.
   //
@@ -178,14 +211,14 @@ export const LivePage: React.FC = () => {
           sources: {
             carto: {
               type: 'raster',
-              tiles: [basemapTileUrl(BASEMAP_DARK)],
+              tiles: [tilesFor(themeRef.current)],
               tileSize: 256,
               attribution:
                 '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
             },
             'carto-labels': {
               type: 'raster',
-              tiles: [basemapTileUrl(BASEMAP_DARK_LABELS)],
+              tiles: [labelTilesFor(themeRef.current)],
               tileSize: 256,
             },
           },
@@ -288,6 +321,24 @@ export const LivePage: React.FC = () => {
     draw();
   }, [draw]);
 
+  // Follow the site-wide light/dark choice by swapping the raster tile URLs in
+  // place. Deliberately not `setStyle` — that tears down and rebuilds every
+  // source and layer, which on this page would drop the camera and force a
+  // fresh building fetch for a change that only affects two URLs.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    for (const [id, url] of [
+      ['carto', tilesFor(theme)],
+      ['carto-labels', labelTilesFor(theme)],
+    ] as const) {
+      const source = map.getSource(id);
+      // setTiles exists on RasterTileSource; guard because getSource is typed
+      // as the union of every source kind.
+      if (source && 'setTiles' in source) (source as { setTiles: (t: string[]) => void }).setTiles([url]);
+    }
+  }, [theme, mapReady]);
+
   const toggleFeed = (feedId: string) =>
     setEnabled((prev) => {
       const next = new Set(prev);
@@ -309,9 +360,9 @@ export const LivePage: React.FC = () => {
   const shadowRatio = shadowLengthRatio(sun.altitude);
 
   return (
-    <div className="flex h-screen w-full flex-col bg-surface-950 text-white">
-      <header className="flex items-center gap-3 border-b border-surface-800 px-4 py-2">
-        <a href="/" className="text-sm font-semibold text-surface-200 hover:text-white">
+    <div className="flex h-screen w-full flex-col bg-white text-surface-900 dark:bg-surface-950 dark:text-white">
+      <header className="flex items-center gap-3 border-b border-surface-200 px-4 py-2 dark:border-surface-800">
+        <a href="/" className="text-sm font-semibold text-surface-700 hover:text-surface-900 dark:text-surface-200 dark:hover:text-white">
           naapurustot<span className="text-brand-400">.fi</span>
         </a>
         <span className="rounded bg-amber-500/20 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-amber-400">
@@ -321,13 +372,13 @@ export const LivePage: React.FC = () => {
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
-            className="ml-auto rounded border border-surface-700 px-2 py-1 text-xs"
+            className="ml-auto rounded border border-surface-300 px-2 py-1 text-xs dark:border-surface-700"
           >
             {t('live.filters.title')}
           </button>
         )}
         <select
-          className="ml-auto rounded border border-surface-700 bg-surface-900 px-2 py-1 text-xs"
+          className="ml-auto rounded border border-surface-300 bg-white px-2 py-1 text-xs dark:border-surface-700 dark:bg-surface-900"
           value={getLang()}
           onChange={(e) => void setLang(e.target.value as Lang)}
           aria-label={t('live.language')}
@@ -349,7 +400,12 @@ export const LivePage: React.FC = () => {
         )}
 
         <div className="relative min-w-0 flex-1">
-          <div ref={containerRef} className="absolute inset-0" />
+          {/* h-full, NOT `absolute inset-0`: MapLibre stamps `.maplibregl-map`
+              onto its container, and that class carries `position: relative`,
+              which beats the absolute positioning and collapses the div to
+              height 0 — the canvas then falls back to its intrinsic 300 px and
+              the map looks like it never loaded. Size it explicitly instead. */}
+          <div ref={containerRef} className="h-full w-full" />
           <canvas
             ref={canvasRef}
             className="pointer-events-none absolute inset-0"
@@ -361,19 +417,19 @@ export const LivePage: React.FC = () => {
               zoomed too far out, sun below the horizon, Overpass unreachable, or
               genuinely no buildings with height data. */}
           {shadowsOn && (
-            <div className="absolute left-3 top-3 max-w-xs rounded-lg bg-surface-950/85 px-3 py-2 text-xs leading-relaxed">
+            <div className="absolute left-3 top-3 max-w-xs rounded-lg bg-white/90 px-3 py-2 text-xs leading-relaxed shadow-sm ring-1 ring-surface-200 dark:bg-surface-950/85 dark:ring-surface-800">
               {sun.altitude <= 0 ? (
-                <span className="text-surface-300">
+                <span className="text-surface-600 dark:text-surface-300">
                   {times.polar === 'night' ? t('live.shadow.polar_night') : t('live.shadow.sun_down')}
                 </span>
               ) : tooCoarse ? (
-                <span className="text-surface-300">{t('live.shadow.zoom_in')}</span>
+                <span className="text-surface-600 dark:text-surface-300">{t('live.shadow.zoom_in')}</span>
               ) : loading ? (
-                <span className="text-surface-300">{t('live.shadow.loading')}</span>
+                <span className="text-surface-600 dark:text-surface-300">{t('live.shadow.loading')}</span>
               ) : fetchFailed ? (
-                <span className="text-amber-400">{t('live.shadow.failed')}</span>
+                <span className="text-amber-600 dark:text-amber-400">{t('live.shadow.failed')}</span>
               ) : coverage ? (
-                <span className="text-surface-300">
+                <span className="text-surface-600 dark:text-surface-300">
                   {t('live.shadow.coverage')
                     .replace('{n}', String(coverage.withHeight))
                     .replace('{total}', String(coverage.total))}
@@ -384,10 +440,10 @@ export const LivePage: React.FC = () => {
         </div>
       </div>
 
-      <footer className="border-t border-surface-800 px-4 py-3">
+      <footer className="border-t border-surface-200 px-4 py-3 dark:border-surface-800">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs">
           <label className="flex min-w-[16rem] flex-1 items-center gap-3">
-            <span className="tabular-nums text-surface-300">{clockTime(when)}</span>
+            <span className="tabular-nums text-surface-600 dark:text-surface-300">{clockTime(when)}</span>
             <input
               type="range"
               min={0}
@@ -401,32 +457,32 @@ export const LivePage: React.FC = () => {
           <button
             type="button"
             onClick={() => setWhen(new Date())}
-            className="rounded border border-surface-700 px-2 py-1 text-surface-200"
+            className="rounded border border-surface-300 px-2 py-1 text-surface-700 dark:border-surface-700 dark:text-surface-200"
           >
             {t('live.time.now')}
           </button>
 
           {sunOn && (
-            <div className="flex flex-wrap gap-x-5 gap-y-1 text-surface-300">
+            <div className="flex flex-wrap gap-x-5 gap-y-1 text-surface-600 dark:text-surface-300">
               <span>
-                {t('live.sun.altitude')}: <b className="text-white">{sun.altitude.toFixed(1)}°</b>
+                {t('live.sun.altitude')}: <b className="text-surface-900 dark:text-white">{sun.altitude.toFixed(1)}°</b>
               </span>
               <span>
-                {t('live.sun.azimuth')}: <b className="text-white">{sun.azimuth.toFixed(0)}°</b>
+                {t('live.sun.azimuth')}: <b className="text-surface-900 dark:text-white">{sun.azimuth.toFixed(0)}°</b>
               </span>
               <span>
                 {t('live.sun.shadow_ratio')}:{' '}
-                <b className="text-white">{shadowRatio === null ? '—' : `${shadowRatio.toFixed(1)}×`}</b>
+                <b className="text-surface-900 dark:text-white">{shadowRatio === null ? '—' : `${shadowRatio.toFixed(1)}×`}</b>
               </span>
               <span>
-                {t('live.sun.sunrise')}: <b className="text-white">{clockTime(times.sunrise)}</b>
+                {t('live.sun.sunrise')}: <b className="text-surface-900 dark:text-white">{clockTime(times.sunrise)}</b>
               </span>
               <span>
-                {t('live.sun.sunset')}: <b className="text-white">{clockTime(times.sunset)}</b>
+                {t('live.sun.sunset')}: <b className="text-surface-900 dark:text-white">{clockTime(times.sunset)}</b>
               </span>
               <span>
                 {t('live.sun.day_length')}:{' '}
-                <b className="text-white">{times.dayLength.toFixed(1)} h</b>
+                <b className="text-surface-900 dark:text-white">{times.dayLength.toFixed(1)} h</b>
               </span>
             </div>
           )}
