@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { CustomQualityPanel } from '../components/CustomQualityPanel';
 import { QUALITY_FACTORS, getDefaultWeights } from '../utils/qualityIndex';
 import { getLang } from '../utils/i18n';
@@ -82,6 +82,65 @@ describe('CustomQualityPanel — slider polarity', () => {
     expect(el.value).toBe('-40');
     expect(el.getAttribute('aria-valuetext')).toContain('40');
     expect(el.getAttribute('aria-valuetext')).not.toBe('-40');
+    cleanup();
+  });
+});
+
+describe('CustomQualityPanel — exact value entry', () => {
+  // Regression: ZERO_DETENT used to run on every change event. Because the range is
+  // controlled, a keyboard step from 0 was snapped back to 0 and the value never
+  // moved — a keyboard user was trapped, and ±1..±4 were unreachable by any input.
+  it('a keyboard step from 0 is NOT swallowed by the zero detent', () => {
+    const onChange = vi.fn();
+    render(<CustomQualityPanel weights={{ ...getDefaultWeights(), transit: 0 }} onChange={onChange} onClose={vi.fn()} />);
+    const el = sliderFor('transit')!;
+    // fireEvent.change is what a native arrow step produces (no pointer involved).
+    fireEvent.change(el, { target: { value: '1' } });
+    expect(el.value).toBe('1');
+    fireEvent.change(el, { target: { value: '3' } });
+    expect(el.value).toBe('3');
+    cleanup();
+  });
+
+  it('still snaps to zero during an actual pointer drag', () => {
+    render(<CustomQualityPanel weights={{ ...getDefaultWeights(), transit: 40 }} onChange={vi.fn()} onClose={vi.fn()} />);
+    const el = sliderFor('transit')!;
+    fireEvent.pointerDown(el);
+    fireEvent.change(el, { target: { value: '3' } });
+    expect(el.value, 'a near-zero drag snaps to 0 so it cannot invert the factor').toBe('0');
+    fireEvent.pointerUp(el);
+    cleanup();
+  });
+
+  it('accepts an exact typed value, including a negative one', () => {
+    render(<CustomQualityPanel weights={getDefaultWeights()} onChange={vi.fn()} onClose={vi.fn()} />);
+    // One field per rendered slider, so take the first.
+    const field = (screen.getAllByLabelText(/tarkka arvo/i) as HTMLInputElement[])[0];
+    // "-" alone must survive as an in-progress draft rather than resolving to 0.
+    fireEvent.change(field, { target: { value: '-' } });
+    expect(field.value).toBe('-');
+    fireEvent.change(field, { target: { value: '-37' } });
+    expect(field.value).toBe('-37');
+    cleanup();
+  });
+
+  it('clamps a typed value beyond the range instead of storing it', () => {
+    render(<CustomQualityPanel weights={getDefaultWeights()} onChange={vi.fn()} onClose={vi.fn()} />);
+    const field = (screen.getAllByLabelText(/tarkka arvo/i) as HTMLInputElement[])[0];
+    fireEvent.change(field, { target: { value: '999' } });
+    // The draft echoes what was typed, but the slider it drives is clamped to +100
+    // rather than carrying an out-of-range weight into the index.
+    expect(field.value).toBe('999');
+    const slider = document.querySelector<HTMLInputElement>('input[type="range"]')!;
+    expect(slider.value).toBe('100');
+    cleanup();
+  });
+
+  it('does not set inputMode — iOS numeric keypads have no minus key', () => {
+    render(<CustomQualityPanel weights={getDefaultWeights()} onChange={vi.fn()} onClose={vi.fn()} />);
+    const fields = screen.getAllByLabelText(/tarkka arvo/i) as HTMLInputElement[];
+    expect(fields.length).toBeGreaterThan(0);
+    for (const f of fields) expect(f.getAttribute('inputmode')).toBeNull();
     cleanup();
   });
 });

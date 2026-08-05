@@ -318,6 +318,7 @@
   "custom_quality.signed_hint": "Jokainen liukus\u00e4\u00e4din kulkee molempiin suuntiin: + suosii korkeampia arvoja, \u2212 matalampia. 0 j\u00e4tt\u00e4\u00e4 mittarin huomiotta.",
   "custom_quality.dir_less": "v\u00e4hemm\u00e4n",
   "custom_quality.dir_more": "enemm\u00e4n",
+  "custom_quality.aria_exact": "tarkka arvo",
   "custom_quality.aria_ignored": "ei huomioida",
   "custom_quality.aria_prefer_more": "suosii korkeampia arvoja",
   "custom_quality.aria_prefer_less": "suosii matalampia arvoja",
