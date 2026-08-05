@@ -121,19 +121,68 @@ import { join } from 'node:path';
 const BUDGET = 325_000;
 const ASSETS_DIR = 'dist/assets';
 
+// Second budget: the /live/ realtime sub-app.
+//
+// Matched by the `LivePage-` chunk prefix, which is Rolldown's NATURAL name for
+// the route's lazy chunk — deliberately not a manualChunks group. Grouping
+// src/live/* explicitly was tried first and backfired twice: the named group
+// swallowed the `maplibre` chunk (LivePage statically imported it, so the whole
+// ~1 MB renderer moved inside and the map route began importing /live/ to get
+// it), and it then acted as a magnet for shared modules, understating the map
+// budget by ~21 KB. Left alone, Rolldown folds every module that ONLY the live
+// route reaches — sun, shadows, feeds, the sidebar — into this one chunk, which
+// is exactly the set this budget should cover.
+//
+// If a future live-only module gets split into its own chunk it will be named
+// after itself and counted against the map budget instead. That is the safe
+// direction: it over-reports the map surface and fails loudly, rather than
+// quietly exempting code from every budget.
+//
+// Why a separate number rather than one raised total. The budget above exists to
+// protect the MAP's critical path, and its governing rule — "lazy chunks are
+// included; lazy-loading does not exempt code" — was written when every chunk was
+// map-adjacent, so any new chunk really did threaten the map's load. /live/ breaks
+// that assumption: it is a different route with its own entry, and the map never
+// imports it, so a kilobyte there costs a map visitor nothing.
+//
+// The two honest alternatives were to keep bumping a total that no longer means
+// "what the map loads", or to emit the live chunks somewhere this gate does not
+// look (`readdirSync` is non-recursive, so `dist/live/assets/` would sail past
+// unmeasured) — which is not a budget, it is an evasion. Measuring both surfaces
+// separately keeps every byte counted while letting each number mean something.
+//
+// The split is enforced by reachability, not by naming: Rolldown only folds a
+// module in here when the live route is its ONLY importer. Anything /live/ shares
+// with the map — i18n, utils, react, maplibre — stays in the shared chunks and
+// keeps counting against BUDGET, so this cannot be used to smuggle map code out
+// of the main allowance.
+//
+// Measured at 5,661 B on introduction (sun engine, shadow geometry, feed registry,
+// sidebar, page). Set with room for the feeds the registry already lists.
+const LIVE_BUDGET = 24_000;
+
 const fmtKB = (b) => (b / 1024).toFixed(2);
 
 const allFiles = readdirSync(ASSETS_DIR);
+const isLive = (f) => f.startsWith('LivePage-');
 const jsFiles = allFiles.filter((f) => f.endsWith('.js') && !f.startsWith('maplibre-'));
 
 let jsTotal = 0;
+let liveTotal = 0;
 const rows = [];
+const liveRows = [];
 for (const f of jsFiles) {
   const gz = gzipSync(readFileSync(join(ASSETS_DIR, f))).length;
-  jsTotal += gz;
-  rows.push({ name: f, gz });
+  if (isLive(f)) {
+    liveTotal += gz;
+    liveRows.push({ name: f, gz });
+  } else {
+    jsTotal += gz;
+    rows.push({ name: f, gz });
+  }
 }
 rows.sort((a, b) => b.gz - a.gz);
+liveRows.sort((a, b) => b.gz - a.gz);
 
 let cssTotal = 0;
 for (const f of allFiles.filter((f) => f.endsWith('.css'))) {
@@ -141,14 +190,19 @@ for (const f of allFiles.filter((f) => f.endsWith('.css'))) {
 }
 
 const headroom = BUDGET - jsTotal;
+const liveHeadroom = LIVE_BUDGET - liveTotal;
 console.log(
-  `App JS bundle excluding maplibre (gzipped): ${jsTotal} bytes ` +
+  `Map-route JS excluding maplibre and live (gzipped): ${jsTotal} bytes ` +
     `(budget ${BUDGET}, headroom ${headroom})`,
+);
+console.log(
+  `/live/ sub-app JS (gzipped): ${liveTotal} bytes ` +
+    `(budget ${LIVE_BUDGET}, headroom ${liveHeadroom})`,
 );
 
 writeFileSync(
   'bundle-size.json',
-  JSON.stringify({ js: jsTotal, css: cssTotal, total: jsTotal + cssTotal }) + '\n',
+  JSON.stringify({ js: jsTotal, live: liveTotal, css: cssTotal, total: jsTotal + liveTotal + cssTotal }) + '\n',
 );
 
 const summaryPath = process.env.GITHUB_STEP_SUMMARY;
@@ -177,18 +231,35 @@ if (summaryPath) {
     lines.push('> _No baseline from main yet — delta will appear once a main build is cached._');
   }
   lines.push('');
-  lines.push(`**Budget:** ${fmtKB(BUDGET)} KB · **Headroom:** ${fmtKB(headroom)} KB`);
+  lines.push(`**Map-route budget:** ${fmtKB(BUDGET)} KB · **Headroom:** ${fmtKB(headroom)} KB`);
+  lines.push('');
+  lines.push(
+    `**/live/ budget:** ${fmtKB(LIVE_BUDGET)} KB · ` +
+      `**Used:** ${fmtKB(liveTotal)} KB · **Headroom:** ${fmtKB(liveHeadroom)} KB`,
+  );
   lines.push('');
   lines.push('<details><summary>Per-chunk breakdown</summary>', '');
   lines.push('| Chunk | Gzipped |', '|---|---|');
   for (const r of rows) lines.push(`| ${r.name} | ${fmtKB(r.gz)} KB |`);
+  for (const r of liveRows) lines.push(`| ${r.name} _(live)_ | ${fmtKB(r.gz)} KB |`);
   lines.push('', '</details>');
   writeFileSync(summaryPath, lines.join('\n') + '\n', { flag: 'a' });
 }
 
+let failed = false;
 if (jsTotal > BUDGET) {
   console.error(
-    `::error::JS bundle size exceeds ${fmtKB(BUDGET)} KB gzipped budget (${jsTotal} bytes)`,
+    `::error::Map-route JS exceeds ${fmtKB(BUDGET)} KB gzipped budget (${jsTotal} bytes)`,
   );
-  process.exit(1);
+  failed = true;
 }
+// Reported independently of the map budget so a breach names the surface that
+// actually overspent — a single combined failure would send someone hunting
+// through map chunks for bytes that are all in /live/.
+if (liveTotal > LIVE_BUDGET) {
+  console.error(
+    `::error::/live/ sub-app JS exceeds ${fmtKB(LIVE_BUDGET)} KB gzipped budget (${liveTotal} bytes)`,
+  );
+  failed = true;
+}
+if (failed) process.exit(1);

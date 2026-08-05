@@ -1917,6 +1917,63 @@ for (const [lang, route] of Object.entries(PRIVACY_ROUTES)) {
 }
 console.log('Prerendered 3 privacy pages (/tietosuoja, /en/privacy, /sv/integritet).');
 
+// The /live/ realtime surface, in all three languages.
+//
+// One WORD in every language (`/live/`, not nyt/now/nu) but three distinct URLs.
+// Collapsing them into a single `/live/` that switches language from
+// localStorage would leave nothing for hreflang to point at, and the page would
+// index as Finnish-only — the locale prefix is what keeps one memorable path
+// from costing the other two locales their crawlable URL.
+//
+// Prerendered for the same reason /uusi-salasana is: without a real directory,
+// GitHub Pages answers the SPA fallback with HTTP 404, a canonical pointing at
+// `/`, and the homepage's title. Unlike the reset page this one IS indexable —
+// it is a public page people should be able to find.
+const LIVE_ROUTES = {
+  fi: { path: 'live', url: 'https://naapurustot.fi/live/' },
+  en: { path: 'en/live', url: 'https://naapurustot.fi/en/live/' },
+  sv: { path: 'sv/live', url: 'https://naapurustot.fi/sv/live/' },
+};
+
+function generateLivePage(lang) {
+  const title = LOCALES[lang]['live.page.title'];
+  const description = LOCALES[lang]['live.page.description'];
+  const { fi: fiR, en: enR, sv: svR } = LIVE_ROUTES;
+  const canonicalUrl = LIVE_ROUTES[lang].url;
+
+  let html = template;
+  html = html.replace('<html lang="fi">', `<html lang="${lang}">`);
+  html = html.replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(title)}</title>`);
+  html = html.replace(/<meta name="description" content="[^"]*" \/>/, `<meta name="description" content="${escapeHtml(description)}" />`);
+  html = html.replace(/<link rel="canonical" href="[^"]*" \/>/, `<link rel="canonical" href="${canonicalUrl}" />`);
+  html = html.replace(/<link rel="alternate" hreflang="fi" href="[^"]*" \/>/, `<link rel="alternate" hreflang="fi" href="${fiR.url}" />`);
+  html = html.replace(/<link rel="alternate" hreflang="en" href="[^"]*" \/>/, `<link rel="alternate" hreflang="en" href="${enR.url}" />`);
+  html = html.replace(/<link rel="alternate" hreflang="sv" href="[^"]*" \/>/, `<link rel="alternate" hreflang="sv" href="${svR.url}" />`);
+  html = html.replace(/<link rel="alternate" hreflang="x-default" href="[^"]*" \/>/, `<link rel="alternate" hreflang="x-default" href="${fiR.url}" />`);
+  html = html.replace(/<meta property="og:url" content="[^"]*" \/>/, `<meta property="og:url" content="${canonicalUrl}" />`);
+  html = html.replace(/<meta property="og:title" content="[^"]*" \/>/, `<meta property="og:title" content="${escapeHtml(title)}" />`);
+  html = html.replace(/<meta property="og:description" content="[^"]*" \/>/, `<meta property="og:description" content="${escapeHtml(description)}" />`);
+  html = html.replace(/<meta name="twitter:title" content="[^"]*" \/>/, `<meta name="twitter:title" content="${escapeHtml(title)}" />`);
+  html = html.replace(/<meta name="twitter:description" content="[^"]*" \/>/, `<meta name="twitter:description" content="${escapeHtml(description)}" />`);
+  html = localizeOgLocale(html, lang, title);
+  // The live data is fetched client-side, so the <noscript> states what the page
+  // is rather than mirroring content it cannot have.
+  html = html.replace(
+    /<noscript>[\s\S]*?<\/noscript>/,
+    `<noscript>\n    <div style="max-width:820px;margin:2rem auto;padding:1rem;font-family:system-ui,sans-serif;line-height:1.55">\n      <h1>${escapeHtml(title)}</h1>\n      <p>${escapeHtml(description)}</p>\n      <p>JavaScript is required for the live map.</p>\n    </div>\n  </noscript>`,
+  );
+  return html;
+}
+
+for (const [lang, route] of Object.entries(LIVE_ROUTES)) {
+  const html = generateLivePage(lang);
+  assertHeadIntegrity(html, { context: route.path, expectThemeGuard: true });
+  const dir = join(DIST, ...route.path.split('/'));
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'index.html'), html);
+}
+console.log('Prerendered 3 live pages (/live, /en/live, /sv/live).');
+
 // Landing page for the link in a password-reset email.
 //
 // This exists so the path resolves as a FIRST-CLASS page on GitHub Pages.
