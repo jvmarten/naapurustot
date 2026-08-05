@@ -3,7 +3,7 @@ import type { NeighborhoodProperties } from '../utils/metrics';
 import { parseTrendSeries, getMetricSource, vintageFreshness, METRIC_EXPLANATIONS, formatCoveragePct } from '../utils/metrics';
 import { formatNumber, formatEuro, formatPct, formatDiff, diffColor, formatYtlGradeFull, parseSchools, formatDensity, formatEuroSqm } from '../utils/formatting';
 import { t, getLang, useI18nVersion } from '../utils/i18n';
-import { getQualityCategory, QUALITY_CATEGORIES, QUALITY_DIMENSIONS, computeQualityCoverage, type QualityWeights } from '../utils/qualityIndex';
+import { getQualityCategory, getQualityCategories, QUALITY_DIMENSIONS, computeQualityCoverage, type QualityWeights } from '../utils/qualityIndex';
 import { usePlanningArea, planningInfo } from '../hooks/usePlanningData';
 import { computeAreaSummary, fillTemplate } from '../utils/areaSummary';
 import { loadNationalPercentiles, type NationalLadder } from '../utils/nationalRanges';
@@ -691,8 +691,10 @@ const QualityBadge: React.FC<{
       </div>
       <div className="relative">
         <div className="flex gap-0.5">
-          {QUALITY_CATEGORIES.map((c) => (
-            <div key={c.min} className="flex-1 flex flex-col items-center gap-1">
+          {/* Cohort-relative bands: the strip must be cut where getQualityCategory
+              actually cuts, or the label under the pointer disagrees with the band. */}
+          {getQualityCategories().map((c) => (
+            <div key={c.label.en} className="flex-1 flex flex-col items-center gap-1">
               <div
                 className="w-full h-2 rounded-full"
                 style={{ backgroundColor: getInterpolatedColor(qiLayer, (c.min + c.max) / 2) }}

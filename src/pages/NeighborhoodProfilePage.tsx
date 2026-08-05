@@ -9,7 +9,7 @@ import type { NeighbourhoodPercentiles } from '../utils/percentileRanks';
 import type { RegionId } from '../utils/regions';
 import { t, getLang, setLang, useI18nVersion, type Lang } from '../utils/i18n';
 import { formatNumber, formatEuro, formatPct, formatDiff } from '../utils/formatting';
-import { getQualityCategory, QUALITY_CATEGORIES, QUALITY_DIMENSIONS, isCustomWeights } from '../utils/qualityIndex';
+import { getQualityCategory, getQualityCategories, QUALITY_DIMENSIONS, isCustomWeights } from '../utils/qualityIndex';
 import { getLayerById, getInterpolatedColor, readableTextColor } from '../utils/colorScales';
 import { findSimilarNeighborhoods } from '../utils/similarity';
 import { getFeatureCenter } from '../utils/geometryFilter';
@@ -769,8 +769,8 @@ export const NeighborhoodProfilePage: React.FC = () => {
               </div>
             </div>
             <div className="flex gap-0.5">
-              {QUALITY_CATEGORIES.map((c) => (
-                <div key={c.min} className="flex-1 flex flex-col items-center gap-1">
+              {getQualityCategories().map((c) => (
+                <div key={c.label.en} className="flex-1 flex flex-col items-center gap-1">
                   <div className="w-full h-2 rounded-full" style={{ backgroundColor: getInterpolatedColor(qiLayer, (c.min + c.max) / 2) }} />
                   <span className="text-[9px] text-surface-600 dark:text-surface-400">{c.label[lang]}</span>
                 </div>

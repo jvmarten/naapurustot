@@ -1,4 +1,5 @@
 import { getCoveragePct, type NeighborhoodProperties } from './metrics.ts';
+import { setQualityCohort, getQualityBands } from './qualityBands.ts';
 
 /**
  * Computes a composite Quality Index (0–100) for each neighborhood.
@@ -866,6 +867,13 @@ export function computeQualityIndices(
     }
   }
 
+  // Composites of this cohort, handed to qualityBands so the category labels and the
+  // map ramp are cut at the distribution's own quantiles rather than at fixed 20/40/
+  // 60/80. Without it the band an area lands in depends on how the user weighted the
+  // factors: the shipped defaults put 86 % of Finland in "OK" with nothing at either
+  // extreme, while weighting water proximity alone makes 94 % "Erinomainen" at once.
+  const composites: number[] = [];
+
   for (const f of features) {
     const p = f.properties as NeighborhoodProperties;
 
@@ -894,7 +902,9 @@ export function computeQualityIndices(
     } else {
       const totalWeight = scores.reduce((sum, s) => sum + s.weight, 0);
       const weighted = scores.reduce((sum, s) => sum + s.value * s.weight, 0);
-      (f.properties as NeighborhoodProperties).quality_index = Math.round(weighted / totalWeight);
+      const composite = Math.round(weighted / totalWeight);
+      (f.properties as NeighborhoodProperties).quality_index = composite;
+      composites.push(composite);
       const dimScores: Record<string, number> = {};
       for (const [dim, acc] of dimAcc) {
         if (acc.weight > 0) dimScores[dim] = Math.round(acc.weighted / acc.weight);
@@ -902,6 +912,8 @@ export function computeQualityIndices(
       (f.properties as NeighborhoodProperties).quality_dimension_scores = dimScores;
     }
   }
+
+  setQualityCohort(composites);
 }
 
 export interface QualityCategory {
@@ -919,13 +931,35 @@ export const QUALITY_CATEGORIES: QualityCategory[] = [
   { label: { fi: 'Erinomainen', en: 'Excellent', sv: 'Utmärkt' }, min: 80, max: 100, color: '#22c55e' },
 ];
 
+/**
+ * The five categories cut at the ACTIVE COHORT's quantiles, so each band holds
+ * roughly a fifth of the areas being looked at and "Erinomainen" cannot describe
+ * everything at once. Falls back to the fixed 0/20/40/60/80 breakpoints before any
+ * index has been computed (or when the cohort is too small to quantile sensibly).
+ *
+ * The `min`/`max` on each returned category are rewritten to the cohort's own edges,
+ * because callers render them as the band's range — showing "80–100" for a band that
+ * actually starts at 56 would be worse than showing nothing.
+ */
+export function getQualityCategories(): QualityCategory[] {
+  const bands = getQualityBands();
+  if (!bands || bands.n < 25) return QUALITY_CATEGORIES;
+  const cuts = bands.thresholds;
+  return QUALITY_CATEGORIES.map((c, i) => ({
+    ...c,
+    min: i === 0 ? 0 : cuts[i - 1],
+    max: i === QUALITY_CATEGORIES.length - 1 ? 100 : cuts[i],
+  }));
+}
+
 export function getQualityCategory(index: number | null): QualityCategory | null {
   if (index == null) return null;
   // Categories use half-open intervals: first category is [min, max],
   // subsequent categories are (min, max]. This eliminates gaps between
   // categories (e.g., 20.5 was previously unmapped).
-  for (let i = QUALITY_CATEGORIES.length - 1; i >= 0; i--) {
-    const c = QUALITY_CATEGORIES[i];
+  const cats = getQualityCategories();
+  for (let i = cats.length - 1; i >= 0; i--) {
+    const c = cats[i];
     if (index > c.min || (i === 0 && index >= c.min)) {
       if (index <= c.max) return c;
     }
