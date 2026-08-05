@@ -363,6 +363,7 @@
   "custom_quality.signed_hint": "Every slider runs both ways: + favours higher values, \u2212 lower ones. 0 ignores the metric.",
   "custom_quality.dir_less": "less",
   "custom_quality.dir_more": "more",
+  "custom_quality.aria_exact": "exact value",
   "custom_quality.aria_ignored": "not counted",
   "custom_quality.aria_prefer_more": "favours higher values",
   "custom_quality.aria_prefer_less": "favours lower values",

@@ -14,11 +14,17 @@ interface Props {
   onClose: () => void;
 }
 
-/** Values this close to 0 snap to exactly 0, so dragging down to "ignore this"
- *  cannot overshoot into "actively prefer the opposite". Without it the only way to
- *  reach 0 is to land on a single pixel, and a near-miss silently reverses the
- *  factor's meaning rather than just weakening it. */
+/** While DRAGGING, values this close to 0 snap to exactly 0, so pulling a slider down
+ *  to "ignore this" cannot overshoot into "actively prefer the opposite" — at 1.2 px
+ *  per unit the pointer cannot land on 0 reliably.
+ *
+ *  Pointer only. Applying it to every change event breaks exact input two ways: the
+ *  input is controlled, so a keyboard ArrowRight from 0 is snapped back to 0 and the
+ *  value never moves (a keyboard user is trapped), and ±1…±4 become unreachable by
+ *  any means. Keyboard steps and typed values go through `commit` unsnapped. */
 const ZERO_DETENT = 4;
+
+const clampWeight = (v: number) => Math.max(-100, Math.min(100, Math.round(v)));
 
 const WeightSlider: React.FC<{
   label: string;
@@ -30,16 +36,33 @@ const WeightSlider: React.FC<{
   // Local state for smooth drag; debounce the expensive parent callback
   // (quality index recomputation across ~200 features + Map source update).
   const [localValue, setLocalValue] = useState(value);
+  // In-progress text in the numeric field. Held as a STRING so "-" and "" are valid
+  // intermediate states while typing "-40" — coercing to a number every keystroke
+  // would resolve "-" to 0 and fight the user.
+  const [draft, setDraft] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const pointerRef = useRef(false);
 
   useEffect(() => { setLocalValue(value); }, [value]);
   useEffect(() => () => clearTimeout(debounceRef.current), []);
 
-  const handleChange = (raw: number) => {
-    const v = Math.abs(raw) <= ZERO_DETENT ? 0 : raw;
+  /** Apply an exact value. No detent — every caller but a pointer drag wants precision. */
+  const commit = (raw: number) => {
+    const v = clampWeight(raw);
     setLocalValue(v);
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => onChange(v), 200);
+  };
+
+  const handleChange = (raw: number) => {
+    commit(pointerRef.current && Math.abs(raw) <= ZERO_DETENT ? 0 : raw);
+  };
+
+  const handleDraft = (next: string) => {
+    setDraft(next);
+    // Commit as soon as the draft is a complete number; the 200 ms debounce coalesces
+    // keystrokes, so typing "-40" recomputes once, exactly like a drag does.
+    if (/^-?\d{1,3}$/.test(next)) commit(Number(next));
   };
 
   const min = -100;
@@ -65,9 +88,29 @@ const WeightSlider: React.FC<{
     <div className="py-2">
       <div className="flex items-center justify-between mb-1.5">
         <span id={`qw-label-${sliderId}`} className="text-sm text-surface-700 dark:text-surface-300">{label}</span>
-        <span className="text-xs font-semibold text-surface-500 dark:text-surface-400 tabular-nums w-10 text-right">
-          {displayValue}
-        </span>
+        {/* The readout is the exact-entry field: at 1.2 px per unit the track cannot
+            express a specific value, and this needs no extra row or layout shift.
+            Deliberately type="text" with NO inputMode — iOS numeric/decimal/tel
+            keypads have no minus key, so a signed value would be untypable on the
+            mobile sheet. The default keyboard exposes digits and "-" together. */}
+        <input
+          type="text"
+          value={draft ?? displayValue}
+          onChange={(e) => handleDraft(e.target.value)}
+          onBlur={() => setDraft(null)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') { setDraft(null); e.currentTarget.blur(); }
+            if (e.key === 'Escape') { setDraft(null); }
+          }}
+          aria-label={`${label} — ${t('custom_quality.aria_exact')}`}
+          enterKeyHint="done"
+          autoComplete="off"
+          spellCheck={false}
+          className="w-12 text-right bg-transparent rounded text-xs font-semibold tabular-nums
+                     text-surface-500 dark:text-surface-400
+                     focus:outline-none focus:ring-2 focus:ring-brand-500/60
+                     hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors"
+        />
       </div>
       <div className="relative">
         <div
@@ -83,6 +126,10 @@ const WeightSlider: React.FC<{
           aria-labelledby={`qw-label-${sliderId}`}
           aria-valuetext={valueText}
           onChange={(e) => handleChange(Number(e.target.value))}
+          onPointerDown={() => { pointerRef.current = true; }}
+          onPointerUp={() => { pointerRef.current = false; }}
+          onPointerCancel={() => { pointerRef.current = false; }}
+          onBlur={() => { pointerRef.current = false; }}
           className={`slider-${sliderId} relative w-full h-2 rounded-full appearance-none cursor-pointer
                      [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4
                      [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2

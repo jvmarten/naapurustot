@@ -363,6 +363,7 @@
   "custom_quality.signed_hint": "Varje reglage g\u00e5r \u00e5t b\u00e5da h\u00e5llen: + gynnar h\u00f6gre v\u00e4rden, \u2212 l\u00e4gre. 0 ignorerar m\u00e5ttet.",
   "custom_quality.dir_less": "mindre",
   "custom_quality.dir_more": "mer",
+  "custom_quality.aria_exact": "exakt v\u00e4rde",
   "custom_quality.aria_ignored": "r\u00e4knas inte",
   "custom_quality.aria_prefer_more": "gynnar h\u00f6gre v\u00e4rden",
   "custom_quality.aria_prefer_less": "gynnar l\u00e4gre v\u00e4rden",
