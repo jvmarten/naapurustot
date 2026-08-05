@@ -1,15 +1,17 @@
 /**
- * Tests for formatDensity, formatEuroSqm, and escapeHtml — the three formatters
- * whose outputs land directly in user-visible UI and HTML exports.
+ * Tests for formatDensity, formatFineDensity, formatEuroSqm, and escapeHtml —
+ * the formatters whose outputs land directly in user-visible UI and HTML exports.
  *
  * Risk:
  *  - formatDensity/formatEuroSqm run on tooltip hot path (60Hz) — must handle
  *    null/undefined/string silently, never throw, never produce "NaN /km²".
+ *  - formatFineDensity backs the profile page's sub-1 densities: rounding them
+ *    to a whole number is what printed "0 /km²" over real transit stops.
  *  - escapeHtml is the only defense against XSS in the PDF/score card HTML
  *    generators. A regression here → stored XSS across every neighborhood panel.
  */
 import { describe, it, expect } from 'vitest';
-import { formatDensity, formatEuroSqm, escapeHtml, formatNumber, formatEuro } from '../utils/formatting';
+import { formatDensity, formatFineDensity, formatEuroSqm, escapeHtml, formatNumber, formatEuro } from '../utils/formatting';
 
 describe('formatDensity', () => {
   it('returns em dash for null and undefined', () => {
@@ -42,6 +44,36 @@ describe('formatDensity', () => {
 
   it('handles zero without crashing', () => {
     expect(formatDensity(0)).toBe('0 /km²');
+  });
+});
+
+describe('formatFineDensity', () => {
+  it('returns em dash for null, undefined and non-numeric strings', () => {
+    expect(formatFineDensity(null)).toBe('—');
+    expect(formatFineDensity(undefined)).toBe('—');
+    expect(formatFineDensity('abc' as unknown as string)).toBe('—');
+  });
+
+  it('keeps one decimal at or above 1 /km²', () => {
+    expect(formatFineDensity(13.8).replace(/\u00a0/g, ' ')).toBe('13,8 /km²');
+    expect(formatFineDensity(1).replace(/\u00a0/g, ' ')).toBe('1,0 /km²');
+  });
+
+  it('never collapses a real sub-1 density to zero', () => {
+    // The whole point: 1,379 of the 3,018 areas have 0 < transit stop density
+    // < 0.5, and formatDensity's Math.round renders every one of them "0 /km²".
+    expect(formatDensity(0.4)).toBe('0 /km²');
+    expect(formatFineDensity(0.4).replace(/\u00a0/g, ' ')).toBe('0,4 /km²');
+    expect(formatFineDensity(0.045).replace(/\u00a0/g, ' ')).toBe('0,045 /km²');
+    expect(formatFineDensity(0.0012).replace(/\u00a0/g, ' ')).toBe('0,0012 /km²');
+  });
+
+  it('renders a genuine zero as zero', () => {
+    expect(formatFineDensity(0).replace(/\u00a0/g, ' ')).toBe('0,0 /km²');
+  });
+
+  it('accepts numeric strings via toNum coercion', () => {
+    expect(formatFineDensity('42').replace(/\u00a0/g, ' ')).toBe('42,0 /km²');
   });
 });
 

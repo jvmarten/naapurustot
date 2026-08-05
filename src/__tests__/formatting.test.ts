@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatNumber, formatEuro, formatPct, formatDiff, diffColor, formatYtlGrade, formatYtlGradeFull, parseSchools } from '../utils/formatting';
+import { formatNumber, formatEuro, formatPct, formatDiff, formatDecimal, diffColor, formatYtlGrade, formatYtlGradeFull, parseSchools } from '../utils/formatting';
 
 describe('formatNumber', () => {
   it('returns em dash for null', () => {
@@ -150,6 +150,33 @@ describe('formatYtlGradeFull', () => {
 
   it('includes letter grade and mean on 0-7 scale', () => {
     expect(formatYtlGradeFull(73.4)).toBe('M+ (5,14)');
+  });
+});
+
+describe('formatDecimal', () => {
+  it('returns em dash for null, undefined and non-numeric strings', () => {
+    expect(formatDecimal(null)).toBe('—');
+    expect(formatDecimal(undefined)).toBe('—');
+    expect(formatDecimal('abc')).toBe('—');
+  });
+
+  it('uses the locale decimal separator rather than toFixed\'s dot', () => {
+    // The whole reason this exists: `(48).toFixed(1)` is "48.0" even in fi-FI,
+    // so a profile page showed "48.0 v" next to an Intl-formatted "39,7 %".
+    expect(formatDecimal(48)).toBe('48,0');
+    expect(formatDecimal(19.428, 2)).toBe('19,43');
+  });
+
+  it('defaults to one decimal', () => {
+    expect(formatDecimal(54.44)).toBe('54,4');
+  });
+
+  it('uses an ASCII minus, not Intl fi-FI U+2212', () => {
+    expect(formatDecimal(-3.25, 1)).toBe('-3,3');
+  });
+
+  it('accepts numeric strings via toNum coercion', () => {
+    expect(formatDecimal('67.6')).toBe('67,6');
   });
 });
 

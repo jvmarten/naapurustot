@@ -8,7 +8,7 @@ import { computeMetroAverages, getMetricSource } from '../utils/metrics';
 import type { NeighbourhoodPercentiles } from '../utils/percentileRanks';
 import type { RegionId } from '../utils/regions';
 import { t, getLang, setLang, useI18nVersion, type Lang } from '../utils/i18n';
-import { formatNumber, formatEuro, formatPct, formatDiff } from '../utils/formatting';
+import { formatNumber, formatEuro, formatPct, formatDiff, formatDecimal, formatDensity, formatFineDensity } from '../utils/formatting';
 import { getQualityCategory, getQualityCategories, QUALITY_DIMENSIONS, isCustomWeights } from '../utils/qualityIndex';
 import { getLayerById, getInterpolatedColor, readableTextColor } from '../utils/colorScales';
 import { findSimilarNeighborhoods } from '../utils/similarity';
@@ -828,12 +828,15 @@ export const NeighborhoodProfilePage: React.FC = () => {
             subregionBadge={t('data.subregion_estimate')}
             subregionNote={t('data.subregion_estimate_desc').replace('{region}', cityName)}
           />
+          {/* Densities carry their /km² unit in the VALUE (as the map and the in-app
+              panel do). Without it these read as bare counts — "11" next to "Avg: 16"
+              says nothing about what is being counted, or over what area. */}
           <StatCard
             label={t('layer.population_density')}
-            value={d.population_density != null ? `${formatNumber(Math.round(d.population_density))}` : '—'}
+            value={formatDensity(d.population_density)}
             rawValue={d.population_density}
             average={avg.population_density}
-            avgLabel={avgStr(d.population_density, 'population_density', v => formatNumber(Math.round(v!)))}
+            avgLabel={avgStr(d.population_density, 'population_density', formatDensity)}
             propertyKey="population_density"
           />
           <StatCard
@@ -844,12 +847,17 @@ export const NeighborhoodProfilePage: React.FC = () => {
             avgLabel={avgStr(d.higher_education_rate, 'higher_education_rate', v => formatPct(v))}
             propertyKey="higher_education_rate"
           />
+          {/* Stop density is not a whole number: Math.round() turned a real
+              0.4 stops/km² into "0" on 1,379 of the 3,018 profile pages, and the
+              rounded value also disagreed with the unrounded diff beside it
+              ("14" vs "Avg: 6 (+7.2)"). formatFineDensity keeps the decimal and
+              adds the unit, so value, average and diff finally reconcile. */}
           <StatCard
             label={t('layer.transit_access')}
-            value={d.transit_stop_density != null ? formatNumber(Math.round(d.transit_stop_density)) : '—'}
+            value={formatFineDensity(d.transit_stop_density)}
             rawValue={d.transit_stop_density}
             average={avg.transit_stop_density}
-            avgLabel={avgStr(d.transit_stop_density, 'transit_stop_density', v => formatNumber(Math.round(v!)))}
+            avgLabel={avgStr(d.transit_stop_density, 'transit_stop_density', formatFineDensity)}
             propertyKey="transit_stop_density"
           />
         </div>
@@ -858,7 +866,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
         <Section title={t('profile.demographics')}>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             <StatItem label={t('profile.population')} value={formatNumber(d.he_vakiy)} />
-            <StatItem label={t('layer.avg_age')} value={d.he_kika != null ? d.he_kika.toFixed(1) : '—'} />
+            <StatItem label={t('layer.avg_age')} value={d.he_kika != null ? `${formatDecimal(d.he_kika)} ${t('profile.unit_years')}` : '—'} />
             <StatItem label={t('layer.child_ratio')} value={formatPct(d.child_ratio)} />
             <StatItem label={t('layer.foreign_lang')} value={formatPct(d.foreign_language_pct)} />
             <StatItem label={t('layer.pensioners')} value={formatPct(d.pensioner_share)} />
@@ -871,14 +879,16 @@ export const NeighborhoodProfilePage: React.FC = () => {
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             <StatItem label={t('layer.ownership')} value={formatPct(d.ownership_rate)} />
             <StatItem label={t('layer.rental')} value={formatPct(d.rental_rate)} />
-            <StatItem label={t('layer.apt_size')} value={d.ra_as_kpa != null ? `${d.ra_as_kpa.toFixed(1)} m²` : '—'} />
+            <StatItem label={t('layer.apt_size')} value={d.ra_as_kpa != null ? `${formatDecimal(d.ra_as_kpa)} m²` : '—'} />
             <StatItem label={t('layer.detached_houses')} value={formatPct(d.detached_house_share)} />
             {(d.rental_price_sqm != null || rentalPriceFallback != null) && (
               <StatItem
                 label={t('layer.rental_price')}
-                value={d.rental_price_sqm != null
-                  ? `${d.rental_price_sqm.toFixed(2)} €/m²/kk`
-                  : `${rentalPriceFallback!.toFixed(2)} €/m²/kk`}
+                // "/kk" was hardcoded here, so an English or Swedish reader got a
+                // Finnish month abbreviation on the unit. The prerendered copy of
+                // this same page always localized it — both now read the suffix
+                // from profile.unit_per_month, so they cannot disagree again.
+                value={`${formatDecimal(d.rental_price_sqm ?? rentalPriceFallback, 2)} €/m²${t('profile.unit_per_month')}`}
                 estimate={d.rental_price_sqm == null}
                 estimateBadge={t('data.subregion_estimate')}
                 estimateNote={t('data.subregion_estimate_desc').replace('{region}', cityName)}
@@ -897,16 +907,23 @@ export const NeighborhoodProfilePage: React.FC = () => {
               of the 3,018 profile pages stated "0 grocery stores" — including
               84100 Ylivieska Keskus, which has six. The count is the quantity a
               reader wants and the one we can actually stand behind; the density
-              stays on the map, where it is comparable across areas. */}
+              stays on the map, where it is comparable across areas.
+
+              These therefore need their own `profile.svc_*` labels: the map's
+              layer names describe the DENSITY layer, so reusing them here put
+              "School Density: 1" and "Healthcare Access: 2" on the page — a
+              per-km² label over a plain tally. The (kpl)/(count)/(antal) suffix
+              follows the same in-label unit convention as panel.* uses for /km². */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {d.grocery_count != null && <StatItem label={t('layer.grocery_access')} value={formatNumber(d.grocery_count)} />}
-            {d.restaurant_count != null && <StatItem label={t('layer.restaurant_density')} value={formatNumber(d.restaurant_count)} />}
-            {d.school_count != null && <StatItem label={t('layer.school_density')} value={formatNumber(d.school_count)} />}
-            {d.daycare_count != null && <StatItem label={t('layer.daycare_density')} value={formatNumber(d.daycare_count)} />}
-            {d.healthcare_count != null && <StatItem label={t('layer.healthcare_access')} value={formatNumber(d.healthcare_count)} />}
+            {d.grocery_count != null && <StatItem label={t('profile.svc_grocery')} value={formatNumber(d.grocery_count)} />}
+            {d.restaurant_count != null && <StatItem label={t('profile.svc_restaurant')} value={formatNumber(d.restaurant_count)} />}
+            {d.school_count != null && <StatItem label={t('profile.svc_school')} value={formatNumber(d.school_count)} />}
+            {d.daycare_count != null && <StatItem label={t('profile.svc_daycare')} value={formatNumber(d.daycare_count)} />}
+            {d.healthcare_count != null && <StatItem label={t('profile.svc_healthcare')} value={formatNumber(d.healthcare_count)} />}
             {/* LIPAS ships a density, not a count (see colorScales), so this one
-                keeps the per-km² label rather than pretending to be a tally. */}
-            {d.sports_facility_density != null && <StatItem label={t('panel.sports_facilities')} value={formatNumber(d.sports_facility_density)} />}
+                carries /km² in the value — like the two density stat cards above —
+                rather than pretending to be a tally. */}
+            {d.sports_facility_density != null && <StatItem label={t('layer.sports_facilities')} value={formatFineDensity(d.sports_facility_density)} />}
           </div>
           <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">{t('profile.services_source')}</p>
         </Section>
@@ -914,11 +931,15 @@ export const NeighborhoodProfilePage: React.FC = () => {
         {/* Environment Section */}
         <Section title={t('profile.environment')}>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {d.air_quality_index != null && <StatItem label={t('layer.air_quality')} value={d.air_quality_index.toFixed(1)} />}
+            {/* A modelled index with no physical unit (colorScales gives it unit ''),
+                so it stays a bare number here too. */}
+            {d.air_quality_index != null && <StatItem label={t('layer.air_quality')} value={formatDecimal(d.air_quality_index)} />}
             {d.tree_canopy_pct != null && <StatItem label={t('layer.tree_canopy')} value={formatPct(d.tree_canopy_pct)} />}
             {d.water_proximity_m != null && <StatItem label={t('layer.water_proximity')} value={`${formatNumber(Math.round(d.water_proximity_m))} m`} />}
-            {d.noise_pollution != null && <StatItem label={t('layer.noise_pollution')} value={`${d.noise_pollution.toFixed(1)} dB`} />}
-            {d.walkability_index != null && <StatItem label={t('layer.walkability')} value={d.walkability_index.toFixed(1)} />}
+            {d.noise_pollution != null && <StatItem label={t('layer.noise_pollution')} value={`${formatDecimal(d.noise_pollution)} dB`} />}
+            {/* 0–100 index — the map legend already writes it "68/100"; a bare
+                "68.0" here left the reader guessing at the scale. */}
+            {d.walkability_index != null && <StatItem label={t('layer.walkability')} value={`${formatDecimal(d.walkability_index, 0)}/100`} />}
           </div>
         </Section>
 
