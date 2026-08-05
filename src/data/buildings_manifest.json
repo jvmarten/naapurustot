@@ -1,0 +1,13 @@
+{
+  "helsinki": {
+    "path": "data/buildings_helsinki.topojson",
+    "bbox": [
+      24.891003,
+      60.147377,
+      25.001488,
+      60.20649
+    ],
+    "count": 9146,
+    "bytes": 1577607
+  }
+}

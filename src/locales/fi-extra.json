@@ -87,5 +87,6 @@
   "live.sun.sunset": "Auringonlasku",
   "live.sun.day_length": "Päivän pituus",
   "live.page.title": "Reaaliaika: auringon varjot kartalla",
-  "live.page.description": "Katso mihin aurinko paistaa ja mihin rakennukset heittävät varjonsa – minä hetkenä tahansa. Reaaliaikaista tietoa Suomen naapurustoista."
+  "live.page.description": "Katso mihin aurinko paistaa ja mihin rakennukset heittävät varjonsa – minä hetkenä tahansa. Reaaliaikaista tietoa Suomen naapurustoista.",
+  "live.shadow.coverage_measured": "{n} rakennusta näkyvissä. Korkeudet on mitattu Helsingin 3D-kaupunkimallista."
 }

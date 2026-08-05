@@ -1006,5 +1006,6 @@
   "live.sun.sunset": "Sunset",
   "live.sun.day_length": "Day length",
   "live.page.title": "Live: sun and building shadows on the map",
-  "live.page.description": "See where the sun reaches and where buildings cast their shadows, at any moment. Realtime data for Finnish neighbourhoods."
+  "live.page.description": "See where the sun reaches and where buildings cast their shadows, at any moment. Realtime data for Finnish neighbourhoods.",
+  "live.shadow.coverage_measured": "{n} buildings in view. Heights measured from the Helsinki 3D city model."
 }
