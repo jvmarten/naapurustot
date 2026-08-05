@@ -1,9 +1,10 @@
 import React, { lazy, Suspense } from 'react';
 import ReactDOM from 'react-dom/client';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { registerSW } from 'virtual:pwa-register';
 import { ThemeProvider } from './hooks/useTheme';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { setErrorReporter } from './utils/errorReporter';
 import { installChunkReloadHandler } from './utils/chunkReload';
 import { isInjectedScriptSyntaxError } from './utils/sentryFilters';
 import { detectBrowserLang, getLang, setLang, loadFiExtra } from './utils/i18n';
@@ -63,6 +64,16 @@ const PrivacyPage = lazy(() =>
 // eslint-disable-next-line react-refresh/only-export-components
 const ResetPasswordPage = lazy(() =>
   Promise.all([import('./pages/ResetPasswordPage'), loadFiExtra()]).then(([m]) => ({ default: m.ResetPasswordPage })));
+
+// An <ErrorBoundary> latches `hasError` until something clears it, so a crash on one
+// route otherwise renders the error screen on every route the user visits afterwards.
+// Feeding it the current pathname clears the fallback on navigation — which is also
+// what makes the fallback's own "Go back" button land on a rendered page.
+// eslint-disable-next-line react-refresh/only-export-components
+const RouteErrorBoundary: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { pathname } = useLocation();
+  return <ErrorBoundary resetKey={pathname}>{children}</ErrorBoundary>;
+};
 
 // Apply a freshly-deployed service worker WITHOUT yanking the page out from
 // under an active user. The PWA is registered in `prompt` mode (vite.config.ts),
@@ -169,6 +180,15 @@ if (SENTRY_DSN) {
       // and still report — see src/utils/sentryFilters.ts.
       beforeSend: (event) => (isInjectedScriptSyntaxError(event) ? null : event),
     });
+    // React swallows anything an ErrorBoundary catches, so those crashes never
+    // reached Sentry's global handlers — the boundary's fallback was the only
+    // evidence they happened. Route them in explicitly, with the component stack.
+    setErrorReporter((error, info) => {
+      Sentry.captureException(error, {
+        contexts: { react: { componentStack: info?.componentStack ?? undefined } },
+        tags: { source: 'error-boundary' },
+      });
+    });
   });
 }
 
@@ -188,7 +208,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             degrades to the localized fallback instead of a blank white page.
             Per-profile-route boundaries below remain for tighter in-place
             recovery. */}
-        <ErrorBoundary>
+        <RouteErrorBoundary>
           {/* L3: minimal full-page centered spinner while a route chunk loads,
               so a lazy page navigation shows feedback instead of a blank screen. */}
           <Suspense fallback={
@@ -219,9 +239,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                   crash (e.g. a "Maximum call stack size exceeded" RangeError seen
                   on memory-constrained mobile engines) degrades to a recoverable
                   fallback instead of an uncaught error + blank page. */}
-              <Route path="/alue/:slug" element={<ErrorBoundary><NeighborhoodProfilePage /></ErrorBoundary>} />
-              <Route path="/en/area/:slug" element={<ErrorBoundary><NeighborhoodProfilePage /></ErrorBoundary>} />
-              <Route path="/sv/omrade/:slug" element={<ErrorBoundary><NeighborhoodProfilePage /></ErrorBoundary>} />
+              <Route path="/alue/:slug" element={<RouteErrorBoundary><NeighborhoodProfilePage /></RouteErrorBoundary>} />
+              <Route path="/en/area/:slug" element={<RouteErrorBoundary><NeighborhoodProfilePage /></RouteErrorBoundary>} />
+              <Route path="/sv/omrade/:slug" element={<RouteErrorBoundary><NeighborhoodProfilePage /></RouteErrorBoundary>} />
               <Route path="/tietolahteet" element={<DataSourcesPage lang="fi" />} />
               <Route path="/en/data-sources" element={<DataSourcesPage lang="en" />} />
               <Route path="/sv/datakallor" element={<DataSourcesPage lang="sv" />} />
@@ -233,7 +253,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
               <Route path="*" element={<NotFoundPage />} />
             </Routes>
           </Suspense>
-        </ErrorBoundary>
+        </RouteErrorBoundary>
       </BrowserRouter>
     </ThemeProvider>
   </React.StrictMode>,
