@@ -18,11 +18,20 @@ import { getNationalRanges } from './nationalRanges';
 import { filterSmallIslands } from './geometryFilter';
 import type { RegionId } from './regions';
 
-// Vite resolves these glob imports at build time into lazy asset URLs.
-// Each region file becomes a separate chunk loaded on demand.
+// Vite resolves these glob imports at build time into asset URLs.
+//
+// EAGER on purpose. The lazy form emitted 70 standalone chunks, each one line
+// (`var e="/assets/tampere-<hash>.topojson";export{e as default}`) — 4,619 raw bytes
+// that gzip INFLATES to 6,009, because a ~66-byte file has nothing to compress and
+// still pays a ~20-byte header/trailer. Eager inlines the 70 URL strings into this
+// module instead, measured at 5,579 gzipped bytes cheaper.
+//
+// It also removes a request hop: the lazy form was fetch(tiny .js) -> fetch(topojson),
+// a waterfall on every region load. The URLs themselves are hashed filenames, so
+// nothing is fetched until fetchAndProcess asks for one.
 const regionModules = import.meta.glob<string>(
   '../data/regions/*.topojson',
-  { query: '?url', import: 'default', eager: false },
+  { query: '?url', import: 'default', eager: true },
 );
 
 // Properties-only dataset for the "all cities" view (CF-5). That view
@@ -168,11 +177,12 @@ export function loadRegionData(regionId: RegionId): Promise<ProcessedData> {
   if (cached) return cached;
 
   const key = getRegionGlobKey(regionId);
-  const loader = regionModules[key];
+  // Eager glob: the value IS the asset URL, not a loader thunk.
+  const url = regionModules[key];
 
   let promise: Promise<ProcessedData>;
-  if (loader) {
-    promise = loader().then((url) => fetchAndProcess(url));
+  if (url) {
+    promise = fetchAndProcess(url);
   } else {
     // Fallback: load from combined file and filter
     promise = loadAllData().then((all) => ({

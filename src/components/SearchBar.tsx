@@ -211,18 +211,18 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
   // Uses lazy-loaded turf modules — cached after first import.
   // Filters candidates by bbox first to avoid running the expensive
   // booleanPointInPolygon on all ~200-1000 features.
-  const turfRef = useRef<{ booleanPointInPolygon: typeof import('@turf/boolean-point-in-polygon').booleanPointInPolygon; point: typeof import('@turf/helpers').point } | null>(null);
+  // No @turf/helpers: booleanPointInPolygon starts with getCoord(), which accepts a
+  // bare [lon, lat] array, so wrapping the pair in a turf point() Feature was dead
+  // ceremony that pulled a whole module in (1,098 gzipped bytes).
+  const turfRef = useRef<{ booleanPointInPolygon: typeof import('@turf/boolean-point-in-polygon').booleanPointInPolygon } | null>(null);
   async function findNeighborhoodForPoint(coords: [number, number]): Promise<GeoJSON.Feature | null> {
     if (!data) return null;
     if (!turfRef.current) {
-      const [pipMod, helpersMod] = await Promise.all([
-        import('@turf/boolean-point-in-polygon'),
-        import('@turf/helpers'),
-      ]);
-      turfRef.current = { booleanPointInPolygon: pipMod.booleanPointInPolygon, point: helpersMod.point };
+      const pipMod = await import('@turf/boolean-point-in-polygon');
+      turfRef.current = { booleanPointInPolygon: pipMod.booleanPointInPolygon };
     }
-    const { booleanPointInPolygon, point } = turfRef.current;
-    const pt = point(coords);
+    const { booleanPointInPolygon } = turfRef.current;
+    const pt = coords;
     const [lng, lat] = coords;
     for (const feature of data.features) {
       if (!feature.geometry) continue;
