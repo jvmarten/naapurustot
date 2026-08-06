@@ -471,7 +471,9 @@ const AreaSummarySection: React.FC<{
   allFeatures: GeoJSON.Feature[];
   scope?: 'national' | 'region';
   region?: string;
-}> = React.memo(({ props, allFeatures, scope, region }) => {
+  /** True when the displayed quality_index came from the user's own weights. */
+  isCustomWeights?: boolean;
+}> = React.memo(({ props, allFeatures, scope, region, isCustomWeights = false }) => {
   useI18nVersion();
   // CF-2: for a real postal area, lazily fetch the national percentile ladders (a ?url asset,
   // zero bundle) so the standing is a TRUE national "top X%", not a rank against the loaded
@@ -486,15 +488,26 @@ const AreaSummarySection: React.FC<{
   }, [isAggregate]);
 
   const useNational = !!ladders && !isAggregate;
+  // The national quality_index ladder is built once with the DEFAULT weights, but the
+  // value on `props` is recomputed in place from the live weights and is renormalized
+  // within-region under the 'region' scope. Either makes the two incommensurable, so
+  // drop the metric instead of publishing a rank that inverts for most areas. The
+  // aggregate branch keeps it: there the cohort is the 69 region aggregates, re-averaged
+  // from the same mutated features, so that comparison is already apples-to-apples.
+  const skipProps = useMemo(
+    () => (isCustomWeights || scope === 'region' ? ['quality_index'] : []),
+    [isCustomWeights, scope],
+  );
   const summary = useMemo(
     () =>
       useNational
         ? computeAreaSummary(props as Record<string, unknown>, [], {
             nationalLadders: ladders!,
             population: (props.he_vakiy as number | null | undefined) ?? null,
+            skipProps,
           })
         : computeAreaSummary(props as Record<string, unknown>, allFeatures),
-    [props, allFeatures, ladders, useNational],
+    [props, allFeatures, ladders, useNational, skipProps],
   );
 
   if (summary.strong.length === 0 && summary.weak.length === 0) return null;
@@ -1377,7 +1390,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
 
       {/* CF-2: auto-composed plain-language strengths & weaknesses from real percentiles */}
       {allFeatures && allFeatures.length > 1 && (
-        <AreaSummarySection props={d} allFeatures={allFeatures} scope={qualityScope} region={regionName} />
+        <AreaSummarySection props={d} allFeatures={allFeatures} scope={qualityScope} region={regionName} isCustomWeights={isCustomWeights} />
       )}
 
       {/* CF-5: travel-time isochrone controls (real neighborhoods only; needs a Digitransit key) */}
