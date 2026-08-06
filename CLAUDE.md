@@ -128,6 +128,16 @@ just job successes — a monitor that only greps for green stays silent through 
 and its silence is indistinguishable from "still going". Two such monitors timed out at an
 hour here while the run had already failed.
 
+**`jq` is not installed on this machine.** Use `gh`'s built-in `--jq` instead; a monitor
+that pipes to standalone `jq` emits nothing *and* never sees its own exit condition, so it
+runs until timeout looking exactly like a job that is still going. Three monitors were lost
+to this in one session.
+
+```bash
+gh run view <id> --json status,conclusion,jobs \
+  --jq '"RUN: \(.status) \(.conclusion)", (.jobs[] | "  \(.name): \(.conclusion)")'
+```
+
 The container is ephemeral, so verify within the session that produced the push. **Known recurring failure modes:**
 
 - **`security` — `node scripts/check-audit.mjs` / `… server/api`** (`npm run audit:check` locally; run for both trees): a transitive high-severity advisory. Fix by pinning the offending package in that tree's `package.json` `overrides` to the first patched version *within its parent's compatible major* (e.g. `"undici": "^7.28.0"` to satisfy jsdom's `^7.x`), then `npm install` and re-run the gate. Don't jump a major (it can break the parent) — and when the patch exists only in a later major, verify the parents can load it before forcing it: `brace-expansion@5` needed `"minimatch": "^10.2.5"` alongside it, because `minimatch@3` does `require('brace-expansion')` as a callable and v5 exports a namespace. Moderate-only advisories don't fail the gate. If a high advisory genuinely cannot apply to this codebase and its only fix is a major bump, add a reviewed entry to `ALLOWLIST` in `scripts/check-audit.mjs` with the reason, the `scope` (`.` or `server/api`) and an `until` date — the gate fails once an exemption expires, so it can't become permanent.
