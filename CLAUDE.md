@@ -61,13 +61,72 @@ We want the lowest-level data possible. The minimum acceptable granularity is **
 
 **Do not create pull requests.** Push your changes to a `claude/*` branch and let the auto-merge workflow (`.github/workflows/auto-merge.yml`) handle merging to main after CI passes. Never open a PR manually or via API. Note: pushing a second `claude/*` branch cancels an in-flight auto-merge run (shared concurrency group) — serialize or stack branches.
 
+### Another session may be working in this directory right now
+
+More than one Claude session is often open on this repo, and they share one working
+directory, one git HEAD and one `node_modules`. Assume you are not alone:
+
+1. **`git status` before `git checkout`, `git pull` or `npm install`.** If the tree holds
+   work you did not create, it belongs to another session. Checking out moves HEAD under
+   it; `npm install` empties `node_modules` under whatever it is running.
+2. **Push with an explicit refspec: `git push origin HEAD:claude/your-branch`.** Bare
+   `git push` has pushed the *other* session's branch.
+3. **Stage by explicit path**, never `git add -A` / `git commit -a`, or you will sweep up
+   files that are not yours.
+4. **If the directory is occupied, work in a worktree** — create it for the task, remove
+   it when done. Do not maintain a permanent one; sessions outlive nothing.
+   ```bash
+   git worktree add C:/code/naapurustot-<task> -b claude/<task>
+   # only if you need to build/test there:
+   cmd //c mklink /J node_modules C:\code\naapurustot\node_modules   # or npm install
+   ...
+   git worktree remove C:/code/naapurustot-<task>
+   git worktree prune          # clears worktrees left by sessions that died
+   ```
+   The junction re-shares `node_modules`, so it does not protect against a concurrent
+   `npm install` — use a real install when you care.
+5. **Serialize pushes.** A worktree does not help here: the auto-merge concurrency group
+   is shared, so a second `claude/*` push cancels the first branch's in-flight run. Land
+   one, wait for green, then push the next.
+6. **Verify the merge landed — a green run is not proof.** Check
+   `git merge-base --is-ancestor <your-sha> origin/main`. An auto-merge run has reported
+   `completed success` while its branch was cancelled and deleted without merging.
+
+After any interruption (a crashed build, a wiped `node_modules`), **re-run
+`npm run build:data` before committing.** `build_region_data.mjs` shell-redirects
+`geo2topo` output, so a run killed at that moment leaves a **0-byte** `<region>.topojson`
+and an orphaned `<region>.geojson` temp file. That has shipped. Verify *all* artifacts,
+not a sample:
+
+```bash
+find src/data public/data -type f \( -name "*.json" -o -name "*.topojson" \) \
+  | sort | xargs md5sum > /tmp/a.txt
+npm run build:data && find src/data public/data -type f \( -name "*.json" -o -name "*.topojson" \) \
+  | sort | xargs md5sum | diff /tmp/a.txt -
+```
+
 ### Post-push: verify the auto-merge run (do this every push)
 
 Pushing is not "done" — the merge only lands if all auto-merge jobs (`security`, `checks`, `e2e`, `lighthouse`, `server`) pass. There is no PR and no webhook for branch-push CI, so you must check the run yourself and drive it to green:
 
 1. **Poll the run.** `mcp__github__actions_list` → `list_workflow_runs` for `auto-merge.yml`, `workflow_runs_filter.branch = <your claude/* branch>`. Read `status`/`conclusion` of the newest run (re-poll until `status: "completed"`).
-2. **`conclusion: "success"`** → the merge landed and the branch was auto-deleted. Done.
-3. **`conclusion: "failure"`** → `mcp__github__get_job_logs` with `run_id`, `failed_only: true`, `return_content: true`. Diagnose, fix on the same branch, re-push, and repeat from step 1 until green (re-pushing the *same* branch is safe; pushing a *different* `claude/*` branch cancels the in-flight run). If a failure is genuinely out of scope or you're stuck after a couple of rounds, stop and report the diagnosis instead of looping.
+   The GitHub MCP is **not always present** — fall back to `gh`, which is always available:
+   ```bash
+   gh run list --workflow=auto-merge.yml --branch=<branch> --limit 3 \
+     --json databaseId,status,conclusion,headSha
+   gh run view <run-id> --json status,conclusion,jobs      # per-job breakdown
+   gh run view <run-id> --log-failed                       # logs of the failed job
+   ```
+   Do **not** use `gh run list --template` — it mangles run IDs. Use `--json` and parse.
+2. **`conclusion: "success"`** → normally the merge landed and the branch was auto-deleted.
+   Confirm it rather than assuming: `git fetch -q && git merge-base --is-ancestor <sha> origin/main`.
+   A run has reported success while its branch was cancelled and deleted *without* merging.
+3. **`conclusion: "failure"`** → `mcp__github__get_job_logs` with `run_id`, `failed_only: true`, `return_content: true` (or `gh run view <id> --log-failed`). Diagnose, fix on the same branch, re-push, and repeat from step 1 until green (re-pushing the *same* branch is safe; pushing a *different* `claude/*` branch cancels the in-flight run). If a failure is genuinely out of scope or you're stuck after a couple of rounds, stop and report the diagnosis instead of looping.
+
+If you watch the run with a `Monitor`, make the filter emit on **failure states too**, not
+just job successes — a monitor that only greps for green stays silent through a failed run
+and its silence is indistinguishable from "still going". Two such monitors timed out at an
+hour here while the run had already failed.
 
 The container is ephemeral, so verify within the session that produced the push. **Known recurring failure modes:**
 
