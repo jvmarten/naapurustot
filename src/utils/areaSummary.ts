@@ -117,6 +117,22 @@ export interface AreaSummaryOptions {
   population?: number | null;
   /** CF-2: minimum population to make any claim at all (default 200; he_vakiy p5 ≈ 46). */
   minPopulation?: number;
+  /**
+   * Properties to leave out of the summary entirely, because the caller knows the
+   * value it holds is not commensurable with the distribution it would be ranked
+   * against. Opt-in, so the build-time prerenderer — whose props come from committed
+   * default-weight data — is unaffected.
+   *
+   * The case this exists for: `quality_index` is DERIVED, and App recomputes it in
+   * place from the user's live weights (and renormalizes it within-region under the
+   * 'region' comparison scope), while the national ladder is built once with the
+   * DEFAULT weights. Ranking one against the other inverts strength and weakness for
+   * most areas — measured over all 3,018 postal codes with the shipped "Lapsiperhe"
+   * preset, 1,373 areas were labelled a weakness while not being in the bottom
+   * quartile at all, median error 48 percentile points. There is no honest rank to
+   * show there, so the metric is dropped rather than displayed wrongly.
+   */
+  skipProps?: readonly string[];
 }
 
 const DEFAULTS = {
@@ -156,6 +172,7 @@ export function computeAreaSummary(
   const minNationalN = options.minNationalN ?? DEFAULTS.minNationalN;
   const minPopulation = options.minPopulation ?? DEFAULTS.minPopulation;
   const { nationalLadders, population } = options;
+  const skipProps = options.skipProps ?? [];
   const strong: SummaryEntry[] = [];
   const weak: SummaryEntry[] = [];
 
@@ -164,6 +181,7 @@ export function computeAreaSummary(
   if (population != null && population < minPopulation) return { strong, weak };
 
   for (const m of SUMMARY_METRICS) {
+    if (skipProps.includes(m.prop)) continue;
     const value = readVal(props, m.prop, m.requirePositive);
     if (value == null) continue;
     let sorted: number[];
