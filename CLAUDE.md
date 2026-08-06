@@ -187,6 +187,14 @@ The all-Finland view (`?city=all`, the default) shows seutukunta outlines, not i
 - Never replace a state-dependent paint expression with a constant (`setPaintProperty`) — the next `setFeatureState` throws. Hide layers via `buildFillOpacity(0)`.
 - Gate post-init layer work on the persistent `mapStyleLoadedRef`, not `map.isStyleLoaded()` (returns false during in-flight `setData` re-parses, silently dropping work).
 
+### /live/ shadows
+
+1. **The map is pinned to `maxPitch: 0`.** The overlay re-projects footprints with an affine Mercator→screen transform calibrated from three `map.project()` calls — four multiply-adds per vertex instead of a projection call, which is what lets a city-zoom view of ~10,000 buildings render and scrub. That transform is exact only at pitch 0. Allowing pitch silently skews every shadow.
+2. **Every ring fed to the emitter must wind the same way.** `projectPrepared` normalises orientation *after* simplification, because dropping vertices can flip a near-degenerate ring's sign — and one ring winding the wrong way subtracts itself from the nonzero-fill union, which renders as a hole rather than as an error.
+3. **The city model and OSM are combined, never chosen between.** A viewport reaching past a shard's rectangle takes measured heights inside it and queries Overpass only for the strips around it (`bboxSubtract`). Selecting a single source by the viewport centre is what made buildings stop along an invisible straight line. The Overpass budget (`MAX_OSM_AREA_KM2`) is charged against those strips, not the whole viewport.
+4. **Sunset is "shade everywhere", not "no data".** Below the horizon the layer fills the whole canvas, ramped to full night at −6°. Drawing nothing says "we have no buildings here" in the same visual language as a failed fetch.
+5. Fetches are padded past the viewport (`fetchPadMetres`) so off-screen buildings still cast into view, and the loaded bbox + plan are cached so a zoom-in or short pan reuses them. Padding is paid for on all four sides — a 15 % margin is ~35 % more query area.
+
 ### Adding a new data layer
 
 1. Add the `LayerId` and a `LayerConfig` to `LAYERS` in `src/utils/colorScales.ts`

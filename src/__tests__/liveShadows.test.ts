@@ -7,9 +7,22 @@ import {
   sweptRings,
   emitSweptPath,
   signedArea2,
+  signedArea2Flat,
   shadowLengthMetres,
   simplifyProjected,
+  lonLatToMercator,
+  mercatorToLonLat,
+  prepareBuilding,
+  projectPrepared,
+  padBbox,
+  bboxAreaKm2,
+  bboxContains,
+  bboxIntersects,
+  bboxSubtract,
+  type Affine,
+  type Bbox,
   type Pt,
+  type Ring,
 } from '../live/shadows';
 import { defaultEnabledFeeds, sanitizeEnabled, ALL_FEEDS } from '../live/feeds';
 
@@ -221,6 +234,191 @@ describe('simplifyProjected', () => {
   it('never collapses a ring below a drawable triangle', () => {
     const tiny: Pt[] = [[0, 0], [0.1, 0], [0.1, 0.1], [0, 0.1], [0, 0]];
     expect(simplifyProjected(tiny, 50).length).toBeGreaterThanOrEqual(4);
+  });
+});
+
+describe('Web Mercator', () => {
+  it('round-trips a Finnish coordinate', () => {
+    const [x, y] = lonLatToMercator(24.9384, 60.1699);
+    const [lon, lat] = mercatorToLonLat(x, y);
+    expect(lon).toBeCloseTo(24.9384, 9);
+    expect(lat).toBeCloseTo(60.1699, 9);
+  });
+
+  it('puts the origin at the centre of the unit square and grows y southward', () => {
+    expect(lonLatToMercator(0, 0)).toEqual([0.5, 0.5]);
+    const [, north] = lonLatToMercator(24.9, 61);
+    const [, south] = lonLatToMercator(24.9, 60);
+    // Screen and Mercator y both point down, which is what lets the renderer
+    // treat the projection as an orientation-PRESERVING affine map.
+    expect(south).toBeGreaterThan(north);
+  });
+
+  it('stays finite at the poles rather than diverging', () => {
+    expect(Number.isFinite(lonLatToMercator(0, 90)[1])).toBe(true);
+    expect(Number.isFinite(lonLatToMercator(0, -90)[1])).toBe(true);
+  });
+});
+
+/** A 1:1 Mercator→screen transform scaled up so a building spans real pixels. */
+const SCALE = 200_000_000;
+const FLAT: Affine = { ox: 0, oy: 0, px: 0, py: 0, ax: SCALE, ay: 0, bx: 0, by: SCALE };
+
+/** A small square building near Helsinki centre, given clockwise on screen. */
+const SQUARE: Ring = [
+  [24.9500, 60.1700],
+  [24.9505, 60.1700],
+  [24.9505, 60.1703],
+  [24.9500, 60.1703],
+  [24.9500, 60.1700],
+];
+
+describe('projectPrepared', () => {
+  it('projects through the affine transform and reports the screen bounds', () => {
+    const p = prepareBuilding({ ring: SQUARE, height: 20, estimated: false });
+    projectPrepared(p, FLAT, 0);
+    expect(p.sn).toBe(SQUARE.length);
+    const [mx, my] = lonLatToMercator(SQUARE[0][0], SQUARE[0][1]);
+    // Winding normalisation may reverse the ring, but a closed ring's first
+    // vertex is its last, so vertex 0 is the same point either way.
+    expect(p.sx[0]).toBeCloseTo(mx * SCALE, 3);
+    expect(p.sy[0]).toBeCloseTo(my * SCALE, 3);
+    expect(p.maxX).toBeGreaterThan(p.minX);
+    expect(p.maxY).toBeGreaterThan(p.minY);
+  });
+
+  it('normalises winding whichever way the source ring runs', () => {
+    // Mixed winding is what makes the nonzero union SUBTRACT instead of merge,
+    // and city-model and OSM footprints do not agree on a convention.
+    for (const ring of [SQUARE, [...SQUARE].reverse() as Ring]) {
+      const p = prepareBuilding({ ring, height: 20, estimated: false });
+      projectPrepared(p, FLAT, 0);
+      expect(signedArea2Flat(p.sx, p.sy, p.sn)).toBeGreaterThan(0);
+    }
+  });
+
+  it('drops sub-pixel vertices but never below a drawable ring', () => {
+    // Same square with three extra vertices microscopically close together.
+    const dense: Ring = [
+      [24.95, 60.17],
+      [24.950001, 60.17],
+      [24.950002, 60.17],
+      [24.9505, 60.17],
+      [24.9505, 60.1703],
+      [24.95, 60.1703],
+      [24.95, 60.17],
+    ];
+    const p = prepareBuilding({ ring: dense, height: 20, estimated: false });
+    projectPrepared(p, FLAT, 1.5);
+    expect(p.sn).toBeLessThan(dense.length);
+    expect(p.sn).toBeGreaterThanOrEqual(4);
+
+    // A tolerance far larger than the building collapses the ring to a line, so
+    // it is stood in with its own bounding box: five vertices, still drawable,
+    // and indistinguishable from the real outline at the size that triggers it.
+    const tiny = prepareBuilding({ ring: dense, height: 20, estimated: false });
+    projectPrepared(tiny, FLAT, 1e9);
+    expect(tiny.sn).toBe(5);
+    expect([...tiny.sx.slice(0, 5)].sort((a, b) => a - b)).toEqual(
+      [tiny.minX, tiny.minX, tiny.minX, tiny.maxX, tiny.maxX].sort((a, b) => a - b),
+    );
+    expect(signedArea2Flat(tiny.sx, tiny.sy, tiny.sn)).toBeGreaterThan(0);
+  });
+
+  it('keeps the ring closed after simplification', () => {
+    const p = prepareBuilding({ ring: SQUARE, height: 20, estimated: false });
+    projectPrepared(p, FLAT, 1.5);
+    expect(p.sx[0]).toBeCloseTo(p.sx[p.sn - 1], 9);
+    expect(p.sy[0]).toBeCloseTo(p.sy[p.sn - 1], 9);
+  });
+
+  it('reuses its buffers across cameras instead of reallocating', () => {
+    const p = prepareBuilding({ ring: SQUARE, height: 20, estimated: false });
+    const { sx, sy } = p;
+    projectPrepared(p, FLAT, 0);
+    const firstMinX = p.minX;
+    const firstMinY = p.minY;
+    projectPrepared(p, { ...FLAT, px: 500, py: 250 }, 0);
+    expect(p.sx).toBe(sx);
+    expect(p.sy).toBe(sy);
+    // The second camera is the first translated by (500, 250), and the cached
+    // bounds have to follow the camera or the viewport cull drops live buildings.
+    expect(p.minX).toBeCloseTo(firstMinX + 500, 6);
+    expect(p.minY).toBeCloseTo(firstMinY + 250, 6);
+  });
+});
+
+/** Plain degree area, so strips at different latitudes stay additive. */
+const degArea = (b: Bbox) => (b.north - b.south) * (b.east - b.west);
+
+describe('bbox helpers', () => {
+  const view: Bbox = { south: 60.16, west: 24.92, north: 60.18, east: 24.96 };
+
+  it('pads by about the requested number of metres on every side', () => {
+    const padded = padBbox(view, 1000);
+    expect((padded.north - view.north) * 111_320).toBeCloseTo(1000, 0);
+    expect((view.south - padded.south) * 111_320).toBeCloseTo(1000, 0);
+    // Longitude degrees are shorter this far north, so the box grows more of them.
+    const eastMetres =
+      (padded.east - view.east) * 111_320 * Math.cos((60.17 * Math.PI) / 180);
+    expect(eastMetres).toBeCloseTo(1000, 0);
+  });
+
+  it('measures area in km² allowing for the meridian convergence', () => {
+    // 0.02 deg lat = 2.226 km; 0.04 deg lon at 60.17 deg N = 2.215 km.
+    expect(bboxAreaKm2(view)).toBeCloseTo(4.931, 2);
+    expect(bboxAreaKm2({ south: 1, north: 1, west: 1, east: 2 })).toBe(0);
+  });
+
+  it('answers containment and intersection', () => {
+    const padded = padBbox(view, 500);
+    expect(bboxContains(padded, view)).toBe(true);
+    expect(bboxContains(view, padded)).toBe(false);
+    expect(bboxContains(view, view)).toBe(true);
+    expect(bboxIntersects(view, padded)).toBe(true);
+    expect(bboxIntersects(view, { south: 0, west: 0, north: 1, east: 1 })).toBe(false);
+  });
+});
+
+describe('bboxSubtract', () => {
+  const area: Bbox = { south: 0, west: 0, north: 10, east: 10 };
+
+  it('returns the whole area when nothing is cut out of it', () => {
+    expect(bboxSubtract(area, { south: 20, west: 20, north: 30, east: 30 })).toEqual([area]);
+  });
+
+  it('returns nothing when the hole swallows the area', () => {
+    expect(bboxSubtract(area, { south: -1, west: -1, north: 11, east: 11 })).toEqual([]);
+  });
+
+  it('decomposes a central hole into disjoint strips that conserve area', () => {
+    const hole: Bbox = { south: 2, west: 3, north: 6, east: 7 };
+    const parts = bboxSubtract(area, hole);
+    expect(parts).toHaveLength(4);
+    // Disjoint: overlapping strips would double-count buildings in the coverage
+    // denominator and draw the same footprint twice.
+    for (let i = 0; i < parts.length; i++) {
+      for (let j = i + 1; j < parts.length; j++) {
+        expect(bboxIntersects(parts[i], parts[j]), `strips ${i} and ${j} overlap`).toBe(false);
+      }
+    }
+    const covered = parts.reduce((sum, p) => sum + degArea(p), 0);
+    expect(covered + degArea(hole)).toBeCloseTo(degArea(area), 9);
+  });
+
+  it('handles a hole that reaches an edge', () => {
+    // Hole covers the whole top of the area — one strip below it, nothing else.
+    const parts = bboxSubtract(area, { south: 6, west: -1, north: 11, east: 11 });
+    expect(parts).toEqual([{ south: 0, west: 0, north: 6, east: 10 }]);
+    const covered = parts.reduce((sum, p) => sum + degArea(p), 0);
+    expect(covered).toBeCloseTo(degArea(area) - 10 * 4, 9);
+  });
+
+  it('clips strips to the area rather than to the hole', () => {
+    // A hole hanging off the left edge: only a right strip survives, and it must
+    // not extend past the area it was cut from.
+    const parts = bboxSubtract(area, { south: -5, west: -5, north: 15, east: 4 });
+    expect(parts).toEqual([{ south: 0, west: 4, north: 10, east: 10 }]);
   });
 });
 
