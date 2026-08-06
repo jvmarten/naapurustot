@@ -126,9 +126,10 @@ export async function geocodeAddressDetailed(query: string, signal?: AbortSignal
 // running the expensive polygon test on every feature. Mirrors the inline
 // version in SearchBar so both the address search and "show my area"
 // (geolocation) share one implementation.
+// No @turf/helpers here either: getCoord() inside booleanPointInPolygon already
+// accepts a bare [lon, lat] pair, so point() was only wrapping it in a Feature.
 let pipMods: {
   booleanPointInPolygon: typeof import('@turf/boolean-point-in-polygon').booleanPointInPolygon;
-  point: typeof import('@turf/helpers').point;
 } | null = null;
 
 /** Bounding box [minX, minY, maxX, maxY] of a Polygon/MultiPolygon, or null. Used
@@ -157,14 +158,11 @@ export async function findNeighborhoodForPoint(
   features: GeoJSON.Feature[],
 ): Promise<GeoJSON.Feature | null> {
   if (!pipMods) {
-    const [pip, helpers] = await Promise.all([
-      import('@turf/boolean-point-in-polygon'),
-      import('@turf/helpers'),
-    ]);
-    pipMods = { booleanPointInPolygon: pip.booleanPointInPolygon, point: helpers.point };
+    const pip = await import('@turf/boolean-point-in-polygon');
+    pipMods = { booleanPointInPolygon: pip.booleanPointInPolygon };
   }
-  const { booleanPointInPolygon, point } = pipMods;
-  const pt = point(coords);
+  const { booleanPointInPolygon } = pipMods;
+  const pt = coords;
   const [lng, lat] = coords;
   for (const feature of features) {
     if (!feature.geometry) continue;
