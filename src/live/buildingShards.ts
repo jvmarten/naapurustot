@@ -17,6 +17,15 @@
  * of the result type rather than something the UI guesses, and it is reported in
  * the readout next to the count.
  *
+ * THE TWO TIERS ARE COMBINED, NOT CHOSEN BETWEEN. A shard covers a rectangle a
+ * few kilometres across; a viewport that reaches past its edge used to fall
+ * entirely to whichever tier owned the CENTRE, so panning or zooming out over
+ * Helsinki cut the buildings off along an invisible straight line and everything
+ * beyond it silently stopped casting a shadow. `resolveBuildings` now takes the
+ * measured footprints where the shard has them and asks Overpass only for the
+ * rectangles it does not cover (see `bboxSubtract`), so the two meet without a
+ * seam and without fetching anything twice.
+ *
  * The manifest is statically imported because it is a handful of bytes per shard
  * (path, bbox, count) and choosing a tier must not itself cost a network round
  * trip. The shard payload is fetched lazily, once, only when a viewport actually
@@ -26,9 +35,17 @@ import { feature } from 'topojson-client';
 import type { Topology } from 'topojson-specification';
 import type { FeatureCollection, Polygon } from 'geojson';
 import manifest from '../data/buildings_manifest.json';
-import { fetchBuildings, type Bbox, type Building, type Ring } from './shadows';
+import {
+  fetchBuildings,
+  bboxAreaKm2,
+  bboxIntersects,
+  bboxSubtract,
+  type Bbox,
+  type Building,
+  type Ring,
+} from './shadows';
 
-export type HeightSource = 'city_model' | 'osm';
+export type HeightSource = 'city_model' | 'osm' | 'mixed';
 
 export interface ShardEntry {
   path: string;
@@ -41,6 +58,36 @@ export interface ShardEntry {
 const SHARDS = manifest as unknown as Record<string, ShardEntry>;
 
 const BASE = import.meta.env.BASE_URL ?? '/';
+
+/**
+ * Largest ground area we will ask Overpass for, in km².
+ *
+ * The gate this replaced was a zoom threshold, which asks the wrong question:
+ * the cost of the query is set by the ground area it scans, and that depends on
+ * the window size as much as on the zoom. Budgeting the AREA lets a laptop
+ * window at zoom 13.7 fetch while a phone at the same zoom — a quarter of the
+ * ground — is nowhere near the limit, and it keeps a very wide monitor from
+ * quietly issuing a request four times the size anyone measured.
+ *
+ * The number is set by PAYLOAD, measured against the live endpoint over central
+ * Helsinki — the densest building data in the country: 9 km² returned 2.7 MB of
+ * JSON, 100 km² returned 8.8 MB. 45 km² is roughly 4 MB there, comparable to
+ * what the old zoom-14.5 gate already fetched in the centre, while covering
+ * about three times the ground. Everywhere outside the capital region is far
+ * sparser, so this binds only where it has to.
+ *
+ * Do not read it as a size Overpass is guaranteed to serve. The public endpoint
+ * is shared and its behaviour varies by the hour — a 29 km² query returned a
+ * gateway timeout during this work while a 100 km² one succeeded minutes later.
+ * That is why the page states a failure and lets the user retry rather than
+ * spinning: the request being refused is a normal outcome, not a bug to hide.
+ *
+ * It is budgeted against the rectangles actually SENT, not the viewport: where a
+ * city-model shard covers the middle, only the strips around it are queried, and
+ * charging the query for ground it never scans would refuse requests that are
+ * genuinely cheap.
+ */
+export const MAX_OSM_AREA_KM2 = 45;
 
 /** A loaded building plus its own bbox, so viewport filtering is a cheap compare. */
 interface IndexedBuilding extends Building {
@@ -61,6 +108,12 @@ interface IndexedBuilding extends Building {
  */
 const shardCache = new Map<string, Promise<IndexedBuilding[]>>();
 
+/** A shard entry's extent as a Bbox. */
+export function shardBbox(entry: ShardEntry): Bbox {
+  const [minLon, minLat, maxLon, maxLat] = entry.bbox;
+  return { west: minLon, south: minLat, east: maxLon, north: maxLat };
+}
+
 /** The shard covering this point, or null when there is none. */
 export function findShard(lon: number, lat: number): { id: string; entry: ShardEntry } | null {
   for (const [id, entry] of Object.entries(SHARDS)) {
@@ -70,6 +123,33 @@ export function findShard(lon: number, lat: number): { id: string; entry: ShardE
     }
   }
   return null;
+}
+
+/**
+ * The shard with the largest overlap with `bbox`, or null when none touches it.
+ *
+ * Overlap rather than containment of the centre: a viewport that only clips the
+ * corner of a shard should still get the measured heights for that corner, with
+ * OSM filling the rest.
+ */
+export function findShardOverlapping(bbox: Bbox): { id: string; entry: ShardEntry } | null {
+  let best: { id: string; entry: ShardEntry } | null = null;
+  let bestArea = 0;
+  for (const [id, entry] of Object.entries(SHARDS)) {
+    const sb = shardBbox(entry);
+    if (!bboxIntersects(bbox, sb)) continue;
+    const area = bboxAreaKm2({
+      south: Math.max(bbox.south, sb.south),
+      north: Math.min(bbox.north, sb.north),
+      west: Math.max(bbox.west, sb.west),
+      east: Math.min(bbox.east, sb.east),
+    });
+    if (area > bestArea) {
+      bestArea = area;
+      best = { id, entry };
+    }
+  }
+  return best;
 }
 
 function index(building: Building): IndexedBuilding {
@@ -128,9 +208,7 @@ function getShard(id: string, entry: ShardEntry): Promise<IndexedBuilding[]> {
  * the first one should send the caller to the OSM fallback.
  */
 export async function buildingsFromShard(bbox: Bbox): Promise<Building[] | null> {
-  const centreLon = (bbox.west + bbox.east) / 2;
-  const centreLat = (bbox.south + bbox.north) / 2;
-  const shard = findShard(centreLon, centreLat);
+  const shard = findShardOverlapping(bbox);
   if (!shard) return null;
 
   const all = await getShard(shard.id, shard.entry);
@@ -151,35 +229,103 @@ export function hasShards(): boolean {
   return Object.keys(SHARDS).length > 0;
 }
 
+/**
+ * What the shadow layer can draw for a viewport, decided without fetching.
+ *
+ *   'shard'     — measured heights only; either the shard covers the whole box,
+ *                 or the rest of it is too large to ask Overpass for.
+ *   'shard+osm' — measured heights plus an Overpass query for the remainder.
+ *   'osm'       — no shard here, and the box is small enough to query.
+ *   'none'      — nothing can be drawn; the UI must say "zoom in" rather than
+ *                 render an empty map that reads as "no buildings here".
+ *
+ * Separated from {@link resolveBuildings} so the page can put the honest message
+ * up IMMEDIATELY on a camera change, instead of after a debounce and a round
+ * trip. Both are pure functions of the bbox, so they cannot disagree.
+ */
+export type CoveragePlan = 'shard' | 'shard+osm' | 'osm' | 'none';
+
+/** Total ground area of a set of boxes, in km². */
+function totalAreaKm2(boxes: Bbox[]): number {
+  return boxes.reduce((sum, b) => sum + bboxAreaKm2(b), 0);
+}
+
+export function planCoverage(bbox: Bbox): CoveragePlan {
+  const shard = findShardOverlapping(bbox);
+  if (!shard) return bboxAreaKm2(bbox) <= MAX_OSM_AREA_KM2 ? 'osm' : 'none';
+  const uncovered = bboxSubtract(bbox, shardBbox(shard.entry));
+  if (uncovered.length === 0) return 'shard';
+  return totalAreaKm2(uncovered) <= MAX_OSM_AREA_KM2 ? 'shard+osm' : 'shard';
+}
+
 export interface ResolvedBuildings {
   buildings: Building[];
-  /** Buildings in view from the chosen source, INCLUDING ones with no usable height. */
+  /** Buildings in view from the chosen sources, INCLUDING ones with no usable height. */
   total: number;
   source: HeightSource;
+  /** How many came from a measured city model. */
+  measured: number;
+  /** OSM buildings with a usable height, and the OSM denominator they came from. */
+  osmWithHeight: number;
+  osmTotal: number;
+  /**
+   * True when part of the viewport was deliberately left unqueried.
+   *
+   * Only happens with a city model behind it: the shard answers for its own
+   * rectangle and the surrounding strips were too large to be a fair request.
+   * The result is buildings that stop along a straight line, so the UI has to be
+   * able to SAY that rather than letting it read as "nothing is built there".
+   */
+  partial: boolean;
 }
 
 /**
- * Buildings for `bbox` from the best source available there.
+ * Buildings for `bbox` from every source that has them there.
  *
- * Prefers the measured city model and falls back to the live OSM query, which is
- * also what happens when a shard fetch fails: a broken shard should degrade to
- * worse heights, not to no shadows at all.
+ * A shard failure degrades to OSM over the whole box rather than to no shadows
+ * at all: worse heights beat an empty map, which the user would read as "there
+ * are no buildings here".
  */
 export async function resolveBuildings(
   bbox: Bbox,
   signal?: AbortSignal,
 ): Promise<ResolvedBuildings> {
-  try {
-    const fromShard = await buildingsFromShard(bbox);
-    if (fromShard) {
-      // Every building in the city model carries a measured height, so the count
-      // in view IS the total — there is no "missing height" subset to report.
-      return { buildings: fromShard, total: fromShard.length, source: 'city_model' };
+  const shard = findShardOverlapping(bbox);
+  let measured: Building[] = [];
+  /** The part of the viewport the city model does not answer for. */
+  let uncovered: Bbox[] = [bbox];
+
+  if (shard) {
+    try {
+      measured = (await buildingsFromShard(bbox)) ?? [];
+      uncovered = bboxSubtract(bbox, shardBbox(shard.entry));
+    } catch (err) {
+      if ((err as Error)?.name === 'AbortError') throw err;
+      console.warn('LivePage: city-model shard unavailable, falling back to OSM', err);
+      measured = [];
+      uncovered = [bbox];
     }
-  } catch (err) {
-    if ((err as Error)?.name === 'AbortError') throw err;
-    console.warn('LivePage: city-model shard unavailable, falling back to OSM', err);
   }
-  const { buildings, total } = await fetchBuildings(bbox, signal);
-  return { buildings, total, source: 'osm' };
+
+  // Budgeted against the strips actually sent — Overpass scans the boxes it is
+  // given, not the hole between them — so a wide view over a covered city centre
+  // still gets its surroundings filled in.
+  const askOsm = uncovered.length > 0 && totalAreaKm2(uncovered) <= MAX_OSM_AREA_KM2;
+  const osm = askOsm ? await fetchBuildings(uncovered, signal) : { buildings: [], total: 0 };
+
+  const source: HeightSource = measured.length
+    ? osm.buildings.length
+      ? 'mixed'
+      : 'city_model'
+    : 'osm';
+
+  return {
+    buildings: measured.length ? [...measured, ...osm.buildings] : osm.buildings,
+    total: measured.length + osm.total,
+    source,
+    measured: measured.length,
+    osmWithHeight: osm.buildings.length,
+    osmTotal: osm.total,
+    partial: uncovered.length > 0 && !askOsm,
+  };
 }

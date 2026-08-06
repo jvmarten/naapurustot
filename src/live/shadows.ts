@@ -39,8 +39,11 @@ const M_PER_DEG_LAT = 111_320;
  * downtown becomes one undifferentiated smear that also costs a fortune to
  * project. Clamping the LENGTH (rather than refusing to draw) keeps the
  * direction and the relative ordering honest while the sun is low.
+ *
+ * It doubles as the natural bound on how far outside the viewport a building can
+ * still matter, which is what {@link padBbox} is asked for — see the renderer.
  */
-const MAX_SHADOW_METRES = 2_000;
+export const MAX_SHADOW_METRES = 2_000;
 
 const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
 
@@ -122,28 +125,281 @@ export function offsetPoint(
 /** A point in any planar space — lon/lat for geometry, pixels for rendering. */
 export type Pt = [number, number];
 
+// ---------------------------------------------------------------------------
+// Web Mercator
+// ---------------------------------------------------------------------------
+
 /**
- * Shadow length in metres for a building of `height`, clamped.
+ * Project lon/lat into the Web Mercator unit square (0..1, y increasing south).
  *
- * Split out from `shadowRings` so the renderer can compute the offset once in
- * screen space instead of re-deriving geodesic offsets per vertex per frame.
+ * The renderer keeps every footprint in this space rather than in lon/lat,
+ * because at pitch 0 the map from Mercator to SCREEN is a plain affine one —
+ * scale, rotate, translate. That turns re-projecting a screenful of buildings
+ * into four multiply-adds per vertex instead of a `map.project()` call per
+ * vertex, which is the difference between rendering a few hundred buildings at
+ * street zoom and rendering ten thousand at city zoom (see `projectPrepared`).
  */
-export function shadowLengthMetres(height: number, sunAltitudeDeg: number): number {
-  if (sunAltitudeDeg <= 0) return 0;
-  const raw = height / Math.tan((sunAltitudeDeg * Math.PI) / 180);
-  if (!Number.isFinite(raw) || raw <= 0) return 0;
-  return Math.min(raw, MAX_SHADOW_METRES);
+export function lonLatToMercator(lon: number, lat: number): Pt {
+  // Clamped to the square Mercator domain; beyond ±85.05° the log diverges.
+  const s = Math.min(Math.max(Math.sin((lat * Math.PI) / 180), -0.999_999), 0.999_999);
+  return [(lon + 180) / 360, 0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)];
+}
+
+/** Inverse of {@link lonLatToMercator}. */
+export function mercatorToLonLat(x: number, y: number): Pt {
+  return [x * 360 - 180, (Math.atan(Math.sinh(Math.PI * (1 - 2 * y))) * 180) / Math.PI];
 }
 
 /**
- * Swept shadow rings for an already-projected footprint, displaced by (dx, dy).
+ * The affine map from Mercator unit-square coordinates to screen pixels.
  *
- * The planar twin of `shadowRings`, for the render path: the caller projects each
- * footprint ONCE per camera position and then only has to move it by a pixel
- * vector as the sun changes, instead of re-projecting every vertex of every ring
- * on every frame. Same orientation normalisation, for the same load-bearing
- * reason — see `shadowRings`.
+ * Deliberately CALIBRATED from the live map rather than derived from MapLibre's
+ * internals (world size, tile size, bearing sign): three `map.project()` calls
+ * pin it exactly, for any zoom and any rotation, with no assumption that can
+ * drift when the renderer changes. It is exact only while pitch is 0, which is
+ * why /live/ pins `maxPitch: 0`.
  */
+export interface Affine {
+  /** Mercator coordinates the transform is expressed relative to. */
+  ox: number;
+  oy: number;
+  /** Screen position of that origin. */
+  px: number;
+  py: number;
+  /** d(screen)/d(mercator x). */
+  ax: number;
+  ay: number;
+  /** d(screen)/d(mercator y). */
+  bx: number;
+  by: number;
+}
+
+/**
+ * A footprint held in Mercator space with reusable screen-space scratch buffers.
+ *
+ * Two buffers rather than an array of points: the per-frame emitter walks them
+ * with plain indexed reads, so a camera change refills existing memory instead
+ * of allocating ~135,000 two-element arrays for a city-zoom viewport. The GC
+ * churn from doing that per frame — not the rasteriser — is what used to pin a
+ * time-slider scrub at single-digit fps.
+ */
+export interface PreparedBuilding {
+  /** Vertex coordinates in the Mercator unit square. */
+  mx: Float64Array;
+  my: Float64Array;
+  /** Metres. */
+  height: number;
+  /** Screen-space vertices for the current camera; only the first `sn` are valid. */
+  sx: Float64Array;
+  sy: Float64Array;
+  sn: number;
+  /** Screen-space bounds of the footprint, for viewport and sub-pixel culling. */
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+/** Convert a fetched building into the render-path representation, once. */
+export function prepareBuilding(b: Building): PreparedBuilding {
+  const n = b.ring.length;
+  const mx = new Float64Array(n);
+  const my = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    const [x, y] = lonLatToMercator(b.ring[i][0], b.ring[i][1]);
+    mx[i] = x;
+    my[i] = y;
+  }
+  return {
+    mx,
+    my,
+    height: b.height,
+    sx: new Float64Array(n),
+    sy: new Float64Array(n),
+    sn: 0,
+    minX: 0,
+    minY: 0,
+    maxX: 0,
+    maxY: 0,
+  };
+}
+
+/**
+ * Project a footprint to screen space, simplify it, and normalise its winding.
+ *
+ * All three in one pass, because they are all O(vertices) and this runs over
+ * every building on a camera change. Vertices closer together than `minPx` are
+ * dropped: a LOD2 footprint carries architectural detail far below a pixel at
+ * city zooms, and the renderer's cost is dominated by the number of Path2D calls
+ * (each kept vertex becomes one, times ~n+2 rings per building).
+ *
+ * Orientation is normalised LAST, after simplification, because dropping
+ * vertices can in principle flip the sign of a near-degenerate ring's area — and
+ * a single ring winding the wrong way SUBTRACTS itself from the nonzero-fill
+ * union instead of joining it, which renders as a hole in the shadow.
+ */
+export function projectPrepared(p: PreparedBuilding, t: Affine, minPx: number): void {
+  const n = p.mx.length;
+  const { mx, my, sx, sy } = p;
+  const min2 = minPx * minPx;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  let out = 0;
+
+  for (let i = 0; i < n; i++) {
+    const dx = mx[i] - t.ox;
+    const dy = my[i] - t.oy;
+    const x = t.px + t.ax * dx + t.bx * dy;
+    const y = t.py + t.ay * dx + t.by * dy;
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+    // The first and last vertices are always kept, so the ring stays closed.
+    if (out === 0 || i === n - 1) {
+      sx[out] = x;
+      sy[out] = y;
+      out++;
+      continue;
+    }
+    const ex = x - sx[out - 1];
+    const ey = y - sy[out - 1];
+    if (ex * ex + ey * ey >= min2) {
+      sx[out] = x;
+      sy[out] = y;
+      out++;
+    }
+  }
+
+  // The ring collapsed below a drawable polygon, so the whole footprint is about
+  // a pixel across. Stand it in with its own bounding box rather than restoring
+  // every vertex: at that size the two are indistinguishable on screen, and the
+  // difference is five Path2D calls against however many a LOD2 outline carries
+  // — which is what decides whether a zoomed-out city renders at all.
+  if (out < 4) {
+    if (n >= 5) {
+      sx[0] = minX;
+      sy[0] = minY;
+      sx[1] = maxX;
+      sy[1] = minY;
+      sx[2] = maxX;
+      sy[2] = maxY;
+      sx[3] = minX;
+      sy[3] = maxY;
+      sx[4] = minX;
+      sy[4] = minY;
+      out = 5;
+    } else {
+      // Too few vertices to hold a box — a triangle, at most. Keep it whole.
+      for (let i = 0; i < n; i++) {
+        const dx = mx[i] - t.ox;
+        const dy = my[i] - t.oy;
+        sx[i] = t.px + t.ax * dx + t.bx * dy;
+        sy[i] = t.py + t.ay * dx + t.by * dy;
+      }
+      out = n;
+    }
+  }
+
+  if (signedArea2Flat(sx, sy, out) < 0) {
+    for (let i = 0, j = out - 1; i < j; i++, j--) {
+      const tx = sx[i];
+      const ty = sy[i];
+      sx[i] = sx[j];
+      sy[i] = sy[j];
+      sx[j] = tx;
+      sy[j] = ty;
+    }
+  }
+
+  p.sn = out;
+  p.minX = minX;
+  p.minY = minY;
+  p.maxX = maxX;
+  p.maxY = maxY;
+}
+
+// ---------------------------------------------------------------------------
+// Bounding boxes
+// ---------------------------------------------------------------------------
+
+/** Grow a bbox by `metres` on every side. */
+export function padBbox(bbox: Bbox, metres: number): Bbox {
+  const dLat = metres / M_PER_DEG_LAT;
+  const midLat = (bbox.south + bbox.north) / 2;
+  const dLon = metres / (M_PER_DEG_LAT * Math.max(Math.cos((midLat * Math.PI) / 180), 0.01));
+  return {
+    south: bbox.south - dLat,
+    north: bbox.north + dLat,
+    west: bbox.west - dLon,
+    east: bbox.east + dLon,
+  };
+}
+
+/** Approximate area of a bbox in km², good enough to budget a request against. */
+export function bboxAreaKm2(bbox: Bbox): number {
+  const midLat = (bbox.south + bbox.north) / 2;
+  const h = ((bbox.north - bbox.south) * M_PER_DEG_LAT) / 1000;
+  const w = ((bbox.east - bbox.west) * M_PER_DEG_LAT * Math.cos((midLat * Math.PI) / 180)) / 1000;
+  return Math.max(0, h) * Math.max(0, w);
+}
+
+/** True when `outer` fully contains `inner`. */
+export function bboxContains(outer: Bbox, inner: Bbox): boolean {
+  return (
+    outer.south <= inner.south &&
+    outer.north >= inner.north &&
+    outer.west <= inner.west &&
+    outer.east >= inner.east
+  );
+}
+
+/** True when the two boxes share any area at all. */
+export function bboxIntersects(a: Bbox, b: Bbox): boolean {
+  return a.west < b.east && a.east > b.west && a.south < b.north && a.north > b.south;
+}
+
+/**
+ * `area` minus `hole`, as up to four disjoint rectangles.
+ *
+ * Used to ask Overpass only for the part of the viewport a prebuilt city-model
+ * shard does not already cover. Disjoint matters twice over: the strips cannot
+ * double-count a building in the coverage denominator, and no footprint gets
+ * drawn (and shaded) twice from two sources.
+ *
+ * Returns `[area]` unchanged when the two do not overlap, and `[]` when the hole
+ * swallows the area completely.
+ */
+export function bboxSubtract(area: Bbox, hole: Bbox): Bbox[] {
+  if (!bboxIntersects(area, hole)) return [area];
+  const out: Bbox[] = [];
+  if (area.north > hole.north) {
+    out.push({ ...area, south: Math.max(area.south, hole.north) });
+  }
+  if (area.south < hole.south) {
+    out.push({ ...area, north: Math.min(area.north, hole.south) });
+  }
+  // The left/right strips are trimmed to the band the hole actually spans, so
+  // they never overlap the top/bottom ones.
+  const south = Math.max(area.south, hole.south);
+  const north = Math.min(area.north, hole.north);
+  if (north > south) {
+    if (area.west < hole.west) {
+      out.push({ south, north, west: area.west, east: Math.min(area.east, hole.west) });
+    }
+    if (area.east > hole.east) {
+      out.push({ south, north, west: Math.max(area.west, hole.east), east: area.east });
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Sweep emitter
+// ---------------------------------------------------------------------------
+
 /** The subset of Path2D the sweep emitter needs. Lets tests record the calls. */
 export interface PathSink {
   moveTo(x: number, y: number): void;
@@ -160,34 +416,40 @@ export interface PathSink {
  * scrubbing the time slider run at 74 ms a step against 16 ms with the layer off.
  * `fill()` itself measured 0.05 ms.
  *
- * `points` MUST already be in a consistent orientation (see `orientProjected`),
- * which is why the footprint and its translation can be emitted verbatim. Each
- * sweep quad then picks its vertex order from the sign of cross(edge, offset) —
- * the quad's own signed area — so every ring agrees and the nonzero fill unions
- * them instead of cancelling. See `shadowRings` for what cancelling looks like.
+ * The vertices MUST already be in a consistent orientation (see
+ * `projectPrepared`), which is why the footprint and its translation can be
+ * emitted verbatim. Each sweep quad then picks its vertex order from the sign of
+ * cross(edge, offset) — the quad's own signed area — so every ring agrees and the
+ * nonzero fill unions them instead of cancelling.
  */
-export function emitSweptPath(sink: PathSink, points: readonly Pt[], dx: number, dy: number): void {
-  const n = points.length;
+export function emitSweptFlat(
+  sink: PathSink,
+  xs: Float64Array,
+  ys: Float64Array,
+  n: number,
+  dx: number,
+  dy: number,
+): void {
   if (n < 4) return;
 
   // Footprint.
-  sink.moveTo(points[0][0], points[0][1]);
-  for (let i = 1; i < n; i++) sink.lineTo(points[i][0], points[i][1]);
+  sink.moveTo(xs[0], ys[0]);
+  for (let i = 1; i < n; i++) sink.lineTo(xs[i], ys[i]);
   sink.closePath();
 
   if (dx === 0 && dy === 0) return;
 
   // Translated copy — same winding, so no reordering needed.
-  sink.moveTo(points[0][0] + dx, points[0][1] + dy);
-  for (let i = 1; i < n; i++) sink.lineTo(points[i][0] + dx, points[i][1] + dy);
+  sink.moveTo(xs[0] + dx, ys[0] + dy);
+  for (let i = 1; i < n; i++) sink.lineTo(xs[i] + dx, ys[i] + dy);
   sink.closePath();
 
-  // One sweep quad per edge, wound to match.
+  // One sweep quad per light-facing edge.
   for (let i = 0; i < n - 1; i++) {
-    const ax = points[i][0];
-    const ay = points[i][1];
-    const bx = points[i + 1][0];
-    const by = points[i + 1][1];
+    const ax = xs[i];
+    const ay = ys[i];
+    const bx = xs[i + 1];
+    const by = ys[i + 1];
     // Twice the quad's signed area, without building it.
     const cross = (bx - ax) * dy - (by - ay) * dx;
     // Only the light-facing edges are swept. cross === 0 is an edge parallel to
@@ -204,19 +466,29 @@ export function emitSweptPath(sink: PathSink, points: readonly Pt[], dx: number,
     // 0.003 % difference, i.e. a few anti-aliased boundary pixels. Scrub cost
     // went from 55.7 to 27.2 ms a step.
     if (cross <= 0) continue;
-    if (cross > 0) {
-      sink.moveTo(ax, ay);
-      sink.lineTo(bx, by);
-      sink.lineTo(bx + dx, by + dy);
-      sink.lineTo(ax + dx, ay + dy);
-    } else {
-      sink.moveTo(ax, ay);
-      sink.lineTo(ax + dx, ay + dy);
-      sink.lineTo(bx + dx, by + dy);
-      sink.lineTo(bx, by);
-    }
+    sink.moveTo(ax, ay);
+    sink.lineTo(bx, by);
+    sink.lineTo(bx + dx, by + dy);
+    sink.lineTo(ax + dx, ay + dy);
     sink.closePath();
   }
+}
+
+/**
+ * Array form of {@link emitSweptFlat}, for tests and non-canvas callers.
+ *
+ * Shares the emitter so the winding guarantees the tests assert are the same
+ * ones the renderer actually relies on.
+ */
+export function emitSweptPath(sink: PathSink, points: readonly Pt[], dx: number, dy: number): void {
+  const n = points.length;
+  const xs = new Float64Array(n);
+  const ys = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    xs[i] = points[i][0];
+    ys[i] = points[i][1];
+  }
+  emitSweptFlat(sink, xs, ys, n, dx, dy);
 }
 
 /** Normalise a projected footprint's orientation once, at projection time. */
@@ -227,11 +499,8 @@ export function orientProjected(points: Pt[]): Pt[] {
 /**
  * Drop footprint vertices closer together than `minPx` on screen.
  *
- * Runs once per camera position, not per frame, so it is free at draw time — and
- * it pays off every frame, because the renderer's cost is dominated by the number
- * of Path2D calls (each vertex becomes one, times ~n+2 rings per building). A
- * LOD2 footprint carries architectural detail far below a pixel at city zooms;
- * removing it changes no visible silhouette.
+ * The array twin of the simplification pass inside {@link projectPrepared},
+ * kept for callers that hold points rather than the render path's flat buffers.
  *
  * The first and last points are always kept so the ring stays closed, and a ring
  * that would collapse below a triangle is returned untouched rather than
@@ -253,10 +522,10 @@ export function simplifyProjected(points: Pt[], minPx = 1.5): Pt[] {
 }
 
 /**
- * Array form of {@link emitSweptPath}, for tests and non-canvas callers.
+ * The emitter's output as explicit rings, for tests and non-canvas callers.
  *
- * Shares the emitter so the winding guarantees the tests assert are the same
- * ones the renderer actually relies on.
+ * Orients the input first, exactly as the render path does, so what the tests
+ * assert about winding is what the renderer actually relies on.
  */
 export function sweptRings(points: readonly Pt[], dx: number, dy: number): Pt[][] {
   const rings: Pt[][] = [];
@@ -284,6 +553,15 @@ export function sweptRings(points: readonly Pt[], dx: number, dy: number): Pt[][
   return rings;
 }
 
+/** Twice the signed area of a ring held in parallel coordinate buffers. */
+export function signedArea2Flat(xs: Float64Array, ys: Float64Array, n: number): number {
+  let sum = 0;
+  for (let i = 0; i < n - 1; i++) {
+    sum += xs[i] * ys[i + 1] - xs[i + 1] * ys[i];
+  }
+  return sum;
+}
+
 /** Twice the signed area of a ring. Positive = counter-clockwise in screen axes. */
 export function signedArea2(ring: readonly (readonly [number, number])[]): number {
   let sum = 0;
@@ -297,7 +575,7 @@ export function signedArea2(ring: readonly (readonly [number, number])[]): numbe
  * Force a ring counter-clockwise (positive signed area).
  *
  * Not cosmetic — consistent orientation is what makes the single-path union in
- * `emitSweptPath` work at all. Orientation is normalised in the projected plane;
+ * `emitSweptFlat` work at all. Orientation is normalised in the projected plane;
  * the canvas Y axis is flipped, so rings come out clockwise on screen, which is
  * equally fine — the nonzero rule only requires that they AGREE.
  */
@@ -306,23 +584,52 @@ export function orientRing<T extends readonly [number, number]>(ring: T[]): T[] 
 }
 
 /**
- * Fetch buildings in `bbox` from Overpass, with the total building count.
+ * Shadow length in metres for a building of `height`, clamped.
+ *
+ * Split out from the emitter so the renderer can compute the offset once in
+ * screen space instead of re-deriving geodesic offsets per vertex per frame.
+ */
+export function shadowLengthMetres(height: number, sunAltitudeDeg: number): number {
+  if (sunAltitudeDeg <= 0) return 0;
+  const raw = height / Math.tan((sunAltitudeDeg * Math.PI) / 180);
+  if (!Number.isFinite(raw) || raw <= 0) return 0;
+  return Math.min(raw, MAX_SHADOW_METRES);
+}
+
+/**
+ * Fetch buildings in `bboxes` from Overpass, with the total building count.
+ *
+ * Takes a LIST of boxes so a viewport that is only partly covered by a prebuilt
+ * city-model shard can ask for the remainder in one round trip (see
+ * {@link bboxSubtract}). Overpass unions sets by element id, so a building
+ * straddling two strips is fetched — and counted — once.
  *
  * The `out count` statement runs over ALL buildings while only the ones with a
  * usable height tag are returned with geometry, so the coverage ratio costs one
  * round trip and a few bytes instead of downloading footprints we cannot use.
  */
-export async function fetchBuildings(bbox: Bbox, signal?: AbortSignal): Promise<BuildingsResult> {
-  const area = `${bbox.south},${bbox.west},${bbox.north},${bbox.east}`;
-  const query = `[out:json][timeout:60];way["building"](${area})->.all;.all out count;(way.all["building:levels"];way.all["height"];);out geom;`;
+export async function fetchBuildings(bboxes: Bbox[], signal?: AbortSignal): Promise<BuildingsResult> {
+  if (bboxes.length === 0) return { buildings: [], total: 0 };
+  const areas = bboxes
+    .map((b) => `way["building"](${b.south},${b.west},${b.north},${b.east});`)
+    .join('');
+  const query = `[out:json][timeout:90];(${areas})->.all;.all out count;(way.all["building:levels"];way.all["height"];);out geom;`;
 
   const res = await fetch(OVERPASS_URL, { method: 'POST', body: query, signal });
   if (!res.ok) throw new Error(`Overpass responded ${res.status}`);
-  const data = (await res.json()) as { elements?: OverpassElement[] };
+  const data = (await res.json()) as { elements?: OverpassElement[]; remark?: string };
+
+  // Overpass reports a server-side timeout or a rate-limit rejection as HTTP 200
+  // with a `remark` and no element list. Reading that as an empty result would
+  // put "0 of 0 buildings have height data" on screen — a confident statement
+  // about a place we never actually asked about.
+  if (!Array.isArray(data.elements)) {
+    throw new Error(`Overpass returned no result set${data.remark ? `: ${data.remark}` : ''}`);
+  }
 
   const buildings: Building[] = [];
   let total = 0;
-  for (const el of data.elements ?? []) {
+  for (const el of data.elements) {
     if (el.type === 'count') {
       total = Number.parseInt(el.tags?.ways ?? el.tags?.total ?? '0', 10) || 0;
       continue;

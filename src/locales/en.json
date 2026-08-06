@@ -1003,7 +1003,7 @@
   "live.badge": "Live",
   "live.language": "Language",
   "live.shadow.polar_night": "Polar night – the sun does not rise today.",
-  "live.shadow.sun_down": "The sun has set, so there are no shadows.",
+  "live.shadow.sun_down": "The sun has set – the whole area is in shade.",
   "live.shadow.zoom_in": "Zoom in to see building shadows.",
   "live.shadow.loading": "Loading buildings…",
   "live.shadow.failed": "Could not load building data. Try again.",
@@ -1018,5 +1018,7 @@
   "live.sun.day_length": "Day length",
   "live.page.title": "Live: sun and building shadows on the map",
   "live.page.description": "See where the sun reaches and where buildings cast their shadows, at any moment. Realtime data for Finnish neighbourhoods.",
-  "live.shadow.coverage_measured": "{n} buildings in view. Heights measured from the Helsinki 3D city model."
+  "live.shadow.coverage_measured": "{n} buildings in view. Heights measured from the Helsinki 3D city model.",
+  "live.shadow.coverage_mixed": "{measured} buildings with measured heights, plus {n} of {total} others with OpenStreetMap height data.",
+  "live.shadow.coverage_partial": "{n} buildings with measured heights. At this zoom only the city-model area is covered — zoom in to bring in the rest."
 }

@@ -73,7 +73,7 @@
   "live.badge": "Reaaliaika",
   "live.language": "Kieli",
   "live.shadow.polar_night": "Kaamos – aurinko ei nouse tänään.",
-  "live.shadow.sun_down": "Aurinko on laskenut, joten varjoja ei ole.",
+  "live.shadow.sun_down": "Aurinko on laskenut – koko alue on varjossa.",
   "live.shadow.zoom_in": "Lähennä karttaa, niin näet rakennusten varjot.",
   "live.shadow.loading": "Haetaan rakennuksia…",
   "live.shadow.failed": "Rakennustietoja ei saatu haettua. Yritä uudelleen.",
@@ -88,5 +88,7 @@
   "live.sun.day_length": "Päivän pituus",
   "live.page.title": "Reaaliaika: auringon varjot kartalla",
   "live.page.description": "Katso mihin aurinko paistaa ja mihin rakennukset heittävät varjonsa – minä hetkenä tahansa. Reaaliaikaista tietoa Suomen naapurustoista.",
-  "live.shadow.coverage_measured": "{n} rakennusta näkyvissä. Korkeudet on mitattu Helsingin 3D-kaupunkimallista."
+  "live.shadow.coverage_measured": "{n} rakennusta näkyvissä. Korkeudet on mitattu Helsingin 3D-kaupunkimallista.",
+  "live.shadow.coverage_mixed": "{measured} rakennusta mitatulla korkeudella, {n}/{total} muusta rakennuksesta OpenStreetMapin korkeustiedolla.",
+  "live.shadow.coverage_partial": "{n} rakennusta mitatulla korkeudella. Tällä zoom-tasolla näkyy vain kaupunkimallin alue – lähennä, niin muutkin rakennukset tulevat mukaan."
 }
