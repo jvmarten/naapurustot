@@ -231,7 +231,9 @@ npm run build = tsc -b && vite build
 └── rollup-plugin-visualizer → dist/stats.html
 ```
 
-`npm run build:pages` (deploy only) runs `prerender.mjs` + `prerender-hubs.mjs` + `generate-sitemap.mjs`. The prerenderer imports the app's `.ts` modules directly under Node's type stripping (Node 22.18+) and clones `dist/index.html` with first-match regexes over `<title>`, meta tags, `</head>`, and `<noscript>` — **never add those tokens to index.html's head, even in comments**, or every prerendered page silently corrupts. Each area page embeds a JSON payload (`#__naapurustot_profile__`) so profiles render without fetching the 10.6 MB properties file, plus per-area JSON-LD and an SVG social card. Hub pages and the sitemap (~9,270 URLs with hreflang alternates) are generated alongside.
+`npm run build:pages` (deploy only) runs `prerender.mjs` + `prerender-hubs.mjs` + `generate-sitemap.mjs`. The prerenderer imports the app's `.ts` modules directly under Node's type stripping (Node 22.18+) and clones `dist/index.html` with first-match regexes over `<title>`, meta tags, `</head>`, and `<noscript>` — **never add those tokens to index.html's head, even in comments**, or every prerendered page silently corrupts. Each area page embeds a JSON payload (`#__naapurustot_profile__`) so profiles render without fetching the 10.6 MB properties file, plus per-area JSON-LD and a social card. Hub pages and the sitemap (~9,270 URLs with hreflang alternates) are generated alongside.
+
+The social card is emitted as a content-hashed **SVG**, but the published asset is the **PNG** sibling (`og:image`/`twitter:image` both point at `.png` — Facebook, LinkedIn, WhatsApp and X do not render SVG). `scripts/rasterize-cards.mjs` renders the PNGs in deploy only, then **deletes the SVGs**: they are build inputs, not published assets. Two invariants keep the published tree from growing without bound, and both have already failed once — see "Social-card cache" below.
 
 ## Data pipeline
 
@@ -294,9 +296,34 @@ The profile page reads the prerender-embedded payload for instant paint (guarded
 |----------|---------|-------|
 | `ci.yml` | push/PR to main | 3 parallel jobs (security audits / lint+type+test+build+e2e+visual+bundle / lighthouse); **skips claude/* PRs entirely**; bundle-delta PR comment; budget 314,000 B gzip (the shared `BUDGET` in `scripts/check-bundle-size.mjs`) |
 | `auto-merge.yml` | push to `claude/**` | The only gate for those branches: parallel jobs mirroring CI (security / checks / data-validation / e2e / lighthouse / server; no visual tests). `data-validation` runs the FULL `validate_data.py` suite when the branch touches `public/data/**` or `scripts/**`, then `merge --no-ff` to main with push-retry/backoff (conflicts fail immediately), branch delete, **explicit** `gh workflow run deploy.yml` (bot pushes don't trigger workflows). Concurrency group cancels an in-flight run when a second claude/* branch pushes — serialize or stack branches |
-| `deploy.yml` | CI success on main / manual | build (+ Sentry secrets) → `build:pages` → 404 fallback copy → GitHub Pages |
+| `deploy.yml` | CI success on main / manual | build (+ Sentry secrets) → `build:pages` → rasterize social cards → dist-size guard → 404 fallback copy → GitHub Pages |
 | `deploy-server.yml` | push to main touching `server/**` / manual | SSH → `git pull` → rebuild api → `compose up -d` |
 | `data-refresh.yml` | quarterly cron / manual | pipeline + validation → PR on change |
 | `health-check.yml` | daily cron | site/API/sitemap/data-age checks → GitHub issue on failure |
 | `codeql.yml` | push/PR + weekly | JS/TS + Python |
 | `issue-to-pr.yml` | issue labeled `claude` | Claude Code action implements the issue |
+
+### Social-card cache
+
+Rasterizing ~9,261 social cards takes minutes, so `deploy.yml` caches `dist/og` across
+deploys under a content-derived key with a `restore-keys: og-cards-` prefix fallback. That
+cache is a **ratchet** unless two invariants hold, and in Aug 2026 both were broken at once:
+
+1. **`prerender-hubs.mjs` deletes every cache-restored `*.svg` before emitting its own.**
+   `rasterize-cards.mjs` prunes a PNG only when no SVG of that (content-hashed) name
+   remains, so a surviving stale SVG kept its stale PNG alive and neither was ever
+   collected — each deploy layered on one more data-version of cards.
+2. **`rasterize-cards.mjs` deletes the SVGs once the PNGs exist.** The cache is saved from
+   `dist/og` itself, so anything left there is carried into the next deploy *and* uploaded.
+   The SVGs are inputs; nothing in `src/` or the prerendered HTML fetches `/og/*.svg`.
+
+Without them the tree reached **2.4 GB / ~65,000 files** (32,538 in `dist/og` against
+~9,000 real cards). Nothing failed loudly: the `deploy` dist-size guard had been made
+warn-only, so the only symptom was the Pages sync creeping up until it passed
+`actions/deploy-pages`' **10-minute default timeout** — 9m52s on the last green run, then
+three straight failures stuck in `deployment_queued`. `deploy.yml` now sets that timeout
+explicitly, but it is a backstop; the invariants above are the actual fix.
+
+`npm run dist:check` (the `pages` profile) is the hard pre-merge gate on the prerendered
+mesh, which is where combinatorial page growth lives. The `deploy` profile guards the full
+post-rasterize tree.

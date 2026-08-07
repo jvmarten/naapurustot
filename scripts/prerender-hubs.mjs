@@ -15,7 +15,7 @@
  * Run after `npm run build`:  node scripts/prerender-hubs.mjs
  */
 
-import { readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, unlinkSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { createHash } from 'crypto';
@@ -37,6 +37,31 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 const DIST = join(ROOT, 'dist');
 const GEOJSON_PATH = join(ROOT, 'public', 'data', 'metro_neighborhoods.geojson');
+
+// CF-11 / IN-3: make THIS run's card SVGs the authoritative set before emitting any.
+//
+// `npm run build` empties dist/, but deploy.yml then restores dist/og from a
+// prefix-keyed cache (`restore-keys: og-cards-`) that carries both the PNGs and the
+// SVGs of the previous deploy. rasterize-cards.mjs prunes a PNG only when no SVG of
+// the same (content-hashed) name remains — so a stale SVG kept its stale PNG alive,
+// the prune could never collect either, and every deploy layered on one more
+// data-version of cards: 32,538 files against ~9,000 real cards, a 2.4 GB upload, and
+// finally a Pages deployment that stopped finishing inside deploy-pages' timeout.
+//
+// Dropping the restored SVGs here means the only SVGs rasterize-cards.mjs sees are the
+// ones emitted below, so its orphan prune collects every superseded PNG on the very
+// next deploy. Cheap and a no-op outside deploy (a freshly built dist/ has no og/).
+const CARD_DIR = join(DIST, 'og');
+if (existsSync(CARD_DIR)) {
+  let cleared = 0;
+  for (const f of readdirSync(CARD_DIR)) {
+    if (f.endsWith('.svg')) {
+      unlinkSync(join(CARD_DIR, f));
+      cleared += 1;
+    }
+  }
+  if (cleared > 0) console.log(`prerender-hubs: cleared ${cleared} cache-restored card SVG(s) from dist/og.`);
+}
 
 const geojson = JSON.parse(readFileSync(GEOJSON_PATH, 'utf-8'));
 // CF-12: derive computed metrics in place (same order as scripts/prerender.mjs)
@@ -243,7 +268,7 @@ thead th{border-bottom-color:#3a424e}
 /** Build a complete standalone HTML page. */
 // CF-11: emit a per-region social-card SVG (area name + count + population) under
 // dist/og/ and return the PNG sibling URL (rasterized in deploy by rasterize-cards.mjs).
-const CARD_DIR = join(DIST, 'og');
+// CARD_DIR is defined at the top, where the cache-restored SVGs are cleared first.
 const CARD_LABELS = {
   fi: { areas: 'Postinumeroalueet', pop: 'Asukkaat' },
   en: { areas: 'Postal areas', pop: 'Population' },

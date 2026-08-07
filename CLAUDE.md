@@ -173,6 +173,25 @@ A partial national fetch must never be written. `_overpass_query` rejects respon
 
 `scripts/prerender.mjs` clones `dist/index.html` using first-match regexes over `<title>`, `<noscript>`, and `</head>`. Never put those tokens in index.html's head — even inside comments — or all ~9,000 prerendered pages silently corrupt. Run `npm run build:pages` to catch it.
 
+### Social-card cache: two invariants, or the deploy dies
+
+`deploy.yml` caches `dist/og` across deploys (rasterizing ~9,261 cards takes minutes) with a
+`restore-keys: og-cards-` prefix fallback. That cache **ratchets** unless both hold:
+
+1. `prerender-hubs.mjs` deletes every cache-restored `*.svg` before emitting this build's set.
+2. `rasterize-cards.mjs` deletes the SVGs once the PNGs exist (they are inputs — the HTML
+   references the `.png`, and nothing in `src/` fetches `/og/*.svg`).
+
+They interlock: the orphan prune in `rasterize-cards.mjs` deletes a PNG only when no SVG of
+that content-hashed name remains, so **one surviving stale SVG shields its stale PNG forever**.
+With both broken the tree hit 2.4 GB / ~65,000 files (32,538 in `dist/og` against ~9,000 real
+cards). It failed silently — the `deploy` dist-size guard was warn-only — until the Pages sync
+crossed `actions/deploy-pages`' 10-minute default timeout: 9m52s on the last green run, then
+three failures stuck in `deployment_queued` with a green `build` job. **A red `deploy` job with
+a green `build` job is a size/time problem, not a code problem** — check the artifact size
+(`list_workflow_run_artifacts`) before anything else. `deploy.yml` now sets `timeout` explicitly,
+but that is a backstop; keep the tree small.
+
 ### All-Finland view: region borders
 
 The all-Finland view (`?city=all`, the default) shows seutukunta outlines, not individual postal-code borders. This has broken repeatedly — do not re-introduce these issues:
