@@ -8,6 +8,11 @@
       60.20649
     ],
     "count": 9146,
-    "bytes": 1577607
+    "bytes": 1577607,
+    "canopy": {
+      "path": "data/canopy_helsinki.topojson",
+      "count": 33746,
+      "bytes": 6140714
+    }
   }
 }

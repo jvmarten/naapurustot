@@ -1020,5 +1020,6 @@
   "live.page.description": "See where the sun reaches and where buildings cast their shadows, at any moment. Realtime data for Finnish neighbourhoods.",
   "live.shadow.coverage_measured": "{n} buildings in view. Heights measured from the Helsinki 3D city model.",
   "live.shadow.coverage_mixed": "{measured} buildings with measured heights, plus {n} of {total} others with OpenStreetMap height data.",
-  "live.shadow.coverage_partial": "{n} buildings with measured heights. At this zoom only the city-model area is covered — zoom in to bring in the rest."
+  "live.shadow.coverage_partial": "{n} buildings with measured heights. At this zoom only the city-model area is covered — zoom in to bring in the rest.",
+  "live.shadow.canopy": "Includes {n} tree-canopy patches (HSY, measured canopy height)."
 }

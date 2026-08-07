@@ -1020,5 +1020,6 @@
   "live.page.description": "Se var solen når och var byggnaderna kastar sina skuggor, när som helst. Realtidsdata för finländska bostadsområden.",
   "live.shadow.coverage_measured": "{n} byggnader i vy. Höjderna är uppmätta från Helsingfors 3D-stadsmodell.",
   "live.shadow.coverage_mixed": "{measured} byggnader med uppmätta höjder, plus {n} av {total} övriga med höjddata från OpenStreetMap.",
-  "live.shadow.coverage_partial": "{n} byggnader med uppmätta höjder. Vid den här zoomnivån täcks bara stadsmodellens område – zooma in för att få med resten."
+  "live.shadow.coverage_partial": "{n} byggnader med uppmätta höjder. Vid den här zoomnivån täcks bara stadsmodellens område – zooma in för att få med resten.",
+  "live.shadow.canopy": "Inklusive {n} trädkronefigurer (HSY, uppmätt kronhöjd)."
 }

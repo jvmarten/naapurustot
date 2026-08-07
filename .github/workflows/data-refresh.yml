@@ -66,6 +66,14 @@ jobs:
         continue-on-error: true
         run: python scripts/fetch_helsinki_buildings.py
 
+      # Tree canopy for the /live/ shadow layer, from HSY's laser-derived land
+      # cover. Same cadence and the same continue-on-error reasoning as the
+      # buildings above: without it the layer draws buildings only, which is what
+      # it did before trees existed.
+      - name: Refresh Helsinki tree canopy (/live/ shadows)
+        continue-on-error: true
+        run: python scripts/fetch_hsy_canopy.py
+
       - name: Validate output (basic)
         run: |
           GEOJSON="public/data/metro_neighborhoods.geojson"

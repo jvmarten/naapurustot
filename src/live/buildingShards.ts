@@ -53,6 +53,14 @@ export interface ShardEntry {
   bbox: [number, number, number, number];
   count: number;
   bytes: number;
+  /**
+   * Tree canopy for the SAME extent, when it has been built.
+   *
+   * No bbox of its own: canopy is only ever loaded for a region whose building
+   * shard already matched, so a second extent would be a second source of truth
+   * that could silently disagree with the one actually tested.
+   */
+  canopy?: { path: string; count: number; bytes: number };
 }
 
 const SHARDS = manifest as unknown as Record<string, ShardEntry>;
@@ -166,7 +174,7 @@ function index(building: Building): IndexedBuilding {
   return { ...building, minLon, minLat, maxLon, maxLat };
 }
 
-async function loadShard(id: string, entry: ShardEntry): Promise<IndexedBuilding[]> {
+async function loadShard(id: string, entry: { path: string }): Promise<IndexedBuilding[]> {
   const res = await fetch(`${BASE}${entry.path}`);
   if (!res.ok) throw new Error(`shard ${id} responded ${res.status}`);
   const topology = (await res.json()) as Topology;
@@ -189,7 +197,7 @@ async function loadShard(id: string, entry: ShardEntry): Promise<IndexedBuilding
   return out;
 }
 
-function getShard(id: string, entry: ShardEntry): Promise<IndexedBuilding[]> {
+function getShard(id: string, entry: { path: string }): Promise<IndexedBuilding[]> {
   const cached = shardCache.get(id);
   if (cached) return cached;
   const pending = loadShard(id, entry).catch((err: unknown) => {
@@ -222,6 +230,38 @@ export async function buildingsFromShard(bbox: Bbox): Promise<Building[] | null>
       b.maxLat >= bbox.south &&
       b.minLat <= bbox.north,
   );
+}
+
+/**
+ * Tree canopy from the shard covering `bbox`, or [] when there is none.
+ *
+ * Returns [] rather than null on a miss, unlike `buildingsFromShard`: absent
+ * trees never send the caller anywhere else. There is no OSM fallback for canopy
+ * — OpenStreetMap has essentially no tree heights — so "no canopy here" and "no
+ * canopy data at all" lead to the same drawing, which is nothing.
+ *
+ * A failed canopy load is swallowed. Trees are an enhancement to the shadow
+ * layer; losing them should cost their shade, not the building shadows that
+ * shipped before them.
+ */
+export async function canopyFromShard(bbox: Bbox): Promise<Building[]> {
+  const shard = findShardOverlapping(bbox);
+  const canopy = shard?.entry.canopy;
+  if (!shard || !canopy) return [];
+  try {
+    const all = await getShard(`${shard.id}:canopy`, canopy);
+    return all.filter(
+      (b) =>
+        b.maxLon >= bbox.west &&
+        b.minLon <= bbox.east &&
+        b.maxLat >= bbox.south &&
+        b.minLat <= bbox.north,
+    );
+  } catch (err) {
+    if ((err as Error)?.name === 'AbortError') throw err;
+    console.warn('LivePage: canopy shard unavailable, drawing buildings only', err);
+    return [];
+  }
 }
 
 /** True when any shard is configured at all — lets the UI skip city-model copy entirely. */
@@ -260,6 +300,14 @@ export function planCoverage(bbox: Bbox): CoveragePlan {
 
 export interface ResolvedBuildings {
   buildings: Building[];
+  /**
+   * Tree canopy, kept OUT of `buildings` on purpose.
+   *
+   * A crown is not a wall: it dapples rather than blocks, so it is drawn in its
+   * own pass at a lower alpha. Merging the two lists would force one opacity on
+   * both and overstate how much light a tree stops.
+   */
+  canopy: Building[];
   /** Buildings in view from the chosen sources, INCLUDING ones with no usable height. */
   total: number;
   source: HeightSource;
@@ -311,7 +359,12 @@ export async function resolveBuildings(
   // given, not the hole between them — so a wide view over a covered city centre
   // still gets its surroundings filled in.
   const askOsm = uncovered.length > 0 && totalAreaKm2(uncovered) <= MAX_OSM_AREA_KM2;
-  const osm = askOsm ? await fetchBuildings(uncovered, signal) : { buildings: [], total: 0 };
+  // In parallel: the Overpass strips and the region's canopy are independent, and
+  // trees should not wait behind a query that may be queued for a minute.
+  const [osm, canopy] = await Promise.all([
+    askOsm ? fetchBuildings(uncovered, signal) : Promise.resolve({ buildings: [], total: 0 }),
+    canopyFromShard(bbox),
+  ]);
 
   const source: HeightSource = measured.length
     ? osm.buildings.length
@@ -321,6 +374,7 @@ export async function resolveBuildings(
 
   return {
     buildings: measured.length ? [...measured, ...osm.buildings] : osm.buildings,
+    canopy,
     total: measured.length + osm.total,
     source,
     measured: measured.length,
