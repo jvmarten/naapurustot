@@ -83,9 +83,16 @@ jobs:
         uses: actions/cache@v4
         with:
           path: dist/og
-          key: og-cards-${{ hashFiles('src/data/build_metadata.json', 'scripts/social-card.mjs', 'scripts/prerender.mjs', 'scripts/prerender-hubs.mjs', 'scripts/rasterize-cards.mjs') }}
+          # v2 namespace. Every cache under the old `og-cards-` prefix was written before
+          # the SVG-drop fix, so each one still carries the SVGs (and, in the older ones,
+          # several superseded data-versions of PNGs — up to 32,538 files against ~9,000
+          # real cards). The self-healing above means restoring one is merely wasteful
+          # rather than harmful, but there is no reason to keep paying to download and
+          # re-upload that: orphaning the old namespace lets those entries age out of the
+          # repo's 10 GB cache budget, and costs exactly one cold rasterize to do it.
+          key: og-cards-v2-${{ hashFiles('src/data/build_metadata.json', 'scripts/social-card.mjs', 'scripts/prerender.mjs', 'scripts/prerender-hubs.mjs', 'scripts/rasterize-cards.mjs') }}
           restore-keys: |
-            og-cards-
+            og-cards-v2-
 
       - run: npm run build:pages
 
