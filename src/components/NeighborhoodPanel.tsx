@@ -16,7 +16,7 @@ import type { IsochroneMode } from '../utils/isochrone';
 import { findSimilarNeighborhoods, AVAILABLE_SIMILARITY_METRICS, SIMILARITY_WEIGHT_MIN, SIMILARITY_WEIGHT_MAX, SIMILARITY_WEIGHT_DEFAULT } from '../utils/similarity';
 import { resolveNeighborPnos } from '../utils/adjacency';
 import { getFeatureCenter } from '../utils/geometryFilter';
-import { getLayerById, bandStripGradient, colorblindSequential, readableTextColor, type LayerId } from '../utils/colorScales';
+import { getLayerById, getInterpolatedColor, rampGradientCss, readableTextColor, type LayerId } from '../utils/colorScales';
 import { histogram, percentileRank, binIndexOf } from '../utils/correlation';
 import { toSlug } from '../utils/slug';
 import { useNavigate } from 'react-router-dom';
@@ -591,28 +591,35 @@ const QualityBadge: React.FC<{
   const animatedQi = useAnimatedValue(qualityIndex);
   const qi = animatedQi != null ? Math.round(animatedQi) : qualityIndex;
   const cat = getQualityCategory(qi);
-  // The swatch/pointer/strip are coloured by the BAND, not by the score's position on
-  // the absolute 0–100 ramp.
+  // The ramp is applied to the score's RELATIVE position, not to its raw value.
   //
-  // Those two disagree, and the disagreement is visible to users. The verdict word is
-  // cohort-relative — "Excellent" means the top fifth of the areas on screen — while the
-  // ramp is absolute, so re-weighting the factors moves the word without moving the
-  // colour. Two real cases from the same panel: a custom weighting scoring 80 read
-  // "Excellent (78–100)" on green, and another scoring 58 read "Excellent (46–100)" on
-  // yellow. Same word, different colour; "Good" could likewise come out yellow or red.
-  // A colour that contradicts the word beside it is worse than no colour.
+  // Getting this wrong in either direction is visible to users, and both were shipped:
   //
-  // So each verdict now owns its colour (QUALITY_CATEGORIES: Avoid purple, Bad red,
-  // Okay orange, Good yellow, Excellent green) and it never changes with the weighting.
-  // The score's own position is still shown — by where the pointer sits in the band.
+  //  - Ramp over the raw value. The verdict word is cohort-relative ("Excellent" = the
+  //    top fifth of the areas on screen) but the colour was absolute, so re-weighting
+  //    moved the word without moving the colour: 80 read "Excellent (78–100)" on green
+  //    while 58 read "Excellent (46–100)" on yellow. Same word, two colours.
+  //  - One flat colour per band. The word and colour agreed, but the scale became a
+  //    step function: 58 was a yellow "Good" and 59 a green "Excellent", a full hue
+  //    jump for one point, and every score inside a band looked identical.
+  //
+  // Colouring by getQualityBandPosition — the piecewise-linear map from score to place
+  // in the cohort — gives both. It is continuous and monotone, so neighbouring scores
+  // get neighbouring colours and there is no cliff at a band edge; and because each band
+  // owns a fixed fifth of that axis, each verdict owns a fixed fifth of the ramp.
+  // "Excellent" is always drawn from the ramp's green end and "Bad" from its red one,
+  // whatever the weighting, without the colour ever pretending the bands are absolute.
+  //
+  // Using the layer's ramp also keeps the colourblind substitution getLayerById applies,
+  // and makes the strip the same gradient the choropleth and legend show.
+  const qiLayer = getLayerById('quality_index');
   const bandCats = getQualityCategories();
   const bandPos = getQualityBandPosition(qi);
-  // Colourblind mode still substitutes a CVD-safe ramp, in band order, so the strip does
-  // not depend on telling red from green.
-  const cbColors = colorblindSequential(bandCats.length);
-  const bandColors = bandCats.map((c, i) => cbColors?.[i] ?? c.color);
-  const bandIdx = cat ? bandCats.findIndex((c) => c.label.en === cat.label.en) : -1;
-  const bandColor = bandIdx >= 0 ? bandColors[bandIdx] : '#94a3b8';
+  const rampLo = qiLayer.stops[0];
+  const rampHi = qiLayer.stops[qiLayer.stops.length - 1];
+  const bandColor = bandPos == null
+    ? '#94a3b8'
+    : getInterpolatedColor(qiLayer, rampLo + (bandPos / 100) * (rampHi - rampLo));
   const lang = getLang();
   // CF-1: "How is this calculated?" explainer popover.
   const [showHow, setShowHow] = useState(false);
@@ -719,14 +726,13 @@ const QualityBadge: React.FC<{
         </span>
       </div>
       <div className="relative">
-        {/* One strip, five equal-width bands — equal width because the bands are
-            quintiles of the cohort, so equal width is equal share of areas (which is what
-            the labels claim) and all five labels stay readable. Each band holds its own
-            verdict colour flat through the middle and blends over a short seam into the
-            next, so the strip still reads as one ramp while every band is unmistakably
-            one hue. Painting it from the score's absolute ramp instead is what let
-            "Excellent" render yellow. */}
-        <div className="h-2 rounded-full" style={{ background: bandStripGradient(bandColors) }} />
+        {/* The choropleth's own ramp, drawn end to end across the band axis — so the
+            strip is the same gradient the map and its legend show, and the pointer's
+            colour is exactly the strip colour beneath it. The five labels below sit
+            under equal fifths because the bands are quintiles of the cohort: equal width
+            is equal share of areas, which is what the labels claim, and it keeps all five
+            readable (in value space the middle bands are often only a few points wide). */}
+        <div className="h-2 rounded-full" style={{ background: rampGradientCss(qiLayer, rampLo, rampHi) }} />
         <div className="flex mt-1">
           {bandCats.map((c) => (
             <span key={c.label.en} className="flex-1 text-center text-[9px] text-surface-600 dark:text-surface-400">
