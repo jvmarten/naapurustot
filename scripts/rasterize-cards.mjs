@@ -8,6 +8,9 @@
  * ci/auto-merge `build:pages` runs, because ~9,000 PNGs add a few hundred MB to dist/
  * (within the GitHub Pages 1 GB cap). The card SVG filenames are content-hashed, so a
  * sibling .png that already exists is up to date and skipped — incremental across runs.
+ * When the PNGs are in place the SVGs are DELETED: they are this script's input, not a
+ * published asset, and leaving them in dist/og put ~9,000 needless files into every Pages
+ * upload and into the cache deploy.yml saves from that directory.
  *
  * MEMORY: rendering ~9,000 cards in ONE long-lived process OOM-killed the deploy
  * ("The operation was canceled" ~6 min in) — each `new Resvg(...)` allocates a native
@@ -98,10 +101,20 @@ if (batchEnv) {
 }
 
 // ── ORCHESTRATOR: spawn a child per batch. ──
-// First drop orphan PNGs — a content-hashed PNG with no matching SVG is a stale card
-// from an older data/layout version (the SVG name encodes the card's content). The
-// deploy restores dist/og from a cache (see deploy.yml) so only changed cards re-render;
-// pruning orphans keeps that cache from accumulating dead images across deploys.
+// Guard first: with no SVGs present every PNG looks like an orphan and the prune below
+// would wipe the whole rasterized set. That only happens when this script is re-run after
+// it has already dropped the SVGs (see dropSvgs), so treat it as a no-op.
+if (allSvgs.length === 0) {
+  console.log('rasterize-cards: no card SVGs in dist/og/ — nothing to do (already rasterized?).');
+  process.exit(0);
+}
+
+// Then drop orphan PNGs — a content-hashed PNG with no matching SVG is a stale card from
+// an older data/layout version (the SVG name encodes the card's content). The deploy
+// restores dist/og from a cache (see deploy.yml) so only changed cards re-render; pruning
+// orphans keeps that cache from accumulating dead images across deploys. This only
+// collects because prerender-hubs.mjs clears the cache-restored SVGs before emitting the
+// current set — otherwise a stale SVG shields its stale PNG from this loop forever.
 const svgStems = new Set(allSvgs.map((f) => f.replace(/\.svg$/, '')));
 let orphans = 0;
 for (const f of readdirSync(ogDir)) {
@@ -112,9 +125,30 @@ for (const f of readdirSync(ogDir)) {
 }
 if (orphans > 0) console.log(`rasterize-cards: pruned ${orphans} orphan PNG(s) (no matching SVG).`);
 
+// The SVGs are this script's INPUT, never a published asset — prerender.mjs and
+// prerender-hubs.mjs both point og:image/twitter:image at the .png sibling, and nothing
+// in src/ fetches /og/*.svg. Dropping them once the PNGs exist keeps ~9,000 files out of
+// BOTH the Pages upload and the dist/og cache that deploy.yml saves from this very
+// directory — so the cache carries PNGs only and each deploy's SVG set is exactly what
+// that build emitted. Pages sync cost scales with file count, which is what pushed the
+// deployment past deploy-pages' timeout.
+function dropSvgs() {
+  let dropped = 0;
+  for (const f of allSvgs) {
+    try {
+      unlinkSync(join(ogDir, f));
+      dropped += 1;
+    } catch {
+      // Already gone — nothing to do.
+    }
+  }
+  if (dropped > 0) console.log(`rasterize-cards: dropped ${dropped} card SVG(s) (build inputs, not published).`);
+}
+
 const missing = allSvgs.filter((f) => !existsSync(pngOf(f)));
 if (missing.length === 0) {
   console.log(`rasterize-cards: all ${allSvgs.length} cards already rasterized — nothing to do.`);
+  dropSvgs();
   process.exit(0);
 }
 
@@ -144,3 +178,4 @@ for (let start = 0; start < allSvgs.length; start += BATCH) {
 
 const stillMissing = allSvgs.filter((f) => !existsSync(pngOf(f))).length;
 console.log(`rasterize-cards: done across ${batches} batch(es); ${stillMissing} card(s) still missing a PNG.`);
+dropSvgs();

@@ -54,12 +54,22 @@ jobs:
       # the SVGs, so the rasterize step only renders cards that actually changed.
       # `npm run build` (vite, emptyOutDir) has already run, so this is the first thing
       # to touch dist/og. The card SVG names are content-hashed, so a restored PNG is
-      # reused only when a current SVG has the identical name (= identical card); the
-      # rasterizer prunes orphans, so the cache never accumulates stale images. Key on
+      # reused only when a current SVG has the identical name (= identical card). Key on
       # the card-content determinants — the committed data version (build_metadata) and
       # the card-emitting/templating/rendering scripts — so a code-only deploy is an
       # exact hit (rasterize skips everything → deploy drops back to ~3 min) and a data
       # refresh or card-layout change triggers a fresh full rasterize.
+      #
+      # THIS CACHE IS A RATCHET unless two invariants hold, and shipping without them is
+      # what broke production in Aug 2026 (2.4 GB / ~65,000 files, Pages sync past the
+      # deploy timeout, three straight failed deploys behind a green build job):
+      #   1. prerender-hubs.mjs deletes every restored *.svg before emitting this build's
+      #      set — otherwise a stale SVG shields its stale PNG from the orphan prune,
+      #      which only deletes a PNG when no SVG of that name remains.
+      #   2. rasterize-cards.mjs deletes the SVGs once the PNGs exist — the cache is saved
+      #      from dist/og itself, so anything left here is carried into the next deploy
+      #      AND uploaded to Pages.
+      # `check-dist-size.mjs --profile deploy` below is the hard backstop on both.
       - name: Restore rasterized social-card cache
         uses: actions/cache@v4
         with:
@@ -80,10 +90,11 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y fonts-dejavu-core
       - run: node scripts/rasterize-cards.mjs
 
-      # IN-3: guard the FULL published tree (mesh + rasterized card PNGs) against the
-      # GitHub Pages 1 GB cap before upload — fail loudly here rather than let the upload
-      # silently truncate/reject. Runs post-rasterize so it measures the real upload
-      # deterministically (independent of the og PNG cache restored above).
+      # IN-3: guard the FULL published tree (mesh + rasterized card PNGs) before upload —
+      # fail loudly here rather than let a slow Pages sync time the deployment out with no
+      # explanation. Runs post-rasterize so it measures the real upload, which is now
+      # deterministic: the cache carries PNGs only and the SVG set is regenerated every build,
+      # so this is a pure function of committed data and can be a HARD gate again.
       - name: Guard published site size (IN-3)
         run: node scripts/check-dist-size.mjs --profile deploy
 
@@ -96,12 +107,25 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    # The Pages sync is the long pole (tens of thousands of files); cap the job well above
+    # the action's own timeout below so the action reports the real reason, not a job kill.
+    timeout-minutes: 30
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
         uses: actions/deploy-pages@v5
+        with:
+          # deploy-pages defaults to a 10-MINUTE timeout, and that default is what turned a
+          # slow deploy into a red one: the published tree had ratcheted up to 2.4 GB /
+          # ~65,000 files (see prerender-hubs.mjs + rasterize-cards.mjs for the card-cache
+          # ratchet that caused it), the sync crept up to 9m52s on the last green run, and
+          # the next three crossed 10:00 and aborted while still `deployment_queued`.
+          # The card fixes bring the tree back down, but Pages sync time is not something
+          # this repo controls, so give it real headroom — this timeout exists to stop a
+          # genuinely stuck deployment, not to police a slow one.
+          timeout: 1200000 # 20 min
 
   # Nothing anywhere watched these workflows. There is no PR to annotate and no
   # webhook, and the only two `if: failure()` steps in the whole tree were an

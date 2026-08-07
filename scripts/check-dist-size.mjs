@@ -17,11 +17,14 @@
  *                     combinatorial growth actually lives — so this is the pre-merge gate.
  *   --profile deploy  The full published tree after `node scripts/rasterize-cards.mjs`,
  *                     right before upload-pages-artifact. Includes the ~9,261 stable
- *                     card PNGs. This is the backstop guard on the actual 1 GB cap.
+ *                     card PNGs and excludes the card SVGs the rasterizer consumed.
+ *                     This is the backstop on what actually ships.
  *
- * The rasterized PNG set is fixed by the area/region count (it does not grow with new
- * data layers or ranking families), so the runaway risk is entirely in the `pages` mesh;
- * the `deploy` profile is the absolute-cap backstop.
+ * The rasterized PNG set is fixed by the area/region count (it does not grow with new data
+ * layers or ranking families), so combinatorial runaway lives in the `pages` mesh — but the
+ * `deploy` profile is not decorative: the one growth mode that bypasses `pages` entirely is
+ * the dist/og cache accumulating across deploys, which is precisely what took the published
+ * tree to 2.4 GB and broke production. Both profiles fail the job on breach.
  *
  * Mirrors scripts/check-bundle-size.mjs: one constant per budget, a GITHUB_STEP_SUMMARY
  * table when running in Actions, and a ::error:: annotation + exit 1 on breach.
@@ -32,23 +35,34 @@ import { join } from 'node:path';
 
 const MiB = 1024 * 1024;
 
-// Measured 2026-07-24 in the real jobs:
-//   pages  (ci/auto-merge lighthouse, post build:pages, no og cache) : 557 MB / 41,882 files
-//   deploy (deploy.yml, post rasterize, the actual upload)           : 1382 MB / 65,167 files
-//     — of which dist/og alone is 846 MB / 32,538 files: the deploy restores dist/og from a
-//     prefix-keyed cache (deploy.yml) that has accumulated many data-versions' worth of card
-//     PNGs, far more than the ~9,054 current cards. GitHub Pages accepts this upload today
-//     (prior deploys at ~1382 MB succeed), so the documented "1 GB" limit is NOT hard-enforced
-//     for artifact-based Pages at the uncompressed-tree level — a HARD deploy gate below the
-//     working size would just false-fail production. So:
-//   - `pages` is the HARD pre-merge gate: it measures the DETERMINISTIC prerendered mesh (no
-//     cache, no PNGs), which is the only thing that grows with new page families. Byte-identical
-//     across OSes, so 640 MiB over today's 557 MB never false-fails yet trips on a new family.
-//   - `deploy` is a WARN-ONLY visibility report: it always prints the per-dir breakdown (so the
-//     og-cache bloat is visible every deploy) and emits a ::warning:: past a generous soft
-//     threshold set above today's real size, but NEVER fails the deploy. Follow-ups to reclaim
-//     room: fix the dist/og cache accumulation (32k files ≫ 9k cards) and drop the now-unused
-//     card SVGs from the upload (prerender references the .png).
+// Measured 2026-08-07 in a clean tree (both profiles now deterministic):
+//   pages  (ci/auto-merge lighthouse, post build:pages, no og cache) : 543 MB / 41,825 files
+//   deploy (deploy.yml, post rasterize, the actual upload)           : ~970 MB / 41,825 files
+//     — dist/og is 9,261 card PNGs; the card is a fixed 1200×630 template, so their size
+//     barely varies (mean 49.6 KiB, σ 2.5 KiB, max 61.8 KiB over a 3,434-card sample ⇒ 449 MB
+//     expected, 546 MB even if every card were the largest observed). The file COUNT is
+//     identical across the two profiles: rasterize-cards.mjs deletes each card SVG once its
+//     PNG exists, so the profiles differ only in card bytes (2.5 KB of SVG → ~50 KB of PNG).
+//
+// BOTH profiles are hard gates. `deploy` was previously warn-only because the upload size was
+// cache-driven and therefore not something a build could legitimately fail on — dist/og was
+// restored from a prefix-keyed cache that accumulated a new data-version of cards every deploy
+// (32,538 files against ~9,000 real cards). That is fixed at the source: prerender-hubs.mjs
+// clears the cache-restored SVGs before emitting the current set, so rasterize-cards.mjs's
+// orphan prune can finally collect the superseded PNGs. The published tree is now a pure
+// function of the committed data — so it can be gated like one.
+//
+// Re-arming this matters: the warn-only window is exactly when the tree ratcheted to 2.4 GB /
+// ~65,000 files and the Pages sync crept past actions/deploy-pages' 10-minute default timeout,
+// failing three consecutive production deploys while every `build` job stayed green.
+//
+//   - `pages`  gates the prerendered mesh pre-merge — the only part that grows combinatorially
+//     (a new ranking metric ≈ +600 URLs/locale). Byte-identical across OSes.
+//   - `deploy` gates the real upload. The budget is a RATCHET DETECTOR, not the Pages cap: the
+//     documented 1 GB limit is demonstrably not hard-enforced here (deploys at 1382 MB
+//     succeeded), and the binding constraint is sync TIME, which scales with file count. The
+//     headroom below absorbs normal growth and trips long before anything approaches the size
+//     that broke the deploy.
 const PROFILES = {
   pages: {
     hard: true,
@@ -57,9 +71,9 @@ const PROFILES = {
     label: 'Prerendered page mesh (pre-rasterize)',
   },
   deploy: {
-    hard: false, // visibility + growth warning only — never blocks the deploy (see above)
-    budget: 1600 * MiB,
-    fileBudget: 90_000,
+    hard: true,
+    budget: 1200 * MiB, // ~22% over today's 980 MB
+    fileBudget: 50_000, // ~20% over today's 41,825 — sync time tracks this more than bytes
     label: 'Full published site (post-rasterize)',
   },
 };
@@ -150,11 +164,13 @@ if (totalBytes > profile.budget || totalFiles > profile.fileBudget) {
       : `file count ${totalFiles} exceeds ${profile.fileBudget} budget`;
   const msg = `dist/ ${profile.label} ${why} — prune the page mesh or the dist/og card cache.`;
   if (profile.hard) {
-    // Hard gate (pages): fail the job so growth is caught before merge.
+    // Both profiles are hard today: `pages` catches combinatorial page growth before merge,
+    // `deploy` catches anything that reaches the upload without going through the mesh.
     console.error(`::error::${msg}`);
     process.exit(1);
   }
-  // Warn-only (deploy): the real upload size is cache-driven and known-accepted by Pages,
-  // so surface growth loudly but never block the deploy.
+  // Soft profiles (none at present) report growth without blocking. Kept so a future profile
+  // can be introduced in observe-only mode — but see the PROFILES comment: leaving the gate
+  // that guards production in this mode is how the 2.4 GB tree shipped unnoticed.
   console.log(`::warning::${msg}`);
 }
