@@ -16,7 +16,7 @@ import type { IsochroneMode } from '../utils/isochrone';
 import { findSimilarNeighborhoods, AVAILABLE_SIMILARITY_METRICS, SIMILARITY_WEIGHT_MIN, SIMILARITY_WEIGHT_MAX, SIMILARITY_WEIGHT_DEFAULT } from '../utils/similarity';
 import { resolveNeighborPnos } from '../utils/adjacency';
 import { getFeatureCenter } from '../utils/geometryFilter';
-import { getLayerById, getInterpolatedColor, rampGradientCss, readableTextColor, type LayerId } from '../utils/colorScales';
+import { getLayerById, bandStripGradient, colorblindSequential, readableTextColor, type LayerId } from '../utils/colorScales';
 import { histogram, percentileRank, binIndexOf } from '../utils/correlation';
 import { toSlug } from '../utils/slug';
 import { useNavigate } from 'react-router-dom';
@@ -591,14 +591,28 @@ const QualityBadge: React.FC<{
   const animatedQi = useAnimatedValue(qualityIndex);
   const qi = animatedQi != null ? Math.round(animatedQi) : qualityIndex;
   const cat = getQualityCategory(qi);
-  // T3: color the swatch/pointer/band-strip from the SAME quality_index ramp the map
-  // fill uses (continuous interpolation, colorblind-aware via getLayerById) so the
-  // panel matches the map exactly. getQualityCategory is kept only for the label text
-  // and the band min/max.
-  const qiLayer = getLayerById('quality_index');
-  const qiColor = getInterpolatedColor(qiLayer, qi);
+  // The swatch/pointer/strip are coloured by the BAND, not by the score's position on
+  // the absolute 0–100 ramp.
+  //
+  // Those two disagree, and the disagreement is visible to users. The verdict word is
+  // cohort-relative — "Excellent" means the top fifth of the areas on screen — while the
+  // ramp is absolute, so re-weighting the factors moves the word without moving the
+  // colour. Two real cases from the same panel: a custom weighting scoring 80 read
+  // "Excellent (78–100)" on green, and another scoring 58 read "Excellent (46–100)" on
+  // yellow. Same word, different colour; "Good" could likewise come out yellow or red.
+  // A colour that contradicts the word beside it is worse than no colour.
+  //
+  // So each verdict now owns its colour (QUALITY_CATEGORIES: Avoid purple, Bad red,
+  // Okay orange, Good yellow, Excellent green) and it never changes with the weighting.
+  // The score's own position is still shown — by where the pointer sits in the band.
   const bandCats = getQualityCategories();
   const bandPos = getQualityBandPosition(qi);
+  // Colourblind mode still substitutes a CVD-safe ramp, in band order, so the strip does
+  // not depend on telling red from green.
+  const cbColors = colorblindSequential(bandCats.length);
+  const bandColors = bandCats.map((c, i) => cbColors?.[i] ?? c.color);
+  const bandIdx = cat ? bandCats.findIndex((c) => c.label.en === cat.label.en) : -1;
+  const bandColor = bandIdx >= 0 ? bandColors[bandIdx] : '#94a3b8';
   const lang = getLang();
   // CF-1: "How is this calculated?" explainer popover.
   const [showHow, setShowHow] = useState(false);
@@ -693,7 +707,7 @@ const QualityBadge: React.FC<{
       <div className="flex items-center gap-3 mb-3">
         <div
           className="w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm"
-          style={{ backgroundColor: qiColor, color: readableTextColor(qiColor) }}
+          style={{ backgroundColor: bandColor, color: readableTextColor(bandColor) }}
         >
           {qi}
         </div>
@@ -705,28 +719,19 @@ const QualityBadge: React.FC<{
         </span>
       </div>
       <div className="relative">
-        {/* Cohort-relative bands, drawn at EQUAL width because they are quintiles of the
-            cohort: equal width = equal share of areas, which is what the labels claim,
-            and it keeps all five readable (in value space the middle bands are only a
-            few points wide and their labels would be unreadable slivers).
-            Each band is painted with the SAME ramp the choropleth uses, across that
-            band's own value range — so the strip reads as the map's quality scale
-            instead of five flat mid-band samples, which under the default weights
-            collapsed into two near-identical oranges and never showed the ramp's ends.
-            The strip tiles with no gaps so the pointer's percentage is exact; bands stay
-            distinguishable via a hairline inset that costs no layout width. */}
-        <div className="flex">
-          {bandCats.map((c, i) => (
-            <div key={c.label.en} className="flex-1 flex flex-col items-center gap-1">
-              <div
-                className={`w-full h-2 ${i === 0 ? 'rounded-l-full' : ''} ${i === bandCats.length - 1 ? 'rounded-r-full' : ''}`}
-                style={{
-                  background: rampGradientCss(qiLayer, c.min, c.max),
-                  boxShadow: i > 0 ? 'inset 1px 0 0 0 rgba(255,255,255,0.75)' : undefined,
-                }}
-              />
-              <span className="text-[9px] text-surface-600 dark:text-surface-400">{c.label[lang]}</span>
-            </div>
+        {/* One strip, five equal-width bands — equal width because the bands are
+            quintiles of the cohort, so equal width is equal share of areas (which is what
+            the labels claim) and all five labels stay readable. Each band holds its own
+            verdict colour flat through the middle and blends over a short seam into the
+            next, so the strip still reads as one ramp while every band is unmistakably
+            one hue. Painting it from the score's absolute ramp instead is what let
+            "Excellent" render yellow. */}
+        <div className="h-2 rounded-full" style={{ background: bandStripGradient(bandColors) }} />
+        <div className="flex mt-1">
+          {bandCats.map((c) => (
+            <span key={c.label.en} className="flex-1 text-center text-[9px] text-surface-600 dark:text-surface-400">
+              {c.label[lang]}
+            </span>
           ))}
         </div>
         {/* Positioned on the band axis, not the raw 0–100 value axis — see
@@ -737,7 +742,7 @@ const QualityBadge: React.FC<{
           style={{
             left: `${bandPos ?? qi}%`,
             transform: 'translateX(-50%)',
-            backgroundColor: qiColor,
+            backgroundColor: bandColor,
           }}
         />
       </div>
