@@ -19,6 +19,7 @@ import {
   bboxContains,
   bboxIntersects,
   bboxSubtract,
+  MAX_SHADOW_METRES,
   type Affine,
   type Bbox,
   type Pt,
@@ -152,9 +153,27 @@ describe('shadowLengthMetres', () => {
     expect(shadowLengthMetres(20, -5)).toBe(0);
   });
 
-  it('clamps a near-horizon shadow instead of emitting a kilometres-long smear', () => {
+  it('clamps only at the very last fraction of a degree above the horizon', () => {
     // At 0.05 degrees a 20 m building would geometrically cast ~23 km.
-    expect(shadowLengthMetres(20, 0.05)).toBe(2000);
+    expect(shadowLengthMetres(20, 0.05)).toBe(MAX_SHADOW_METRES);
+  });
+
+  it('keeps a tower and a shed distinguishable through sunset', () => {
+    // The clamp used to be 2 km, which is SHORTER than the hour either side of
+    // sunset actually casts — so every building taller than about 17 m threw the
+    // same 2 km shadow and the skyline flattened at exactly the time of day it is
+    // most legible. These two must stay an order of magnitude apart.
+    const shed = shadowLengthMetres(5, 0.5);
+    const tower = shadowLengthMetres(100, 0.5);
+    expect(shed).toBeLessThan(600);
+    expect(tower).toBeGreaterThan(5_000);
+    expect(tower / shed).toBeCloseTo(20, 0);
+  });
+
+  it('still casts a useful shadow an hour before sunset', () => {
+    // The sun is ~5-6 degrees up an hour before it sets at this latitude.
+    expect(shadowLengthMetres(20, 5)).toBeGreaterThan(200);
+    expect(shadowLengthMetres(20, 5)).toBeLessThan(MAX_SHADOW_METRES);
   });
 });
 

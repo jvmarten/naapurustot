@@ -32,18 +32,47 @@ const METRES_PER_LEVEL = 3.2;
 const M_PER_DEG_LAT = 111_320;
 
 /**
- * Longest shadow we will draw, in metres.
+ * Longest shadow we will DRAW, in metres.
  *
- * The geometry stays correct as the sun approaches the horizon, but it stops
- * being useful: at 0.5° altitude a 20 m building casts 2.3 km, so a screenful of
- * downtown becomes one undifferentiated smear that also costs a fortune to
- * project. Clamping the LENGTH (rather than refusing to draw) keeps the
- * direction and the relative ordering honest while the sun is low.
+ * This was 2 km, which is shorter than the hour either side of sunrise and sunset
+ * actually casts — and that hour is when the layer is most worth looking at. The
+ * clamp did not just shorten those shadows, it FLATTENED them: at 0.5° altitude a
+ * 20 m building casts 2.3 km and a 100 m tower casts 11.5 km, so with both pinned
+ * to 2 km the tower and the shed threw identical shadows and the skyline stopped
+ * being readable at exactly the time of day it is most distinctive.
  *
- * It doubles as the natural bound on how far outside the viewport a building can
- * still matter, which is what {@link padBbox} is asked for — see the renderer.
+ * 12 km keeps a 100 m building honest down to about 0.5°, which is the last half
+ * degree before the sun sets. Below that `nightAlpha` is already taking over.
+ *
+ * Cost is bounded and does not scale with this number: a longer shadow is the
+ * same vertex count swept further, the fill is clipped to the viewport, and the
+ * ground the renderer has to consider is bounded by {@link MAX_SHADOW_PAD_METRES}
+ * instead — which is deliberately NOT this constant, because query area is what
+ * is expensive and screen area is not.
+ *
+ * A screenful of low-sun downtown being mostly dark is not a smear to be avoided;
+ * it is the answer. Uniformly dark, too — the nonzero union means overlapping
+ * shadows merge rather than stack.
  */
-export const MAX_SHADOW_METRES = 2_000;
+export const MAX_SHADOW_METRES = 12_000;
+
+/**
+ * How far outside the viewport a building can still be worth FETCHING, in metres.
+ *
+ * Split from {@link MAX_SHADOW_METRES} when that was raised to 12 km. The two
+ * were one constant because they happened to agree, but they answer different
+ * questions: how long a shadow may be drawn costs screen pixels, while how far
+ * out we look for casters costs Overpass query area on all four sides. Growing
+ * the pad to 12 km would have made a low-sun viewport ask for hundreds of km² and
+ * be refused outright by the area budget, which is how "draw longer shadows"
+ * would have turned into "draw nothing at all".
+ *
+ * The consequence, stated plainly: a building more than this far outside the view
+ * does not cast into it, so at a very low sun the far edge of the screen is lit
+ * where it should be shaded. That is a soft, honest limit — it degrades at the
+ * edge rather than truncating every shadow everywhere.
+ */
+export const MAX_SHADOW_PAD_METRES = 2_000;
 
 const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
 
