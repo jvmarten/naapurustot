@@ -192,6 +192,14 @@ a green `build` job is a size/time problem, not a code problem** — check the a
 (`list_workflow_run_artifacts`) before anything else. `deploy.yml` now sets `timeout` explicitly,
 but that is a backstop; keep the tree small.
 
+A third, separate constraint governs how the cards are *rendered*. Batches run one per core,
+and each child costs ~200 MiB fixed plus ~3 MiB per card (a 1200×630 RGBA pixmap
+`@resvg/resvg-js` never hands back). The fixed cost does not divide across workers, so the
+batch size scales **down** as concurrency scales up, holding the total peak at ~1.4 GB —
+**raising concurrency without shrinking the batch re-creates the OOM that made the batching
+scheme necessary in the first place.** A cold pass is ~3m50s on the 4-vCPU runner (it was
+~14m30s when the batches ran sequentially on one core) against the build job's 30-minute cap.
+
 ### All-Finland view: region borders
 
 The all-Finland view (`?city=all`, the default) shows seutukunta outlines, not individual postal-code borders. This has broken repeatedly — do not re-introduce these issues:

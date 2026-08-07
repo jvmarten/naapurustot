@@ -20,9 +20,12 @@
  * but the residual per-card native growth still exhausted the runner.) So this script
  * runs as an ORCHESTRATOR that rasterizes the cards in fixed-size batches, each in a
  * fresh CHILD process that exits when its batch is done: the OS reclaims all native
- * memory between batches, bounding peak RSS to one batch regardless of any native leak.
- * Each child also runs under --expose-gc and forces a GC periodically as a second line
- * of defense. Set RASTERIZE_BATCH=<start>:<count> to invoke the worker path directly.
+ * memory between batches, bounding peak RSS regardless of any native leak. Each child
+ * also runs under --expose-gc and forces a GC periodically as a second line of defense.
+ * Batches run one per core, with the batch size scaled down so the total peak matches
+ * what a single batch used to cost (see CONCURRENCY/BATCH below).
+ * Set RASTERIZE_BATCH=<start>:<count> to invoke the worker path directly;
+ * RASTERIZE_CONCURRENCY and RASTERIZE_BATCH_SIZE override the derived values.
  *
  * @resvg/resvg-js is a native module (devDependency). Fonts: the card uses
  * "system-ui, sans-serif". The worker loads a SMALL FIXED font set (DejaVu Sans regular
@@ -33,7 +36,8 @@
 import { readdirSync, readFileSync, writeFileSync, existsSync, unlinkSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
+import os from 'node:os';
 import { Resvg } from '@resvg/resvg-js';
 
 // dist/og by default; overridable for tests via RASTERIZE_OG_DIR.
@@ -52,10 +56,40 @@ const pngOf = (svgFile) => join(ogDir, svgFile.replace(/\.svg$/, '.png'));
 
 const batchEnv = process.env.RASTERIZE_BATCH; // "<start>:<count>" → worker mode
 
-// Cards per child process. Small enough that one batch's native footprint stays well
-// under the runner's RAM even in the worst case (no GC between renders); large enough
-// that process-spawn overhead is negligible across the ~9,000 cards. Overridable for tests.
-const BATCH = Number(process.env.RASTERIZE_BATCH_SIZE) || 400;
+// Batches run CONCURRENTLY, one child per core. The batching exists to bound memory (see
+// MEMORY above); it used to also serialise the work — a `spawnSync` loop that left every
+// core but one idle, so a cold rasterize of all 9,261 cards took ~15 min against the build
+// job's timeout. Fanning it across the runner's 4 vCPUs cuts that to ~4 min.
+//
+// Concurrency must not buy speed with the OOM this script was written to avoid, so the
+// batch size shrinks as concurrency grows to hold the TOTAL peak constant. Measured on a
+// 4-core runner-equivalent box (peak RSS via /proc/<pid>/status VmHWM, cold batches):
+//
+//     50 cards → 318 MiB   100 → 433 MiB   200 → 797 MiB   400 → 1388 MiB
+//
+// i.e. ~200 MiB of fixed per-process cost (node + the DejaVu font buffers) plus ~3 MiB per
+// card — one 1200×630 RGBA pixmap that the native allocator does not hand back. The fixed
+// cost does NOT divide across workers, so P workers of B cards peak at P×(200 + 3B) MiB.
+// Solving that against today's proven-safe 1388 MiB single-batch peak gives B below, and
+// the arithmetic degenerates to exactly the old behaviour (1 worker × 400 cards) on a
+// single-core machine. Holding the peak works out to ~1400 MiB at 1, 2 and 4 workers
+// (the ubuntu-latest runner is 4 vCPU / 16 GB, so 4 is the case that matters). Past ~5
+// workers the fixed per-process cost alone exceeds the budget and the BATCH floor takes
+// over instead: 8 workers peak at ~2.2 GB, still a small fraction of any box with that
+// many cores.
+const PEAK_BUDGET_MIB = 1400; // today's measured peak — deliberately NOT raised
+const WORKER_BASE_MIB = 200; // node + font buffers, per child
+const PER_CARD_MIB = 3; // 1200×630 RGBA pixmap the native allocator retains
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
+const CONCURRENCY =
+  Number(process.env.RASTERIZE_CONCURRENCY) ||
+  clamp(os.availableParallelism?.() ?? os.cpus().length, 1, 8);
+
+// Cards per child process. Overridable for tests.
+const BATCH =
+  Number(process.env.RASTERIZE_BATCH_SIZE) ||
+  clamp(Math.floor((PEAK_BUDGET_MIB / CONCURRENCY - WORKER_BASE_MIB) / PER_CARD_MIB), 25, 400);
 
 if (batchEnv) {
   // ── WORKER: render one [start, start+count) slice, then exit (freeing native memory). ──
@@ -152,28 +186,53 @@ if (missing.length === 0) {
   process.exit(0);
 }
 
-const batches = Math.ceil(allSvgs.length / BATCH);
+const starts = [];
+for (let start = 0; start < allSvgs.length; start += BATCH) starts.push(start);
+const batches = starts.length;
 console.log(
   `rasterize-cards: ${missing.length} of ${allSvgs.length} cards need rendering; ` +
-  `processing in ${batches} process-isolated batch(es) of ${BATCH} to bound memory.`,
+  `processing in ${batches} process-isolated batch(es) of ${BATCH} across ${CONCURRENCY} worker(s) ` +
+  `(peak ≈ ${CONCURRENCY * (WORKER_BASE_MIB + PER_CARD_MIB * BATCH)} MiB).`,
 );
 
 const selfPath = fileURLToPath(import.meta.url);
-for (let start = 0; start < allSvgs.length; start += BATCH) {
-  const result = spawnSync(process.execPath, ['--expose-gc', selfPath], {
-    env: { ...process.env, RASTERIZE_BATCH: `${start}:${BATCH}` },
-    stdio: 'inherit',
+
+/** Run one batch in a child that exits when done, freeing its native memory. */
+function runBatch(start) {
+  return new Promise((resolve) => {
+    const child = spawn(process.execPath, ['--expose-gc', selfPath], {
+      env: { ...process.env, RASTERIZE_BATCH: `${start}:${BATCH}` },
+      stdio: 'inherit',
+    });
+    // Each child prints a single line when its batch finishes, so 'inherit' across
+    // concurrent workers interleaves whole lines rather than fragments.
+    child.on('error', (error) => resolve({ start, error }));
+    child.on('close', (code, signal) => resolve({ start, code, signal }));
   });
-  if (result.error) {
-    console.error(`rasterize-cards: failed to spawn batch at ${start}: ${result.error.message}`);
-    process.exit(1);
+}
+
+// Pull batches off a shared queue: uneven batch durations can't leave a worker idle the
+// way a fixed per-worker partition would.
+let nextBatch = 0;
+let failure = null;
+async function worker() {
+  while (nextBatch < starts.length && failure === null) {
+    const start = starts[nextBatch++];
+    const result = await runBatch(start);
+    if (result.error) {
+      failure = `failed to spawn batch at ${result.start}: ${result.error.message}`;
+    } else if (result.code !== 0) {
+      // A non-zero child means either a systemic render failure or the child was killed
+      // (e.g. OOM/signal) — fail loudly rather than ship a half-rasterized site. Workers
+      // stop pulling new batches, but those already in flight are awaited below.
+      failure = `batch starting at ${result.start} exited with ${result.code ?? result.signal}`;
+    }
   }
-  if (result.status !== 0) {
-    // A non-zero child means either a systemic render failure or the child was killed
-    // (e.g. OOM/signal) — fail loudly rather than ship a half-rasterized site.
-    console.error(`rasterize-cards: batch starting at ${start} exited with ${result.status ?? result.signal}.`);
-    process.exit(1);
-  }
+}
+await Promise.all(Array.from({ length: Math.min(CONCURRENCY, starts.length) }, worker));
+if (failure !== null) {
+  console.error(`rasterize-cards: ${failure}.`);
+  process.exit(1);
 }
 
 const stillMissing = allSvgs.filter((f) => !existsSync(pngOf(f))).length;
