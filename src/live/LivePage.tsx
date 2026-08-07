@@ -16,7 +16,7 @@ import {
   shadowLengthMetres,
   padBbox,
   bboxContains,
-  MAX_SHADOW_METRES,
+  MAX_SHADOW_PAD_METRES,
   type Affine,
   type Bbox,
   type PreparedBuilding,
@@ -156,27 +156,35 @@ const SHADE = {
  *
  * A crown is not a wall. It dapples — a canopy in leaf passes a real fraction of
  * the light, and a bare one in a Finnish winter passes most of it — so casting it
- * at the building alpha would claim a solidity trees do not have. Two passes also
- * mean ground under BOTH a building and a tree compounds to slightly darker,
- * which is the right direction.
+ * at the building alpha would claim a solidity trees do not have.
  *
  * The heights behind it are measured (HSY's laser-derived land cover), so the
  * geometry is honest; only the opacity is a judgement, and it is the conservative
  * one.
+ *
+ * This is a RELATIVE weight, not a second layer of shade. Ground under both a
+ * tree and a building is shaded ONCE, at the building's tone — see `draw`, where
+ * the two casters are merged into a single mask before either reaches the screen.
  */
 const CANOPY_ALPHA_SCALE = 0.65;
 
 /**
- * Below this zoom, canopy is not drawn at all.
+ * Canopy tolerance multiplier, on top of the buildings' zoom ladder.
  *
- * Higher than the buildings' own floor, and deliberately. A tree crown is a few
- * metres across where a building is tens, so at z13.5 — where a 20 m building is
- * still a 2 px mass with a legible shadow — a 10 m crown is about one pixel and
- * contributes an even wash rather than shade you can read. Drawing them there
- * cost 62 -> 106 ms a scrub step for that wash, which is most of the frame budget
- * the zoom ladder had just bought back.
+ * A crown has no true edge to preserve — the outline is a classification
+ * boundary, not an object — and there are ~4x as many of them as buildings, so
+ * this is where the per-frame cost of drawing trees is paid back. Past z14 the
+ * multiplier climbs, which is what lets canopy be drawn at EVERY zoom buildings
+ * are drawn at (it used to stop at z14, leaving a band of zooms where a forest
+ * cast nothing and read as open ground) without giving back the frame budget the
+ * zoom ladder bought. At the coarse end `projectPrepared` collapses each crown to
+ * its bounding box, which is the cheapest thing the emitter can sweep.
  */
-const CANOPY_MIN_ZOOM = 14;
+function canopySimplifyScale(zoom: number): number {
+  if (zoom >= 15) return 2;
+  if (zoom >= 14) return 3;
+  return 4;
+}
 
 /**
  * Building ink, per theme.
@@ -193,8 +201,24 @@ const BUILDING = {
   light: { fill: 'rgba(51, 65, 85, 0.42)', stroke: 'rgba(30, 41, 59, 0.55)' },
 } as const;
 
-/** Shared empty list, so the zoomed-out path allocates nothing per frame. */
-const EMPTY_PREPARED: PreparedBuilding[] = [];
+/**
+ * The scratch canvas the shadow casters are merged on, sized to the viewport.
+ *
+ * Module-level and reused across frames: allocating a viewport-sized canvas per
+ * frame is what makes an offscreen compositing step expensive, and there is only
+ * ever one map on the page.
+ */
+let maskCanvas: HTMLCanvasElement | null = null;
+
+function ensureMask(width: number, height: number): HTMLCanvasElement | null {
+  if (typeof document === 'undefined') return null;
+  if (!maskCanvas) maskCanvas = document.createElement('canvas');
+  if (maskCanvas.width !== width || maskCanvas.height !== height) {
+    maskCanvas.width = width;
+    maskCanvas.height = height;
+  }
+  return maskCanvas;
+}
 
 const STORAGE_KEY = 'live.feeds';
 
@@ -269,15 +293,15 @@ function cameraAffine(map: MaplibreMap): Affine {
  * Kept modest, because padding is paid for in query area on all four sides: a
  * 15 % margin costs about 35 % more ground, while 25 % costs 100 %. The lower
  * bound is what actually fixes the edge artefact at street zoom, and the cap is
- * the longest shadow we will draw — past that the extra area cannot affect a
- * single pixel on screen.
+ * MAX_SHADOW_PAD_METRES — deliberately not the 12 km a shadow may now be drawn
+ * to, because that is a screen-space allowance and this is a query-area one.
  */
 function fetchPadMetres(view: Bbox): number {
   const midLat = ((view.south + view.north) / 2) * (Math.PI / 180);
   const spanNS = (view.north - view.south) * 111_320;
   const spanEW = (view.east - view.west) * 111_320 * Math.cos(midLat);
   const span = Math.min(spanNS, spanEW);
-  return Math.min(MAX_SHADOW_METRES, Math.max(350, 0.15 * span));
+  return Math.min(MAX_SHADOW_PAD_METRES, Math.max(350, 0.15 * span));
 }
 
 /** Paint the building masses themselves, above whatever shade they cast. */
@@ -341,8 +365,6 @@ export const LivePage: React.FC = () => {
 
   const [when, setWhen] = useState<Date>(() => new Date());
   const [center, setCenter] = useState<[number, number]>(DEFAULT_CENTER);
-  /** Camera zoom, in state only so the readout can tell whether canopy is being drawn. */
-  const [mapZoom, setMapZoom] = useState(DEFAULT_ZOOM);
   const [enabled, setEnabled] = useState<Set<string>>(readStoredFeeds);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [coverage, setCoverage] = useState<{
@@ -408,17 +430,21 @@ export const LivePage: React.FC = () => {
     // call, which is what makes a ten-thousand-building city view scrub at all.
     const c = map.getCenter();
     const cameraKey = `${c.lng},${c.lat},${zoom},${map.getBearing()},${width}x${height}`;
-    const canopy = zoom >= CANOPY_MIN_ZOOM ? preparedCanopyRef.current : EMPTY_PREPARED;
+    // Canopy is drawn at EVERY zoom buildings are drawn at. It used to stop at
+    // z14 while buildings continued to z12, so zooming out crossed a threshold
+    // where a forest silently stopped casting and the ground it had been shading
+    // turned bright — the same "buildings stop along an invisible line" failure
+    // the shard/OSM seam had, in the zoom axis instead of the spatial one. The
+    // cost that floor was buying back is bought instead by `canopySimplifyScale`
+    // and by the sub-pixel cull in `shadowPath`, which drops most crowns when the
+    // sun is high and they are the size of a pixel.
+    const canopy = preparedCanopyRef.current;
     if (cameraKeyRef.current !== cameraKey && (buildings.length > 0 || canopy.length > 0)) {
       cameraKeyRef.current = cameraKey;
       const transform = cameraAffine(map);
       const simplifyPx = simplifyPxForZoom(zoom);
       for (const b of buildings) projectPrepared(b, transform, simplifyPx);
-      // Canopy gets a coarser tolerance at every zoom. A crown has no true edge
-      // to preserve — the outline is a classification boundary, not an object —
-      // and there are ~4x as many of them, so this is where the per-frame cost of
-      // adding trees is paid back.
-      for (const c2 of canopy) projectPrepared(c2, transform, simplifyPx * 2);
+      for (const c2 of canopy) projectPrepared(c2, transform, simplifyPx * canopySimplifyScale(zoom));
     }
 
     // The sun is below the horizon: every surface in view is in shade, so the
@@ -466,39 +492,49 @@ export const LivePage: React.FC = () => {
       return any ? p : null;
     };
 
-    // Trees first, in their own lighter pass — see CANOPY_ALPHA_SCALE. Ground
-    // under both a tree and a building then compounds to slightly darker, which
-    // is the right direction.
     const canopyShade = canopy.length ? shadowPath(canopy) : null;
-    if (canopyShade) {
-      ctx.fillStyle = `rgba(${shade.ink}, ${(shade.day * CANOPY_ALPHA_SCALE).toFixed(3)})`;
-      ctx.fill(canopyShade, 'nonzero');
-    }
 
     // ONE path for every ring of every building — see the file header for why
     // this is not a per-polygon fill.
-    const path = new Path2D();
-    for (const b of buildings) {
-      if (b.sn < 4) continue;
-      const metres = shadowLengthMetres(b.height, sun.altitude);
-      if (metres <= 0) continue;
-      const dx = ux * metres;
-      const dy = uy * metres;
-      // Off-screen, including where the shadow lands.
-      if (Math.max(b.maxX, b.maxX + dx) < 0 || Math.min(b.minX, b.minX + dx) > width) continue;
-      if (Math.max(b.maxY, b.maxY + dy) < 0 || Math.min(b.minY, b.minY + dy) > height) continue;
-      // Sub-pixel once zoomed out: the Path2D calls would cost more than the
-      // pixels they cannot fill.
-      if (
-        b.maxX - b.minX + Math.abs(dx) < MIN_FEATURE_PX &&
-        b.maxY - b.minY + Math.abs(dy) < MIN_FEATURE_PX
-      ) {
-        continue;
-      }
-      emitSweptFlat(path, b.sx, b.sy, b.sn, dx, dy);
+    const path = shadowPath(buildings) ?? new Path2D();
+
+    // SHADE IS A UNION, NOT A STACK.
+    //
+    // Both casters used to be filled straight onto the canvas, one after the
+    // other, so ground that was under a tree AND a building got painted twice
+    // and alpha-composited to something darker than either — 0.28 over 0.182
+    // reads as 0.41. That put a visibly darker patch wherever a canopy happened
+    // to overlap a building's shadow, which is not a real optical effect: a
+    // point is either lit or it is not, and a second occluder behind the first
+    // changes nothing. Shade is binary; only its SOURCE varies in how much light
+    // it stops.
+    //
+    // So the two are merged first, on a scratch canvas, where the building fill
+    // is fully opaque and therefore SATURATES rather than accumulates. The merged
+    // alpha is max(building, canopy), and one composite at `shade.day` puts it on
+    // screen: building shade at the full tone, canopy-only at CANOPY_ALPHA_SCALE
+    // of it, overlap at the building tone exactly.
+    //
+    // Only when there is canopy to merge — everywhere without a tree layer keeps
+    // the direct single fill, which is cheaper by a full-viewport drawImage.
+    const mask = canopyShade ? ensureMask(canvas.width, canvas.height) : null;
+    const mctx = mask?.getContext('2d') ?? null;
+    if (canopyShade && mctx) {
+      mctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      mctx.clearRect(0, 0, width, height);
+      mctx.fillStyle = `rgba(${shade.ink}, ${CANOPY_ALPHA_SCALE})`;
+      mctx.fill(canopyShade, 'nonzero');
+      // Opaque: this is what makes the overlap saturate to the building tone
+      // instead of summing with the canopy underneath it.
+      mctx.fillStyle = `rgb(${shade.ink})`;
+      mctx.fill(path, 'nonzero');
+      ctx.globalAlpha = shade.day;
+      ctx.drawImage(mask!, 0, 0, width, height);
+      ctx.globalAlpha = 1;
+    } else {
+      ctx.fillStyle = `rgba(${shade.ink}, ${shade.day})`;
+      ctx.fill(path, 'nonzero');
     }
-    ctx.fillStyle = `rgba(${shade.ink}, ${shade.day})`;
-    ctx.fill(path, 'nonzero');
 
     paintBuildings(ctx, buildings, theme, zoom, width, height);
   }, [shadowsOn, sun.altitude, sun.azimuth, theme]);
@@ -633,19 +669,11 @@ export const LivePage: React.FC = () => {
     const refresh = () => {
       const c = map.getCenter();
       setCenter([c.lng, c.lat]);
-      setMapZoom(map.getZoom());
 
       // Nothing to draw them for. The sun readout still tracks the camera, but
       // a switched-off layer must not cost the user a multi-megabyte download or
       // a free shared endpoint a query.
       if (!shadowsOn) return;
-
-      if (map.getZoom() < MIN_SHADOW_ZOOM) {
-        setTooCoarse(true);
-        clearBuildings();
-        scheduleDraw();
-        return;
-      }
 
       const b = map.getBounds();
       const view: Bbox = {
@@ -656,7 +684,22 @@ export const LivePage: React.FC = () => {
       };
       const bbox = padBbox(view, fetchPadMetres(view));
       const plan = planCoverage(bbox);
-      if (plan === 'none') {
+
+      // THE ZOOM FLOOR IS A QUERY BUDGET, NOT A DRAWING LIMIT.
+      //
+      // It used to be checked before anything else, so zooming out past z12
+      // blanked the layer even over a city whose shard was already in memory —
+      // and near sunrise or sunset, when a 20 m building throws 2 km and the
+      // shadows are at their most legible from far away, that is exactly the view
+      // worth having. A shard costs nothing to draw at any zoom: the footprints
+      // are already loaded, and the sub-pixel cull in `shadowPath` bounds the
+      // work whatever the camera does.
+      //
+      // So the floor now applies only where the buildings would have to come from
+      // Overpass. `planCoverage` already refuses an unreasonable query on its own
+      // terms (area, not zoom) by returning 'none'.
+      const shardBacked = plan === 'shard' || plan === 'shard+osm';
+      if (plan === 'none' || (!shardBacked && map.getZoom() < MIN_SHADOW_ZOOM)) {
         setTooCoarse(true);
         clearBuildings();
         scheduleDraw();
@@ -786,12 +829,11 @@ export const LivePage: React.FC = () => {
    */
   const coverageText = (() => {
     if (!coverage) return null;
-    // Trees are stated separately, and only when they are actually being drawn —
-    // the canopy pass is skipped below CANOPY_MIN_ZOOM, and claiming shade the
-    // layer is not casting would be exactly the kind of quiet overstatement the
-    // rest of this readout exists to avoid.
+    // Trees are stated separately. They are now cast at every zoom the buildings
+    // are, so the count is simply whether the layer has any — it no longer has to
+    // second-guess a zoom threshold to avoid claiming shade that is not drawn.
     const trees =
-      coverage.canopy > 0 && mapZoom >= CANOPY_MIN_ZOOM
+      coverage.canopy > 0
         ? ' ' + t('live.shadow.canopy').replace('{n}', String(coverage.canopy))
         : '';
     if (coverage.source === 'city_model') {
