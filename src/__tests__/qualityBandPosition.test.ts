@@ -3,7 +3,7 @@ import { setQualityCohort, clearQualityCohort } from '../utils/qualityBands';
 import {
   getQualityCategory, getQualityCategories, getQualityBandPosition,
 } from '../utils/qualityIndex';
-import { getLayerById, rampGradientCss } from '../utils/colorScales';
+import { bandStripGradient } from '../utils/colorScales';
 
 /**
  * The invariant these guard: the pointer on the band strip must sit inside the band
@@ -123,37 +123,83 @@ describe('getQualityBandPosition', () => {
   });
 });
 
-describe('rampGradientCss', () => {
-  const qi = getLayerById('quality_index');
+describe('verdict colours are stable across weightings', () => {
+  // The defect this pins: the swatch used to be coloured from the score's position on
+  // the absolute 0-100 ramp while the WORD comes from cohort-relative quantiles, so
+  // re-weighting moved the word without moving the colour. Real cases from one panel:
+  // 80 read "Excellent (78-100)" on green, 58 read "Excellent (46-100)" on yellow.
+  const EXPECTED: Record<string, string> = {
+    Avoid: '#a855f7', Bad: '#ef4444', Okay: '#f97316', Good: '#eab308', Excellent: '#22c55e',
+  };
 
-  it('keeps every ramp colour inside a wide band instead of fading end to end', () => {
-    // The lowest cohort band can span 0–44, crossing violet/red/orange. A plain
-    // two-stop gradient would drop those and draw purple → orange.
-    const css = rampGradientCss(qi, 0, 44);
-    for (const color of ['#a855f7', '#ef4444', '#f97316']) {
-      expect(css.toLowerCase()).toContain(color);
+  it('gives each verdict the same colour whatever the cohort', () => {
+    const cohorts: number[][] = [
+      Array.from({ length: 400 }, (_, i) => 23 + (i % 52)),          // shipped defaults
+      Array.from({ length: 400 }, (_, i) => (i < 360 ? 97 + (i % 3) : 30 + (i % 40))), // one bunched factor
+      Array.from({ length: 400 }, (_, i) => Math.round((i / 399) * 100)),              // wide and flat
+      Array.from({ length: 400 }, (_, i) => 44 + (i % 12)),                            // very narrow
+    ];
+    const seen = new Map<string, Set<string>>();
+    for (const cohort of cohorts) {
+      clearQualityCohort();
+      setQualityCohort(cohort);
+      for (const c of getQualityCategories()) {
+        if (!seen.has(c.label.en)) seen.set(c.label.en, new Set());
+        seen.get(c.label.en)!.add(c.color);
+      }
     }
+    for (const [label, colors] of seen) {
+      expect([...colors], `${label} must have exactly one colour`).toEqual([EXPECTED[label]]);
+    }
+  });
+
+  it('scores of 58 and 80 both labelled Excellent carry the same colour', () => {
+    // The two screenshots from the report, reproduced as cohorts.
+    clearQualityCohort();
+    setQualityCohort([
+      ...Array.from({ length: 320 }, (_, i) => 20 + Math.round((i * 26) / 319)), // …46
+      ...Array.from({ length: 80 }, (_, i) => 47 + (i % 40)),
+    ]);
+    const low = getQualityCategory(58);
+    expect(low?.label.en).toBe('Excellent');
+
+    clearQualityCohort();
+    setQualityCohort([
+      ...Array.from({ length: 320 }, (_, i) => 40 + Math.round((i * 38) / 319)), // …78
+      ...Array.from({ length: 80 }, (_, i) => 79 + (i % 20)),
+    ]);
+    const high = getQualityCategory(80);
+    expect(high?.label.en).toBe('Excellent');
+
+    expect(low!.color).toBe(high!.color);
+    expect(low!.color).toBe('#22c55e');
+  });
+});
+
+describe('bandStripGradient', () => {
+  const COLORS = ['#a855f7', '#ef4444', '#f97316', '#eab308', '#22c55e'];
+
+  it('spans 0-100 % with each band held flat before blending into the next', () => {
+    const css = bandStripGradient(COLORS);
     expect(css.startsWith('linear-gradient(to right,')).toBe(true);
-  });
-
-  it('uses the same ramp the choropleth does', () => {
-    // Endpoints must be the layer's own colours, not an independent palette.
-    expect(rampGradientCss(qi, 0, 100).toLowerCase()).toContain(qi.colors[0].toLowerCase());
-    expect(rampGradientCss(qi, 0, 100).toLowerCase()).toContain(qi.colors[qi.colors.length - 1].toLowerCase());
-  });
-
-  it('emits ascending stop percentages', () => {
-    const css = rampGradientCss(qi, 10, 90);
     const pcts = [...css.matchAll(/(\d+(?:\.\d+)?)%/g)].map((m) => Number(m[1]));
-    expect(pcts.length).toBeGreaterThan(2);
-    for (let i = 1; i < pcts.length; i++) expect(pcts[i]).toBeGreaterThanOrEqual(pcts[i - 1]);
     expect(pcts[0]).toBe(0);
     expect(pcts[pcts.length - 1]).toBe(100);
+    for (let i = 1; i < pcts.length; i++) expect(pcts[i]).toBeGreaterThanOrEqual(pcts[i - 1]);
+    // Two stops per band: the flat run.
+    expect(pcts.length).toBe(COLORS.length * 2);
   });
 
-  it('does not divide by zero on a degenerate range', () => {
-    const css = rampGradientCss(qi, 50, 50);
-    expect(css).toContain('linear-gradient');
-    expect(css).not.toContain('NaN');
+  it('keeps every band a single hue through the middle of its slice', () => {
+    const css = bandStripGradient(COLORS);
+    for (const c of COLORS) {
+      expect((css.match(new RegExp(c, 'g')) || []).length).toBe(2);
+    }
+  });
+
+  it('handles an empty scale without emitting broken CSS', () => {
+    expect(bandStripGradient([])).toBe('none');
+    expect(bandStripGradient(['#22c55e'])).toContain('0%');
+    expect(bandStripGradient(['#22c55e'])).not.toContain('NaN');
   });
 });

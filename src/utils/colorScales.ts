@@ -1234,25 +1234,36 @@ export function getInterpolatedColor(layer: LayerConfig, value: number | null | 
 }
 
 /**
- * CSS `linear-gradient` painting a layer's ramp across the value range [lo, hi].
+ * CSS `linear-gradient` for a strip of N equal-width bands, one colour each.
  *
- * Every ramp stop strictly inside the range becomes a gradient stop, so the result is
- * the ramp itself rather than a straight fade between the endpoint colours. That
- * distinction is the whole point where a band is wide: the quality index's lowest
- * cohort band can span 0–44, which crosses violet, red and orange — a two-stop
- * `lo → hi` gradient would draw purple fading to orange and silently drop the colours
- * in between, so the swatch would not match the choropleth it is meant to explain.
+ * Each band holds its colour flat across the middle of its slice and blends into the
+ * next over a short seam, so the strip reads as a single ramp while every band stays
+ * unmistakably one hue. That matters when the colour carries a verdict: a band whose
+ * colour shaded continuously into its neighbour's would leave "Excellent" looking
+ * yellow at one end and green at the other.
  */
-export function rampGradientCss(layer: LayerConfig, lo: number, hi: number): string {
-  const parts = [`${getInterpolatedColor(layer, lo)} 0%`];
-  if (hi > lo) {
-    for (let i = 0; i < layer.stops.length; i++) {
-      const s = layer.stops[i];
-      if (s > lo && s < hi) parts.push(`${layer.colors[i]} ${(((s - lo) / (hi - lo)) * 100).toFixed(2)}%`);
-    }
-  }
-  parts.push(`${getInterpolatedColor(layer, hi)} 100%`);
+export function bandStripGradient(colors: string[]): string {
+  const n = colors.length;
+  if (n === 0) return 'none';
+  const width = 100 / n;
+  const seam = width * 0.2;
+  const parts: string[] = [];
+  colors.forEach((color, i) => {
+    parts.push(`${color} ${(i === 0 ? 0 : i * width + seam).toFixed(2)}%`);
+    parts.push(`${color} ${(i === n - 1 ? 100 : (i + 1) * width - seam).toFixed(2)}%`);
+  });
   return `linear-gradient(to right, ${parts.join(', ')})`;
+}
+
+/**
+ * The active colourblind palette resampled to `count` colours, or null when colourblind
+ * mode is off. Lets a fixed qualitative scale (the quality bands) keep the CVD-safe
+ * substitution it used to inherit from getLayerById — red "Bad" against green
+ * "Excellent" is exactly the pair deuteranopia collapses.
+ */
+export function colorblindSequential(count: number): string[] | null {
+  if (colorblindMode === 'off') return null;
+  return resamplePalette(CB_PALETTES[colorblindMode], count);
 }
 
 /**
