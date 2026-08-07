@@ -117,6 +117,29 @@ describe('findShardOverlapping', () => {
   });
 });
 
+describe('canopy pairing', () => {
+  it('pairs canopy with a region rather than giving it its own extent', () => {
+    // A canopy sub-entry deliberately has no bbox of its own: it is only ever
+    // loaded for a region whose BUILDING shard already matched, so a second
+    // extent would be a second source of truth that could drift from the one the
+    // runtime actually tests.
+    for (const [id, entry] of Object.entries(SHARDS)) {
+      if (!entry.canopy) continue;
+      expect(entry.canopy.path, `${id} canopy path`).toMatch(/^data\/canopy_.*\.topojson$/);
+      expect(entry.canopy.count, `${id} canopy count`).toBeGreaterThan(0);
+      expect(entry.canopy).not.toHaveProperty('bbox');
+    }
+  });
+
+  it('names the canopy file after the same region as its buildings', () => {
+    for (const [id, entry] of Object.entries(SHARDS)) {
+      if (!entry.canopy) continue;
+      expect(entry.canopy.path).toBe(`data/canopy_${id}.topojson`);
+      expect(entry.path).toBe(`data/buildings_${id}.topojson`);
+    }
+  });
+});
+
 describe('planCoverage', () => {
   it('asks Overpass for a small viewport with no city model behind it', () => {
     expect(bboxAreaKm2(NOWHERE)).toBeLessThan(MAX_OSM_AREA_KM2);

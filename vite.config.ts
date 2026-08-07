@@ -80,7 +80,7 @@ function stripBuildOnlyData(): Plugin {
         // the TopoJSON, so shipping the ~2x larger GeoJSON source would be pure dead
         // weight in dist (3 MB for Helsinki alone).
         const isConvertedBuildings =
-          /^buildings_.*\.geojson$/.test(f) && files.includes(f.replace(/\.geojson$/, '.topojson'))
+          /^(buildings|canopy)_.*\.geojson$/.test(f) && files.includes(f.replace(/\.geojson$/, '.topojson'))
         if (isMonolith || isConvertedGrid || isConvertedBuildings) {
           rmSync(joinPath(dataDir, f))
           removed.push(f)

@@ -152,6 +152,33 @@ const SHADE = {
 } as const;
 
 /**
+ * Tree shade, drawn in its own pass at roughly two thirds of a building's alpha.
+ *
+ * A crown is not a wall. It dapples — a canopy in leaf passes a real fraction of
+ * the light, and a bare one in a Finnish winter passes most of it — so casting it
+ * at the building alpha would claim a solidity trees do not have. Two passes also
+ * mean ground under BOTH a building and a tree compounds to slightly darker,
+ * which is the right direction.
+ *
+ * The heights behind it are measured (HSY's laser-derived land cover), so the
+ * geometry is honest; only the opacity is a judgement, and it is the conservative
+ * one.
+ */
+const CANOPY_ALPHA_SCALE = 0.65;
+
+/**
+ * Below this zoom, canopy is not drawn at all.
+ *
+ * Higher than the buildings' own floor, and deliberately. A tree crown is a few
+ * metres across where a building is tens, so at z13.5 — where a 20 m building is
+ * still a 2 px mass with a legible shadow — a 10 m crown is about one pixel and
+ * contributes an even wash rather than shade you can read. Drawing them there
+ * cost 62 -> 106 ms a scrub step for that wash, which is most of the frame budget
+ * the zoom ladder had just bought back.
+ */
+const CANOPY_MIN_ZOOM = 14;
+
+/**
  * Building ink, per theme.
  *
  * Opposite directions on purpose: on the pale basemap the mass has to be darker
@@ -165,6 +192,9 @@ const BUILDING = {
   dark: { fill: 'rgba(148, 163, 184, 0.32)', stroke: 'rgba(203, 213, 225, 0.4)' },
   light: { fill: 'rgba(51, 65, 85, 0.42)', stroke: 'rgba(30, 41, 59, 0.55)' },
 } as const;
+
+/** Shared empty list, so the zoomed-out path allocates nothing per frame. */
+const EMPTY_PREPARED: PreparedBuilding[] = [];
 
 const STORAGE_KEY = 'live.feeds';
 
@@ -293,6 +323,8 @@ export const LivePage: React.FC = () => {
   const mapRef = useRef<MaplibreMap | null>(null);
   /** Footprints in Mercator space, with per-camera screen buffers. */
   const preparedRef = useRef<PreparedBuilding[]>([]);
+  /** Tree canopy, same representation, drawn in its own lighter pass. */
+  const preparedCanopyRef = useRef<PreparedBuilding[]>([]);
   /** Camera state the screen buffers were last filled for. */
   const cameraKeyRef = useRef('');
   /** The padded bbox and plan the loaded buildings answer for. */
@@ -309,6 +341,8 @@ export const LivePage: React.FC = () => {
 
   const [when, setWhen] = useState<Date>(() => new Date());
   const [center, setCenter] = useState<[number, number]>(DEFAULT_CENTER);
+  /** Camera zoom, in state only so the readout can tell whether canopy is being drawn. */
+  const [mapZoom, setMapZoom] = useState(DEFAULT_ZOOM);
   const [enabled, setEnabled] = useState<Set<string>>(readStoredFeeds);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [coverage, setCoverage] = useState<{
@@ -317,6 +351,7 @@ export const LivePage: React.FC = () => {
     osmWithHeight: number;
     osmTotal: number;
     partial: boolean;
+    canopy: number;
   } | null>(null);
   const [tooCoarse, setTooCoarse] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -373,11 +408,17 @@ export const LivePage: React.FC = () => {
     // call, which is what makes a ten-thousand-building city view scrub at all.
     const c = map.getCenter();
     const cameraKey = `${c.lng},${c.lat},${zoom},${map.getBearing()},${width}x${height}`;
-    if (cameraKeyRef.current !== cameraKey && buildings.length > 0) {
+    const canopy = zoom >= CANOPY_MIN_ZOOM ? preparedCanopyRef.current : EMPTY_PREPARED;
+    if (cameraKeyRef.current !== cameraKey && (buildings.length > 0 || canopy.length > 0)) {
       cameraKeyRef.current = cameraKey;
       const transform = cameraAffine(map);
       const simplifyPx = simplifyPxForZoom(zoom);
       for (const b of buildings) projectPrepared(b, transform, simplifyPx);
+      // Canopy gets a coarser tolerance at every zoom. A crown has no true edge
+      // to preserve — the outline is a classification boundary, not an object —
+      // and there are ~4x as many of them, so this is where the per-frame cost of
+      // adding trees is paid back.
+      for (const c2 of canopy) projectPrepared(c2, transform, simplifyPx * 2);
     }
 
     // The sun is below the horizon: every surface in view is in shade, so the
@@ -400,6 +441,39 @@ export const LivePage: React.FC = () => {
     const probe = map.project(offsetPoint(c.lng, c.lat, probeMetres, bearing));
     const ux = (probe.x - origin.x) / probeMetres;
     const uy = (probe.y - origin.y) / probeMetres;
+
+    /** Accumulate one source's swept shadows into a single path. */
+    const shadowPath = (list: PreparedBuilding[]): Path2D | null => {
+      const p = new Path2D();
+      let any = false;
+      for (const b of list) {
+        if (b.sn < 4) continue;
+        const metres = shadowLengthMetres(b.height, sun.altitude);
+        if (metres <= 0) continue;
+        const dx = ux * metres;
+        const dy = uy * metres;
+        if (Math.max(b.maxX, b.maxX + dx) < 0 || Math.min(b.minX, b.minX + dx) > width) continue;
+        if (Math.max(b.maxY, b.maxY + dy) < 0 || Math.min(b.minY, b.minY + dy) > height) continue;
+        if (
+          b.maxX - b.minX + Math.abs(dx) < MIN_FEATURE_PX &&
+          b.maxY - b.minY + Math.abs(dy) < MIN_FEATURE_PX
+        ) {
+          continue;
+        }
+        emitSweptFlat(p, b.sx, b.sy, b.sn, dx, dy);
+        any = true;
+      }
+      return any ? p : null;
+    };
+
+    // Trees first, in their own lighter pass — see CANOPY_ALPHA_SCALE. Ground
+    // under both a tree and a building then compounds to slightly darker, which
+    // is the right direction.
+    const canopyShade = canopy.length ? shadowPath(canopy) : null;
+    if (canopyShade) {
+      ctx.fillStyle = `rgba(${shade.ink}, ${(shade.day * CANOPY_ALPHA_SCALE).toFixed(3)})`;
+      ctx.fill(canopyShade, 'nonzero');
+    }
 
     // ONE path for every ring of every building — see the file header for why
     // this is not a per-polygon fill.
@@ -550,6 +624,7 @@ export const LivePage: React.FC = () => {
 
     const clearBuildings = () => {
       preparedRef.current = [];
+      preparedCanopyRef.current = [];
       cameraKeyRef.current = '';
       loadedRef.current = null;
       setCoverage(null);
@@ -558,6 +633,7 @@ export const LivePage: React.FC = () => {
     const refresh = () => {
       const c = map.getCenter();
       setCenter([c.lng, c.lat]);
+      setMapZoom(map.getZoom());
 
       // Nothing to draw them for. The sun readout still tracks the camera, but
       // a switched-off layer must not cost the user a multi-megabyte download or
@@ -613,11 +689,13 @@ export const LivePage: React.FC = () => {
         resolveBuildings(bbox, active.signal)
           .then((result) => {
             preparedRef.current = result.buildings.map(prepareBuilding);
+            preparedCanopyRef.current = result.canopy.map(prepareBuilding);
             cameraKeyRef.current = '';
             loadedRef.current = { bbox, plan };
             setCoverage({
               source: result.source,
               measured: result.measured,
+              canopy: result.canopy.length,
               osmWithHeight: result.osmWithHeight,
               osmTotal: result.osmTotal,
               partial: result.partial,
@@ -708,21 +786,31 @@ export const LivePage: React.FC = () => {
    */
   const coverageText = (() => {
     if (!coverage) return null;
+    // Trees are stated separately, and only when they are actually being drawn —
+    // the canopy pass is skipped below CANOPY_MIN_ZOOM, and claiming shade the
+    // layer is not casting would be exactly the kind of quiet overstatement the
+    // rest of this readout exists to avoid.
+    const trees =
+      coverage.canopy > 0 && mapZoom >= CANOPY_MIN_ZOOM
+        ? ' ' + t('live.shadow.canopy').replace('{n}', String(coverage.canopy))
+        : '';
     if (coverage.source === 'city_model') {
       // Buildings that stop along a straight line have to be explained, or the
       // empty half of the screen reads as "nothing is built there".
       const key = coverage.partial ? 'live.shadow.coverage_partial' : 'live.shadow.coverage_measured';
-      return t(key).replace('{n}', String(coverage.measured));
+      return t(key).replace('{n}', String(coverage.measured)) + trees;
     }
     if (coverage.source === 'mixed') {
       return t('live.shadow.coverage_mixed')
         .replace('{measured}', String(coverage.measured))
         .replace('{n}', String(coverage.osmWithHeight))
-        .replace('{total}', String(coverage.osmTotal));
+        .replace('{total}', String(coverage.osmTotal)) + trees;
     }
-    return t('live.shadow.coverage')
-      .replace('{n}', String(coverage.osmWithHeight))
-      .replace('{total}', String(coverage.osmTotal));
+    return (
+      t('live.shadow.coverage')
+        .replace('{n}', String(coverage.osmWithHeight))
+        .replace('{total}', String(coverage.osmTotal)) + trees
+    );
   })();
 
   return (

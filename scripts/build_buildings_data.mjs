@@ -3,8 +3,14 @@
  * Convert building-footprint GeoJSON to TopoJSON and emit a discovery manifest.
  *
  * Input : public/data/buildings_<region>.geojson  (scripts/fetch_helsinki_buildings.py)
- * Output: public/data/buildings_<region>.topojson
+ *         public/data/canopy_<region>.geojson     (scripts/fetch_hsy_canopy.py)
+ * Output: public/data/{buildings,canopy}_<region>.topojson
  *         src/data/buildings_manifest.json
+ *
+ * Canopy is recorded as a SUB-ENTRY of its region rather than as a shard of its
+ * own, because the two are not independently useful: a viewport with buildings
+ * but no trees reads as a treeless city rather than as an edge of coverage, so
+ * the runtime wants them paired or not at all.
  *
  * These footprints carry a MEASURED height per building and feed the /live/ shadow
  * layer. The manifest records each shard's bbox so the runtime can decide, without
@@ -53,33 +59,46 @@ function bboxAndCount(geojson) {
   return { bbox: [minLon, minLat, maxLon, maxLat], count };
 }
 
-const files = existsSync(publicData)
-  ? readdirSync(publicData).filter((f) => /^buildings_.*\.geojson$/.test(f)).sort()
-  : [];
+const allFiles = existsSync(publicData) ? readdirSync(publicData) : [];
+const files = allFiles.filter((f) => /^buildings_.*\.geojson$/.test(f)).sort();
+
+/** Convert one GeoJSON to TopoJSON and report its extent, count and size. */
+function convert(file, objectName) {
+  const stem = basename(file, '.geojson');
+  const geojsonPath = resolve(publicData, file);
+  const topoPath = resolve(publicData, `${stem}.topojson`);
+  console.log(`Converting ${file} → ${stem}.topojson`);
+  execSync(
+    `npx -p topojson-server geo2topo -q ${QUANTIZE} ${objectName}="${geojsonPath}" > "${topoPath}"`,
+    { stdio: 'inherit' },
+  );
+  const geojson = JSON.parse(readFileSync(geojsonPath, 'utf-8'));
+  const { bbox, count } = bboxAndCount(geojson);
+  return { path: `data/${stem}.topojson`, bbox, count, bytes: statSync(topoPath).size };
+}
 
 const manifest = {};
 for (const file of files) {
-  const stem = basename(file, '.geojson');
-  const regionId = stem.replace(/^buildings_/, '');
-  const geojsonPath = resolve(publicData, file);
-  const topoPath = resolve(publicData, `${stem}.topojson`);
+  const regionId = basename(file, '.geojson').replace(/^buildings_/, '');
 
-  console.log(`Converting ${file} → ${stem}.topojson`);
-  execSync(`npx -p topojson-server geo2topo -q ${QUANTIZE} buildings="${geojsonPath}" > "${topoPath}"`, {
-    stdio: 'inherit',
-  });
+  const built = convert(file, 'buildings');
+  manifest[regionId] = built;
+  console.log(`  ${built.count} buildings, ${(built.bytes / 1048576).toFixed(2)} MB topojson`);
 
-  const geojson = JSON.parse(readFileSync(geojsonPath, 'utf-8'));
-  const { bbox, count } = bboxAndCount(geojson);
-  manifest[regionId] = {
-    path: `data/${stem}.topojson`,
-    bbox,
-    count,
-    bytes: statSync(topoPath).size,
-  };
-  console.log(
-    `  ${count} buildings, ${(statSync(topoPath).size / 1048576).toFixed(2)} MB topojson`,
-  );
+  // Pair the region's canopy, when it has been fetched.
+  const canopyFile = `canopy_${regionId}.geojson`;
+  if (allFiles.includes(canopyFile)) {
+    const canopy = convert(canopyFile, 'canopy');
+    // The bbox is dropped: canopy is only ever loaded for a region whose building
+    // shard already matched, so a second extent would be a second source of truth
+    // that could silently disagree with the one the runtime actually tests.
+    manifest[regionId].canopy = {
+      path: canopy.path,
+      count: canopy.count,
+      bytes: canopy.bytes,
+    };
+    console.log(`  ${canopy.count} canopy polygons, ${(canopy.bytes / 1048576).toFixed(2)} MB topojson`);
+  }
 }
 
 const sorted = Object.fromEntries(Object.entries(manifest).sort(([a], [b]) => a.localeCompare(b)));
