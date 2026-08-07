@@ -235,6 +235,8 @@ npm run build = tsc -b && vite build
 
 The social card is emitted as a content-hashed **SVG**, but the published asset is the **PNG** sibling (`og:image`/`twitter:image` both point at `.png` — Facebook, LinkedIn, WhatsApp and X do not render SVG). `scripts/rasterize-cards.mjs` renders the PNGs in deploy only, then **deletes the SVGs**: they are build inputs, not published assets. Two invariants keep the published tree from growing without bound, and both have already failed once — see "Social-card cache" below.
 
+Rendering runs as an orchestrator over process-isolated batches, one child per core. The process isolation bounds memory — `@resvg/resvg-js` retains ~3 MiB per card (a 1200×630 RGBA pixmap the native allocator does not return), which OOM-killed the deploy back when all ~9,000 cards rendered in one long-lived process. Because the ~200 MiB fixed cost per child does not divide across workers, the batch size scales *down* as concurrency scales up, holding the total peak at ~1.4 GB. A cold pass over all 9,261 cards takes ~3m50s on a 4-vCPU runner; it took ~14m30s when the batches ran sequentially on one core.
+
 ## Data pipeline
 
 ```

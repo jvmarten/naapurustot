@@ -25,6 +25,15 @@ jobs:
     runs-on: ubuntu-latest
     # Belt-and-suspenders: a hung build (e.g. the card rasterizer regressing again)
     # should fail fast with a clear message instead of the default 6-hour ceiling.
+    #
+    # Measured budget. Warm (og cache hit, the normal case) the whole job is ~3.5 min. The
+    # cold path — a data refresh or card-layout change invalidating every card — is the one
+    # that has to fit: ~10 s npm ci + ~30 s build + ~20 s cache restore + ~100 s build:pages
+    # + ~7 s fonts + ~230 s rasterize (9,261 cards, 4 workers) + ~30 s upload ≈ 7 min.
+    # That leaves ~4x headroom. It used to leave ~1.7x: rasterize-cards.mjs ran its batches
+    # through a sequential spawnSync loop, using one core of the runner's four, so a cold
+    # rasterize alone took ~14.5 min of an ~18 min job. Even if the fan-out degenerates to
+    # one worker (a single-core runner), the cold job still lands ~18 min, inside this cap.
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
