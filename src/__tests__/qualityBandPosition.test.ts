@@ -3,7 +3,7 @@ import { setQualityCohort, clearQualityCohort } from '../utils/qualityBands';
 import {
   getQualityCategory, getQualityCategories, getQualityBandPosition,
 } from '../utils/qualityIndex';
-import { bandStripGradient } from '../utils/colorScales';
+import { getLayerById, getInterpolatedColor, rampGradientCss } from '../utils/colorScales';
 
 /**
  * The invariant these guard: the pointer on the band strip must sit inside the band
@@ -123,83 +123,122 @@ describe('getQualityBandPosition', () => {
   });
 });
 
-describe('verdict colours are stable across weightings', () => {
-  // The defect this pins: the swatch used to be coloured from the score's position on
-  // the absolute 0-100 ramp while the WORD comes from cohort-relative quantiles, so
-  // re-weighting moved the word without moving the colour. Real cases from one panel:
-  // 80 read "Excellent (78-100)" on green, 58 read "Excellent (46-100)" on yellow.
-  const EXPECTED: Record<string, string> = {
-    Avoid: '#a855f7', Bad: '#ef4444', Okay: '#f97316', Good: '#eab308', Excellent: '#22c55e',
+const QI = getLayerById('quality_index');
+
+/** The ramp colour a score is drawn in: the ramp applied to its RELATIVE position. */
+function colorOf(score: number): string | null {
+  const pos = getQualityBandPosition(score);
+  if (pos == null) return null;
+  const lo = QI.stops[0];
+  const hi = QI.stops[QI.stops.length - 1];
+  return getInterpolatedColor(QI, lo + (pos / 100) * (hi - lo));
+}
+
+function rgb(hex: string): [number, number, number] {
+  const c = hex.replace('#', '');
+  return [parseInt(c.slice(0, 2), 16), parseInt(c.slice(2, 4), 16), parseInt(c.slice(4, 6), 16)];
+}
+function dist(a: string, b: string): number {
+  const [r1, g1, b1] = rgb(a); const [r2, g2, b2] = rgb(b);
+  return Math.hypot(r1 - r2, g1 - g2, b1 - b2);
+}
+
+describe('verdict colour follows the ramp continuously', () => {
+  // Two defects this replaces. (1) Ramp over the RAW score: the word is cohort-relative
+  // and the colour was not, so 80 and 58 could both read "Excellent" in green and yellow
+  // respectively. (2) One flat colour per band: the word and colour agreed but a single
+  // point flipped the whole hue — 58 was a yellow "Good", 59 a green "Excellent".
+  const COHORTS: Record<string, number[]> = {
+    middling: Array.from({ length: 400 }, (_, i) => 23 + (i % 52)),
+    topHeavy: Array.from({ length: 400 }, (_, i) => (i < 360 ? 97 + (i % 3) : 30 + (i % 40))),
+    spread: Array.from({ length: 400 }, (_, i) => Math.round((i / 399) * 100)),
+    narrow: Array.from({ length: 400 }, (_, i) => 44 + (i % 12)),
   };
 
-  it('gives each verdict the same colour whatever the cohort', () => {
-    const cohorts: number[][] = [
-      Array.from({ length: 400 }, (_, i) => 23 + (i % 52)),          // shipped defaults
-      Array.from({ length: 400 }, (_, i) => (i < 360 ? 97 + (i % 3) : 30 + (i % 40))), // one bunched factor
-      Array.from({ length: 400 }, (_, i) => Math.round((i / 399) * 100)),              // wide and flat
-      Array.from({ length: 400 }, (_, i) => 44 + (i % 12)),                            // very narrow
-    ];
-    const seen = new Map<string, Set<string>>();
-    for (const cohort of cohorts) {
+  // The steepest the ramp itself gets, per 1 unit of position. Derived from the ramp's
+  // segments rather than sampled at whole percents — sampling straddles stop boundaries
+  // and averages the steepest segment down, which understates the true bound.
+  const RAMP_MAX_STEP = (() => {
+    const span = QI.stops[QI.stops.length - 1] - QI.stops[0];
+    let max = 0;
+    for (let i = 0; i < QI.colors.length - 1; i++) {
+      const width = ((QI.stops[i + 1] - QI.stops[i]) / span) * 100; // in position units
+      if (width > 0) max = Math.max(max, dist(QI.colors[i], QI.colors[i + 1]) / width);
+    }
+    return max;
+  })();
+
+  it('never jumps the hue faster than the score moves through the cohort', () => {
+    // The real invariant, and the one flat per-band colours broke: colour is a
+    // continuous function of POSITION, so a band edge is not special. A tied cohort may
+    // still move a long way for one point — that is an honest jump in rank, not a cliff
+    // — so the bound is proportional to the position moved rather than a flat constant.
+    for (const [name, cohort] of Object.entries(COHORTS)) {
       clearQualityCohort();
       setQualityCohort(cohort);
-      for (const c of getQualityCategories()) {
-        if (!seen.has(c.label.en)) seen.set(c.label.en, new Set());
-        seen.get(c.label.en)!.add(c.color);
+      for (let score = 0; score < 100; score++) {
+        const a = colorOf(score), b = colorOf(score + 1);
+        if (!a || !b) continue;
+        const dPos = Math.abs(getQualityBandPosition(score + 1)! - getQualityBandPosition(score)!);
+        const edge = labelledBand(score) !== labelledBand(score + 1);
+        // +2 covers 8-bit quantisation: lerpHex rounds each channel, so a measured
+        // distance can exceed the ideal linear one by up to ~sqrt(3) across two endpoints.
+        expect(dist(a, b), `${name}: ${score}->${score + 1}${edge ? ' (band edge)' : ''}`)
+          .toBeLessThanOrEqual(RAMP_MAX_STEP * dPos + 2);
       }
     }
-    for (const [label, colors] of seen) {
-      expect([...colors], `${label} must have exactly one colour`).toEqual([EXPECTED[label]]);
+  });
+
+  it('reproduces the reported 58/59 pair as neighbouring colours, not a hue flip', () => {
+    clearQualityCohort();
+    setQualityCohort([
+      ...Array.from({ length: 320 }, (_, i) => 25 + Math.round((i * 33) / 319)), // …58
+      ...Array.from({ length: 80 }, (_, i) => 59 + (i % 16)),
+    ]);
+    expect(getQualityCategory(58)?.label.en).toBe('Good');
+    expect(getQualityCategory(59)?.label.en).toBe('Excellent');
+    // Different verdicts, adjacent scores — so adjacent colours. Flat per-band colours
+    // put a full palette step (~180) here.
+    expect(dist(colorOf(58)!, colorOf(59)!)).toBeLessThan(40);
+  });
+
+  it('keeps every verdict in its own fifth of the ramp whatever the weighting', () => {
+    // "Excellent" is drawn from the green end and "Bad" from the red end in every
+    // cohort — the property the raw-value ramp lost.
+    for (const [name, cohort] of Object.entries(COHORTS)) {
+      clearQualityCohort();
+      setQualityCohort(cohort);
+      for (let score = 0; score <= 100; score++) {
+        const label = getQualityCategory(score)?.label.en;
+        const c = colorOf(score);
+        if (!c || !label) continue;
+        const [r, g] = rgb(c);
+        if (label === 'Excellent') expect(g, `${name} @ ${score} Excellent must be green-side`).toBeGreaterThan(r);
+        if (label === 'Bad') expect(r, `${name} @ ${score} Bad must be red-side`).toBeGreaterThan(g);
+      }
     }
   });
 
-  it('scores of 58 and 80 both labelled Excellent carry the same colour', () => {
-    // The two screenshots from the report, reproduced as cohorts.
-    clearQualityCohort();
-    setQualityCohort([
-      ...Array.from({ length: 320 }, (_, i) => 20 + Math.round((i * 26) / 319)), // …46
-      ...Array.from({ length: 80 }, (_, i) => 47 + (i % 40)),
-    ]);
-    const low = getQualityCategory(58);
-    expect(low?.label.en).toBe('Excellent');
-
-    clearQualityCohort();
-    setQualityCohort([
-      ...Array.from({ length: 320 }, (_, i) => 40 + Math.round((i * 38) / 319)), // …78
-      ...Array.from({ length: 80 }, (_, i) => 79 + (i % 20)),
-    ]);
-    const high = getQualityCategory(80);
-    expect(high?.label.en).toBe('Excellent');
-
-    expect(low!.color).toBe(high!.color);
-    expect(low!.color).toBe('#22c55e');
-  });
 });
 
-describe('bandStripGradient', () => {
-  const COLORS = ['#a855f7', '#ef4444', '#f97316', '#eab308', '#22c55e'];
-
-  it('spans 0-100 % with each band held flat before blending into the next', () => {
-    const css = bandStripGradient(COLORS);
+describe('rampGradientCss', () => {
+  it('keeps every ramp colour instead of fading end to end', () => {
+    const css = rampGradientCss(QI, 0, 100);
+    for (const color of QI.colors) expect(css.toLowerCase()).toContain(color.toLowerCase());
     expect(css.startsWith('linear-gradient(to right,')).toBe(true);
+  });
+
+  it('emits ascending stop percentages from 0 to 100', () => {
+    const css = rampGradientCss(QI, 0, 100);
     const pcts = [...css.matchAll(/(\d+(?:\.\d+)?)%/g)].map((m) => Number(m[1]));
     expect(pcts[0]).toBe(0);
     expect(pcts[pcts.length - 1]).toBe(100);
     for (let i = 1; i < pcts.length; i++) expect(pcts[i]).toBeGreaterThanOrEqual(pcts[i - 1]);
-    // Two stops per band: the flat run.
-    expect(pcts.length).toBe(COLORS.length * 2);
   });
 
-  it('keeps every band a single hue through the middle of its slice', () => {
-    const css = bandStripGradient(COLORS);
-    for (const c of COLORS) {
-      expect((css.match(new RegExp(c, 'g')) || []).length).toBe(2);
-    }
-  });
-
-  it('handles an empty scale without emitting broken CSS', () => {
-    expect(bandStripGradient([])).toBe('none');
-    expect(bandStripGradient(['#22c55e'])).toContain('0%');
-    expect(bandStripGradient(['#22c55e'])).not.toContain('NaN');
+  it('does not divide by zero on a degenerate range', () => {
+    const css = rampGradientCss(QI, 50, 50);
+    expect(css).toContain('linear-gradient');
+    expect(css).not.toContain('NaN');
   });
 });
