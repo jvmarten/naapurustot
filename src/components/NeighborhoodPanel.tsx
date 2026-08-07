@@ -3,7 +3,7 @@ import type { NeighborhoodProperties } from '../utils/metrics';
 import { parseTrendSeries, getMetricSource, vintageFreshness, METRIC_EXPLANATIONS, formatCoveragePct } from '../utils/metrics';
 import { formatNumber, formatEuro, formatPct, formatDiff, diffColor, formatYtlGradeFull, parseSchools, formatDensity, formatEuroSqm } from '../utils/formatting';
 import { t, getLang, useI18nVersion } from '../utils/i18n';
-import { getQualityCategory, getQualityCategories, QUALITY_DIMENSIONS, computeQualityCoverage, type QualityWeights } from '../utils/qualityIndex';
+import { getQualityCategory, getQualityCategories, getQualityBandPosition, QUALITY_DIMENSIONS, computeQualityCoverage, type QualityWeights } from '../utils/qualityIndex';
 import { usePlanningArea, planningInfo } from '../hooks/usePlanningData';
 import { computeAreaSummary, fillTemplate } from '../utils/areaSummary';
 import { loadNationalPercentiles, type NationalLadder } from '../utils/nationalRanges';
@@ -16,7 +16,7 @@ import type { IsochroneMode } from '../utils/isochrone';
 import { findSimilarNeighborhoods, AVAILABLE_SIMILARITY_METRICS, SIMILARITY_WEIGHT_MIN, SIMILARITY_WEIGHT_MAX, SIMILARITY_WEIGHT_DEFAULT } from '../utils/similarity';
 import { resolveNeighborPnos } from '../utils/adjacency';
 import { getFeatureCenter } from '../utils/geometryFilter';
-import { getLayerById, getInterpolatedColor, readableTextColor, type LayerId } from '../utils/colorScales';
+import { getLayerById, getInterpolatedColor, rampGradientCss, readableTextColor, type LayerId } from '../utils/colorScales';
 import { histogram, percentileRank, binIndexOf } from '../utils/correlation';
 import { toSlug } from '../utils/slug';
 import { useNavigate } from 'react-router-dom';
@@ -597,6 +597,8 @@ const QualityBadge: React.FC<{
   // and the band min/max.
   const qiLayer = getLayerById('quality_index');
   const qiColor = getInterpolatedColor(qiLayer, qi);
+  const bandCats = getQualityCategories();
+  const bandPos = getQualityBandPosition(qi);
   const lang = getLang();
   // CF-1: "How is this calculated?" explainer popover.
   const [showHow, setShowHow] = useState(false);
@@ -703,23 +705,37 @@ const QualityBadge: React.FC<{
         </span>
       </div>
       <div className="relative">
-        <div className="flex gap-0.5">
-          {/* Cohort-relative bands: the strip must be cut where getQualityCategory
-              actually cuts, or the label under the pointer disagrees with the band. */}
-          {getQualityCategories().map((c) => (
+        {/* Cohort-relative bands, drawn at EQUAL width because they are quintiles of the
+            cohort: equal width = equal share of areas, which is what the labels claim,
+            and it keeps all five readable (in value space the middle bands are only a
+            few points wide and their labels would be unreadable slivers).
+            Each band is painted with the SAME ramp the choropleth uses, across that
+            band's own value range — so the strip reads as the map's quality scale
+            instead of five flat mid-band samples, which under the default weights
+            collapsed into two near-identical oranges and never showed the ramp's ends.
+            The strip tiles with no gaps so the pointer's percentage is exact; bands stay
+            distinguishable via a hairline inset that costs no layout width. */}
+        <div className="flex">
+          {bandCats.map((c, i) => (
             <div key={c.label.en} className="flex-1 flex flex-col items-center gap-1">
               <div
-                className="w-full h-2 rounded-full"
-                style={{ backgroundColor: getInterpolatedColor(qiLayer, (c.min + c.max) / 2) }}
+                className={`w-full h-2 ${i === 0 ? 'rounded-l-full' : ''} ${i === bandCats.length - 1 ? 'rounded-r-full' : ''}`}
+                style={{
+                  background: rampGradientCss(qiLayer, c.min, c.max),
+                  boxShadow: i > 0 ? 'inset 1px 0 0 0 rgba(255,255,255,0.75)' : undefined,
+                }}
               />
               <span className="text-[9px] text-surface-600 dark:text-surface-400">{c.label[lang]}</span>
             </div>
           ))}
         </div>
+        {/* Positioned on the band axis, not the raw 0–100 value axis — see
+            getQualityBandPosition. At `left: ${qi}%` a 62 sat over "Good" while the
+            label beside it read "Excellent". */}
         <div
           className="absolute top-0 w-4 h-4 -mt-1 rounded-full border-2 border-white dark:border-surface-300 shadow-md"
           style={{
-            left: `${qi}%`,
+            left: `${bandPos ?? qi}%`,
             transform: 'translateX(-50%)',
             backgroundColor: qiColor,
           }}

@@ -1234,6 +1234,28 @@ export function getInterpolatedColor(layer: LayerConfig, value: number | null | 
 }
 
 /**
+ * CSS `linear-gradient` painting a layer's ramp across the value range [lo, hi].
+ *
+ * Every ramp stop strictly inside the range becomes a gradient stop, so the result is
+ * the ramp itself rather than a straight fade between the endpoint colours. That
+ * distinction is the whole point where a band is wide: the quality index's lowest
+ * cohort band can span 0–44, which crosses violet, red and orange — a two-stop
+ * `lo → hi` gradient would draw purple fading to orange and silently drop the colours
+ * in between, so the swatch would not match the choropleth it is meant to explain.
+ */
+export function rampGradientCss(layer: LayerConfig, lo: number, hi: number): string {
+  const parts = [`${getInterpolatedColor(layer, lo)} 0%`];
+  if (hi > lo) {
+    for (let i = 0; i < layer.stops.length; i++) {
+      const s = layer.stops[i];
+      if (s > lo && s < hi) parts.push(`${layer.colors[i]} ${(((s - lo) / (hi - lo)) * 100).toFixed(2)}%`);
+    }
+  }
+  parts.push(`${getInterpolatedColor(layer, hi)} 100%`);
+  return `linear-gradient(to right, ${parts.join(', ')})`;
+}
+
+/**
  * Pick the foreground (#0f172a near-black vs #ffffff white) with the higher WCAG
  * contrast against a hex background. Shared so every quality-index swatch (panel,
  * profile, score card) stays legible on light ramp colors (gold/lime) — white text
