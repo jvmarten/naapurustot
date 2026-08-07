@@ -967,6 +967,46 @@ export function getQualityCategory(index: number | null): QualityCategory | null
   return null;
 }
 
+/**
+ * Where a score sits on the band strip, as a 0–100 percentage of its width.
+ *
+ * The strip gives every band the SAME width because the bands are quintiles of the
+ * cohort — equal width means equal share of areas, which is what "top fifth" means,
+ * and it keeps the five labels readable. In VALUE space those bands are nowhere near
+ * equal: under the shipped weights the composite spans roughly 23–74, so the cuts land
+ * at about 44/48/52/58 and the two outer bands cover ~40 points each while the middle
+ * three cover ~4 points each.
+ *
+ * So position cannot be the raw score. Placing the pointer at `left: ${score}%` mixed
+ * the two axes and put it in the wrong band: a 62 is in "Excellent" (58–100) but 62 %
+ * along an equal-fifths strip is the fourth band, "Good" — the pointer contradicted the
+ * label right next to it.
+ *
+ * This maps the score piecewise-linearly instead: find its band, then place it inside
+ * that band's fifth in proportion to how far through the band's own value range it is.
+ * The pointer therefore always lands in the band whose label is displayed, and its
+ * colour (sampled from the ramp at the score) matches the strip underneath it, because
+ * the strip paints each band with the same ramp across the same range.
+ */
+export function getQualityBandPosition(index: number | null): number | null {
+  if (index == null || !Number.isFinite(index)) return null;
+  const cats = getQualityCategories();
+  const cat = getQualityCategory(index);
+  if (!cat) return null;
+  // Located by label, not by object identity: getQualityCategories() rebuilds the array
+  // on every call (it rewrites min/max onto copies), so the category getQualityCategory
+  // returned is never `indexOf`-equal to the one in a separately-fetched array. Keying
+  // off the same lookup the label uses is also what makes "the pointer is in the band
+  // whose label is shown" true by construction rather than by coincidence.
+  const i = cats.findIndex((c) => c.label.en === cat.label.en);
+  if (i < 0) return null;
+  const span = cat.max - cat.min;
+  // A degenerate band (every area tied on this score) has nowhere meaningful to sit
+  // within itself — centre it rather than divide by zero.
+  const frac = span > 0 ? Math.min(1, Math.max(0, (index - cat.min) / span)) : 0.5;
+  return ((i + frac) / cats.length) * 100;
+}
+
 // ─── Dimensions, personas & methodology ────────────────────────────────────
 //
 // The headline Quality Index is framed as four evaluative DIMENSIONS rather
