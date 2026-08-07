@@ -422,6 +422,24 @@ export interface PathSink {
  * cross(edge, offset) — the quad's own signed area — so every ring agrees and the
  * nonzero fill unions them instead of cancelling.
  */
+/**
+ * NO closePath() ANYWHERE IN THIS EMITTER — deliberately, and it is worth a lot.
+ *
+ * `fill()` closes every open subpath implicitly, and each ring here already ends
+ * on its first point, so the call was pure overhead. It was not small overhead:
+ * a CPU profile of a scrub at city zoom put 96.7 % of all JS time — 29.4 s out
+ * of 30.4 — inside Path2D.closePath(). Chromium's cost for it grows with the
+ * path already accumulated, so one Path2D holding tens of thousands of subpaths
+ * goes quadratic, which is why the page got dramatically worse as you zoomed
+ * out rather than merely proportionally worse.
+ *
+ * Removing it measured byte-identical output (same painted-pixel count, same
+ * alpha sum, same canvas hash at 08:00, 13:30 and 18:00) and took a scrub step
+ * from 3,546 ms to 246 ms at z13.5, and 83 ms to 23 ms at z15.5.
+ *
+ * If you are adding a stroke() of this path, closing matters again — build a
+ * SEPARATE, much smaller path for it rather than restoring these calls.
+ */
 export function emitSweptFlat(
   sink: PathSink,
   xs: Float64Array,
@@ -435,14 +453,14 @@ export function emitSweptFlat(
   // Footprint.
   sink.moveTo(xs[0], ys[0]);
   for (let i = 1; i < n; i++) sink.lineTo(xs[i], ys[i]);
-  sink.closePath();
+  // no closePath: fill() closes implicitly — see the note above emitSweptFlat
 
   if (dx === 0 && dy === 0) return;
 
   // Translated copy — same winding, so no reordering needed.
   sink.moveTo(xs[0] + dx, ys[0] + dy);
   for (let i = 1; i < n; i++) sink.lineTo(xs[i] + dx, ys[i] + dy);
-  sink.closePath();
+  // no closePath: fill() closes implicitly — see the note above emitSweptFlat
 
   // One sweep quad per light-facing edge.
   for (let i = 0; i < n - 1; i++) {
@@ -470,7 +488,7 @@ export function emitSweptFlat(
     sink.lineTo(bx, by);
     sink.lineTo(bx + dx, by + dy);
     sink.lineTo(ax + dx, ay + dy);
-    sink.closePath();
+    // no closePath: fill() closes implicitly — see the note above emitSweptFlat
   }
 }
 
@@ -530,26 +548,39 @@ export function simplifyProjected(points: Pt[], minPx = 1.5): Pt[] {
 export function sweptRings(points: readonly Pt[], dx: number, dy: number): Pt[][] {
   const rings: Pt[][] = [];
   let current: Pt[] | null = null;
+  /**
+   * Finish the subpath in progress, closing it the way `fill()` would.
+   *
+   * The emitter no longer calls closePath (it is quadratic — see the note above
+   * emitSweptFlat), so a subpath ends when the NEXT one begins, or at the end of
+   * the emit. Collecting on closePath instead silently returned zero rings, which
+   * made every winding assertion in the tests vacuously pass.
+   */
+  const flush = () => {
+    if (!current) return;
+    const ring = current;
+    const [fx, fy] = ring[0];
+    const [lx, ly] = ring[ring.length - 1];
+    if (fx !== lx || fy !== ly) ring.push([fx, fy]);
+    rings.push(ring);
+    current = null;
+  };
   emitSweptPath(
     {
       moveTo(x, y) {
+        flush();
         current = [[x, y]];
       },
       lineTo(x, y) {
         current?.push([x, y]);
       },
-      closePath() {
-        if (current) {
-          current.push([current[0][0], current[0][1]]);
-          rings.push(current);
-          current = null;
-        }
-      },
+      closePath: flush,
     },
     orientProjected(points.map(([x, y]) => [x, y] as Pt)),
     dx,
     dy,
   );
+  flush();
   return rings;
 }
 

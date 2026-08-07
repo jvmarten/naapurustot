@@ -105,6 +105,29 @@ const FETCH_TIMEOUT_MS = 45_000;
  */
 const SIMPLIFY_PX = 1.5;
 
+/**
+ * Footprint detail per zoom — the "how accurate should a shadow be" ladder.
+ *
+ * Ground resolution at Finland's latitude is about 78,271 / 2^zoom metres per
+ * pixel, so a typical 20 m building measures roughly:
+ *
+ *   z13  2 px      z14  4 px      z15  8 px      z16  17 px
+ *
+ * At 17 px an outline's corners are legible and worth keeping at 1.5 px. At
+ * 4 px the building is a blob whose SHAPE carries no information — only its
+ * mass and the direction its shadow runs — so a coarse tolerance costs nothing
+ * visible and buys back most of the frame. Tolerance is applied AFTER
+ * projection, and `projectPrepared` substitutes a footprint's bounding box once
+ * simplification collapses it below a drawable ring, so raising this is exactly
+ * what turns distant buildings into cheap five-point boxes.
+ */
+function simplifyPxForZoom(zoom: number): number {
+  if (zoom >= 16) return SIMPLIFY_PX;
+  if (zoom >= 15) return 2.5;
+  if (zoom >= 14) return 4;
+  return 7;
+}
+
 /** Below this, a building plus its shadow is smaller than a pixel — skip it. */
 const MIN_FEATURE_PX = 0.8;
 
@@ -238,12 +261,15 @@ function paintBuildings(
 ): void {
   const path = new Path2D();
   let drew = false;
+  // closePath is only needed for the STROKE — fill() closes implicitly, and the
+  // call is quadratic in the accumulated path (see the note above emitSweptFlat).
+  const willStroke = zoom >= OUTLINE_ZOOM;
   for (const b of buildings) {
     if (b.sn < 4) continue;
     if (b.maxX < 0 || b.minX > width || b.maxY < 0 || b.minY > height) continue;
     path.moveTo(b.sx[0], b.sy[0]);
     for (let i = 1; i < b.sn; i++) path.lineTo(b.sx[i], b.sy[i]);
-    path.closePath();
+    if (willStroke) path.closePath();
     drew = true;
   }
   if (!drew) return;
@@ -350,7 +376,8 @@ export const LivePage: React.FC = () => {
     if (cameraKeyRef.current !== cameraKey && buildings.length > 0) {
       cameraKeyRef.current = cameraKey;
       const transform = cameraAffine(map);
-      for (const b of buildings) projectPrepared(b, transform, SIMPLIFY_PX);
+      const simplifyPx = simplifyPxForZoom(zoom);
+      for (const b of buildings) projectPrepared(b, transform, simplifyPx);
     }
 
     // The sun is below the horizon: every surface in view is in shade, so the
