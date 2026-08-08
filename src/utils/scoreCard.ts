@@ -58,7 +58,7 @@ export async function generateScoreCard(
   data: NeighborhoodProperties,
   metroAverages: Record<string, number>,
 ): Promise<void> {
-  const qi = data.quality_index;
+  const qi = data.quality_percentile ?? data.quality_index;
   const cat = qi != null ? getQualityCategory(qi) : null;
 
   // Build the card HTML
@@ -156,7 +156,7 @@ export async function generateComparisonCard(pinned: NeighborhoodProperties[]): 
 
   const qiRow = `<tr><td style="${rl}">${escapeHtml(t('panel.quality_index'))}</td>${pinned
     .map((p) => {
-      const qi = p.quality_index;
+      const qi = p.quality_percentile ?? p.quality_index;
       const cat = qi != null ? getQualityCategory(qi) : null;
       return `<td style="${td}">${
         qi != null && cat
@@ -219,7 +219,7 @@ export async function generateShortlistCard(areas: NeighborhoodProperties[], dee
 
   const rows = areas
     .map((a) => {
-      const qi = a.quality_index;
+      const qi = a.quality_percentile ?? a.quality_index;
       const cat = qi != null ? getQualityCategory(qi) : null;
       const badge = qi != null && cat
         ? `<div style="flex-shrink:0;width:42px;height:42px;border-radius:10px;${qiBadgeStyle(qi)}display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;">${qi}</div>`

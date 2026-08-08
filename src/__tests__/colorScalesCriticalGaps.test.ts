@@ -52,7 +52,7 @@ describe('rescaleLayerToData — edge cases', () => {
     return {
       type: 'Feature',
       geometry: { type: 'Point', coordinates: [0, 0] },
-      properties: { quality_index: value },
+      properties: { quality_percentile: value },
     };
   }
 
@@ -81,8 +81,8 @@ describe('rescaleLayerToData — edge cases', () => {
   it('handles string property values by coercing to numbers', () => {
     const layer = getLayerById('quality_index');
     const features = [
-      { type: 'Feature' as const, geometry: { type: 'Point' as const, coordinates: [0, 0] }, properties: { quality_index: '30' } },
-      { type: 'Feature' as const, geometry: { type: 'Point' as const, coordinates: [0, 0] }, properties: { quality_index: '70' } },
+      { type: 'Feature' as const, geometry: { type: 'Point' as const, coordinates: [0, 0] }, properties: { quality_percentile: '30' } },
+      { type: 'Feature' as const, geometry: { type: 'Point' as const, coordinates: [0, 0] }, properties: { quality_percentile: '70' } },
     ];
     const result = rescaleLayerToData(layer, features);
     expect(result.stops[0]).toBe(30);

@@ -1,5 +1,6 @@
 import { getCoveragePct, type NeighborhoodProperties } from './metrics.ts';
-import { setQualityCohort, getQualityBands } from './qualityBands.ts';
+import { setQualityCohort } from './qualityBands.ts';
+import { midrankPercentileSorted } from './percentileRanks.ts';
 
 /**
  * Computes a composite Quality Index (0–100) for each neighborhood.
@@ -914,6 +915,32 @@ export function computeQualityIndices(
   }
 
   setQualityCohort(composites);
+
+  // CF-15: the DISPLAYED score is the area's percentile within this cohort, not the raw
+  // composite. `quality_index` keeps the composite untouched — it is what the exports,
+  // /api/v1 and QUALITY_INDEX.md document — and `quality_percentile` is what the map,
+  // panel, profile and cards render.
+  //
+  // The composite cannot carry an absolute reading. Measured over all 3,018 postal areas
+  // on the shipped weights it spans 38–67 with 30 distinct values: nothing scores below
+  // 38 or above 67, so a fixed 0–100 colour ramp can only ever paint Finland in the
+  // middle third of itself, and fixed 0–20/…/80–100 bands put 94.9 % of the country in
+  // "Okay" with nothing at either end. That is inherent rather than fixable by
+  // re-weighting — averaging ~50 normalised factors concentrates on the mean whatever the
+  // weights — which is why the bands were made cohort-relative in the first place, and
+  // why the number and the verdict then disagreed about what scale they were on.
+  //
+  // Ranking resolves it at the source instead of patching the display: the percentile is
+  // uniform on 0–100 by construction, so the bands go back to a plain 20/40/60/80 that
+  // means what it says, one number drives every surface's colour, and "top fifth" is
+  // literally the top fifth.
+  const sorted = [...composites].sort((a, b) => a - b);
+  for (const f of features) {
+    const props = f.properties as NeighborhoodProperties;
+    props.quality_percentile = props.quality_index == null
+      ? null
+      : Math.round(midrankPercentileSorted(sorted, props.quality_index) ?? 0);
+  }
 }
 
 export interface QualityCategory {
@@ -942,14 +969,12 @@ export const QUALITY_CATEGORIES: QualityCategory[] = [
  * actually starts at 56 would be worse than showing nothing.
  */
 export function getQualityCategories(): QualityCategory[] {
-  const bands = getQualityBands();
-  if (!bands || bands.n < 25) return QUALITY_CATEGORIES;
-  const cuts = bands.thresholds;
-  return QUALITY_CATEGORIES.map((c, i) => ({
-    ...c,
-    min: i === 0 ? 0 : cuts[i - 1],
-    max: i === QUALITY_CATEGORIES.length - 1 ? 100 : cuts[i],
-  }));
+  // Fixed 20/40/60/80 again, because what they now bin is `quality_percentile`, which is
+  // uniform on 0–100 by construction. These cuts were made cohort-relative when the bands
+  // binned the raw composite: that spans only 38–67, so fixed cuts labelled 94.9 % of
+  // Finland "Okay". Ranking the score removes the reason for moving them — and with it
+  // the mismatch where the number was on one scale and its verdict on another.
+  return QUALITY_CATEGORIES;
 }
 
 export function getQualityCategory(index: number | null): QualityCategory | null {
@@ -967,45 +992,6 @@ export function getQualityCategory(index: number | null): QualityCategory | null
   return null;
 }
 
-/**
- * Where a score sits on the band strip, as a 0–100 percentage of its width.
- *
- * The strip gives every band the SAME width because the bands are quintiles of the
- * cohort — equal width means equal share of areas, which is what "top fifth" means,
- * and it keeps the five labels readable. In VALUE space those bands are nowhere near
- * equal: under the shipped weights the composite spans roughly 23–74, so the cuts land
- * at about 44/48/52/58 and the two outer bands cover ~40 points each while the middle
- * three cover ~4 points each.
- *
- * So position cannot be the raw score. Placing the pointer at `left: ${score}%` mixed
- * the two axes and put it in the wrong band: a 62 is in "Excellent" (58–100) but 62 %
- * along an equal-fifths strip is the fourth band, "Good" — the pointer contradicted the
- * label right next to it.
- *
- * This maps the score piecewise-linearly instead: find its band, then place it inside
- * that band's fifth in proportion to how far through the band's own value range it is.
- * The pointer therefore always lands in the band whose label is displayed, and its
- * colour (sampled from the ramp at the score) matches the strip underneath it, because
- * the strip paints each band with the same ramp across the same range.
- */
-export function getQualityBandPosition(index: number | null): number | null {
-  if (index == null || !Number.isFinite(index)) return null;
-  const cats = getQualityCategories();
-  const cat = getQualityCategory(index);
-  if (!cat) return null;
-  // Located by label, not by object identity: getQualityCategories() rebuilds the array
-  // on every call (it rewrites min/max onto copies), so the category getQualityCategory
-  // returned is never `indexOf`-equal to the one in a separately-fetched array. Keying
-  // off the same lookup the label uses is also what makes "the pointer is in the band
-  // whose label is shown" true by construction rather than by coincidence.
-  const i = cats.findIndex((c) => c.label.en === cat.label.en);
-  if (i < 0) return null;
-  const span = cat.max - cat.min;
-  // A degenerate band (every area tied on this score) has nowhere meaningful to sit
-  // within itself — centre it rather than divide by zero.
-  const frac = span > 0 ? Math.min(1, Math.max(0, (index - cat.min) / span)) : 0.5;
-  return ((i + frac) / cats.length) * 100;
-}
 
 // ─── Dimensions, personas & methodology ────────────────────────────────────
 //
