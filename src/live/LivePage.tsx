@@ -72,17 +72,6 @@ const labelTilesFor = (theme: 'dark' | 'light') =>
 const DEFAULT_CENTER: [number, number] = [24.9384, 60.1699];
 const DEFAULT_ZOOM = 15.5;
 
-/**
- * Below this zoom we draw no buildings at all.
- *
- * Not a data limit — how far out a viewport may reach before a query becomes
- * unreasonable is decided by AREA, in buildingShards.MAX_OSM_AREA_KM2, and a
- * prebuilt city-model shard has no query cost at all. This is the point where
- * an individual building's shadow stops being resolvable on screen, so the
- * honest answer is "zoom in" rather than an even grey wash.
- */
-const MIN_SHADOW_ZOOM = 12;
-
 /** Quiet period after the map stops moving before we ask Overpass for anything. */
 const FETCH_DEBOUNCE_MS = 700;
 
@@ -200,6 +189,45 @@ const BUILDING = {
   dark: { fill: 'rgba(148, 163, 184, 0.32)', stroke: 'rgba(203, 213, 225, 0.4)' },
   light: { fill: 'rgba(51, 65, 85, 0.42)', stroke: 'rgba(30, 41, 59, 0.55)' },
 } as const;
+
+/** Shared empty list, so the zoomed-out path allocates nothing per frame. */
+const EMPTY_PREPARED: PreparedBuilding[] = [];
+
+/**
+ * Below this zoom, individual buildings and trees are not drawn at all — the
+ * shadow map is terrain only.
+ *
+ * This is the shademap.app ladder, and it is a statement about what is legible
+ * rather than about what we can afford. Ground resolution at this latitude is
+ * ~78,271 / 2^zoom metres per pixel, so a 20 m building is about 3 px at z13.5
+ * and its midday shadow is a fraction of one. Thousands of sub-pixel sweeps
+ * average out to a flat wash that says nothing the terrain layer is not already
+ * saying better, and near sunset they stop being sub-pixel — a 12 km shadow is
+ * tens of pixels whatever cast it — so the sub-pixel cull that bounds the cost at
+ * midday does not bound it at all at exactly the hour the layer matters most.
+ *
+ * So the detail layer switches off as a unit and relief takes over. Buildings and
+ * canopy share this number deliberately: separate floors are what produced the
+ * band of zooms where trees stopped casting and buildings did not.
+ */
+const DETAIL_MIN_ZOOM = 13.5;
+
+/**
+ * Longest shadow we will emit, as a multiple of the viewport diagonal.
+ *
+ * MAX_SHADOW_METRES keeps the GEOMETRY honest — 12 km, so a tower and a shed stay
+ * distinguishable through sunset. This keeps the PATH bounded, which is a
+ * different problem: at street zoom 12 km is ~10,000 px, so a low sun had every
+ * on-screen building emitting a sweep far past the canvas. Rasterisation is
+ * clipped and costs nothing there, but the path construction is not, and neither
+ * is the memory it sits in.
+ *
+ * Past ~1.5 diagonals a shadow cannot reach any pixel the viewport will show even
+ * from a caster in the opposite corner, so clamping there is invisible. It also
+ * self-scales: zoomed out, 12 km is a few pixels and the clamp never binds; zoomed
+ * in, it binds hard, which is exactly where it needs to.
+ */
+const MAX_SHADOW_DIAGONALS = 1.5;
 
 /**
  * The scratch canvas the shadow casters are merged on, sized to the viewport.
@@ -430,20 +458,32 @@ export const LivePage: React.FC = () => {
     // call, which is what makes a ten-thousand-building city view scrub at all.
     const c = map.getCenter();
     const cameraKey = `${c.lng},${c.lat},${zoom},${map.getBearing()},${width}x${height}`;
-    // Canopy is drawn at EVERY zoom buildings are drawn at. It used to stop at
-    // z14 while buildings continued to z12, so zooming out crossed a threshold
-    // where a forest silently stopped casting and the ground it had been shading
-    // turned bright — the same "buildings stop along an invisible line" failure
-    // the shard/OSM seam had, in the zoom axis instead of the spatial one. The
-    // cost that floor was buying back is bought instead by `canopySimplifyScale`
-    // and by the sub-pixel cull in `shadowPath`, which drops most crowns when the
-    // sun is high and they are the size of a pixel.
-    const canopy = preparedCanopyRef.current;
-    if (cameraKeyRef.current !== cameraKey && (buildings.length > 0 || canopy.length > 0)) {
+    // BUILDINGS AND TREES SHARE ONE FLOOR, AND BELOW IT NEITHER IS DRAWN.
+    //
+    // They used to have different floors (z12 and z14), so zooming out crossed a
+    // band where a forest silently stopped casting while the buildings beside it
+    // kept going, and the ground the trees had been shading turned bright. Giving
+    // them separate floors is what made that gap possible, so they no longer have
+    // separate floors — the detail layer is one thing that is either drawn or not.
+    //
+    // The floor itself is back after briefly being removed. Removing it meant a
+    // zoomed-out view over Helsinki emitted every one of ~9,000 footprints and
+    // ~34,000 crowns into a single Path2D, and near sunset the sub-pixel cull
+    // cannot help — a 12 km shadow is tens of pixels long however small its caster
+    // is, so nothing gets dropped and all 43,000 sweeps are built every frame.
+    // That is not a shadow map, it is a stall.
+    //
+    // What replaces it is terrain (see `drawTerrainShade`), which is what a
+    // zoomed-out shadow map should be showing anyway: at this range the relief is
+    // the thing casting legible shadows and an individual roof is a pixel.
+    const detail = zoom >= DETAIL_MIN_ZOOM;
+    const buildingsOn = detail ? buildings : EMPTY_PREPARED;
+    const canopy = detail ? preparedCanopyRef.current : EMPTY_PREPARED;
+    if (cameraKeyRef.current !== cameraKey && (buildingsOn.length > 0 || canopy.length > 0)) {
       cameraKeyRef.current = cameraKey;
       const transform = cameraAffine(map);
       const simplifyPx = simplifyPxForZoom(zoom);
-      for (const b of buildings) projectPrepared(b, transform, simplifyPx);
+      for (const b of buildingsOn) projectPrepared(b, transform, simplifyPx);
       for (const c2 of canopy) projectPrepared(c2, transform, simplifyPx * canopySimplifyScale(zoom));
     }
 
@@ -453,7 +493,7 @@ export const LivePage: React.FC = () => {
     if (sun.altitude <= 0) {
       ctx.fillStyle = `rgba(${shade.ink}, ${nightAlpha(sun.altitude, shade.day, shade.night)})`;
       ctx.fillRect(0, 0, width, height);
-      paintBuildings(ctx, buildings, theme, zoom, width, height);
+      paintBuildings(ctx, buildingsOn, theme, zoom, width, height);
       return;
     }
 
@@ -468,13 +508,23 @@ export const LivePage: React.FC = () => {
     const ux = (probe.x - origin.x) / probeMetres;
     const uy = (probe.y - origin.y) / probeMetres;
 
+    // The screen-space ceiling from MAX_SHADOW_DIAGONALS, converted back into
+    // metres once per frame. `Math.hypot(ux, uy)` is pixels per metre along the
+    // shadow's own direction, so this is the length at which a sweep stops being
+    // able to reach any visible pixel.
+    const pxPerMetre = Math.hypot(ux, uy);
+    const maxDrawMetres =
+      pxPerMetre > 0
+        ? (MAX_SHADOW_DIAGONALS * Math.hypot(width, height)) / pxPerMetre
+        : Infinity;
+
     /** Accumulate one source's swept shadows into a single path. */
     const shadowPath = (list: PreparedBuilding[]): Path2D | null => {
       const p = new Path2D();
       let any = false;
       for (const b of list) {
         if (b.sn < 4) continue;
-        const metres = shadowLengthMetres(b.height, sun.altitude);
+        const metres = Math.min(shadowLengthMetres(b.height, sun.altitude), maxDrawMetres);
         if (metres <= 0) continue;
         const dx = ux * metres;
         const dy = uy * metres;
@@ -496,7 +546,7 @@ export const LivePage: React.FC = () => {
 
     // ONE path for every ring of every building — see the file header for why
     // this is not a per-polygon fill.
-    const path = shadowPath(buildings) ?? new Path2D();
+    const path = shadowPath(buildingsOn) ?? new Path2D();
 
     // SHADE IS A UNION, NOT A STACK.
     //
@@ -536,7 +586,7 @@ export const LivePage: React.FC = () => {
       ctx.fill(path, 'nonzero');
     }
 
-    paintBuildings(ctx, buildings, theme, zoom, width, height);
+    paintBuildings(ctx, buildingsOn, theme, zoom, width, height);
   }, [shadowsOn, sun.altitude, sun.azimuth, theme]);
 
   /**
@@ -685,21 +735,19 @@ export const LivePage: React.FC = () => {
       const bbox = padBbox(view, fetchPadMetres(view));
       const plan = planCoverage(bbox);
 
-      // THE ZOOM FLOOR IS A QUERY BUDGET, NOT A DRAWING LIMIT.
+      // ONE THRESHOLD FOR THE DETAIL LAYER, USED BY BOTH THE FETCH AND THE DRAW.
       //
-      // It used to be checked before anything else, so zooming out past z12
-      // blanked the layer even over a city whose shard was already in memory —
-      // and near sunrise or sunset, when a 20 m building throws 2 km and the
-      // shadows are at their most legible from far away, that is exactly the view
-      // worth having. A shard costs nothing to draw at any zoom: the footprints
-      // are already loaded, and the sub-pixel cull in `shadowPath` bounds the
-      // work whatever the camera does.
+      // There were briefly two — a fetch floor and a separate "is it worth
+      // drawing" rule — and they disagreed, which is how a viewport could hold
+      // ~43,000 loaded footprints and crowns that the renderer then swept every
+      // frame at a zoom where none of them covered a pixel. Keeping the loaded set
+      // and the drawn set governed by the SAME number is what makes that
+      // impossible rather than merely unlikely: below DETAIL_MIN_ZOOM nothing is
+      // fetched, so there is nothing to draw and nothing to project.
       //
-      // So the floor now applies only where the buildings would have to come from
-      // Overpass. `planCoverage` already refuses an unreasonable query on its own
+      // `planCoverage` still refuses an unreasonable Overpass query on its own
       // terms (area, not zoom) by returning 'none'.
-      const shardBacked = plan === 'shard' || plan === 'shard+osm';
-      if (plan === 'none' || (!shardBacked && map.getZoom() < MIN_SHADOW_ZOOM)) {
+      if (plan === 'none' || map.getZoom() < DETAIL_MIN_ZOOM) {
         setTooCoarse(true);
         clearBuildings();
         scheduleDraw();
