@@ -1021,5 +1021,7 @@
   "live.shadow.coverage_measured": "{n} byggnader i vy. Höjderna är uppmätta från Helsingfors 3D-stadsmodell.",
   "live.shadow.coverage_mixed": "{measured} byggnader med uppmätta höjder, plus {n} av {total} övriga med höjddata från OpenStreetMap.",
   "live.shadow.coverage_partial": "{n} byggnader med uppmätta höjder. Vid den här zoomnivån täcks bara stadsmodellens område – zooma in för att få med resten.",
-  "live.shadow.canopy": "Inklusive {n} trädkronefigurer (HSY, uppmätt kronhöjd)."
+  "live.shadow.canopy": "Inklusive {n} trädkronefigurer (HSY, uppmätt kronhöjd).",
+  "live.shadow.terrain": "Inklusive terrängens former (höjdmodell).",
+  "live.shadow.terrain_only": "Visar terrängskuggor. Zooma in för byggnads- och trädskuggor."
 }

@@ -1,0 +1,38 @@
+{
+  "_comment": "Terrain elevation pyramid for the /live/ shadow layer. Written by scripts/fetch_terrain_dem.py. Elevation metres = (R * 256 + G) * quant; bathymetry is clamped to 0. Source: Terrain Tiles on AWS Open Data (Mapzen terrarium), mirrored because no free DEM endpoint sends CORS.",
+  "path": "data/terrain/{z}/{x}/{y}.png",
+  "tileSize": 256,
+  "quant": 0.5,
+  "bbox": [
+    19.0,
+    59.5,
+    31.6,
+    70.1
+  ],
+  "zooms": {
+    "6": {
+      "minX": 35,
+      "maxX": 37,
+      "minY": 14,
+      "maxY": 18,
+      "tiles": 15,
+      "bytes": 757744
+    },
+    "7": {
+      "minX": 70,
+      "maxX": 75,
+      "minY": 28,
+      "maxY": 37,
+      "tiles": 60,
+      "bytes": 2801907
+    },
+    "8": {
+      "minX": 141,
+      "maxX": 150,
+      "minY": 57,
+      "maxY": 75,
+      "tiles": 190,
+      "bytes": 6296335
+    }
+  }
+}
