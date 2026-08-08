@@ -109,14 +109,7 @@ export interface NeighborhoodProperties {
    *  distribution scaled by the municipal share change (see foreign_language_history
    *  for the full series). Optional (absent in legacy fixtures). */
   foreign_language_est_pct?: number | null;
-  /** Raw composite (0–100 integer). Kept as-is for exports, /api/v1 and
-   *  docs/QUALITY_INDEX.md; NOT what the UI renders — see quality_percentile. */
   quality_index: number | null;
-  /** CF-15: the area's percentile within the scored cohort (0–100 integer), computed
-   *  alongside quality_index. This is what the map, legend, panel, profile and social
-   *  cards display and colour by. The composite itself spans only 38–67 nationally, so
-   *  it cannot carry an absolute 0–100 reading; the percentile can. */
-  quality_percentile?: number | null;
   /** CF-8: per-dimension Quality Index sub-scores (0–100), keyed by DimensionId.
    *  Populated alongside quality_index in computeQualityIndices; absent until then. */
   quality_dimension_scores?: Record<string, number> | null;
