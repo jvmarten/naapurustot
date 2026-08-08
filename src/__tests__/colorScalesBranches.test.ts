@@ -12,8 +12,7 @@ describe('getLayerById', () => {
   it('returns the matching layer for a valid id', () => {
     const layer = getLayerById('quality_index');
     expect(layer.id).toBe('quality_index');
-    // CF-15: the layer keeps its id but paints the derived percentile.
-    expect(layer.property).toBe('quality_percentile');
+    expect(layer.property).toBe('quality_index');
   });
 
   it('returns first layer as fallback for unknown id', () => {

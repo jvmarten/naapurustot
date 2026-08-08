@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
-  setQualityCohort, getQualityCohort, bandsAreDegenerate, clearQualityCohort,
+  setQualityCohort, getQualityBands, bandsAreDegenerate, clearQualityCohort,
 } from '../utils/qualityBands';
 import {
   getQualityCategory, getQualityCategories, QUALITY_CATEGORIES,
@@ -19,28 +19,58 @@ function mk(pno: string, props: Record<string, number>): GeoJSON.Feature {
   return { type: 'Feature', geometry: null as never, properties: { pno, ...props } };
 }
 
+/** Which band index each score falls in, for a cohort already registered. */
+function bandOf(score: number): number {
+  const c = getQualityCategory(score);
+  return cats().findIndex((x) => x.label.en === c?.label.en);
+}
 
 beforeEach(() => clearQualityCohort());
 
-describe('qualityBands — cohort statistics', () => {
-  it('reports nothing before a cohort is registered', () => {
-    expect(getQualityCohort()).toBeNull();
-    expect(bandsAreDegenerate()).toBe(false);
-  });
-
-  it('records the cohort size and how many distinct scores it holds', () => {
-    setQualityCohort([40, 41, 41, 42, Number.NaN]);
-    expect(getQualityCohort()).toEqual({ n: 4, distinct: 3 });
-  });
-
-  it('leaves the verdict bands at the fixed fifths', () => {
-    // CF-15: the bands bin `quality_percentile`, which is uniform on 0–100, so the cuts
-    // no longer move with the cohort. They were only ever moved because the raw composite
-    // spans 38–67, which put 94.9 % of Finland in one fixed band.
-    setQualityCohort(Array.from({ length: 300 }, (_, i) => 23 + Math.round((i / 299) * 51)));
+describe('qualityBands — cohort quantiles', () => {
+  it('falls back to the fixed breakpoints before any cohort is registered', () => {
+    expect(getQualityBands()).toBeNull();
     expect(getQualityCategories()).toEqual(QUALITY_CATEGORIES);
     expect(getQualityCategory(85)?.label.en).toBe('Excellent');
-    expect(getQualityCategory(85)?.min).toBe(80);
+  });
+
+  it('falls back for a cohort too small to quantile meaningfully', () => {
+    setQualityCohort([40, 41, 42]);
+    expect(getQualityCategories()).toEqual(QUALITY_CATEGORIES);
+  });
+
+  it('cuts the bands at the cohort quantiles, not at 20/40/60/80', () => {
+    // A realistic compressed cohort: the shipped defaults span roughly 23..74.
+    const values = Array.from({ length: 300 }, (_, i) => 23 + Math.round((i / 299) * 51));
+    setQualityCohort(values);
+    const t = getQualityBands()!.thresholds;
+    expect(t).toHaveLength(4);
+    for (let i = 1; i < t.length; i++) expect(t[i]).toBeGreaterThanOrEqual(t[i - 1]);
+    // Nothing near 20 or 80 — the fixed cuts would have put everything in one band.
+    expect(t[0]).toBeGreaterThan(25);
+    expect(t[3]).toBeLessThan(75);
+    expect(cats()[4].min).toBe(t[3]);
+    expect(cats()[0].min).toBe(0);
+    expect(cats()[4].max).toBe(100);
+  });
+
+  it('a compressed cohort no longer collapses into a single band', () => {
+    const values = Array.from({ length: 300 }, (_, i) => 45 + Math.round((i / 299) * 8));
+    setQualityCohort(values);
+    const occupied = new Set(values.map(bandOf));
+    expect(occupied.size, 'a 45..53 spread should still use several bands').toBeGreaterThan(2);
+  });
+
+  it('produces strictly ascending ramp stops even on a heavily tied cohort', () => {
+    // 90% identical, the shape that broke a linear rescale.
+    const values = [...Array.from({ length: 270 }, () => 100), ...Array.from({ length: 30 }, (_, i) => i)];
+    setQualityCohort(values);
+    const stops = getQualityBands()!.stops;
+    expect(stops).toHaveLength(8);
+    for (let i = 1; i < stops.length; i++) {
+      expect(stops[i], `stop ${i} must exceed stop ${i - 1} for MapLibre interpolate`)
+        .toBeGreaterThan(stops[i - 1]);
+    }
   });
 
   it('reports a degenerate scale rather than pretending to spread a tie', () => {
@@ -76,8 +106,8 @@ describe('qualityBands — the rule: not everything can be excellent at once', (
     computeQualityIndices(feats, weights);
     const topLabel = cats()[cats().length - 1].label.en;
     const inTop = feats.filter((f) => {
-      const p = (f.properties as { quality_percentile?: number | null }).quality_percentile;
-      return p != null && getQualityCategory(p)?.label.en === topLabel;
+      const qi = (f.properties as { quality_index: number | null }).quality_index;
+      return qi != null && getQualityCategory(qi)?.label.en === topLabel;
     }).length;
     return inTop / feats.length;
   }

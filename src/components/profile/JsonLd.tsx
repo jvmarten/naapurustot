@@ -268,11 +268,11 @@ export const JsonLd: React.FC<JsonLdProps> = ({
       : null);
 
   const additionalProperty: Array<Record<string, unknown>> = [];
-  if (properties.quality_percentile != null) {
+  if (properties.quality_index != null) {
     additionalProperty.push({
       '@type': 'PropertyValue',
       name: 'Quality Index',
-      value: Math.round(properties.quality_percentile),
+      value: Math.round(properties.quality_index),
       maxValue: 100,
     });
   }

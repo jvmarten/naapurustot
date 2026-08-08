@@ -4,11 +4,6 @@
 > first number every visitor sees. This document explains how it is computed,
 > why each weight was chosen, and where it is deliberately conservative.
 >
-> Note that the number on screen is the composite's **rank within the comparison
-> set**, not the composite itself — see
-> [Two numbers](#two-numbers-the-composite-and-the-rank-you-see). Everything up to
-> that section describes the composite.
->
 > **This methodology and its category wording are open to editorial revision.**
 > The choices below are defensible defaults, not the last word.
 
@@ -164,56 +159,9 @@ Personas are just weight presets — users can fine-tune any factor afterwards,
 and a "How is this calculated?" popover on the Quality badge lists the active
 dimensions and weights.
 
-## Two numbers: the composite, and the rank you see
-
-The weighted average described above is the **composite**, stored as
-`quality_index`. It is what the exports, `/api/v1` and the rest of this document
-describe, and it is unchanged.
-
-It is **not** what the app displays. Measured over all 3 018 postal codes on the
-shipped weights, the composite spans **38–67 with only 30 distinct values**:
-
-| | |
-|---|---|
-| min / max | 38 / 67 — a 29-point span of a 0–100 scale |
-| p5 / median / p95 | 47 / 53 / 60 |
-| distinct values | 30, across 3 018 areas (~100 areas share each) |
-| under fixed 0–20/…/80–100 bands | **94.9 % of Finland lands in "Okay"**, 0 % in "Avoid" or "Excellent" |
-
-This is inherent rather than a weighting mistake: averaging ~50 normalized
-factors concentrates on the mean whatever the weights, and no re-weighting pushes
-a mean of means to the ends. So the composite cannot carry an absolute 0–100
-reading — a fixed colour ramp over it paints the whole country in the middle
-third of itself, and fixed bands collapse into one.
-
-What the map, legend, panel, profile, score card, share card and structured data
-display and colour by is therefore **`quality_percentile`**: the area's rank
-within the cohort being compared (all of Finland by default, or the loaded region
-under the within-region scope). `computeQualityIndices` derives it alongside the
-composite.
-
-A percentile is uniform on 0–100 by construction, which buys three things at
-once: the bands below mean what they say, the colour ramp is used end to end, and
-the number, its position on the band strip and its colour are all the *same*
-quantity — so they cannot disagree. They did before: while the bands were cut at
-cohort quantiles to work around the 94.9 %, an area could read
-"Excellent (58–100)" in the colour of a mediocre score, and one point of
-composite could flip a whole band.
-
-Ranking uses a **midrank** — ties centred — rather than the weak `<=` convention
-`percentileRankSorted` uses for the published "top X %" superlatives. With ~100
-areas per distinct value that matters: on the national cohort the weak convention
-puts 27.1 % of areas in the top fifth and 14.9 % in the bottom, where midrank
-gives 19.1 % / 22.2 %. Both conventions are right for their own question ("what
-share are at or below you" vs "where in the field do you sit"), so the
-superlatives keep theirs. This is why a panel can read `96` while a strength chip
-reads "top 2 % nationally".
-
 ## Category labels
 
-The displayed 0–100 rank maps to five directional bands. These are fixed, and can
-be, because the rank is uniform — each band holds about a fifth of the cohort
-(measured nationally: 22.2 / 19.5 / 21.4 / 17.7 / 19.1 %):
+The 0–100 score maps to five directional bands (colors unchanged):
 
 | Range | Label |
 |-------|-------|
@@ -223,20 +171,12 @@ be, because the rank is uniform — each band holds about a fifth of the cohort
 | 60–80 | Good |
 | 80–100 | Excellent |
 
-> The cuts were briefly moved to the cohort's own quantiles, to stop fixed bands
-> labelling 94.9 % of the country "Okay". Ranking the score removes the reason
-> for moving them — and with it the mismatch where the number was on an absolute
-> scale and its verdict on a relative one. `qualityBands.ts` still records cohort
-> distinctness for `bandsAreDegenerate`, the one problem quantiles never solved:
-> a weighting that ties every area cannot be spread by any monotone transform.
-
 ## Normalization
 
 Each metric is **min–max normalized against fixed national reference ranges** —
-the default **"Whole of Finland"** scope — so a *composite* of "53" means the
-same thing in Helsinki and in Oulu and postal codes are directly comparable
-across regions. (The displayed rank is comparable across regions for the same
-reason, being derived from those comparable composites.)
+the default **"Whole of Finland"** scope — so a score of "72" means the same
+thing in Helsinki and in Oulu and postal codes are directly comparable across
+regions.
 
 Because the map lazy-loads one seutukunta at a time, the client never holds all
 ~3 018 postal codes and so cannot derive a nation-wide range at runtime. The
