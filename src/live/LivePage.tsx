@@ -22,6 +22,13 @@ import {
   type PreparedBuilding,
 } from './shadows';
 import { resolveBuildings, planCoverage, type CoveragePlan, type HeightSource } from './buildingShards';
+import {
+  loadHeightField,
+  terrainShadowMask,
+  terrainZoomFor,
+  hasTerrain,
+  type HeightField,
+} from './terrain';
 
 /**
  * /live/ — the realtime surface.
@@ -136,8 +143,8 @@ const OUTLINE_ZOOM = 15;
  * higher alpha to stay legible against a basemap that is already dark.
  */
 const SHADE = {
-  dark: { ink: '8, 15, 40', day: 0.45, night: 0.62 },
-  light: { ink: '30, 45, 80', day: 0.28, night: 0.44 },
+  dark: { ink: '8, 15, 40', rgb: [8, 15, 40], day: 0.45, night: 0.62 },
+  light: { ink: '30, 45, 80', rgb: [30, 45, 80], day: 0.28, night: 0.44 },
 } as const;
 
 /**
@@ -332,6 +339,89 @@ function fetchPadMetres(view: Bbox): number {
   return Math.min(MAX_SHADOW_PAD_METRES, Math.max(350, 0.15 * span));
 }
 
+/**
+ * Scratch canvas holding the terrain shadow mask at HEIGHTFIELD resolution.
+ *
+ * Separate from `maskCanvas`, and deliberately not viewport-sized: the mask is
+ * computed in the field's own Mercator grid and drawn through an affine, so it
+ * is reused across camera moves that do not change which tiles are loaded.
+ */
+let terrainCanvas: HTMLCanvasElement | null = null;
+
+/** The terrain mask plus the affine that lands it on screen. */
+interface TerrainLayer {
+  canvas: HTMLCanvasElement;
+  a: number;
+  b: number;
+  c: number;
+  d: number;
+  e: number;
+  f: number;
+}
+
+/**
+ * Rasterise the terrain shadow for the current sun, ready to composite.
+ *
+ * Returns null when there is no heightfield, or when the sun is down — below the
+ * horizon the caller floods the whole viewport, and a mask saying "all of it"
+ * would be the same picture computed the expensive way.
+ *
+ * The transform is built from three `map.project` calls on the field's own
+ * corners, exactly like `cameraAffine`: Mercator->screen is affine at pitch 0
+ * (which /live/ pins), so three points define it and it stays correct through
+ * rotation and zoom with nothing to keep in sync.
+ */
+function terrainLayer(
+  field: HeightField | null,
+  sunAltitudeDeg: number,
+  shadowBearingDeg: number,
+  map: MaplibreMap,
+  ink: readonly [number, number, number],
+): TerrainLayer | null {
+  if (!field || sunAltitudeDeg <= 0) return null;
+  const mask = terrainShadowMask(field, sunAltitudeDeg, shadowBearingDeg);
+  if (!mask) return null;
+  if (typeof document === 'undefined') return null;
+
+  const { width, height, bbox } = field;
+  if (!terrainCanvas) terrainCanvas = document.createElement('canvas');
+  if (terrainCanvas.width !== width || terrainCanvas.height !== height) {
+    terrainCanvas.width = width;
+    terrainCanvas.height = height;
+  }
+  const tctx = terrainCanvas.getContext('2d');
+  if (!tctx) return null;
+
+  // Inked here rather than left as bare coverage. The merged mask is composited
+  // onto the page in ONE drawImage, so every caster on it has to already carry
+  // the theme's shade colour — a black-filled terrain would come out black next
+  // to the buildings' deep blue instead of joining the same union.
+  const img = tctx.createImageData(width, height);
+  const px = img.data;
+  const [ir, ig, ib] = ink;
+  for (let i = 0, p = 0; i < mask.length; i++, p += 4) {
+    px[p] = ir;
+    px[p + 1] = ig;
+    px[p + 2] = ib;
+    px[p + 3] = mask[i];
+  }
+  tctx.putImageData(img, 0, 0);
+
+  const [west, south, east, north] = bbox;
+  const nw = map.project([west, north]);
+  const ne = map.project([east, north]);
+  const sw = map.project([west, south]);
+  return {
+    canvas: terrainCanvas,
+    a: (ne.x - nw.x) / width,
+    b: (ne.y - nw.y) / width,
+    c: (sw.x - nw.x) / height,
+    d: (sw.y - nw.y) / height,
+    e: nw.x,
+    f: nw.y,
+  };
+}
+
 /** Paint the building masses themselves, above whatever shade they cast. */
 function paintBuildings(
   ctx: CanvasRenderingContext2D,
@@ -381,6 +471,16 @@ export const LivePage: React.FC = () => {
   const cameraKeyRef = useRef('');
   /** The padded bbox and plan the loaded buildings answer for. */
   const loadedRef = useRef<{ bbox: Bbox; plan: CoveragePlan } | null>(null);
+  /**
+   * The terrain heightfield covering the current view, or null.
+   *
+   * A ref, like the footprints, because the draw loop reads it up to 60 times a
+   * second and re-rendering the tree at that rate is what the whole
+   * ref-plus-rAF arrangement exists to avoid.
+   */
+  const terrainRef = useRef<HeightField | null>(null);
+  /** Which field extent is loaded, so a pan inside it does not refetch. */
+  const terrainKeyRef = useRef('');
   /** Pending coalesced repaint, so several triggers in one frame do one draw. */
   const rafRef = useRef(0);
   /** Bumped once the map exists, to re-run the effect that binds its listeners. */
@@ -406,6 +506,13 @@ export const LivePage: React.FC = () => {
   const [tooCoarse, setTooCoarse] = useState(false);
   const [loading, setLoading] = useState(false);
   const [fetchFailed, setFetchFailed] = useState(false);
+  /**
+   * Whether relief is currently being cast, for the readout.
+   *
+   * State rather than a ref because it changes rarely — once per heightfield
+   * load — unlike everything else the draw loop touches.
+   */
+  const [terrainOn, setTerrainOn] = useState(false);
 
   const shadowsOn = enabled.has('shadows');
   const sunOn = enabled.has('sun_position');
@@ -548,6 +655,11 @@ export const LivePage: React.FC = () => {
     // this is not a per-polygon fill.
     const path = shadowPath(buildingsOn) ?? new Path2D();
 
+    // Relief, rasterised from the heightfield rather than swept as polygons.
+    // Terrain has no footprint to extrude — it is a continuous surface, so its
+    // shadow is a per-cell occlusion test, not a silhouette. See terrain.ts.
+    const terrain = terrainLayer(terrainRef.current, sun.altitude, bearing, map, shade.rgb);
+
     // SHADE IS A UNION, NOT A STACK.
     //
     // Both casters used to be filled straight onto the canvas, one after the
@@ -565,17 +677,39 @@ export const LivePage: React.FC = () => {
     // screen: building shade at the full tone, canopy-only at CANOPY_ALPHA_SCALE
     // of it, overlap at the building tone exactly.
     //
-    // Only when there is canopy to merge — everywhere without a tree layer keeps
-    // the direct single fill, which is cheaper by a full-viewport drawImage.
-    const mask = canopyShade ? ensureMask(canvas.width, canvas.height) : null;
+    // Only when there is something to merge — a viewport with buildings alone
+    // keeps the direct single fill, which is cheaper by a full-viewport drawImage.
+    const needsMask = canopyShade !== null || terrain !== null;
+    const mask = needsMask ? ensureMask(canvas.width, canvas.height) : null;
     const mctx = mask?.getContext('2d') ?? null;
-    if (canopyShade && mctx) {
+    if (needsMask && mctx) {
       mctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       mctx.clearRect(0, 0, width, height);
-      mctx.fillStyle = `rgba(${shade.ink}, ${CANOPY_ALPHA_SCALE})`;
-      mctx.fill(canopyShade, 'nonzero');
-      // Opaque: this is what makes the overlap saturate to the building tone
-      // instead of summing with the canopy underneath it.
+      // Weakest caster first, so the opaque ones below saturate over it.
+      if (canopyShade) {
+        mctx.fillStyle = `rgba(${shade.ink}, ${CANOPY_ALPHA_SCALE})`;
+        mctx.fill(canopyShade, 'nonzero');
+      }
+      if (terrain) {
+        // A hill is not a crown: it stops light completely, so relief goes in at
+        // the same full weight as a wall.
+        //
+        // Drawn through the field's own Mercator->screen transform rather than
+        // stretched to the viewport, so it stays registered under rotation and
+        // when the field extends past the screen edge. Smoothing is on because
+        // the mask is computed at roughly a third of screen resolution AND
+        // because a terrain shadow's edge is genuinely soft — cast by a slope,
+        // not by a wall — so the interpolation is the correct appearance rather
+        // than a concession to it.
+        mctx.save();
+        mctx.imageSmoothingEnabled = true;
+        mctx.imageSmoothingQuality = 'high';
+        mctx.transform(terrain.a, terrain.b, terrain.c, terrain.d, terrain.e, terrain.f);
+        mctx.drawImage(terrain.canvas, 0, 0);
+        mctx.restore();
+      }
+      // Opaque: this is what makes an overlap saturate to the full tone instead
+      // of summing with whatever is already underneath it.
       mctx.fillStyle = `rgb(${shade.ink})`;
       mctx.fill(path, 'nonzero');
       ctx.globalAlpha = shade.day;
@@ -716,6 +850,45 @@ export const LivePage: React.FC = () => {
       setCoverage(null);
     };
 
+    /**
+     * Load the heightfield for this view, unless the one in hand already covers
+     * it at the same detail.
+     *
+     * Keyed on the DEM zoom plus the tile the viewport's corners fall in rather
+     * than on the raw bbox, because that is the granularity at which the answer
+     * actually changes — panning within a tile reuses the field, and the tile
+     * cache in terrain.ts means a pan back to somewhere recent costs nothing.
+     *
+     * Failure is swallowed to a null field. Terrain is an enhancement to the
+     * shadow layer; losing it should cost relief, not the building shadows that
+     * worked before it existed.
+     */
+    const ensureTerrain = async (view: Bbox, zoom: number) => {
+      if (!hasTerrain()) return;
+      const dz = terrainZoomFor(zoom);
+      const key = [
+        dz,
+        Math.floor(view.west * 4),
+        Math.floor(view.south * 4),
+        Math.ceil(view.east * 4),
+        Math.ceil(view.north * 4),
+      ].join(',');
+      if (terrainKeyRef.current === key) return;
+      terrainKeyRef.current = key;
+      try {
+        const field = await loadHeightField(view, zoom);
+        // A newer camera won this race — its own load is authoritative.
+        if (terrainKeyRef.current !== key) return;
+        terrainRef.current = field;
+        setTerrainOn(field !== null);
+        scheduleDraw();
+      } catch {
+        terrainRef.current = null;
+        terrainKeyRef.current = '';
+        setTerrainOn(false);
+      }
+    };
+
     const refresh = () => {
       const c = map.getCenter();
       setCenter([c.lng, c.lat]);
@@ -734,6 +907,15 @@ export const LivePage: React.FC = () => {
       };
       const bbox = padBbox(view, fetchPadMetres(view));
       const plan = planCoverage(bbox);
+
+      // TERRAIN LOADS AT EVERY ZOOM, ahead of the detail floor's early return.
+      //
+      // It is the layer that has to survive zooming out — relief is what still
+      // casts a legible shadow when a roof is a fraction of a pixel — so gating
+      // it behind the same threshold that switches buildings off would leave the
+      // zoomed-out view showing nothing, which is the state this whole ladder
+      // exists to replace.
+      void ensureTerrain(view, map.getZoom());
 
       // ONE THRESHOLD FOR THE DETAIL LAYER, USED BY BOTH THE FETCH AND THE DRAW.
       //
@@ -884,22 +1066,26 @@ export const LivePage: React.FC = () => {
       coverage.canopy > 0
         ? ' ' + t('live.shadow.canopy').replace('{n}', String(coverage.canopy))
         : '';
+    // Relief is stated alongside the casters, not instead of them: at street
+    // zoom a hill still shades whole blocks, and a reader who sees shade with no
+    // building over it should be able to tell that terrain is why.
+    const relief = terrainOn ? ' ' + t('live.shadow.terrain') : '';
     if (coverage.source === 'city_model') {
       // Buildings that stop along a straight line have to be explained, or the
       // empty half of the screen reads as "nothing is built there".
       const key = coverage.partial ? 'live.shadow.coverage_partial' : 'live.shadow.coverage_measured';
-      return t(key).replace('{n}', String(coverage.measured)) + trees;
+      return t(key).replace('{n}', String(coverage.measured)) + trees + relief;
     }
     if (coverage.source === 'mixed') {
       return t('live.shadow.coverage_mixed')
         .replace('{measured}', String(coverage.measured))
         .replace('{n}', String(coverage.osmWithHeight))
-        .replace('{total}', String(coverage.osmTotal)) + trees;
+        .replace('{total}', String(coverage.osmTotal)) + trees + relief;
     }
     return (
       t('live.shadow.coverage')
         .replace('{n}', String(coverage.osmWithHeight))
-        .replace('{total}', String(coverage.osmTotal)) + trees
+        .replace('{total}', String(coverage.osmTotal)) + trees + relief
     );
   })();
 
@@ -967,7 +1153,13 @@ export const LivePage: React.FC = () => {
                   {times.polar === 'night' ? t('live.shadow.polar_night') : t('live.shadow.sun_down')}
                 </span>
               ) : tooCoarse ? (
-                <span className="text-surface-600 dark:text-surface-300">{t('live.shadow.zoom_in')}</span>
+                <span className="text-surface-600 dark:text-surface-300">
+                  {/* "Zoom in" was the only thing this could say when nothing was
+                      drawn out here. Relief IS drawn now, so saying the layer is
+                      blank would be false — it states what is being cast and what
+                      is still to come. */}
+                  {terrainOn ? t('live.shadow.terrain_only') : t('live.shadow.zoom_in')}
+                </span>
               ) : loading ? (
                 <span className="text-surface-600 dark:text-surface-300">{t('live.shadow.loading')}</span>
               ) : fetchFailed ? (

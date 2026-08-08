@@ -174,6 +174,14 @@ export default defineConfig({
         // wastes ~10MB of bandwidth on first visit when the user only needs
         // one region (~200KB). Data files are runtime-cached on first fetch.
         globPatterns: ['**/*.{js,css,ico,png,svg}'],
+        // The /live/ terrain pyramid is data that HAPPENS to be PNG, so the
+        // extension-based pattern above swept all 265 tiles into the precache
+        // and took first-visit cost from 2.3 MB to 11.9 MB — paid by every
+        // visitor, including the overwhelming majority who never open /live/.
+        // Same reasoning as the .topojson exclusion: a viewport needs about a
+        // dozen of these tiles, chosen by where the camera is, so they are
+        // runtime-cached on first fetch like every other data file.
+        globIgnores: ['**/data/terrain/**'],
         navigateFallback: null,
         runtimeCaching: [
           {

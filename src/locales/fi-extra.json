@@ -91,5 +91,7 @@
   "live.shadow.coverage_measured": "{n} rakennusta näkyvissä. Korkeudet on mitattu Helsingin 3D-kaupunkimallista.",
   "live.shadow.coverage_mixed": "{measured} rakennusta mitatulla korkeudella, {n}/{total} muusta rakennuksesta OpenStreetMapin korkeustiedolla.",
   "live.shadow.coverage_partial": "{n} rakennusta mitatulla korkeudella. Tällä zoom-tasolla näkyy vain kaupunkimallin alue – lähennä, niin muutkin rakennukset tulevat mukaan.",
-  "live.shadow.canopy": "Mukana {n} puustokuviota (HSY, mitattu latvuskorkeus)."
+  "live.shadow.canopy": "Mukana {n} puustokuviota (HSY, mitattu latvuskorkeus).",
+  "live.shadow.terrain": "Mukana maaston muodot (korkeusmalli).",
+  "live.shadow.terrain_only": "Näytetään maaston varjot. Lähennä, niin näet rakennusten ja puiden varjot."
 }
