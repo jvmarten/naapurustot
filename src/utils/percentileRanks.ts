@@ -157,6 +157,39 @@ export function valueAtPercentile(
   return valueAtPercentileSorted(distributionFor(sources, prop, options), p);
 }
 
+/**
+ * Percentile rank with tied observations CENTRED rather than counted whole: the share
+ * below `value`, plus half the share equal to it. Ascending pre-sorted input.
+ *
+ * This is the variant the displayed quality score uses, and the difference is not
+ * cosmetic. The composite is an integer and heavily tied — 3,018 postal areas take only
+ * 30 distinct values, so ~100 areas share each one. Under the weak (`<=`) convention
+ * every member of a tie block is credited with the whole block, which pushes tied areas
+ * up: measured on the real national cohort that puts 27.1 % of Finland in the top fifth
+ * and only 14.9 % in the bottom one. Centring the block instead gives 19.1 % / 22.2 %,
+ * so "top fifth" means roughly a fifth, which is the whole point of the bands.
+ *
+ * `percentileRankSorted` keeps the weak convention because the published "top X %"
+ * superlatives are built on it; the two answer different questions ("what share are at
+ * or below you" vs "where in the field do you sit") and both are correct for theirs.
+ */
+export function midrankPercentileSorted(sorted: number[], value: number): number | null {
+  if (!Number.isFinite(value) || sorted.length === 0) return null;
+  const bound = (strict: boolean) => {
+    let lo = 0;
+    let hi = sorted.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (strict ? sorted[mid] < value : sorted[mid] <= value) lo = mid + 1;
+      else hi = mid;
+    }
+    return lo;
+  };
+  const below = bound(true);
+  const atOrBelow = bound(false);
+  return ((below + (atOrBelow - below) / 2) / sorted.length) * 100;
+}
+
 /** Convenience: derive the distribution and return the percentile rank in one call. */
 export function percentileRank(
   sources: Array<HasProperties | Record<string, unknown>>,

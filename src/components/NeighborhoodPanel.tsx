@@ -3,7 +3,7 @@ import type { NeighborhoodProperties } from '../utils/metrics';
 import { parseTrendSeries, getMetricSource, vintageFreshness, METRIC_EXPLANATIONS, formatCoveragePct } from '../utils/metrics';
 import { formatNumber, formatEuro, formatPct, formatDiff, diffColor, formatYtlGradeFull, parseSchools, formatDensity, formatEuroSqm } from '../utils/formatting';
 import { t, getLang, useI18nVersion } from '../utils/i18n';
-import { getQualityCategory, getQualityCategories, getQualityBandPosition, QUALITY_DIMENSIONS, computeQualityCoverage, type QualityWeights } from '../utils/qualityIndex';
+import { getQualityCategory, getQualityCategories, QUALITY_DIMENSIONS, computeQualityCoverage, type QualityWeights } from '../utils/qualityIndex';
 import { usePlanningArea, planningInfo } from '../hooks/usePlanningData';
 import { computeAreaSummary, fillTemplate } from '../utils/areaSummary';
 import { loadNationalPercentiles, type NationalLadder } from '../utils/nationalRanges';
@@ -591,35 +591,17 @@ const QualityBadge: React.FC<{
   const animatedQi = useAnimatedValue(qualityIndex);
   const qi = animatedQi != null ? Math.round(animatedQi) : qualityIndex;
   const cat = getQualityCategory(qi);
-  // The ramp is applied to the score's RELATIVE position, not to its raw value.
-  //
-  // Getting this wrong in either direction is visible to users, and both were shipped:
-  //
-  //  - Ramp over the raw value. The verdict word is cohort-relative ("Excellent" = the
-  //    top fifth of the areas on screen) but the colour was absolute, so re-weighting
-  //    moved the word without moving the colour: 80 read "Excellent (78–100)" on green
-  //    while 58 read "Excellent (46–100)" on yellow. Same word, two colours.
-  //  - One flat colour per band. The word and colour agreed, but the scale became a
-  //    step function: 58 was a yellow "Good" and 59 a green "Excellent", a full hue
-  //    jump for one point, and every score inside a band looked identical.
-  //
-  // Colouring by getQualityBandPosition — the piecewise-linear map from score to place
-  // in the cohort — gives both. It is continuous and monotone, so neighbouring scores
-  // get neighbouring colours and there is no cliff at a band edge; and because each band
-  // owns a fixed fifth of that axis, each verdict owns a fixed fifth of the ramp.
-  // "Excellent" is always drawn from the ramp's green end and "Bad" from its red one,
-  // whatever the weighting, without the colour ever pretending the bands are absolute.
-  //
-  // Using the layer's ramp also keeps the colourblind substitution getLayerById applies,
-  // and makes the strip the same gradient the choropleth and legend show.
+  // `qualityIndex` here is the area's PERCENTILE (quality_percentile), not the raw
+  // composite — see computeQualityIndices. That is what makes this block simple: the
+  // number, its position on the strip and its colour are all the same 0–100 quantity, so
+  // they cannot drift apart the way they did when the number was absolute and the verdict
+  // relative. The bands are the plain fixed fifths again, and the ramp is the layer's own,
+  // so the swatch matches the colour the choropleth paints this area.
   const qiLayer = getLayerById('quality_index');
   const bandCats = getQualityCategories();
-  const bandPos = getQualityBandPosition(qi);
+  const bandColor = getInterpolatedColor(qiLayer, qi);
   const rampLo = qiLayer.stops[0];
   const rampHi = qiLayer.stops[qiLayer.stops.length - 1];
-  const bandColor = bandPos == null
-    ? '#94a3b8'
-    : getInterpolatedColor(qiLayer, rampLo + (bandPos / 100) * (rampHi - rampLo));
   const lang = getLang();
   // CF-1: "How is this calculated?" explainer popover.
   const [showHow, setShowHow] = useState(false);
@@ -740,13 +722,11 @@ const QualityBadge: React.FC<{
             </span>
           ))}
         </div>
-        {/* Positioned on the band axis, not the raw 0–100 value axis — see
-            getQualityBandPosition. At `left: ${qi}%` a 62 sat over "Good" while the
-            label beside it read "Excellent". */}
+        {/* The percentile IS the position, so this is exact by construction. */}
         <div
           className="absolute top-0 w-4 h-4 -mt-1 rounded-full border-2 border-white dark:border-surface-300 shadow-md"
           style={{
-            left: `${bandPos ?? qi}%`,
+            left: `${qi}%`,
             transform: 'translateX(-50%)',
             backgroundColor: bandColor,
           }}
@@ -1406,7 +1386,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
       {/* Quality Index — extracted into QualityBadge to isolate animation re-renders */}
       {d.quality_index != null && (
         <QualityBadge
-          qualityIndex={d.quality_index}
+          qualityIndex={d.quality_percentile ?? d.quality_index}
           isCustomWeights={isCustomWeights}
           onCustomize={onCustomize}
         />

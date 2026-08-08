@@ -31,6 +31,7 @@ function makeProps(overrides: Partial<NeighborhoodProperties> = {}): Neighborhoo
     city: 'helsinki_metro',
     he_vakiy: 5000,
     quality_index: 75,
+    quality_percentile: 75,
     // Required by NeighborhoodProperties but unused by JsonLd:
     he_kika: null, ko_ika18y: null, ko_yl_kork: null, ko_al_kork: null, ko_ammat: null,
     ko_perus: null, hr_mtu: null, hr_ktu: null, pt_tyoll: null, pt_tyott: null,
@@ -164,10 +165,10 @@ describe('JsonLd — XSS hardening', () => {
     expect(scripts.length).toBe(2);
   });
 
-  it('omits additionalProperty when quality_index is null', () => {
+  it('omits additionalProperty when the ranked score is null', () => {
     const { container } = render(
       <JsonLd
-        properties={makeProps({ quality_index: null })}
+        properties={makeProps({ quality_percentile: null })}
         center={[24.94, 60.17]}
         url="https://naapurustot.fi/x"
       />,
@@ -177,10 +178,10 @@ describe('JsonLd — XSS hardening', () => {
     expect(place.additionalProperty).toBeUndefined();
   });
 
-  it('includes quality_index as additionalProperty when set', () => {
+  it('includes the ranked score as additionalProperty when set', () => {
     const { container } = render(
       <JsonLd
-        properties={makeProps({ quality_index: 82 })}
+        properties={makeProps({ quality_percentile: 82 })}
         center={[24.94, 60.17]}
         url="https://naapurustot.fi/x"
       />,
@@ -239,10 +240,10 @@ describe('JsonLd — XSS hardening', () => {
     expect(place.geo.longitude).toBe(24.5);
   });
 
-  it('rounds quality_index (schema.org value must be integer)', () => {
+  it('rounds the ranked score (schema.org value must be integer)', () => {
     const { container } = render(
       <JsonLd
-        properties={makeProps({ quality_index: 74.6 })}
+        properties={makeProps({ quality_percentile: 74.6 })}
         center={[24.94, 60.17]}
         url="https://x/"
       />,

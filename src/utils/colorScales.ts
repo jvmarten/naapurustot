@@ -1,6 +1,5 @@
 import type { ExpressionSpecification } from '@maplibre/maplibre-gl-style-spec';
 import { formatYtlGrade, formatYtlGradeFull } from './formatting';
-import { getQualityBands } from './qualityBands';
 
 /**
  * Identifier for each data layer available on the map.
@@ -228,7 +227,11 @@ export const LAYERS: LayerConfig[] = [
   {
     id: 'quality_index',
     labelKey: 'layer.quality_index',
-    property: 'quality_index',
+    // CF-15: paints the PERCENTILE, not the raw composite. The composite spans only
+    // 38–67 nationally, so a 0–100 ramp over it renders the whole country in the middle
+    // third; the percentile is uniform on 0–100, so the ramp is used end to end and the
+    // map, legend and panel all read the same number off the same scale.
+    property: 'quality_percentile',
     unit: '',
     colors: ['#7c3aed', '#a855f7', '#ef4444', '#f97316', '#facc15', '#84cc16', '#22c55e', '#14b8a6'],
     stops: [0, 14, 28, 43, 57, 71, 86, 100],
@@ -1343,19 +1346,9 @@ export function rescaleLayerToData(
       if (s < center) return negScale != null ? center - (center - s) * negScale : s;
       return posScale != null ? center + (s - center) * posScale : s;
     });
-  } else if (layer.id === 'quality_index') {
-    // The composite's shape is user-controlled, so a LINEAR stretch is not enough:
-    // it gives contrast when the scores are merely narrow (the shipped defaults span
-    // 23-74) but none at all when they bunch at one end (weighting water proximity
-    // alone pins 92 % of areas at the same value). Cutting at the cohort's own
-    // quantiles keeps roughly a seventh of the areas in every colour band whatever
-    // the weighting. qualityBands derives these from the scores computeQualityIndices
-    // just wrote, so they always describe what is on screen.
-    const bands = getQualityBands();
-    newStops = bands && bands.stops.length === n
-      ? bands.stops
-      : layer.stops.map((_, i) => min + (i / (n - 1)) * (max - min));
   } else {
+    // (quality_index needs no special case now: it carries a percentile, which is
+    // already uniform on 0–100, so the plain linear rescale below is correct for it.)
     newStops = layer.stops.map((_, i) => min + (i / (n - 1)) * (max - min));
   }
   const result = { ...layer, stops: newStops };

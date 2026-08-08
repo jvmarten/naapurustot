@@ -353,8 +353,8 @@ export const NeighborhoodProfilePage: React.FC = () => {
 
       // Meta description — update existing or create
       const existingMeta = document.querySelector('meta[name="description"]');
-      const descContent = d.quality_index != null
-        ? `${titleName} (${d.pno}) – ${t('panel.quality_index')}: ${Math.round(d.quality_index)}/100`
+      const descContent = d.quality_percentile != null
+        ? `${titleName} (${d.pno}) – ${t('panel.quality_index')}: ${Math.round(d.quality_percentile)}/100`
         : `${titleName} (${d.pno})`;
       let prevMetaContent: string | null = null;
       let createdMeta: HTMLMetaElement | null = null;
@@ -520,7 +520,8 @@ export const NeighborhoodProfilePage: React.FC = () => {
   const saved = isFavorite(d.pno);
   const avg = state.metroAverages;
   const center = getFeatureCenter(state.geoFeature ?? state.feature);
-  const qi = d.quality_index != null ? Math.round(d.quality_index) : null;
+  // CF-15: the ranked score — the same number the choropleth paints and the panel shows.
+  const qi = d.quality_percentile != null ? Math.round(d.quality_percentile) : null;
   // computeQualityIndices mutates the shared dataLoader cache in place, so arriving
   // here from the map or the wizard carries the visitor's own weighting onto a page
   // that otherwise presents the published four-dimension methodology. Say so rather
@@ -956,9 +957,9 @@ export const NeighborhoodProfilePage: React.FC = () => {
                 >
                   <div className="font-medium text-sm mb-1">{lang === 'sv' && s.properties.namn ? s.properties.namn : s.properties.nimi}</div>
                   <div className="text-xs text-surface-600 dark:text-surface-400">{s.properties.pno}</div>
-                  {s.properties.quality_index != null && (
+                  {s.properties.quality_percentile != null && (
                     <div className="text-xs mt-2">
-                      <span className="font-semibold">{Math.round(s.properties.quality_index)}</span>
+                      <span className="font-semibold">{Math.round(s.properties.quality_percentile)}</span>
                       <span className="text-surface-600 dark:text-surface-400 ml-1">{t('profile.quality_short')}</span>
                     </div>
                   )}
