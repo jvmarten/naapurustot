@@ -126,6 +126,21 @@ export interface RegionAggregatesData {
   national: Record<string, number>;
   /** Per-region (`city`) aggregated property records, keyed by region id. */
   regions: Record<string, RegionAggregateRecord>;
+  /**
+   * The national postal composite distribution as ascending `[quality_index, count]`
+   * pairs — every one of the 3,018 areas, in ~30 pairs because the composite is an
+   * integer.
+   *
+   * The all-Finland landing needs it to honour the selected quality display scale
+   * (qualityScale.ts): it paints the 69 regional means and never loads the postal set
+   * those means came from, so it has no cohort to stretch/winsorize/rank against.
+   * Deriving one from the 69 means instead would put the landing and the full-data view
+   * on different scales and change a region's number depending on how you reached it.
+   *
+   * Optional so a stale cached artifact from before this field still loads (the scale
+   * then falls back to raw, as it did before).
+   */
+  qualityCohort?: [number, number][];
 }
 
 /**

@@ -59,15 +59,31 @@ computeQuickWinMetrics(features);
 
 const { national, regions } = buildRegionAggregates(features);
 
+// The national postal composite distribution, as ascending [value, count] pairs.
+//
+// The all-Finland landing paints the 69 regional means and never downloads the postal
+// areas they were aggregated from, so it has no cohort to derive the selected quality
+// display scale (stretch / winsorized / percentile) from — every non-raw mode silently
+// showed the raw composite there. The composite is an integer, so all 3,018 areas
+// compress to ~30 pairs; that is cheap enough to ship and reproduces the exact same
+// transform applyQualityScale derives from the full set.
+const cohortCounts = new Map();
+for (const f of features) {
+  const v = f.properties.quality_index;
+  if (typeof v === 'number' && Number.isFinite(v)) cohortCounts.set(v, (cohortCounts.get(v) ?? 0) + 1);
+}
+const qualityCohort = [...cohortCounts.entries()].sort((a, b) => a[0] - b[0]);
+
 // Deterministic serialization: sort region keys so the committed artifact is a
 // stable diff and the idempotency gate passes on an unchanged rebuild.
 const sortedRegions = {};
 for (const cityId of Object.keys(regions).sort()) sortedRegions[cityId] = regions[cityId];
 
-const artifact = { national, regions: sortedRegions };
+const artifact = { national, regions: sortedRegions, qualityCohort };
 writeFileSync(outputPath, JSON.stringify(artifact));
 
 const regionCount = Object.keys(sortedRegions).length;
+const cohortTotal = qualityCohort.reduce((sum, [, n]) => sum + n, 0);
 const bytes = readFileSync(outputPath).length;
-console.log(`  → region_aggregates.json (${regionCount} regions, ${bytes} bytes)`);
+console.log(`  → region_aggregates.json (${regionCount} regions, ${qualityCohort.length} distinct composites over ${cohortTotal} areas, ${bytes} bytes)`);
 console.log('Done!');

@@ -2,7 +2,7 @@ import type { Feature, FeatureCollection, Polygon, MultiPolygon } from 'geojson'
 import { feature } from 'topojson-client';
 import type { Topology } from 'topojson-specification';
 import type { CityId, NeighborhoodProperties } from './metrics';
-import { scaleComposite } from './qualityScale';
+import { scaleComposite, setQualityScaleCohort, type QualityCohortHistogram } from './qualityScale';
 import { computeChangeMetrics, computeMetroAverages } from './metrics';
 import { REGIONS } from './regions';
 import { t } from './i18n';
@@ -340,10 +340,19 @@ export function buildMetroAreaFeatures(
  * no MultiPolygon-concat fallback here — the aggregate records carry no geometry — so
  * the view simply waits for the (small) outline fetch rather than flashing internal
  * postal borders.
+ *
+ * `qualityCohort` is the national postal composite distribution that ships in the same
+ * artifact. It is what lets this path honour the selected quality display scale at all:
+ * nothing here ever loads the 3,018 postal areas, so applyQualityScale never runs, and
+ * without a cohort every non-raw mode collapsed back to the raw composite on the
+ * default landing.
  */
 export function buildMetroAreaFeaturesFromAggregates(
   regions: Record<string, RegionAggregateRecord>,
+  qualityCohort?: QualityCohortHistogram,
 ): FeatureCollection {
+  if (qualityCohort?.length) setQualityScaleCohort(qualityCohort);
+
   const knownRegions = new Set(Object.keys(REGIONS));
   const features: Feature<Polygon | MultiPolygon>[] = [];
   const dataRegions = new Set<string>();
@@ -353,10 +362,15 @@ export function buildMetroAreaFeaturesFromAggregates(
     const geometry = outlinesByCity.get(cityId);
     if (!geometry) continue; // outline not loaded yet — emitted on the unionReady rebuild
     dataRegions.add(cityId);
+    // The choropleth paints quality_display (see LAYERS['quality_index']). The
+    // aggregate record carries only the raw composite — leaving the display value out
+    // is what rendered all 69 regions "No data" on the default landing.
+    const regionQi = (regions[cityId] as { quality_index?: number }).quality_index;
     features.push({
       type: 'Feature',
       properties: {
         ...regions[cityId],
+        ...(regionQi != null ? { quality_display: scaleComposite(regionQi) } : {}),
         pno: cityId,
         nimi: t(`city.${cityId}`),
         namn: t(`city.${cityId}`),
