@@ -452,9 +452,16 @@ describe('feed registry', () => {
   it('drops persisted ids that no longer name a live feed', () => {
     // A feed reverted from 'live' to 'planned', or renamed, must not come back
     // from localStorage as a toggle nothing responds to.
-    const restored = sanitizeEnabled(['shadows', 'trains', 'a_feed_that_never_existed']);
+    //
+    // The planned id is read OUT OF THE REGISTRY rather than named here. This
+    // test used to hard-code 'trains', so wiring that feed up broke it — and a
+    // test that fails when a feed goes live was pinning the registry's current
+    // contents, not the behaviour of sanitizeEnabled.
+    const planned = ALL_FEEDS.find((f) => f.status === 'planned');
+    expect(planned, 'the registry should still list a planned feed').toBeDefined();
+    const restored = sanitizeEnabled(['shadows', planned!.id, 'a_feed_that_never_existed']);
     expect(restored.has('shadows')).toBe(true);
-    expect(restored.has('trains')).toBe(false);
+    expect(restored.has(planned!.id)).toBe(false);
     expect(restored.has('a_feed_that_never_existed')).toBe(false);
   });
 

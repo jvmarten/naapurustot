@@ -74,7 +74,9 @@ export const FEED_GROUPS: FeedGroup[] = [
     labelKey: 'live.group.transport',
     accent: '#a78bfa',
     feeds: [
-      { id: 'trains', labelKey: 'live.feed.trains', status: 'planned', coverage: 'national', defaultOn: false },
+      // National by construction, which the shadow feed above cannot be: every
+      // train running in the country, not just the cities a 3D model covers.
+      { id: 'trains', labelKey: 'live.feed.trains', status: 'live', coverage: 'national', defaultOn: true },
       { id: 'road_incidents', labelKey: 'live.feed.road_incidents', status: 'planned', coverage: 'national', defaultOn: false },
       { id: 'transit_alerts', labelKey: 'live.feed.transit_alerts', status: 'planned', coverage: 'urban', defaultOn: false },
     ],

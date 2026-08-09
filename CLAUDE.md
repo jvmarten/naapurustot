@@ -230,6 +230,19 @@ The all-Finland view (`?city=all`, the default) shows seutukunta outlines, not i
 12. **Terrain tiles must stay OUT of the PWA precache.** `globPatterns` in `vite.config.ts` matches by extension, and the pyramid is PNG, so it swept all 265 tiles in and took first-visit cost from 2.3 MB to 11.9 MB — paid by every visitor, not just the ones who open `/live/`. `globIgnores: ['**/data/terrain/**']` holds it back; check `precache N entries` in the build output after touching anything under `public/data`.
 13. **Every caster merges into ONE mask before compositing.** Filling shade straight onto the canvas per source alpha-composites the overlaps, so ground under both a tree and a building came out at 0.408 against a 0.278 building tone — a 1.465× dark patch, which is not an optical effect (a second occluder behind the first changes nothing). Canopy goes on at `CANOPY_ALPHA_SCALE`, terrain and buildings at full opacity so they saturate, then one `drawImage` at `shade.day`. Adding a new caster means adding it to that mask, not adding a fill.
 
+### /live/ realtime feeds
+
+The sidebar is generated entirely from `FEED_GROUPS` in `src/live/feeds.ts`, so a feed is a registry entry plus three locale keys — never a change to `FeedSidebar.tsx`. **Never flip `status` to `'live'` before the feed actually fetches**: a `planned` row renders as a visibly disabled toggle, which is how the page shows where it is going without implying data exists. `sanitizeEnabled` drops persisted ids that are not `live`, so a feed reverted to `planned` cannot come back from localStorage as a toggle nothing responds to.
+
+1. **Trains fetch the whole country, not the viewport** (`src/live/trains.ts`), even though the endpoint takes a `bbox`. The national set is 111 features / 2.4 kB gzipped, so scoping to the camera saves nothing and costs a request per pan plus a beat of latency after every move. Filter at draw time. Don't copy the buildings' viewport-fetch pattern into a feed this small.
+2. **Digitraffic answers 406 without gzip.** `Accept-Encoding: gzip` is mandatory. Browsers always send it and cannot override it, so this only bites when probing with `curl` or a Node fetch — where it looks exactly like a broken API. Use `curl --compressed`.
+3. **`Digitraffic-User` costs one preflight a day, not one per poll.** It is a custom header on a cross-origin GET so it triggers CORS preflight, but the endpoint answers with `access-control-max-age: 86400`. Fintraffic asks every client to send it; keep it.
+4. **Polling stops while the tab is hidden**, and resumes on `visibilitychange` rather than waiting out the interval. This is a page people leave open — an abandoned tab polling a free public endpoint forever is not shippable.
+5. **A failed poll keeps the positions already on screen.** Blanking the layer would make one dropped request look like the feed going down; the readout says it failed while the last known state stays drawn.
+6. **Feeds draw on the overlay canvas, above the shade — not as MapLibre layers.** The overlay sits on top of the map, so a GeoJSON source renders *under* the shadow fill and under the full-viewport night wash (0.62 alpha), which is where a realtime feed most needs to be legible. `draw()` has ONE exit for this reason; don't reintroduce early returns that skip the feed passes.
+7. **Suppress colliding labels, keep every mark.** Trains stack in a terminus throat and unsuppressed labels overprint into one illegible number. `paintTrains` keeps a per-frame list of placed boxes and drops the text, never the dot.
+8. **No interpolation between fixes.** A dead-reckoned dot draws a position nobody measured — the same category as a fabricated data value, on a page whose whole design is about which numbers are measured.
+
 ### Adding a new data layer
 
 1. Add the `LayerId` and a `LayerConfig` to `LAYERS` in `src/utils/colorScales.ts`
