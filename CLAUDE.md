@@ -85,9 +85,16 @@ directory, one git HEAD and one `node_modules`. Assume you are not alone:
    ```
    The junction re-shares `node_modules`, so it does not protect against a concurrent
    `npm install` — use a real install when you care.
-5. **Serialize pushes.** A worktree does not help here: the auto-merge concurrency group
-   is shared, so a second `claude/*` push cancels the first branch's in-flight run. Land
-   one, wait for green, then push the next.
+5. **Serialize pushes — check the queue first.** A worktree does not help here: the
+   auto-merge concurrency group is shared, so a second `claude/*` push cancels the first
+   branch's in-flight run. Land one, wait for green, then push the next. Do not guess
+   whether the coast is clear; ask:
+   ```bash
+   npm run queue:check            # exit 0 clear · 1 auto-merge in flight · 2 wedged deploy
+   npm run queue:check -- --wait  # block until the in-flight auto-merge finishes
+   ```
+   Run it immediately **before** every `git push`. Exit 1 means a push right now silently
+   cancels somebody else's merge.
 6. **Verify the merge landed — a green run is not proof.** Check
    `git merge-base --is-ancestor <your-sha> origin/main`. An auto-merge run has reported
    `completed success` while its branch was cancelled and deleted without merging.
@@ -142,6 +149,35 @@ The container is ephemeral, so verify within the session that produced the push.
 
 - **`security` — `node scripts/check-audit.mjs` / `… server/api`** (`npm run audit:check` locally; run for both trees): a transitive high-severity advisory. Fix by pinning the offending package in that tree's `package.json` `overrides` to the first patched version *within its parent's compatible major* (e.g. `"undici": "^7.28.0"` to satisfy jsdom's `^7.x`), then `npm install` and re-run the gate. Don't jump a major (it can break the parent) — and when the patch exists only in a later major, verify the parents can load it before forcing it: `brace-expansion@5` needed `"minimatch": "^10.2.5"` alongside it, because `minimatch@3` does `require('brace-expansion')` as a callable and v5 exports a namespace. Moderate-only advisories don't fail the gate. If a high advisory genuinely cannot apply to this codebase and its only fix is a major bump, add a reviewed entry to `ALLOWLIST` in `scripts/check-audit.mjs` with the reason, the `scope` (`.` or `server/api`) and an `until` date — the gate fails once an exemption expires, so it can't become permanent.
 - **`checks` — build:data idempotency gate**: re-running `npm run build:data` must reproduce committed `src/data`/`public/data` byte-for-byte. A diff means a generator is non-deterministic — it must derive any timestamp/vintage from committed source data, never `new Date()`/`Date.now()` (e.g. the planning snapshot is read from `scripts/planning_raw/snapshot.txt`, stamped by the fetch scripts at fetch time). Fix the generator; only commit a regenerated artifact when the source data genuinely changed.
+
+### The wedged Pages deploy (`deploy` job queued forever)
+
+A green auto-merge is not a deployed site. `deploy.yml`'s `deploy` job carries
+`environment: github-pages`, and a job waiting on an environment **has not started**, so
+`timeout-minutes` never ticks — the 30-minute cap cannot bound it. Measured 2026-08-09:
+job 93229767509 sat at `status: "queued"`, `runner_id: 0`, no steps, for **1 h 44 m**
+before a human cancelled it. It is not runner capacity; the sibling `build` job gets a
+runner in 2–3 s on this repo.
+
+One wedge is a full stop, not a delay. `concurrency: pages` is workflow-level with
+`cancel-in-progress: false`, so every later deploy waits for the wedged run to *end* —
+the next run did not start its **build** for 1 h 38 m — and GitHub keeps only **one**
+pending run per group, so a third dispatch silently drops the second. Several sessions
+merging in a row is exactly how you get "merged to main, never went live".
+
+Cancelling the head run clears it in seconds (cancel 11:47:05 → next build 11:47:08 →
+deployed 11:50:50). `deploy-watchdog` in `deploy.yml` now does that cancel automatically
+after 8 minutes, dispatching a replacement first when nothing is queued behind it. To
+check or clear it by hand:
+
+```bash
+npm run queue:check              # exit 2 = wedged, names the run to cancel
+npm run queue:check -- --unstick # cancel the wedged run; the queue drains behind it
+```
+
+Signature to recognise in the API: run `status: "pending"` (concurrency gate) stacked
+behind a run whose `deploy` job is `queued` with no `runner_id`. A red `deploy` job with
+a green `build` job is a different problem — see the social-card cache note below.
 
 ## Code style
 
