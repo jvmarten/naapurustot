@@ -2,7 +2,7 @@ import { describe, it, expect, afterAll } from 'vitest';
 import regionProps from '../data/region_properties.json';
 import { computeQualityIndices } from '../utils/qualityIndex';
 import {
-  applyQualityScale, setQualityScaleMode, getQualityScaleMode,
+  applyQualityScale, scaleComposite, setQualityScaleMode, getQualityScaleMode,
   scaleUsesFixedBands, QUALITY_SCALE_MODES, type QualityScaleMode,
 } from '../utils/qualityScale';
 
@@ -79,6 +79,23 @@ describe('quality display scales', () => {
       for (let i = 1; i < pairs.length; i++) {
         expect(pairs[i][1], `${mode}: ${pairs[i - 1][0]}->${pairs[i][0]}`).toBeGreaterThanOrEqual(pairs[i - 1][1]);
       }
+    }
+  });
+
+  it('scales a value computed outside the pass onto the same scale — the all-Finland regions', () => {
+    // The all-Finland view paints per-region aggregates built in metroAreas.ts from a
+    // population-weighted mean of the postal composites, after applyQualityScale has
+    // run. Those must read against the POSTAL cohort: without this the region features
+    // carried no quality_display at all and every region rendered "No data".
+    for (const mode of QUALITY_SCALE_MODES) {
+      setQualityScaleMode(mode);
+      applyQualityScale(feats);
+      // An area and a region holding the same composite must display the same number.
+      const sample = feats.find((f) => Number.isFinite(f.properties.quality_index as number))!;
+      const composite = sample.properties.quality_index as number;
+      expect(scaleComposite(composite), mode).toBe(sample.properties.quality_display);
+      expect(scaleComposite(null), mode).toBeNull();
+      expect(scaleComposite(undefined), mode).toBeNull();
     }
   });
 
