@@ -15,7 +15,10 @@
  */
 
 /** Quality-index colour ramp (mirrors src/utils/colorScales.ts `quality_index`). */
-const QI_COLORS = ['#7c3aed', '#a855f7', '#ef4444', '#f97316', '#facc15', '#84cc16', '#22c55e', '#14b8a6'];
+// MUST match LAYERS['quality_index'].colors in src/utils/colorScales.ts — this is a
+// deliberate duplicate so the card renderer stays dependency-free for both the build
+// and the runtime shortlist card. qualityRampParity.test.ts fails if they drift.
+const QI_COLORS = ['#991b1b', '#dc2626', '#ea580c', '#f59e0b', '#facc15', '#a3e635', '#22c55e', '#15803d'];
 const QI_STOPS = [0, 14, 28, 43, 57, 71, 86, 100];
 
 /** Pick the score-band colour for a 0–100 quality index (nearest lower stop). */
