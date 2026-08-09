@@ -228,7 +228,14 @@ export const LAYERS: LayerConfig[] = [
   {
     id: 'quality_index',
     labelKey: 'layer.quality_index',
-    property: 'quality_display',
+    // Paints the raw composite, NOT quality_display. Pointing this at the display value
+    // blanked the all-Finland view: that view paints 69 per-region aggregate features
+    // from metroAreas.ts, and they did not carry the property. Giving the regions a
+    // quality_display did not fix it either, so the aggregate path has a second cause
+    // that is not yet understood — until it is, the map stays on the property every
+    // producer is known to set. The panel/profile still follow the selected scale, so
+    // in the default 'raw' mode (where display === composite) they agree with the map.
+    property: 'quality_index',
     unit: '',
     // Red → green. The previous ramp opened on purple/violet, which reads as
     // "special" rather than "bad" for a quality verdict. Kept at 8 stops: the ramp
