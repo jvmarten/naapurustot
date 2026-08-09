@@ -21,7 +21,13 @@ import {
   type Bbox,
   type PreparedBuilding,
 } from './shadows';
-import { resolveBuildings, planCoverage, type CoveragePlan, type HeightSource } from './buildingShards';
+import {
+  resolveBuildings,
+  canopyFromShard,
+  planCoverage,
+  type CoveragePlan,
+  type HeightSource,
+} from './buildingShards';
 import {
   loadHeightField,
   terrainShadowMask,
@@ -267,10 +273,78 @@ function readStoredFeeds(): Set<string> {
   }
 }
 
+/**
+ * One labelled number in the sun readout, reserved at its widest value.
+ *
+ * THE POINT IS THE FIXED WIDTH, not the styling. These sit in the same flex row
+ * as the time scrubber, which is `flex-1` and therefore absorbs any width the
+ * rest of the row gives up. Every one of these values changes character count as
+ * you scrub — altitude crosses zero and gains a minus sign, azimuth runs 9° to
+ * 360°, the shadow ratio flips between a number and a dash — so the readout kept
+ * resizing and the slider grew and shrank underneath the user's own cursor. The
+ * track moving while you drag it is a nasty thing to do to a control that exists
+ * to be dragged.
+ *
+ * `tabular-nums` alone does not fix it: it equalises digit WIDTHS, not digit
+ * COUNTS. The reservation is what makes the row's width independent of the time
+ * being shown, and `ch` is the natural unit for it once the digits are tabular.
+ */
+const SunStat: React.FC<{ label: string; width: string; children: React.ReactNode }> = ({
+  label,
+  width,
+  children,
+}) => (
+  <span className="whitespace-nowrap">
+    {label}:{' '}
+    <b
+      className="inline-block text-right tabular-nums text-surface-900 dark:text-white"
+      style={{ minWidth: width }}
+    >
+      {children}
+    </b>
+  </span>
+);
+
+/**
+ * The shadow-length multiplier, formatted so it cannot run away.
+ *
+ * It is cot(altitude), which is unbounded: at 0.1° above the horizon a building
+ * casts 573 times its height, and the figure keeps climbing right up to sunset.
+ * Printing it verbatim is both useless — nobody needs three significant figures
+ * of "very long" — and a layout hazard, because no reserved width can hold it.
+ * Past 99 it becomes ">99", which says the same thing in a fixed number of
+ * characters.
+ */
+function formatShadowRatio(ratio: number | null): string {
+  if (ratio === null) return '—';
+  if (ratio > 99) return '>99×';
+  return `${ratio.toFixed(1)}×`;
+}
+
 /** Local wall-clock "HH:MM" for an instant, in the viewer's own zone. */
 function clockTime(date: Date | null): string {
   if (!date) return '—';
-  return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  return timeFormat().format(date);
+}
+
+/**
+ * The one formatter, built once.
+ *
+ * `Date.prototype.toLocaleTimeString` constructs a fresh `Intl.DateTimeFormat`
+ * on every call, and that construction — not the formatting — is the expensive
+ * part. This is called three times per render (clock, sunrise, sunset) and the
+ * footer re-renders on every step of the time scrubber, so it showed up at 3 %
+ * of total profile time while dragging the slider: more than the shadow sweep it
+ * sits next to. Hoisting the formatter makes it a lookup.
+ *
+ * Lazily built rather than at module scope so it picks up the environment's
+ * locale at first use rather than at import, and so it costs nothing on the
+ * pages that never mount /live/.
+ */
+let cachedTimeFormat: Intl.DateTimeFormat | null = null;
+function timeFormat(): Intl.DateTimeFormat {
+  cachedTimeFormat ??= new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' });
+  return cachedTimeFormat;
 }
 
 /**
@@ -348,6 +422,27 @@ function fetchPadMetres(view: Bbox): number {
  */
 let terrainCanvas: HTMLCanvasElement | null = null;
 
+/**
+ * What the cached terrain mask was computed for.
+ *
+ * THE MASK DOES NOT DEPEND ON THE CAMERA. It is a function of the heightfield
+ * and the sun — where the shade falls on the ground does not change because you
+ * panned. But `draw` runs on MapLibre's `render` event, up to sixty times a
+ * second while a drag is in flight, so recomputing it there meant a full O(cells)
+ * sweep plus a fresh 786k-pixel ImageData per frame to arrive at pixels identical
+ * to the previous frame's. Panning was paying the entire terrain cost over and
+ * over to produce the same picture.
+ *
+ * Keyed on the field identity plus the sun, so a scrub (sun moves) recomputes and
+ * a pan (sun does not) reuses. The affine that lands it on screen IS recomputed
+ * every frame — that is three `map.project` calls and it is what actually has to
+ * track the camera.
+ */
+let terrainCacheKey = '';
+let terrainCacheField: HeightField | null = null;
+/** Reused ImageData, so a per-frame recompute does not also allocate megabytes. */
+let terrainPixels: ImageData | null = null;
+
 /** The terrain mask plus the affine that lands it on screen. */
 interface TerrainLayer {
   canvas: HTMLCanvasElement;
@@ -379,8 +474,6 @@ function terrainLayer(
   ink: readonly [number, number, number],
 ): TerrainLayer | null {
   if (!field || sunAltitudeDeg <= 0) return null;
-  const mask = terrainShadowMask(field, sunAltitudeDeg, shadowBearingDeg);
-  if (!mask) return null;
   if (typeof document === 'undefined') return null;
 
   const { width, height, bbox } = field;
@@ -388,24 +481,36 @@ function terrainLayer(
   if (terrainCanvas.width !== width || terrainCanvas.height !== height) {
     terrainCanvas.width = width;
     terrainCanvas.height = height;
+    terrainPixels = null;
+    terrainCacheKey = '';
   }
   const tctx = terrainCanvas.getContext('2d');
   if (!tctx) return null;
 
-  // Inked here rather than left as bare coverage. The merged mask is composited
-  // onto the page in ONE drawImage, so every caster on it has to already carry
-  // the theme's shade colour — a black-filled terrain would come out black next
-  // to the buildings' deep blue instead of joining the same union.
-  const img = tctx.createImageData(width, height);
-  const px = img.data;
-  const [ir, ig, ib] = ink;
-  for (let i = 0, p = 0; i < mask.length; i++, p += 4) {
-    px[p] = ir;
-    px[p + 1] = ig;
-    px[p + 2] = ib;
-    px[p + 3] = mask[i];
+  // Quantised: a tenth of a degree of sun is far below one pixel of shadow
+  // movement at these cell sizes, and rounding is what lets a slow drag of the
+  // time slider reuse the mask between adjacent ticks instead of rebuilding it.
+  const key = `${sunAltitudeDeg.toFixed(1)},${shadowBearingDeg.toFixed(1)},${ink.join()}`;
+  if (terrainCacheField !== field || terrainCacheKey !== key) {
+    const mask = terrainShadowMask(field, sunAltitudeDeg, shadowBearingDeg);
+    if (!mask) return null;
+    // Inked here rather than left as bare coverage. The merged mask is
+    // composited onto the page in ONE drawImage, so every caster on it has to
+    // already carry the theme's shade colour — a black-filled terrain would come
+    // out black next to the buildings' deep blue instead of joining the union.
+    if (!terrainPixels) terrainPixels = tctx.createImageData(width, height);
+    const px = terrainPixels.data;
+    const [ir, ig, ib] = ink;
+    for (let i = 0, p = 0; i < mask.length; i++, p += 4) {
+      px[p] = ir;
+      px[p + 1] = ig;
+      px[p + 2] = ib;
+      px[p + 3] = mask[i];
+    }
+    tctx.putImageData(terrainPixels, 0, 0);
+    terrainCacheField = field;
+    terrainCacheKey = key;
   }
-  tctx.putImageData(img, 0, 0);
 
   const [west, south, east, north] = bbox;
   const nw = map.project([west, north]);
@@ -962,19 +1067,40 @@ export const LivePage: React.FC = () => {
         resolveBuildings(bbox, active.signal)
           .then((result) => {
             preparedRef.current = result.buildings.map(prepareBuilding);
-            preparedCanopyRef.current = result.canopy.map(prepareBuilding);
+            // Trees from the PREVIOUS view are dropped now rather than left to
+            // linger under the new one until their own fetch lands.
+            preparedCanopyRef.current = [];
             cameraKeyRef.current = '';
             loadedRef.current = { bbox, plan };
             setCoverage({
               source: result.source,
               measured: result.measured,
-              canopy: result.canopy.length,
+              canopy: 0,
               osmWithHeight: result.osmWithHeight,
               osmTotal: result.osmTotal,
               partial: result.partial,
             });
             setLoading(false);
             scheduleDraw();
+
+            // Trees follow, without holding the buildings up. Decoding the
+            // canopy shard blocks the main thread for the best part of a second
+            // (see the note in resolveBuildings), and buildings are the caster
+            // worth showing first — so they are already on screen by the time
+            // this resolves, and the trees join them a beat later.
+            canopyFromShard(bbox)
+              .then((canopy) => {
+                // A newer camera already replaced this view; its own canopy load
+                // is the authoritative one.
+                if (active.signal.aborted || loadedRef.current?.bbox !== bbox) return;
+                preparedCanopyRef.current = canopy.map(prepareBuilding);
+                cameraKeyRef.current = '';
+                setCoverage((c) => (c ? { ...c, canopy: canopy.length } : c));
+                scheduleDraw();
+              })
+              .catch(() => {
+                /* buildings-only is a valid picture — see canopyFromShard */
+              });
           })
           .catch((err: unknown) => {
             if ((err as Error)?.name === 'AbortError' && !timedOut) return;
@@ -1175,7 +1301,14 @@ export const LivePage: React.FC = () => {
       <footer className="border-t border-surface-200 px-4 py-3 dark:border-surface-800">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs">
           <label className="flex min-w-[16rem] flex-1 items-center gap-3">
-            <span className="tabular-nums text-surface-600 dark:text-surface-300">{clockTime(when)}</span>
+            {/* Reserved for the same reason as SunStat, and it is not only about
+                digits: in a 12-hour locale this renders "09:35 AM", and A and P
+                are not the same width, so even a fixed digit count moved the
+                slider by a pixel every noon. 8ch holds "12:35 PM"; a 24-hour
+                locale simply leaves the tail empty. */}
+            <span className="inline-block min-w-[8ch] tabular-nums text-surface-600 dark:text-surface-300">
+              {clockTime(when)}
+            </span>
             <input
               type="range"
               min={0}
@@ -1196,26 +1329,26 @@ export const LivePage: React.FC = () => {
 
           {sunOn && (
             <div className="flex flex-wrap gap-x-5 gap-y-1 text-surface-600 dark:text-surface-300">
-              <span>
-                {t('live.sun.altitude')}: <b className="text-surface-900 dark:text-white">{sun.altitude.toFixed(1)}°</b>
-              </span>
-              <span>
-                {t('live.sun.azimuth')}: <b className="text-surface-900 dark:text-white">{sun.azimuth.toFixed(0)}°</b>
-              </span>
-              <span>
-                {t('live.sun.shadow_ratio')}:{' '}
-                <b className="text-surface-900 dark:text-white">{shadowRatio === null ? '—' : `${shadowRatio.toFixed(1)}×`}</b>
-              </span>
-              <span>
-                {t('live.sun.sunrise')}: <b className="text-surface-900 dark:text-white">{clockTime(times.sunrise)}</b>
-              </span>
-              <span>
-                {t('live.sun.sunset')}: <b className="text-surface-900 dark:text-white">{clockTime(times.sunset)}</b>
-              </span>
-              <span>
-                {t('live.sun.day_length')}:{' '}
-                <b className="text-surface-900 dark:text-white">{times.dayLength.toFixed(1)} h</b>
-              </span>
+              {/* Widths are the widest each field can render: "-90.0°", "360°",
+                  ">99×", "00:00", "24.0 h". See SunStat for why they are pinned. */}
+              <SunStat label={t('live.sun.altitude')} width="5.5ch">
+                {sun.altitude.toFixed(1)}°
+              </SunStat>
+              <SunStat label={t('live.sun.azimuth')} width="4ch">
+                {sun.azimuth.toFixed(0)}°
+              </SunStat>
+              <SunStat label={t('live.sun.shadow_ratio')} width="5.5ch">
+                {formatShadowRatio(shadowRatio)}
+              </SunStat>
+              <SunStat label={t('live.sun.sunrise')} width="5ch">
+                {clockTime(times.sunrise)}
+              </SunStat>
+              <SunStat label={t('live.sun.sunset')} width="5ch">
+                {clockTime(times.sunset)}
+              </SunStat>
+              <SunStat label={t('live.sun.day_length')} width="6ch">
+                {times.dayLength.toFixed(1)} h
+              </SunStat>
             </div>
           )}
         </div>

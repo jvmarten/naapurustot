@@ -300,14 +300,6 @@ export function planCoverage(bbox: Bbox): CoveragePlan {
 
 export interface ResolvedBuildings {
   buildings: Building[];
-  /**
-   * Tree canopy, kept OUT of `buildings` on purpose.
-   *
-   * A crown is not a wall: it dapples rather than blocks, so it is drawn in its
-   * own pass at a lower alpha. Merging the two lists would force one opacity on
-   * both and overstate how much light a tree stops.
-   */
-  canopy: Building[];
   /** Buildings in view from the chosen sources, INCLUDING ones with no usable height. */
   total: number;
   source: HeightSource;
@@ -359,12 +351,24 @@ export async function resolveBuildings(
   // given, not the hole between them — so a wide view over a covered city centre
   // still gets its surroundings filled in.
   const askOsm = uncovered.length > 0 && totalAreaKm2(uncovered) <= MAX_OSM_AREA_KM2;
-  // In parallel: the Overpass strips and the region's canopy are independent, and
-  // trees should not wait behind a query that may be queued for a minute.
-  const [osm, canopy] = await Promise.all([
-    askOsm ? fetchBuildings(uncovered, signal) : Promise.resolve({ buildings: [], total: 0 }),
-    canopyFromShard(bbox),
-  ]);
+  //
+  // CANOPY IS NOT AWAITED HERE — the caller fetches it separately.
+  //
+  // It used to be pulled alongside the OSM strips in one Promise.all, so nothing
+  // could be drawn until the trees were ready. Helsinki's canopy shard is 5.9 MB
+  // of TopoJSON over 33,746 polygons, and decoding it blocks the main thread for
+  // seconds — a CPU profile of the zoom that loads it attributes 813 ms to native
+  // JSON parsing alone, against 39 ms for all of prepareBuilding. Holding the
+  // building shadows behind that is the wrong trade in every case: buildings are
+  // the larger and darker caster and they are already in hand.
+  //
+  // Buildings therefore resolve as soon as they can and trees arrive when they
+  // arrive. That is also what this layer already promised — a FAILED canopy load
+  // has always degraded to buildings-only rather than taking the shadows with it,
+  // so a LATE one must not be worse than a failed one.
+  const osm = askOsm
+    ? await fetchBuildings(uncovered, signal)
+    : { buildings: [], total: 0 };
 
   const source: HeightSource = measured.length
     ? osm.buildings.length
@@ -374,7 +378,6 @@ export async function resolveBuildings(
 
   return {
     buildings: measured.length ? [...measured, ...osm.buildings] : osm.buildings,
-    canopy,
     total: measured.length + osm.total,
     source,
     measured: measured.length,
