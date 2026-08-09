@@ -35,6 +35,7 @@ import {
   hasTerrain,
   type HeightField,
 } from './terrain';
+import { fetchTrains, TRAIN_POLL_MS, TRAIN_STALE_MS, type Train } from './trains';
 
 /**
  * /live/ — the realtime surface.
@@ -562,6 +563,140 @@ function paintBuildings(
   }
 }
 
+/**
+ * Train ink, per theme, keyed to the transport group's accent in the sidebar so
+ * the dots on the map and the toggle that switches them on read as one thing.
+ *
+ * The ring is the opposite of the fill rather than a darker shade of it: these
+ * are drawn over shadow, over buildings and over a raster basemap, so the only
+ * thing that keeps a 4.5 px dot legible against all three is a hard edge in the
+ * page's background colour.
+ */
+const TRAIN = {
+  dark: {
+    fill: '#c4b5fd',
+    ring: 'rgba(2, 6, 23, 0.9)',
+    label: '#ddd6fe',
+    halo: 'rgba(2, 6, 23, 0.85)',
+  },
+  light: {
+    fill: '#6d28d9',
+    ring: 'rgba(255, 255, 255, 0.95)',
+    label: '#4c1d95',
+    halo: 'rgba(255, 255, 255, 0.9)',
+  },
+} as const;
+
+const TRAIN_RADIUS_PX = 4.5;
+
+/** Below this, a hundred numbers over a map of Finland is noise, not a label. */
+const TRAIN_LABEL_ZOOM = 10;
+
+/**
+ * Paint the live trains, above every layer of shade.
+ *
+ * DRAWN LAST, AND ON THIS CANVAS RATHER THAN AS A MAPLIBRE LAYER. The overlay
+ * sits on top of the map, so a GeoJSON source would put the trains UNDER the
+ * shadow fill — and under the full-viewport wash the layer paints after sunset,
+ * which at 0.62 alpha would leave a realtime feed barely visible exactly when
+ * someone is most likely to be watching it. Drawing them here costs one
+ * `map.project` per train, and there are ~111 in the whole country.
+ *
+ * No interpolation between fixes — see the note in trains.ts. A dot moves when
+ * the feed says it moved, and a fix too old to trust is drawn hollow instead of
+ * being quietly presented as current.
+ */
+function paintTrains(
+  ctx: CanvasRenderingContext2D,
+  map: MaplibreMap,
+  trains: Train[],
+  now: number,
+  theme: 'dark' | 'light',
+  zoom: number,
+  width: number,
+  height: number,
+): void {
+  if (trains.length === 0) return;
+  const ink = TRAIN[theme];
+  const withLabels = zoom >= TRAIN_LABEL_ZOOM;
+
+  ctx.save();
+  if (withLabels) {
+    ctx.font = '600 11px system-ui, -apple-system, sans-serif';
+    ctx.textBaseline = 'middle';
+  }
+
+  /**
+   * Label boxes already placed this frame, as [x0, y0, x1, y1].
+   *
+   * Trains cluster hard — a dozen of them sit within a few pixels of each other
+   * in a terminus throat — and unsuppressed labels there overprint into a single
+   * illegible smear that reads as one corrupted number rather than as several
+   * trains. Dropping the labels that would collide keeps every DOT (which is the
+   * actual datum) and loses only the duplicate text.
+   *
+   * A flat array scanned linearly, not a spatial index: only on-screen trains at
+   * z >= TRAIN_LABEL_ZOOM get here, which is tens of boxes.
+   */
+  const placed: number[][] = [];
+
+  for (const train of trains) {
+    const p = map.project([train.lon, train.lat]);
+    // A margin rather than a strict viewport test: a dot that is just off-screen
+    // should slide in as you pan, not pop, and its label sits to its right.
+    if (p.x < -40 || p.y < -40 || p.x > width + 40 || p.y > height + 40) continue;
+
+    const stale = train.at !== null && now - train.at > TRAIN_STALE_MS;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, TRAIN_RADIUS_PX, 0, Math.PI * 2);
+    if (stale) {
+      // Hollow: the train reported this position, and we are not claiming it is
+      // still there. A train in a tunnel keeps its last fix in the feed forever.
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = ink.fill;
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = ink.fill;
+      ctx.fill();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = ink.ring;
+      ctx.stroke();
+    }
+
+    if (!withLabels) continue;
+    // The number and the speed are everything this feed knows about a train —
+    // it carries no type or destination (see trains.ts).
+    const text =
+      train.speed !== null && train.speed > 0
+        ? `${train.number} · ${Math.round(train.speed)} km/h`
+        : String(train.number);
+    const x = p.x + TRAIN_RADIUS_PX + 4;
+    const w = ctx.measureText(text).width;
+    // 11 px text, so 6 px either side of the baseline covers the glyph box with
+    // a little air — the gap is what stops two labels reading as one string.
+    const box = [x, p.y - 6, x + w, p.y + 6];
+    let collides = false;
+    for (const other of placed) {
+      if (box[0] < other[2] && box[2] > other[0] && box[1] < other[3] && box[3] > other[1]) {
+        collides = true;
+        break;
+      }
+    }
+    if (collides) continue;
+    placed.push(box);
+
+    // Haloed, because the label crosses lit ground, shadow and building fill
+    // within a single pan and no flat colour stays readable over all three.
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = ink.halo;
+    ctx.strokeText(text, x, p.y);
+    ctx.fillStyle = ink.label;
+    ctx.fillText(text, x, p.y);
+  }
+
+  ctx.restore();
+}
+
 export const LivePage: React.FC = () => {
   useI18nVersion();
   const { theme } = useTheme();
@@ -586,6 +721,14 @@ export const LivePage: React.FC = () => {
   const terrainRef = useRef<HeightField | null>(null);
   /** Which field extent is loaded, so a pan inside it does not refetch. */
   const terrainKeyRef = useRef('');
+  /**
+   * The last polled train positions, nationally.
+   *
+   * A ref for the same reason the footprints are — the draw loop reads it on
+   * every `render` event. The COUNT is state, because it changes once per poll
+   * and belongs in the readout.
+   */
+  const trainsRef = useRef<Train[]>([]);
   /** Pending coalesced repaint, so several triggers in one frame do one draw. */
   const rafRef = useRef(0);
   /** Bumped once the map exists, to re-run the effect that binds its listeners. */
@@ -618,9 +761,17 @@ export const LivePage: React.FC = () => {
    * load — unlike everything else the draw loop touches.
    */
   const [terrainOn, setTerrainOn] = useState(false);
+  /**
+   * What the last train poll returned: how many are running, or that it failed.
+   *
+   * `null` until the first poll lands, which is what the readout shows as
+   * "loading" — distinct from a poll that came back with nothing.
+   */
+  const [trainStatus, setTrainStatus] = useState<{ count: number; failed: boolean } | null>(null);
 
   const shadowsOn = enabled.has('shadows');
   const sunOn = enabled.has('sun_position');
+  const trainsOn = enabled.has('trains');
 
   const sun = useMemo(() => sunPosition(when, center[1], center[0]), [when, center]);
   const times = useMemo(() => sunTimes(when, center[1], center[0]), [when, center]);
@@ -659,174 +810,191 @@ export const LivePage: React.FC = () => {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, width, height);
 
-    if (!shadowsOn) return;
-
-    const shade = SHADE[theme];
-    const buildings = preparedRef.current;
     const zoom = map.getZoom();
 
-    // Re-project every footprint ONCE per camera position. Scrubbing the time
-    // slider then costs four multiply-adds a vertex instead of a projection
-    // call, which is what makes a ten-thousand-building city view scrub at all.
-    const c = map.getCenter();
-    const cameraKey = `${c.lng},${c.lat},${zoom},${map.getBearing()},${width}x${height}`;
-    // BUILDINGS AND TREES SHARE ONE FLOOR, AND BELOW IT NEITHER IS DRAWN.
-    //
-    // They used to have different floors (z12 and z14), so zooming out crossed a
-    // band where a forest silently stopped casting while the buildings beside it
-    // kept going, and the ground the trees had been shading turned bright. Giving
-    // them separate floors is what made that gap possible, so they no longer have
-    // separate floors — the detail layer is one thing that is either drawn or not.
-    //
-    // The floor itself is back after briefly being removed. Removing it meant a
-    // zoomed-out view over Helsinki emitted every one of ~9,000 footprints and
-    // ~34,000 crowns into a single Path2D, and near sunset the sub-pixel cull
-    // cannot help — a 12 km shadow is tens of pixels long however small its caster
-    // is, so nothing gets dropped and all 43,000 sweeps are built every frame.
-    // That is not a shadow map, it is a stall.
-    //
-    // What replaces it is terrain (see `drawTerrainShade`), which is what a
-    // zoomed-out shadow map should be showing anyway: at this range the relief is
-    // the thing casting legible shadows and an individual roof is a pixel.
-    const detail = zoom >= DETAIL_MIN_ZOOM;
-    const buildingsOn = detail ? buildings : EMPTY_PREPARED;
-    const canopy = detail ? preparedCanopyRef.current : EMPTY_PREPARED;
-    if (cameraKeyRef.current !== cameraKey && (buildingsOn.length > 0 || canopy.length > 0)) {
-      cameraKeyRef.current = cameraKey;
-      const transform = cameraAffine(map);
-      const simplifyPx = simplifyPxForZoom(zoom);
-      for (const b of buildingsOn) projectPrepared(b, transform, simplifyPx);
-      for (const c2 of canopy) projectPrepared(c2, transform, simplifyPx * canopySimplifyScale(zoom));
-    }
+    /**
+     * The whole sun pass: shade, then the masses casting it.
+     *
+     * An inner function rather than an early return, because it is no longer
+     * the last thing drawn — the trains go on top of it, and every one of the
+     * three ways this pass can finish (layer off, sun down, sun up) would
+     * otherwise need its own copy of the call that paints them. One exit is
+     * what stops a fourth branch being added later without it.
+     */
+    const paintShade = () => {
+      const shade = SHADE[theme];
+      const buildings = preparedRef.current;
 
-    // The sun is below the horizon: every surface in view is in shade, so the
-    // shade is the whole viewport. Drawing nothing here — which is what this
-    // used to do — says "no data" in the same visual language.
-    if (sun.altitude <= 0) {
-      ctx.fillStyle = `rgba(${shade.ink}, ${nightAlpha(sun.altitude, shade.day, shade.night)})`;
-      ctx.fillRect(0, 0, width, height);
-      paintBuildings(ctx, buildingsOn, theme, zoom, width, height);
-      return;
-    }
-
-    // One screen-space displacement vector per metre of shadow. Mercator scale
-    // varies negligibly across a city-sized viewport, so deriving it once at the
-    // centre is accurate to well under a pixel here and removes the per-vertex
-    // geodesic offset entirely.
-    const bearing = shadowBearing(sun.azimuth);
-    const origin = map.project([c.lng, c.lat]);
-    const probeMetres = 1000;
-    const probe = map.project(offsetPoint(c.lng, c.lat, probeMetres, bearing));
-    const ux = (probe.x - origin.x) / probeMetres;
-    const uy = (probe.y - origin.y) / probeMetres;
-
-    // The screen-space ceiling from MAX_SHADOW_DIAGONALS, converted back into
-    // metres once per frame. `Math.hypot(ux, uy)` is pixels per metre along the
-    // shadow's own direction, so this is the length at which a sweep stops being
-    // able to reach any visible pixel.
-    const pxPerMetre = Math.hypot(ux, uy);
-    const maxDrawMetres =
-      pxPerMetre > 0
-        ? (MAX_SHADOW_DIAGONALS * Math.hypot(width, height)) / pxPerMetre
-        : Infinity;
-
-    /** Accumulate one source's swept shadows into a single path. */
-    const shadowPath = (list: PreparedBuilding[]): Path2D | null => {
-      const p = new Path2D();
-      let any = false;
-      for (const b of list) {
-        if (b.sn < 4) continue;
-        const metres = Math.min(shadowLengthMetres(b.height, sun.altitude), maxDrawMetres);
-        if (metres <= 0) continue;
-        const dx = ux * metres;
-        const dy = uy * metres;
-        if (Math.max(b.maxX, b.maxX + dx) < 0 || Math.min(b.minX, b.minX + dx) > width) continue;
-        if (Math.max(b.maxY, b.maxY + dy) < 0 || Math.min(b.minY, b.minY + dy) > height) continue;
-        if (
-          b.maxX - b.minX + Math.abs(dx) < MIN_FEATURE_PX &&
-          b.maxY - b.minY + Math.abs(dy) < MIN_FEATURE_PX
-        ) {
-          continue;
-        }
-        emitSweptFlat(p, b.sx, b.sy, b.sn, dx, dy);
-        any = true;
+      // Re-project every footprint ONCE per camera position. Scrubbing the time
+      // slider then costs four multiply-adds a vertex instead of a projection
+      // call, which is what makes a ten-thousand-building city view scrub at all.
+      const c = map.getCenter();
+      const cameraKey = `${c.lng},${c.lat},${zoom},${map.getBearing()},${width}x${height}`;
+      // BUILDINGS AND TREES SHARE ONE FLOOR, AND BELOW IT NEITHER IS DRAWN.
+      //
+      // They used to have different floors (z12 and z14), so zooming out crossed a
+      // band where a forest silently stopped casting while the buildings beside it
+      // kept going, and the ground the trees had been shading turned bright. Giving
+      // them separate floors is what made that gap possible, so they no longer have
+      // separate floors — the detail layer is one thing that is either drawn or not.
+      //
+      // The floor itself is back after briefly being removed. Removing it meant a
+      // zoomed-out view over Helsinki emitted every one of ~9,000 footprints and
+      // ~34,000 crowns into a single Path2D, and near sunset the sub-pixel cull
+      // cannot help — a 12 km shadow is tens of pixels long however small its caster
+      // is, so nothing gets dropped and all 43,000 sweeps are built every frame.
+      // That is not a shadow map, it is a stall.
+      //
+      // What replaces it is terrain (see `drawTerrainShade`), which is what a
+      // zoomed-out shadow map should be showing anyway: at this range the relief is
+      // the thing casting legible shadows and an individual roof is a pixel.
+      const detail = zoom >= DETAIL_MIN_ZOOM;
+      const buildingsOn = detail ? buildings : EMPTY_PREPARED;
+      const canopy = detail ? preparedCanopyRef.current : EMPTY_PREPARED;
+      if (cameraKeyRef.current !== cameraKey && (buildingsOn.length > 0 || canopy.length > 0)) {
+        cameraKeyRef.current = cameraKey;
+        const transform = cameraAffine(map);
+        const simplifyPx = simplifyPxForZoom(zoom);
+        for (const b of buildingsOn) projectPrepared(b, transform, simplifyPx);
+        for (const c2 of canopy) projectPrepared(c2, transform, simplifyPx * canopySimplifyScale(zoom));
       }
-      return any ? p : null;
+
+      // The sun is below the horizon: every surface in view is in shade, so the
+      // shade is the whole viewport. Drawing nothing here — which is what this
+      // used to do — says "no data" in the same visual language.
+      if (sun.altitude <= 0) {
+        ctx.fillStyle = `rgba(${shade.ink}, ${nightAlpha(sun.altitude, shade.day, shade.night)})`;
+        ctx.fillRect(0, 0, width, height);
+        paintBuildings(ctx, buildingsOn, theme, zoom, width, height);
+        return;
+      }
+
+      // One screen-space displacement vector per metre of shadow. Mercator scale
+      // varies negligibly across a city-sized viewport, so deriving it once at the
+      // centre is accurate to well under a pixel here and removes the per-vertex
+      // geodesic offset entirely.
+      const bearing = shadowBearing(sun.azimuth);
+      const origin = map.project([c.lng, c.lat]);
+      const probeMetres = 1000;
+      const probe = map.project(offsetPoint(c.lng, c.lat, probeMetres, bearing));
+      const ux = (probe.x - origin.x) / probeMetres;
+      const uy = (probe.y - origin.y) / probeMetres;
+
+      // The screen-space ceiling from MAX_SHADOW_DIAGONALS, converted back into
+      // metres once per frame. `Math.hypot(ux, uy)` is pixels per metre along the
+      // shadow's own direction, so this is the length at which a sweep stops being
+      // able to reach any visible pixel.
+      const pxPerMetre = Math.hypot(ux, uy);
+      const maxDrawMetres =
+        pxPerMetre > 0
+          ? (MAX_SHADOW_DIAGONALS * Math.hypot(width, height)) / pxPerMetre
+          : Infinity;
+
+      /** Accumulate one source's swept shadows into a single path. */
+      const shadowPath = (list: PreparedBuilding[]): Path2D | null => {
+        const p = new Path2D();
+        let any = false;
+        for (const b of list) {
+          if (b.sn < 4) continue;
+          const metres = Math.min(shadowLengthMetres(b.height, sun.altitude), maxDrawMetres);
+          if (metres <= 0) continue;
+          const dx = ux * metres;
+          const dy = uy * metres;
+          if (Math.max(b.maxX, b.maxX + dx) < 0 || Math.min(b.minX, b.minX + dx) > width) continue;
+          if (Math.max(b.maxY, b.maxY + dy) < 0 || Math.min(b.minY, b.minY + dy) > height) continue;
+          if (
+            b.maxX - b.minX + Math.abs(dx) < MIN_FEATURE_PX &&
+            b.maxY - b.minY + Math.abs(dy) < MIN_FEATURE_PX
+          ) {
+            continue;
+          }
+          emitSweptFlat(p, b.sx, b.sy, b.sn, dx, dy);
+          any = true;
+        }
+        return any ? p : null;
+      };
+
+      const canopyShade = canopy.length ? shadowPath(canopy) : null;
+
+      // ONE path for every ring of every building — see the file header for why
+      // this is not a per-polygon fill.
+      const path = shadowPath(buildingsOn) ?? new Path2D();
+
+      // Relief, rasterised from the heightfield rather than swept as polygons.
+      // Terrain has no footprint to extrude — it is a continuous surface, so its
+      // shadow is a per-cell occlusion test, not a silhouette. See terrain.ts.
+      const terrain = terrainLayer(terrainRef.current, sun.altitude, bearing, map, shade.rgb);
+
+      // SHADE IS A UNION, NOT A STACK.
+      //
+      // Both casters used to be filled straight onto the canvas, one after the
+      // other, so ground that was under a tree AND a building got painted twice
+      // and alpha-composited to something darker than either — 0.28 over 0.182
+      // reads as 0.41. That put a visibly darker patch wherever a canopy happened
+      // to overlap a building's shadow, which is not a real optical effect: a
+      // point is either lit or it is not, and a second occluder behind the first
+      // changes nothing. Shade is binary; only its SOURCE varies in how much light
+      // it stops.
+      //
+      // So the two are merged first, on a scratch canvas, where the building fill
+      // is fully opaque and therefore SATURATES rather than accumulates. The merged
+      // alpha is max(building, canopy), and one composite at `shade.day` puts it on
+      // screen: building shade at the full tone, canopy-only at CANOPY_ALPHA_SCALE
+      // of it, overlap at the building tone exactly.
+      //
+      // Only when there is something to merge — a viewport with buildings alone
+      // keeps the direct single fill, which is cheaper by a full-viewport drawImage.
+      const needsMask = canopyShade !== null || terrain !== null;
+      const mask = needsMask ? ensureMask(canvas.width, canvas.height) : null;
+      const mctx = mask?.getContext('2d') ?? null;
+      if (needsMask && mctx) {
+        mctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        mctx.clearRect(0, 0, width, height);
+        // Weakest caster first, so the opaque ones below saturate over it.
+        if (canopyShade) {
+          mctx.fillStyle = `rgba(${shade.ink}, ${CANOPY_ALPHA_SCALE})`;
+          mctx.fill(canopyShade, 'nonzero');
+        }
+        if (terrain) {
+          // A hill is not a crown: it stops light completely, so relief goes in at
+          // the same full weight as a wall.
+          //
+          // Drawn through the field's own Mercator->screen transform rather than
+          // stretched to the viewport, so it stays registered under rotation and
+          // when the field extends past the screen edge. Smoothing is on because
+          // the mask is computed at roughly a third of screen resolution AND
+          // because a terrain shadow's edge is genuinely soft — cast by a slope,
+          // not by a wall — so the interpolation is the correct appearance rather
+          // than a concession to it.
+          mctx.save();
+          mctx.imageSmoothingEnabled = true;
+          mctx.imageSmoothingQuality = 'high';
+          mctx.transform(terrain.a, terrain.b, terrain.c, terrain.d, terrain.e, terrain.f);
+          mctx.drawImage(terrain.canvas, 0, 0);
+          mctx.restore();
+        }
+        // Opaque: this is what makes an overlap saturate to the full tone instead
+        // of summing with whatever is already underneath it.
+        mctx.fillStyle = `rgb(${shade.ink})`;
+        mctx.fill(path, 'nonzero');
+        ctx.globalAlpha = shade.day;
+        ctx.drawImage(mask!, 0, 0, width, height);
+        ctx.globalAlpha = 1;
+      } else {
+        ctx.fillStyle = `rgba(${shade.ink}, ${shade.day})`;
+        ctx.fill(path, 'nonzero');
+      }
+
+      paintBuildings(ctx, buildingsOn, theme, zoom, width, height);
     };
 
-    const canopyShade = canopy.length ? shadowPath(canopy) : null;
-
-    // ONE path for every ring of every building — see the file header for why
-    // this is not a per-polygon fill.
-    const path = shadowPath(buildingsOn) ?? new Path2D();
-
-    // Relief, rasterised from the heightfield rather than swept as polygons.
-    // Terrain has no footprint to extrude — it is a continuous surface, so its
-    // shadow is a per-cell occlusion test, not a silhouette. See terrain.ts.
-    const terrain = terrainLayer(terrainRef.current, sun.altitude, bearing, map, shade.rgb);
-
-    // SHADE IS A UNION, NOT A STACK.
-    //
-    // Both casters used to be filled straight onto the canvas, one after the
-    // other, so ground that was under a tree AND a building got painted twice
-    // and alpha-composited to something darker than either — 0.28 over 0.182
-    // reads as 0.41. That put a visibly darker patch wherever a canopy happened
-    // to overlap a building's shadow, which is not a real optical effect: a
-    // point is either lit or it is not, and a second occluder behind the first
-    // changes nothing. Shade is binary; only its SOURCE varies in how much light
-    // it stops.
-    //
-    // So the two are merged first, on a scratch canvas, where the building fill
-    // is fully opaque and therefore SATURATES rather than accumulates. The merged
-    // alpha is max(building, canopy), and one composite at `shade.day` puts it on
-    // screen: building shade at the full tone, canopy-only at CANOPY_ALPHA_SCALE
-    // of it, overlap at the building tone exactly.
-    //
-    // Only when there is something to merge — a viewport with buildings alone
-    // keeps the direct single fill, which is cheaper by a full-viewport drawImage.
-    const needsMask = canopyShade !== null || terrain !== null;
-    const mask = needsMask ? ensureMask(canvas.width, canvas.height) : null;
-    const mctx = mask?.getContext('2d') ?? null;
-    if (needsMask && mctx) {
-      mctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      mctx.clearRect(0, 0, width, height);
-      // Weakest caster first, so the opaque ones below saturate over it.
-      if (canopyShade) {
-        mctx.fillStyle = `rgba(${shade.ink}, ${CANOPY_ALPHA_SCALE})`;
-        mctx.fill(canopyShade, 'nonzero');
-      }
-      if (terrain) {
-        // A hill is not a crown: it stops light completely, so relief goes in at
-        // the same full weight as a wall.
-        //
-        // Drawn through the field's own Mercator->screen transform rather than
-        // stretched to the viewport, so it stays registered under rotation and
-        // when the field extends past the screen edge. Smoothing is on because
-        // the mask is computed at roughly a third of screen resolution AND
-        // because a terrain shadow's edge is genuinely soft — cast by a slope,
-        // not by a wall — so the interpolation is the correct appearance rather
-        // than a concession to it.
-        mctx.save();
-        mctx.imageSmoothingEnabled = true;
-        mctx.imageSmoothingQuality = 'high';
-        mctx.transform(terrain.a, terrain.b, terrain.c, terrain.d, terrain.e, terrain.f);
-        mctx.drawImage(terrain.canvas, 0, 0);
-        mctx.restore();
-      }
-      // Opaque: this is what makes an overlap saturate to the full tone instead
-      // of summing with whatever is already underneath it.
-      mctx.fillStyle = `rgb(${shade.ink})`;
-      mctx.fill(path, 'nonzero');
-      ctx.globalAlpha = shade.day;
-      ctx.drawImage(mask!, 0, 0, width, height);
-      ctx.globalAlpha = 1;
-    } else {
-      ctx.fillStyle = `rgba(${shade.ink}, ${shade.day})`;
-      ctx.fill(path, 'nonzero');
+    if (shadowsOn) paintShade();
+    // Last, and above the shade — see paintTrains for why they are not a
+    // MapLibre layer.
+    if (trainsOn) {
+      paintTrains(ctx, map, trainsRef.current, Date.now(), theme, zoom, width, height);
     }
-
-    paintBuildings(ctx, buildingsOn, theme, zoom, width, height);
-  }, [shadowsOn, sun.altitude, sun.azimuth, theme]);
+  }, [shadowsOn, trainsOn, sun.altitude, sun.azimuth, theme]);
 
   /**
    * Always-current `draw`, so the map listeners can be bound ONCE.
@@ -1132,6 +1300,84 @@ export const LivePage: React.FC = () => {
     // owns the abort controller and re-running it cancels an in-flight request.
   }, [scheduleDraw, mapReady, shadowsOn]);
 
+  /**
+   * Poll the national train feed while the layer is on.
+   *
+   * NOT KEYED ON THE CAMERA, deliberately — unlike the buildings above. The
+   * whole country is 2.4 kB gzipped, so there is nothing to save by scoping the
+   * query to the viewport and something real to lose: a bbox query has to re-run
+   * on every pan, and the trains would arrive a beat after the map settles
+   * instead of already being there. The set in hand is national, so panning and
+   * zooming are pure draw-time filtering.
+   *
+   * POLLING STOPS WHILE THE TAB IS HIDDEN. This is a page people leave open, and
+   * an abandoned tab quietly asking a free public endpoint for data nobody is
+   * looking at, every five seconds, forever, is not a reasonable thing to ship.
+   * It resumes on `visibilitychange` rather than waiting out the interval, so
+   * coming back to the tab shows current positions immediately.
+   */
+  useEffect(() => {
+    if (!trainsOn) {
+      // Drop the positions rather than leaving them to be redrawn by the next
+      // frame — switching a layer off has to actually clear it.
+      trainsRef.current = [];
+      setTrainStatus(null);
+      scheduleDraw();
+      return;
+    }
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let controller: AbortController | null = null;
+    let stopped = false;
+
+    // Clears any pending timer first, so a visibility-driven tick and an
+    // in-flight one cannot leave two of them running at twice the poll rate.
+    const schedule = () => {
+      if (stopped) return;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => void tick(), TRAIN_POLL_MS);
+    };
+
+    const tick = async () => {
+      if (typeof document !== 'undefined' && document.hidden) {
+        schedule();
+        return;
+      }
+      controller?.abort();
+      const active = new AbortController();
+      controller = active;
+      try {
+        const list = await fetchTrains(active.signal);
+        if (stopped || active.signal.aborted) return;
+        trainsRef.current = list;
+        setTrainStatus({ count: list.length, failed: false });
+        scheduleDraw();
+      } catch (err) {
+        if ((err as Error)?.name === 'AbortError' || stopped) return;
+        // The positions already on screen are kept. A failed poll means we do
+        // not know where the trains are NOW, not that they have vanished — and
+        // the next poll is five seconds away, so blanking the layer would make
+        // a single dropped request look like the feed going down.
+        setTrainStatus((prev) => ({ count: prev?.count ?? 0, failed: true }));
+      } finally {
+        schedule();
+      }
+    };
+
+    const onVisibility = () => {
+      if (!document.hidden) void tick();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    void tick();
+
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+      controller?.abort();
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [trainsOn, scheduleDraw]);
+
   useEffect(() => {
     scheduleDraw();
   }, [draw, scheduleDraw]);
@@ -1272,27 +1518,45 @@ export const LivePage: React.FC = () => {
               it is, because an empty map means four different things here:
               zoomed too far out, sun below the horizon, Overpass unreachable, or
               genuinely no buildings with height data. */}
-          {shadowsOn && (
-            <div className="absolute left-3 top-3 max-w-xs rounded-lg bg-white/90 px-3 py-2 text-xs leading-relaxed shadow-sm ring-1 ring-surface-200 dark:bg-surface-950/85 dark:ring-surface-800">
-              {sun.altitude <= 0 ? (
-                <span className="text-surface-600 dark:text-surface-300">
-                  {times.polar === 'night' ? t('live.shadow.polar_night') : t('live.shadow.sun_down')}
-                </span>
-              ) : tooCoarse ? (
-                <span className="text-surface-600 dark:text-surface-300">
-                  {/* "Zoom in" was the only thing this could say when nothing was
-                      drawn out here. Relief IS drawn now, so saying the layer is
-                      blank would be false — it states what is being cast and what
-                      is still to come. */}
-                  {terrainOn ? t('live.shadow.terrain_only') : t('live.shadow.zoom_in')}
-                </span>
-              ) : loading ? (
-                <span className="text-surface-600 dark:text-surface-300">{t('live.shadow.loading')}</span>
-              ) : fetchFailed ? (
-                <span className="text-amber-600 dark:text-amber-400">{t('live.shadow.failed')}</span>
-              ) : coverageText ? (
-                <span className="text-surface-600 dark:text-surface-300">{coverageText}</span>
-              ) : null}
+          {(shadowsOn || trainsOn) && (
+            <div className="absolute left-3 top-3 max-w-xs space-y-1 rounded-lg bg-white/90 px-3 py-2 text-xs leading-relaxed shadow-sm ring-1 ring-surface-200 dark:bg-surface-950/85 dark:ring-surface-800">
+              {shadowsOn && (
+                sun.altitude <= 0 ? (
+                  <p className="text-surface-600 dark:text-surface-300">
+                    {times.polar === 'night' ? t('live.shadow.polar_night') : t('live.shadow.sun_down')}
+                  </p>
+                ) : tooCoarse ? (
+                  <p className="text-surface-600 dark:text-surface-300">
+                    {/* "Zoom in" was the only thing this could say when nothing was
+                        drawn out here. Relief IS drawn now, so saying the layer is
+                        blank would be false — it states what is being cast and what
+                        is still to come. */}
+                    {terrainOn ? t('live.shadow.terrain_only') : t('live.shadow.zoom_in')}
+                  </p>
+                ) : loading ? (
+                  <p className="text-surface-600 dark:text-surface-300">{t('live.shadow.loading')}</p>
+                ) : fetchFailed ? (
+                  <p className="text-amber-600 dark:text-amber-400">{t('live.shadow.failed')}</p>
+                ) : coverageText ? (
+                  <p className="text-surface-600 dark:text-surface-300">{coverageText}</p>
+                ) : null
+              )}
+
+              {/* The train feed states its own three cases for the same reason
+                  the shadow layer does: a map with no dots on it means "still
+                  asking", "asked and could not reach Fintraffic", or "asked, and
+                  this is genuinely everything running in Finland right now". */}
+              {trainsOn && (
+                trainStatus === null ? (
+                  <p className="text-surface-600 dark:text-surface-300">{t('live.trains.loading')}</p>
+                ) : trainStatus.failed ? (
+                  <p className="text-amber-600 dark:text-amber-400">{t('live.trains.failed')}</p>
+                ) : (
+                  <p className="text-surface-600 dark:text-surface-300">
+                    {t('live.trains.count').replace('{n}', String(trainStatus.count))}
+                  </p>
+                )
+              )}
             </div>
           )}
         </div>

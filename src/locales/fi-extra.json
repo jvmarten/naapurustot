@@ -93,5 +93,8 @@
   "live.shadow.coverage_partial": "{n} rakennusta mitatulla korkeudella. Tällä zoom-tasolla näkyy vain kaupunkimallin alue – lähennä, niin muutkin rakennukset tulevat mukaan.",
   "live.shadow.canopy": "Mukana {n} puustokuviota (HSY, mitattu latvuskorkeus).",
   "live.shadow.terrain": "Mukana maaston muodot (korkeusmalli).",
-  "live.shadow.terrain_only": "Näytetään maaston varjot. Lähennä, niin näet rakennusten ja puiden varjot."
+  "live.shadow.terrain_only": "Näytetään maaston varjot. Lähennä, niin näet rakennusten ja puiden varjot.",
+  "live.trains.loading": "Haetaan junia…",
+  "live.trains.failed": "Junien sijainteja ei saatu haettua. Yritetään uudelleen.",
+  "live.trains.count": "{n} junaa liikkeellä Suomessa. Lähde: Fintraffic / Digitraffic (CC BY 4.0)."
 }
