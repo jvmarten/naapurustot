@@ -520,7 +520,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
   const saved = isFavorite(d.pno);
   const avg = state.metroAverages;
   const center = getFeatureCenter(state.geoFeature ?? state.feature);
-  const qi = d.quality_index != null ? Math.round(d.quality_index) : null;
+  const qi = (d.quality_display ?? d.quality_index) != null ? Math.round((d.quality_display ?? d.quality_index)!) : null;
   // computeQualityIndices mutates the shared dataLoader cache in place, so arriving
   // here from the map or the wizard carries the visitor's own weighting onto a page
   // that otherwise presents the published four-dimension methodology. Say so rather

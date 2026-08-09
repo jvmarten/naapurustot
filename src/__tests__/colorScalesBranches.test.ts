@@ -12,7 +12,9 @@ describe('getLayerById', () => {
   it('returns the matching layer for a valid id', () => {
     const layer = getLayerById('quality_index');
     expect(layer.id).toBe('quality_index');
-    expect(layer.property).toBe('quality_index');
+    // The layer keeps its id but paints quality_display, the composite as presented
+    // under the selected display scale (qualityScale.ts).
+    expect(layer.property).toBe('quality_display');
   });
 
   it('returns first layer as fallback for unknown id', () => {

@@ -712,6 +712,15 @@
       "stored": false,
       "panel": false
     },
+    "quality_display": {
+      "source": "naapurustot.fi (koostettu)",
+      "publisher": "naapurustot",
+      "vintage": 2026,
+      "granularity": "derived",
+      "is_proxy": false,
+      "stored": false,
+      "panel": false
+    },
     "radon": {
       "source": "Säteilyturvakeskus (STUK), pientalojen radonpitoisuudet postinumeroalueittain",
       "publisher": "stuk",

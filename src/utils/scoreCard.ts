@@ -58,7 +58,7 @@ export async function generateScoreCard(
   data: NeighborhoodProperties,
   metroAverages: Record<string, number>,
 ): Promise<void> {
-  const qi = data.quality_index;
+  const qi = data.quality_display ?? data.quality_index;
   const cat = qi != null ? getQualityCategory(qi) : null;
 
   // Build the card HTML

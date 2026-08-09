@@ -32,6 +32,7 @@ const DYNAMIC_PREFIXES = [
   'wizard.foreigners_',  // NeighborhoodWizard → `wizard.foreigners_${pref}`
   'wizard.preset_',      // NeighborhoodWizard → `wizard.preset_${key}` (quick-start intents)
   'settings.theme_',     // SettingsDropdown → `settings.theme_${mode}`
+  'settings.quality_scale_', // SettingsDropdown → `settings.quality_scale_${mode}(_help)`
   'correlation.sig_',    // CorrelationExplorer → `correlation.sig_${sig}`
   'city.',               // region names → `city.${regionId}` (69 regions)
   'error.',              // NeighborhoodProfilePage → `error.${code}`

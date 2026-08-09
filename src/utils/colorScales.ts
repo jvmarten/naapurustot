@@ -228,7 +228,7 @@ export const LAYERS: LayerConfig[] = [
   {
     id: 'quality_index',
     labelKey: 'layer.quality_index',
-    property: 'quality_index',
+    property: 'quality_display',
     unit: '',
     // Red → green. The previous ramp opened on purple/violet, which reads as
     // "special" rather than "bad" for a quality verdict. Kept at 8 stops: the ramp

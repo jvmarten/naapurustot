@@ -30,6 +30,7 @@ PROVENANCE_PATH = Path(__file__).resolve().parent / "provenance.json"
 # that have no upstream fetch (and therefore no fetched vintage to cross-check).
 EXEMPT_FROM_PROVENANCE = {
     "quality_index",  # composite of other layers, computed client-side (stored: false)
+    "quality_display",  # the composite under the selected display scale, likewise derived
 }
 
 # ── Feature count bounds ─────────────────────────────────────────────
