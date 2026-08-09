@@ -2,6 +2,11 @@ name: Deploy to GitHub Pages
 
 on:
   workflow_dispatch:
+    inputs:
+      watchdog_retry:
+        description: 'Set only by deploy-watchdog when it replaces a wedged run. Stops a replacement from dispatching another one.'
+        type: boolean
+        default: false
   workflow_run:
     workflows: ["CI"]
     types:
@@ -12,6 +17,13 @@ permissions:
   pages: write
   id-token: write
 
+# Deploys serialize rather than supersede. `cancel-in-progress: true` would clear a
+# wedged run automatically, but it would also let a burst of merges starve the site:
+# each new dispatch would kill a build already minutes in, and with several Claude
+# sessions merging through auto-merge.yml a cold ~7-minute build can easily be
+# superseded before it publishes. The wedge is handled by the deploy-watchdog job
+# below, which cancels only when the deploy job is provably stuck — so ordering stays
+# safe AND the queue still clears itself.
 concurrency:
   group: pages
   cancel-in-progress: false
@@ -142,6 +154,114 @@ jobs:
           # this repo controls, so give it real headroom — this timeout exists to stop a
           # genuinely stuck deployment, not to police a slow one.
           timeout: 1200000 # 20 min
+
+  # A job carrying an `environment:` does not start until GitHub grants it that
+  # environment, and `timeout-minutes` does NOT cover that wait: it measures execution,
+  # and a job still waiting on an environment has not begun executing. So the 30-minute
+  # cap on `deploy` above cannot bound the failure this job exists for. Nothing inside
+  # the workflow can.
+  #
+  # Measured, run 31307093810 (2026-08-09): `build` succeeded at 10:03:02; the `deploy`
+  # job was created at 10:03:02 and then sat at `status: "queued"` with `runner_id: 0`
+  # and no steps until a human cancelled it at 11:47:05 — 1 h 44 m under that 30-minute
+  # cap. It is not a capacity problem: the sibling `build` job is assigned a runner in
+  # 2-3 s on this repo, so a `deploy` job with no runner is waiting on `github-pages`.
+  #
+  # The cost is a full stop, not a slow deploy. `concurrency: pages` is workflow-level
+  # with cancel-in-progress:false, so every later deploy waits for this run to END — the
+  # next run (dispatched 10:08:43) did not start its BUILD until 11:47:08 — and GitHub
+  # keeps only ONE pending run per group, so a third dispatch silently drops the second.
+  # With several sessions merging through auto-merge.yml, that is merges landing on main
+  # and never reaching visitors.
+  #
+  # Cancelling the head run clears it in seconds (cancel 11:47:05 -> next run's build
+  # 11:47:08 -> deployed 11:50:50). That cancel is the entire remedy and it was being
+  # done by hand; this job does it instead.
+  deploy-watchdog:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # A watchdog hiccup (API 500, rate limit) must never turn an otherwise healthy
+    # deploy red — this job only ever removes a blockage, so failing it is worse noise
+    # than skipping it.
+    continue-on-error: true
+    permissions:
+      actions: write
+      issues: write
+    steps:
+      - name: Cancel this run if the deploy job never gets the environment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # How long `deploy` may sit in `queued` before we call it wedged. The healthy
+          # transition is ~3 s, so 8 minutes is far outside normal without being
+          # trigger-happy on a slow morning.
+          STUCK_MINUTES: '8'
+          WATCHDOG_RETRY: ${{ inputs.watchdog_retry }}
+        run: |
+          set -u
+          jobs_api="repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs"
+          deadline=$(( $(date +%s) + STUCK_MINUTES * 60 ))
+          status=""
+
+          while :; do
+            # Exactly one job is named `deploy` (deploy-watchdog does not match), so this
+            # yields a single line. An API blip yields an empty one — handled below.
+            status=$(gh api "$jobs_api" --jq '.jobs[] | select(.name == "deploy") | .status' || echo "")
+            case "$status" in
+              in_progress|completed)
+                echo "deploy job is '$status' — nothing to unstick"
+                exit 0
+                ;;
+            esac
+            [ "$(date +%s)" -ge "$deadline" ] && break
+            sleep 20
+          done
+
+          # Only act on a state we actually observed. If the last poll failed we do not
+          # know the job is stuck, and cancelling a healthy production deploy on the
+          # strength of a failed API call would be a far worse bug than the wedge.
+          if [ "$status" != "queued" ]; then
+            echo "could not confirm a wedge (last observed status: '${status:-unknown}') — leaving this run alone"
+            exit 0
+          fi
+
+          echo "::warning::deploy job has been queued ${STUCK_MINUTES}m with no runner — treating the github-pages environment as wedged"
+
+          # Queue the replacement BEFORE cancelling: a run dispatched now waits at the
+          # `pages` gate and starts the moment this run ends, which is exactly the
+          # measured recovery. Dispatching after the cancel would race the cancel.
+          #
+          # But GitHub keeps exactly ONE pending run per concurrency group, so
+          # dispatching while another deploy is already in line would CANCEL that one
+          # rather than add to the queue. Only dispatch when nothing is waiting.
+          waiting=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/deploy.yml/runs?per_page=50" \
+            --jq '[.workflow_runs[]
+                   | select((.id | tostring) != env.GITHUB_RUN_ID)
+                   | select(.status == "queued" or .status == "pending"
+                            or .status == "waiting" or .status == "in_progress")]
+                  | length' || echo "0")
+
+          if [ "${waiting:-0}" -gt 0 ]; then
+            echo "$waiting deploy run(s) already queued behind this one — they start as soon as this run ends"
+          elif [ "$WATCHDOG_RETRY" = "true" ]; then
+            # A replacement that wedges too means the environment is not recovering, so a
+            # third would just burn another cycle. Escalate to a human instead.
+            echo "::error::this run was itself a watchdog replacement and wedged again — not dispatching a third"
+            gh issue create --repo "$GITHUB_REPOSITORY" \
+              --title "Pages deploy wedged twice on the github-pages environment" \
+              --body "deploy.yml run ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} was dispatched by deploy-watchdog to replace an earlier wedged run, and its own \`deploy\` job also sat in \`queued\` for ${STUCK_MINUTES} minutes without a runner.
+
+          The published site is now STALE: every merge to main since the last successful deploy is not live. Two consecutive wedges means the \`github-pages\` environment is not clearing on its own — check https://www.githubstatus.com/ and re-run deploy.yml once Pages is healthy." \
+              || echo "::warning::could not open an issue for the repeated wedge"
+          else
+            echo "nothing queued behind this run — dispatching a replacement before cancelling"
+            gh workflow run deploy.yml --ref main -f watchdog_retry=true \
+              || echo "::warning::replacement dispatch failed — the next merge to main will deploy instead"
+          fi
+
+          # Cancel LAST. This kills the watchdog job too, so nothing after it runs.
+          echo "cancelling run $GITHUB_RUN_ID to release the github-pages environment"
+          gh api -X POST "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/cancel"
 
   # Nothing anywhere watched these workflows. There is no PR to annotate and no
   # webhook, and the only two `if: failure()` steps in the whole tree were an

@@ -15,6 +15,7 @@
     "bundle:check": "node scripts/check-bundle-size.mjs",
     "audit:check": "node scripts/check-audit.mjs",
     "dist:check": "node scripts/check-dist-size.mjs --profile pages",
+    "queue:check": "node scripts/check-actions-queue.mjs",
     "test:e2e": "playwright test --project=e2e --project=mobile",
     "test:visual": "playwright test --project=visual",
     "test:visual:update": "playwright test --project=visual --update-snapshots",
