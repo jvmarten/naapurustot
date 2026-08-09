@@ -1,5 +1,6 @@
 import { getCoveragePct, type NeighborhoodProperties } from './metrics.ts';
 import { setQualityCohort, getQualityBands } from './qualityBands.ts';
+import { applyQualityScale, scaleUsesFixedBands } from './qualityScale.ts';
 
 /**
  * Computes a composite Quality Index (0–100) for each neighborhood.
@@ -914,6 +915,8 @@ export function computeQualityIndices(
   }
 
   setQualityCohort(composites);
+  // The displayed number is a presentation of the composite, selectable in Settings.
+  applyQualityScale(features as { properties?: Record<string, unknown> | null }[]);
 }
 
 export interface QualityCategory {
@@ -942,6 +945,9 @@ export const QUALITY_CATEGORIES: QualityCategory[] = [
  * actually starts at 56 would be worse than showing nothing.
  */
 export function getQualityCategories(): QualityCategory[] {
+  // A scale that already spans 0–100 can use the plain fixed cuts; only the raw
+  // composite (38–67 nationally) needs them moved to the cohort's own quantiles.
+  if (scaleUsesFixedBands()) return QUALITY_CATEGORIES;
   const bands = getQualityBands();
   if (!bands || bands.n < 25) return QUALITY_CATEGORIES;
   const cuts = bands.thresholds;

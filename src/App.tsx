@@ -71,6 +71,7 @@ import type { NeighborhoodProperties } from './utils/metrics';
 import { computeMetroAverages, timeSeriesYearProp, getAvailableYears } from './utils/metrics';
 import { t, getLang, setLang, useI18nVersion, getLocaleLoadError, retryLocaleLoad, type Lang } from './utils/i18n';
 import { computeQualityIndices, isCustomWeights, type QualityWeights } from './utils/qualityIndex';
+import { applyQualityScale, getQualityScaleMode, setQualityScaleMode, type QualityScaleMode } from './utils/qualityScale';
 import { getNationalRanges } from './utils/nationalRanges';
 import { buildMetroAreaFeatures, buildMetroAreaFeaturesFromAggregates, clearMetroAreaCache } from './utils/metroAreas';
 import { useAllCitiesUnionPreload } from './hooks/useAllCitiesUnionPreload';
@@ -554,6 +555,7 @@ const App: React.FC = () => {
     if (cityFilter === 'all' && filters.length > 0) setNeedFullNational(true);
   }, [cityFilter, filters.length]);
   const [colorblind, setColorblind] = useState(getColorblindMode);
+  const [qualityScale, setQualityScale] = useState(getQualityScaleMode);
   const [showWizard, setShowWizard] = useState(false);
   // CF-4: persistent, shareable wizard priority profile (localStorage + cloud sync).
   const { profile: wizardProfile, setProfile: setWizardProfile, seedProfile: seedWizardProfile, resetLocal: resetWizardProfileLocal } = useWizardProfile(user?.id ?? null);
@@ -1806,6 +1808,24 @@ const App: React.FC = () => {
     setColorblind(mode);
   }, []);
 
+  // Switching the display scale re-presents the SAME composite, so it re-derives
+  // quality_display in place rather than re-running the ~50-factor weighting. The
+  // caches keyed on the features array's identity can't see an in-place mutation, so
+  // they are cleared and qualityVersion bumped exactly as a weight change does.
+  const handleQualityScaleChange = useCallback((next: QualityScaleMode) => {
+    setQualityScaleMode(next);
+    setQualityScale(next);
+    if (data) applyQualityScale(data.features);
+    if (filteredData && filteredData !== data) applyQualityScale(filteredData.features);
+    clearMetroAreaCache({ qualityIndexOnly: true });
+    clearRescaleCache();
+    setQualityVersion((v) => v + 1);
+    if (selected) {
+      const feature = pnoFeatureMap.get(selected.pno);
+      if (feature?.properties) select(feature.properties as NeighborhoodProperties);
+    }
+  }, [data, filteredData, selected, pnoFeatureMap, select]);
+
   const opacityPersistRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const handleFillOpacityChange = useCallback((v: number) => {
     setFillOpacity(v);
@@ -2605,6 +2625,8 @@ const App: React.FC = () => {
           <SettingsDropdown
             colorblind={colorblind}
             onColorblindChange={handleColorblindChange}
+            qualityScale={qualityScale}
+            onQualityScaleChange={handleQualityScaleChange}
             lang={lang}
             onLangChange={handleLangChange}
             fillOpacity={fillOpacity}

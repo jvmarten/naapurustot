@@ -110,6 +110,10 @@ export interface NeighborhoodProperties {
    *  for the full series). Optional (absent in legacy fixtures). */
   foreign_language_est_pct?: number | null;
   quality_index: number | null;
+  /** The composite as presented under the active display scale (see qualityScale.ts).
+   *  Equals quality_index in the default 'raw' mode. This is what the map, panel and
+   *  profile render; quality_index stays the raw composite for exports and /api/v1. */
+  quality_display?: number | null;
   /** CF-8: per-dimension Quality Index sub-scores (0–100), keyed by DimensionId.
    *  Populated alongside quality_index in computeQualityIndices; absent until then. */
   quality_dimension_scores?: Record<string, number> | null;

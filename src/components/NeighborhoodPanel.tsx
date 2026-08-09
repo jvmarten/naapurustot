@@ -1406,7 +1406,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
       {/* Quality Index — extracted into QualityBadge to isolate animation re-renders */}
       {d.quality_index != null && (
         <QualityBadge
-          qualityIndex={d.quality_index}
+          qualityIndex={d.quality_display ?? d.quality_index}
           isCustomWeights={isCustomWeights}
           onCustomize={onCustomize}
         />

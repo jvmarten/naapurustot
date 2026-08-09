@@ -228,9 +228,13 @@ export const LAYERS: LayerConfig[] = [
   {
     id: 'quality_index',
     labelKey: 'layer.quality_index',
-    property: 'quality_index',
+    property: 'quality_display',
     unit: '',
-    colors: ['#7c3aed', '#a855f7', '#ef4444', '#f97316', '#facc15', '#84cc16', '#22c55e', '#14b8a6'],
+    // Red → green. The previous ramp opened on purple/violet, which reads as
+    // "special" rather than "bad" for a quality verdict. Kept at 8 stops: the ramp
+    // length is load-bearing (rescaleLayerToData and the colourblind resampler both
+    // key off it).
+    colors: ['#991b1b', '#dc2626', '#ea580c', '#f59e0b', '#facc15', '#a3e635', '#22c55e', '#15803d'],
     stops: [0, 14, 28, 43, 57, 71, 86, 100],
     format: (v: number) => v.toFixed(0),
   },

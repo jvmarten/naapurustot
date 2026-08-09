@@ -6,6 +6,7 @@ import { t, useI18nVersion, type Lang } from '../utils/i18n';
 // It only renders when the settings dropdown is open.
 const DonateButton = lazy(() => import('./DonateButton').then(m => ({ default: m.DonateButton })));
 import type { ColorblindType } from '../utils/colorScales';
+import { QUALITY_SCALE_MODES, type QualityScaleMode } from '../utils/qualityScale';
 import { LanguagePicker } from './LanguagePicker';
 
 /** Format the build timestamp as a localized month + year (e.g. "May 2026"). */
@@ -24,6 +25,8 @@ function formatBuildDate(iso: string | undefined, lang: Lang): string {
 interface SettingsDropdownProps {
   colorblind: ColorblindType;
   onColorblindChange: (mode: ColorblindType) => void;
+  qualityScale: QualityScaleMode;
+  onQualityScaleChange: (mode: QualityScaleMode) => void;
   lang: Lang;
   /** L3: returns a promise that settles when the lazy dictionary finishes loading,
    *  so this control can show an in-flight spinner on the clicked language. */
@@ -99,6 +102,8 @@ const OpacitySlider: React.FC<{ fillOpacity: number; onFillOpacityChange: (v: nu
 export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
   colorblind,
   onColorblindChange,
+  qualityScale,
+  onQualityScaleChange,
   lang,
   onLangChange,
   fillOpacity,
@@ -349,6 +354,34 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
                 <option key={opt.value} value={opt.value}>{t(opt.labelKey)}</option>
               ))}
             </select>
+          </div>
+
+          {/* Quality-index display scale. The composite spans only 38–67 nationally, so
+              how it is presented on a 0–100 scale is a genuine trade-off (magnitude vs
+              band balance) — this exposes the options rather than baking one in. */}
+          <div className="px-4 py-2.5">
+            <div className="flex items-center gap-3 mb-2">
+              <svg className="w-4 h-4 text-surface-500 dark:text-surface-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 17l6-6 4 4 8-8" />
+              </svg>
+              <span className="text-xs font-medium text-surface-500 dark:text-surface-400">{t('settings.quality_scale')}</span>
+            </div>
+            <select
+              value={qualityScale}
+              onChange={(e) => onQualityScaleChange(e.target.value as QualityScaleMode)}
+              className="w-full text-sm text-surface-700 dark:text-surface-200
+                         bg-white dark:bg-surface-800
+                         border border-surface-200 dark:border-surface-700/40 rounded-lg px-2.5 py-1.5
+                         cursor-pointer focus:outline-none focus:ring-1 focus:ring-brand-500/50
+                         dark:[color-scheme:dark]"
+            >
+              {QUALITY_SCALE_MODES.map((m) => (
+                <option key={m} value={m}>{t(`settings.quality_scale_${m}`)}</option>
+              ))}
+            </select>
+            <p className="mt-1 text-[10px] leading-snug text-surface-500 dark:text-surface-400">
+              {t(`settings.quality_scale_${qualityScale}_help`)}
+            </p>
           </div>
 
           {/* Layer opacity — debounced to avoid Map paint updates + localStorage writes on every drag tick */}

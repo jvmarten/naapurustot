@@ -1344,7 +1344,7 @@ function emitCard(props, slug, lang) {
     name: getDisplayName(props, lang),
     pno: props.pno,
     region: getRegionName(props.city, lang),
-    quality: props.quality_index,
+    quality: props.quality_display ?? props.quality_index,
     qualityLabel: LOCALES[lang]?.['layer.quality_index'] ?? LOCALES.fi['layer.quality_index'],
     badge: bestNationalBadge(props, lang),
     stats: cardStats(props, lang),
