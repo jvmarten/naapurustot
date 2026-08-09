@@ -74,6 +74,25 @@ export function scaleUsesFixedBands(): boolean {
 
 interface HasQuality { properties?: Record<string, unknown> | null }
 
+/**
+ * The transform derived by the last applyQualityScale call, kept so values computed
+ * OUTSIDE that pass can be put on the same scale.
+ *
+ * The all-Finland view is the case that needs it: its features are per-region
+ * aggregates built in metroAreas.ts from a population-weighted mean of the postal
+ * areas' composites, long after applyQualityScale ran over those areas. Those regions
+ * must be read against the POSTAL cohort — deriving a fresh transform from the 69
+ * regional means would put the two views on different scales, and a region would change
+ * colour depending on how you navigated to it.
+ */
+let scaleFn: (v: number) => number = (v) => v;
+
+/** Put a composite on the active display scale, using the cohort last passed to
+ *  applyQualityScale. Returns null for a missing value. */
+export function scaleComposite(v: number | null | undefined): number | null {
+  return typeof v === 'number' && Number.isFinite(v) ? Math.round(scaleFn(v)) : null;
+}
+
 function quantile(sorted: number[], p: number): number {
   return sorted[Math.min(sorted.length - 1, Math.max(0, Math.round(p * (sorted.length - 1))))];
 }
@@ -95,6 +114,7 @@ export function applyQualityScale(features: HasQuality[]): void {
   }
 
   const write = (fn: (v: number) => number) => {
+    scaleFn = fn;
     for (const f of features) {
       if (!f.properties) continue;
       const v = f.properties.quality_index;

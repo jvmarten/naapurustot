@@ -2,6 +2,7 @@ import type { Feature, FeatureCollection, Polygon, MultiPolygon } from 'geojson'
 import { feature } from 'topojson-client';
 import type { Topology } from 'topojson-specification';
 import type { CityId, NeighborhoodProperties } from './metrics';
+import { scaleComposite } from './qualityScale';
 import { computeChangeMetrics, computeMetroAverages } from './metrics';
 import { REGIONS } from './regions';
 import { t } from './i18n';
@@ -262,8 +263,13 @@ export function buildMetroAreaFeatures(
     if (!cached) continue;
     const averages = metroAreaCache.averages.get(cityId) ?? {};
 
+    // The choropleth paints quality_display, so the region aggregates need it too —
+    // put the region's mean composite on the same scale the postal areas used, rather
+    // than leaving the property absent (which renders every region as "No data").
+    const regionQi = (averages as { quality_index?: number }).quality_index;
     const props: Record<string, unknown> = {
       ...averages,
+      ...(regionQi != null ? { quality_display: scaleComposite(regionQi) } : {}),
       ...cached.trendHistories,
       pno: cityId,
       nimi: t(`city.${cityId}`),
