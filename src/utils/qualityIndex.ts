@@ -1,5 +1,5 @@
 import { getCoveragePct, type NeighborhoodProperties } from './metrics.ts';
-import { setQualityCohort, getQualityBands } from './qualityBands.ts';
+import { getQualityBands } from './qualityBands.ts';
 import { applyQualityScale, scaleUsesFixedBands } from './qualityScale.ts';
 
 /**
@@ -868,13 +868,6 @@ export function computeQualityIndices(
     }
   }
 
-  // Composites of this cohort, handed to qualityBands so the category labels and the
-  // map ramp are cut at the distribution's own quantiles rather than at fixed 20/40/
-  // 60/80. Without it the band an area lands in depends on how the user weighted the
-  // factors: the shipped defaults put 86 % of Finland in "OK" with nothing at either
-  // extreme, while weighting water proximity alone makes 94 % "Erinomainen" at once.
-  const composites: number[] = [];
-
   for (const f of features) {
     const p = f.properties as NeighborhoodProperties;
 
@@ -905,7 +898,6 @@ export function computeQualityIndices(
       const weighted = scores.reduce((sum, s) => sum + s.value * s.weight, 0);
       const composite = Math.round(weighted / totalWeight);
       (f.properties as NeighborhoodProperties).quality_index = composite;
-      composites.push(composite);
       const dimScores: Record<string, number> = {};
       for (const [dim, acc] of dimAcc) {
         if (acc.weight > 0) dimScores[dim] = Math.round(acc.weighted / acc.weight);
@@ -914,8 +906,13 @@ export function computeQualityIndices(
     }
   }
 
-  setQualityCohort(composites);
   // The displayed number is a presentation of the composite, selectable in Settings.
+  // applyQualityScale also hands this cohort to qualityBands, so the category labels
+  // and the map ramp are cut at the distribution's own quantiles rather than at fixed
+  // 20/40/60/80 — and at quantiles of the DISPLAYED value, which is what the map paints.
+  // Without cohort-relative bands the band an area lands in depends on how the user
+  // weighted the factors: the shipped defaults put 86 % of Finland in "OK" with nothing
+  // at either extreme, while weighting water proximity alone makes 94 % "Erinomainen".
   applyQualityScale(features as { properties?: Record<string, unknown> | null }[]);
 }
 

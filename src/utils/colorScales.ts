@@ -228,14 +228,22 @@ export const LAYERS: LayerConfig[] = [
   {
     id: 'quality_index',
     labelKey: 'layer.quality_index',
-    // Paints the raw composite, NOT quality_display. Pointing this at the display value
-    // blanked the all-Finland view: that view paints 69 per-region aggregate features
-    // from metroAreas.ts, and they did not carry the property. Giving the regions a
-    // quality_display did not fix it either, so the aggregate path has a second cause
-    // that is not yet understood — until it is, the map stays on the property every
-    // producer is known to set. The panel/profile still follow the selected scale, so
-    // in the default 'raw' mode (where display === composite) they agree with the map.
-    property: 'quality_index',
+    // The composite AS PRESENTED under the selected display scale (qualityScale.ts),
+    // not the raw composite — the map has to follow the Settings toggle the same way
+    // the panel and the profile do.
+    //
+    // THREE producers must set this, and missing one paints that view grey. Pointing
+    // the layer here once before blanked the all-Finland landing because only two of
+    // them did:
+    //   1. computeQualityIndices → applyQualityScale, for postal areas;
+    //   2. buildMetroAreaFeatures, for the 69 region aggregates built from the full
+    //      national set;
+    //   3. buildMetroAreaFeaturesFromAggregates, for the 69 region aggregates built
+    //      from the prebuilt region_aggregates.json — which is what the DEFAULT
+    //      landing actually paints, and was the one that got missed.
+    // regionAggregates.test.ts asserts the property on the output of both region
+    // producers, since headless Chromium has no WebGL and no test can render the map.
+    property: 'quality_display',
     unit: '',
     // Red → green. The previous ramp opened on purple/violet, which reads as
     // "special" rather than "bad" for a quality verdict. Kept at 8 stops: the ramp

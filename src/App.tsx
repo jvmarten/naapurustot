@@ -696,7 +696,7 @@ const App: React.FC = () => {
   const allCitiesData = useMemo(() => {
     if (cityFilter !== 'all') return null;
     if (data) return buildMetroAreaFeatures(data.features);
-    if (aggregates) return buildMetroAreaFeaturesFromAggregates(aggregates.regions);
+    if (aggregates) return buildMetroAreaFeaturesFromAggregates(aggregates.regions, aggregates.qualityCohort);
     return null;
   // eslint-disable-next-line react-hooks/exhaustive-deps -- lang triggers rebuild so metro area names respect language; unionReady signals the pre-baked region outlines fetch resolved; qualityVersion signals in-place data mutation
   }, [data, aggregates, cityFilter, lang, unionReady, qualityVersion]);
@@ -1815,8 +1815,14 @@ const App: React.FC = () => {
   const handleQualityScaleChange = useCallback((next: QualityScaleMode) => {
     setQualityScaleMode(next);
     setQualityScale(next);
+    // POSTAL areas only. `filteredData` in the all-Finland view is the 69 regional
+    // means, and re-scaling those against each other would derive the transform from
+    // 69 aggregates instead of the 3,018 areas underneath them — a region would then
+    // change number depending on which view you were in. They pick up the new scale
+    // from the qualityVersion rebuild below, which re-runs scaleComposite against this
+    // cohort. When no postal set is loaded at all (the aggregate landing),
+    // setQualityScaleMode has already re-derived from the shipped cohort.
     if (data) applyQualityScale(data.features);
-    if (filteredData && filteredData !== data) applyQualityScale(filteredData.features);
     clearMetroAreaCache({ qualityIndexOnly: true });
     clearRescaleCache();
     setQualityVersion((v) => v + 1);
@@ -1824,7 +1830,7 @@ const App: React.FC = () => {
       const feature = pnoFeatureMap.get(selected.pno);
       if (feature?.properties) select(feature.properties as NeighborhoodProperties);
     }
-  }, [data, filteredData, selected, pnoFeatureMap, select]);
+  }, [data, selected, pnoFeatureMap, select]);
 
   const opacityPersistRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const handleFillOpacityChange = useCallback((v: number) => {
