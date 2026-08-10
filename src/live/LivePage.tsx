@@ -36,6 +36,8 @@ import {
   type HeightField,
 } from './terrain';
 import { fetchTrains, TRAIN_POLL_MS, TRAIN_STALE_MS, type Train } from './trains';
+import { fetchIncidents, INCIDENT_POLL_MS, type Incident } from './incidents';
+import { useFeedPoll } from './useFeedPoll';
 
 /**
  * /live/ — the realtime surface.
@@ -606,6 +608,100 @@ const TRAIN_LABEL_ZOOM = 10;
  * the feed says it moved, and a fix too old to trust is drawn hollow instead of
  * being quietly presented as current.
  */
+/**
+ * Incident ink, per theme. Amber — the colour the rest of the app already uses
+ * for "something needs your attention" (the failed-fetch line right below this
+ * uses it), rather than a fourth hue for the reader to learn.
+ */
+const INCIDENT = {
+  dark: { stroke: 'rgba(251, 191, 36, 0.95)', halo: 'rgba(8, 15, 40, 0.85)' },
+  light: { stroke: 'rgba(217, 119, 6, 0.95)', halo: 'rgba(255, 255, 255, 0.9)' },
+} as const;
+
+/** Below this, a closure's extent is a few pixels and only its position reads. */
+const INCIDENT_LINE_ZOOM = 8;
+
+/**
+ * Paint road incidents, above the shade and below the trains.
+ *
+ * LINES ARE DRAWN AS LINES. A third of this feed is LineString or
+ * MultiLineString geometry — a closure is a stretch of road, not a spot — and
+ * collapsing those to a marker would draw a ten-kilometre closure the same size
+ * as a single obstruction and understate it. Points stay points.
+ *
+ * Haloed for the same reason the train labels are: a stroke here crosses lit
+ * ground, shadow, building fill and the full-viewport night wash within one pan,
+ * and no flat colour stays legible over all four.
+ */
+function paintIncidents(
+  ctx: CanvasRenderingContext2D,
+  map: MaplibreMap,
+  incidents: Incident[],
+  theme: 'dark' | 'light',
+  zoom: number,
+  width: number,
+  height: number,
+): void {
+  if (incidents.length === 0) return;
+  const ink = INCIDENT[theme];
+  const withLines = zoom >= INCIDENT_LINE_ZOOM;
+
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  for (const incident of incidents) {
+    const anchor = map.project([incident.lon, incident.lat]);
+    // Generous margin: a closure running off the edge of the screen still has to
+    // be drawn, because most of it being off-screen is not a reason to hide the
+    // part that is on it.
+    if (
+      anchor.x < -200 ||
+      anchor.y < -200 ||
+      anchor.x > width + 200 ||
+      anchor.y > height + 200
+    ) {
+      continue;
+    }
+
+    if (withLines && incident.lines.length > 0) {
+      const path = new Path2D();
+      for (const line of incident.lines) {
+        let first = true;
+        for (const [lon, lat] of line) {
+          const p = map.project([lon, lat]);
+          if (first) {
+            path.moveTo(p.x, p.y);
+            first = false;
+          } else {
+            path.lineTo(p.x, p.y);
+          }
+        }
+      }
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = ink.halo;
+      ctx.stroke(path);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = ink.stroke;
+      ctx.stroke(path);
+      continue;
+    }
+
+    // A point incident, or a line too small to read as one: a ring, which stays
+    // distinguishable from the trains' filled dots at a glance.
+    ctx.beginPath();
+    ctx.arc(anchor.x, anchor.y, 5, 0, Math.PI * 2);
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = ink.halo;
+    ctx.stroke();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = ink.stroke;
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
 function paintTrains(
   ctx: CanvasRenderingContext2D,
   map: MaplibreMap,
@@ -729,6 +825,8 @@ export const LivePage: React.FC = () => {
    * and belongs in the readout.
    */
   const trainsRef = useRef<Train[]>([]);
+  /** The last polled road incidents, nationally. A ref for the same reason. */
+  const incidentsRef = useRef<Incident[]>([]);
   /** Pending coalesced repaint, so several triggers in one frame do one draw. */
   const rafRef = useRef(0);
   /** Bumped once the map exists, to re-run the effect that binds its listeners. */
@@ -768,10 +866,14 @@ export const LivePage: React.FC = () => {
    * "loading" — distinct from a poll that came back with nothing.
    */
   const [trainStatus, setTrainStatus] = useState<{ count: number; failed: boolean } | null>(null);
+  const [incidentStatus, setIncidentStatus] = useState<{ count: number; failed: boolean } | null>(
+    null,
+  );
 
   const shadowsOn = enabled.has('shadows');
   const sunOn = enabled.has('sun_position');
   const trainsOn = enabled.has('trains');
+  const incidentsOn = enabled.has('road_incidents');
 
   const sun = useMemo(() => sunPosition(when, center[1], center[0]), [when, center]);
   const times = useMemo(() => sunTimes(when, center[1], center[0]), [when, center]);
@@ -991,10 +1093,16 @@ export const LivePage: React.FC = () => {
     if (shadowsOn) paintShade();
     // Last, and above the shade — see paintTrains for why they are not a
     // MapLibre layer.
+    // Incidents under the trains: a closure is context for the network, a train
+    // is a moving thing on it, and where they coincide the moving thing is what
+    // someone is tracking.
+    if (incidentsOn) {
+      paintIncidents(ctx, map, incidentsRef.current, theme, zoom, width, height);
+    }
     if (trainsOn) {
       paintTrains(ctx, map, trainsRef.current, Date.now(), theme, zoom, width, height);
     }
-  }, [shadowsOn, trainsOn, sun.altitude, sun.azimuth, theme]);
+  }, [shadowsOn, trainsOn, incidentsOn, sun.altitude, sun.azimuth, theme]);
 
   /**
    * Always-current `draw`, so the map listeners can be bound ONCE.
@@ -1316,67 +1424,55 @@ export const LivePage: React.FC = () => {
    * It resumes on `visibilitychange` rather than waiting out the interval, so
    * coming back to the tab shows current positions immediately.
    */
-  useEffect(() => {
-    if (!trainsOn) {
-      // Drop the positions rather than leaving them to be redrawn by the next
-      // frame — switching a layer off has to actually clear it.
-      trainsRef.current = [];
-      setTrainStatus(null);
-      scheduleDraw();
-      return;
-    }
-
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let controller: AbortController | null = null;
-    let stopped = false;
-
-    // Clears any pending timer first, so a visibility-driven tick and an
-    // in-flight one cannot leave two of them running at twice the poll rate.
-    const schedule = () => {
-      if (stopped) return;
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => void tick(), TRAIN_POLL_MS);
-    };
-
-    const tick = async () => {
-      if (typeof document !== 'undefined' && document.hidden) {
-        schedule();
-        return;
-      }
-      controller?.abort();
-      const active = new AbortController();
-      controller = active;
-      try {
-        const list = await fetchTrains(active.signal);
-        if (stopped || active.signal.aborted) return;
+  useFeedPoll<Train[]>({
+    enabled: trainsOn,
+    fetcher: fetchTrains,
+    intervalMs: TRAIN_POLL_MS,
+    onData: useCallback(
+      (list: Train[]) => {
         trainsRef.current = list;
         setTrainStatus({ count: list.length, failed: false });
         scheduleDraw();
-      } catch (err) {
-        if ((err as Error)?.name === 'AbortError' || stopped) return;
-        // The positions already on screen are kept. A failed poll means we do
-        // not know where the trains are NOW, not that they have vanished — and
-        // the next poll is five seconds away, so blanking the layer would make
-        // a single dropped request look like the feed going down.
-        setTrainStatus((prev) => ({ count: prev?.count ?? 0, failed: true }));
-      } finally {
-        schedule();
-      }
-    };
+      },
+      [scheduleDraw],
+    ),
+    onError: useCallback(() => {
+      setTrainStatus((prev) => ({ count: prev?.count ?? 0, failed: true }));
+    }, []),
+    onClear: useCallback(() => {
+      trainsRef.current = [];
+      setTrainStatus(null);
+      scheduleDraw();
+    }, [scheduleDraw]),
+  });
 
-    const onVisibility = () => {
-      if (!document.hidden) void tick();
-    };
-    document.addEventListener('visibilitychange', onVisibility);
-    void tick();
-
-    return () => {
-      stopped = true;
-      if (timer) clearTimeout(timer);
-      controller?.abort();
-      document.removeEventListener('visibilitychange', onVisibility);
-    };
-  }, [trainsOn, scheduleDraw]);
+  /**
+   * Road incidents, on the same loop at a much slower cadence.
+   *
+   * A minute rather than the trains' five seconds, because an announcement is
+   * published once and then stands for hours — see incidents.ts.
+   */
+  useFeedPoll<Incident[]>({
+    enabled: incidentsOn,
+    fetcher: fetchIncidents,
+    intervalMs: INCIDENT_POLL_MS,
+    onData: useCallback(
+      (list: Incident[]) => {
+        incidentsRef.current = list;
+        setIncidentStatus({ count: list.length, failed: false });
+        scheduleDraw();
+      },
+      [scheduleDraw],
+    ),
+    onError: useCallback(() => {
+      setIncidentStatus((prev) => ({ count: prev?.count ?? 0, failed: true }));
+    }, []),
+    onClear: useCallback(() => {
+      incidentsRef.current = [];
+      setIncidentStatus(null);
+      scheduleDraw();
+    }, [scheduleDraw]),
+  });
 
   useEffect(() => {
     scheduleDraw();
@@ -1417,6 +1513,25 @@ export const LivePage: React.FC = () => {
     next.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
     setWhen(next);
   };
+
+  /**
+   * Where daylight sits on the 0-1439 minute scrubber, as percentages.
+   *
+   * Null on a polar day or night, when "sunrise" and "sunset" do not exist and
+   * any band drawn would be a fiction — the readout already states which of the
+   * two it is. Clamped rather than wrapped: a sunset past local midnight belongs
+   * at the right-hand end of today's track, not wrapped around to the left where
+   * it would read as morning.
+   */
+  const daylightBand = useMemo(() => {
+    const { sunrise, sunset } = times;
+    if (!sunrise || !sunset) return null;
+    const minutes = (d: Date) => d.getHours() * 60 + d.getMinutes();
+    const from = minutes(sunrise);
+    const to = minutes(sunset);
+    if (!(to > from)) return null;
+    return { left: (from / 1439) * 100, width: ((to - from) / 1439) * 100 };
+  }, [times]);
 
   const shadowRatio = shadowLengthRatio(sun.altitude);
 
@@ -1518,7 +1633,7 @@ export const LivePage: React.FC = () => {
               it is, because an empty map means four different things here:
               zoomed too far out, sun below the horizon, Overpass unreachable, or
               genuinely no buildings with height data. */}
-          {(shadowsOn || trainsOn) && (
+          {(shadowsOn || trainsOn || incidentsOn) && (
             <div className="absolute left-3 top-3 max-w-xs space-y-1 rounded-lg bg-white/90 px-3 py-2 text-xs leading-relaxed shadow-sm ring-1 ring-surface-200 dark:bg-surface-950/85 dark:ring-surface-800">
               {shadowsOn && (
                 sun.altitude <= 0 ? (
@@ -1557,6 +1672,28 @@ export const LivePage: React.FC = () => {
                   </p>
                 )
               )}
+
+              {/* Same three cases again, and the third one matters most here:
+                  an empty road map is a RESULT — "nothing is currently reported
+                  anywhere in Finland" — and it has to be distinguishable from
+                  the feed being unreachable, which looks identical on the map. */}
+              {incidentsOn && (
+                incidentStatus === null ? (
+                  <p className="text-surface-600 dark:text-surface-300">
+                    {t('live.incidents.loading')}
+                  </p>
+                ) : incidentStatus.failed ? (
+                  <p className="text-amber-600 dark:text-amber-400">{t('live.incidents.failed')}</p>
+                ) : incidentStatus.count === 0 ? (
+                  <p className="text-surface-600 dark:text-surface-300">
+                    {t('live.incidents.none')}
+                  </p>
+                ) : (
+                  <p className="text-surface-600 dark:text-surface-300">
+                    {t('live.incidents.count').replace('{n}', String(incidentStatus.count))}
+                  </p>
+                )
+              )}
             </div>
           )}
         </div>
@@ -1573,15 +1710,41 @@ export const LivePage: React.FC = () => {
             <span className="inline-block min-w-[8ch] tabular-nums text-surface-600 dark:text-surface-300">
               {clockTime(when)}
             </span>
-            <input
-              type="range"
-              min={0}
-              max={1439}
-              value={minuteOfDay}
-              onChange={(e) => setMinuteOfDay(Number(e.target.value))}
-              className="h-1 flex-1 accent-amber-500"
-              aria-label={t('live.time.scrub')}
-            />
+            {/* DAYLIGHT BAND.
+                The scrubber runs midnight to midnight, and on a page about
+                sunlight the two instants that matter most on it — sunrise and
+                sunset — were invisible until you dragged onto them and read the
+                numbers. This paints the lit part of the day directly under the
+                track, so the shape of the day is legible at a glance and it is
+                obvious which way to drag to reach the light.
+
+                Purely decorative and `pointer-events-none`: the input keeps every
+                pixel of its own hit area, so this cannot cost the control any
+                draggability. It also cannot resize anything — it is absolutely
+                positioned inside the same box the input already occupied, which
+                is what keeps the track pinned. */}
+            <span className="relative flex flex-1 items-center">
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-x-0 top-1/2 h-1 translate-y-[6px] overflow-hidden rounded-full bg-surface-200 dark:bg-surface-800"
+              >
+                {daylightBand && (
+                  <span
+                    className="absolute inset-y-0 bg-amber-400/70 dark:bg-amber-500/60"
+                    style={{ left: `${daylightBand.left}%`, width: `${daylightBand.width}%` }}
+                  />
+                )}
+              </span>
+              <input
+                type="range"
+                min={0}
+                max={1439}
+                value={minuteOfDay}
+                onChange={(e) => setMinuteOfDay(Number(e.target.value))}
+                className="relative h-1 w-full accent-amber-500"
+                aria-label={t('live.time.scrub')}
+              />
+            </span>
           </label>
           <button
             type="button"

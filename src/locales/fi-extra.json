@@ -96,5 +96,9 @@
   "live.shadow.terrain_only": "Näytetään maaston varjot. Lähennä, niin näet rakennusten ja puiden varjot.",
   "live.trains.loading": "Haetaan junia…",
   "live.trains.failed": "Junien sijainteja ei saatu haettua. Yritetään uudelleen.",
-  "live.trains.count": "{n} junaa liikkeellä Suomessa. Lähde: Fintraffic / Digitraffic (CC BY 4.0)."
+  "live.trains.count": "{n} junaa liikkeellä Suomessa. Lähde: Fintraffic / Digitraffic (CC BY 4.0).",
+  "live.incidents.loading": "Haetaan liikennetiedotteita…",
+  "live.incidents.failed": "Liikennetiedotteita ei saatu haettua.",
+  "live.incidents.none": "Ei voimassa olevia liikennetiedotteita Suomessa juuri nyt.",
+  "live.incidents.count": "{n} voimassa olevaa liikennetiedotetta Suomessa (Fintraffic)."
 }
