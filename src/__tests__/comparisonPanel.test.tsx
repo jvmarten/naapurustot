@@ -61,7 +61,7 @@ describe('STAT_SECTIONS (QW-3)', () => {
 
   it('marks price, foreign-language share and the ownership/rental complement as neutral', () => {
     expect(statFor('property_price_sqm').higherIsBetter).toBeNull();
-    expect(statFor('foreign_language_pct').higherIsBetter).toBeNull();
+    expect(statFor('foreign_language_est_pct').higherIsBetter).toBeNull();
     expect(statFor('ownership_rate').higherIsBetter).toBeNull();
     expect(statFor('rental_rate').higherIsBetter).toBeNull();
   });

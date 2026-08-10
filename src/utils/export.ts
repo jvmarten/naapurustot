@@ -46,7 +46,8 @@ function collectStats(d: NeighborhoodProperties): StatEntry[] {
     { label: t('panel.avg_income'), value: formatEuro(d.hr_ktu) },
     { label: t('panel.unemployment'), value: formatPct(d.unemployment_rate) },
     { label: t('panel.employment_rate'), value: formatPct(d.employment_rate) },
-    { label: t('panel.foreign_lang'), value: formatPct(d.foreign_language_pct) },
+    // Latest year (derived 2025 estimate), matching the panel — see NeighborhoodPanel.
+    { label: t('panel.foreign_lang'), value: formatPct(d.foreign_language_est_pct ?? d.foreign_language_pct) },
     // Housing
     { label: t('panel.ownership_rate'), value: formatPct(d.ownership_rate) },
     { label: t('panel.rental_rate'), value: formatPct(d.rental_rate) },

@@ -45,7 +45,10 @@ export type FitRanges = Record<string, { min: number; max: number }>;
 export const FIT_RANGE_KEYS: (keyof NeighborhoodProperties)[] = [
   'transit_stop_density', 'restaurant_density', 'ra_as_kpa', 'child_ratio',
   'daycare_density', 'school_density', 'healthcare_density', 'ownership_rate', 'rental_rate',
-  'foreign_language_pct',
+  // All three foreign-language variants: the scorer normalizes against whichever one
+  // it actually read (latest estimate → 2020 postal → municipal proxy), and their
+  // national spreads differ enough that the ranges are not interchangeable.
+  'foreign_language_est_pct', 'foreign_language_pct', 'foreign_language_municipal_pct',
 ];
 
 /** Normalize a value within a range to 0–1 (0.5 for missing/degenerate ranges). */
@@ -176,10 +179,19 @@ export function scoreFeatureFit(
 
   // --- Foreign-language speakers (diversity proxy) ---
   if (!skipped.foreigners) {
-    // Prefer the postal value; fall back to the estimated/municipal proxies.
-    const fl = p.foreign_language_pct ?? p.foreign_language_est_pct ?? p.foreign_language_municipal_pct ?? null;
+    // Prefer the latest year's postal estimate — the same figure the panel, the profile
+    // page and the map layer show; the measured postal series stops at 2020. Fall back
+    // to that 2020 value, then to the municipal proxy. The normalization range has to
+    // follow the value actually used: nationally the estimate spans 0–28 % against the
+    // 2020 layer's 0–19.8 %, so pairing one with the other's range skews the score.
+    const flKey = p.foreign_language_est_pct != null
+      ? 'foreign_language_est_pct'
+      : p.foreign_language_pct != null
+        ? 'foreign_language_pct'
+        : 'foreign_language_municipal_pct';
+    const fl = p[flKey] ?? null;
     if (answers.foreignersPreference === 'near') {
-      const r = R('foreign_language_pct');
+      const r = R(flKey);
       const flScore = normalize(fl, r.min, r.max);
       score += flScore * 1.5;
       totalWeight += 1.5;
@@ -191,7 +203,7 @@ export function scoreFeatureFit(
         direction: dirOf(flScore),
       });
     } else if (answers.foreignersPreference === 'away') {
-      const r = R('foreign_language_pct');
+      const r = R(flKey);
       const flInv = 1 - normalize(fl, r.min, r.max);
       score += flInv * 1.5;
       totalWeight += 1.5;

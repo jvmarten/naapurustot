@@ -33,7 +33,11 @@ const STAT_SECTIONS: { title: string; stats: StatDef[] }[] = [
       { label: 'panel.population', key: 'he_vakiy', format: formatNumber, isCount: true },
       { label: 'panel.median_income', key: 'hr_mtu', format: formatEuro },
       { label: 'panel.unemployment', key: 'unemployment_rate', format: (v) => formatPct(v as number | null) },
-      { label: 'panel.foreign_lang', key: 'foreign_language_pct', format: (v) => formatPct(v as number | null) },
+      // Latest year (the derived 2025 estimate), matching the panel — the measured
+      // postal-code series stops at 2020. It is a share of population like its 2020
+      // predecessor, so the default population weighting below is unchanged, and
+      // METRIC_DEFS carries it too so the "vs. metro" column has a baseline.
+      { label: 'panel.foreign_lang', key: 'foreign_language_est_pct', format: (v) => formatPct(v as number | null) },
     ],
   },
   {

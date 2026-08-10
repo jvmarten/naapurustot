@@ -27,7 +27,9 @@ export const STAT_SECTIONS: { title: string; stats: StatDef[] }[] = [
       { label: 'panel.median_income', key: 'hr_mtu', format: formatEuro, higherIsBetter: true },
       { label: 'panel.unemployment', key: 'unemployment_rate', format: (v) => formatPct(v as number | null), higherIsBetter: false },
       // QW-3: foreign-language share has no objective better direction — neutral.
-      { label: 'panel.foreign_lang', key: 'foreign_language_pct', format: (v) => formatPct(v as number | null), higherIsBetter: null },
+      // Latest year (the derived 2025 estimate), matching the panel, the profile page
+      // and the map layer — the measured postal-code series itself stops at 2020.
+      { label: 'panel.foreign_lang', key: 'foreign_language_est_pct', format: (v) => formatPct(v as number | null), higherIsBetter: null },
     ],
   },
   {

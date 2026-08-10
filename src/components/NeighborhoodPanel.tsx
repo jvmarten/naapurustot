@@ -103,6 +103,13 @@ interface PanelProps {
  *  active, else null so StatRow falls back to the "vs metro/region" default. */
 const BaselineLabelContext = React.createContext<string | null>(null);
 
+/** The per-row delta next to each value ("+11,717.0 vs. metro"). Off: at the panel's
+ *  width it crowds the number it annotates and reads as clutter. Every StatRow still
+ *  computes and passes `diff`/`diffClass`, so flipping this back to `true` restores
+ *  the whole panel. The same comparison is still available in the drawn-area summary
+ *  (AreaSummaryPanel's "vs. metro" column) and on the share card. */
+const SHOW_STAT_DIFFS: boolean = false;
+
 const StatRow: React.FC<{
   label: string;
   value: string;
@@ -273,7 +280,7 @@ const StatRow: React.FC<{
           </span>
         )}
         <span className="text-surface-900 dark:text-white font-medium">{value}</span>
-        {diff && (
+        {SHOW_STAT_DIFFS && diff && (
           <span className={`ml-0 text-xs ${diffClass}`}>
             {diff} {baselineLabel ?? t('panel.vs_metro')}
           </span>
@@ -1458,10 +1465,16 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
             property="unemployment_rate"
             sparkline={unemploymentSparkline}
           />
+          {/* Latest year, not 2020: postal-code language data is published only for
+              2020, so the current figure is the derived estimate (2020 postal
+              distribution scaled by each municipality's share change, through 2025).
+              Falls back to the 2020 measurement where no estimate exists. StatRow's
+              is_proxy badge + note carry the "estimate" caveat. Same property the
+              foreign_lang map layer colours by, so panel and map agree. */}
           <StatRow
             label={t('panel.foreign_lang')}
-            value={formatPct(d.foreign_language_pct)}
-            property="foreign_language_pct"
+            value={formatPct(d.foreign_language_est_pct ?? d.foreign_language_pct)}
+            property={d.foreign_language_est_pct != null ? 'foreign_language_est_pct' : 'foreign_language_pct'}
           />
         </div>
       </div>

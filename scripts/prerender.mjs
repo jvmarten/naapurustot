@@ -481,7 +481,11 @@ const SECTIONS = [
     { prop: 'population_density', label: 'layer.population_density', fmt: 'density_int', schema: 'Population density (per km²)' },
     { prop: 'he_kika', label: 'layer.avg_age', fmt: 'years', schema: 'Average age (years)' },
     { prop: 'child_ratio', label: 'layer.child_ratio', fmt: 'pct', schema: 'Young children 0–6 (%)' },
-    { prop: 'foreign_language_pct', label: 'layer.foreign_lang', fmt: 'pct', schema: 'Foreign-language speakers (%)' },
+    // Latest year (the derived 2025 estimate, is_proxy in data_sources.json), matching
+    // the app panel, the profile page and the foreign_lang map layer — the measured
+    // postal-code series stops at 2020. Same coverage as the 2020 value, so no page
+    // loses the row.
+    { prop: 'foreign_language_est_pct', label: 'layer.foreign_lang', fmt: 'pct', schema: 'Foreign-language speakers (%)' },
     { prop: 'pensioner_share', label: 'layer.pensioners', fmt: 'pct', schema: 'Pensioners (%)' },
     { prop: 'student_share', label: 'layer.student_share', fmt: 'pct', schema: 'Students (%)' },
   ] },
