@@ -77,7 +77,10 @@ export const FEED_GROUPS: FeedGroup[] = [
       // National by construction, which the shadow feed above cannot be: every
       // train running in the country, not just the cities a 3D model covers.
       { id: 'trains', labelKey: 'live.feed.trains', status: 'live', coverage: 'national', defaultOn: true },
-      { id: 'road_incidents', labelKey: 'live.feed.road_incidents', status: 'planned', coverage: 'national', defaultOn: false },
+      // National, and cheap enough to poll: the whole active set is 8 features
+      // and 3.4 kB. Roadworks from the same endpoint are 585 features and
+      // 1.28 MB, which is why this feed is announcements only — see incidents.ts.
+      { id: 'road_incidents', labelKey: 'live.feed.road_incidents', status: 'live', coverage: 'national', defaultOn: true },
       { id: 'transit_alerts', labelKey: 'live.feed.transit_alerts', status: 'planned', coverage: 'urban', defaultOn: false },
     ],
   },
