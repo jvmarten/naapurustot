@@ -868,7 +868,9 @@ export const NeighborhoodProfilePage: React.FC = () => {
             <StatItem label={t('profile.population')} value={formatNumber(d.he_vakiy)} />
             <StatItem label={t('layer.avg_age')} value={d.he_kika != null ? `${formatDecimal(d.he_kika)} ${t('profile.unit_years')}` : '—'} />
             <StatItem label={t('layer.child_ratio')} value={formatPct(d.child_ratio)} />
-            <StatItem label={t('layer.foreign_lang')} value={formatPct(d.foreign_language_pct)} />
+            {/* Latest year (derived 2025 estimate), matching the panel and the map
+                layer — postal-code language data itself stops at 2020. */}
+            <StatItem label={t('layer.foreign_lang')} value={formatPct(d.foreign_language_est_pct ?? d.foreign_language_pct)} />
             <StatItem label={t('layer.pensioners')} value={formatPct(d.pensioner_share)} />
             <StatItem label={t('layer.student_share')} value={formatPct(d.student_share)} />
           </div>
