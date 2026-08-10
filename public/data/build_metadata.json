@@ -644,7 +644,7 @@
       "coverage_pct": 100
     },
     "water_proximity_m": {
-      "source": "OpenStreetMap",
+      "source": "OpenStreetMap (vesistöt) / Tilastokeskus (väestöruutuaineisto 1 km)",
       "vintage": 2026,
       "granularity": "postal",
       "is_proxy": false,

@@ -234,10 +234,10 @@ DISTINCTNESS_EXEMPT = {
     "daycare_density", "ev_charging_density", "grocery_density",
     "healthcare_density", "restaurant_density", "school_density",
     "public_sector_jobs_pct", "tech_sector_pct",
-    # Known-degenerate, IN-1 follow-up: water_proximity_m is measured from the
-    # polygon edge, so any area touching a stream scores 0 (2,789/3,018). Real but
-    # near-useless; fixing the measurement is separate work.
-    "water_proximity_m",
+    # NOTE: water_proximity_m was exempted here while it was measured from the
+    # polygon edge (2,789/3,018 areas read exactly 0). It is now the
+    # population-weighted distance from residents to the nearest water, which
+    # is genuinely distinct, so the exemption is gone and the gate enforces it.
     # Modeled quiet-baseline: measured traffic-noise contours cover ~26 % of areas;
     # the rest are shown at the 40 dB quiet residential baseline (no major road/rail
     # nearby), which the layer note states explicitly. This is an intentional modeled

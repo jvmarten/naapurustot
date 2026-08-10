@@ -87,8 +87,12 @@ def main():
     )
 
     logger.info("Writing GeoJSON back to %s", GEOJSON_PATH)
+    # ensure_ascii=True matches how prepare_data.py writes this file (GDAL's
+    # GeoJSON driver escapes non-ASCII), so a targeted metric update touches only
+    # the numbers it changed. Writing UTF-8 literals instead re-encodes every
+    # "ä"/"ö" in the file and turns a small update into a 44 MB diff.
     with open(GEOJSON_PATH, "w", encoding="utf-8") as f:
-        json.dump(geojson, f, ensure_ascii=False)
+        json.dump(geojson, f, ensure_ascii=True)
     size_mb = GEOJSON_PATH.stat().st_size / 1024 / 1024
     logger.info("  %.1f MB", size_mb)
 

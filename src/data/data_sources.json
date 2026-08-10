@@ -577,11 +577,12 @@
       "note": "note.noise_pollution"
     },
     "water_proximity_m": {
-      "source": "OpenStreetMap",
+      "source": "OpenStreetMap (vesistöt) / Tilastokeskus (väestöruutuaineisto 1 km)",
       "publisher": "osm",
       "vintage": 2026,
       "granularity": "postal",
-      "is_proxy": false
+      "is_proxy": false,
+      "note": "note.water_proximity"
     },
     "avg_construction_year": {
       "source": "Tilastokeskus (rakennuskanta)",
