@@ -124,10 +124,10 @@ describe('computeMatchingPnos — filter matching', () => {
 
 describe('findSimilarNeighborhoods — similarity scoring', () => {
   const allFeatures = [
-    makeFeature({ pno: '00100', hr_mtu: 30000, unemployment_rate: 5, higher_education_rate: 50, foreign_language_pct: 10, ownership_rate: 50, transit_stop_density: 30, property_price_sqm: 3000, crime_index: 50, population_density: 5000, child_ratio: 8 }),
-    makeFeature({ pno: '00200', hr_mtu: 31000, unemployment_rate: 5.2, higher_education_rate: 51, foreign_language_pct: 11, ownership_rate: 52, transit_stop_density: 32, property_price_sqm: 3100, crime_index: 48, population_density: 5200, child_ratio: 7.5 }),
-    makeFeature({ pno: '00300', hr_mtu: 60000, unemployment_rate: 1, higher_education_rate: 80, foreign_language_pct: 3, ownership_rate: 80, transit_stop_density: 100, property_price_sqm: 8000, crime_index: 15, population_density: 8000, child_ratio: 12 }),
-    makeFeature({ pno: '00400', hr_mtu: 15000, unemployment_rate: 18, higher_education_rate: 15, foreign_language_pct: 40, ownership_rate: 20, transit_stop_density: 5, property_price_sqm: 1500, crime_index: 150, population_density: 12000, child_ratio: 3 }),
+    makeFeature({ pno: '00100', hr_mtu: 30000, unemployment_rate: 5, higher_education_rate: 50, foreign_language_est_pct: 10, ownership_rate: 50, transit_stop_density: 30, property_price_sqm: 3000, crime_index: 50, population_density: 5000, child_ratio: 8 }),
+    makeFeature({ pno: '00200', hr_mtu: 31000, unemployment_rate: 5.2, higher_education_rate: 51, foreign_language_est_pct: 11, ownership_rate: 52, transit_stop_density: 32, property_price_sqm: 3100, crime_index: 48, population_density: 5200, child_ratio: 7.5 }),
+    makeFeature({ pno: '00300', hr_mtu: 60000, unemployment_rate: 1, higher_education_rate: 80, foreign_language_est_pct: 3, ownership_rate: 80, transit_stop_density: 100, property_price_sqm: 8000, crime_index: 15, population_density: 8000, child_ratio: 12 }),
+    makeFeature({ pno: '00400', hr_mtu: 15000, unemployment_rate: 18, higher_education_rate: 15, foreign_language_est_pct: 40, ownership_rate: 20, transit_stop_density: 5, property_price_sqm: 1500, crime_index: 150, population_density: 12000, child_ratio: 3 }),
   ];
 
   it('does not return the target neighborhood itself', () => {

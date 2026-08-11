@@ -35,7 +35,7 @@ describe('findSimilarNeighborhoods', () => {
     hr_mtu: 30000,
     unemployment_rate: 5,
     higher_education_rate: 40,
-    foreign_language_pct: 10,
+    foreign_language_est_pct: 10,
     ownership_rate: 50,
     transit_stop_density: 30,
     property_price_sqm: 4000,
@@ -144,7 +144,7 @@ describe('findSimilarNeighborhoods', () => {
       hr_mtu: 40000,
       unemployment_rate: 10,
       higher_education_rate: 40,
-      foreign_language_pct: 10,
+      foreign_language_est_pct: 10,
       ownership_rate: 50,
     });
 

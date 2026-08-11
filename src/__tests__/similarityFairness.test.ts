@@ -19,7 +19,7 @@ function makeFeature(props: Partial<NeighborhoodProperties>): GeoJSON.Feature {
 /** Full set of similarity metrics for a "typical" neighborhood */
 const FULL_METRICS: Partial<NeighborhoodProperties> = {
   hr_mtu: 30000, unemployment_rate: 5, higher_education_rate: 40,
-  foreign_language_pct: 10, ownership_rate: 50, transit_stop_density: 20,
+  foreign_language_est_pct: 10, ownership_rate: 50, transit_stop_density: 20,
   property_price_sqm: 3000, crime_index: 50, population_density: 5000, child_ratio: 8,
 };
 
@@ -34,21 +34,21 @@ describe('similarity — distance normalization fairness', () => {
     // Candidate A: all 10 metrics, slightly different
     const candidateA = makeFeature({
       pno: '00200', hr_mtu: 32000, unemployment_rate: 5.5, higher_education_rate: 42,
-      foreign_language_pct: 11, ownership_rate: 52, transit_stop_density: 22,
+      foreign_language_est_pct: 11, ownership_rate: 52, transit_stop_density: 22,
       property_price_sqm: 3200, crime_index: 52, population_density: 5200, child_ratio: 8.5,
     });
 
     // Candidate B: fewer metrics match but same small difference
     const candidateB = makeFeature({
       pno: '00300', hr_mtu: 32000, unemployment_rate: 5.5, higher_education_rate: 42,
-      foreign_language_pct: 11, ownership_rate: 52, transit_stop_density: 22,
+      foreign_language_est_pct: 11, ownership_rate: 52, transit_stop_density: 22,
       property_price_sqm: 3200, crime_index: 52, population_density: 5200, child_ratio: 8.5,
     });
 
     // Need a "spread" feature to establish ranges
     const spread = makeFeature({
       pno: '00400', hr_mtu: 60000, unemployment_rate: 20, higher_education_rate: 80,
-      foreign_language_pct: 50, ownership_rate: 90, transit_stop_density: 100,
+      foreign_language_est_pct: 50, ownership_rate: 90, transit_stop_density: 100,
       property_price_sqm: 10000, crime_index: 200, population_density: 20000, child_ratio: 20,
     });
 
@@ -71,7 +71,7 @@ describe('similarity — distance normalization fairness', () => {
     // Need a spread feature for ranges to exist
     const spread = makeFeature({
       pno: '00300', hr_mtu: 60000, unemployment_rate: 20, higher_education_rate: 80,
-      foreign_language_pct: 50, ownership_rate: 90, transit_stop_density: 100,
+      foreign_language_est_pct: 50, ownership_rate: 90, transit_stop_density: 100,
       property_price_sqm: 10000, crime_index: 200, population_density: 20000, child_ratio: 20,
     });
 
@@ -118,12 +118,12 @@ describe('similarity — distance normalization fairness', () => {
     const close = makeFeature({ pno: '00200', ...FULL_METRICS, hr_mtu: 31000 });
     const far = makeFeature({
       pno: '00300', hr_mtu: 60000, unemployment_rate: 20, higher_education_rate: 80,
-      foreign_language_pct: 50, ownership_rate: 90, transit_stop_density: 100,
+      foreign_language_est_pct: 50, ownership_rate: 90, transit_stop_density: 100,
       property_price_sqm: 10000, crime_index: 200, population_density: 20000, child_ratio: 20,
     });
     const mid = makeFeature({
       pno: '00400', hr_mtu: 40000, unemployment_rate: 10, higher_education_rate: 55,
-      foreign_language_pct: 20, ownership_rate: 65, transit_stop_density: 50,
+      foreign_language_est_pct: 20, ownership_rate: 65, transit_stop_density: 50,
       property_price_sqm: 5000, crime_index: 90, population_density: 10000, child_ratio: 13,
     });
 

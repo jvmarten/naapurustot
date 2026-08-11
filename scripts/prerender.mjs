@@ -130,11 +130,12 @@ for (const f of geojson.features) {
 
 // #3: cross-region "Similar areas elsewhere in Finland" mesh. Precomputed here at
 // BUILD time (zero client-bundle cost) from the committed, geometry-stripped
-// region_properties.json, restricted to HIGH-COVERAGE Paavo demographic/economic axes
-// (all 93–100% national coverage) so sparse layers like transit/prices/schools can't
-// produce junk pairings. Each area gets its top-6 most-similar areas in OTHER
-// seutukunnat, turning the ~9k profile pages from 69 within-region link-islands into
-// one thematically connected graph (crawl depth / internal PageRank / AI relatedness).
+// region_properties.json, restricted to HIGH-COVERAGE demographic/economic axes (all
+// 93–100% national coverage — seven Paavo columns plus the derived foreign-language
+// estimate) so sparse layers like transit/prices/schools can't produce junk pairings.
+// Each area gets its top-6 most-similar areas in OTHER seutukunnat, turning the ~9k
+// profile pages from 69 within-region link-islands into one thematically connected
+// graph (crawl depth / internal PageRank / AI relatedness).
 // Deterministic — weighted-normalized Euclidean distance with a stable pno tie-break —
 // so the rendered noscript is byte-stable across reruns.
 const SIMILAR_METRICS = [
@@ -145,7 +146,10 @@ const SIMILAR_METRICS = [
   'population_density',
   'child_ratio',
   'he_kika',                // average age
-  'foreign_language_pct',
+  // Latest year, matching src/utils/similarity.ts — the 2020 postal measurement is the
+  // only measured year, so the current figure is the derived estimate. Coverage is
+  // identical (3,001 areas, 99.4 %), so the high-coverage constraint above still holds.
+  'foreign_language_est_pct',
 ];
 const SIMILAR_ELSEWHERE = (() => {
   let areas;
@@ -156,8 +160,12 @@ const SIMILAR_ELSEWHERE = (() => {
   }
   if (!Array.isArray(areas) || areas.length === 0) return {};
 
-  // Min/max per metric across all areas, for [0,1] normalization (mirrors the in-app
-  // findSimilarNeighborhoods so static and interactive notions of "similar" agree).
+  // Min/max per metric across all areas, for [0,1] normalization — the same empirical
+  // min-max the in-app findSimilarNeighborhoods uses. The two lists are NOT expected to
+  // match, though: this one is a deliberately narrower basis (8 high-coverage axes vs
+  // the app's 15, cross-seutukunta candidates only, a ≥5-of-8 overlap floor, and a
+  // divide-by-axis-count where the app divides by summed weight). Keep the axes on the
+  // same source columns as similarity.ts; don't chase list parity beyond that.
   const mins = {};
   const maxs = {};
   for (const m of SIMILAR_METRICS) {
