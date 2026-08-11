@@ -17,7 +17,10 @@ const SIMILARITY_METRICS: (keyof NeighborhoodProperties)[] = [
   'hr_mtu',
   'unemployment_rate',
   'higher_education_rate',
-  'foreign_language_pct',
+  // Latest year, not the 2020 measurement: postal-code language data is published
+  // only for 2020, so the current figure is the derived estimate. Matches the panel,
+  // the profile page and the foreign_lang map layer.
+  'foreign_language_est_pct',
   'ownership_rate',
   'transit_stop_density',
   'property_price_sqm',
@@ -42,7 +45,7 @@ export const AVAILABLE_SIMILARITY_METRICS: { key: keyof NeighborhoodProperties; 
   { key: 'hr_mtu', labelKey: 'layer.median_income' },
   { key: 'unemployment_rate', labelKey: 'layer.unemployment' },
   { key: 'higher_education_rate', labelKey: 'layer.education' },
-  { key: 'foreign_language_pct', labelKey: 'layer.foreign_lang' },
+  { key: 'foreign_language_est_pct', labelKey: 'layer.foreign_lang' },
   { key: 'ownership_rate', labelKey: 'layer.ownership' },
   { key: 'transit_stop_density', labelKey: 'layer.transit_access' },
   { key: 'property_price_sqm', labelKey: 'layer.property_price' },
@@ -58,6 +61,25 @@ export const AVAILABLE_SIMILARITY_METRICS: { key: keyof NeighborhoodProperties; 
 
 /** Valid similarity-metric keys, for validating a persisted user selection. */
 export const SIMILARITY_METRIC_KEYS: ReadonlySet<string> = new Set(SIMILARITY_METRICS as string[]);
+
+/** Metric keys that were renamed in place. A user's weights live in localStorage and
+ *  in already-shared `simw=` links keyed by the metric's property name, so a rename
+ *  without an alias here does not merely lose a preference — it inverts one. Every
+ *  weight defaults to 1 (on), so a dropped `foreign_language_pct: 0` turns the metric
+ *  back ON for a user who had switched it off. Read paths resolve through
+ *  `canonicalSimilarityMetric`; the write paths deliberately do NOT, so a stored blob
+ *  self-heals to the new key the next time the user touches a weight. */
+const LEGACY_SIMILARITY_METRIC_ALIASES: ReadonlyMap<string, string> = new Map([
+  // The 2020 postal measurement → the latest year's derived estimate.
+  ['foreign_language_pct', 'foreign_language_est_pct'],
+]);
+
+/** Resolve a persisted or shared metric key to a currently-valid one, or null when it
+ *  names no metric this build knows. */
+export function canonicalSimilarityMetric(key: string): string | null {
+  const canonical = LEGACY_SIMILARITY_METRIC_ALIASES.get(key) ?? key;
+  return SIMILARITY_METRIC_KEYS.has(canonical) ? canonical : null;
+}
 
 /** CF-5: per-metric weight bounds and default. A weight of 0 disables the metric;
  *  1 is the neutral default; up to 3 lets the user emphasise a metric 3× over a

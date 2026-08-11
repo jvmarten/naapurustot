@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import {
   SIMILARITY_METRIC_KEYS,
+  canonicalSimilarityMetric,
   SIMILARITY_WEIGHT_MIN,
   SIMILARITY_WEIGHT_MAX,
   SIMILARITY_WEIGHT_DEFAULT,
@@ -23,10 +24,16 @@ function defaultWeights(): Record<string, number> {
   return w;
 }
 
-/** Normalise a partial/foreign weight map into a full, validated weight map. */
+/** Normalise a partial/foreign weight map into a full, validated weight map.
+ *  Renamed keys resolve through their alias, in two passes so a map holding both the
+ *  legacy and the current name resolves to the current one regardless of key order. */
 function normalizeWeights(partial: Record<string, number> | null | undefined): Record<string, number> {
   const w = defaultWeights();
   if (!partial) return w;
+  for (const key of Object.keys(partial)) {
+    const canonical = canonicalSimilarityMetric(key);
+    if (canonical !== null && canonical !== key) w[canonical] = clampWeight(partial[key]);
+  }
   for (const key of Object.keys(partial)) {
     if (SIMILARITY_METRIC_KEYS.has(key)) w[key] = clampWeight(partial[key]);
   }
@@ -69,7 +76,12 @@ function loadWeights(): Record<string, number> {
     if (rawLegacy) {
       const parsed = JSON.parse(rawLegacy);
       if (Array.isArray(parsed)) {
-        const selected = parsed.filter((k) => typeof k === 'string' && SIMILARITY_METRIC_KEYS.has(k));
+        // Resolve renamed keys: this array turns everything NOT listed off, so a
+        // dropped key silently disables a metric the user had switched on — and an
+        // array holding only a renamed key would discard the whole saved selection.
+        const selected = parsed
+          .map((k) => (typeof k === 'string' ? canonicalSimilarityMetric(k) : null))
+          .filter((k): k is string => k !== null);
         if (selected.length > 0) {
           // Selected metrics keep weight 1; everything else is turned off (weight 0).
           const w = defaultWeights();

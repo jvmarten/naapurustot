@@ -12,7 +12,8 @@ import {
   QUALITY_FACTORS, QUALITY_PERSONAS,
 } from '../utils/qualityIndex';
 import {
-  SIMILARITY_METRIC_KEYS, SIMILARITY_WEIGHT_MIN, SIMILARITY_WEIGHT_MAX, SIMILARITY_WEIGHT_DEFAULT,
+  SIMILARITY_METRIC_KEYS, canonicalSimilarityMetric,
+  SIMILARITY_WEIGHT_MIN, SIMILARITY_WEIGHT_MAX, SIMILARITY_WEIGHT_DEFAULT,
 } from '../utils/similarity';
 import type { WizardAnswers } from './useWizardProfile';
 import { deserializeWizardProfile } from './useWizardProfile';
@@ -243,7 +244,12 @@ function deserializeAffordability(s: string): UrlAffordability | null {
 // The per-metric similarity weights (0–3, default 1) are encoded compactly as
 // `simw=hr_mtu:2,crime_index:0` — only the metrics that differ from the neutral
 // default of 1 are listed, so an all-default configuration omits the param
-// entirely. Unknown keys and out-of-range values are dropped on decode.
+// entirely. Unknown keys and out-of-range values are dropped on decode; a key that
+// was merely RENAMED resolves through canonicalSimilarityMetric instead, so links
+// shared before the rename still carry the sender's configuration. Dropping it would
+// not read as a stale link: an all-dropped `simw` decodes to null, and the app then
+// falls back to the recipient's own stored weights, silently rendering someone else's
+// analysis. Encoding stays on current keys only.
 
 function serializeSimWeights(w: Record<string, number>): string {
   const parts: string[] = [];
@@ -262,10 +268,10 @@ function deserializeSimWeights(encoded: string): Record<string, number> | null {
   for (const part of encoded.split(',')) {
     const idx = part.indexOf(':');
     if (idx <= 0) continue;
-    const key = part.slice(0, idx);
+    const key = canonicalSimilarityMetric(part.slice(0, idx));
     const val = Number(part.slice(idx + 1));
     if (
-      SIMILARITY_METRIC_KEYS.has(key) &&
+      key !== null &&
       Number.isFinite(val) &&
       val >= SIMILARITY_WEIGHT_MIN && val <= SIMILARITY_WEIGHT_MAX &&
       val !== SIMILARITY_WEIGHT_DEFAULT

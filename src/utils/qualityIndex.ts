@@ -310,7 +310,12 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     id: 'foreign_language',
     label: { fi: 'Vieraskielisten osuus', en: 'Foreign Language %', sv: 'Andel främmande språk' },
     defaultWeight: 0,
-    properties: ['foreign_language_pct'],
+    // Latest year, not the 2020 measurement — postal-code language data is published
+    // only for 2020. `properties` is an unweighted mean of independently normalized
+    // entries, not a fallback chain, so this stays a single property. defaultWeight 0
+    // means the swap cannot move a default quality index: both the range-collection
+    // and the per-feature scoring loop skip zero-weight factors before reading it.
+    properties: ['foreign_language_est_pct'],
     invert: false,
     primary: false,
   },
