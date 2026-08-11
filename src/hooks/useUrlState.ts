@@ -249,7 +249,9 @@ function deserializeAffordability(s: string): UrlAffordability | null {
 // shared before the rename still carry the sender's configuration. Dropping it would
 // not read as a stale link: an all-dropped `simw` decodes to null, and the app then
 // falls back to the recipient's own stored weights, silently rendering someone else's
-// analysis. Encoding stays on current keys only.
+// analysis. Encoding stays on current keys only, so a param naming both a legacy key
+// and its current name can only be hand-crafted; there the last one written wins,
+// unlike normalizeWeights, which resolves the current name in preference.
 
 function serializeSimWeights(w: Record<string, number>): string {
   const parts: string[] = [];

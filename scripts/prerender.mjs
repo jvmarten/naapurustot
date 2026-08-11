@@ -130,11 +130,12 @@ for (const f of geojson.features) {
 
 // #3: cross-region "Similar areas elsewhere in Finland" mesh. Precomputed here at
 // BUILD time (zero client-bundle cost) from the committed, geometry-stripped
-// region_properties.json, restricted to HIGH-COVERAGE Paavo demographic/economic axes
-// (all 93–100% national coverage) so sparse layers like transit/prices/schools can't
-// produce junk pairings. Each area gets its top-6 most-similar areas in OTHER
-// seutukunnat, turning the ~9k profile pages from 69 within-region link-islands into
-// one thematically connected graph (crawl depth / internal PageRank / AI relatedness).
+// region_properties.json, restricted to HIGH-COVERAGE demographic/economic axes (all
+// 93–100% national coverage — seven Paavo columns plus the derived foreign-language
+// estimate) so sparse layers like transit/prices/schools can't produce junk pairings.
+// Each area gets its top-6 most-similar areas in OTHER seutukunnat, turning the ~9k
+// profile pages from 69 within-region link-islands into one thematically connected
+// graph (crawl depth / internal PageRank / AI relatedness).
 // Deterministic — weighted-normalized Euclidean distance with a stable pno tie-break —
 // so the rendered noscript is byte-stable across reruns.
 const SIMILAR_METRICS = [

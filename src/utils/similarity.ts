@@ -69,7 +69,7 @@ export const SIMILARITY_METRIC_KEYS: ReadonlySet<string> = new Set(SIMILARITY_ME
  *  back ON for a user who had switched it off. Read paths resolve through
  *  `canonicalSimilarityMetric`; the write paths deliberately do NOT, so a stored blob
  *  self-heals to the new key the next time the user touches a weight. */
-const LEGACY_SIMILARITY_METRIC_ALIASES: ReadonlyMap<string, string> = new Map([
+export const LEGACY_SIMILARITY_METRIC_ALIASES: ReadonlyMap<string, string> = new Map([
   // The 2020 postal measurement → the latest year's derived estimate.
   ['foreign_language_pct', 'foreign_language_est_pct'],
 ]);

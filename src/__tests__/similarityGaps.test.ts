@@ -32,7 +32,7 @@ const baseProps = {
   hr_mtu: 30000,
   unemployment_rate: 10,
   higher_education_rate: 50,
-  foreign_language_pct: 15,
+  foreign_language_est_pct: 15,
   ownership_rate: 50,
   transit_stop_density: 30,
   property_price_sqm: 3000,
@@ -49,7 +49,7 @@ describe('findSimilarNeighborhoods distance correctness', () => {
       makeFeature({ pno: '00200', ...baseProps }), // identical metrics
       // Need a third feature with different values so min/max ranges exist
       makeFeature({ pno: '00300', hr_mtu: 50000, unemployment_rate: 20,
-        higher_education_rate: 80, foreign_language_pct: 30, ownership_rate: 80,
+        higher_education_rate: 80, foreign_language_est_pct: 30, ownership_rate: 80,
         transit_stop_density: 60, property_price_sqm: 6000, crime_index: 100,
         population_density: 10000, child_ratio: 20 }),
     ];

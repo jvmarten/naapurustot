@@ -14,11 +14,13 @@ import { renderHook } from '@testing-library/react';
 import {
   AVAILABLE_SIMILARITY_METRICS,
   SIMILARITY_METRIC_KEYS,
+  LEGACY_SIMILARITY_METRIC_ALIASES,
   canonicalSimilarityMetric,
   SIMILARITY_WEIGHT_DEFAULT,
 } from '../utils/similarity';
 import { useSimilarityMetrics } from '../hooks/useSimilarityMetrics';
 import { readInitialUrlState } from '../hooks/useUrlState';
+import dataSources from '../data/data_sources.json';
 
 const WEIGHTS_KEY = 'naapurustot-similarity-weights';
 const LEGACY_KEY = 'naapurustot-similarity-metrics';
@@ -120,7 +122,66 @@ describe('persisted weights survive the rename', () => {
   });
 });
 
+/**
+ * scripts/*.mjs cannot import from src/, so scripts/prerender.mjs carries its own copy
+ * of the similarity axis list for the static cross-region mesh. No CI job compared the
+ * two, which is exactly how that copy went on scoring a column the app had retired.
+ *
+ * The two lists are NOT meant to be equal — the script uses a deliberately narrower,
+ * higher-coverage basis and includes he_kika, which the app does not score — so
+ * asserting set equality would be wrong. These are the invariants that do hold.
+ */
+const scriptSource = Object.values(
+  import.meta.glob('../../scripts/prerender.mjs', {
+    query: '?raw',
+    import: 'default',
+    eager: true,
+  }) as Record<string, string>,
+)[0];
+
+function similarMetricsMirror(): string[] {
+  const block = scriptSource.match(/const SIMILAR_METRICS = \[([\s\S]*?)\n\];/);
+  if (!block) return [];
+  // Strip line comments first: the entries are quoted, and so is nothing else here.
+  const body = block[1].replace(/\/\/[^\n]*/g, '');
+  return [...body.matchAll(/'([a-z0-9_]+)'/g)].map((m) => m[1]);
+}
+
+describe('scripts/prerender.mjs SIMILAR_METRICS mirror', () => {
+  const mirror = similarMetricsMirror();
+
+  it('is parseable (the guard below is worthless if this silently finds nothing)', () => {
+    expect(scriptSource, 'scripts/prerender.mjs not readable as raw text').toBeTruthy();
+    expect(mirror.length).toBeGreaterThan(4);
+  });
+
+  it('scores only registered metrics', () => {
+    const registered = dataSources.metrics as Record<string, unknown>;
+    const unknown = mirror.filter((k) => !(k in registered));
+    expect(
+      unknown,
+      `scripts/prerender.mjs SIMILAR_METRICS names unregistered columns: ${unknown.join(', ')}`,
+    ).toHaveLength(0);
+  });
+
+  it('scores no column the app has retired', () => {
+    // The invariant that would have caught this drift, and will catch the next one:
+    // renaming a similarity metric adds an alias entry, and the static mesh must move
+    // with it rather than keeping the superseded column.
+    const retired = mirror.filter((k) => LEGACY_SIMILARITY_METRIC_ALIASES.has(k));
+    expect(
+      retired,
+      `scripts/prerender.mjs still scores retired column(s): ${retired
+        .map((k) => `${k} -> ${LEGACY_SIMILARITY_METRIC_ALIASES.get(k)}`)
+        .join(', ')}`,
+    ).toHaveLength(0);
+  });
+});
+
 describe('shared simw links survive the rename', () => {
+  // Both hooks: each case must be independent of what ran before it, not merely tidy
+  // after itself — these are the guard for a migration, so ordering must not matter.
+  beforeEach(() => setSearch(''));
   afterEach(() => setSearch(''));
 
   it('decodes a legacy key from an already-shared link', () => {
