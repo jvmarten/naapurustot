@@ -41,11 +41,14 @@ which is 0.5 m precision over 0..32 km, and drops the mean tile from 57 kB to
     as the sun's altitude just before it sets, which is exactly when the layer is
     being looked at. Halving the step costs about 5 % of the payload.
 
-PYRAMID. z6/z7/z8 over Finland, ~265 tiles and ~5.5 MB total. The runtime picks a
-zoom from the camera (see src/live/terrain.ts) and fetches only the handful of
-tiles the viewport covers, so a city view costs a few hundred kB, not the pyramid.
-z8 is ~287 m/px at 62 N, which is the resolution the shadow pass needs by the time
-individual buildings take over at DETAIL_MIN_ZOOM.
+PYRAMID. z3..z8, TIERED — see ZOOM_BBOX. The coarse levels cover the continent and
+the fine ones cover Finland, because the camera picks the level and a country-wide
+camera sees Norway while a street-corner one does not. The runtime (see
+src/live/terrain.ts) fetches only the handful of tiles its viewport covers, so a
+city view costs a few hundred kB and a continental view costs four tiles — never
+the pyramid. z8 is ~287 m/px at 62 N, the resolution the shadow pass needs by the
+time individual buildings take over at DETAIL_MIN_ZOOM; z3 is ~9 km/px, which is
+about three screen pixels at the zoom that reads it.
 
 NOT PART OF `npm run build:data`, AND NOT ON THE MONTHLY REFRESH. It reaches the
 network, so re-running it cannot be byte-reproducible and it would break the
@@ -80,11 +83,42 @@ logger = logging.getLogger(__name__)
 
 TILE_URL = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png"
 
-# Finland plus enough margin that a viewport on the border still has terrain on
-# both sides of it. Shadows cross borders.
-BBOX = (19.0, 59.5, 31.6, 70.1)
+# THE PYRAMID IS TIERED: WIDE AND COARSE, NARROW AND FINE.
+#
+# One bbox for every level is the wrong shape for what this feeds. The shadow pass
+# picks a DEM zoom from the camera, so the level a country-wide viewport reads is
+# never the level a street-corner viewport reads — and the two want opposite
+# things. Fine levels want Finland and nothing else, because that is where the map
+# is and each tile is 287 m of ground. Coarse levels want everything the camera can
+# SEE, because a viewport framing Finland also frames Norway, and Norway is the
+# most mountainous land in the picture.
+#
+# Getting this wrong is not a subtle degradation. Ground outside the pyramid reads
+# as elevation zero (`loadHeightField` zero-fills a missing tile), so an
+# un-mirrored Scandinavia rendered as a flat, fully-lit plain with a straight-edged
+# boundary where the coverage stopped — the mountains missing and the seam showing.
+# Zero-fill is indistinguishable from measured sea level to every consumer
+# downstream, which makes a gap in coverage look exactly like data.
+#
+# Cost stays modest because a coarse level is cheap by construction: one z4 tile
+# covers what 256 z8 tiles do, so continental coverage at the top of the pyramid
+# costs a few tiles, not a few thousand.
+ZOOM_BBOX = {
+    # Continental. What a viewport framing all of Finland actually contains:
+    # Scandinavia, the Baltic, Denmark, the Kola peninsula, NW Russia.
+    3: (-12.0, 47.0, 52.0, 73.5),
+    4: (-12.0, 47.0, 52.0, 73.5),
+    5: (-12.0, 47.0, 52.0, 73.5),
+    6: (-12.0, 47.0, 52.0, 73.5),
+    # Regional. A 600 km viewport anywhere in Finland reaches Sweden, Norway,
+    # Estonia, Karelia — all of which cast into it.
+    7: (4.0, 54.0, 40.0, 71.5),
+    # National. Finland plus enough margin that a viewport on the border still has
+    # terrain on both sides of it. Shadows cross borders.
+    8: (19.0, 59.5, 31.6, 70.1),
+}
 
-ZOOMS = (6, 7, 8)
+ZOOMS = tuple(sorted(ZOOM_BBOX))
 TILE_SIZE = 256
 
 # Metres per stored unit — see the ENCODING note above.
@@ -142,9 +176,43 @@ def encode_tile(raw: bytes) -> bytes:
     return buf.getvalue()
 
 
+def prune_zoom(z: int, x0: int, x1: int, y0: int, y1: int) -> int:
+    """
+    Delete committed tiles at `z` that the current bbox no longer covers.
+
+    A level that NARROWS would otherwise leave its old tiles on disk and in the
+    shipped tree: the manifest stops advertising them, so the runtime never asks
+    for them, and they become weight nothing can see or account for. Same reason
+    the social-card rasterizer prunes its orphans.
+    """
+    level = OUT_DIR / str(z)
+    if not level.is_dir():
+        return 0
+    removed = 0
+    for xdir in level.iterdir():
+        if not xdir.is_dir() or not xdir.name.isdigit():
+            continue
+        x = int(xdir.name)
+        for tile in xdir.glob("*.png"):
+            if not tile.stem.isdigit():
+                continue
+            y = int(tile.stem)
+            if x0 <= x <= x1 and y0 <= y <= y1:
+                continue
+            tile.unlink()
+            removed += 1
+        if not any(xdir.iterdir()):
+            xdir.rmdir()
+    if removed:
+        logger.info("z%d: pruned %d tiles outside the current bbox", z, removed)
+    return removed
+
+
 def fetch_zoom(z: int) -> dict:
-    x0, y0 = deg2tile(BBOX[0], BBOX[3], z)
-    x1, y1 = deg2tile(BBOX[2], BBOX[1], z)
+    bbox = ZOOM_BBOX[z]
+    x0, y0 = deg2tile(bbox[0], bbox[3], z)
+    x1, y1 = deg2tile(bbox[2], bbox[1], z)
+    prune_zoom(z, x0, x1, y0, y1)
     coords = [(x, y) for x in range(x0, x1 + 1) for y in range(y0, y1 + 1)]
     logger.info("z%d: %d tiles (x %d..%d, y %d..%d)", z, len(coords), x0, x1, y0, y1)
 
@@ -187,6 +255,10 @@ def fetch_zoom(z: int) -> dict:
         "maxY": y1,
         "tiles": written,
         "bytes": total_bytes,
+        # The geographic extent this level was built for. Advisory — the runtime
+        # gates requests on the tile ranges above, which are exact — but it is what
+        # makes a tiered pyramid readable in the committed manifest.
+        "bbox": list(bbox),
     }
 
 
@@ -210,7 +282,6 @@ def main() -> int:
         "path": "data/terrain/{z}/{x}/{y}.png",
         "tileSize": TILE_SIZE,
         "quant": ELEVATION_QUANT,
-        "bbox": list(BBOX),
         "zooms": {},
     }
     if MANIFEST.exists():
@@ -224,6 +295,18 @@ def main() -> int:
         manifest["zooms"][str(z)] = fetch_zoom(z)
 
     manifest["zooms"] = dict(sorted(manifest["zooms"].items(), key=lambda kv: int(kv[0])))
+    # The union of the levels, for the reader. Nothing consumes it — the runtime
+    # gates every request on the per-level tile ranges, which is what a tiered
+    # pyramid needs — but a single figure here would now be a lie about at least
+    # one level, so it is derived rather than declared.
+    boxes = [v["bbox"] for v in manifest["zooms"].values() if "bbox" in v]
+    if boxes:
+        manifest["bbox"] = [
+            min(b[0] for b in boxes),
+            min(b[1] for b in boxes),
+            max(b[2] for b in boxes),
+            max(b[3] for b in boxes),
+        ]
 
     MANIFEST.parent.mkdir(parents=True, exist_ok=True)
     MANIFEST.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")

@@ -1,6 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Map as MaplibreMap } from 'maplibre-gl';
-import { sunPosition, sunTimes, shadowBearing, shadowLengthRatio } from '../utils/sun';
+import {
+  sunPosition,
+  sunTimes,
+  shadowBearing,
+  shadowLengthRatio,
+  solarFrame,
+  frameAltitude,
+  type SolarFrame,
+} from '../utils/sun';
 import { basemapTileUrl } from '../utils/basemap';
 import { t, getLang, setLang, useI18nVersion, type Lang } from '../utils/i18n';
 import { useTheme } from '../hooks/useTheme';
@@ -171,6 +179,9 @@ const SHADE = {
  * tree and a building is shaded ONCE, at the building's tone — see `draw`, where
  * the two casters are merged into a single mask before either reaches the screen.
  */
+/** One theme's shade palette — either arm of {@link SHADE}, never one of them. */
+type ShadeTone = (typeof SHADE)[keyof typeof SHADE];
+
 const CANOPY_ALPHA_SCALE = 0.65;
 
 /**
@@ -417,6 +428,207 @@ function fetchPadMetres(view: Bbox): number {
 }
 
 /**
+ * Screen spacing, in CSS pixels, between solar-altitude samples in the twilight
+ * wash.
+ *
+ * NOT set by how fast the field varies — it varies barely at all, being the
+ * smoothest thing on the page. It is set by the SHARPEST feature in it: the
+ * terminator, where the wash steps from nothing to the daytime shadow tone in one
+ * sample. Bilinear interpolation of a step reconstructs the edge on the sample
+ * lattice, so a coarse step draws that line as a visible staircase with treads
+ * the width of the spacing. Everything else here would be happy at 64 px; the
+ * edge is what pays for 8.
+ *
+ * Measured at 21,800 samples for a 1540x900 viewport, ~1.1 ms a frame — against a
+ * 16 ms budget at zooms where, by construction, there are no buildings to sweep.
+ */
+const TWILIGHT_STEP_PX = 8;
+
+/**
+ * Scratch canvases for the twilight wash, at sample resolution.
+ *
+ * TWO, because the wash does two things that composite differently — see
+ * {@link twilightLayer}. Module-level and reused, like every other per-frame
+ * raster here.
+ */
+let twilightShadeCanvas: HTMLCanvasElement | null = null;
+let twilightDeepenCanvas: HTMLCanvasElement | null = null;
+let twilightShadePixels: ImageData | null = null;
+let twilightDeepenPixels: ImageData | null = null;
+
+/** The night side of the terminator, as the two passes that draw it. */
+interface TwilightLayer {
+  /** Opaque where the sun has set. Joins the merged mask as one more occluder. */
+  shade: HTMLCanvasElement;
+  /** How much DARKER than a daytime shadow that ground is. Drawn after. */
+  deepen: HTMLCanvasElement;
+  /**
+   * Whether any of the view is still in daylight.
+   *
+   * For the honesty strip, not for the drawing. Once a terminator can cross the
+   * screen, "the sun has set — the whole area is in shade" stops being a fact
+   * about the map and becomes a fact about its centre pixel, and the reader can
+   * see it is wrong: half the frame is lit.
+   */
+  lit: boolean;
+}
+
+/**
+ * Screen pixel -> lon/lat, by inverting the camera's Mercator affine.
+ *
+ * The same trade the shadow projection makes in the other direction: at pitch 0 —
+ * which /live/ pins — Mercator->screen is affine, so the inverse is a 2x2 solve
+ * and a pair of transcendentals rather than a MapLibre `unproject` call and a
+ * fresh LngLat object per sample. At a thousand samples a frame, on a path that
+ * runs on every `render` event, that difference is the layer being free or not.
+ */
+function screenToLonLat(t: Affine, sx: number, sy: number): [number, number] {
+  const det = t.ax * t.by - t.bx * t.ay;
+  const x = sx - t.px;
+  const y = sy - t.py;
+  return mercatorToLonLat(
+    t.ox + (t.by * x - t.bx * y) / det,
+    t.oy + (t.ax * y - t.ay * x) / det,
+  );
+}
+
+/**
+ * The day/night terminator, as a wash whose depth is the LOCAL solar altitude.
+ *
+ * THE SUN DOES NOT HAVE ONE ALTITUDE OVER A MAP. This layer exists because the
+ * page used to assume it did: `sunPosition` was evaluated once at the centre
+ * pixel and that single number decided whether the entire viewport was day or
+ * night. At a camera framing Finland that is a claim about 2,000 km of ground
+ * from one sample — and at 02:18 UTC on an August morning the truth ran from
+ * -12.9° over Denmark to +8.5° over the White Sea. The page drew that as a
+ * uniform sheet, either all lit or all dark, where the real picture is a
+ * terminator cutting diagonally across the frame. Every other shadow-map on the
+ * web draws that line; drawing a flat wash instead is the single thing that made
+ * the zoomed-out view read as broken.
+ *
+ * Returns null when the sun is above the horizon at every sample — the ordinary
+ * daytime case, where this contributes nothing and the caller keeps its cheaper
+ * path.
+ *
+ * WHY TWO PASSES AND NOT ONE ALPHA. Night is darker than a daytime shadow (0.62
+ * against 0.45 on the dark theme), and the merged mask is composited at a single
+ * alpha — so a wash that needed to reach the night tone could not live on it. But
+ * splitting the wash by what it is DOING makes both halves exact:
+ *
+ *   `shade`  is opaque wherever the sun has set. It joins the merged mask as one
+ *            more occluder, saturating against buildings and relief exactly as
+ *            they saturate against each other — so ground that is both past
+ *            sunset and behind a hill is shaded ONCE, which is the invariant this
+ *            file's compositing exists to hold.
+ *   `deepen` is the REMAINDER: how much further past a daytime shadow that ground
+ *            has gone, drawn over the composited mask. Above the horizon it is
+ *            zero, so it can never darken a daytime shadow. Below it, the mask
+ *            has already laid down exactly `shade.day`, so `day + deepen*(1-day)`
+ *            lands on `nightAlpha` precisely.
+ *
+ * The result is that the old behaviour — flood the viewport at `nightAlpha` once
+ * the sun is down — is reproduced exactly wherever the whole viewport agrees
+ * about the sun, which is every zoom at which buildings are drawn. What changes
+ * is that the viewport is no longer required to agree.
+ */
+function twilightLayer(
+  map: MaplibreMap,
+  frame: SolarFrame,
+  shade: ShadeTone,
+  width: number,
+  height: number,
+): TwilightLayer | null {
+  if (typeof document === 'undefined') return null;
+
+  const t0 = cameraAffine(map);
+
+  // BROAD DAYLIGHT LEAVES BEFORE THE LOOP.
+  //
+  // Otherwise this pays ~21,800 solar evaluations a frame to discover that every
+  // one of them is above the horizon — on the same path that is sweeping
+  // thousands of buildings at street zoom, which is where the frame budget is
+  // actually tight and where the terminator provably is not.
+  //
+  // Nine probes, and the test is `min > spread` rather than `min > 0`. Over a
+  // lat/lon rectangle the sun's altitude attains its minimum on the BOUNDARY —
+  // as a function of latitude it is R·sin(φ+ψ), which has a single maximum, and
+  // as a function of hour angle it is monotonic in |h| — so the probes bracket
+  // it. Requiring the margin to exceed the spread between the probes is what
+  // keeps that an argument rather than an assumption: at street zoom the spread
+  // is ~0.001° and the guard fires, at a continental camera it is 20° and the
+  // guard correctly refuses to fire.
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (let i = 0; i < 9; i++) {
+    const [lon, lat] = screenToLonLat(t0, (width * (i % 3)) / 2, (height * Math.floor(i / 3)) / 2);
+    const a = frameAltitude(frame, lat, lon);
+    if (a < lo) lo = a;
+    if (a > hi) hi = a;
+  }
+  if (lo - (hi - lo) > 0) return null;
+
+  const cols = Math.max(2, Math.ceil(width / TWILIGHT_STEP_PX));
+  const rows = Math.max(2, Math.ceil(height / TWILIGHT_STEP_PX));
+
+  twilightShadeCanvas ??= document.createElement('canvas');
+  twilightDeepenCanvas ??= document.createElement('canvas');
+  if (twilightShadeCanvas.width !== cols || twilightShadeCanvas.height !== rows) {
+    twilightShadeCanvas.width = cols;
+    twilightShadeCanvas.height = rows;
+    twilightDeepenCanvas.width = cols;
+    twilightDeepenCanvas.height = rows;
+    twilightShadePixels = null;
+    twilightDeepenPixels = null;
+  }
+  const sctx = twilightShadeCanvas.getContext('2d');
+  const dctx = twilightDeepenCanvas.getContext('2d');
+  if (!sctx || !dctx) return null;
+  twilightShadePixels ??= sctx.createImageData(cols, rows);
+  twilightDeepenPixels ??= dctx.createImageData(cols, rows);
+  const sp = twilightShadePixels.data;
+  const dp = twilightDeepenPixels.data;
+
+  const t = t0;
+  const [ir, ig, ib] = shade.rgb;
+  // Source-over puts `day + x*(1 - day)` on ground the mask has already shaded,
+  // so this is the inversion that makes the pair land on nightAlpha exactly.
+  const remainder = 1 - shade.day;
+
+  let any = false;
+  let lit = false;
+  for (let r = 0, p = 0; r < rows; r++) {
+    // Sample at the CENTRE of the cell each canvas pixel will be stretched to,
+    // so the upscale lands the values back exactly where they were measured.
+    const sy = (r + 0.5) * TWILIGHT_STEP_PX;
+    for (let c = 0; c < cols; c++, p += 4) {
+      const [lon, lat] = screenToLonLat(t, (c + 0.5) * TWILIGHT_STEP_PX, sy);
+      const altitude = frameAltitude(frame, lat, lon);
+      sp[p] = ir;
+      sp[p + 1] = ig;
+      sp[p + 2] = ib;
+      dp[p] = ir;
+      dp[p + 1] = ig;
+      dp[p + 2] = ib;
+      if (altitude > 0) {
+        lit = true;
+        sp[p + 3] = 0;
+        dp[p + 3] = 0;
+        continue;
+      }
+      any = true;
+      sp[p + 3] = 255;
+      dp[p + 3] = Math.round(
+        (255 * (nightAlpha(altitude, shade.day, shade.night) - shade.day)) / remainder,
+      );
+    }
+  }
+  if (!any) return null;
+  sctx.putImageData(twilightShadePixels, 0, 0);
+  dctx.putImageData(twilightDeepenPixels, 0, 0);
+  return { shade: twilightShadeCanvas, deepen: twilightDeepenCanvas, lit };
+}
+
+/**
  * Scratch canvas holding the terrain shadow mask at HEIGHTFIELD resolution.
  *
  * Separate from `maskCanvas`, and deliberately not viewport-sized: the mask is
@@ -474,9 +686,14 @@ function terrainLayer(
   sunAltitudeDeg: number,
   shadowBearingDeg: number,
   map: MaplibreMap,
-  ink: readonly [number, number, number],
+  shade: ShadeTone,
+  frame: SolarFrame,
+  timeKey: number,
 ): TerrainLayer | null {
-  if (!field || sunAltitudeDeg <= 0) return null;
+  // NOT gated on the centre pixel's sun. A viewport can straddle the terminator,
+  // and when it does the sunlit half still has relief to cast — the sweep decides
+  // per field whether anything is lit at all, and says so by returning no mask.
+  if (!field) return null;
   if (typeof document === 'undefined') return null;
 
   const { width, height, bbox } = field;
@@ -490,20 +707,26 @@ function terrainLayer(
   const tctx = terrainCanvas.getContext('2d');
   if (!tctx) return null;
 
-  // Quantised: a tenth of a degree of sun is far below one pixel of shadow
-  // movement at these cell sizes, and rounding is what lets a slow drag of the
-  // time slider reuse the mask between adjacent ticks instead of rebuilding it.
-  const key = `${sunAltitudeDeg.toFixed(1)},${shadowBearingDeg.toFixed(1)},${ink.join()}`;
+  // KEYED ON THE INSTANT, NOT ON A ROUNDED ALTITUDE. This used to quantise the
+  // sun to a tenth of a degree on the grounds that a tenth of a degree is
+  // sub-pixel. It is not, near the horizon: a shadow is cot(altitude) long, so
+  // 0.1° and 0.2° above the horizon differ by a FACTOR OF TWO in length — and the
+  // horizon is precisely where this layer is being looked at. The time is what
+  // the mask is really a function of, and using it directly is both correct and
+  // simpler: a pan (same instant) reuses, a scrub (new instant) recomputes, which
+  // is all the cache was ever for.
+  const key = `${timeKey},${shadowBearingDeg.toFixed(1)},${shade.ink}`;
   if (terrainCacheField !== field || terrainCacheKey !== key) {
-    const mask = terrainShadowMask(field, sunAltitudeDeg, shadowBearingDeg);
+    const mask = terrainShadowMask(field, sunAltitudeDeg, shadowBearingDeg, frame);
     if (!mask) return null;
     // Inked here rather than left as bare coverage. The merged mask is
     // composited onto the page in ONE drawImage, so every caster on it has to
     // already carry the theme's shade colour — a black-filled terrain would come
     // out black next to the buildings' deep blue instead of joining the union.
+    //
     if (!terrainPixels) terrainPixels = tctx.createImageData(width, height);
     const px = terrainPixels.data;
-    const [ir, ig, ib] = ink;
+    const [ir, ig, ib] = shade.rgb;
     for (let i = 0, p = 0; i < mask.length; i++, p += 4) {
       px[p] = ir;
       px[p + 1] = ig;
@@ -860,6 +1083,15 @@ export const LivePage: React.FC = () => {
    */
   const [terrainOn, setTerrainOn] = useState(false);
   /**
+   * Whether the day/night terminator is currently crossing the view.
+   *
+   * State, and set from the draw loop, for the same reason `terrainOn` is: the
+   * honesty strip has to know something only the per-sample solar field knows,
+   * and it changes at the rate a camera crosses a terminator rather than at the
+   * rate the canvas repaints.
+   */
+  const [splitByTerminator, setSplitByTerminator] = useState(false);
+  /**
    * What the last train poll returned: how many are running, or that it failed.
    *
    * `null` until the first poll lands, which is what the readout shows as
@@ -961,15 +1193,19 @@ export const LivePage: React.FC = () => {
         for (const c2 of canopy) projectPrepared(c2, transform, simplifyPx * canopySimplifyScale(zoom));
       }
 
-      // The sun is below the horizon: every surface in view is in shade, so the
-      // shade is the whole viewport. Drawing nothing here — which is what this
-      // used to do — says "no data" in the same visual language.
-      if (sun.altitude <= 0) {
-        ctx.fillStyle = `rgba(${shade.ink}, ${nightAlpha(sun.altitude, shade.day, shade.night)})`;
-        ctx.fillRect(0, 0, width, height);
-        paintBuildings(ctx, buildingsOn, theme, zoom, width, height);
-        return;
-      }
+      // The instant, evaluated once. Everything below that asks where the sun is
+      // asks it of this, at ITS OWN PLACE — the centre pixel's answer is a fact
+      // about the centre pixel and nothing else.
+      const frame = solarFrame(when);
+
+      // Night, as a field rather than a verdict. Above the horizon everywhere
+      // this is null and costs one loop over ~1,300 samples; where any of the
+      // viewport has passed sunset it carries the terminator.
+      const twilight = twilightLayer(map, frame, shade, width, height);
+      // Repeats are free — React bails out on an unchanged value — and this
+      // changes about as often as the camera crosses a terminator, which is
+      // rarely. Same shape as `setTerrainOn`.
+      setSplitByTerminator(twilight !== null && twilight.lit);
 
       // One screen-space displacement vector per metre of shadow. Mercator scale
       // varies negligibly across a city-sized viewport, so deriving it once at the
@@ -1025,7 +1261,15 @@ export const LivePage: React.FC = () => {
       // Relief, rasterised from the heightfield rather than swept as polygons.
       // Terrain has no footprint to extrude — it is a continuous surface, so its
       // shadow is a per-cell occlusion test, not a silhouette. See terrain.ts.
-      const terrain = terrainLayer(terrainRef.current, sun.altitude, bearing, map, shade.rgb);
+      const terrain = terrainLayer(
+        terrainRef.current,
+        sun.altitude,
+        bearing,
+        map,
+        shade,
+        frame,
+        when.getTime(),
+      );
 
       // SHADE IS A UNION, NOT A STACK.
       //
@@ -1046,7 +1290,7 @@ export const LivePage: React.FC = () => {
       //
       // Only when there is something to merge — a viewport with buildings alone
       // keeps the direct single fill, which is cheaper by a full-viewport drawImage.
-      const needsMask = canopyShade !== null || terrain !== null;
+      const needsMask = canopyShade !== null || terrain !== null || twilight !== null;
       const mask = needsMask ? ensureMask(canvas.width, canvas.height) : null;
       const mctx = mask?.getContext('2d') ?? null;
       if (needsMask && mctx) {
@@ -1056,6 +1300,22 @@ export const LivePage: React.FC = () => {
         if (canopyShade) {
           mctx.fillStyle = `rgba(${shade.ink}, ${CANOPY_ALPHA_SCALE})`;
           mctx.fill(canopyShade, 'nonzero');
+        }
+        if (twilight) {
+          // Sunset is an occluder like any other here — opaque, so it saturates
+          // with relief and walls instead of adding to them. The smoothing is
+          // what turns a 32 px sample step into a clean terminator edge.
+          mctx.save();
+          mctx.imageSmoothingEnabled = true;
+          mctx.imageSmoothingQuality = 'high';
+          mctx.drawImage(
+            twilight.shade,
+            0,
+            0,
+            twilight.shade.width * TWILIGHT_STEP_PX,
+            twilight.shade.height * TWILIGHT_STEP_PX,
+          );
+          mctx.restore();
         }
         if (terrain) {
           // A hill is not a crown: it stops light completely, so relief goes in at
@@ -1087,6 +1347,24 @@ export const LivePage: React.FC = () => {
         ctx.fill(path, 'nonzero');
       }
 
+      // Night, past the daytime tone. Separate from the mask on purpose: this is
+      // not another occluder to be unioned but the difference between "in shadow"
+      // and "the sun has set", and it is zero everywhere the sun is still up — so
+      // it cannot deepen a daytime shadow. See twilightLayer.
+      if (twilight) {
+        ctx.save();
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(
+          twilight.deepen,
+          0,
+          0,
+          twilight.deepen.width * TWILIGHT_STEP_PX,
+          twilight.deepen.height * TWILIGHT_STEP_PX,
+        );
+        ctx.restore();
+      }
+
       paintBuildings(ctx, buildingsOn, theme, zoom, width, height);
     };
 
@@ -1102,7 +1380,7 @@ export const LivePage: React.FC = () => {
     if (trainsOn) {
       paintTrains(ctx, map, trainsRef.current, Date.now(), theme, zoom, width, height);
     }
-  }, [shadowsOn, trainsOn, incidentsOn, sun.altitude, sun.azimuth, theme]);
+  }, [shadowsOn, trainsOn, incidentsOn, sun.altitude, sun.azimuth, when, theme]);
 
   /**
    * Always-current `draw`, so the map listeners can be bound ONCE.
@@ -1638,7 +1916,17 @@ export const LivePage: React.FC = () => {
               {shadowsOn && (
                 sun.altitude <= 0 ? (
                   <p className="text-surface-600 dark:text-surface-300">
-                    {times.polar === 'night' ? t('live.shadow.polar_night') : t('live.shadow.sun_down')}
+                    {/* "The whole area is in shade" is a claim about the whole
+                        area, and a zoomed-out view can plainly contradict it —
+                        the sun is down here and up two provinces east, with the
+                        line between them drawn on screen. Polar night keeps its
+                        own sentence: it is a statement about the day at this
+                        place, which a sunlit corner elsewhere does not falsify. */}
+                    {times.polar === 'night'
+                      ? t('live.shadow.polar_night')
+                      : splitByTerminator
+                        ? t('live.shadow.sun_down_partial')
+                        : t('live.shadow.sun_down')}
                   </p>
                 ) : tooCoarse ? (
                   <p className="text-surface-600 dark:text-surface-300">

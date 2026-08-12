@@ -21,6 +21,7 @@
  * whole point: a terrain shadow that lagged the slider would be worse than none.
  */
 import manifest from '../data/terrain_manifest.json';
+import { frameAltitude, type SolarFrame } from '../utils/sun';
 
 interface ZoomEntry {
   minX: number;
@@ -172,18 +173,54 @@ export async function loadHeightField(
   let tx1 = 0;
   let ty1 = 0;
 
+  /** Tile span of `bbox` at `level`, as [x0, y0, x1, y1, count]. */
+  const span = (level: number): [number, number, number, number, number] => {
+    const [ax, ay] = lonLatToTile(bbox.west, bbox.north, level);
+    const [bx, by] = lonLatToTile(bbox.east, bbox.south, level);
+    const x0 = Math.floor(ax);
+    const y0 = Math.floor(ay);
+    const x1 = Math.floor(bx);
+    const y1 = Math.floor(by);
+    return [x0, y0, x1, y1, (x1 - x0 + 1) * (y1 - y0 + 1)];
+  };
+
   // Step down a level at a time until the viewport fits the tile budget. A
-  // country-wide camera then draws from z6 instead of issuing 190 requests.
+  // country-wide camera then draws from a coarse level instead of issuing 190
+  // requests.
   for (;;) {
-    const [ax, ay] = lonLatToTile(bbox.west, bbox.north, z);
-    const [bx, by] = lonLatToTile(bbox.east, bbox.south, z);
-    tx0 = Math.floor(ax);
-    ty0 = Math.floor(ay);
-    tx1 = Math.floor(bx);
-    ty1 = Math.floor(by);
-    const count = (tx1 - tx0 + 1) * (ty1 - ty0 + 1);
+    const [x0, y0, x1, y1, count] = span(z);
+    tx0 = x0;
+    ty0 = y0;
+    tx1 = x1;
+    ty1 = y1;
     if (count <= MAX_TILES || z <= AVAILABLE[0]) break;
     z -= 1;
+  }
+
+  // AND THEN SPEND WHAT IS LEFT OF THE BUDGET.
+  //
+  // `terrainZoomFor` asks for a level about two below the camera, which is the
+  // right trade for a shadow EDGE — it is cast by a slope, so it is soft, and
+  // sampling it finely buys nothing. It is the wrong trade for the CASTER. At a
+  // continental camera that rule picked ~4.6 km cells, and Finnish relief is
+  // 50-200 m over a few kilometres, so the hills were averaged flat before the
+  // sweep ever saw them: the zoomed-out map showed a sunlit half with no relief
+  // on it at all, which is not what the country looks like at sunrise.
+  //
+  // The fix is free, which is why it is worth making. The sweep's cost is bounded
+  // by MAX_TILES x tileSize² — by the TILE COUNT, not by the level — so a finer
+  // level that still fits the budget costs nothing extra and doubles the linear
+  // resolution. The step-down loop above guarantees coverage; this only ever
+  // moves up while coverage still fits, and it cannot go finer than the pyramid's
+  // top, which is the level the street zooms were tuned on.
+  while (z < AVAILABLE[AVAILABLE.length - 1]) {
+    const [x0, y0, x1, y1, count] = span(z + 1);
+    if (count > MAX_TILES || !M.zooms[String(z + 1)]) break;
+    z += 1;
+    tx0 = x0;
+    ty0 = y0;
+    tx1 = x1;
+    ty1 = y1;
   }
 
   const size = M.tileSize;
@@ -237,6 +274,75 @@ export async function loadHeightField(
 }
 
 /**
+ * Nodes per axis in the local-altitude grid. See {@link altitudeGrid}.
+ *
+ * The sun's altitude over the ground is one of the smoothest fields there is —
+ * a sinusoid with a 360° period in longitude — so a coarse lattice with bilinear
+ * interpolation between the nodes is accurate to far better than the tenth of a
+ * degree the mask is cached at. 33² nodes is a thousand `frameAltitude` calls
+ * against up to a million cells swept, which is what keeps this free.
+ */
+const SUN_GRID = 33;
+
+/** Solar altitude sampled on a lattice over the field, for interpolation. */
+interface AltitudeGrid {
+  /**
+   * tan(altitude), floored at 0 where the sun is at or below the horizon.
+   *
+   * ZERO RATHER THAN A SENTINEL, and that is load-bearing. Both arrays are
+   * interpolated between nodes, so a magic value would be averaged against real
+   * tangents in every cell the terminator crosses — and the alternative, treating
+   * any cell with one foot in the dark as wholly dark, blanks the relief across a
+   * whole lattice cell, which at a continental field is ~100 km of SUNLIT ground
+   * beside the line. Zero is not a sentinel here but the correct limit: a shadow
+   * is cot(altitude) long, so it grows without bound as the sun reaches the
+   * horizon, and a descent rate going to zero is exactly that.
+   */
+  tan: Float32Array;
+  /** Altitude in degrees, which is what decides night — see the note above. */
+  deg: Float32Array;
+  /** Highest altitude anywhere on the lattice, degrees. */
+  maxDeg: number;
+}
+
+/**
+ * Sample the sun's altitude across a heightfield.
+ *
+ * WHY THIS IS NOT ONE NUMBER. A heightfield at a continental camera spans
+ * thousands of kilometres, and the sun does not have one altitude over that: at
+ * the instant this was written the frame ran from -12.9° over Denmark to +8.5°
+ * over the White Sea. Shadow length is cot(altitude), so using the map centre's
+ * value everywhere stretched every shadow in the sunlit north-east by a factor of
+ * eighty-five and painted the continent in streaks — the failure that made the
+ * zoomed-out view unreadable. Nodes carry -1 rather than a tangent where the sun
+ * is down, because there is no such thing as a shadow length there and the
+ * twilight wash is what shades that ground.
+ */
+function altitudeGrid(field: HeightField, frame: SolarFrame): AltitudeGrid {
+  const [west, south, east, north] = field.bbox;
+  const tan = new Float32Array(SUN_GRID * SUN_GRID);
+  const deg = new Float32Array(SUN_GRID * SUN_GRID);
+  let maxDeg = -90;
+  for (let r = 0; r < SUN_GRID; r++) {
+    // Latitude is interpolated linearly in DEGREES rather than in the field's
+    // Mercator rows. The lattice is a sampling of a smooth function, not a
+    // registration of the raster, so the only thing that matters is that the
+    // node's stated position is where its value was computed — and the sweep
+    // interpolates in the same linear parameter it is indexed by.
+    const lat = north + ((south - north) * r) / (SUN_GRID - 1);
+    for (let c = 0; c < SUN_GRID; c++) {
+      const lon = west + ((east - west) * c) / (SUN_GRID - 1);
+      const a = frameAltitude(frame, lat, lon);
+      if (a > maxDeg) maxDeg = a;
+      const i = r * SUN_GRID + c;
+      deg[i] = a;
+      tan[i] = a > 0 ? Math.tan((a * Math.PI) / 180) : 0;
+    }
+  }
+  return { tan, deg, maxDeg };
+}
+
+/**
  * Which cells the terrain puts in shade, as one byte per cell (255 = shadowed).
  *
  * A SINGLE SWEEP, NOT A RAY PER CELL. The sun is effectively at infinity, so
@@ -248,15 +354,33 @@ export async function loadHeightField(
  * marching a ray per cell would cost O(n) each and make a low sun, whose rays are
  * longest, the slowest case. Here a low sun costs exactly what a high one does.
  *
- * Returns null when the sun is at or below the horizon: "everything is shaded" is
- * the caller's business (it fills the viewport), not a mask.
+ * WHAT VARIES ACROSS THE FIELD AND WHAT DOES NOT. Given a `frame`, the descent
+ * rate is resampled at every step from {@link altitudeGrid}, so a shadow shortens
+ * as it runs into ground where the sun is higher. The DIRECTION stays a single
+ * bearing, taken at the map centre: the running-ceiling formulation is what makes
+ * this O(1) per cell, and it exists only because every ray is parallel — bending
+ * them per cell would curve the traversal and start missing and double-visiting
+ * cells. The residual error is real and bounded: across a continental frame the
+ * solar azimuth spans about 30°, so a shadow drawn at the centre's bearing lands
+ * off-true by a fraction of its own length near the edges. That is a soft error
+ * in a soft-edged layer, and it is the price of being able to recompute the whole
+ * field on every tick of the time scrubber.
+ *
+ * Returns null when the sun is at or below the horizon EVERYWHERE in the field:
+ * "everything is shaded" is the caller's business (it washes the viewport), not a
+ * mask. With a frame that test is per-field rather than per-centre, so a viewport
+ * straddling the terminator still gets relief on its sunlit half.
  */
 export function terrainShadowMask(
   field: HeightField,
   sunAltitudeDeg: number,
   shadowBearingDeg: number,
+  frame?: SolarFrame,
 ): Uint8ClampedArray | null {
-  if (sunAltitudeDeg <= 0) return null;
+  const grid = frame ? altitudeGrid(field, frame) : null;
+  // Without a frame the caller is asking the old question — one altitude for the
+  // whole field — and gets the old answer.
+  if ((grid ? grid.maxDeg : sunAltitudeDeg) <= 0) return null;
 
   const { data, width, height, cellMetres } = field;
   const out = new Uint8ClampedArray(width * height);
@@ -274,7 +398,37 @@ export function terrainShadowMask(
   dy /= scale;
 
   const stepMetres = Math.hypot(dx, dy) * cellMetres;
-  const drop = stepMetres * Math.tan((sunAltitudeDeg * Math.PI) / 180);
+  const uniformTan = Math.tan((sunAltitudeDeg * Math.PI) / 180);
+
+  // Grid-cell -> lattice-node scale, hoisted: the sweep runs per step and these
+  // are the only two divisions in it.
+  const gx = (SUN_GRID - 1) / Math.max(1, width - 1);
+  const gy = (SUN_GRID - 1) / Math.max(1, height - 1);
+  const tanGrid = grid?.tan;
+  const degGrid = grid?.deg;
+
+  // Bilinear weights for a fractional cell, resolved once and read by both
+  // lattices. Clamped at the edges so the sweep's out-of-bounds lead-in keeps
+  // descending at the rate of the ground it is about to reach.
+  let wi = 0;
+  let wtx = 0;
+  let wty = 0;
+  const locate = (x: number, y: number): void => {
+    const fx = Math.min(SUN_GRID - 1, Math.max(0, x * gx));
+    const fy = Math.min(SUN_GRID - 1, Math.max(0, y * gy));
+    const c0 = Math.min(SUN_GRID - 2, Math.floor(fx));
+    const r0 = Math.min(SUN_GRID - 2, Math.floor(fy));
+    wtx = fx - c0;
+    wty = fy - r0;
+    wi = r0 * SUN_GRID + c0;
+  };
+  const sample = (g: Float32Array): number => {
+    const a = g[wi];
+    const b = g[wi + 1];
+    const c = g[wi + SUN_GRID];
+    const d = g[wi + SUN_GRID + 1];
+    return a + (b - a) * wtx + (c - a) * wty + (a - b - c + d) * wtx * wty;
+  };
 
   /** Walk one line from (sx, sy) along the shadow direction to the far edge. */
   const sweep = (sx: number, sy: number): void => {
@@ -284,19 +438,37 @@ export function terrainShadowMask(
     while (x >= -0.5 && y >= -0.5 && x < width + 0.5 && y < height + 0.5) {
       const ix = Math.round(x);
       const iy = Math.round(y);
-      if (ix >= 0 && iy >= 0 && ix < width && iy < height) {
-        const idx = iy * width + ix;
-        const h = data[idx];
-        if (h >= ceiling) {
-          ceiling = h; // lit, and now the thing casting further down the line
-          out[idx] = 0;
-        } else {
-          out[idx] = 255;
+      let tan = uniformTan;
+      let night = false;
+      if (tanGrid && degGrid) {
+        locate(x, y);
+        // The terminator is decided from the interpolated ALTITUDE, per step, so
+        // it lands where it actually falls rather than being rounded out to the
+        // lattice cell that happens to contain it.
+        night = sample(degGrid) <= 0;
+        tan = sample(tanGrid);
+      }
+      if (night) {
+        // Past the terminator. There is no shadow here to compute — the ground is
+        // in night, which the twilight wash paints — and carrying a ceiling across
+        // the line would let the dark side cast back into the lit one.
+        if (ix >= 0 && iy >= 0 && ix < width && iy < height) out[iy * width + ix] = 0;
+        ceiling = -Infinity;
+      } else {
+        if (ix >= 0 && iy >= 0 && ix < width && iy < height) {
+          const idx = iy * width + ix;
+          const h = data[idx];
+          if (h >= ceiling) {
+            ceiling = h; // lit, and now the thing casting further down the line
+            out[idx] = 0;
+          } else {
+            out[idx] = 255;
+          }
         }
+        ceiling -= stepMetres * tan;
       }
       x += dx;
       y += dy;
-      ceiling -= drop;
     }
   };
 
