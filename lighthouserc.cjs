@@ -77,13 +77,35 @@ module.exports = {
     //     current CI hosts land them around ~0.82. A static page dropping below
     //     0.78 indicates a real problem (e.g. main-thread bloat in the
     //     prerender path), so that is the floor — still a hard error.
-    //   - The root SPA boots MapLibre GL (~260 KB gz) before LCP, scoring ~0.40
-    //     on CI. CF-8 cut the all-Finland first-paint DATA payload from a ~10.6 MB
-    //     region_properties.json fetch to a ~27 KB gz aggregate (region colours now
-    //     paint from region_aggregates.json), but the LCP bottleneck is the MapLibre
-    //     boot itself, which is unchanged — so the score is still GL-bound and this
-    //     stays a non-blocking *warn*. Promote to error once the map init is deferred
-    //     behind a static hero (the remaining half of this gate's blocker).
+    //   - The root SPA scores ~0.40 on CI and stays a non-blocking *warn*.
+    //
+    //     This note used to say the bottleneck was LCP, and that the fix was to defer
+    //     map init behind a static hero. Measured against the production build (served
+    //     locally, third-party origins blocked so the app's own cost is isolated,
+    //     Chromium via CDP), that is not what is happening:
+    //
+    //       FCP  132 ms · LCP  732 ms · DCL 149 ms          (no CPU throttling)
+    //       FCP  220 ms · LCP 1388 ms · TBT ~1279 ms        (4x CPU throttling)
+    //
+    //     LCP is not the problem, and the LCP element is not the map — a canvas is not
+    //     LCP-eligible, so Lighthouse settles on a small <p>. The score is bound by
+    //     TOTAL BLOCKING TIME. A CPU profile of the load attributes it to MapLibre's own
+    //     module evaluation (~252 ms in the maplibre chunk, ~136 ms in Map.tsx at 4x);
+    //     our data code barely registers (fitScore ~30 ms, computeQualityIndices does
+    //     not surface).
+    //
+    //     The obvious levers are already pulled: maplibre is React.lazy AND
+    //     modulepreloaded (its request starts ~12 ms in and completes by ~130 ms, so
+    //     download is not on the critical path), the Google Fonts stylesheet is loaded
+    //     non-blocking via media="print" onload, analytics is deferred, CF-8 cut the
+    //     first-paint data payload to a ~36 KB gz aggregate, and the cold-load overlay
+    //     already covers the map slot until the choropleth has actually drawn.
+    //
+    //     What is left is MapLibre's intrinsic parse+init cost, and deferring it to idle
+    //     only MOVES those long tasks inside the TBT window rather than removing them.
+    //     The one change that would actually move this number is not booting the map
+    //     until the user interacts — which on a map-first site is a product trade, not a
+    //     performance tweak. Decide that deliberately before promoting this to an error.
     assert: {
       assertMatrix: [
         {
