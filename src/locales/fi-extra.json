@@ -101,5 +101,8 @@
   "live.incidents.loading": "Haetaan liikennetiedotteita…",
   "live.incidents.failed": "Liikennetiedotteita ei saatu haettua.",
   "live.incidents.none": "Ei voimassa olevia liikennetiedotteita Suomessa juuri nyt.",
-  "live.incidents.count": "{n} voimassa olevaa liikennetiedotetta Suomessa (Fintraffic)."
+  "live.incidents.count": "{n} voimassa olevaa liikennetiedotetta Suomessa (Fintraffic).",
+  "live.observations.loading": "Haetaan lämpötilahavaintoja…",
+  "live.observations.failed": "Lämpötilahavaintoja ei saatu haettua.",
+  "live.observations.count": "{n} havaintoasemaa (Ilmatieteen laitos, lämpötila 2 m)."
 }
