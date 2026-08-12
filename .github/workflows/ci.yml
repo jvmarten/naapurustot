@@ -87,28 +87,24 @@ jobs:
         run: npx playwright test --project=e2e
         timeout-minutes: 5
 
+      # scripts/visual-gate.mjs, not inline bash. The previous inline version could not
+      # fail: only *-visual-win32.png baselines are committed and this runner is linux,
+      # so it regenerated baselines from the build under test and then compared that
+      # build against them. See the script header.
       - name: Visual regression tests
         id: visual-tests
-        run: |
-          SNAP_DIR="e2e/visual/visual-regression.spec.ts-snapshots"
-          if [ -d "$SNAP_DIR" ] && ls "$SNAP_DIR"/*-visual-linux.png >/dev/null 2>&1; then
-            echo "Baselines exist — running comparison"
-            npm run test:visual
-          else
-            echo "No baselines — generating snapshots"
-            npm run test:visual -- --update-snapshots || true
-            npm run test:visual
-          fi
+        run: npm run test:visual:ci
 
-      - name: Upload visual diff artifacts
+      - name: Upload visual diffs / generated baselines
+        # Also runs on the seeding failure, so the generated baselines are downloadable
+        # and committing them is one step. Includes the baseline PNGs for that reason.
         if: failure() && steps.visual-tests.outcome == 'failure'
         uses: actions/upload-artifact@v7
         with:
           name: visual-regression-diffs
           path: |
             test-results/
-            e2e/visual/visual-regression.spec.ts-snapshots/*-diff.png
-            e2e/visual/visual-regression.spec.ts-snapshots/*-actual.png
+            e2e/visual/visual-regression.spec.ts-snapshots/*.png
           retention-days: 14
 
       # Restore the main-branch bundle baseline (saved by auto-merge after each

@@ -243,6 +243,25 @@ jobs:
         run: npm run test:e2e
         timeout-minutes: 5
 
+      # The merge gate had no visual check at all: `npm run test:e2e` is
+      # --project=e2e --project=mobile, so the `visual` project never ran here, and every
+      # e2e assertion is DOM text (text=Laatuindeksi, toHaveURL(...)). Nothing on the path
+      # to main asserted a painted pixel — which is how a blank choropleth merged twice.
+      - name: Visual regression tests
+        id: visual-tests
+        run: npm run test:visual:ci
+        timeout-minutes: 10
+
+      - name: Upload visual diffs / generated baselines
+        if: failure() && steps.visual-tests.outcome == 'failure'
+        uses: actions/upload-artifact@v7
+        with:
+          name: visual-regression-diffs
+          path: |
+            test-results/
+            e2e/visual/visual-regression.spec.ts-snapshots/*.png
+          retention-days: 14
+
   lighthouse:
     runs-on: ubuntu-latest
     timeout-minutes: 15
