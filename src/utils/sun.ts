@@ -150,6 +150,62 @@ export function sunPosition(date: Date, lat: number, lon: number): SunPosition {
   return { altitude: altitude * DEG, azimuth };
 }
 
+/**
+ * Everything about the sun that depends on the INSTANT but not on the PLACE.
+ *
+ * `sunPosition` answers "where is the sun from here". A map does not have a here:
+ * a viewport framing Finland also frames Norway and the Kola peninsula, and at
+ * 02:18 UTC on an August morning the sun is 12.9° BELOW the horizon over Denmark
+ * while it is 8.5° ABOVE it over the White Sea. Shading that whole frame with the
+ * altitude at the map's centre pixel paints one wrong answer over 2,000 km — it
+ * is what makes a zoomed-out shadow map show either a uniformly lit continent or
+ * a uniformly dark one, and never the terminator that actually runs across it.
+ *
+ * So the place-independent half is hoisted out and evaluated once per frame:
+ * declination, right ascension and sidereal time are functions of the date alone.
+ * What is left per sample is four trigonometric calls, which is what makes it
+ * affordable to ask the question at a few thousand points instead of one.
+ *
+ * Precision is unchanged — this is the same algorithm as {@link sunPosition} with
+ * the shared terms factored out, and a test pins the two to agree.
+ */
+export interface SolarFrame {
+  sinDec: number;
+  cosDec: number;
+  /**
+   * Sidereal time at the prime meridian less the sun's right ascension, radians.
+   * The local hour angle is this plus the longitude.
+   */
+  theta: number;
+}
+
+export function solarFrame(date: Date): SolarFrame {
+  const d = toDays(date);
+  const l = eclipticLongitude(meanAnomaly(d));
+  const dec = declination(l);
+  return {
+    sinDec: Math.sin(dec),
+    cosDec: Math.cos(dec),
+    theta: RAD * (280.16 + 360.9856235 * d) - rightAscension(l),
+  };
+}
+
+/**
+ * The sun's altitude in degrees at one place, for an already-built frame.
+ *
+ * Split from the azimuth deliberately: the callers that sample in bulk — the
+ * twilight field and the terrain sweep's drop table — need only how HIGH the sun
+ * is, and computing a bearing they discard would double the cost of the hot loop.
+ */
+export function frameAltitude(frame: SolarFrame, lat: number, lon: number): number {
+  const phi = RAD * lat;
+  const h = frame.theta + RAD * lon;
+  return (
+    DEG *
+    Math.asin(Math.sin(phi) * frame.sinDec + Math.cos(phi) * frame.cosDec * Math.cos(h))
+  );
+}
+
 /** Julian cycle since J2000 for the given day and longitude. */
 function julianCycle(d: number, lw: number): number {
   return Math.round(d - J0 - lw / (2 * Math.PI));

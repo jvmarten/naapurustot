@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { sunPosition, sunTimes, shadowLengthRatio, shadowBearing } from '../utils/sun';
+import {
+  sunPosition,
+  sunTimes,
+  shadowLengthRatio,
+  shadowBearing,
+  solarFrame,
+  frameAltitude,
+} from '../utils/sun';
 
 /**
  * Reference coordinates spanning Finland's latitude range, which is what makes
@@ -12,6 +19,48 @@ const UTSJOKI = { lat: 69.9081, lon: 27.0289 };
 /** Solstices, in UTC. */
 const SUMMER_SOLSTICE = new Date('2026-06-21T12:00:00Z');
 const WINTER_SOLSTICE = new Date('2026-12-21T12:00:00Z');
+
+describe('solarFrame / frameAltitude', () => {
+  /**
+   * The bulk-sampling path must be the SAME algorithm, not a cheaper one.
+   *
+   * It exists only to hoist the terms that depend on the instant out of a loop
+   * over thousands of places. If it drifted from `sunPosition` the page would
+   * disagree with its own readout — the footer says 0.1° while the wash beside it
+   * is drawn from some other number — so this pins them to machine precision
+   * rather than to a tolerance.
+   */
+  it('agrees with sunPosition everywhere it is asked', () => {
+    const dates = [
+      SUMMER_SOLSTICE,
+      WINTER_SOLSTICE,
+      new Date('2026-08-12T02:18:00Z'),
+      new Date('2026-03-20T17:45:00Z'),
+    ];
+    for (const date of dates) {
+      const frame = solarFrame(date);
+      for (const lat of [-45, 0, 35, 60.17, 69.91, 78]) {
+        for (const lon of [-120, -12, 0, 24.94, 52, 140]) {
+          expect(frameAltitude(frame, lat, lon)).toBeCloseTo(
+            sunPosition(date, lat, lon).altitude,
+            10,
+          );
+        }
+      }
+    }
+  });
+
+  it('spans both sides of the horizon across one zoomed-out viewport', () => {
+    // The measurement the terminator work is built on: at this instant a camera
+    // framing Finland also frames ground where the sun has not risen. One centre
+    // sample cannot describe that, and pretending otherwise is the bug.
+    const frame = solarFrame(new Date('2026-08-12T02:18:00Z'));
+    const west = frameAltitude(frame, 58, 5);
+    const east = frameAltitude(frame, 66, 40);
+    expect(west).toBeLessThan(-5);
+    expect(east).toBeGreaterThan(5);
+  });
+});
 
 describe('sunPosition', () => {
   it('puts the sun due south and high at Helsinki summer solar noon', () => {

@@ -462,6 +462,7 @@
   "live.shadow.loading": "Loading buildings…",
   "live.shadow.polar_night": "Polar night – the sun does not rise today.",
   "live.shadow.sun_down": "The sun has set – the whole area is in shade.",
+  "live.shadow.sun_down_partial": "The sun has set here – part of the view is still in daylight.",
   "live.shadow.terrain": "Includes terrain relief (elevation model).",
   "live.shadow.terrain_only": "Showing terrain shadows. Zoom in for building and tree shadows.",
   "live.trains.loading": "Loading trains…",

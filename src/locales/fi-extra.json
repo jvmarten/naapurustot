@@ -74,6 +74,7 @@
   "live.language": "Kieli",
   "live.shadow.polar_night": "Kaamos – aurinko ei nouse tänään.",
   "live.shadow.sun_down": "Aurinko on laskenut – koko alue on varjossa.",
+  "live.shadow.sun_down_partial": "Aurinko on laskenut täällä – osa näkymästä on vielä auringossa.",
   "live.shadow.zoom_in": "Lähennä karttaa, niin näet rakennusten varjot.",
   "live.shadow.loading": "Haetaan rakennuksia…",
   "live.shadow.failed": "Rakennustietoja ei saatu haettua. Yritä uudelleen.",

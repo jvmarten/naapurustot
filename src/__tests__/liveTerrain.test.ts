@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { terrainShadowMask, terrainZoomFor, hasTerrain, type HeightField } from '../live/terrain';
+import manifest from '../data/terrain_manifest.json';
+import { solarFrame } from '../utils/sun';
 
 /**
  * Terrain shadow sweep.
@@ -139,15 +141,135 @@ describe('terrainShadowMask', () => {
   });
 });
 
+/**
+ * The sun across a continental field.
+ *
+ * These pin the defect that made the zoomed-out map unreadable: one solar
+ * altitude, taken at the map's centre pixel, applied to two thousand kilometres
+ * of ground. At 02:18 UTC on 2026-08-12 the sun is 7° BELOW the horizon over the
+ * North Sea and 5° above it over Karelia, on the same screen.
+ */
+describe('terrainShadowMask with a solar frame', () => {
+  const INSTANT = new Date('2026-08-12T02:18:00Z');
+
+  /** A 64x4 strip spanning lon 5°E..40°E at 62°N — one screenful, zoomed out. */
+  function strip(): HeightField {
+    return {
+      data: new Float32Array(64 * 4),
+      width: 64,
+      height: 4,
+      cellMetres: 1000,
+      bbox: [5, 61, 40, 63],
+    };
+  }
+
+  /** Column index for a longitude in the strip's bbox. */
+  const col = (lon: number) => Math.round(((lon - 5) / 35) * 63);
+
+  it('casts nothing where the sun has already set, however high the ground', () => {
+    // A 2 km peak at 10°E, where the sun is ~6° below the horizon. With a single
+    // centre altitude this threw a shadow the length of the field; there is no
+    // such shadow, because there is no sun. The twilight wash shades that ground.
+    const field = strip();
+    const x = col(10);
+    for (let r = 0; r < field.height; r++) field.data[r * field.width + x] = 2000;
+
+    const mask = terrainShadowMask(field, 0.1, 90, solarFrame(INSTANT))!;
+    expect(mask).not.toBeNull();
+    for (let x2 = 0; x2 <= col(24); x2++) {
+      expect(at(mask, field, x2, 1), `column ${x2} is past the terminator`).toBe(0);
+    }
+  });
+
+  it('still casts on the sunlit half of the same field', () => {
+    // The other half of the point: a viewport straddling the terminator is not
+    // "night", and returning no mask for it would blank the relief on the side
+    // where the sun is genuinely up.
+    const field = strip();
+    const x = col(35);
+    for (let r = 0; r < field.height; r++) field.data[r * field.width + x] = 2000;
+
+    const mask = terrainShadowMask(field, 0.1, 90, solarFrame(INSTANT))!;
+    expect(at(mask, field, x, 1)).toBe(0); // the peak is what casts
+    expect(at(mask, field, x + 1, 1)).toBe(255);
+    expect(at(mask, field, x + 5, 1)).toBe(255);
+  });
+
+  it('shortens the shadow where the sun is higher, over one field', () => {
+    // Shadow length is cot(altitude), so the same peak must throw a much shorter
+    // shadow at 40°E (sun ~5.6°) than at 30°E (sun ~1.4°). A single altitude
+    // makes these identical, which is what painted the country in streaks.
+    const lengthAt = (lon: number): number => {
+      const field = strip();
+      const x = col(lon);
+      for (let r = 0; r < field.height; r++) field.data[r * field.width + x] = 1000;
+      const mask = terrainShadowMask(field, 0.1, 90, solarFrame(INSTANT))!;
+      let n = 0;
+      while (x + 1 + n < field.width && at(mask, field, x + 1 + n, 1) === 255) n++;
+      return n;
+    };
+    const low = lengthAt(30);
+    const high = lengthAt(38);
+    expect(high).toBeGreaterThan(0);
+    expect(low).toBeGreaterThan(high);
+  });
+
+  it('returns no mask when the whole field is past the terminator', () => {
+    // "Everything is shaded" stays the caller's flood fill — the frame just makes
+    // the test per-field instead of per-centre-pixel.
+    const field = strip();
+    field.bbox = [-30, 61, -10, 63]; // mid-Atlantic: deep night at this instant
+    expect(terrainShadowMask(field, 0.1, 90, solarFrame(INSTANT))).toBeNull();
+  });
+
+  it('reproduces the uniform-sun answer when given no frame', () => {
+    // The old contract is still the contract for callers that do not pass a
+    // frame — a small field where one altitude IS the truth.
+    const field = flatField(21);
+    field.data[10 * field.width + 10] = 10;
+    const mask = terrainShadowMask(field, 45, 90)!;
+    expect(at(mask, field, 11, 10)).toBe(255);
+    expect(at(mask, field, 9, 10)).toBe(0);
+  });
+});
+
 describe('terrainZoomFor', () => {
   it('stays inside the levels the pyramid actually holds', () => {
     if (!hasTerrain()) return;
+    // Read from the manifest rather than pinned to literals. The pyramid is
+    // tiered and its floor moves when coverage is extended — this assertion is
+    // about the clamp honouring what was built, not about which levels exist.
+    const levels = Object.keys(manifest.zooms).map(Number);
+    const min = Math.min(...levels);
+    const max = Math.max(...levels);
     for (const mapZoom of [0, 4, 8, 11, 13, 16, 20]) {
       const z = terrainZoomFor(mapZoom);
       expect(Number.isInteger(z)).toBe(true);
-      expect(z).toBeGreaterThanOrEqual(6);
-      expect(z).toBeLessThanOrEqual(8);
+      expect(z).toBeGreaterThanOrEqual(min);
+      expect(z).toBeLessThanOrEqual(max);
     }
+  });
+
+  it('has a floor coarse enough for a camera framing the whole country', () => {
+    if (!hasTerrain()) return;
+    // The regression this pins: the pyramid used to bottom out at z6, whose tiles
+    // are ~295 km across, so a continental camera could not be served within the
+    // tile budget and fell back to a field that covered a fraction of the screen.
+    // A level at z5 or coarser is what makes the zoomed-out view answerable.
+    expect(Math.min(...Object.keys(manifest.zooms).map(Number))).toBeLessThanOrEqual(5);
+  });
+
+  it('covers the Nordics at its coarse levels and Finland at its fine ones', () => {
+    // Relief outside the mirrored bbox reads as elevation zero — flat, lit ground
+    // with a straight edge where coverage stops. A camera framing Finland frames
+    // Norway too, so the levels such a camera reads have to reach it.
+    const zooms = manifest.zooms as Record<string, { bbox?: number[] }>;
+    const coarse = zooms['5']?.bbox;
+    expect(coarse, 'z5 must declare the extent it was built for').toBeDefined();
+    // Norway's western coast and the Danish straits, which a Finland-framing
+    // viewport shows and which used to render as sea.
+    expect(coarse![0]).toBeLessThanOrEqual(5);
+    expect(coarse![3]).toBeGreaterThanOrEqual(70);
   });
 
   it('never gets finer as the camera pulls back', () => {

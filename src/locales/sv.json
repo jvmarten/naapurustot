@@ -462,6 +462,7 @@
   "live.shadow.loading": "Hämtar byggnader…",
   "live.shadow.polar_night": "Polarnatt – solen går inte upp i dag.",
   "live.shadow.sun_down": "Solen har gått ner – hela området ligger i skugga.",
+  "live.shadow.sun_down_partial": "Solen har gått ned här – en del av vyn är fortfarande i dagsljus.",
   "live.shadow.terrain": "Inklusive terrängens former (höjdmodell).",
   "live.shadow.terrain_only": "Visar terrängskuggor. Zooma in för byggnads- och trädskuggor.",
   "live.trains.loading": "Hämtar tåg…",
