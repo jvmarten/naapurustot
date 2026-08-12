@@ -35,6 +35,7 @@ const DYNAMIC_PREFIXES = [
   'settings.quality_scale_', // SettingsDropdown → `settings.quality_scale_${mode}(_help)`
   'correlation.sig_',    // CorrelationExplorer → `correlation.sig_${sig}`
   'live.air_quality.band_', // airquality.ts → `live.air_quality.band_${1..5}` (FMI index)
+  'live.time_model.',    // FeedSidebar → `live.time_model.${feed.time}` (feed registry)
   'city.',               // region names → `city.${regionId}` (69 regions)
   'error.',              // NeighborhoodProfilePage → `error.${code}`
   'panel.plan_type_',    // NeighborhoodPanel → `panel.plan_type_${ptype}` (CF-3)

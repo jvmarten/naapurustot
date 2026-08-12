@@ -43,12 +43,27 @@
 export interface Train {
   /** Fintraffic's train number. Unique per departure date, not globally. */
   number: number;
+  /**
+   * Departure date, `YYYY-MM-DD`, as the feed states it.
+   *
+   * Kept because the train number ALONE does not identify a train: it repeats
+   * every day, and an overnight service is still running under yesterday's date
+   * at 03:00. Every per-train endpoint — the timetable, the measured track — is
+   * keyed on the pair, so dropping the date (which this parser used to do) made
+   * it impossible to ask Digitraffic anything further about a dot on the map.
+   */
+  date: string | null;
   lon: number;
   lat: number;
   /** Reported ground speed in km/h, or null when the feed omitted it. */
   speed: number | null;
   /** When the position was measured, ms since the epoch, or null if unparseable. */
   at: number | null;
+}
+
+/** Stable identity for a train across polls: the number plus its departure date. */
+export function trainKey(train: Pick<Train, 'number' | 'date'>): string {
+  return `${train.date ?? ''}/${train.number}`;
 }
 
 export const TRAINS_ENDPOINT = 'https://rata.digitraffic.fi/api/v1/train-locations/latest/';
@@ -90,6 +105,7 @@ const DIGITRAFFIC_USER = 'naapurustot.fi/live';
 
 interface RawTrain {
   trainNumber?: unknown;
+  departureDate?: unknown;
   speed?: unknown;
   timestamp?: unknown;
   location?: { coordinates?: unknown } | null;
@@ -130,6 +146,7 @@ export function parseTrains(payload: unknown): Train[] {
 
     out.push({
       number,
+      date: typeof raw.departureDate === 'string' ? raw.departureDate : null,
       lon,
       lat,
       speed: finite(raw.speed),

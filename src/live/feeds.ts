@@ -24,12 +24,32 @@
 export type FeedStatus = 'live' | 'planned';
 export type FeedCoverage = 'national' | 'urban';
 
+/**
+ * What a feed can honestly show for an instant that is not now.
+ *
+ * The page has one clock (see timeControl.ts) and every layer answers for it, so
+ * each feed has to state how far its answer reaches. This is `coverage` in the
+ * time dimension and it carries the same obligation: the sidebar prints it, and
+ * a feed scrubbed past what it can speak for goes dark and says so rather than
+ * leaving its "now" data on screen under someone else's timestamp.
+ *
+ *   computed  exact at any instant, backwards and forwards (astronomy).
+ *   archive   the source serves measured history on request (FMI's WFS).
+ *   recorded  only what this session watched go by — the source publishes the
+ *             latest state and keeps no history a browser can ask for.
+ *   validity  each record carries its own from/to, so the publisher has already
+ *             answered "is this in effect at T", including for future entries.
+ */
+export type FeedTimeModel = 'computed' | 'archive' | 'recorded' | 'validity';
+
 export interface Feed {
   id: string;
   /** i18n key for the row label. */
   labelKey: string;
   status: FeedStatus;
   coverage: FeedCoverage;
+  /** How far from now this feed can be scrubbed. */
+  time: FeedTimeModel;
   /** Whether the feed starts switched on for a first-time visitor. */
   defaultOn: boolean;
 }
@@ -55,8 +75,8 @@ export const FEED_GROUPS: FeedGroup[] = [
     labelKey: 'live.group.sun',
     accent: '#f59e0b',
     feeds: [
-      { id: 'shadows', labelKey: 'live.feed.shadows', status: 'live', coverage: 'urban', defaultOn: true },
-      { id: 'sun_position', labelKey: 'live.feed.sun_position', status: 'live', coverage: 'national', defaultOn: true },
+      { id: 'shadows', labelKey: 'live.feed.shadows', status: 'live', coverage: 'urban', time: 'computed', defaultOn: true },
+      { id: 'sun_position', labelKey: 'live.feed.sun_position', status: 'live', coverage: 'national', time: 'computed', defaultOn: true },
     ],
   },
   {
@@ -64,16 +84,20 @@ export const FEED_GROUPS: FeedGroup[] = [
     labelKey: 'live.group.weather',
     accent: '#38bdf8',
     feeds: [
-      { id: 'warnings', labelKey: 'live.feed.warnings', status: 'planned', coverage: 'national', defaultOn: false },
+      { id: 'warnings', labelKey: 'live.feed.warnings', status: 'planned', coverage: 'national', time: 'validity', defaultOn: false },
       // Air temperature at every reporting FMI station. National, and 5.3 kB
       // gzipped despite 170 kB of raw XML — see observations.ts before
       // "optimising" it to the coverage encoding, which is three times bigger
       // over the wire.
-      { id: 'observations', labelKey: 'live.feed.observations', status: 'live', coverage: 'national', defaultOn: false },
+      //
+      // 'archive': the same stored query answers for any past window once it is
+      // given an `endtime`, so scrubbing back fetches what the stations actually
+      // measured then rather than redrawing the present under a past clock.
+      { id: 'observations', labelKey: 'live.feed.observations', status: 'live', coverage: 'national', time: 'archive', defaultOn: false },
       // 'urban', not 'national', and deliberately: this is the municipal
       // monitoring network — 82 stations in towns. FMI's national background
       // network has seven, which is real but too sparse to read as a map.
-      { id: 'air_quality', labelKey: 'live.feed.air_quality', status: 'live', coverage: 'urban', defaultOn: false },
+      { id: 'air_quality', labelKey: 'live.feed.air_quality', status: 'live', coverage: 'urban', time: 'archive', defaultOn: false },
     ],
   },
   {
@@ -83,12 +107,22 @@ export const FEED_GROUPS: FeedGroup[] = [
     feeds: [
       // National by construction, which the shadow feed above cannot be: every
       // train running in the country, not just the cities a 3D model covers.
-      { id: 'trains', labelKey: 'live.feed.trains', status: 'live', coverage: 'national', defaultOn: true },
+      //
+      // 'recorded', and it is the only feed here that has to be: Digitraffic
+      // publishes the LATEST fix per train and offers history one train at a
+      // time, so there is no national past to fetch. What the page can scrub
+      // through is the fixes it watched arrive — see trainHistory.ts — and a
+      // single train's real track, fetched when you select it.
+      { id: 'trains', labelKey: 'live.feed.trains', status: 'live', coverage: 'national', time: 'recorded', defaultOn: true },
       // National, and cheap enough to poll: the whole active set is 8 features
       // and 3.4 kB. Roadworks from the same endpoint are 585 features and
       // 1.28 MB, which is why this feed is announcements only — see incidents.ts.
-      { id: 'road_incidents', labelKey: 'live.feed.road_incidents', status: 'live', coverage: 'national', defaultOn: true },
-      { id: 'transit_alerts', labelKey: 'live.feed.transit_alerts', status: 'planned', coverage: 'urban', defaultOn: false },
+      //
+      // 'validity': every announcement carries its own start and end, so "was
+      // this in effect at 06:20" and "will this still be closed at 19:00" are
+      // both answered by Fintraffic rather than by us.
+      { id: 'road_incidents', labelKey: 'live.feed.road_incidents', status: 'live', coverage: 'national', time: 'validity', defaultOn: true },
+      { id: 'transit_alerts', labelKey: 'live.feed.transit_alerts', status: 'planned', coverage: 'urban', time: 'validity', defaultOn: false },
     ],
   },
 ];

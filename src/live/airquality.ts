@@ -75,8 +75,8 @@ export function aqBandKey(index: number): string {
 }
 
 /** The request URL for a given instant. Exported so a test can read it. */
-export function airQualityUrl(now: number): string {
-  return fmiSimpleUrl(STORED_QUERY, PARAMETER, now, WINDOW_MINUTES);
+export function airQualityUrl(at: number, bounded = false): string {
+  return fmiSimpleUrl(STORED_QUERY, PARAMETER, at, WINDOW_MINUTES, bounded);
 }
 
 const toAirQuality = (r: FmiReading): AirQuality => ({
@@ -100,8 +100,16 @@ export function parseAirQuality(xml: string): AirQuality[] {
     .map(toAirQuality);
 }
 
-/** Current air quality index at every reporting urban station. */
-export async function fetchAirQuality(signal?: AbortSignal): Promise<AirQuality[]> {
-  const readings = await fetchFmiSimple(STORED_QUERY, PARAMETER, WINDOW_MINUTES, signal);
+/**
+ * Air quality index at every reporting urban station, now or in the past.
+ *
+ * `at` null is live; a number asks the archive for that hour. See
+ * observations.ts — the two feeds share the mechanism and the reason for it.
+ */
+export async function fetchAirQuality(
+  signal?: AbortSignal,
+  at: number | null = null,
+): Promise<AirQuality[]> {
+  const readings = await fetchFmiSimple(STORED_QUERY, PARAMETER, WINDOW_MINUTES, signal, at);
   return readings.filter((r) => r.value >= 1 && r.value <= 5).map(toAirQuality);
 }

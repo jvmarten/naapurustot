@@ -57,8 +57,8 @@ const WINDOW_MINUTES = 20;
 export const OBSERVATION_POLL_MS = 300_000;
 
 /** The request URL for a given instant. Exported so a test can read it. */
-export function observationsUrl(now: number): string {
-  return fmiSimpleUrl(STORED_QUERY, PARAMETER, now, WINDOW_MINUTES);
+export function observationsUrl(at: number, bounded = false): string {
+  return fmiSimpleUrl(STORED_QUERY, PARAMETER, at, WINDOW_MINUTES, bounded);
 }
 
 const toObservation = (r: FmiReading): Observation => ({
@@ -74,13 +74,63 @@ export function parseObservations(xml: string): Observation[] {
 }
 
 /**
- * Current air temperature at every reporting station in Finland.
+ * Air temperature at every reporting station in Finland, now or in the past.
+ *
+ * `at` null is the live case. A number is a scrub: the same stored query serves
+ * the archive, so what comes back is what the stations measured at that moment —
+ * not the present redrawn under an older clock.
  *
  * Throws rather than returning an empty list on a bad response: "no station is
  * reporting" and "we could not ask" are different facts and only the first may
  * be drawn as an empty map.
  */
-export async function fetchObservations(signal?: AbortSignal): Promise<Observation[]> {
-  const readings = await fetchFmiSimple(STORED_QUERY, PARAMETER, WINDOW_MINUTES, signal);
+export async function fetchObservations(
+  signal?: AbortSignal,
+  at: number | null = null,
+): Promise<Observation[]> {
+  const readings = await fetchFmiSimple(STORED_QUERY, PARAMETER, WINDOW_MINUTES, signal, at);
   return readings.map(toObservation);
+}
+
+/**
+ * FMI's published forecast temperature at ONE point and instant.
+ *
+ * THIS IS THE ONLY THING THIS PAGE DRAWS FROM THE FUTURE, and it is fetched a
+ * point at a time on purpose rather than as a national layer. The reason is a
+ * limit of the source, not a design preference: the forecast stored query takes
+ * `place`, `latlon`, `fmisid`, `geoid` or `wmo` and NOT a bbox — verified against
+ * the live service, where a bbox request answers 200 with `numberReturned="0"`,
+ * and a comma-separated list of station ids answers 400. So there is no way to
+ * ask for the whole country in one request, and a hundred requests to paint a
+ * map of forecasts is not something to do to a free public service.
+ *
+ * A forecast is therefore something you ask for about a station you picked, and
+ * it is labelled as a forecast wherever it is shown. The map itself stays
+ * measurements-only: scrubbing into the future switches the observation layer
+ * OFF rather than filling it with modelled values that would look identical to
+ * readings.
+ *
+ * Harmonie/edited surface forecast, ~500 bytes a call.
+ */
+export async function fetchForecast(
+  lat: number,
+  lon: number,
+  at: number,
+  signal?: AbortSignal,
+): Promise<Observation | null> {
+  const time = new Date(at).toISOString().replace(/\.\d+Z$/, 'Z');
+  const params = new URLSearchParams({
+    service: 'WFS',
+    version: '2.0.0',
+    request: 'getFeature',
+    storedquery_id: 'fmi::forecast::edited::weather::scandinavia::point::simple',
+    latlon: `${lat.toFixed(4)},${lon.toFixed(4)}`,
+    parameters: 'Temperature',
+    starttime: time,
+    endtime: time,
+  });
+  const res = await fetch(`https://opendata.fmi.fi/wfs?${params.toString()}`, { signal });
+  if (!res.ok) throw new Error(`FMI forecast responded ${res.status}`);
+  const readings = parseFmiSimple(await res.text());
+  return readings.length > 0 ? toObservation(readings[0]) : null;
 }
