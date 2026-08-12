@@ -185,7 +185,8 @@ describe('Full data pipeline integration', () => {
       expect(qi).not.toBeNull();
       expect(qi!).toBeGreaterThanOrEqual(0);
       expect(qi!).toBeLessThanOrEqual(100);
-      expect(Number.isInteger(qi)).toBe(true);
+      // One decimal — see computeQualityIndices.
+      expect(Math.abs(qi! * 10 - Math.round(qi! * 10))).toBeLessThan(1e-9);
     }
   });
 

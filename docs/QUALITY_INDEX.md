@@ -55,6 +55,34 @@ distinguish two neighbourhoods in the same city. Moving those points onto
 measurements that do vary per postal code raises how much the index can actually
 tell apart, rather than just rounding the total back up.
 
+### Composite resolution: one decimal, not an integer
+
+The weighted mean of ~50 factors lands in a narrow band — on the shipped weights it
+spans roughly 23–74 — so the final rounding step decides how much of that band
+survives. It used to round to a whole number, and the cost was severe: 3,018 postal
+areas shared **46 attainable values**, the middle 50 % of the country sat inside an
+8-point window (45–53), 60 % scored between 45 and 55, and **207 areas tied on exactly
+51**. The five commonest scores alone covered about a third of Finland.
+
+That was the ceiling on everything downstream. The colour ramp, the five verdict bands,
+similarity ordering and the percentile transform's tie handling all inherit the
+composite's resolution, and no display-side transform can recover a distinction the
+composite never made — which is why the cohort-relative bands could not land on fifths
+however they were cut: the quantile boundaries had to fall *between* 200-way ties.
+
+`computeQualityIndices` now keeps **one decimal**. Same inputs, same weights, no new
+data — the attainable values go from 46 to **341**, and the `raw` band occupancy moves
+from 23.7 / 17.0 / 25.0 / 14.5 / 19.7 to **20.3 / 19.7 / 20.3 / 19.8 / 19.8**, i.e. onto
+the fifths the cohort-relative bands were always asking for. It costs about **1 KB
+gzipped** on the all-Finland first-paint artifact, whose cohort histogram grows from 46
+to 341 `[value, count]` pairs.
+
+One decimal is also what the rest of the codebase already assumed: `METRIC_DEFS` gives
+`quality_index` `precision: 1`, and `metroAreas.ts` has always stored the regional
+aggregate at one decimal. The integer was the odd one out. Readers are still shown a
+whole number — every render site rounds — while the ramp and the bands read the finer
+value, so a 50.6 and a 51.4 no longer paint identically.
+
 They deliberately did **not** go to income, employment or education — already 26
 combined and mutually correlated, with education capped at 4 for being ~76 %
 redundant with income — nor to `walkability_index` (37 distinct values nationally,

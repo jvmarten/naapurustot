@@ -2,9 +2,9 @@
  * Selectable display scales for the composite Quality Index.
  *
  * The composite is an absolute 0–100 weighted average that, measured over all 3,018
- * postal areas on the shipped weights, actually spans **23–74 with 46 distinct
- * values**. Nothing scores near either end. Every difficulty the score has had on
- * screen traces back to that one fact:
+ * postal areas on the shipped weights, actually spans roughly **23–74**. Nothing scores
+ * near either end. Every difficulty the score has had on screen traces back to that one
+ * fact:
  *
  *   - fixed 0–20/…/80–100 bands put the overwhelming majority of the country in
  *     "Okay" and leave "Avoid" and "Excellent" empty;
@@ -24,20 +24,28 @@
  * through getQualityCategories(), which is cohort quantiles under `raw` and the fixed
  * fifths otherwise. Measured over the shipped cohort in region_aggregates.json:
  *
- *   raw        23.7 / 17.0 / 25.0 / 14.5 / 19.7   (bands are cohort-relative here)
- *   stretch     1.0 / 18.7 / 56.7 / 22.7 /  1.0
- *   winsorized 10.0 / 19.0 / 36.8 / 21.8 / 12.5
- *   percentile 19.7 / 21.0 / 18.2 / 21.4 / 19.7
+ *   raw        20.3 / 19.7 / 20.3 / 19.8 / 19.8   (bands are cohort-relative here)
+ *   stretch     0.5 / 15.8 / 58.2 / 24.0 /  1.5
+ *   winsorized 10.8 / 23.5 / 33.9 / 21.7 / 10.1
+ *   percentile 19.8 / 20.2 / 20.3 / 19.8 / 19.8
+ *
+ * Distinct values each mode can actually reach, over the same cohort: raw and stretch
+ * 341, percentile 305, winsorized 274. Those were 46 / 46 / 46 / 28 while the composite
+ * was rounded to an integer — and `raw` read 23.7 / 17.0 / 25.0 / 14.5 / 19.7, because
+ * the quantile cuts had to fall between 200-way ties and could not land on fifths even
+ * though that is exactly what they were asking for. They land there now.
  *
  * The trade runs: `raw` keeps the number honest and needs relative bands to say
- * anything; `stretch` and `winsorized` keep magnitude and spacing but coarsen the
- * scale (a composite has only 46 attainable values, so stretching leaves visible
- * holes — 46 of 101 reachable under `stretch`, 28 under `winsorized`); `percentile`
- * is perfectly uniform but discards magnitude entirely.
+ * anything; `stretch` and `winsorized` keep magnitude and spacing; `percentile` is
+ * perfectly uniform but discards magnitude entirely.
  *
- * None of them adds information. The composite's 46 distinct values are the ceiling
- * on what any of these can express, and only changing how the composite is built
- * raises it.
+ * None of them ADDS information — the composite's resolution is the ceiling on what any
+ * of them can express. That ceiling used to be the binding constraint: the composite was
+ * rounded to an integer, which left 46 attainable values for 3,018 areas, 207 of them
+ * tied on exactly 51, and every mode above inherited the ties (stretching merely spread
+ * them into visible holes). computeQualityIndices now keeps one decimal, so the ties are
+ * the data's own rather than an artefact of rounding, and the choice between these modes
+ * is finally about presentation instead of about which one hides the collapse best.
  *
  * The numbers above are reproducible without a browser: expand `qualityCohort` from
  * src/data/region_aggregates.json, feed it to setQualityScaleCohort, and classify
@@ -121,10 +129,24 @@ let cohort: number[] | null = null;
  */
 let scaleFn: (v: number) => number = (v) => v;
 
+/**
+ * Round to one decimal — the resolution the composite itself carries.
+ *
+ * `quality_display` is what the choropleth paints AND what the verdict bands are cut
+ * on, so rounding it to an integer here would throw away the composite's decimal again
+ * and put the ramp straight back on ~46 attainable values. The number shown to a reader
+ * is rounded at the render site instead (panel, profile, social card, shortlist all call
+ * Math.round), which keeps "51" on screen while the colour and the band still separate
+ * a 50.6 from a 51.4.
+ */
+function round1(v: number): number {
+  return Math.round(v * 10) / 10;
+}
+
 /** Put a composite on the active display scale, using the current cohort.
  *  Returns null for a missing value. */
 export function scaleComposite(v: number | null | undefined): number | null {
-  return typeof v === 'number' && Number.isFinite(v) ? Math.round(scaleFn(v)) : null;
+  return typeof v === 'number' && Number.isFinite(v) ? round1(scaleFn(v)) : null;
 }
 
 function quantile(sorted: number[], p: number): number {
@@ -187,7 +209,7 @@ function deriveScaleFn(): void {
  */
 function refreshBands(): void {
   if (!cohort || cohort.length === 0) return;
-  setQualityCohort(cohort.map((v) => Math.round(scaleFn(v))));
+  setQualityCohort(cohort.map((v) => round1(scaleFn(v))));
 }
 
 /**
@@ -237,7 +259,7 @@ export function applyQualityScale(features: HasQuality[]): void {
   for (const f of features) {
     if (!f.properties) continue;
     const v = f.properties.quality_index;
-    const d = typeof v === 'number' && Number.isFinite(v) ? Math.round(scaleFn(v)) : null;
+    const d = typeof v === 'number' && Number.isFinite(v) ? round1(scaleFn(v)) : null;
     f.properties.quality_display = d;
     if (d != null) display.push(d);
   }
