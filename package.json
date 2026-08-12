@@ -18,6 +18,7 @@
     "queue:check": "node scripts/check-actions-queue.mjs",
     "test:e2e": "playwright test --project=e2e --project=mobile",
     "test:visual": "playwright test --project=visual",
+    "test:visual:ci": "node scripts/visual-gate.mjs",
     "test:visual:update": "playwright test --project=visual --update-snapshots",
     "build:data": "node scripts/build_region_data.mjs && node scripts/build_national_ranges.mjs && node scripts/build_region_aggregates.mjs && node scripts/build_grid_data.mjs && node scripts/build_planning_data.mjs && node scripts/build_buildings_data.mjs && node scripts/update_slug_aliases.mjs",
     "refresh:planning": "python scripts/fetch_vayla_projects.py && python scripts/fetch_city_zoning.py && node scripts/build_planning_data.mjs",
