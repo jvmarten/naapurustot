@@ -54,7 +54,17 @@ const METRIC_INFO = {
   elderly_ratio_pct: { fi: 'Ikääntyneiden (65+) osuus', en: 'Elderly (65+) share', unit: '%' },
   pensioner_share: { fi: 'Eläkeläisten osuus', en: 'Pensioners share', unit: '%' },
   student_share: { fi: 'Opiskelijoiden osuus', en: 'Students share', unit: '%' },
-  foreign_language_pct: { fi: 'Vieraskielisten osuus', en: 'Foreign-language speakers share', unit: '%' },
+  // All three foreign-language columns ship, because they answer different questions and
+  // only one of them is a measurement. Postal-code language data is published for 2020
+  // only; the estimate is what the site itself displays, scores and maps, so publishing
+  // the 2020 column alone left the corpus unable to reproduce naapurustot.fi's own
+  // numbers. Never swap one for another here — /api/v1 is a frozen contract, so dropping
+  // a published column breaks it, and the 2020 figure is the only measured postal-level
+  // language data that exists. The labels say measured/estimated rather than naming a
+  // year: the codebook's own `vintage` column carries that, and would drift from a label.
+  foreign_language_pct: { fi: 'Vieraskielisten osuus (mitattu, postinumerotaso)', en: 'Foreign-language speakers share (measured, postal level)', unit: '%' },
+  foreign_language_est_pct: { fi: 'Vieraskielisten osuus (arvio, postinumerotaso)', en: 'Foreign-language speakers share (estimated, postal level)', unit: '%' },
+  foreign_language_municipal_pct: { fi: 'Vieraskielisten osuus (kuntataso)', en: 'Foreign-language speakers share (municipal level)', unit: '%' },
   gender_ratio: { fi: 'Sukupuolijakauma (naisia/miehiä)', en: 'Gender ratio (women per men)', unit: '' },
   families_with_children_pct: { fi: 'Lapsiperheiden osuus', en: 'Families with children share', unit: '%' },
   single_parent_hh_pct: { fi: 'Yhden vanhemman perheiden osuus', en: 'Single-parent households share', unit: '%' },
@@ -264,7 +274,29 @@ const HISTORY_SERIES = [
   { key: 'unemployment_history', metric: 'unemployment_rate' },
   { key: 'property_price_history', metric: 'property_price_sqm' },
   { key: 'crime_index_history', metric: 'crime_index' },
+  // 2020–2025. The other five series are exported, so omitting this one was an accident
+  // of it arriving later, not a decision. Its 2020 point is the real postal measurement
+  // and the later ones scale it per municipality — the codebook row for the metric
+  // states both (is_proxy, and a source naming the 2020 postal level it derives from).
+  { key: 'foreign_language_history', metric: 'foreign_language_est_pct' },
 ];
+
+// region_properties.json holds five of the history series as real arrays and
+// foreign_language_history as a JSON STRING — they are written by different pipeline
+// scripts. Accept both shapes: an Array.isArray check alone exported zero rows for the
+// string one while the build still reported success, which is indistinguishable from a
+// series that genuinely has no data. (The app tolerates both too, via parseTrendSeries.)
+function historyPoints(raw) {
+  let series = raw;
+  if (typeof series === 'string') {
+    try {
+      series = JSON.parse(series);
+    } catch {
+      return [];
+    }
+  }
+  return Array.isArray(series) ? series : [];
+}
 
 function csvCell(v) {
   if (v == null) return '';
@@ -294,9 +326,7 @@ const tsRows = [csvRow(['pno', 'metric', 'year', 'value'])];
 for (const p of PROPS) {
   if (!p.pno) continue;
   for (const { key, metric } of HISTORY_SERIES) {
-    const series = p[key];
-    if (!Array.isArray(series)) continue;
-    for (const point of series) {
+    for (const point of historyPoints(p[key])) {
       if (!Array.isArray(point) || point.length < 2) continue;
       const [year, value] = point;
       if (value == null || !Number.isFinite(Number(value))) continue;
