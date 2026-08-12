@@ -116,8 +116,19 @@ test.describe('visual regression', () => {
     const settingsButton = page.locator(`button[aria-label="${await getSettingsLabel(page)}"]`);
     await settingsButton.click();
 
-    // Select protanopia from the colorblind dropdown (skip CitySelector in header)
-    const cbSelect = page.locator('.z-50 select').first();
+    // The display tweaks sit behind the "More settings" disclosure, which starts
+    // collapsed — until it is expanded the <select> is not in the DOM at all, so this
+    // test spent 30s timing out on every run. Nothing reported it: ci.yml's `ci` job is
+    // skipped for claude/* branches, auto-merge had no visual job, and the visual step's
+    // old inline bash regenerated baselines and compared the build against itself.
+    await page.locator('.z-50 button[aria-expanded="false"]').first().click();
+
+    // Identify the colorblind select by an option it owns rather than by position: a
+    // second <select> (quality display scale) was added to this panel afterwards, so
+    // .first() silently depended on source order.
+    const cbSelect = page
+      .locator('.z-50 select')
+      .filter({ has: page.locator('option[value="protanopia"]') });
     await cbSelect.selectOption('protanopia');
 
     // Close dropdown (avoid header bar at top)
