@@ -833,7 +833,10 @@ def join_foreign_language_history(gdf):
     ({pno: [[year, value], ...]}) — 2020 is real postal data, later years are an
     is_proxy estimate (2020 distribution scaled by the municipal share change; see
     apply_foreign_language_municipal_to_geojson.py). Sets:
-      foreign_language_history   JSON-encoded [[year, value], ...]
+      foreign_language_history   [[year, value], ...] as a real array, matching the
+                                 other five history series in the GeoJSON. It was
+                                 json.dumps'd here for a while, and a consumer that
+                                 guarded on Array.isArray then skipped it silently.
       foreign_language_est_pct   the latest year's value (scalar snapshot, per the
                                  project convention snapshot == last history point).
     """
@@ -853,7 +856,7 @@ def join_foreign_language_history(gdf):
         pno = row.get("pno", "") or row.get("postinumeroalue", "")
         series = history.get(pno)
         if series and len(series) >= 2:
-            gdf.at[idx, "foreign_language_history"] = json.dumps(series)
+            gdf.at[idx, "foreign_language_history"] = series
             gdf.at[idx, "foreign_language_est_pct"] = float(series[-1][1])
             matched += 1
 
