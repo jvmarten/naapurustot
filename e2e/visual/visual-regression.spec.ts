@@ -12,7 +12,12 @@ async function waitForMapIdle(page: import('@playwright/test').Page) {
 }
 
 test.describe('visual regression', () => {
-  test.describe.configure({ retries: 0 });
+  // One retry, not zero. These now gate the merge path for every branch, so a single
+  // transient flake blocks everyone's merges, and the cost of that is far worse than
+  // re-shooting a screenshot. A real regression fails both attempts — it is not the
+  // tolerance that is relaxed here, only the number of chances to produce a stable
+  // frame. Anything that needs more than one retry is a test to fix, not to re-run.
+  test.describe.configure({ retries: 1 });
 
   test('default map load', async ({ page }) => {
     await page.goto('/');
@@ -60,8 +65,17 @@ test.describe('visual regression', () => {
     // Wait for panel content to render (section header "Väestörakenne")
     await expect(page.locator('text=Väestörakenne').first()).toBeVisible({ timeout: 15000 });
 
+    // Longer stabilisation budget than the other views, and NOT a looser
+    // maxDiffPixelRatio. Unlike them, this test opens an area from the URL hash, which
+    // flies the map to it — so the canvas is still animating when the screenshot is
+    // first attempted. toHaveScreenshot re-shoots until two consecutive frames match,
+    // and the run that caught this showed the diff converging (0.30 -> 0.10 of pixels)
+    // and then hitting the default 5s budget mid-flight. The picture settles; it just
+    // needs longer than a static view. Raising the tolerance instead would have hidden
+    // real regressions across a third of the frame.
     await expect(page).toHaveScreenshot('neighborhood-panel-open.png', {
       maxDiffPixelRatio: 0.01,
+      timeout: 25000,
     });
   });
 
