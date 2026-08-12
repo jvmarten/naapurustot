@@ -45,6 +45,7 @@ import {
 } from './terrain';
 import { fetchTrains, TRAIN_POLL_MS, TRAIN_STALE_MS, type Train } from './trains';
 import { fetchIncidents, INCIDENT_POLL_MS, type Incident } from './incidents';
+import { fetchObservations, OBSERVATION_POLL_MS, type Observation } from './observations';
 import { useFeedPoll } from './useFeedPoll';
 
 /**
@@ -925,6 +926,73 @@ function paintIncidents(
   ctx.restore();
 }
 
+/**
+ * Temperature ink, per theme. Deliberately neutral rather than a warm/cold ramp:
+ * a colour scale would need a legend and would compete with the shadow layer,
+ * which is what the page is actually about. The number carries the information.
+ */
+const OBSERVATION = {
+  dark: { label: 'rgba(226, 232, 240, 0.96)', halo: 'rgba(8, 15, 40, 0.9)' },
+  light: { label: 'rgba(15, 23, 42, 0.96)', halo: 'rgba(255, 255, 255, 0.92)' },
+} as const;
+
+/**
+ * Paint station temperatures.
+ *
+ * Collision-suppressed like the train labels, and for a stronger reason: these
+ * are ALL text, so two overlapping readings do not degrade into a cluttered dot
+ * and a number — they degrade into an unreadable one. When two stations collide
+ * the nearer-to-drawn-first one wins and the other is simply not drawn, which is
+ * honest at the pixel level: the map is not claiming that station has no reading,
+ * it is declining to write two numbers on top of each other.
+ */
+function paintObservations(
+  ctx: CanvasRenderingContext2D,
+  map: MaplibreMap,
+  observations: Observation[],
+  theme: 'dark' | 'light',
+  width: number,
+  height: number,
+): void {
+  if (observations.length === 0) return;
+  const ink = OBSERVATION[theme];
+
+  ctx.save();
+  ctx.font = '600 12px system-ui, -apple-system, sans-serif';
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'center';
+  ctx.lineWidth = 3;
+
+  const placed: number[][] = [];
+  for (const o of observations) {
+    const p = map.project([o.lon, o.lat]);
+    if (p.x < -30 || p.y < -30 || p.x > width + 30 || p.y > height + 30) continue;
+
+    // One decimal is what FMI publishes and what a degree of air temperature is
+    // worth; rounding to whole degrees would throw away a real distinction
+    // between 0.4 and -0.4, which on a Finnish map is the interesting one.
+    const text = `${o.celsius.toFixed(1)}°`;
+    const w = ctx.measureText(text).width;
+    const box = [p.x - w / 2 - 3, p.y - 8, p.x + w / 2 + 3, p.y + 8];
+    let collides = false;
+    for (const other of placed) {
+      if (box[0] < other[2] && box[2] > other[0] && box[1] < other[3] && box[3] > other[1]) {
+        collides = true;
+        break;
+      }
+    }
+    if (collides) continue;
+    placed.push(box);
+
+    ctx.strokeStyle = ink.halo;
+    ctx.strokeText(text, p.x, p.y);
+    ctx.fillStyle = ink.label;
+    ctx.fillText(text, p.x, p.y);
+  }
+
+  ctx.restore();
+}
+
 function paintTrains(
   ctx: CanvasRenderingContext2D,
   map: MaplibreMap,
@@ -1050,6 +1118,8 @@ export const LivePage: React.FC = () => {
   const trainsRef = useRef<Train[]>([]);
   /** The last polled road incidents, nationally. A ref for the same reason. */
   const incidentsRef = useRef<Incident[]>([]);
+  /** The last polled station temperatures, nationally. */
+  const observationsRef = useRef<Observation[]>([]);
   /** Pending coalesced repaint, so several triggers in one frame do one draw. */
   const rafRef = useRef(0);
   /** Bumped once the map exists, to re-run the effect that binds its listeners. */
@@ -1101,11 +1171,16 @@ export const LivePage: React.FC = () => {
   const [incidentStatus, setIncidentStatus] = useState<{ count: number; failed: boolean } | null>(
     null,
   );
+  const [observationStatus, setObservationStatus] = useState<{
+    count: number;
+    failed: boolean;
+  } | null>(null);
 
   const shadowsOn = enabled.has('shadows');
   const sunOn = enabled.has('sun_position');
   const trainsOn = enabled.has('trains');
   const incidentsOn = enabled.has('road_incidents');
+  const observationsOn = enabled.has('observations');
 
   const sun = useMemo(() => sunPosition(when, center[1], center[0]), [when, center]);
   const times = useMemo(() => sunTimes(when, center[1], center[0]), [when, center]);
@@ -1380,7 +1455,12 @@ export const LivePage: React.FC = () => {
     if (trainsOn) {
       paintTrains(ctx, map, trainsRef.current, Date.now(), theme, zoom, width, height);
     }
-  }, [shadowsOn, trainsOn, incidentsOn, sun.altitude, sun.azimuth, when, theme]);
+    // Temperatures last: they are text, and text under a dot or a closure line is
+    // unreadable, while a dot under a number is still a dot.
+    if (observationsOn) {
+      paintObservations(ctx, map, observationsRef.current, theme, width, height);
+    }
+  }, [shadowsOn, trainsOn, incidentsOn, observationsOn, sun.altitude, sun.azimuth, when, theme]);
 
   /**
    * Always-current `draw`, so the map listeners can be bound ONCE.
@@ -1752,6 +1832,34 @@ export const LivePage: React.FC = () => {
     }, [scheduleDraw]),
   });
 
+  /**
+   * Station temperatures, on the same loop at the slowest cadence of the three.
+   *
+   * Five minutes, because most FMI stations publish every ten — see
+   * observations.ts. Polling faster re-downloads numbers that cannot have moved.
+   */
+  useFeedPoll<Observation[]>({
+    enabled: observationsOn,
+    fetcher: fetchObservations,
+    intervalMs: OBSERVATION_POLL_MS,
+    onData: useCallback(
+      (list: Observation[]) => {
+        observationsRef.current = list;
+        setObservationStatus({ count: list.length, failed: false });
+        scheduleDraw();
+      },
+      [scheduleDraw],
+    ),
+    onError: useCallback(() => {
+      setObservationStatus((prev) => ({ count: prev?.count ?? 0, failed: true }));
+    }, []),
+    onClear: useCallback(() => {
+      observationsRef.current = [];
+      setObservationStatus(null);
+      scheduleDraw();
+    }, [scheduleDraw]),
+  });
+
   useEffect(() => {
     scheduleDraw();
   }, [draw, scheduleDraw]);
@@ -1911,7 +2019,7 @@ export const LivePage: React.FC = () => {
               it is, because an empty map means four different things here:
               zoomed too far out, sun below the horizon, Overpass unreachable, or
               genuinely no buildings with height data. */}
-          {(shadowsOn || trainsOn || incidentsOn) && (
+          {(shadowsOn || trainsOn || incidentsOn || observationsOn) && (
             <div className="absolute left-3 top-3 max-w-xs space-y-1 rounded-lg bg-white/90 px-3 py-2 text-xs leading-relaxed shadow-sm ring-1 ring-surface-200 dark:bg-surface-950/85 dark:ring-surface-800">
               {shadowsOn && (
                 sun.altitude <= 0 ? (
@@ -1979,6 +2087,22 @@ export const LivePage: React.FC = () => {
                 ) : (
                   <p className="text-surface-600 dark:text-surface-300">
                     {t('live.incidents.count').replace('{n}', String(incidentStatus.count))}
+                  </p>
+                )
+              )}
+
+              {observationsOn && (
+                observationStatus === null ? (
+                  <p className="text-surface-600 dark:text-surface-300">
+                    {t('live.observations.loading')}
+                  </p>
+                ) : observationStatus.failed ? (
+                  <p className="text-amber-600 dark:text-amber-400">
+                    {t('live.observations.failed')}
+                  </p>
+                ) : (
+                  <p className="text-surface-600 dark:text-surface-300">
+                    {t('live.observations.count').replace('{n}', String(observationStatus.count))}
                   </p>
                 )
               )}

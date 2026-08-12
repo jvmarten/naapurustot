@@ -65,7 +65,11 @@ export const FEED_GROUPS: FeedGroup[] = [
     accent: '#38bdf8',
     feeds: [
       { id: 'warnings', labelKey: 'live.feed.warnings', status: 'planned', coverage: 'national', defaultOn: false },
-      { id: 'observations', labelKey: 'live.feed.observations', status: 'planned', coverage: 'national', defaultOn: false },
+      // Air temperature at every reporting FMI station. National, and 5.3 kB
+      // gzipped despite 170 kB of raw XML — see observations.ts before
+      // "optimising" it to the coverage encoding, which is three times bigger
+      // over the wire.
+      { id: 'observations', labelKey: 'live.feed.observations', status: 'live', coverage: 'national', defaultOn: false },
       { id: 'air_quality', labelKey: 'live.feed.air_quality', status: 'planned', coverage: 'national', defaultOn: false },
     ],
   },
