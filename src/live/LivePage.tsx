@@ -43,8 +43,8 @@ import {
   hasTerrain,
   type HeightField,
 } from './terrain';
-import { fetchTrains, TRAIN_POLL_MS, TRAIN_STALE_MS, type Train } from './trains';
-import { fetchIncidents, INCIDENT_POLL_MS, type Incident } from './incidents';
+import { fetchTrains, TRAIN_POLL_MS, TRAIN_STALE_MS, trainKey, type Train } from './trains';
+import { activeAt, fetchIncidents, INCIDENT_POLL_MS, type Incident } from './incidents';
 import { fetchObservations, OBSERVATION_POLL_MS, type Observation } from './observations';
 import {
   fetchAirQuality,
@@ -54,6 +54,18 @@ import {
   type AirQuality,
 } from './airquality';
 import { useFeedPoll } from './useFeedPoll';
+import { TimeBar } from './TimeBar';
+import { DetailPanel, type Selection } from './DetailPanel';
+import { fixAt, type TrainFix } from './trainDetail';
+import { pickFeature } from './pick';
+import {
+  recordSnapshot,
+  snapshotAt,
+  trackedRange,
+  TRACK_WINDOW_MS,
+  type TrainSnapshot,
+} from './trainHistory';
+import { clockSeconds, clockTime, isFuture, quantise, shortDate } from './timeControl';
 
 /**
  * /live/ — the realtime surface.
@@ -228,6 +240,9 @@ const BUILDING = {
 /** Shared empty list, so the zoomed-out path allocates nothing per frame. */
 const EMPTY_PREPARED: PreparedBuilding[] = [];
 
+/** Same, for a scrubbed instant the recorded train history cannot answer for. */
+const EMPTY_TRAINS: Train[] = [];
+
 /**
  * Below this zoom, individual buildings and trees are not drawn at all — the
  * shadow map is terrain only.
@@ -296,77 +311,66 @@ function readStoredFeeds(): Set<string> {
 }
 
 /**
- * One labelled number in the sun readout, reserved at its widest value.
+ * THE CLOCK AND ITS READOUT LIVE IN TimeBar.tsx, not here.
  *
- * THE POINT IS THE FIXED WIDTH, not the styling. These sit in the same flex row
- * as the time scrubber, which is `flex-1` and therefore absorbs any width the
- * rest of the row gives up. Every one of these values changes character count as
- * you scrub — altitude crosses zero and gains a minus sign, azimuth runs 9° to
- * 360°, the shadow ratio flips between a number and a dash — so the readout kept
- * resizing and the slider grew and shrank underneath the user's own cursor. The
- * track moving while you drag it is a nasty thing to do to a control that exists
- * to be dragged.
- *
- * `tabular-nums` alone does not fix it: it equalises digit WIDTHS, not digit
- * COUNTS. The reservation is what makes the row's width independent of the time
- * being shown, and `ch` is the natural unit for it once the digits are tabular.
+ * The time scrubber used to be a bare `<input type=range>` in this file's
+ * footer, and the sun readout a row of spans beside it. Both moved out when the
+ * clock stopped belonging to the sun: it is now the whole page's instant, every
+ * feed answers for it, and the bar has to say whether it is following real time
+ * or has been moved off it. What is left here is what reads that instant —
+ * see the archive constants below and `paintShade`.
  */
-const SunStat: React.FC<{ label: string; width: string; children: React.ReactNode }> = ({
-  label,
-  width,
-  children,
-}) => (
-  <span className="whitespace-nowrap">
-    {label}:{' '}
-    <b
-      className="inline-block text-right tabular-nums text-surface-900 dark:text-white"
-      style={{ minWidth: width }}
-    >
-      {children}
-    </b>
-  </span>
-);
 
 /**
- * The shadow-length multiplier, formatted so it cannot run away.
+ * How coarsely a scrubbed instant is rounded before it reaches the archive feeds.
  *
- * It is cot(altitude), which is unbounded: at 0.1° above the horizon a building
- * casts 573 times its height, and the figure keeps climbing right up to sunset.
- * Printing it verbatim is both useless — nobody needs three significant figures
- * of "very long" — and a layout hazard, because no reserved width can hold it.
- * Past 99 it becomes ">99", which says the same thing in a fixed number of
- * characters.
+ * Five minutes, which is finer than the ten-minute cycle most FMI stations
+ * publish on — so it cannot cost the reader a measurement that exists — and
+ * coarse enough that dragging across a whole day asks for at most 288 windows
+ * rather than one per pixel. The debounce below does most of the work; this is
+ * what stops a slow, deliberate drag from slipping through it.
  */
-function formatShadowRatio(ratio: number | null): string {
-  if (ratio === null) return '—';
-  if (ratio > 99) return '>99×';
-  return `${ratio.toFixed(1)}×`;
-}
-
-/** Local wall-clock "HH:MM" for an instant, in the viewer's own zone. */
-function clockTime(date: Date | null): string {
-  if (!date) return '—';
-  return timeFormat().format(date);
-}
+const ARCHIVE_STEP_MS = 300_000;
 
 /**
- * The one formatter, built once.
+ * How long the scrubber must be still before an archive request goes out.
  *
- * `Date.prototype.toLocaleTimeString` constructs a fresh `Intl.DateTimeFormat`
- * on every call, and that construction — not the formatting — is the expensive
- * part. This is called three times per render (clock, sunrise, sunset) and the
- * footer re-renders on every step of the time scrubber, so it showed up at 3 %
- * of total profile time while dragging the slider: more than the shadow sweep it
- * sits next to. Hoisting the formatter makes it a lookup.
- *
- * Lazily built rather than at module scope so it picks up the environment's
- * locale at first use rather than at import, and so it costs nothing on the
- * pages that never mount /live/.
+ * Long enough to sit out a drag, short enough that letting go feels like it
+ * loaded immediately.
  */
-let cachedTimeFormat: Intl.DateTimeFormat | null = null;
-function timeFormat(): Intl.DateTimeFormat {
-  cachedTimeFormat ??= new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' });
-  return cachedTimeFormat;
+const ARCHIVE_DEBOUNCE_MS = 400;
+
+/**
+ * How often the page's clock catches up with the world while it is following it.
+ *
+ * The clock used to be captured once, at mount, and never advanced — so a page
+ * called /live/ left open for an hour drew the sun where it had been an hour
+ * ago, silently, with a scrubber sitting under the wrong minute. Thirty seconds
+ * is well under one pixel of a 24-hour bar at any reasonable width, so the
+ * playhead creeps rather than jumping.
+ */
+const LIVE_TICK_MS = 30_000;
+
+/** Highlight ink for the selected marker and its route, per theme. */
+const SELECTED = {
+  dark: { ring: '#fbbf24', track: 'rgba(196, 181, 253, 0.9)' },
+  light: { ring: '#b45309', track: 'rgba(109, 40, 217, 0.8)' },
+} as const;
+
+/**
+ * Debounce a value.
+ *
+ * Used for exactly one thing — the instant the archive feeds fetch for — and it
+ * is the difference between a drag across the bar costing one request and
+ * costing several hundred aborted ones.
+ */
+function useDebounced<T>(value: T, ms: number): T {
+  const [settled, setSettled] = useState(value);
+  useEffect(() => {
+    const id = setTimeout(() => setSettled(value), ms);
+    return () => clearTimeout(id);
+  }, [value, ms]);
+  return settled;
 }
 
 /**
@@ -1131,6 +1135,68 @@ function paintTrains(
   ctx.restore();
 }
 
+/**
+ * The selected marker's route and highlight, drawn above every feed.
+ *
+ * THE ROUTE IS MEASURED, NOT PLANNED. It is the train's own reported fixes for
+ * its departure date — the same numbers the dot is drawn from, just all of them
+ * — so the line traces where it actually went, including the minutes it spent
+ * standing still. A line drawn along the timetable would look tidier and would
+ * be a drawing of the schedule, which is a different claim.
+ *
+ * The dot is placed at the fix NEAREST the page's clock, and only if one is
+ * close enough (`fixAt` refuses beyond half a minute). That is what lets a
+ * selected train be scrubbed across the whole day when the national feed's
+ * history reaches back only as far as this session watched: selecting a train
+ * upgrades it from "recorded here" to "measured all day", and where the record
+ * has a hole the map draws nothing rather than a plausible position.
+ */
+function paintSelection(
+  ctx: CanvasRenderingContext2D,
+  map: MaplibreMap,
+  point: { lon: number; lat: number } | null,
+  track: TrainFix[] | null,
+  theme: 'dark' | 'light',
+): void {
+  const ink = SELECTED[theme];
+
+  if (track && track.length > 1) {
+    const path = new Path2D();
+    let first = true;
+    for (const fix of track) {
+      const p = map.project([fix.lon, fix.lat]);
+      if (first) {
+        path.moveTo(p.x, p.y);
+        first = false;
+      } else {
+        path.lineTo(p.x, p.y);
+      }
+    }
+    ctx.save();
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    // Haloed like every other stroke on this canvas: the route crosses lit
+    // ground, shadow, building fill and the night wash within one pan.
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = theme === 'dark' ? 'rgba(2, 6, 23, 0.7)' : 'rgba(255, 255, 255, 0.8)';
+    ctx.stroke(path);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = ink.track;
+    ctx.stroke(path);
+    ctx.restore();
+  }
+
+  if (!point) return;
+  const p = map.project([point.lon, point.lat]);
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, 11, 0, Math.PI * 2);
+  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = ink.ring;
+  ctx.stroke();
+  ctx.restore();
+}
+
 export const LivePage: React.FC = () => {
   useI18nVersion();
   const { theme } = useTheme();
@@ -1163,12 +1229,34 @@ export const LivePage: React.FC = () => {
    * and belongs in the readout.
    */
   const trainsRef = useRef<Train[]>([]);
+  /**
+   * Every train snapshot this session has watched arrive, thinned and trimmed.
+   *
+   * This is the train feed's entire past — Digitraffic publishes the latest fix
+   * nationally and nothing else, so scrubbing backwards can only show what we
+   * saw. See trainHistory.ts for why the alternatives are all worse.
+   */
+  const trainBufferRef = useRef<TrainSnapshot[]>([]);
+  /**
+   * The selected train's measured track for its departure date, when one is
+   * loaded — the only feed history on this page that reaches past the session.
+   */
+  const trackRef = useRef<TrainFix[] | null>(null);
   /** The last polled road incidents, nationally. A ref for the same reason. */
   const incidentsRef = useRef<Incident[]>([]);
   /** The last polled station temperatures, nationally. */
   const observationsRef = useRef<Observation[]>([]);
   /** The last polled air-quality index per urban station. */
   const airQualityRef = useRef<AirQuality[]>([]);
+  /**
+   * The current selection, for the draw loop.
+   *
+   * A ref as well as state: `draw` runs on MapLibre's `render` event and reads
+   * it, but rebuilding `draw` whenever the selection changes would also rebuild
+   * every effect keyed on it. The effect below schedules the one repaint that
+   * a selection change actually needs.
+   */
+  const selectionRef = useRef<Selection | null>(null);
   /** Pending coalesced repaint, so several triggers in one frame do one draw. */
   const rafRef = useRef(0);
   /** Bumped once the map exists, to re-run the effect that binds its listeners. */
@@ -1180,6 +1268,17 @@ export const LivePage: React.FC = () => {
   themeRef.current = theme;
 
   const [when, setWhen] = useState<Date>(() => new Date());
+  /**
+   * Whether the page is following real time rather than a scrubbed instant.
+   *
+   * A separate flag rather than "is `when` close to now", because those are
+   * different states with different obligations: a page that has been dragged
+   * onto the current minute should NOT silently start advancing under the user's
+   * cursor, and a page that is following should say so.
+   */
+  const [live, setLive] = useState(true);
+  /** The marker the reader has asked about, or null. */
+  const [selection, setSelection] = useState<Selection | null>(null);
   const [center, setCenter] = useState<[number, number]>(DEFAULT_CENTER);
   const [enabled, setEnabled] = useState<Set<string>>(readStoredFeeds);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -1217,17 +1316,37 @@ export const LivePage: React.FC = () => {
    * "loading" — distinct from a poll that came back with nothing.
    */
   const [trainStatus, setTrainStatus] = useState<{ count: number; failed: boolean } | null>(null);
+  /**
+   * What the recorded train history can answer for the current clock.
+   *
+   * Set from the draw loop, like `terrainOn`, because only the draw knows
+   * whether a snapshot resolved — and it changes at the rate the clock moves,
+   * not at the rate the canvas repaints, so a repeated value costs nothing
+   * (React bails out on an unchanged one).
+   */
+  const [trainAt, setTrainAt] = useState<number | null>(null);
   const [incidentStatus, setIncidentStatus] = useState<{ count: number; failed: boolean } | null>(
     null,
   );
+  /**
+   * The active announcements as last polled.
+   *
+   * State as well as a ref (see the poll's `onData`): how many are IN EFFECT
+   * depends on the page's clock, so the readout has to recount when the clock
+   * moves rather than when the poll lands.
+   */
+  const [incidents, setIncidents] = useState<Incident[]>([]);
   const [observationStatus, setObservationStatus] = useState<{
     count: number;
     failed: boolean;
+    /** The instant it answers for, or null when it is the live poll. */
+    at: number | null;
   } | null>(null);
   const [airQualityStatus, setAirQualityStatus] = useState<{
     count: number;
     failed: boolean;
     worst: number;
+    at: number | null;
   } | null>(null);
 
   const shadowsOn = enabled.has('shadows');
@@ -1239,6 +1358,47 @@ export const LivePage: React.FC = () => {
 
   const sun = useMemo(() => sunPosition(when, center[1], center[0]), [when, center]);
   const times = useMemo(() => sunTimes(when, center[1], center[0]), [when, center]);
+
+  const whenMs = when.getTime();
+  /**
+   * Whether the clock has been moved past what any measurement can answer for.
+   *
+   * The sun does not care — astronomy is exact in both directions — but every
+   * measured feed does, and this is the flag that switches them off rather than
+   * leaving today's readings on screen under tomorrow's timestamp.
+   */
+  const future = !live && isFuture(whenMs);
+
+  /**
+   * The instant the archive feeds fetch for: null while live, otherwise a
+   * quantised, debounced past instant.
+   *
+   * Both steps matter and they do different jobs — the quantiser bounds how many
+   * DISTINCT requests a full-day drag can produce, the debounce stops the ones
+   * that a moving pointer would fire and immediately abandon.
+   */
+  const archiveTarget = live || future ? null : quantise(whenMs, ARCHIVE_STEP_MS);
+  const archiveAt = useDebounced(archiveTarget, ARCHIVE_DEBOUNCE_MS);
+
+  /** Move the clock, which always means leaving live mode. */
+  const scrubTo = useCallback((next: Date) => {
+    setWhen(next);
+    setLive(false);
+  }, []);
+
+  const goLive = useCallback(() => {
+    setWhen(new Date());
+    setLive(true);
+  }, []);
+
+  // A live page has to actually be live. Without this the clock is whatever it
+  // was at mount, so the sun slowly drifts out of date on an open tab and the
+  // scrubber sits under a minute that has passed.
+  useEffect(() => {
+    if (!live) return;
+    const id = setInterval(() => setWhen(new Date()), LIVE_TICK_MS);
+    return () => clearInterval(id);
+  }, [live]);
 
   useEffect(() => {
     try {
@@ -1505,22 +1665,79 @@ export const LivePage: React.FC = () => {
     // is a moving thing on it, and where they coincide the moving thing is what
     // someone is tracking.
     if (incidentsOn) {
-      paintIncidents(ctx, map, incidentsRef.current, theme, zoom, width, height);
+      // FILTERED BY THE PUBLISHER'S OWN VALIDITY, at the page's clock. The feed
+      // is fetched with `inactiveHours=12` so recently-expired announcements are
+      // in hand for a scrub backwards; at "now" this filter is what keeps them
+      // off the map, and scrubbing forward onto a planned closure shows
+      // Fintraffic's plan rather than a guess.
+      paintIncidents(ctx, map, activeAt(incidentsRef.current, whenMs), theme, zoom, width, height);
     }
     if (trainsOn) {
-      paintTrains(ctx, map, trainsRef.current, Date.now(), theme, zoom, width, height);
+      // THE TRAIN LAYER IS A DIFFERENT SET AT A DIFFERENT TIME.
+      //
+      // Live, it is the latest poll. Scrubbed, it is the snapshot this session
+      // recorded nearest that instant — real positions at the times they were
+      // reported — or NOTHING, when the clock is outside what we watched. It is
+      // never the current positions under a past clock, which is the one thing
+      // that would be a lie rather than a gap.
+      const snapshot = live ? null : snapshotAt(trainBufferRef.current, whenMs);
+      const list = live ? trainsRef.current : (snapshot?.trains ?? EMPTY_TRAINS);
+      setTrainAt(live ? null : (snapshot?.at ?? null));
+      // THE STALENESS CLOCK IS THE SNAPSHOT'S, NOT THE WALL'S. `paintTrains`
+      // draws a fix older than two minutes hollow, because a train in a tunnel
+      // keeps its last position in the feed indefinitely. Judging a recorded
+      // snapshot against `Date.now()` would make every train in it hollow the
+      // moment the scrub was more than two minutes back — marking as doubtful
+      // the one thing on the page that is certain, which is where they were.
+      paintTrains(ctx, map, list, snapshot?.at ?? Date.now(), theme, zoom, width, height);
     }
     // Temperatures last: they are text, and text under a dot or a closure line is
     // unreadable, while a dot under a number is still a dot.
     // Under the temperature text, for the same reason incidents sit under trains:
     // a coloured dot survives a number drawn over it, the reverse does not.
-    if (airQualityOn) {
+    if (airQualityOn && !future) {
       paintAirQuality(ctx, map, airQualityRef.current, theme, width, height);
     }
-    if (observationsOn) {
+    if (observationsOn && !future) {
       paintObservations(ctx, map, observationsRef.current, theme, width, height);
     }
-  }, [shadowsOn, trainsOn, incidentsOn, observationsOn, airQualityOn, sun.altitude, sun.azimuth, when, theme]);
+
+    // Above everything, because it is the answer to a question the reader asked.
+    if (selectionRef.current) {
+      const sel = selectionRef.current;
+      const track = sel.kind === 'train' ? trackRef.current : null;
+      // WHERE THE RING GOES IS THE SAME QUESTION THE LAYER ANSWERS, asked of one
+      // train. Live, that is the current poll — looked up by key rather than
+      // reused from the click, or the ring would stay behind while the dot moved
+      // away from under it. Scrubbed, it is the train's own measured track when
+      // the panel has fetched one (which reaches the whole day) and otherwise the
+      // recorded snapshot. Every branch is a position somebody reported.
+      const point =
+        sel.kind !== 'train'
+          ? sel.item
+          : live
+            ? (trainsRef.current.find((t) => trainKey(t) === trainKey(sel.item)) ?? sel.item)
+            : track
+              ? fixAt(track, whenMs)
+              : (snapshotAt(trainBufferRef.current, whenMs)?.trains.find(
+                  (t) => trainKey(t) === trainKey(sel.item),
+                ) ?? null);
+      paintSelection(ctx, map, point, track, theme);
+    }
+  }, [
+    shadowsOn,
+    trainsOn,
+    incidentsOn,
+    observationsOn,
+    airQualityOn,
+    sun.altitude,
+    sun.azimuth,
+    when,
+    whenMs,
+    live,
+    future,
+    theme,
+  ]);
 
   /**
    * Always-current `draw`, so the map listeners can be bound ONCE.
@@ -1849,7 +2066,22 @@ export const LivePage: React.FC = () => {
     onData: useCallback(
       (list: Train[]) => {
         trainsRef.current = list;
+        // EVERY POLL IS KEPT, thinned, for as long as the window allows. This is
+        // the whole of the feed's past — see trainHistory.ts — and it is
+        // recorded whether or not the clock has been scrubbed, because a reader
+        // who scrubs back has to find something already there.
+        recordSnapshot(trainBufferRef.current, Date.now(), list);
         setTrainStatus({ count: list.length, failed: false });
+        // An open panel is a live readout too. Without this the speed and the
+        // fix time freeze at whatever they were when the dot was clicked, which
+        // on a page about realtime data is the wrong kind of still.
+        setSelection((prev) => {
+          if (prev?.kind !== 'train') return prev;
+          const fresh = list.find((t) => trainKey(t) === trainKey(prev.item));
+          // Gone from the feed means the journey ended, not that we know less
+          // about it — the last reported fix stands, with its own timestamp.
+          return fresh ? { kind: 'train', item: fresh } : prev;
+        });
         scheduleDraw();
       },
       [scheduleDraw],
@@ -1859,6 +2091,9 @@ export const LivePage: React.FC = () => {
     }, []),
     onClear: useCallback(() => {
       trainsRef.current = [];
+      // The recording is NOT cleared with the layer. Switching the dots off for
+      // a minute should not throw away the history that was collected before it,
+      // and the buffer trims itself by age regardless.
       setTrainStatus(null);
       scheduleDraw();
     }, [scheduleDraw]),
@@ -1877,6 +2112,11 @@ export const LivePage: React.FC = () => {
     onData: useCallback(
       (list: Incident[]) => {
         incidentsRef.current = list;
+        // Also held as state, unlike the other feeds: the readout has to count
+        // the announcements in effect at the PAGE'S clock, not the ones the poll
+        // returned, and that count changes when the clock moves rather than when
+        // the poll lands. Fourteen features once a minute is a cheap render.
+        setIncidents(list);
         setIncidentStatus({ count: list.length, failed: false });
         scheduleDraw();
       },
@@ -1887,6 +2127,7 @@ export const LivePage: React.FC = () => {
     }, []),
     onClear: useCallback(() => {
       incidentsRef.current = [];
+      setIncidents([]);
       setIncidentStatus(null);
       scheduleDraw();
     }, [scheduleDraw]),
@@ -1899,19 +2140,24 @@ export const LivePage: React.FC = () => {
    * observations.ts. Polling faster re-downloads numbers that cannot have moved.
    */
   useFeedPoll<Observation[]>({
-    enabled: observationsOn,
+    // Switched OFF rather than frozen for a future clock: nobody has measured
+    // tomorrow's temperature, and leaving today's numbers on the map under
+    // tomorrow's timestamp would be the page's one unforgivable move. A forecast
+    // for a particular station is available by clicking it (see DetailPanel).
+    enabled: observationsOn && !future,
+    at: archiveAt,
     fetcher: fetchObservations,
     intervalMs: OBSERVATION_POLL_MS,
     onData: useCallback(
-      (list: Observation[]) => {
+      (list: Observation[], at: number | null) => {
         observationsRef.current = list;
-        setObservationStatus({ count: list.length, failed: false });
+        setObservationStatus({ count: list.length, failed: false, at });
         scheduleDraw();
       },
       [scheduleDraw],
     ),
     onError: useCallback(() => {
-      setObservationStatus((prev) => ({ count: prev?.count ?? 0, failed: true }));
+      setObservationStatus((prev) => ({ count: prev?.count ?? 0, failed: true, at: prev?.at ?? null }));
     }, []),
     onClear: useCallback(() => {
       observationsRef.current = [];
@@ -1927,13 +2173,15 @@ export const LivePage: React.FC = () => {
    * finer than the data can move — see airquality.ts.
    */
   useFeedPoll<AirQuality[]>({
-    enabled: airQualityOn,
+    enabled: airQualityOn && !future,
+    at: archiveAt,
     fetcher: fetchAirQuality,
     intervalMs: AIR_QUALITY_POLL_MS,
     onData: useCallback(
-      (list: AirQuality[]) => {
+      (list: AirQuality[], at: number | null) => {
         airQualityRef.current = list;
         setAirQualityStatus({
+          at,
           count: list.length,
           failed: false,
           // The worst band anywhere is the one number worth stating: "82 stations"
@@ -1947,7 +2195,7 @@ export const LivePage: React.FC = () => {
     ),
     onError: useCallback(() => {
       setAirQualityStatus((prev) =>
-        prev ? { ...prev, failed: true } : { count: 0, failed: true, worst: 0 },
+        prev ? { ...prev, failed: true } : { count: 0, failed: true, worst: 0, at: null },
       );
     }, []),
     onClear: useCallback(() => {
@@ -1960,6 +2208,108 @@ export const LivePage: React.FC = () => {
   useEffect(() => {
     scheduleDraw();
   }, [draw, scheduleDraw]);
+
+  // The selection is read by the draw loop through a ref, so changing it does
+  // not rebuild `draw` — which means it also does not repaint by itself.
+  useEffect(() => {
+    selectionRef.current = selection;
+    if (selection?.kind !== 'train') trackRef.current = null;
+    scheduleDraw();
+  }, [selection, scheduleDraw]);
+
+  /** The selected train's measured track, once the panel has fetched it. */
+  const onTrack = useCallback(
+    (track: TrainFix[] | null) => {
+      trackRef.current = track;
+      scheduleDraw();
+    },
+    [scheduleDraw],
+  );
+
+  /**
+   * What is under a point on the map, given the current clock.
+   *
+   * The candidate sets are exactly what is DRAWN at this instant — the same
+   * filters, in the same order — because a marker you can see and cannot click,
+   * or click and cannot see, is worse than either.
+   */
+  const hitTest = useCallback(
+    (point: { x: number; y: number }): Selection | null => {
+      const map = mapRef.current;
+      if (!map) return null;
+      const trains = trainsOn
+        ? live
+          ? trainsRef.current
+          : (snapshotAt(trainBufferRef.current, whenMs)?.trains ?? EMPTY_TRAINS)
+        : undefined;
+      const visible = incidentsOn ? activeAt(incidentsRef.current, whenMs) : undefined;
+      const hit = pickFeature(
+        point,
+        {
+          trains,
+          incidents: visible,
+          observations: observationsOn && !future ? observationsRef.current : undefined,
+          airQuality: airQualityOn && !future ? airQualityRef.current : undefined,
+        },
+        (lon, lat) => map.project([lon, lat]),
+      );
+      if (!hit) return null;
+      if (hit.kind === 'train' && trains) return { kind: 'train', item: trains[hit.index] };
+      if (hit.kind === 'incident' && visible) return { kind: 'incident', item: visible[hit.index] };
+      if (hit.kind === 'observation') {
+        return { kind: 'observation', item: observationsRef.current[hit.index] };
+      }
+      return { kind: 'air_quality', item: airQualityRef.current[hit.index] };
+    },
+    [trainsOn, incidentsOn, observationsOn, airQualityOn, live, future, whenMs],
+  );
+
+  // Bound once and read through a ref, like `draw`: the map's listeners must not
+  // be torn down and rebuilt every time the clock ticks.
+  const hitRef = useRef(hitTest);
+  hitRef.current = hitTest;
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const onClick = (e: { point: { x: number; y: number } }) => {
+      // Clicking empty map clears — the panel is an inspector, not a modal, so
+      // dismissing it should not require finding its close button.
+      setSelection(hitRef.current(e.point));
+    };
+
+    /**
+     * Hover feedback, throttled.
+     *
+     * Without it there is nothing on screen saying the markers are clickable,
+     * and this canvas has no DOM elements to carry a `cursor` rule. The throttle
+     * is what keeps it honest about cost: a hit test projects every visible
+     * marker, and MapLibre emits `mousemove` at pointer rate.
+     */
+    let lastMove = 0;
+    const onMove = (e: { point: { x: number; y: number } }) => {
+      const now = Date.now();
+      if (now - lastMove < 60) return;
+      lastMove = now;
+      map.getCanvas().style.cursor = hitRef.current(e.point) ? 'pointer' : '';
+    };
+
+    map.on('click', onClick);
+    map.on('mousemove', onMove);
+    return () => {
+      map.off('click', onClick);
+      map.off('mousemove', onMove);
+    };
+  }, [mapReady]);
+
+  // A selected marker that the clock has moved away from is no longer a
+  // selection of anything the map is drawing. The train is the exception: its
+  // own measured track follows the clock, which is the point of fetching it.
+  useEffect(() => {
+    if (!selection || selection.kind === 'train') return;
+    if (future) setSelection(null);
+  }, [selection, future]);
 
   // Follow the site-wide light/dark choice by swapping the raster tile URLs in
   // place. Deliberately not `setStyle` — that tears down and rebuilds every
@@ -1989,34 +2339,10 @@ export const LivePage: React.FC = () => {
 
   const setAll = (on: boolean) => setEnabled(on ? defaultEnabledFeeds() : new Set<string>());
 
-  /** Minutes since local midnight, for the scrubber. */
-  const minuteOfDay = when.getHours() * 60 + when.getMinutes();
-  const setMinuteOfDay = (minutes: number) => {
-    const next = new Date(when);
-    next.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
-    setWhen(next);
-  };
-
-  /**
-   * Where daylight sits on the 0-1439 minute scrubber, as percentages.
-   *
-   * Null on a polar day or night, when "sunrise" and "sunset" do not exist and
-   * any band drawn would be a fiction — the readout already states which of the
-   * two it is. Clamped rather than wrapped: a sunset past local midnight belongs
-   * at the right-hand end of today's track, not wrapped around to the left where
-   * it would read as morning.
-   */
-  const daylightBand = useMemo(() => {
-    const { sunrise, sunset } = times;
-    if (!sunrise || !sunset) return null;
-    const minutes = (d: Date) => d.getHours() * 60 + d.getMinutes();
-    const from = minutes(sunrise);
-    const to = minutes(sunset);
-    if (!(to > from)) return null;
-    return { left: (from / 1439) * 100, width: ((to - from) / 1439) * 100 };
-  }, [times]);
-
   const shadowRatio = shadowLengthRatio(sun.altitude);
+
+  /** How many announcements are in effect at the clock, not how many were polled. */
+  const incidentsNow = useMemo(() => activeAt(incidents, whenMs).length, [incidents, whenMs]);
 
   /**
    * The coverage sentence for whichever tier(s) actually supplied the buildings.
@@ -2118,6 +2444,22 @@ export const LivePage: React.FC = () => {
               genuinely no buildings with height data. */}
           {(shadowsOn || trainsOn || incidentsOn || observationsOn || airQualityOn) && (
             <div className="absolute left-3 top-3 max-w-xs space-y-1 rounded-lg bg-white/90 px-3 py-2 text-xs leading-relaxed shadow-sm ring-1 ring-surface-200 dark:bg-surface-950/85 dark:ring-surface-800">
+              {/* WHEN THE CLOCK IS NOT NOW, THAT IS THE FIRST THING SAID.
+                  Everything under this line is a statement about a moment, and
+                  on a page called /live/ the reader's default assumption is that
+                  the moment is this one. Stating it once at the top is cheaper
+                  than qualifying every sentence below — and the second line is
+                  the honest caveat that the feeds do not all reach equally far,
+                  which is what `time` in the feed registry encodes. */}
+              {!live && (
+                <p className="-mx-1 mb-1 rounded bg-amber-500/15 px-2 py-1 font-semibold text-amber-700 dark:text-amber-300">
+                  {t('live.time.showing')
+                    .replace('{date}', shortDate(when))
+                    .replace('{time}', clockTime(when))}
+                  <span className="block font-normal opacity-80">{t('live.time.scrub_note')}</span>
+                </p>
+              )}
+
               {shadowsOn && (
                 sun.altitude <= 0 ? (
                   <p className="text-surface-600 dark:text-surface-300">
@@ -2155,7 +2497,35 @@ export const LivePage: React.FC = () => {
                   asking", "asked and could not reach Fintraffic", or "asked, and
                   this is genuinely everything running in Finland right now". */}
               {trainsOn && (
-                trainStatus === null ? (
+                !live ? (
+                  /* SCRUBBED, so the question is no longer "how many are
+                     running" but "what did we watch". A recorded snapshot is
+                     stated with the second it was taken; no snapshot is stated
+                     as a gap, with how far the recording reaches, because
+                     "no trains" and "we were not looking" are different facts
+                     and the map draws them identically. */
+                  trainAt !== null ? (
+                    <p className="text-surface-600 dark:text-surface-300">
+                      {t('live.trains.recorded').replace('{time}', clockSeconds(trainAt))}
+                    </p>
+                  ) : (
+                    <p className="text-surface-600 dark:text-surface-300">
+                      {t('live.trains.no_record').replace(
+                        '{minutes}',
+                        String(Math.round(TRACK_WINDOW_MS / 60_000)),
+                      )}
+                      {(() => {
+                        const range = trackedRange(trainBufferRef.current);
+                        return range
+                          ? ' ' +
+                              t('live.trains.recorded_range')
+                                .replace('{from}', clockTime(range.from))
+                                .replace('{to}', clockTime(range.to))
+                          : '';
+                      })()}
+                    </p>
+                  )
+                ) : trainStatus === null ? (
                   <p className="text-surface-600 dark:text-surface-300">{t('live.trains.loading')}</p>
                 ) : trainStatus.failed ? (
                   <p className="text-amber-600 dark:text-amber-400">{t('live.trains.failed')}</p>
@@ -2177,19 +2547,30 @@ export const LivePage: React.FC = () => {
                   </p>
                 ) : incidentStatus.failed ? (
                   <p className="text-amber-600 dark:text-amber-400">{t('live.incidents.failed')}</p>
-                ) : incidentStatus.count === 0 ? (
+                ) : incidentsNow === 0 ? (
                   <p className="text-surface-600 dark:text-surface-300">
                     {t('live.incidents.none')}
                   </p>
                 ) : (
                   <p className="text-surface-600 dark:text-surface-300">
-                    {t('live.incidents.count').replace('{n}', String(incidentStatus.count))}
+                    {/* The count IN EFFECT at the clock, not the count polled —
+                        the feed carries recently-expired and future-dated
+                        announcements so the clock can move through them. */}
+                    {t('live.incidents.count').replace('{n}', String(incidentsNow))}
                   </p>
                 )
               )}
 
               {observationsOn && (
-                observationStatus === null ? (
+                future ? (
+                  /* Nobody has measured a future temperature, so the layer is
+                     off rather than frozen. The one real future value FMI
+                     publishes is a point forecast, which is a click on a
+                     station away — see DetailPanel. */
+                  <p className="text-surface-600 dark:text-surface-300">
+                    {t('live.observations.future')}
+                  </p>
+                ) : observationStatus === null ? (
                   <p className="text-surface-600 dark:text-surface-300">
                     {t('live.observations.loading')}
                   </p>
@@ -2205,7 +2586,11 @@ export const LivePage: React.FC = () => {
               )}
 
               {airQualityOn && (
-                airQualityStatus === null ? (
+                future ? (
+                  <p className="text-surface-600 dark:text-surface-300">
+                    {t('live.air_quality.future')}
+                  </p>
+                ) : airQualityStatus === null ? (
                   <p className="text-surface-600 dark:text-surface-300">
                     {t('live.air_quality.loading')}
                   </p>
@@ -2221,92 +2606,40 @@ export const LivePage: React.FC = () => {
                   </p>
                 )
               )}
+
+              {/* The markers are clickable and nothing else on screen says so —
+                  they are canvas pixels, with no hover affordance beyond the
+                  cursor. One line, and only while a clickable feed is on. */}
+              {(trainsOn || incidentsOn || observationsOn || airQualityOn) && !selection && (
+                <p className="pt-0.5 text-surface-400 dark:text-surface-500">
+                  {t('live.detail.hint')}
+                </p>
+              )}
             </div>
+          )}
+
+          {selection && (
+            <DetailPanel
+              selection={selection}
+              when={when}
+              onClose={() => setSelection(null)}
+              onTrack={onTrack}
+            />
           )}
         </div>
       </div>
 
-      <footer className="border-t border-surface-200 px-4 py-3 dark:border-surface-800">
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs">
-          <label className="flex min-w-[16rem] flex-1 items-center gap-3">
-            {/* Reserved for the same reason as SunStat, and it is not only about
-                digits: in a 12-hour locale this renders "09:35 AM", and A and P
-                are not the same width, so even a fixed digit count moved the
-                slider by a pixel every noon. 8ch holds "12:35 PM"; a 24-hour
-                locale simply leaves the tail empty. */}
-            <span className="inline-block min-w-[8ch] tabular-nums text-surface-600 dark:text-surface-300">
-              {clockTime(when)}
-            </span>
-            {/* DAYLIGHT BAND.
-                The scrubber runs midnight to midnight, and on a page about
-                sunlight the two instants that matter most on it — sunrise and
-                sunset — were invisible until you dragged onto them and read the
-                numbers. This paints the lit part of the day directly under the
-                track, so the shape of the day is legible at a glance and it is
-                obvious which way to drag to reach the light.
-
-                Purely decorative and `pointer-events-none`: the input keeps every
-                pixel of its own hit area, so this cannot cost the control any
-                draggability. It also cannot resize anything — it is absolutely
-                positioned inside the same box the input already occupied, which
-                is what keeps the track pinned. */}
-            <span className="relative flex flex-1 items-center">
-              <span
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-x-0 top-1/2 h-1 translate-y-[6px] overflow-hidden rounded-full bg-surface-200 dark:bg-surface-800"
-              >
-                {daylightBand && (
-                  <span
-                    className="absolute inset-y-0 bg-amber-400/70 dark:bg-amber-500/60"
-                    style={{ left: `${daylightBand.left}%`, width: `${daylightBand.width}%` }}
-                  />
-                )}
-              </span>
-              <input
-                type="range"
-                min={0}
-                max={1439}
-                value={minuteOfDay}
-                onChange={(e) => setMinuteOfDay(Number(e.target.value))}
-                className="relative h-1 w-full accent-amber-500"
-                aria-label={t('live.time.scrub')}
-              />
-            </span>
-          </label>
-          <button
-            type="button"
-            onClick={() => setWhen(new Date())}
-            className="rounded border border-surface-300 px-2 py-1 text-surface-700 dark:border-surface-700 dark:text-surface-200"
-          >
-            {t('live.time.now')}
-          </button>
-
-          {sunOn && (
-            <div className="flex flex-wrap gap-x-5 gap-y-1 text-surface-600 dark:text-surface-300">
-              {/* Widths are the widest each field can render: "-90.0°", "360°",
-                  ">99×", "00:00", "24.0 h". See SunStat for why they are pinned. */}
-              <SunStat label={t('live.sun.altitude')} width="5.5ch">
-                {sun.altitude.toFixed(1)}°
-              </SunStat>
-              <SunStat label={t('live.sun.azimuth')} width="4ch">
-                {sun.azimuth.toFixed(0)}°
-              </SunStat>
-              <SunStat label={t('live.sun.shadow_ratio')} width="5.5ch">
-                {formatShadowRatio(shadowRatio)}
-              </SunStat>
-              <SunStat label={t('live.sun.sunrise')} width="5ch">
-                {clockTime(times.sunrise)}
-              </SunStat>
-              <SunStat label={t('live.sun.sunset')} width="5ch">
-                {clockTime(times.sunset)}
-              </SunStat>
-              <SunStat label={t('live.sun.day_length')} width="6ch">
-                {times.dayLength.toFixed(1)} h
-              </SunStat>
-            </div>
-          )}
-        </div>
-      </footer>
+      <TimeBar
+        when={when}
+        live={live}
+        onScrub={scrubTo}
+        onNow={goLive}
+        center={center}
+        sun={sun}
+        times={times}
+        shadowRatio={shadowRatio}
+        showSun={sunOn}
+      />
     </div>
   );
 };

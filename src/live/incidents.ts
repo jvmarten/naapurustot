@@ -58,11 +58,44 @@ export interface Incident {
   lines: [number, number][][];
   /** When the incident began, ms since the epoch, or null if unparseable. */
   since: number | null;
+  /**
+   * When it is due to end, ms since the epoch, or null for open-ended.
+   *
+   * This plus `since` is what makes the feed scrubbable. Fintraffic states the
+   * validity of every announcement, so "was this in effect at 06:20" is a
+   * question the publisher has already answered — the page filters, it does not
+   * infer. Null means the announcement names no end, which is a real state
+   * (a closure "until further notice") and not a missing value.
+   */
+  until: number | null;
+  /**
+   * The announcement's own feature lines, as published, Finnish.
+   *
+   * Fintraffic emits these as short structured phrases alongside the title —
+   * "Lauttaliikenne keskeytetään huoltotyön ajaksi" — and they carry most of
+   * what a reader actually wants. Reproduced verbatim for the same reason the
+   * title is: machine-translating an official traffic announcement would be
+   * inventing wording nobody issued.
+   */
+  notes: string[];
 }
 
+/**
+ * The endpoint, asking for recently-expired announcements as well as live ones.
+ *
+ * `inactiveHours=12` rather than 0, and it is what lets the clock go backwards:
+ * an announcement that ended an hour ago was in effect an hour ago, so a scrub
+ * to then has to be able to see it. Measured against the live API the cost is
+ * small — 14 features / 5.4 kB against 8 / 3.4 kB — which keeps this in the same
+ * class as the trains' 2.4 kB and leaves the poll defensible.
+ *
+ * It does NOT change what the map shows at "now": `activeAt` filters by the
+ * publisher's own validity window, so an expired announcement is fetched and
+ * then not drawn until the clock is moved back into it.
+ */
 export const INCIDENTS_ENDPOINT =
   'https://tie.digitraffic.fi/api/traffic-message/v1/messages' +
-  '?inactiveHours=0&includeAreaGeometry=false&situationType=TRAFFIC_ANNOUNCEMENT';
+  '?inactiveHours=12&includeAreaGeometry=false&situationType=TRAFFIC_ANNOUNCEMENT';
 
 /**
  * How often we ask, in ms.
@@ -132,6 +165,14 @@ export function parseIncidents(payload: unknown): Incident[] {
 
     const start = first?.timeAndDuration?.startTime;
     const since = typeof start === 'string' ? Date.parse(start) : NaN;
+    const end = first?.timeAndDuration?.endTime;
+    const until = typeof end === 'string' ? Date.parse(end) : NaN;
+
+    const notes = Array.isArray(first?.features)
+      ? (first.features as { name?: unknown }[])
+          .map((f) => (typeof f?.name === 'string' ? f.name.trim() : ''))
+          .filter((n) => n !== '')
+      : [];
 
     const type = raw.geometry?.type;
     const coords = raw.geometry?.coordinates;
@@ -165,9 +206,27 @@ export function parseIncidents(payload: unknown): Incident[] {
       lat: anchor[1],
       lines,
       since: Number.isFinite(since) ? since : null,
+      until: Number.isFinite(until) ? until : null,
+      notes,
     });
   }
   return out;
+}
+
+/**
+ * The announcements in effect at an instant.
+ *
+ * An announcement with no start time is kept: the feed served it as current, and
+ * dropping it because one optional field is missing would hide a real closure.
+ * An announcement with no end is open-ended and stays in effect once it starts —
+ * which is also why the future direction works without any special case: a
+ * planned closure published for tomorrow simply has a `since` beyond now, and
+ * scrubbing forward onto it is reading Fintraffic's own plan, not a prediction.
+ */
+export function activeAt(incidents: Incident[], at: number): Incident[] {
+  return incidents.filter(
+    (i) => (i.since === null || i.since <= at) && (i.until === null || i.until >= at),
+  );
 }
 
 /**

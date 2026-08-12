@@ -34,6 +34,9 @@ describe('parseTrains', () => {
     const [train] = parseTrains([raw()]);
     expect(train).toEqual({
       number: 27,
+      // The departure date is kept: the number alone repeats daily, so the pair
+      // is what identifies a train to every per-train endpoint (trainDetail.ts).
+      date: '2026-08-09',
       lon: 24.940157,
       lat: 60.178017,
       speed: 84,

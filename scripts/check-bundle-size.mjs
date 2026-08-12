@@ -165,7 +165,19 @@ const ASSETS_DIR = 'dist/assets';
 //
 // Measured at 5,661 B on introduction (sun engine, shadow geometry, feed registry,
 // sidebar, page). Set with room for the feeds the registry already lists.
-const LIVE_BUDGET = 24_000;
+// → 28,000 B (2026-08-12: the page's clock became the PAGE'S rather than the
+// sun's. Adds the shademap-style bottom bar (a twilight ribbon sampled from the
+// real solar altitude, a draggable role=slider playhead, date stepping,
+// playback), time travel for every feed that can honestly follow it (FMI's
+// archive behind an `endtime`, a session-recorded train buffer, validity-window
+// filtering for road announcements), and a click-through detail panel with the
+// per-train timetable and measured track. Measured 16,428 → 22,976 B, ~6.5 kB
+// of genuine feature. The remaining 1 kB of headroom is below the noise floor
+// for an unrelated change — the same reason the map budget was moved off 199 B
+// — and the registry still lists two unwired feeds this budget exists to hold,
+// so headroom is restored to ~5 kB rather than to a hair. Every byte here is
+// reached only by /live/; the map route never imports it.
+const LIVE_BUDGET = 28_000;
 
 const fmtKB = (b) => (b / 1024).toFixed(2);
 

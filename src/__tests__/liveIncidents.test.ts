@@ -128,13 +128,19 @@ describe('parseIncidents', () => {
 });
 
 describe('incident feed configuration', () => {
-  it('asks only for announcements, and only active ones', () => {
+  it('asks only for announcements, and for a window the clock can be scrubbed into', () => {
     // Roadworks from the same endpoint are 585 features / 1.28 MB against this
     // feed's 8 / 3.4 kB, so the situationType filter is load-bearing, not a
     // preference. Area geometry is excluded for the same reason.
     expect(INCIDENTS_ENDPOINT).toContain('situationType=TRAFFIC_ANNOUNCEMENT');
-    expect(INCIDENTS_ENDPOINT).toContain('inactiveHours=0');
     expect(INCIDENTS_ENDPOINT).toContain('includeAreaGeometry=false');
+
+    // inactiveHours is NOT 0. An announcement that ended an hour ago was in
+    // effect an hour ago, and the page's clock can be moved there — so the
+    // recently-expired ones have to be in hand. What keeps them off the map at
+    // "now" is `activeAt`, not the request.
+    const hours = Number(/inactiveHours=(\d+)/.exec(INCIDENTS_ENDPOINT)?.[1]);
+    expect(hours).toBeGreaterThan(0);
   });
 
   it('polls far slower than the trains do', () => {

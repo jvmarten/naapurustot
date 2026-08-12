@@ -8,13 +8,20 @@ import { t } from '../utils/i18n';
  * Rendered entirely from FEED_GROUPS — no feed is named in this file — so a new
  * realtime source appears here by editing the registry and the locale files.
  *
- * Two things it refuses to do quietly:
+ * Three things it refuses to do quietly:
  *  - a `planned` feed renders as a disabled row with an explicit badge, so the
  *    list can show where the page is heading without a dead toggle implying that
  *    data is already there;
  *  - an `urban` feed says so on the row, because a national map that silently
  *    draws only Helsinki is the exact failure this project keeps legislating
- *    against.
+ *    against;
+ *  - every row states how far the time slider carries it. The bar at the bottom
+ *    moves one clock and the whole page answers for it, but the feeds do not
+ *    reach equally far — the sun is exact in both directions, FMI serves its
+ *    archive, the trains have only what this session watched. That is `time` in
+ *    the registry, and it belongs on the row for the same reason `coverage`
+ *    does: it is a limit of the data, and the reader finds out either here or
+ *    by being misled.
  */
 
 interface FeedSidebarProps {
@@ -54,11 +61,15 @@ export const FeedSidebar: React.FC<FeedSidebarProps> = ({ enabled, onToggle, onS
   const rowLabel = (feed: Feed) => (
     <span className="flex min-w-0 flex-col">
       <span className="truncate text-sm text-surface-800 dark:text-surface-100">{t(feed.labelKey)}</span>
-      {feed.coverage === 'urban' && (
-        <span className="text-[10px] uppercase tracking-wide text-surface-500 dark:text-surface-400">
-          {t('live.coverage.urban')}
-        </span>
-      )}
+      {/* One line, and NOT in caps. Two tags stacked in a wrapping flex row
+          turned "cities only" + "any time" into four ragged lines; keeping the
+          caps then truncated the half that carries the new information, because
+          uppercase plus letter-spacing costs about a third of the width in a
+          sidebar this narrow. Sentence case fits both. */}
+      <span className="truncate text-[11px] text-surface-500 dark:text-surface-400">
+        {feed.coverage === 'urban' && <>{t('live.coverage.urban')} · </>}
+        {t(`live.time_model.${feed.time}`)}
+      </span>
     </span>
   );
 
@@ -93,6 +104,12 @@ export const FeedSidebar: React.FC<FeedSidebarProps> = ({ enabled, onToggle, onS
           ×
         </button>
       </div>
+
+      {/* One line explaining the second tag on every row, because "this session"
+          under a train feed means nothing without it. */}
+      <p className="px-4 pb-2 text-[11px] leading-snug text-surface-500 dark:text-surface-400">
+        {t('live.time_model.note')}
+      </p>
 
       <div className="min-h-0 flex-1 overflow-y-auto pb-4">
         {FEED_GROUPS.map((group) => {

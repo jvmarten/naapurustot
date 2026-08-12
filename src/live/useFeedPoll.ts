@@ -38,12 +38,25 @@ import { useEffect } from 'react';
 export interface FeedPollOptions<T> {
   /** Whether the feed is switched on. False tears the loop down and clears. */
   enabled: boolean;
+  /**
+   * An instant to fetch ONCE for, or null to follow real time on `intervalMs`.
+   *
+   * This is what the page's clock reaches a feed through. A polling loop and an
+   * archive request are the same request with a different `endtime` (see
+   * fmi.ts), and the only structural difference is that the archive does not
+   * repeat: the past does not change, so re-asking for 06:20 every five minutes
+   * would be asking a free public service to send the same answer forever.
+   *
+   * The caller is expected to have QUANTISED and DEBOUNCED this — a pointer drag
+   * produces an instant per pixel, and each one landing here is a request.
+   */
+  at?: number | null;
   /** Fetches one snapshot. Must reject — not return empty — on a bad response. */
-  fetcher: (signal: AbortSignal) => Promise<T>;
+  fetcher: (signal: AbortSignal, at: number | null) => Promise<T>;
   /** Milliseconds between polls, measured from the end of the previous one. */
   intervalMs: number;
-  /** Called with each successful snapshot. */
-  onData: (data: T) => void;
+  /** Called with each successful snapshot, and the instant it answers for. */
+  onData: (data: T, at: number | null) => void;
   /**
    * Called when a poll fails for a reason worth reporting — never for an abort,
    * which means the caller replaced the request, not that anything went wrong.
@@ -55,6 +68,7 @@ export interface FeedPollOptions<T> {
 
 export function useFeedPoll<T>({
   enabled,
+  at = null,
   fetcher,
   intervalMs,
   onData,
@@ -72,13 +86,15 @@ export function useFeedPoll<T>({
     let stopped = false;
 
     const schedule = () => {
-      if (stopped) return;
+      // An archive request answers for a fixed instant, and a fixed instant does
+      // not change. Polling it would re-download an identical response forever.
+      if (stopped || at !== null) return;
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => void tick(), intervalMs);
     };
 
     const tick = async () => {
-      if (typeof document !== 'undefined' && document.hidden) {
+      if (typeof document !== 'undefined' && document.hidden && at === null) {
         schedule();
         return;
       }
@@ -86,9 +102,9 @@ export function useFeedPoll<T>({
       const active = new AbortController();
       controller = active;
       try {
-        const data = await fetcher(active.signal);
+        const data = await fetcher(active.signal, at);
         if (stopped || active.signal.aborted) return;
-        onData(data);
+        onData(data, at);
       } catch (err) {
         // An abort is us replacing the request, not a failure to report.
         if ((err as Error)?.name === 'AbortError' || stopped) return;
@@ -114,5 +130,5 @@ export function useFeedPoll<T>({
     // closures over render state); listing them would tear the loop down and
     // re-request on every render, which is the bug this shape exists to avoid.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, intervalMs, fetcher]);
+  }, [enabled, intervalMs, fetcher, at]);
 }
