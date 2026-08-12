@@ -70,7 +70,10 @@ export const FEED_GROUPS: FeedGroup[] = [
       // "optimising" it to the coverage encoding, which is three times bigger
       // over the wire.
       { id: 'observations', labelKey: 'live.feed.observations', status: 'live', coverage: 'national', defaultOn: false },
-      { id: 'air_quality', labelKey: 'live.feed.air_quality', status: 'planned', coverage: 'national', defaultOn: false },
+      // 'urban', not 'national', and deliberately: this is the municipal
+      // monitoring network — 82 stations in towns. FMI's national background
+      // network has seven, which is real but too sparse to read as a map.
+      { id: 'air_quality', labelKey: 'live.feed.air_quality', status: 'live', coverage: 'urban', defaultOn: false },
     ],
   },
   {

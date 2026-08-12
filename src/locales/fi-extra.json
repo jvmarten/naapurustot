@@ -104,5 +104,13 @@
   "live.incidents.count": "{n} voimassa olevaa liikennetiedotetta Suomessa (Fintraffic).",
   "live.observations.loading": "Haetaan lämpötilahavaintoja…",
   "live.observations.failed": "Lämpötilahavaintoja ei saatu haettua.",
-  "live.observations.count": "{n} havaintoasemaa (Ilmatieteen laitos, lämpötila 2 m)."
+  "live.observations.count": "{n} havaintoasemaa (Ilmatieteen laitos, lämpötila 2 m).",
+  "live.air_quality.loading": "Haetaan ilmanlaatuhavaintoja…",
+  "live.air_quality.failed": "Ilmanlaatuhavaintoja ei saatu haettua.",
+  "live.air_quality.count": "{n} ilmanlaatuasemaa. Huonoin juuri nyt: {worst}.",
+  "live.air_quality.band_1": "hyvä",
+  "live.air_quality.band_2": "tyydyttävä",
+  "live.air_quality.band_3": "välttävä",
+  "live.air_quality.band_4": "huono",
+  "live.air_quality.band_5": "erittäin huono"
 }
