@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { terrainShadowMask, terrainZoomFor, hasTerrain, type HeightField } from '../live/terrain';
+import {
+  terrainShadowMask,
+  terrainZoomFor,
+  selectTerrainLevel,
+  hasTerrain,
+  type HeightField,
+} from '../live/terrain';
 import manifest from '../data/terrain_manifest.json';
 import { solarFrame } from '../utils/sun';
 
@@ -230,6 +236,140 @@ describe('terrainShadowMask with a solar frame', () => {
     const mask = terrainShadowMask(field, 45, 90)!;
     expect(at(mask, field, 11, 10)).toBe(255);
     expect(at(mask, field, 9, 10)).toBe(0);
+  });
+});
+
+/**
+ * A heightfield row is a MERCATOR row, not a latitude.
+ *
+ * Everything below turns on that. The grid is a slab of Web Mercator tiles, so
+ * row index is linear in Mercator y and nonlinear in latitude — and Mercator's
+ * mid-row sits well poleward of the arithmetic mid-latitude. Code that walks the
+ * grid by row and interpolates latitude linearly is not making a rounding error;
+ * on a continental field it is off by degrees, one-signed, so it never averages
+ * out.
+ *
+ * Computed here from the projection definition rather than imported, so these
+ * assertions state independently where a row IS.
+ */
+function rowForLat(lat: number, bbox: [number, number, number, number], height: number): number {
+  const merc = (d: number) => Math.log(Math.tan(Math.PI / 4 + (d * Math.PI) / 360));
+  const yN = merc(bbox[3]);
+  const yS = merc(bbox[1]);
+  return Math.round(((merc(lat) - yN) / (yS - yN)) * (height - 1));
+}
+
+describe('field rows are Mercator, not latitude', () => {
+  const INSTANT = new Date('2026-08-12T02:18:00Z');
+
+  it('gives a row the sun of the latitude it is actually at', () => {
+    // The regression: the solar lattice placed its nodes by interpolating
+    // latitude LINEARLY across the rows while the sweep read them by a linear
+    // scale over Mercator rows. On a field like this one that handed a row up to
+    // 6.5 degrees of latitude from where it really is — enough to hand genuinely
+    // sunlit ground a below-horizon sun and declare it night, casting nothing.
+    const bbox: [number, number, number, number] = [24, 41, 24.5, 79];
+    const height = 512;
+    const width = 8;
+
+    // 69N at this instant and longitude is comfortably sunlit; the arithmetic-mid
+    // reading of the same row lands far enough south to be below the horizon.
+    const row = rowForLat(69, bbox, height);
+    const field: HeightField = {
+      data: new Float32Array(width * height),
+      width,
+      height,
+      cellMetres: 1000,
+      bbox,
+    };
+    for (let x = 0; x < width; x++) field.data[row * width + x] = 0;
+    field.data[row * width + 1] = 3000;
+
+    const mask = terrainShadowMask(field, 0.1, 90, solarFrame(INSTANT))!;
+    expect(mask).not.toBeNull();
+    // Sunlit ground casts. Under the linear-degrees bug this row read as night
+    // and the whole line came back 0.
+    expect(mask[row * width + 2]).toBe(255);
+  });
+
+  it('scales the descent rate by each row own cell size', () => {
+    // A Mercator cell shrinks as cos(latitude), so one figure for a field
+    // spanning tens of degrees makes shadows tens of per cent too long in the
+    // south and too short in the north. With a UNIFORM sun (no frame) the only
+    // thing that can differ between two rows is that scaling, which is what makes
+    // this a clean test of it.
+    const bbox: [number, number, number, number] = [24, 20, 25, 70];
+    const height = 256;
+    const width = 96;
+    const field: HeightField = {
+      data: new Float32Array(width * height),
+      width,
+      height,
+      cellMetres: 1000,
+      bbox,
+    };
+    const north = rowForLat(68, bbox, height);
+    const south = rowForLat(22, bbox, height);
+    field.data[north * width + 2] = 4000;
+    field.data[south * width + 2] = 4000;
+
+    const mask = terrainShadowMask(field, 45, 90)!;
+    const run = (row: number): number => {
+      let n = 0;
+      while (3 + n < width && mask[row * width + 3 + n] === 255) n++;
+      return n;
+    };
+    // Same peak, same sun: the northern cells are smaller ground, so the same
+    // metric shadow covers more of them. Equal counts mean one cell size is
+    // being used everywhere.
+    expect(run(north)).toBeGreaterThan(run(south));
+  });
+});
+
+describe('selectTerrainLevel', () => {
+  const view = (west: number, south: number, east: number, north: number) => ({
+    west,
+    south,
+    east,
+    north,
+  });
+
+  it('does not climb into a level that does not hold the viewport', () => {
+    if (!hasTerrain()) return;
+    // Trondheim. The fine levels are Finland-only, so a camera here has to be
+    // served by a coarse one. The bug this pins: the budget-spending climb asked
+    // only whether a finer level FIT, on the reasoning that the descent had
+    // already settled coverage — true while every level shared one bbox, false
+    // the moment they stopped. It climbed into z8, found nothing in range, and
+    // blanked the layer over the most mountainous ground in the dataset.
+    const level = selectTerrainLevel(view(10.2, 63.3, 10.6, 63.5), 10)!;
+    expect(level).not.toBeNull();
+    expect(level.covered).toBe(true);
+    const entry = (manifest.zooms as Record<string, { minX: number; maxX: number }>)[
+      String(level.z)
+    ];
+    expect(entry, `level ${level.z} must exist in the manifest`).toBeDefined();
+    expect(level.tx0).toBeGreaterThanOrEqual(entry.minX);
+    expect(level.tx1).toBeLessThanOrEqual(entry.maxX);
+  });
+
+  it('still gives Helsinki the finest level at street zoom', () => {
+    if (!hasTerrain()) return;
+    // The other half: coverage-gating must not cost the zooms it was tuned for.
+    const level = selectTerrainLevel(view(24.9, 60.15, 25.0, 60.2), 15)!;
+    expect(level.z).toBe(Math.max(...Object.keys(manifest.zooms).map(Number)));
+    expect(level.covered).toBe(true);
+  });
+
+  it('never asks for more tiles than the budget', () => {
+    if (!hasTerrain()) return;
+    for (const zoom of [3, 5, 6, 8, 10, 12, 15]) {
+      const level = selectTerrainLevel(view(4, 54, 40, 71), zoom)!;
+      const tiles = (level.tx1 - level.tx0 + 1) * (level.ty1 - level.ty0 + 1);
+      expect(tiles, `map zoom ${zoom} -> z${level.z} asked for ${tiles} tiles`).toBeLessThanOrEqual(
+        12,
+      );
+    }
   });
 });
 

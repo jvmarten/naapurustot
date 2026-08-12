@@ -158,13 +158,54 @@ function tileToLat(y: number, z: number): number {
 }
 
 /**
- * Assemble the heightfield covering `bbox`, or null when the pyramid has nothing
- * there (outside Finland, or no terrain built at all).
+ * Latitude of a fractional grid ROW, for a field whose rows are Mercator.
+ *
+ * A HEIGHTFIELD ROW IS NOT A LATITUDE, AND THE DIFFERENCE IS NOT SMALL HERE. The
+ * field is a slab of Web Mercator tiles, so row index is linear in Mercator y and
+ * therefore NONLINEAR in latitude — and Mercator's mid-row sits well poleward of
+ * the arithmetic mid-latitude (66.5°N against 60.1°N on a continental field).
+ * Anything that walks the grid by row and needs to know where it is on the Earth
+ * has to come through here; interpolating latitude linearly across the rows
+ * instead puts a row up to 6.5° — some 720 km — from where it actually is.
+ *
+ * Returns a closure because both callers evaluate it many times over one field
+ * and the two logarithms are what would otherwise be repeated.
  */
-export async function loadHeightField(
+function rowToLat(field: HeightField): (row: number) => number {
+  const [, south, , north] = field.bbox;
+  const merc = (lat: number) => Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360));
+  const yNorth = merc(north);
+  const ySouth = merc(south);
+  const rows = Math.max(1, field.height - 1);
+  return (row) => {
+    const y = yNorth + ((ySouth - yNorth) * row) / rows;
+    return (180 / Math.PI) * (2 * Math.atan(Math.exp(y)) - Math.PI / 2);
+  };
+}
+
+/** Which pyramid level to read, and the tile rectangle to read from it. */
+export interface TerrainLevel {
+  z: number;
+  tx0: number;
+  ty0: number;
+  tx1: number;
+  ty1: number;
+  /** False when even the coarsest level does not hold the whole viewport. */
+  covered: boolean;
+}
+
+/**
+ * Pick the pyramid level for a viewport: as fine as the budget allows, as coarse
+ * as coverage demands.
+ *
+ * Exported for its own sake — it is pure, and it is where two separate classes of
+ * bug have lived, while `loadHeightField` around it can only be exercised with a
+ * network and a canvas.
+ */
+export function selectTerrainLevel(
   bbox: { west: number; south: number; east: number; north: number },
   mapZoom: number,
-): Promise<HeightField | null> {
+): TerrainLevel | null {
   if (!AVAILABLE.length) return null;
 
   let z = terrainZoomFor(mapZoom);
@@ -184,16 +225,35 @@ export async function loadHeightField(
     return [x0, y0, x1, y1, (x1 - x0 + 1) * (y1 - y0 + 1)];
   };
 
-  // Step down a level at a time until the viewport fits the tile budget. A
-  // country-wide camera then draws from a coarse level instead of issuing 190
-  // requests.
+  /**
+   * Whether `level` actually holds every tile the viewport needs.
+   *
+   * A TIERED PYRAMID MAKES LEVEL CHOICE A COVERAGE QUESTION, NOT ONLY A COST ONE.
+   * While every level shared one bbox, picking a level could never change what
+   * ground was covered, so counting tiles was the whole decision. Now the levels
+   * have deliberately different extents — and a camera over Norway at street zoom
+   * asks for z8, which is Finland only. Nothing is in range, so the field comes
+   * back null and the layer switches off over the most mountainous ground in the
+   * dataset; a camera straddling the edge is worse, getting a half-populated
+   * field whose missing half zero-fills into flat, lit ground.
+   */
+  const covers = (level: number, x0: number, y0: number, x1: number, y1: number): boolean => {
+    const entry = M.zooms[String(level)];
+    if (!entry) return false;
+    return x0 >= entry.minX && x1 <= entry.maxX && y0 >= entry.minY && y1 <= entry.maxY;
+  };
+
+  // Step down a level at a time until the viewport both fits the tile budget and
+  // is actually held at that level. A country-wide camera then draws from a
+  // coarse level instead of issuing 190 requests, and a camera outside the fine
+  // levels' extent falls back to one that reaches it rather than to nothing.
   for (;;) {
     const [x0, y0, x1, y1, count] = span(z);
     tx0 = x0;
     ty0 = y0;
     tx1 = x1;
     ty1 = y1;
-    if (count <= MAX_TILES || z <= AVAILABLE[0]) break;
+    if ((count <= MAX_TILES && covers(z, x0, y0, x1, y1)) || z <= AVAILABLE[0]) break;
     z -= 1;
   }
 
@@ -210,18 +270,41 @@ export async function loadHeightField(
   // The fix is free, which is why it is worth making. The sweep's cost is bounded
   // by MAX_TILES x tileSize² — by the TILE COUNT, not by the level — so a finer
   // level that still fits the budget costs nothing extra and doubles the linear
-  // resolution. The step-down loop above guarantees coverage; this only ever
-  // moves up while coverage still fits, and it cannot go finer than the pyramid's
-  // top, which is the level the street zooms were tuned on.
+  // resolution. It cannot go finer than the pyramid's top, which is the level the
+  // street zooms were tuned on.
+  //
+  // THE COVERAGE TEST IS NOT OPTIONAL HERE, IT IS THE WHOLE SAFETY OF THE CLIMB.
+  // An earlier version of this loop asked only whether the finer level FIT, on
+  // the reasoning that the descent above had already settled coverage. That was
+  // true while all levels shared a bbox and false the moment they stopped: a
+  // camera over Trondheim descends to z6, which covers it, and then climbs
+  // 6 -> 7 -> 8 into a Finland-only level holding none of it, throwing away the
+  // coverage the descent had found and blanking the layer entirely. Both loops
+  // ask the same question because both loops can move the answer.
   while (z < AVAILABLE[AVAILABLE.length - 1]) {
     const [x0, y0, x1, y1, count] = span(z + 1);
-    if (count > MAX_TILES || !M.zooms[String(z + 1)]) break;
+    if (count > MAX_TILES || !covers(z + 1, x0, y0, x1, y1)) break;
     z += 1;
     tx0 = x0;
     ty0 = y0;
     tx1 = x1;
     ty1 = y1;
   }
+
+  return { z, tx0, ty0, tx1, ty1, covered: covers(z, tx0, ty0, tx1, ty1) };
+}
+
+/**
+ * Assemble the heightfield covering `bbox`, or null when the pyramid has nothing
+ * there (outside the mirrored extent, or no terrain built at all).
+ */
+export async function loadHeightField(
+  bbox: { west: number; south: number; east: number; north: number },
+  mapZoom: number,
+): Promise<HeightField | null> {
+  const level = selectTerrainLevel(bbox, mapZoom);
+  if (!level) return null;
+  const { z, tx0, ty0, tx1, ty1 } = level;
 
   const size = M.tileSize;
   const cols = tx1 - tx0 + 1;
@@ -314,22 +397,29 @@ interface AltitudeGrid {
  * over the White Sea. Shadow length is cot(altitude), so using the map centre's
  * value everywhere stretched every shadow in the sunlit north-east by a factor of
  * eighty-five and painted the continent in streaks — the failure that made the
- * zoomed-out view unreadable. Nodes carry -1 rather than a tangent where the sun
- * is down, because there is no such thing as a shadow length there and the
- * twilight wash is what shades that ground.
+ * zoomed-out view unreadable.
+ *
+ * THE LATTICE IS INDEXED THE WAY THE SWEEP READS IT. `locate` finds a node from a
+ * field row by a plain linear scale, so a node's stated position has to be the
+ * latitude of the row that scale maps to it — which is a MERCATOR interpolation,
+ * not a linear one in degrees. Getting that wrong is not a rounding error: on a
+ * continental field it handed row 279 the sun computed for 58.3°N when the row is
+ * really at 64.8°N, turning a genuine +1.1° sun into a −2.6° one and declaring a
+ * whole band of sunlit ground to be night. It is also one-signed, so it does not
+ * average out. See {@link rowToLat}.
  */
 function altitudeGrid(field: HeightField, frame: SolarFrame): AltitudeGrid {
-  const [west, south, east, north] = field.bbox;
+  const [west, , east] = field.bbox;
   const tan = new Float32Array(SUN_GRID * SUN_GRID);
   const deg = new Float32Array(SUN_GRID * SUN_GRID);
+  const toLat = rowToLat(field);
+  const rowSpan = Math.max(1, field.height - 1);
   let maxDeg = -90;
   for (let r = 0; r < SUN_GRID; r++) {
-    // Latitude is interpolated linearly in DEGREES rather than in the field's
-    // Mercator rows. The lattice is a sampling of a smooth function, not a
-    // registration of the raster, so the only thing that matters is that the
-    // node's stated position is where its value was computed — and the sweep
-    // interpolates in the same linear parameter it is indexed by.
-    const lat = north + ((south - north) * r) / (SUN_GRID - 1);
+    // The field row this node stands for, then that row's true latitude. The
+    // sweep's `locate` maps row -> node with exactly this scale, so the two
+    // agree by construction rather than by coincidence.
+    const lat = toLat((r * rowSpan) / (SUN_GRID - 1));
     for (let c = 0; c < SUN_GRID; c++) {
       const lon = west + ((east - west) * c) / (SUN_GRID - 1);
       const a = frameAltitude(frame, lat, lon);
@@ -397,7 +487,8 @@ export function terrainShadowMask(
   dx /= scale;
   dy /= scale;
 
-  const stepMetres = Math.hypot(dx, dy) * cellMetres;
+  /** Cells covered per step. Multiplied by the row's own cell size, below. */
+  const stepCells = Math.hypot(dx, dy);
   const uniformTan = Math.tan((sunAltitudeDeg * Math.PI) / 180);
 
   // Grid-cell -> lattice-node scale, hoisted: the sweep runs per step and these
@@ -406,6 +497,34 @@ export function terrainShadowMask(
   const gy = (SUN_GRID - 1) / Math.max(1, height - 1);
   const tanGrid = grid?.tan;
   const degGrid = grid?.deg;
+
+  /**
+   * Ground size of a cell on each row, relative to the field's nominal figure.
+   *
+   * A MERCATOR CELL IS NOT A FIXED NUMBER OF METRES. It shrinks as cos(latitude),
+   * and `cellMetres` is one sample of that taken at the field's centre — a fair
+   * approximation for a city viewport, which is what it was written for, and a
+   * large error for a field spanning a continent. Over 52°N..72°N the true cell
+   * runs 1490 m at the south edge to 740 m at the north while the nominal figure
+   * says 1132 m throughout, so the descent rate — and therefore every shadow
+   * LENGTH, since the two are proportional — comes out 32 % long in the Baltic
+   * and 35 % short in Lapland. At a grazing sun a 300 m fell throws over 100
+   * cells, so that is tens of kilometres of error in the visible picture.
+   *
+   * O(height) to build against an O(width x height) sweep, and it is a pure
+   * multiplier, so nothing about the traversal changes.
+   */
+  const rowMetres = new Float32Array(height);
+  {
+    const toLat = rowToLat(field);
+    // Referenced to the same latitude `loadHeightField` used for `cellMetres`,
+    // so the scale is exactly 1 there and small fields are untouched.
+    const [, south, , north] = field.bbox;
+    const refCos = Math.cos((((north + south) / 2) * Math.PI) / 180) || 1;
+    for (let r = 0; r < height; r++) {
+      rowMetres[r] = (cellMetres * Math.cos((toLat(r) * Math.PI) / 180)) / refCos;
+    }
+  }
 
   // Bilinear weights for a fractional cell, resolved once and read by both
   // lattices. Clamped at the edges so the sweep's out-of-bounds lead-in keeps
@@ -465,7 +584,11 @@ export function terrainShadowMask(
             out[idx] = 255;
           }
         }
-        ceiling -= stepMetres * tan;
+        // The step's ground length at THIS row's latitude — see `rowMetres`.
+        // Clamped rather than skipped off the ends so the out-of-bounds lead-in
+        // still descends, at the rate of the ground it is about to reach.
+        ceiling -=
+          stepCells * tan * rowMetres[iy < 0 ? 0 : iy >= height ? height - 1 : iy];
       }
       x += dx;
       y += dy;
