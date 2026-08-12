@@ -164,7 +164,7 @@ describe('computeQualityIndices — robustness', () => {
     expect(() => computeQualityIndices([])).not.toThrow();
   });
 
-  it('quality_index is always an integer (rounded)', () => {
+  it('quality_index is always a multiple of 0.1', () => {
     const features = [
       makeFeature({ hr_mtu: 25000, unemployment_rate: 3 }),
       makeFeature({ hr_mtu: 35000, unemployment_rate: 7 }),
@@ -174,7 +174,7 @@ describe('computeQualityIndices — robustness', () => {
     for (const f of features) {
       const qi = (f.properties as NeighborhoodProperties).quality_index;
       if (qi != null) {
-        expect(Number.isInteger(qi)).toBe(true);
+        expect(Math.abs(qi * 10 - Math.round(qi * 10))).toBeLessThan(1e-9);
       }
     }
   });

@@ -906,7 +906,24 @@ export function computeQualityIndices(
     } else {
       const totalWeight = scores.reduce((sum, s) => sum + s.weight, 0);
       const weighted = scores.reduce((sum, s) => sum + s.value * s.weight, 0);
-      const composite = Math.round(weighted / totalWeight);
+      // Kept to ONE decimal, not rounded to an integer.
+      //
+      // The weighted mean of ~50 factors lands in a narrow band — on the shipped
+      // weights it spans 23–74 — so rounding it to an integer left the whole country
+      // on 46 attainable values for 3,018 areas: the middle 50 % inside an 8-point
+      // window (45–53), 60 % between 45 and 55, and 207 areas tied on exactly 51.
+      // A third of Finland sat on the five most common scores. That is the ceiling
+      // on everything downstream — the colour ramp, the verdict bands, similarity
+      // ordering and the percentile transform's midrank tie handling all inherit it,
+      // and no display transform can recover a distinction the composite never made.
+      //
+      // One decimal multiplies the attainable values ~10x from the same inputs: no
+      // new data, no new sources, no bundle cost. It is also what the codebase already
+      // declared — METRIC_DEFS gives quality_index `precision: 1`, and metroAreas.ts
+      // has always stored the regional aggregate at one decimal, so the integer here
+      // was the odd one out. Display sites round for presentation; nobody is shown
+      // "50.7" (see quality_display, which carries the finer value for the ramp).
+      const composite = Math.round((weighted / totalWeight) * 10) / 10;
       (f.properties as NeighborhoodProperties).quality_index = composite;
       const dimScores: Record<string, number> = {};
       for (const [dim, acc] of dimAcc) {

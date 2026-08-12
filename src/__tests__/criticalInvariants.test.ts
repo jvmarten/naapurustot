@@ -4,7 +4,7 @@
  *
  *  - Similarity must NEVER return the target neighborhood itself
  *    (would break the "similar neighborhoods" panel by suggesting self-matches).
- *  - Quality index rounding is integer — the badge UI assumes `Number.isInteger`.
+ *  - Quality index carries one decimal, and every render site rounds it for display.
  *  - filterSmallIslands must keep single-polygon features untouched
  *    (a regression here silently drops mainland polygons for coastal areas).
  *  - getFeatureCenter bbox midpoint is stable — used for flyTo animation and
@@ -69,8 +69,8 @@ describe('similarity — target exclusion invariant', () => {
   });
 });
 
-describe('quality index — integer output', () => {
-  it('produces integer scores (the badge UI renders Number directly)', () => {
+describe('quality index — one-decimal output', () => {
+  it('produces one-decimal scores, and every render site rounds them', () => {
     const features: Feature[] = [
       feat({ pno: '00100', crime_index: 100, hr_mtu: 30000, unemployment_rate: 8, higher_education_rate: 35, transit_stop_density: 20, healthcare_density: 3, school_density: 2, daycare_density: 3, grocery_density: 4, air_quality_index: 30 }),
       feat({ pno: '00200', crime_index: 30, hr_mtu: 50000, unemployment_rate: 3, higher_education_rate: 60, transit_stop_density: 50, healthcare_density: 6, school_density: 5, daycare_density: 5, grocery_density: 8, air_quality_index: 20 }),
@@ -79,9 +79,16 @@ describe('quality index — integer output', () => {
     computeQualityIndices(features);
     for (const f of features) {
       const qi = (f.properties as NeighborhoodProperties).quality_index!;
-      expect(Number.isInteger(qi)).toBe(true);
+      // One decimal, not an integer: rounding the composite to a whole number left
+      // 3,018 areas sharing 46 values (207 of them on exactly 51), which capped the
+      // colour ramp, the verdict bands and similarity ordering alike. Float note —
+      // 50.7 * 10 is 507.00000000000006, so this cannot use Number.isInteger.
+      expect(Math.abs(qi * 10 - Math.round(qi * 10))).toBeLessThan(1e-9);
       expect(qi).toBeGreaterThanOrEqual(0);
       expect(qi).toBeLessThanOrEqual(100);
+      // The badge UI must never print "50.7" — every render site rounds. This is the
+      // half of the old invariant that was actually about the UI, kept explicit.
+      expect(Number.isInteger(Math.round(qi))).toBe(true);
     }
   });
 });

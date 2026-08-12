@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import aggregates from '../data/region_aggregates.json';
 import {
   computeQualityIndices,
   getDefaultWeights,
@@ -66,7 +67,7 @@ describe('isCustomWeights', () => {
 });
 
 describe('computeQualityIndices — deep edge cases', () => {
-  it('produces integer quality_index values (always rounds)', () => {
+  it('produces one-decimal quality_index values', () => {
     const features = [
       makeFeature({ hr_mtu: 25000, unemployment_rate: 7, higher_education_rate: 45 }),
       makeFeature({ hr_mtu: 35000, unemployment_rate: 12, higher_education_rate: 55 }),
@@ -75,8 +76,30 @@ describe('computeQualityIndices — deep edge cases', () => {
     computeQualityIndices(features);
     for (const f of features) {
       const qi = f.properties!.quality_index as number;
-      expect(Number.isInteger(qi)).toBe(true);
+      // Multiple of 0.1 — see computeQualityIndices. Not Number.isInteger(qi * 10):
+      // 50.7 * 10 is 507.00000000000006.
+      expect(Math.abs(qi * 10 - Math.round(qi * 10))).toBeLessThan(1e-9);
     }
+  });
+
+  it('resolves the shipped national cohort well past the old integer ceiling', () => {
+    // The regression this pins: quality_index used to be Math.round()ed to a whole
+    // number, which left all 3,018 postal areas sharing 46 attainable values — 207 tied
+    // on exactly 51, and the five commonest scores covering ~31 % of the country. That
+    // is a hard ceiling on the colour ramp, the verdict bands, similarity ordering and
+    // the percentile transform, and no display-side transform can lift it.
+    //
+    // Asserted on the SHIPPED cohort (the histogram the all-Finland landing reads), not
+    // on a synthetic fixture, because the failure was a property of the real national
+    // distribution being narrow — a handful of made-up areas would never have shown it.
+    const cohort = aggregates.qualityCohort as [number, number][];
+    const areas = cohort.reduce((sum, [, n]) => sum + n, 0);
+    expect(areas).toBeGreaterThan(3000);
+    expect(cohort.length).toBeGreaterThan(200);
+
+    // No single score may swallow a large block of the country again.
+    const biggestTie = Math.max(...cohort.map(([, n]) => n));
+    expect(biggestTie).toBeLessThan(areas * 0.02);
   });
 
   it('uses only factors with positive weights', () => {

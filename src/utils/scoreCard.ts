@@ -60,6 +60,9 @@ export async function generateScoreCard(
 ): Promise<void> {
   const qi = data.quality_display ?? data.quality_index;
   const cat = qi != null ? getQualityCategory(qi) : null;
+  // The composite carries one decimal (see computeQualityIndices); the card shows a
+  // whole number. Band and colour still come from `qi` so the badge matches the map.
+  const qiText = qi != null ? Math.round(qi) : null;
 
   // Build the card HTML
   const container = document.createElement('div');
@@ -79,7 +82,7 @@ export async function generateScoreCard(
       <div style="display: flex; align-items: center; gap: 12px;">
         <div style="width: 48px; height: 48px; border-radius: 12px; ${qiBadgeStyle(qi)}
                     display: flex; align-items: center; justify-content: center;
-                    font-weight: 700; font-size: 18px;">${qi}</div>
+                    font-weight: 700; font-size: 18px;">${qiText}</div>
         <div style="font-size: 13px; color: #64748b;">${escapeHtml(t('panel.quality_index'))}</div>
       </div>` : ''}
     </div>
@@ -156,11 +159,14 @@ export async function generateComparisonCard(pinned: NeighborhoodProperties[]): 
 
   const qiRow = `<tr><td style="${rl}">${escapeHtml(t('panel.quality_index'))}</td>${pinned
     .map((p) => {
-      const qi = p.quality_index;
+      // quality_display, like the single-area card and the map: qiBadgeStyle samples
+      // the quality_index LAYER, which paints quality_display, so reading the raw
+      // composite here would colour the badge off-ramp under every non-raw scale mode.
+      const qi = p.quality_display ?? p.quality_index;
       const cat = qi != null ? getQualityCategory(qi) : null;
       return `<td style="${td}">${
         qi != null && cat
-          ? `<span style="display:inline-block;min-width:34px;padding:3px 6px;border-radius:8px;${qiBadgeStyle(qi)}font-weight:700;">${qi}</span>`
+          ? `<span style="display:inline-block;min-width:34px;padding:3px 6px;border-radius:8px;${qiBadgeStyle(qi)}font-weight:700;">${Math.round(qi)}</span>`
           : '—'
       }</td>`;
     })
@@ -219,10 +225,11 @@ export async function generateShortlistCard(areas: NeighborhoodProperties[], dee
 
   const rows = areas
     .map((a) => {
-      const qi = a.quality_index;
+      // quality_display for the same reason as the comparison table above.
+      const qi = a.quality_display ?? a.quality_index;
       const cat = qi != null ? getQualityCategory(qi) : null;
       const badge = qi != null && cat
-        ? `<div style="flex-shrink:0;width:42px;height:42px;border-radius:10px;${qiBadgeStyle(qi)}display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;">${qi}</div>`
+        ? `<div style="flex-shrink:0;width:42px;height:42px;border-radius:10px;${qiBadgeStyle(qi)}display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;">${Math.round(qi)}</div>`
         : `<div style="flex-shrink:0;width:42px;height:42px;border-radius:10px;background:#e2e8f0;"></div>`;
       const metrics = cardMetrics
         .map(({ key, label, format }) =>

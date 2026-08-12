@@ -64,9 +64,9 @@ const { national, regions } = buildRegionAggregates(features);
 // The all-Finland landing paints the 69 regional means and never downloads the postal
 // areas they were aggregated from, so it has no cohort to derive the selected quality
 // display scale (stretch / winsorized / percentile) from — every non-raw mode silently
-// showed the raw composite there. The composite is an integer, so all 3,018 areas
-// compress to ~30 pairs; that is cheap enough to ship and reproduces the exact same
-// transform applyQualityScale derives from the full set.
+// showed the raw composite there. The composite carries one decimal, so the 3,018 areas
+// compress to a few hundred pairs; that is still cheap enough to ship and reproduces the
+// exact same transform applyQualityScale derives from the full set.
 const cohortCounts = new Map();
 for (const f of features) {
   const v = f.properties.quality_index;
