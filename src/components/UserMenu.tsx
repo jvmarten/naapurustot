@@ -36,6 +36,18 @@ export const UserMenu: React.FC<UserMenuProps> = React.memo(({ user, onLogout, f
   useI18nVersion();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  /**
+   * The "account deleted" auto-close timer.
+   *
+   * Held so it can be cancelled: it is a 1.6 second delay whose callback sets
+   * state, and nothing guaranteed the component was still mounted when it fired.
+   * In CI that surfaced as `ReferenceError: window is not defined` — the timer
+   * outliving the test's jsdom teardown — and it failed a run in which all 3,084
+   * tests passed, because vitest reports an unhandled error separately from a
+   * failing assertion. The same race exists in the browser: delete the account,
+   * navigate within 1.6 s, and React gets a state update on an unmounted tree.
+   */
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const triggerRef = useRef<HTMLButtonElement>(null);
   // PO-5: surface cloud-sync health (was silently swallowed).
   const syncStatus = useSyncStatus();
@@ -171,7 +183,7 @@ export const UserMenu: React.FC<UserMenuProps> = React.memo(({ user, onLogout, f
       // shortlist entry still on screen — read as "nothing happened". Confirm the
       // deletion, then close.
       setDeleted(true);
-      setTimeout(() => setOpen(false), 1600);
+      closeTimerRef.current = setTimeout(() => setOpen(false), 1600);
     } finally {
       setDeleting(false);
     }
@@ -182,6 +194,9 @@ export const UserMenu: React.FC<UserMenuProps> = React.memo(({ user, onLogout, f
       setSnapshotFavorites(favorites);
     }
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps -- snapshot only on open
+
+  // Cancel the auto-close timer if the menu goes away first — see closeTimerRef.
+  useEffect(() => () => clearTimeout(closeTimerRef.current), []);
 
   // Display items: snapshot when open (so unfavorited items stay visible), otherwise current
   const displayFavorites = open ? snapshotFavorites : favorites;

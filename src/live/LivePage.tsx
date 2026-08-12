@@ -46,6 +46,13 @@ import {
 import { fetchTrains, TRAIN_POLL_MS, TRAIN_STALE_MS, type Train } from './trains';
 import { fetchIncidents, INCIDENT_POLL_MS, type Incident } from './incidents';
 import { fetchObservations, OBSERVATION_POLL_MS, type Observation } from './observations';
+import {
+  fetchAirQuality,
+  AIR_QUALITY_POLL_MS,
+  AQ_COLORS,
+  aqBandKey,
+  type AirQuality,
+} from './airquality';
 import { useFeedPoll } from './useFeedPoll';
 
 /**
@@ -927,6 +934,46 @@ function paintIncidents(
 }
 
 /**
+ * Paint air-quality stations as coloured discs.
+ *
+ * COLOUR, NOT A NUMBER, because the value is categorical. FMI's index runs 1 to
+ * 5 and "3" tells a reader nothing without the scale printed beside it, whereas
+ * a position on a green-to-red ramp is legible immediately and needs no legend.
+ * The band names are stated in the readout, which is where the scale belongs.
+ *
+ * Drawn UNDER the temperature labels: a disc survives a number written over it,
+ * and a number does not survive a disc.
+ */
+function paintAirQuality(
+  ctx: CanvasRenderingContext2D,
+  map: MaplibreMap,
+  stations: AirQuality[],
+  theme: 'dark' | 'light',
+  width: number,
+  height: number,
+): void {
+  if (stations.length === 0) return;
+  // A ring in the basemap's own background tone, so a disc reads as a marker on
+  // the map rather than as a stain in the shadow layer underneath it.
+  const ring = theme === 'dark' ? 'rgba(8, 15, 40, 0.85)' : 'rgba(255, 255, 255, 0.9)';
+
+  ctx.save();
+  for (const s of stations) {
+    const p = map.project([s.lon, s.lat]);
+    if (p.x < -20 || p.y < -20 || p.x > width + 20 || p.y > height + 20) continue;
+    const band = Math.min(5, Math.max(1, Math.round(s.index)));
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
+    ctx.fillStyle = AQ_COLORS[band];
+    ctx.fill();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = ring;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/**
  * Temperature ink, per theme. Deliberately neutral rather than a warm/cold ramp:
  * a colour scale would need a legend and would compete with the shadow layer,
  * which is what the page is actually about. The number carries the information.
@@ -1120,6 +1167,8 @@ export const LivePage: React.FC = () => {
   const incidentsRef = useRef<Incident[]>([]);
   /** The last polled station temperatures, nationally. */
   const observationsRef = useRef<Observation[]>([]);
+  /** The last polled air-quality index per urban station. */
+  const airQualityRef = useRef<AirQuality[]>([]);
   /** Pending coalesced repaint, so several triggers in one frame do one draw. */
   const rafRef = useRef(0);
   /** Bumped once the map exists, to re-run the effect that binds its listeners. */
@@ -1175,12 +1224,18 @@ export const LivePage: React.FC = () => {
     count: number;
     failed: boolean;
   } | null>(null);
+  const [airQualityStatus, setAirQualityStatus] = useState<{
+    count: number;
+    failed: boolean;
+    worst: number;
+  } | null>(null);
 
   const shadowsOn = enabled.has('shadows');
   const sunOn = enabled.has('sun_position');
   const trainsOn = enabled.has('trains');
   const incidentsOn = enabled.has('road_incidents');
   const observationsOn = enabled.has('observations');
+  const airQualityOn = enabled.has('air_quality');
 
   const sun = useMemo(() => sunPosition(when, center[1], center[0]), [when, center]);
   const times = useMemo(() => sunTimes(when, center[1], center[0]), [when, center]);
@@ -1457,10 +1512,15 @@ export const LivePage: React.FC = () => {
     }
     // Temperatures last: they are text, and text under a dot or a closure line is
     // unreadable, while a dot under a number is still a dot.
+    // Under the temperature text, for the same reason incidents sit under trains:
+    // a coloured dot survives a number drawn over it, the reverse does not.
+    if (airQualityOn) {
+      paintAirQuality(ctx, map, airQualityRef.current, theme, width, height);
+    }
     if (observationsOn) {
       paintObservations(ctx, map, observationsRef.current, theme, width, height);
     }
-  }, [shadowsOn, trainsOn, incidentsOn, observationsOn, sun.altitude, sun.azimuth, when, theme]);
+  }, [shadowsOn, trainsOn, incidentsOn, observationsOn, airQualityOn, sun.altitude, sun.azimuth, when, theme]);
 
   /**
    * Always-current `draw`, so the map listeners can be bound ONCE.
@@ -1860,6 +1920,43 @@ export const LivePage: React.FC = () => {
     }, [scheduleDraw]),
   });
 
+  /**
+   * Air quality, the slowest loop on the page.
+   *
+   * The index is published hourly, so a quarter-hour poll is already four times
+   * finer than the data can move — see airquality.ts.
+   */
+  useFeedPoll<AirQuality[]>({
+    enabled: airQualityOn,
+    fetcher: fetchAirQuality,
+    intervalMs: AIR_QUALITY_POLL_MS,
+    onData: useCallback(
+      (list: AirQuality[]) => {
+        airQualityRef.current = list;
+        setAirQualityStatus({
+          count: list.length,
+          failed: false,
+          // The worst band anywhere is the one number worth stating: "82 stations"
+          // says nothing about the air, and a mean over the whole country would
+          // average a city-centre exceedance into invisibility.
+          worst: list.reduce((w, s) => Math.max(w, s.index), 0),
+        });
+        scheduleDraw();
+      },
+      [scheduleDraw],
+    ),
+    onError: useCallback(() => {
+      setAirQualityStatus((prev) =>
+        prev ? { ...prev, failed: true } : { count: 0, failed: true, worst: 0 },
+      );
+    }, []),
+    onClear: useCallback(() => {
+      airQualityRef.current = [];
+      setAirQualityStatus(null);
+      scheduleDraw();
+    }, [scheduleDraw]),
+  });
+
   useEffect(() => {
     scheduleDraw();
   }, [draw, scheduleDraw]);
@@ -2019,7 +2116,7 @@ export const LivePage: React.FC = () => {
               it is, because an empty map means four different things here:
               zoomed too far out, sun below the horizon, Overpass unreachable, or
               genuinely no buildings with height data. */}
-          {(shadowsOn || trainsOn || incidentsOn || observationsOn) && (
+          {(shadowsOn || trainsOn || incidentsOn || observationsOn || airQualityOn) && (
             <div className="absolute left-3 top-3 max-w-xs space-y-1 rounded-lg bg-white/90 px-3 py-2 text-xs leading-relaxed shadow-sm ring-1 ring-surface-200 dark:bg-surface-950/85 dark:ring-surface-800">
               {shadowsOn && (
                 sun.altitude <= 0 ? (
@@ -2103,6 +2200,24 @@ export const LivePage: React.FC = () => {
                 ) : (
                   <p className="text-surface-600 dark:text-surface-300">
                     {t('live.observations.count').replace('{n}', String(observationStatus.count))}
+                  </p>
+                )
+              )}
+
+              {airQualityOn && (
+                airQualityStatus === null ? (
+                  <p className="text-surface-600 dark:text-surface-300">
+                    {t('live.air_quality.loading')}
+                  </p>
+                ) : airQualityStatus.failed ? (
+                  <p className="text-amber-600 dark:text-amber-400">
+                    {t('live.air_quality.failed')}
+                  </p>
+                ) : (
+                  <p className="text-surface-600 dark:text-surface-300">
+                    {t('live.air_quality.count')
+                      .replace('{n}', String(airQualityStatus.count))
+                      .replace('{worst}', t(aqBandKey(airQualityStatus.worst)))}
                   </p>
                 )
               )}
