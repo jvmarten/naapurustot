@@ -129,10 +129,15 @@ export const QUALITY_FACTORS: QualityFactor[] = [
   //
   // They deliberately did NOT go to: income/employment/education (already 26 and
   // mutually correlated — education is capped at 4 for being ~76 % redundant with
-  // income), water_proximity (2,789 of 3,018 areas read exactly 0), walkability
-  // (37 distinct values nationally, 1,412 areas sharing one), noise (74 % carry a
-  // modelled baseline) or air quality (coarse ~5-10 km SILAM grid, is_proxy).
-  // Weighting a degenerate or coarse metric harder buys nothing.
+  // income), walkability (37 distinct values nationally, 1,412 areas sharing one),
+  // noise (74 % carry a modelled baseline) or air quality (coarse ~5-10 km SILAM
+  // grid, is_proxy). Weighting a degenerate or coarse metric harder buys nothing.
+  //
+  // water_proximity was on that list too, for reading exactly 0 in 2,789 of 3,018
+  // areas. That was a measurement artefact, not the terrain: the distance ran from
+  // the postal polygon's edge, so any area containing a lake scored 0. It is now
+  // the population-weighted distance from residents to the nearest water and is
+  // properly distributed, so its weight is worth revisiting on the merits.
   {
     id: 'safety',
     label: { fi: 'Turvallisuus', en: 'Safety', sv: 'Säkerhet' },

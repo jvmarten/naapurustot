@@ -57,11 +57,18 @@ tell apart, rather than just rounding the total back up.
 
 They deliberately did **not** go to income, employment or education — already 26
 combined and mutually correlated, with education capped at 4 for being ~76 %
-redundant with income — nor to `water_proximity` (2,789 of 3,018 areas read
-exactly 0), `walkability_index` (37 distinct values nationally, 1,412 areas
-sharing one), noise (74 % carry a modelled baseline) or air quality (a coarse
-~5–10 km SILAM grid, flagged `is_proxy`). Weighting a degenerate or coarse metric
-harder buys no discrimination.
+redundant with income — nor to `walkability_index` (37 distinct values nationally,
+1,412 areas sharing one), noise (74 % carry a modelled baseline) or air quality (a
+coarse ~5–10 km SILAM grid, flagged `is_proxy`). Weighting a degenerate or coarse
+metric harder buys no discrimination.
+
+`water_proximity` was excluded on the same grounds — 2,789 of 3,018 areas read
+exactly 0 — but that turned out to be a measurement artefact rather than a fact
+about Finland: the distance was taken from the postal polygon's **edge**, so any
+area containing a lake scored 0. It is now the population-weighted distance from
+residents to the nearest water (Statistics Finland's 1 km population grid against
+OpenStreetMap water bodies), which is properly distributed. Its weight of 4 is
+therefore worth revisiting on the merits rather than being capped by degeneracy.
 
 ### Why safety is weighted 19 and not 30
 
