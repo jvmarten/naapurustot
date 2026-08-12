@@ -281,11 +281,13 @@ const HISTORY_SERIES = [
   { key: 'foreign_language_history', metric: 'foreign_language_est_pct' },
 ];
 
-// region_properties.json holds five of the history series as real arrays and
-// foreign_language_history as a JSON STRING — they are written by different pipeline
-// scripts. Accept both shapes: an Array.isArray check alone exported zero rows for the
-// string one while the build still reported success, which is indistinguishable from a
-// series that genuinely has no data. (The app tolerates both too, via parseTrendSeries.)
+// All six history series are stored as real arrays. foreign_language_history was a
+// JSON string for a while — written by a different pipeline script — and an
+// Array.isArray check alone exported zero rows for it while the build still reported
+// success, which is indistinguishable from a series that genuinely has no data. The
+// pipeline now writes an array, but keep accepting a string: this is a build script
+// with no bundle cost, and it turns a repeat of that regression into a no-op rather
+// than silent data loss. (The app tolerates both too, via parseTrendSeries.)
 function historyPoints(raw) {
   let series = raw;
   if (typeof series === 'string') {

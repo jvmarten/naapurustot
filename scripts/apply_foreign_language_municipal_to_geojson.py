@@ -151,7 +151,11 @@ def main():
         # Estimate time series + its latest-year scalar, is_proxy.
         series = history.get(str(pno)) if pno is not None else None
         if series:
-            p[HISTORY_PROP] = json.dumps(series)
+            # A real array, like the other five history series in this GeoJSON. This
+            # was json.dumps'd, which made it the one string-shaped series: a consumer
+            # guarding on Array.isArray skipped it, exported nothing, and still exited
+            # successfully — indistinguishable from a series with no data.
+            p[HISTORY_PROP] = series
             p[EST_PROP] = float(series[-1][1])
             n_hist += 1
             n_est += 1
