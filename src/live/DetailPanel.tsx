@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { t } from '../utils/i18n';
-import { clockSeconds, clockTime, isFuture, isoDate } from './timeControl';
+import { clockSeconds, clockTime, isoDate } from './timeControl';
 import { AQ_COLORS, aqBandKey, type AirQuality } from './airquality';
-import { fetchForecast, type Observation } from './observations';
+import type { Observation } from './observations';
 import type { Incident } from './incidents';
 import type { Train } from './trains';
+import type { ScheduledTrain } from './trainSchedule';
 import {
   fetchTrainDetail,
   fetchTrainTrack,
@@ -22,12 +23,18 @@ import {
  * else — so the depth is fetched per selection and only when a selection exists.
  * A hundred trains' timetables is 3.9 MB; one train's is 2.4 kB.
  *
- * WHAT IT WILL NOT DO. Every line in here is something a publisher published. The
- * forecast is labelled a forecast and comes from FMI's model rather than from
- * this file's arithmetic; the train's position at a scrubbed instant is the
- * nearest MEASURED fix or nothing at all; a stop with no reported time shows no
- * time. There is no "estimated position", no interpolation between fixes, and no
- * derived value dressed as a reading — the same rule the map holds itself to.
+ * IT ANSWERS FOR THE CLOCK, NOT FOR THE CLICK. The station rows are the values
+ * the page's timeline holds for whatever instant the bar is showing — the caller
+ * re-resolves the selection as the clock moves — so scrubbing changes the number
+ * in the panel at the same moment it changes the number on the map, and the row
+ * beside it states which instant that number belongs to.
+ *
+ * WHAT IT WILL NOT DO. Every line in here is something a publisher published. A
+ * forecast is drawn from ECMWF's published series and is labelled a forecast in
+ * the row and again in the note under it; a timetable position is Fintraffic's
+ * published times at its own control points, and the panel names the two it sits
+ * between; a stop with no reported time shows no time. Nothing here averages,
+ * extrapolates, or prints a derived value in the same voice as a measured one.
  */
 
 export type Selection =
@@ -73,6 +80,10 @@ function delayText(minutes: number | null): string | null {
   const key = minutes > 0 ? 'live.detail.late' : 'live.detail.early';
   return t(key).replace('{n}', String(Math.abs(minutes)));
 }
+
+/** True when this train was placed from the timetable rather than from a fix. */
+const isScheduled = (train: Train): train is ScheduledTrain =>
+  (train as ScheduledTrain).scheduled === true;
 
 /** The train's timetable and measured track, fetched on selection. */
 const TrainBody: React.FC<{ train: Train; when: Date; onTrack: DetailPanelProps['onTrack'] }> = ({
@@ -138,7 +149,27 @@ const TrainBody: React.FC<{ train: Train; when: Date; onTrack: DetailPanelProps[
         {train.speed !== null && (
           <Row label={t('live.detail.speed')}>{Math.round(train.speed)} km/h</Row>
         )}
-        <Row label={t('live.detail.measured_at')}>{clockSeconds(train.at)}</Row>
+        {isScheduled(train) ? (
+          /* THE DOT ON THE MAP IS NOT A FIX AND THIS IS WHERE IT SAYS SO. The
+             segment is named because that is the whole content of the claim —
+             the train is published as passing these two control points at these
+             two times, and the diamond sits between them in proportion. Whether
+             those times are measured passings or the plan is the difference
+             between an interpolation bounded by measurements and a picture of
+             the timetable, so it gets its own line rather than a footnote. */
+          <>
+            <Row label={t('live.detail.position_from')}>
+              {t(train.fromActual ? 'live.detail.between_actual' : 'live.detail.between_planned')
+                .replace('{from}', train.fromCode)
+                .replace('{to}', train.toCode)}
+            </Row>
+            <p className="pt-1 text-[10px] leading-snug text-surface-500 dark:text-surface-400">
+              {t('live.detail.schedule_note')}
+            </p>
+          </>
+        ) : (
+          <Row label={t('live.detail.measured_at')}>{clockSeconds(train.at)}</Row>
+        )}
         {/* The scrubbed-time answer, and it is allowed to be "we do not know".
             Fixes land about every five seconds while a train moves, so a gap
             means a tunnel, a yard, or a train that had not departed — none of
@@ -226,67 +257,40 @@ const TrainBody: React.FC<{ train: Train; when: Date; onTrack: DetailPanelProps[
 };
 
 /**
- * A weather station: what it measured, or — for a future clock — what FMI
- * forecasts for that exact point.
+ * A weather station, as of the clock: what it measured, or what is forecast.
  *
- * The forecast is fetched per point because it can only BE fetched per point:
- * the stored query takes `latlon` and refuses a bbox (see `fetchForecast`), which
- * is also why the map layer itself never shows future values. Here the reader has
- * asked about one station, so one request is proportionate — and the answer is
- * labelled as a forecast in the row and again in the note under it.
+ * ONE NUMBER, NOT TWO. This used to print the measurement it was clicked with
+ * and then, for a future clock, fetch a separate point forecast and print that
+ * underneath — two temperatures for one station, from two different models, one
+ * of them describing an instant the reader was no longer looking at. Now the
+ * page's timeline already holds ECMWF's forecast for this station and hour (see
+ * observations.ts), so the panel prints the same value the map is drawing, and
+ * the LABELS change with it: what it is called, when it is for, and the note
+ * underneath.
  */
-const StationBody: React.FC<{ station: Observation; when: Date }> = ({ station, when }) => {
-  const future = isFuture(when.getTime());
-  const [forecast, setForecast] = useState<Observation | null>(null);
-  const [state, setState] = useState<'idle' | 'loading' | 'failed' | 'none'>('idle');
-
-  useEffect(() => {
-    if (!future) return;
-    const ac = new AbortController();
-    setState('loading');
-    setForecast(null);
-    fetchForecast(station.lat, station.lon, when.getTime(), ac.signal)
-      .then((f) => {
-        setForecast(f);
-        setState(f ? 'idle' : 'none');
-      })
-      .catch((e: unknown) => {
-        if ((e as Error)?.name !== 'AbortError') setState('failed');
-      });
-    return () => ac.abort();
-    // Keyed on the WHOLE hour, not the minute: the model publishes hourly, so a
-    // scrub across 08:01 to 08:59 would re-request the same value 59 times.
-  }, [future, station.lat, station.lon, Math.floor(when.getTime() / 3_600_000)]); // eslint-disable-line react-hooks/exhaustive-deps
-
+const StationBody: React.FC<{ station: Observation }> = ({ station }) => {
+  const forecast = station.forecast === true;
   return (
     <div className="space-y-1">
-      <Row label={t('live.detail.temperature')}>{station.celsius.toFixed(1)} °C</Row>
-      <Row label={t('live.detail.measured_at')}>{clockTime(station.at)}</Row>
+      <Row label={t(forecast ? 'live.detail.forecast' : 'live.detail.temperature')}>
+        {station.celsius.toFixed(1)} °C
+      </Row>
+      {/* The value's OWN instant, which is not the clock's: the series is hourly
+          and the reader is entitled to know they are looking at 14:00's number
+          under a playhead sitting at 14:23. */}
+      <Row label={t(forecast ? 'live.detail.forecast_for' : 'live.detail.measured_at')}>
+        {clockTime(station.at)}
+      </Row>
       <Row label={t('live.detail.coords')}>
         {station.lat.toFixed(3)}, {station.lon.toFixed(3)}
       </Row>
-      {future && (
-        <>
-          <Row label={t('live.detail.forecast')}>
-            {forecast ? (
-              `${forecast.celsius.toFixed(1)} °C`
-            ) : (
-              <span className="text-surface-500 dark:text-surface-400">
-                {state === 'loading'
-                  ? t('live.detail.loading')
-                  : state === 'failed'
-                    ? t('live.detail.failed')
-                    : t('live.detail.no_forecast')}
-              </span>
-            )}
-          </Row>
-          <p className="pt-1 text-[10px] leading-snug text-surface-500 dark:text-surface-400">
-            {t('live.detail.forecast_note')}
-          </p>
-        </>
+      {forecast && (
+        <p className="pt-1 text-[10px] leading-snug text-surface-500 dark:text-surface-400">
+          {t('live.detail.forecast_note')}
+        </p>
       )}
       <p className="pt-1 text-[10px] text-surface-400 dark:text-surface-500">
-        {t('live.detail.source_fmi')}
+        {t(forecast ? 'live.detail.source_ecmwf' : 'live.detail.source_fmi')}
       </p>
     </div>
   );
@@ -328,7 +332,7 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({ selection, when, onClo
         <TrainBody train={selection.item} when={when} onTrack={onTrack} />
       )}
 
-      {selection.kind === 'observation' && <StationBody station={selection.item} when={when} />}
+      {selection.kind === 'observation' && <StationBody station={selection.item} />}
 
       {selection.kind === 'air_quality' && (
         <div className="space-y-1">

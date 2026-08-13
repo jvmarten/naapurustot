@@ -45,14 +45,35 @@ import {
 } from './terrain';
 import { fetchTrains, TRAIN_POLL_MS, TRAIN_STALE_MS, trainKey, type Train } from './trains';
 import { activeAt, fetchIncidents, INCIDENT_POLL_MS, type Incident } from './incidents';
-import { fetchObservations, OBSERVATION_POLL_MS, type Observation } from './observations';
+import {
+  fetchObservations,
+  fetchObservationSeries,
+  fetchForecastSeries,
+  OBSERVATION_POLL_MS,
+  type Observation,
+} from './observations';
 import {
   fetchAirQuality,
+  fetchAirQualitySeries,
   AIR_QUALITY_POLL_MS,
   AQ_COLORS,
   aqBandKey,
   type AirQuality,
 } from './airquality';
+import {
+  createTimeline,
+  clearTimeline,
+  mergeReadings,
+  sampleTimeline,
+  type Timeline,
+} from './timeline';
+import {
+  datesCovering,
+  fetchDaySchedules,
+  scheduledPositions,
+  type ScheduledTrain,
+  type TrainSchedule,
+} from './trainSchedule';
 import { useFeedPoll } from './useFeedPoll';
 import { TimeBar } from './TimeBar';
 import { DetailPanel, type Selection } from './DetailPanel';
@@ -65,7 +86,16 @@ import {
   TRACK_WINDOW_MS,
   type TrainSnapshot,
 } from './trainHistory';
-import { clockSeconds, clockTime, isFuture, quantise, shortDate } from './timeControl';
+import {
+  MINUTES_PER_DAY,
+  MS_PER_MINUTE,
+  clockSeconds,
+  clockTime,
+  isFuture,
+  quantise,
+  shortDate,
+  startOfDay,
+} from './timeControl';
 
 /**
  * /live/ — the realtime surface.
@@ -322,23 +352,89 @@ function readStoredFeeds(): Set<string> {
  */
 
 /**
- * How coarsely a scrubbed instant is rounded before it reaches the archive feeds.
+ * THE SLIDER IS NOT A REQUEST. Read this before touching the archive constants.
+ *
+ * Every measured feed used to reach the page's clock as an HTTP request: quantise
+ * the instant, debounce it, ask FMI for that window, wait, draw. Which meant the
+ * bar drove two different kinds of layer — the shadows moved with the pointer,
+ * and the temperatures moved when you let go and the network came back. The
+ * complaint that produced this rewrite was exactly that: you had to STOP the
+ * slider before it would tell you the temperature at that time.
+ *
+ * So the unit of fetching is now the DAY, not the instant. Each measured feed
+ * loads its whole day up front — a national day of air temperature at hourly
+ * steps is ~20 kB gzipped, less than four of the single-instant requests it
+ * replaces — and the clock samples it locally (timeline.ts). A scrub costs a
+ * binary search per station and no network at all, which is what puts these
+ * layers on the same footing as the sun.
+ *
+ * The two constants below survive that change with a much smaller job. They no
+ * longer gate what the map shows; they gate the REFINEMENT request that goes out
+ * when the scrubber comes to rest, which upgrades the hourly sample under the
+ * playhead to the ten-minutely reading nearest it. Nothing waits for it.
+ */
+
+/**
+ * How coarsely a settled instant is rounded before the refinement request.
  *
  * Five minutes, which is finer than the ten-minute cycle most FMI stations
  * publish on — so it cannot cost the reader a measurement that exists — and
- * coarse enough that dragging across a whole day asks for at most 288 windows
- * rather than one per pixel. The debounce below does most of the work; this is
- * what stops a slow, deliberate drag from slipping through it.
+ * coarse enough that a slow, deliberate drag cannot slip a request through the
+ * debounce every pixel.
  */
 const ARCHIVE_STEP_MS = 300_000;
 
 /**
- * How long the scrubber must be still before an archive request goes out.
+ * How long the scrubber must be still before the refinement request goes out.
  *
- * Long enough to sit out a drag, short enough that letting go feels like it
- * loaded immediately.
+ * Long enough to sit out a drag, short enough that coming to rest feels like it
+ * sharpened immediately.
  */
 const ARCHIVE_DEBOUNCE_MS = 400;
+
+/**
+ * How far a sample may sit from the clock and still be shown, per feed.
+ *
+ * This is the honesty knob of the whole timeline arrangement, and the two
+ * numbers differ because the quantities do. Air temperature is published every
+ * ten minutes and the day is loaded hourly, so 45 minutes guarantees every
+ * instant of a loaded day resolves to a real reading — never more than half an
+ * hour old, and always printed with its own timestamp. The air quality index is
+ * a whole hour's AVERAGE, so a 90-minute reach spans the neighbouring hour when
+ * a station skips one, and no further: an index from three hours ago is not a
+ * fact about now.
+ *
+ * Past the tolerance a station is absent from the sample and the map draws
+ * nothing there, which is this project's answer for missing data everywhere else.
+ */
+const OBSERVATION_TOLERANCE_MS = 45 * 60_000;
+const AIR_QUALITY_TOLERANCE_MS = 90 * 60_000;
+
+/**
+ * How often a loaded day is re-fetched while the page sits open.
+ *
+ * Only the FORECAST arm really needs this — the measured past does not change,
+ * and the live poll extends today's measured tail every five minutes — but a
+ * page left open across a model run would otherwise keep showing the forecast it
+ * loaded this morning. Half an hour is well inside ECMWF's publication cycle and
+ * costs two requests an hour for a feed that is switched on.
+ */
+const DAY_REFRESH_MS = 1_800_000;
+
+/**
+ * How long the clock must rest outside the recorded window before the day's
+ * timetables are fetched.
+ *
+ * Longer than the archive debounce because the payload is: a day of Fintraffic
+ * timetables is 638 kB gzipped (see trainSchedule.ts). Dragging THROUGH the gap
+ * either side of the session's recording must not pay for it.
+ */
+const SCHEDULE_DEBOUNCE_MS = 600;
+
+/** Shared empty lists, so the off paths allocate nothing per render. */
+const EMPTY_OBSERVATIONS: Observation[] = [];
+const EMPTY_AIR_QUALITY: AirQuality[] = [];
+const EMPTY_SCHEDULED: ScheduledTrain[] = [];
 
 /**
  * How often the page's clock catches up with the world while it is following it.
@@ -981,10 +1077,26 @@ function paintAirQuality(
  * Temperature ink, per theme. Deliberately neutral rather than a warm/cold ramp:
  * a colour scale would need a legend and would compete with the shadow layer,
  * which is what the page is actually about. The number carries the information.
+ *
+ * `forecast` is the second ink, and it is not a style choice. Past "now" the
+ * layer keeps drawing, from ECMWF's published forecast at the same stations
+ * (observations.ts) — so the map has to state, on the number itself, which of
+ * the two a reader is looking at. Amber is the page's existing "this is not the
+ * present" colour: the clock chip and the scrubbed-time banner already use it.
+ * The ITALIC in `paintObservations` carries the same distinction without relying
+ * on colour, and the readout says it in words.
  */
 const OBSERVATION = {
-  dark: { label: 'rgba(226, 232, 240, 0.96)', halo: 'rgba(8, 15, 40, 0.9)' },
-  light: { label: 'rgba(15, 23, 42, 0.96)', halo: 'rgba(255, 255, 255, 0.92)' },
+  dark: {
+    label: 'rgba(226, 232, 240, 0.96)',
+    forecast: 'rgba(252, 211, 77, 0.96)',
+    halo: 'rgba(8, 15, 40, 0.9)',
+  },
+  light: {
+    label: 'rgba(15, 23, 42, 0.96)',
+    forecast: 'rgba(180, 83, 9, 0.96)',
+    halo: 'rgba(255, 255, 255, 0.92)',
+  },
 } as const;
 
 /**
@@ -1009,16 +1121,27 @@ function paintObservations(
   const ink = OBSERVATION[theme];
 
   ctx.save();
-  ctx.font = '600 12px system-ui, -apple-system, sans-serif';
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'center';
   ctx.lineWidth = 3;
+
+  // Set once and re-set only when the kind changes. A sampled instant is
+  // normally all measurement or all forecast — the boundary between them is
+  // "now", which is one instant of the day — so this is one assignment in
+  // practice and never more than two.
+  let italic: boolean | null = null;
+  const setKind = (forecast: boolean) => {
+    if (italic === forecast) return;
+    italic = forecast;
+    ctx.font = `${forecast ? 'italic ' : ''}600 12px system-ui, -apple-system, sans-serif`;
+  };
 
   const placed: number[][] = [];
   for (const o of observations) {
     const p = map.project([o.lon, o.lat]);
     if (p.x < -30 || p.y < -30 || p.x > width + 30 || p.y > height + 30) continue;
 
+    setKind(o.forecast === true);
     // One decimal is what FMI publishes and what a degree of air temperature is
     // worth; rounding to whole degrees would throw away a real distinction
     // between 0.4 and -0.4, which on a Finnish map is the interesting one.
@@ -1037,11 +1160,29 @@ function paintObservations(
 
     ctx.strokeStyle = ink.halo;
     ctx.strokeText(text, p.x, p.y);
-    ctx.fillStyle = ink.label;
+    ctx.fillStyle = o.forecast === true ? ink.forecast : ink.label;
     ctx.fillText(text, p.x, p.y);
   }
 
   ctx.restore();
+}
+
+/**
+ * A diamond, which is what a position derived from a timetable gets.
+ *
+ * The measured feed owns the circle in both its states — filled for a fresh fix,
+ * hollow for one the train may have left — so a schedule-derived position cannot
+ * be a circle of any kind without claiming to be a fix. A four-vertex path reads
+ * as a different KIND of mark at 5 px, where a different colour or a different
+ * size would only read as a different train.
+ */
+function diamondPath(ctx: CanvasRenderingContext2D, x: number, y: number, r: number): void {
+  ctx.beginPath();
+  ctx.moveTo(x, y - r);
+  ctx.lineTo(x + r, y);
+  ctx.lineTo(x, y + r);
+  ctx.lineTo(x - r, y);
+  ctx.closePath();
 }
 
 function paintTrains(
@@ -1053,6 +1194,14 @@ function paintTrains(
   zoom: number,
   width: number,
   height: number,
+  /**
+   * Whether this list came from the published timetable rather than from fixes.
+   *
+   * The whole list or none of it — the page never mixes the two, because
+   * "measured where we have it, timetable elsewhere" is a choice made once for
+   * the instant, not per train (see the draw loop).
+   */
+  scheduled = false,
 ): void {
   if (trains.length === 0) return;
   const ink = TRAIN[theme];
@@ -1084,21 +1233,35 @@ function paintTrains(
     // should slide in as you pan, not pop, and its label sits to its right.
     if (p.x < -40 || p.y < -40 || p.x > width + 40 || p.y > height + 40) continue;
 
-    const stale = train.at !== null && now - train.at > TRAIN_STALE_MS;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, TRAIN_RADIUS_PX, 0, Math.PI * 2);
-    if (stale) {
-      // Hollow: the train reported this position, and we are not claiming it is
-      // still there. A train in a tunnel keeps its last fix in the feed forever.
+    if (scheduled) {
+      // Outlined with a wash inside it, so a dense corridor still reads as
+      // several trains rather than as a smear, and so it can never be mistaken
+      // at a glance for the solid dot of a reported position. Staleness does not
+      // apply: a timetable point is not a fix that can go out of date, it is a
+      // published time that either brackets this instant or does not.
+      diamondPath(ctx, p.x, p.y, TRAIN_RADIUS_PX + 1.5);
+      ctx.fillStyle = ink.halo;
+      ctx.fill();
       ctx.lineWidth = 1.5;
       ctx.strokeStyle = ink.fill;
       ctx.stroke();
     } else {
-      ctx.fillStyle = ink.fill;
-      ctx.fill();
-      ctx.lineWidth = 1.5;
-      ctx.strokeStyle = ink.ring;
-      ctx.stroke();
+      const stale = train.at !== null && now - train.at > TRAIN_STALE_MS;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, TRAIN_RADIUS_PX, 0, Math.PI * 2);
+      if (stale) {
+        // Hollow: the train reported this position, and we are not claiming it
+        // is still there. A train in a tunnel keeps its last fix forever.
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = ink.fill;
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = ink.fill;
+        ctx.fill();
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = ink.ring;
+        ctx.stroke();
+      }
     }
 
     if (!withLabels) continue;
@@ -1244,10 +1407,31 @@ export const LivePage: React.FC = () => {
   const trackRef = useRef<TrainFix[] | null>(null);
   /** The last polled road incidents, nationally. A ref for the same reason. */
   const incidentsRef = useRef<Incident[]>([]);
-  /** The last polled station temperatures, nationally. */
-  const observationsRef = useRef<Observation[]>([]);
-  /** The last polled air-quality index per urban station. */
-  const airQualityRef = useRef<AirQuality[]>([]);
+  /**
+   * The measured feeds' DAYS, rather than their present.
+   *
+   * These hold every value the page has loaded for the day under the playhead —
+   * measured behind "now", ECMWF's forecast ahead of it for temperature — and
+   * the clock samples them instead of fetching. That is what makes a drag on the
+   * bar move the numbers with the pointer rather than after it. See timeline.ts.
+   *
+   * Refs, with a version counter beside them, for the reason the footprints are:
+   * they are written by network callbacks and read by a memo on every clock
+   * step, and neither wants the object identity of the store to churn.
+   */
+  const obsTimelineRef = useRef<Timeline>(createTimeline());
+  const aqTimelineRef = useRef<Timeline>(createTimeline());
+  const [timelineVersion, setTimelineVersion] = useState(0);
+  const bumpTimeline = useCallback(() => setTimelineVersion((v) => v + 1), []);
+  /**
+   * The day's published timetables, for the instants the recording cannot answer.
+   *
+   * A ref rather than state because it is 1,800-odd routes through the day and
+   * only the derived positions belong in a render. See trainSchedule.ts for what
+   * this is allowed to draw and why it is a diamond.
+   */
+  const schedulesRef = useRef<TrainSchedule[]>([]);
+  const [scheduleVersion, setScheduleVersion] = useState(0);
   /**
    * The current selection, for the draw loop.
    *
@@ -1336,18 +1520,25 @@ export const LivePage: React.FC = () => {
    * moves rather than when the poll lands.
    */
   const [incidents, setIncidents] = useState<Incident[]>([]);
-  const [observationStatus, setObservationStatus] = useState<{
-    count: number;
-    failed: boolean;
-    /** The instant it answers for, or null when it is the live poll. */
-    at: number | null;
-  } | null>(null);
-  const [airQualityStatus, setAirQualityStatus] = useState<{
-    count: number;
-    failed: boolean;
-    worst: number;
-    at: number | null;
-  } | null>(null);
+  /**
+   * Whether each measured feed's LAST request worked, whichever kind it was.
+   *
+   * One state per feed rather than one per request kind, because the reader's
+   * question is one question — "is this layer's source reachable" — and the two
+   * requests (the day window, the refinement poll) are two ways of asking the
+   * same service the same thing. `failed` takes precedence over the count for
+   * the reason the train feed already does it that way: a dropped request leaves
+   * the last known values on screen, so the readout is the only place that can
+   * say we no longer know they are current.
+   *
+   * The counts that used to live here have gone. They were counts of what the
+   * last POLL returned, and the readout's sentence is now about what is drawn AT
+   * THE CLOCK — which is a sample of the timeline and is counted from it.
+   */
+  const [obsDay, setObsDay] = useState<'loading' | 'ready' | 'failed'>('loading');
+  const [aqDay, setAqDay] = useState<'loading' | 'ready' | 'failed'>('loading');
+  /** Same, for the day's train timetables — which are only fetched on demand. */
+  const [scheduleDay, setScheduleDay] = useState<'idle' | 'loading' | 'ready' | 'failed'>('idle');
 
   const shadowsOn = enabled.has('shadows');
   const sunOn = enabled.has('sun_position');
@@ -1361,24 +1552,202 @@ export const LivePage: React.FC = () => {
 
   const whenMs = when.getTime();
   /**
-   * Whether the clock has been moved past what any measurement can answer for.
+   * Whether the clock has been moved past what a MEASUREMENT can answer for.
    *
-   * The sun does not care — astronomy is exact in both directions — but every
-   * measured feed does, and this is the flag that switches them off rather than
-   * leaving today's readings on screen under tomorrow's timestamp.
+   * Still the flag that keeps an instrument's reading off a future timestamp —
+   * but no longer the flag that switches a whole layer off. Temperature carries
+   * on past this line from ECMWF's published forecast, drawn as a forecast; air
+   * quality does not, because FMI publishes no national air-quality forecast a
+   * browser can ask for (airquality.ts). The difference is now stated per feed
+   * rather than applied to all of them at once.
    */
   const future = !live && isFuture(whenMs);
 
   /**
-   * The instant the archive feeds fetch for: null while live, otherwise a
+   * The day under the playhead, as a window.
+   *
+   * This is the unit the measured feeds are fetched in — see the archive note
+   * near the top of this file. Midnight to midnight LOCAL, because that is what
+   * the scrubber's track is, so the window and the bar cover exactly the same
+   * ground and no reachable position on the bar can be outside what was loaded.
+   */
+  const dayStartMs = useMemo(() => startOfDay(when).getTime(), [when]);
+  const dayEndMs = dayStartMs + MINUTES_PER_DAY * MS_PER_MINUTE;
+
+  /**
+   * Re-fetch the loaded day every so often, for the forecast's sake.
+   *
+   * A tick rather than a dependency on `whenMs`: the measured past does not
+   * change and today's measured tail is extended by the live poll, so the only
+   * thing that goes stale on an open page is the forecast half of the window.
+   */
+  const [dayEpoch, setDayEpoch] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setDayEpoch((e) => e + 1), DAY_REFRESH_MS);
+    return () => clearInterval(id);
+  }, []);
+
+  /**
+   * The instant the refinement request fetches for: null while live, otherwise a
    * quantised, debounced past instant.
    *
    * Both steps matter and they do different jobs — the quantiser bounds how many
    * DISTINCT requests a full-day drag can produce, the debounce stops the ones
-   * that a moving pointer would fire and immediately abandon.
+   * that a moving pointer would fire and immediately abandon. Neither of them
+   * gates what is DRAWN any more; the day window already answered that.
    */
   const archiveTarget = live || future ? null : quantise(whenMs, ARCHIVE_STEP_MS);
   const archiveAt = useDebounced(archiveTarget, ARCHIVE_DEBOUNCE_MS);
+
+  /**
+   * The measured feeds, sampled at the clock.
+   *
+   * THIS IS THE WHOLE POINT OF THE TIMELINE. It runs on every step of the
+   * scrubber, costs a binary search per station, and touches the network never —
+   * so the temperatures move with the pointer instead of arriving after it. Each
+   * value carries the instant it was published for, which is what the panel and
+   * the readout print; nothing here is averaged, interpolated or carried further
+   * than its feed's tolerance.
+   */
+  // `timelineVersion` is the dependency the linter cannot see: the stores are
+  // refs, so a merge changes what these read without changing anything they
+  // list. The counter is bumped by every merge and is the only thing that says
+  // "the day behind this ref grew". Same shape below for the train buffer and
+  // the schedules.
+  /* eslint-disable react-hooks/exhaustive-deps */
+  const observationsAt = useMemo(
+    () =>
+      observationsOn
+        ? sampleTimeline(obsTimelineRef.current, whenMs, OBSERVATION_TOLERANCE_MS).map((s) => ({
+            lon: s.lon,
+            lat: s.lat,
+            celsius: s.value,
+            at: s.at,
+            forecast: s.forecast,
+          }))
+        : EMPTY_OBSERVATIONS,
+    [observationsOn, whenMs, timelineVersion],
+  );
+
+  const airQualityAt = useMemo(
+    () =>
+      airQualityOn
+        ? sampleTimeline(aqTimelineRef.current, whenMs, AIR_QUALITY_TOLERANCE_MS).map((s) => ({
+            lon: s.lon,
+            lat: s.lat,
+            index: s.value,
+            at: s.at,
+          }))
+        : EMPTY_AIR_QUALITY,
+    [airQualityOn, whenMs, timelineVersion],
+  );
+  /* eslint-enable react-hooks/exhaustive-deps */
+
+  /** How much of the sampled temperature is forecast rather than measured. */
+  const forecastCount = useMemo(
+    () => observationsAt.reduce((n, o) => (o.forecast ? n + 1 : n), 0),
+    [observationsAt],
+  );
+
+  /**
+   * The worst air-quality band anywhere AT THE CLOCK.
+   *
+   * Recomputed from the sample rather than carried on the poll's status, because
+   * the poll's answer is about now and the readout's sentence is about whatever
+   * instant the bar is showing. "82 stations" says nothing about the air, and a
+   * national mean would average a city-centre exceedance into invisibility.
+   */
+  const airQualityWorst = useMemo(
+    () => airQualityAt.reduce((w, s) => Math.max(w, s.index), 0),
+    [airQualityAt],
+  );
+
+  /**
+   * The selection AS OF THE CLOCK, which is not the same as the thing clicked.
+   *
+   * The panel used to hold the object the pointer landed on and print its
+   * numbers forever, so scrubbing three hours back left a station reading
+   * beside a clock it had nothing to do with — the same complaint as the map's,
+   * one panel further in. Re-resolving here means the panel follows the slider
+   * for free: the station keeps its identity (its position) and picks up
+   * whatever value the timeline has for the instant on screen.
+   *
+   * Resolving to NULL hides the panel rather than clearing the selection. The
+   * marker is not drawn at this instant either, so an inspector for it would be
+   * inspecting nothing — but scrubbing back must bring both of them straight
+   * back, and it does, because the underlying `selection` is untouched.
+   *
+   * Positions compare with `===` deliberately: both sides come from the same
+   * timeline series, so they are the same numbers rather than nearly the same.
+   */
+  const shownSelection = useMemo<Selection | null>(() => {
+    if (!selection) return null;
+    if (selection.kind === 'observation') {
+      const at = observationsAt.find(
+        (o) => o.lon === selection.item.lon && o.lat === selection.item.lat,
+      );
+      return at ? { kind: 'observation', item: at } : null;
+    }
+    if (selection.kind === 'air_quality') {
+      const at = airQualityAt.find(
+        (s) => s.lon === selection.item.lon && s.lat === selection.item.lat,
+      );
+      return at ? { kind: 'air_quality', item: at } : null;
+    }
+    // An announcement carries its own validity, so "is this on screen right now"
+    // is a question Fintraffic already answered — the same filter the map draws
+    // with, asked of one record.
+    if (selection.kind === 'incident') {
+      return activeAt([selection.item], whenMs).length > 0 ? selection : null;
+    }
+    return selection;
+  }, [selection, observationsAt, airQualityAt, whenMs]);
+
+  /**
+   * The recorded snapshot for the clock, or null.
+   *
+   * Hoisted out of the draw loop because three things need the same answer — the
+   * painter, the hit test and the readout — and they must not be able to
+   * disagree about whether this instant was watched.
+   */
+  const trainSnapshot = useMemo(
+    () => (live ? null : snapshotAt(trainBufferRef.current, whenMs)),
+    // `trainStatus` is the poll's heartbeat: it changes once per poll, which is
+    // exactly when the buffer behind the ref has grown.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [live, whenMs, trainStatus],
+  );
+
+  /**
+   * Whether this instant needs the published timetable to be shown at all.
+   *
+   * Measured first, always: live is the current poll and a scrub inside the
+   * session's recording is the snapshot it kept. Only outside both does the page
+   * fall back to Fintraffic's plan — which is also what keeps the 638 kB day
+   * from being fetched by anyone who does not need it.
+   */
+  const needSchedule = trainsOn && !live && trainSnapshot === null;
+
+  /**
+   * Which departure dates could hold a train running at this instant, debounced.
+   *
+   * A string rather than an array so the effect below can key on it by value —
+   * and debounced because dragging THROUGH the gap either side of the recorded
+   * window must not start a 638 kB fetch on the way past.
+   */
+  const scheduleDatesKey = useDebounced(
+    needSchedule ? datesCovering(when).join(',') : '',
+    SCHEDULE_DEBOUNCE_MS,
+  );
+
+  const scheduledTrains = useMemo(
+    () =>
+      needSchedule && schedulesRef.current.length > 0
+        ? scheduledPositions(schedulesRef.current, whenMs)
+        : EMPTY_SCHEDULED,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [needSchedule, whenMs, scheduleVersion],
+  );
 
   /** Move the clock, which always means leaving live mode. */
   const scrubTo = useCallback((next: Date) => {
@@ -1673,34 +2042,42 @@ export const LivePage: React.FC = () => {
       paintIncidents(ctx, map, activeAt(incidentsRef.current, whenMs), theme, zoom, width, height);
     }
     if (trainsOn) {
-      // THE TRAIN LAYER IS A DIFFERENT SET AT A DIFFERENT TIME.
+      // THE TRAIN LAYER IS A DIFFERENT SET AT A DIFFERENT TIME, AND IT SAYS SO.
       //
-      // Live, it is the latest poll. Scrubbed, it is the snapshot this session
-      // recorded nearest that instant — real positions at the times they were
-      // reported — or NOTHING, when the clock is outside what we watched. It is
-      // never the current positions under a past clock, which is the one thing
-      // that would be a lie rather than a gap.
-      const snapshot = live ? null : snapshotAt(trainBufferRef.current, whenMs);
-      const list = live ? trainsRef.current : (snapshot?.trains ?? EMPTY_TRAINS);
-      setTrainAt(live ? null : (snapshot?.at ?? null));
-      // THE STALENESS CLOCK IS THE SNAPSHOT'S, NOT THE WALL'S. `paintTrains`
-      // draws a fix older than two minutes hollow, because a train in a tunnel
-      // keeps its last position in the feed indefinitely. Judging a recorded
-      // snapshot against `Date.now()` would make every train in it hollow the
-      // moment the scrub was more than two minutes back — marking as doubtful
-      // the one thing on the page that is certain, which is where they were.
-      paintTrains(ctx, map, list, snapshot?.at ?? Date.now(), theme, zoom, width, height);
+      // Live, it is the latest poll. Scrubbed inside the window this session
+      // watched, it is the snapshot recorded nearest that instant — real
+      // positions at the times they were reported. Outside both, it is
+      // Fintraffic's published timetable for the day, placed between control
+      // points and drawn as DIAMONDS rather than dots, because that is a plan
+      // and not a fix (see trainSchedule.ts).
+      //
+      // What it is never is the current positions under a past clock, which
+      // remains the one thing here that would be a lie rather than a gap.
+      const list = live ? trainsRef.current : (trainSnapshot?.trains ?? EMPTY_TRAINS);
+      setTrainAt(live ? null : (trainSnapshot?.at ?? null));
+      if (list.length > 0 || !needSchedule) {
+        // THE STALENESS CLOCK IS THE SNAPSHOT'S, NOT THE WALL'S. `paintTrains`
+        // draws a fix older than two minutes hollow, because a train in a tunnel
+        // keeps its last position in the feed indefinitely. Judging a recorded
+        // snapshot against `Date.now()` would make every train in it hollow the
+        // moment the scrub was more than two minutes back — marking as doubtful
+        // the one thing on the page that is certain, which is where they were.
+        paintTrains(ctx, map, list, trainSnapshot?.at ?? Date.now(), theme, zoom, width, height);
+      } else {
+        paintTrains(ctx, map, scheduledTrains, whenMs, theme, zoom, width, height, true);
+      }
     }
     // Temperatures last: they are text, and text under a dot or a closure line is
     // unreadable, while a dot under a number is still a dot.
     // Under the temperature text, for the same reason incidents sit under trains:
     // a coloured dot survives a number drawn over it, the reverse does not.
-    if (airQualityOn && !future) {
-      paintAirQuality(ctx, map, airQualityRef.current, theme, width, height);
-    }
-    if (observationsOn && !future) {
-      paintObservations(ctx, map, observationsRef.current, theme, width, height);
-    }
+    //
+    // Neither is gated on `future` any more. Both are gated on having a sample
+    // WITHIN TOLERANCE of the clock, which is a stricter test that happens to
+    // cover the future case: nothing has measured tomorrow, so nothing is in
+    // range for it — except the forecast, which is in range, and is drawn as one.
+    paintAirQuality(ctx, map, airQualityAt, theme, width, height);
+    paintObservations(ctx, map, observationsAt, theme, width, height);
 
     // Above everything, because it is the answer to a question the reader asked.
     if (selectionRef.current) {
@@ -1712,31 +2089,40 @@ export const LivePage: React.FC = () => {
       // away from under it. Scrubbed, it is the train's own measured track when
       // the panel has fetched one (which reaches the whole day) and otherwise the
       // recorded snapshot. Every branch is a position somebody reported.
-      const point =
-        sel.kind !== 'train'
-          ? sel.item
-          : live
-            ? (trainsRef.current.find((t) => trainKey(t) === trainKey(sel.item)) ?? sel.item)
-            : track
-              ? fixAt(track, whenMs)
-              : (snapshotAt(trainBufferRef.current, whenMs)?.trains.find(
-                  (t) => trainKey(t) === trainKey(sel.item),
-                ) ?? null);
+      const point = (() => {
+        if (sel.kind !== 'train') return sel.item;
+        const key = trainKey(sel.item);
+        const sameTrain = (t: Train) => trainKey(t) === key;
+        if (live) return trainsRef.current.find(sameTrain) ?? sel.item;
+        // The train's own measured track first — it reaches the whole day and is
+        // the best answer this page can give. Then the recorded snapshot. Then,
+        // and only then, the timetable position, which is where the ring has to
+        // go when the diamond under it came from the plan. Every branch is
+        // somewhere a publisher put this train.
+        return (
+          (track && fixAt(track, whenMs)) ??
+          trainSnapshot?.trains.find(sameTrain) ??
+          scheduledTrains.find(sameTrain) ??
+          null
+        );
+      })();
       paintSelection(ctx, map, point, track, theme);
     }
   }, [
     shadowsOn,
     trainsOn,
     incidentsOn,
-    observationsOn,
-    airQualityOn,
     sun.altitude,
     sun.azimuth,
     when,
     whenMs,
     live,
-    future,
     theme,
+    observationsAt,
+    airQualityAt,
+    trainSnapshot,
+    scheduledTrains,
+    needSchedule,
   ]);
 
   /**
@@ -1770,6 +2156,154 @@ export const LivePage: React.FC = () => {
   useEffect(() => () => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
   }, []);
+
+  /* ------------------------------------------------- the day, loaded once */
+
+  /**
+   * Moving to another day throws the loaded one away.
+   *
+   * Declared BEFORE the loaders so a day change clears and then refills, and
+   * kept separate from them so switching a feed off does not discard the day the
+   * other feed is still using. Without it a week of scrubbing accumulates every
+   * day it visited, and — worse — a station that reported on Tuesday and not on
+   * Wednesday would keep Tuesday's number within tolerance of Wednesday's clock.
+   */
+  useEffect(() => {
+    clearTimeline(obsTimelineRef.current);
+    clearTimeline(aqTimelineRef.current);
+    bumpTimeline();
+  }, [dayStartMs, bumpTimeline]);
+
+  /**
+   * The day's national air temperature: measured behind now, forecast ahead.
+   *
+   * TWO REQUESTS, ONE SERIES. The split is at the wall clock rather than at a
+   * day boundary because that is where the difference actually falls — today is
+   * measured until this hour and forecast after it, and the reader is entitled
+   * to see the join. Yesterday issues only the first request, tomorrow only the
+   * second, and neither needs a special case here.
+   *
+   * The forecast arm is allowed to fail on its own. A measured morning with no
+   * forecast afternoon is a page that works; failing both because ECMWF's
+   * collection hiccuped would not be.
+   */
+  useEffect(() => {
+    if (!observationsOn) return;
+    const ac = new AbortController();
+    let cancelled = false;
+    setObsDay('loading');
+
+    const now = Date.now();
+    const measuredTo = Math.min(dayEndMs, now);
+    const forecastFrom = Math.max(dayStartMs, now);
+    const jobs: Promise<Observation[]>[] = [];
+    if (measuredTo > dayStartMs) jobs.push(fetchObservationSeries(dayStartMs, measuredTo, ac.signal));
+    if (forecastFrom < dayEndMs) {
+      jobs.push(fetchForecastSeries(forecastFrom, dayEndMs, ac.signal).catch(() => []));
+    }
+
+    void Promise.all(jobs)
+      .then((lists) => {
+        if (cancelled) return;
+        for (const list of lists) {
+          mergeReadings(
+            obsTimelineRef.current,
+            list.map((o) => ({ lon: o.lon, lat: o.lat, value: o.celsius, at: o.at })),
+            list[0]?.forecast === true,
+          );
+        }
+        setObsDay('ready');
+        bumpTimeline();
+        scheduleDraw();
+      })
+      .catch((err: unknown) => {
+        if (cancelled || (err as Error)?.name === 'AbortError') return;
+        setObsDay('failed');
+      });
+
+    return () => {
+      cancelled = true;
+      ac.abort();
+    };
+  }, [observationsOn, dayStartMs, dayEndMs, dayEpoch, bumpTimeline, scheduleDraw]);
+
+  /**
+   * The day's urban air quality index — measured only, and only up to now.
+   *
+   * No forecast arm, and that is the source's limit rather than an omission:
+   * FMI's SILAM forecast is point-only and currently answers `NaN` for the index
+   * (airquality.ts). The layer therefore stops at the present, which the readout
+   * states in words.
+   */
+  useEffect(() => {
+    if (!airQualityOn) return;
+    const now = Date.now();
+    const to = Math.min(dayEndMs, now);
+    if (to <= dayStartMs) {
+      setAqDay('ready');
+      return;
+    }
+    const ac = new AbortController();
+    let cancelled = false;
+    setAqDay('loading');
+
+    void fetchAirQualitySeries(dayStartMs, to, ac.signal)
+      .then((list) => {
+        if (cancelled) return;
+        mergeReadings(
+          aqTimelineRef.current,
+          list.map((s) => ({ lon: s.lon, lat: s.lat, value: s.index, at: s.at })),
+        );
+        setAqDay('ready');
+        bumpTimeline();
+        scheduleDraw();
+      })
+      .catch((err: unknown) => {
+        if (cancelled || (err as Error)?.name === 'AbortError') return;
+        setAqDay('failed');
+      });
+
+    return () => {
+      cancelled = true;
+      ac.abort();
+    };
+  }, [airQualityOn, dayStartMs, dayEndMs, dayEpoch, bumpTimeline, scheduleDraw]);
+
+  /**
+   * The day's published timetables, fetched only when nothing measured can answer.
+   *
+   * `scheduleDatesKey` is empty whenever the recorded snapshots or the live poll
+   * can speak for the clock, which is what keeps this off the critical path of an
+   * ordinary visit entirely — and debounced, so scrubbing across the edge of the
+   * session's recording does not start the fetch on the way past. The fetch
+   * itself caches per date (trainSchedule.ts), so stepping between two days is
+   * one request each and then free.
+   */
+  useEffect(() => {
+    if (!scheduleDatesKey) {
+      schedulesRef.current = [];
+      setScheduleDay('idle');
+      return;
+    }
+    let cancelled = false;
+    setScheduleDay('loading');
+
+    void Promise.all(scheduleDatesKey.split(',').map((d) => fetchDaySchedules(d)))
+      .then((lists) => {
+        if (cancelled) return;
+        schedulesRef.current = lists.flat();
+        setScheduleDay('ready');
+        setScheduleVersion((v) => v + 1);
+        scheduleDraw();
+      })
+      .catch(() => {
+        if (!cancelled) setScheduleDay('failed');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [scheduleDatesKey, scheduleDraw]);
 
   // Map construction. Runs once — camera changes go through the map instance.
   //
@@ -2140,30 +2674,50 @@ export const LivePage: React.FC = () => {
    * observations.ts. Polling faster re-downloads numbers that cannot have moved.
    */
   useFeedPoll<Observation[]>({
-    // Switched OFF rather than frozen for a future clock: nobody has measured
-    // tomorrow's temperature, and leaving today's numbers on the map under
-    // tomorrow's timestamp would be the page's one unforgivable move. A forecast
-    // for a particular station is available by clicking it (see DetailPanel).
-    enabled: observationsOn && !future,
-    at: archiveAt,
+    // NOT what the map draws — the day window is (see the archive note near the
+    // top of this file). This is the sharpening pass: while live it keeps
+    // today's tail current between day loads, and when the scrubber comes to
+    // rest it fetches the ten-minutely readings nearest that instant so the
+    // hourly sample under the playhead is replaced by the real one. Nothing
+    // waits for it, so a slow response costs the reader no responsiveness.
+    //
+    // ENABLED WHENEVER THE LAYER IS, INCLUDING FOR A FUTURE CLOCK. It used to be
+    // gated on `!future` as well, which looked right — this arm is measurements
+    // and there are none — and was a bug with teeth: `useFeedPoll` calls
+    // `onClear` when it is disabled, so scrubbing into tomorrow DISCARDED the
+    // loaded day, forecast half included, and the layer emptied under a clock
+    // the forecast could perfectly well answer for.
+    //
+    // What the future does change is what it asks for: `at` null, so the poll
+    // keeps today's measured tail current instead of asking the archive for an
+    // instant that has not happened. Those readings carry their own timestamps,
+    // so a clock that cannot be answered by them simply does not see them.
+    enabled: observationsOn,
+    at: future ? null : archiveAt,
     fetcher: fetchObservations,
     intervalMs: OBSERVATION_POLL_MS,
     onData: useCallback(
-      (list: Observation[], at: number | null) => {
-        observationsRef.current = list;
-        setObservationStatus({ count: list.length, failed: false, at });
+      (list: Observation[]) => {
+        mergeReadings(
+          obsTimelineRef.current,
+          list.map((o) => ({ lon: o.lon, lat: o.lat, value: o.celsius, at: o.at })),
+        );
+        setObsDay('ready');
+        bumpTimeline();
         scheduleDraw();
       },
-      [scheduleDraw],
+      [bumpTimeline, scheduleDraw],
     ),
-    onError: useCallback(() => {
-      setObservationStatus((prev) => ({ count: prev?.count ?? 0, failed: true, at: prev?.at ?? null }));
-    }, []),
+    onError: useCallback(() => setObsDay('failed'), []),
     onClear: useCallback(() => {
-      observationsRef.current = [];
-      setObservationStatus(null);
+      // The day goes with the layer, unlike the trains' recording: it is
+      // re-fetchable in one request, so holding a day of a switched-off feed
+      // buys nothing and a stale one would have to be invalidated anyway.
+      clearTimeline(obsTimelineRef.current);
+      setObsDay('loading');
+      bumpTimeline();
       scheduleDraw();
-    }, [scheduleDraw]),
+    }, [bumpTimeline, scheduleDraw]),
   });
 
   /**
@@ -2173,36 +2727,32 @@ export const LivePage: React.FC = () => {
    * finer than the data can move — see airquality.ts.
    */
   useFeedPoll<AirQuality[]>({
-    enabled: airQualityOn && !future,
-    at: archiveAt,
+    // Same shape as the temperature poll above, and for the same reason —
+    // disabling it for a future clock would clear the day this feed has no
+    // forecast to replace with.
+    enabled: airQualityOn,
+    at: future ? null : archiveAt,
     fetcher: fetchAirQuality,
     intervalMs: AIR_QUALITY_POLL_MS,
     onData: useCallback(
-      (list: AirQuality[], at: number | null) => {
-        airQualityRef.current = list;
-        setAirQualityStatus({
-          at,
-          count: list.length,
-          failed: false,
-          // The worst band anywhere is the one number worth stating: "82 stations"
-          // says nothing about the air, and a mean over the whole country would
-          // average a city-centre exceedance into invisibility.
-          worst: list.reduce((w, s) => Math.max(w, s.index), 0),
-        });
+      (list: AirQuality[]) => {
+        mergeReadings(
+          aqTimelineRef.current,
+          list.map((s) => ({ lon: s.lon, lat: s.lat, value: s.index, at: s.at })),
+        );
+        setAqDay('ready');
+        bumpTimeline();
         scheduleDraw();
       },
-      [scheduleDraw],
+      [bumpTimeline, scheduleDraw],
     ),
-    onError: useCallback(() => {
-      setAirQualityStatus((prev) =>
-        prev ? { ...prev, failed: true } : { count: 0, failed: true, worst: 0, at: null },
-      );
-    }, []),
+    onError: useCallback(() => setAqDay('failed'), []),
     onClear: useCallback(() => {
-      airQualityRef.current = [];
-      setAirQualityStatus(null);
+      clearTimeline(aqTimelineRef.current);
+      setAqDay('loading');
+      bumpTimeline();
       scheduleDraw();
-    }, [scheduleDraw]),
+    }, [bumpTimeline, scheduleDraw]),
   });
 
   useEffect(() => {
@@ -2212,10 +2762,10 @@ export const LivePage: React.FC = () => {
   // The selection is read by the draw loop through a ref, so changing it does
   // not rebuild `draw` — which means it also does not repaint by itself.
   useEffect(() => {
-    selectionRef.current = selection;
-    if (selection?.kind !== 'train') trackRef.current = null;
+    selectionRef.current = shownSelection;
+    if (shownSelection?.kind !== 'train') trackRef.current = null;
     scheduleDraw();
-  }, [selection, scheduleDraw]);
+  }, [shownSelection, scheduleDraw]);
 
   /** The selected train's measured track, once the panel has fetched it. */
   const onTrack = useCallback(
@@ -2237,10 +2787,13 @@ export const LivePage: React.FC = () => {
     (point: { x: number; y: number }): Selection | null => {
       const map = mapRef.current;
       if (!map) return null;
+      // Exactly the list the draw loop just painted, chosen by the same test —
+      // measured first, timetable only where nothing measured reaches.
+      const measured = live ? trainsRef.current : (trainSnapshot?.trains ?? EMPTY_TRAINS);
       const trains = trainsOn
-        ? live
-          ? trainsRef.current
-          : (snapshotAt(trainBufferRef.current, whenMs)?.trains ?? EMPTY_TRAINS)
+        ? measured.length > 0 || !needSchedule
+          ? measured
+          : (scheduledTrains as Train[])
         : undefined;
       const visible = incidentsOn ? activeAt(incidentsRef.current, whenMs) : undefined;
       const hit = pickFeature(
@@ -2248,8 +2801,8 @@ export const LivePage: React.FC = () => {
         {
           trains,
           incidents: visible,
-          observations: observationsOn && !future ? observationsRef.current : undefined,
-          airQuality: airQualityOn && !future ? airQualityRef.current : undefined,
+          observations: observationsAt,
+          airQuality: airQualityAt,
         },
         (lon, lat) => map.project([lon, lat]),
       );
@@ -2257,11 +2810,21 @@ export const LivePage: React.FC = () => {
       if (hit.kind === 'train' && trains) return { kind: 'train', item: trains[hit.index] };
       if (hit.kind === 'incident' && visible) return { kind: 'incident', item: visible[hit.index] };
       if (hit.kind === 'observation') {
-        return { kind: 'observation', item: observationsRef.current[hit.index] };
+        return { kind: 'observation', item: observationsAt[hit.index] };
       }
-      return { kind: 'air_quality', item: airQualityRef.current[hit.index] };
+      return { kind: 'air_quality', item: airQualityAt[hit.index] };
     },
-    [trainsOn, incidentsOn, observationsOn, airQualityOn, live, future, whenMs],
+    [
+      trainsOn,
+      incidentsOn,
+      live,
+      whenMs,
+      observationsAt,
+      airQualityAt,
+      trainSnapshot,
+      scheduledTrains,
+      needSchedule,
+    ],
   );
 
   // Bound once and read through a ref, like `draw`: the map's listeners must not
@@ -2302,14 +2865,6 @@ export const LivePage: React.FC = () => {
       map.off('mousemove', onMove);
     };
   }, [mapReady]);
-
-  // A selected marker that the clock has moved away from is no longer a
-  // selection of anything the map is drawing. The train is the exception: its
-  // own measured track follows the clock, which is the point of fetching it.
-  useEffect(() => {
-    if (!selection || selection.kind === 'train') return;
-    if (future) setSelection(null);
-  }, [selection, future]);
 
   // Follow the site-wide light/dark choice by swapping the raster tile URLs in
   // place. Deliberately not `setStyle` — that tears down and rebuilds every
@@ -2499,14 +3054,33 @@ export const LivePage: React.FC = () => {
               {trainsOn && (
                 !live ? (
                   /* SCRUBBED, so the question is no longer "how many are
-                     running" but "what did we watch". A recorded snapshot is
-                     stated with the second it was taken; no snapshot is stated
-                     as a gap, with how far the recording reaches, because
-                     "no trains" and "we were not looking" are different facts
-                     and the map draws them identically. */
+                     running" but "where does this instant's answer come from".
+                     A recorded snapshot is stated with the second it was taken.
+                     Failing that, the day's published timetable is stated AS a
+                     timetable, with the mark it draws named, because a diamond
+                     nobody explained is just a dot the reader has not looked at
+                     closely. Only when neither is available is it a gap — and
+                     the gap says how far the session's own recording reaches,
+                     because "no trains" and "we were not looking" are different
+                     facts that the map draws identically. */
                   trainAt !== null ? (
                     <p className="text-surface-600 dark:text-surface-300">
                       {t('live.trains.recorded').replace('{time}', clockSeconds(trainAt))}
+                    </p>
+                  ) : scheduleDay === 'loading' ? (
+                    <p className="text-surface-600 dark:text-surface-300">
+                      {t('live.trains.schedule_loading')}
+                    </p>
+                  ) : scheduleDay === 'ready' && scheduledTrains.length > 0 ? (
+                    <p className="text-surface-600 dark:text-surface-300">
+                      {t('live.trains.scheduled').replace(
+                        '{n}',
+                        String(scheduledTrains.length),
+                      )}
+                    </p>
+                  ) : scheduleDay === 'failed' ? (
+                    <p className="text-amber-600 dark:text-amber-400">
+                      {t('live.trains.schedule_failed')}
                     </p>
                   ) : (
                     <p className="text-surface-600 dark:text-surface-300">
@@ -2561,48 +3135,67 @@ export const LivePage: React.FC = () => {
                 )
               )}
 
+              {/* THE SENTENCE IS ABOUT WHAT IS ON THE MAP AT THE CLOCK, which
+                  since the day is loaded as a window is no longer the same
+                  question as "did the last poll work". Order matters: an empty
+                  layer is explained by whichever of the three actually caused
+                  it — the day could not be loaded, the day is still loading, or
+                  the day loaded and simply has nothing within tolerance of this
+                  minute. The forecast case is stated separately and by name,
+                  because a number drawn from a model must never be read as a
+                  reading no matter how carefully it is drawn. */}
               {observationsOn && (
-                future ? (
-                  /* Nobody has measured a future temperature, so the layer is
-                     off rather than frozen. The one real future value FMI
-                     publishes is a point forecast, which is a click on a
-                     station away — see DetailPanel. */
-                  <p className="text-surface-600 dark:text-surface-300">
-                    {t('live.observations.future')}
-                  </p>
-                ) : observationStatus === null ? (
-                  <p className="text-surface-600 dark:text-surface-300">
-                    {t('live.observations.loading')}
-                  </p>
-                ) : observationStatus.failed ? (
+                obsDay === 'failed' ? (
                   <p className="text-amber-600 dark:text-amber-400">
                     {t('live.observations.failed')}
                   </p>
+                ) : obsDay === 'loading' && observationsAt.length === 0 ? (
+                  <p className="text-surface-600 dark:text-surface-300">
+                    {t('live.observations.loading')}
+                  </p>
+                ) : observationsAt.length === 0 ? (
+                  <p className="text-surface-600 dark:text-surface-300">
+                    {t('live.observations.none')}
+                  </p>
+                ) : forecastCount === observationsAt.length ? (
+                  <p className="text-surface-600 dark:text-surface-300">
+                    {t('live.observations.forecast').replace('{n}', String(observationsAt.length))}
+                  </p>
+                ) : forecastCount > 0 ? (
+                  <p className="text-surface-600 dark:text-surface-300">
+                    {t('live.observations.mixed')
+                      .replace('{measured}', String(observationsAt.length - forecastCount))
+                      .replace('{n}', String(forecastCount))}
+                  </p>
                 ) : (
                   <p className="text-surface-600 dark:text-surface-300">
-                    {t('live.observations.count').replace('{n}', String(observationStatus.count))}
+                    {t('live.observations.count').replace('{n}', String(observationsAt.length))}
                   </p>
                 )
               )}
 
               {airQualityOn && (
-                future ? (
-                  <p className="text-surface-600 dark:text-surface-300">
-                    {t('live.air_quality.future')}
+                aqDay === 'failed' ? (
+                  <p className="text-amber-600 dark:text-amber-400">
+                    {t('live.air_quality.failed')}
                   </p>
-                ) : airQualityStatus === null ? (
+                ) : aqDay === 'loading' && airQualityAt.length === 0 ? (
                   <p className="text-surface-600 dark:text-surface-300">
                     {t('live.air_quality.loading')}
                   </p>
-                ) : airQualityStatus.failed ? (
-                  <p className="text-amber-600 dark:text-amber-400">
-                    {t('live.air_quality.failed')}
+                ) : airQualityAt.length === 0 ? (
+                  /* No forecast arm exists for this feed — SILAM is point-only
+                     and answers NaN for the index — so a clock past the last
+                     published hour is a gap, and it says so rather than
+                     stretching an hourly average forward over it. */
+                  <p className="text-surface-600 dark:text-surface-300">
+                    {future ? t('live.air_quality.future') : t('live.air_quality.none')}
                   </p>
                 ) : (
                   <p className="text-surface-600 dark:text-surface-300">
                     {t('live.air_quality.count')
-                      .replace('{n}', String(airQualityStatus.count))
-                      .replace('{worst}', t(aqBandKey(airQualityStatus.worst)))}
+                      .replace('{n}', String(airQualityAt.length))
+                      .replace('{worst}', t(aqBandKey(airQualityWorst)))}
                   </p>
                 )
               )}
@@ -2610,7 +3203,7 @@ export const LivePage: React.FC = () => {
               {/* The markers are clickable and nothing else on screen says so —
                   they are canvas pixels, with no hover affordance beyond the
                   cursor. One line, and only while a clickable feed is on. */}
-              {(trainsOn || incidentsOn || observationsOn || airQualityOn) && !selection && (
+              {(trainsOn || incidentsOn || observationsOn || airQualityOn) && !shownSelection && (
                 <p className="pt-0.5 text-surface-400 dark:text-surface-500">
                   {t('live.detail.hint')}
                 </p>
@@ -2618,9 +3211,9 @@ export const LivePage: React.FC = () => {
             </div>
           )}
 
-          {selection && (
+          {shownSelection && (
             <DetailPanel
-              selection={selection}
+              selection={shownSelection}
               when={when}
               onClose={() => setSelection(null)}
               onTrack={onTrack}

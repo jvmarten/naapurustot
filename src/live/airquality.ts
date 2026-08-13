@@ -24,7 +24,13 @@
  * position on a green-to-red ramp is legible at a glance and needs no legend.
  * The band names are what the readout states.
  */
-import { fetchFmiSimple, fmiSimpleUrl, parseFmiSimple, type FmiReading } from './fmi';
+import {
+  fetchFmiSeries,
+  fetchFmiSimple,
+  fmiSimpleUrl,
+  parseFmiSimple,
+  type FmiReading,
+} from './fmi';
 
 /** One station's most recent air quality index. */
 export interface AirQuality {
@@ -111,5 +117,34 @@ export async function fetchAirQuality(
   at: number | null = null,
 ): Promise<AirQuality[]> {
   const readings = await fetchFmiSimple(STORED_QUERY, PARAMETER, WINDOW_MINUTES, signal, at);
-  return readings.filter((r) => r.value >= 1 && r.value <= 5).map(toAirQuality);
+  return readings.filter(onScale).map(toAirQuality);
+}
+
+const onScale = (r: FmiReading) => r.value >= 1 && r.value <= 5;
+
+/**
+ * A day of the national urban index, as published, in one request.
+ *
+ * Same move as the temperature feed's series, for the same reason — the page
+ * holds the day and samples it locally so the slider costs no network — with one
+ * difference: NO `timestep`. The index is a whole-hour average published hourly,
+ * so the day's ~24 values per station ARE the data, and thinning them would drop
+ * real hours rather than intermediate ones. A full national day measures ~19 kB
+ * gzipped.
+ *
+ * THERE IS NO FORECAST ARM HERE, and that is a limit of the source rather than a
+ * gap in the page. FMI publishes a SILAM air-quality forecast, but only through
+ * point stored queries — `fmi::forecast::silam::airquality::surface::point::
+ * simple` answers a bbox with `numberReturned="0"` — and asked per point for
+ * `AQIndex` it currently answers `NaN`. So the layer stops at "now", which the
+ * readout says, rather than showing something the publisher does not publish.
+ */
+export function fetchAirQualitySeries(
+  fromMs: number,
+  toMs: number,
+  signal?: AbortSignal,
+): Promise<AirQuality[]> {
+  return fetchFmiSeries(STORED_QUERY, PARAMETER, fromMs, toMs, undefined, signal).then((readings) =>
+    readings.filter(onScale).map(toAirQuality),
+  );
 }

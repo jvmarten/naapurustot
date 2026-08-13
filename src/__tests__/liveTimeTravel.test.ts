@@ -358,7 +358,9 @@ describe('the feed registry states how far each feed can be scrubbed', () => {
     // without one would silently inherit whatever the UI defaults to — which is
     // how a measured layer ends up frozen under a past clock.
     for (const feed of ALL_FEEDS) {
-      expect(['computed', 'archive', 'recorded', 'validity']).toContain(feed.time);
+      expect(['computed', 'archive', 'forecast', 'recorded', 'schedule', 'validity']).toContain(
+        feed.time,
+      );
     }
   });
 
@@ -366,12 +368,35 @@ describe('the feed registry states how far each feed can be scrubbed', () => {
     const byId = new Map(ALL_FEEDS.map((f) => [f.id, f.time]));
     expect(byId.get('shadows')).toBe('computed');
     expect(byId.get('sun_position')).toBe('computed');
-    // Digitraffic publishes the latest fix nationally and history one train at a
-    // time, so the national layer's past is only what this session recorded.
-    expect(byId.get('trains')).toBe('recorded');
-    // FMI's stored queries answer for any past window given an endtime.
-    expect(byId.get('observations')).toBe('archive');
+    // Digitraffic publishes the latest fix nationally and position history one
+    // train at a time, so the national layer's measured past is only what this
+    // session recorded — and outside that window it falls back to Fintraffic's
+    // published timetable, drawn as a plan rather than as a fix.
+    expect(byId.get('trains')).toBe('schedule');
+    // FMI's stored queries answer for any past window given an endtime, and
+    // ECMWF publishes a forecast at those same stations for the future half.
+    expect(byId.get('observations')).toBe('forecast');
+    // Archive only, and deliberately: FMI's air-quality forecast is point-only
+    // and answers NaN for the index, so there is nothing national to draw.
     expect(byId.get('air_quality')).toBe('archive');
     expect(byId.get('road_incidents')).toBe('validity');
+  });
+
+  it('gives every time model a label in every locale', async () => {
+    // The sidebar prints `live.time_model.<model>` on each row, so a model added
+    // to the union without its three strings renders as a raw key — which is
+    // how the one line explaining a feed's reach turns into noise.
+    const models = new Set(ALL_FEEDS.map((f) => f.time));
+    const dicts = await Promise.all(
+      ['en', 'fi-extra', 'sv'].map(
+        (l) =>
+          import(`../locales/${l}.json`) as Promise<{ default: Record<string, string> }>,
+      ),
+    );
+    for (const model of models) {
+      for (const dict of dicts) {
+        expect(dict.default[`live.time_model.${model}`]).toBeTruthy();
+      }
+    }
   });
 });

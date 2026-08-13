@@ -1,7 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   parseAirQuality,
   airQualityUrl,
+  fetchAirQualitySeries,
   aqBandKey,
   AQ_COLORS,
   AIR_QUALITY_POLL_MS,
@@ -115,5 +116,53 @@ describe('air quality request', () => {
 
   it('polls no faster than the index can change', () => {
     expect(AIR_QUALITY_POLL_MS).toBeGreaterThanOrEqual(900_000);
+  });
+});
+
+describe('the day window', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('asks for the whole day with NO timestep, and keeps every hour', () => {
+    // The index is a whole-hour AVERAGE published hourly, so the day's ~24
+    // values per station ARE the data — thinning them would drop real hours
+    // rather than intermediate ones, which is why this differs from the
+    // temperature series next door.
+    const xml = doc(
+      element('60.1', '25.0', '2', '2026-08-12T06:00:00Z'),
+      element('60.1', '25.0', '3', '2026-08-12T07:00:00Z'),
+    );
+    const fn = vi.fn(
+      async (_input: RequestInfo | URL) =>
+        ({ ok: true, text: async () => xml }) as unknown as Response,
+    );
+    vi.stubGlobal('fetch', fn);
+
+    return fetchAirQualitySeries(
+      Date.parse('2026-08-12T00:00:00Z'),
+      Date.parse('2026-08-12T08:00:00Z'),
+    ).then((list) => {
+      const url = String(fn.mock.calls[0][0]);
+      expect(url).toContain('starttime=2026-08-12T00%3A00%3A00Z');
+      expect(url).toContain('endtime=2026-08-12T08%3A00%3A00Z');
+      expect(url).not.toContain('timestep');
+      expect(list.map((s) => s.index)).toEqual([2, 3]);
+    });
+  });
+
+  it('drops values off the published 1..5 scale, which render as a colour', () => {
+    // An out-of-range index would clamp silently to "very poor" and put a red
+    // dot on the map with nothing behind it.
+    const xml = doc(
+      element('60.1', '25.0', '0', '2026-08-12T06:00:00Z'),
+      element('60.1', '25.0', '4', '2026-08-12T07:00:00Z'),
+      element('60.1', '25.0', '9', '2026-08-12T08:00:00Z'),
+    );
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: true, text: async () => xml }) as unknown as Response),
+    );
+    return fetchAirQualitySeries(0, 1).then((list) => {
+      expect(list.map((s) => s.index)).toEqual([4]);
+    });
   });
 });

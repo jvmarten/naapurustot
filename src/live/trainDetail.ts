@@ -88,6 +88,13 @@ export interface TrainFix {
 
 /* --------------------------------------------------------------- stations */
 
+/** One entry of the rail network's station register. */
+export interface RailStation {
+  name: string;
+  lat: number;
+  lon: number;
+}
+
 /**
  * The station register, fetched once per session and kept.
  *
@@ -96,11 +103,17 @@ export interface TrainFix {
  * reused for the rest of the session. Deliberately NOT bundled: it is data, and
  * this project keeps data out of the JS budget.
  *
- * A failure is not fatal. Without it the panel prints station CODES, which are
- * what Fintraffic publishes and are legible to anyone who reads a Finnish
- * departure board; inventing a name would not be.
+ * THE COORDINATES ARE NOT DECORATION. The panel only needs the names, but
+ * trainSchedule.ts needs the positions: a timetable row states a station code
+ * and a time, and turning that pair into a place on the map is exactly what the
+ * register is for. Both callers share one fetch.
+ *
+ * A failure is not fatal for the panel. Without it the panel prints station
+ * CODES, which are what Fintraffic publishes and are legible to anyone who reads
+ * a Finnish departure board; inventing a name would not be. It IS fatal for the
+ * schedule layer, which cannot place a train it cannot locate, and which says so.
  */
-let stationPromise: Promise<Map<string, string>> | null = null;
+let stationPromise: Promise<Map<string, RailStation>> | null = null;
 
 /**
  * Deliberately NOT abortable. The promise is shared by every future caller, so
@@ -108,15 +121,23 @@ let stationPromise: Promise<Map<string, string>> | null = null;
  * whoever else was waiting on it — and cancelling a 15 kB session-wide fetch to
  * save nothing is not a trade worth making.
  */
-export function fetchStationNames(): Promise<Map<string, string>> {
+export function fetchStations(): Promise<Map<string, RailStation>> {
   stationPromise ??= railJson('/metadata/stations')
     .then((payload) => {
-      const out = new Map<string, string>();
+      const out = new Map<string, RailStation>();
       if (!Array.isArray(payload)) return out;
-      for (const s of payload as { stationShortCode?: unknown; stationName?: unknown }[]) {
-        if (typeof s?.stationShortCode === 'string' && typeof s?.stationName === 'string') {
-          out.set(s.stationShortCode, s.stationName);
-        }
+      for (const s of payload as {
+        stationShortCode?: unknown;
+        stationName?: unknown;
+        latitude?: unknown;
+        longitude?: unknown;
+      }[]) {
+        if (typeof s?.stationShortCode !== 'string' || typeof s?.stationName !== 'string') continue;
+        const lat = typeof s.latitude === 'number' ? s.latitude : NaN;
+        const lon = typeof s.longitude === 'number' ? s.longitude : NaN;
+        // A station with no usable position still names itself. The schedule
+        // layer skips it; the panel does not care.
+        out.set(s.stationShortCode, { name: s.stationName, lat, lon });
       }
       return out;
     })
@@ -127,6 +148,13 @@ export function fetchStationNames(): Promise<Map<string, string>> {
       throw err;
     });
   return stationPromise;
+}
+
+/** Just the names, for the callers that only label things. */
+export function fetchStationNames(): Promise<Map<string, string>> {
+  return fetchStations().then(
+    (stations) => new Map([...stations].map(([code, s]) => [code, s.name])),
+  );
 }
 
 /* ---------------------------------------------------------------- parsing */

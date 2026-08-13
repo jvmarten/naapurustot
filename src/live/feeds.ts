@@ -35,12 +35,31 @@ export type FeedCoverage = 'national' | 'urban';
  *
  *   computed  exact at any instant, backwards and forwards (astronomy).
  *   archive   the source serves measured history on request (FMI's WFS).
+ *   forecast  archive backwards, and the PUBLISHER'S OWN forecast forwards.
  *   recorded  only what this session watched go by — the source publishes the
  *             latest state and keeps no history a browser can ask for.
+ *   schedule  measured where we have a measurement, and the publisher's own
+ *             timetable elsewhere — drawn as a plan, never as a fix.
  *   validity  each record carries its own from/to, so the publisher has already
  *             answered "is this in effect at T", including for future entries.
+ *
+ * The last two are the ones with a knife-edge in them, and it is worth being
+ * exact about where the edge is. Neither of them invents a value: `forecast` is
+ * ECMWF's published number for that station and hour, `schedule` is Fintraffic's
+ * published route for that train. What they add over `archive` is that the page
+ * is willing to SHOW a publisher's prediction — differently drawn, differently
+ * labelled, and never where a measurement exists. What is still absent is a feed
+ * that models something itself: no interpolation between two fixes of the same
+ * measured quantity, no trend extrapolated past the last reading, and no
+ * modelled value rendered in the same ink as an instrument's.
  */
-export type FeedTimeModel = 'computed' | 'archive' | 'recorded' | 'validity';
+export type FeedTimeModel =
+  | 'computed'
+  | 'archive'
+  | 'forecast'
+  | 'recorded'
+  | 'schedule'
+  | 'validity';
 
 export interface Feed {
   id: string;
@@ -90,10 +109,14 @@ export const FEED_GROUPS: FeedGroup[] = [
       // "optimising" it to the coverage encoding, which is three times bigger
       // over the wire.
       //
-      // 'archive': the same stored query answers for any past window once it is
-      // given an `endtime`, so scrubbing back fetches what the stations actually
-      // measured then rather than redrawing the present under a past clock.
-      { id: 'observations', labelKey: 'live.feed.observations', status: 'live', coverage: 'national', time: 'archive', defaultOn: false },
+      // 'forecast': the same stored query answers for any past window once it is
+      // given an `endtime`, so scrubbing back shows what the stations actually
+      // measured then rather than the present under a past clock — and past
+      // "now" ECMWF publishes a forecast AT THOSE SAME STATIONS, 189 of them
+      // matching coordinate for coordinate, so the layer carries on instead of
+      // going dark. Forecast values are drawn in italic and stated as forecasts
+      // everywhere they appear; see observations.ts.
+      { id: 'observations', labelKey: 'live.feed.observations', status: 'live', coverage: 'national', time: 'forecast', defaultOn: false },
       // 'urban', not 'national', and deliberately: this is the municipal
       // monitoring network — 82 stations in towns. FMI's national background
       // network has seven, which is real but too sparse to read as a map.
@@ -108,12 +131,15 @@ export const FEED_GROUPS: FeedGroup[] = [
       // National by construction, which the shadow feed above cannot be: every
       // train running in the country, not just the cities a 3D model covers.
       //
-      // 'recorded', and it is the only feed here that has to be: Digitraffic
-      // publishes the LATEST fix per train and offers history one train at a
-      // time, so there is no national past to fetch. What the page can scrub
-      // through is the fixes it watched arrive — see trainHistory.ts — and a
-      // single train's real track, fetched when you select it.
-      { id: 'trains', labelKey: 'live.feed.trains', status: 'live', coverage: 'national', time: 'recorded', defaultOn: true },
+      // 'schedule': Digitraffic publishes the LATEST fix per train and offers
+      // position history one train at a time, so there is no national past to
+      // fetch. Inside the window this session watched, the layer replays the
+      // snapshots it recorded (trainHistory.ts) — real positions at the times
+      // they were reported. Outside it, the layer is placed from Fintraffic's
+      // published timetable for the day (trainSchedule.ts): the publisher's own
+      // times at the publisher's own control points, interpolated between them,
+      // drawn as diamonds rather than dots and never where a fix exists.
+      { id: 'trains', labelKey: 'live.feed.trains', status: 'live', coverage: 'national', time: 'schedule', defaultOn: true },
       // National, and cheap enough to poll: the whole active set is 8 features
       // and 3.4 kB. Roadworks from the same endpoint are 585 features and
       // 1.28 MB, which is why this feed is announcements only — see incidents.ts.

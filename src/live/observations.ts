@@ -21,16 +21,31 @@
  * observations "224 kB of GML", which is the raw figure and three decimal orders
  * away from what a browser actually downloads.
  */
-import { fetchFmiSimple, fmiSimpleUrl, parseFmiSimple, type FmiReading } from './fmi';
+import {
+  fetchFmiSeries,
+  fetchFmiSimple,
+  fmiSimpleUrl,
+  parseFmiSimple,
+  type FmiReading,
+} from './fmi';
 
-/** One station's most recent air temperature. */
+/** One station's air temperature at one instant. */
 export interface Observation {
   lon: number;
   lat: number;
   /** Air temperature at 2 m, in degrees Celsius. */
   celsius: number;
-  /** When it was measured, ms since the epoch. */
+  /** When it was measured — or, for a forecast, forecast FOR. */
   at: number;
+  /**
+   * True when this is ECMWF's prediction rather than a station's reading.
+   *
+   * Undefined and false mean the same thing and the map treats them the same;
+   * the field is optional so the measured paths that build these objects do not
+   * have to state the negative. Nothing drawn from a forecast is drawn like a
+   * measurement — see `paintObservations`.
+   */
+  forecast?: boolean;
 }
 
 const STORED_QUERY = 'fmi::observations::weather::simple';
@@ -93,22 +108,99 @@ export async function fetchObservations(
 }
 
 /**
+ * How coarsely a day of measurements is loaded, in minutes.
+ *
+ * See {@link fetchObservationSeries}. Hourly is a thinning of real ten-minutely
+ * readings rather than an average of them (fmi.ts explains `timestep`), so every
+ * value in the strip is one a station actually reported, at the minute it
+ * reported it. The finer readings around wherever the clock settles are fetched
+ * separately by the live/archive poll and merged into the same series.
+ */
+export const SERIES_STEP_MINUTES = 60;
+
+/**
+ * A day of national air temperature, as published, in one request.
+ *
+ * WHY A WINDOW RATHER THAN AN INSTANT. This is what makes the time slider
+ * responsive instead of chatty: the page holds the day and samples it locally
+ * (timeline.ts), so dragging the bar costs a binary search per station rather
+ * than a debounce plus a round trip. Measured against the live service, a whole
+ * day of the whole country at hourly steps is 1,528 readings and ~20 kB gzipped
+ * — less than four of the single-instant requests it replaces, and a scrub
+ * across the bar used to be able to ask for 288 of them.
+ */
+export function fetchObservationSeries(
+  fromMs: number,
+  toMs: number,
+  signal?: AbortSignal,
+): Promise<Observation[]> {
+  return fetchFmiSeries(
+    STORED_QUERY,
+    PARAMETER,
+    fromMs,
+    toMs,
+    SERIES_STEP_MINUTES,
+    signal,
+  ).then((readings) => readings.map(toObservation));
+}
+
+/**
+ * The forecast collection: ECMWF's surface forecast AT FMI's observation
+ * stations.
+ *
+ * This is what lets the temperature layer keep working past "now" instead of
+ * switching off, and finding it is the whole reason the layer changed. The
+ * obvious query — `fmi::forecast::edited::weather::scandinavia::point::simple`,
+ * the one this file already used for a single station — genuinely cannot serve a
+ * map: it takes `place`, `latlon`, `fmisid`, `geoid` or `wmo` and answers a bbox
+ * request with `numberReturned="0"`, so a national picture would have been a
+ * hundred-odd requests to a free public service, which is not a thing to do.
+ *
+ * `ecmwf::forecast::surface::obsstations::simple` DOES take a bbox, and it is
+ * evaluated at the observation network's own coordinates — 236 stations against
+ * the 191 currently reporting temperature, of which 189 match position for
+ * position. That coordinate agreement is the point: the same station carries
+ * this morning's measurement and this evening's forecast in one series, so
+ * crossing "now" on the slider changes what the number MEANS (and how it is
+ * drawn, and what the readout says) without the map's stations shuffling.
+ *
+ * Measured: one instant nationally is 5.2 kB gzipped, a day at hourly steps
+ * 67 kB — the same class as the measured side of the day.
+ */
+const FORECAST_QUERY = 'ecmwf::forecast::surface::obsstations::simple';
+const FORECAST_PARAMETER = 'Temperature';
+
+/**
+ * ECMWF's published forecast for every observation station, over a window.
+ *
+ * Flagged `forecast: true` at the boundary, once, so nothing downstream has to
+ * remember which fetch a number came from. Where this overlaps the measured
+ * strip the measurement wins — see `mergeReadings`.
+ */
+export function fetchForecastSeries(
+  fromMs: number,
+  toMs: number,
+  signal?: AbortSignal,
+): Promise<Observation[]> {
+  return fetchFmiSeries(
+    FORECAST_QUERY,
+    FORECAST_PARAMETER,
+    fromMs,
+    toMs,
+    SERIES_STEP_MINUTES,
+    signal,
+  ).then((readings) => readings.map((r) => ({ ...toObservation(r), forecast: true })));
+}
+
+/**
  * FMI's published forecast temperature at ONE point and instant.
  *
- * THIS IS THE ONLY THING THIS PAGE DRAWS FROM THE FUTURE, and it is fetched a
- * point at a time on purpose rather than as a national layer. The reason is a
- * limit of the source, not a design preference: the forecast stored query takes
- * `place`, `latlon`, `fmisid`, `geoid` or `wmo` and NOT a bbox — verified against
- * the live service, where a bbox request answers 200 with `numberReturned="0"`,
- * and a comma-separated list of station ids answers 400. So there is no way to
- * ask for the whole country in one request, and a hundred requests to paint a
- * map of forecasts is not something to do to a free public service.
- *
- * A forecast is therefore something you ask for about a station you picked, and
- * it is labelled as a forecast wherever it is shown. The map itself stays
- * measurements-only: scrubbing into the future switches the observation layer
- * OFF rather than filling it with modelled values that would look identical to
- * readings.
+ * Kept alongside the national collection above, and not made redundant by it,
+ * because the two answer different questions. That one is ECMWF evaluated at the
+ * observation network's stations, which is what a MAP needs; this is FMI's own
+ * edited forecast at an arbitrary latlon, which is what a reader who has clicked
+ * a particular station gets in the panel — FMI's published figure for that
+ * place, from the model FMI's own forecasts are edited into.
  *
  * Harmonie/edited surface forecast, ~500 bytes a call.
  */
@@ -132,5 +224,5 @@ export async function fetchForecast(
   const res = await fetch(`https://opendata.fmi.fi/wfs?${params.toString()}`, { signal });
   if (!res.ok) throw new Error(`FMI forecast responded ${res.status}`);
   const readings = parseFmiSimple(await res.text());
-  return readings.length > 0 ? toObservation(readings[0]) : null;
+  return readings.length > 0 ? { ...toObservation(readings[0]), forecast: true } : null;
 }
