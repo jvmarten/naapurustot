@@ -339,6 +339,35 @@ function readStoredFeeds(): Set<string> {
   }
 }
 
+const READOUT_KEY = 'live.readout';
+
+/**
+ * Whether the honesty strip starts open. It does not.
+ *
+ * THE STRIP IS COLLAPSED BY DEFAULT, AND THAT IS NOT A RETREAT FROM SAYING WHAT
+ * THE MAP KNOWS. With five feeds on it stacks five sentences into the top-left
+ * corner — the one place a national view has anything worth looking at — and
+ * every one of them is a sentence a reader consults once and then reads past.
+ * The count of trains does not change while you watch it; what changes is the
+ * map underneath.
+ *
+ * What is NOT allowed to collapse with it is the fact that something went
+ * wrong. A failed feed draws an empty layer, which is indistinguishable from a
+ * quiet one, so the collapsed chip carries the alert state (`readoutAlert`
+ * below) and colours itself amber — the reader still learns that a sentence is
+ * waiting for them, they just do not have to read five to find it.
+ *
+ * Stored as a plain flag rather than defaulting per-visit, because a reader who
+ * opens it is stating a preference about every later visit too.
+ */
+function readStoredReadout(): boolean {
+  try {
+    return localStorage.getItem(READOUT_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 /**
  * THE CLOCK AND ITS READOUT LIVE IN TimeBar.tsx, not here.
  *
@@ -1465,6 +1494,8 @@ export const LivePage: React.FC = () => {
   const [center, setCenter] = useState<[number, number]>(DEFAULT_CENTER);
   const [enabled, setEnabled] = useState<Set<string>>(readStoredFeeds);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  /** Whether the honesty strip is expanded. See `readStoredReadout`. */
+  const [readoutOpen, setReadoutOpen] = useState(readStoredReadout);
   const [coverage, setCoverage] = useState<{
     source: HeightSource;
     measured: number;
@@ -1785,6 +1816,14 @@ export const LivePage: React.FC = () => {
       /* private mode — the toggles still work for this session */
     }
   }, [enabled]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(READOUT_KEY, readoutOpen ? '1' : '0');
+    } catch {
+      /* private mode — the strip still opens and closes for this session */
+    }
+  }, [readoutOpen]);
 
   /**
    * Repaint the shadow canvas.
@@ -2949,6 +2988,29 @@ export const LivePage: React.FC = () => {
     );
   })();
 
+  /** Whether any enabled feed has a sentence to show at all. */
+  const readoutOn = shadowsOn || trainsOn || incidentsOn || observationsOn || airQualityOn;
+
+  /**
+   * Whether any of those sentences is a failure rather than a result.
+   *
+   * ONE MIRROR OF THE AMBER ARMS BELOW, and it has to stay one: each clause here
+   * is the exact condition under which the strip renders an amber paragraph, and
+   * a clause that drifts out of step re-creates the thing the strip exists to
+   * prevent — a blank layer that could equally be "nothing is happening" or
+   * "we could not ask". When the strip is collapsed this is the only channel
+   * left, so it is what turns the chip amber.
+   */
+  const readoutAlert =
+    (shadowsOn && sun.altitude > 0 && !tooCoarse && !loading && fetchFailed) ||
+    (trainsOn &&
+      (live
+        ? trainStatus?.failed === true
+        : trainAt === null && scheduleDay === 'failed')) ||
+    (incidentsOn && incidentStatus?.failed === true) ||
+    (observationsOn && obsDay === 'failed') ||
+    (airQualityOn && aqDay === 'failed');
+
   return (
     <div className="flex h-screen w-full flex-col bg-white text-surface-900 dark:bg-surface-950 dark:text-white">
       <header className="flex items-center gap-3 border-b border-surface-200 px-4 py-2 dark:border-surface-800">
@@ -3005,9 +3067,48 @@ export const LivePage: React.FC = () => {
           {/* Honesty strip. Every state the shadow layer can be in says which one
               it is, because an empty map means four different things here:
               zoomed too far out, sun below the horizon, Overpass unreachable, or
-              genuinely no buildings with height data. */}
-          {(shadowsOn || trainsOn || incidentsOn || observationsOn || airQualityOn) && (
-            <div className="absolute left-3 top-3 max-w-xs space-y-1 rounded-lg bg-white/90 px-3 py-2 text-xs leading-relaxed shadow-sm ring-1 ring-surface-200 dark:bg-surface-950/85 dark:ring-surface-800">
+              genuinely no buildings with height data.
+
+              Collapsed it is one chip, which is the strip's affordance and its
+              alert light at once: amber means one of the sentences behind it is
+              a failure rather than a count (see `readoutAlert`), which is the
+              one thing that must survive the collapse. */}
+          {readoutOn && !readoutOpen && (
+            <button
+              type="button"
+              onClick={() => setReadoutOpen(true)}
+              aria-expanded={false}
+              aria-label={t(readoutAlert ? 'live.readout.alert' : 'live.readout.show')}
+              className={`absolute left-3 top-3 z-10 flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold shadow-sm ring-1 backdrop-blur transition-colors ${
+                readoutAlert
+                  ? 'bg-amber-500/95 text-white ring-amber-600/40 hover:bg-amber-500'
+                  : 'bg-white/90 text-surface-600 ring-surface-200 hover:bg-white dark:bg-surface-950/85 dark:text-surface-300 dark:ring-surface-800 dark:hover:bg-surface-950'
+              }`}
+            >
+              <span aria-hidden="true" className="leading-none">
+                {readoutAlert ? '!' : 'ℹ'}
+              </span>
+              {t('live.readout.title')}
+            </button>
+          )}
+
+          {readoutOn && readoutOpen && (
+            <div className="absolute left-3 top-3 z-10 max-w-xs space-y-1 rounded-lg bg-white/90 px-3 py-2 text-xs leading-relaxed shadow-sm ring-1 ring-surface-200 backdrop-blur dark:bg-surface-950/85 dark:ring-surface-800">
+              <div className="flex items-center gap-2">
+                <h2 className="mr-auto text-[10px] font-bold uppercase tracking-wider text-surface-400 dark:text-surface-500">
+                  {t('live.readout.title')}
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setReadoutOpen(false)}
+                  aria-expanded
+                  aria-label={t('live.readout.hide')}
+                  className="-mr-1 -mt-0.5 shrink-0 rounded px-1.5 text-base leading-none text-surface-400 hover:text-surface-900 dark:text-surface-500 dark:hover:text-white"
+                >
+                  −
+                </button>
+              </div>
+
               {/* WHEN THE CLOCK IS NOT NOW, THAT IS THE FIRST THING SAID.
                   Everything under this line is a statement about a moment, and
                   on a page called /live/ the reader's default assumption is that
