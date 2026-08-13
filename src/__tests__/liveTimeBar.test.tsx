@@ -15,8 +15,13 @@ import { minuteOfDay } from '../live/timeControl';
  * watching a change happen, shade crossing a courtyard or the terminator
  * crossing the map, and each of those takes several seconds of watching to read
  * at all. What is asserted is the consequence rather than the number: a real
- * second must move the clock by well under an hour, so a whole day takes over a
- * minute to watch.
+ * second must move the clock by a small fraction of an hour, so a whole day
+ * takes minutes to watch rather than seconds.
+ *
+ * The floor is deliberately not the setting. It sits where the *reason* stops
+ * holding, which leaves room to tune the feel without rewriting the test — and
+ * catches the one change that would break it, a return to a pace that plays the
+ * day faster than anyone can watch it.
  *
  * THE BAR IS DRIVEN CONTROLLED HERE, which is the only way the question can be
  * asked. Playback steps from `when`, so a bar whose `when` never changes
@@ -73,7 +78,7 @@ afterEach(() => {
 });
 
 describe('TimeBar playback', () => {
-  it('moves the clock by well under an hour per real second', () => {
+  it('moves the clock by a small fraction of an hour per real second', () => {
     vi.useFakeTimers();
     const scrubs: Date[] = [];
     render(<Harness onScrub={(d) => scrubs.push(d)} />);
@@ -84,10 +89,10 @@ describe('TimeBar playback', () => {
     expect(scrubs.length).toBeGreaterThan(0);
     const perSecond = minuteOfDay(scrubs[scrubs.length - 1]) - minuteOfDay(WHEN);
     expect(perSecond).toBeGreaterThan(0);
-    expect(perSecond).toBeLessThanOrEqual(30);
+    expect(perSecond).toBeLessThanOrEqual(15);
   });
 
-  it('takes over a minute of real time to play a whole day', () => {
+  it('takes minutes of real time to play a whole day', () => {
     vi.useFakeTimers();
     const scrubs: Date[] = [];
     render(<Harness onScrub={(d) => scrubs.push(d)} />);
@@ -96,7 +101,7 @@ describe('TimeBar playback', () => {
     runPlayback(1000);
 
     const perSecond = minuteOfDay(scrubs[scrubs.length - 1]) - minuteOfDay(WHEN);
-    expect((24 * 60) / perSecond).toBeGreaterThan(60);
+    expect((24 * 60) / perSecond).toBeGreaterThan(120);
   });
 
   it('stops playing when the track is grabbed', () => {
