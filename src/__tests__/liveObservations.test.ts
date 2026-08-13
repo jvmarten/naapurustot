@@ -1,7 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   parseObservations,
   observationsUrl,
+  fetchObservationSeries,
+  fetchForecastSeries,
+  SERIES_STEP_MINUTES,
   OBSERVATION_POLL_MS,
 } from '../live/observations';
 
@@ -127,5 +130,91 @@ describe('observation request', () => {
     // Most FMI stations report every ten minutes; polling faster only
     // re-downloads numbers that cannot have changed.
     expect(OBSERVATION_POLL_MS).toBeGreaterThanOrEqual(300_000);
+  });
+});
+
+/**
+ * The window requests — the ones that made the slider stop waiting on a network.
+ *
+ * The page fetches a DAY and samples it locally, so what these pin is the shape
+ * of that day: both ends stated, a step that keeps it small, and — for the
+ * forecast arm — the one stored query in FMI's catalogue that will answer a
+ * bbox at the observation network's own coordinates.
+ */
+describe('window requests', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const capture = (xml: string) => {
+    const fn = vi.fn(
+      async (_input: RequestInfo | URL) =>
+        ({ ok: true, text: async () => xml }) as unknown as Response,
+    );
+    vi.stubGlobal('fetch', fn);
+    return fn;
+  };
+
+  const from = Date.parse('2026-08-12T00:00:00Z');
+  const to = Date.parse('2026-08-13T00:00:00Z');
+
+  it('asks for a bounded day at hourly steps, not for an instant', () => {
+    // Measured against the live service: a national day at hourly steps is 1,528
+    // readings and ~20 kB gzipped — less than four of the single-instant
+    // requests it replaces, and a full-day drag used to be able to ask for 288.
+    const fn = capture(doc(element('60.1', '25.0', '17.2')));
+    void fetchObservationSeries(from, to);
+    const url = String(fn.mock.calls[0][0]);
+    expect(url).toContain('starttime=2026-08-12T00%3A00%3A00Z');
+    expect(url).toContain('endtime=2026-08-13T00%3A00%3A00Z');
+    expect(url).toContain(`timestep=${SERIES_STEP_MINUTES}`);
+    expect(url).toContain('storedquery_id=fmi%3A%3Aobservations%3A%3Aweather%3A%3Asimple');
+  });
+
+  it('keeps every reading in the window rather than the newest per station', () => {
+    // The opposite of the live poll's job. A collapsed strip would leave the
+    // clock with one value for the whole day, which is where "you have to stop
+    // the slider before it tells you anything" came from in the first place.
+    const fn = capture(
+      doc(
+        element('61.0', '25.0', '10.0', '2026-08-12T06:00:00Z'),
+        element('61.0', '25.0', '12.5', '2026-08-12T07:00:00Z'),
+        element('61.0', '25.0', '14.0', '2026-08-12T08:00:00Z'),
+      ),
+    );
+    return fetchObservationSeries(from, to).then((list) => {
+      expect(fn).toHaveBeenCalledOnce();
+      expect(list.map((o) => o.celsius)).toEqual([10, 12.5, 14]);
+    });
+  });
+
+  it('takes the forecast from the collection evaluated at the observation stations', () => {
+    // `fmi::forecast::edited::…::point::simple` answers a bbox with
+    // numberReturned="0"; this one does not, and it is evaluated at the same
+    // coordinates the measurements come from — which is what lets one station
+    // carry a measured morning and a forecast evening in a single series.
+    const fn = capture(doc(element('60.1', '25.0', '17.2')));
+    void fetchForecastSeries(from, to);
+    const url = String(fn.mock.calls[0][0]);
+    expect(url).toContain('storedquery_id=ecmwf%3A%3Aforecast%3A%3Asurface%3A%3Aobsstations');
+    expect(url).toContain('parameters=Temperature');
+    expect(url).toContain('bbox=19%2C59%2C32%2C71');
+  });
+
+  it('flags every forecast value at the boundary, once', () => {
+    // So nothing downstream has to remember which fetch a number came from. A
+    // value that reached the map without this is a prediction drawn in the same
+    // ink as a reading, which is the one thing this page must never do.
+    capture(doc(element('60.1', '25.0', '17.2'), element('61.0', '25.0', '15.0')));
+    return fetchForecastSeries(from, to).then((list) => {
+      expect(list).toHaveLength(2);
+      expect(list.every((o) => o.forecast === true)).toBe(true);
+    });
+  });
+
+  it('throws rather than reporting an empty sky when the service is unreachable', () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: false, status: 503 }) as unknown as Response),
+    );
+    return expect(fetchObservationSeries(from, to)).rejects.toThrow();
   });
 });

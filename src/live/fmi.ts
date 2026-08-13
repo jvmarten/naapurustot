@@ -87,13 +87,56 @@ export function fmiSimpleUrl(
 }
 
 /**
- * Parse a `...::simple` response into one reading per station.
+ * Build a stored-query URL for a WINDOW of a parameter over Finland.
+ *
+ * The sibling of {@link fmiSimpleUrl}, and the one the page's clock actually
+ * rides on. That one asks "what is the newest reading as of T" and is answered
+ * with one number per station; this one asks "what did every station report
+ * between T0 and T1" and is answered with a strip of them — which is the whole
+ * difference between a scrub that waits for the network and a scrub that does
+ * not (see timeline.ts).
+ *
+ * `timestepMinutes` is a THINNER, not a resampler: FMI selects the observations
+ * that fall on the step rather than averaging to it, so an hourly request
+ * returns real ten-minutely readings that happen to sit on the hour, each with
+ * its own true timestamp. Measured, a national day of air temperature is 1,528
+ * readings and 20 kB gzipped at hourly steps against 37 kB at half-hourly —
+ * hourly is what makes loading the whole day cheaper than asking for six
+ * separate instants of it.
+ */
+export function fmiSeriesUrl(
+  storedQueryId: string,
+  parameter: string,
+  fromMs: number,
+  toMs: number,
+  timestepMinutes?: number,
+): string {
+  const params = new URLSearchParams({
+    service: 'WFS',
+    version: '2.0.0',
+    request: 'getFeature',
+    storedquery_id: storedQueryId,
+    bbox: FMI_BBOX,
+    parameters: parameter,
+    starttime: isoSecond(fromMs),
+    endtime: isoSecond(toMs),
+  });
+  if (timestepMinutes) params.set('timestep', String(timestepMinutes));
+  return `https://opendata.fmi.fi/wfs?${params.toString()}`;
+}
+
+/**
+ * Parse a `...::simple` response into EVERY reading it carries.
+ *
+ * The counterpart of {@link parseFmiSimple}, which collapses the same response
+ * to the newest per station. Both are needed and they are not the same request:
+ * a live poll wants one number per station and a window wants the strip.
  *
  * Takes text rather than a Response so the whole thing is testable without a
  * network. Anything malformed is dropped rather than defaulted: a value plotted
  * at the wrong place, or a fabricated zero, is worse than a station not drawn.
  */
-export function parseFmiSimple(xml: string): FmiReading[] {
+export function parseFmiReadings(xml: string): FmiReading[] {
   const doc = new DOMParser().parseFromString(xml, 'text/xml');
   if (doc.getElementsByTagName('parsererror').length > 0) {
     throw new Error('FMI: response was not parseable XML');
@@ -104,7 +147,7 @@ export function parseFmiSimple(xml: string): FmiReading[] {
     throw new Error('FMI: not a WFS FeatureCollection');
   }
 
-  const byStation = new Map<string, FmiReading>();
+  const out: FmiReading[] = [];
 
   for (let i = 0; i < elements.length; i++) {
     const el = elements[i];
@@ -127,12 +170,33 @@ export function parseFmiSimple(xml: string): FmiReading[] {
     const at = timeText ? Date.parse(timeText) : NaN;
     if (!Number.isFinite(at)) continue;
 
-    const key = `${lat},${lon}`;
-    const prev = byStation.get(key);
-    if (!prev || at > prev.at) byStation.set(key, { lon, lat, value, at });
+    out.push({ lon, lat, value, at });
   }
 
+  return out;
+}
+
+/**
+ * The newest reading per station, from a parsed strip.
+ *
+ * ONE READING PER STATION, THE NEWEST — see the note at the top of this file.
+ * Stations do not report in step, so a request for a single instant returns
+ * whichever handful happened to land on it; every live caller asks for a window
+ * and collapses it here instead.
+ */
+export function newestPerStation(readings: FmiReading[]): FmiReading[] {
+  const byStation = new Map<string, FmiReading>();
+  for (const r of readings) {
+    const key = `${r.lat},${r.lon}`;
+    const prev = byStation.get(key);
+    if (!prev || r.at > prev.at) byStation.set(key, r);
+  }
   return [...byStation.values()];
+}
+
+/** Parse a `...::simple` response into one reading per station, the newest. */
+export function parseFmiSimple(xml: string): FmiReading[] {
+  return newestPerStation(parseFmiReadings(xml));
 }
 
 /**
@@ -158,4 +222,25 @@ export async function fetchFmiSimple(
   const res = await fetch(url, { signal });
   if (!res.ok) throw new Error(`FMI ${storedQueryId} responded ${res.status}`);
   return parseFmiSimple(await res.text());
+}
+
+/**
+ * Every reading in a window, ungrouped — what a day of the page's clock rides on.
+ *
+ * Throws for the same reason everything else here does: an unreachable service
+ * and an empty sky are different facts, and only one of them may be drawn as an
+ * empty map.
+ */
+export async function fetchFmiSeries(
+  storedQueryId: string,
+  parameter: string,
+  fromMs: number,
+  toMs: number,
+  timestepMinutes?: number,
+  signal?: AbortSignal,
+): Promise<FmiReading[]> {
+  const url = fmiSeriesUrl(storedQueryId, parameter, fromMs, toMs, timestepMinutes);
+  const res = await fetch(url, { signal });
+  if (!res.ok) throw new Error(`FMI ${storedQueryId} responded ${res.status}`);
+  return parseFmiReadings(await res.text());
 }

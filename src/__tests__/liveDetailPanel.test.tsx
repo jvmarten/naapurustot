@@ -202,7 +202,10 @@ describe('DetailPanel — a train', () => {
 describe('DetailPanel — a weather station', () => {
   const station = { lon: 24.94, lat: 60.17, celsius: 18.3, at: Date.parse('2026-08-12T09:00:00Z') };
 
-  it('shows the measurement and asks for no forecast at a past instant', () => {
+  it('shows the value the page already holds, and fetches nothing', () => {
+    // The panel is a view of the same sample the map is drawing — the caller
+    // re-resolves the selection as the clock moves — so opening it must not
+    // start a request of its own.
     const fn = stubFetch({});
     render(
       <DetailPanel
@@ -216,37 +219,26 @@ describe('DetailPanel — a weather station', () => {
     expect(fn).not.toHaveBeenCalled();
   });
 
-  it('fetches FMI\'s point forecast for a future instant and labels it as one', async () => {
-    const xml = `<?xml version="1.0"?><wfs:FeatureCollection
-      xmlns:wfs="http://www.opengis.net/wfs/2.0" xmlns:gml="http://www.opengis.net/gml/3.2"
-      xmlns:BsWfs="http://xml.fmi.fi/schema/wfs/2.0"><wfs:member><BsWfs:BsWfsElement>
-      <BsWfs:Location><gml:Point><gml:pos>60.16990 24.93840</gml:pos></gml:Point></BsWfs:Location>
-      <BsWfs:Time>2026-08-13T15:00:00Z</BsWfs:Time>
-      <BsWfs:ParameterName>Temperature</BsWfs:ParameterName>
-      <BsWfs:ParameterValue>15.3</BsWfs:ParameterValue>
-      </BsWfs:BsWfsElement></wfs:member></wfs:FeatureCollection>`;
-    const fn = vi.fn(
-      async (input: RequestInfo | URL) =>
-        ({ ok: true, url: String(input), text: async () => xml }) as unknown as Response,
-    );
-    vi.stubGlobal('fetch', fn);
-
+  it('labels a forecast value as one, and never as a measurement', () => {
+    const fn = stubFetch({});
     render(
       <DetailPanel
-        selection={{ kind: 'observation', item: station }}
+        selection={{
+          kind: 'observation',
+          item: { ...station, celsius: 15.3, forecast: true },
+        }}
         when={new Date(Date.parse('2026-08-13T15:00:00Z'))}
         onClose={() => {}}
         onTrack={() => {}}
       />,
     );
 
-    await waitFor(() => expect(screen.getByText('15.3 °C')).toBeTruthy());
-    // A POINT query, because the forecast stored query refuses a bbox — which is
-    // also why the map layer itself never shows future values.
-    expect(String(fn.mock.calls[0][0])).toContain('latlon=60.1700%2C24.9400');
-    expect(String(fn.mock.calls[0][0])).toContain('forecast');
-    // And it must never be mistakable for a reading.
+    expect(screen.getByText('15.3 °C')).toBeTruthy();
+    // It must never be mistakable for a reading — in the note, and in the row
+    // label, which says "forecast for" where a measurement says "measured".
     expect(screen.getByText(/ei mittaus/)).toBeTruthy();
+    expect(screen.queryByText('Mitattu')).toBeNull();
+    expect(fn).not.toHaveBeenCalled();
   });
 });
 
