@@ -87,8 +87,7 @@ import {
   type TrainSnapshot,
 } from './trainHistory';
 import {
-  MINUTES_PER_DAY,
-  MS_PER_MINUTE,
+  addDays,
   clockSeconds,
   clockTime,
   isFuture,
@@ -1572,7 +1571,17 @@ export const LivePage: React.FC = () => {
    * ground and no reachable position on the bar can be outside what was loaded.
    */
   const dayStartMs = useMemo(() => startOfDay(when).getTime(), [when]);
-  const dayEndMs = dayStartMs + MINUTES_PER_DAY * MS_PER_MINUTE;
+  /**
+   * NEXT LOCAL MIDNIGHT, not `dayStartMs` plus twenty-four hours.
+   *
+   * Finland keeps summer time, so twice a year a local day is 23 or 25 hours
+   * long — and the scrubber's own coordinate is minutes past local midnight
+   * (`atMinuteOfDay`), which means on the October Sunday its last position is
+   * dayStart + 25 h. A window closed at +24 h would leave that final hour of
+   * the bar with nothing loaded behind it: a reachable position on the track
+   * with no data under it, once a year, for the one hour hardest to notice.
+   */
+  const dayEndMs = useMemo(() => startOfDay(addDays(when, 1)).getTime(), [when]);
 
   /**
    * Re-fetch the loaded day every so often, for the forecast's sake.

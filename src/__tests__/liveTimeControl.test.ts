@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   MINUTES_PER_DAY,
   atMinuteOfDay,
@@ -179,4 +179,60 @@ describe('readout formatting', () => {
     expect(compassPoint(720)).toBe('N');
     expect(compassPoint(-90)).toBe('W');
   });
+});
+
+/**
+ * The day the feeds are loaded in has to cover the day the bar can reach.
+ *
+ * LivePage fetches each measured feed for [startOfDay(when), startOfDay(when+1))
+ * and samples it locally, so anything the scrubber can land on outside that
+ * window is a reachable position on the track with no data behind it. The two
+ * ends are computed from different things — the window from `startOfDay`, the
+ * position from `atMinuteOfDay` — and they agree in every timezone EXCEPT the
+ * two days a year the agreement matters.
+ *
+ * Finland keeps summer time, so the October Sunday is 25 hours long and the
+ * March one 23. A window closed at "dayStart plus twenty-four hours" therefore
+ * stops an hour short of the bar in October, and that is exactly the sort of
+ * once-a-year, one-hour gap nobody notices until it is on the map.
+ */
+describe('a local day, as the scrubber and the feed loader each measure it', () => {
+  // `vi.stubEnv` rather than touching `process.env` directly: the test project
+  // has no Node types, and this restores the runner's own zone on teardown even
+  // if an assertion throws mid-test.
+  const withTz = <T>(tz: string, fn: () => T): T => {
+    vi.stubEnv('TZ', tz);
+    try {
+      return fn();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  };
+
+  // The 2026 European transitions: forward 29 March, back 25 October.
+  for (const [label, date] of [
+    ['an ordinary day', new Date(2026, 7, 12, 12, 0, 0)],
+    ['the day the clocks go forward', new Date(2026, 2, 29, 12, 0, 0)],
+    ['the day the clocks go back', new Date(2026, 9, 25, 12, 0, 0)],
+  ] as const) {
+    it(`covers every reachable minute of ${label}`, () => {
+      withTz('Europe/Helsinki', () => {
+        // Rebuilt inside the timezone, because the fields above were resolved
+        // against whatever zone the test runner happens to be in.
+        const day = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12);
+        const start = startOfDay(day).getTime();
+        const end = startOfDay(addDays(day, 1)).getTime();
+        const lastPosition = atMinuteOfDay(day, MINUTES_PER_DAY - 1).getTime();
+
+        expect(lastPosition).toBeGreaterThanOrEqual(start);
+        expect(lastPosition).toBeLessThan(end);
+        // And the naive window really is short here, which is what makes the
+        // assertion above worth writing rather than trivially true.
+        if (label === 'the day the clocks go back') {
+          expect(end - start).toBe(25 * 3_600_000);
+          expect(lastPosition).toBeGreaterThan(start + 24 * 3_600_000);
+        }
+      });
+    });
+  }
 });
