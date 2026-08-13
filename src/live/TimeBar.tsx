@@ -49,8 +49,22 @@ import {
  * needs to say so.
  */
 
-/** How many minutes the playhead moves per second of playback. */
-const PLAY_MINUTES_PER_SECOND = 40;
+/**
+ * How many minutes the playhead moves per second of playback.
+ *
+ * A DAY IN 72 SECONDS, NOT 36. This ran at 40 min/s, which puts the whole day
+ * behind you in about the time it takes to notice it started — and playback is
+ * not a way of getting somewhere (the track is the whole day; you drag for
+ * that). It is for watching a change happen: shade crossing a courtyard, the
+ * terminator crossing the map, a train working down a line. Every one of those
+ * is a thing you have to keep your eye on for a few seconds to see at all, and
+ * at 40 min/s the sun's own arc outran them.
+ *
+ * Halving it is also what makes the far end of the day reachable by watching:
+ * an hour of clock is 90 s of real time rather than 45, so sunrise-to-sunset in
+ * June is still under two minutes.
+ */
+const PLAY_MINUTES_PER_SECOND = 20;
 
 /**
  * How often playback advances the clock, in ms.
@@ -58,7 +72,7 @@ const PLAY_MINUTES_PER_SECOND = 40;
  * NOT a frame. Every step re-renders the page and re-runs the shadow sweep, and
  * near the horizon it also invalidates the terrain mask (which is keyed on the
  * instant, because a tenth of a degree of altitude is a factor of two in shadow
- * length down there). At 10 Hz a full day takes 36 s and each step is a fifth of
+ * length down there). At 10 Hz a full day takes 72 s and each step is a tenth of
  * what the eye reads as motion, which is the point where paying more buys
  * nothing: the shadows are already moving continuously to look at.
  */
