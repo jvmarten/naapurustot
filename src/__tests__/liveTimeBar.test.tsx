@@ -3,7 +3,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 import { TimeBar } from '../live/TimeBar';
 import { sunPosition, sunTimes } from '../utils/sun';
-import { minuteOfDay } from '../live/timeControl';
+import { MINUTES_PER_DAY, minuteOfDay } from '../live/timeControl';
 
 /**
  * The /live/ clock's playback pace.
@@ -34,8 +34,8 @@ const CENTRE: [number, number] = [24.94, 60.17];
 const WHEN = new Date('2026-08-12T09:00:00Z');
 
 /** The bar wired to its own clock, as LivePage wires it. */
-const Harness: React.FC<{ onScrub?: (d: Date) => void }> = ({ onScrub }) => {
-  const [when, setWhen] = useState(WHEN);
+const Harness: React.FC<{ onScrub?: (d: Date) => void; from?: Date }> = ({ onScrub, from }) => {
+  const [when, setWhen] = useState(from ?? WHEN);
   return (
     <TimeBar
       when={when}
@@ -164,6 +164,45 @@ describe('TimeBar playback', () => {
     // every tick would re-run the shadow sweep for an instant that has not
     // changed — the slow setting is supposed to cost LESS, not the same.
     expect(scrubs.length).toBeLessThanOrEqual(3);
+  });
+
+  /**
+   * The midnight wrap must not eat the overshoot.
+   *
+   * This could not go wrong while the step was a fixed 1.000 minute: from a
+   * seconds-zeroed clock `next` could only ever reach exactly 1440, so landing
+   * hard on 00:00 lost nothing. A 3-minute step reaches 1441 or 1442, and
+   * hard-landing silently drops one or two clock-minutes once per simulated
+   * day. Every step across the boundary must be the same size as every step
+   * either side of it.
+   */
+  it('carries the overshoot across midnight instead of landing hard on 00:00', () => {
+    vi.useFakeTimers();
+    const scrubs: Date[] = [];
+    // 23:58 — with a 3-minute step the wrap tick lands at 1441, the case that
+    // loses a minute if the remainder is thrown away.
+    const nearMidnight = new Date('2026-08-12T23:58:00');
+    render(<Harness from={nearMidnight} onScrub={(d) => scrubs.push(d)} />);
+
+    setPace(30);
+    act(() => playButton().click());
+    runPlayback(600);
+
+    expect(scrubs.length).toBeGreaterThanOrEqual(4);
+    // THE STARTING INSTANT IS PART OF THE CHAIN, and leaving it out is how the
+    // first version of this test passed against the very bug it was written
+    // for: from 23:58 the wrap happens on the FIRST tick, so every delta
+    // between consecutive scrubs was already a clean 3 whether or not the
+    // overshoot survived. The dropped minute is only visible against `when`.
+    const seq = [nearMidnight, ...scrubs];
+    const deltas = seq.slice(1).map((d, i) => {
+      let stepped = minuteOfDay(d) - minuteOfDay(seq[i]);
+      if (stepped < 0) stepped += MINUTES_PER_DAY; // crossed the boundary
+      return stepped;
+    });
+    expect(deltas.every((s) => s === 3)).toBe(true);
+    // And it genuinely crossed, rather than passing this by never wrapping.
+    expect(scrubs.some((d) => minuteOfDay(d) < minuteOfDay(nearMidnight))).toBe(true);
   });
 
   it('changes pace mid-playback without stopping or losing the interval', () => {
