@@ -50,27 +50,74 @@ import {
  */
 
 /**
- * How many minutes the playhead moves per second of playback.
+ * How fast playback runs, in minutes of clock per second of real time.
  *
- * A DAY IN ABOUT TWO AND A HALF MINUTES. This started at 40 min/s — the whole
- * day behind you in 36 s, roughly the time it takes to notice it started — and
- * has come down twice, 40 → 20 → 10, because both earlier settings were still
- * reports of the day rather than views of it.
+ * ONE NUMBER COULD NOT DO THIS JOB, and three rounds of lowering it is the
+ * evidence: 40 → 20 → 10, each time because the previous pace outran what
+ * someone was trying to watch. The reason no constant works is that the thing
+ * being watched does not move at a constant rate. Shadow length goes as
+ * cot(altitude), so a 20 m building's shadow tip crosses about 0.1 m per
+ * clock-minute with the sun at 40°, about 1 m at 5°, and about 5 m at 1° —
+ * fifty times faster near sunset than at midday. A pace that is calm at noon is
+ * a stampede at 21:00, and vice versa.
  *
- * PLAYBACK IS NOT HOW YOU GET SOMEWHERE HERE. The track is the whole day and
- * you drag for that; the button is for watching a change happen — shade
- * crossing a courtyard, the terminator crossing the map, a train working down a
- * line. Each of those needs several seconds of watching before it reads as
- * motion at all, so the pace has to be slow enough that a few seconds of
- * attention is a few seconds of the thing, not a jump past it.
+ * So the pace became a choice, and these are the three:
  *
- * What the number costs is patience at the far end of the day: an hour of clock
- * is three minutes of real time, so a June sunrise-to-sunset is about twelve
- * minutes to sit through. That is the right trade only because nobody has to —
- * the whole day is one drag away, and playback exists for the interval you
- * chose to watch, not for the journey to it.
+ * 2 min/s — THE LOW SUN. A clock-hour in 30 s, a day in 12 minutes (which
+ * nobody should sit through, and nobody has to: this is for an interval you
+ * picked, not for the day). The stretch from 5° to 1° of altitude is about
+ * 20 clock-minutes at 60°N in August — two seconds at the default — and this is
+ * what makes it ten. Shade crossing a courtyard, climbing a wall, leaving a
+ * window. It is also the one setting that costs LESS: at 0.2 minutes a tick the
+ * accumulator emits about two steps a second instead of ten, so the shadow
+ * sweep runs a fifth as often. Nothing slower, because the clock's resolution
+ * is one minute (`atMinuteOfDay` rounds) and below this you watch a clock tick
+ * rather than shade move.
+ *
+ * 10 min/s — THE DEFAULT, and unchanged. A clock-hour in 6 s, a day in 2 min
+ * 24 s. Where the conversation landed, and a default is still a claim.
+ *
+ * 30 min/s — THE WHOLE DAY AS ONE MOTION. A day in 48 s: long enough to be a
+ * view of it, short enough to watch without having to decide to. For subjects
+ * whose scale is the day rather than a moment in it — the terminator crossing a
+ * continental frame, a courtyard's whole cycle of light. Not a rescue from
+ * waiting: see the correction below.
+ *
+ * A CORRECTION, since this comment carried the error for two commits. It read
+ * "an hour of clock is three minutes of real time, so a June sunrise-to-sunset
+ * is about twelve minutes to sit through". Both figures were wrong by 30× and
+ * 6×: at 10 min/s a clock-hour takes 6 SECONDS and a Helsinki June day (~19 h)
+ * takes about 1 min 54 s. The day figure in the same breath (144 s) was right,
+ * which is how it survived. Nothing was ever slow to sit through, so the fast
+ * rung is not for escaping a wait — it is for seeing a day whole, which the
+ * drag cannot show at all.
  */
-const PLAY_MINUTES_PER_SECOND = 10;
+const PLAY_SPEEDS = [
+  { pace: 2, labelKey: 'live.time.speed_slow' },
+  { pace: 10, labelKey: 'live.time.speed_normal' },
+  { pace: 30, labelKey: 'live.time.speed_fast' },
+] as const;
+
+const DEFAULT_PACE = 10;
+
+const SPEED_KEY = 'live.speed';
+
+/**
+ * The stored pace, narrowed against the current ladder rather than trusted.
+ *
+ * A pace that was an option last month and is not one now would otherwise come
+ * back as a playback rate that no label on screen accounts for. `Number(null)`
+ * and `Number('')` are both 0, which is not in the list, so a missing or
+ * corrupt key falls to the default without a branch of its own.
+ */
+function readStoredPace(): number {
+  try {
+    const stored = Number(localStorage.getItem(SPEED_KEY));
+    return PLAY_SPEEDS.some((s) => s.pace === stored) ? stored : DEFAULT_PACE;
+  } catch {
+    return DEFAULT_PACE;
+  }
+}
 
 /**
  * How often playback advances the clock, in ms.
@@ -78,15 +125,17 @@ const PLAY_MINUTES_PER_SECOND = 10;
  * NOT a frame. Every step re-renders the page and re-runs the shadow sweep, and
  * near the horizon it also invalidates the terrain mask (which is keyed on the
  * instant, because a tenth of a degree of altitude is a factor of two in shadow
- * length down there). At 10 Hz each step is one minute of clock — well under
- * what the eye reads as a jump — which is the point where paying more buys
- * nothing: the shadows are already moving continuously to look at.
+ * length down there). At 10 Hz each step is one clock-minute at the default —
+ * well under what the eye reads as a jump — which is the point where paying
+ * more buys nothing: the shadows are already moving continuously to look at.
  *
- * Slowing the PACE is what this knob must not be used for. Ten steps a second
- * of one minute each and one step a second of ten minutes each play the same
- * day in the same time, but the second is a slideshow — the cost of a step is
- * paid by the sweep either way, so dropping the rate saves nothing and spends
- * the smoothness that makes the motion legible.
+ * THIS IS NOT THE SPEED KNOB, and now that there is a real one the distinction
+ * has teeth. Ten steps a second of one minute each and one step a second of ten
+ * minutes each play the same day in the same time, but the second is a
+ * slideshow — the sweep pays for a step either way, so dropping the rate saves
+ * nothing and spends the smoothness that makes the motion legible. The pace
+ * varies minutes-per-STEP; the tick rate is fixed. That is also why the fast
+ * rung is free: 30 min/s costs exactly the sweeps that 10 min/s does.
  */
 const PLAY_STEP_MS = 100;
 
@@ -162,6 +211,22 @@ export const TimeBar: React.FC<TimeBarProps> = ({
   const trackRef = useRef<HTMLDivElement | null>(null);
   const [width, setWidth] = useState(900);
   const [playing, setPlaying] = useState(false);
+  /**
+   * Minutes of clock per real second, and TimeBar's own state.
+   *
+   * It lives here rather than in LivePage — which owns the other two stored
+   * keys — for the same reason `playing` does: nothing outside this bar reads
+   * it. The page answers for the instant, not for how fast the instant moves.
+   */
+  const [pace, setPace] = useState(readStoredPace);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SPEED_KEY, String(pace));
+    } catch {
+      /* private mode — the pace still holds for this session */
+    }
+  }, [pace]);
 
   // Measured rather than guessed from a breakpoint: the track shares its row
   // with nothing, but the sidebar opens and closes beside it, so its width is
@@ -269,17 +334,49 @@ export const TimeBar: React.FC<TimeBarProps> = ({
   // torn down and rebuilt on every tick it causes. Written in an effect, not
   // during render: a render that React throws away must not be able to move
   // the clock the next tick reads from.
+  //
+  // THE PACE IS ON THIS LIST FOR THE SAME REASON, and it is what lets the speed
+  // change mid-playback without a seam: the interval stays keyed on [playing],
+  // so picking a new speed never tears it down and never loses a tick.
   const whenRef = useRef(when);
   const scrubRef = useRef(onScrub);
+  const paceRef = useRef(pace);
   useEffect(() => {
     whenRef.current = when;
     scrubRef.current = onScrub;
+    paceRef.current = pace;
   });
+
+  /**
+   * The sub-minute remainder the CLOCK cannot hold.
+   *
+   * `atMinuteOfDay` does `setMinutes(Math.round(...))` and `startOfDay` zeroes
+   * the seconds, so `when` has whole-minute resolution and any fraction handed
+   * to it is destroyed on the way in. That was invisible while the pace was a
+   * constant of 10 min/s, because 10 × 100 ms is exactly 1.000 minute a tick.
+   * It stops being invisible the moment the pace is a choice: at 2 min/s the
+   * per-tick delta is 0.2, `Math.round` takes every one of them back to the
+   * minute it started on, and the clock would sit still while `onScrub` fired
+   * ten times a second — a frozen page that looks exactly like a hung one.
+   *
+   * So the fraction accumulates here and a scrub is emitted only when a whole
+   * minute has built up. The whole-minute base is re-read from `whenRef` every
+   * tick rather than integrated locally, so this carries a remainder and never
+   * a position — at most one minute of state, which cannot drift.
+   */
+  const carryRef = useRef(0);
 
   useEffect(() => {
     if (!playing) return;
+    // Each play run starts on a whole minute. A remainder left over from the
+    // last run belongs to a pace and a position the user has since left.
+    carryRef.current = 0;
     const id = setInterval(() => {
-      const next = minuteOfDay(whenRef.current) + (PLAY_MINUTES_PER_SECOND * PLAY_STEP_MS) / 1000;
+      carryRef.current += (paceRef.current * PLAY_STEP_MS) / 1000;
+      const whole = Math.floor(carryRef.current);
+      if (whole < 1) return;
+      carryRef.current -= whole;
+      const next = minuteOfDay(whenRef.current) + whole;
       // Wraps to the next day rather than stopping at midnight: the interesting
       // thing to watch is the sun coming back round, and a playback that halts
       // at the end of the track makes the user reach for the date arrows to
@@ -466,15 +563,66 @@ export const TimeBar: React.FC<TimeBarProps> = ({
           </button>
         )}
 
-        <button
-          type="button"
-          onClick={() => setPlaying((p) => !p)}
-          aria-pressed={playing}
-          aria-label={playing ? t('live.time.pause') : t('live.time.play')}
-          className={`${chip} ${ghost}`}
-        >
-          <span aria-hidden="true">{playing ? '❚❚' : '▶'}</span>
-        </button>
+        {/* Play, joined to the rate it plays at.
+
+            NOT a fifth peer control in this row. The pace is a property of this
+            button — it does nothing when nothing is playing — and a separate
+            chip beside it would have said they were two things at the same
+            level. The joined pill is the shape the date stepper already uses
+            for ‹ 14.8. › eleven lines above, so the row gains a control without
+            gaining an idiom.
+
+            THE PACE IS ALSO A READOUT, and that is what makes persisting it
+            honest: a stored speed the user cannot see would ambush them on the
+            next visit with a day that flies or crawls for no stated reason. If
+            a later redesign hides the number behind a glyph, the persistence
+            has to go with it. */}
+        <div className="flex items-center rounded-lg border border-surface-300 dark:border-surface-700">
+          <button
+            type="button"
+            onClick={() => setPlaying((p) => !p)}
+            aria-pressed={playing}
+            aria-label={playing ? t('live.time.pause') : t('live.time.play')}
+            className="px-2.5 py-1.5 text-xs text-surface-700 hover:text-surface-900 dark:text-surface-200 dark:hover:text-white"
+          >
+            <span aria-hidden="true">{playing ? '❚❚' : '▶'}</span>
+          </button>
+          {/* A native <select> stretched invisibly over a compact label — the
+              trick the date input in this same row uses. It buys the phone an
+              OS picker showing the full sentence, and the keyboard one Tab stop
+              with arrows, type-ahead and Esc already working; none of that is
+              code here. `focus-within` because it is the variant this repo
+              already uses, and because the date input's own invisible focus is
+              a bug not worth copying. */}
+          <label className="relative flex cursor-pointer items-center gap-1 rounded-r-lg border-l border-surface-300 px-2 py-1.5 text-xs font-semibold tabular-nums text-surface-800 focus-within:ring-2 focus-within:ring-inset focus-within:ring-amber-500 dark:border-surface-700 dark:text-surface-100">
+            {/* Reserved at two digits for the reason SunStat gives: the row
+                absorbs width, and a control must not resize under the cursor
+                clicking it. 2 → 30 is a character, and it moves the wrap. */}
+            <span aria-hidden="true" className="inline-block text-right" style={{ minWidth: '2ch' }}>
+              {pace}
+            </span>
+            <span aria-hidden="true">min/s</span>
+            {/* Load-bearing. `10 min/s` in this row would otherwise read as a
+                seventh SunStat — a measured quantity — on a page whose whole
+                subject is which numbers are measured. The caret, the border and
+                the mono weight are the three things saying it is a setting. */}
+            <span aria-hidden="true" className="text-[9px] text-surface-500 dark:text-surface-400">
+              ▾
+            </span>
+            <select
+              value={pace}
+              onChange={(e) => setPace(Number(e.target.value))}
+              aria-label={t('live.time.speed')}
+              className="absolute inset-0 h-full w-full cursor-pointer opacity-0 dark:[color-scheme:dark]"
+            >
+              {PLAY_SPEEDS.map(({ pace: p, labelKey }) => (
+                <option key={p} value={p}>
+                  {t(labelKey)}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
 
         {showSun && (
           <div className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
