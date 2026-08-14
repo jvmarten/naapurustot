@@ -52,27 +52,36 @@ import {
 /**
  * How fast playback runs, in minutes of clock per second of real time.
  *
- * ONE NUMBER COULD NOT DO THIS JOB, and three rounds of lowering it is the
+ * ONE NUMBER COULD NOT DO THIS JOB, and two rounds of lowering it is the
  * evidence: 40 → 20 → 10, each time because the previous pace outran what
  * someone was trying to watch. The reason no constant works is that the thing
  * being watched does not move at a constant rate. Shadow length goes as
- * cot(altitude), so a 20 m building's shadow tip crosses about 0.1 m per
- * clock-minute with the sun at 40°, about 1 m at 5°, and about 5 m at 1° —
- * fifty times faster near sunset than at midday. A pace that is calm at noon is
- * a stampede at 21:00, and vice versa.
+ * cot(altitude), and cot runs away near zero — so the shadow TIP accelerates
+ * enormously as the sun drops, even though the sun's own altitude changes at a
+ * fairly steady rate.
  *
- * So the pace became a choice, and these are the three:
+ * Measured with this repo's own `sunPosition`, a 20 m building at Helsinki on
+ * 15 August, tip travel per clock-minute:
+ *
+ *     sun at 40°     0.06 m      (shadow 24 m)
+ *     sun at  5°     5.5  m      (shadow 233 m)
+ *     sun at  1°   136    m      (shadow 1254 m)
+ *
+ * That is a factor of about two thousand across one afternoon. A pace that is
+ * calm at noon is a stampede at 21:00, and no single number can be right for
+ * both. So the pace became a choice, and these are the three:
  *
  * 2 min/s — THE LOW SUN. A clock-hour in 30 s, a day in 12 minutes (which
  * nobody should sit through, and nobody has to: this is for an interval you
- * picked, not for the day). The stretch from 5° to 1° of altitude is about
- * 20 clock-minutes at 60°N in August — two seconds at the default — and this is
- * what makes it ten. Shade crossing a courtyard, climbing a wall, leaving a
- * window. It is also the one setting that costs LESS: at 0.2 minutes a tick the
- * accumulator emits about two steps a second instead of ten, so the shadow
- * sweep runs a fifth as often. Nothing slower, because the clock's resolution
- * is one minute (`atMinuteOfDay` rounds) and below this you watch a clock tick
- * rather than shade move.
+ * picked, not for the day). The stretch from 5° to 1° of altitude is 35
+ * clock-minutes at Helsinki in August — 3.5 seconds at the default, and the
+ * span over which that tip goes from 5 m a minute to 136. This rung gives it
+ * 17.5 seconds. Shade crossing a courtyard, climbing a wall, leaving a window.
+ * It is also the one setting that costs LESS: at 0.2 minutes a tick the
+ * accumulator emits two steps a second instead of ten, so the shadow sweep runs
+ * a fifth as often. Nothing slower, because the clock's resolution is one
+ * minute (`atMinuteOfDay` rounds) and below this you watch a clock tick rather
+ * than shade move.
  *
  * 10 min/s — THE DEFAULT, and unchanged. A clock-hour in 6 s, a day in 2 min
  * 24 s. Where the conversation landed, and a default is still a claim.
@@ -381,8 +390,19 @@ export const TimeBar: React.FC<TimeBarProps> = ({
       // thing to watch is the sun coming back round, and a playback that halts
       // at the end of the track makes the user reach for the date arrows to
       // continue something they were already watching.
-      if (next >= MINUTES_PER_DAY) scrubRef.current(atMinuteOfDay(addDays(whenRef.current, 1), 0));
-      else scrubRef.current(atMinuteOfDay(whenRef.current, next));
+      //
+      // THE OVERSHOOT CARRIES ACROSS THE WRAP, and it only started being able
+      // to. While the step was a fixed 1.000 minute, `next` could only ever
+      // reach exactly 1440 from a seconds-zeroed clock, so landing hard on 00:00
+      // lost nothing. At 30 min/s the step is 3, `next` reaches 1441 or 1442,
+      // and hard-landing would silently eat one or two minutes once per
+      // simulated day — the one place where making the step a choice changed
+      // arithmetic that used to be exact.
+      if (next >= MINUTES_PER_DAY) {
+        scrubRef.current(atMinuteOfDay(addDays(whenRef.current, 1), next - MINUTES_PER_DAY));
+      } else {
+        scrubRef.current(atMinuteOfDay(whenRef.current, next));
+      }
     }, PLAY_STEP_MS);
     return () => clearInterval(id);
   }, [playing]);
