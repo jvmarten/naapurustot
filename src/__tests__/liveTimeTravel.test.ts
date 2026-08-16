@@ -3,6 +3,7 @@ import {
   recordSnapshot,
   snapshotAt,
   trackedRange,
+  trainRecordAt,
   TRACK_SPACING_MS,
   TRACK_WINDOW_MS,
   type TrainSnapshot,
@@ -398,5 +399,97 @@ describe('the feed registry states how far each feed can be scrubbed', () => {
         expect(dict.default[`live.time_model.${model}`]).toBeTruthy();
       }
     }
+  });
+});
+
+/**
+ * One ladder for the ring and the rows beside it.
+ *
+ * The map's selection ring resolved a scrubbed train through recorded snapshot
+ * then published timetable; the detail panel kept the object the pointer landed
+ * on. So scrubbing moved the mark while the panel went on printing "measured at
+ * 08:45:12 · 97 km/h" from the click — two instants side by side, both drawn as
+ * measurements, with nothing saying they were different instants. That is the
+ * failure `snapshotAt` exists to prevent, one panel further in.
+ *
+ * `trainRecordAt` is now the single definition both walk.
+ */
+describe('the selected train, resolved for the clock', () => {
+  const t0 = Date.parse('2026-08-12T09:00:00Z');
+  const selected = train(1, t0);
+  const other = train(2, t0);
+  /** Same train, a later report. */
+  const later: Train = { ...selected, lon: 25.4, at: t0 + 600_000, speed: 120 };
+  const planned: Train = { ...selected, lon: 26.1, at: t0 + 1_200_000, speed: null };
+
+  it('follows the live poll rather than the click', () => {
+    const at = trainRecordAt(selected, {
+      live: true,
+      current: [other, later],
+      snapshot: null,
+      scheduled: [],
+    });
+    expect(at?.at).toBe(later.at);
+    expect(at?.speed).toBe(120);
+  });
+
+  it('keeps the last reported fix when a train leaves the live feed', () => {
+    // Arrived and gone is the journey ending, not the page knowing less — and
+    // the ring does the same, so the two must not diverge here.
+    const at = trainRecordAt(selected, {
+      live: true,
+      current: [other],
+      snapshot: null,
+      scheduled: [],
+    });
+    expect(at).toBe(selected);
+  });
+
+  it('prefers this session’s recorded snapshot to the timetable', () => {
+    const at = trainRecordAt(selected, {
+      live: false,
+      current: [],
+      snapshot: { trains: [other, later] },
+      scheduled: [planned],
+    });
+    expect(at?.at).toBe(later.at);
+  });
+
+  it('falls back to the published timetable when nothing was recorded', () => {
+    const at = trainRecordAt(selected, {
+      live: false,
+      current: [],
+      snapshot: null,
+      scheduled: [other, planned],
+    });
+    expect(at?.lon).toBe(planned.lon);
+  });
+
+  it('answers null when neither can speak for the instant', () => {
+    // The panel closes and the ring draws nothing — the same absence, in both
+    // places. Any non-null answer here is a position nobody reported.
+    expect(
+      trainRecordAt(selected, { live: false, current: [], snapshot: null, scheduled: [] }),
+    ).toBeNull();
+    expect(
+      trainRecordAt(selected, {
+        live: false,
+        current: [later],
+        snapshot: { trains: [other] },
+        scheduled: [other],
+      }),
+      'the live poll must not leak into a scrubbed answer',
+    ).toBeNull();
+  });
+
+  it('does not confuse two runs of the same train number on different dates', () => {
+    const yesterday: Train = { ...selected, date: '2026-08-11', lon: 27.7 };
+    const at = trainRecordAt(selected, {
+      live: false,
+      current: [],
+      snapshot: { trains: [yesterday] },
+      scheduled: [],
+    });
+    expect(at).toBeNull();
   });
 });

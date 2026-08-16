@@ -83,6 +83,7 @@ import {
   recordSnapshot,
   snapshotAt,
   trackedRange,
+  trainRecordAt,
   TRACK_WINDOW_MS,
   type TrainSnapshot,
 } from './trainHistory';
@@ -1507,6 +1508,8 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
    * loaded — the only feed history on this page that reaches past the session.
    */
   const trackRef = useRef<TrainFix[] | null>(null);
+  /** Bumped when the track arrives or clears, so the selection memo re-resolves. */
+  const [trackVersion, setTrackVersion] = useState(0);
   /** The last polled road incidents, nationally. A ref for the same reason. */
   const incidentsRef = useRef<Incident[]>([]);
   /**
@@ -1824,46 +1827,6 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     [airQualityAt],
   );
 
-  /**
-   * The selection AS OF THE CLOCK, which is not the same as the thing clicked.
-   *
-   * The panel used to hold the object the pointer landed on and print its
-   * numbers forever, so scrubbing three hours back left a station reading
-   * beside a clock it had nothing to do with — the same complaint as the map's,
-   * one panel further in. Re-resolving here means the panel follows the slider
-   * for free: the station keeps its identity (its position) and picks up
-   * whatever value the timeline has for the instant on screen.
-   *
-   * Resolving to NULL hides the panel rather than clearing the selection. The
-   * marker is not drawn at this instant either, so an inspector for it would be
-   * inspecting nothing — but scrubbing back must bring both of them straight
-   * back, and it does, because the underlying `selection` is untouched.
-   *
-   * Positions compare with `===` deliberately: both sides come from the same
-   * timeline series, so they are the same numbers rather than nearly the same.
-   */
-  const shownSelection = useMemo<Selection | null>(() => {
-    if (!selection) return null;
-    if (selection.kind === 'observation') {
-      const at = observationsAt.find(
-        (o) => o.lon === selection.item.lon && o.lat === selection.item.lat,
-      );
-      return at ? { kind: 'observation', item: at } : null;
-    }
-    if (selection.kind === 'air_quality') {
-      const at = airQualityAt.find(
-        (s) => s.lon === selection.item.lon && s.lat === selection.item.lat,
-      );
-      return at ? { kind: 'air_quality', item: at } : null;
-    }
-    // An announcement carries its own validity, so "is this on screen right now"
-    // is a question Fintraffic already answered — the same filter the map draws
-    // with, asked of one record.
-    if (selection.kind === 'incident') {
-      return activeAt([selection.item], whenMs).length > 0 ? selection : null;
-    }
-    return selection;
-  }, [selection, observationsAt, airQualityAt, whenMs]);
 
   /**
    * The recorded snapshot for the clock, or null.
@@ -1910,6 +1873,113 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [needSchedule, whenMs, scheduleVersion],
   );
+
+  /**
+   * The selection AS OF THE CLOCK, which is not the same as the thing clicked.
+   *
+   * The panel used to hold the object the pointer landed on and print its
+   * numbers forever, so scrubbing three hours back left a station reading
+   * beside a clock it had nothing to do with — the same complaint as the map's,
+   * one panel further in. Re-resolving here means the panel follows the slider
+   * for free: the station keeps its identity (its position) and picks up
+   * whatever value the timeline has for the instant on screen.
+   *
+   * Resolving to NULL hides the panel rather than clearing the selection. The
+   * marker is not drawn at this instant either, so an inspector for it would be
+   * inspecting nothing — but scrubbing back must bring both of them straight
+   * back, and it does, because the underlying `selection` is untouched.
+   *
+   * Positions compare with `===` deliberately: both sides come from the same
+   * timeline series, so they are the same numbers rather than nearly the same.
+   */
+  const shownSelection = useMemo<Selection | null>(() => {
+    if (!selection) return null;
+    if (selection.kind === 'observation') {
+      const at = observationsAt.find(
+        (o) => o.lon === selection.item.lon && o.lat === selection.item.lat,
+      );
+      return at ? { kind: 'observation', item: at } : null;
+    }
+    if (selection.kind === 'air_quality') {
+      const at = airQualityAt.find(
+        (s) => s.lon === selection.item.lon && s.lat === selection.item.lat,
+      );
+      return at ? { kind: 'air_quality', item: at } : null;
+    }
+    // An announcement carries its own validity, so "is this on screen right now"
+    // is a question Fintraffic already answered — the same filter the map draws
+    // with, asked of one record.
+    if (selection.kind === 'incident') {
+      return activeAt([selection.item], whenMs).length > 0 ? selection : null;
+    }
+    /**
+     * THE TRAIN TOO, THROUGH THE SAME LADDER THE MARK IS DRAWN WITH.
+     *
+     * This used to fall through and hand the panel the object the pointer landed
+     * on, which made it the one selection that did not follow the clock — and
+     * the worst one to leave behind, because its rows are timestamped. Scrubbing
+     * moved the ring (the draw loop resolves it through track, then snapshot,
+     * then timetable) while the panel went on printing "measured at 08:45:12 ·
+     * 97 km/h" from the click. Two instants, side by side, both labelled as
+     * measurements, and nothing on screen saying they were different instants.
+     *
+     * The ladder is the draw loop's, deliberately: live is the current poll
+     * falling back to the clicked fix, exactly as the ring does when a train has
+     * left the national feed; scrubbed is the session's recorded snapshot and
+     * then Fintraffic's published timetable, and resolving to the timetable is
+     * what flips the panel to its "between two control points" presentation —
+     * which is correct, because that is the diamond the map is drawing.
+     *
+     * The track is NOT consulted here, and does not need to be: the panel owns
+     * it (it fetches it) and already prints its own clock-resolved row from it,
+     * labelled with the instant. This settles the rows that describe the fix.
+     */
+    if (selection.kind === 'train') {
+      /**
+       * The measured track first, for the same reason the ring uses it first:
+       * it is fetched for the selected train alone, it reaches the whole day,
+       * and it outlasts both of the rungs below it.
+       *
+       * IT ALSO HAS TO BE HERE OR THE TWO DISAGREE AGAIN, in the other
+       * direction. `scheduledTrains` is empty whenever a snapshot exists for the
+       * instant (`needSchedule` gates the fetch on there being none), so a train
+       * missing from that snapshot — not yet departed, or in a gap between
+       * reports — resolves through neither rung. Without this the panel would
+       * close while the ring, which does consult the track, stayed drawn on the
+       * map beside it.
+       *
+       * A fix is `{at, lon, lat, speed}` — precisely a `Train` minus its
+       * identity — so the record is the selection's identity carrying the fix's
+       * measured fields. Nothing here is derived: the number and date are the
+       * ones clicked, and the position, instant and speed are all Fintraffic's
+       * for that instant.
+       */
+      const fix = !live && trackRef.current ? fixAt(trackRef.current, whenMs) : null;
+      if (fix) return { kind: 'train', item: { ...selection.item, ...fix } };
+      const at = trainRecordAt<Train>(selection.item, {
+        live,
+        current: trainsRef.current,
+        snapshot: trainSnapshot,
+        scheduled: scheduledTrains,
+      });
+      return at ? { kind: 'train', item: at } : null;
+    }
+    return selection;
+    // `trainStatus` is the poll's heartbeat — it changes once per poll, which is
+    // when `trainsRef` behind it has been replaced. Same reason `trainSnapshot`
+    // above lists it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    selection,
+    observationsAt,
+    airQualityAt,
+    whenMs,
+    live,
+    trainStatus,
+    trainSnapshot,
+    scheduledTrains,
+    trackVersion,
+  ]);
 
   /** Move the clock, which always means leaving live mode. */
   const scrubTo = useCallback((next: Date) => {
@@ -2306,24 +2376,13 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
       // away from under it. Scrubbed, it is the train's own measured track when
       // the panel has fetched one (which reaches the whole day) and otherwise the
       // recorded snapshot. Every branch is a position somebody reported.
-      const point = (() => {
-        if (sel.kind !== 'train') return sel.item;
-        const key = trainKey(sel.item);
-        const sameTrain = (t: Train) => trainKey(t) === key;
-        if (live) return trainsRef.current.find(sameTrain) ?? sel.item;
-        // The train's own measured track first — it reaches the whole day and is
-        // the best answer this page can give. Then the recorded snapshot. Then,
-        // and only then, the timetable position, which is where the ring has to
-        // go when the diamond under it came from the plan. Every branch is
-        // somewhere a publisher put this train.
-        return (
-          (track && fixAt(track, whenMs)) ??
-          trainSnapshot?.trains.find(sameTrain) ??
-          scheduledTrains.find(sameTrain) ??
-          null
-        );
-      })();
-      paintSelection(ctx, map, point, track, theme);
+      // ALREADY RESOLVED. `selectionRef` holds `shownSelection`, which walks the
+      // whole ladder — measured track, then this session's recording, then the
+      // published timetable — so the ring is placed from the very object whose
+      // numbers the panel is printing. This used to repeat the ladder here, and
+      // a second copy is exactly how the mark and the rows beside it came to
+      // describe different instants.
+      paintSelection(ctx, map, sel.item, track, theme);
     }
   }, [
     shadowsOn,
@@ -2994,6 +3053,10 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   const onTrack = useCallback(
     (track: TrainFix[] | null) => {
       trackRef.current = track;
+      // The track lives in a ref because the draw loop reads it, but
+      // `shownSelection` resolves through it too and a memo cannot see a ref
+      // change. Same counter pattern as `timelineVersion` and `scheduleVersion`.
+      setTrackVersion((v) => v + 1);
       scheduleDraw();
     },
     [scheduleDraw],
