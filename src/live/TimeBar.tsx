@@ -519,7 +519,7 @@ export const TimeBar: React.FC<TimeBarProps> = ({
           {hours.map(({ h, text }) => (
             <span
               key={h}
-              className="absolute -translate-x-1/2 text-[10px] leading-none tabular-nums text-surface-400 dark:text-surface-500"
+              className="absolute -translate-x-1/2 text-[10px] leading-none tabular-nums text-surface-500 dark:text-surface-400"
               style={{ left: pct(h * 60) }}
             >
               {text}
@@ -582,7 +582,7 @@ export const TimeBar: React.FC<TimeBarProps> = ({
           className={`${chip} tabular-nums ${
             live
               ? 'bg-surface-100 text-surface-900 dark:bg-surface-800 dark:text-white'
-              : 'bg-amber-500 text-white'
+              : 'bg-amber-500 text-amber-950'
           }`}
         >
           {live && (

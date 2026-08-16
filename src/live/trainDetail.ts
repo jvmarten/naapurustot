@@ -317,7 +317,20 @@ export function fetchTrainTrack(
  * and a gap wider than that (a tunnel, a yard, a train that has not departed)
  * correctly answers "we do not know" instead of drawing a plausible dot.
  */
-export function fixAt(track: TrainFix[], at: number, toleranceMs = 30_000): TrainFix | null {
+/**
+ * How far a fix may sit from the asked instant and still answer for it.
+ *
+ * Exported because the ROUTE LINE has to agree with the dot. A gap wide enough
+ * that `fixAt` refuses is a gap the line must not draw across either, and the
+ * two decisions have to come from one number or they drift apart.
+ */
+export const FIX_TOLERANCE_MS = 30_000;
+
+export function fixAt(
+  track: TrainFix[],
+  at: number,
+  toleranceMs = FIX_TOLERANCE_MS,
+): TrainFix | null {
   if (track.length === 0) return null;
   let lo = 0;
   let hi = track.length - 1;

@@ -137,7 +137,7 @@ export const FeedSidebar: React.FC<FeedSidebarProps> = ({ enabled, onToggle, onS
                 >
                   {t(group.labelKey)}
                 </span>
-                <span className="text-[11px] text-surface-400 dark:text-surface-500">
+                <span className="text-[11px] text-surface-500 dark:text-surface-400">
                   {onCount}/{liveCount}
                 </span>
               </button>

@@ -11,7 +11,13 @@ import {
 import { activeAt, parseIncidents } from '../live/incidents';
 import { observationsUrl } from '../live/observations';
 import { airQualityUrl } from '../live/airquality';
-import { fixAt, parseTimetable, parseTrack } from '../live/trainDetail';
+import {
+  fixAt,
+  FIX_TOLERANCE_MS,
+  parseTimetable,
+  parseTrack,
+  type TrainFix,
+} from '../live/trainDetail';
 import { pickFeature } from '../live/pick';
 import { ALL_FEEDS } from '../live/feeds';
 import type { Train } from '../live/trains';
@@ -491,5 +497,53 @@ describe('the selected train, resolved for the clock', () => {
       scheduled: [],
     });
     expect(at).toBeNull();
+  });
+});
+
+/**
+ * The route line and the dot have to disappear over the same instants.
+ *
+ * `paintSelection` used to run a chord straight across every hole in the
+ * measured track, while the dot went through `fixAt` and correctly refused —
+ * so the map drew a route through ground the train did not cross, in the same
+ * ink as the measured part, directly under a docstring claiming that "where the
+ * record has a hole the map draws nothing rather than a plausible position".
+ *
+ * The line now breaks at `2 × FIX_TOLERANCE_MS`, and that factor is derived
+ * rather than chosen: inside a gap of G the furthest any instant can sit from
+ * the nearer fix is G/2, so the dot vanishes somewhere in the gap exactly when
+ * G/2 exceeds the tolerance. This pins the derivation, because the painter's
+ * threshold and the tolerance can otherwise drift apart silently — the line
+ * would then bridge a gap the dot refuses, or break over one it answers for,
+ * and neither shows up in any other test.
+ */
+describe('the drawn route agrees with the drawn dot', () => {
+  const base = Date.parse('2026-08-12T09:00:00Z');
+  const twoFixes = (gapMs: number): TrainFix[] => [
+    { at: base, lon: 24.9, lat: 60.1, speed: 80 },
+    { at: base + gapMs, lon: 25.1, lat: 60.2, speed: 80 },
+  ];
+  /** What the painter asks: is this gap wide enough to break the line? */
+  const lineBreaks = (gapMs: number) => gapMs > 2 * FIX_TOLERANCE_MS;
+  /** What the map asks at the worst instant in the gap: is there a dot? */
+  const dotVanishes = (gapMs: number) =>
+    fixAt(twoFixes(gapMs), base + gapMs / 2) === null;
+
+  it('breaks the line over exactly the gaps that have no dot', () => {
+    for (const gap of [5_000, 30_000, 59_000, 60_000, 61_000, 120_000, 600_000]) {
+      expect(lineBreaks(gap), `gap ${gap} ms`).toBe(dotVanishes(gap));
+    }
+  });
+
+  it('joins an ordinary five-second gap and breaks a tunnel', () => {
+    // Fixes land about every five seconds while a train moves; a multi-minute
+    // hole is a tunnel, a yard, or a train that had not departed.
+    expect(lineBreaks(5_000)).toBe(false);
+    expect(lineBreaks(300_000)).toBe(true);
+  });
+
+  it('puts the boundary exactly at twice the tolerance', () => {
+    expect(lineBreaks(2 * FIX_TOLERANCE_MS)).toBe(false);
+    expect(lineBreaks(2 * FIX_TOLERANCE_MS + 1)).toBe(true);
   });
 });
