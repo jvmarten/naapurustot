@@ -236,6 +236,7 @@ h2{font-size:1.2rem;margin:2rem 0 .6rem}
 p{margin:.5rem 0}
 .lead{font-size:1.05rem}
 .muted{color:#5a6577}
+.note{font-size:.85rem;color:#5a6577;margin:-.5rem 0 1rem}
 .crumbs{font-size:.85rem;color:#5a6577;margin:0 0 .25rem}
 .summary{display:flex;flex-wrap:wrap;gap:.5rem 1.25rem;margin:.75rem 0 1rem;font-weight:600}
 .cta{display:inline-block;margin:.5rem 0;padding:.6rem 1.1rem;background:#005ea8;color:#fff;border-radius:8px;font-weight:600}
@@ -659,6 +660,12 @@ const RANK_SEGMENT = { fi: 'parhaat', en: 'best', sv: 'basta' };
 const MIN_REGION_RANKED = 6; // a region needs this many covered areas for its own page
 const MIN_MUNI_RANKED = 8;   // a municipality needs this many covered areas per metric
 const NATIONAL_MIN_RANKED = 10; // a sparse metric needs this many to earn a national page
+// Residents an area needs before it may carry a "best areas" claim. Matches the
+// `minPopulation: 200` floor in src/utils/areaSummary.ts — "a tiny base can't make a
+// standing claim" — so the prerendered corpus and the app agree on who is rankable.
+// Without it a 7-resident area's 0.0 % unemployment outranks every real town, and the
+// pages led with industrial estates, hospital grounds and a mail sorting centre.
+const MIN_RANKED_POPULATION = 200;
 const REGION_TOP_N = 15;
 const NATIONAL_TOP_N = 50;
 
@@ -728,6 +735,7 @@ const RANK_TEXT = {
     bestHeading: 'Parhaat alueet mittareittain',
     nationalLink: 'Koko Suomen lista',
     mapCta: (m, r) => `Katso ${m} kartalla${r ? ` – ${r}` : ''}`,
+    minPopNote: (n) => `Mukana vain alueet, joilla on vähintään ${n} asukasta ja mitattu arvo tälle mittarille.`,
   },
   en: {
     title: (m, r) => `Best areas for ${m}${r ? ` in ${r}` : ' in Finland'} | naapurustot.fi`,
@@ -744,6 +752,7 @@ const RANK_TEXT = {
     bestHeading: 'Best areas by metric',
     nationalLink: 'Nationwide list',
     mapCta: (m, r) => `See ${m} on the map${r ? ` – ${r}` : ''}`,
+    minPopNote: (n) => `Only areas with at least ${n} residents and a measured value for this metric are listed.`,
   },
   sv: {
     title: (m, r) => `Bästa områden för ${m}${r ? ` i ${r}` : ' i Finland'} | naapurustot.fi`,
@@ -760,6 +769,7 @@ const RANK_TEXT = {
     bestHeading: 'Bästa områden per mätare',
     nationalLink: 'Lista för hela Finland',
     mapCta: (m, r) => `Se ${m} på kartan${r ? ` – ${r}` : ''}`,
+    minPopNote: (n) => `Endast områden med minst ${n} invånare och ett uppmätt värde för denna mätare listas.`,
   },
 };
 
@@ -774,9 +784,31 @@ function rankAlternates(metricSlug, scope) {
   return Object.fromEntries(LANGS.map((l) => [l, `${ORIGIN}${rankPath(metricSlug, scope, l)}`]));
 }
 
+/**
+ * May this feature carry a ranked claim for `metric`?
+ *
+ * Two gates, both of which the app already applies and this file used to skip.
+ *
+ * 1. A REAL value. The old test was `Number.isFinite(Number(p[metric.property]))`, and
+ *    `Number(null) === 0`, which is finite — the GeoJSON stores explicit nulls, so every
+ *    missing value entered the ranking as a measured zero and, for a `higherIsBetter:false`
+ *    metric, sorted straight to rank 1. `RankingTable.tsx` gets this right with a
+ *    `typeof === 'number'` test; this mirrors it.
+ * 2. A population base. See MIN_RANKED_POPULATION.
+ *
+ * Used for the ranked rows AND for the page-existence gates, so a page cannot exist on a
+ * count of areas that would not survive the ranking itself.
+ */
+function isRankable(f, metric) {
+  const v = f.properties[metric.property];
+  if (typeof v !== 'number' || !Number.isFinite(v)) return false;
+  const pop = f.properties.he_vakiy;
+  return typeof pop === 'number' && pop >= MIN_RANKED_POPULATION;
+}
+
 /** Rank a feature list by a metric (direction-aware); returns the top-N covered. */
 function rankFeatures(features, metric, topN) {
-  const covered = features.filter((f) => Number.isFinite(Number(f.properties[metric.property])));
+  const covered = features.filter((f) => isRankable(f, metric));
   covered.sort((a, b) => {
     const av = Number(a.properties[metric.property]);
     const bv = Number(b.properties[metric.property]);
@@ -805,11 +837,16 @@ function buildRankingPage(metric, lang, scope, ranked) {
     const regionCell = national
       ? `<td>${escapeHtml(getRegionName(p.city, lang))}</td>`
       : '';
+    // Population is shown so the reader can weigh a ranked value against the base it
+    // was measured on — a rate over a few hundred residents moves on single households.
+    // isRankable guarantees it is a number, so there is no missing case to render.
+    const popCell = `<td class="num">${escapeHtml(fmtNum(Math.round(p.he_vakiy), lang))}</td>`;
     return `        <tr><td class="num">${i + 1}</td><td><a href="${href}">${name}</a></td>` +
-      `<td>${escapeHtml(p.pno)}</td>${regionCell}<td class="num">${value}</td></tr>`;
+      `<td>${escapeHtml(p.pno)}</td>${regionCell}${popCell}<td class="num">${value}</td></tr>`;
   }).join('\n');
 
   const regionColHead = national ? `<th scope="col">${escapeHtml(T.colRegion)}</th>` : '';
+  const popColHead = `<th scope="col" class="num">${escapeHtml(TEXT[lang].colPopulation)}</th>`;
 
   // Breadcrumb trail + hub back-link deepen with the scope (national → region → muni).
   const hubPath = national ? DIRECTORY_PATH[lang]
@@ -850,11 +887,12 @@ function buildRankingPage(metric, lang, scope, ranked) {
       <p class="lead">${escapeHtml(T.intro(label, locationName, ranked.length))}</p>
       <table>
         <caption>${escapeHtml(T.source(reg.source ?? 'naapurustot.fi', reg.vintage ?? ''))}</caption>
-        <thead><tr><th scope="col" class="num">${escapeHtml(T.colRank)}</th><th scope="col">${escapeHtml(T.colArea)}</th><th scope="col">${escapeHtml(TEXT[lang].colPostal)}</th>${regionColHead}<th scope="col" class="num">${escapeHtml(metric.col[lang])}</th></tr></thead>
+        <thead><tr><th scope="col" class="num">${escapeHtml(T.colRank)}</th><th scope="col">${escapeHtml(T.colArea)}</th><th scope="col">${escapeHtml(TEXT[lang].colPostal)}</th>${regionColHead}${popColHead}<th scope="col" class="num">${escapeHtml(metric.col[lang])}</th></tr></thead>
         <tbody>
 ${rows}
         </tbody>
-      </table>${mapCta}${nationalCta}${siblingNav ? '\n' + siblingNav : ''}
+      </table>
+      <p class="note">${escapeHtml(T.minPopNote(fmtNum(MIN_RANKED_POPULATION, lang)))}</p>${mapCta}${nationalCta}${siblingNav ? '\n' + siblingNav : ''}
       <p><a href="${hubPath}">← ${escapeHtml(national ? T.crumbAll : locationName)}</a></p>`;
 
   const itemList = {
@@ -1565,7 +1603,7 @@ function computeRegionComparePairs(region) {
 // Also precompute each region's compare pairs so the hub can link them.
 for (const region of regions) {
   region.rankings = RANKING_METRICS.filter(
-    (m) => region.features.filter((f) => Number.isFinite(Number(f.properties[m.property]))).length >= MIN_REGION_RANKED,
+    (m) => region.features.filter((f) => isRankable(f, m)).length >= MIN_REGION_RANKED,
   );
   region.comparePairs = computeRegionComparePairs(region);
 }
@@ -1574,7 +1612,7 @@ for (const region of regions) {
 // Must run before the municipality hubs are written (buildBestAreasNav reads muni.rankings).
 for (const muni of municipalities) {
   muni.rankings = RANKING_METRICS.filter(
-    (m) => muni.features.filter((f) => Number.isFinite(Number(f.properties[m.property]))).length >= MIN_MUNI_RANKED,
+    (m) => muni.features.filter((f) => isRankable(f, m)).length >= MIN_MUNI_RANKED,
   );
   // CF-1: same bounded compare set as regions, so the muni hub can link its /vertaa/ pages
   // (a subset of the region's — every link resolves to a page that is actually generated).
