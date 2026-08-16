@@ -711,9 +711,9 @@
       "avg": 12.227254901960789
     },
     "walkability_index": {
-      "min": 71,
-      "max": 95,
-      "avg": 79.39165009940358
+      "min": 24,
+      "max": 97,
+      "avg": 49.92511597084162
     },
     "property_price_change_pct": {
       "min": -37,
