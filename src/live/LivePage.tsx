@@ -453,6 +453,29 @@ const ARCHIVE_STEP_MS = 300_000;
 const ARCHIVE_DEBOUNCE_MS = 400;
 
 /**
+ * The same wait, while playback is running — long enough that it never elapses.
+ *
+ * A DEBOUNCE ONLY SUPPRESSES WHAT ARRIVES FASTER THAN IT, and playback arrives
+ * slower. The clock advances one whole minute per 100 ms tick at the default
+ * pace, so the five-minute `ARCHIVE_STEP_MS` quantum changes every 500 ms — and
+ * 500 ms is LONGER than the 400 ms debounce, so every step settled and fired.
+ * That is a refinement request roughly every half second for as long as anyone
+ * watches a day go by, each one immediately aborted by the next, against a free
+ * public FMI endpoint. The slowest pace is no better in kind: 2.5 s between
+ * quanta is still 24 requests a minute.
+ *
+ * The right answer is not a bigger number, it is a different question. This
+ * request does not gate anything on screen — feed invariant 9: the whole day is
+ * loaded up front and the clock samples it locally, and this only upgrades the
+ * hourly sample under a RESTED playhead to the ten-minutely reading nearest it.
+ * A playhead in motion has no rest to sharpen. So while playback runs the wait
+ * is set past any gap between quanta (2.5 s at the slowest pace), which means it
+ * restarts before it can fire and no request goes out at all; stopping playback
+ * drops it back to 400 ms, and the one instant that matters is refined then.
+ */
+const ARCHIVE_PLAYBACK_DEBOUNCE_MS = 60_000;
+
+/**
  * How far a sample may sit from the clock and still be shown, per feed.
  *
  * This is the honesty knob of the whole timeline arrangement, and the two
@@ -1582,6 +1605,14 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     initialUrl.feeds ? sanitizeEnabled(initialUrl.feeds) : readStoredFeeds(),
   );
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  /**
+   * Whether the time bar is playing, mirrored up from it.
+   *
+   * Owned by TimeBar, reported here, and read by exactly one thing: the measured
+   * feeds' refinement debounce (`ARCHIVE_PLAYBACK_DEBOUNCE_MS`). Nothing draws
+   * from it — the layers answer for `when`, which arrives either way.
+   */
+  const [playing, setPlaying] = useState(false);
   /** Whether the honesty strip is expanded. See `readStoredReadout`. */
   const [readoutOpen, setReadoutOpen] = useState(readStoredReadout);
   const [coverage, setCoverage] = useState<{
@@ -1725,7 +1756,10 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
    * gates what is DRAWN any more; the day window already answered that.
    */
   const archiveTarget = live || future ? null : quantise(whenMs, ARCHIVE_STEP_MS);
-  const archiveAt = useDebounced(archiveTarget, ARCHIVE_DEBOUNCE_MS);
+  const archiveAt = useDebounced(
+    archiveTarget,
+    playing ? ARCHIVE_PLAYBACK_DEBOUNCE_MS : ARCHIVE_DEBOUNCE_MS,
+  );
 
   /**
    * The measured feeds, sampled at the clock.
@@ -3483,6 +3517,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
         times={times}
         shadowRatio={shadowRatio}
         showSun={sunOn}
+        onPlayingChange={setPlaying}
       />
     </div>
   );
