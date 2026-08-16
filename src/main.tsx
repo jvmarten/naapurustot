@@ -256,10 +256,15 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
               <Route path="/uusi-salasana" element={<ResetPasswordPage />} />
               {/* One word in all three languages (`/live/`, not nyt/now/nu), but
                   still three distinct URLs — a single URL switching language on
-                  localStorage gives crawlers nothing to hang hreflang on. */}
-              <Route path="/live" element={<LivePage />} />
-              <Route path="/en/live" element={<LivePage />} />
-              <Route path="/sv/live" element={<LivePage />} />
+                  localStorage gives crawlers nothing to hang hreflang on.
+                  The prefix has to REACH the page, which it did not: all three
+                  routes rendered whatever language localStorage held, so an
+                  English visitor arriving on /en/live/ from an English title and
+                  description got a Finnish interface. Same `lang` prop the
+                  privacy and data-source routes below already carry. */}
+              <Route path="/live" element={<LivePage lang="fi" />} />
+              <Route path="/en/live" element={<LivePage lang="en" />} />
+              <Route path="/sv/live" element={<LivePage lang="sv" />} />
               <Route path="/tietosuoja" element={<PrivacyPage lang="fi" />} />
               <Route path="/en/privacy" element={<PrivacyPage lang="en" />} />
               <Route path="/sv/integritet" element={<PrivacyPage lang="sv" />} />

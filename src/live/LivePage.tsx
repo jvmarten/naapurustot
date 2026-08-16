@@ -1420,9 +1420,28 @@ function paintSelection(
   ctx.restore();
 }
 
-export const LivePage: React.FC = () => {
+/**
+ * @param lang The language this URL is for — `/live/`, `/en/live/`, `/sv/live/`.
+ *
+ * The three routes are three indexable URLs with their own titles, descriptions
+ * and hreflang (scripts/prerender.mjs), and the prefix has to reach the running
+ * page or the split buys nothing: before this the component read whatever
+ * language localStorage held, so someone arriving on /en/live/ from an English
+ * search result got an English title over a Finnish interface. Applied exactly
+ * as PrivacyPage and DataSourcesPage apply theirs — the route sets the language
+ * on mount, and the in-page picker is still free to change it afterwards.
+ */
+export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   useI18nVersion();
   const { theme } = useTheme();
+
+  useEffect(() => {
+    if (lang && getLang() !== lang) void setLang(lang);
+  }, [lang]);
+
+  useEffect(() => {
+    if (lang) document.documentElement.lang = lang;
+  }, [lang]);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const mapRef = useRef<MaplibreMap | null>(null);
