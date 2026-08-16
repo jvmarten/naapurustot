@@ -192,14 +192,14 @@ const TrainBody: React.FC<{ train: Train; when: Date; onTrack: DetailPanelProps[
           <Row label={t('live.detail.fixes')}>{track.length}</Row>
         )}
         {detail?.cancelled && (
-          <p className="pt-1 text-xs font-semibold text-amber-600 dark:text-amber-400">
+          <p className="pt-1 text-xs font-semibold text-amber-700 dark:text-amber-400">
             {t('live.detail.cancelled')}
           </p>
         )}
       </div>
 
       {failed && !detail && (
-        <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+        <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
           {t('live.detail.failed')}
         </p>
       )}
@@ -223,12 +223,12 @@ const TrainBody: React.FC<{ train: Train; when: Date; onTrack: DetailPanelProps[
                   key={`${s.code}-${i}`}
                   className={`flex items-baseline gap-2 text-xs ${
                     i === nextIndex ? 'font-semibold text-surface-900 dark:text-white' : ''
-                  } ${s.passed && i !== nextIndex ? 'text-surface-400 dark:text-surface-500' : 'text-surface-700 dark:text-surface-200'}`}
+                  } ${s.passed && i !== nextIndex ? 'text-surface-500 dark:text-surface-400' : 'text-surface-700 dark:text-surface-200'}`}
                 >
                   <span className="w-[5ch] shrink-0 tabular-nums">{clockTime(time)}</span>
                   <span className="min-w-0 flex-1 truncate">{s.name}</span>
                   {s.track && (
-                    <span className="shrink-0 text-[10px] text-surface-400 dark:text-surface-500">
+                    <span className="shrink-0 text-[10px] text-surface-500 dark:text-surface-400">
                       {t('live.detail.platform').replace('{n}', s.track)}
                     </span>
                   )}
@@ -236,8 +236,8 @@ const TrainBody: React.FC<{ train: Train; when: Date; onTrack: DetailPanelProps[
                     <span
                       className={`shrink-0 text-[10px] ${
                         s.lateMinutes && s.lateMinutes > 0
-                          ? 'text-amber-600 dark:text-amber-400'
-                          : 'text-surface-400 dark:text-surface-500'
+                          ? 'text-amber-700 dark:text-amber-400'
+                          : 'text-surface-500 dark:text-surface-400'
                       }`}
                     >
                       {late}
@@ -249,7 +249,7 @@ const TrainBody: React.FC<{ train: Train; when: Date; onTrack: DetailPanelProps[
           </ol>
         </>
       )}
-      <p className="mt-3 text-[10px] text-surface-400 dark:text-surface-500">
+      <p className="mt-3 text-[10px] text-surface-500 dark:text-surface-400">
         {t('live.detail.source_rail')}
       </p>
     </>
@@ -289,7 +289,7 @@ const StationBody: React.FC<{ station: Observation }> = ({ station }) => {
           {t('live.detail.forecast_note')}
         </p>
       )}
-      <p className="pt-1 text-[10px] text-surface-400 dark:text-surface-500">
+      <p className="pt-1 text-[10px] text-surface-500 dark:text-surface-400">
         {t(forecast ? 'live.detail.source_ecmwf' : 'live.detail.source_fmi')}
       </p>
     </div>
@@ -349,11 +349,19 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({ selection, when, onClo
               {selection.item.index.toFixed(0)} · {t(aqBandKey(selection.item.index))}
             </span>
           </Row>
-          <Row label={t('live.detail.measured_at')}>{clockTime(selection.item.at)}</Row>
+          {/* NOT "Measured at". `AQINDEX_PT1H_avg` is what the name says — an
+              average over an hour — and labelling a period's mean with a single
+              clock time and the word "measured" states an instantaneous reading
+              this station never took. The stamp itself is FMI's own and stays
+              exactly as published; only the claim about what it is changes. No
+              hour RANGE is printed, because whether the stamp marks the start or
+              the end of its hour is not something this page has confirmed, and
+              guessing it would swap one misstatement for another. */}
+          <Row label={t('live.detail.aq_hour')}>{clockTime(selection.item.at)}</Row>
           <Row label={t('live.detail.coords')}>
             {selection.item.lat.toFixed(3)}, {selection.item.lon.toFixed(3)}
           </Row>
-          <p className="pt-1 text-[10px] text-surface-400 dark:text-surface-500">
+          <p className="pt-1 text-[10px] text-surface-500 dark:text-surface-400">
             {t('live.detail.source_fmi')}
           </p>
         </div>
@@ -393,7 +401,7 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({ selection, when, onClo
                 : t('live.detail.open_ended')}
             </Row>
           </div>
-          <p className="text-[10px] text-surface-400 dark:text-surface-500">
+          <p className="text-[10px] text-surface-500 dark:text-surface-400">
             {t('live.detail.source_road')}
           </p>
         </div>

@@ -77,7 +77,7 @@ import {
 import { useFeedPoll } from './useFeedPoll';
 import { TimeBar } from './TimeBar';
 import { DetailPanel, type Selection } from './DetailPanel';
-import { fixAt, type TrainFix } from './trainDetail';
+import { fixAt, FIX_TOLERANCE_MS, type TrainFix } from './trainDetail';
 import { pickFeature } from './pick';
 import {
   recordSnapshot,
@@ -1409,15 +1409,26 @@ function paintSelection(
 
   if (track && track.length > 1) {
     const path = new Path2D();
-    let first = true;
+    let prev: TrainFix | null = null;
     for (const fix of track) {
       const p = map.project([fix.lon, fix.lat]);
-      if (first) {
-        path.moveTo(p.x, p.y);
-        first = false;
-      } else {
-        path.lineTo(p.x, p.y);
-      }
+      // BREAK THE LINE WHERE THE DOT WOULD REFUSE TO BE DRAWN. The comment above
+      // this function claims that "where the record has a hole the map draws
+      // nothing rather than a plausible position" — true of the dot, which goes
+      // through `fixAt`, and false of this line, which ran a chord straight
+      // across every hole. Rail alignments curve, so a straight segment over a
+      // multi-minute gap is not merely coarse: it draws a route through ground
+      // the train did not cross, in the same ink as the measured part.
+      //
+      // The threshold is derived from the dot's rather than chosen beside it.
+      // For a gap of G between consecutive fixes, the furthest any instant
+      // inside it can sit from the nearer fix is G/2 — so the dot vanishes
+      // somewhere in that gap exactly when G/2 exceeds the tolerance. Breaking
+      // at 2x makes the line disappear over precisely the instants the dot does,
+      // and nowhere else.
+      if (prev === null || fix.at - prev.at > 2 * FIX_TOLERANCE_MS) path.moveTo(p.x, p.y);
+      else path.lineTo(p.x, p.y);
+      prev = fix;
     }
     ctx.save();
     ctx.lineJoin = 'round';
@@ -3226,6 +3237,38 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     );
   })();
 
+  /**
+   * When the samples on screen were actually published.
+   *
+   * THE READOUT WAS THE ONE SURFACE THAT DID NOT SAY. Feed invariant 9 is
+   * explicit — "every sample carries its own timestamp, and the panel and
+   * readout print it" — and the panel did while this said only how many
+   * stations there were. That is the gap the whole timeline arrangement exists
+   * to close: a station publishes every ten minutes and the tolerance reaches 45
+   * (90 for the hourly air-quality index), so "191 stations" under a clock
+   * reading 14:20 is a set of readings spread over the better part of an hour,
+   * and the reader had to open a marker to learn that about any of them.
+   *
+   * A span rather than a single time, collapsed when it is under a minute,
+   * because the honest answer is usually a range. The house phrasing is the
+   * train feed's `recorded` / `recorded_range`, which answers the same question.
+   */
+  const sampleSpan = useCallback((samples: { at: number }[]): string => {
+    if (samples.length === 0) return '';
+    let lo = samples[0].at;
+    let hi = lo;
+    for (const s of samples) {
+      if (s.at < lo) lo = s.at;
+      if (s.at > hi) hi = s.at;
+    }
+    return hi - lo < 60_000
+      ? ' ' + t('live.readout.stamped').replace('{time}', clockTime(lo))
+      : ' ' +
+          t('live.readout.stamped_range')
+            .replace('{from}', clockTime(lo))
+            .replace('{to}', clockTime(hi));
+  }, []);
+
   /** Whether any enabled feed has a sentence to show at all. */
   const readoutOn = shadowsOn || trainsOn || incidentsOn || observationsOn || airQualityOn;
 
@@ -3255,7 +3298,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
         <a href="/" className="text-sm font-semibold text-surface-700 hover:text-surface-900 dark:text-surface-200 dark:hover:text-white">
           naapurustot<span className="text-brand-400">.fi</span>
         </a>
-        <span className="rounded bg-amber-500/20 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-amber-400">
+        <span className="rounded bg-amber-500/20 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-amber-800 dark:text-amber-400">
           {t('live.badge')}
         </span>
         {!sidebarOpen && (
@@ -3333,7 +3376,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
           {readoutOn && readoutOpen && (
             <div className="absolute left-3 top-3 z-10 max-w-xs space-y-1 rounded-lg bg-white/90 px-3 py-2 text-xs leading-relaxed shadow-sm ring-1 ring-surface-200 backdrop-blur dark:bg-surface-950/85 dark:ring-surface-800">
               <div className="flex items-center gap-2">
-                <h2 className="mr-auto text-[10px] font-bold uppercase tracking-wider text-surface-400 dark:text-surface-500">
+                <h2 className="mr-auto text-[10px] font-bold uppercase tracking-wider text-surface-500 dark:text-surface-400">
                   {t('live.readout.title')}
                 </h2>
                 <button
@@ -3389,7 +3432,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
                 ) : loading ? (
                   <p className="text-surface-600 dark:text-surface-300">{t('live.shadow.loading')}</p>
                 ) : fetchFailed ? (
-                  <p className="text-amber-600 dark:text-amber-400">{t('live.shadow.failed')}</p>
+                  <p className="text-amber-700 dark:text-amber-400">{t('live.shadow.failed')}</p>
                 ) : coverageText ? (
                   <p className="text-surface-600 dark:text-surface-300">{coverageText}</p>
                 ) : null
@@ -3427,7 +3470,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
                       )}
                     </p>
                   ) : scheduleDay === 'failed' ? (
-                    <p className="text-amber-600 dark:text-amber-400">
+                    <p className="text-amber-700 dark:text-amber-400">
                       {t('live.trains.schedule_failed')}
                     </p>
                   ) : (
@@ -3450,7 +3493,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
                 ) : trainStatus === null ? (
                   <p className="text-surface-600 dark:text-surface-300">{t('live.trains.loading')}</p>
                 ) : trainStatus.failed ? (
-                  <p className="text-amber-600 dark:text-amber-400">{t('live.trains.failed')}</p>
+                  <p className="text-amber-700 dark:text-amber-400">{t('live.trains.failed')}</p>
                 ) : (
                   <p className="text-surface-600 dark:text-surface-300">
                     {t('live.trains.count').replace('{n}', String(trainStatus.count))}
@@ -3468,7 +3511,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
                     {t('live.incidents.loading')}
                   </p>
                 ) : incidentStatus.failed ? (
-                  <p className="text-amber-600 dark:text-amber-400">{t('live.incidents.failed')}</p>
+                  <p className="text-amber-700 dark:text-amber-400">{t('live.incidents.failed')}</p>
                 ) : incidentsNow === 0 ? (
                   <p className="text-surface-600 dark:text-surface-300">
                     {t('live.incidents.none')}
@@ -3494,7 +3537,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
                   reading no matter how carefully it is drawn. */}
               {observationsOn && (
                 obsDay === 'failed' ? (
-                  <p className="text-amber-600 dark:text-amber-400">
+                  <p className="text-amber-700 dark:text-amber-400">
                     {t('live.observations.failed')}
                   </p>
                 ) : obsDay === 'loading' && observationsAt.length === 0 ? (
@@ -3514,17 +3557,19 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
                     {t('live.observations.mixed')
                       .replace('{measured}', String(observationsAt.length - forecastCount))
                       .replace('{n}', String(forecastCount))}
+                    {sampleSpan(observationsAt)}
                   </p>
                 ) : (
                   <p className="text-surface-600 dark:text-surface-300">
                     {t('live.observations.count').replace('{n}', String(observationsAt.length))}
+                    {sampleSpan(observationsAt)}
                   </p>
                 )
               )}
 
               {airQualityOn && (
                 aqDay === 'failed' ? (
-                  <p className="text-amber-600 dark:text-amber-400">
+                  <p className="text-amber-700 dark:text-amber-400">
                     {t('live.air_quality.failed')}
                   </p>
                 ) : aqDay === 'loading' && airQualityAt.length === 0 ? (
@@ -3544,6 +3589,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
                     {t('live.air_quality.count')
                       .replace('{n}', String(airQualityAt.length))
                       .replace('{worst}', t(aqBandKey(airQualityWorst)))}
+                    {sampleSpan(airQualityAt)}
                   </p>
                 )
               )}
@@ -3552,7 +3598,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
                   they are canvas pixels, with no hover affordance beyond the
                   cursor. One line, and only while a clickable feed is on. */}
               {(trainsOn || incidentsOn || observationsOn || airQualityOn) && !shownSelection && (
-                <p className="pt-0.5 text-surface-400 dark:text-surface-500">
+                <p className="pt-0.5 text-surface-500 dark:text-surface-400">
                   {t('live.detail.hint')}
                 </p>
               )}
