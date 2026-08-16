@@ -95,6 +95,15 @@ import {
   shortDate,
   startOfDay,
 } from './timeControl';
+import {
+  buildLiveSearch,
+  parseLiveUrl,
+  readableQuery,
+  readStoredView,
+  writeStoredView,
+  type LiveUrlState,
+  type LiveView,
+} from './urlState';
 
 /**
  * /live/ — the realtime surface.
@@ -144,6 +153,29 @@ const labelTilesFor = (theme: 'dark' | 'light') =>
 /** Helsinki centre — the densest place where OSM actually has building heights. */
 const DEFAULT_CENTER: [number, number] = [24.9384, 60.1699];
 const DEFAULT_ZOOM = 15.5;
+
+/**
+ * How long the camera has to sit still before the address bar follows it.
+ *
+ * `moveend` already fires once per gesture rather than per frame, so this is not
+ * about churn — it is about a flick-pan-flick, which fires three of them in
+ * under a second and would leave two links in the history nobody navigated to.
+ */
+const URL_DEBOUNCE_MS = 500;
+
+/**
+ * The link this page was opened with, read once.
+ *
+ * Read at module scope rather than in an effect because the camera has to be
+ * known before the map is CONSTRUCTED: MapLibre takes `center`/`zoom` in its
+ * constructor, and setting them afterwards is a visible jump from Helsinki to
+ * wherever the link pointed, plus a wasted round of building fetches for a view
+ * nobody asked to see.
+ */
+function readInitialUrl(): LiveUrlState {
+  if (typeof window === 'undefined') return { view: null, when: null, feeds: null };
+  return parseLiveUrl(window.location.search);
+}
 
 /** Quiet period after the map stops moving before we ask Overpass for anything. */
 const FETCH_DEBOUNCE_MS = 700;
@@ -419,6 +451,29 @@ const ARCHIVE_STEP_MS = 300_000;
  * sharpened immediately.
  */
 const ARCHIVE_DEBOUNCE_MS = 400;
+
+/**
+ * The same wait, while playback is running — long enough that it never elapses.
+ *
+ * A DEBOUNCE ONLY SUPPRESSES WHAT ARRIVES FASTER THAN IT, and playback arrives
+ * slower. The clock advances one whole minute per 100 ms tick at the default
+ * pace, so the five-minute `ARCHIVE_STEP_MS` quantum changes every 500 ms — and
+ * 500 ms is LONGER than the 400 ms debounce, so every step settled and fired.
+ * That is a refinement request roughly every half second for as long as anyone
+ * watches a day go by, each one immediately aborted by the next, against a free
+ * public FMI endpoint. The slowest pace is no better in kind: 2.5 s between
+ * quanta is still 24 requests a minute.
+ *
+ * The right answer is not a bigger number, it is a different question. This
+ * request does not gate anything on screen — feed invariant 9: the whole day is
+ * loaded up front and the clock samples it locally, and this only upgrades the
+ * hourly sample under a RESTED playhead to the ten-minutely reading nearest it.
+ * A playhead in motion has no rest to sharpen. So while playback runs the wait
+ * is set past any gap between quanta (2.5 s at the slowest pace), which means it
+ * restarts before it can fire and no request goes out at all; stopping playback
+ * drops it back to 400 ms, and the one instant that matters is refined then.
+ */
+const ARCHIVE_PLAYBACK_DEBOUNCE_MS = 60_000;
 
 /**
  * How far a sample may sit from the clock and still be shown, per feed.
@@ -1388,9 +1443,28 @@ function paintSelection(
   ctx.restore();
 }
 
-export const LivePage: React.FC = () => {
+/**
+ * @param lang The language this URL is for — `/live/`, `/en/live/`, `/sv/live/`.
+ *
+ * The three routes are three indexable URLs with their own titles, descriptions
+ * and hreflang (scripts/prerender.mjs), and the prefix has to reach the running
+ * page or the split buys nothing: before this the component read whatever
+ * language localStorage held, so someone arriving on /en/live/ from an English
+ * search result got an English title over a Finnish interface. Applied exactly
+ * as PrivacyPage and DataSourcesPage apply theirs — the route sets the language
+ * on mount, and the in-page picker is still free to change it afterwards.
+ */
+export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   useI18nVersion();
   const { theme } = useTheme();
+
+  useEffect(() => {
+    if (lang && getLang() !== lang) void setLang(lang);
+  }, [lang]);
+
+  useEffect(() => {
+    if (lang) document.documentElement.lang = lang;
+  }, [lang]);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const mapRef = useRef<MaplibreMap | null>(null);
@@ -1479,7 +1553,30 @@ export const LivePage: React.FC = () => {
   const themeRef = useRef(theme);
   themeRef.current = theme;
 
-  const [when, setWhen] = useState<Date>(() => new Date());
+  /**
+   * The link this page was opened with, and the camera it resolves to.
+   *
+   * Both are `useState` initialisers rather than plain calls so they run exactly
+   * once — `readInitialUrl` reads `window.location`, which the sync effect below
+   * then starts rewriting, and re-reading it on a later render would hand the
+   * map back its own output.
+   */
+  const [initialUrl] = useState<LiveUrlState>(readInitialUrl);
+  const [initialView] = useState<LiveView>(
+    () =>
+      initialUrl.view ??
+      readStoredView() ?? { center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM },
+  );
+  /**
+   * The opening camera again, as a ref, for the construction effect.
+   *
+   * A ref for the same reason `themeRef` is one: that effect must not carry the
+   * camera in its dependency array, because re-running it rebuilds the map and
+   * throws away whatever the user has panned to since.
+   */
+  const initialViewRef = useRef<LiveView>(initialView);
+
+  const [when, setWhen] = useState<Date>(() => initialUrl.when ?? new Date());
   /**
    * Whether the page is following real time rather than a scrubbed instant.
    *
@@ -1487,13 +1584,35 @@ export const LivePage: React.FC = () => {
    * different states with different obligations: a page that has been dragged
    * onto the current minute should NOT silently start advancing under the user's
    * cursor, and a page that is following should say so.
+   *
+   * A link carrying `t=` opens pinned, for the same reason: it is a link to an
+   * instant somebody chose, and starting it live would discard that instant on
+   * the first tick.
    */
-  const [live, setLive] = useState(true);
+  const [live, setLive] = useState(() => initialUrl.when === null);
   /** The marker the reader has asked about, or null. */
   const [selection, setSelection] = useState<Selection | null>(null);
-  const [center, setCenter] = useState<[number, number]>(DEFAULT_CENTER);
-  const [enabled, setEnabled] = useState<Set<string>>(readStoredFeeds);
+  const [center, setCenter] = useState<[number, number]>(() => initialView.center);
+  /**
+   * The camera's zoom, mirrored into React state for the address bar alone.
+   *
+   * The draw path reads zoom straight off the map — it changes per frame and
+   * must never re-render the tree. This copy is written from the same `moveend`
+   * handler that already sets `center`, so it costs no extra render.
+   */
+  const [zoom, setZoom] = useState<number>(() => initialView.zoom);
+  const [enabled, setEnabled] = useState<Set<string>>(() =>
+    initialUrl.feeds ? sanitizeEnabled(initialUrl.feeds) : readStoredFeeds(),
+  );
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  /**
+   * Whether the time bar is playing, mirrored up from it.
+   *
+   * Owned by TimeBar, reported here, and read by exactly one thing: the measured
+   * feeds' refinement debounce (`ARCHIVE_PLAYBACK_DEBOUNCE_MS`). Nothing draws
+   * from it — the layers answer for `when`, which arrives either way.
+   */
+  const [playing, setPlaying] = useState(false);
   /** Whether the honesty strip is expanded. See `readStoredReadout`. */
   const [readoutOpen, setReadoutOpen] = useState(readStoredReadout);
   const [coverage, setCoverage] = useState<{
@@ -1637,7 +1756,10 @@ export const LivePage: React.FC = () => {
    * gates what is DRAWN any more; the day window already answered that.
    */
   const archiveTarget = live || future ? null : quantise(whenMs, ARCHIVE_STEP_MS);
-  const archiveAt = useDebounced(archiveTarget, ARCHIVE_DEBOUNCE_MS);
+  const archiveAt = useDebounced(
+    archiveTarget,
+    playing ? ARCHIVE_PLAYBACK_DEBOUNCE_MS : ARCHIVE_DEBOUNCE_MS,
+  );
 
   /**
    * The measured feeds, sampled at the clock.
@@ -1824,6 +1946,53 @@ export const LivePage: React.FC = () => {
       /* private mode — the strip still opens and closes for this session */
     }
   }, [readoutOpen]);
+
+  /**
+   * Keep the address bar saying what the page is showing.
+   *
+   * `replaceState`, never `pushState`: a pan is not a navigation, and filling
+   * the back stack with every camera the map passed through would turn the back
+   * button into an undo for gestures nobody thinks of as steps. The cost of that
+   * choice is that Back leaves the page rather than retracing it, which is what
+   * every map application does and what people expect from one.
+   *
+   * The write is skipped when the string is already right, so a re-render that
+   * changed nothing — a theme flip, a feed's poll landing — does not touch
+   * history at all.
+   *
+   * See urlState.ts for why the clock is written only when it has been moved,
+   * and why this page syncs a camera the main map deliberately does not.
+   */
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const id = setTimeout(() => {
+      const view: LiveView = { center, zoom };
+      const search = buildLiveSearch(window.location.search, {
+        view,
+        when: live ? null : when,
+        feeds: [...enabled],
+      });
+      // Compared through the same decoding the writer applies, so a browser that
+      // normalises `,` back to `%2C` in `location.search` cannot make every
+      // comparison fail and turn this into a write on every render.
+      if (search !== readableQuery(window.location.search)) {
+        window.history.replaceState(null, '', `${window.location.pathname}${search}${window.location.hash}`);
+      }
+    }, URL_DEBOUNCE_MS);
+    return () => clearTimeout(id);
+  }, [center, zoom, when, live, enabled]);
+
+  /**
+   * Remember the camera for a later bare `/live/`.
+   *
+   * Its own effect, keyed on the camera alone, because the clock ticks every
+   * thirty seconds while the page is live and this has nothing to say about the
+   * clock — folded into the sync above it would write the same string to
+   * localStorage twice a minute forever.
+   */
+  useEffect(() => {
+    writeStoredView({ center, zoom });
+  }, [center, zoom]);
 
   /**
    * Repaint the shadow canvas.
@@ -2397,8 +2566,11 @@ export const LivePage: React.FC = () => {
             { id: 'carto-label-tiles', type: 'raster', source: 'carto-labels', minzoom: 0, maxzoom: 20 },
           ],
         },
-        center: DEFAULT_CENTER,
-        zoom: DEFAULT_ZOOM,
+        // From the link, else the camera this browser was last left at, else
+        // Helsinki — resolved once, above, because the constructor is the only
+        // place a camera can be set without the map visibly flying there.
+        center: initialViewRef.current.center,
+        zoom: initialViewRef.current.zoom,
         // Pitch is pinned flat. The overlay projects footprints with an affine
         // Mercator→screen transform, which is exact at pitch 0 and only there;
         // and a tilted view would show 2D footprints lying flat under shadows
@@ -2490,6 +2662,9 @@ export const LivePage: React.FC = () => {
     const refresh = () => {
       const c = map.getCenter();
       setCenter([c.lng, c.lat]);
+      // Only for the address bar and the remembered camera — the draw path reads
+      // zoom off the map directly, because it changes per frame.
+      setZoom(map.getZoom());
 
       // Nothing to draw them for. The sun readout still tracks the camera, but
       // a switched-off layer must not cost the user a multi-megabyte download or
@@ -3342,6 +3517,7 @@ export const LivePage: React.FC = () => {
         times={times}
         shadowRatio={shadowRatio}
         showSun={sunOn}
+        onPlayingChange={setPlaying}
       />
     </div>
   );

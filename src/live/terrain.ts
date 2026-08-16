@@ -295,6 +295,40 @@ export function selectTerrainLevel(
 }
 
 /**
+ * Clip a chosen level's tile rectangle to the tiles that level actually holds.
+ *
+ * THE TILE BUDGET IS NOT ENFORCED AT THE PYRAMID'S FLOOR, which is what makes
+ * this necessary rather than tidy. `selectTerrainLevel`'s descent stops
+ * unconditionally once `z <= AVAILABLE[0]`, so the coarsest level is reached
+ * without `count <= MAX_TILES` ever being applied to it — and /live/'s map sets
+ * no `minZoom` and no `maxBounds`, so a pinch-out to a world view asks z3 for
+ * its whole 8x8 grid against a budget of twelve tiles. That is a 16 MB field and
+ * a sweep over four million cells, both of which the documented
+ * `MAX_TILES x tileSize²` bound says cannot happen. z3's extent is 3..5 x 1..2,
+ * so clipping turns sixty-four tiles into six.
+ *
+ * It is also the more accurate thing to do, not merely the cheaper one: tiles
+ * outside the extent do not exist, so a rectangle including them is describing
+ * ground the pyramid has nothing to say about. Clipped, the field covers what is
+ * measured and the layer draws over that — the same silence it keeps when the
+ * viewport misses the pyramid altogether.
+ *
+ * Returns null when the rectangle and the extent do not overlap at all. Exported
+ * and pure for the reason `selectTerrainLevel` is: `loadHeightField` around it
+ * needs a network and a canvas.
+ */
+export function clipLevelToExtent(level: TerrainLevel): TerrainLevel | null {
+  const entry = M.zooms[String(level.z)];
+  if (!entry) return null;
+  const tx0 = Math.max(level.tx0, entry.minX);
+  const ty0 = Math.max(level.ty0, entry.minY);
+  const tx1 = Math.min(level.tx1, entry.maxX);
+  const ty1 = Math.min(level.ty1, entry.maxY);
+  if (tx1 < tx0 || ty1 < ty0) return null;
+  return { ...level, tx0, ty0, tx1, ty1 };
+}
+
+/**
  * Assemble the heightfield covering `bbox`, or null when the pyramid has nothing
  * there (outside the mirrored extent, or no terrain built at all).
  */
@@ -302,17 +336,19 @@ export async function loadHeightField(
   bbox: { west: number; south: number; east: number; north: number },
   mapZoom: number,
 ): Promise<HeightField | null> {
-  const level = selectTerrainLevel(bbox, mapZoom);
+  const selected = selectTerrainLevel(bbox, mapZoom);
+  if (!selected) return null;
+  const level = clipLevelToExtent(selected);
   if (!level) return null;
   const { z, tx0, ty0, tx1, ty1 } = level;
+
+  const entry = M.zooms[String(z)];
+  if (!entry) return null;
 
   const size = M.tileSize;
   const cols = tx1 - tx0 + 1;
   const rows = ty1 - ty0 + 1;
   if (cols <= 0 || rows <= 0) return null;
-
-  const entry = M.zooms[String(z)];
-  if (!entry) return null;
 
   const tiles = await Promise.all(
     Array.from({ length: cols * rows }, (_, i) => {
@@ -334,7 +370,36 @@ export async function loadHeightField(
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const tile = tiles[r * cols + c];
-      if (!tile) continue; // stays 0 — sea level
+      if (!tile) {
+        /**
+         * NOT ZERO. A MISSING TILE IS UNKNOWN GROUND, NOT SEA LEVEL.
+         *
+         * This block used to be `continue`, leaving the slab at its allocated 0
+         * with the comment "stays 0 — sea level" — and nothing downstream could
+         * tell that apart from a measured coastline. That conflation is what
+         * CLAUDE.md's terrain invariant 16 is about: it rendered Norway as a
+         * flat, fully-lit plain with a straight-edged seam where coverage
+         * stopped. Widening the pyramid's coarse levels moved the seam out of
+         * the common view; it did not fix the conflation, and `selectTerrainLevel`
+         * has always been able to return a rectangle the level only partly holds
+         * (its own `covered` flag says as much, and no production code read it).
+         * The clip above removes the case where the whole tile is outside the
+         * extent; this covers what is left — a tile inside the extent that 404s
+         * or fails to decode, which the all-sea gaps in the mirrored pyramid
+         * produce routinely.
+         *
+         * NaN rather than a sentinel elevation because it is the value that
+         * cannot be mistaken for a measurement: every arithmetic path through it
+         * yields NaN and every comparison against it is false, so code that
+         * forgets to ask gets an obviously wrong answer instead of a plausible
+         * one. The sweep asks (see `terrainShadowMask`).
+         */
+        for (let row = 0; row < size; row++) {
+          const start = (r * size + row) * width + c * size;
+          data.fill(NaN, start, start + size);
+        }
+        continue;
+      }
       for (let row = 0; row < size; row++) {
         data.set(
           tile.subarray(row * size, row * size + size),
@@ -577,7 +642,22 @@ export function terrainShadowMask(
         if (ix >= 0 && iy >= 0 && ix < width && iy < height) {
           const idx = iy * width + ix;
           const h = data[idx];
-          if (h >= ceiling) {
+          if (h !== h) {
+            // UNKNOWN GROUND (NaN — see loadHeightField). We do not know whether
+            // it stands in the light, so the layer says nothing about it: alpha
+            // 0, which draws no shade and no relief, the same silence the layer
+            // keeps outside the field altogether. What it must not do is answer
+            // the question anyway — `NaN >= ceiling` is false, so without this
+            // branch every unmeasured cell would have been declared shadowed.
+            //
+            // The ceiling is CARRIED rather than reset. A shadow's height above
+            // sea level at a given distance is set by its caster and the sun, not
+            // by the ground it passes over, so a real ridge whose shadow crosses
+            // an unmapped gap and reaches mapped ground beyond still shades it
+            // correctly. Resetting would draw a lit stripe just past every gap —
+            // an artefact, and no better informed.
+            out[idx] = 0;
+          } else if (h >= ceiling) {
             ceiling = h; // lit, and now the thing casting further down the line
             out[idx] = 0;
           } else {

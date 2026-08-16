@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   terrainShadowMask,
   terrainZoomFor,
+  clipLevelToExtent,
   selectTerrainLevel,
   hasTerrain,
   type HeightField,
@@ -33,6 +34,76 @@ function flatField(size: number, base = 0): HeightField {
 function at(mask: Uint8ClampedArray, field: HeightField, x: number, y: number): number {
   return mask[y * field.width + x];
 }
+
+/**
+ * Unmapped ground is unknown, and must not be answered for.
+ *
+ * The pyramid is tiered, so a viewport routinely reaches past the level serving
+ * it, and a tile inside a level's extent can still 404 where the mirror has a
+ * gap. Those cells used to stay at the Float32Array's allocated 0 under the
+ * comment "stays 0 — sea level", which nothing downstream could tell apart from
+ * a measured coastline: it rendered as flat, fully-lit plain with a hard seam
+ * where coverage stopped (CLAUDE.md terrain invariant 16). They carry NaN now,
+ * and the sweep has to say nothing about them rather than guess — in either
+ * direction, since `NaN >= ceiling` is false and the naive branch would have
+ * declared every unmeasured cell shadowed.
+ */
+describe('ground the pyramid does not cover', () => {
+  /** A flat field with the right half unmeasured. */
+  function halfUnknown(size: number, base: number): HeightField {
+    const f = flatField(size, base);
+    for (let y = 0; y < size; y++) {
+      for (let x = size / 2; x < size; x++) f.data[y * size + x] = NaN;
+    }
+    return f;
+  }
+
+  it('draws neither shade nor light on cells with no measurement', () => {
+    const field = halfUnknown(8, 0);
+    const mask = terrainShadowMask(field, 30, 90)!;
+    expect(mask).not.toBeNull();
+    for (let y = 0; y < 8; y++) {
+      for (let x = 4; x < 8; x++) {
+        expect(at(mask, field, x, y), `unknown cell ${x},${y} must be silent`).toBe(0);
+      }
+    }
+  });
+
+  it('still shades known ground that a known ridge casts over', () => {
+    // A ridge in column 1, sun from the east so shadows run west — the cells to
+    // its west are measured and must still come out shadowed.
+    const field = flatField(8, 0);
+    field.data[3 * 8 + 6] = 100;
+    const mask = terrainShadowMask(field, 20, 270)!;
+    expect(at(mask, field, 6, 3)).toBe(0);
+    expect(at(mask, field, 4, 3)).toBe(255);
+  });
+
+  it('carries a shadow across an unmapped gap onto measured ground beyond', () => {
+    // The gap tells us nothing about the terrain, but the shadow's height above
+    // sea level at a given distance is set by its caster and the sun — so the
+    // measured ground past the gap is still in shade, and resetting at the gap
+    // would draw a lit stripe that nothing casts.
+    const size = 16;
+    const field = flatField(size, 0);
+    field.data[8 * size + 14] = 400;
+    for (let y = 0; y < size; y++) {
+      for (let x = 8; x < 12; x++) field.data[y * size + x] = NaN;
+    }
+    const mask = terrainShadowMask(field, 10, 270)!;
+    expect(at(mask, field, 14, 8), 'the ridge itself is lit').toBe(0);
+    expect(at(mask, field, 10, 8), 'the gap says nothing').toBe(0);
+    expect(at(mask, field, 6, 8), 'measured ground past the gap is still shaded').toBe(255);
+  });
+
+  it('says nothing about a field with no measurements at all', () => {
+    const size = 8;
+    const field = flatField(size, 0);
+    field.data.fill(NaN);
+    const mask = terrainShadowMask(field, 30, 90)!;
+    expect([...mask].every((v) => v === 0)).toBe(true);
+  });
+});
 
 describe('terrainShadowMask', () => {
   it('returns no mask once the sun is at or below the horizon', () => {
@@ -370,6 +441,40 @@ describe('selectTerrainLevel', () => {
         12,
       );
     }
+  });
+
+  /**
+   * The budget's one hole, and where it is actually closed.
+   *
+   * The descent in `selectTerrainLevel` breaks unconditionally at the pyramid's
+   * floor (`z <= AVAILABLE[0]`), so `count <= MAX_TILES` is never applied there.
+   * /live/'s map sets no minZoom and no maxBounds, so a pinch-out to a world
+   * view reaches it: z3 spans 8x8 tiles for the whole world against a budget of
+   * twelve — a 16 MB field and four million swept cells. `clipLevelToExtent` is
+   * what holds the bound, because tiles outside the level's extent do not exist.
+   */
+  it('bounds a world view at the pyramid floor, where the descent cannot', () => {
+    if (!hasTerrain()) return;
+    const world = selectTerrainLevel(view(-180, -85, 180, 85), 1)!;
+    expect(world).not.toBeNull();
+    const clipped = clipLevelToExtent(world)!;
+    expect(clipped, 'the pyramid must still hold something at world view').not.toBeNull();
+    const tiles = (clipped.tx1 - clipped.tx0 + 1) * (clipped.ty1 - clipped.ty0 + 1);
+    expect(tiles, `world view -> z${clipped.z} asked for ${tiles} tiles`).toBeLessThanOrEqual(12);
+    // And the clip is what did it — unclipped, the same level is over budget.
+    const raw = (world.tx1 - world.tx0 + 1) * (world.ty1 - world.ty0 + 1);
+    expect(raw).toBeGreaterThan(tiles);
+  });
+
+  it('reports nothing for a viewport that misses the level entirely', () => {
+    if (!hasTerrain()) return;
+    const entry = (manifest.zooms as Record<string, { minX: number; maxX: number; minY: number; maxY: number }>)[
+      String(Math.max(...Object.keys(manifest.zooms).map(Number)))
+    ];
+    const z = Math.max(...Object.keys(manifest.zooms).map(Number));
+    // A rectangle placed well past the extent's eastern edge at the same level.
+    const off = { z, tx0: entry.maxX + 5, ty0: entry.minY, tx1: entry.maxX + 8, ty1: entry.maxY, covered: false };
+    expect(clipLevelToExtent(off)).toBeNull();
   });
 });
 

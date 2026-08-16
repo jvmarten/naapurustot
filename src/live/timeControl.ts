@@ -152,6 +152,29 @@ export function hourLabel(date: Date): string {
 }
 
 /**
+ * A time, carrying its date only when the date is not the one being looked at.
+ *
+ * "21:00 – 05:00" IS A CLAIM ABOUT AN OVERNIGHT CLOSURE, and a road announcement
+ * that runs from the 14th to the 18th made exactly that claim for four days.
+ * The validity windows this page shows are absolute instants that routinely run
+ * for days (see incidents.ts — a sampled announcement had been open since the
+ * previous month), so formatting both ends as bare hour-and-minute did not just
+ * omit the date, it substituted a different and much smaller fact.
+ *
+ * Relative to the day under the playhead rather than to today, because that is
+ * the day everything else on screen is describing: with the clock scrubbed to
+ * Tuesday, a window ending Tuesday 05:00 needs no date and one ending Friday
+ * 05:00 does. The comparison is on the local day boundary via `startOfDay`, so
+ * it stays right across the DST days when "24 hours later" is not "tomorrow".
+ */
+export function timeOnDay(date: Date | number | null, day: Date): string {
+  if (date === null) return '—';
+  const at = typeof date === 'number' ? new Date(date) : date;
+  if (startOfDay(at).getTime() === startOfDay(day).getTime()) return clockTime(at);
+  return `${shortDate(at)} ${clockTime(at)}`;
+}
+
+/**
  * The shadow-length multiplier, formatted so it cannot run away.
  *
  * It is cot(altitude), which is unbounded: at 0.1° above the horizon a building

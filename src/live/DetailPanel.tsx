@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { t } from '../utils/i18n';
-import { clockSeconds, clockTime, isoDate } from './timeControl';
+import { clockSeconds, clockTime, timeOnDay } from './timeControl';
 import { AQ_COLORS, aqBandKey, type AirQuality } from './airquality';
 import type { Observation } from './observations';
 import type { Incident } from './incidents';
@@ -378,18 +378,20 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({ selection, when, onClo
             {selection.item.municipality && (
               <Row label={t('live.detail.municipality')}>{selection.item.municipality}</Row>
             )}
+            {/* Both ends carry their date when they are not on the day under
+                the playhead. A closure from the 14th to the 18th used to read
+                "21:00 – 05:00", which is not an incomplete statement of a
+                four-day closure — it is a complete statement of an overnight
+                one. The separate `since_date` row that used to sit below is
+                gone with it: it dated only the start, never the end, and the
+                window now says it in the place it is read. */}
             <Row label={t('live.detail.in_effect')}>
-              {selection.item.since ? clockTime(selection.item.since) : '—'}
+              {timeOnDay(selection.item.since ?? null, when)}
               {' – '}
               {selection.item.until
-                ? clockTime(selection.item.until)
+                ? timeOnDay(selection.item.until, when)
                 : t('live.detail.open_ended')}
             </Row>
-            {selection.item.since && (
-              <Row label={t('live.detail.since_date')}>
-                {isoDate(new Date(selection.item.since))}
-              </Row>
-            )}
           </div>
           <p className="text-[10px] text-surface-400 dark:text-surface-500">
             {t('live.detail.source_road')}

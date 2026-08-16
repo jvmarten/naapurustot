@@ -204,6 +204,15 @@ interface TimeBarProps {
   shadowRatio: number | null;
   /** Whether the sun readout is switched on in the sidebar. */
   showSun: boolean;
+  /**
+   * Told when playback starts and stops.
+   *
+   * The page does not need this to draw — every layer answers for `when`, and
+   * `when` is already arriving. It needs it to know that `when` is about to keep
+   * arriving, which is a different fact and the one the measured feeds' network
+   * behaviour turns on. See `ARCHIVE_PLAYBACK_DEBOUNCE_MS` in LivePage.
+   */
+  onPlayingChange?: (playing: boolean) => void;
 }
 
 export const TimeBar: React.FC<TimeBarProps> = ({
@@ -214,6 +223,7 @@ export const TimeBar: React.FC<TimeBarProps> = ({
   center,
   sun,
   times,
+  onPlayingChange,
   shadowRatio,
   showSun,
 }) => {
@@ -224,10 +234,18 @@ export const TimeBar: React.FC<TimeBarProps> = ({
    * Minutes of clock per real second, and TimeBar's own state.
    *
    * It lives here rather than in LivePage — which owns the other two stored
-   * keys — for the same reason `playing` does: nothing outside this bar reads
-   * it. The page answers for the instant, not for how fast the instant moves.
+   * keys — because the page answers for the instant, not for how fast the
+   * instant moves. `playing` used to be justified the same way, on the grounds
+   * that nothing outside this bar reads it. That turned out to be false: the
+   * measured feeds' refinement request has to know whether the playhead is
+   * still moving, so it is reported out (`onPlayingChange`) while staying owned
+   * here. The pace genuinely is private; this one is not.
    */
   const [pace, setPace] = useState(readStoredPace);
+
+  useEffect(() => {
+    onPlayingChange?.(playing);
+  }, [playing, onPlayingChange]);
 
   useEffect(() => {
     try {

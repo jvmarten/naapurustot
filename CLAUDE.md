@@ -192,8 +192,10 @@ a green `build` job is a different problem — see the social-card cache note be
 
 `scripts/check-bundle-size.mjs` enforces **two** budgets (both in `ci.yml` and `auto-merge.yml`); either one over fails the build.
 
-- **`BUDGET` = 324,000 bytes** — the gzipped sum of all app JS except `maplibre-*` and the `/live/` chunk. This is the map's critical path and runs on roughly 1 KB of headroom. Lazy-loading does not exempt code from it.
-- **`LIVE_BUDGET` = 24,000 bytes** — the `/live/` realtime sub-app, matched by the `LivePage-` chunk prefix.
+- **`BUDGET`** (`scripts/check-bundle-size.mjs:127`, currently 321,000 bytes) — the gzipped sum of all app JS except `maplibre-*` and the `/live/` chunk. This is the map's critical path and runs on roughly 400 bytes of headroom. Lazy-loading does not exempt code from it.
+- **`LIVE_BUDGET`** (`scripts/check-bundle-size.mjs:180`, currently 28,000 bytes) — the `/live/` realtime sub-app, matched by the `LivePage-` chunk prefix.
+
+Both figures are quoted here with the line that defines them because both drifted once and drifted in the directions that mislead: this file carried 324,000 / 24,000 against a real 321,000 / 28,000, understating the live allowance by 4 kB (which talks a session out of a feed that fits) and overstating the map's by 3 kB (which is worse — a session budgets bytes it does not have and meets a red gate). Read the constants, and run `node scripts/check-bundle-size.mjs` after a build for the measured headroom rather than trusting either number in prose.
 
 The split is by *reachability*, not naming: Rolldown folds a module into the `LivePage-` chunk only when the live route is its sole importer, so anything `/live/` shares with the map still counts against `BUDGET`. Do **not** try to force this with a `manualChunks` group — that was tried and backfired twice (it swallowed the `maplibre` chunk, then magneted ~21 KB of shared modules, understating the map budget). Let the natural chunking do it.
 

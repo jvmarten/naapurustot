@@ -1114,7 +1114,6 @@
   "live.detail.municipality": "Municipality",
   "live.detail.in_effect": "In effect",
   "live.detail.open_ended": "until further notice",
-  "live.detail.since_date": "Started",
   "live.detail.source_rail": "Source: Fintraffic / Digitraffic (CC BY 4.0).",
   "live.detail.source_fmi": "Source: Finnish Meteorological Institute (CC BY 4.0).",
   "live.detail.source_ecmwf": "Source: ECMWF via the Finnish Meteorological Institute (CC BY 4.0).",

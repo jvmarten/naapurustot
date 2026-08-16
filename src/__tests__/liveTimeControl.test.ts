@@ -3,8 +3,10 @@ import {
   MINUTES_PER_DAY,
   atMinuteOfDay,
   addDays,
+  clockTime,
   compassPoint,
   formatShadowRatio,
+  shortDate,
   isFuture,
   isoDate,
   minuteOfDay,
@@ -12,6 +14,7 @@ import {
   skyColor,
   skyStops,
   startOfDay,
+  timeOnDay,
 } from '../live/timeControl';
 
 /**
@@ -178,6 +181,60 @@ describe('readout formatting', () => {
     // Wraps rather than indexing off the end of the table.
     expect(compassPoint(720)).toBe('N');
     expect(compassPoint(-90)).toBe('W');
+  });
+
+  /**
+   * A validity window that spans days has to say so.
+   *
+   * The road-announcement panel formatted both ends with `clockTime`, so a
+   * closure running 14 Aug 21:00 → 18 Aug 05:00 printed "21:00 – 05:00". That
+   * is not a partial description of a four-day closure, it is a complete
+   * description of an overnight one — the reader is not left short of a fact,
+   * they are handed a different one.
+   */
+  describe('timeOnDay', () => {
+    const day = new Date(2026, 7, 16, 12, 0); // 16 Aug 2026, local noon
+
+    it('gives a bare time for an instant on the day being looked at', () => {
+      expect(timeOnDay(new Date(2026, 7, 16, 5, 0), day)).toBe(
+        clockTime(new Date(2026, 7, 16, 5, 0)),
+      );
+    });
+
+    it('carries the date for either end that falls on another day', () => {
+      const until = new Date(2026, 7, 18, 5, 0);
+      const out = timeOnDay(until, day);
+      expect(out).not.toBe(clockTime(until));
+      expect(out).toContain(clockTime(until));
+      expect(out).toContain(shortDate(until));
+    });
+
+    it('dates a window that started before the day as well as one ending after', () => {
+      expect(timeOnDay(new Date(2026, 6, 14, 21, 0), day)).toContain(
+        shortDate(new Date(2026, 6, 14, 21, 0)),
+      );
+    });
+
+    it('accepts an absolute millisecond stamp, which is what the feed carries', () => {
+      const at = new Date(2026, 7, 16, 5, 0);
+      expect(timeOnDay(at.getTime(), day)).toBe(clockTime(at));
+    });
+
+    it('has an answer for an open-ended window', () => {
+      expect(timeOnDay(null, day)).toBe('—');
+    });
+
+    it('compares on the local day boundary, so a 23-hour DST day still reads right', () => {
+      // 29 Mar 2026 is Finland's spring-forward Sunday: the day is 23 hours
+      // long, so "24 hours later" and "tomorrow" are different instants. An
+      // instant 23.5 h after midnight is already the 30th and must be dated.
+      vi.stubEnv('TZ', 'Europe/Helsinki');
+      const dstDay = new Date(2026, 2, 29, 12, 0);
+      const nextDay = new Date(startOfDay(dstDay).getTime() + 23.5 * 3_600_000);
+      expect(startOfDay(nextDay).getTime()).not.toBe(startOfDay(dstDay).getTime());
+      expect(timeOnDay(nextDay, dstDay)).toContain(shortDate(nextDay));
+      vi.unstubAllEnvs();
+    });
   });
 });
 

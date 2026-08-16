@@ -1114,7 +1114,6 @@
   "live.detail.municipality": "Kommun",
   "live.detail.in_effect": "Gäller",
   "live.detail.open_ended": "tills vidare",
-  "live.detail.since_date": "Började",
   "live.detail.source_rail": "Källa: Fintraffic / Digitraffic (CC BY 4.0).",
   "live.detail.source_fmi": "Källa: Meteorologiska institutet (CC BY 4.0).",
   "live.detail.source_ecmwf": "Källa: ECMWF via Meteorologiska institutet (CC BY 4.0).",

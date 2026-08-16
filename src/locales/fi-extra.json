@@ -174,7 +174,6 @@
   "live.detail.municipality": "Kunta",
   "live.detail.in_effect": "Voimassa",
   "live.detail.open_ended": "toistaiseksi",
-  "live.detail.since_date": "Alkoi",
   "live.detail.source_rail": "Lähde: Fintraffic / Digitraffic (CC BY 4.0).",
   "live.detail.source_fmi": "Lähde: Ilmatieteen laitos (CC BY 4.0).",
   "live.detail.source_ecmwf": "Lähde: ECMWF Ilmatieteen laitoksen kautta (CC BY 4.0).",

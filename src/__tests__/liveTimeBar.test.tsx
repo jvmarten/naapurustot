@@ -34,7 +34,11 @@ const CENTRE: [number, number] = [24.94, 60.17];
 const WHEN = new Date('2026-08-12T09:00:00Z');
 
 /** The bar wired to its own clock, as LivePage wires it. */
-const Harness: React.FC<{ onScrub?: (d: Date) => void; from?: Date }> = ({ onScrub, from }) => {
+const Harness: React.FC<{
+  onScrub?: (d: Date) => void;
+  from?: Date;
+  onPlayingChange?: (playing: boolean) => void;
+}> = ({ onScrub, from, onPlayingChange }) => {
   const [when, setWhen] = useState(from ?? WHEN);
   return (
     <TimeBar
@@ -50,6 +54,7 @@ const Harness: React.FC<{ onScrub?: (d: Date) => void; from?: Date }> = ({ onScr
       times={sunTimes(when, CENTRE[1], CENTRE[0])}
       shadowRatio={1.4}
       showSun={false}
+      onPlayingChange={onPlayingChange}
     />
   );
 };
@@ -295,5 +300,69 @@ describe('TimeBar playback', () => {
     runPlayback(2000);
 
     expect(scrubs.length).toBe(played);
+  });
+});
+
+/**
+ * Playback has to be visible outside the bar, and this is why.
+ *
+ * The measured feeds' refinement request is debounced 400 ms, and playback
+ * advances the clock in steps that arrive SLOWER than that — a whole minute per
+ * 100 ms tick at the default pace moves the 5-minute archive quantum every
+ * 500 ms — so every step settled the debounce and fired a request, each aborted
+ * by the next, for as long as anyone watched a day go by. A debounce cannot fix
+ * that: it only suppresses what arrives faster than itself.
+ *
+ * LivePage's fix is to stretch that wait past any gap between quanta while the
+ * playhead is moving, which requires knowing that it is. Nothing about the
+ * PICTURE depends on this callback, so nothing about the picture breaks if it
+ * silently stops firing — the requests just come back. That is exactly the kind
+ * of regression a test has to hold, so it is held here rather than left to the
+ * network tab.
+ */
+describe('TimeBar reports playback outward', () => {
+  /**
+   * The play control by either of its two names.
+   *
+   * `playButton` above only matches the idle label, which is right for the tests
+   * that press it once — but this one has to press it again to stop, and by then
+   * it is labelled "Pause".
+   */
+  const playToggle = () =>
+    screen.getByRole('button', { name: /play|toista|spela|pause|keskeyt|pausa/i });
+
+  it('tells the page when playback starts and when it stops', () => {
+    vi.useFakeTimers();
+    const states: boolean[] = [];
+    render(<Harness onPlayingChange={(p) => states.push(p)} />);
+
+    // Reported on mount, so the page never has to assume an initial state.
+    expect(states).toEqual([false]);
+
+    act(() => playToggle().click());
+    expect(states[states.length - 1]).toBe(true);
+
+    act(() => playToggle().click());
+    expect(states[states.length - 1]).toBe(false);
+  });
+
+  it('reports the stop that a pointer-down on the track causes', () => {
+    // Playback also ends without the play button — grabbing the track clears it
+    // (see the drag test above). The page has to hear about that one too, or the
+    // refinement stays suppressed while the playhead sits still.
+    vi.useFakeTimers();
+    const states: boolean[] = [];
+    render(<Harness onPlayingChange={(p) => states.push(p)} />);
+    act(() => playButton().click());
+    expect(states[states.length - 1]).toBe(true);
+
+    const track = screen.getByRole('slider');
+    track.setPointerCapture = () => {};
+    track.hasPointerCapture = () => true;
+    act(() => {
+      track.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+    });
+
+    expect(states[states.length - 1]).toBe(false);
   });
 });
