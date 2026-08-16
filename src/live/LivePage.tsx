@@ -1508,6 +1508,8 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
    * loaded — the only feed history on this page that reaches past the session.
    */
   const trackRef = useRef<TrainFix[] | null>(null);
+  /** Bumped when the track arrives or clears, so the selection memo re-resolves. */
+  const [trackVersion, setTrackVersion] = useState(0);
   /** The last polled road incidents, nationally. A ref for the same reason. */
   const incidentsRef = useRef<Incident[]>([]);
   /**
@@ -1933,6 +1935,27 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
      * labelled with the instant. This settles the rows that describe the fix.
      */
     if (selection.kind === 'train') {
+      /**
+       * The measured track first, for the same reason the ring uses it first:
+       * it is fetched for the selected train alone, it reaches the whole day,
+       * and it outlasts both of the rungs below it.
+       *
+       * IT ALSO HAS TO BE HERE OR THE TWO DISAGREE AGAIN, in the other
+       * direction. `scheduledTrains` is empty whenever a snapshot exists for the
+       * instant (`needSchedule` gates the fetch on there being none), so a train
+       * missing from that snapshot — not yet departed, or in a gap between
+       * reports — resolves through neither rung. Without this the panel would
+       * close while the ring, which does consult the track, stayed drawn on the
+       * map beside it.
+       *
+       * A fix is `{at, lon, lat, speed}` — precisely a `Train` minus its
+       * identity — so the record is the selection's identity carrying the fix's
+       * measured fields. Nothing here is derived: the number and date are the
+       * ones clicked, and the position, instant and speed are all Fintraffic's
+       * for that instant.
+       */
+      const fix = !live && trackRef.current ? fixAt(trackRef.current, whenMs) : null;
+      if (fix) return { kind: 'train', item: { ...selection.item, ...fix } };
       const at = trainRecordAt<Train>(selection.item, {
         live,
         current: trainsRef.current,
@@ -1955,6 +1978,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     trainStatus,
     trainSnapshot,
     scheduledTrains,
+    trackVersion,
   ]);
 
   /** Move the clock, which always means leaving live mode. */
@@ -2352,24 +2376,13 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
       // away from under it. Scrubbed, it is the train's own measured track when
       // the panel has fetched one (which reaches the whole day) and otherwise the
       // recorded snapshot. Every branch is a position somebody reported.
-      const point = (() => {
-        if (sel.kind !== 'train') return sel.item;
-        // The train's own measured track first — it reaches the whole day and is
-        // the best answer this page can give, and it is the one rung the panel
-        // does not share (it carries fixes, not train records, and the panel
-        // fetches it and prints its own row from it). Everything below it is
-        // `trainRecordAt`, which the panel resolves through as well — one ladder,
-        // so the ring and the rows beside it cannot describe different instants.
-        const record = trainRecordAt<Train>(sel.item, {
-          live,
-          current: trainsRef.current,
-          snapshot: trainSnapshot,
-          scheduled: scheduledTrains,
-        });
-        if (live) return record;
-        return (track && fixAt(track, whenMs)) ?? record;
-      })();
-      paintSelection(ctx, map, point, track, theme);
+      // ALREADY RESOLVED. `selectionRef` holds `shownSelection`, which walks the
+      // whole ladder — measured track, then this session's recording, then the
+      // published timetable — so the ring is placed from the very object whose
+      // numbers the panel is printing. This used to repeat the ladder here, and
+      // a second copy is exactly how the mark and the rows beside it came to
+      // describe different instants.
+      paintSelection(ctx, map, sel.item, track, theme);
     }
   }, [
     shadowsOn,
@@ -3040,6 +3053,10 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   const onTrack = useCallback(
     (track: TrainFix[] | null) => {
       trackRef.current = track;
+      // The track lives in a ref because the draw loop reads it, but
+      // `shownSelection` resolves through it too and a memo cannot see a ref
+      // change. Same counter pattern as `timelineVersion` and `scheduleVersion`.
+      setTrackVersion((v) => v + 1);
       scheduleDraw();
     },
     [scheduleDraw],
