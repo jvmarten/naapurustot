@@ -78,6 +78,22 @@ test.describe('/live/', () => {
     await expect(page.getByText('1/2').first()).toBeVisible();
   });
 
+  test('carries a raster feed through the registry to a working toggle', async ({ page }) => {
+    // The radar is the one feed on the page whose layer is an image rather than
+    // a list of marks, and it reaches the sidebar the same way every other feed
+    // does: a row in FEED_GROUPS plus three locale keys, with no mention of it
+    // in FeedSidebar.tsx. This is what would catch a registry entry whose
+    // `labelKey` has no dictionary behind it — which renders as the raw key and
+    // is invisible to the unit tests, since they never mount the sidebar.
+    await page.goto('/live/?f=radar');
+    await waitForLiveMap(page);
+
+    await expect(page.getByText('Sadetutka')).toBeVisible();
+    // `sanitizeEnabled` keeps only ids that are real AND live, so the applied
+    // count is the round trip through the registry rather than an echo of `f=`.
+    await expect(page.getByText('1/4').first()).toBeVisible();
+  });
+
   test('gives a phone its map and keeps the clock on screen', async ({ page }) => {
     // Two desktop-only assumptions shipped together here: `h-screen` (100vh,
     // which on a phone is the viewport with the browser chrome COLLAPSED, so

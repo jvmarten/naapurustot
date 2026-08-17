@@ -71,6 +71,14 @@ import {
   type Strike,
 } from './lightning';
 import {
+  fetchRadarFrame,
+  radarFrameAt,
+  radarInRange,
+  radarRequestSize,
+  RadarUnpublished,
+  type RadarFrame,
+} from './radar';
+import {
   createTimeline,
   clearTimeline,
   mergeReadings,
@@ -1177,6 +1185,47 @@ function paintIncidents(
  * and a number does not survive a disc.
  */
 /**
+ * Paint one radar composite, registered to the ground rather than to the screen.
+ *
+ * THROUGH THE CAMERA'S OWN AFFINE, not stretched to the viewport. The frame was
+ * requested for a lon/lat box and arrives as a Mercator rectangle, and the
+ * camera can rotate — so it is placed by the same Mercator→screen transform the
+ * shadows use, which keeps it registered under rotation AND lets a frame fetched
+ * for the previous camera stay on the right ground while the next one loads
+ * instead of sliding across the map.
+ *
+ * SMOOTHED ONLY WHEN IT IS BEING SHRUNK, which is a statement about the data
+ * rather than about taste. The request is already capped at the composite's own
+ * 500 m grid (radar.ts), so at a country-framing camera the image arrives with
+ * more pixels than the screen has room for and interpolation is just averaging
+ * measured cells together — the alternative there is moiré across the fine
+ * structure of a rain band. Zoomed in, the same call would be inventing a
+ * gradient BETWEEN cells: a 500 m cell is a few hundred pixels at street zoom,
+ * and a smooth ramp across it draws detail the radar never resolved. So the
+ * cells are drawn as cells, and the reader can see how coarse the measurement
+ * is — which is this page's answer everywhere else too.
+ */
+function paintRadar(ctx: CanvasRenderingContext2D, map: MaplibreMap, frame: RadarFrame): void {
+  const tr = cameraAffine(map);
+  const sx = (frame.x1 - frame.x0) / frame.image.width;
+  const sy = (frame.y1 - frame.y0) / frame.image.height;
+  const screenPxPerCell = Math.hypot(tr.ax, tr.ay) * sx;
+  ctx.save();
+  ctx.imageSmoothingEnabled = screenPxPerCell < 1;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.transform(
+    tr.ax * sx,
+    tr.ay * sx,
+    tr.bx * sy,
+    tr.by * sy,
+    tr.px + tr.ax * (frame.x0 - tr.ox) + tr.bx * (frame.y0 - tr.oy),
+    tr.py + tr.ay * (frame.x0 - tr.ox) + tr.by * (frame.y0 - tr.oy),
+  );
+  ctx.drawImage(frame.image, 0, 0);
+  ctx.restore();
+}
+
+/**
  * Lightning ink, per theme.
  *
  * SKY BLUE AND NOT AMBER, which on this page is a decision about meaning rather
@@ -1738,6 +1787,18 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   const [strikeVersion, setStrikeVersion] = useState(0);
   const bumpStrikes = useCallback(() => setStrikeVersion((v) => v + 1), []);
   /**
+   * The radar composite currently on screen, and the camera scale it was cut at.
+   *
+   * A ref because it is an ImageBitmap the draw loop blits and React never
+   * renders; the state beside it is the sentence about it. `scale` is kept so a
+   * zoom-IN can tell that the frame in hand, although it still covers the view,
+   * no longer covers it at enough resolution to be worth keeping.
+   *
+   * The bitmap is explicitly closed when replaced — it is decoded pixels outside
+   * the JS heap, and a scrub across an hour is twelve of them.
+   */
+  const radarRef = useRef<{ frame: RadarFrame; scale: number } | null>(null);
+  /**
    * The day's published timetables, for the instants the recording cannot answer.
    *
    * A ref rather than state because it is 1,800-odd routes through the day and
@@ -1954,6 +2015,30 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   const [strikePollFailed, setStrikePollFailed] = useState(false);
   /** Same, for the day's train timetables — which are only fetched on demand. */
   const [scheduleDay, setScheduleDay] = useState<'idle' | 'loading' | 'ready' | 'failed'>('idle');
+  /**
+   * The radar frame's state — FOUR arms, where the other feeds need three.
+   *
+   * `unpublished` is the extra one, and it is the whole reason this is not a
+   * boolean beside a frame. FMI answering "I have no composite for that instant"
+   * is not a failure and must not print as one: at the leading edge it means the
+   * newest scan is a few minutes from being published, and past the archive's
+   * end it means the rain has not happened yet. Collapsing it into `failed`
+   * would put "could not load" over a map at the one moment the page is most
+   * obviously working.
+   */
+  const [radarState, setRadarState] = useState<'loading' | 'ready' | 'unpublished' | 'failed'>(
+    'loading',
+  );
+  /**
+   * The instant of the composite in hand — its own, never the playhead's.
+   *
+   * State as well as the ref, because this is the one thing about the frame that
+   * has to be PRINTED. The gap between it and the clock is up to the tolerance,
+   * and a layer that lags its own page's clock by minutes without saying so is
+   * exactly the "current data under a past timestamp" this page refuses
+   * everywhere else.
+   */
+  const [radarShownAt, setRadarShownAt] = useState<number | null>(null);
 
   const shadowsOn = enabled.has('shadows');
   const sunOn = enabled.has('sun_position');
@@ -1962,6 +2047,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   const observationsOn = enabled.has('observations');
   const airQualityOn = enabled.has('air_quality');
   const lightningOn = enabled.has('lightning');
+  const radarOn = enabled.has('radar');
 
   const sun = useMemo(() => sunPosition(when, center[1], center[0]), [when, center]);
   /**
@@ -2066,6 +2152,29 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   const archiveAt = useDebounced(
     archiveTarget,
     playing ? ARCHIVE_PLAYBACK_DEBOUNCE_MS : ARCHIVE_DEBOUNCE_MS,
+  );
+
+  /**
+   * The composite the clock is asking for, and the camera it is asking about.
+   *
+   * NO SEPARATE POLL, unlike every other feed on this page. The radar's grid IS
+   * the poll: quantised to five minutes, this value changes exactly when a new
+   * composite becomes askable, and the live tick advancing the clock is what
+   * changes it. A `useFeedPoll` beside that would be a second timer racing the
+   * first to ask the same question.
+   *
+   * The camera is a separate, coarser trigger because a raster is cut for a
+   * viewport rather than sampled at a point: panning does not change WHICH frame
+   * is wanted, only which ground it has to cover, and the effect below decides
+   * whether the one in hand already does.
+   */
+  const radarTarget = useDebounced(
+    radarFrameAt(whenMs),
+    playing ? ARCHIVE_PLAYBACK_DEBOUNCE_MS : ARCHIVE_DEBOUNCE_MS,
+  );
+  const radarCamera = useDebounced(
+    `${center[0].toFixed(3)},${center[1].toFixed(3)},${zoom.toFixed(2)}`,
+    FETCH_DEBOUNCE_MS,
   );
 
   /**
@@ -2658,6 +2767,21 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     if (shadowsOn) paintShade();
     // Last, and above the shade — see paintTrains for why they are not a
     // MapLibre layer.
+    // Rain under everything else in the feed stack, including the lightning it
+    // is falling out of: it is the weather the rest of the page is happening in,
+    // an area rather than a thing anybody is tracking. Above the shade all the
+    // same — a shower drawn under a 0.62 night wash is a grey smudge, and the
+    // hours when it matters most whether it is raining are the dark ones.
+    //
+    // GUARDED BY THE SAME RULE THE FETCH USES. Between the clock stepping onto a
+    // new instant and the frame for it arriving, the previous composite is still
+    // in hand — which is right while it is recent (that is `useFeedPoll`'s "a
+    // failed poll keeps what is on screen", applied to a raster) and wrong the
+    // moment the scrub has carried past what it can speak for.
+    {
+      const rf = radarOn ? radarRef.current?.frame : null;
+      if (rf && radarInRange(rf.at, whenMs)) paintRadar(ctx, map, rf);
+    }
     // Incidents under the trains: a closure is context for the network, a train
     // is a moving thing on it, and where they coincide the moving thing is what
     // someone is tracking.
@@ -2736,6 +2860,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     trainsOn,
     incidentsOn,
     lightningOn,
+    radarOn,
     sun.altitude,
     sun.azimuth,
     when,
@@ -2983,6 +3108,118 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     // the tick here would re-download a 477 kB storm every half hour to learn
     // nothing.
   }, [lightningOn, dayStartMs, dayEndMs, bumpStrikes, scheduleDraw]);
+
+  /**
+   * The radar composite for the clock and the camera.
+   *
+   * THE ONE FEED HERE THAT CANNOT LOAD ITS DAY, and radar.ts says why: 288
+   * frames and ~25 MB against the ~20 kB a day of stations costs. So this is a
+   * request per instant, and everything about the effect is aimed at making that
+   * as few requests as the picture allows:
+   *
+   *  - the instant is quantised to the composite's own five-minute grid before
+   *    it gets here, so a drag across an hour asks for twelve frames rather than
+   *    one per pixel, and debounced on top of that;
+   *  - a frame already in hand is kept when it still covers the view at enough
+   *    resolution — a pan inside the padding, or a zoom OUT, costs nothing;
+   *  - the walk stops at the frame in hand rather than re-downloading it, which
+   *    is what stops the live clock re-fetching 18:00 every five minutes until
+   *    18:05 is published;
+   *  - and FMI serves frames `max-age=86400`, so scrubbing back over ground
+   *    already covered is answered by the browser cache.
+   *
+   * The bitmap is closed when it is replaced. It is decoded pixels held outside
+   * the JS heap — a national frame is about 6 MB of them — and a day's scrub
+   * would otherwise leave a few hundred megabytes for the collector to notice in
+   * its own time.
+   */
+  useEffect(() => {
+    const map = mapRef.current;
+    const held = radarRef.current;
+    if (!map || !radarOn) {
+      if (held) {
+        held.frame.image.close();
+        radarRef.current = null;
+        scheduleDraw();
+      }
+      setRadarState('loading');
+      setRadarShownAt(null);
+      return;
+    }
+
+    // A COMPOSITE OF AN INSTANT THAT HAS NOT HAPPENED CANNOT EXIST, so this does
+    // not go and check. Without the guard, scrubbing into tomorrow walked the
+    // full tolerance — four requests, all of them answered `InvalidDimension-
+    // Value` — and did it again at every five-minute step of a playback that had
+    // run past now. Same reasoning as the lightning day loader's: asking would
+    // be asking FMI to confirm that the future has not happened.
+    if (radarTarget > Date.now()) {
+      setRadarState('unpublished');
+      return;
+    }
+
+    const b = map.getBounds();
+    const view: Bbox = {
+      south: b.getSouth(),
+      west: b.getWest(),
+      north: b.getNorth(),
+      east: b.getEast(),
+    };
+    // A tenth of the shorter span, which is what turns an ordinary nudge of the
+    // camera into a reuse rather than a fetch. Paid for in image area on all
+    // four sides, so it stays small — see fetchPadMetres for the same sum.
+    const midLat = ((view.south + view.north) / 2) * (Math.PI / 180);
+    const span = Math.min(
+      (view.north - view.south) * 111_320,
+      (view.east - view.west) * 111_320 * Math.cos(midLat),
+    );
+    const bbox = padBbox(view, 0.1 * span);
+    const tr = cameraAffine(map);
+    const scale = Math.hypot(tr.ax, tr.ay);
+    const covered = held !== null && bboxContains(held.frame.bbox, view) && scale <= held.scale * 1.6;
+
+    // Exactly right already: the same composite, over ground that still covers
+    // the screen. Note this compares the frame's OWN instant against the one the
+    // clock is asking for, so it only short-circuits where they agree — at the
+    // leading edge they do not, and the probe below is the point.
+    if (covered && held.frame.at === radarTarget) return;
+
+    const ac = new AbortController();
+    setRadarState((s) => (s === 'ready' && covered ? s : 'loading'));
+    fetchRadarFrame(
+      bbox,
+      radarRequestSize(bbox, scale),
+      radarTarget,
+      ac.signal,
+      covered ? held.frame.at : null,
+    )
+      .then((frame) => {
+        if (ac.signal.aborted) return;
+        // null is "yours is still the newest", not "nothing came back".
+        if (frame === null) {
+          setRadarState('ready');
+          return;
+        }
+        radarRef.current?.frame.image.close();
+        radarRef.current = { frame, scale };
+        setRadarState('ready');
+        setRadarShownAt(frame.at);
+        scheduleDraw();
+      })
+      .catch((err: unknown) => {
+        if ((err as Error)?.name === 'AbortError' || ac.signal.aborted) return;
+        // NOT A FAILURE, and it must not print as one: FMI has nothing for this
+        // instant, which at the leading edge means the scan is minutes from
+        // being published and past the archive's end means it has not happened.
+        setRadarState(err instanceof RadarUnpublished ? 'unpublished' : 'failed');
+      });
+
+    return () => ac.abort();
+    // `mapReady` and not just the camera: the camera state only changes on
+    // `moveend`, and a page opened at a link's camera never fires one. Without
+    // it the first frame waited for the visitor to nudge the map, which reads
+    // exactly like a feed that does not work.
+  }, [radarOn, radarTarget, radarCamera, mapReady, scheduleDraw]);
 
   /**
    * The day's published timetables, fetched only when nothing measured can answer.
@@ -3772,9 +4009,18 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
             .replace('{to}', clockTime(hi));
   }, []);
 
+  /**
+   * Whether the composite in hand is the one the clock can be told about.
+   *
+   * The same rule the draw is gated on, read from the state rather than the ref
+   * — so the sentence and the pixels cannot disagree about whether there is a
+   * radar picture on the map.
+   */
+  const radarDrawn = radarShownAt !== null && radarInRange(radarShownAt, whenMs);
+
   /** Whether any enabled feed has a sentence to show at all. */
   const readoutOn =
-    shadowsOn || trainsOn || incidentsOn || observationsOn || airQualityOn || lightningOn;
+    shadowsOn || trainsOn || incidentsOn || observationsOn || airQualityOn || lightningOn || radarOn;
 
   /**
    * Whether any of those sentences is a failure rather than a result.
@@ -3796,6 +4042,11 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     (observationsOn && obsDay === 'failed') ||
     (airQualityOn && aqDay === 'failed') ||
     (lightningOn && lightningDay === 'failed') ||
+    // `unpublished` is deliberately NOT here. It is a statement about the
+    // source's schedule, not about ours failing to reach it, and an amber chip
+    // over "the 18:05 scan is a couple of minutes from being published" would
+    // cry wolf several times an hour on a page that is working perfectly.
+    (radarOn && radarState === 'failed') ||
     // A FAILED POLL RAISES THE CHIP ONLY WHILE THE PAGE IS FOLLOWING REAL TIME,
     // and the distinction is what the poll is FOR in each case. Live, it is the
     // thing keeping the layer current, so losing it means the page is quietly
@@ -4063,6 +4314,42 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
                         the feed carries recently-expired and future-dated
                         announcements so the clock can move through them. */}
                     {t('live.incidents.count').replace('{n}', String(incidentsNow))}
+                  </p>
+                )
+              )}
+
+              {/* THE COMPOSITE'S OWN MINUTE, ALWAYS PRINTED. Every other feed
+                  here can be sampled at the clock and stamped with the reading's
+                  timestamp; a radar frame exists only on a five-minute grid and
+                  is published a few minutes after the scan, so the picture on
+                  the map is routinely five to ten minutes behind the playhead
+                  above it. Stating that is the whole difference between a lag
+                  and a lie.
+
+                  The coverage note is a second sentence rather than a footnote
+                  because the grey it explains covers a third of a national view:
+                  FMI's own style paints everything outside the radars' range,
+                  and this page keeps it for the same reason it keeps every other
+                  "we cannot see here" — the alternative is an empty area that
+                  reads as "no rain". */}
+              {radarOn && (
+                radarState === 'failed' ? (
+                  <p className="text-amber-700 dark:text-amber-400">{t('live.radar.failed')}</p>
+                ) : radarDrawn ? (
+                  <p className="text-surface-600 dark:text-surface-300">
+                    {t('live.radar.frame').replace('{time}', clockTime(radarShownAt))}{' '}
+                    {t('live.radar.coverage_note')}
+                  </p>
+                ) : radarState === 'loading' ? (
+                  <p className="text-surface-600 dark:text-surface-300">{t('live.radar.loading')}</p>
+                ) : (
+                  /* Not drawn, and not broken. Ahead of the archive it is the
+                     future, which nothing has measured; a few minutes behind the
+                     playhead it is the newest scan not yet being out. Both are
+                     the source's schedule rather than our failure, so neither is
+                     amber. */
+                  <p className="text-surface-600 dark:text-surface-300">
+                    {t(future ? 'live.radar.future' : 'live.radar.unpublished')}
                   </p>
                 )
               )}
