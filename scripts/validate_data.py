@@ -11,6 +11,7 @@ Checks:
 Exit code 0 = pass, 1 = failures found.
 """
 
+import datetime
 import json
 import sys
 from pathlib import Path
@@ -208,6 +209,23 @@ SUPPRESSION_PREFIXES = ("he_", "ko_", "hr_", "tr_", "te_", "ra_", "pt_", "tp_")
 # the country). Exempt metrics whose dominant value is a genuine measurement.
 DISTINCTNESS_THRESHOLD = 0.50
 
+# Decimals a per-km2 metric must be able to carry (mirrors prepare_data.POI_DENSITY_DECIMALS).
+POI_DENSITY_DECIMALS = 4
+
+# Density metrics knowingly still stored at 1 decimal, with the date the exemption lapses.
+# {property: (reason, until)}. Each needs a NETWORK re-fetch to correct -- the committed
+# intermediate JSONs in scripts/ are themselves already rounded, so the precision cannot be
+# recovered offline the way walkability_index and population_density were. The fetch scripts
+# already round to 4 decimals (fetch_transit_stops.py, fetch_lipas.py, fetch_ev_charging.py),
+# so a successful refresh clears these without further code changes.
+# NOTE for transit: fetch_transit_stops.py refuses to run until its authoritative-input file
+# is restricted to the HSL/Foli/Nysse postal codes -- see the guard in its main().
+DENSITY_PRECISION_EXEMPT = {
+    "transit_stop_density": ("needs a Digiroad re-fetch; 328 zeros of 3018", "2027-02-28"),
+    "sports_facility_density": ("needs a LIPAS re-fetch; 1293 zeros of 3018", "2027-02-28"),
+    "ev_charging_density": ("needs an Overpass re-fetch; 2704 zeros of 3018", "2027-02-28"),
+}
+
 # grocery_density's zeros are real, so it sits on DISTINCTNESS_EXEMPT below - which
 # means check_dense_urban_zero, not distinctness, is what guards it against a failed
 # Overpass region fetch. Calibrated so that no area passes today while the centre of
@@ -395,6 +413,78 @@ def check_value_distinctness(features: list) -> list[str]:
                 f"({mode_val!r} x{mode_count}/{total}) - fabricated or degenerate? Add to "
                 f"DISTINCTNESS_EXEMPT only if that value is a genuine measurement."
             )
+    return errors
+
+
+def check_density_precision(features: list) -> list[str]:
+    """Catch a per-km2 metric stored at too few decimals to survive a rural area.
+
+    The median Finnish postal area is 52 km2 and 2,238 of 3,018 exceed 20 km2, so at
+    1 decimal a lone facility is 0.019/km2 and rounds to exactly 0.0 across most of the
+    country. POI_DENSITY_DECIMALS = 4 exists for this, and it shipped broken anyway:
+    transit_stop, sports_facility and ev_charging kept 1-decimal values long after the
+    fetch scripts were corrected, because nothing here could see it. check_dense_urban_zero
+    cannot -- it needs a *_count sibling and those three have none -- and distinctness
+    cannot either, since a 0.0 pile is only 42.8 % of sports_facility, under the 50 %
+    threshold, while ev_charging's 89.6 % sits on DISTINCTNESS_EXEMPT for real zeros.
+
+    Fails when EVERY non-null value of a density metric has at most 1 decimal place,
+    which is the signature of a rounded column rather than a coincidence: a genuinely
+    4-decimal column has thousands of values and will not land on tenths by accident.
+
+    DENSITY_PRECISION_EXEMPT carries the known-stale columns with an `until` date, the
+    way scripts/check-audit.mjs allowlists an advisory: they cannot be corrected without
+    re-running a network fetch, so this records the debt with a deadline instead of
+    silently tolerating it forever.
+    """
+    errors: list[str] = []
+    today = datetime.date.today()
+    props = [p for p in _registry_postal_props() if p.endswith("_density")]
+
+    # Completeness clause: every registered density must be covered by this check or be
+    # an explicit, dated exemption. Without it the check inherits exactly the blindness
+    # that let these three survive -- a metric absent from the table looks like a pass.
+    for prop, (reason, until) in DENSITY_PRECISION_EXEMPT.items():
+        if prop not in props:
+            errors.append(
+                f"DENSITY_PRECISION_EXEMPT lists '{prop}', which is not a registered "
+                f"postal density metric - stale exemption, remove it."
+            )
+            continue
+        if today > datetime.date.fromisoformat(until):
+            errors.append(
+                f"Property '{prop}': precision exemption expired on {until} ({reason}). "
+                f"Re-run its fetch so the column carries {POI_DENSITY_DECIMALS} decimals, "
+                f"or renew the exemption with a reason."
+            )
+
+    for prop in props:
+        vals = [
+            f["properties"].get(prop) for f in features
+            if isinstance(f["properties"].get(prop), (int, float))
+            and not isinstance(f["properties"].get(prop), bool)
+        ]
+        if len(vals) < 100:
+            continue
+        # Decimal places actually carried, ignoring trailing zeros.
+        max_dp = 0
+        for v in vals:
+            s = repr(float(v))
+            if "e" in s or "E" in s:
+                continue
+            frac = s.split(".")[1].rstrip("0") if "." in s else ""
+            max_dp = max(max_dp, len(frac))
+        if max_dp > 1:
+            continue
+        if prop in DENSITY_PRECISION_EXEMPT:
+            continue  # known, dated above
+        errors.append(
+            f"Property '{prop}': every one of {len(vals)} values carries at most {max_dp} "
+            f"decimal place(s). At 1 decimal anything below 0.05/km2 becomes exactly 0.0, "
+            f"and 74 % of postal areas are large enough for one real facility to round "
+            f"away. Store {POI_DENSITY_DECIMALS} decimals (POI_DENSITY_DECIMALS), or add a "
+            f"dated entry to DENSITY_PRECISION_EXEMPT explaining why it cannot be fixed yet."
+        )
     return errors
 
 
@@ -891,6 +981,7 @@ def main() -> int:
         ("Value ranges", check_value_ranges(features)),
         ("Suppression sentinels", check_no_suppression_sentinels(features)),
         ("Value distinctness", check_value_distinctness(features)),
+        ("Density precision", check_density_precision(features)),
         ("Dense urban zeros", check_dense_urban_zero(features)),
         ("Data-source registry", check_data_source_registry(features)),
         ("Distributed proxy flags", check_distributed_proxy_flags(features)),

@@ -66,6 +66,15 @@ def fetch_ev_stations() -> list[dict]:
             )
             resp.raise_for_status()
             data = resp.json()
+            # Overpass reports a server-side timeout or memory exhaustion as HTTP 200
+            # with a `remark` and a truncated (often empty) element list. This is a
+            # SINGLE national query — the shape most likely to trip that limit — and
+            # without this check a partial answer becomes measured zeros for every area
+            # whose stations were dropped. A total failure is honest (it raises below);
+            # a silent undercount is not. Matches prepare_data._overpass_query.
+            remark = data.get("remark")
+            if remark:
+                raise RuntimeError(f"Overpass returned a remark (truncated answer): {remark}")
             break
         except Exception as e:
             if attempt == 4:

@@ -20,7 +20,7 @@ import { ALL_STATS } from '../utils/comparisonStats';
 
 /** Strip locale spacing/unit and normalise the decimal comma so assertions are locale-proof. */
 function digits(s: string): string {
-  return s.replace(/\s| | /g, '').replace(',', '.').replace('/km²', '');
+  return s.replace(/[\s\u00a0\u202f]/g, '').replace(',', '.').replace('/km²', '');
 }
 
 /** The value one real facility produces in a median (52 km²) Finnish postal area. */

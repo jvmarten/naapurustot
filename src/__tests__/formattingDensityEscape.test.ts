@@ -36,12 +36,12 @@ describe('formatDensity', () => {
   // "0 /km²" for 177 inhabited areas. Sub-1 now keeps two significant digits; the
   // whole-number contract at and above 1 is unchanged.
   it('keeps a real sub-1 density visible instead of rounding it to 0', () => {
-    expect(formatDensity(0.4).replace(/ /g, ' ')).toBe('0,4 /km²');
-    expect(formatDensity(0.35).replace(/ /g, ' ')).toBe('0,35 /km²');
+    expect(formatDensity(0.4).replace(/\u00a0/g, ' ')).toBe('0,4 /km²');
+    expect(formatDensity(0.35).replace(/\u00a0/g, ' ')).toBe('0,35 /km²');
   });
 
   it('still rounds to whole numbers at and above 1', () => {
-    expect(formatDensity(0.5).replace(/ /g, ' ')).toBe('0,5 /km²');
+    expect(formatDensity(0.5).replace(/\u00a0/g, ' ')).toBe('0,5 /km²');
     expect(formatDensity(1.4)).toBe('1 /km²');
     expect(formatDensity(2.5)).toBe('3 /km²');
   });
