@@ -336,9 +336,16 @@ export const TimeBar: React.FC<TimeBarProps> = ({
     // what a shadow visibly moves by; one minute is for landing on a stated
     // sunrise, which is the only thing anyone needs single-minute precision for.
     const fine = e.shiftKey ? 1 : 5;
+    // UP AND DOWN ARE PEERS OF RIGHT AND LEFT, which the ARIA slider pattern
+    // requires and this handler used to ignore — so the key a screen-reader user
+    // is told to press did nothing here, and worse than nothing: unhandled, it
+    // fell through without `preventDefault` and scrolled the page while focus
+    // stayed on the track. On a page whose every layer answers to this one
+    // control, half its documented keys failing is the difference between the
+    // clock being operable from a keyboard and not.
     const step =
-      e.key === 'ArrowLeft' ? -fine
-      : e.key === 'ArrowRight' ? fine
+      e.key === 'ArrowLeft' || e.key === 'ArrowDown' ? -fine
+      : e.key === 'ArrowRight' || e.key === 'ArrowUp' ? fine
       : e.key === 'PageDown' ? -60
       : e.key === 'PageUp' ? 60
       : 0;
@@ -550,7 +557,14 @@ export const TimeBar: React.FC<TimeBarProps> = ({
           >
             ‹
           </button>
-          <label className="relative cursor-pointer px-1 text-xs font-semibold tabular-nums text-surface-800 dark:text-surface-100">
+          {/* `focus-within`, because the focusable element here is the date
+              input stretched invisibly over the label — `opacity-0` hides its
+              UA focus ring along with everything else, so tabbing along this
+              row went track (amber ring) → ‹ (ring) → nowhere → › (ring). The
+              speed pill below already carries this exact treatment and its
+              comment already names this control's missing ring as a bug; this
+              is that bug, fixed rather than described. */}
+          <label className="relative cursor-pointer rounded-md px-1 text-xs font-semibold tabular-nums text-surface-800 focus-within:ring-2 focus-within:ring-inset focus-within:ring-amber-500 dark:text-surface-100">
             {shortDate(when)}
             <input
               type="date"

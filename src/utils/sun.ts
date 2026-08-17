@@ -234,7 +234,22 @@ function hourAngle(h: number, phi: number, dec: number): number {
 }
 
 /**
- * Daylight times for the calendar day containing `date`, at `lat`/`lon`.
+ * Daylight times for the SOLAR day containing `date`, at `lat`/`lon`.
+ *
+ * SOLAR, NOT CIVIL, and the difference is a real interval rather than a
+ * pedantic one. `julianCycle` rounds to the nearest solar-noon-centred day at
+ * this longitude, so the day it answers for begins at local solar MIDNIGHT —
+ * about 01:20 at Helsinki, later still in eastern Lapland. An instant between
+ * civil midnight and then belongs, as far as this function is concerned, to
+ * yesterday: measured, `sunTimes` at 12 August 00:30 Helsinki returns 11
+ * August's 05:24 and 21:29.
+ *
+ * That is correct for what the function computes and wrong for what a caller
+ * usually wants, so CALLERS ASKING ABOUT A CALENDAR DAY MUST PASS AN INSTANT
+ * INSIDE IT AND WELL AWAY FROM ITS EDGES — local noon is the obvious choice and
+ * is what /live/ passes. This docstring claimed "calendar day" for a year and
+ * the page's sunrise and sunset marks vanished off the left end of its own
+ * track because of it.
  *
  * All returned times are absolute instants (`Date`), not wall-clock strings —
  * formatting in the user's zone is the caller's job.

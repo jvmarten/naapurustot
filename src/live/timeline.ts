@@ -118,9 +118,22 @@ export function mergeReadings(
     }
     const existing = list[lo];
     if (existing && existing.at === r.at) {
-      if (existing.forecast && !forecast) {
+      // A MEASUREMENT IS FINAL; A FORECAST IS NOT. Anything arriving over an
+      // existing FORECAST replaces it — a measurement because the hour has since
+      // happened, another forecast because a later model run has revised it —
+      // while an existing MEASUREMENT is never touched by either.
+      //
+      // The second half of that used to be missing, and it silently disabled the
+      // one job the half-hourly day refresh exists to do: DAY_REFRESH_MS says
+      // "only the FORECAST arm really needs this ... a page left open across a
+      // model run would otherwise keep showing the forecast it loaded this
+      // morning", and then every returned sample landed on an instant already
+      // holding a forecast and was dropped. A page open from breakfast showed
+      // the 06Z run all afternoon, having re-asked ECMWF for the 12Z one four
+      // times and thrown away 67 kB of answer each time.
+      if (existing.forecast) {
         existing.value = r.value;
-        existing.forecast = false;
+        existing.forecast = forecast;
       }
       continue;
     }

@@ -85,6 +85,20 @@ export interface FeedGroup {
    * produces no CSS at all.
    */
   accent: string;
+  /**
+   * The same accent, dark enough to be READ on a light background.
+   *
+   * Not a duplicate: `accent` is an ink for a coloured surface — a toggle's
+   * fill, a mark on a dark map — and it is chosen to be bright enough to survive
+   * the night wash. Used as TEXT on the sidebar's `#f8fafc`, those same three
+   * colours measure 2.05, 2.05 and 2.60 against WCAG's 4.5 for 12 px bold, so
+   * the group headings were effectively unreadable for anyone in light mode.
+   * (In dark mode they are 9.39, 9.42 and 7.41, which is why this never showed
+   * up: the theme it fails in is the one nobody develops in.) These are the
+   * -700 rung of the same Tailwind hues — 4.80, 5.67, 6.79 — so the families
+   * still read as families.
+   */
+  accentText: string;
   feeds: Feed[];
 }
 
@@ -93,6 +107,7 @@ export const FEED_GROUPS: FeedGroup[] = [
     id: 'sun',
     labelKey: 'live.group.sun',
     accent: '#f59e0b',
+    accentText: '#b45309',
     feeds: [
       { id: 'shadows', labelKey: 'live.feed.shadows', status: 'live', coverage: 'urban', time: 'computed', defaultOn: true },
       { id: 'sun_position', labelKey: 'live.feed.sun_position', status: 'live', coverage: 'national', time: 'computed', defaultOn: true },
@@ -102,7 +117,20 @@ export const FEED_GROUPS: FeedGroup[] = [
     id: 'weather',
     labelKey: 'live.group.weather',
     accent: '#38bdf8',
+    accentText: '#0369a1',
     feeds: [
+      // STILL PLANNED, AND THE OBVIOUS ROUTES ARE CLOSED — recorded here so the
+      // next attempt does not repeat the search. Measured 2026-08-17:
+      // opendata.fmi.fi lists 150-odd stored queries and not one of them is a
+      // warning product (the closest, `fmi::forecast::*`, are model fields, not
+      // the meteorologist's warning). FMI publishes warnings as CAP at
+      // alerts.fmi.fi, which answers 200 and sends NO `Access-Control-Allow-
+      // Origin` at all, with or without an `Origin` header — so no browser can
+      // read it, whoever issues the request. What remains is the undocumented
+      // API behind ilmatieteenlaitos.fi's own warning page; it does send
+      // `access-control-allow-origin: *`, but it is an internal endpoint with no
+      // published contract and no licence attached, which is not a source this
+      // project builds a stated fact on.
       { id: 'warnings', labelKey: 'live.feed.warnings', status: 'planned', coverage: 'national', time: 'validity', defaultOn: false },
       // Air temperature at every reporting FMI station. National, and 5.3 kB
       // gzipped despite 170 kB of raw XML — see observations.ts before
@@ -121,12 +149,30 @@ export const FEED_GROUPS: FeedGroup[] = [
       // monitoring network — 82 stations in towns. FMI's national background
       // network has seven, which is real but too sparse to read as a map.
       { id: 'air_quality', labelKey: 'live.feed.air_quality', status: 'live', coverage: 'urban', time: 'archive', defaultOn: false },
+      // The first feed here whose data is EVENTS rather than the state of a
+      // station, which changes what the clock asks it for: not "what was the
+      // value at T" but "what struck between T-30min and T". lightning.ts
+      // explains the window and why it is part of the feed rather than a
+      // rendering choice.
+      //
+      // 'national' without a caveat — the detection network locates flashes by
+      // triangulation from far outside the country, so coverage does not thin at
+      // the edges the way a station map does. 'archive': FMI serves the history
+      // on request, and nothing is drawn forward of now because a flash that has
+      // not happened has no publisher.
+      //
+      // OFF BY DEFAULT, and that is a cost decision rather than a confidence
+      // one. A day of a national storm is 477 kB where every other feed here is
+      // 2-20 kB (the measurements are in lightning.ts), so it is bought by
+      // people who asked for lightning and by nobody else.
+      { id: 'lightning', labelKey: 'live.feed.lightning', status: 'live', coverage: 'national', time: 'archive', defaultOn: false },
     ],
   },
   {
     id: 'transport',
     labelKey: 'live.group.transport',
     accent: '#a78bfa',
+    accentText: '#6d28d9',
     feeds: [
       // National by construction, which the shadow feed above cannot be: every
       // train running in the country, not just the cities a 3D model covers.
@@ -148,6 +194,18 @@ export const FEED_GROUPS: FeedGroup[] = [
       // this in effect at 06:20" and "will this still be closed at 19:00" are
       // both answered by Fintraffic rather than by us.
       { id: 'road_incidents', labelKey: 'live.feed.road_incidents', status: 'live', coverage: 'national', time: 'validity', defaultOn: true },
+      // STILL PLANNED, and the obvious first move is a dead end — recorded for
+      // the same reason the `warnings` note above it is. Probed 2026-08-17:
+      // HSL's keyless GTFS-RT service alerts at
+      // realtime.hsl.fi/realtime/service-alerts/v2/hsl answer 200 with 28.9 kB
+      // of protobuf and no API key, which from curl looks perfect; the response
+      // carries no `Access-Control-Allow-Origin`, and a preflight with
+      // `Origin: https://naapurustot.fi` is rejected outright — "400 The origin
+      // 'https://naapurustot.fi' is not allowed" — so no browser can read it.
+      // The old api.digitransit.fi/realtime/service-alerts path now answers 404
+      // "deprecated and removed". That leaves Digitransit's OTP2 GraphQL, which
+      // does allow browser origins but wants the subscription key, so this feed
+      // is a key-handling decision rather than a data-availability one.
       { id: 'transit_alerts', labelKey: 'live.feed.transit_alerts', status: 'planned', coverage: 'urban', time: 'validity', defaultOn: false },
     ],
   },

@@ -175,9 +175,13 @@ export default defineConfig({
         // one region (~200KB). Data files are runtime-cached on first fetch.
         globPatterns: ['**/*.{js,css,ico,png,svg}'],
         // The /live/ terrain pyramid is data that HAPPENS to be PNG, so the
-        // extension-based pattern above swept all 265 tiles into the precache
-        // and took first-visit cost from 2.3 MB to 11.9 MB — paid by every
-        // visitor, including the overwhelming majority who never open /live/.
+        // extension-based pattern above swept the whole pyramid into the
+        // precache and took first-visit cost from 2.3 MB to 11.9 MB — paid by
+        // every visitor, including the overwhelming majority who never open
+        // /live/. (This said "all 265 tiles"; the pyramid is 603 tiles / 20 MB
+        // today, having grown continental coverage at the coarse levels — see
+        // CLAUDE.md /live/ shadows invariant 16. Check the `precache N entries`
+        // line in the build output after touching anything under public/data.)
         // Same reasoning as the .topojson exclusion: a viewport needs about a
         // dozen of these tiles, chosen by where the camera is, so they are
         // runtime-cached on first fetch like every other data file.

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { FEED_GROUPS, type Feed } from './feeds';
 import { t } from '../utils/i18n';
 
@@ -50,6 +50,17 @@ const Toggle: React.FC<{ on: boolean; accent: string; disabled: boolean }> = ({ 
 export const FeedSidebar: React.FC<FeedSidebarProps> = ({ enabled, onToggle, onSetAll, onClose }) => {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
+  // Escape closes it, which the overlay form makes an obligation rather than a
+  // nicety: below `md` this panel covers the map, and the only other way out is
+  // a single glyph in its own corner.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
   const toggleGroup = (id: string) =>
     setCollapsed((prev) => {
       const next = new Set(prev);
@@ -74,24 +85,49 @@ export const FeedSidebar: React.FC<FeedSidebarProps> = ({ enabled, onToggle, onS
   );
 
   return (
+    <>
+    {/* A scrim, only where the panel floats. Tapping beside a sheet to dismiss
+        it is the phone idiom, and without it the single × in the corner is the
+        only way back to the map this panel is covering. `md:hidden` because
+        above the breakpoint the sidebar is a column that covers nothing. */}
+    <button
+      type="button"
+      aria-label={t('live.filters.close')}
+      onClick={onClose}
+      className="absolute inset-0 z-10 cursor-default bg-black/30 md:hidden"
+    />
     <aside
-      className="flex h-full w-64 shrink-0 flex-col border-r border-surface-200 bg-surface-50 text-surface-900 dark:border-surface-800 dark:bg-surface-950/95 dark:text-surface-100"
+      // AN OVERLAY BELOW `md`, A COLUMN AT AND ABOVE IT. In flow this is a fixed
+      // 256 px column, which on a 390 px phone leaves about 134 px of map — a
+      // page about a map, mostly not showing one. Above the breakpoint the
+      // column is the right shape and the map has room for both; below it, the
+      // switchboard is something you open, use and close, so it sits over the
+      // map (`absolute inset-y-0 left-0 z-20`) and gives every pixel back when
+      // it closes. `shadow-xl` only where it floats, because a panel that
+      // overlaps needs an edge and a panel that abuts does not.
+      className="absolute inset-y-0 left-0 z-20 flex h-full w-64 shrink-0 flex-col border-r border-surface-200 bg-surface-50 text-surface-900 shadow-xl md:relative md:z-auto md:shadow-none dark:border-surface-800 dark:bg-surface-950/95 dark:text-surface-100"
       aria-label={t('live.filters.title')}
     >
-      <div className="flex items-center gap-2 px-4 py-3">
-        <h2 className="mr-auto text-base font-semibold">{t('live.filters.title')}</h2>
+      {/* The three header controls carry padding rather than sitting at their
+          glyph size. The × in particular was about 9 × 19 px of hit area — well
+          under WCAG 2.5.8's 24 × 24 minimum — which was survivable while this
+          was a desktop column and is not now that it is the dismissal for a
+          panel covering a phone's whole map. The row's own padding shrinks to
+          compensate, so the header is the same height it was. */}
+      <div className="flex items-center gap-1 px-3 py-2">
+        <h2 className="mr-auto pl-1 text-base font-semibold">{t('live.filters.title')}</h2>
         <button
           type="button"
           onClick={() => onSetAll(true)}
-          className="text-xs text-brand-600 hover:underline dark:text-brand-400"
+          className="rounded px-2 py-1.5 text-xs text-brand-700 hover:underline dark:text-brand-400"
         >
           {t('live.filters.all')}
         </button>
-        <span className="text-surface-600" aria-hidden="true">|</span>
+        <span className="text-surface-500" aria-hidden="true">|</span>
         <button
           type="button"
           onClick={() => onSetAll(false)}
-          className="text-xs text-surface-500 hover:underline dark:text-surface-400"
+          className="rounded px-2 py-1.5 text-xs text-surface-600 hover:underline dark:text-surface-400"
         >
           {t('live.filters.clear')}
         </button>
@@ -99,7 +135,7 @@ export const FeedSidebar: React.FC<FeedSidebarProps> = ({ enabled, onToggle, onS
           type="button"
           onClick={onClose}
           aria-label={t('live.filters.close')}
-          className="ml-1 text-surface-500 hover:text-surface-900 dark:text-surface-400 dark:hover:text-white"
+          className="grid h-8 w-8 place-items-center rounded text-lg leading-none text-surface-600 hover:bg-surface-200 hover:text-surface-900 dark:text-surface-400 dark:hover:bg-surface-800 dark:hover:text-white"
         >
           ×
         </button>
@@ -131,9 +167,22 @@ export const FeedSidebar: React.FC<FeedSidebarProps> = ({ enabled, onToggle, onS
                 >
                   ▼
                 </span>
+                {/* TWO INKS, PICKED BY THEME. The bright accent is chosen to
+                    survive a dark map and the night wash; as 12 px bold text on
+                    the sidebar's near-white it measures 2.05:1. The custom
+                    properties are what let one element carry both without a
+                    theme prop — Tailwind's `dark:` variant switches between
+                    them, and both class names are complete literals, which is
+                    the constraint that keeps `accent` a raw hex in the first
+                    place (see feeds.ts). */}
                 <span
-                  className="mr-auto text-xs font-bold uppercase tracking-wider"
-                  style={{ color: group.accent }}
+                  className="mr-auto text-xs font-bold uppercase tracking-wider text-[color:var(--group-ink)] dark:text-[color:var(--group-ink-dark)]"
+                  style={
+                    {
+                      '--group-ink': group.accentText,
+                      '--group-ink-dark': group.accent,
+                    } as React.CSSProperties
+                  }
                 >
                   {t(group.labelKey)}
                 </span>
@@ -176,5 +225,6 @@ export const FeedSidebar: React.FC<FeedSidebarProps> = ({ enabled, onToggle, onS
         })}
       </div>
     </aside>
+    </>
   );
 };

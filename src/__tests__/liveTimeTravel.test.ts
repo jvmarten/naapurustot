@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   recordSnapshot,
   snapshotAt,
-  trackedRange,
+  trackedRuns,
+  nearestRun,
   trainRecordAt,
   TRACK_SPACING_MS,
   TRACK_WINDOW_MS,
@@ -89,13 +90,59 @@ describe('recorded train history', () => {
     expect(snapshotAt([], t0)).toBeNull();
   });
 
+  /** An uninterrupted stretch of polling, as `recordSnapshot` would retain it. */
+  function record(buf: TrainSnapshot[], from: number, count: number) {
+    for (let i = 0; i < count; i++) recordSnapshot(buf, from + i * TRACK_SPACING_MS, []);
+    return from + (count - 1) * TRACK_SPACING_MS;
+  }
+
   it('reports how far the recording reaches', () => {
     const buf: TrainSnapshot[] = [];
     const t0 = Date.parse('2026-08-12T09:00:00Z');
-    expect(trackedRange(buf)).toBeNull();
-    recordSnapshot(buf, t0, []);
-    recordSnapshot(buf, t0 + 5 * TRACK_SPACING_MS, []);
-    expect(trackedRange(buf)).toEqual({ from: t0, to: t0 + 5 * TRACK_SPACING_MS });
+    expect(trackedRuns(buf)).toEqual([]);
+    expect(nearestRun(buf, t0)).toBeNull();
+    const last = record(buf, t0, 6);
+    expect(trackedRuns(buf)).toEqual([{ from: t0, to: last }]);
+  });
+
+  it('breaks the recording at a gap rather than claiming across it', () => {
+    // The readout used to print the buffer's first and last instants as one
+    // span — in the same breath as telling the reader that an instant INSIDE it
+    // was not recorded. The gap here is the ordinary one: polling stops while
+    // the tab is hidden, so a few minutes in another tab produces exactly this.
+    const buf: TrainSnapshot[] = [];
+    const t0 = Date.parse('2026-08-12T09:00:00Z');
+    const firstEnd = record(buf, t0, 6);
+    const afterGap = t0 + 20 * 60_000;
+    const secondEnd = record(buf, afterGap, 6);
+
+    const runs = trackedRuns(buf);
+    expect(runs).toEqual([
+      { from: t0, to: firstEnd },
+      { from: afterGap, to: secondEnd },
+    ]);
+  });
+
+  it('keeps an uninterrupted stretch whole, at the spacing polling produces', () => {
+    // The counterpart of the case above, and the one that stops the gap rule
+    // being drawn so tightly that ordinary polling looks like a broken record:
+    // consecutive retained snapshots are TRACK_SPACING_MS apart by construction.
+    const buf: TrainSnapshot[] = [];
+    const t0 = Date.parse('2026-08-12T09:00:00Z');
+    record(buf, t0, 40);
+    expect(trackedRuns(buf)).toHaveLength(1);
+  });
+
+  it('names the stretch nearest the clock, and how many there are', () => {
+    const buf: TrainSnapshot[] = [];
+    const t0 = Date.parse('2026-08-12T09:00:00Z');
+    const firstEnd = record(buf, t0, 6);
+    const afterGap = t0 + 20 * 60_000;
+    record(buf, afterGap, 6);
+
+    // A clock inside the hole picks whichever side it is closer to.
+    expect(nearestRun(buf, firstEnd + 60_000)).toMatchObject({ from: t0, to: firstEnd, runs: 2 });
+    expect(nearestRun(buf, afterGap - 60_000)).toMatchObject({ from: afterGap, runs: 2 });
   });
 });
 

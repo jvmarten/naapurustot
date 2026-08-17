@@ -171,6 +171,41 @@ describe('sunTimes', () => {
     const afterNoon = (t.sunset as Date).valueOf() - t.solarNoon.valueOf();
     expect(Math.abs(beforeNoon - afterNoon)).toBeLessThan(1000);
   });
+
+  it('anchors on the SOLAR day, so an instant before solar midnight is yesterday', () => {
+    // Pinned because it is a trap rather than a defect: `julianCycle` rounds to
+    // the nearest solar-noon-centred day, and solar midnight at Helsinki is
+    // about 22:20 UTC. An instant just before it belongs to the previous solar
+    // day and gets the previous day's pair — which /live/ drew as two vanished
+    // marks and a readout of yesterday's sunrise until it started asking at
+    // local noon. Anyone who "fixes" this to the civil day must fix the caller
+    // in the same commit, and anyone adding a caller must pass an instant well
+    // inside the day they mean.
+    const beforeSolarMidnight = sunTimes(
+      new Date('2026-08-11T21:30:00Z'),
+      HELSINKI.lat,
+      HELSINKI.lon,
+    );
+    const afterSolarMidnight = sunTimes(
+      new Date('2026-08-11T22:30:00Z'),
+      HELSINKI.lat,
+      HELSINKI.lon,
+    );
+    // Both instants are 12 August in Helsinki (00:30 and 01:30 EEST); only the
+    // second one is in 12 August's solar day.
+    expect((beforeSolarMidnight.sunrise as Date).getTime()).toBeLessThan(
+      (afterSolarMidnight.sunrise as Date).getTime(),
+    );
+    expect(
+      (afterSolarMidnight.sunrise as Date).getTime() -
+        (beforeSolarMidnight.sunrise as Date).getTime(),
+    ).toBeGreaterThan(23 * 3_600_000);
+
+    // Local noon is the instant that names a calendar day unambiguously, which
+    // is what /live/ passes.
+    const noon = sunTimes(new Date('2026-08-12T09:00:00Z'), HELSINKI.lat, HELSINKI.lon);
+    expect((noon.sunrise as Date).getTime()).toBe((afterSolarMidnight.sunrise as Date).getTime());
+  });
 });
 
 describe('shadowLengthRatio', () => {

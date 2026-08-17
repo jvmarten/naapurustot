@@ -24,7 +24,7 @@
  * them as lines in the first place.
  */
 
-export type PickKind = 'train' | 'air_quality' | 'observation' | 'incident';
+export type PickKind = 'train' | 'air_quality' | 'observation' | 'incident' | 'lightning';
 
 export interface Picked {
   kind: PickKind;
@@ -52,6 +52,11 @@ const GRAB_PX: Record<PickKind, number> = {
   air_quality: 12,
   observation: 16,
   incident: 14,
+  // The tightest on the page, and it has to be. A storm puts a few thousand
+  // flashes in the window, dense enough that neighbours are often a pixel or two
+  // apart — a generous radius there does not make the layer easier to hit, it
+  // makes which flash you get arbitrary. Eight pixels is still twice the mark.
+  lightning: 8,
 };
 
 /**
@@ -65,6 +70,13 @@ const PRIORITY: Record<PickKind, number> = {
   air_quality: 1,
   incident: 2,
   observation: 3,
+  // LAST, which is the opposite of what its mark size would suggest. The rule
+  // above is "the smaller, more precisely-placed mark wins a tie", and a flash
+  // is the smallest thing here — but it is also drawn UNDER everything else and
+  // arrives in thousands, so a tie-break in its favour would make a train dot
+  // standing in a thunderstorm unselectable. Being painted at the bottom of the
+  // stack, it loses ties at the bottom too, and the two orders stay consistent.
+  lightning: 4,
 };
 
 /** Squared distance from `p` to the segment `a`–`b`, in pixels. */
@@ -95,6 +107,7 @@ export interface PickInput {
   airQuality?: Located[];
   observations?: Located[];
   incidents?: LocatedLines[];
+  lightning?: Located[];
 }
 
 /**
@@ -139,6 +152,7 @@ export function pickFeature(
   points('train', layers.trains);
   points('air_quality', layers.airQuality);
   points('observation', layers.observations);
+  points('lightning', layers.lightning);
 
   const incidents = layers.incidents;
   if (incidents) {
