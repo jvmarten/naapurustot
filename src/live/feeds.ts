@@ -132,6 +132,22 @@ export const FEED_GROUPS: FeedGroup[] = [
       // published contract and no licence attached, which is not a source this
       // project builds a stated fact on.
       { id: 'warnings', labelKey: 'live.feed.warnings', status: 'planned', coverage: 'national', time: 'validity', defaultOn: false },
+      // The page's first RASTER feed — FMI's national radar composite, from the
+      // open WMS rather than the WFS every other FMI feed here uses. See
+      // radar.ts: it is the one measured layer that cannot load its day up
+      // front, because a day of it is 288 images and ~25 MB against the ~20 kB
+      // a day of stations costs.
+      //
+      // 'national' with a caveat the sidebar cannot hold, so the readout carries
+      // it instead: the ten radars cover the country, and FMI's own style paints
+      // the ground outside their range as a faint grey rather than as nothing —
+      // which is the distinction this project makes everywhere else between "no
+      // rain" and "we cannot see", already made for us.
+      //
+      // OFF BY DEFAULT, for the same reason lightning is: a national frame is
+      // ~100 kB and there is one every five minutes, which is real money to
+      // spend on a visitor who came for the shadows.
+      { id: 'radar', labelKey: 'live.feed.radar', status: 'live', coverage: 'national', time: 'archive', defaultOn: false },
       // Air temperature at every reporting FMI station. National, and 5.3 kB
       // gzipped despite 170 kB of raw XML — see observations.ts before
       // "optimising" it to the coverage encoding, which is three times bigger
