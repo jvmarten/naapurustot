@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
+import { render, screen, act, cleanup } from '@testing-library/react';
 import { TimeBar } from '../live/TimeBar';
 import { sunPosition, sunTimes } from '../utils/sun';
 import { MINUTES_PER_DAY, minuteOfDay } from '../live/timeControl';
@@ -364,5 +364,81 @@ describe('TimeBar reports playback outward', () => {
     });
 
     expect(states[states.length - 1]).toBe(false);
+  });
+});
+
+/**
+ * The clock's keyboard, which is the whole of its accessible operation.
+ *
+ * The track carries `role="slider"` with a full `aria-value*` set, and the ARIA
+ * slider pattern is a contract: a reader who is told "press Up to increase" and
+ * gets nothing has no other way to move the instant that every layer on the page
+ * answers for. Up and Down were missing, and missing in the worst way — they
+ * fell through the handler without `preventDefault`, so the key scrolled the
+ * page while focus stayed on the control.
+ *
+ * The assertions are on the MINUTES SCRUBBED TO rather than on which branch ran,
+ * because the step sizes are themselves the decision: five minutes is what a
+ * shadow visibly moves by, one is for landing on a stated sunrise, an hour is
+ * for crossing the day.
+ */
+describe('TimeBar keyboard', () => {
+  /**
+   * Press a key on the track, and answer with the minute-of-day it scrubbed to.
+   *
+   * Torn down before returning: several presses per case, and a second bar left
+   * mounted makes `getByRole('slider')` ambiguous rather than wrong, which
+   * fails in a way that looks like the component rather than the test.
+   */
+  function press(init: KeyboardEventInit): { minute: number | null; prevented: boolean } {
+    const scrubs: Date[] = [];
+    render(<Harness onScrub={(d) => scrubs.push(d)} />);
+    const track = screen.getByRole('slider');
+    const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init });
+    act(() => {
+      track.dispatchEvent(event);
+    });
+    cleanup();
+    return {
+      minute: scrubs.length > 0 ? minuteOfDay(scrubs[scrubs.length - 1]) : null,
+      prevented: event.defaultPrevented,
+    };
+  }
+
+  const base = minuteOfDay(WHEN);
+
+  it('moves the clock with both the horizontal and the vertical arrows', () => {
+    expect(press({ key: 'ArrowRight' }).minute).toBe(base + 5);
+    expect(press({ key: 'ArrowLeft' }).minute).toBe(base - 5);
+    // The pair the ARIA pattern requires and this handler used to ignore.
+    expect(press({ key: 'ArrowUp' }).minute).toBe(base + 5);
+    expect(press({ key: 'ArrowDown' }).minute).toBe(base - 5);
+  });
+
+  it('gives every arrow the same Shift fine step', () => {
+    expect(press({ key: 'ArrowRight', shiftKey: true }).minute).toBe(base + 1);
+    expect(press({ key: 'ArrowUp', shiftKey: true }).minute).toBe(base + 1);
+    expect(press({ key: 'ArrowDown', shiftKey: true }).minute).toBe(base - 1);
+  });
+
+  it('steps an hour with PageUp/PageDown and the day with Home/End', () => {
+    expect(press({ key: 'PageUp' }).minute).toBe(base + 60);
+    expect(press({ key: 'PageDown' }).minute).toBe(base - 60);
+    expect(press({ key: 'Home' }).minute).toBe(0);
+    expect(press({ key: 'End' }).minute).toBe(MINUTES_PER_DAY - 1);
+  });
+
+  it('consumes every key it handles, so none of them scrolls the page', () => {
+    // The reason Up and Down were worse than inert: unhandled, they reached the
+    // document and scrolled it out from under a control that still had focus.
+    for (const key of ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End']) {
+      expect(press({ key }).prevented, key).toBe(true);
+    }
+  });
+
+  it('leaves keys it does not handle alone', () => {
+    const tab = press({ key: 'Tab' });
+    expect(tab.minute).toBeNull();
+    expect(tab.prevented).toBe(false);
   });
 });

@@ -114,10 +114,60 @@ export function snapshotAt(
   return Math.abs(best.at - at) <= toleranceMs ? best : null;
 }
 
-/** Oldest and newest retained instants, or null while the buffer is empty. */
-export function trackedRange(buffer: TrainSnapshot[]): { from: number; to: number } | null {
-  if (buffer.length === 0) return null;
-  return { from: buffer[0].at, to: buffer[buffer.length - 1].at };
+/**
+ * The CONTIGUOUS stretches the buffer actually covers, oldest first.
+ *
+ * NOT "oldest to newest", which is what this used to report and which the
+ * readout printed as "Recorded 09:15–09:59." — one sentence after telling the
+ * reader that nothing was recorded for an instant inside that very span. The
+ * holes are not an edge case: `useFeedPoll` deliberately stops polling while the
+ * tab is hidden, so every visit that involves switching tabs for a few minutes
+ * produces one, and `snapshotAt` correctly refuses the middle of it.
+ *
+ * A gap is a step longer than TWICE the tolerance `snapshotAt` answers within,
+ * and the factor of two is the whole definition rather than a fudge: the worst
+ * an instant between two snapshots can do is land at their midpoint, so every
+ * instant between them is answerable exactly when their separation is at most
+ * 2 × tolerance. That makes the sentence this feeds true as written — inside a
+ * run reported here, every instant has a snapshot the page will actually use.
+ */
+export function trackedRuns(buffer: TrainSnapshot[]): { from: number; to: number }[] {
+  if (buffer.length === 0) return [];
+  const runs: { from: number; to: number }[] = [];
+  let from = buffer[0].at;
+  for (let i = 1; i < buffer.length; i++) {
+    if (buffer[i].at - buffer[i - 1].at > 2 * TRACK_TOLERANCE_MS) {
+      runs.push({ from, to: buffer[i - 1].at });
+      from = buffer[i].at;
+    }
+  }
+  runs.push({ from, to: buffer[buffer.length - 1].at });
+  return runs;
+}
+
+/**
+ * The stretch nearest `at`, or null while the buffer is empty.
+ *
+ * What the readout wants when it has to say how far the recording reaches: the
+ * reader is looking at an instant nothing can answer for, so the useful fact is
+ * where the nearest thing that CAN starts and stops.
+ */
+export function nearestRun(
+  buffer: TrainSnapshot[],
+  at: number,
+): { from: number; to: number; runs: number } | null {
+  const runs = trackedRuns(buffer);
+  if (runs.length === 0) return null;
+  let best = runs[0];
+  let bestGap = Infinity;
+  for (const run of runs) {
+    const gap = at < run.from ? run.from - at : at > run.to ? at - run.to : 0;
+    if (gap < bestGap) {
+      bestGap = gap;
+      best = run;
+    }
+  }
+  return { ...best, runs: runs.length };
 }
 
 /**

@@ -78,6 +78,28 @@ test.describe('/live/', () => {
     await expect(page.getByText('1/2').first()).toBeVisible();
   });
 
+  test('gives a phone its map and keeps the clock on screen', async ({ page }) => {
+    // Two desktop-only assumptions shipped together here: `h-screen` (100vh,
+    // which on a phone is the viewport with the browser chrome COLLAPSED, so
+    // the footer sat below the fold) and a 256 px feed sidebar opened
+    // unconditionally, leaving ~134 px of map on a 390 px screen. Neither is
+    // visible at desktop widths, and nothing else in this suite is narrow.
+    await page.setViewportSize({ width: 390, height: 780 });
+    await page.goto('/live/');
+    await waitForLiveMap(page);
+
+    // The sidebar starts closed, so the map has the width.
+    await expect(page.getByText('Aurinko ja varjot')).toBeHidden();
+    const canvas = await page.locator('.maplibregl-canvas').boundingBox();
+    expect(canvas?.width ?? 0).toBeGreaterThan(300);
+
+    // And the clock — the control every layer on the page answers to — is
+    // inside the viewport rather than under the browser chrome.
+    const slider = await page.getByRole('slider').boundingBox();
+    expect(slider).not.toBeNull();
+    expect(slider!.y + slider!.height).toBeLessThanOrEqual(780);
+  });
+
   test('remembers the camera for a later bare /live/', async ({ page }) => {
     await page.goto('/live/?at=65.01210,25.46510,14.00');
     await waitForLiveMap(page);

@@ -177,7 +177,22 @@ const ASSETS_DIR = 'dist/assets';
 // — and the registry still lists two unwired feeds this budget exists to hold,
 // so headroom is restored to ~5 kB rather than to a hair. Every byte here is
 // reached only by /live/; the map route never imports it.
-const LIVE_BUDGET = 28_000;
+// → 34,000 B (2026-08-17: located lightning, the page's fifth measured feed and
+// the first whose data is EVENTS rather than the state of a station — FMI's
+// national detection network read from the coverage encoding, held as a day and
+// drawn as a trailing half-hour window, with a clickable per-flash panel. Plus a
+// batch of /live/ corrections: `sunTimes` asked for the day rather than for the
+// instant, day-failure split from poll-failure across all three measured feeds,
+// announcements culled on their whole extent rather than on their first vertex,
+// the recorded-train span reported as contiguous runs, the ARIA slider's missing
+// vertical arrows, a focus ring on the date control, and the mobile layout —
+// `h-dvh` and a sidebar that overlays rather than eating two thirds of a phone.
+//
+// Measured 26,975 → 29,103 B, ~2.1 kB, of which the whole lightning feed is
+// ~1.7 kB. Headroom is set to ~4.9 kB for exactly the reason the previous bump
+// gives: the registry still lists two unwired feeds this budget exists to hold,
+// and a hair's headroom fails the next branch for no reason of its own.
+const LIVE_BUDGET = 34_000;
 
 const fmtKB = (b) => (b / 1024).toFixed(2);
 
@@ -265,6 +280,20 @@ if (summaryPath) {
 }
 
 let failed = false;
+// A BUDGET THAT MEASURED NOTHING IS NOT A BUDGET THAT PASSED. `isLive` matches
+// on a chunk NAME, and the name is Rolldown's, so a rename of LivePage.tsx, a
+// change to the lazy-import shape in main.tsx, or a Rolldown naming change all
+// produce zero matches — and this script would then report "0 bytes, headroom
+// 34000" and exit 0, having checked nothing at all, in the direction that never
+// gets noticed. The map budget cannot fail this way (an empty assets dir is not
+// a state the build reaches), which is exactly why only this one needs saying.
+if (liveRows.length === 0) {
+  console.error(
+    '::error::no LivePage-* chunk found — the /live/ budget measured nothing. ' +
+      'Check the chunk name against `isLive` in this script.',
+  );
+  failed = true;
+}
 if (jsTotal > BUDGET) {
   console.error(
     `::error::Map-route JS exceeds ${fmtKB(BUDGET)} KB gzipped budget (${jsTotal} bytes)`,

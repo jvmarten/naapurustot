@@ -281,3 +281,67 @@ describe('DetailPanel — a road announcement', () => {
     expect(screen.getByText(/toistaiseksi/)).toBeTruthy();
   });
 });
+
+/**
+ * A lightning strike, which is the panel's only selection that is an EVENT.
+ *
+ * Everything else here describes a thing that persists and is being sampled — a
+ * train, a station, an announcement — so the panel's usual job is to say which
+ * instant a value belongs to. A flash IS an instant, and the three facts about
+ * it are all measured: when, what kind, and how much current. What the panel is
+ * forbidden to do is round any of them into something friendlier: a minute
+ * instead of a second (half an hour of a storm is on screen at once, and a cell
+ * produces a dozen flashes inside one minute), a magnitude instead of a signed
+ * current (negative is the ordinary polarity for a ground flash, so the sign is
+ * what makes a positive one notable), or a zero instead of an absent reading.
+ */
+describe('the lightning panel', () => {
+  const strike = {
+    lon: 25.7472,
+    lat: 62.2417,
+    at: Date.parse('2026-08-17T09:14:37Z'),
+    kiloamps: -26,
+    ground: true,
+  };
+
+  it('states the second, the type and the signed current', () => {
+    render(
+      <DetailPanel
+        selection={{ kind: 'lightning', item: strike }}
+        when={new Date(strike.at)}
+        onClose={() => {}}
+        onTrack={() => {}}
+      />,
+    );
+    // To the second, not the minute.
+    expect(screen.getByText(/\d{1,2}[.:]\d{2}[.:]37/)).toBeTruthy();
+    expect(screen.getByText('Maasalama')).toBeTruthy();
+    expect(screen.getByText('-26 kA')).toBeTruthy();
+  });
+
+  it('names a cloud flash as a different kind, not as a weaker one', () => {
+    render(
+      <DetailPanel
+        selection={{ kind: 'lightning', item: { ...strike, ground: false, kiloamps: -5 } }}
+        when={new Date(strike.at)}
+        onClose={() => {}}
+        onTrack={() => {}}
+      />,
+    );
+    expect(screen.getByText('Pilvisalama')).toBeTruthy();
+  });
+
+  it('prints no current at all when the network published none', () => {
+    // `Number('')` is 0 and NaN is a value FMI sends; either one would appear
+    // here as "0 kA", a flash measured to carry no current.
+    render(
+      <DetailPanel
+        selection={{ kind: 'lightning', item: { ...strike, kiloamps: null } }}
+        when={new Date(strike.at)}
+        onClose={() => {}}
+        onTrack={() => {}}
+      />,
+    );
+    expect(screen.queryByText(/kA/)).toBeNull();
+  });
+});

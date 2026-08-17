@@ -72,6 +72,20 @@ describe('timeline — merging', () => {
     });
   });
 
+  it('lets a REVISED forecast replace an earlier one for the same hour', () => {
+    // This is the whole job of the half-hourly day refresh: a page left open
+    // across a model run must stop showing the run it loaded at breakfast. The
+    // merge used to drop a forecast arriving over a forecast, so every one of
+    // those refreshes re-downloaded ECMWF's answer and threw all of it away.
+    const tl = createTimeline();
+    mergeReadings(tl, [reading(18, 15)], true);
+    mergeReadings(tl, [reading(18, 17.4)], true);
+    expect(sampleTimeline(tl, at(18), 60_000)[0]).toMatchObject({
+      value: 17.4,
+      forecast: true,
+    });
+  });
+
   it('treats stations a metre apart as different stations', () => {
     const tl = createTimeline();
     mergeReadings(tl, [reading(9, 15, 60.0), reading(9, 3, 60.001)]);

@@ -61,6 +61,16 @@ import {
   type AirQuality,
 } from './airquality';
 import {
+  fetchLightning,
+  mergeStrikes,
+  newestStrikeAt,
+  strikesIn,
+  LIGHTNING_POLL_MS,
+  STRIKE_WINDOW_MS,
+  STRIKE_WINDOW_MINUTES,
+  type Strike,
+} from './lightning';
+import {
   createTimeline,
   clearTimeline,
   mergeReadings,
@@ -82,13 +92,14 @@ import { pickFeature } from './pick';
 import {
   recordSnapshot,
   snapshotAt,
-  trackedRange,
+  nearestRun,
   trainRecordAt,
   TRACK_WINDOW_MS,
   type TrainSnapshot,
 } from './trainHistory';
 import {
   addDays,
+  atMinuteOfDay,
   clockSeconds,
   clockTime,
   isFuture,
@@ -518,6 +529,7 @@ const SCHEDULE_DEBOUNCE_MS = 600;
 /** Shared empty lists, so the off paths allocate nothing per render. */
 const EMPTY_OBSERVATIONS: Observation[] = [];
 const EMPTY_AIR_QUALITY: AirQuality[] = [];
+const EMPTY_STRIKES: Strike[] = [];
 const EMPTY_SCHEDULED: ScheduledTrain[] = [];
 
 /**
@@ -530,6 +542,9 @@ const EMPTY_SCHEDULED: ScheduledTrain[] = [];
  * playhead creeps rather than jumping.
  */
 const LIVE_TICK_MS = 30_000;
+
+/** Local noon, the instant that names a day to `sunTimes`. See `times` below. */
+const NOON_MINUTES = 12 * 60;
 
 /** Highlight ink for the selected marker and its route, per theme. */
 const SELECTED = {
@@ -1036,6 +1051,9 @@ const INCIDENT = {
 /** Below this, a closure's extent is a few pixels and only its position reads. */
 const INCIDENT_LINE_ZOOM = 8;
 
+/** Off-screen margin an announcement is still drawn within, in CSS pixels. */
+const INCIDENT_CULL_PX = 200;
+
 /**
  * Paint road incidents, above the shade and below the trains.
  *
@@ -1067,24 +1085,37 @@ function paintIncidents(
 
   for (const incident of incidents) {
     const anchor = map.project([incident.lon, incident.lat]);
-    // Generous margin: a closure running off the edge of the screen still has to
-    // be drawn, because most of it being off-screen is not a reason to hide the
-    // part that is on it.
-    if (
-      anchor.x < -200 ||
-      anchor.y < -200 ||
-      anchor.x > width + 200 ||
-      anchor.y > height + 200
-    ) {
-      continue;
-    }
 
     if (withLines && incident.lines.length > 0) {
+      // CULLED ON THE WHOLE LINE, NOT ON ITS FIRST VERTEX.
+      //
+      // The margin above this loop used to be tested against the anchor alone —
+      // which is `lines[0][0]`, the head of the closure — under a comment saying
+      // that a closure running off the edge still has to be drawn. It did the
+      // opposite: measured against the live feed on 2026-08-17, announcements
+      // reach 5.4 km, 3.1 km and 2.3 km from their own anchor, while 200 px is
+      // about 900 m at z14 and 450 m at z15 — the zooms at which someone
+      // actually reads a closure. Pan along a motorway closure until its head
+      // leaves the screen and the entire amber line vanished from the viewport
+      // it crosses, while `pickFeature` (which has never had this cull) went on
+      // selecting it from apparently empty map.
+      //
+      // The vertices have to be projected to answer the question at all, so the
+      // path is built first and the test is on the box it occupies. Eighteen
+      // national announcements make that free.
       const path = new Path2D();
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
       for (const line of incident.lines) {
         let first = true;
         for (const [lon, lat] of line) {
           const p = map.project([lon, lat]);
+          if (p.x < minX) minX = p.x;
+          if (p.x > maxX) maxX = p.x;
+          if (p.y < minY) minY = p.y;
+          if (p.y > maxY) maxY = p.y;
           if (first) {
             path.moveTo(p.x, p.y);
             first = false;
@@ -1092,6 +1123,14 @@ function paintIncidents(
             path.lineTo(p.x, p.y);
           }
         }
+      }
+      if (
+        maxX < -INCIDENT_CULL_PX ||
+        maxY < -INCIDENT_CULL_PX ||
+        minX > width + INCIDENT_CULL_PX ||
+        minY > height + INCIDENT_CULL_PX
+      ) {
+        continue;
       }
       ctx.lineWidth = 6;
       ctx.strokeStyle = ink.halo;
@@ -1103,7 +1142,16 @@ function paintIncidents(
     }
 
     // A point incident, or a line too small to read as one: a ring, which stays
-    // distinguishable from the trains' filled dots at a glance.
+    // distinguishable from the trains' filled dots at a glance. Here the anchor
+    // IS the extent, so it is the right thing to cull on.
+    if (
+      anchor.x < -INCIDENT_CULL_PX ||
+      anchor.y < -INCIDENT_CULL_PX ||
+      anchor.x > width + INCIDENT_CULL_PX ||
+      anchor.y > height + INCIDENT_CULL_PX
+    ) {
+      continue;
+    }
     ctx.beginPath();
     ctx.arc(anchor.x, anchor.y, 5, 0, Math.PI * 2);
     ctx.lineWidth = 4;
@@ -1128,6 +1176,131 @@ function paintIncidents(
  * Drawn UNDER the temperature labels: a disc survives a number written over it,
  * and a number does not survive a disc.
  */
+/**
+ * Lightning ink, per theme.
+ *
+ * SKY BLUE AND NOT AMBER, which on this page is a decision about meaning rather
+ * than taste. Amber is already load-bearing here — the scrubbed clock chip, the
+ * "not the present" banner, the italic forecast temperatures, the failure
+ * sentences all use it — so a bright amber spark would read as "this is modelled
+ * or stale", which is the opposite of what a located flash is. The weather
+ * group's own accent is sky blue (feeds.ts), lightning is blue-white in life,
+ * and neither the trains' purple nor the air quality ramp's green-to-red is
+ * anywhere near it.
+ *
+ * The light theme goes DARKER rather than brighter for the same reason the
+ * temperature labels do: the mark has to survive a pale basemap in full daylight,
+ * and a pale spark on beige is invisible, while the dark theme's marks have to
+ * survive the night wash at 0.62 alpha over them.
+ */
+const LIGHTNING = {
+  dark: { ground: '191, 219, 254', cloud: '125, 211, 252' },
+  light: { ground: '12, 74, 110', cloud: '2, 132, 199' },
+} as const;
+
+/** Ground-flash mark: a dot with four rays. Cloud flashes are the dot alone. */
+const STRIKE_DOT_PX = 2.4;
+const STRIKE_RAY_PX = 5.5;
+const CLOUD_DOT_PX = 1.5;
+
+/**
+ * How many opacity steps the trailing window is drawn in.
+ *
+ * NOT a quantisation of the data — every strike keeps its own second, the panel
+ * prints it, and the window it is drawn in is stated in words. This is a drawing
+ * budget: the busiest half-hour of the 2026 season held 3,269 strikes, and
+ * setting `globalAlpha` per mark would mean 3,269 state changes a frame on a
+ * canvas that is also compositing a shadow mask. Because the list is sorted by
+ * time, a walk over it crosses each step exactly once, so the whole layer is
+ * about ten fills regardless of how many flashes are in it.
+ */
+const STRIKE_FADE_STEPS = 5;
+
+/** Opacity for a step, newest full and the oldest still clearly present. */
+const stepAlpha = (step: number) => 0.3 + (0.7 * (step + 0.5)) / STRIKE_FADE_STEPS;
+
+/**
+ * Paint located lightning, oldest faintest.
+ *
+ * THE FADE IS THE STRIKE'S OWN AGE, not a decay of confidence. Each flash is a
+ * measured event at a measured second; drawing the recent ones brighter is what
+ * makes a half-hour of them read as a storm moving rather than as a static
+ * scatter, and it is the only encoding on this layer that is not simply "this
+ * happened here". Nothing is interpolated between them and nothing is drawn
+ * outside the window the readout names.
+ *
+ * Two passes, cloud flashes under ground flashes: 82 % of a storm is cloud
+ * flashes (lightning.ts), so drawing them in the same pass would bury the 18 %
+ * that actually reach the ground under the ones that do not.
+ */
+function paintLightning(
+  ctx: CanvasRenderingContext2D,
+  map: MaplibreMap,
+  strikes: Strike[],
+  at: number,
+  theme: 'dark' | 'light',
+  width: number,
+  height: number,
+): void {
+  if (strikes.length === 0) return;
+  const ink = LIGHTNING[theme];
+
+  ctx.save();
+  ctx.lineCap = 'round';
+
+  for (const ground of [false, true]) {
+    const rgb = ground ? ink.ground : ink.cloud;
+    let dots = new Path2D();
+    let rays = ground ? new Path2D() : null;
+    let step = -1;
+
+    const flush = () => {
+      if (step < 0) return;
+      const alpha = stepAlpha(step);
+      ctx.fillStyle = `rgba(${rgb}, ${alpha})`;
+      ctx.fill(dots);
+      if (rays) {
+        ctx.strokeStyle = `rgba(${rgb}, ${alpha})`;
+        ctx.lineWidth = 1.4;
+        ctx.stroke(rays);
+      }
+      dots = new Path2D();
+      rays = ground ? new Path2D() : null;
+    };
+
+    for (const s of strikes) {
+      if (s.ground !== ground) continue;
+      const p = map.project([s.lon, s.lat]);
+      if (p.x < -10 || p.y < -10 || p.x > width + 10 || p.y > height + 10) continue;
+
+      // The list is ascending, so this only ever increases — which is what lets
+      // a step change be a flush rather than a per-mark style assignment.
+      const age = at - s.at;
+      const next = Math.min(
+        STRIKE_FADE_STEPS - 1,
+        Math.max(0, Math.floor(((STRIKE_WINDOW_MS - age) / STRIKE_WINDOW_MS) * STRIKE_FADE_STEPS)),
+      );
+      if (next !== step) {
+        flush();
+        step = next;
+      }
+
+      const r = ground ? STRIKE_DOT_PX : CLOUD_DOT_PX;
+      dots.moveTo(p.x + r, p.y);
+      dots.arc(p.x, p.y, r, 0, Math.PI * 2);
+      if (rays) {
+        rays.moveTo(p.x - STRIKE_RAY_PX, p.y);
+        rays.lineTo(p.x + STRIKE_RAY_PX, p.y);
+        rays.moveTo(p.x, p.y - STRIKE_RAY_PX);
+        rays.lineTo(p.x, p.y + STRIKE_RAY_PX);
+      }
+    }
+    flush();
+  }
+
+  ctx.restore();
+}
+
 function paintAirQuality(
   ctx: CanvasRenderingContext2D,
   map: MaplibreMap,
@@ -1474,9 +1647,22 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     if (lang && getLang() !== lang) void setLang(lang);
   }, [lang]);
 
+  /**
+   * `<html lang>` follows the language actually in use, not the route's.
+   *
+   * Keyed on the prop, this only ever ran once — the route's language never
+   * changes for the life of the page — so the header's own language picker
+   * switched every string on screen and left the document declared Finnish.
+   * A screen reader then read English in a Finnish voice, and the browser went
+   * on offering to translate a page it was already looking at in the reader's
+   * language. `getLang()` is re-read every render and `useI18nVersion()` above
+   * is what makes a language change produce one, which is the same shape the
+   * map route has always used (App.tsx).
+   */
+  const activeLang = getLang();
   useEffect(() => {
-    if (lang) document.documentElement.lang = lang;
-  }, [lang]);
+    document.documentElement.lang = activeLang;
+  }, [activeLang]);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const mapRef = useRef<MaplibreMap | null>(null);
@@ -1539,6 +1725,18 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   const aqTimelineRef = useRef<Timeline>(createTimeline());
   const [timelineVersion, setTimelineVersion] = useState(0);
   const bumpTimeline = useCallback(() => setTimelineVersion((v) => v + 1), []);
+  /**
+   * The day's located lightning, ascending — NOT a Timeline.
+   *
+   * The station timelines above are keyed by position because a station is a
+   * thing that keeps reporting; a flash happens once and never again, so there
+   * is nothing to key it by and nothing to sample. What the clock asks this list
+   * for is a WINDOW (lightning.ts), which is a binary search into one sorted
+   * array rather than a search per station.
+   */
+  const strikesRef = useRef<Strike[]>([]);
+  const [strikeVersion, setStrikeVersion] = useState(0);
+  const bumpStrikes = useCallback(() => setStrikeVersion((v) => v + 1), []);
   /**
    * The day's published timetables, for the instants the recording cannot answer.
    *
@@ -1618,7 +1816,24 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   const [enabled, setEnabled] = useState<Set<string>>(() =>
     initialUrl.feeds ? sanitizeEnabled(initialUrl.feeds) : readStoredFeeds(),
   );
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  /**
+   * The feed switchboard, open on a desktop and closed on a phone.
+   *
+   * It used to be unconditionally open, and the sidebar is a fixed 256 px
+   * column — 65 % of a 390 px phone, leaving about 134 px of map. The page's
+   * subject is the map; arriving to a feed list with a sliver of it beside them
+   * is not the first thing a visitor should have to undo. Below `md` it also
+   * renders as an overlay rather than in flow (see FeedSidebar), so opening it
+   * covers the map instead of squeezing it into nothing.
+   *
+   * 768 is Tailwind's `md`, quoted here because the two have to agree: this
+   * decides whether it STARTS open and the class decides whether it OVERLAYS,
+   * and a desktop that started closed or a phone that squeezed would each be a
+   * different bug.
+   */
+  const [sidebarOpen, setSidebarOpen] = useState(
+    () => typeof window === 'undefined' || window.innerWidth >= 768,
+  );
   /**
    * Whether the time bar is playing, mirrored up from it.
    *
@@ -1700,6 +1915,43 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
    */
   const [obsDay, setObsDay] = useState<'loading' | 'ready' | 'failed'>('loading');
   const [aqDay, setAqDay] = useState<'loading' | 'ready' | 'failed'>('loading');
+  /**
+   * The REFINEMENT poll's failure, which is not the day's.
+   *
+   * These two used to share the tri-state above, on the argument quoted there —
+   * one service, one question. The argument does not survive contact with the
+   * archive. The day request and the poll cover different spans: the day is the
+   * whole day and the poll is a twenty-minute window around one instant, and an
+   * archive poll fires ONCE and never retries (useFeedPoll stops rescheduling
+   * when `at` is set). So scrubbing to 06:20 yesterday, loading ~190 stations
+   * successfully, and then losing the single refinement request replaced the
+   * station count with "Could not load temperature observations" — permanently,
+   * over a map full of correct, correctly-stamped readings. That is the page
+   * claiming failure while showing good data, which is the same class of error
+   * as the reverse and rather more embarrassing.
+   *
+   * Now the day owns the tri-state and this owns the poll, and they print
+   * different sentences: a failed day replaces the layer's line, a failed poll
+   * appends a note to it. Cleared by the next successful poll.
+   */
+  const [obsPollFailed, setObsPollFailed] = useState(false);
+  const [aqPollFailed, setAqPollFailed] = useState(false);
+  /**
+   * The lightning DAY's state — owned by the day request, never by the poll.
+   *
+   * The temperature and air quality feeds let their poll set this, on the
+   * grounds that both requests ask one service one question. Lightning cannot
+   * share that shortcut, because its two requests cover different SPANS: the day
+   * request is the whole day and the poll is the last half hour. A poll
+   * succeeding after the day request failed would flip this to `ready` while the
+   * store held nothing before the last thirty minutes — and the map would then
+   * draw a scrub back to lunchtime as a quiet sky, which is this page's one
+   * unforgivable statement. So the day owns `ready` and the poll reports its own
+   * failure separately; both are printed as the same sentence, because from the
+   * reader's side they are the same fact.
+   */
+  const [lightningDay, setLightningDay] = useState<'loading' | 'ready' | 'failed'>('loading');
+  const [strikePollFailed, setStrikePollFailed] = useState(false);
   /** Same, for the day's train timetables — which are only fetched on demand. */
   const [scheduleDay, setScheduleDay] = useState<'idle' | 'loading' | 'ready' | 'failed'>('idle');
 
@@ -1709,9 +1961,37 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   const incidentsOn = enabled.has('road_incidents');
   const observationsOn = enabled.has('observations');
   const airQualityOn = enabled.has('air_quality');
+  const lightningOn = enabled.has('lightning');
 
   const sun = useMemo(() => sunPosition(when, center[1], center[0]), [when, center]);
-  const times = useMemo(() => sunTimes(when, center[1], center[0]), [when, center]);
+  /**
+   * ASKED FOR THE DAY, AT NOON — not for the instant the playhead is on.
+   *
+   * `sunTimes` anchors on the SOLAR day at that longitude, not the civil one
+   * (see its own note in utils/sun.ts), and the two do not begin together:
+   * solar midnight at Helsinki is about 01:20 local. Handed the raw instant, it
+   * therefore answered with YESTERDAY's pair for any clock between midnight and
+   * then — measured, 12 August 00:30 local returned sunrise 11.8. 05:24 and
+   * sunset 11.8. 21:29.
+   *
+   * Nothing about that was silent-but-harmless. `times` is what the bar marks
+   * sunrise and sunset on the track with, and `positionOf` returns null for an
+   * instant outside the day it is drawing — so both white lines simply
+   * disappeared for the first eighty minutes of every day, which is exactly
+   * where someone dragging to the left end of the track lands. The readout
+   * printed the previous day's sunrise, sunset and day length under today's
+   * date, and at Utsjoki the previous day can be a different `polar` state
+   * altogether, which flips the honesty strip's polar-night sentence.
+   *
+   * Local noon is inside the same solar day as the civil day it sits in
+   * everywhere in Finland, so it names the day unambiguously. `sun` above stays
+   * on the instant: where the sun IS, is about now; when it rises, is about the
+   * day.
+   */
+  const times = useMemo(
+    () => sunTimes(atMinuteOfDay(when, NOON_MINUTES), center[1], center[0]),
+    [when, center],
+  );
 
   const whenMs = when.getTime();
   /**
@@ -1746,6 +2026,19 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
    * with no data under it, once a year, for the one hour hardest to notice.
    */
   const dayEndMs = useMemo(() => startOfDay(addDays(when, 1)).getTime(), [when]);
+
+  /**
+   * Whether the day under the playhead is the one still being added to.
+   *
+   * Read at render, from the wall clock, exactly as `future` above it is — the
+   * page re-renders on every clock tick, so this is never more than a tick out
+   * of date, and the one case it can lag is a page parked on today's date past
+   * midnight without touching anything. That costs a few extra minutes of a
+   * tail poll appending strikes past the day's end, which nothing samples,
+   * rather than anything being drawn wrong.
+   */
+  const nowForDay = Date.now();
+  const dayHoldsNow = dayStartMs <= nowForDay && dayEndMs > nowForDay;
 
   /**
    * Re-fetch the loaded day every so often, for the forecast's sake.
@@ -1817,7 +2110,28 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
         : EMPTY_AIR_QUALITY,
     [airQualityOn, whenMs, timelineVersion],
   );
+
+  /**
+   * The flashes inside the trailing window ending at the clock.
+   *
+   * A WINDOW, NOT A SAMPLE, and it is the one place this page treats a feed's
+   * relationship to the clock differently. `sampleTimeline` asks each station
+   * "what were you showing at T"; a flash has no state to be showing, so the
+   * honest question is "what struck between T-30min and T" and the answer is
+   * every one of them, each at its own second. See lightning.ts on why the
+   * window is part of the feed rather than a rendering choice.
+   */
+  const strikesAt = useMemo(
+    () => (lightningOn ? strikesIn(strikesRef.current, whenMs - STRIKE_WINDOW_MS, whenMs) : EMPTY_STRIKES),
+    [lightningOn, whenMs, strikeVersion],
+  );
   /* eslint-enable react-hooks/exhaustive-deps */
+
+  /** How many of those reached the ground — the ones that hit something. */
+  const groundStrikes = useMemo(
+    () => strikesAt.reduce((n, s) => (s.ground ? n + 1 : n), 0),
+    [strikesAt],
+  );
 
   /** How much of the sampled temperature is forecast rather than measured. */
   const forecastCount = useMemo(
@@ -1916,6 +2230,16 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
         (s) => s.lon === selection.item.lon && s.lat === selection.item.lat,
       );
       return at ? { kind: 'air_quality', item: at } : null;
+    }
+    // A FLASH DOES NOT MOVE OR CHANGE, so unlike the stations above there is
+    // nothing to re-resolve — but it can leave the window, and then the mark it
+    // describes is no longer on the map. Scrubbing away from a strike closes its
+    // panel for the same reason scrubbing past a closure's end closes that one:
+    // an inspector describing something that is not drawn is a second, silent
+    // clock on the page.
+    if (selection.kind === 'lightning') {
+      const s = selection.item;
+      return s.at <= whenMs && s.at >= whenMs - STRIKE_WINDOW_MS ? selection : null;
     }
     // An announcement carries its own validity, so "is this on screen right now"
     // is a question Fintraffic already answered — the same filter the map draws
@@ -2261,7 +2585,10 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
         if (twilight) {
           // Sunset is an occluder like any other here — opaque, so it saturates
           // with relief and walls instead of adding to them. The smoothing is
-          // what turns a 32 px sample step into a clean terminator edge.
+          // what turns the lattice's TWILIGHT_STEP_PX sample step into a clean
+          // terminator edge. (It said "32 px" for a while; the constant is 8,
+          // and the reason it is 8 rather than something cheaper is the whole
+          // subject of its own doc block above.)
           mctx.save();
           mctx.imageSmoothingEnabled = true;
           mctx.imageSmoothingQuality = 'high';
@@ -2281,7 +2608,10 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
           // Drawn through the field's own Mercator->screen transform rather than
           // stretched to the viewport, so it stays registered under rotation and
           // when the field extends past the screen edge. Smoothing is on because
-          // the mask is computed at roughly a third of screen resolution AND
+          // the mask is computed at the heightfield's resolution rather than
+          // the screen's — coarser than the viewport at a country-framing
+          // camera, finer at a street one, so "a third" was never a constant —
+          // AND
           // because a terrain shadow's edge is genuinely soft — cast by a slope,
           // not by a wall — so the interpolation is the correct appearance rather
           // than a concession to it.
@@ -2331,6 +2661,12 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     // Incidents under the trains: a closure is context for the network, a train
     // is a moving thing on it, and where they coincide the moving thing is what
     // someone is tracking.
+    // Lightning at the bottom of the feed stack. A storm is up to a few thousand
+    // marks, and every other feed here is a handful of things a reader is
+    // tracking one at a time — a train, a closure, a station's number. Painted
+    // last it would bury all of them; painted first it is the weather they are
+    // happening in.
+    if (lightningOn) paintLightning(ctx, map, strikesAt, whenMs, theme, width, height);
     if (incidentsOn) {
       // FILTERED BY THE PUBLISHER'S OWN VALIDITY, at the page's clock. The feed
       // is fetched with `inactiveHours=12` so recently-expired announcements are
@@ -2399,6 +2735,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     shadowsOn,
     trainsOn,
     incidentsOn,
+    lightningOn,
     sun.altitude,
     sun.azimuth,
     when,
@@ -2407,6 +2744,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     theme,
     observationsAt,
     airQualityAt,
+    strikesAt,
     trainSnapshot,
     scheduledTrains,
     needSchedule,
@@ -2459,7 +2797,9 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     clearTimeline(obsTimelineRef.current);
     clearTimeline(aqTimelineRef.current);
     bumpTimeline();
-  }, [dayStartMs, bumpTimeline]);
+    strikesRef.current = [];
+    bumpStrikes();
+  }, [dayStartMs, bumpTimeline, bumpStrikes]);
 
   /**
    * The day's national air temperature: measured behind now, forecast ahead.
@@ -2483,10 +2823,24 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     const now = Date.now();
     const measuredTo = Math.min(dayEndMs, now);
     const forecastFrom = Math.max(dayStartMs, now);
+    const hasMeasuredArm = measuredTo > dayStartMs;
     const jobs: Promise<Observation[]>[] = [];
-    if (measuredTo > dayStartMs) jobs.push(fetchObservationSeries(dayStartMs, measuredTo, ac.signal));
+    if (hasMeasuredArm) jobs.push(fetchObservationSeries(dayStartMs, measuredTo, ac.signal));
+    // THE FORECAST ARM'S FAILURE IS ONLY FORGIVEN WHEN SOMETHING ELSE ANSWERED.
+    // A measured morning with no forecast afternoon is a page that works; a
+    // FUTURE day has no measured arm at all, so on that day this is the only
+    // request there is, and swallowing its rejection into `[]` made the readout
+    // say "no station reported a temperature near that moment" about a minute
+    // the page had simply failed to ask about. That is the one distinction this
+    // page refuses to collapse anywhere else.
+    let forecastFailed = false;
     if (forecastFrom < dayEndMs) {
-      jobs.push(fetchForecastSeries(forecastFrom, dayEndMs, ac.signal).catch(() => []));
+      jobs.push(
+        fetchForecastSeries(forecastFrom, dayEndMs, ac.signal).catch((err: unknown) => {
+          if ((err as Error)?.name !== 'AbortError') forecastFailed = true;
+          return [];
+        }),
+      );
     }
 
     void Promise.all(jobs)
@@ -2499,7 +2853,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
             list[0]?.forecast === true,
           );
         }
-        setObsDay('ready');
+        setObsDay(forecastFailed && !hasMeasuredArm ? 'failed' : 'ready');
         bumpTimeline();
         scheduleDraw();
       })
@@ -2555,6 +2909,80 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
       ac.abort();
     };
   }, [airQualityOn, dayStartMs, dayEndMs, dayEpoch, bumpTimeline, scheduleDraw]);
+
+  /**
+   * The day's located lightning, in one request, reaching back before midnight.
+   *
+   * THE WINDOW STARTS BEFORE THE DAY DOES, by exactly the trailing window the
+   * layer draws. At 00:10 the map is showing what struck since 23:40, and 23:40
+   * belongs to yesterday — a day fetched from midnight would draw the first half
+   * hour of every day as an empty sky, which on this page means "nothing struck"
+   * and would be false. Ten extra minutes of a quiet night costs nothing; the
+   * cost is the storm, and the storm is inside the day either way.
+   *
+   * NOTHING IS FETCHED FORWARD OF NOW, and unlike the air quality feed that is
+   * not a limit of the publisher — it is that a flash which has not happened has
+   * no record anywhere. The readout says so in its own words rather than
+   * borrowing the air quality sentence, because the two absences have different
+   * reasons and only one of them is about FMI.
+   */
+  useEffect(() => {
+    if (!lightningOn) {
+      // The day goes with the layer, like the two timelines above: it is one
+      // request to get back, so holding a switched-off feed's day buys nothing
+      // and a stale one would have to be invalidated anyway. This is the ONLY
+      // place the store is cleared — see the poll's `onClear` below for why it
+      // cannot be done there.
+      strikesRef.current = [];
+      setLightningDay('loading');
+      setStrikePollFailed(false);
+      bumpStrikes();
+      return;
+    }
+    const now = Date.now();
+    const to = Math.min(dayEndMs, now);
+    const from = dayStartMs - STRIKE_WINDOW_MS;
+    if (to <= from) {
+      // The whole day is still ahead: there is nothing to ask for, and asking
+      // would be asking FMI to confirm that the future has not happened.
+      strikesRef.current = [];
+      setLightningDay('ready');
+      bumpStrikes();
+      return;
+    }
+    const ac = new AbortController();
+    let cancelled = false;
+    setLightningDay('loading');
+
+    void fetchLightning(from, to, ac.signal)
+      .then((list) => {
+        if (cancelled) return;
+        // A poll that landed while this was in flight has already extended the
+        // tail past this window's end; keeping those is what stops the newest
+        // strikes vanishing for one poll interval every time the day reloads.
+        strikesRef.current = mergeStrikes(list, strikesIn(strikesRef.current, to, Infinity));
+        setLightningDay('ready');
+        setStrikePollFailed(false);
+        bumpStrikes();
+        scheduleDraw();
+      })
+      .catch((err: unknown) => {
+        if (cancelled || (err as Error)?.name === 'AbortError') return;
+        setLightningDay('failed');
+      });
+
+    return () => {
+      cancelled = true;
+      ac.abort();
+    };
+    // NO `dayEpoch`. The other two day loaders re-run on that tick to refresh
+    // the FORECAST half of their window, which is the only part of them that
+    // goes stale on an open page. This feed has no forecast half — a flash that
+    // has not happened has no publisher — and its measured past does not change,
+    // so the tail poll below is the whole of what needs refreshing. Including
+    // the tick here would re-download a 477 kB storm every half hour to learn
+    // nothing.
+  }, [lightningOn, dayStartMs, dayEndMs, bumpStrikes, scheduleDraw]);
 
   /**
    * The day's published timetables, fetched only when nothing measured can answer.
@@ -2736,6 +3164,23 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
       // zoom off the map directly, because it changes per frame.
       setZoom(map.getZoom());
 
+      // CANCEL THE PENDING FETCH FIRST, BEFORE ANY OF THE RETURNS BELOW.
+      //
+      // It used to sit after them, and the "already loaded" return at the bottom
+      // is the one that made that a bug: a flick east and straight back west —
+      // three `moveend`s in under a second, which this file documents as the
+      // ordinary gesture — left the eastward timer armed, and the westward pass
+      // returned early because the loaded set still covered the view. The timer
+      // then fired, aborted nothing (there was nothing in flight), fetched the
+      // bbox the user had already left, and overwrote both `preparedRef` and
+      // `loadedRef` with it — so the shadows were the previous viewport's AND
+      // the guard now believed they were current, until the camera moved again.
+      // Self-healing on the next nudge, which is what made it read as flakiness.
+      //
+      // The in-flight controller is deliberately NOT aborted here: on the
+      // early-return paths its answer is still the one this view wants.
+      if (timer) clearTimeout(timer);
+
       // Nothing to draw them for. The sun readout still tracks the camera, but
       // a switched-off layer must not cost the user a multi-megabyte download or
       // a free shared endpoint a query.
@@ -2787,7 +3232,6 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
       const loaded = loadedRef.current;
       if (loaded && loaded.plan === plan && bboxContains(loaded.bbox, bbox)) return;
 
-      if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
         controller?.abort();
         const active = new AbortController();
@@ -2995,19 +3439,25 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
           obsTimelineRef.current,
           list.map((o) => ({ lon: o.lon, lat: o.lat, value: o.celsius, at: o.at })),
         );
-        setObsDay('ready');
+        // NOT `setObsDay('ready')`. This poll answers for a twenty-minute
+        // window, not for the day, so letting it declare the day loaded would
+        // mean a page whose day request failed but whose poll succeeded drew a
+        // scrub back to lunchtime as "no station reported" — see the note on
+        // `obsPollFailed`.
+        setObsPollFailed(false);
         bumpTimeline();
         scheduleDraw();
       },
       [bumpTimeline, scheduleDraw],
     ),
-    onError: useCallback(() => setObsDay('failed'), []),
+    onError: useCallback(() => setObsPollFailed(true), []),
     onClear: useCallback(() => {
       // The day goes with the layer, unlike the trains' recording: it is
       // re-fetchable in one request, so holding a day of a switched-off feed
       // buys nothing and a stale one would have to be invalidated anyway.
       clearTimeline(obsTimelineRef.current);
       setObsDay('loading');
+      setObsPollFailed(false);
       bumpTimeline();
       scheduleDraw();
     }, [bumpTimeline, scheduleDraw]),
@@ -3033,19 +3483,69 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
           aqTimelineRef.current,
           list.map((s) => ({ lon: s.lon, lat: s.lat, value: s.index, at: s.at })),
         );
-        setAqDay('ready');
+        // Same split as the temperature poll above, for the same reason.
+        setAqPollFailed(false);
         bumpTimeline();
         scheduleDraw();
       },
       [bumpTimeline, scheduleDraw],
     ),
-    onError: useCallback(() => setAqDay('failed'), []),
+    onError: useCallback(() => setAqPollFailed(true), []),
     onClear: useCallback(() => {
       clearTimeline(aqTimelineRef.current);
       setAqDay('loading');
+      setAqPollFailed(false);
       bumpTimeline();
       scheduleDraw();
     }, [bumpTimeline, scheduleDraw]),
+  });
+
+  /**
+   * Lightning's tail, extended a minute at a time.
+   *
+   * NOT A REFINEMENT PASS like the two above it. Those re-ask for an instant the
+   * day window already answered, more finely; this asks for time the day window
+   * has not reached yet, because it ended when it was fetched. So it takes no
+   * `at` — there is nothing in the past for it to sharpen — and it appends
+   * rather than merging by station.
+   *
+   * THE WINDOW IS CLAMPED TO WHAT IS DRAWN, and that clamp is load-bearing: the
+   * store holds the day under the PLAYHEAD, so on a Tuesday viewed from Friday
+   * the newest strike in it is three days old, and a poll starting there would
+   * quietly turn into a three-day archive download once a minute. Half an hour
+   * is both the most that can be missing between two polls a minute apart and
+   * the most the layer would draw anyway.
+   */
+  useFeedPoll<Strike[]>({
+    // Only while the day on screen is the one still being added to. A past day
+    // was fetched complete and has no tail; polling it would ask FMI, once a
+    // minute, to confirm that Tuesday is over.
+    enabled: lightningOn && dayHoldsNow,
+    fetcher: useCallback((signal: AbortSignal) => {
+      const now = Date.now();
+      const from = Math.max(newestStrikeAt(strikesRef.current) ?? 0, now - STRIKE_WINDOW_MS);
+      return fetchLightning(from, now, signal);
+    }, []),
+    intervalMs: LIGHTNING_POLL_MS,
+    onData: useCallback(
+      (list: Strike[]) => {
+        strikesRef.current = mergeStrikes(strikesRef.current, list);
+        setStrikePollFailed(false);
+        bumpStrikes();
+        scheduleDraw();
+      },
+      [bumpStrikes, scheduleDraw],
+    ),
+    onError: useCallback(() => setStrikePollFailed(true), []),
+    onClear: useCallback(() => {
+      // DELIBERATELY NOT CLEARING THE STORE, unlike every other feed's onClear.
+      // This poll is disabled by scrubbing to another DAY as well as by
+      // switching the layer off, and a past day is exactly the case where the
+      // store is full, correct, and the only thing the map has. Clearing here
+      // would blank a loaded archive the moment the clock left today — the same
+      // trap `at: null` exists to avoid on the temperature feed. The day effect
+      // above owns this store and clears it when the layer goes off.
+    }, []),
   });
 
   useEffect(() => {
@@ -3100,6 +3600,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
           incidents: visible,
           observations: observationsAt,
           airQuality: airQualityAt,
+          lightning: strikesAt,
         },
         (lon, lat) => map.project([lon, lat]),
       );
@@ -3109,6 +3610,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
       if (hit.kind === 'observation') {
         return { kind: 'observation', item: observationsAt[hit.index] };
       }
+      if (hit.kind === 'lightning') return { kind: 'lightning', item: strikesAt[hit.index] };
       return { kind: 'air_quality', item: airQualityAt[hit.index] };
     },
     [
@@ -3118,6 +3620,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
       whenMs,
       observationsAt,
       airQualityAt,
+      strikesAt,
       trainSnapshot,
       scheduledTrains,
       needSchedule,
@@ -3270,7 +3773,8 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   }, []);
 
   /** Whether any enabled feed has a sentence to show at all. */
-  const readoutOn = shadowsOn || trainsOn || incidentsOn || observationsOn || airQualityOn;
+  const readoutOn =
+    shadowsOn || trainsOn || incidentsOn || observationsOn || airQualityOn || lightningOn;
 
   /**
    * Whether any of those sentences is a failure rather than a result.
@@ -3290,10 +3794,30 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
         : trainAt === null && scheduleDay === 'failed')) ||
     (incidentsOn && incidentStatus?.failed === true) ||
     (observationsOn && obsDay === 'failed') ||
-    (airQualityOn && aqDay === 'failed');
+    (airQualityOn && aqDay === 'failed') ||
+    (lightningOn && lightningDay === 'failed') ||
+    // A FAILED POLL RAISES THE CHIP ONLY WHILE THE PAGE IS FOLLOWING REAL TIME,
+    // and the distinction is what the poll is FOR in each case. Live, it is the
+    // thing keeping the layer current, so losing it means the page is quietly
+    // going stale and the reader has to be told even with the strip collapsed.
+    // Scrubbed, it is a one-shot refinement of a day that is already loaded and
+    // already drawn — nothing on screen is wrong, only slightly coarser than it
+    // could have been, and useFeedPoll never retries an archive request, so an
+    // alert there would be a permanent amber light over a correct map.
+    (live && ((observationsOn && obsPollFailed) || (airQualityOn && aqPollFailed) ||
+      (lightningOn && strikePollFailed)));
 
   return (
-    <div className="flex h-screen w-full flex-col bg-white text-surface-900 dark:bg-surface-950 dark:text-white">
+    /* h-dvh, NOT h-screen. `100vh` on a phone is the viewport with the browser
+       chrome COLLAPSED, while the root this sits in is `100dvh` (index.css) —
+       so the page was taller than its own root by exactly the address bar, and
+       the thing hanging off the bottom was the TimeBar: the scrubber, the date
+       stepper, the play control and the "Now" button, which is to say every
+       control the page's clock is expressed through, plus the one indicator
+       that says whether it is live or pinned. On iOS Safari it is unreachable
+       until the chrome collapses. The map route has been `h-dvh` all along
+       (App.tsx); this page was the last `h-screen` in the repository. */
+    <div className="flex h-dvh w-full flex-col bg-white text-surface-900 dark:bg-surface-950 dark:text-white">
       <header className="flex items-center gap-3 border-b border-surface-200 px-4 py-2 dark:border-surface-800">
         <a href="/" className="text-sm font-semibold text-surface-700 hover:text-surface-900 dark:text-surface-200 dark:hover:text-white">
           naapurustot<span className="text-brand-400">.fi</span>
@@ -3301,28 +3825,35 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
         <span className="rounded bg-amber-500/20 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-amber-800 dark:text-amber-400">
           {t('live.badge')}
         </span>
-        {!sidebarOpen && (
-          <button
-            type="button"
-            onClick={() => setSidebarOpen(true)}
-            className="ml-auto rounded border border-surface-300 px-2 py-1 text-xs dark:border-surface-700"
+        {/* ONE `ml-auto`, ON THE GROUP. Two flex siblings both carrying it SPLIT
+            the free space between them rather than both moving right, so the
+            moment the sidebar was closed the button needed to reopen it landed
+            in the middle of the header, detached from the controls it belongs
+            with — which reads as a rendering fault rather than a placement. */}
+        <div className="ml-auto flex items-center gap-3">
+          {!sidebarOpen && (
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(true)}
+              className="rounded border border-surface-300 px-2 py-1 text-xs dark:border-surface-700"
+            >
+              {t('live.filters.title')}
+            </button>
+          )}
+          <select
+            className="rounded border border-surface-300 bg-white px-2 py-1 text-xs dark:border-surface-700 dark:bg-surface-900"
+            value={getLang()}
+            onChange={(e) => void setLang(e.target.value as Lang)}
+            aria-label={t('live.language')}
           >
-            {t('live.filters.title')}
-          </button>
-        )}
-        <select
-          className="ml-auto rounded border border-surface-300 bg-white px-2 py-1 text-xs dark:border-surface-700 dark:bg-surface-900"
-          value={getLang()}
-          onChange={(e) => void setLang(e.target.value as Lang)}
-          aria-label={t('live.language')}
-        >
-          <option value="fi">Suomi</option>
-          <option value="en">English</option>
-          <option value="sv">Svenska</option>
-        </select>
+            <option value="fi">Suomi</option>
+            <option value="en">English</option>
+            <option value="sv">Svenska</option>
+          </select>
+        </div>
       </header>
 
-      <div className="flex min-h-0 flex-1">
+      <div className="relative flex min-h-0 flex-1">
         {sidebarOpen && (
           <FeedSidebar
             enabled={enabled}
@@ -3479,14 +4010,24 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
                         '{minutes}',
                         String(Math.round(TRACK_WINDOW_MS / 60_000)),
                       )}
+                      {/* THE STRETCH, NOT THE SPAN. This used to print the
+                          buffer's first and last instants, which claimed a
+                          continuous recording over something guaranteed to have
+                          holes in it — polling stops while the tab is hidden —
+                          and it said so in the sentence immediately after
+                          telling the reader that this very instant was NOT
+                          recorded. Now it names the nearest contiguous run, and
+                          says how many there are when there is more than one. */}
                       {(() => {
-                        const range = trackedRange(trainBufferRef.current);
-                        return range
-                          ? ' ' +
-                              t('live.trains.recorded_range')
-                                .replace('{from}', clockTime(range.from))
-                                .replace('{to}', clockTime(range.to))
-                          : '';
+                        const run = nearestRun(trainBufferRef.current, whenMs);
+                        if (!run) return '';
+                        return (
+                          ' ' +
+                          t(run.runs > 1 ? 'live.trains.recorded_runs' : 'live.trains.recorded_range')
+                            .replace('{n}', String(run.runs))
+                            .replace('{from}', clockTime(run.from))
+                            .replace('{to}', clockTime(run.to))
+                        );
                       })()}
                     </p>
                   )
@@ -3567,6 +4108,18 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
                 )
               )}
 
+              {/* ONE NOTE, AFTER WHICHEVER ARM RAN, rather than a clause inside
+                  each of them. A failed refresh does not change what is drawn or
+                  what the sentence above it says — every station on screen is
+                  still a published value under its own published timestamp,
+                  which `sampleSpan` prints. What it changes is whether anything
+                  NEWER would have arrived, and that is a separate sentence. */}
+              {observationsOn && obsDay !== 'failed' && obsPollFailed && (
+                <p className="text-amber-700 dark:text-amber-400">
+                  {t('live.readout.poll_failed')}
+                </p>
+              )}
+
               {airQualityOn && (
                 aqDay === 'failed' ? (
                   <p className="text-amber-700 dark:text-amber-400">
@@ -3594,10 +4147,71 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
                 )
               )}
 
+              {airQualityOn && aqDay !== 'failed' && aqPollFailed && (
+                <p className="text-amber-700 dark:text-amber-400">
+                  {t('live.readout.poll_failed')}
+                </p>
+              )}
+
+              {/* EVERY SENTENCE HERE NAMES ITS WINDOW, because this feed's does
+                  not follow from the clock the way the others' do. "17 stations"
+                  is a statement about an instant; "17 strikes" is not a statement
+                  about anything until you say over how long. The half hour is in
+                  the wording of every arm rather than in a footnote.
+                  {n} is every located flash and {ground} the share of them that
+                  reached the ground — the 18 % that hit something, which is the
+                  distinction the two marks draw and the only one worth counting
+                  separately. */}
+              {lightningOn && (
+                lightningDay === 'failed' ? (
+                  <p className="text-amber-700 dark:text-amber-400">
+                    {t('live.lightning.failed')}
+                  </p>
+                ) : lightningDay === 'loading' && strikesAt.length === 0 ? (
+                  <p className="text-surface-600 dark:text-surface-300">
+                    {t('live.lightning.loading')}
+                  </p>
+                ) : strikesAt.length === 0 ? (
+                  /* AN EMPTY SKY IS THE NORMAL ANSWER HERE, unlike every other
+                     feed on this page — two of the ten August days measured in
+                     lightning.ts had no strikes at all, and most of the year is
+                     like that. So the quiet case says the window it is quiet
+                     over, and the future case says why nothing can be there:
+                     not that FMI stops publishing, but that a flash which has
+                     not happened has no record anywhere. */
+                  <p className="text-surface-600 dark:text-surface-300">
+                    {t(future ? 'live.lightning.future' : 'live.lightning.none').replace(
+                      '{minutes}',
+                      String(STRIKE_WINDOW_MINUTES),
+                    )}
+                  </p>
+                ) : (
+                  <p className="text-surface-600 dark:text-surface-300">
+                    {t('live.lightning.count')
+                      .replace('{n}', String(strikesAt.length))
+                      .replace('{ground}', String(groundStrikes))
+                      .replace('{minutes}', String(STRIKE_WINDOW_MINUTES))}
+                  </p>
+                )
+              )}
+
+              {/* Same shape as the two feeds above, and it matters more here:
+                  this feed has no half-hourly day refresh (there is no forecast
+                  half to go stale, and re-downloading a storm to learn nothing
+                  is not free), so the tail poll IS its liveness. A failed one
+                  means the newest flashes are missing from a layer whose whole
+                  subject is what just happened. */}
+              {lightningOn && lightningDay !== 'failed' && strikePollFailed && (
+                <p className="text-amber-700 dark:text-amber-400">
+                  {t('live.readout.poll_failed')}
+                </p>
+              )}
+
               {/* The markers are clickable and nothing else on screen says so —
                   they are canvas pixels, with no hover affordance beyond the
                   cursor. One line, and only while a clickable feed is on. */}
-              {(trainsOn || incidentsOn || observationsOn || airQualityOn) && !shownSelection && (
+              {(trainsOn || incidentsOn || observationsOn || airQualityOn || lightningOn) &&
+                !shownSelection && (
                 <p className="pt-0.5 text-surface-500 dark:text-surface-400">
                   {t('live.detail.hint')}
                 </p>

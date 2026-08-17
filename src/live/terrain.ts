@@ -97,8 +97,15 @@ async function loadTile(z: number, x: number, y: number): Promise<Float32Array |
 
   const pending = (async () => {
     const res = await fetch(tileUrl(z, x, y));
-    // A missing tile is normal at the edges of coverage — sea, or outside the
-    // built bbox. It reads as elevation zero, which is what the sea is.
+    // A missing tile is UNKNOWN GROUND, not sea level — `loadHeightField` fills
+    // it with NaN and the sweep declines to say anything about it (see the note
+    // there, and CLAUDE.md /live/ shadows invariant 16). This comment used to
+    // say the opposite, "it reads as elevation zero, which is what the sea is",
+    // which is exactly the conflation that rendered Norway as a flat lit plain.
+    //
+    // In practice this is a network-failure path rather than a coverage one:
+    // every level in `terrain_manifest.json` is a complete rectangle, so a tile
+    // inside a level's own extent is always published.
     if (!res.ok) return null;
     const blob = await res.blob();
     const bitmap = await createImageBitmap(blob);

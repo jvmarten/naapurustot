@@ -4,6 +4,7 @@ import { clockSeconds, clockTime, timeOnDay } from './timeControl';
 import { AQ_COLORS, aqBandKey, type AirQuality } from './airquality';
 import type { Observation } from './observations';
 import type { Incident } from './incidents';
+import type { Strike } from './lightning';
 import type { Train } from './trains';
 import type { ScheduledTrain } from './trainSchedule';
 import {
@@ -41,7 +42,8 @@ export type Selection =
   | { kind: 'train'; item: Train }
   | { kind: 'observation'; item: Observation }
   | { kind: 'air_quality'; item: AirQuality }
-  | { kind: 'incident'; item: Incident };
+  | { kind: 'incident'; item: Incident }
+  | { kind: 'lightning'; item: Strike };
 
 interface DetailPanelProps {
   selection: Selection;
@@ -304,7 +306,9 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({ selection, when, onClo
         ? t('live.detail.weather_station')
         : selection.kind === 'air_quality'
           ? t('live.detail.aq_station')
-          : t('live.detail.announcement');
+          : selection.kind === 'lightning'
+            ? t('live.detail.strike')
+            : t('live.detail.announcement');
 
   return (
     <aside
@@ -361,6 +365,39 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({ selection, when, onClo
           <Row label={t('live.detail.coords')}>
             {selection.item.lat.toFixed(3)}, {selection.item.lon.toFixed(3)}
           </Row>
+          <p className="pt-1 text-[10px] text-surface-500 dark:text-surface-400">
+            {t('live.detail.source_fmi')}
+          </p>
+        </div>
+      )}
+
+      {selection.kind === 'lightning' && (
+        <div className="space-y-1">
+          {/* THE SECOND, NOT THE MINUTE. A flash is an instant, and it is the one
+              thing on this page whose timestamp is worth reading to the second —
+              the map's window is half an hour wide, so "14:23" would place it
+              anywhere in a minute during which a cell can produce a dozen more. */}
+          <Row label={t('live.detail.struck_at')}>{clockSeconds(selection.item.at)}</Row>
+          <Row label={t('live.detail.strike_type')}>
+            {t(selection.item.ground ? 'live.detail.type_ground' : 'live.detail.type_cloud')}
+          </Row>
+          {/* SIGNED, AND THE SIGN IS THE DATA. Negative is the ordinary polarity
+              for a ground flash — 89 % of them in the sample lightning.ts
+              measured — so printing the magnitude alone would throw away the
+              distinction that makes a positive flash notable. Null when the
+              network located the flash but published no current, which prints
+              nothing rather than a zero. */}
+          {selection.item.kiloamps !== null && (
+            <Row label={t('live.detail.peak_current')}>
+              {selection.item.kiloamps.toFixed(0)} kA
+            </Row>
+          )}
+          <Row label={t('live.detail.coords')}>
+            {selection.item.lat.toFixed(3)}, {selection.item.lon.toFixed(3)}
+          </Row>
+          <p className="pt-1 text-[10px] leading-snug text-surface-500 dark:text-surface-400">
+            {t('live.detail.strike_note')}
+          </p>
           <p className="pt-1 text-[10px] text-surface-500 dark:text-surface-400">
             {t('live.detail.source_fmi')}
           </p>
