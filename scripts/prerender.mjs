@@ -443,9 +443,15 @@ function formatMetric(value, fmt, lang) {
     // Reported crimes per 1,000 residents per year — a bare "145,4" reads as an
     // absolute count of crimes without it.
     case 'per1000': return `${fmtNum(n, 1, lang)} /1000`;
-    // Whole-number density (population): the value is in the hundreds or
-    // thousands, so it needs the unit but not a decimal.
-    case 'density_int': return `${fmtNum(Math.round(n), 0, lang)} /km²`;
+    // Whole-number density (population): in a town the value is in the hundreds or
+    // thousands, so it needs the unit but not a decimal. NOT below 1, though —
+    // Finland's northern postal areas run to thousands of km², and rounding printed
+    // "0 /km²" for 177 inhabited areas, Inari Keskus among them (1,194 residents over
+    // 3,423 km², a real 0,35). Mirrors utils/formatting.ts::formatDensity.
+    case 'density_int':
+      return n > 0 && n < 1
+        ? `${fmtNum(n, 2, lang).replace(/0+$/, '')} /km²`
+        : `${fmtNum(Math.round(n), 0, lang)} /km²`;
     // Service densities span 0.0001-237/km². One decimal renders the whole
     // rural half of the country as "0,0" — the same rounding that used to be
     // baked into the data itself. Two significant figures below 1.
@@ -465,6 +471,9 @@ function roundForSchema(value, fmt) {
   // Keep the precision the data carries — a schema.org PropertyValue of 0 for
   // an area with six grocery stores is a machine-readable false claim.
   if (fmt === 'density') return Math.round(n * 10000) / 10000;
+  // Same reason for population density: Math.round emitted "value": 0 for an area
+  // with 1,194 residents, a false claim in machine-readable output.
+  if (fmt === 'density_int') return Math.round(n * 100) / 100;
   return Math.round(n);
 }
 
