@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import type { Feature, FeatureCollection, Polygon } from 'geojson';
 import type { NeighborhoodProperties } from '../utils/metrics';
-import { formatNumber, formatEuro, formatPct, formatDensity, formatEuroSqm } from '../utils/formatting';
+import { formatNumber, formatEuro, formatPct, formatDensity, formatFineDensity, formatEuroSqm } from '../utils/formatting';
 import { t, useI18nVersion } from '../utils/i18n';
 
 interface AreaSummaryPanelProps {
@@ -61,7 +61,7 @@ const STAT_SECTIONS: { title: string; stats: StatDef[] }[] = [
     title: 'panel.quality_of_life',
     stats: [
       { label: 'panel.quality_index', key: 'quality_index', format: (v) => v != null ? (v as number).toFixed(1) : '—' },
-      { label: 'panel.transit_access', key: 'transit_stop_density', format: (v) => v != null ? `${(v as number).toFixed(1)} /km²` : '—' },
+      { label: 'panel.transit_access', key: 'transit_stop_density', format: (v) => formatFineDensity(v as number | null) },
       { label: 'panel.air_quality', key: 'air_quality_index', format: (v) => v != null ? (v as number).toFixed(1) : '—' },
     ],
   },

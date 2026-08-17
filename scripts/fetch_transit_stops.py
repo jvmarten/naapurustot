@@ -45,6 +45,13 @@ OUT_DIR = Path(__file__).parent
 GEOJSON_PATH = OUT_DIR.parent / "public" / "data" / "metro_neighborhoods.geojson"
 EXISTING_FILE = OUT_DIR / "transit_stop_density.json"
 
+# The HSL/Föli/Nysse cities are a small minority of Finland's 3,018 postal codes. If the
+# "authoritative" file covers more than this share, it is the previous merged output
+# rather than an urban subset, and applying it last would silently no-op the whole run
+# (see the guard in main()). Deliberately loose — it is catching an order-of-magnitude
+# mistake, not calibrating a boundary.
+AUTHORITATIVE_MAX_SHARE = 0.5
+
 # Browser-like UA — some Finnish open-data hosts reject default python-requests UA.
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -254,6 +261,30 @@ def main() -> None:
         with open(EXISTING_FILE, encoding="utf-8") as f:
             existing = json.load(f)
         logger.info("Loaded %d existing authoritative entries", len(existing))
+
+    # This file is BOTH the authoritative input read here and the merged output written
+    # at the end, so every run folds the whole national result back into "authoritative".
+    # It has ratcheted: it now holds an entry for essentially every postal code, and step
+    # 3 below applies `existing` last and unconditionally — so a re-run overwrites every
+    # freshly fetched Digiroad value with its own previous output and changes nothing.
+    # That is a silent no-op: the script still logs "Wrote ..." and exits 0, which is how
+    # a stale 1-decimal column survived a precision fix that had already landed in code.
+    #
+    # Refuse to run rather than pretend. Fixing this needs a decision that cannot be made
+    # from this file alone, because the authoritative subset is no longer distinguishable
+    # from the merged output: either keep the HSL/Föli/Nysse postal codes in a separate
+    # committed input file, or derive that set from the operators' service regions. Both
+    # are real choices about which source wins where, so they belong to whoever runs the
+    # refresh, not to a silent default here.
+    if existing and len(existing) > AUTHORITATIVE_MAX_SHARE * len(postal):
+        logger.error(
+            "%s holds %d entries against %d postal codes — that is the previous merged "
+            "output, not an authoritative urban subset, and applying it last would make "
+            "this run a no-op. Restrict it to the HSL/Föli/Nysse postal codes (see the "
+            "merge policy at the top of this file) before re-running.",
+            EXISTING_FILE.name, len(existing), len(postal),
+        )
+        sys.exit(1)
 
     session = _session()
 

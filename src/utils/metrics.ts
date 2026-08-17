@@ -1011,7 +1011,9 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
     }
   }
   if (totalArea > 0) {
-    result.population_density = Math.round(totalPop / (totalArea / 1_000_000));
+    // 2 decimals, matching prepare_data: a sparse region's aggregate is itself sub-1
+    // (Pohjois-Lappi is ~0.5/km²), and Math.round reported those regions as empty.
+    result.population_density = roundTo(totalPop / (totalArea / 1_000_000), 2);
   }
   if (totalPop > 0) {
     if (hasChildrenData) {

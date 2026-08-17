@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import type { NeighborhoodProperties } from '../utils/metrics';
-import { formatEuro, formatPct, formatEuroSqm } from '../utils/formatting';
+import { formatEuro, formatPct, formatEuroSqm, formatFineDensity } from '../utils/formatting';
 import { STAT_SECTIONS, ALL_STATS, findBest, refDeltaOf } from '../utils/comparisonStats';
 import { t, useI18nVersion } from '../utils/i18n';
 import { isCustomWizardAnswers, type WizardAnswers } from '../hooks/useWizardProfile';
@@ -99,7 +99,7 @@ const CHART_METRICS: { label: string; key: string; higherIsBetter: boolean; max?
   { label: 'panel.median_income', key: 'hr_mtu', higherIsBetter: true, format: formatEuro },
   { label: 'panel.unemployment', key: 'unemployment_rate', higherIsBetter: false, max: 30, format: formatPct },
   { label: 'panel.property_price', key: 'property_price_sqm', higherIsBetter: true, format: formatEuroSqm },
-  { label: 'panel.transit_access', key: 'transit_stop_density', higherIsBetter: true, format: (v) => (v == null ? '—' : `${v.toFixed(1)} /km²`) },
+  { label: 'panel.transit_access', key: 'transit_stop_density', higherIsBetter: true, format: formatFineDensity },
   { label: 'panel.crime_rate', key: 'crime_index', higherIsBetter: false, format: (v) => (v == null ? '—' : v.toFixed(1)) },
 ];
 

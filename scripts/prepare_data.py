@@ -613,10 +613,17 @@ def calculate_metrics(gdf):
         rental = safe_val(row.get("te_vuok_as"))
         gdf.at[idx, "rental_rate"] = safe_div(rental, total_hh)
 
-        # Population density (persons per km²)
+        # Population density (persons per km²).
+        #
+        # Two decimals, not zero: Lapland's postal areas run to thousands of km², so a
+        # whole-number round writes 0 for an area that has residents. Measured on the
+        # shipped artifact before this was fixed: 177 inhabited areas at exactly 0,
+        # including Inari Keskus (1,194 residents, 3,423 km², a real 0.35/km²). That is
+        # the same false zero POI_DENSITY_DECIMALS exists to prevent, in the one density
+        # that is derived here rather than fetched.
         area_m2 = safe_val(row.get("pinta_ala"))
         if pop is not None and area_m2 is not None and area_m2 > 0:
-            gdf.at[idx, "population_density"] = round(pop / (area_m2 / 1_000_000))
+            gdf.at[idx, "population_density"] = round(pop / (area_m2 / 1_000_000), 2)
         else:
             gdf.at[idx, "population_density"] = None
 
@@ -1168,16 +1175,35 @@ def join_transit_data(gdf, stops):
         if pno:
             stop_counts[pno] = stop_counts.get(pno, 0) + 1
 
+    # `stops` is HSL ONLY (fetch_hsl_transit_stops queries stops(feeds: ["HSL"])), so it
+    # cannot speak for the rest of the country. This block used to do
+    # `stop_counts.get(pno, 0)` over EVERY row, which wrote a fabricated 0.0 — not a null,
+    # so nothing downstream could tell it from a measurement — for roughly 2,700 postal
+    # codes outside the Helsinki region, replacing the national Digiroad coverage the
+    # fallback below supplies. It is dormant only because Digitransit currently answers
+    # 401; the day a key is added it would have silently overwritten the national column.
+    #
+    # So: start from the national file and let HSL REFINE it, never replace it. A postal
+    # code absent from stop_counts keeps its national value, because "no HSL stop here" and
+    # "outside the HSL feed" are indistinguishable from this data.
+    national = _load_transit_density_fallback() or {}
     for idx, row in gdf.iterrows():
         pno = row.get("pno", "")
-        count = stop_counts.get(pno, 0)
         area_km2 = safe_val(row.get("pinta_ala"))
-        if area_km2 is not None and area_km2 > 0:
-            gdf.at[idx, "transit_stop_density"] = round(count / (area_km2 / 1_000_000), 1)
+        count = stop_counts.get(pno)
+        if count is not None and area_km2 is not None and area_km2 > 0:
+            # 4 decimals, per POI_DENSITY_DECIMALS: at 1 decimal a lone stop in any area
+            # over 20 km2 rounds to exactly 0.0, and 74 % of postal areas are that large.
+            gdf.at[idx, "transit_stop_density"] = round(
+                count / (area_km2 / 1_000_000), POI_DENSITY_DECIMALS
+            )
         else:
-            gdf.at[idx, "transit_stop_density"] = None
+            gdf.at[idx, "transit_stop_density"] = national.get(pno)
 
-    logger.info("  Computed transit density for %s postal codes", len(stop_counts))
+    logger.info(
+        "  Computed transit density for %s postal codes (HSL); %s kept from the national file",
+        len(stop_counts), sum(1 for k in national if k not in stop_counts),
+    )
     return gdf
 
 

@@ -14,6 +14,7 @@ import type { NeighborhoodProperties } from './metrics';
 import type { WizardAnswers } from '../hooks/useWizardProfile';
 import type { AffordabilityState } from '../hooks/useAffordability';
 import { affordabilityScore, orientationForTenure, type AffordabilityScore } from './affordability';
+import { formatFineDensity } from './formatting';
 import { getNationalRanges } from './nationalRanges';
 import { t } from './i18n';
 
@@ -126,7 +127,9 @@ export function scoreFeatureFit(
   const reasons: string[] = [];
   const contributions: FitContribution[] = [];
   const dirOf = (s: number): FitContribution['direction'] => (s > 0.6 ? 'up' : s < 0.4 ? 'down' : 'neutral');
-  const fmtDensity = (v: number | null | undefined) => (v == null ? '—' : `${v.toFixed(1)} /km²`);
+  // Fine-grained: these reasons quote the value back as evidence for the match, so a
+  // real 0.03 restaurants/km² rendered as "0,0 /km²" argued against its own conclusion.
+  const fmtDensity = formatFineDensity;
   const fmtPct = (v: number | null | undefined) => (v == null ? '—' : `${Math.round(v)} %`);
 
   // --- Transit importance ---
