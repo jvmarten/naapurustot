@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback, useMemo, useEffect, useLayoutEffect } from 'react';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { parseTrendSeries, getMetricSource, vintageFreshness, METRIC_EXPLANATIONS, formatCoveragePct } from '../utils/metrics';
-import { formatNumber, formatEuro, formatPct, formatDiff, diffColor, formatYtlGradeFull, parseSchools, formatDensity, formatEuroSqm } from '../utils/formatting';
+import { formatNumber, formatEuro, formatPct, formatDiff, diffColor, formatYtlGradeFull, parseSchools, formatDensity, formatFineDensity, formatEuroSqm } from '../utils/formatting';
 import { t, getLang, useI18nVersion } from '../utils/i18n';
 import { getQualityCategory, getQualityCategories, getQualityBandPosition, QUALITY_DIMENSIONS, computeQualityCoverage, type QualityWeights } from '../utils/qualityIndex';
 import { usePlanningArea, planningInfo } from '../hooks/usePlanningData';
@@ -343,11 +343,14 @@ const formatSqm = (v: number | string | null | undefined): string => {
   return `${n.toFixed(1)} m²`;
 };
 
-const formatStopDensity = (v: number | string | null | undefined): string => {
-  const n = toNum(v);
-  if (n == null) return '—';
-  return `${n.toFixed(1)} /km²`;
-};
+// Service densities are stored at 4 decimals precisely so a lone facility in a
+// large rural area is not rounded away (prepare_data.POI_DENSITY_DECIMALS). A
+// local `toFixed(1)` here undid that at render time: measured 3,169 (area,
+// metric) pairs across the six OSM densities below whose stored value is real
+// but under 0.05, every one of which printed "0,0 /km²" over an actual
+// measurement. formatFineDensity keeps two significant digits below 1 and is
+// what the profile page already uses for these same metrics, so the panel and
+// the profile now agree. See utils/formatting.ts.
 
 
 // PO-2: Collapsible section component.
@@ -1708,7 +1711,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
           />
           <StatRow
             label={t('panel.transit_access')}
-            value={formatStopDensity(d.transit_stop_density)}
+            value={formatFineDensity(d.transit_stop_density)}
             diff={formatDiff(d.transit_stop_density, avg.transit_stop_density)}
             diffClass={diffColor(d.transit_stop_density, avg.transit_stop_density)}
             property="transit_stop_density"
@@ -1777,28 +1780,28 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
         <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
           <StatRow
             label={t('panel.restaurant_density')}
-            value={formatStopDensity(d.restaurant_density)}
+            value={formatFineDensity(d.restaurant_density)}
             diff={formatDiff(d.restaurant_density, avg.restaurant_density)}
             diffClass={diffColor(d.restaurant_density, avg.restaurant_density)}
             property="restaurant_density"
           />
           <StatRow
             label={t('panel.grocery_access')}
-            value={formatStopDensity(d.grocery_density)}
+            value={formatFineDensity(d.grocery_density)}
             diff={formatDiff(d.grocery_density, avg.grocery_density)}
             diffClass={diffColor(d.grocery_density, avg.grocery_density)}
             property="grocery_density"
           />
           <StatRow
             label={t('panel.daycare_density')}
-            value={formatStopDensity(d.daycare_density)}
+            value={formatFineDensity(d.daycare_density)}
             diff={formatDiff(d.daycare_density, avg.daycare_density)}
             diffClass={diffColor(d.daycare_density, avg.daycare_density)}
             property="daycare_density"
           />
           <StatRow
             label={t('panel.school_density')}
-            value={formatStopDensity(d.school_density)}
+            value={formatFineDensity(d.school_density)}
             diff={formatDiff(d.school_density, avg.school_density)}
             diffClass={diffColor(d.school_density, avg.school_density)}
             property="school_density"
@@ -1835,7 +1838,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
           />
           <StatRow
             label={t('panel.healthcare_access')}
-            value={formatStopDensity(d.healthcare_density)}
+            value={formatFineDensity(d.healthcare_density)}
             diff={formatDiff(d.healthcare_density, avg.healthcare_density)}
             diffClass={diffColor(d.healthcare_density, avg.healthcare_density)}
             property="healthcare_density"
@@ -1848,7 +1851,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
         <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
           <StatRow
             label={t('panel.cycling_infra')}
-            value={formatStopDensity(d.cycling_density)}
+            value={formatFineDensity(d.cycling_density)}
             diff={formatDiff(d.cycling_density, avg.cycling_density)}
             diffClass={diffColor(d.cycling_density, avg.cycling_density)}
             property="cycling_density"

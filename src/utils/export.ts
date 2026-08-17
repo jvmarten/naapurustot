@@ -1,5 +1,5 @@
 import type { NeighborhoodProperties } from './metrics';
-import { formatNumber, formatEuro, formatPct, formatYtlGradeFull, escapeHtml } from './formatting';
+import { formatNumber, formatEuro, formatPct, formatYtlGradeFull, escapeHtml, formatFineDensity, formatFineNumber } from './formatting';
 import { t, getLang } from './i18n';
 import { getQualityCategory } from './qualityIndex';
 import { readNote } from '../hooks/useNotes';
@@ -35,9 +35,12 @@ function collectStats(d: NeighborhoodProperties): StatEntry[] {
   const fmtDensity = (v: number | null | undefined) => (v == null ? '—' : `${fmt.format(v)} /km²`);
   const fmtSqm = (v: number | null | undefined) => (v == null ? '—' : `${v.toFixed(1)} m²`);
   const fmtEuroSqm = (v: number | null | undefined) => (v == null ? '—' : `${fmt.format(v)} €/m²`);
-  const fmtStopDensity = (v: number | null | undefined) => (v == null ? '—' : `${v.toFixed(1)} /km²`);
-  // PO-2: 1-decimal scalar; the per-metric labels below already carry their unit (e.g. "(/km²)").
-  const fmtNum1 = (v: number | null | undefined) => (v == null ? '—' : v.toFixed(1));
+  const fmtStopDensity = formatFineDensity;
+  // PO-2: scalar; the per-metric labels below already carry their unit (e.g. "(/km²)").
+  // Fine-grained, not toFixed(1): the service densities are stored at 4 decimals so a
+  // single facility in a large rural area survives, and a 1-decimal export threw that
+  // away again — every value under 0.05/km² left as "0.0" in the CSV and the PDF.
+  const fmtNum1 = formatFineNumber;
 
   const rows: StatEntry[] = [
     { label: t('panel.quality_index'), value: d.quality_index != null ? String(d.quality_index) : '—' },

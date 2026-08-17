@@ -30,12 +30,20 @@ describe('formatDensity', () => {
     expect(out.replace(/\s|\u00a0/g, '')).toBe('1235/km²');
   });
 
-  it('rounds 0.4 down to 0', () => {
-    expect(formatDensity(0.4)).toBe('0 /km²');
+  // formatDensity's only consumers are population_density (panel, profile, comparison,
+  // area summary). Rounding to a whole number is right for a town and wrong below 1:
+  // Inari Keskus is 1,194 residents over 3,423 km² — a real 0.35/km² — and this printed
+  // "0 /km²" for 177 inhabited areas. Sub-1 now keeps two significant digits; the
+  // whole-number contract at and above 1 is unchanged.
+  it('keeps a real sub-1 density visible instead of rounding it to 0', () => {
+    expect(formatDensity(0.4).replace(/ /g, ' ')).toBe('0,4 /km²');
+    expect(formatDensity(0.35).replace(/ /g, ' ')).toBe('0,35 /km²');
   });
 
-  it('rounds 0.5 up to 1 (banker-like Math.round)', () => {
-    expect(formatDensity(0.5)).toBe('1 /km²');
+  it('still rounds to whole numbers at and above 1', () => {
+    expect(formatDensity(0.5).replace(/ /g, ' ')).toBe('0,5 /km²');
+    expect(formatDensity(1.4)).toBe('1 /km²');
+    expect(formatDensity(2.5)).toBe('3 /km²');
   });
 
   it('accepts numeric strings via toNum coercion', () => {
@@ -60,9 +68,10 @@ describe('formatFineDensity', () => {
   });
 
   it('never collapses a real sub-1 density to zero', () => {
-    // The whole point: 1,379 of the 3,018 areas have 0 < transit stop density
-    // < 0.5, and formatDensity's Math.round renders every one of them "0 /km²".
-    expect(formatDensity(0.4)).toBe('0 /km²');
+    // The whole point: 1,379 of the 3,018 areas have 0 < transit stop density < 0.5.
+    // formatDensity used to render every one of them "0 /km²"; it no longer does, but
+    // this formatter is still the one for the service densities, because it keeps a
+    // decimal at and above 1 where formatDensity rounds to a whole number.
     expect(formatFineDensity(0.4).replace(/\u00a0/g, ' ')).toBe('0,4 /km²');
     expect(formatFineDensity(0.045).replace(/\u00a0/g, ' ')).toBe('0,045 /km²');
     expect(formatFineDensity(0.0012).replace(/\u00a0/g, ' ')).toBe('0,0012 /km²');

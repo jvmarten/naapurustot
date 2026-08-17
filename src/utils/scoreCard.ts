@@ -1,5 +1,5 @@
 import type { NeighborhoodProperties } from './metrics';
-import { formatEuro, formatPct, formatEuroSqm, formatDiff, escapeHtml } from './formatting';
+import { formatEuro, formatPct, formatEuroSqm, formatDiff, formatFineDensity, escapeHtml } from './formatting';
 import { t } from './i18n';
 import { getQualityCategory } from './qualityIndex';
 import { getLayerById, getInterpolatedColor, readableTextColor } from './colorScales';
@@ -44,7 +44,7 @@ const METRICS = [
   // PO-1: price has no objective "better" direction — neutral, no green/red delta
   // (a pricier area must not render as if it "won" on the shared score card).
   { key: 'property_price_sqm', label: 'panel.property_price', format: formatEuroSqm, higherIsBetter: null },
-  { key: 'transit_stop_density', label: 'panel.transit_access', format: (v: number | null) => v != null ? `${v.toFixed(1)} /km²` : '—', higherIsBetter: true },
+  { key: 'transit_stop_density', label: 'panel.transit_access', format: formatFineDensity, higherIsBetter: true },
 ] as const;
 
 /**

@@ -5,7 +5,7 @@
  * can't export non-components without tripping react-refresh/only-export-components).
  */
 import type { NeighborhoodProperties } from './metrics';
-import { formatNumber, formatEuro, formatPct, formatDensity, formatEuroSqm } from './formatting';
+import { formatNumber, formatEuro, formatPct, formatDensity, formatFineDensity, formatEuroSqm } from './formatting';
 
 export interface StatDef {
   label: string;
@@ -61,7 +61,7 @@ export const STAT_SECTIONS: { title: string; stats: StatDef[] }[] = [
       { label: 'panel.property_price', key: 'property_price_sqm', format: formatEuroSqm, higherIsBetter: null },
       { label: 'panel.crime_rate', key: 'crime_index', format: (v) => v != null ? (v as number).toFixed(1) : '—', higherIsBetter: false },
       { label: 'panel.walkability', key: 'walkability_index', format: (v) => v != null ? String(Math.round(v as number)) : '—', higherIsBetter: true },
-      { label: 'panel.transit_access', key: 'transit_stop_density', format: (v) => v != null ? `${(v as number).toFixed(1)} /km²` : '—', higherIsBetter: true },
+      { label: 'panel.transit_access', key: 'transit_stop_density', format: (v) => formatFineDensity(v as number | null), higherIsBetter: true },
       { label: 'panel.air_quality', key: 'air_quality_index', format: (v) => v != null ? (v as number).toFixed(1) : '—', higherIsBetter: false },
     ],
   },

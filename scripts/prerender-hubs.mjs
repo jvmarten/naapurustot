@@ -123,6 +123,22 @@ function fmtNum(n, lang) {
   return Number(n).toLocaleString(LOCALE_TAG[lang], { maximumFractionDigits: 0 });
 }
 
+/**
+ * Mirror of src/utils/formatting.ts::formatFineDensity for the static pages.
+ *
+ * Per-km² densities are stored at 4 decimals so a lone facility in a large rural
+ * area is not rounded away; printing them with `Math.round` puts the false zero
+ * straight back into a published "best areas" table, under a heading claiming
+ * these are the country's best. Below 1, keep two significant digits.
+ */
+function fmtFineDensity(n, lang) {
+  const v = Number(n);
+  const abs = Math.abs(v);
+  return v.toLocaleString(LOCALE_TAG[lang], abs > 0 && abs < 1
+    ? { maximumSignificantDigits: 2 }
+    : { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+}
+
 function getRegionName(city, lang) {
   if (!city) return '';
   const key = `city.${city}`;
@@ -693,7 +709,7 @@ const RANKING_METRICS = [
   { slug: 'transit', property: 'transit_stop_density', higherIsBetter: true, layer: 'transit_access',
     label: { fi: 'joukkoliikenne', en: 'public transport access', sv: 'kollektivtrafik' },
     col: { fi: 'Pysäkkitiheys', en: 'Stop density', sv: 'Hållplatstäthet' },
-    fmt: (v, lang) => fmtNum(Math.round(v), lang) },
+    fmt: (v, lang) => fmtFineDensity(v, lang) },
   { slug: 'air-quality', property: 'air_quality_index', higherIsBetter: false, layer: 'air_quality',
     label: { fi: 'ilmanlaatu', en: 'air quality', sv: 'luftkvalitet' },
     col: { fi: 'Ilmanlaatuindeksi', en: 'Air quality index', sv: 'Luftkvalitetsindex' },

@@ -613,10 +613,17 @@ def calculate_metrics(gdf):
         rental = safe_val(row.get("te_vuok_as"))
         gdf.at[idx, "rental_rate"] = safe_div(rental, total_hh)
 
-        # Population density (persons per km²)
+        # Population density (persons per km²).
+        #
+        # Two decimals, not zero: Lapland's postal areas run to thousands of km², so a
+        # whole-number round writes 0 for an area that has residents. Measured on the
+        # shipped artifact before this was fixed: 177 inhabited areas at exactly 0,
+        # including Inari Keskus (1,194 residents, 3,423 km², a real 0.35/km²). That is
+        # the same false zero POI_DENSITY_DECIMALS exists to prevent, in the one density
+        # that is derived here rather than fetched.
         area_m2 = safe_val(row.get("pinta_ala"))
         if pop is not None and area_m2 is not None and area_m2 > 0:
-            gdf.at[idx, "population_density"] = round(pop / (area_m2 / 1_000_000))
+            gdf.at[idx, "population_density"] = round(pop / (area_m2 / 1_000_000), 2)
         else:
             gdf.at[idx, "population_density"] = None
 

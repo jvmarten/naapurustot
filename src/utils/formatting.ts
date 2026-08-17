@@ -114,10 +114,19 @@ export function escapeHtml(str: string): string {
     .replace(/'/g, '&#39;');
 }
 
-/** Format a number as density (e.g., "1 234 /km²"). Uses cached Intl.NumberFormat. */
+/**
+ * Format a number as density (e.g., "1 234 /km²"). Uses cached Intl.NumberFormat.
+ *
+ * Whole numbers are right for population density in a town, but NOT below 1: Inari
+ * Keskus holds 1,194 residents over 3,423 km², a real 0.35/km², and rounding printed
+ * "0 /km²" for an inhabited area — 177 of them nationally. Sub-1 keeps two significant
+ * digits; everything at or above 1 rounds exactly as before.
+ */
 export function formatDensity(v: number | string | null | undefined): string {
   const n = toNum(v);
   if (n == null) return '—';
+  const abs = Math.abs(n);
+  if (abs > 0 && abs < 1) return `${getSigFormatter().format(n)} /km²`;
   return `${getNumberFormatter().format(Math.round(n))} /km²`;
 }
 
@@ -147,9 +156,20 @@ function getSigFormatter(): Intl.NumberFormat {
 export function formatFineDensity(v: number | string | null | undefined): string {
   const n = toNum(v);
   if (n == null) return '—';
+  return `${formatFineNumber(n)} /km²`;
+}
+
+/**
+ * The bare number `formatFineDensity` prints, for surfaces whose label already
+ * carries the unit (the CSV/PDF export's "(/km²)" columns, the wizard's fit
+ * reasons). Same rule, one implementation — a second `toFixed(1)` copy is how
+ * six correctly-stored 4-decimal columns came to render as "0,0" in the panel.
+ */
+export function formatFineNumber(v: number | string | null | undefined): string {
+  const n = toNum(v);
+  if (n == null) return '—';
   const abs = Math.abs(n);
-  const fmt = abs > 0 && abs < 1 ? getSigFormatter() : getFixedFormatter(1);
-  return `${fmt.format(n)} /km²`;
+  return (abs > 0 && abs < 1 ? getSigFormatter() : getFixedFormatter(1)).format(n);
 }
 
 /** Format a number as €/m² (e.g., "3 500 €/m²"). Uses cached Intl.NumberFormat. */
