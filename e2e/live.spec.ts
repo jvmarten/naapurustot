@@ -73,9 +73,15 @@ test.describe('/live/', () => {
     await expect(page).toHaveURL(/t=2026-08-16T15:42Z/);
     await expect(page).toHaveURL(/at=65\.01210,25\.46510/);
 
-    // `f=shadows` is one of two feeds in the sun group, and the sidebar prints
+    // `f=shadows` is one of three feeds in the sun group, and the sidebar prints
     // the count — so this reads the applied state rather than the URL again.
-    await expect(page.getByText('1/2').first()).toBeVisible();
+    await expect(page.getByText('1/3').first()).toBeVisible();
+
+    // The third of them is the UV index, and its label lives in `fi-extra.json`
+    // — a lazily fetched asset. A registry row whose `labelKey` never resolves
+    // renders as the raw key, which no unit test can see because none of them
+    // mounts the sidebar against the real dictionary.
+    await expect(page.getByText('UV-indeksi')).toBeVisible();
   });
 
   test('carries a raster feed through the registry to a working toggle', async ({ page }) => {

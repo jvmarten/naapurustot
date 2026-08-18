@@ -16,6 +16,7 @@ import {
   skyStops,
   startOfDay,
 } from './timeControl';
+import { formatUv, type UvBand } from './uv';
 
 /**
  * The /live/ page's clock, as a bar across the bottom of the map.
@@ -148,8 +149,16 @@ function readStoredPace(): number {
  */
 const PLAY_STEP_MS = 100;
 
-/** Minimum pixels between hour labels before the ruler starts skipping them. */
-const LABEL_MIN_PX = 44;
+/**
+ * Minimum pixels between hour labels before the ruler starts skipping them.
+ *
+ * Sized for the label the ruler actually prints, which is now two digits and
+ * nothing else — `hourLabel` dropped Intl for `HH` when the clock went 24-hour.
+ * At 44 px this was still reserving room for "12 PM", so a phone-width track
+ * labelled every third hour where every second one fits, and a desktop one
+ * carried more air between the numbers than the ticks under them.
+ */
+const LABEL_MIN_PX = 30;
 
 /** Tidy label intervals, in hours. */
 const LABEL_STEPS = [1, 2, 3, 4, 6, 12];
@@ -157,6 +166,14 @@ const LABEL_STEPS = [1, 2, 3, 4, 6, 12];
 function labelStep(width: number): number {
   const wanted = (LABEL_MIN_PX * 24) / Math.max(1, width);
   return LABEL_STEPS.find((s) => s >= wanted) ?? 24;
+}
+
+/** One published hour of the UV index, with the exposure band it falls in. */
+export interface UvReadout {
+  index: number;
+  at: number;
+  clearSky: number | null;
+  band: UvBand;
 }
 
 /**
@@ -205,6 +222,16 @@ interface TimeBarProps {
   /** Whether the sun readout is switched on in the sidebar. */
   showSun: boolean;
   /**
+   * The UV index under the playhead, or null when there is none to show.
+   *
+   * Null covers three different situations — the feed is off, its day has not
+   * arrived, and the model does not reach this instant — and the bar treats them
+   * identically on purpose. A number here is the whole of what this row can
+   * honestly carry; which of the three it is, and that the number is a model at
+   * all, is the honesty strip's sentence to make.
+   */
+  uv: UvReadout | null;
+  /**
    * Told when playback starts and stops.
    *
    * The page does not need this to draw — every layer answers for `when`, and
@@ -226,6 +253,7 @@ export const TimeBar: React.FC<TimeBarProps> = ({
   onPlayingChange,
   shadowRatio,
   showSun,
+  uv,
 }) => {
   const trackRef = useRef<HTMLDivElement | null>(null);
   const [width, setWidth] = useState(900);
@@ -676,28 +704,66 @@ export const TimeBar: React.FC<TimeBarProps> = ({
           </label>
         </div>
 
-        {showSun && (
+        {(showSun || uv) && (
           <div className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
             {/* Widths are the widest each field can render: "-90.0°", "360° NE",
                 ">99×", "00:00", "24.0 h". See SunStat for why they are pinned. */}
-            <SunStat label={t('live.sun.altitude')} width="7ch">
-              {sun.altitude.toFixed(1)}° {rising ? '↑' : '↓'}
-            </SunStat>
-            <SunStat label={t('live.sun.azimuth')} width="7.5ch">
-              {sun.azimuth.toFixed(0)}° {compassPoint(sun.azimuth)}
-            </SunStat>
-            <SunStat label={t('live.sun.shadow_ratio')} width="5.5ch">
-              {formatShadowRatio(shadowRatio)}
-            </SunStat>
-            <SunStat label={t('live.sun.sunrise')} width="5ch">
-              {clockTime(times.sunrise)}
-            </SunStat>
-            <SunStat label={t('live.sun.sunset')} width="5ch">
-              {clockTime(times.sunset)}
-            </SunStat>
-            <SunStat label={t('live.sun.day_length')} width="6ch">
-              {times.dayLength.toFixed(1)} h
-            </SunStat>
+            {showSun && (
+              <>
+                <SunStat label={t('live.sun.altitude')} width="7ch">
+                  {sun.altitude.toFixed(1)}° {rising ? '↑' : '↓'}
+                </SunStat>
+                <SunStat label={t('live.sun.azimuth')} width="7.5ch">
+                  {sun.azimuth.toFixed(0)}° {compassPoint(sun.azimuth)}
+                </SunStat>
+                <SunStat label={t('live.sun.shadow_ratio')} width="5.5ch">
+                  {formatShadowRatio(shadowRatio)}
+                </SunStat>
+                <SunStat label={t('live.sun.sunrise')} width="5ch">
+                  {clockTime(times.sunrise)}
+                </SunStat>
+                <SunStat label={t('live.sun.sunset')} width="5ch">
+                  {clockTime(times.sunset)}
+                </SunStat>
+                <SunStat label={t('live.sun.day_length')} width="6ch">
+                  {times.dayLength.toFixed(1)} h
+                </SunStat>
+              </>
+            )}
+            {/* THE ONE MODELLED NUMBER IN A ROW OF EXACT ONES, so it is drawn
+                differently from all of them: italic, which is this page's mark
+                for a value a publisher predicted rather than an instrument
+                measured, and inked with the WHO band's own colour so "3.6" also
+                says "moderate" without spending a column on the word.
+
+                The colour is not the only channel carrying the band — an
+                `sr-only` span says it, the tooltip says it, and the honesty
+                strip states it in a full sentence with the hour and the source.
+                It arrives through a CSS variable because Tailwind cannot compile
+                a class built from a runtime value, and the two inks are needed
+                because this row renders on white and on near-black.
+
+                Reserved at 4ch for "11.5". Finland does not reach that — the
+                summer peak in Helsinki is around 6 — but the band table goes to
+                extreme and a reserved width that a real value can overflow is
+                the bug SunStat exists to prevent. */}
+            {uv && (
+              <SunStat label={t('live.sun.uv')} width="4ch">
+                <span
+                  className="italic text-[color:var(--uv-ink)] dark:text-[color:var(--uv-ink-dark)]"
+                  style={
+                    {
+                      '--uv-ink': uv.band.light,
+                      '--uv-ink-dark': uv.band.dark,
+                    } as React.CSSProperties
+                  }
+                  title={`${t(uv.band.key)} · ${t('live.uv.modelled')}`}
+                >
+                  {formatUv(uv.index)}
+                </span>
+                <span className="sr-only"> {t(uv.band.key)}</span>
+              </SunStat>
+            )}
           </div>
         )}
       </div>

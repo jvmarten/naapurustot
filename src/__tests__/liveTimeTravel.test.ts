@@ -412,9 +412,15 @@ describe('the feed registry states how far each feed can be scrubbed', () => {
     // without one would silently inherit whatever the UI defaults to — which is
     // how a measured layer ends up frozen under a past clock.
     for (const feed of ALL_FEEDS) {
-      expect(['computed', 'archive', 'forecast', 'recorded', 'schedule', 'validity']).toContain(
-        feed.time,
-      );
+      expect([
+        'computed',
+        'archive',
+        'forecast',
+        'modelled',
+        'recorded',
+        'schedule',
+        'validity',
+      ]).toContain(feed.time);
     }
   });
 
@@ -434,6 +440,11 @@ describe('the feed registry states how far each feed can be scrubbed', () => {
     // and answers NaN for the index, so there is nothing national to draw.
     expect(byId.get('air_quality')).toBe('archive');
     expect(byId.get('road_incidents')).toBe('validity');
+    // NOT 'forecast', which would claim a measured half this feed does not have.
+    // CAMS's "past" is an earlier run of the same model, and FMI publishes no UV
+    // index at all — only a UV-B irradiance at eight stations, which is a
+    // different quantity. So the whole window is model, and the row says so.
+    expect(byId.get('uv_index')).toBe('modelled');
   });
 
   it('gives every time model a label in every locale', async () => {
