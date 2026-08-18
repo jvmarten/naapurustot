@@ -3257,9 +3257,10 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     const tr = cameraAffine(map);
     const scale = Math.hypot(tr.ax, tr.ay);
 
-    const reel = reelRef.current;
+    let reel = reelRef.current;
     if (!reel) {
-      reelRef.current = createReel(bbox, radarRequestSize(bbox, scale), scale);
+      reel = createReel(bbox, radarRequestSize(bbox, scale), scale);
+      reelRef.current = reel;
     } else if (!reelCovers(reel, view, scale)) {
       // The whole cut is for the wrong ground now, so it goes — except the frame
       // on screen, which keeps drawing on its own ground until the first frame of
@@ -3271,7 +3272,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     // is already in the future resolves the run while the map is still coming
     // up, so the poll's own assignment lands on a null ref and the forecast half
     // would stay switched off until the ten-minute refresh.
-    reelRef.current.horizon = nowcastRunRef.current?.to ?? 0;
+    reel.horizon = nowcastRunRef.current?.to ?? 0;
 
     const ac = new AbortController();
     let waiters: (() => void)[] = [];

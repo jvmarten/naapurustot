@@ -207,6 +207,15 @@ Per-km² metrics are stored at 4 decimals (`prepare_data.POI_DENSITY_DECIMALS`, 
 
 A partial national fetch must never be written. `_overpass_query` rejects responses carrying a `remark` (Overpass reports server-side timeouts as HTTP 200), `_overpass_query_all_regions` aborts if any of the 69 bboxes is unfetchable, and `fetch_lipas.py` retries then raises rather than writing a truncated page walk. Every one of these guards exists because the alternative silently shipped as measured zeros.
 
+### `tsc -p tsconfig.json` checks nothing
+
+The root `tsconfig.json` is a solution file — `files: []` plus `references` — so
+`npx tsc --noEmit -p tsconfig.json` exits **0 in under a second having compiled
+zero files**, which is indistinguishable from a clean typecheck and is how a
+`TS18047` reached CI and turned a run red. Use what CI uses: `npx tsc -b`
+(or `npm run build`, which begins with it). Add `--force` when you want to be
+sure the incremental build info is not answering for you.
+
 ### Prerender head-token regexes
 
 `scripts/prerender.mjs` clones `dist/index.html` using first-match regexes over `<title>`, `<noscript>`, and `</head>`. Never put those tokens in index.html's head — even inside comments — or all ~9,000 prerendered pages silently corrupt. Run `npm run build:pages` to catch it.
