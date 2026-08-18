@@ -147,7 +147,16 @@ export const FEED_GROUPS: FeedGroup[] = [
       // OFF BY DEFAULT, for the same reason lightning is: a national frame is
       // ~100 kB and there is one every five minutes, which is real money to
       // spend on a visitor who came for the shadows.
-      { id: 'radar', labelKey: 'live.feed.radar', status: 'live', coverage: 'national', time: 'archive', defaultOn: false },
+      //
+      // 'forecast' rather than 'archive', and the forecast half is somebody
+      // ELSE's — the one feed here where the two halves have different
+      // publishers. FMI's open WMS holds no product that reaches past the
+      // present minute, so past "now" this layer is MET Norway's Nordic radar
+      // nowcast, whose mosaic includes all eleven FMI radars (nowcast.ts). Same
+      // rule as the temperature layer either way: a measurement beats a forecast
+      // outright, the seam is the wall clock, and the forecast half names its
+      // publisher and its analysis time everywhere it is drawn.
+      { id: 'radar', labelKey: 'live.feed.radar', status: 'live', coverage: 'national', time: 'forecast', defaultOn: false },
       // Air temperature at every reporting FMI station. National, and 5.3 kB
       // gzipped despite 170 kB of raw XML — see observations.ts before
       // "optimising" it to the coverage encoding, which is three times bigger
