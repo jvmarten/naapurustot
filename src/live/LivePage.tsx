@@ -71,13 +71,28 @@ import {
   type Strike,
 } from './lightning';
 import {
+  closeReel,
+  createReel,
   fetchRadarFrame,
   radarFrameAt,
-  radarInRange,
   radarRequestSize,
-  RadarUnpublished,
+  reelAbsent,
+  reelCovers,
+  reelPeek,
+  reelPending,
+  reelPick,
+  reelPlan,
+  reelPut,
+  reelRetarget,
   type RadarFrame,
+  type RadarReel,
 } from './radar';
+import {
+  fetchNowcastFrame,
+  fetchNowcastRun,
+  NOWCAST_RUN_TTL_MS,
+  type NowcastRun,
+} from './nowcast';
 import {
   createTimeline,
   clearTimeline,
@@ -494,6 +509,17 @@ const ARCHIVE_DEBOUNCE_MS = 400;
  * drops it back to 400 ms, and the one instant that matters is refined then.
  */
 const ARCHIVE_PLAYBACK_DEBOUNCE_MS = 60_000;
+
+/**
+ * How long the radar's fetch loop waits after a request that did not arrive.
+ *
+ * A backoff and nothing else. The loop has no other pause in it — it is meant to
+ * run flat out while the playhead is moving — so a dropped connection or a
+ * refused request would otherwise be a tight loop against a free public service.
+ * Two seconds is long enough not to be one and short enough that a connection
+ * coming back is noticed before the frame on screen falls out of tolerance.
+ */
+const RADAR_RETRY_MS = 2_000;
 
 /**
  * How far a sample may sit from the clock and still be shown, per feed.
@@ -1787,17 +1813,43 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   const [strikeVersion, setStrikeVersion] = useState(0);
   const bumpStrikes = useCallback(() => setStrikeVersion((v) => v + 1), []);
   /**
-   * The radar composite currently on screen, and the camera scale it was cut at.
+   * The radar composites this page has decoded, and the camera they were cut for.
    *
-   * A ref because it is an ImageBitmap the draw loop blits and React never
-   * renders; the state beside it is the sentence about it. `scale` is kept so a
-   * zoom-IN can tell that the frame in hand, although it still covers the view,
-   * no longer covers it at enough resolution to be worth keeping.
-   *
-   * The bitmap is explicitly closed when replaced — it is decoded pixels outside
-   * the JS heap, and a scrub across an hour is twelve of them.
+   * A ref because they are ImageBitmaps the draw loop blits and React never
+   * renders; the state beside it is the sentence about them. What used to live
+   * here was ONE frame, which is why the layer could not follow a moving clock —
+   * see {@link RadarReel} for the whole account, and for why the pixels are
+   * bounded by bytes rather than by a slot count.
    */
-  const radarRef = useRef<{ frame: RadarFrame; scale: number } | null>(null);
+  const reelRef = useRef<RadarReel | null>(null);
+  /**
+   * Which way the playhead is travelling, as the sign of its last real move.
+   *
+   * The reel's only prefetch reads this: dragging forwards or watching playback
+   * run, the next couple of five-minute steps are asked for before the clock
+   * reaches them. Kept as a ref because it is an input to a fetch loop and never
+   * to a render, and updated only when the quantised instant actually changes —
+   * a value recomputed per pointer-move would be noise.
+   */
+  const radarDirRef = useRef(0);
+  /** The playhead, for the fetch loop — which runs outside any render. */
+  const radarWhenRef = useRef(0);
+  /** The previous quantised instant, so `radarDirRef` can be a real difference. */
+  const radarPrevTargetRef = useRef<number | null>(null);
+  /** Opens the fetch loop's latch. Null while no loop is running. */
+  const radarWakeRef = useRef<(() => void) | null>(null);
+  /**
+   * The nowcast run the forecast half of the rain layer is being drawn from.
+   *
+   * Null until the clock is moved past the present, which is the only time it is
+   * worth resolving — see the poll below. A ref rather than state because the
+   * fetch loop reads it outside any render, and its one render-visible fact (how
+   * far ahead the forecast reaches) lands on the reel as `horizon`.
+   */
+  const nowcastRunRef = useRef<NowcastRun | null>(null);
+  /** Bumped whenever the reel changes, so the readout re-derives its sentence. */
+  const [radarVersion, setRadarVersion] = useState(0);
+  const bumpRadar = useCallback(() => setRadarVersion((v) => v + 1), []);
   /**
    * The day's published timetables, for the instants the recording cannot answer.
    *
@@ -2016,29 +2068,22 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   /** Same, for the day's train timetables — which are only fetched on demand. */
   const [scheduleDay, setScheduleDay] = useState<'idle' | 'loading' | 'ready' | 'failed'>('idle');
   /**
-   * The radar frame's state — FOUR arms, where the other feeds need three.
+   * Whether the last radar request failed to REACH FMI.
    *
-   * `unpublished` is the extra one, and it is the whole reason this is not a
-   * boolean beside a frame. FMI answering "I have no composite for that instant"
-   * is not a failure and must not print as one: at the leading edge it means the
-   * newest scan is a few minutes from being published, and past the archive's
-   * end it means the rain has not happened yet. Collapsing it into `failed`
-   * would put "could not load" over a map at the one moment the page is most
-   * obviously working.
-   */
-  const [radarState, setRadarState] = useState<'loading' | 'ready' | 'unpublished' | 'failed'>(
-    'loading',
-  );
-  /**
-   * The instant of the composite in hand — its own, never the playhead's.
+   * The one arm of the radar's sentence that is a fact about us rather than
+   * about the source, so it is the only one held as state. The other three —
+   * a frame is drawn, we are still asking, FMI has nothing for this window — are
+   * all read off the reel at render time by the same functions the draw loop
+   * uses, which is what stops the picture and the sentence beside it from
+   * describing different instants.
    *
-   * State as well as the ref, because this is the one thing about the frame that
-   * has to be PRINTED. The gap between it and the clock is up to the tolerance,
-   * and a layer that lags its own page's clock by minutes without saying so is
-   * exactly the "current data under a past timestamp" this page refuses
-   * everywhere else.
+   * FMI answering "I have no composite for that instant" is emphatically NOT
+   * this: at the leading edge it means the newest scan is a few minutes from
+   * being published, and past the archive's end it means the rain has not
+   * happened yet. Collapsing that into a failure would put "could not load" over
+   * a map at the one moment the page is most obviously working.
    */
-  const [radarShownAt, setRadarShownAt] = useState<number | null>(null);
+  const [radarFailed, setRadarFailed] = useState(false);
 
   const shadowsOn = enabled.has('shadows');
   const sunOn = enabled.has('sun_position');
@@ -2163,15 +2208,25 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
    * changes it. A `useFeedPoll` beside that would be a second timer racing the
    * first to ask the same question.
    *
-   * The camera is a separate, coarser trigger because a raster is cut for a
-   * viewport rather than sampled at a point: panning does not change WHICH frame
-   * is wanted, only which ground it has to cover, and the effect below decides
-   * whether the one in hand already does.
+   * AND NO DEBOUNCE, which is the change that made this layer follow the clock.
+   * It used to be `useDebounced(…, playing ? 60_000 : 400)`, and both arms were
+   * wrong for a raster: `useDebounced` is trailing-edge only, so a value that
+   * keeps changing never reaches its consumer at all — a drag issued ZERO
+   * requests until the pointer had been still for 400 ms, and the playback arm
+   * was a constant deliberately chosen so it would never elapse (see
+   * ARCHIVE_PLAYBACK_DEBOUNCE_MS: correct for a request that only refines
+   * something already drawn, false for the one that IS the layer). What bounds
+   * the request count now is what always should have: the five-minute quantum
+   * below, and a fetch loop that takes one instant at a time and re-reads the
+   * playhead between them, so a fast drag asks for the handful of frames it
+   * passes rather than all 288.
+   *
+   * The camera is still a separate, coarser trigger because a raster is cut for
+   * a viewport rather than sampled at a point: panning does not change WHICH
+   * frame is wanted, only which ground it has to cover, and `reelCovers` decides
+   * whether the ones in hand already do.
    */
-  const radarTarget = useDebounced(
-    radarFrameAt(whenMs),
-    playing ? ARCHIVE_PLAYBACK_DEBOUNCE_MS : ARCHIVE_DEBOUNCE_MS,
-  );
+  const radarTarget = radarFrameAt(whenMs);
   const radarCamera = useDebounced(
     `${center[0].toFixed(3)},${center[1].toFixed(3)},${zoom.toFixed(2)}`,
     FETCH_DEBOUNCE_MS,
@@ -2773,14 +2828,19 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     // same — a shower drawn under a 0.62 night wash is a grey smudge, and the
     // hours when it matters most whether it is raining are the dark ones.
     //
-    // GUARDED BY THE SAME RULE THE FETCH USES. Between the clock stepping onto a
-    // new instant and the frame for it arriving, the previous composite is still
-    // in hand — which is right while it is recent (that is `useFeedPoll`'s "a
-    // failed poll keeps what is on screen", applied to a raster) and wrong the
-    // moment the scrub has carried past what it can speak for.
+    // PICKED FROM THE REEL AT THE CLOCK, exactly as the station feeds sample
+    // their loaded day. `reelPick` answers with the newest composite within
+    // tolerance of the playhead and nothing else — so between the clock stepping
+    // onto a new instant and the frame for it arriving, the previous one is
+    // still drawn (that is `useFeedPoll`'s "a failed poll keeps what is on
+    // screen", applied to a raster), and the moment the scrub carries past what
+    // any held frame can speak for, the layer goes empty rather than lying.
+    //
+    // Never two frames, never a blend: see RadarReel.
     {
-      const rf = radarOn ? radarRef.current?.frame : null;
-      if (rf && radarInRange(rf.at, whenMs)) paintRadar(ctx, map, rf);
+      const reel = radarOn ? reelRef.current : null;
+      const rf = reel ? reelPick(reel, whenMs) : null;
+      if (rf) paintRadar(ctx, map, rf);
     }
     // Incidents under the trains: a closure is context for the network, a train
     // is a moving thing on it, and where they coincide the moving thing is what
@@ -3110,51 +3170,71 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   }, [lightningOn, dayStartMs, dayEndMs, bumpStrikes, scheduleDraw]);
 
   /**
-   * The radar composite for the clock and the camera.
+   * The playhead, handed to the pump, and the direction it is travelling.
+   *
+   * Runs on every step of the scrubber — which is the point. Waking the latch is
+   * a resolved promise and a plan over at most a dozen instants, so it costs
+   * nothing to do it per pointer-move, and it is what makes the loop ask for the
+   * frame under the pointer rather than the one it was under when the drag
+   * began. The direction only changes when the QUANTISED instant does, because a
+   * sign recomputed per pixel is noise.
+   *
+   * DECLARED BEFORE THE PUMP, and it has to stay there. Effects run in
+   * declaration order, so this is what puts a real instant in the ref before the
+   * loop below first reads it — the other way round, the page's opening act was
+   * a plan built on `0` and four requests for composites from January 1970.
+   */
+  useEffect(() => {
+    radarWhenRef.current = whenMs;
+    const previous = radarPrevTargetRef.current;
+    if (previous !== null && previous !== radarTarget) {
+      radarDirRef.current = Math.sign(radarTarget - previous);
+    }
+    radarPrevTargetRef.current = radarTarget;
+    radarWakeRef.current?.();
+  }, [whenMs, radarTarget]);
+
+  /**
+   * Keeping the reel filled around the playhead.
    *
    * THE ONE FEED HERE THAT CANNOT LOAD ITS DAY, and radar.ts says why: 288
-   * frames and ~25 MB against the ~20 kB a day of stations costs. So this is a
-   * request per instant, and everything about the effect is aimed at making that
-   * as few requests as the picture allows:
+   * frames and ~25 MB against the ~20 kB a day of stations costs. It is a
+   * request per instant it has not already decoded — which is a different and
+   * much smaller claim than a request per instant the clock lands on, and the
+   * difference is what this effect is for.
    *
-   *  - the instant is quantised to the composite's own five-minute grid before
-   *    it gets here, so a drag across an hour asks for twelve frames rather than
-   *    one per pixel, and debounced on top of that;
-   *  - a frame already in hand is kept when it still covers the view at enough
-   *    resolution — a pan inside the padding, or a zoom OUT, costs nothing;
-   *  - the walk stops at the frame in hand rather than re-downloading it, which
-   *    is what stops the live clock re-fetching 18:00 every five minutes until
-   *    18:05 is published;
-   *  - and FMI serves frames `max-age=86400`, so scrubbing back over ground
-   *    already covered is answered by the browser cache.
+   * A PUMP, NOT A REQUEST. The effect starts a loop that takes ONE instant at a
+   * time from {@link reelPlan}, re-reading the playhead between them, and sleeps
+   * on a latch when the plan is empty. That shape is what lets the layer follow
+   * a moving clock:
    *
-   * The bitmap is closed when it is replaced. It is decoded pixels held outside
-   * the JS heap — a national frame is about 6 MB of them — and a day's scrub
-   * would otherwise leave a few hundred megabytes for the collector to notice in
-   * its own time.
+   *  - the plan is computed against `radarWhenRef` at the moment the loop is
+   *    ready to ask, not against a value a debounce settled on some time ago, so
+   *    a drag is served where the pointer IS rather than where it paused;
+   *  - a request in the air is never cancelled by the clock moving. It lands in
+   *    the reel and covers ground a later scrub will want. Only a camera change
+   *    or the feed going off aborts, because only those make the pixels wrong;
+   *  - two loops run, so a round trip is not the rate limit at playback speeds
+   *    (a five-minute step comes every 500 ms at the default pace, every 167 ms
+   *    at the fastest), and the tolerance's three steps of slack absorb the rest;
+   *  - and nothing asks twice. Instants in hand, in flight, and the ones FMI has
+   *    already said it has nothing for are all skipped — the walk-back that used
+   *    to re-probe four missing instants on every camera nudge is now memoised
+   *    in the reel.
+   *
+   * A fast sweep of the whole bar therefore costs the handful of frames the loop
+   * managed to fetch on the way past, not 288: by the time one lands, the plan
+   * has moved with the playhead.
    */
   useEffect(() => {
     const map = mapRef.current;
-    const held = radarRef.current;
     if (!map || !radarOn) {
-      if (held) {
-        held.frame.image.close();
-        radarRef.current = null;
+      if (reelRef.current) {
+        closeReel(reelRef.current);
+        reelRef.current = null;
         scheduleDraw();
       }
-      setRadarState('loading');
-      setRadarShownAt(null);
-      return;
-    }
-
-    // A COMPOSITE OF AN INSTANT THAT HAS NOT HAPPENED CANNOT EXIST, so this does
-    // not go and check. Without the guard, scrubbing into tomorrow walked the
-    // full tolerance — four requests, all of them answered `InvalidDimension-
-    // Value` — and did it again at every five-minute step of a playback that had
-    // run past now. Same reasoning as the lightning day loader's: asking would
-    // be asking FMI to confirm that the future has not happened.
-    if (radarTarget > Date.now()) {
-      setRadarState('unpublished');
+      setRadarFailed(false);
       return;
     }
 
@@ -3176,50 +3256,124 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     const bbox = padBbox(view, 0.1 * span);
     const tr = cameraAffine(map);
     const scale = Math.hypot(tr.ax, tr.ay);
-    const covered = held !== null && bboxContains(held.frame.bbox, view) && scale <= held.scale * 1.6;
 
-    // Exactly right already: the same composite, over ground that still covers
-    // the screen. Note this compares the frame's OWN instant against the one the
-    // clock is asking for, so it only short-circuits where they agree — at the
-    // leading edge they do not, and the probe below is the point.
-    if (covered && held.frame.at === radarTarget) return;
+    let reel = reelRef.current;
+    if (!reel) {
+      reel = createReel(bbox, radarRequestSize(bbox, scale), scale);
+      reelRef.current = reel;
+    } else if (!reelCovers(reel, view, scale)) {
+      // The whole cut is for the wrong ground now, so it goes — except the frame
+      // on screen, which keeps drawing on its own ground until the first frame of
+      // the new cut arrives. See reelRetarget.
+      reelRetarget(reel, bbox, radarRequestSize(bbox, scale), scale);
+    }
+    // The run is resolved by a poll that does not know when a reel exists, and
+    // the two orders really do both happen: a page opened at a link whose clock
+    // is already in the future resolves the run while the map is still coming
+    // up, so the poll's own assignment lands on a null ref and the forecast half
+    // would stay switched off until the ten-minute refresh.
+    reel.horizon = nowcastRunRef.current?.to ?? 0;
 
     const ac = new AbortController();
-    setRadarState((s) => (s === 'ready' && covered ? s : 'loading'));
-    fetchRadarFrame(
-      bbox,
-      radarRequestSize(bbox, scale),
-      radarTarget,
-      ac.signal,
-      covered ? held.frame.at : null,
-    )
-      .then((frame) => {
-        if (ac.signal.aborted) return;
-        // null is "yours is still the newest", not "nothing came back".
-        if (frame === null) {
-          setRadarState('ready');
-          return;
-        }
-        radarRef.current?.frame.image.close();
-        radarRef.current = { frame, scale };
-        setRadarState('ready');
-        setRadarShownAt(frame.at);
-        scheduleDraw();
-      })
-      .catch((err: unknown) => {
-        if ((err as Error)?.name === 'AbortError' || ac.signal.aborted) return;
-        // NOT A FAILURE, and it must not print as one: FMI has nothing for this
-        // instant, which at the leading edge means the scan is minutes from
-        // being published and past the archive's end means it has not happened.
-        setRadarState(err instanceof RadarUnpublished ? 'unpublished' : 'failed');
-      });
+    let waiters: (() => void)[] = [];
+    const wake = () => {
+      const pending = waiters;
+      waiters = [];
+      for (const resolve of pending) resolve();
+    };
+    radarWakeRef.current = wake;
+    ac.signal.addEventListener('abort', wake);
 
-    return () => ac.abort();
-    // `mapReady` and not just the camera: the camera state only changes on
-    // `moveend`, and a page opened at a link's camera never fires one. Without
-    // it the first frame waited for the visitor to nudge the map, which reads
-    // exactly like a feed that does not work.
-  }, [radarOn, radarTarget, radarCamera, mapReady, scheduleDraw]);
+    const pump = async (): Promise<void> => {
+      while (!ac.signal.aborted) {
+        const current = reelRef.current;
+        if (!current) return;
+        const now = Date.now();
+        const run = nowcastRunRef.current;
+        // THE SEAM IS THE WALL CLOCK, not whichever picture is nearer. At or
+        // before now the instant belongs to FMI's measurement; after it, to
+        // MET's nowcast. The run's window opens at its own analysis, a few
+        // minutes in the PAST, and that overlap is deliberately never used:
+        // "a measurement beats a forecast outright" (feed invariant 9), which
+        // here means a model's picture of a minute that has already happened is
+        // superseded data rather than a second opinion.
+        const at = reelPlan(current, radarWhenRef.current, now, radarDirRef.current).find(
+          (t) =>
+            !current.inflight.has(t) &&
+            // One forecast request at a time — MET's THREDDS asks callers not to
+            // open parallel sessions, and its GetMap is a second or two. The
+            // other loop takes a measured instant or waits.
+            (t <= now || (run !== null && !current.forecastInflight)),
+        );
+
+        if (at === undefined) {
+          // Nothing to ask for: sleep until the clock moves. No timer — the
+          // effect above opens the latch on every step of the playhead, each
+          // completed request opens it for the other loop, and the abort
+          // listener opens it on the way out.
+          await new Promise<void>((resolve) => waiters.push(resolve));
+          continue;
+        }
+
+        // Null for every measured instant, which is what picks the publisher —
+        // and it is a narrowed local rather than a re-test so the two cannot
+        // drift apart between the plan's predicate and the request.
+        const forecastRun = at > now ? run : null;
+        const forecast = forecastRun !== null;
+        current.inflight.add(at);
+        if (forecast) current.forecastInflight = true;
+        try {
+          const frame = forecastRun
+            ? await fetchNowcastFrame(forecastRun, current.bbox, current.size, at, ac.signal)
+            : await fetchRadarFrame(current.bbox, current.size, at, ac.signal);
+          if (ac.signal.aborted) {
+            frame?.image.close();
+            return;
+          }
+          if (frame) {
+            reelPut(current, frame);
+            setRadarFailed(false);
+          } else {
+            // NOT A FAILURE, and it must not print as one: the publisher has
+            // nothing for this instant. At FMI's leading edge that means the
+            // scan is minutes from being published; past the archive's end, or
+            // past MET's +115 minutes, it means the picture does not exist. The
+            // reel remembers, and asks again only where the answer can change.
+            reelAbsent(current, at, Date.now());
+          }
+          bumpRadar();
+          scheduleDraw();
+        } catch (err) {
+          if (ac.signal.aborted || (err as Error)?.name === 'AbortError') return;
+          setRadarFailed(true);
+          // A beat before the next attempt, so a dropped connection is not a
+          // tight loop against a free public service. The frame already on
+          // screen stays there — feed invariant 5, applied to a raster.
+          await new Promise<void>((resolve) => setTimeout(resolve, RADAR_RETRY_MS));
+        } finally {
+          current.inflight.delete(at);
+          if (forecast) current.forecastInflight = false;
+          wake();
+        }
+      }
+    };
+
+    void pump();
+    void pump();
+
+    return () => {
+      ac.signal.removeEventListener('abort', wake);
+      radarWakeRef.current = null;
+      ac.abort();
+    };
+    // NOT `radarTarget`. The clock waking the pump is a latch, not a restart —
+    // tearing this down every five simulated minutes is exactly what made a
+    // stuttering drag throw away every round trip it had started. `mapReady` and
+    // not just the camera: the camera state only changes on `moveend`, and a
+    // page opened at a link's camera never fires one, so without it the first
+    // frame waited for the visitor to nudge the map.
+  }, [radarOn, radarCamera, mapReady, bumpRadar, scheduleDraw]);
+
 
   /**
    * The day's published timetables, fetched only when nothing measured can answer.
@@ -3785,6 +3939,44 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     }, []),
   });
 
+  /**
+   * MET Norway's nowcast run, resolved only once the clock is ahead of now.
+   *
+   * NOT WHILE THE PAGE IS LIVE, and that is a deliberate frugality rather than
+   * an oversight. The capabilities document is 4.7 kB and uncompressed on the
+   * wire, so resolving it on a timer for every visitor who switches the radar on
+   * would cost more per hour than the frames themselves on a quiet day — for a
+   * forecast nobody has asked to see. Scrubbing forward pays for it once, in
+   * about a second, and nowcast.ts caches the answer for ten minutes so crossing
+   * back and forth over the present is free.
+   *
+   * The run reaches the reel as `horizon`, which is the single switch that lets
+   * `reelPlan` ask for an instant later than now. Without it the plan's ceiling
+   * is the wall clock and the layer behaves exactly as it did before there was a
+   * forecast at all — which is also what happens if this poll fails.
+   */
+  useFeedPoll<NowcastRun>({
+    enabled: radarOn && future,
+    fetcher: useCallback((signal: AbortSignal) => fetchNowcastRun(Date.now(), signal), []),
+    intervalMs: NOWCAST_RUN_TTL_MS,
+    onData: useCallback(
+      (run: NowcastRun) => {
+        nowcastRunRef.current = run;
+        if (reelRef.current) reelRef.current.horizon = run.to;
+        setRadarFailed(false);
+        // The pump may be asleep on an empty plan precisely because its ceiling
+        // was the wall clock a moment ago.
+        radarWakeRef.current?.();
+      },
+      [],
+    ),
+    onError: useCallback(() => setRadarFailed(true), []),
+    onClear: useCallback(() => {
+      nowcastRunRef.current = null;
+      if (reelRef.current) reelRef.current.horizon = 0;
+    }, []),
+  });
+
   useEffect(() => {
     scheduleDraw();
   }, [draw, scheduleDraw]);
@@ -4010,13 +4202,38 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   }, []);
 
   /**
-   * Whether the composite in hand is the one the clock can be told about.
+   * The radar's sentence, read off the reel by the rule the draw loop uses.
    *
-   * The same rule the draw is gated on, read from the state rather than the ref
-   * — so the sentence and the pixels cannot disagree about whether there is a
-   * radar picture on the map.
+   * `reelPeek` is `reelPick` without the bookkeeping, so `shownAt` is the instant
+   * of the composite that is on the map — its own, never the playhead's, which is
+   * the one thing about this layer that has to be printed. The gap between the
+   * two is up to the tolerance, and a picture that lags its own page's clock by
+   * minutes without saying so is exactly the "current data under a past
+   * timestamp" this page refuses everywhere else.
+   *
+   * `pending` IS THE ARM THE OLD STATE MACHINE DID NOT HAVE, and its absence was
+   * a false statement about FMI: the single-slot design tracked camera coverage
+   * rather than clock coverage, so it sat at `ready` through an entire scrub and
+   * dropped the readout into "the newest radar composite has not been published
+   * yet" over an archive that certainly holds it. "We have not asked yet" and
+   * "the publisher has nothing" are different sentences — the same split
+   * invariant 14 forced on the station feeds, one level up.
    */
-  const radarDrawn = radarShownAt !== null && radarInRange(radarShownAt, whenMs);
+  const radar = useMemo(() => {
+    const reel = radarOn ? reelRef.current : null;
+    const frame = reel ? reelPeek(reel, whenMs) : null;
+    return {
+      shownAt: frame?.at ?? null,
+      forecast: frame?.forecast === true,
+      runAt: frame?.runAt ?? null,
+      pending: reel !== null && frame === null && reelPending(reel, whenMs, Date.now()),
+    };
+    // `radarVersion` is the dependency the linter cannot see: the reel is a ref,
+    // so a frame landing in it changes what this reads without changing anything
+    // it lists. Same shape as `timelineVersion` above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [radarOn, whenMs, radarVersion]);
+  const radarDrawn = radar.shownAt !== null;
 
   /** Whether any enabled feed has a sentence to show at all. */
   const readoutOn =
@@ -4046,7 +4263,14 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     // source's schedule, not about ours failing to reach it, and an amber chip
     // over "the 18:05 scan is a couple of minutes from being published" would
     // cry wolf several times an hour on a page that is working perfectly.
-    (radarOn && radarState === 'failed') ||
+    //
+    // Nor is a failure that happened UNDER A PICTURE. The reel keeps drawing the
+    // last composite it managed to decode, and that composite prints its own
+    // minute — so a dropped request while one is on screen has already told the
+    // reader everything an alert would, and the layer is a few minutes coarse
+    // rather than wrong. Once nothing is in range any more, the chip is the only
+    // channel left and this is exactly what it is for.
+    (radarOn && radarFailed && !radarDrawn) ||
     // A FAILED POLL RAISES THE CHIP ONLY WHILE THE PAGE IS FOLLOWING REAL TIME,
     // and the distinction is what the poll is FOR in each case. Live, it is the
     // thing keeping the layer current, so losing it means the page is quietly
@@ -4333,14 +4557,38 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
                   "we cannot see here" — the alternative is an empty area that
                   reads as "no rain". */}
               {radarOn && (
-                radarState === 'failed' ? (
-                  <p className="text-amber-700 dark:text-amber-400">{t('live.radar.failed')}</p>
+                /* THE PICTURE OUTRANKS THE FAILURE, which is the opposite of the
+                   order this used to be in. The reel keeps the last composite it
+                   decoded on the map, and that composite prints its own minute —
+                   so with rain on screen "could not load the radar composite" is
+                   both alarming and less informative than the sentence it would
+                   replace. The failure gets the paragraph only once nothing is in
+                   range of the clock any more. */
+                radarDrawn && radar.forecast ? (
+                  /* A DIFFERENT PUBLISHER, A DIFFERENT QUANTITY, AND IT SAYS SO
+                     IN BOTH SENTENCES. FMI has no rain forecast a browser can
+                     draw (radar.ts records the enumeration), so past the present
+                     this layer is MET Norway's Nordic nowcast — built on a
+                     mosaic that includes all eleven FMI radars, extrapolated by
+                     them rather than by us. The analysis time is printed beside
+                     the valid time because "a forecast" and "a forecast made
+                     from the 08:25 scan" are different amounts of information,
+                     and because it is the number that tells a reader how much
+                     the picture has been asked to invent. */
+                  <p className="text-surface-600 dark:text-surface-300">
+                    {t('live.radar.nowcast')
+                      .replace('{time}', clockTime(radar.shownAt))
+                      .replace('{from}', clockTime(radar.runAt))}{' '}
+                    {t('live.radar.nowcast_source')}
+                  </p>
                 ) : radarDrawn ? (
                   <p className="text-surface-600 dark:text-surface-300">
-                    {t('live.radar.frame').replace('{time}', clockTime(radarShownAt))}{' '}
+                    {t('live.radar.frame').replace('{time}', clockTime(radar.shownAt))}{' '}
                     {t('live.radar.coverage_note')}
                   </p>
-                ) : radarState === 'loading' ? (
+                ) : radarFailed ? (
+                  <p className="text-amber-700 dark:text-amber-400">{t('live.radar.failed')}</p>
+                ) : radar.pending ? (
                   <p className="text-surface-600 dark:text-surface-300">{t('live.radar.loading')}</p>
                 ) : (
                   /* Not drawn, and not broken. Ahead of the archive it is the
