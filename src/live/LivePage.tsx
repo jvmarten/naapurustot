@@ -3266,6 +3266,12 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
       // the new cut arrives. See reelRetarget.
       reelRetarget(reel, bbox, radarRequestSize(bbox, scale), scale);
     }
+    // The run is resolved by a poll that does not know when a reel exists, and
+    // the two orders really do both happen: a page opened at a link whose clock
+    // is already in the future resolves the run while the map is still coming
+    // up, so the poll's own assignment lands on a null ref and the forecast half
+    // would stay switched off until the ten-minute refresh.
+    reelRef.current.horizon = nowcastRunRef.current?.to ?? 0;
 
     const ac = new AbortController();
     let waiters: (() => void)[] = [];
