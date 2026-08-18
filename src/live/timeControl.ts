@@ -108,16 +108,32 @@ export function isFuture(ms: number, now: number = Date.now()): boolean {
  * Lazily built rather than at module scope so they pick up the environment's
  * locale at first use rather than at import, and cost nothing on the pages that
  * never mount /live/.
+ *
+ * EVERY CLOCK ON THIS PAGE IS 24-HOUR, and that is pinned rather than inherited.
+ * The formatters take the viewer's locale for everything else — month name,
+ * field order, separator — but an en-US browser resolves the hour cycle to h12,
+ * which put "03:30 PM" in the clock chip and "1 AM … 11 PM" along a ruler whose
+ * whole job is to be read at a glance against a 24-hour track. It is also a
+ * layout problem: `SunStat` reserves sunrise and sunset at 5ch for "00:00", and
+ * "05:24 AM" is eight.
+ *
+ * `hourCycle` rather than `hour12: false`, because the two are not synonyms —
+ * `hour12: false` resolves to h24 in some locales, which prints midnight as
+ * "24:00". h23 is the 00–23 cycle Finland (and this page) actually uses, and
+ * passing `hour12` alongside would take precedence and undo it.
  */
 let hm: Intl.DateTimeFormat | null = null;
 let hms: Intl.DateTimeFormat | null = null;
 let dayFmt: Intl.DateTimeFormat | null = null;
-let hourFmt: Intl.DateTimeFormat | null = null;
 
 /** Local wall-clock "HH:MM" for an instant, in the viewer's own zone. */
 export function clockTime(date: Date | number | null): string {
   if (date === null) return '—';
-  hm ??= new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' });
+  hm ??= new Intl.DateTimeFormat(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  });
   return hm.format(date);
 }
 
@@ -135,6 +151,7 @@ export function clockSeconds(date: Date | number | null): string {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
+    hourCycle: 'h23',
   });
   return hms.format(date);
 }
@@ -145,10 +162,20 @@ export function shortDate(date: Date): string {
   return dayFmt.format(date);
 }
 
-/** An hour label for the ruler: "3 AM" or "03", per the viewer's locale. */
+/**
+ * An hour label for the ruler: "00" through "23".
+ *
+ * Not an `Intl` formatter, unlike every other clock here. Asking Intl for an
+ * hour ALONE is the one case where `hour: '2-digit'` is not honoured — several
+ * locales drop the pad when the hour is the only field — so the ruler would
+ * have printed "3" beside "13" and lost the column alignment that makes 24
+ * evenly spaced numbers readable as a scale. Two digits, always, from the
+ * instant's own wall-clock hour: taking `getHours()` rather than assuming the
+ * label matches the offset from midnight is also what keeps the ruler right on
+ * the two days a year when an hour is repeated or missing.
+ */
 export function hourLabel(date: Date): string {
-  hourFmt ??= new Intl.DateTimeFormat(undefined, { hour: 'numeric' });
-  return hourFmt.format(date);
+  return String(date.getHours()).padStart(2, '0');
 }
 
 /**

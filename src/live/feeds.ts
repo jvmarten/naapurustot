@@ -36,6 +36,13 @@ export type FeedCoverage = 'national' | 'urban';
  *   computed  exact at any instant, backwards and forwards (astronomy).
  *   archive   the source serves measured history on request (FMI's WFS).
  *   forecast  archive backwards, and the PUBLISHER'S OWN forecast forwards.
+ *   modelled  the publisher's MODEL over the whole window, with no measured half
+ *             in either direction — CAMS's UV index, whose "past" is an earlier
+ *             run of the same model rather than an instrument. Distinct from
+ *             `forecast` on purpose: there, a measurement exists behind now and
+ *             beats the model outright, and the page draws the join. Here there
+ *             is no join to draw and nothing to prefer, so the feed says model
+ *             everywhere rather than implying a measured half it does not have.
  *   recorded  only what this session watched go by — the source publishes the
  *             latest state and keeps no history a browser can ask for.
  *   schedule  measured where we have a measurement, and the publisher's own
@@ -57,6 +64,7 @@ export type FeedTimeModel =
   | 'computed'
   | 'archive'
   | 'forecast'
+  | 'modelled'
   | 'recorded'
   | 'schedule'
   | 'validity';
@@ -111,6 +119,11 @@ export const FEED_GROUPS: FeedGroup[] = [
     feeds: [
       { id: 'shadows', labelKey: 'live.feed.shadows', status: 'live', coverage: 'urban', time: 'computed', defaultOn: true },
       { id: 'sun_position', labelKey: 'live.feed.sun_position', status: 'live', coverage: 'national', time: 'computed', defaultOn: true },
+      // The one row in this group that is not astronomy, which is exactly why it
+      // is a row: the toggle is what lets a reader keep the exact numbers and
+      // decline a model — and it is also the switch on the page's only
+      // third-party request outside FMI, Fintraffic and MET Norway.
+      { id: 'uv_index', labelKey: 'live.feed.uv_index', status: 'live', coverage: 'national', time: 'modelled', defaultOn: true },
     ],
   },
   {

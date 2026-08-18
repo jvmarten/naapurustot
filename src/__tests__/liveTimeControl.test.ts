@@ -3,9 +3,11 @@ import {
   MINUTES_PER_DAY,
   atMinuteOfDay,
   addDays,
+  clockSeconds,
   clockTime,
   compassPoint,
   formatShadowRatio,
+  hourLabel,
   shortDate,
   isFuture,
   isoDate,
@@ -181,6 +183,69 @@ describe('readout formatting', () => {
     // Wraps rather than indexing off the end of the table.
     expect(compassPoint(720)).toBe('N');
     expect(compassPoint(-90)).toBe('W');
+  });
+
+  /**
+   * Every clock on /live/ is 24-hour, whatever the browser's locale prefers.
+   *
+   * The formatters take the environment's locale (`undefined`), so an en-US
+   * browser resolved the hour cycle to h12 and the page printed "03:30 PM" in
+   * the clock chip and "1 AM … 11 PM" along a ruler drawn against a 24-hour
+   * track. It is a layout bug as well as a reading one: `SunStat` reserves
+   * sunrise and sunset at 5ch for "00:00", which "05:24 AM" overflows.
+   *
+   * The locale is stubbed rather than trusted here — the CI container runs in a
+   * locale that happens to be 24-hour, so a test that only asserted the default
+   * would have passed before the fix as well as after it.
+   */
+  describe('24-hour clocks', () => {
+    const noAmPm = /^\d{2}:\d{2}$/;
+
+    it('formats an afternoon as 15:30 even where the locale says 3:30 PM', async () => {
+      const Real = Intl.DateTimeFormat;
+      const spy = vi
+        .spyOn(Intl, 'DateTimeFormat')
+        .mockImplementation(function (
+          _locale?: string,
+          options?: Intl.DateTimeFormatOptions,
+        ) {
+          return new Real('en-US', options);
+        } as unknown as typeof Intl.DateTimeFormat);
+      // The formatters are memoised at module scope, so this needs a fresh
+      // module registry — otherwise it would read whichever formatter an
+      // earlier test in this file happened to build first.
+      vi.resetModules();
+      try {
+        const m = await import('../live/timeControl');
+        expect(m.clockTime(new Date(2026, 7, 18, 15, 30))).toBe('15:30');
+        expect(m.clockSeconds(new Date(2026, 7, 18, 15, 30, 7))).toBe('15:30:07');
+        // Midnight is 00, not 24 — the difference between the h23 and h24
+        // cycles, and the reason `hour12: false` is not what this asks for.
+        expect(m.clockTime(new Date(2026, 7, 18, 0, 5))).toBe('00:05');
+      } finally {
+        spy.mockRestore();
+        vi.resetModules();
+      }
+    });
+
+    it('keeps the plain formatters free of AM/PM in this environment too', () => {
+      expect(clockTime(new Date(2026, 7, 18, 15, 30))).toMatch(noAmPm);
+      expect(clockSeconds(new Date(2026, 7, 18, 15, 30, 7))).toMatch(/^\d{2}:\d{2}:\d{2}$/);
+    });
+
+    /**
+     * The ruler pads to two digits, which Intl will not do for a lone hour.
+     *
+     * `hour: '2-digit'` is ignored by several locales when the hour is the only
+     * field requested, so "3" would sit in a column of "13"s and the 24 numbers
+     * would stop reading as a scale.
+     */
+    it('labels ruler hours as 00..23, zero-padded', () => {
+      expect(hourLabel(new Date(2026, 7, 18, 3, 0))).toBe('03');
+      expect(hourLabel(new Date(2026, 7, 18, 0, 0))).toBe('00');
+      expect(hourLabel(new Date(2026, 7, 18, 23, 0))).toBe('23');
+    });
+
   });
 
   /**

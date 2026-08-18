@@ -54,6 +54,7 @@ const Harness: React.FC<{
       times={sunTimes(when, CENTRE[1], CENTRE[0])}
       shadowRatio={1.4}
       showSun={false}
+      uv={null}
       onPlayingChange={onPlayingChange}
     />
   );

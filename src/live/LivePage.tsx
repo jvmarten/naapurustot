@@ -93,6 +93,7 @@ import {
   NOWCAST_RUN_TTL_MS,
   type NowcastRun,
 } from './nowcast';
+import { fetchUvDay, formatUv, pickUv, uvBand, uvCell, type UvHour } from './uv';
 import {
   createTimeline,
   clearTimeline,
@@ -280,25 +281,39 @@ const SHADE = {
   light: { ink: '30, 45, 80', rgb: [30, 45, 80], day: 0.28, night: 0.44 },
 } as const;
 
-/**
- * Tree shade, drawn in its own pass at roughly two thirds of a building's alpha.
- *
- * A crown is not a wall. It dapples — a canopy in leaf passes a real fraction of
- * the light, and a bare one in a Finnish winter passes most of it — so casting it
- * at the building alpha would claim a solidity trees do not have.
- *
- * The heights behind it are measured (HSY's laser-derived land cover), so the
- * geometry is honest; only the opacity is a judgement, and it is the conservative
- * one.
- *
- * This is a RELATIVE weight, not a second layer of shade. Ground under both a
- * tree and a building is shaded ONCE, at the building's tone — see `draw`, where
- * the two casters are merged into a single mask before either reaches the screen.
- */
 /** One theme's shade palette — either arm of {@link SHADE}, never one of them. */
 type ShadeTone = (typeof SHADE)[keyof typeof SHADE];
 
-const CANOPY_ALPHA_SCALE = 0.65;
+/**
+ * ONE SHADE TONE, FOR EVERY CASTER.
+ *
+ * Trees used to be cast at 0.65 of a building's alpha, on the argument that a
+ * crown is not a wall: a canopy in leaf passes a real fraction of the light, and
+ * a bare one in a Finnish winter passes most of it. The argument is sound about
+ * trees and wrong about maps, and the difference is what the reader sees.
+ *
+ * The union itself was exact — the casters are merged on one mask before
+ * anything reaches the screen, so ground under both a tree and a building was
+ * shaded ONCE, at the building's tone, and never summed (the measurement is in
+ * `paintShade`). But two tones make the intersection a THIRD shape: a
+ * building's shadow crossing a stand of trees draws its own outline in the
+ * darker tone across ground that is already shaded, and every reading of that
+ * picture is of shadows adding up. Simultaneous contrast makes it worse — the
+ * same tone reads darker surrounded by the lighter one — so the artefact is
+ * strongest exactly where the two casters meet, which is where the eye is.
+ *
+ * So shade is now binary in appearance as well as in the model: a point is
+ * either in shadow or it is not, one tone says so, and no combination of
+ * casters can produce anything but that tone. What the dapple weight was trying
+ * to express — that a crown is a softer occluder than a wall — is left to the
+ * one thing on this page qualified to carry it: the geometry, which is measured
+ * (HSY's laser-derived canopy heights) rather than judged.
+ *
+ * Concretely this means canopy sweeps go into the SAME path as the buildings',
+ * filled once with one fill rule, which is also cheaper: the merged mask is now
+ * needed only when relief or the terminator is on screen, and a plain city
+ * viewport is back to a single direct fill.
+ */
 
 /**
  * Canopy tolerance multiplier, on top of the buildings' zoom ladder.
@@ -2087,6 +2102,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
 
   const shadowsOn = enabled.has('shadows');
   const sunOn = enabled.has('sun_position');
+  const uvOn = enabled.has('uv_index');
   const trainsOn = enabled.has('trains');
   const incidentsOn = enabled.has('road_incidents');
   const observationsOn = enabled.has('observations');
@@ -2673,10 +2689,8 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
           ? (MAX_SHADOW_DIAGONALS * Math.hypot(width, height)) / pxPerMetre
           : Infinity;
 
-      /** Accumulate one source's swept shadows into a single path. */
-      const shadowPath = (list: PreparedBuilding[]): Path2D | null => {
-        const p = new Path2D();
-        let any = false;
+      /** Sweep one source's shadows into `p`. */
+      const sweepInto = (p: Path2D, list: PreparedBuilding[]): void => {
         for (const b of list) {
           if (b.sn < 4) continue;
           const metres = Math.min(shadowLengthMetres(b.height, sun.altitude), maxDrawMetres);
@@ -2692,16 +2706,18 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
             continue;
           }
           emitSweptFlat(p, b.sx, b.sy, b.sn, dx, dy);
-          any = true;
         }
-        return any ? p : null;
       };
 
-      const canopyShade = canopy.length ? shadowPath(canopy) : null;
-
-      // ONE path for every ring of every building — see the file header for why
-      // this is not a per-polygon fill.
-      const path = shadowPath(buildingsOn) ?? new Path2D();
+      // ONE path for every ring of every building AND every crown — see the file
+      // header for why this is not a per-polygon fill, and the note above
+      // `canopySimplifyScale` for why the two casters share a tone. Sharing the
+      // path is what makes that tone exact: a single `fill` with the nonzero
+      // rule resolves the whole union in one coverage pass, so an overlap cannot
+      // composite against itself however the two sets interleave.
+      const path = new Path2D();
+      sweepInto(path, buildingsOn);
+      sweepInto(path, canopy);
 
       // Relief, rasterised from the heightfield rather than swept as polygons.
       // Terrain has no footprint to extrude — it is a continuous surface, so its
@@ -2718,34 +2734,28 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
 
       // SHADE IS A UNION, NOT A STACK.
       //
-      // Both casters used to be filled straight onto the canvas, one after the
-      // other, so ground that was under a tree AND a building got painted twice
-      // and alpha-composited to something darker than either — 0.28 over 0.182
-      // reads as 0.41. That put a visibly darker patch wherever a canopy happened
-      // to overlap a building's shadow, which is not a real optical effect: a
-      // point is either lit or it is not, and a second occluder behind the first
-      // changes nothing. Shade is binary; only its SOURCE varies in how much light
-      // it stops.
+      // Every caster used to be filled straight onto the canvas, one after the
+      // other, so ground under two of them got painted twice and alpha-composited
+      // to something darker than either — 0.28 over 0.182 reads as 0.41. That put
+      // a visibly darker patch wherever two shadows crossed, which is not a real
+      // optical effect: a point is either lit or it is not, and a second occluder
+      // behind the first changes nothing.
       //
-      // So the two are merged first, on a scratch canvas, where the building fill
-      // is fully opaque and therefore SATURATES rather than accumulates. The merged
-      // alpha is max(building, canopy), and one composite at `shade.day` puts it on
-      // screen: building shade at the full tone, canopy-only at CANOPY_ALPHA_SCALE
-      // of it, overlap at the building tone exactly.
+      // So the casters are merged first, on a scratch canvas, each of them
+      // OPAQUE — so they saturate against one another instead of accumulating —
+      // and one composite at `shade.day` puts the union on screen at exactly one
+      // tone. Walls, crowns, relief and the terminator are all the same answer to
+      // the same question here; nothing on this mask is drawn at a fraction.
       //
-      // Only when there is something to merge — a viewport with buildings alone
-      // keeps the direct single fill, which is cheaper by a full-viewport drawImage.
-      const needsMask = canopyShade !== null || terrain !== null || twilight !== null;
+      // Only when there is something to merge. Buildings and canopy now share one
+      // path, so a city viewport with no relief and no terminator on it takes the
+      // direct single fill and skips a full-viewport drawImage entirely.
+      const needsMask = terrain !== null || twilight !== null;
       const mask = needsMask ? ensureMask(canvas.width, canvas.height) : null;
       const mctx = mask?.getContext('2d') ?? null;
       if (needsMask && mctx) {
         mctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         mctx.clearRect(0, 0, width, height);
-        // Weakest caster first, so the opaque ones below saturate over it.
-        if (canopyShade) {
-          mctx.fillStyle = `rgba(${shade.ink}, ${CANOPY_ALPHA_SCALE})`;
-          mctx.fill(canopyShade, 'nonzero');
-        }
         if (twilight) {
           // Sunset is an occluder like any other here — opaque, so it saturates
           // with relief and walls instead of adding to them. The smoothing is
@@ -2766,8 +2776,9 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
           mctx.restore();
         }
         if (terrain) {
-          // A hill is not a crown: it stops light completely, so relief goes in at
-          // the same full weight as a wall.
+          // Relief goes in at the same full weight as everything else on this
+          // mask — see the note above `canopySimplifyScale` for why there is only
+          // one weight left to go in at.
           //
           // Drawn through the field's own Mercator->screen transform rather than
           // stretched to the viewport, so it stays registered under rotation and
@@ -2786,8 +2797,8 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
           mctx.drawImage(terrain.canvas, 0, 0);
           mctx.restore();
         }
-        // Opaque: this is what makes an overlap saturate to the full tone instead
-        // of summing with whatever is already underneath it.
+        // Opaque, like every other pass on this mask: it is what makes an overlap
+        // saturate to the one tone instead of summing with what is underneath it.
         mctx.fillStyle = `rgb(${shade.ink})`;
         mctx.fill(path, 'nonzero');
         ctx.globalAlpha = shade.day;
@@ -3094,6 +3105,69 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
       ac.abort();
     };
   }, [airQualityOn, dayStartMs, dayEndMs, dayEpoch, bumpTimeline, scheduleDraw]);
+
+  /**
+   * The day's UV index where the map is looking — one request, sampled locally.
+   *
+   * THE ONLY FEED HERE THAT IS A PLACE RATHER THAN A COVERAGE, which is what
+   * makes it cheap enough to be on by default: CAMS is asked for one point and a
+   * day of it is under half a kilobyte, against the ~20 kB a day of national
+   * stations costs. It is also why it is keyed on `uvCellKey` and not on
+   * `center` — the request rounds the coordinate to the model's own 0.1° cell,
+   * so panning across a city re-asks nothing.
+   *
+   * NO MEASURED ARM, AND THEREFORE NO SPLIT REQUEST. The temperature feed above
+   * issues two because its window genuinely has two halves; this one's past is an
+   * earlier run of the same model, so a single window covers the whole day and
+   * the readout says "model" over all of it (see uv.ts, and `modelled` in
+   * feeds.ts). `dayEpoch` still refreshes it, because the run under an open page
+   * does go stale.
+   */
+  const uvCellKey = useMemo(() => uvCell(center[1], center[0]), [center]);
+  const [uvHours, setUvHours] = useState<UvHour[]>([]);
+  const [uvDay, setUvDay] = useState<'loading' | 'ready' | 'failed'>('loading');
+  useEffect(() => {
+    if (!uvOn) {
+      // Functional, and a no-op when it is already empty: this effect re-runs on
+      // every day change even while the feed is off, and a fresh `[]` each time
+      // is a new identity that would re-render the page for nothing.
+      setUvHours((h) => (h.length === 0 ? h : []));
+      return;
+    }
+    const ac = new AbortController();
+    let cancelled = false;
+    setUvDay('loading');
+
+    void fetchUvDay(center[1], center[0], dayStartMs, dayEndMs, ac.signal)
+      .then((hours) => {
+        if (cancelled) return;
+        setUvHours(hours);
+        setUvDay('ready');
+      })
+      .catch((err: unknown) => {
+        if (cancelled || (err as Error)?.name === 'AbortError') return;
+        // Cleared rather than kept: unlike a poll, this is the whole layer, and
+        // holding the previous cell's day would print another place's UV under
+        // this one's map.
+        setUvHours([]);
+        setUvDay('failed');
+      });
+
+    return () => {
+      cancelled = true;
+      ac.abort();
+    };
+    // `center` is read here but `uvCellKey` is the dependency, deliberately —
+    // see the note above. Listing `center` would re-request on every pan.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uvOn, uvCellKey, dayStartMs, dayEndMs, dayEpoch]);
+
+  /** The published hour under the playhead, with the band it falls in. */
+  const uv = useMemo(() => {
+    if (!uvOn) return null;
+    const hour = pickUv(uvHours, whenMs);
+    return hour === null ? null : { ...hour, band: uvBand(hour.index) };
+  }, [uvOn, uvHours, whenMs]);
 
   /**
    * The day's located lightning, in one request, reaching back before midnight.
@@ -4237,7 +4311,14 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
 
   /** Whether any enabled feed has a sentence to show at all. */
   const readoutOn =
-    shadowsOn || trainsOn || incidentsOn || observationsOn || airQualityOn || lightningOn || radarOn;
+    shadowsOn ||
+    trainsOn ||
+    incidentsOn ||
+    observationsOn ||
+    airQualityOn ||
+    lightningOn ||
+    radarOn ||
+    uvOn;
 
   /**
    * Whether any of those sentences is a failure rather than a result.
@@ -4271,6 +4352,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     // rather than wrong. Once nothing is in range any more, the chip is the only
     // channel left and this is exactly what it is for.
     (radarOn && radarFailed && !radarDrawn) ||
+    (uvOn && uvDay === 'failed') ||
     // A FAILED POLL RAISES THE CHIP ONLY WHILE THE PAGE IS FOLLOWING REAL TIME,
     // and the distinction is what the poll is FOR in each case. Live, it is the
     // thing keeping the layer current, so losing it means the page is quietly
@@ -4688,6 +4770,37 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
                 </p>
               )}
 
+              {/* THE UV SENTENCE NAMES THE MODEL EVERY TIME, in the one place
+                  with room to say it properly. The bar's readout can only be a
+                  number in a coloured ink beside six exact astronomical ones, so
+                  the sentence is what states that this one is CAMS's forecast
+                  rather than a measurement, which hour of it is being shown, and
+                  what the same hour would be under a clear sky — the last of
+                  those being what makes the first legible on an overcast day. */}
+              {uvOn && (
+                uvDay === 'failed' ? (
+                  <p className="text-amber-700 dark:text-amber-400">{t('live.uv.failed')}</p>
+                ) : uvDay === 'loading' && !uv ? (
+                  <p className="text-surface-600 dark:text-surface-300">{t('live.uv.loading')}</p>
+                ) : !uv ? (
+                  /* Past the run's horizon CAMS answers with nulls rather than
+                     an error, so this is a real gap in the model and not a
+                     failed request — the two say different things and the strip
+                     keeps them apart. */
+                  <p className="text-surface-600 dark:text-surface-300">{t('live.uv.none')}</p>
+                ) : (
+                  <p className="text-surface-600 dark:text-surface-300">
+                    {t('live.uv.reading')
+                      .replace('{v}', formatUv(uv.index))
+                      .replace('{band}', t(uv.band.key))
+                      .replace('{time}', clockTime(uv.at))}
+                    {uv.clearSky !== null &&
+                      ' ' + t('live.uv.clear_sky').replace('{v}', formatUv(uv.clearSky))}{' '}
+                    {t('live.uv.source')}
+                  </p>
+                )
+              )}
+
               {/* EVERY SENTENCE HERE NAMES ITS WINDOW, because this feed's does
                   not follow from the clock the way the others' do. "17 stations"
                   is a statement about an instant; "17 strikes" is not a statement
@@ -4775,6 +4888,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
         times={times}
         shadowRatio={shadowRatio}
         showSun={sunOn}
+        uv={uv}
         onPlayingChange={setPlaying}
       />
     </div>
