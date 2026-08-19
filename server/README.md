@@ -149,10 +149,12 @@ map, its data, or any existing feature.
 **Entitlement is server-derived, never client-asserted.** The `user_billing` table
 (one row per paying user, added via the `db.ts` forward-only migration runner) is
 written by **exactly one** thing — the Stripe webhook. `GET /auth/me` (and login, and
-the credential-change routes) `LEFT JOIN` it and derive `supporter = status ∈ {active,
-trialing}`; the client only ever reads that boolean. Keying on Stripe's status rather
-than on a clock means a paying supporter is never falsely revoked in the window around
-a renewal.
+the credential-change routes) `LEFT JOIN` it and derive the supporter boolean; the
+client only ever reads that boolean. `active`/`trialing` are entitled; a `past_due`
+subscription (a failed charge Stripe is still retrying) stays entitled through a **grace
+window** while the already-paid period has not ended, so a temporary card decline
+doesn't yank the badge mid-period — it lapses once `current_period_end` passes or Stripe
+gives up (`canceled`/`unpaid`).
 
 **The webhook is a raw-body route, outside `/auth`.** Signature verification needs the
 exact request bytes, so `POST /billing/webhook` is registered with `express.raw` *before*

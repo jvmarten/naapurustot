@@ -53,23 +53,33 @@ export function setStripe(s: Stripe | null): void {
 /**
  * Derive the public entitlement from a `user_billing` row (or its absence).
  *
- * `active` / `trialing` is Stripe's own truth for "currently entitled" — an active
- * subscription's `current_period_end` is always in the future, and a failed payment
- * moves the status to `past_due`/`canceled` via webhook — so the boolean keys on
- * status, not on the clock, and cannot falsely revoke a paying supporter in the brief
- * window around a renewal. `current_period_end` is surfaced for display only.
+ * `active` / `trialing` is Stripe's own truth for "currently entitled". `past_due`
+ * is a charge that FAILED and Stripe is still retrying (smart dunning); we keep such a
+ * supporter entitled through a GRACE WINDOW — as long as the period they already paid
+ * for has not ended — so a temporary card decline doesn't yank the badge mid-period.
+ * Once `current_period_end` passes, or Stripe gives up (→ `canceled` / `unpaid`), it
+ * lapses. `now` is injectable for deterministic tests. `current_period_end` is
+ * surfaced for display whenever the user is a supporter.
  */
 export function deriveSupporter(
   status: unknown,
   currentPeriodEnd: unknown,
+  now: number = Date.now(),
 ): { supporter: boolean; supporterUntil: string | null } {
-  const supporter = status === 'active' || status === 'trialing';
-  let supporterUntil: string | null = null;
-  if (supporter && currentPeriodEnd) {
+  let periodEnd: Date | null = null;
+  if (currentPeriodEnd) {
     const d = currentPeriodEnd instanceof Date ? currentPeriodEnd : new Date(currentPeriodEnd as string);
-    if (!Number.isNaN(d.getTime())) supporterUntil = d.toISOString();
+    if (!Number.isNaN(d.getTime())) periodEnd = d;
   }
-  return { supporter, supporterUntil };
+  const inGracePeriod = periodEnd !== null && periodEnd.getTime() > now;
+  const supporter =
+    status === 'active' ||
+    status === 'trialing' ||
+    (status === 'past_due' && inGracePeriod);
+  return {
+    supporter,
+    supporterUntil: supporter && periodEnd ? periodEnd.toISOString() : null,
+  };
 }
 
 /** Read a user's supporter status. Cheap indexed PK lookup; safe when unconfigured. */
