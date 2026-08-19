@@ -15,10 +15,33 @@ test('deriveSupporter treats active and trialing as entitled', () => {
 });
 
 test('deriveSupporter denies every non-active status', () => {
-  for (const status of ['canceled', 'past_due', 'unpaid', 'incomplete', 'incomplete_expired', null, undefined, '']) {
+  // past_due is handled separately (dunning grace window) — everything else is out.
+  for (const status of ['canceled', 'unpaid', 'incomplete', 'incomplete_expired', null, undefined, '']) {
     const r = deriveSupporter(status, new Date('2030-01-01T00:00:00Z'));
     assert.equal(r.supporter, false, `expected non-supporter for ${JSON.stringify(status)}`);
     assert.equal(r.supporterUntil, null);
+  }
+});
+
+test('deriveSupporter keeps a past_due supporter through the paid period (dunning grace)', () => {
+  const now = Date.UTC(2026, 0, 10);
+  const periodEnd = new Date(Date.UTC(2026, 0, 20)); // still inside the paid period
+  const r = deriveSupporter('past_due', periodEnd, now);
+  assert.equal(r.supporter, true);
+  assert.equal(r.supporterUntil, periodEnd.toISOString());
+});
+
+test('deriveSupporter drops a past_due supporter once the paid period has ended', () => {
+  const now = Date.UTC(2026, 0, 25);
+  const periodEnd = new Date(Date.UTC(2026, 0, 20)); // period already lapsed
+  const r = deriveSupporter('past_due', periodEnd, now);
+  assert.equal(r.supporter, false);
+  assert.equal(r.supporterUntil, null);
+});
+
+test('deriveSupporter denies past_due with no (or invalid) period end — no grace evidence', () => {
+  for (const end of [null, undefined, 'not-a-date']) {
+    assert.equal(deriveSupporter('past_due', end).supporter, false);
   }
 });
 
