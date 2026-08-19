@@ -35,6 +35,7 @@ const DYNAMIC_PREFIXES = [
   'settings.quality_scale_', // SettingsDropdown → `settings.quality_scale_${mode}(_help)`
   'correlation.sig_',    // CorrelationExplorer → `correlation.sig_${sig}`
   'live.air_quality.band_', // airquality.ts → `live.air_quality.band_${1..5}` (FMI index)
+  'live.wind.dir.',      // wind.ts → `live.wind.dir.${compass}` (8-point) + `.variable`
   'live.time_model.',    // FeedSidebar → `live.time_model.${feed.time}` (feed registry)
   'live.ship.type.',     // DetailPanel → `live.ship.type.${shipCategoryKey(...)}` (AIS class)
   'live.ship.status.',   // DetailPanel → `live.ship.status.${navStatusKey(...)}` (AIS navStat)

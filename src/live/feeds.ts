@@ -183,6 +183,20 @@ export const FEED_GROUPS: FeedGroup[] = [
       // going dark. Forecast values are drawn in italic and stated as forecasts
       // everywhere they appear; see observations.ts.
       { id: 'observations', labelKey: 'live.feed.observations', status: 'live', coverage: 'national', time: 'forecast', defaultOn: false },
+      // Surface wind at the same national station network the temperature layer
+      // reads — the same FMI `simple` query, the three wind parameters instead of
+      // one. Drawn as direction arrows whose LENGTH is the speed, because a colour
+      // ramp would need a legend and would compete with the shadow layer.
+      //
+      // 'archive', not 'forecast', and that is a deliberate floor rather than a
+      // limit: ECMWF publishes wind at these same stations, so this could carry
+      // forward exactly as temperature does, but this version measures rather than
+      // models — past "now" it goes dark, like air quality, and the readout says
+      // so. 'national' without a caveat: the weather stations blanket the country.
+      //
+      // OFF BY DEFAULT, the same cost decision the other weather feeds make: a
+      // visitor who came for the shadows does not silently pay for a wind field.
+      { id: 'wind', labelKey: 'live.feed.wind', status: 'live', coverage: 'national', time: 'archive', defaultOn: false },
       // 'urban', not 'national', and deliberately: this is the municipal
       // monitoring network — 82 stations in towns. FMI's national background
       // network has seven, which is real but too sparse to read as a map.
