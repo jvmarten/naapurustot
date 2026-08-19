@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import { useBackGesture } from '../hooks/useBackGesture';
+import { useBackGesture, __resetBackGestureForTest } from '../hooks/useBackGesture';
 
 /**
  * CF-5: back-gesture sentinel. We mock a coarse-pointer device and stub the
@@ -25,6 +25,8 @@ describe('useBackGesture', () => {
   let backSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
+    // The sentinel stack is now module-global (M6), so reset it between tests.
+    __resetBackGestureForTest();
     pushSpy = vi.spyOn(window.history, 'pushState').mockImplementation(() => {});
     backSpy = vi.spyOn(window.history, 'back').mockImplementation(() => {});
   });
@@ -105,5 +107,39 @@ describe('useBackGesture', () => {
     window.dispatchEvent(new PopStateEvent('popstate'));
     rerender({ open: true });
     expect(pushSpy).toHaveBeenCalledTimes(2);
+  });
+
+  // M6: two instances (App's cascade + the mobile Layers sheet). Closing the
+  // sheet "by other means" must not fire the App cascade — the bug that wiped the
+  // pinned comparison when a user tapped a layer while two areas were pinned.
+  it('closing a second overlay by other means never fires the first overlay cascade', () => {
+    mockCoarsePointer(true);
+    const appClose = vi.fn(); // App's cascade — would clearPinned() and lose the comparison
+    const sheetClose = vi.fn(); // the Layers sheet's own close
+
+    // App overlay (e.g. a pinned comparison) opens first and arms a sentinel.
+    renderHook(({ open }) => useBackGesture(open, appClose), { initialProps: { open: true } });
+    expect(pushSpy).toHaveBeenCalledTimes(1);
+
+    // The mobile Layers sheet opens on top and arms its own sentinel.
+    const sheet = renderHook(({ open }) => useBackGesture(open, sheetClose), {
+      initialProps: { open: true },
+    });
+    expect(pushSpy).toHaveBeenCalledTimes(2);
+
+    // The sheet is dismissed by tapping a layer (closed "by other means"): it pops
+    // its OWN sentinel via history.back().
+    sheet.rerender({ open: false });
+    expect(backSpy).toHaveBeenCalledTimes(1);
+
+    // The browser echoes that back() as a popstate. It must be swallowed, NOT
+    // routed into the App cascade — otherwise the comparison is cleared.
+    window.dispatchEvent(new PopStateEvent('popstate'));
+    expect(appClose).not.toHaveBeenCalled();
+    expect(sheetClose).not.toHaveBeenCalled();
+
+    // A subsequent real Back now closes the App overlay — the only survivor.
+    window.dispatchEvent(new PopStateEvent('popstate'));
+    expect(appClose).toHaveBeenCalledTimes(1);
   });
 });
