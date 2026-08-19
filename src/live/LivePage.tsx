@@ -115,6 +115,19 @@ import {
   type Timeline,
 } from './timeline';
 import {
+  clearWindTimeline,
+  createWindTimeline,
+  fetchWind,
+  fetchWindSeries,
+  mergeWind,
+  sampleWindTimeline,
+  WIND_POLL_MS,
+  WIND_TOLERANCE_MS,
+  type WindReading,
+  type WindTimeline,
+  type WindTimelineSample,
+} from './wind';
+import {
   datesCovering,
   fetchDaySchedules,
   scheduledPositions,
@@ -594,6 +607,7 @@ const SCHEDULE_DEBOUNCE_MS = 600;
 /** Shared empty lists, so the off paths allocate nothing per render. */
 const EMPTY_OBSERVATIONS: Observation[] = [];
 const EMPTY_AIR_QUALITY: AirQuality[] = [];
+const EMPTY_WINDS: WindTimelineSample[] = [];
 const EMPTY_STRIKES: Strike[] = [];
 const EMPTY_SCHEDULED: ScheduledTrain[] = [];
 
@@ -1531,6 +1545,132 @@ function paintObservations(
 }
 
 /**
+ * Wind ink, per theme. One accent from the weather group, not a speed ramp: a
+ * colour scale would need a legend and would compete with the shadow layer the
+ * page is actually about, so SPEED is carried by the arrow's LENGTH instead —
+ * longer is windier, which needs no key. `calm` is the ink for a station whose
+ * wind is below the threshold at which a direction means anything.
+ */
+const WIND = {
+  dark: {
+    line: 'rgba(56, 189, 248, 0.95)',
+    halo: 'rgba(8, 15, 40, 0.9)',
+    calm: 'rgba(148, 197, 224, 0.85)',
+  },
+  light: {
+    line: 'rgba(2, 132, 199, 0.96)',
+    halo: 'rgba(255, 255, 255, 0.92)',
+    calm: 'rgba(3, 105, 161, 0.75)',
+  },
+} as const;
+
+/** Arrow length in px: a floor, plus this much per m/s, clamped to a ceiling. */
+const WIND_MIN_PX = 12;
+const WIND_MAX_PX = 34;
+const WIND_PX_PER_MS = 1.6;
+/** Half-length of each arrowhead barb, and the angle it opens from the shaft. */
+const WIND_HEAD_PX = 5.5;
+const WIND_HEAD_ANGLE = (35 * Math.PI) / 180;
+
+/**
+ * Paint the wind field as direction arrows, one per reporting station.
+ *
+ * DIRECTION IS THE MEASUREMENT, LENGTH IS THE SPEED. `wd_10min` is the direction
+ * the wind blows FROM (meteorological convention), so the arrow flies toward
+ * `dir + 180` — the way the air is actually going, which is what a general
+ * reader expects an arrow to show. The panel states the FROM-direction in words.
+ *
+ * The canvas is the rotated map (pitch pinned to 0, rotation free), so the
+ * geographic flow bearing is turned into a screen angle by subtracting the map
+ * bearing, exactly as `paintShips` turns a course over ground — Mercator is
+ * conformal with vertical meridians, so that subtraction is exact everywhere
+ * with no per-vertex projection.
+ *
+ * Each arrow is stroked twice, a halo under the ink, so it stays legible over
+ * both the daytime shadow tone and the full-night wash. A station whose wind is
+ * below {@link WIND_CALM_MS} has no meaningful bearing and is drawn as a small
+ * hollow ring instead of an arrow pointed at noise.
+ */
+function paintWind(
+  ctx: CanvasRenderingContext2D,
+  map: MaplibreMap,
+  winds: WindTimelineSample[],
+  theme: 'dark' | 'light',
+  width: number,
+  height: number,
+): void {
+  if (winds.length === 0) return;
+  const ink = WIND[theme];
+  const bearing = map.getBearing();
+
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  for (const w of winds) {
+    const p = map.project([w.lon, w.lat]);
+    if (p.x < -40 || p.y < -40 || p.x > width + 40 || p.y > height + 40) continue;
+
+    if (w.dir === null) {
+      // Calm or variable: a ring says "a station is here and it is still",
+      // which is a reading, not the absence of one.
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 2.6, 0, Math.PI * 2);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = ink.halo;
+      ctx.stroke();
+      ctx.lineWidth = 1.4;
+      ctx.strokeStyle = ink.calm;
+      ctx.stroke();
+      continue;
+    }
+
+    // Flow bearing = the FROM-direction turned around, then rotated onto the
+    // screen. Screen-up is the map bearing; y grows downward.
+    const a = ((w.dir + 180 - bearing) * Math.PI) / 180;
+    const fx = Math.sin(a);
+    const fy = -Math.cos(a);
+    const len = Math.min(WIND_MAX_PX, WIND_MIN_PX + w.speed * WIND_PX_PER_MS);
+    const half = len / 2;
+    const hx = p.x + fx * half;
+    const hy = p.y + fy * half;
+    const tx = p.x - fx * half;
+    const ty = p.y - fy * half;
+
+    // The two head barbs: the reverse flow vector rotated by ±the head angle.
+    const rx = -fx;
+    const ry = -fy;
+    const c = Math.cos(WIND_HEAD_ANGLE);
+    const s = Math.sin(WIND_HEAD_ANGLE);
+    const b1x = hx + (rx * c - ry * s) * WIND_HEAD_PX;
+    const b1y = hy + (rx * s + ry * c) * WIND_HEAD_PX;
+    const b2x = hx + (rx * c + ry * s) * WIND_HEAD_PX;
+    const b2y = hy + (-rx * s + ry * c) * WIND_HEAD_PX;
+
+    const trace = () => {
+      ctx.beginPath();
+      ctx.moveTo(tx, ty);
+      ctx.lineTo(hx, hy);
+      ctx.moveTo(hx, hy);
+      ctx.lineTo(b1x, b1y);
+      ctx.moveTo(hx, hy);
+      ctx.lineTo(b2x, b2y);
+    };
+
+    trace();
+    ctx.lineWidth = 3.4;
+    ctx.strokeStyle = ink.halo;
+    ctx.stroke();
+    trace();
+    ctx.lineWidth = 1.6;
+    ctx.strokeStyle = ink.line;
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+/**
  * A diamond, which is what a position derived from a timetable gets.
  *
  * The measured feed owns the circle in both its states — filled for a fresh fix,
@@ -1993,6 +2133,10 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
    */
   const obsTimelineRef = useRef<Timeline>(createTimeline());
   const aqTimelineRef = useRef<Timeline>(createTimeline());
+  // Wind keeps its own store: a sample is a speed AND a direction AND a gust, and
+  // they have to be sampled from one instant together or the arrow is a
+  // fabrication (see wind.ts). The scalar store above cannot express that.
+  const windTimelineRef = useRef<WindTimeline>(createWindTimeline());
   const [timelineVersion, setTimelineVersion] = useState(0);
   const bumpTimeline = useCallback(() => setTimelineVersion((v) => v + 1), []);
   /**
@@ -2234,6 +2378,12 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
    */
   const [obsDay, setObsDay] = useState<'loading' | 'ready' | 'failed'>('loading');
   const [aqDay, setAqDay] = useState<'loading' | 'ready' | 'failed'>('loading');
+  // Wind's day and poll are split exactly as air quality's are, and for the same
+  // reason: an archive poll fires once and never retries, so a lost refinement
+  // must not be able to overwrite a day full of correct, correctly-stamped
+  // readings with a failure line.
+  const [windDay, setWindDay] = useState<'loading' | 'ready' | 'failed'>('loading');
+  const [windPollFailed, setWindPollFailed] = useState(false);
   /**
    * The REFINEMENT poll's failure, which is not the day's.
    *
@@ -2299,6 +2449,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   const incidentsOn = enabled.has('road_incidents');
   const observationsOn = enabled.has('observations');
   const airQualityOn = enabled.has('air_quality');
+  const windOn = enabled.has('wind');
   const lightningOn = enabled.has('lightning');
   const radarOn = enabled.has('radar');
 
@@ -2483,6 +2634,14 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     [airQualityOn, whenMs, timelineVersion],
   );
 
+  // The sample is already {lon,lat,at,speed,dir,gust}, so unlike the two above it
+  // needs no reshaping — the painter, hit test and panel all read it directly.
+  const windAt = useMemo(
+    () =>
+      windOn ? sampleWindTimeline(windTimelineRef.current, whenMs, WIND_TOLERANCE_MS) : EMPTY_WINDS,
+    [windOn, whenMs, timelineVersion],
+  );
+
   /**
    * The flashes inside the trailing window ending at the clock.
    *
@@ -2522,6 +2681,18 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   const airQualityWorst = useMemo(
     () => airQualityAt.reduce((w, s) => Math.max(w, s.index), 0),
     [airQualityAt],
+  );
+
+  /**
+   * The strongest wind anywhere AT THE CLOCK, gust included.
+   *
+   * Read from the sample rather than the poll, like the air-quality worst above:
+   * the readout's sentence is about the instant the bar shows, and a national
+   * mean speed would average a gale on the coast into a calm inland afternoon.
+   */
+  const windMax = useMemo(
+    () => windAt.reduce((m, w) => Math.max(m, w.gust ?? w.speed), 0),
+    [windAt],
   );
 
 
@@ -2616,6 +2787,15 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
       );
       return at ? { kind: 'air_quality', item: at } : null;
     }
+    // The station keeps its identity (its position) and picks up whatever wind
+    // the timeline holds for the instant on screen — closing the panel when the
+    // scrub reaches an hour that station did not report, exactly as above.
+    if (selection.kind === 'wind') {
+      const at = windAt.find(
+        (w) => w.lon === selection.item.lon && w.lat === selection.item.lat,
+      );
+      return at ? { kind: 'wind', item: at } : null;
+    }
     // A FLASH DOES NOT MOVE OR CHANGE, so unlike the stations above there is
     // nothing to re-resolve — but it can leave the window, and then the mark it
     // describes is no longer on the map. Scrubbing away from a strike closes its
@@ -2708,6 +2888,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     selection,
     observationsAt,
     airQualityAt,
+    windAt,
     whenMs,
     live,
     trainStatus,
@@ -3148,6 +3329,10 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     // WITHIN TOLERANCE of the clock, which is a stricter test that happens to
     // cover the future case: nothing has measured tomorrow, so nothing is in
     // range for it — except the forecast, which is in range, and is drawn as one.
+    // Under the dots and the temperature text: an arrow is a broad mark and a
+    // dot or a number over it stays readable, while the reverse does not — the
+    // same reason air quality sits under the temperature above.
+    paintWind(ctx, map, windAt, theme, width, height);
     paintAirQuality(ctx, map, airQualityAt, theme, width, height);
     paintObservations(ctx, map, observationsAt, theme, width, height);
 
@@ -3184,6 +3369,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     theme,
     observationsAt,
     airQualityAt,
+    windAt,
     strikesAt,
     trainSnapshot,
     scheduledTrains,
@@ -3237,6 +3423,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   useEffect(() => {
     clearTimeline(obsTimelineRef.current);
     clearTimeline(aqTimelineRef.current);
+    clearWindTimeline(windTimelineRef.current);
     bumpTimeline();
     strikesRef.current = [];
     bumpStrikes();
@@ -3350,6 +3537,46 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
       ac.abort();
     };
   }, [airQualityOn, dayStartMs, dayEndMs, dayEpoch, bumpTimeline, scheduleDraw]);
+
+  /**
+   * The day's national surface wind — measured only, and only up to now.
+   *
+   * Structured exactly like the air-quality day above: one request for the
+   * measured window ending at the wall clock, no forecast arm. Wind could carry
+   * forward on ECMWF's forecast at the same stations the way temperature does,
+   * but this first version measures rather than models, so past "now" the layer
+   * goes dark and the readout says so.
+   */
+  useEffect(() => {
+    if (!windOn) return;
+    const now = Date.now();
+    const to = Math.min(dayEndMs, now);
+    if (to <= dayStartMs) {
+      setWindDay('ready');
+      return;
+    }
+    const ac = new AbortController();
+    let cancelled = false;
+    setWindDay('loading');
+
+    void fetchWindSeries(dayStartMs, to, ac.signal)
+      .then((list) => {
+        if (cancelled) return;
+        mergeWind(windTimelineRef.current, list);
+        setWindDay('ready');
+        bumpTimeline();
+        scheduleDraw();
+      })
+      .catch((err: unknown) => {
+        if (cancelled || (err as Error)?.name === 'AbortError') return;
+        setWindDay('failed');
+      });
+
+    return () => {
+      cancelled = true;
+      ac.abort();
+    };
+  }, [windOn, dayStartMs, dayEndMs, dayEpoch, bumpTimeline, scheduleDraw]);
 
   /**
    * The day's UV index where the map is looking — one request, sampled locally.
@@ -4274,6 +4501,36 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   });
 
   /**
+   * Wind, the same five-minute loop as temperature — the stations publish on the
+   * same ten-minute cycle. Same future-clock shape too: `at: null` when the clock
+   * is ahead of now leaves the feed enabled so the loaded day is not discarded,
+   * and there is no forecast to fetch there anyway.
+   */
+  useFeedPoll<WindReading[]>({
+    enabled: windOn,
+    at: future ? null : archiveAt,
+    fetcher: fetchWind,
+    intervalMs: WIND_POLL_MS,
+    onData: useCallback(
+      (list: WindReading[]) => {
+        mergeWind(windTimelineRef.current, list);
+        setWindPollFailed(false);
+        bumpTimeline();
+        scheduleDraw();
+      },
+      [bumpTimeline, scheduleDraw],
+    ),
+    onError: useCallback(() => setWindPollFailed(true), []),
+    onClear: useCallback(() => {
+      clearWindTimeline(windTimelineRef.current);
+      setWindDay('loading');
+      setWindPollFailed(false);
+      bumpTimeline();
+      scheduleDraw();
+    }, [bumpTimeline, scheduleDraw]),
+  });
+
+  /**
    * Lightning's tail, extended a minute at a time.
    *
    * NOT A REFINEMENT PASS like the two above it. Those re-ask for an instant the
@@ -4417,6 +4674,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
           incidents: visible,
           observations: observationsAt,
           airQuality: airQualityAt,
+          wind: windAt,
           lightning: strikesAt,
         },
         (lon, lat) => map.project([lon, lat]),
@@ -4428,6 +4686,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
       if (hit.kind === 'observation') {
         return { kind: 'observation', item: observationsAt[hit.index] };
       }
+      if (hit.kind === 'wind') return { kind: 'wind', item: windAt[hit.index] };
       if (hit.kind === 'lightning') return { kind: 'lightning', item: strikesAt[hit.index] };
       return { kind: 'air_quality', item: airQualityAt[hit.index] };
     },
@@ -4439,6 +4698,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
       whenMs,
       observationsAt,
       airQualityAt,
+      windAt,
       strikesAt,
       trainSnapshot,
       scheduledTrains,
@@ -4634,6 +4894,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     incidentsOn ||
     observationsOn ||
     airQualityOn ||
+    windOn ||
     lightningOn ||
     radarOn ||
     uvOn;
@@ -4661,6 +4922,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     (incidentsOn && incidentStatus?.failed === true) ||
     (observationsOn && obsDay === 'failed') ||
     (airQualityOn && aqDay === 'failed') ||
+    (windOn && windDay === 'failed') ||
     (lightningOn && lightningDay === 'failed') ||
     // `unpublished` is deliberately NOT here. It is a statement about the
     // source's schedule, not about ours failing to reach it, and an amber chip
@@ -4684,7 +4946,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     // could have been, and useFeedPoll never retries an archive request, so an
     // alert there would be a permanent amber light over a correct map.
     (live && ((observationsOn && obsPollFailed) || (airQualityOn && aqPollFailed) ||
-      (lightningOn && strikePollFailed)));
+      (windOn && windPollFailed) || (lightningOn && strikePollFailed)));
 
   return (
     /* h-dvh, NOT h-screen. `100vh` on a phone is the viewport with the browser
@@ -5133,6 +5395,40 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
                 </p>
               )}
 
+              {/* Wind mirrors air quality's four arms — measured only, dark ahead
+                  of now — because it too has no forecast half in this version.
+                  {max} is the strongest wind anywhere at the clock, gust
+                  included, which is what a single sentence about a whole country
+                  can honestly say. */}
+              {windOn && (
+                windDay === 'failed' ? (
+                  <p className="text-amber-700 dark:text-amber-400">
+                    {t('live.wind.failed')}
+                  </p>
+                ) : windDay === 'loading' && windAt.length === 0 ? (
+                  <p className="text-surface-600 dark:text-surface-300">
+                    {t('live.wind.loading')}
+                  </p>
+                ) : windAt.length === 0 ? (
+                  <p className="text-surface-600 dark:text-surface-300">
+                    {future ? t('live.wind.future') : t('live.wind.none')}
+                  </p>
+                ) : (
+                  <p className="text-surface-600 dark:text-surface-300">
+                    {t('live.wind.count')
+                      .replace('{n}', String(windAt.length))
+                      .replace('{max}', windMax.toFixed(0))}
+                    {sampleSpan(windAt)}
+                  </p>
+                )
+              )}
+
+              {windOn && windDay !== 'failed' && windPollFailed && (
+                <p className="text-amber-700 dark:text-amber-400">
+                  {t('live.readout.poll_failed')}
+                </p>
+              )}
+
               {/* THE UV SENTENCE NAMES THE MODEL EVERY TIME, in the one place
                   with room to say it properly. The bar's readout can only be a
                   number in a coloured ink beside six exact astronomical ones, so
@@ -5221,7 +5517,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
               {/* The markers are clickable and nothing else on screen says so —
                   they are canvas pixels, with no hover affordance beyond the
                   cursor. One line, and only while a clickable feed is on. */}
-              {(trainsOn || shipsOn || incidentsOn || observationsOn || airQualityOn || lightningOn) &&
+              {(trainsOn || shipsOn || incidentsOn || observationsOn || airQualityOn || windOn || lightningOn) &&
                 !shownSelection && (
                 <p className="pt-0.5 text-surface-500 dark:text-surface-400">
                   {t('live.detail.hint')}

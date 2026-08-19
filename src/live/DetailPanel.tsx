@@ -3,6 +3,7 @@ import { t } from '../utils/i18n';
 import { clockSeconds, clockTime, timeOnDay } from './timeControl';
 import { AQ_COLORS, aqBandKey, type AirQuality } from './airquality';
 import type { Observation } from './observations';
+import { windCompassKey, type WindTimelineSample } from './wind';
 import type { Incident } from './incidents';
 import type { Strike } from './lightning';
 import type { Train } from './trains';
@@ -51,6 +52,7 @@ export type Selection =
   | { kind: 'ship'; item: Ship }
   | { kind: 'observation'; item: Observation }
   | { kind: 'air_quality'; item: AirQuality }
+  | { kind: 'wind'; item: WindTimelineSample }
   | { kind: 'incident'; item: Incident }
   | { kind: 'lightning'; item: Strike };
 
@@ -316,6 +318,46 @@ const StationBody: React.FC<{ station: Observation }> = ({ station }) => {
 };
 
 /**
+ * Wind at a station, as of the sample under the clock.
+ *
+ * Everything is FMI's own measurement: the 10-minute mean speed, its gust, and
+ * the direction it blows FROM (`wd_10min`, meteorological convention) — stated in
+ * words and degrees, because "southwesterly" is what a reader thinks in and the
+ * number is what they can check. km/h is derived beside the published m/s, the
+ * one unit conversion, exact. A calm or variable station reports no bearing, so
+ * the direction row says so rather than printing a spurious compass point.
+ */
+const WindBody: React.FC<{ wind: WindTimelineSample }> = ({ wind }) => {
+  return (
+    <div className="space-y-1">
+      <Row label={t('live.detail.wind')}>
+        {wind.speed.toFixed(1)} m/s · {Math.round(wind.speed * 3.6)} km/h
+      </Row>
+      {wind.gust !== null && (
+        <Row label={t('live.detail.gust')}>
+          {wind.gust.toFixed(1)} m/s · {Math.round(wind.gust * 3.6)} km/h
+        </Row>
+      )}
+      <Row label={t('live.detail.wind_from')}>
+        {wind.dir === null
+          ? t('live.wind.dir.variable')
+          : `${t(windCompassKey(wind.dir))} · ${Math.round(wind.dir)}°`}
+      </Row>
+      {/* The value's OWN instant — the series is 10-minutely and the reader is
+          entitled to know they are looking at 14:00's wind under a playhead at
+          14:23. */}
+      <Row label={t('live.detail.measured_at')}>{clockTime(wind.at)}</Row>
+      <Row label={t('live.detail.coords')}>
+        {wind.lat.toFixed(3)}, {wind.lon.toFixed(3)}
+      </Row>
+      <p className="pt-1 text-[10px] text-surface-500 dark:text-surface-400">
+        {t('live.detail.source_fmi')}
+      </p>
+    </div>
+  );
+};
+
+/**
  * A vessel, as of the fix under the clock: what AIS measured, joined to the
  * register's name and type.
  *
@@ -383,9 +425,11 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({
           ? t('live.detail.weather_station')
           : selection.kind === 'air_quality'
             ? t('live.detail.aq_station')
-            : selection.kind === 'lightning'
-              ? t('live.detail.strike')
-              : t('live.detail.announcement');
+            : selection.kind === 'wind'
+              ? t('live.detail.wind_station')
+              : selection.kind === 'lightning'
+                ? t('live.detail.strike')
+                : t('live.detail.announcement');
 
   return (
     <aside
@@ -416,6 +460,8 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({
       {selection.kind === 'ship' && <ShipBody ship={selection.item} meta={shipMetaEntry} />}
 
       {selection.kind === 'observation' && <StationBody station={selection.item} />}
+
+      {selection.kind === 'wind' && <WindBody wind={selection.item} />}
 
       {selection.kind === 'air_quality' && (
         <div className="space-y-1">

@@ -24,7 +24,14 @@
  * them as lines in the first place.
  */
 
-export type PickKind = 'train' | 'ship' | 'air_quality' | 'observation' | 'incident' | 'lightning';
+export type PickKind =
+  | 'train'
+  | 'ship'
+  | 'air_quality'
+  | 'observation'
+  | 'wind'
+  | 'incident'
+  | 'lightning';
 
 export interface Picked {
   kind: PickKind;
@@ -55,6 +62,9 @@ const GRAB_PX: Record<PickKind, number> = {
   ship: 12,
   air_quality: 12,
   observation: 16,
+  // An arrow is a broad mark but it is hit-tested at the station point it is
+  // centred on, so its target is the same size as a dot's.
+  wind: 14,
   incident: 14,
   // The tightest on the page, and it has to be. A storm puts a few thousand
   // flashes in the window, dense enough that neighbours are often a pixel or two
@@ -76,15 +86,18 @@ const PRIORITY: Record<PickKind, number> = {
   // winner. They almost never coincide — one is on water, the other on rail.
   ship: 1,
   air_quality: 2,
-  incident: 3,
-  observation: 4,
+  // A directional mark like the ship's, but broader, so it yields a tie to the
+  // smaller, more precisely-placed dots and labels above it.
+  wind: 3,
+  incident: 4,
+  observation: 5,
   // LAST, which is the opposite of what its mark size would suggest. The rule
   // above is "the smaller, more precisely-placed mark wins a tie", and a flash
   // is the smallest thing here — but it is also drawn UNDER everything else and
   // arrives in thousands, so a tie-break in its favour would make a train dot
   // standing in a thunderstorm unselectable. Being painted at the bottom of the
   // stack, it loses ties at the bottom too, and the two orders stay consistent.
-  lightning: 5,
+  lightning: 6,
 };
 
 /** Squared distance from `p` to the segment `a`–`b`, in pixels. */
@@ -115,6 +128,7 @@ export interface PickInput {
   ships?: Located[];
   airQuality?: Located[];
   observations?: Located[];
+  wind?: Located[];
   incidents?: LocatedLines[];
   lightning?: Located[];
 }
@@ -162,6 +176,7 @@ export function pickFeature(
   points('ship', layers.ships);
   points('air_quality', layers.airQuality);
   points('observation', layers.observations);
+  points('wind', layers.wind);
   points('lightning', layers.lightning);
 
   const incidents = layers.incidents;
