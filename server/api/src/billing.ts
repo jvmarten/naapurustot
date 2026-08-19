@@ -32,9 +32,11 @@ let stripeInstance: Stripe | null = null;
 /** Lazily build the Stripe client from the environment. Returns null when billing
  *  is not configured, so the server runs (and tests import this module) without keys. */
 export function getStripe(): Stripe | null {
+  // A `setStripe`-injected instance (tests) wins over the env, mirroring db.ts's setPool.
+  if (stripeInstance) return stripeInstance;
   const key = process.env.STRIPE_SECRET_KEY;
   if (!key) return null;
-  if (!stripeInstance) stripeInstance = new Stripe(key);
+  stripeInstance = new Stripe(key);
   return stripeInstance;
 }
 
@@ -112,15 +114,21 @@ export async function getBillingExport(userId: string): Promise<Record<string, u
 export async function cancelSubscriptionForUser(userId: string): Promise<void> {
   const stripe = getStripe();
   if (!stripe) return;
+  const { rows } = await getPool().query(
+    'SELECT stripe_subscription_id FROM user_billing WHERE user_id = $1',
+    [userId],
+  );
+  const subId = rows[0]?.stripe_subscription_id;
+  if (!subId) return; // never subscribed — nothing to cancel
   try {
-    const { rows } = await getPool().query(
-      'SELECT stripe_subscription_id FROM user_billing WHERE user_id = $1',
-      [userId],
-    );
-    const subId = rows[0]?.stripe_subscription_id;
-    if (subId) await stripe.subscriptions.cancel(subId);
+    const sub = await stripe.subscriptions.retrieve(subId);
+    if (sub.status === 'canceled') return; // already ended (e.g. via the portal)
+    await stripe.subscriptions.cancel(subId);
   } catch (err) {
-    console.error('subscription cancel on account delete failed:', err);
+    if ((err as { code?: string }).code === 'resource_missing') return; // gone at Stripe
+    // Transient/unknown failure — PROPAGATE so the caller aborts the account deletion
+    // rather than deleting our only record of a subscription that is still billing.
+    throw err;
   }
 }
 
@@ -174,18 +182,26 @@ async function writeBilling(
   userId: string,
   data: { subscriptionId: string | null; customerId: string | null; status: string; periodEnd: Date | null },
 ): Promise<void> {
-  await getPool().query(
-    `INSERT INTO user_billing
-       (user_id, provider, plan, stripe_customer_id, stripe_subscription_id, status, current_period_end, updated_at)
-     VALUES ($1, 'stripe', $2, $3, $4, $5, $6, NOW())
-     ON CONFLICT (user_id) DO UPDATE SET
-       stripe_customer_id = COALESCE(EXCLUDED.stripe_customer_id, user_billing.stripe_customer_id),
-       stripe_subscription_id = COALESCE(EXCLUDED.stripe_subscription_id, user_billing.stripe_subscription_id),
-       status = EXCLUDED.status,
-       current_period_end = EXCLUDED.current_period_end,
-       updated_at = NOW()`,
-    [userId, SUPPORTER_PLAN, data.customerId, data.subscriptionId, data.status, data.periodEnd],
-  );
+  try {
+    await getPool().query(
+      `INSERT INTO user_billing
+         (user_id, provider, plan, stripe_customer_id, stripe_subscription_id, status, current_period_end, updated_at)
+       VALUES ($1, 'stripe', $2, $3, $4, $5, $6, NOW())
+       ON CONFLICT (user_id) DO UPDATE SET
+         stripe_customer_id = COALESCE(EXCLUDED.stripe_customer_id, user_billing.stripe_customer_id),
+         stripe_subscription_id = COALESCE(EXCLUDED.stripe_subscription_id, user_billing.stripe_subscription_id),
+         status = EXCLUDED.status,
+         current_period_end = EXCLUDED.current_period_end,
+         updated_at = NOW()`,
+      [userId, SUPPORTER_PLAN, data.customerId, data.subscriptionId, data.status, data.periodEnd],
+    );
+  } catch (err) {
+    // 23503 = FK violation: the user was deleted between the event and now (e.g. a late
+    // subscription.deleted after account deletion). Nothing left to bill — treat as a
+    // no-op so the webhook acks 200 instead of 500-looping Stripe's retries for days.
+    if ((err as { code?: string }).code === '23503') return;
+    throw err;
+  }
 }
 
 /** Apply one Stripe subscription object to `user_billing`. Exported for testing. */
@@ -315,7 +331,15 @@ export async function stripeWebhookHandler(req: Request, res: Response): Promise
       case 'customer.subscription.created':
       case 'customer.subscription.updated':
       case 'customer.subscription.deleted': {
-        await applySubscription(event.data.object as Stripe.Subscription);
+        // Re-fetch the live subscription rather than trusting the event's embedded
+        // snapshot. Stripe does not guarantee event ordering (and retries reorder
+        // freely), so applying a stale snapshot could overwrite newer state — a
+        // retried `past_due` landing after `active` (wrong revoke), or an old `active`
+        // after `deleted` (wrong grant). A retrieve at processing time always returns
+        // Stripe's current truth, so out-of-order deliveries converge correctly.
+        const embedded = event.data.object as Stripe.Subscription;
+        const fresh = await stripe.subscriptions.retrieve(embedded.id);
+        await applySubscription(fresh);
         break;
       }
       default:

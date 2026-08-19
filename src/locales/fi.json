@@ -960,5 +960,6 @@
   "supporter.error.unavailable": "Tukijatilaukset eivät ole juuri nyt käytettävissä.",
   "supporter.error.checkout_failed": "Kassan avaaminen epäonnistui. Yritä uudelleen.",
   "supporter.error.portal_failed": "Laskutusportaalin avaaminen epäonnistui. Yritä uudelleen.",
-  "supporter.error.no_subscription": "Aktiivista tilausta ei löytynyt."
+  "supporter.error.no_subscription": "Aktiivista tilausta ei löytynyt.",
+  "supporter.error.cancel_failed": "Tilauksen peruutus epäonnistui. Yritä poistaa tili uudelleen hetken kuluttua."
 }

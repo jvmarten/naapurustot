@@ -180,6 +180,38 @@ test('POST /auth/billing/checkout returns 503 when Stripe is not configured', as
   assert.equal(res.status, 503);
 });
 
+test('DELETE /auth/account aborts with 503 (and does NOT delete) when the Stripe cancel fails', async () => {
+  const { setStripe } = await import('./billing.js');
+  const DEL_USER = '33333333-3333-3333-3333-333333333333';
+  await pool.query(`INSERT INTO users (id, username, password) VALUES ($1, 'deluser', 'x')`, [DEL_USER]);
+  await pool.query(
+    `INSERT INTO user_billing (user_id, status, stripe_subscription_id) VALUES ($1, 'active', 'sub_test')`,
+    [DEL_USER],
+  );
+  // A live subscription whose cancel call fails transiently (Stripe down / network).
+  const fakeStripe = {
+    subscriptions: {
+      retrieve: async () => ({ status: 'active' }),
+      cancel: async () => { throw new Error('stripe unavailable'); },
+    },
+  };
+  setStripe(fakeStripe as unknown as Parameters<typeof setStripe>[0]);
+  try {
+    const res = await request(app)
+      .delete('/auth/account')
+      .set('Cookie', authCookie(DEL_USER))
+      .set('Origin', ORIGIN)
+      .send({ confirm: 'DELETE' });
+    assert.equal(res.status, 503, 'deletion is refused while the subscription is still live');
+    const still = await pool.query('SELECT 1 FROM users WHERE id = $1', [DEL_USER]);
+    assert.equal(still.rows.length, 1, 'the account is NOT deleted when billing could not be stopped');
+  } finally {
+    setStripe(null);
+    await pool.query('DELETE FROM user_billing WHERE user_id = $1', [DEL_USER]);
+    await pool.query('DELETE FROM users WHERE id = $1', [DEL_USER]);
+  }
+});
+
 test('rate limiter returns 429 once the per-key window is exhausted', async () => {
   // Exercises the IN-5 generalized rateLimit with a custom (per-user) key extractor
   // and a low limit, so the 429 path is covered without firing hundreds of requests
