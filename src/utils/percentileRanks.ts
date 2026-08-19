@@ -180,6 +180,30 @@ export function topPercentileFromRank(rank: number | null, higherIsBetter: boole
   return Math.max(1, Math.round(fromTop));
 }
 
+/**
+ * A direction-aware standing derived from a `topPercentileFromRank` value.
+ *
+ * M3: the "top X%" superlatives are only true when X is small. A `top` above 50
+ * means the area is actually in the WORSE half, so "top 95%" is an inverted,
+ * flattering-the-worst claim (it shipped in ~half of all profile-page FAQ answers
+ * and JSON-LD). This collapses that decision into one shared place: when `top`
+ * exceeds 50, report the honest complement as a `bottom` standing (Y = 100 - top,
+ * floored at 1 so it never reads "bottom 0%"), matching the summary.chip_bottom_*
+ * wording. Copy sites pick their own localized "top {pct}%" / "bottom {pct}%"
+ * phrasing off `favourable`.
+ */
+export interface Standing {
+  /** true → genuinely a favourable "top {pct}%"; false → really a "bottom {pct}%". */
+  favourable: boolean;
+  /** The percentile to show: top {pct}% when favourable, else bottom {pct}%. */
+  pct: number;
+}
+
+export function standingFromTop(top: number | null | undefined): Standing | null {
+  if (top == null) return null;
+  return top <= 50 ? { favourable: true, pct: top } : { favourable: false, pct: Math.max(1, 100 - top) };
+}
+
 /** Result bundle for one metric: its national and within-region standing. */
 export interface MetricPercentile {
   /** Percentile rank nationally (share of areas at or below this value), 0–100. */
