@@ -59,6 +59,7 @@ import { useSimilarityMetrics } from './hooks/useSimilarityMetrics';
 import { useAuth } from './hooks/useAuth';
 import { resetSyncStatus } from './utils/syncStatus';
 const AuthModal = lazy(() => import('./components/AuthModal').then(m => ({ default: m.AuthModal })));
+const SupporterModal = lazy(() => import('./components/SupporterModal').then(m => ({ default: m.SupporterModal })));
 const OnboardingTour = lazy(() => import('./components/OnboardingTour').then(m => ({ default: m.OnboardingTour })));
 const ShortcutsOverlay = lazy(() => import('./components/ShortcutsOverlay').then(m => ({ default: m.ShortcutsOverlay })));
 const TimeSlider = lazy(() => import('./components/TimeSlider').then(m => ({ default: m.TimeSlider })));
@@ -285,8 +286,12 @@ const App: React.FC = () => {
   );
 
   // Auth
-  const { user, loading: authLoading, login, signup, logout, exportData, deleteAccount, updateEmail, changePassword } = useAuth();
+  const { user, loading: authLoading, login, signup, logout, exportData, deleteAccount, updateEmail, changePassword, refresh } = useAuth();
   const [showAuth, setShowAuth] = useState(false);
+  // Supporter (paid tier) modal. `supporterSuccess` is set on the ?supporter=success
+  // return from Stripe Checkout so the modal shows the "activating" state.
+  const [showSupporter, setShowSupporter] = useState(false);
+  const [supporterSuccess, setSupporterSuccess] = useState(false);
   // QW-1: Onboarding tour
   const [showTour, setShowTour] = useState(false);
   // E9: dismissible locale-load-error notice (non-blocking).
@@ -1591,6 +1596,31 @@ const App: React.FC = () => {
     } catch { /* window.location unavailable */ }
   }, []);
 
+  // Return from Stripe Checkout / the customer portal — a full-page redirect back to
+  // APP_BASE_URL/?supporter=success|cancelled|portal. Strip the param so a reload can't
+  // re-trigger, and on success open the supporter modal and re-poll /auth/me a couple
+  // of times: the entitlement is written by an async webhook that can land a beat after
+  // the redirect (the full page load already re-runs useAuth's /me once).
+  useEffect(() => {
+    let params: URLSearchParams;
+    try { params = new URLSearchParams(window.location.search); } catch { return; }
+    const status = params.get('supporter');
+    if (!status) return;
+    try {
+      params.delete('supporter');
+      const qs = params.toString();
+      window.history.replaceState(null, '', `${window.location.pathname}${qs ? `?${qs}` : ''}${window.location.hash}`);
+    } catch { /* history unavailable */ }
+    if (status === 'success') {
+      setSupporterSuccess(true);
+      setShowSupporter(true);
+      refresh();
+      const t1 = setTimeout(refresh, 2500);
+      const t2 = setTimeout(refresh, 6000);
+      return () => { clearTimeout(t1); clearTimeout(t2); };
+    }
+  }, [refresh]);
+
   // QW-3: "Show my area" — geolocate the visitor, switch to their region if
   // needed, and select the containing neighborhood. Graceful fallbacks for
   // denied permission, missing geolocation, and points outside coverage.
@@ -2702,7 +2732,7 @@ const App: React.FC = () => {
             />
           )}
           {user ? (
-            <UserMenu user={user} onLogout={handleLogout} favorites={favoriteEntries} onSelectFavorite={handleSelectFavorite} onToggleFavorite={toggleFavorite} onExportData={exportData} onDeleteAccount={handleDeleteAccount} onReLogin={handleReLogin} onUpdateEmail={updateEmail} onChangePassword={changePassword} />
+            <UserMenu user={user} onLogout={handleLogout} favorites={favoriteEntries} onSelectFavorite={handleSelectFavorite} onToggleFavorite={toggleFavorite} onExportData={exportData} onDeleteAccount={handleDeleteAccount} onReLogin={handleReLogin} onUpdateEmail={updateEmail} onChangePassword={changePassword} onOpenSupporter={() => setShowSupporter(true)} />
           ) : authLoading ? (
             // L7: while restoring a returning user's session, show a placeholder
             // instead of the Sign-in button to avoid a flash of "Sign in".
@@ -3372,6 +3402,21 @@ const App: React.FC = () => {
               onClose={() => setShowAuth(false)}
               onLogin={login}
               onSignup={signup}
+            />
+          </Suspense>
+        </ErrorBoundary>
+      )}
+
+      {/* Supporter (paid tier) modal (hidden in embed mode) */}
+      {!IS_EMBED && showSupporter && (
+        <ErrorBoundary>
+          <Suspense fallback={<ModalFallback />}>
+            <SupporterModal
+              user={user}
+              justSubscribed={supporterSuccess}
+              onClose={() => { setShowSupporter(false); setSupporterSuccess(false); }}
+              onRefresh={refresh}
+              onNeedLogin={() => { setShowSupporter(false); setSupporterSuccess(false); setShowAuth(true); }}
             />
           </Suspense>
         </ErrorBoundary>

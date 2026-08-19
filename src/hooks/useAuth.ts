@@ -100,6 +100,15 @@ export function useAuth() {
     setState({ user: null, loading: false });
   }, []);
 
+  // Re-pull the authoritative user from GET /auth/me. Used after returning from Stripe
+  // Checkout, where the entitlement is written by an async webhook and may land a
+  // moment after the redirect back — a couple of refreshes catch it up.
+  const refresh = useCallback(async () => {
+    if (!hasSession()) return;
+    const { data } = await api.me();
+    if (data?.user) setState({ user: data.user, loading: false });
+  }, []);
+
   // CF-13 (GDPR): fetch the full stored record. Returns the payload on success
   // or an error string on failure; never mutates auth state.
   const exportData = useCallback(async (): Promise<{ data?: Record<string, unknown>; error?: string }> => {
@@ -145,5 +154,5 @@ export function useAuth() {
     return error ?? t('auth.error.server_error');
   }, []);
 
-  return { user: state.user, loading: state.loading, login, signup, logout, exportData, deleteAccount, updateEmail, changePassword };
+  return { user: state.user, loading: state.loading, login, signup, logout, exportData, deleteAccount, updateEmail, changePassword, refresh };
 }

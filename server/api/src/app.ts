@@ -11,6 +11,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import * as Sentry from '@sentry/node';
 import authRouter, { LARGE_BODY_ROUTES, httpErrorStatus } from './auth.js';
+import { stripeWebhookHandler } from './billing.js';
 import { rateLimit } from './rateLimit.js';
 
 export const ALLOWED_ORIGINS = [
@@ -83,6 +84,15 @@ export function createApp() {
     },
     credentials: true,
   }));
+
+  // Stripe webhook: MUST see the raw request bytes for signature verification, so it is
+  // registered before the JSON parser below (which would otherwise consume the stream).
+  // It sits outside /auth deliberately — Stripe sends no browser Origin, so the
+  // same-origin CSRF guard and the /auth rate limiter must not apply. The handler
+  // verifies the Stripe signature itself, which is what authenticates the caller.
+  app.post('/billing/webhook', express.raw({ type: 'application/json' }), (req, res) => {
+    void stripeWebhookHandler(req, res);
+  });
 
   // IN-4: a tight 16 KB limit for nearly every route, but the notes/preferences PUTs
   // carry legitimately large payloads. Stacking a second express.json() doesn't work —

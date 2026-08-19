@@ -57,6 +57,19 @@ async function createSchema(): Promise<void> {
       used_at TIMESTAMPTZ,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`);
+  // Supporter subscription state (billing.ts) — the login/me/export routes LEFT JOIN
+  // this, so it must exist even though these tests don't exercise a paid subscription.
+  await pool.query(`
+    CREATE TABLE user_billing (
+      user_id UUID PRIMARY KEY,
+      provider VARCHAR(20) NOT NULL DEFAULT 'stripe',
+      plan VARCHAR(40),
+      stripe_customer_id TEXT,
+      stripe_subscription_id TEXT,
+      status VARCHAR(20),
+      current_period_end TIMESTAMPTZ,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`);
   await pool.query(
     `INSERT INTO users (id, username, password) VALUES ($1, 'tester', 'x')`,
     [USER_ID],
@@ -132,6 +145,71 @@ test('rejects a state-changing request with a foreign Origin with 403 (CSRF)', a
     .set('Origin', 'https://evil.example')
     .send({ favorites: ['00100'] });
   assert.equal(res.status, 403);
+});
+
+test('GET /auth/me reports a non-supporter when there is no billing row', async () => {
+  const res = await request(app).get('/auth/me').set('Cookie', authCookie());
+  assert.equal(res.status, 200);
+  assert.equal(res.body.user.supporter, false);
+  assert.equal(res.body.user.supporterUntil, null);
+});
+
+test('GET /auth/me reports a supporter from an active billing row (LEFT JOIN)', async () => {
+  await pool.query(
+    `INSERT INTO user_billing (user_id, status, current_period_end)
+     VALUES ($1, 'active', $2)
+     ON CONFLICT (user_id) DO UPDATE SET status = 'active', current_period_end = $2`,
+    [USER_ID, new Date('2035-01-01T00:00:00Z')],
+  );
+  try {
+    const res = await request(app).get('/auth/me').set('Cookie', authCookie());
+    assert.equal(res.status, 200);
+    assert.equal(res.body.user.supporter, true);
+    assert.equal(res.body.user.supporterUntil, '2035-01-01T00:00:00.000Z');
+  } finally {
+    await pool.query('DELETE FROM user_billing WHERE user_id = $1', [USER_ID]);
+  }
+});
+
+test('POST /auth/billing/checkout returns 503 when Stripe is not configured', async () => {
+  const res = await request(app)
+    .post('/auth/billing/checkout')
+    .set('Cookie', authCookie())
+    .set('Origin', ORIGIN)
+    .send({});
+  assert.equal(res.status, 503);
+});
+
+test('DELETE /auth/account aborts with 503 (and does NOT delete) when the Stripe cancel fails', async () => {
+  const { setStripe } = await import('./billing.js');
+  const DEL_USER = '33333333-3333-3333-3333-333333333333';
+  await pool.query(`INSERT INTO users (id, username, password) VALUES ($1, 'deluser', 'x')`, [DEL_USER]);
+  await pool.query(
+    `INSERT INTO user_billing (user_id, status, stripe_subscription_id) VALUES ($1, 'active', 'sub_test')`,
+    [DEL_USER],
+  );
+  // A live subscription whose cancel call fails transiently (Stripe down / network).
+  const fakeStripe = {
+    subscriptions: {
+      retrieve: async () => ({ status: 'active' }),
+      cancel: async () => { throw new Error('stripe unavailable'); },
+    },
+  };
+  setStripe(fakeStripe as unknown as Parameters<typeof setStripe>[0]);
+  try {
+    const res = await request(app)
+      .delete('/auth/account')
+      .set('Cookie', authCookie(DEL_USER))
+      .set('Origin', ORIGIN)
+      .send({ confirm: 'DELETE' });
+    assert.equal(res.status, 503, 'deletion is refused while the subscription is still live');
+    const still = await pool.query('SELECT 1 FROM users WHERE id = $1', [DEL_USER]);
+    assert.equal(still.rows.length, 1, 'the account is NOT deleted when billing could not be stopped');
+  } finally {
+    setStripe(null);
+    await pool.query('DELETE FROM user_billing WHERE user_id = $1', [DEL_USER]);
+    await pool.query('DELETE FROM users WHERE id = $1', [DEL_USER]);
+  }
 });
 
 test('rate limiter returns 429 once the per-key window is exhausted', async () => {

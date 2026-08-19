@@ -124,7 +124,17 @@ import { join } from 'node:path';
 // batch itself costs ~100 B (a two-significant-figure number format for service
 // densities, which now span 0.0001-237/km² instead of being rounded to one
 // decimal); the rest restores headroom to ~1.2 KB.
-const BUDGET = 321_000;
+// Supporter tier (2026-08-19): +4 KB for a feature that did not exist at all — the
+// Stripe supporter subscription. SupporterModal (the pitch / manage / activating
+// states + Checkout+portal redirect), the supporter row and badge in UserMenu, the
+// two api.ts billing calls, useAuth.refresh, App's return-from-Checkout handling, and
+// their 22 fi.json strings in the always-loaded i18n chunk. The modal is lazy but,
+// like the password-reset page chunk above, still counted — and cannot be exempted:
+// it is reached from the map app's header, not from /live/. It pushed the measured
+// total past the old 321,000 budget (a few hundred bytes of headroom) to 323,482 — so
+// ~2.5-3 KB of genuine feature; headroom set to ~1.5 KB (above the noise floor, per the
+// Services-honesty note) rather than to a hair.
+const BUDGET = 325_000;
 const ASSETS_DIR = 'dist/assets';
 
 // Second budget: the /live/ realtime sub-app.

@@ -59,6 +59,44 @@ const MIGRATIONS: { id: string; sql: string }[] = [
     id: '002_users_token_version',
     sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INTEGER NOT NULL DEFAULT 0`,
   },
+  {
+    // Supporter subscription state, one row per paying user. Written ONLY by the
+    // Stripe webhook (billing.ts); everything else derives a boolean from it. The
+    // CASCADE drops it with the account — Stripe retains the invoices it must keep
+    // for tax, so nothing legally required is lost, and account deletion first
+    // cancels the live subscription (see DELETE /auth/account) so a deleted account
+    // stops being billed. Each column stays single-statement so pg-mem (the test
+    // backend) runs the migration exactly as Postgres does.
+    id: '003_user_billing',
+    sql: `CREATE TABLE IF NOT EXISTS user_billing (
+      user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      provider VARCHAR(20) NOT NULL DEFAULT 'stripe',
+      plan VARCHAR(40),
+      stripe_customer_id TEXT,
+      stripe_subscription_id TEXT,
+      status VARCHAR(20),
+      current_period_end TIMESTAMPTZ,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`,
+  },
+  {
+    // Webhook idempotency ledger: an event id is recorded after it is processed, and
+    // a re-delivery of the same id is skipped (Stripe retries deliveries).
+    id: '004_stripe_events',
+    sql: `CREATE TABLE IF NOT EXISTS stripe_events (
+      id TEXT PRIMARY KEY,
+      received_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`,
+  },
+  {
+    // The webhook attributes an unlabelled event by matching customer/subscription id.
+    id: '005_user_billing_customer_idx',
+    sql: `CREATE INDEX IF NOT EXISTS idx_user_billing_customer ON user_billing (stripe_customer_id)`,
+  },
+  {
+    id: '006_user_billing_subscription_idx',
+    sql: `CREATE INDEX IF NOT EXISTS idx_user_billing_subscription ON user_billing (stripe_subscription_id)`,
+  },
 ];
 
 async function runMigrations(): Promise<void> {
