@@ -58,6 +58,7 @@ jobs:
 
   checks:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
 
@@ -214,6 +215,7 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
 
@@ -238,6 +240,9 @@ jobs:
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
+        # Bound the download: a stuck browser fetch has hung this step for tens of
+        # minutes with no job-level cap, blocking the merge lane. Fail fast instead.
+        timeout-minutes: 8
 
       - name: E2E tests
         run: npm run test:e2e
@@ -333,6 +338,7 @@ jobs:
   merge-to-main:
     needs: [security, checks, data-validation, e2e, lighthouse, server]
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
         with:
