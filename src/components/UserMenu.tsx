@@ -30,9 +30,11 @@ interface UserMenuProps {
   /** Rotate the password from this session. Resolves to null on success or an
    *  error string. The server keeps this session alive and kills the others. */
   onChangePassword?: (currentPassword: string, newPassword: string) => Promise<string | null>;
+  /** Open the supporter (paid tier) modal. Absent when billing isn't wired in. */
+  onOpenSupporter?: () => void;
 }
 
-export const UserMenu: React.FC<UserMenuProps> = React.memo(({ user, onLogout, favorites = [], onSelectFavorite, onToggleFavorite, onExportData, onDeleteAccount, onReLogin, onUpdateEmail, onChangePassword }) => {
+export const UserMenu: React.FC<UserMenuProps> = React.memo(({ user, onLogout, favorites = [], onSelectFavorite, onToggleFavorite, onExportData, onDeleteAccount, onReLogin, onUpdateEmail, onChangePassword, onOpenSupporter }) => {
   useI18nVersion();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -305,6 +307,26 @@ export const UserMenu: React.FC<UserMenuProps> = React.memo(({ user, onLogout, f
               )}
             </div>
           )}
+          {/* Supporter (paid tier). Doubles as the "badge on your account" perk: an
+              active supporter sees a highlighted row, everyone else a support prompt. */}
+          {onOpenSupporter && (
+            <div className="p-1.5 border-b border-surface-100 dark:border-surface-800">
+              <button
+                onClick={() => { setOpen(false); onOpenSupporter(); }}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
+                  user.supporter
+                    ? 'text-brand-700 dark:text-brand-300 bg-brand-500/10 hover:bg-brand-500/20 font-semibold'
+                    : 'text-surface-700 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800'
+                }`}
+              >
+                <svg className="w-4 h-4 shrink-0 text-brand-500" viewBox="0 0 24 24" fill={user.supporter ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
+                </svg>
+                {user.supporter ? t('supporter.badge') : t('supporter.cta.open')}
+              </button>
+            </div>
+          )}
+
           {/* Favorites section */}
           {displayFavorites.length > 0 && (
             <div className="border-b border-surface-100 dark:border-surface-800">
