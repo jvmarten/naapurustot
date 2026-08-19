@@ -53,6 +53,7 @@ const SERVER_ERROR_KEYS: Record<string, string> = {
   'Could not start checkout': 'supporter.error.checkout_failed',
   'Could not open billing portal': 'supporter.error.portal_failed',
   'No subscription': 'supporter.error.no_subscription',
+  'Could not cancel subscription': 'supporter.error.cancel_failed',
 };
 
 function localiseError(message: string): string {

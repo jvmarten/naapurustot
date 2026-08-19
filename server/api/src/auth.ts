@@ -784,9 +784,17 @@ router.delete('/account', async (req: Request, res: Response): Promise<void> => 
   }
 
   // Cancel any live subscription at Stripe FIRST, so a deleted account stops being
-  // billed — the CASCADE below would otherwise drop our record while Stripe kept
-  // charging. Best-effort (no-op when billing is unconfigured or the user never paid).
-  await cancelSubscriptionForUser(userId);
+  // billed — the CASCADE below would otherwise drop our only record (the subscription
+  // id) while Stripe kept charging. If the cancel fails (transient Stripe/network),
+  // ABORT with 503 rather than delete: the user retries and Stripe recovers. No-op when
+  // billing is unconfigured, the user never paid, or the subscription is already gone.
+  try {
+    await cancelSubscriptionForUser(userId);
+  } catch (err) {
+    console.error('subscription cancel failed during account deletion:', err);
+    res.status(503).json({ error: 'Could not cancel subscription' });
+    return;
+  }
 
   // Deleting the users row cascades to all user_* tables via ON DELETE CASCADE.
   const result = await getPool().query('DELETE FROM users WHERE id = $1', [userId]);

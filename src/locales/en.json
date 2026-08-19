@@ -1188,5 +1188,6 @@
   "supporter.error.unavailable": "Supporter subscriptions aren't available right now.",
   "supporter.error.checkout_failed": "Couldn't start checkout. Please try again.",
   "supporter.error.portal_failed": "Couldn't open the billing portal. Please try again.",
-  "supporter.error.no_subscription": "No active subscription found."
+  "supporter.error.no_subscription": "No active subscription found.",
+  "supporter.error.cancel_failed": "Couldn't cancel your subscription. Please try deleting your account again in a moment."
 }
