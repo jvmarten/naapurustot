@@ -24,7 +24,7 @@
  * them as lines in the first place.
  */
 
-export type PickKind = 'train' | 'air_quality' | 'observation' | 'incident' | 'lightning';
+export type PickKind = 'train' | 'ship' | 'air_quality' | 'observation' | 'incident' | 'lightning';
 
 export interface Picked {
   kind: PickKind;
@@ -49,6 +49,10 @@ export interface ScreenPoint {
  */
 const GRAB_PX: Record<PickKind, number> = {
   train: 12,
+  // The same as a train: a small directional mark that clusters in a port throat
+  // the way trains cluster in a terminus, so an over-generous radius there makes
+  // the wrong hull selectable from further than the right one.
+  ship: 12,
   air_quality: 12,
   observation: 16,
   incident: 14,
@@ -67,16 +71,20 @@ const GRAB_PX: Record<PickKind, number> = {
  */
 const PRIORITY: Record<PickKind, number> = {
   train: 0,
-  air_quality: 1,
-  incident: 2,
-  observation: 3,
+  // Alongside the train: both are small directional marks, and a coastal tie
+  // between a hull and a dot should go to whichever is nearer, not to a fixed
+  // winner. They almost never coincide — one is on water, the other on rail.
+  ship: 1,
+  air_quality: 2,
+  incident: 3,
+  observation: 4,
   // LAST, which is the opposite of what its mark size would suggest. The rule
   // above is "the smaller, more precisely-placed mark wins a tie", and a flash
   // is the smallest thing here — but it is also drawn UNDER everything else and
   // arrives in thousands, so a tie-break in its favour would make a train dot
   // standing in a thunderstorm unselectable. Being painted at the bottom of the
   // stack, it loses ties at the bottom too, and the two orders stay consistent.
-  lightning: 4,
+  lightning: 5,
 };
 
 /** Squared distance from `p` to the segment `a`–`b`, in pixels. */
@@ -104,6 +112,7 @@ export interface LocatedLines extends Located {
 
 export interface PickInput {
   trains?: Located[];
+  ships?: Located[];
   airQuality?: Located[];
   observations?: Located[];
   incidents?: LocatedLines[];
@@ -150,6 +159,7 @@ export function pickFeature(
   };
 
   points('train', layers.trains);
+  points('ship', layers.ships);
   points('air_quality', layers.airQuality);
   points('observation', layers.observations);
   points('lightning', layers.lightning);

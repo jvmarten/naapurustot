@@ -44,6 +44,19 @@ import {
   type HeightField,
 } from './terrain';
 import { fetchTrains, TRAIN_POLL_MS, TRAIN_STALE_MS, trainKey, type Train } from './trains';
+import {
+  fetchShips,
+  fetchVessels,
+  isMakingWay,
+  SHIP_POLL_MS,
+  SHIP_STALE_MS,
+  SHIP_TRACK_TOLERANCE_MS,
+  VESSELS_POLL_MS,
+  shipKey,
+  type Ship,
+  type VesselMetaMap,
+} from './ships';
+import { type Snapshot } from './positionBuffer';
 import { activeAt, fetchIncidents, INCIDENT_POLL_MS, type Incident } from './incidents';
 import {
   fetchObservations,
@@ -353,6 +366,9 @@ const EMPTY_PREPARED: PreparedBuilding[] = [];
 
 /** Same, for a scrubbed instant the recorded train history cannot answer for. */
 const EMPTY_TRAINS: Train[] = [];
+
+/** Same, for the vessel feed's recorded history. */
+const EMPTY_SHIPS: Ship[] = [];
 
 /**
  * Below this zoom, individual buildings and trees are not drawn at all — the
@@ -1646,6 +1662,158 @@ function paintTrains(
 }
 
 /**
+ * Vessel ink, per theme. Teal — a maritime hue that none of the other feeds use
+ * (trains are purple, incidents amber, the temperature ramp warm, lightning
+ * white), so a hull is never mistaken for one of them even where a coast and a
+ * railway meet. Bright enough to survive the night wash, with a hard edge in the
+ * page's background colour for the same reason the train dots carry one.
+ */
+const SHIP = {
+  dark: {
+    fill: '#5eead4',
+    ring: 'rgba(2, 6, 23, 0.9)',
+    label: '#99f6e4',
+    halo: 'rgba(2, 6, 23, 0.85)',
+  },
+  light: {
+    fill: '#0f766e',
+    ring: 'rgba(255, 255, 255, 0.95)',
+    label: '#115e59',
+    halo: 'rgba(255, 255, 255, 0.9)',
+  },
+} as const;
+
+/** Half-length of the bow triangle, in CSS pixels. */
+const SHIP_TRI_PX = 6;
+/** Radius of the fallback dot drawn when a vessel reports no course. */
+const SHIP_DOT_PX = 2.8;
+/**
+ * Below this, a thousand vessel names over the Baltic is a smear, not a label.
+ *
+ * Higher than the trains' threshold because there are nearly ten times as many
+ * hulls as trains, and their names are words rather than three-digit numbers.
+ */
+const SHIP_LABEL_ZOOM = 12;
+
+/**
+ * Paint the live vessels, above the shade and beside the trains.
+ *
+ * A BOW TRIANGLE, NOT A DOT, and pointed along the vessel's own reported course
+ * over ground — which is a measurement off the transponder, not a heading we
+ * inferred, so drawing the direction adds information without inventing any. A
+ * hull with no course (a Class B set that omits it, a vessel dead in the water)
+ * falls back to a plain dot rather than a triangle pointed at an arbitrary
+ * bearing. A fix too old to trust is drawn hollow, exactly as a stale train is:
+ * the vessel reported this position, and we are not claiming it is still there.
+ *
+ * On this canvas rather than as a MapLibre layer, for the reason every feed here
+ * is (see paintTrains): a GeoJSON source would render under the night wash.
+ */
+function paintShips(
+  ctx: CanvasRenderingContext2D,
+  map: MaplibreMap,
+  ships: Ship[],
+  now: number,
+  theme: 'dark' | 'light',
+  zoom: number,
+  width: number,
+  height: number,
+  meta: VesselMetaMap,
+): void {
+  if (ships.length === 0) return;
+  const ink = SHIP[theme];
+  const withLabels = zoom >= SHIP_LABEL_ZOOM;
+  // Course over ground is a GEOGRAPHIC bearing (clockwise from true north), but
+  // the canvas is the rotated map. This page pins pitch to 0 yet leaves rotation
+  // free, so screen-up is compass direction `bearing`, not north — and Mercator
+  // is conformal with vertical meridians, so subtracting the map bearing turns a
+  // geographic course into a screen angle exactly, everywhere, with no per-vertex
+  // projection. Without it every moving hull points the wrong way on a turned map.
+  const bearing = map.getBearing();
+
+  ctx.save();
+  ctx.lineJoin = 'round';
+  if (withLabels) {
+    ctx.font = '600 11px system-ui, -apple-system, sans-serif';
+    ctx.textBaseline = 'middle';
+  }
+
+  // Label boxes already placed this frame — see paintTrains: vessels pack into a
+  // port throat the way trains pack into a terminus, and overprinted names read
+  // as one corrupted string. Drop the colliding label, never the mark.
+  const placed: number[][] = [];
+
+  for (const ship of ships) {
+    const p = map.project([ship.lon, ship.lat]);
+    if (p.x < -40 || p.y < -40 || p.x > width + 40 || p.y > height + 40) continue;
+
+    // A missing timestamp is treated as stale: an age we cannot compute is not an
+    // age we can vouch for.
+    const stale = ship.at === null || now - ship.at > SHIP_STALE_MS;
+
+    // A direction only for a vessel actually making way — see isMakingWay: a
+    // moored hull's course is not a bearing it is travelling on, so it gets a dot.
+    if (ship.cog !== null && isMakingWay(ship.sog)) {
+      const a = ((ship.cog - bearing) * Math.PI) / 180;
+      const fx = Math.sin(a);
+      const fy = -Math.cos(a);
+      // Perpendicular to the forward vector, for the two stern corners.
+      const px = -fy;
+      const py = fx;
+      const back = SHIP_TRI_PX * 0.75;
+      const halfW = SHIP_TRI_PX * 0.62;
+      ctx.beginPath();
+      ctx.moveTo(p.x + fx * SHIP_TRI_PX, p.y + fy * SHIP_TRI_PX);
+      ctx.lineTo(p.x - fx * back + px * halfW, p.y - fy * back + py * halfW);
+      ctx.lineTo(p.x - fx * back - px * halfW, p.y - fy * back - py * halfW);
+      ctx.closePath();
+    } else {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, SHIP_DOT_PX, 0, Math.PI * 2);
+    }
+
+    if (stale) {
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = ink.fill;
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = ink.fill;
+      ctx.fill();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = ink.ring;
+      ctx.stroke();
+    }
+
+    if (!withLabels) continue;
+    // Only NAMED vessels are labelled: a nine-digit MMSI over the map is noise,
+    // and the name is the one thing a reader can act on. The register is joined
+    // here by MMSI so a scrubbed snapshot still shows the current name.
+    const name = meta.get(ship.mmsi)?.name;
+    if (!name) continue;
+    const x = p.x + SHIP_TRI_PX + 4;
+    const w = ctx.measureText(name).width;
+    const box = [x, p.y - 6, x + w, p.y + 6];
+    let collides = false;
+    for (const other of placed) {
+      if (box[0] < other[2] && box[2] > other[0] && box[1] < other[3] && box[3] > other[1]) {
+        collides = true;
+        break;
+      }
+    }
+    if (collides) continue;
+    placed.push(box);
+
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = ink.halo;
+    ctx.strokeText(name, x, p.y);
+    ctx.fillStyle = ink.label;
+    ctx.fillText(name, x, p.y);
+  }
+
+  ctx.restore();
+}
+
+/**
  * The selected marker's route and highlight, drawn above every feed.
  *
  * THE ROUTE IS MEASURED, NOT PLANNED. It is the train's own reported fixes for
@@ -1790,6 +1958,18 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
    * saw. See trainHistory.ts for why the alternatives are all worse.
    */
   const trainBufferRef = useRef<TrainSnapshot[]>([]);
+  /** The last polled vessel positions, nationally. A ref for the same reason. */
+  const shipsRef = useRef<Ship[]>([]);
+  /** Every vessel snapshot this session watched arrive — the sea's whole past. */
+  const shipBufferRef = useRef<Snapshot<Ship>[]>([]);
+  /**
+   * The vessel register (names, types, destinations), keyed on MMSI.
+   *
+   * Fetched far more rarely than positions and joined at draw time, so a scrubbed
+   * snapshot's hulls carry the name a vessel broadcasts now rather than whatever
+   * it declared when the snapshot was taken.
+   */
+  const shipMetaRef = useRef<VesselMetaMap>(new Map());
   /**
    * The selected train's measured track for its departure date, when one is
    * loaded — the only feed history on this page that reaches past the session.
@@ -2015,6 +2195,17 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
    * (React bails out on an unchanged one).
    */
   const [trainAt, setTrainAt] = useState<number | null>(null);
+  const [shipStatus, setShipStatus] = useState<{ count: number; failed: boolean } | null>(null);
+  /** What the recorded vessel history can answer for the clock — see `trainAt`. */
+  const [shipAt, setShipAt] = useState<number | null>(null);
+  /**
+   * Bumped when the vessel register loads, purely to re-render an OPEN detail
+   * panel so a selected hull picks up its name. The map lives in a ref the draw
+   * loop reads, and the register poll calls `scheduleDraw` itself, so the map's
+   * labels do not need this — only React does, and only the value's change, not
+   * the value, so it is never read.
+   */
+  const [, setShipMetaVersion] = useState(0);
   const [incidentStatus, setIncidentStatus] = useState<{ count: number; failed: boolean } | null>(
     null,
   );
@@ -2104,6 +2295,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   const sunOn = enabled.has('sun_position');
   const uvOn = enabled.has('uv_index');
   const trainsOn = enabled.has('trains');
+  const shipsOn = enabled.has('ships');
   const incidentsOn = enabled.has('road_incidents');
   const observationsOn = enabled.has('observations');
   const airQualityOn = enabled.has('air_quality');
@@ -2349,6 +2541,19 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   );
 
   /**
+   * The recorded vessel snapshot for the clock, or null — see `trainSnapshot`.
+   *
+   * Resolved with the ship feed's own tolerance, not the ring's 20 s default: the
+   * vessels poll once a minute, so a 20 s window would leave a scrub dark between
+   * every pair of snapshots (see SHIP_TRACK_TOLERANCE_MS).
+   */
+  const shipSnapshot = useMemo(
+    () => (live ? null : snapshotAt(shipBufferRef.current, whenMs, SHIP_TRACK_TOLERANCE_MS)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [live, whenMs, shipStatus],
+  );
+
+  /**
    * Whether this instant needs the published timetable to be shown at all.
    *
    * Measured first, always: live is the current poll and a scrub inside the
@@ -2427,6 +2632,21 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     if (selection.kind === 'incident') {
       return activeAt([selection.item], whenMs).length > 0 ? selection : null;
     }
+    // THE VESSEL, THROUGH THE SAME LADDER THE MARK IS DRAWN WITH, so the panel's
+    // rows never describe a different instant than the triangle. Live is the
+    // current poll, falling back to the clicked fix for a hull that has left the
+    // feed (its last position still stands). Scrubbed is the session's recorded
+    // snapshot, and outside it there is nothing to show — no vessel timetable
+    // stands in the way the trains' does, so the panel closes rather than guess.
+    if (selection.kind === 'ship') {
+      const key = shipKey(selection.item);
+      if (live) {
+        const cur = shipsRef.current.find((s) => shipKey(s) === key);
+        return { kind: 'ship', item: cur ?? selection.item };
+      }
+      const rec = shipSnapshot?.items.find((s) => shipKey(s) === key);
+      return rec ? { kind: 'ship', item: rec } : null;
+    }
     /**
      * THE TRAIN TOO, THROUGH THE SAME LADDER THE MARK IS DRAWN WITH.
      *
@@ -2494,6 +2714,8 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     trainSnapshot,
     scheduledTrains,
     trackVersion,
+    shipStatus,
+    shipSnapshot,
   ]);
 
   /** Move the clock, which always means leaving live mode. */
@@ -2870,6 +3092,27 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
       // Fintraffic's plan rather than a guess.
       paintIncidents(ctx, map, activeAt(incidentsRef.current, whenMs), theme, zoom, width, height);
     }
+    if (shipsOn) {
+      // SAME SET-AT-A-DIFFERENT-TIME CONTRACT AS THE TRAINS, minus the timetable
+      // rung: live is the latest poll, scrubbed is the snapshot recorded nearest
+      // this instant, and outside the session's window there is nothing to draw —
+      // no vessel schedule stands in the way the trains' does. Staleness is judged
+      // against the snapshot's own clock, not the wall's, for the reason spelt out
+      // over the train block below.
+      const list = live ? shipsRef.current : (shipSnapshot?.items ?? EMPTY_SHIPS);
+      setShipAt(live ? null : (shipSnapshot?.at ?? null));
+      paintShips(
+        ctx,
+        map,
+        list,
+        shipSnapshot?.at ?? Date.now(),
+        theme,
+        zoom,
+        width,
+        height,
+        shipMetaRef.current,
+      );
+    }
     if (trainsOn) {
       // THE TRAIN LAYER IS A DIFFERENT SET AT A DIFFERENT TIME, AND IT SAYS SO.
       //
@@ -2882,7 +3125,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
       //
       // What it is never is the current positions under a past clock, which
       // remains the one thing here that would be a lie rather than a gap.
-      const list = live ? trainsRef.current : (trainSnapshot?.trains ?? EMPTY_TRAINS);
+      const list = live ? trainsRef.current : (trainSnapshot?.items ?? EMPTY_TRAINS);
       setTrainAt(live ? null : (trainSnapshot?.at ?? null));
       if (list.length > 0 || !needSchedule) {
         // THE STALENESS CLOCK IS THE SNAPSHOT'S, NOT THE WALL'S. `paintTrains`
@@ -2929,6 +3172,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   }, [
     shadowsOn,
     trainsOn,
+    shipsOn,
     incidentsOn,
     lightningOn,
     radarOn,
@@ -2944,6 +3188,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     trainSnapshot,
     scheduledTrains,
     needSchedule,
+    shipSnapshot,
   ]);
 
   /**
@@ -3836,6 +4081,69 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   });
 
   /**
+   * Poll the national vessel feed while the layer is on — same shape as the
+   * trains, at a minute rather than five seconds because the endpoint caches for
+   * a minute and a hull moves ~600 m in one (see ships.ts).
+   */
+  useFeedPoll<Ship[]>({
+    enabled: shipsOn,
+    fetcher: fetchShips,
+    intervalMs: SHIP_POLL_MS,
+    onData: useCallback(
+      (list: Ship[]) => {
+        shipsRef.current = list;
+        // Every poll kept, thinned, for the window — the sea's whole past.
+        recordSnapshot(shipBufferRef.current, Date.now(), list);
+        setShipStatus({ count: list.length, failed: false });
+        // Keep an open panel live, exactly as the trains do: without this the
+        // speed and fix time freeze at whatever they were when the hull was
+        // clicked.
+        setSelection((prev) => {
+          if (prev?.kind !== 'ship') return prev;
+          const fresh = list.find((s) => shipKey(s) === shipKey(prev.item));
+          return fresh ? { kind: 'ship', item: fresh } : prev;
+        });
+        scheduleDraw();
+      },
+      [scheduleDraw],
+    ),
+    onError: useCallback(() => {
+      setShipStatus((prev) => ({ count: prev?.count ?? 0, failed: true }));
+    }, []),
+    onClear: useCallback(() => {
+      shipsRef.current = [];
+      // The recording and the register both survive a toggle-off, like the
+      // trains' buffer — the window trims itself by age regardless.
+      setShipStatus(null);
+      scheduleDraw();
+    }, [scheduleDraw]),
+  });
+
+  /**
+   * Refresh the vessel register on a slow loop while the layer is on.
+   *
+   * Names and types change on the scale of re-registration, not of movement, so
+   * this is a nicety layered onto the positions rather than a feed of its own: a
+   * failed or missing register just means hulls draw without names, so its errors
+   * are swallowed and its data is never cleared on toggle-off.
+   */
+  useFeedPoll<VesselMetaMap>({
+    enabled: shipsOn,
+    fetcher: fetchVessels,
+    intervalMs: VESSELS_POLL_MS,
+    onData: useCallback(
+      (map: VesselMetaMap) => {
+        shipMetaRef.current = map;
+        setShipMetaVersion((v) => v + 1);
+        scheduleDraw();
+      },
+      [scheduleDraw],
+    ),
+    onError: useCallback(() => {}, []),
+    onClear: useCallback(() => {}, []),
+  });
+
+  /**
    * Road incidents, on the same loop at a much slower cadence.
    *
    * A minute rather than the trains' five seconds, because an announcement is
@@ -4089,17 +4397,23 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
       if (!map) return null;
       // Exactly the list the draw loop just painted, chosen by the same test —
       // measured first, timetable only where nothing measured reaches.
-      const measured = live ? trainsRef.current : (trainSnapshot?.trains ?? EMPTY_TRAINS);
+      const measured = live ? trainsRef.current : (trainSnapshot?.items ?? EMPTY_TRAINS);
       const trains = trainsOn
         ? measured.length > 0 || !needSchedule
           ? measured
           : (scheduledTrains as Train[])
+        : undefined;
+      const ships = shipsOn
+        ? live
+          ? shipsRef.current
+          : (shipSnapshot?.items ?? EMPTY_SHIPS)
         : undefined;
       const visible = incidentsOn ? activeAt(incidentsRef.current, whenMs) : undefined;
       const hit = pickFeature(
         point,
         {
           trains,
+          ships,
           incidents: visible,
           observations: observationsAt,
           airQuality: airQualityAt,
@@ -4109,6 +4423,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
       );
       if (!hit) return null;
       if (hit.kind === 'train' && trains) return { kind: 'train', item: trains[hit.index] };
+      if (hit.kind === 'ship' && ships) return { kind: 'ship', item: ships[hit.index] };
       if (hit.kind === 'incident' && visible) return { kind: 'incident', item: visible[hit.index] };
       if (hit.kind === 'observation') {
         return { kind: 'observation', item: observationsAt[hit.index] };
@@ -4118,6 +4433,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     },
     [
       trainsOn,
+      shipsOn,
       incidentsOn,
       live,
       whenMs,
@@ -4127,6 +4443,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
       trainSnapshot,
       scheduledTrains,
       needSchedule,
+      shipSnapshot,
     ],
   );
 
@@ -4313,6 +4630,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   const readoutOn =
     shadowsOn ||
     trainsOn ||
+    shipsOn ||
     incidentsOn ||
     observationsOn ||
     airQualityOn ||
@@ -4336,6 +4654,10 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
       (live
         ? trainStatus?.failed === true
         : trainAt === null && scheduleDay === 'failed')) ||
+    // Vessels raise the chip only LIVE: scrubbed, an empty sea is a plain gap in
+    // this session's recording (no timetable can fail, because there is none),
+    // and an amber light over a correct-but-empty archive would cry wolf.
+    (shipsOn && live && shipStatus?.failed === true) ||
     (incidentsOn && incidentStatus?.failed === true) ||
     (observationsOn && obsDay === 'failed') ||
     (airQualityOn && aqDay === 'failed') ||
@@ -4599,6 +4921,47 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
                 )
               )}
 
+              {/* The vessel feed's cases, minus the timetable one the trains have:
+                  scrubbed inside the session's recording it names the second the
+                  snapshot was taken; scrubbed outside it, it is a gap that says how
+                  far the recording reaches (the same run-aware sentence the trains
+                  use); live, it is loading, unreachable, or a count. */}
+              {shipsOn && (
+                !live ? (
+                  shipAt !== null ? (
+                    <p className="text-surface-600 dark:text-surface-300">
+                      {t('live.ships.recorded').replace('{time}', clockSeconds(shipAt))}
+                    </p>
+                  ) : (
+                    <p className="text-surface-600 dark:text-surface-300">
+                      {t('live.ships.no_record').replace(
+                        '{minutes}',
+                        String(Math.round(TRACK_WINDOW_MS / 60_000)),
+                      )}
+                      {(() => {
+                        const run = nearestRun(shipBufferRef.current, whenMs, SHIP_TRACK_TOLERANCE_MS);
+                        if (!run) return '';
+                        return (
+                          ' ' +
+                          t(run.runs > 1 ? 'live.ships.recorded_runs' : 'live.ships.recorded_range')
+                            .replace('{n}', String(run.runs))
+                            .replace('{from}', clockTime(run.from))
+                            .replace('{to}', clockTime(run.to))
+                        );
+                      })()}
+                    </p>
+                  )
+                ) : shipStatus === null ? (
+                  <p className="text-surface-600 dark:text-surface-300">{t('live.ships.loading')}</p>
+                ) : shipStatus.failed ? (
+                  <p className="text-amber-700 dark:text-amber-400">{t('live.ships.failed')}</p>
+                ) : (
+                  <p className="text-surface-600 dark:text-surface-300">
+                    {t('live.ships.count').replace('{n}', String(shipStatus.count))}
+                  </p>
+                )
+              )}
+
               {/* Same three cases again, and the third one matters most here:
                   an empty road map is a RESULT — "nothing is currently reported
                   anywhere in Finland" — and it has to be distinguishable from
@@ -4858,7 +5221,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
               {/* The markers are clickable and nothing else on screen says so —
                   they are canvas pixels, with no hover affordance beyond the
                   cursor. One line, and only while a clickable feed is on. */}
-              {(trainsOn || incidentsOn || observationsOn || airQualityOn || lightningOn) &&
+              {(trainsOn || shipsOn || incidentsOn || observationsOn || airQualityOn || lightningOn) &&
                 !shownSelection && (
                 <p className="pt-0.5 text-surface-500 dark:text-surface-400">
                   {t('live.detail.hint')}
@@ -4871,6 +5234,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
             <DetailPanel
               selection={shownSelection}
               when={when}
+              shipMeta={shipMetaRef.current}
               onClose={() => setSelection(null)}
               onTrack={onTrack}
             />

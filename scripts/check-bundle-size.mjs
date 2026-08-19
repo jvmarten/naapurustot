@@ -202,7 +202,18 @@ const ASSETS_DIR = 'dist/assets';
 // ~1.7 kB. Headroom is set to ~4.9 kB for exactly the reason the previous bump
 // gives: the registry still lists two unwired feeds this budget exists to hold,
 // and a hair's headroom fails the next branch for no reason of its own.
-const LIVE_BUDGET = 34_000;
+// → 40,000 B (2026-08-19: live vessel positions, the page's sixth measured feed
+// and its first at sea — Fintraffic's national AIS network read as ~1,000 hulls,
+// drawn as bow triangles pointed along each vessel's own course over ground,
+// with a recorded-history buffer for the time slider and a clickable per-vessel
+// panel joined to the ship register (name, type, destination, draught). The
+// snapshot ring that trains and ships now share was lifted into positionBuffer.ts.
+//
+// Measured 33,306 → 34,904 B, ~1.6 kB, the whole of it the ships feed. Headroom
+// restored to ~5.1 kB on the same principle as every bump above: the registry
+// still lists two unwired feeds this budget exists to hold, and a hair's headroom
+// fails the next branch for no reason of its own.
+const LIVE_BUDGET = 40_000;
 
 const fmtKB = (b) => (b / 1024).toFixed(2);
 
