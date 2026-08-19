@@ -19,6 +19,11 @@ export interface ApiUser {
   /** Trust level for future moderation features (0 = default). */
   trustLevel: number;
   createdAt: string;
+  /** Supporter (paid) tier. Server-derived from the Stripe subscription status —
+   *  the client never asserts it. Optional so older responses/mocks stay valid. */
+  supporter?: boolean;
+  /** ISO end of the current paid period, for display ("renews …"). Null when not a supporter. */
+  supporterUntil?: string | null;
 }
 
 interface ApiResponse<T> {
@@ -44,6 +49,10 @@ const SERVER_ERROR_KEYS: Record<string, string> = {
   'Current password is required': 'auth.error.password_required',
   'Incorrect password': 'auth.error.password_incorrect',
   'New password must be different from the current one': 'auth.error.password_unchanged',
+  'Billing not configured': 'supporter.error.unavailable',
+  'Could not start checkout': 'supporter.error.checkout_failed',
+  'Could not open billing portal': 'supporter.error.portal_failed',
+  'No subscription': 'supporter.error.no_subscription',
 };
 
 function localiseError(message: string): string {
@@ -212,4 +221,13 @@ export const api = {
       method: 'DELETE',
       body: JSON.stringify({ confirm: 'DELETE' }),
     }),
+
+  // Supporter subscription (Stripe). Both return a URL to redirect the browser to —
+  // Stripe-hosted Checkout for a new subscription, or the customer portal to manage an
+  // existing one. Card data and SCA never touch this static site.
+  startCheckout: () =>
+    request<{ url: string }>('/auth/billing/checkout', { method: 'POST', body: JSON.stringify({}) }),
+
+  openBillingPortal: () =>
+    request<{ url: string }>('/auth/billing/portal', { method: 'POST', body: JSON.stringify({}) }),
 };

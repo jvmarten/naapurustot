@@ -16,6 +16,7 @@ import {
   validateEmail,
   validatePassword,
 } from './passwordReset.js';
+import { billingRouter, cancelSubscriptionForUser, deriveSupporter } from './billing.js';
 
 /**
  * Auth + user-data router, mounted at /auth by index.ts. Covers signup/login/
@@ -71,6 +72,10 @@ function setTokenCookie(res: Response, token: string): void {
 }
 
 function formatUser(row: Record<string, unknown>) {
+  // `billing_status` / `billing_period_end` come from the LEFT JOIN in the routes
+  // that return a supporter-aware user (login, /me, credential changes); absent on a
+  // plain users row (e.g. a fresh signup), deriveSupporter yields a non-supporter.
+  const { supporter, supporterUntil } = deriveSupporter(row.billing_status, row.billing_period_end);
   return {
     id: row.id,
     username: row.username,
@@ -78,7 +83,22 @@ function formatUser(row: Record<string, unknown>) {
     displayName: row.display_name || null,
     trustLevel: row.trust_level,
     createdAt: row.created_at,
+    supporter,
+    supporterUntil,
   };
+}
+
+/** Fetch a user joined with billing state, shaped for formatUser. Used by the routes
+ *  that return the user object so `supporter` reflects the current subscription. */
+async function selectUserRow(userId: string): Promise<Record<string, unknown> | undefined> {
+  const result = await getPool().query(
+    `SELECT u.id, u.username, u.email, u.display_name, u.trust_level, u.created_at,
+            b.status AS billing_status, b.current_period_end AS billing_period_end
+       FROM users u LEFT JOIN user_billing b ON b.user_id = u.id
+      WHERE u.id = $1`,
+    [userId],
+  );
+  return result.rows[0];
 }
 
 // IN-5: per-user rate limiting. A request carrying a valid JWT gets a SECOND
@@ -152,6 +172,12 @@ function perUserLimited(req: Request, res: Response, next: NextFunction): void {
 }
 
 router.use(resolveUser, perUserLimited);
+
+// Supporter subscription (Stripe). Mounted here so the checkout/portal endpoints run
+// behind resolveUser (which sets req.userId), the per-user limiter, and the
+// same-origin CSRF guard that app.ts applies to /auth. The Stripe webhook is NOT here
+// — it is a raw-body route registered in app.ts, since Stripe sends no allowed Origin.
+router.use('/billing', billingRouter);
 
 // Signup: 3 per IP per day
 router.post('/signup', rateLimit(3, 24 * 60 * 60 * 1000, 'signup'), async (req: Request, res: Response): Promise<void> => {
@@ -260,7 +286,10 @@ router.post('/login', rateLimit(10, 15 * 60 * 1000, 'login'), async (req: Reques
   }
 
   const result = await getPool().query(
-    'SELECT id, username, email, password, display_name, trust_level, created_at, token_version FROM users WHERE username = $1',
+    `SELECT u.id, u.username, u.email, u.password, u.display_name, u.trust_level, u.created_at, u.token_version,
+            b.status AS billing_status, b.current_period_end AS billing_period_end
+       FROM users u LEFT JOIN user_billing b ON b.user_id = u.id
+      WHERE u.username = $1`,
     [username.toLowerCase()]
   );
 
@@ -501,7 +530,9 @@ router.patch('/email', credentialLimiter, async (req: Request, res: Response): P
        RETURNING id, username, email, display_name, trust_level, created_at`,
       [clearing ? null : normalizeEmail(email as string), userId]
     );
-    res.json({ user: formatUser(result.rows[0]) });
+    // Re-select with the billing join so the returned user keeps its supporter flag —
+    // the client adopts this object, and a bare RETURNING would blank the badge.
+    res.json({ user: formatUser((await selectUserRow(userId)) ?? result.rows[0]) });
   } catch (err: unknown) {
     // The email UNIQUE constraint is the real guarantee (a concurrent PATCH could
     // otherwise slip between a check and this write).
@@ -587,7 +618,8 @@ router.patch('/password', credentialLimiter, async (req: Request, res: Response)
   // Re-issue against the NEW generation — see the note above.
   const user = updated.rows[0];
   setTokenCookie(res, signSessionToken(user.id, user.token_version));
-  res.json({ user: formatUser(user) });
+  // Re-select with the billing join so the returned user keeps its supporter flag.
+  res.json({ user: formatUser((await selectUserRow(userId)) ?? user) });
 });
 
 // ── IN-4: request-hardening helpers (wired into index.ts; pure + testable) ──
@@ -638,6 +670,10 @@ export function buildExportPayload(parts: {
   shortlist: string[] | undefined;
   notes: Record<string, string> | undefined;
   preferences: { filterPresets?: unknown; qualityWeights?: unknown; wizardProfile?: unknown } | undefined;
+  // The account's own copy of its supporter-subscription state (null when never a
+  // supporter). Stripe holds the invoices themselves and retains them for the legally
+  // required period; this is the subscription status we store alongside the account.
+  billing?: Record<string, unknown> | null;
 }) {
   const u = parts.user;
   return {
@@ -659,6 +695,7 @@ export function buildExportPayload(parts: {
     filterPresets: parts.preferences?.filterPresets ?? [],
     qualityWeights: parts.preferences?.qualityWeights ?? {},
     wizardProfile: parts.preferences?.wizardProfile ?? {},
+    billing: parts.billing ?? null,
   };
 }
 
@@ -686,6 +723,7 @@ router.get('/export', async (req: Request, res: Response): Promise<void> => {
       client.query('SELECT shortlist FROM user_shortlist WHERE user_id = $1', [userId]),
       client.query('SELECT notes FROM user_notes WHERE user_id = $1', [userId]),
       client.query('SELECT filter_presets, quality_weights, wizard_profile FROM user_preferences WHERE user_id = $1', [userId]),
+      client.query('SELECT provider, plan, status, current_period_end, stripe_customer_id, updated_at FROM user_billing WHERE user_id = $1', [userId]),
     ]);
     await client.query('COMMIT');
   } catch (err) {
@@ -694,7 +732,7 @@ router.get('/export', async (req: Request, res: Response): Promise<void> => {
   } finally {
     client.release();
   }
-  const [user, favorites, shortlist, notes, preferences] = rows;
+  const [user, favorites, shortlist, notes, preferences, billing] = rows;
 
   if (user.rows.length === 0) {
     res.clearCookie('token', CLEAR_COOKIE_OPTS);
@@ -714,6 +752,16 @@ router.get('/export', async (req: Request, res: Response): Promise<void> => {
           wizardProfile: preferences.rows[0].wizard_profile,
         }
       : undefined,
+    billing: billing.rows[0]
+      ? {
+          provider: billing.rows[0].provider,
+          plan: billing.rows[0].plan,
+          status: billing.rows[0].status,
+          currentPeriodEnd: billing.rows[0].current_period_end,
+          stripeCustomerId: billing.rows[0].stripe_customer_id,
+          updatedAt: billing.rows[0].updated_at,
+        }
+      : null,
   });
 
   res.setHeader('Content-Disposition', 'attachment; filename="naapurustot-data.json"');
@@ -734,6 +782,11 @@ router.delete('/account', async (req: Request, res: Response): Promise<void> => 
     res.status(400).json({ error: confirmation.error });
     return;
   }
+
+  // Cancel any live subscription at Stripe FIRST, so a deleted account stops being
+  // billed — the CASCADE below would otherwise drop our record while Stripe kept
+  // charging. Best-effort (no-op when billing is unconfigured or the user never paid).
+  await cancelSubscriptionForUser(userId);
 
   // Deleting the users row cascades to all user_* tables via ON DELETE CASCADE.
   const result = await getPool().query('DELETE FROM users WHERE id = $1', [userId]);
@@ -758,18 +811,15 @@ router.get('/me', async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  const result = await getPool().query(
-    'SELECT id, username, email, display_name, trust_level, created_at FROM users WHERE id = $1',
-    [userId]
-  );
+  const row = await selectUserRow(userId);
 
-  if (result.rows.length === 0) {
+  if (!row) {
     res.clearCookie('token', { httpOnly: true, secure: true, sameSite: 'none', path: '/' });
     res.status(401).json({ error: 'User not found' });
     return;
   }
 
-  res.json({ user: formatUser(result.rows[0]) });
+  res.json({ user: formatUser(row) });
 });
 
 // ── Favorites sync ──

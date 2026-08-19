@@ -50,6 +50,9 @@ Internet
 | `PUT` | `/auth/notes` | Yes | — | Replace notes, keyed by 5-digit postal code (max 500 notes × 5000 chars) |
 | `GET` | `/auth/preferences` | Yes | — | Get filter presets + quality weights |
 | `PUT` | `/auth/preferences` | Yes | — | Update filter presets and/or quality weights (partial update — omitted field keeps its value) |
+| `POST` | `/auth/billing/checkout` | Yes | per-user | Create a Stripe Checkout Session for the supporter subscription; returns `{url}` to redirect the browser to. `503` when billing is unconfigured |
+| `POST` | `/auth/billing/portal` | Yes | per-user | Create a Stripe customer-portal session (manage / cancel / update card); returns `{url}`. `400` if the user has never subscribed |
+| `POST` | `/billing/webhook` | Stripe signature | — | Stripe webhook (raw body, signature-verified). **Not** under `/auth` — Stripe sends no browser Origin, so it must bypass the same-origin CSRF guard; the Stripe signature authenticates it instead |
 
 "Auth: Yes" means the request must carry the httpOnly JWT cookie set by login/signup.
 
@@ -135,6 +138,54 @@ docker compose exec -T db psql -U naapurustot_api -d naapurustot \
   -c "SELECT count(*) total, count(email) with_email FROM users;"
 ```
 
+### Supporter subscription (Stripe)
+
+An **optional** paid "supporter" tier. Like the rest of this server it is off unless
+configured: with `STRIPE_SECRET_KEY` / `STRIPE_PRICE_ID` unset the checkout and portal
+routes answer `503`, the webhook answers `503`, and the free app is untouched. A
+supporter subscription funds the project and grants a badge — it does **not** gate the
+map, its data, or any existing feature.
+
+**Entitlement is server-derived, never client-asserted.** The `user_billing` table
+(one row per paying user, added via the `db.ts` forward-only migration runner) is
+written by **exactly one** thing — the Stripe webhook. `GET /auth/me` (and login, and
+the credential-change routes) `LEFT JOIN` it and derive `supporter = status ∈ {active,
+trialing}`; the client only ever reads that boolean. Keying on Stripe's status rather
+than on a clock means a paying supporter is never falsely revoked in the window around
+a renewal.
+
+**The webhook is a raw-body route, outside `/auth`.** Signature verification needs the
+exact request bytes, so `POST /billing/webhook` is registered with `express.raw` *before*
+the JSON body parser, and outside `/auth` so the same-origin CSRF guard (which would 403
+a request carrying no browser Origin) doesn't apply — the Stripe signature is what
+authenticates it. Deliveries are idempotent: each event id is recorded in `stripe_events`
+and re-deliveries are skipped, and the underlying writes are upserts, so a missed dedup
+still converges to Stripe's truth.
+
+**Account deletion cancels the subscription first.** `DELETE /auth/account` cancels any
+live Stripe subscription before the `ON DELETE CASCADE` drops the `user_billing` row, so
+a deleted account stops being billed. Stripe retains the invoices themselves for the
+legally required period, so nothing tax-relevant is lost; the GDPR export
+(`GET /auth/export`) includes the account's own copy of its subscription status.
+
+**EU VAT.** A €-priced subscription to EU consumers is taxed in the buyer's country and
+reported quarterly via One-Stop-Shop (register through vero.fi). Set
+`STRIPE_TAX_ENABLED=true` once registered and a Tax origin address is configured in
+Stripe; until then leave it unset (enabling Tax without that setup makes Checkout fail).
+
+**Stripe dashboard setup** (one-time):
+
+1. Create a **Product** with a recurring **Price** (e.g. €9.99/month); copy its
+   `price_…` id into `STRIPE_PRICE_ID`.
+2. Add a **webhook endpoint** at `https://api.naapurustot.fi/billing/webhook` subscribed
+   to `checkout.session.completed`, `customer.subscription.created`,
+   `customer.subscription.updated`, and `customer.subscription.deleted`; copy its signing
+   secret (`whsec_…`) into `STRIPE_WEBHOOK_SECRET`.
+3. Enable the **customer portal** (Billing → Customer portal) so `/auth/billing/portal`
+   can hand users a cancel/update-card page.
+4. Put the secret key into `STRIPE_SECRET_KEY`. Use test-mode keys + the Stripe CLI
+   (`stripe listen --forward-to localhost:3001/billing/webhook`) to exercise it locally.
+
 ## Prerequisites
 
 - Ubuntu 24.04 droplet with Docker installed
@@ -182,7 +233,11 @@ docker compose logs -f
 | `TURNSTILE_ALLOWED_HOSTNAMES` | Optional — comma-separated hostnames a Turnstile token must have been solved on (e.g. `naapurustot.fi,www.naapurustot.fi`); empty disables the check |
 | `RESEND_API_KEY` | Optional — Resend "Sending access" key for password-reset mail; empty disables sending (the endpoint still answers 200). **Not** the `gmail-smtp` key — that one is Gmail's "Send mail as" SMTP password for info@naapurustot.fi |
 | `MAIL_FROM` | From address for reset mail (default `noreply@naapurustot.fi`); must be on a Resend-verified domain |
-| `APP_BASE_URL` | Origin used to build reset links (default `https://naapurustot.fi`); must match the deployed frontend |
+| `APP_BASE_URL` | Origin used to build reset links **and** the Stripe Checkout success/cancel + customer-portal return URLs (default `https://naapurustot.fi`); must match the deployed frontend |
+| `STRIPE_SECRET_KEY` | Optional — Stripe secret key (`sk_...`). Empty disables the supporter tier entirely: checkout/portal answer `503`, the webhook answers `503`, and every other endpoint is unaffected |
+| `STRIPE_PRICE_ID` | Stripe recurring Price id for the supporter plan (`price_...`). Required alongside `STRIPE_SECRET_KEY` — the entitlement price is set in Stripe, never hard-coded in the app |
+| `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret (`whsec_...`) for verifying `/billing/webhook` deliveries. Without it the webhook answers `503` |
+| `STRIPE_TAX_ENABLED` | Optional — set to `true` to enable Stripe Tax (EU VAT via One-Stop-Shop) on Checkout. Leave unset until registered for OSS through vero.fi and a Tax origin address is configured in Stripe, or Checkout creation fails |
 | `SENTRY_DSN` | Optional — Sentry error tracking for the API; empty disables Sentry entirely |
 | `SENTRY_RELEASE` | Optional — release identifier attached to Sentry events |
 | `BACKUP_RETENTION_DAYS` | Optional — days of pg_dumps to keep in `./backups/` (default: 14) |
