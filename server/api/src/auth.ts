@@ -75,7 +75,14 @@ function formatUser(row: Record<string, unknown>) {
   // `billing_status` / `billing_period_end` come from the LEFT JOIN in the routes
   // that return a supporter-aware user (login, /me, credential changes); absent on a
   // plain users row (e.g. a fresh signup), deriveSupporter yields a non-supporter.
-  const { supporter, supporterUntil } = deriveSupporter(row.billing_status, row.billing_period_end);
+  // `comp_supporter` is the manual grant carried on the users row — a missing column
+  // (e.g. the signup RETURNING) reads as undefined and thus non-comp.
+  const { supporter, supporterUntil } = deriveSupporter(
+    row.billing_status,
+    row.billing_period_end,
+    Date.now(),
+    row.comp_supporter === true,
+  );
   return {
     id: row.id,
     username: row.username,
@@ -92,7 +99,7 @@ function formatUser(row: Record<string, unknown>) {
  *  that return the user object so `supporter` reflects the current subscription. */
 async function selectUserRow(userId: string): Promise<Record<string, unknown> | undefined> {
   const result = await getPool().query(
-    `SELECT u.id, u.username, u.email, u.display_name, u.trust_level, u.created_at,
+    `SELECT u.id, u.username, u.email, u.display_name, u.trust_level, u.created_at, u.comp_supporter,
             b.status AS billing_status, b.current_period_end AS billing_period_end
        FROM users u LEFT JOIN user_billing b ON b.user_id = u.id
       WHERE u.id = $1`,
@@ -286,7 +293,7 @@ router.post('/login', rateLimit(10, 15 * 60 * 1000, 'login'), async (req: Reques
   }
 
   const result = await getPool().query(
-    `SELECT u.id, u.username, u.email, u.password, u.display_name, u.trust_level, u.created_at, u.token_version,
+    `SELECT u.id, u.username, u.email, u.password, u.display_name, u.trust_level, u.created_at, u.token_version, u.comp_supporter,
             b.status AS billing_status, b.current_period_end AS billing_period_end
        FROM users u LEFT JOIN user_billing b ON b.user_id = u.id
       WHERE u.username = $1`,
@@ -687,6 +694,8 @@ export function buildExportPayload(parts: {
           trustLevel: u.trust_level,
           createdAt: u.created_at,
           updatedAt: u.updated_at,
+          // Manual PRO grant, if any (a plain non-comped account exports false).
+          compSupporter: u.comp_supporter ?? false,
         }
       : null,
     favorites: parts.favorites ?? [],
@@ -716,7 +725,7 @@ router.get('/export', async (req: Request, res: Response): Promise<void> => {
     await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ');
     rows = await Promise.all([
       client.query(
-        'SELECT id, username, email, display_name, trust_level, created_at, updated_at FROM users WHERE id = $1',
+        'SELECT id, username, email, display_name, trust_level, created_at, updated_at, comp_supporter FROM users WHERE id = $1',
         [userId]
       ),
       client.query('SELECT favorites FROM user_favorites WHERE user_id = $1', [userId]),

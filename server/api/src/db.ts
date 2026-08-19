@@ -32,6 +32,16 @@ export function setPool(p: pg.Pool): void {
   poolInstance = p;
 }
 
+/** Close the pool if one was ever created (else a no-op). Lets short-lived processes
+ *  (the comp CLI) exit cleanly without getPool() lazily creating a pool just to end it. */
+export async function closePool(): Promise<void> {
+  if (poolInstance) {
+    const p = poolInstance;
+    poolInstance = null;
+    await p.end();
+  }
+}
+
 // IN-5: an arbitrary fixed key identifying the migration-runner advisory lock. Any
 // process that starts up serializes on this key, so a crash-loop relaunch or a
 // future second replica can't run runMigrations concurrently.
@@ -96,6 +106,18 @@ const MIGRATIONS: { id: string; sql: string }[] = [
   {
     id: '006_user_billing_subscription_idx',
     sql: `CREATE INDEX IF NOT EXISTS idx_user_billing_subscription ON user_billing (stripe_subscription_id)`,
+  },
+  {
+    // Manual "comp" PRO grant, set ONLY server-side by the grant-pro/revoke-pro CLI
+    // (comp.ts) — never client-asserted, so the "a client cannot mint its own PRO"
+    // invariant holds. The entitlement layer (auth.ts formatUser → deriveSupporter)
+    // ORs this with the Stripe-derived flag, so a comped account shows PRO with no
+    // subscription. It lives on the users row, NOT user_billing — the webhook upserts
+    // user_billing and would clobber a grant kept there; on the users row Stripe events
+    // never touch it. Single statement + IF NOT EXISTS so pg-mem and a re-run apply it
+    // identically to Postgres.
+    id: '007_users_comp_supporter',
+    sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS comp_supporter BOOLEAN NOT NULL DEFAULT FALSE`,
   },
 ];
 
