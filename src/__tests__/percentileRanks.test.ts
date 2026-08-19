@@ -5,6 +5,7 @@ import {
   percentileRankSorted,
   percentileRank,
   topPercentileFromRank,
+  standingFromTop,
   metricPercentile,
   computeNeighbourhoodPercentiles,
   PERCENTILE_METRICS,
@@ -122,6 +123,23 @@ describe('percentileRanks — topPercentileFromRank', () => {
   });
   it('returns null for a null rank', () => {
     expect(topPercentileFromRank(null, true)).toBeNull();
+  });
+});
+
+describe('percentileRanks — standingFromTop (M3 direction-aware)', () => {
+  it('reports a favourable "top X%" for the good half', () => {
+    expect(standingFromTop(3)).toEqual({ favourable: true, pct: 3 });
+    expect(standingFromTop(50)).toEqual({ favourable: true, pct: 50 }); // boundary stays favourable
+  });
+  it('flips a >50 top% into an honest "bottom Y%" (Y = 100 - top)', () => {
+    // The worst-crime area used to render "top 100% for safety"; now bottom 1%.
+    expect(standingFromTop(100)).toEqual({ favourable: false, pct: 1 }); // floored, never "bottom 0%"
+    expect(standingFromTop(95)).toEqual({ favourable: false, pct: 5 });
+    expect(standingFromTop(51)).toEqual({ favourable: false, pct: 49 });
+  });
+  it('returns null for null/undefined', () => {
+    expect(standingFromTop(null)).toBeNull();
+    expect(standingFromTop(undefined)).toBeNull();
   });
 });
 

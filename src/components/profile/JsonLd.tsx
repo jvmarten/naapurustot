@@ -3,6 +3,7 @@ import type { NeighborhoodProperties } from '../../utils/metrics';
 import { t, type Lang } from '../../utils/i18n';
 import {
   computeNeighbourhoodPercentiles,
+  standingFromTop,
   type HasProperties,
   type NeighbourhoodPercentiles,
 } from '../../utils/percentileRanks';
@@ -34,6 +35,55 @@ interface JsonLdProps {
   percentiles?: NeighbourhoodPercentiles | null;
 }
 
+/**
+ * M3: direction-aware standing clauses, mirroring STANDING in scripts/prerender.mjs
+ * so the hydrated FAQPage matches the prerendered one to the character. `top`/`regTop`
+ * are the favourable-end percentile (1-100); when either exceeds 50 the area is really
+ * in the worse half, so `standingFromTop` flips the phrasing to the honest
+ * "weakest/bottom Y%" rather than a false "best X%".
+ */
+const STANDING = {
+  fi: {
+    nat: (top: number): string => {
+      const s = standingFromTop(top)!;
+      return s.favourable ? `koko maan parhaaseen ${s.pct} %:iin` : `koko maan heikoimpaan ${s.pct} %:iin`;
+    },
+    reg: (regTop: number | null, region: string): string => {
+      const s = standingFromTop(regTop);
+      if (!s || !region) return '';
+      return s.favourable
+        ? ` ja seutukunnan ${region} parhaaseen ${s.pct} %:iin`
+        : ` ja seutukunnan ${region} heikoimpaan ${s.pct} %:iin`;
+    },
+  },
+  en: {
+    nat: (top: number): string => {
+      const s = standingFromTop(top)!;
+      return s.favourable ? `the top ${s.pct}% nationally` : `the bottom ${s.pct}% nationally`;
+    },
+    reg: (regTop: number | null, region: string): string => {
+      const s = standingFromTop(regTop);
+      if (!s || !region) return '';
+      return s.favourable
+        ? ` and in the top ${s.pct}% within the ${region} sub-region`
+        : ` and in the bottom ${s.pct}% within the ${region} sub-region`;
+    },
+  },
+  sv: {
+    nat: (top: number): string => {
+      const s = standingFromTop(top)!;
+      return s.favourable ? `de bästa ${s.pct} % i landet` : `de sämsta ${s.pct} % i landet`;
+    },
+    reg: (regTop: number | null, region: string): string => {
+      const s = standingFromTop(regTop);
+      if (!s || !region) return '';
+      return s.favourable
+        ? ` och till de bästa ${s.pct} % i regionen ${region}`
+        : ` och till de sämsta ${s.pct} % i regionen ${region}`;
+    },
+  },
+} satisfies Record<Lang, { nat: (t: number) => string; reg: (r: number | null, region: string) => string }>;
+
 /** Localized FAQ/percentile copy, mirroring TEXT in scripts/prerender.mjs. */
 const FAQ_TEXT: Record<Lang, {
   faqPopQ: (n: string) => string;
@@ -64,36 +114,28 @@ const FAQ_TEXT: Record<Lang, {
     faqIncA: (n, v) => `Mediaanitulo alueella ${n} on noin ${v} € vuodessa.`,
     faqRankQ: (n) => `Miten ${n} sijoittuu laatuindeksissä?`,
     faqRankA: (n, top, regTop, region) =>
-      `${n} kuuluu laatuindeksissä koko maan parhaaseen ${top} %:iin` +
-      `${regTop != null && region ? ` ja seutukunnan ${region} parhaaseen ${regTop} %:iin` : ''}.`,
+      `${n} kuuluu laatuindeksissä ${STANDING.fi.nat(top)}${STANDING.fi.reg(regTop, region)}.`,
     faqIncRankQ: (n) => `Kuinka korkeat tulot alueella ${n} on?`,
     faqIncRankA: (n, top, regTop, region) =>
-      `${n} kuuluu mediaanituloltaan koko maan parhaaseen ${top} %:iin` +
-      `${regTop != null && region ? ` ja seutukunnan ${region} parhaaseen ${regTop} %:iin` : ''}.`,
+      `${n} kuuluu mediaanituloltaan ${STANDING.fi.nat(top)}${STANDING.fi.reg(regTop, region)}.`,
     faqTransitRankQ: (n) => `Miten hyvin ${n} on joukkoliikenteen saavutettavissa?`,
     faqTransitRankA: (n, top, regTop, region) =>
-      `${n} kuuluu joukkoliikenteen saavutettavuudessa koko maan parhaaseen ${top} %:iin` +
-      `${regTop != null && region ? ` ja seutukunnan ${region} parhaaseen ${regTop} %:iin` : ''}.`,
+      `${n} kuuluu joukkoliikenteen saavutettavuudessa ${STANDING.fi.nat(top)}${STANDING.fi.reg(regTop, region)}.`,
     faqCrimeRankQ: (n) => `Kuinka turvallinen ${n} on?`,
     faqCrimeRankA: (n, top, regTop, region) =>
-      `${n} kuuluu turvallisuudessa koko maan parhaaseen ${top} %:iin` +
-      `${regTop != null && region ? ` ja seutukunnan ${region} parhaaseen ${regTop} %:iin` : ''}.`,
+      `${n} kuuluu turvallisuudessa ${STANDING.fi.nat(top)}${STANDING.fi.reg(regTop, region)}.`,
     faqAirRankQ: (n) => `Millainen ilmanlaatu alueella ${n} on?`,
     faqAirRankA: (n, top, regTop, region) =>
-      `${n} kuuluu ilmanlaadultaan koko maan parhaaseen ${top} %:iin` +
-      `${regTop != null && region ? ` ja seutukunnan ${region} parhaaseen ${regTop} %:iin` : ''}.`,
+      `${n} kuuluu ilmanlaadultaan ${STANDING.fi.nat(top)}${STANDING.fi.reg(regTop, region)}.`,
     faqTreeRankQ: (n) => `Kuinka vehreä ${n} on?`,
     faqTreeRankA: (n, top, regTop, region) =>
-      `${n} kuuluu puuston latvuspeitossa koko maan parhaaseen ${top} %:iin` +
-      `${regTop != null && region ? ` ja seutukunnan ${region} parhaaseen ${regTop} %:iin` : ''}.`,
+      `${n} kuuluu puuston latvuspeitossa ${STANDING.fi.nat(top)}${STANDING.fi.reg(regTop, region)}.`,
     faqEduRankQ: (n) => `Kuinka korkeasti koulutettuja ${n} asukkaat ovat?`,
     faqEduRankA: (n, top, regTop, region) =>
-      `${n} kuuluu korkeakoulutusasteessa koko maan parhaaseen ${top} %:iin` +
-      `${regTop != null && region ? ` ja seutukunnan ${region} parhaaseen ${regTop} %:iin` : ''}.`,
+      `${n} kuuluu korkeakoulutusasteessa ${STANDING.fi.nat(top)}${STANDING.fi.reg(regTop, region)}.`,
     faqEmpRankQ: (n) => `Kuinka korkea työllisyysaste alueella ${n} on?`,
     faqEmpRankA: (n, top, regTop, region) =>
-      `${n} kuuluu työllisyysasteessa koko maan parhaaseen ${top} %:iin` +
-      `${regTop != null && region ? ` ja seutukunnan ${region} parhaaseen ${regTop} %:iin` : ''}.`,
+      `${n} kuuluu työllisyysasteessa ${STANDING.fi.nat(top)}${STANDING.fi.reg(regTop, region)}.`,
   },
   en: {
     faqPopQ: (n) => `What is the population of ${n}?`,
@@ -102,36 +144,28 @@ const FAQ_TEXT: Record<Lang, {
     faqIncA: (n, v) => `The median income in ${n} is about €${v} per year.`,
     faqRankQ: (n) => `How does ${n} rank for quality of life?`,
     faqRankA: (n, top, regTop, region) =>
-      `${n} ranks in the top ${top}% nationally for quality of life` +
-      `${regTop != null && region ? ` and in the top ${regTop}% within the ${region} sub-region` : ''}.`,
+      `${n} ranks in ${STANDING.en.nat(top)} for quality of life${STANDING.en.reg(regTop, region)}.`,
     faqIncRankQ: (n) => `How high are incomes in ${n}?`,
     faqIncRankA: (n, top, regTop, region) =>
-      `${n} ranks in the top ${top}% nationally for median income` +
-      `${regTop != null && region ? ` and in the top ${regTop}% within the ${region} sub-region` : ''}.`,
+      `${n} ranks in ${STANDING.en.nat(top)} for median income${STANDING.en.reg(regTop, region)}.`,
     faqTransitRankQ: (n) => `How well is ${n} served by public transport?`,
     faqTransitRankA: (n, top, regTop, region) =>
-      `${n} ranks in the top ${top}% nationally for public-transport access` +
-      `${regTop != null && region ? ` and in the top ${regTop}% within the ${region} sub-region` : ''}.`,
+      `${n} ranks in ${STANDING.en.nat(top)} for public-transport access${STANDING.en.reg(regTop, region)}.`,
     faqCrimeRankQ: (n) => `How safe is ${n}?`,
     faqCrimeRankA: (n, top, regTop, region) =>
-      `${n} ranks in the top ${top}% nationally for safety` +
-      `${regTop != null && region ? ` and in the top ${regTop}% within the ${region} sub-region` : ''}.`,
+      `${n} ranks in ${STANDING.en.nat(top)} for safety${STANDING.en.reg(regTop, region)}.`,
     faqAirRankQ: (n) => `What is the air quality in ${n}?`,
     faqAirRankA: (n, top, regTop, region) =>
-      `${n} ranks in the top ${top}% nationally for air quality` +
-      `${regTop != null && region ? ` and in the top ${regTop}% within the ${region} sub-region` : ''}.`,
+      `${n} ranks in ${STANDING.en.nat(top)} for air quality${STANDING.en.reg(regTop, region)}.`,
     faqTreeRankQ: (n) => `How green is ${n}?`,
     faqTreeRankA: (n, top, regTop, region) =>
-      `${n} ranks in the top ${top}% nationally for tree canopy cover` +
-      `${regTop != null && region ? ` and in the top ${regTop}% within the ${region} sub-region` : ''}.`,
+      `${n} ranks in ${STANDING.en.nat(top)} for tree canopy cover${STANDING.en.reg(regTop, region)}.`,
     faqEduRankQ: (n) => `How highly educated are residents of ${n}?`,
     faqEduRankA: (n, top, regTop, region) =>
-      `${n} ranks in the top ${top}% nationally for higher education` +
-      `${regTop != null && region ? ` and in the top ${regTop}% within the ${region} sub-region` : ''}.`,
+      `${n} ranks in ${STANDING.en.nat(top)} for higher education${STANDING.en.reg(regTop, region)}.`,
     faqEmpRankQ: (n) => `How high is the employment rate in ${n}?`,
     faqEmpRankA: (n, top, regTop, region) =>
-      `${n} ranks in the top ${top}% nationally for employment rate` +
-      `${regTop != null && region ? ` and in the top ${regTop}% within the ${region} sub-region` : ''}.`,
+      `${n} ranks in ${STANDING.en.nat(top)} for employment rate${STANDING.en.reg(regTop, region)}.`,
   },
   sv: {
     faqPopQ: (n) => `Vad är folkmängden i ${n}?`,
@@ -140,36 +174,28 @@ const FAQ_TEXT: Record<Lang, {
     faqIncA: (n, v) => `Medianinkomsten i ${n} är cirka ${v} € per år.`,
     faqRankQ: (n) => `Hur placerar sig ${n} i kvalitetsindexet?`,
     faqRankA: (n, top, regTop, region) =>
-      `${n} hör till de bästa ${top} % i landet i kvalitetsindexet` +
-      `${regTop != null && region ? ` och till de bästa ${regTop} % i regionen ${region}` : ''}.`,
+      `${n} hör till ${STANDING.sv.nat(top)} i kvalitetsindexet${STANDING.sv.reg(regTop, region)}.`,
     faqIncRankQ: (n) => `Hur höga är inkomsterna i ${n}?`,
     faqIncRankA: (n, top, regTop, region) =>
-      `${n} hör till de bästa ${top} % i landet i medianinkomst` +
-      `${regTop != null && region ? ` och till de bästa ${regTop} % i regionen ${region}` : ''}.`,
+      `${n} hör till ${STANDING.sv.nat(top)} i medianinkomst${STANDING.sv.reg(regTop, region)}.`,
     faqTransitRankQ: (n) => `Hur väl betjänas ${n} av kollektivtrafik?`,
     faqTransitRankA: (n, top, regTop, region) =>
-      `${n} hör till de bästa ${top} % i landet i kollektivtrafikens tillgänglighet` +
-      `${regTop != null && region ? ` och till de bästa ${regTop} % i regionen ${region}` : ''}.`,
+      `${n} hör till ${STANDING.sv.nat(top)} i kollektivtrafikens tillgänglighet${STANDING.sv.reg(regTop, region)}.`,
     faqCrimeRankQ: (n) => `Hur säkert är ${n}?`,
     faqCrimeRankA: (n, top, regTop, region) =>
-      `${n} hör till de bästa ${top} % i landet i säkerhet` +
-      `${regTop != null && region ? ` och till de bästa ${regTop} % i regionen ${region}` : ''}.`,
+      `${n} hör till ${STANDING.sv.nat(top)} i säkerhet${STANDING.sv.reg(regTop, region)}.`,
     faqAirRankQ: (n) => `Hur är luftkvaliteten i ${n}?`,
     faqAirRankA: (n, top, regTop, region) =>
-      `${n} hör till de bästa ${top} % i landet i luftkvalitet` +
-      `${regTop != null && region ? ` och till de bästa ${regTop} % i regionen ${region}` : ''}.`,
+      `${n} hör till ${STANDING.sv.nat(top)} i luftkvalitet${STANDING.sv.reg(regTop, region)}.`,
     faqTreeRankQ: (n) => `Hur grönt är ${n}?`,
     faqTreeRankA: (n, top, regTop, region) =>
-      `${n} hör till de bästa ${top} % i landet i krontäckning` +
-      `${regTop != null && region ? ` och till de bästa ${regTop} % i regionen ${region}` : ''}.`,
+      `${n} hör till ${STANDING.sv.nat(top)} i krontäckning${STANDING.sv.reg(regTop, region)}.`,
     faqEduRankQ: (n) => `Hur högutbildade är invånarna i ${n}?`,
     faqEduRankA: (n, top, regTop, region) =>
-      `${n} hör till de bästa ${top} % i landet i högre utbildning` +
-      `${regTop != null && region ? ` och till de bästa ${regTop} % i regionen ${region}` : ''}.`,
+      `${n} hör till ${STANDING.sv.nat(top)} i högre utbildning${STANDING.sv.reg(regTop, region)}.`,
     faqEmpRankQ: (n) => `Hur hög är sysselsättningsgraden i ${n}?`,
     faqEmpRankA: (n, top, regTop, region) =>
-      `${n} hör till de bästa ${top} % i landet i sysselsättningsgrad` +
-      `${regTop != null && region ? ` och till de bästa ${regTop} % i regionen ${region}` : ''}.`,
+      `${n} hör till ${STANDING.sv.nat(top)} i sysselsättningsgrad${STANDING.sv.reg(regTop, region)}.`,
   },
 };
 
