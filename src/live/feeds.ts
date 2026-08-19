@@ -224,6 +224,24 @@ export const FEED_GROUPS: FeedGroup[] = [
       // times at the publisher's own control points, interpolated between them,
       // drawn as diamonds rather than dots and never where a fix exists.
       { id: 'trains', labelKey: 'live.feed.trains', status: 'live', coverage: 'national', time: 'schedule', defaultOn: true },
+      // The transport group's third face, and the first at sea: every vessel on
+      // Finnish waters, from Fintraffic's AIS network (ships.ts). Same publisher,
+      // same open licence and same client-identification header as the trains.
+      //
+      // 'national' without a caveat the trains do not also carry — AIS coverage is
+      // the shore-station network's, which blankets the Baltic rather than
+      // thinning at city edges the way a building model does.
+      //
+      // 'recorded', which is the honest ceiling of what Digitraffic serves: the
+      // latest fix per vessel and no national past. A scrub inside the session's
+      // own window replays the snapshots it watched; outside it the sea goes dark
+      // and the readout says so, because there is no vessel timetable to stand in
+      // the way the trains' does.
+      //
+      // OFF BY DEFAULT, a cost decision like the radar's and lightning's: a
+      // national position set is ~40 kB and the register another ~44 kB, real
+      // money to spend on a visitor who came for the shadows.
+      { id: 'ships', labelKey: 'live.feed.ships', status: 'live', coverage: 'national', time: 'recorded', defaultOn: false },
       // National, and cheap enough to poll: the whole active set is 8 features
       // and 3.4 kB. Roadworks from the same endpoint are 585 features and
       // 1.28 MB, which is why this feed is announcements only — see incidents.ts.

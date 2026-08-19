@@ -59,7 +59,7 @@ describe('recorded train history', () => {
     recordSnapshot(buf, t0, [train(1, t0)]);
     recordSnapshot(buf, t0 + TRACK_WINDOW_MS + 60_000, [train(2, t0)]);
     expect(buf).toHaveLength(1);
-    expect(buf[0].trains[0].number).toBe(2);
+    expect(buf[0].items[0].number).toBe(2);
   });
 
   it('resets when the clock goes backwards', () => {
@@ -513,7 +513,7 @@ describe('the selected train, resolved for the clock', () => {
     const at = trainRecordAt(selected, {
       live: false,
       current: [],
-      snapshot: { trains: [other, later] },
+      snapshot: { items: [other, later] },
       scheduled: [planned],
     });
     expect(at?.at).toBe(later.at);
@@ -539,7 +539,7 @@ describe('the selected train, resolved for the clock', () => {
       trainRecordAt(selected, {
         live: false,
         current: [later],
-        snapshot: { trains: [other] },
+        snapshot: { items: [other] },
         scheduled: [other],
       }),
       'the live poll must not leak into a scrubbed answer',
@@ -551,7 +551,7 @@ describe('the selected train, resolved for the clock', () => {
     const at = trainRecordAt(selected, {
       live: false,
       current: [],
-      snapshot: { trains: [yesterday] },
+      snapshot: { items: [yesterday] },
       scheduled: [],
     });
     expect(at).toBeNull();

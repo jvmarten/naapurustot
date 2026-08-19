@@ -8,6 +8,14 @@ import type { Strike } from './lightning';
 import type { Train } from './trains';
 import type { ScheduledTrain } from './trainSchedule';
 import {
+  shipCategoryKey,
+  navStatusKey,
+  isMakingWay,
+  type Ship,
+  type VesselMeta,
+  type VesselMetaMap,
+} from './ships';
+import {
   fetchTrainDetail,
   fetchTrainTrack,
   fixAt,
@@ -40,6 +48,7 @@ import {
 
 export type Selection =
   | { kind: 'train'; item: Train }
+  | { kind: 'ship'; item: Ship }
   | { kind: 'observation'; item: Observation }
   | { kind: 'air_quality'; item: AirQuality }
   | { kind: 'incident'; item: Incident }
@@ -49,6 +58,14 @@ interface DetailPanelProps {
   selection: Selection;
   /** The page's clock — what the panel reports for. */
   when: Date;
+  /**
+   * The vessel register, so a selected ship can be named and typed.
+   *
+   * Kept out of the position feed and joined here by MMSI, so the panel shows the
+   * name and declared destination the vessel is broadcasting NOW rather than
+   * whatever a scrubbed snapshot happened to carry. Undefined until it loads.
+   */
+  shipMeta?: VesselMetaMap;
   onClose: () => void;
   /**
    * The selected train's measured track for its departure date.
@@ -298,17 +315,77 @@ const StationBody: React.FC<{ station: Observation }> = ({ station }) => {
   );
 };
 
-export const DetailPanel: React.FC<DetailPanelProps> = ({ selection, when, onClose, onTrack }) => {
+/**
+ * A vessel, as of the fix under the clock: what AIS measured, joined to the
+ * register's name and type.
+ *
+ * Everything here is broadcast — the position, course and speed off the
+ * transponder, the name and declared destination out of the vessel register — so
+ * nothing is derived except the two units printed beside a measured one (knots to
+ * km/h, decimetres to metres, both exact). The destination is reproduced verbatim
+ * for the same reason a road announcement is: it is an AIS free-text field the
+ * skipper typed, and rewriting "SE GVX" into prose would be inventing wording
+ * nobody broadcast. A position too old to trust still prints its exact age rather
+ * than being smoothed into "now".
+ */
+const ShipBody: React.FC<{ ship: Ship; meta: VesselMeta | null }> = ({ ship, meta }) => {
+  const status = navStatusKey(ship.navStat);
+  return (
+    <div className="space-y-1">
+      <Row label={t('live.detail.type')}>{t(`live.ship.type.${shipCategoryKey(meta?.shipType ?? null)}`)}</Row>
+      {ship.sog !== null && (
+        <Row label={t('live.detail.speed')}>
+          {ship.sog.toFixed(1)} kn · {Math.round(ship.sog * 1.852)} km/h
+        </Row>
+      )}
+      {/* Course only for a vessel making way — see isMakingWay: a moored hull's
+          reported course is not a bearing it is travelling on. */}
+      {ship.cog !== null && isMakingWay(ship.sog) && (
+        <Row label={t('live.detail.course')}>{Math.round(ship.cog)}°</Row>
+      )}
+      {status && <Row label={t('live.detail.status')}>{t(`live.ship.status.${status}`)}</Row>}
+      {meta?.destination && (
+        <Row label={t('live.detail.destination')}>{meta.destination}</Row>
+      )}
+      {meta?.draughtM !== null && meta?.draughtM !== undefined && (
+        <Row label={t('live.detail.draught')}>{meta.draughtM.toFixed(1)} m</Row>
+      )}
+      <Row label={t('live.detail.mmsi')}>{ship.mmsi}</Row>
+      {/* The fix's OWN instant. A vessel that lost coverage keeps its last
+          position in the feed, so the age is the difference between "here now"
+          and "here when we last heard". */}
+      <Row label={t('live.detail.measured_at')}>{clockSeconds(ship.at)}</Row>
+      <Row label={t('live.detail.coords')}>
+        {ship.lat.toFixed(3)}, {ship.lon.toFixed(3)}
+      </Row>
+      <p className="pt-1 text-[10px] text-surface-500 dark:text-surface-400">
+        {t('live.detail.source_marine')}
+      </p>
+    </div>
+  );
+};
+
+export const DetailPanel: React.FC<DetailPanelProps> = ({
+  selection,
+  when,
+  shipMeta,
+  onClose,
+  onTrack,
+}) => {
+  const shipMetaEntry =
+    selection.kind === 'ship' ? shipMeta?.get(selection.item.mmsi) ?? null : null;
   const title =
     selection.kind === 'train'
       ? t('live.detail.train').replace('{n}', String(selection.item.number))
-      : selection.kind === 'observation'
-        ? t('live.detail.weather_station')
-        : selection.kind === 'air_quality'
-          ? t('live.detail.aq_station')
-          : selection.kind === 'lightning'
-            ? t('live.detail.strike')
-            : t('live.detail.announcement');
+      : selection.kind === 'ship'
+        ? shipMetaEntry?.name ?? t('live.detail.vessel')
+        : selection.kind === 'observation'
+          ? t('live.detail.weather_station')
+          : selection.kind === 'air_quality'
+            ? t('live.detail.aq_station')
+            : selection.kind === 'lightning'
+              ? t('live.detail.strike')
+              : t('live.detail.announcement');
 
   return (
     <aside
@@ -335,6 +412,8 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({ selection, when, onClo
       {selection.kind === 'train' && (
         <TrainBody train={selection.item} when={when} onTrack={onTrack} />
       )}
+
+      {selection.kind === 'ship' && <ShipBody ship={selection.item} meta={shipMetaEntry} />}
 
       {selection.kind === 'observation' && <StationBody station={selection.item} />}
 
