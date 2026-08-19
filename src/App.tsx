@@ -2731,6 +2731,24 @@ const App: React.FC = () => {
               onSignIn={() => setShowAuth(true)}
             />
           )}
+          {/* PRO upgrade CTA — shown to everyone who isn't already PRO (logged out or
+              in), hidden while the session is still restoring so a returning PRO user
+              never flashes "Upgrade". Opens the same modal as the account-menu row. */}
+          {!authLoading && !user?.supporter && (
+            <button
+              onClick={() => setShowSupporter(true)}
+              className="flex items-center justify-center gap-1 px-2.5 py-2 rounded-lg text-xs font-semibold transition-all
+                         min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0
+                         text-brand-700 dark:text-brand-300 bg-brand-500/10 hover:bg-brand-500/20 border border-brand-500/30"
+              aria-label={t('supporter.cta.open')}
+              title={t('supporter.cta.open')}
+            >
+              <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.847-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.847.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+              </svg>
+              <span className="hidden md:inline">{t('supporter.cta.open')}</span>
+            </button>
+          )}
           {user ? (
             <UserMenu user={user} onLogout={handleLogout} favorites={favoriteEntries} onSelectFavorite={handleSelectFavorite} onToggleFavorite={toggleFavorite} onExportData={exportData} onDeleteAccount={handleDeleteAccount} onReLogin={handleReLogin} onUpdateEmail={updateEmail} onChangePassword={changePassword} onOpenSupporter={() => setShowSupporter(true)} />
           ) : authLoading ? (
