@@ -60,11 +60,18 @@ export function setStripe(s: Stripe | null): void {
  * Once `current_period_end` passes, or Stripe gives up (→ `canceled` / `unpaid`), it
  * lapses. `now` is injectable for deterministic tests. `current_period_end` is
  * surfaced for display whenever the user is a supporter.
+ *
+ * `comp` is a manual grant carried on the users row (comp_supporter), set only by the
+ * server-side grant-pro CLI. It entitles INDEPENDENTLY of Stripe — a comped user is a
+ * supporter with no subscription — so it is OR'd in here, the single authority on "is
+ * this user a supporter". It has no renewal date, so `supporterUntil` stays tied to the
+ * Stripe subscription: a comp-only user shows PRO with no "renews" line.
  */
 export function deriveSupporter(
   status: unknown,
   currentPeriodEnd: unknown,
   now: number = Date.now(),
+  comp: boolean = false,
 ): { supporter: boolean; supporterUntil: string | null } {
   let periodEnd: Date | null = null;
   if (currentPeriodEnd) {
@@ -72,13 +79,15 @@ export function deriveSupporter(
     if (!Number.isNaN(d.getTime())) periodEnd = d;
   }
   const inGracePeriod = periodEnd !== null && periodEnd.getTime() > now;
-  const supporter =
+  const stripeSupporter =
     status === 'active' ||
     status === 'trialing' ||
     (status === 'past_due' && inGracePeriod);
   return {
-    supporter,
-    supporterUntil: supporter && periodEnd ? periodEnd.toISOString() : null,
+    supporter: comp === true || stripeSupporter,
+    // Renewal date belongs to the subscription; a comp grant has none, so a comp-only
+    // user (no active subscription) gets null here rather than a fabricated date.
+    supporterUntil: stripeSupporter && periodEnd ? periodEnd.toISOString() : null,
   };
 }
 

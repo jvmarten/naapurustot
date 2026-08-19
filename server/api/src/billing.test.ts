@@ -58,6 +58,33 @@ test('deriveSupporter accepts a period end passed as an epoch string or Date', (
   assert.equal(deriveSupporter('active', '2031-06-01T00:00:00.000Z').supporterUntil, '2031-06-01T00:00:00.000Z');
 });
 
+test('deriveSupporter treats a comp grant as entitled regardless of Stripe status', () => {
+  // No subscription at all, or an explicitly non-entitling status — comp still wins.
+  for (const status of [null, undefined, 'canceled', 'unpaid', 'incomplete_expired']) {
+    const r = deriveSupporter(status, null, Date.now(), true);
+    assert.equal(r.supporter, true, `comp should entitle despite status ${JSON.stringify(status)}`);
+  }
+});
+
+test('deriveSupporter: a comp-only user has no renewal date (supporterUntil null)', () => {
+  // Comp carries no period end; even a stale/leftover date is ignored unless the
+  // subscription itself is entitling.
+  assert.equal(deriveSupporter('canceled', new Date('2035-01-01T00:00:00Z'), Date.now(), true).supporterUntil, null);
+  assert.equal(deriveSupporter(null, null, Date.now(), true).supporterUntil, null);
+});
+
+test('deriveSupporter: comp defaults off, so existing (comp-less) callers are unchanged', () => {
+  assert.equal(deriveSupporter('canceled', null).supporter, false);
+  assert.equal(deriveSupporter('active', new Date('2030-01-01T00:00:00Z')).supporter, true);
+});
+
+test('deriveSupporter: comp AND an active subscription still surfaces the sub renewal date', () => {
+  const end = new Date('2030-01-01T00:00:00Z');
+  const r = deriveSupporter('active', end, Date.now(), true);
+  assert.equal(r.supporter, true);
+  assert.equal(r.supporterUntil, '2030-01-01T00:00:00.000Z');
+});
+
 test('readPeriodEnd reads a top-level Unix seconds value', () => {
   const secs = Math.floor(Date.UTC(2030, 0, 1) / 1000);
   const d = readPeriodEnd({ current_period_end: secs });

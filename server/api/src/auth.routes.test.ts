@@ -40,6 +40,7 @@ async function createSchema(): Promise<void> {
       display_name TEXT,
       trust_level SMALLINT NOT NULL DEFAULT 0,
       token_version INTEGER NOT NULL DEFAULT 0,
+      comp_supporter BOOLEAN NOT NULL DEFAULT FALSE,
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )`);
@@ -168,6 +169,19 @@ test('GET /auth/me reports a supporter from an active billing row (LEFT JOIN)', 
     assert.equal(res.body.user.supporterUntil, '2035-01-01T00:00:00.000Z');
   } finally {
     await pool.query('DELETE FROM user_billing WHERE user_id = $1', [USER_ID]);
+  }
+});
+
+test('GET /auth/me reports a supporter from a comp grant, with no subscription (supporterUntil null)', async () => {
+  await pool.query('UPDATE users SET comp_supporter = TRUE WHERE id = $1', [USER_ID]);
+  try {
+    const res = await request(app).get('/auth/me').set('Cookie', authCookie());
+    assert.equal(res.status, 200);
+    assert.equal(res.body.user.supporter, true);
+    // A comp grant has no renewal date — only a real subscription supplies one.
+    assert.equal(res.body.user.supporterUntil, null);
+  } finally {
+    await pool.query('UPDATE users SET comp_supporter = FALSE WHERE id = $1', [USER_ID]);
   }
 });
 
