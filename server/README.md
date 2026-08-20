@@ -63,15 +63,24 @@ Internet
 
 A read-only, operator-only view of every registered account and whether it is a
 **Free** or **PRO** (supporter) user. It is **off by default**: with
-`ADMIN_USERNAMES` unset, every request to `/auth/admin*` is refused (`403`), signed
-in or not — so shipping it never exposes account data until you opt in.
+`ADMIN_USERNAMES` unset every request to `/auth/admin*` is refused (`401` if you are
+not signed in, `403` if you are signed in as a non-allowlisted user) — so shipping it
+never exposes account data until you opt in.
 
-To use it, add your account's username to the allowlist and restart the API:
+To use it, first **create the account** you want to be admin (sign up on the site as
+usual), then add its username to the allowlist and restart the API:
 
 ```bash
 # server/.env  — comma-separated, case-insensitive
 ADMIN_USERNAMES=jvmarten
 ```
+
+Order matters. The gate authorises on the username, so allowlisted names are
+**reserved**: the public signup route refuses to register them (`409`), so once a name
+is on the list nobody else can grab it. But a username is freed for re-registration if
+its account is deleted, so the name must already be held by *your* account before you
+allowlist it — create the account first, confirm you hold the name, then add it to
+`ADMIN_USERNAMES` (this is why order matters).
 
 Then sign in on `https://naapurustot.fi` as usual (this sets the `api.naapurustot.fi`
 auth cookie) and open **`https://api.naapurustot.fi/auth/admin`** in the same browser.
@@ -89,8 +98,9 @@ Why this design:
   and it stays clear of the frontend's tight JS bundle budget.
 - **Entitlement/access are never client-asserted.** Admin membership is an env
   allowlist (like `JWT_SECRET`); there is no HTTP path to grant it, mirroring the
-  comp-grant invariant. The gate runs behind `resolveUser`, so it needs a valid session
-  *and* an allowlisted username.
+  comp-grant invariant — and the public signup route reserves allowlisted usernames so
+  one can never be registered to obtain access. The gate runs behind `resolveUser`, so
+  it needs a valid session *and* an allowlisted username.
 - **XSS-safe.** The page is fully self-contained under a strict per-response CSP
   (nonce'd inline script/style, no external assets); the embedded data has `<` escaped
   so a display name cannot break out of the `<script>`, and every table cell is written
@@ -102,7 +112,11 @@ https://api.naapurustot.fi/auth/admin/users` (or, straight from the database):
 ```bash
 docker compose exec -T db psql -U naapurustot_api -d naapurustot -c \
   "SELECT count(*) total,
-          count(*) FILTER (WHERE comp_supporter OR b.status IN ('active','trialing')) AS pro
+          count(*) FILTER (
+            WHERE comp_supporter
+               OR b.status IN ('active','trialing')
+               OR (b.status = 'past_due' AND b.current_period_end > NOW())
+          ) AS pro
      FROM users u LEFT JOIN user_billing b ON b.user_id = u.id;"
 ```
 
