@@ -19,6 +19,7 @@ process.env.ADMIN_USERNAMES = 'admin';
 const ADMIN_ID = '11111111-1111-1111-1111-111111111111';
 const USER_ID = '22222222-2222-2222-2222-222222222222';
 const XSS_ID = '33333333-3333-3333-3333-333333333333';
+const ORIGIN = 'https://naapurustot.fi';
 
 let app: ReturnType<typeof import('./app.js').createApp>;
 let pool: import('pg').Pool;
@@ -133,6 +134,17 @@ test('the dashboard neutralises a malicious display name (stored XSS)', async ()
   assert.equal(res.status, 200);
   assert.ok(!res.text.includes(payload), 'the raw </script> breakout does not survive');
   assert.ok(res.text.includes('\\u003c/script'), 'the < is escaped in the embedded data');
+});
+
+test('signup refuses an allowlisted admin username (reserved — closes the re-registration path to admin)', async () => {
+  const res = await request(app)
+    .post('/auth/signup')
+    .set('Origin', ORIGIN)
+    .send({ username: 'Admin', password: 'a-strong-password-123', email: 'grabber@example.com' });
+  assert.equal(res.status, 409); // same 409 as a taken name (no disclosure), matched case-insensitively
+  // No account was created — the reservation short-circuits before any INSERT.
+  const { rows } = await pool.query(`SELECT count(*) AS n FROM users WHERE email = 'grabber@example.com'`);
+  assert.equal(Number(rows[0].n), 0);
 });
 
 test('with ADMIN_USERNAMES unset the dashboard is disabled even for a would-be admin', async () => {

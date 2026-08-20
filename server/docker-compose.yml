@@ -17,6 +17,11 @@ services:
     environment:
       DATABASE_URL: postgresql://naapurustot_api:${API_DB_PASSWORD}@db:5432/naapurustot
       JWT_SECRET: ${JWT_SECRET}
+      # Private operator dashboard (admin.ts reads process.env directly — no dotenv, so
+      # a value in server/.env never reaches the container otherwise). Unset → the
+      # dashboard refuses every request (fail-closed). Without this line it was unset in
+      # the container, silently disabling the feature even when set in server/.env.
+      ADMIN_USERNAMES: ${ADMIN_USERNAMES:-}
       TURNSTILE_SECRET: ${TURNSTILE_SECRET}
       # IN-2: forward the anti-phishing hostname allowlist (turnstile.ts reads it).
       # Without this it was unset in the container, silently disabling the check.

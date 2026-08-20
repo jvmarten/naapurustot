@@ -17,7 +17,7 @@ import {
   validatePassword,
 } from './passwordReset.js';
 import { billingRouter, cancelSubscriptionForUser, deriveSupporter } from './billing.js';
-import { adminRouter } from './admin.js';
+import { adminRouter, isAdminUsername } from './admin.js';
 
 /**
  * Auth + user-data router, mounted at /auth by index.ts. Covers signup/login/
@@ -204,6 +204,19 @@ router.post('/signup', rateLimit(3, 24 * 60 * 60 * 1000, 'signup'), async (req: 
 
   if (!USERNAME_RE.test(username)) {
     res.status(400).json({ error: 'Username must be 3-20 characters (letters, numbers, _ or -)' });
+    return;
+  }
+
+  // Reserve the operator-dashboard admin usernames (ADMIN_USERNAMES): they are never
+  // registrable via this public route. The dashboard authorises on the session's
+  // username (admin.ts requireAdmin), and a username is FREED for re-registration when
+  // an account is deleted (DELETE /account) — so without this an attacker could sign up
+  // as an unheld allowlisted name (freed by a GDPR delete, or never yet created) and
+  // gain full admin. The intended flow is the reverse: create the account first, THEN
+  // add its name to the allowlist. Answered with the same 409 as a taken name, so this
+  // does not disclose which usernames are privileged.
+  if (isAdminUsername(username)) {
+    res.status(409).json({ error: 'Username already taken' });
     return;
   }
 
