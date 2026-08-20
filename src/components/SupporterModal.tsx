@@ -134,7 +134,6 @@ export const SupporterModal: React.FC<SupporterModalProps> = ({ user, onClose, o
             </>
           ) : (
             <>
-              <p className="text-sm text-surface-600 dark:text-surface-400 leading-relaxed">{t('supporter.subtitle')}</p>
               <ul className="space-y-2">
                 {['supporter.benefit.fund', 'supporter.benefit.badge', 'supporter.benefit.early'].map((k) => (
                   <li key={k} className="flex items-start gap-2 text-sm text-surface-700 dark:text-surface-300">
