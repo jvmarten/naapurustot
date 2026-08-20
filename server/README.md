@@ -53,8 +53,58 @@ Internet
 | `POST` | `/auth/billing/checkout` | Yes | per-user | Create a Stripe Checkout Session for the supporter subscription; returns `{url}` to redirect the browser to. `503` when billing is unconfigured |
 | `POST` | `/auth/billing/portal` | Yes | per-user | Create a Stripe customer-portal session (manage / cancel / update card); returns `{url}`. `400` if the user has never subscribed |
 | `POST` | `/billing/webhook` | Stripe signature | — | Stripe webhook (raw body, signature-verified). **Not** under `/auth` — Stripe sends no browser Origin, so it must bypass the same-origin CSRF guard; the Stripe signature authenticates it instead |
+| `GET` | `/auth/admin` | Admin | — | Private operator dashboard (HTML): every registered account with its Free/PRO tier. Gated by `ADMIN_USERNAMES` |
+| `GET` | `/auth/admin/users` | Admin | — | Same data as JSON (for curl/scripts): `{ generatedAt, counts, users[] }` |
 
 "Auth: Yes" means the request must carry the httpOnly JWT cookie set by login/signup.
+"Auth: Admin" additionally requires the session's username to be on the `ADMIN_USERNAMES` allowlist.
+
+### Private operator dashboard (registered users)
+
+A read-only, operator-only view of every registered account and whether it is a
+**Free** or **PRO** (supporter) user. It is **off by default**: with
+`ADMIN_USERNAMES` unset, every request to `/auth/admin*` is refused (`403`), signed
+in or not — so shipping it never exposes account data until you opt in.
+
+To use it, add your account's username to the allowlist and restart the API:
+
+```bash
+# server/.env  — comma-separated, case-insensitive
+ADMIN_USERNAMES=jvmarten
+```
+
+Then sign in on `https://naapurustot.fi` as usual (this sets the `api.naapurustot.fi`
+auth cookie) and open **`https://api.naapurustot.fi/auth/admin`** in the same browser.
+The page lists each user's username, display name, email, tier, Stripe billing status,
+renewal date and registration date, with client-side search and column sorting. The
+tier is derived by the **same** `deriveSupporter()` the rest of the API uses, so "PRO"
+means exactly what the badge means everywhere else — a live Stripe subscription
+(`active`/`trialing`/`past_due`-in-grace) **or** a manual `comp` grant — and the source
+(`comp` / `Stripe` / both) is shown.
+
+Why this design:
+
+- **Server-side, not in the app.** The dashboard is served by the API, never bundled
+  into the public frontend — admin code and the full user list never ship to visitors,
+  and it stays clear of the frontend's tight JS bundle budget.
+- **Entitlement/access are never client-asserted.** Admin membership is an env
+  allowlist (like `JWT_SECRET`); there is no HTTP path to grant it, mirroring the
+  comp-grant invariant. The gate runs behind `resolveUser`, so it needs a valid session
+  *and* an allowlisted username.
+- **XSS-safe.** The page is fully self-contained under a strict per-response CSP
+  (nonce'd inline script/style, no external assets); the embedded data has `<` escaped
+  so a display name cannot break out of the `<script>`, and every table cell is written
+  via `textContent`.
+
+The same numbers are available headless, e.g. `curl -s --cookie "token=…"
+https://api.naapurustot.fi/auth/admin/users` (or, straight from the database):
+
+```bash
+docker compose exec -T db psql -U naapurustot_api -d naapurustot -c \
+  "SELECT count(*) total,
+          count(*) FILTER (WHERE comp_supporter OR b.status IN ('active','trialing')) AS pro
+     FROM users u LEFT JOIN user_billing b ON b.user_id = u.id;"
+```
 
 ### GDPR data export & deletion (CF-13)
 
@@ -231,6 +281,7 @@ docker compose logs -f
 | `APP_SECRET` | Umami application secret (for session signing) |
 | `API_DB_PASSWORD` | PostgreSQL password for the API database user |
 | `JWT_SECRET` | Secret for signing JWT auth tokens (must be set in production) |
+| `ADMIN_USERNAMES` | Optional — comma-separated usernames allowed into the private operator dashboard (`/auth/admin`). Empty disables it entirely (every request refused). Case-insensitive |
 | `TURNSTILE_SECRET` | Cloudflare Turnstile secret key (skip in dev to disable bot check) |
 | `TURNSTILE_ALLOWED_HOSTNAMES` | Optional — comma-separated hostnames a Turnstile token must have been solved on (e.g. `naapurustot.fi,www.naapurustot.fi`); empty disables the check |
 | `RESEND_API_KEY` | Optional — Resend "Sending access" key for password-reset mail; empty disables sending (the endpoint still answers 200). **Not** the `gmail-smtp` key — that one is Gmail's "Send mail as" SMTP password for info@naapurustot.fi |

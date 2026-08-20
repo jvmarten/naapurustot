@@ -17,6 +17,7 @@ import {
   validatePassword,
 } from './passwordReset.js';
 import { billingRouter, cancelSubscriptionForUser, deriveSupporter } from './billing.js';
+import { adminRouter } from './admin.js';
 
 /**
  * Auth + user-data router, mounted at /auth by index.ts. Covers signup/login/
@@ -185,6 +186,12 @@ router.use(resolveUser, perUserLimited);
 // same-origin CSRF guard that app.ts applies to /auth. The Stripe webhook is NOT here
 // — it is a raw-body route registered in app.ts, since Stripe sends no allowed Origin.
 router.use('/billing', billingRouter);
+
+// Private operator dashboard (admin.ts). Mounted here so it runs behind resolveUser
+// (which sets req.userId) and the /auth per-IP limiter; its own requireAdmin gate then
+// checks the session's username against the ADMIN_USERNAMES allowlist. All routes are
+// GET, so the same-origin CSRF guard (non-GET only) never blocks a browser navigation.
+router.use('/admin', adminRouter);
 
 // Signup: 3 per IP per day
 router.post('/signup', rateLimit(3, 24 * 60 * 60 * 1000, 'signup'), async (req: Request, res: Response): Promise<void> => {
