@@ -4,6 +4,7 @@ import { clockSeconds, clockTime, timeOnDay } from './timeControl';
 import { AQ_COLORS, aqBandKey, type AirQuality } from './airquality';
 import type { Observation } from './observations';
 import { windCompassKey, type WindTimelineSample } from './wind';
+import { formatSealevelCm, type SealevelTimelineSample } from './sealevel';
 import type { Incident } from './incidents';
 import type { Strike } from './lightning';
 import type { Train } from './trains';
@@ -53,6 +54,7 @@ export type Selection =
   | { kind: 'observation'; item: Observation }
   | { kind: 'air_quality'; item: AirQuality }
   | { kind: 'wind'; item: WindTimelineSample }
+  | { kind: 'sea_level'; item: SealevelTimelineSample }
   | { kind: 'incident'; item: Incident }
   | { kind: 'lightning'; item: Strike };
 
@@ -358,6 +360,44 @@ const WindBody: React.FC<{ wind: WindTimelineSample }> = ({ wind }) => {
 };
 
 /**
+ * Sea level at a tide gauge, as of the sample under the clock.
+ *
+ * The headline is the water level as a signed anomaly — FMI's WATLEV, the height
+ * above this gauge's theoretical mean water — because that is the number that
+ * says "the sea is high" or "the sea is low", and the note under it states the
+ * reference in words so the sign is not left to guess. The N2000 height and the
+ * hourly sea-water temperature are FMI's own two other readings from the same
+ * gauge, shown only when reported; nothing here is derived. cm from the published
+ * mm is the one conversion, exact.
+ */
+const SealevelBody: React.FC<{ sample: SealevelTimelineSample }> = ({ sample }) => {
+  return (
+    <div className="space-y-1">
+      <Row label={t('live.detail.sea_level')}>{formatSealevelCm(sample.level)} cm</Row>
+      <p className="text-[10px] leading-snug text-surface-500 dark:text-surface-400">
+        {t('live.detail.sea_level_ref')}
+      </p>
+      {sample.n2000 !== null && (
+        <Row label={t('live.detail.sea_level_n2000')}>{(sample.n2000 / 10).toFixed(0)} cm</Row>
+      )}
+      {sample.temp !== null && (
+        <Row label={t('live.detail.sea_temp')}>{sample.temp.toFixed(1)} °C</Row>
+      )}
+      {/* The value's OWN instant — the gauges report hourly and the reader is
+          entitled to know they are looking at 14:00's level under a playhead at
+          14:23. */}
+      <Row label={t('live.detail.measured_at')}>{clockTime(sample.at)}</Row>
+      <Row label={t('live.detail.coords')}>
+        {sample.lat.toFixed(3)}, {sample.lon.toFixed(3)}
+      </Row>
+      <p className="pt-1 text-[10px] text-surface-500 dark:text-surface-400">
+        {t('live.detail.source_fmi')}
+      </p>
+    </div>
+  );
+};
+
+/**
  * A vessel, as of the fix under the clock: what AIS measured, joined to the
  * register's name and type.
  *
@@ -414,6 +454,18 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({
   onClose,
   onTrack,
 }) => {
+  // Escape closes it, matching the sidebar (FeedSidebar binds the same key). The
+  // panel is a non-modal inspector — it does not trap focus — but a keyboard or
+  // AT user still needs a dismiss that is not a mouse click on empty map. Both
+  // overlays closing on one Escape is expected and fine.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
   const shipMetaEntry =
     selection.kind === 'ship' ? shipMeta?.get(selection.item.mmsi) ?? null : null;
   const title =
@@ -427,9 +479,11 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({
             ? t('live.detail.aq_station')
             : selection.kind === 'wind'
               ? t('live.detail.wind_station')
-              : selection.kind === 'lightning'
-                ? t('live.detail.strike')
-                : t('live.detail.announcement');
+              : selection.kind === 'sea_level'
+                ? t('live.detail.sea_level_station')
+                : selection.kind === 'lightning'
+                  ? t('live.detail.strike')
+                  : t('live.detail.announcement');
 
   return (
     <aside
@@ -462,6 +516,8 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({
       {selection.kind === 'observation' && <StationBody station={selection.item} />}
 
       {selection.kind === 'wind' && <WindBody wind={selection.item} />}
+
+      {selection.kind === 'sea_level' && <SealevelBody sample={selection.item} />}
 
       {selection.kind === 'air_quality' && (
         <div className="space-y-1">

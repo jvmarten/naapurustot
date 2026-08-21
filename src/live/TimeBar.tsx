@@ -360,6 +360,17 @@ export const TimeBar: React.FC<TimeBarProps> = ({
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    // Space and K play/pause the day, matching the video-scrubber convention the
+    // slider already looks like. Space is otherwise a dead keystroke on a focused
+    // div (or worse, it scrolls the page), so this is the one keyboard route to
+    // the page's headline animation for someone who has focused the track — the
+    // arrow keys below deliberately STOP playback, which is the right thing for a
+    // scrub but leaves no way to start one. preventDefault stops the page scroll.
+    if (e.key === ' ' || e.key === 'Spacebar' || e.key === 'k' || e.key === 'K') {
+      e.preventDefault();
+      setPlaying((p) => !p);
+      return;
+    }
     // Shift is the FINE step, not the coarse one. The default of five minutes is
     // what a shadow visibly moves by; one minute is for landing on a stated
     // sunrise, which is the only thing anyone needs single-minute precision for.
@@ -630,7 +641,7 @@ export const TimeBar: React.FC<TimeBarProps> = ({
           {live && (
             <span
               aria-hidden="true"
-              className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500"
+              className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500 motion-reduce:animate-none"
             />
           )}
           <span className="text-sm">{clockTime(when)}</span>

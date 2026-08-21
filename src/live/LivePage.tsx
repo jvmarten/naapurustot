@@ -13,7 +13,7 @@ import { basemapTileUrl } from '../utils/basemap';
 import { t, getLang, setLang, useI18nVersion, type Lang } from '../utils/i18n';
 import { useTheme } from '../hooks/useTheme';
 import { FeedSidebar } from './FeedSidebar';
-import { defaultEnabledFeeds, sanitizeEnabled } from './feeds';
+import { allLiveFeeds, defaultEnabledFeeds, sanitizeEnabled } from './feeds';
 import {
   offsetPoint,
   emitSweptFlat,
@@ -127,6 +127,21 @@ import {
   type WindTimeline,
   type WindTimelineSample,
 } from './wind';
+import {
+  clearSealevelTimeline,
+  createSealevelTimeline,
+  fetchSealevel,
+  fetchSealevelSeries,
+  formatSealevelCm,
+  mergeSealevel,
+  sampleSealevelTimeline,
+  SEALEVEL_POLL_MS,
+  SEALEVEL_TOLERANCE_MS,
+  type SealevelReading,
+  type SealevelTimeline,
+  type SealevelTimelineSample,
+} from './sealevel';
+import { deepenAlpha255, nightAlpha } from './shade';
 import {
   datesCovering,
   fetchDaySchedules,
@@ -608,6 +623,7 @@ const SCHEDULE_DEBOUNCE_MS = 600;
 const EMPTY_OBSERVATIONS: Observation[] = [];
 const EMPTY_AIR_QUALITY: AirQuality[] = [];
 const EMPTY_WINDS: WindTimelineSample[] = [];
+const EMPTY_SEALEVEL: SealevelTimelineSample[] = [];
 const EMPTY_STRIKES: Strike[] = [];
 const EMPTY_SCHEDULED: ScheduledTrain[] = [];
 
@@ -648,18 +664,10 @@ function useDebounced<T>(value: T, ms: number): T {
 }
 
 /**
- * How dark the whole map goes once the sun is below the horizon.
- *
- * The sun setting does not end the shadow simulation — it makes the answer
- * "everywhere", which is the one case the old code drew as "nowhere". Ramping
- * from the daytime shadow alpha at the horizon to the full night alpha at the
- * end of civil twilight (−6°) means the last building shadow at sunset hands
- * over to the all-over shade at the same tone, instead of the layer blinking off.
- */
-function nightAlpha(altitudeDeg: number, day: number, night: number): number {
-  const t = Math.min(1, Math.max(0, -altitudeDeg / 6));
-  return day + (night - day) * t;
-}
+// nightAlpha (how dark the map goes below the horizon) and deepenAlpha255 (the
+// second-pass alpha that lands the night wash on that tone) live in ./shade.ts,
+// so the twilight lattice and its uniform-night fast-path share one formula and
+// a test can pin nightAlpha's saturation at −6°. See twilightLayer.
 
 /**
  * The Mercator→screen transform for the map's current camera.
@@ -869,6 +877,34 @@ function twilightLayer(
   const sctx = twilightShadeCanvas.getContext('2d');
   const dctx = twilightDeepenCanvas.getContext('2d');
   if (!sctx || !dctx) return null;
+
+  // SYMMETRIC NIGHT FAST-PATH — the mirror of the broad-daylight exit above.
+  //
+  // When the whole viewport is provably past the end of civil twilight, nightAlpha
+  // saturates to `shade.night` at every point (see ./shade.ts), so the lattice
+  // below would write ONE alpha into every cell: `shade.rgb` opaque on the shade
+  // canvas and `deepenAlpha255(shade.night, shade.day)` on the deepen canvas —
+  // exactly the uniform wash the old whole-viewport-night code drew. The guard is
+  // the daytime one reflected: `hi + spread` bounds the true MAXIMUM altitude over
+  // the rectangle (the min is on the boundary the nine probes sample, and in this
+  // regime the sun's field is smooth and monotonic, the subsolar point being on
+  // the day side), so `hi + spread <= -6` means every point is at or below −6°
+  // with margin. It reuses the same `deepenAlpha255` the lattice does, so the two
+  // paths cannot draw different tones — and it skips the ~21,800 solar
+  // evaluations and the two full-resolution putImageData calls for two fillRects,
+  // on the common Finnish-winter and city-night case where the terminator
+  // provably is not on screen.
+  if (hi + (hi - lo) <= -6) {
+    const [nr, ng, nb] = shade.rgb;
+    sctx.clearRect(0, 0, cols, rows);
+    sctx.fillStyle = `rgb(${nr}, ${ng}, ${nb})`;
+    sctx.fillRect(0, 0, cols, rows);
+    dctx.clearRect(0, 0, cols, rows);
+    dctx.fillStyle = `rgba(${nr}, ${ng}, ${nb}, ${deepenAlpha255(shade.night, shade.day) / 255})`;
+    dctx.fillRect(0, 0, cols, rows);
+    return { shade: twilightShadeCanvas, deepen: twilightDeepenCanvas, lit: false };
+  }
+
   twilightShadePixels ??= sctx.createImageData(cols, rows);
   twilightDeepenPixels ??= dctx.createImageData(cols, rows);
   const sp = twilightShadePixels.data;
@@ -876,9 +912,6 @@ function twilightLayer(
 
   const t = t0;
   const [ir, ig, ib] = shade.rgb;
-  // Source-over puts `day + x*(1 - day)` on ground the mask has already shaded,
-  // so this is the inversion that makes the pair land on nightAlpha exactly.
-  const remainder = 1 - shade.day;
 
   let any = false;
   let lit = false;
@@ -903,9 +936,10 @@ function twilightLayer(
       }
       any = true;
       sp[p + 3] = 255;
-      dp[p + 3] = Math.round(
-        (255 * (nightAlpha(altitude, shade.day, shade.night) - shade.day)) / remainder,
-      );
+      // Source-over puts `day + x*(1 - day)` on ground the mask has already
+      // shaded; deepenAlpha255 is the inversion that lands the pair on nightAlpha
+      // exactly, shared with the uniform-night fast-path above.
+      dp[p + 3] = deepenAlpha255(nightAlpha(altitude, shade.day, shade.night), shade.day);
     }
   }
   if (!any) return null;
@@ -1671,6 +1705,78 @@ function paintWind(
 }
 
 /**
+ * Sea-level ink, per theme. A marine cyan, distinct from the temperature label's
+ * neutral ink and from the wind arrows' sky blue, so a coast with more than one
+ * weather feed on reads as more than one thing. Bright enough to survive the
+ * night wash, and haloed like every text mark on this canvas.
+ */
+const SEALEVEL = {
+  dark: {
+    label: 'rgba(103, 232, 249, 0.97)',
+    halo: 'rgba(8, 15, 40, 0.9)',
+  },
+  light: {
+    label: 'rgba(14, 116, 144, 0.97)',
+    halo: 'rgba(255, 255, 255, 0.92)',
+  },
+} as const;
+
+/**
+ * Paint sea level as a signed centimetre label at each tide gauge.
+ *
+ * The SIGN carries the information — "+17" is a surge, "−9" is low water — so no
+ * legend and no colour ramp are needed, exactly as the temperature layer needs
+ * none. Collision-suppressed like the temperature labels, and for the same
+ * reason: two numbers written over each other are unreadable, so on a clash the
+ * first-drawn wins and the other is simply not written rather than degraded. The
+ * gauges are few and far apart, so a clash is rare — it can happen only where two
+ * are close on the same stretch of coast at a zoomed-out camera.
+ */
+function paintSealevel(
+  ctx: CanvasRenderingContext2D,
+  map: MaplibreMap,
+  samples: SealevelTimelineSample[],
+  theme: 'dark' | 'light',
+  width: number,
+  height: number,
+): void {
+  if (samples.length === 0) return;
+  const ink = SEALEVEL[theme];
+
+  ctx.save();
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'center';
+  ctx.lineWidth = 3;
+  ctx.font = '600 12px system-ui, -apple-system, sans-serif';
+
+  const placed: number[][] = [];
+  for (const s of samples) {
+    const p = map.project([s.lon, s.lat]);
+    if (p.x < -40 || p.y < -30 || p.x > width + 40 || p.y > height + 30) continue;
+
+    const text = `${formatSealevelCm(s.level)} cm`;
+    const w = ctx.measureText(text).width;
+    const box = [p.x - w / 2 - 3, p.y - 8, p.x + w / 2 + 3, p.y + 8];
+    let collides = false;
+    for (const other of placed) {
+      if (box[0] < other[2] && box[2] > other[0] && box[1] < other[3] && box[3] > other[1]) {
+        collides = true;
+        break;
+      }
+    }
+    if (collides) continue;
+    placed.push(box);
+
+    ctx.strokeStyle = ink.halo;
+    ctx.strokeText(text, p.x, p.y);
+    ctx.fillStyle = ink.label;
+    ctx.fillText(text, p.x, p.y);
+  }
+
+  ctx.restore();
+}
+
+/**
  * A diamond, which is what a position derived from a timetable gets.
  *
  * The measured feed owns the circle in both its states — filled for a fresh fix,
@@ -2137,6 +2243,10 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   // they have to be sampled from one instant together or the arrow is a
   // fabrication (see wind.ts). The scalar store above cannot express that.
   const windTimelineRef = useRef<WindTimeline>(createWindTimeline());
+  // Sea level keeps its own store for the reason wind does: a sample is a level
+  // AND an N2000 height AND a temperature from ONE instant, and the scalar store
+  // above carries one value and a forecast flag it cannot express (see sealevel.ts).
+  const sealevelTimelineRef = useRef<SealevelTimeline>(createSealevelTimeline());
   const [timelineVersion, setTimelineVersion] = useState(0);
   const bumpTimeline = useCallback(() => setTimelineVersion((v) => v + 1), []);
   /**
@@ -2330,18 +2440,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
    * "loading" — distinct from a poll that came back with nothing.
    */
   const [trainStatus, setTrainStatus] = useState<{ count: number; failed: boolean } | null>(null);
-  /**
-   * What the recorded train history can answer for the current clock.
-   *
-   * Set from the draw loop, like `terrainOn`, because only the draw knows
-   * whether a snapshot resolved — and it changes at the rate the clock moves,
-   * not at the rate the canvas repaints, so a repeated value costs nothing
-   * (React bails out on an unchanged one).
-   */
-  const [trainAt, setTrainAt] = useState<number | null>(null);
   const [shipStatus, setShipStatus] = useState<{ count: number; failed: boolean } | null>(null);
-  /** What the recorded vessel history can answer for the clock — see `trainAt`. */
-  const [shipAt, setShipAt] = useState<number | null>(null);
   /**
    * Bumped when the vessel register loads, purely to re-render an OPEN detail
    * panel so a selected hull picks up its name. The map lives in a ref the draw
@@ -2384,6 +2483,9 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   // readings with a failure line.
   const [windDay, setWindDay] = useState<'loading' | 'ready' | 'failed'>('loading');
   const [windPollFailed, setWindPollFailed] = useState(false);
+  // Sea level's day and poll, split exactly as wind's are and for the same reason.
+  const [sealevelDay, setSealevelDay] = useState<'loading' | 'ready' | 'failed'>('loading');
+  const [sealevelPollFailed, setSealevelPollFailed] = useState(false);
   /**
    * The REFINEMENT poll's failure, which is not the day's.
    *
@@ -2450,6 +2552,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   const observationsOn = enabled.has('observations');
   const airQualityOn = enabled.has('air_quality');
   const windOn = enabled.has('wind');
+  const sealevelOn = enabled.has('sea_level');
   const lightningOn = enabled.has('lightning');
   const radarOn = enabled.has('radar');
 
@@ -2642,6 +2745,17 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     [windOn, whenMs, timelineVersion],
   );
 
+  // Same shape as windAt — its own timeline, sampled at the clock. The sample is
+  // already {lon,lat,at,level,n2000,temp}, so the painter, hit test and panel all
+  // read it directly.
+  const sealevelAt = useMemo(
+    () =>
+      sealevelOn
+        ? sampleSealevelTimeline(sealevelTimelineRef.current, whenMs, SEALEVEL_TOLERANCE_MS)
+        : EMPTY_SEALEVEL,
+    [sealevelOn, whenMs, timelineVersion],
+  );
+
   /**
    * The flashes inside the trailing window ending at the clock.
    *
@@ -2695,6 +2809,26 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     [windAt],
   );
 
+  /**
+   * The lowest and highest sea level anywhere AT THE CLOCK, in millimetres.
+   *
+   * The one fact a sentence about the whole coast can honestly carry: the spread
+   * from the lowest gauge to the highest, which is the surge gradient the Baltic
+   * actually shows across a windy day. Read from the sample, like the two above,
+   * because the sentence is about the instant the bar shows. Null when nothing is
+   * sampled.
+   */
+  const sealevelRange = useMemo(() => {
+    if (sealevelAt.length === 0) return null;
+    let low = Infinity;
+    let high = -Infinity;
+    for (const s of sealevelAt) {
+      if (s.level < low) low = s.level;
+      if (s.level > high) high = s.level;
+    }
+    return { low, high };
+  }, [sealevelAt]);
+
 
   /**
    * The recorded snapshot for the clock, or null.
@@ -2723,6 +2857,20 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [live, whenMs, shipStatus],
   );
+
+  /**
+   * What instant the recorded train/vessel layers are actually drawing, for the
+   * readout to name — null while live.
+   *
+   * DERIVED IN RENDER, not pushed out of the draw loop with setState. These are
+   * pure functions of the snapshots already resolved above, so writing them from
+   * `draw` (which runs on every repaint) forced a second full reconcile on top of
+   * the clock's own on every scrub step — against this file's governing rule that
+   * the rAF path touches refs, never React state. The readout reads these same
+   * names, one render earlier and without the extra pass.
+   */
+  const trainAt = live ? null : (trainSnapshot?.at ?? null);
+  const shipAt = live ? null : (shipSnapshot?.at ?? null);
 
   /**
    * Whether this instant needs the published timetable to be shown at all.
@@ -2795,6 +2943,15 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
         (w) => w.lon === selection.item.lon && w.lat === selection.item.lat,
       );
       return at ? { kind: 'wind', item: at } : null;
+    }
+    // The gauge keeps its identity (its position) and picks up whatever the
+    // timeline holds for the instant on screen, closing the panel when the scrub
+    // reaches an hour it did not report — exactly like the wind station above.
+    if (selection.kind === 'sea_level') {
+      const at = sealevelAt.find(
+        (s) => s.lon === selection.item.lon && s.lat === selection.item.lat,
+      );
+      return at ? { kind: 'sea_level', item: at } : null;
     }
     // A FLASH DOES NOT MOVE OR CHANGE, so unlike the stations above there is
     // nothing to re-resolve — but it can leave the window, and then the mark it
@@ -2889,6 +3046,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     observationsAt,
     airQualityAt,
     windAt,
+    sealevelAt,
     whenMs,
     live,
     trainStatus,
@@ -3281,7 +3439,6 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
       // against the snapshot's own clock, not the wall's, for the reason spelt out
       // over the train block below.
       const list = live ? shipsRef.current : (shipSnapshot?.items ?? EMPTY_SHIPS);
-      setShipAt(live ? null : (shipSnapshot?.at ?? null));
       paintShips(
         ctx,
         map,
@@ -3307,7 +3464,6 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
       // What it is never is the current positions under a past clock, which
       // remains the one thing here that would be a lie rather than a gap.
       const list = live ? trainsRef.current : (trainSnapshot?.items ?? EMPTY_TRAINS);
-      setTrainAt(live ? null : (trainSnapshot?.at ?? null));
       if (list.length > 0 || !needSchedule) {
         // THE STALENESS CLOCK IS THE SNAPSHOT'S, NOT THE WALL'S. `paintTrains`
         // draws a fix older than two minutes hollow, because a train in a tunnel
@@ -3335,6 +3491,10 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     paintWind(ctx, map, windAt, theme, width, height);
     paintAirQuality(ctx, map, airQualityAt, theme, width, height);
     paintObservations(ctx, map, observationsAt, theme, width, height);
+    // Coastal labels, drawn with the other station text. They sit over the sea, so
+    // they seldom meet a temperature label; when they do, last-drawn wins, which
+    // is honest at the pixel level (see paintObservations).
+    paintSealevel(ctx, map, sealevelAt, theme, width, height);
 
     // Above everything, because it is the answer to a question the reader asked.
     if (selectionRef.current) {
@@ -3370,6 +3530,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     observationsAt,
     airQualityAt,
     windAt,
+    sealevelAt,
     strikesAt,
     trainSnapshot,
     scheduledTrains,
@@ -3424,6 +3585,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     clearTimeline(obsTimelineRef.current);
     clearTimeline(aqTimelineRef.current);
     clearWindTimeline(windTimelineRef.current);
+    clearSealevelTimeline(sealevelTimelineRef.current);
     bumpTimeline();
     strikesRef.current = [];
     bumpStrikes();
@@ -3577,6 +3739,45 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
       ac.abort();
     };
   }, [windOn, dayStartMs, dayEndMs, dayEpoch, bumpTimeline, scheduleDraw]);
+
+  /**
+   * The day's Baltic sea level — measured only, and only up to now.
+   *
+   * Structured exactly like the wind day above: one request for the measured
+   * window ending at the wall clock, no forecast arm, so past "now" the layer goes
+   * dark and the readout says so. FMI does publish a sea-level forecast, but this
+   * first version measures rather than models.
+   */
+  useEffect(() => {
+    if (!sealevelOn) return;
+    const now = Date.now();
+    const to = Math.min(dayEndMs, now);
+    if (to <= dayStartMs) {
+      setSealevelDay('ready');
+      return;
+    }
+    const ac = new AbortController();
+    let cancelled = false;
+    setSealevelDay('loading');
+
+    void fetchSealevelSeries(dayStartMs, to, ac.signal)
+      .then((list) => {
+        if (cancelled) return;
+        mergeSealevel(sealevelTimelineRef.current, list);
+        setSealevelDay('ready');
+        bumpTimeline();
+        scheduleDraw();
+      })
+      .catch((err: unknown) => {
+        if (cancelled || (err as Error)?.name === 'AbortError') return;
+        setSealevelDay('failed');
+      });
+
+    return () => {
+      cancelled = true;
+      ac.abort();
+    };
+  }, [sealevelOn, dayStartMs, dayEndMs, dayEpoch, bumpTimeline, scheduleDraw]);
 
   /**
    * The day's UV index where the map is looking — one request, sampled locally.
@@ -4531,6 +4732,36 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   });
 
   /**
+   * Sea level, a ten-minute loop — the gauges publish hourly, so a slower poll
+   * than the ten-minute station feeds still lands each new reading promptly
+   * without re-downloading it a dozen times an hour. Same future-clock shape as
+   * wind: `at: null` ahead of now keeps the loaded day rather than discarding it.
+   */
+  useFeedPoll<SealevelReading[]>({
+    enabled: sealevelOn,
+    at: future ? null : archiveAt,
+    fetcher: fetchSealevel,
+    intervalMs: SEALEVEL_POLL_MS,
+    onData: useCallback(
+      (list: SealevelReading[]) => {
+        mergeSealevel(sealevelTimelineRef.current, list);
+        setSealevelPollFailed(false);
+        bumpTimeline();
+        scheduleDraw();
+      },
+      [bumpTimeline, scheduleDraw],
+    ),
+    onError: useCallback(() => setSealevelPollFailed(true), []),
+    onClear: useCallback(() => {
+      clearSealevelTimeline(sealevelTimelineRef.current);
+      setSealevelDay('loading');
+      setSealevelPollFailed(false);
+      bumpTimeline();
+      scheduleDraw();
+    }, [bumpTimeline, scheduleDraw]),
+  });
+
+  /**
    * Lightning's tail, extended a minute at a time.
    *
    * NOT A REFINEMENT PASS like the two above it. Those re-ask for an instant the
@@ -4675,6 +4906,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
           observations: observationsAt,
           airQuality: airQualityAt,
           wind: windAt,
+          seaLevel: sealevelAt,
           lightning: strikesAt,
         },
         (lon, lat) => map.project([lon, lat]),
@@ -4687,6 +4919,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
         return { kind: 'observation', item: observationsAt[hit.index] };
       }
       if (hit.kind === 'wind') return { kind: 'wind', item: windAt[hit.index] };
+      if (hit.kind === 'sea_level') return { kind: 'sea_level', item: sealevelAt[hit.index] };
       if (hit.kind === 'lightning') return { kind: 'lightning', item: strikesAt[hit.index] };
       return { kind: 'air_quality', item: airQualityAt[hit.index] };
     },
@@ -4699,6 +4932,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
       observationsAt,
       airQualityAt,
       windAt,
+      sealevelAt,
       strikesAt,
       trainSnapshot,
       scheduledTrains,
@@ -4772,7 +5006,11 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
       return next;
     });
 
-  const setAll = (on: boolean) => setEnabled(on ? defaultEnabledFeeds() : new Set<string>());
+  // "All" turns on every live feed, not just the default subset — the button's
+  // label is a promise, and restoring only the defaults left radar/observations/
+  // wind/air quality/lightning/ships/sea level dark however many times it was
+  // pressed. "Clear" is the empty set, its correct mirror.
+  const setAll = (on: boolean) => setEnabled(on ? allLiveFeeds() : new Set<string>());
 
   const shadowRatio = shadowLengthRatio(sun.altitude);
 
@@ -4895,6 +5133,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     observationsOn ||
     airQualityOn ||
     windOn ||
+    sealevelOn ||
     lightningOn ||
     radarOn ||
     uvOn;
@@ -4923,6 +5162,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     (observationsOn && obsDay === 'failed') ||
     (airQualityOn && aqDay === 'failed') ||
     (windOn && windDay === 'failed') ||
+    (sealevelOn && sealevelDay === 'failed') ||
     (lightningOn && lightningDay === 'failed') ||
     // `unpublished` is deliberately NOT here. It is a statement about the
     // source's schedule, not about ours failing to reach it, and an amber chip
@@ -4946,7 +5186,8 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     // could have been, and useFeedPoll never retries an archive request, so an
     // alert there would be a permanent amber light over a correct map.
     (live && ((observationsOn && obsPollFailed) || (airQualityOn && aqPollFailed) ||
-      (windOn && windPollFailed) || (lightningOn && strikePollFailed)));
+      (windOn && windPollFailed) || (sealevelOn && sealevelPollFailed) ||
+      (lightningOn && strikePollFailed)));
 
   return (
     /* h-dvh, NOT h-screen. `100vh` on a phone is the viewport with the browser
@@ -5034,7 +5275,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
               aria-label={t(readoutAlert ? 'live.readout.alert' : 'live.readout.show')}
               className={`absolute left-3 top-3 z-10 flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold shadow-sm ring-1 backdrop-blur transition-colors ${
                 readoutAlert
-                  ? 'bg-amber-500/95 text-white ring-amber-600/40 hover:bg-amber-500'
+                  ? 'bg-amber-500/95 text-amber-950 ring-amber-600/40 hover:bg-amber-500'
                   : 'bg-white/90 text-surface-600 ring-surface-200 hover:bg-white dark:bg-surface-950/85 dark:text-surface-300 dark:ring-surface-800 dark:hover:bg-surface-950'
               }`}
             >
@@ -5046,8 +5287,14 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
           )}
 
           {readoutOn && readoutOpen && (
-            <div className="absolute left-3 top-3 z-10 max-w-xs space-y-1 rounded-lg bg-white/90 px-3 py-2 text-xs leading-relaxed shadow-sm ring-1 ring-surface-200 backdrop-blur dark:bg-surface-950/85 dark:ring-surface-800">
-              <div className="flex items-center gap-2">
+            <div className="absolute left-3 top-3 z-10 max-h-[calc(100%-1.5rem)] max-w-xs space-y-1 overflow-y-auto rounded-lg bg-white/90 px-3 py-2 text-xs leading-relaxed shadow-sm ring-1 ring-surface-200 backdrop-blur dark:bg-surface-950/85 dark:ring-surface-800">
+              {/* Sticky so the collapse control stays reachable when many feeds
+                  push the body past the viewport — otherwise the honesty strip
+                  could run off a short landscape phone, hiding the sentences it
+                  exists to show along with the button to dismiss them. The
+                  negative margins let the pinned bar's background cover the
+                  container's padding. */}
+              <div className="sticky top-0 z-10 -mx-3 -mt-2 flex items-center gap-2 bg-white/90 px-3 pb-1 pt-2 dark:bg-surface-950/85">
                 <h2 className="mr-auto text-[10px] font-bold uppercase tracking-wider text-surface-500 dark:text-surface-400">
                   {t('live.readout.title')}
                 </h2>
@@ -5429,6 +5676,40 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
                 </p>
               )}
 
+              {/* Sea level mirrors wind's four arms — measured only, dark ahead of
+                  now. The count sentence carries the coast's spread from the
+                  lowest gauge to the highest, which is the surge gradient a single
+                  sentence about the whole Baltic shore can honestly state. */}
+              {sealevelOn && (
+                sealevelDay === 'failed' ? (
+                  <p className="text-amber-700 dark:text-amber-400">
+                    {t('live.sealevel.failed')}
+                  </p>
+                ) : sealevelDay === 'loading' && sealevelAt.length === 0 ? (
+                  <p className="text-surface-600 dark:text-surface-300">
+                    {t('live.sealevel.loading')}
+                  </p>
+                ) : sealevelAt.length === 0 || sealevelRange === null ? (
+                  <p className="text-surface-600 dark:text-surface-300">
+                    {future ? t('live.sealevel.future') : t('live.sealevel.none')}
+                  </p>
+                ) : (
+                  <p className="text-surface-600 dark:text-surface-300">
+                    {t('live.sealevel.count')
+                      .replace('{n}', String(sealevelAt.length))
+                      .replace('{low}', formatSealevelCm(sealevelRange.low))
+                      .replace('{high}', formatSealevelCm(sealevelRange.high))}
+                    {sampleSpan(sealevelAt)}
+                  </p>
+                )
+              )}
+
+              {sealevelOn && sealevelDay !== 'failed' && sealevelPollFailed && (
+                <p className="text-amber-700 dark:text-amber-400">
+                  {t('live.readout.poll_failed')}
+                </p>
+              )}
+
               {/* THE UV SENTENCE NAMES THE MODEL EVERY TIME, in the one place
                   with room to say it properly. The bar's readout can only be a
                   number in a coloured ink beside six exact astronomical ones, so
@@ -5517,7 +5798,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
               {/* The markers are clickable and nothing else on screen says so —
                   they are canvas pixels, with no hover affordance beyond the
                   cursor. One line, and only while a clickable feed is on. */}
-              {(trainsOn || shipsOn || incidentsOn || observationsOn || airQualityOn || windOn || lightningOn) &&
+              {(trainsOn || shipsOn || incidentsOn || observationsOn || airQualityOn || windOn || sealevelOn || lightningOn) &&
                 !shownSelection && (
                 <p className="pt-0.5 text-surface-500 dark:text-surface-400">
                   {t('live.detail.hint')}
