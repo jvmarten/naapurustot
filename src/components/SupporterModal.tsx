@@ -91,8 +91,9 @@ export const SupporterModal: React.FC<SupporterModalProps> = ({ user, onClose, o
         tabIndex={-1}
         className="w-full max-w-sm mx-4 bg-white dark:bg-surface-900 rounded-2xl shadow-2xl border border-surface-200 dark:border-surface-700/40 overflow-hidden max-h-[90vh] overflow-y-auto outline-none"
       >
+        <div className="h-1 bg-gradient-to-r from-brand-500 to-brand-400" aria-hidden="true" />
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-surface-200 dark:border-surface-700/40">
-          <span className="text-sm font-semibold text-surface-900 dark:text-white">{t('supporter.title')}</span>
+          <span className="text-base font-semibold tracking-tight text-surface-900 dark:text-white">{t('supporter.title')}</span>
           <button
             onClick={onClose}
             aria-label={t('aria.close')}
@@ -115,7 +116,7 @@ export const SupporterModal: React.FC<SupporterModalProps> = ({ user, onClose, o
               <button
                 onClick={() => go('portal')}
                 disabled={busy}
-                className="w-full px-4 py-2.5 rounded-lg text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 transition-colors disabled:opacity-50"
+                className="w-full px-4 py-2.5 rounded-lg text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 shadow-sm hover:shadow transition active:scale-[.99] disabled:opacity-50"
               >
                 {busy ? t('supporter.redirecting') : t('supporter.cta.manage')}
               </button>
@@ -127,7 +128,7 @@ export const SupporterModal: React.FC<SupporterModalProps> = ({ user, onClose, o
               <p className="text-sm text-surface-700 dark:text-surface-300">{t('supporter.status.activating')}</p>
               <button
                 onClick={onRefresh}
-                className="w-full px-4 py-2.5 rounded-lg text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 transition-colors"
+                className="w-full px-4 py-2.5 rounded-lg text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 shadow-sm hover:shadow transition active:scale-[.99]"
               >
                 {t('supporter.status.refresh')}
               </button>
@@ -136,23 +137,25 @@ export const SupporterModal: React.FC<SupporterModalProps> = ({ user, onClose, o
             <>
               <ul className="space-y-2">
                 {['supporter.benefit.fund', 'supporter.benefit.badge', 'supporter.benefit.early'].map((k) => (
-                  <li key={k} className="flex items-start gap-2 text-sm text-surface-700 dark:text-surface-300">
-                    <svg className="w-4 h-4 shrink-0 mt-0.5 text-brand-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                    </svg>
+                  <li key={k} className="flex items-start gap-2.5 text-sm text-surface-700 dark:text-surface-300">
+                    <span className="flex items-center justify-center w-5 h-5 shrink-0 mt-px rounded-full bg-brand-50 dark:bg-brand-500/15">
+                      <svg className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                      </svg>
+                    </span>
                     <span>{t(k)}</span>
                   </li>
                 ))}
               </ul>
               <div className="text-center">
-                <p className="text-lg font-bold text-surface-900 dark:text-white">{t('supporter.price')}</p>
+                <p className="text-2xl font-bold tracking-tight text-surface-900 dark:text-white">{t('supporter.price')}</p>
                 <p className="text-xs text-surface-500 dark:text-surface-400">{t('supporter.price_note')}</p>
               </div>
               {user ? (
                 <button
                   onClick={() => go('checkout')}
                   disabled={busy}
-                  className="w-full px-4 py-2.5 rounded-lg text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 transition-colors disabled:opacity-50"
+                  className="w-full px-4 py-2.5 rounded-lg text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 shadow-sm hover:shadow transition active:scale-[.99] disabled:opacity-50"
                 >
                   {busy ? t('supporter.redirecting') : t('supporter.cta.subscribe')}
                 </button>
@@ -161,7 +164,7 @@ export const SupporterModal: React.FC<SupporterModalProps> = ({ user, onClose, o
                   <p className="text-xs text-surface-500 dark:text-surface-400 text-center">{t('supporter.need_account')}</p>
                   <button
                     onClick={onNeedLogin}
-                    className="w-full px-4 py-2.5 rounded-lg text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 transition-colors"
+                    className="w-full px-4 py-2.5 rounded-lg text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 shadow-sm hover:shadow transition active:scale-[.99]"
                   >
                     {t('supporter.cta.login')}
                   </button>
