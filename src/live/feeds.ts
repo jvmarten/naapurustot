@@ -15,14 +15,17 @@
  *
  * `coverage` carries the same obligation the map's layers do: 'national' means
  * every postal code, 'urban' means it exists only where the underlying source
- * has data, and the sidebar prints that on the row. The shadow feed is the
- * instructive case — the sun maths is exact everywhere in Finland, but the
- * BUILDINGS it casts against come from OSM height tags that thin out fast
- * outside city centres, so the feed is 'urban' and says so.
+ * has data (cities), 'coastal' means only the sea and its shore, and the sidebar
+ * prints that on the row. The shadow feed is the instructive case — the sun maths
+ * is exact everywhere in Finland, but the BUILDINGS it casts against come from OSM
+ * height tags that thin out fast outside city centres, so the feed is 'urban' and
+ * says so. The sea-level feed is the other: fourteen tide gauges on the coast is
+ * the whole network, so it is 'coastal' rather than borrowing 'cities only' from a
+ * land feed, which on a marine layer would be a plainly false badge.
  */
 
 export type FeedStatus = 'live' | 'planned';
-export type FeedCoverage = 'national' | 'urban';
+export type FeedCoverage = 'national' | 'urban' | 'coastal';
 
 /**
  * What a feed can honestly show for an instant that is not now.
@@ -201,6 +204,21 @@ export const FEED_GROUPS: FeedGroup[] = [
       // monitoring network — 82 stations in towns. FMI's national background
       // network has seven, which is real but too sparse to read as a map.
       { id: 'air_quality', labelKey: 'live.feed.air_quality', status: 'live', coverage: 'urban', time: 'archive', defaultOn: false },
+      // The page's first MARINE feed: sea level at FMI's fourteen tide gauges,
+      // from the Gulf of Finland to Kemi. The same open WFS and `simple` shape as
+      // the temperature and wind feeds, so it rides fmi.ts and the wind timeline
+      // pattern; see sealevel.ts. The gauges report each parameter three ways in
+      // one response — height above theoretical mean water (WATLEV, what the map
+      // draws as a signed anomaly), height in the N2000 system, and hourly
+      // sea-water temperature — the last two carried into the panel only.
+      //
+      // 'coastal', a coverage of its own rather than 'urban': the interior has no
+      // sea, so the honest badge is "coast only", not "cities only". 'archive':
+      // FMI serves the gauges' history on request and the layer goes dark ahead of
+      // now — FMI does publish a sea-level forecast, but this first version
+      // measures rather than models, exactly as wind does. OFF BY DEFAULT, the
+      // same cost decision the other weather feeds make.
+      { id: 'sea_level', labelKey: 'live.feed.sea_level', status: 'live', coverage: 'coastal', time: 'archive', defaultOn: false },
       // The first feed here whose data is EVENTS rather than the state of a
       // station, which changes what the clock asks it for: not "what was the
       // value at T" but "what struck between T-30min and T". lightning.ts
@@ -287,6 +305,19 @@ export const ALL_FEEDS: Feed[] = FEED_GROUPS.flatMap((g) => g.feeds);
 /** Feed ids that are switched on for a visitor who has never used the page. */
 export function defaultEnabledFeeds(): Set<string> {
   return new Set(ALL_FEEDS.filter((f) => f.status === 'live' && f.defaultOn).map((f) => f.id));
+}
+
+/**
+ * Every feed that can actually be switched on — what the sidebar's "All" means.
+ *
+ * NOT {@link defaultEnabledFeeds}: "All" is the reader deliberately opting into
+ * everything, including the bandwidth of radar, lightning and ships that are off
+ * by default. Turning on only the default subset made the button quietly break
+ * its own label — it left the heavier feeds dark however many times it was
+ * pressed. `planned` feeds are excluded because their toggles do nothing.
+ */
+export function allLiveFeeds(): Set<string> {
+  return new Set(ALL_FEEDS.filter((f) => f.status === 'live').map((f) => f.id));
 }
 
 /**

@@ -79,6 +79,7 @@ export const FeedSidebar: React.FC<FeedSidebarProps> = ({ enabled, onToggle, onS
           sidebar this narrow. Sentence case fits both. */}
       <span className="truncate text-[11px] text-surface-500 dark:text-surface-400">
         {feed.coverage === 'urban' && <>{t('live.coverage.urban')} · </>}
+        {feed.coverage === 'coastal' && <>{t('live.coverage.coastal')} · </>}
         {t(`live.time_model.${feed.time}`)}
       </span>
     </span>
