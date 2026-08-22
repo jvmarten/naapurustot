@@ -45,6 +45,7 @@ before(async () => {
       trust_level SMALLINT NOT NULL DEFAULT 0,
       token_version INTEGER NOT NULL DEFAULT 0,
       comp_supporter BOOLEAN NOT NULL DEFAULT FALSE,
+      lightning_supporter_until TIMESTAMPTZ,
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )`);

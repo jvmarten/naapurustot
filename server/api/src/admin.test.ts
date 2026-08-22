@@ -26,6 +26,7 @@ function row(overrides: Partial<AdminUserRow>): AdminUserRow {
     trust_level: 0,
     created_at: new Date('2026-01-01T00:00:00Z'),
     comp_supporter: false,
+    lightning_supporter_until: null,
     billing_status: null,
     billing_period_end: null,
     ...overrides,
@@ -175,6 +176,7 @@ before(async () => {
       display_name TEXT,
       trust_level SMALLINT NOT NULL DEFAULT 0,
       comp_supporter BOOLEAN NOT NULL DEFAULT FALSE,
+      lightning_supporter_until TIMESTAMPTZ,
       created_at TIMESTAMPTZ DEFAULT NOW()
     )`);
   await pool.query(`
@@ -222,6 +224,24 @@ test('buildAdminUsersPayload: counts tiers and sources across a mixed set', asyn
 
 test('buildAdminUsersPayload: empty database yields all-zero counts', async () => {
   const payload = await buildAdminUsersPayload(NOW);
-  assert.deepEqual(payload.counts, { total: 0, pro: 0, free: 0, comp: 0, stripe: 0, withEmail: 0 });
+  assert.deepEqual(payload.counts, { total: 0, pro: 0, free: 0, comp: 0, stripe: 0, lightning: 0, withEmail: 0 });
   assert.deepEqual(payload.users, []);
+});
+
+test('buildAdminUsersPayload: a prepaid Lightning window counts as PRO (lightning), lapses when past', async () => {
+  await pool.query(
+    `INSERT INTO users (id, username, email, lightning_supporter_until, created_at) VALUES
+       ('b0000000-0000-0000-0000-000000000001', 'nora', 'nora@example.com', '2026-09-20', '2026-05-01'),
+       ('b0000000-0000-0000-0000-000000000002', 'olli', 'olli@example.com', '2026-08-01', '2026-05-02')`,
+  );
+  const payload = await buildAdminUsersPayload(NOW); // NOW = 2026-08-20
+  const byName = Object.fromEntries(payload.users.map((u) => [u.username, u]));
+  assert.equal(byName.nora.tier, 'pro');
+  assert.equal(byName.nora.lightning, true);
+  assert.equal(byName.nora.proSource, 'lightning');
+  assert.equal(byName.nora.supporterUntil, new Date('2026-09-20').toISOString());
+  assert.equal(byName.nora.supporterRenews, false); // a Lightning window does NOT auto-renew
+  assert.equal(byName.olli.tier, 'free'); // window already lapsed
+  assert.equal(byName.olli.lightning, false);
+  assert.equal(payload.counts.lightning, 1);
 });

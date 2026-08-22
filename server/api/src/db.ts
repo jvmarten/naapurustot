@@ -119,6 +119,47 @@ const MIGRATIONS: { id: string; sql: string }[] = [
     id: '007_users_comp_supporter',
     sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS comp_supporter BOOLEAN NOT NULL DEFAULT FALSE`,
   },
+  {
+    // Lightning/Bitcoin PRO — the running expiry of a PREPAID, TIME-BOXED entitlement.
+    // Bitcoin has no recurring subscription, so a Lightning payment buys a fixed window
+    // of PRO that lapses on its own once this timestamp passes. Like comp_supporter, it
+    // lives on the users row (NOT user_billing, whose clobbering upsert is Stripe's) and
+    // is OR'd into deriveSupporter as a fourth, time-boxed entitlement source. NULL means
+    // "never paid via Lightning". Single-statement + IF NOT EXISTS for pg-mem parity.
+    id: '008_users_lightning_supporter_until',
+    sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS lightning_supporter_until TIMESTAMPTZ`,
+  },
+  {
+    // Lightning payment ledger — one row per settled charge. The primary key is the
+    // provider's own charge/settlement id, so this table DOUBLES as the idempotency
+    // ledger the same way stripe_events (004) does: a re-delivered webhook for a charge
+    // already recorded is a no-op. `provider` is recorded HERE ('lightning' + the concrete
+    // processor), never on user_billing (whose provider column stays Stripe-only). The FK
+    // is ON DELETE SET NULL, NOT CASCADE: a deleted account must sever the personal link
+    // but the amount/country/date are VAT/OSS bookkeeping evidence Finnish law requires be
+    // retained (~6 yr), so the row survives the account. amount_eur_cents is the VAT base
+    // (fixed in EUR at time of sale even though settlement is in sats). VARCHAR(2) not
+    // CHAR(2) — pg-mem blank-pads CHAR differently from Postgres.
+    id: '009_lightning_grants',
+    sql: `CREATE TABLE IF NOT EXISTS lightning_grants (
+      id TEXT PRIMARY KEY,
+      user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+      provider VARCHAR(20) NOT NULL DEFAULT 'lightning',
+      plan VARCHAR(40),
+      window_days INTEGER NOT NULL,
+      amount_eur_cents INTEGER,
+      amount_sats BIGINT,
+      buyer_country VARCHAR(2),
+      granted_until TIMESTAMPTZ,
+      status VARCHAR(20) NOT NULL DEFAULT 'paid',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`,
+  },
+  {
+    // Per-user history lookup (GDPR export, and future "your payments" views).
+    id: '010_lightning_grants_user_idx',
+    sql: `CREATE INDEX IF NOT EXISTS idx_lightning_grants_user ON lightning_grants (user_id)`,
+  },
 ];
 
 async function runMigrations(): Promise<void> {

@@ -12,6 +12,7 @@ import cookieParser from 'cookie-parser';
 import * as Sentry from '@sentry/node';
 import authRouter, { LARGE_BODY_ROUTES, httpErrorStatus } from './auth.js';
 import { stripeWebhookHandler } from './billing.js';
+import { lightningWebhookHandler } from './lightning.js';
 import { rateLimit } from './rateLimit.js';
 
 export const ALLOWED_ORIGINS = [
@@ -92,6 +93,16 @@ export function createApp() {
   // verifies the Stripe signature itself, which is what authenticates the caller.
   app.post('/billing/webhook', express.raw({ type: 'application/json' }), (req, res) => {
     void stripeWebhookHandler(req, res);
+  });
+
+  // Bitcoin/Lightning provider webhook (lightning.ts). Like the Stripe webhook it sits
+  // OUTSIDE /auth (the provider sends no browser Origin, so the same-origin CSRF guard
+  // must not apply) and authenticates itself (the provider's HMAC on the charge id, then a
+  // status re-fetch). OpenNode posts form-encoded, so a urlencoded parser — not raw — here;
+  // its HMAC is over the `id` field, not the raw bytes, so this is safe. A future BTCPay
+  // adapter, whose signature is over the raw body, would need its own raw-body route.
+  app.post('/billing/lightning/webhook', express.urlencoded({ extended: false }), (req, res) => {
+    void lightningWebhookHandler(req, res);
   });
 
   // IN-4: a tight 16 KB limit for nearly every route, but the notes/preferences PUTs

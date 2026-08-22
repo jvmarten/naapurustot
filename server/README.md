@@ -53,6 +53,9 @@ Internet
 | `POST` | `/auth/billing/checkout` | Yes | per-user | Create a Stripe Checkout Session for the supporter subscription; returns `{url}` to redirect the browser to. `503` when billing is unconfigured |
 | `POST` | `/auth/billing/portal` | Yes | per-user | Create a Stripe customer-portal session (manage / cancel / update card); returns `{url}`. `400` if the user has never subscribed |
 | `POST` | `/billing/webhook` | Stripe signature | — | Stripe webhook (raw body, signature-verified). **Not** under `/auth` — Stripe sends no browser Origin, so it must bypass the same-origin CSRF guard; the Stripe signature authenticates it instead |
+| `GET` | `/auth/billing/ln/plans` | Yes | per-user | The Bitcoin/Lightning plans on offer: `{ configured, plans:[{id,windowDays,amountEurCents}] }`. Answers `200` with `configured:false` and no plans when the Lightning tier is unconfigured |
+| `POST` | `/auth/billing/ln/checkout` | Yes | per-user | Start a Lightning payment for a plan (`{plan:"month"\|"year"}`); records a pending ledger row and returns `{url}` to the provider's hosted invoice page. `503` when unconfigured, `400` for an unknown plan |
+| `POST` | `/billing/lightning/webhook` | Provider signature | — | Bitcoin/Lightning provider webhook. **Not** under `/auth` (the provider sends no browser Origin). Authenticates the charge id via the provider HMAC, then re-fetches the live status and credits the prepaid window only on a confirmed settlement |
 | `GET` | `/auth/admin` | Admin | — | Private operator dashboard (HTML): every registered account with its Free/PRO tier. Gated by `ADMIN_USERNAMES` |
 | `GET` | `/auth/admin/users` | Admin | — | Same data as JSON (for curl/scripts): `{ generatedAt, counts, users[] }` |
 
@@ -88,8 +91,10 @@ The page lists each user's username, display name, email, tier, Stripe billing s
 renewal date and registration date, with client-side search and column sorting. The
 tier is derived by the **same** `deriveSupporter()` the rest of the API uses, so "PRO"
 means exactly what the badge means everywhere else — a live Stripe subscription
-(`active`/`trialing`/`past_due`-in-grace) **or** a manual `comp` grant — and the source
-(`comp` / `Stripe` / both) is shown.
+(`active`/`trialing`/`past_due`-in-grace), a manual `comp` grant, **or** an unexpired
+prepaid Bitcoin/Lightning window — and the source (`comp` / `Stripe` / `Lightning`, or any
+combination) is shown. The "PRO until" column shows a Stripe renewal date or a Lightning
+window end; a comp grant has neither.
 
 Why this design:
 
@@ -252,6 +257,71 @@ Stripe; until then leave it unset (enabling Tax without that setup makes Checkou
 4. Put the secret key into `STRIPE_SECRET_KEY`. Use test-mode keys + the Stripe CLI
    (`stripe listen --forward-to localhost:3001/billing/webhook`) to exercise it locally.
 
+### Bitcoin / Lightning supporter (prepaid, time-boxed)
+
+An **optional** way to pay for PRO with Bitcoin/Lightning, sitting alongside Stripe (a user
+can pay either way). Like the rest of this server it is off unless configured: with
+`LIGHTNING_PROVIDER` unset the checkout and webhook answer `503` and nothing else is
+affected.
+
+**Bitcoin has no recurring subscription, so this is a PREPAID, TIME-BOXED window.** One
+payment buys a fixed number of days of PRO (`month` ≈ 30, `year` ≈ 365), stored as an
+expiry on `users.lightning_supporter_until`. It lapses on its own once that timestamp
+passes — there is no auto-renew, no cron, and (because Lightning is irreversible) **no
+chargebacks, no dunning, and no refund path**. Renewing before the window ends **stacks**
+onto the remaining time. The badge therefore reads **"PRO until {date}"**, never "Renews".
+
+**Entitlement is server-derived, never client-asserted** — exactly like Stripe and the
+`comp` grant. `deriveSupporter()` ORs the unexpired window in as a fourth source; the window
+is written **only** by a settled, re-fetched-and-confirmed payment (the webhook) or the
+operator CLI. The window lives on the `users` row (not `user_billing`, whose clobbering
+Stripe upsert would overwrite it), mirroring `comp_supporter`.
+
+**The ledger is idempotent and VAT-retaining.** `POST /auth/billing/ln/checkout` records a
+`pending` row in `lightning_grants` keyed by the provider's charge id *before* redirecting,
+so the webhook maps the charge back to `(userId, windowDays, amount)` from data **we** wrote
+— never from the callback body. That id doubles as the idempotency key (a re-delivered
+webhook is a no-op, like `stripe_events`). The webhook authenticates the charge id via the
+provider's HMAC and then **re-fetches the live status from the provider** before crediting —
+the callback body is trusted only for the id it is signed over. The `lightning_grants` FK is
+`ON DELETE SET NULL` (not `CASCADE`): a deleted account is anonymised but the amount/date
+stay for the VAT/OSS bookkeeping retention Finnish law requires.
+
+**Account deletion needs no cancel step** — nothing recurs, so unlike Stripe there is
+nothing to cancel at any provider. The GDPR export (`GET /auth/export`) includes the
+account's Lightning ledger rows and its window expiry.
+
+**EU VAT — launch Finland-only.** A EUR-priced digital sale to an EU consumer is VAT-liable
+via One-Stop-Shop (vero.fi) **including one-time sales**, and a crypto processor does none
+of the place-of-supply/evidence work Stripe Tax does. A single fixed price also cannot be
+honestly VAT-inclusive across the EU's 17–27% rates. So set `LIGHTNING_PRICE_EUR_*` as a
+Finland-inclusive price (25.5%), keep the tier Finland-only (`buyer_country` is stored as
+`FI`), and file OSS manually from the `lightning_grants` ledger. Do **not** frame it as a
+tax-free donation — it grants a benefit, so it is a supply.
+
+**Provider-agnostic.** The processor is a `LightningProvider` behind an interface, chosen by
+`LIGHTNING_PROVIDER`. `opennode` is the reference custodial adapter (hosted invoice + signed
+webhook + a status re-fetch). A self-hosted **BTCPay Server** adapter drops in as a second
+case implementing the same interface (its webhook signs the raw body, so it also needs a
+raw-body route in `app.ts`). Custodial settles to EUR (clean VAT books, low ops, KYC);
+BTCPay is non-custodial/no-KYC but you hold sats and run the service — pick by whether you
+want to receive EUR or hold BTC. **The HTTP adapter is not exercised by CI (a fake provider
+is injected in tests, like Stripe's client) — verify it against the provider's live API
+before enabling.**
+
+**Manual grant / refund CLI** (there is no automated refund — Lightning is irreversible):
+
+```bash
+docker compose exec api npm run grant-lightning  -- someone@example.com 365   # +365 days
+docker compose exec api npm run revoke-lightning -- someone@example.com        # clear window
+```
+
+**Provider setup** (one-time, e.g. OpenNode): create + verify a merchant account, add a
+webhook endpoint at `https://api.naapurustot.fi/billing/lightning/webhook`, copy the API key
+into `OPENNODE_API_KEY`, set `LIGHTNING_PROVIDER=opennode`, and set the `LIGHTNING_PRICE_EUR_*`
+plan prices. Enable auto-conversion to EUR so you carry no BTC price exposure. Exercise it
+against OpenNode's dev environment (`OPENNODE_BASE_URL=https://dev-api.opennode.com`) first.
+
 ## Prerequisites
 
 - Ubuntu 24.04 droplet with Docker installed
@@ -305,6 +375,12 @@ docker compose logs -f
 | `STRIPE_PRICE_ID` | Stripe recurring Price id for the supporter plan (`price_...`). Required alongside `STRIPE_SECRET_KEY` — the entitlement price is set in Stripe, never hard-coded in the app |
 | `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret (`whsec_...`) for verifying `/billing/webhook` deliveries. Without it the webhook answers `503` |
 | `STRIPE_TAX_ENABLED` | Optional — set to `true` to enable Stripe Tax (EU VAT via One-Stop-Shop) on Checkout. Leave unset until registered for OSS through vero.fi and a Tax origin address is configured in Stripe, or Checkout creation fails |
+| `LIGHTNING_PROVIDER` | Optional — the Bitcoin/Lightning processor to use (`opennode`). Empty disables the Lightning tier entirely: checkout/webhook answer `503` and every other endpoint is unaffected |
+| `OPENNODE_API_KEY` | OpenNode secret API key (also the HMAC key that authenticates its webhook). Required alongside `LIGHTNING_PROVIDER=opennode` |
+| `OPENNODE_BASE_URL` | Optional — `https://api.opennode.com` (live, default) or `https://dev-api.opennode.com` (test) |
+| `API_BASE_URL` | Optional — origin the Lightning provider calls its webhook back on (default `https://api.naapurustot.fi`) |
+| `LIGHTNING_PRICE_EUR_MONTH` / `LIGHTNING_PRICE_EUR_YEAR` | Plan prices in EUR **cents**, VAT-inclusive (the price lives here, never in the app). A plan is offered only when its price is set — set one or both |
+| `LIGHTNING_WINDOW_DAYS_MONTH` / `LIGHTNING_WINDOW_DAYS_YEAR` | Optional — days of PRO each plan buys (defaults 30 and 365) |
 | `SENTRY_DSN` | Optional — Sentry error tracking for the API; empty disables Sentry entirely |
 | `SENTRY_RELEASE` | Optional — release identifier attached to Sentry events |
 | `BACKUP_RETENTION_DAYS` | Optional — days of pg_dumps to keep in `./backups/` (default: 14) |

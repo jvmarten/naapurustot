@@ -8,7 +8,9 @@
     "start": "node dist/index.js",
     "test": "tsx --test src/**/*.test.ts",
     "grant-pro": "node dist/scripts/comp.js grant",
-    "revoke-pro": "node dist/scripts/comp.js revoke"
+    "revoke-pro": "node dist/scripts/comp.js revoke",
+    "grant-lightning": "node dist/scripts/lightning.js grant",
+    "revoke-lightning": "node dist/scripts/lightning.js revoke"
   },
   "dependencies": {
     "@sentry/node": "^10.53.1",

@@ -41,6 +41,7 @@ async function createSchema(): Promise<void> {
       trust_level SMALLINT NOT NULL DEFAULT 0,
       token_version INTEGER NOT NULL DEFAULT 0,
       comp_supporter BOOLEAN NOT NULL DEFAULT FALSE,
+      lightning_supporter_until TIMESTAMPTZ,
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )`);
@@ -70,6 +71,22 @@ async function createSchema(): Promise<void> {
       status VARCHAR(20),
       current_period_end TIMESTAMPTZ,
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`);
+  // Lightning payment ledger — the /export route reads it, and /me derives from the
+  // users.lightning_supporter_until window above.
+  await pool.query(`
+    CREATE TABLE lightning_grants (
+      id TEXT PRIMARY KEY,
+      user_id UUID,
+      provider VARCHAR(20) NOT NULL DEFAULT 'lightning',
+      plan VARCHAR(40),
+      window_days INTEGER NOT NULL,
+      amount_eur_cents INTEGER,
+      amount_sats BIGINT,
+      buyer_country VARCHAR(2),
+      granted_until TIMESTAMPTZ,
+      status VARCHAR(20) NOT NULL DEFAULT 'paid',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`);
   await pool.query(
     `INSERT INTO users (id, username, password) VALUES ($1, 'tester', 'x')`,
