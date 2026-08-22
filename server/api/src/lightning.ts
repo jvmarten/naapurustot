@@ -285,17 +285,6 @@ export async function creditLightningPayment(chargeId: string, now: number = Dat
   }
 }
 
-/** The Lightning ledger rows for a user, for the GDPR export. */
-export async function getLightningExport(userId: string): Promise<Record<string, unknown>[]> {
-  const { rows } = await getPool().query(
-    `SELECT id, provider, plan, window_days, amount_eur_cents, amount_sats, buyer_country,
-            granted_until, status, created_at
-       FROM lightning_grants WHERE user_id = $1 ORDER BY created_at`,
-    [userId],
-  );
-  return rows;
-}
-
 // ── Operator CLI helpers (manual grant / refund; there are no chargebacks) ──
 
 /** Manually extend a user's window by N days (comp-via-Lightning), matched by email. */

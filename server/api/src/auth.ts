@@ -17,7 +17,7 @@ import {
   validatePassword,
 } from './passwordReset.js';
 import { billingRouter, cancelSubscriptionForUser, deriveSupporter } from './billing.js';
-import { lightningRouter, getLightningExport } from './lightning.js';
+import { lightningRouter } from './lightning.js';
 import { adminRouter, isAdminUsername } from './admin.js';
 
 /**
