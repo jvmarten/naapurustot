@@ -50,57 +50,96 @@ export function setStripe(s: Stripe | null): void {
   stripeInstance = s;
 }
 
+/** Parse a value that may be a Date, an ISO/epoch string, or nullish into a Date or null. */
+function toDateOrNull(value: unknown): Date | null {
+  if (!value) return null;
+  const d = value instanceof Date ? value : new Date(value as string);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 /**
- * Derive the public entitlement from a `user_billing` row (or its absence).
+ * Derive the public entitlement from a user's billing state. This is the SINGLE
+ * authority on "is this user PRO", OR-ing together every entitlement source.
  *
  * `active` / `trialing` is Stripe's own truth for "currently entitled". `past_due`
  * is a charge that FAILED and Stripe is still retrying (smart dunning); we keep such a
  * supporter entitled through a GRACE WINDOW — as long as the period they already paid
  * for has not ended — so a temporary card decline doesn't yank the badge mid-period.
  * Once `current_period_end` passes, or Stripe gives up (→ `canceled` / `unpaid`), it
- * lapses. `now` is injectable for deterministic tests. `current_period_end` is
- * surfaced for display whenever the user is a supporter.
+ * lapses. `now` is injectable for deterministic tests.
  *
  * `comp` is a manual grant carried on the users row (comp_supporter), set only by the
  * server-side grant-pro CLI. It entitles INDEPENDENTLY of Stripe — a comped user is a
- * supporter with no subscription — so it is OR'd in here, the single authority on "is
- * this user a supporter". It has no renewal date, so `supporterUntil` stays tied to the
- * Stripe subscription: a comp-only user shows PRO with no "renews" line.
+ * supporter with no subscription.
+ *
+ * `lightningUntil` is the running expiry of a PREPAID Lightning/Bitcoin window (a
+ * one-shot payment buys a fixed number of days; Bitcoin has no recurring billing). It
+ * entitles while it is still in the future — structurally the same time-boxed check the
+ * `past_due` grace branch already does, which is why `now` is injectable — and lapses on
+ * its own once it passes, with no revoke event.
+ *
+ * `supporterUntil` / `supporterRenews` precedence, so the UI can be honest about a window
+ * that does NOT auto-renew:
+ *   - a live Stripe subscription (incl. past_due-in-grace) owns the date → renews=true  → "Renews {date}"
+ *   - else a Lightning window                                            → renews=false → "PRO until {date}"
+ *   - else a comp grant (no date at all)                                 → renews=false → no line
  */
 export function deriveSupporter(
   status: unknown,
   currentPeriodEnd: unknown,
   now: number = Date.now(),
   comp: boolean = false,
-): { supporter: boolean; supporterUntil: string | null } {
-  let periodEnd: Date | null = null;
-  if (currentPeriodEnd) {
-    const d = currentPeriodEnd instanceof Date ? currentPeriodEnd : new Date(currentPeriodEnd as string);
-    if (!Number.isNaN(d.getTime())) periodEnd = d;
-  }
+  lightningUntil: unknown = null,
+): { supporter: boolean; supporterUntil: string | null; supporterRenews: boolean } {
+  const periodEnd = toDateOrNull(currentPeriodEnd);
   const inGracePeriod = periodEnd !== null && periodEnd.getTime() > now;
   const stripeSupporter =
     status === 'active' ||
     status === 'trialing' ||
     (status === 'past_due' && inGracePeriod);
+
+  const lightningEnd = toDateOrNull(lightningUntil);
+  const lightningActive = lightningEnd !== null && lightningEnd.getTime() > now;
+
+  let supporterUntil: string | null = null;
+  let supporterRenews = false;
+  if (stripeSupporter && periodEnd) {
+    supporterUntil = periodEnd.toISOString();
+    supporterRenews = true;
+  } else if (lightningActive && lightningEnd) {
+    // A prepaid window has a real end date to show, but it does NOT auto-renew — the UI
+    // reads supporterRenews to say "PRO until" rather than "Renews".
+    supporterUntil = lightningEnd.toISOString();
+    supporterRenews = false;
+  }
+  // A comp grant carries no date, so a comp-only user shows PRO with no line.
+
   return {
-    supporter: comp === true || stripeSupporter,
-    // Renewal date belongs to the subscription; a comp grant has none, so a comp-only
-    // user (no active subscription) gets null here rather than a fabricated date.
-    supporterUntil: stripeSupporter && periodEnd ? periodEnd.toISOString() : null,
+    supporter: comp === true || stripeSupporter || lightningActive,
+    supporterUntil,
+    supporterRenews,
   };
 }
 
-/** Read a user's supporter status. Cheap indexed PK lookup; safe when unconfigured. */
+/** Read a user's supporter status across every source (Stripe + comp + Lightning window).
+ *  Cheap indexed lookup; safe when unconfigured. */
 export async function getSupporterStatus(
   userId: string,
-): Promise<{ supporter: boolean; supporterUntil: string | null }> {
+): Promise<{ supporter: boolean; supporterUntil: string | null; supporterRenews: boolean }> {
   const { rows } = await getPool().query(
-    'SELECT status, current_period_end FROM user_billing WHERE user_id = $1',
+    `SELECT b.status, b.current_period_end, u.comp_supporter, u.lightning_supporter_until
+       FROM users u LEFT JOIN user_billing b ON b.user_id = u.id
+      WHERE u.id = $1`,
     [userId],
   );
-  if (rows.length === 0) return { supporter: false, supporterUntil: null };
-  return deriveSupporter(rows[0].status, rows[0].current_period_end);
+  if (rows.length === 0) return { supporter: false, supporterUntil: null, supporterRenews: false };
+  return deriveSupporter(
+    rows[0].status,
+    rows[0].current_period_end,
+    Date.now(),
+    rows[0].comp_supporter === true,
+    rows[0].lightning_supporter_until,
+  );
 }
 
 /** The billing fields for the GDPR export. Stripe holds the invoices themselves (and

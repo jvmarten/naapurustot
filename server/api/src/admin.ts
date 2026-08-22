@@ -106,6 +106,7 @@ export interface AdminUserRow {
   trust_level: unknown;
   created_at: unknown;
   comp_supporter: unknown;
+  lightning_supporter_until: unknown;
   billing_status: unknown;
   billing_period_end: unknown;
 }
@@ -118,17 +119,22 @@ export interface AdminUserSummary {
   displayName: string | null;
   trustLevel: number | null;
   createdAt: string | null;
-  /** Combined entitlement — 'pro' when comp OR a live Stripe subscription. */
+  /** Combined entitlement — 'pro' when comp OR a live Stripe subscription OR a Lightning window. */
   tier: 'pro' | 'free';
   /** Manual PRO grant on the users row (comp_supporter). */
   comp: boolean;
   /** Currently entitled via a Stripe subscription (independent of comp). */
   stripe: boolean;
-  proSource: 'comp' | 'stripe' | 'comp+stripe' | null;
+  /** Currently entitled via a prepaid Lightning/Bitcoin window. */
+  lightning: boolean;
+  /** Active sources joined with '+', e.g. 'comp', 'stripe', 'comp+stripe', 'lightning'. */
+  proSource: string | null;
   /** Raw Stripe status, if the user has a billing row (active/past_due/canceled/…). */
   billingStatus: string | null;
-  /** Renewal date — Stripe subscriptions only; a comp grant has none. */
+  /** The date under "PRO until": a Stripe renewal or a Lightning window end (comp: none). */
   supporterUntil: string | null;
+  /** True when supporterUntil is an auto-renewing Stripe date; false for a Lightning window. */
+  supporterRenews: boolean;
 }
 
 function toIso(v: unknown): string | null {
@@ -145,12 +151,15 @@ function toIso(v: unknown): string | null {
  */
 export function summariseUser(row: AdminUserRow, now: number = Date.now()): AdminUserSummary {
   const comp = row.comp_supporter === true;
+  // Isolate each source with a single-source deriveSupporter call so it is attributable,
+  // then one combined call for the badge/date the same way the rest of the API derives it.
   const stripe = deriveSupporter(row.billing_status, row.billing_period_end, now, false).supporter;
-  const combined = deriveSupporter(row.billing_status, row.billing_period_end, now, comp);
-  let proSource: AdminUserSummary['proSource'] = null;
-  if (comp && stripe) proSource = 'comp+stripe';
-  else if (comp) proSource = 'comp';
-  else if (stripe) proSource = 'stripe';
+  const lightning = deriveSupporter(null, null, now, false, row.lightning_supporter_until).supporter;
+  const combined = deriveSupporter(row.billing_status, row.billing_period_end, now, comp, row.lightning_supporter_until);
+  const sources: string[] = [];
+  if (comp) sources.push('comp');
+  if (stripe) sources.push('stripe');
+  if (lightning) sources.push('lightning');
   return {
     id: String(row.id),
     username: String(row.username),
@@ -161,21 +170,24 @@ export function summariseUser(row: AdminUserRow, now: number = Date.now()): Admi
     tier: combined.supporter ? 'pro' : 'free',
     comp,
     stripe,
-    proSource,
+    lightning,
+    proSource: sources.length ? sources.join('+') : null,
     billingStatus: (row.billing_status as string) || null,
     supporterUntil: combined.supporterUntil,
+    supporterRenews: combined.supporterRenews,
   };
 }
 
 const LIST_SQL = `
   SELECT u.id, u.username, u.email, u.display_name, u.trust_level, u.created_at, u.comp_supporter,
+         u.lightning_supporter_until,
          b.status AS billing_status, b.current_period_end AS billing_period_end
     FROM users u LEFT JOIN user_billing b ON b.user_id = u.id
    ORDER BY u.created_at DESC`;
 
 export interface AdminUsersPayload {
   generatedAt: string;
-  counts: { total: number; pro: number; free: number; comp: number; stripe: number; withEmail: number };
+  counts: { total: number; pro: number; free: number; comp: number; stripe: number; lightning: number; withEmail: number };
   users: AdminUserSummary[];
 }
 
@@ -189,6 +201,7 @@ export async function buildAdminUsersPayload(now: number = Date.now()): Promise<
     free: users.filter((u) => u.tier === 'free').length,
     comp: users.filter((u) => u.comp).length,
     stripe: users.filter((u) => u.stripe).length,
+    lightning: users.filter((u) => u.lightning).length,
     withEmail: users.filter((u) => u.email !== null).length,
   };
   return { generatedAt: new Date(now).toISOString(), counts, users };
@@ -234,7 +247,7 @@ const CLIENT_JS = [
   '    { key: "email", label: "Email", cls: "mono" },',
   '    { key: "tier", label: "Tier" },',
   '    { key: "billingStatus", label: "Billing status" },',
-  '    { key: "supporterUntil", label: "Renews" },',
+  '    { key: "supporterUntil", label: "PRO until" },',
   '    { key: "createdAt", label: "Registered" }',
   '  ];',
   '  function fmtDate(iso) {',
@@ -244,10 +257,10 @@ const CLIENT_JS = [
   '  }',
   '  function tierLabel(u) {',
   '    if (u.tier !== "pro") return "Free";',
-  '    if (u.proSource === "comp+stripe") return "PRO (comp + Stripe)";',
-  '    if (u.proSource === "comp") return "PRO (comp)";',
-  '    if (u.proSource === "stripe") return "PRO (Stripe)";',
-  '    return "PRO";',
+  '    if (!u.proSource) return "PRO";',
+  '    var names = { comp: "comp", stripe: "Stripe", lightning: "Lightning" };',
+  '    var parts = u.proSource.split("+").map(function (s) { return names[s] || s; });',
+  '    return "PRO (" + parts.join(" + ") + ")";',
   '  }',
   '  function cellText(u, key) {',
   '    if (key === "tier") return tierLabel(u);',
@@ -388,6 +401,7 @@ export function renderDashboard(payload: AdminUsersPayload, nonce: string): stri
     ${tile(c.free, 'Free')}
     ${tile(c.comp, 'Comp')}
     ${tile(c.stripe, 'Stripe')}
+    ${tile(c.lightning, 'Lightning')}
     ${tile(c.withEmail, 'With email')}
   </div>
 </header>

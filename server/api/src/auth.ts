@@ -17,6 +17,7 @@ import {
   validatePassword,
 } from './passwordReset.js';
 import { billingRouter, cancelSubscriptionForUser, deriveSupporter } from './billing.js';
+import { lightningRouter } from './lightning.js';
 import { adminRouter, isAdminUsername } from './admin.js';
 
 /**
@@ -77,12 +78,15 @@ function formatUser(row: Record<string, unknown>) {
   // that return a supporter-aware user (login, /me, credential changes); absent on a
   // plain users row (e.g. a fresh signup), deriveSupporter yields a non-supporter.
   // `comp_supporter` is the manual grant carried on the users row — a missing column
-  // (e.g. the signup RETURNING) reads as undefined and thus non-comp.
-  const { supporter, supporterUntil } = deriveSupporter(
+  // (e.g. the signup RETURNING) reads as undefined and thus non-comp. Likewise
+  // `lightning_supporter_until` is the prepaid Lightning window; a missing column reads
+  // as null (no Lightning entitlement).
+  const { supporter, supporterUntil, supporterRenews } = deriveSupporter(
     row.billing_status,
     row.billing_period_end,
     Date.now(),
     row.comp_supporter === true,
+    row.lightning_supporter_until ?? null,
   );
   return {
     id: row.id,
@@ -93,6 +97,9 @@ function formatUser(row: Record<string, unknown>) {
     createdAt: row.created_at,
     supporter,
     supporterUntil,
+    // Whether supporterUntil is an auto-renewing subscription date (Stripe) or a prepaid
+    // window end (Lightning) — the client shows "Renews" vs "PRO until" accordingly.
+    supporterRenews,
   };
 }
 
@@ -101,6 +108,7 @@ function formatUser(row: Record<string, unknown>) {
 async function selectUserRow(userId: string): Promise<Record<string, unknown> | undefined> {
   const result = await getPool().query(
     `SELECT u.id, u.username, u.email, u.display_name, u.trust_level, u.created_at, u.comp_supporter,
+            u.lightning_supporter_until,
             b.status AS billing_status, b.current_period_end AS billing_period_end
        FROM users u LEFT JOIN user_billing b ON b.user_id = u.id
       WHERE u.id = $1`,
@@ -186,6 +194,12 @@ router.use(resolveUser, perUserLimited);
 // same-origin CSRF guard that app.ts applies to /auth. The Stripe webhook is NOT here
 // — it is a raw-body route registered in app.ts, since Stripe sends no allowed Origin.
 router.use('/billing', billingRouter);
+
+// Bitcoin/Lightning PRO (lightning.ts). Mounted alongside billingRouter so its checkout
+// runs behind resolveUser + the per-user limiter + the same-origin CSRF guard. Its webhook
+// is NOT here — like Stripe's, it is a raw/body-parsed route registered in app.ts, since
+// the payment provider sends no allowed Origin.
+router.use('/billing/ln', lightningRouter);
 
 // Private operator dashboard (admin.ts). Mounted here so it runs behind resolveUser
 // (which sets req.userId) and the /auth per-IP limiter; its own requireAdmin gate then
@@ -314,6 +328,7 @@ router.post('/login', rateLimit(10, 15 * 60 * 1000, 'login'), async (req: Reques
 
   const result = await getPool().query(
     `SELECT u.id, u.username, u.email, u.password, u.display_name, u.trust_level, u.created_at, u.token_version, u.comp_supporter,
+            u.lightning_supporter_until,
             b.status AS billing_status, b.current_period_end AS billing_period_end
        FROM users u LEFT JOIN user_billing b ON b.user_id = u.id
       WHERE u.username = $1`,
@@ -701,6 +716,9 @@ export function buildExportPayload(parts: {
   // supporter). Stripe holds the invoices themselves and retains them for the legally
   // required period; this is the subscription status we store alongside the account.
   billing?: Record<string, unknown> | null;
+  // The account's Lightning/Bitcoin payment ledger rows (empty when never paid via
+  // Lightning). The prepaid-window expiry itself is exported on the account row below.
+  lightning?: Record<string, unknown>[];
 }) {
   const u = parts.user;
   return {
@@ -716,6 +734,8 @@ export function buildExportPayload(parts: {
           updatedAt: u.updated_at,
           // Manual PRO grant, if any (a plain non-comped account exports false).
           compSupporter: u.comp_supporter ?? false,
+          // Prepaid Lightning/Bitcoin window expiry, if any (null when never paid via Lightning).
+          lightningSupporterUntil: u.lightning_supporter_until ?? null,
         }
       : null,
     favorites: parts.favorites ?? [],
@@ -725,6 +745,7 @@ export function buildExportPayload(parts: {
     qualityWeights: parts.preferences?.qualityWeights ?? {},
     wizardProfile: parts.preferences?.wizardProfile ?? {},
     billing: parts.billing ?? null,
+    lightning: parts.lightning ?? [],
   };
 }
 
@@ -745,7 +766,7 @@ router.get('/export', async (req: Request, res: Response): Promise<void> => {
     await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ');
     rows = await Promise.all([
       client.query(
-        'SELECT id, username, email, display_name, trust_level, created_at, updated_at, comp_supporter FROM users WHERE id = $1',
+        'SELECT id, username, email, display_name, trust_level, created_at, updated_at, comp_supporter, lightning_supporter_until FROM users WHERE id = $1',
         [userId]
       ),
       client.query('SELECT favorites FROM user_favorites WHERE user_id = $1', [userId]),
@@ -753,6 +774,7 @@ router.get('/export', async (req: Request, res: Response): Promise<void> => {
       client.query('SELECT notes FROM user_notes WHERE user_id = $1', [userId]),
       client.query('SELECT filter_presets, quality_weights, wizard_profile FROM user_preferences WHERE user_id = $1', [userId]),
       client.query('SELECT provider, plan, status, current_period_end, stripe_customer_id, updated_at FROM user_billing WHERE user_id = $1', [userId]),
+      client.query('SELECT id, provider, plan, window_days, amount_eur_cents, amount_sats, buyer_country, granted_until, status, created_at FROM lightning_grants WHERE user_id = $1 ORDER BY created_at', [userId]),
     ]);
     await client.query('COMMIT');
   } catch (err) {
@@ -761,7 +783,7 @@ router.get('/export', async (req: Request, res: Response): Promise<void> => {
   } finally {
     client.release();
   }
-  const [user, favorites, shortlist, notes, preferences, billing] = rows;
+  const [user, favorites, shortlist, notes, preferences, billing, lightning] = rows;
 
   if (user.rows.length === 0) {
     res.clearCookie('token', CLEAR_COOKIE_OPTS);
@@ -791,6 +813,7 @@ router.get('/export', async (req: Request, res: Response): Promise<void> => {
           updatedAt: billing.rows[0].updated_at,
         }
       : null,
+    lightning: lightning.rows,
   });
 
   res.setHeader('Content-Disposition', 'attachment; filename="naapurustot-data.json"');

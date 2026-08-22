@@ -85,6 +85,41 @@ test('deriveSupporter: comp AND an active subscription still surfaces the sub re
   assert.equal(r.supporterUntil, '2030-01-01T00:00:00.000Z');
 });
 
+test('deriveSupporter: a future Lightning window entitles (PRO until, does not renew)', () => {
+  const now = Date.UTC(2026, 7, 20);
+  const until = new Date(Date.UTC(2026, 8, 20)); // a month out
+  const r = deriveSupporter(null, null, now, false, until);
+  assert.equal(r.supporter, true);
+  assert.equal(r.supporterUntil, until.toISOString());
+  assert.equal(r.supporterRenews, false); // prepaid — never auto-renews
+});
+
+test('deriveSupporter: a lapsed Lightning window does not entitle', () => {
+  const now = Date.UTC(2026, 7, 20);
+  const until = new Date(Date.UTC(2026, 7, 10)); // already passed
+  const r = deriveSupporter(null, null, now, false, until);
+  assert.equal(r.supporter, false);
+  assert.equal(r.supporterUntil, null);
+});
+
+test('deriveSupporter: an active Stripe sub wins the date over a Lightning window (renews=true)', () => {
+  const now = Date.UTC(2026, 7, 20);
+  const stripeEnd = new Date(Date.UTC(2026, 8, 1));
+  const lightningEnd = new Date(Date.UTC(2027, 0, 1)); // further out, but Stripe owns the date
+  const r = deriveSupporter('active', stripeEnd, now, false, lightningEnd);
+  assert.equal(r.supporter, true);
+  assert.equal(r.supporterUntil, stripeEnd.toISOString());
+  assert.equal(r.supporterRenews, true);
+});
+
+test('deriveSupporter: lightningUntil defaults to none, so existing callers are unchanged', () => {
+  assert.equal(deriveSupporter('active', new Date('2030-01-01T00:00:00Z')).supporter, true);
+  assert.equal(deriveSupporter('canceled', null).supporter, false);
+  // Accepts an epoch/ISO string too, like currentPeriodEnd.
+  assert.equal(deriveSupporter(null, null, Date.UTC(2026, 0, 1), false, '2026-06-01T00:00:00.000Z').supporterUntil,
+    '2026-06-01T00:00:00.000Z');
+});
+
 test('readPeriodEnd reads a top-level Unix seconds value', () => {
   const secs = Math.floor(Date.UTC(2030, 0, 1) / 1000);
   const d = readPeriodEnd({ current_period_end: secs });
