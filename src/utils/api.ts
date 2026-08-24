@@ -24,6 +24,16 @@ export interface ApiUser {
   supporter?: boolean;
   /** ISO end of the current paid period, for display ("renews …"). Null when not a supporter. */
   supporterUntil?: string | null;
+  /** True when supporterUntil is an auto-renewing Stripe date ("Renews …"); false for a
+   *  prepaid Bitcoin/Lightning window ("PRO until …"). Server-derived. */
+  supporterRenews?: boolean;
+}
+
+/** A Bitcoin/Lightning prepaid plan on offer (server-priced). */
+export interface LightningPlan {
+  id: 'month' | 'year';
+  windowDays: number;
+  amountEurCents: number;
 }
 
 interface ApiResponse<T> {
@@ -51,6 +61,7 @@ const SERVER_ERROR_KEYS: Record<string, string> = {
   'New password must be different from the current one': 'auth.error.password_unchanged',
   'Billing not configured': 'supporter.error.unavailable',
   'Could not start checkout': 'supporter.error.checkout_failed',
+  'Could not start Lightning checkout': 'supporter.error.checkout_failed',
   'Could not open billing portal': 'supporter.error.portal_failed',
   'No subscription': 'supporter.error.no_subscription',
   'Could not cancel subscription': 'supporter.error.cancel_failed',
@@ -231,4 +242,13 @@ export const api = {
 
   openBillingPortal: () =>
     request<{ url: string }>('/auth/billing/portal', { method: 'POST', body: JSON.stringify({}) }),
+
+  // Bitcoin/Lightning PRO — a prepaid, time-boxed alternative to the Stripe subscription.
+  // getLightningPlans reports whether it is configured and the plans/prices on offer;
+  // startLightningCheckout returns a hosted-invoice URL to redirect the browser to.
+  getLightningPlans: () =>
+    request<{ configured: boolean; plans: LightningPlan[] }>('/auth/billing/ln/plans'),
+
+  startLightningCheckout: (plan: 'month' | 'year') =>
+    request<{ url: string }>('/auth/billing/ln/checkout', { method: 'POST', body: JSON.stringify({ plan }) }),
 };

@@ -12,18 +12,29 @@ import type { ApiUser } from '../utils/api';
  */
 const startCheckout = vi.fn();
 const openBillingPortal = vi.fn();
+const getLightningPlans = vi.fn();
+const startLightningCheckout = vi.fn();
 
 vi.mock('../utils/api', () => ({
   api: {
     startCheckout: () => startCheckout(),
     openBillingPortal: () => openBillingPortal(),
+    getLightningPlans: () => getLightningPlans(),
+    startLightningCheckout: (plan: 'month' | 'year') => startLightningCheckout(plan),
   },
 }));
 
 import { SupporterModal } from '../components/SupporterModal';
 
 const freeUser = { id: 'u1', username: 'tester', displayName: 'Testi', email: null, trustLevel: 0, createdAt: 'x', supporter: false } as ApiUser;
-const proUser = { ...freeUser, supporter: true, supporterUntil: '2035-03-01T00:00:00Z' } as ApiUser;
+// A Stripe subscriber auto-renews, so supporterRenews is true (drives "Renews" + the portal).
+const proUser = { ...freeUser, supporter: true, supporterUntil: '2035-03-01T00:00:00Z', supporterRenews: true } as ApiUser;
+// A prepaid Lightning supporter: entitled but does NOT auto-renew.
+const lightningUser = { ...freeUser, supporter: true, supporterUntil: '2035-03-01T00:00:00Z', supporterRenews: false } as ApiUser;
+const LN_PLANS = [
+  { id: 'month' as const, windowDays: 30, amountEurCents: 999 },
+  { id: 'year' as const, windowDays: 365, amountEurCents: 9900 },
+];
 
 // Replace window.location with a plain object so a redirect just sets .href (jsdom would
 // otherwise log "Not implemented: navigation").
@@ -31,6 +42,11 @@ const realLocation = window.location;
 beforeEach(() => {
   startCheckout.mockReset();
   openBillingPortal.mockReset();
+  startLightningCheckout.mockReset();
+  // Default: Lightning unconfigured, so no plan buttons render and the existing states
+  // are unchanged. Individual tests override to exercise the Lightning path.
+  getLightningPlans.mockReset();
+  getLightningPlans.mockResolvedValue({ data: { configured: false, plans: [] } });
   // @ts-expect-error override for the test
   delete window.location;
   // @ts-expect-error minimal stub
@@ -102,6 +118,39 @@ describe('SupporterModal — activating after checkout', () => {
     render(<SupporterModal user={proUser} justSubscribed onClose={vi.fn()} onRefresh={vi.fn()} onNeedLogin={vi.fn()} />);
     expect(screen.getByText(t('supporter.status.active'))).toBeInTheDocument();
     expect(screen.queryByText(t('supporter.status.activating'))).toBeNull();
+  });
+});
+
+describe('SupporterModal — Bitcoin/Lightning', () => {
+  it('renders a plan button per configured plan and redirects to the hosted invoice', async () => {
+    getLightningPlans.mockResolvedValue({ data: { configured: true, plans: LN_PLANS } });
+    startLightningCheckout.mockResolvedValue({ data: { url: 'https://pay.test/inv' } });
+    render(<SupporterModal user={freeUser} onClose={vi.fn()} onRefresh={vi.fn()} onNeedLogin={vi.fn()} />);
+
+    // The section appears once the async plans fetch resolves.
+    expect(await screen.findByText(t('supporter.cta.lightning'))).toBeInTheDocument();
+    const monthBtn = screen.getByRole('button', { name: new RegExp(t('supporter.plan.month')) });
+    expect(screen.getByRole('button', { name: new RegExp(t('supporter.plan.year')) })).toBeInTheDocument();
+
+    fireEvent.click(monthBtn);
+    await waitFor(() => expect(window.location.href).toBe('https://pay.test/inv'));
+    expect(startLightningCheckout).toHaveBeenCalledWith('month');
+  });
+
+  it('shows no Lightning buttons when the tier is unconfigured', async () => {
+    render(<SupporterModal user={freeUser} onClose={vi.fn()} onRefresh={vi.fn()} onNeedLogin={vi.fn()} />);
+    // Give the (unconfigured) plans fetch a chance to resolve, then assert nothing rendered.
+    await waitFor(() => expect(getLightningPlans).toHaveBeenCalled());
+    expect(screen.queryByText(t('supporter.cta.lightning'))).toBeNull();
+    // The Stripe subscribe button is unaffected.
+    expect(screen.getByRole('button', { name: t('supporter.cta.subscribe') })).toBeInTheDocument();
+  });
+
+  it('a prepaid Lightning supporter sees "PRO until" and no manage/portal button', () => {
+    render(<SupporterModal user={lightningUser} onClose={vi.fn()} onRefresh={vi.fn()} onNeedLogin={vi.fn()} />);
+    expect(screen.getByText(new RegExp(t('supporter.status.until')))).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: t('supporter.cta.manage') })).toBeNull();
+    expect(openBillingPortal).not.toHaveBeenCalled();
   });
 });
 
