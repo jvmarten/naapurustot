@@ -29,6 +29,13 @@ interface FeedSidebarProps {
   onToggle: (feedId: string) => void;
   onSetAll: (on: boolean) => void;
   onClose: () => void;
+  /**
+   * The close button, exposed so the page can move keyboard focus onto it when
+   * the sidebar opens — the header's "Filters" trigger unmounts on open, so
+   * without this focus is dropped to <body> (WCAG 2.4.3). Focus is returned to
+   * that trigger on close by the page.
+   */
+  closeRef?: React.Ref<HTMLButtonElement>;
 }
 
 /** A single row's switch. Colour comes from the group, so groups read as families. */
@@ -47,7 +54,13 @@ const Toggle: React.FC<{ on: boolean; accent: string; disabled: boolean }> = ({ 
   </span>
 );
 
-export const FeedSidebar: React.FC<FeedSidebarProps> = ({ enabled, onToggle, onSetAll, onClose }) => {
+export const FeedSidebar: React.FC<FeedSidebarProps> = ({
+  enabled,
+  onToggle,
+  onSetAll,
+  onClose,
+  closeRef,
+}) => {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   // Escape closes it, which the overlay form makes an obligation rather than a
@@ -134,6 +147,7 @@ export const FeedSidebar: React.FC<FeedSidebarProps> = ({ enabled, onToggle, onS
         </button>
         <button
           type="button"
+          ref={closeRef}
           onClick={onClose}
           aria-label={t('live.filters.close')}
           className="grid h-8 w-8 place-items-center rounded text-lg leading-none text-surface-600 hover:bg-surface-200 hover:text-surface-900 dark:text-surface-400 dark:hover:bg-surface-800 dark:hover:text-white"

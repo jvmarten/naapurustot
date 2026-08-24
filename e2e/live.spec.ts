@@ -124,6 +124,32 @@ test.describe('/live/', () => {
     expect(slider!.y + slider!.height).toBeLessThanOrEqual(780);
   });
 
+  test('keeps keyboard focus on the trigger as the sidebar closes and reopens', async ({ page }) => {
+    // Opening the sidebar swaps the header's "Filters" button for the panel, and
+    // closing it swaps back — each time, the activated control unmounts, and React
+    // drops focus to <body> unless the page moves it onto the replacement. A
+    // keyboard user stranded on <body> has to tab in from the top of the document
+    // every time, which is the WCAG 2.4.3 failure this pins. No network is needed:
+    // the sidebar and its trigger mount without a single successful fetch.
+    await page.goto('/live/');
+    await waitForLiveMap(page);
+
+    // Desktop default viewport, so the sidebar starts open. Its close control's
+    // label lives in the lazily-fetched fi-extra dictionary, so waiting on it
+    // confirms the panel and its real labels are both present before we type.
+    const closeBtn = page.getByRole('button', { name: 'Sulje suodattimet' });
+    await expect(closeBtn).toBeVisible();
+
+    // Escape closes it — focus must land on the "Filters" button now in the header.
+    await page.keyboard.press('Escape');
+    const reopen = page.getByRole('button', { name: 'Suodattimet' });
+    await expect(reopen).toBeFocused();
+
+    // Reopening from that button moves focus into the panel, onto its close control.
+    await reopen.press('Enter');
+    await expect(closeBtn).toBeFocused();
+  });
+
   test('remembers the camera for a later bare /live/', async ({ page }) => {
     await page.goto('/live/?at=65.01210,25.46510,14.00');
     await waitForLiveMap(page);

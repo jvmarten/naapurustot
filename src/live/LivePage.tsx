@@ -626,6 +626,7 @@ const EMPTY_WINDS: WindTimelineSample[] = [];
 const EMPTY_SEALEVEL: SealevelTimelineSample[] = [];
 const EMPTY_STRIKES: Strike[] = [];
 const EMPTY_SCHEDULED: ScheduledTrain[] = [];
+const EMPTY_INCIDENTS: Incident[] = [];
 
 /**
  * How often the page's clock catches up with the world while it is following it.
@@ -2223,8 +2224,6 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   const trackRef = useRef<TrainFix[] | null>(null);
   /** Bumped when the track arrives or clears, so the selection memo re-resolves. */
   const [trackVersion, setTrackVersion] = useState(0);
-  /** The last polled road incidents, nationally. A ref for the same reason. */
-  const incidentsRef = useRef<Incident[]>([]);
   /**
    * The measured feeds' DAYS, rather than their present.
    *
@@ -2396,6 +2395,14 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   const [sidebarOpen, setSidebarOpen] = useState(
     () => typeof window === 'undefined' || window.innerWidth >= 768,
   );
+  // Focus management for the sidebar's open/close, which swap the header's
+  // "Filters" button for the sidebar (and back). Like the readout above, the
+  // control that gets activated unmounts, so focus has to be moved onto its
+  // replacement or a keyboard user lands on <body> (WCAG 2.4.3). The interaction
+  // flag keeps the desktop-default-open initial mount from stealing focus on load.
+  const filtersBtnRef = useRef<HTMLButtonElement>(null);
+  const sidebarCloseRef = useRef<HTMLButtonElement>(null);
+  const sidebarInteractedRef = useRef(false);
   /**
    * Whether the time bar is playing, mirrored up from it.
    *
@@ -2406,6 +2413,13 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   const [playing, setPlaying] = useState(false);
   /** Whether the honesty strip is expanded. See `readStoredReadout`. */
   const [readoutOpen, setReadoutOpen] = useState(readStoredReadout);
+  // The strip is a disclosure whose two controls each unmount the other, and React
+  // drops focus to <body> when the focused node leaves the DOM. These refs and the
+  // interaction flag let an effect move focus to the control that replaced it,
+  // without stealing focus on load from the persisted-open state.
+  const readoutShowRef = useRef<HTMLButtonElement>(null);
+  const readoutHideRef = useRef<HTMLButtonElement>(null);
+  const readoutInteractedRef = useRef(false);
   const [coverage, setCoverage] = useState<{
     source: HeightSource;
     measured: number;
@@ -2772,6 +2786,20 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   );
   /* eslint-enable react-hooks/exhaustive-deps */
 
+  /**
+   * The announcements in effect at the clock — memoised like the *At samples above.
+   *
+   * Unlike those, this reads the `incidents` STATE rather than a ref, so every
+   * dependency is visible and no eslint-disable is needed: the poll sets state and
+   * ref together, so the two are identical, and the state is what lets the draw
+   * loop, the hit test and the count share one filtered list instead of each
+   * calling `activeAt` — the draw one ran per frame during a pan or a live tick.
+   */
+  const incidentsAt = useMemo(
+    () => (incidentsOn ? activeAt(incidents, whenMs) : EMPTY_INCIDENTS),
+    [incidentsOn, incidents, whenMs],
+  );
+
   /** How many of those reached the ground — the ones that hit something. */
   const groundStrikes = useMemo(
     () => strikesAt.reduce((n, s) => (s.ground ? n + 1 : n), 0),
@@ -2976,6 +3004,12 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     // snapshot, and outside it there is nothing to show — no vessel timetable
     // stands in the way the trains' does, so the panel closes rather than guess.
     if (selection.kind === 'ship') {
+      // Toggling the feed off takes its mark off the map, so the panel describing
+      // that mark has to close with it — the same "no inspector for an undrawn
+      // thing" rule the station branches get for free (their *At samples go empty
+      // when the feed is off). Ships resolve through a ref and a recorded snapshot
+      // that both outlive the toggle, so the gate is explicit here.
+      if (!shipsOn) return null;
       const key = shipKey(selection.item);
       if (live) {
         const cur = shipsRef.current.find((s) => shipKey(s) === key);
@@ -3007,6 +3041,10 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
      * labelled with the instant. This settles the rows that describe the fix.
      */
     if (selection.kind === 'train') {
+      // Same as the ship branch: the train resolves through refs, a snapshot and
+      // the timetable, none of which clear on toggle-off, so the panel would keep
+      // describing a train the map is no longer drawing. Close it with the feed.
+      if (!trainsOn) return null;
       /**
        * The measured track first, for the same reason the ring uses it first:
        * it is fetched for the selected train alone, it reaches the whole day,
@@ -3049,10 +3087,12 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     sealevelAt,
     whenMs,
     live,
+    trainsOn,
     trainStatus,
     trainSnapshot,
     scheduledTrains,
     trackVersion,
+    shipsOn,
     shipStatus,
     shipSnapshot,
   ]);
@@ -3092,6 +3132,27 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
       /* private mode — the strip still opens and closes for this session */
     }
   }, [readoutOpen]);
+
+  // Keyboard focus follows the honesty strip's disclosure. Activating "show"
+  // unmounts it and mounts the panel's "hide", and vice versa; without this a
+  // keyboard user is dropped to <body> each time (WCAG 2.4.3 Focus Order). The
+  // interaction guard is what keeps the persisted-open initial mount from
+  // grabbing focus on page load.
+  useEffect(() => {
+    if (!readoutInteractedRef.current) return;
+    const target = readoutOpen ? readoutHideRef.current : readoutShowRef.current;
+    target?.focus();
+  }, [readoutOpen]);
+
+  // Same focus follow-through for the feed sidebar: opening it moves focus onto
+  // its close control, closing it returns focus to the "Filters" button that
+  // reappears in the header. Guarded so the desktop default-open mount does not
+  // grab focus on load.
+  useEffect(() => {
+    if (!sidebarInteractedRef.current) return;
+    const target = sidebarOpen ? sidebarCloseRef.current : filtersBtnRef.current;
+    target?.focus();
+  }, [sidebarOpen]);
 
   /**
    * Keep the address bar saying what the page is showing.
@@ -3429,7 +3490,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
       // in hand for a scrub backwards; at "now" this filter is what keeps them
       // off the map, and scrubbing forward onto a planned closure shows
       // Fintraffic's plan rather than a guess.
-      paintIncidents(ctx, map, activeAt(incidentsRef.current, whenMs), theme, zoom, width, height);
+      paintIncidents(ctx, map, incidentsAt, theme, zoom, width, height);
     }
     if (shipsOn) {
       // SAME SET-AT-A-DIFFERENT-TIME CONTRACT AS THE TRAINS, minus the timetable
@@ -3532,6 +3593,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     windAt,
     sealevelAt,
     strikesAt,
+    incidentsAt,
     trainSnapshot,
     scheduledTrains,
     needSchedule,
@@ -4583,11 +4645,11 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     intervalMs: INCIDENT_POLL_MS,
     onData: useCallback(
       (list: Incident[]) => {
-        incidentsRef.current = list;
-        // Also held as state, unlike the other feeds: the readout has to count
-        // the announcements in effect at the PAGE'S clock, not the ones the poll
-        // returned, and that count changes when the clock moves rather than when
-        // the poll lands. Fourteen features once a minute is a cheap render.
+        // Held as state, not a ref like the other national feeds: everything that
+        // reads it — the draw loop, the hit test, the readout count — wants the
+        // announcements in effect at the PAGE'S clock, which `incidentsAt` derives
+        // from this state and re-derives when the clock moves rather than when the
+        // poll lands. Fourteen features once a minute is a cheap render.
         setIncidents(list);
         setIncidentStatus({ count: list.length, failed: false });
         scheduleDraw();
@@ -4598,7 +4660,6 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
       setIncidentStatus((prev) => ({ count: prev?.count ?? 0, failed: true }));
     }, []),
     onClear: useCallback(() => {
-      incidentsRef.current = [];
       setIncidents([]);
       setIncidentStatus(null);
       scheduleDraw();
@@ -4896,7 +4957,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
           ? shipsRef.current
           : (shipSnapshot?.items ?? EMPTY_SHIPS)
         : undefined;
-      const visible = incidentsOn ? activeAt(incidentsRef.current, whenMs) : undefined;
+      const visible = incidentsOn ? incidentsAt : undefined;
       const hit = pickFeature(
         point,
         {
@@ -4928,12 +4989,12 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
       shipsOn,
       incidentsOn,
       live,
-      whenMs,
       observationsAt,
       airQualityAt,
       windAt,
       sealevelAt,
       strikesAt,
+      incidentsAt,
       trainSnapshot,
       scheduledTrains,
       needSchedule,
@@ -5015,7 +5076,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   const shadowRatio = shadowLengthRatio(sun.altitude);
 
   /** How many announcements are in effect at the clock, not how many were polled. */
-  const incidentsNow = useMemo(() => activeAt(incidents, whenMs).length, [incidents, whenMs]);
+  const incidentsNow = useMemo(() => incidentsAt.length, [incidentsAt]);
 
   /**
    * The coverage sentence for whichever tier(s) actually supplied the buildings.
@@ -5216,7 +5277,11 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
           {!sidebarOpen && (
             <button
               type="button"
-              onClick={() => setSidebarOpen(true)}
+              ref={filtersBtnRef}
+              onClick={() => {
+                sidebarInteractedRef.current = true;
+                setSidebarOpen(true);
+              }}
               className="rounded border border-surface-300 px-2 py-1 text-xs dark:border-surface-700"
             >
               {t('live.filters.title')}
@@ -5241,7 +5306,11 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
             enabled={enabled}
             onToggle={toggleFeed}
             onSetAll={setAll}
-            onClose={() => setSidebarOpen(false)}
+            onClose={() => {
+              sidebarInteractedRef.current = true;
+              setSidebarOpen(false);
+            }}
+            closeRef={sidebarCloseRef}
           />
         )}
 
@@ -5270,7 +5339,11 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
           {readoutOn && !readoutOpen && (
             <button
               type="button"
-              onClick={() => setReadoutOpen(true)}
+              ref={readoutShowRef}
+              onClick={() => {
+                readoutInteractedRef.current = true;
+                setReadoutOpen(true);
+              }}
               aria-expanded={false}
               aria-label={t(readoutAlert ? 'live.readout.alert' : 'live.readout.show')}
               className={`absolute left-3 top-3 z-10 flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold shadow-sm ring-1 backdrop-blur transition-colors ${
@@ -5300,7 +5373,11 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
                 </h2>
                 <button
                   type="button"
-                  onClick={() => setReadoutOpen(false)}
+                  ref={readoutHideRef}
+                  onClick={() => {
+                    readoutInteractedRef.current = true;
+                    setReadoutOpen(false);
+                  }}
                   aria-expanded
                   aria-label={t('live.readout.hide')}
                   className="-mr-1 -mt-0.5 shrink-0 rounded px-1.5 text-base leading-none text-surface-400 hover:text-surface-900 dark:text-surface-500 dark:hover:text-white"
