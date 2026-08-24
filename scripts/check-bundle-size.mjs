@@ -134,7 +134,15 @@ import { join } from 'node:path';
 // total past the old 321,000 budget (a few hundred bytes of headroom) to 323,482 — so
 // ~2.5-3 KB of genuine feature; headroom set to ~1.5 KB (above the noise floor, per the
 // Services-honesty note) rather than to a hair.
-const BUDGET = 325_000;
+// → 326000 B (2026-08-22: the Bitcoin/Lightning half of the supporter tier reaches the
+// UI. SupporterModal gains a prepaid-plan block (the getLightningPlans fetch + a redirect
+// button per configured plan) and an honest "PRO until" vs "Renews" split driven by the
+// server's new supporterRenews flag; api.ts gets ApiUser.supporterRenews + the two ln
+// calls; plus 5 fi.json strings in the always-loaded i18n chunk. Measured 323,967 →
+// 324,470 — only ~503 B, since the redirect-to-hosted-invoice model needs no QR/BOLT11
+// library in the bundle (the server hands back a hosted URL, exactly like Stripe). Bumped
+// 1 KB to restore headroom to ~1.5 KB, per the Services-honesty note — 530 B is a hair.)
+const BUDGET = 326_000;
 const ASSETS_DIR = 'dist/assets';
 
 // Second budget: the /live/ realtime sub-app.

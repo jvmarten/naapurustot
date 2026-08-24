@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { t, getLang, useI18nVersion } from '../utils/i18n';
-import { api, type ApiUser } from '../utils/api';
+import { api, type ApiUser, type LightningPlan } from '../utils/api';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface SupporterModalProps {
@@ -30,11 +30,23 @@ export const SupporterModal: React.FC<SupporterModalProps> = ({ user, onClose, o
   useI18nVersion();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lnPlans, setLnPlans] = useState<LightningPlan[]>([]);
   const overlayRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   useFocusTrap(panelRef);
 
   const isSupporter = Boolean(user?.supporter);
+
+  // Fetch the Bitcoin/Lightning plans (empty unless a provider + prices are configured
+  // server-side). Only when signed in — an anonymous visitor gets the sign-in prompt first.
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    api.getLightningPlans().then(({ data }) => {
+      if (!cancelled && data?.configured) setLnPlans(data.plans ?? []);
+    });
+    return () => { cancelled = true; };
+  }, [user]);
 
   useEffect(() => {
     const trigger = document.activeElement as HTMLElement | null;
@@ -68,12 +80,52 @@ export const SupporterModal: React.FC<SupporterModalProps> = ({ user, onClose, o
     }
   }, [busy]);
 
-  // "Renews <date>" from the ISO period end, formatted in the active locale.
+  // Redirect to the provider's hosted Bitcoin/Lightning invoice for a prepaid plan.
+  const goLightning = useCallback(async (plan: 'month' | 'year') => {
+    if (busy) return;
+    setError(null);
+    setBusy(true);
+    try {
+      const { data, error: err } = await api.startLightningCheckout(plan);
+      if (data?.url) { window.location.href = data.url; return; }
+      setError(err ?? t('supporter.error.checkout_failed'));
+    } finally {
+      setBusy(false);
+    }
+  }, [busy]);
+
+  // The Bitcoin/Lightning plan buttons — one per configured plan, each showing its price
+  // and window. A prepaid one-off (no auto-renew), so it is offered as an alternative to the
+  // Stripe subscription and as a way for an existing Lightning supporter to top up.
+  const lightningBlock = lnPlans.length > 0 && (
+    <div className="pt-1">
+      <p className="text-xs font-medium text-surface-500 dark:text-surface-400 text-center mb-2">{t('supporter.cta.lightning')}</p>
+      <div className="flex gap-2">
+        {lnPlans.map((p) => (
+          <button
+            key={p.id}
+            onClick={() => goLightning(p.id)}
+            disabled={busy}
+            className="flex-1 px-3 py-2 rounded-lg text-sm font-semibold text-brand-700 dark:text-brand-300 border border-brand-300 dark:border-brand-500/40 hover:bg-brand-50 dark:hover:bg-brand-500/10 transition active:scale-[.99] disabled:opacity-50"
+          >
+            {(p.amountEurCents / 100).toLocaleString(getLang(), { style: 'currency', currency: 'EUR' })}
+            {' · '}{t(`supporter.plan.${p.id}`)}
+          </button>
+        ))}
+      </div>
+      <p className="mt-1.5 text-[11px] text-surface-400 dark:text-surface-500 text-center">{t('supporter.lightning.note')}</p>
+    </div>
+  );
+
+  // The supporter-until line from the ISO date, formatted in the active locale. A Stripe
+  // subscription auto-renews ("Renews …"); a prepaid Lightning window does not, so it reads
+  // "PRO until …" — the honest distinction the server's supporterRenews flag carries.
   let renews: string | null = null;
   if (isSupporter && user?.supporterUntil) {
     const d = new Date(user.supporterUntil);
     if (!Number.isNaN(d.getTime())) {
-      renews = `${t('supporter.status.renews')} ${d.toLocaleDateString(getLang(), { year: 'numeric', month: 'long', day: 'numeric' })}`;
+      const label = user?.supporterRenews === false ? t('supporter.status.until') : t('supporter.status.renews');
+      renews = `${label} ${d.toLocaleDateString(getLang(), { year: 'numeric', month: 'long', day: 'numeric' })}`;
     }
   }
 
@@ -113,13 +165,17 @@ export const SupporterModal: React.FC<SupporterModalProps> = ({ user, onClose, o
                 <p className="text-base font-semibold text-brand-700 dark:text-brand-300">{t('supporter.status.active')}</p>
                 {renews && <p className="mt-1 text-xs text-surface-500 dark:text-surface-400">{renews}</p>}
               </div>
-              <button
-                onClick={() => go('portal')}
-                disabled={busy}
-                className="w-full px-4 py-2.5 rounded-lg text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 shadow-sm hover:shadow transition active:scale-[.99] disabled:opacity-50"
-              >
-                {busy ? t('supporter.redirecting') : t('supporter.cta.manage')}
-              </button>
+              {/* A Stripe subscriber manages/cancels via the portal; a prepaid Lightning
+                  supporter has nothing to manage but can top up their window instead. */}
+              {user?.supporterRenews ? (
+                <button
+                  onClick={() => go('portal')}
+                  disabled={busy}
+                  className="w-full px-4 py-2.5 rounded-lg text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 shadow-sm hover:shadow transition active:scale-[.99] disabled:opacity-50"
+                >
+                  {busy ? t('supporter.redirecting') : t('supporter.cta.manage')}
+                </button>
+              ) : lightningBlock}
             </>
           ) : justSubscribed ? (
             // Returned from a successful Checkout, but the webhook may not have landed
@@ -170,6 +226,9 @@ export const SupporterModal: React.FC<SupporterModalProps> = ({ user, onClose, o
                   </button>
                 </>
               )}
+              {/* Prepaid Bitcoin/Lightning alternative to the Stripe subscription (shown only
+                  when signed in and a provider is configured server-side). */}
+              {user && lightningBlock}
             </>
           )}
 
