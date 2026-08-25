@@ -10,7 +10,7 @@ import { getCoveragePct, isLowCoverage, formatCoveragePct, type NeighborhoodProp
 import { useTheme } from '../hooks/useTheme';
 import { t, useI18nVersion } from '../utils/i18n';
 import { DEFAULT_CENTER, DEFAULT_ZOOM, MAP_MAX_ZOOM, MAP_MIN_ZOOM } from '../utils/mapConstants';
-import { queryFeaturesSafe } from '../utils/mapQuery';
+import { queryFeaturesSafe, isStyleAlive } from '../utils/mapQuery';
 import { basemapTileUrl } from '../utils/basemap';
 
 /**
@@ -769,7 +769,7 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
       layer: LayerConfig,
       gridData: FeatureCollection | null,
     ) => {
-      if (!map || !map.getLayer(FILL_LAYER)) return;
+      if (!map || !isStyleAlive(map) || !map.getLayer(FILL_LAYER)) return;
       map.setPaintProperty(FILL_LAYER, 'fill-color', buildFillColorExpression(layer));
       // PO-1: re-target the no-data hatch to the new layer's property.
       if (map.getLayer(NO_DATA_LAYER)) {
@@ -792,7 +792,7 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
   // GeoJSON setData refresh clears feature-state.
   useEffect(() => {
     for (const map of [leftMapRef.current, rightMapRef.current]) {
-      if (!map || !map.getSource(SOURCE_ID)) continue;
+      if (!map || !isStyleAlive(map) || !map.getSource(SOURCE_ID)) continue;
       if (prevSelectedRef.current) {
         map.setFeatureState({ source: SOURCE_ID, id: prevSelectedRef.current }, { selected: false });
       }
@@ -831,7 +831,9 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
         rafId = null;
         const e = pending;
         pending = null;
-        if (!e || !map.getSource(SOURCE_ID) || !map.getLayer(FILL_LAYER)) return;
+        // A queued frame can fire after a WebGL context loss nulls `map.style`, which
+        // makes the getSource/getLayer calls below throw on a null style.
+        if (!e || !isStyleAlive(map) || !map.getSource(SOURCE_ID) || !map.getLayer(FILL_LAYER)) return;
         const features = queryFeaturesSafe(map, e.point, [FILL_LAYER]);
         const feat = features[0];
         const pno = feat?.properties?.pno as string | undefined;
@@ -862,12 +864,13 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
       const onLeave = () => {
         pending = null;
         if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
+        if (!isStyleAlive(map)) return;
         setHoverState(null);
         map.getCanvas().style.cursor = '';
         setHover(null);
       };
       const onClick = (e: maplibregl.MapMouseEvent) => {
-        if (!map.getSource(SOURCE_ID) || !map.getLayer(FILL_LAYER)) return;
+        if (!isStyleAlive(map) || !map.getSource(SOURCE_ID) || !map.getLayer(FILL_LAYER)) return;
         const features = queryFeaturesSafe(map, e.point, [FILL_LAYER]);
         const feat = features[0];
         const props = feat?.properties as NeighborhoodProperties | undefined;
