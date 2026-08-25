@@ -74,6 +74,14 @@ import {
   type AirQuality,
 } from './airquality';
 import {
+  CLOUD_POLL_MS,
+  CLOUD_TOLERANCE_MS,
+  fetchClouds,
+  fetchCloudSeries,
+  type CloudStation,
+} from './clouds';
+import { type FmiReading } from './fmi';
+import {
   fetchLightning,
   mergeStrikes,
   newestStrikeAt,
@@ -622,6 +630,7 @@ const SCHEDULE_DEBOUNCE_MS = 600;
 /** Shared empty lists, so the off paths allocate nothing per render. */
 const EMPTY_OBSERVATIONS: Observation[] = [];
 const EMPTY_AIR_QUALITY: AirQuality[] = [];
+const EMPTY_CLOUDS: CloudStation[] = [];
 const EMPTY_WINDS: WindTimelineSample[] = [];
 const EMPTY_SEALEVEL: SealevelTimelineSample[] = [];
 const EMPTY_STRIKES: Strike[] = [];
@@ -1456,6 +1465,81 @@ function paintLightning(
   ctx.restore();
 }
 
+/**
+ * Cloud ink, per theme.
+ *
+ * Grey, not a colour ramp: the sky-cover circle carries coverage as the fraction of
+ * itself that is FILLED, so there is no scale to key and nothing to compete with the
+ * shadow layer the page is about. `base` is the basemap's own background tone, drawn
+ * under the glyph so it reads as a marker rather than a hole in the shade; `ink` is a
+ * cloud grey chosen to survive both the light basemap and the night wash. A clear sky
+ * is the ring alone — an empty circle, which is the symbol's own word for "clear".
+ */
+const CLOUD_INK = {
+  dark: { ink: 'rgba(203, 213, 225, 0.95)', base: 'rgba(8, 15, 40, 0.85)' },
+  light: { ink: 'rgba(71, 85, 105, 0.92)', base: 'rgba(255, 255, 255, 0.92)' },
+} as const;
+
+const CLOUD_MARK_PX = 6;
+
+/**
+ * Paint station cloud amounts as sky-cover circles.
+ *
+ * Each station is a small ring filled clockwise from twelve o'clock to the fraction
+ * of the sky it reports covered — the meteorologist's okta symbol, so 0 is an empty
+ * circle and 8 a full disc and nothing between them needs a legend. A sky the
+ * observer could not see (okta 9) is drawn full, like overcast, since the takeaway
+ * ("the sun is not getting through here") is the same; the panel is where the
+ * distinction is named. Discs may overlap where stations cluster, exactly as the
+ * air-quality discs do — a circle under a circle is still two circles, unlike two
+ * numbers written over each other, so this needs no collision suppression.
+ */
+function paintClouds(
+  ctx: CanvasRenderingContext2D,
+  map: MaplibreMap,
+  stations: CloudStation[],
+  theme: 'dark' | 'light',
+  width: number,
+  height: number,
+): void {
+  if (stations.length === 0) return;
+  const { ink, base } = CLOUD_INK[theme];
+  const r = CLOUD_MARK_PX;
+
+  ctx.save();
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = ink;
+  for (const s of stations) {
+    const p = map.project([s.lon, s.lat]);
+    if (p.x < -20 || p.y < -20 || p.x > width + 20 || p.y > height + 20) continue;
+
+    // A background disc, so the glyph reads as a marker on the map rather than as a
+    // hole in the shade beneath it.
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = base;
+    ctx.fill();
+
+    // The filled fraction: eighths of the sky, clockwise from the top. Clamped to
+    // the observable range so an "obscured" 9 fills whole rather than overflowing.
+    const frac = Math.min(8, Math.max(0, s.oktas)) / 8;
+    if (frac > 0) {
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.arc(p.x, p.y, r, -Math.PI / 2, -Math.PI / 2 + frac * Math.PI * 2);
+      ctx.closePath();
+      ctx.fillStyle = ink;
+      ctx.fill();
+    }
+
+    // The ring, always — it is the whole mark when the sky is clear.
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function paintAirQuality(
   ctx: CanvasRenderingContext2D,
   map: MaplibreMap,
@@ -2238,6 +2322,10 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
    */
   const obsTimelineRef = useRef<Timeline>(createTimeline());
   const aqTimelineRef = useRef<Timeline>(createTimeline());
+  // Cloud amount is one okta count per station, so it rides the scalar store above
+  // exactly as temperature and air quality do — no forecast flag ever set, because
+  // there is no forecast half (see clouds.ts).
+  const cloudTimelineRef = useRef<Timeline>(createTimeline());
   // Wind keeps its own store: a sample is a speed AND a direction AND a gust, and
   // they have to be sampled from one instant together or the arrow is a
   // fabrication (see wind.ts). The scalar store above cannot express that.
@@ -2491,6 +2579,11 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
    */
   const [obsDay, setObsDay] = useState<'loading' | 'ready' | 'failed'>('loading');
   const [aqDay, setAqDay] = useState<'loading' | 'ready' | 'failed'>('loading');
+  // Cloud cover's day and poll are split exactly as air quality's are, and for the
+  // same reason: an archive poll fires once and never retries, so a lost refinement
+  // must not overwrite a day of correct, correctly-stamped readings with a failure.
+  const [cloudDay, setCloudDay] = useState<'loading' | 'ready' | 'failed'>('loading');
+  const [cloudPollFailed, setCloudPollFailed] = useState(false);
   // Wind's day and poll are split exactly as air quality's are, and for the same
   // reason: an archive poll fires once and never retries, so a lost refinement
   // must not be able to overwrite a day full of correct, correctly-stamped
@@ -2565,6 +2658,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   const incidentsOn = enabled.has('road_incidents');
   const observationsOn = enabled.has('observations');
   const airQualityOn = enabled.has('air_quality');
+  const cloudsOn = enabled.has('clouds');
   const windOn = enabled.has('wind');
   const sealevelOn = enabled.has('sea_level');
   const lightningOn = enabled.has('lightning');
@@ -2751,6 +2845,19 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     [airQualityOn, whenMs, timelineVersion],
   );
 
+  const cloudsAt = useMemo(
+    () =>
+      cloudsOn
+        ? sampleTimeline(cloudTimelineRef.current, whenMs, CLOUD_TOLERANCE_MS).map((s) => ({
+            lon: s.lon,
+            lat: s.lat,
+            oktas: s.value,
+            at: s.at,
+          }))
+        : EMPTY_CLOUDS,
+    [cloudsOn, whenMs, timelineVersion],
+  );
+
   // The sample is already {lon,lat,at,speed,dir,gust}, so unlike the two above it
   // needs no reshaping — the painter, hit test and panel all read it directly.
   const windAt = useMemo(
@@ -2824,6 +2931,23 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     () => airQualityAt.reduce((w, s) => Math.max(w, s.index), 0),
     [airQualityAt],
   );
+
+  /**
+   * The mean cloud amount anywhere AT THE CLOCK, in oktas.
+   *
+   * The one fact a sentence about the whole country can honestly carry — how much
+   * of the sky is covered on average, which is what the reader of a cloud map wants
+   * before anything else. Read from the sample, like the air-quality worst and the
+   * wind max above, because the sentence is about the instant the bar shows.
+   * Clamped to the observable eighths so a station's "obscured" 9 counts as full
+   * rather than skewing the mean past 8.
+   */
+  const cloudMeanOktas = useMemo(() => {
+    if (cloudsAt.length === 0) return 0;
+    let sum = 0;
+    for (const s of cloudsAt) sum += Math.min(8, Math.max(0, s.oktas));
+    return sum / cloudsAt.length;
+  }, [cloudsAt]);
 
   /**
    * The strongest wind anywhere AT THE CLOCK, gust included.
@@ -2963,6 +3087,15 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
       );
       return at ? { kind: 'air_quality', item: at } : null;
     }
+    // The station keeps its identity (its position) and picks up whatever cloud
+    // amount the timeline holds for the instant on screen, closing the panel when
+    // the scrub reaches an hour it did not report — exactly like the others above.
+    if (selection.kind === 'clouds') {
+      const at = cloudsAt.find(
+        (s) => s.lon === selection.item.lon && s.lat === selection.item.lat,
+      );
+      return at ? { kind: 'clouds', item: at } : null;
+    }
     // The station keeps its identity (its position) and picks up whatever wind
     // the timeline holds for the instant on screen — closing the panel when the
     // scrub reaches an hour that station did not report, exactly as above.
@@ -3083,6 +3216,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     selection,
     observationsAt,
     airQualityAt,
+    cloudsAt,
     windAt,
     sealevelAt,
     whenMs,
@@ -3549,6 +3683,10 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     // Under the dots and the temperature text: an arrow is a broad mark and a
     // dot or a number over it stays readable, while the reverse does not — the
     // same reason air quality sits under the temperature above.
+    // Under the dots and the temperature text, with the wind arrows: a sky-cover
+    // circle is a broad mark and survives a dot or a number drawn over it, while
+    // the reverse does not — the same reason air quality sits under the temperature.
+    paintClouds(ctx, map, cloudsAt, theme, width, height);
     paintWind(ctx, map, windAt, theme, width, height);
     paintAirQuality(ctx, map, airQualityAt, theme, width, height);
     paintObservations(ctx, map, observationsAt, theme, width, height);
@@ -3590,6 +3728,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     theme,
     observationsAt,
     airQualityAt,
+    cloudsAt,
     windAt,
     sealevelAt,
     strikesAt,
@@ -3646,6 +3785,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   useEffect(() => {
     clearTimeline(obsTimelineRef.current);
     clearTimeline(aqTimelineRef.current);
+    clearTimeline(cloudTimelineRef.current);
     clearWindTimeline(windTimelineRef.current);
     clearSealevelTimeline(sealevelTimelineRef.current);
     bumpTimeline();
@@ -3761,6 +3901,46 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
       ac.abort();
     };
   }, [airQualityOn, dayStartMs, dayEndMs, dayEpoch, bumpTimeline, scheduleDraw]);
+
+  /**
+   * The day's national cloud amount — measured only, and only up to now.
+   *
+   * No forecast arm, and that is the source's limit rather than an omission: ECMWF's
+   * obsstations collection answers cloud cover as NaN at every station (clouds.ts),
+   * so the layer stops at the present exactly as air quality and wind do. Same shape
+   * as the air-quality loader above, readings passed straight through — a cloud
+   * reading IS an FmiReading, its value the okta count.
+   */
+  useEffect(() => {
+    if (!cloudsOn) return;
+    const now = Date.now();
+    const to = Math.min(dayEndMs, now);
+    if (to <= dayStartMs) {
+      setCloudDay('ready');
+      return;
+    }
+    const ac = new AbortController();
+    let cancelled = false;
+    setCloudDay('loading');
+
+    void fetchCloudSeries(dayStartMs, to, ac.signal)
+      .then((list) => {
+        if (cancelled) return;
+        mergeReadings(cloudTimelineRef.current, list);
+        setCloudDay('ready');
+        bumpTimeline();
+        scheduleDraw();
+      })
+      .catch((err: unknown) => {
+        if (cancelled || (err as Error)?.name === 'AbortError') return;
+        setCloudDay('failed');
+      });
+
+    return () => {
+      cancelled = true;
+      ac.abort();
+    };
+  }, [cloudsOn, dayStartMs, dayEndMs, dayEpoch, bumpTimeline, scheduleDraw]);
 
   /**
    * The day's national surface wind — measured only, and only up to now.
@@ -4763,6 +4943,37 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   });
 
   /**
+   * Cloud cover, the same five-minute loop as temperature — the stations publish on
+   * the same ten-minute cycle. Same future-clock shape as air quality: `at: null`
+   * ahead of now leaves the feed enabled so the loaded day is not discarded, and
+   * there is no forecast to fetch there anyway. Readings pass straight to the scalar
+   * store; a cloud reading IS an FmiReading, its value the okta count.
+   */
+  useFeedPoll<FmiReading[]>({
+    enabled: cloudsOn,
+    at: future ? null : archiveAt,
+    fetcher: fetchClouds,
+    intervalMs: CLOUD_POLL_MS,
+    onData: useCallback(
+      (list: FmiReading[]) => {
+        mergeReadings(cloudTimelineRef.current, list);
+        setCloudPollFailed(false);
+        bumpTimeline();
+        scheduleDraw();
+      },
+      [bumpTimeline, scheduleDraw],
+    ),
+    onError: useCallback(() => setCloudPollFailed(true), []),
+    onClear: useCallback(() => {
+      clearTimeline(cloudTimelineRef.current);
+      setCloudDay('loading');
+      setCloudPollFailed(false);
+      bumpTimeline();
+      scheduleDraw();
+    }, [bumpTimeline, scheduleDraw]),
+  });
+
+  /**
    * Wind, the same five-minute loop as temperature — the stations publish on the
    * same ten-minute cycle. Same future-clock shape too: `at: null` when the clock
    * is ahead of now leaves the feed enabled so the loaded day is not discarded,
@@ -4966,6 +5177,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
           incidents: visible,
           observations: observationsAt,
           airQuality: airQualityAt,
+          clouds: cloudsAt,
           wind: windAt,
           seaLevel: sealevelAt,
           lightning: strikesAt,
@@ -4979,6 +5191,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
       if (hit.kind === 'observation') {
         return { kind: 'observation', item: observationsAt[hit.index] };
       }
+      if (hit.kind === 'clouds') return { kind: 'clouds', item: cloudsAt[hit.index] };
       if (hit.kind === 'wind') return { kind: 'wind', item: windAt[hit.index] };
       if (hit.kind === 'sea_level') return { kind: 'sea_level', item: sealevelAt[hit.index] };
       if (hit.kind === 'lightning') return { kind: 'lightning', item: strikesAt[hit.index] };
@@ -4991,6 +5204,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
       live,
       observationsAt,
       airQualityAt,
+      cloudsAt,
       windAt,
       sealevelAt,
       strikesAt,
@@ -5193,6 +5407,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     incidentsOn ||
     observationsOn ||
     airQualityOn ||
+    cloudsOn ||
     windOn ||
     sealevelOn ||
     lightningOn ||
@@ -5222,6 +5437,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     (incidentsOn && incidentStatus?.failed === true) ||
     (observationsOn && obsDay === 'failed') ||
     (airQualityOn && aqDay === 'failed') ||
+    (cloudsOn && cloudDay === 'failed') ||
     (windOn && windDay === 'failed') ||
     (sealevelOn && sealevelDay === 'failed') ||
     (lightningOn && lightningDay === 'failed') ||
@@ -5247,6 +5463,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     // could have been, and useFeedPoll never retries an archive request, so an
     // alert there would be a permanent amber light over a correct map.
     (live && ((observationsOn && obsPollFailed) || (airQualityOn && aqPollFailed) ||
+      (cloudsOn && cloudPollFailed) ||
       (windOn && windPollFailed) || (sealevelOn && sealevelPollFailed) ||
       (lightningOn && strikePollFailed)));
 
@@ -5719,6 +5936,39 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
                 </p>
               )}
 
+              {/* Cloud cover mirrors air quality's four arms — measured only, dark
+                  ahead of now, no forecast half. {avg} is the mean okta anywhere at
+                  the clock, one decimal, which is what a single sentence about the
+                  whole sky can honestly say. */}
+              {cloudsOn && (
+                cloudDay === 'failed' ? (
+                  <p className="text-amber-700 dark:text-amber-400">
+                    {t('live.clouds.failed')}
+                  </p>
+                ) : cloudDay === 'loading' && cloudsAt.length === 0 ? (
+                  <p className="text-surface-600 dark:text-surface-300">
+                    {t('live.clouds.loading')}
+                  </p>
+                ) : cloudsAt.length === 0 ? (
+                  <p className="text-surface-600 dark:text-surface-300">
+                    {future ? t('live.clouds.future') : t('live.clouds.none')}
+                  </p>
+                ) : (
+                  <p className="text-surface-600 dark:text-surface-300">
+                    {t('live.clouds.count')
+                      .replace('{n}', String(cloudsAt.length))
+                      .replace('{avg}', cloudMeanOktas.toFixed(1))}
+                    {sampleSpan(cloudsAt)}
+                  </p>
+                )
+              )}
+
+              {cloudsOn && cloudDay !== 'failed' && cloudPollFailed && (
+                <p className="text-amber-700 dark:text-amber-400">
+                  {t('live.readout.poll_failed')}
+                </p>
+              )}
+
               {/* Wind mirrors air quality's four arms — measured only, dark ahead
                   of now — because it too has no forecast half in this version.
                   {max} is the strongest wind anywhere at the clock, gust
@@ -5875,7 +6125,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
               {/* The markers are clickable and nothing else on screen says so —
                   they are canvas pixels, with no hover affordance beyond the
                   cursor. One line, and only while a clickable feed is on. */}
-              {(trainsOn || shipsOn || incidentsOn || observationsOn || airQualityOn || windOn || sealevelOn || lightningOn) &&
+              {(trainsOn || shipsOn || incidentsOn || observationsOn || airQualityOn || cloudsOn || windOn || sealevelOn || lightningOn) &&
                 !shownSelection && (
                 <p className="pt-0.5 text-surface-500 dark:text-surface-400">
                   {t('live.detail.hint')}

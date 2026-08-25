@@ -28,6 +28,7 @@ export type PickKind =
   | 'train'
   | 'ship'
   | 'air_quality'
+  | 'clouds'
   | 'observation'
   | 'wind'
   | 'sea_level'
@@ -62,6 +63,9 @@ const GRAB_PX: Record<PickKind, number> = {
   // the wrong hull selectable from further than the right one.
   ship: 12,
   air_quality: 12,
+  // A small sky-cover circle like the air-quality disc, and it clusters the same
+  // way across the national station network, so the same grab radius.
+  clouds: 12,
   observation: 16,
   // A signed centimetre label like the temperature one, so the same generous
   // target — the gauges are few and far apart on the coast, never crowded.
@@ -90,22 +94,27 @@ const PRIORITY: Record<PickKind, number> = {
   // winner. They almost never coincide — one is on water, the other on rail.
   ship: 1,
   air_quality: 2,
+  // Beside the air-quality disc it resembles — both are small circles on the same
+  // land, so a tie between them goes to whichever is nearer rather than to a fixed
+  // winner. They ride different station networks (urban air quality, national
+  // cloud), so a genuine overlap is rare.
+  clouds: 3,
   // A directional mark like the ship's, but broader, so it yields a tie to the
   // smaller, more precisely-placed dots and labels above it.
-  wind: 3,
-  incident: 4,
-  observation: 5,
+  wind: 4,
+  incident: 5,
+  observation: 6,
   // A label like the temperature one, and coastal — it effectively never
   // coincides with a land feed, so its rank among the labels barely matters; it
   // sits just after the temperature labels it is drawn beside.
-  sea_level: 6,
+  sea_level: 7,
   // LAST, which is the opposite of what its mark size would suggest. The rule
   // above is "the smaller, more precisely-placed mark wins a tie", and a flash
   // is the smallest thing here — but it is also drawn UNDER everything else and
   // arrives in thousands, so a tie-break in its favour would make a train dot
   // standing in a thunderstorm unselectable. Being painted at the bottom of the
   // stack, it loses ties at the bottom too, and the two orders stay consistent.
-  lightning: 7,
+  lightning: 8,
 };
 
 /** Squared distance from `p` to the segment `a`–`b`, in pixels. */
@@ -135,6 +144,7 @@ export interface PickInput {
   trains?: Located[];
   ships?: Located[];
   airQuality?: Located[];
+  clouds?: Located[];
   observations?: Located[];
   wind?: Located[];
   seaLevel?: Located[];
@@ -184,6 +194,7 @@ export function pickFeature(
   points('train', layers.trains);
   points('ship', layers.ships);
   points('air_quality', layers.airQuality);
+  points('clouds', layers.clouds);
   points('observation', layers.observations);
   points('wind', layers.wind);
   points('sea_level', layers.seaLevel);

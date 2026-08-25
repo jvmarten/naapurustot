@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { t } from '../utils/i18n';
 import { clockSeconds, clockTime, timeOnDay } from './timeControl';
 import { AQ_COLORS, aqBandKey, type AirQuality } from './airquality';
+import { formatOktas, isObscured, oktaKey, type CloudStation } from './clouds';
 import type { Observation } from './observations';
 import { windCompassKey, type WindTimelineSample } from './wind';
 import { formatSealevelCm, type SealevelTimelineSample } from './sealevel';
@@ -53,6 +54,7 @@ export type Selection =
   | { kind: 'ship'; item: Ship }
   | { kind: 'observation'; item: Observation }
   | { kind: 'air_quality'; item: AirQuality }
+  | { kind: 'clouds'; item: CloudStation }
   | { kind: 'wind'; item: WindTimelineSample }
   | { kind: 'sea_level'; item: SealevelTimelineSample }
   | { kind: 'incident'; item: Incident }
@@ -320,6 +322,38 @@ const StationBody: React.FC<{ station: Observation }> = ({ station }) => {
 };
 
 /**
+ * Cloud amount at a station, as of the sample under the clock.
+ *
+ * FMI's own `n_man` in oktas — eighths of the sky covered — printed as the fraction
+ * and named in the conventional band beside it, because "5/8" is what a reader can
+ * check and "mostly cloudy" is what they think in. A sky the observer could not see
+ * (okta 9) says exactly that rather than a spurious eighth. Nothing here is derived;
+ * the band is a labelling of the published count, not a second measurement.
+ */
+const CloudBody: React.FC<{ station: CloudStation }> = ({ station }) => {
+  const obscured = isObscured(station.oktas);
+  return (
+    <div className="space-y-1">
+      <Row label={t('live.detail.cloud_cover')}>
+        {obscured
+          ? t('live.clouds.band_obscured')
+          : `${formatOktas(station.oktas)} · ${t(oktaKey(station.oktas))}`}
+      </Row>
+      {/* The value's OWN instant — cloud amount is reported on the stations'
+          ten-minute cycle and the reader is entitled to know they are looking at
+          14:00's sky under a playhead at 14:23. */}
+      <Row label={t('live.detail.measured_at')}>{clockTime(station.at)}</Row>
+      <Row label={t('live.detail.coords')}>
+        {station.lat.toFixed(3)}, {station.lon.toFixed(3)}
+      </Row>
+      <p className="pt-1 text-[10px] text-surface-500 dark:text-surface-400">
+        {t('live.detail.source_fmi')}
+      </p>
+    </div>
+  );
+};
+
+/**
  * Wind at a station, as of the sample under the clock.
  *
  * Everything is FMI's own measurement: the 10-minute mean speed, its gust, and
@@ -477,7 +511,9 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({
           ? t('live.detail.weather_station')
           : selection.kind === 'air_quality'
             ? t('live.detail.aq_station')
-            : selection.kind === 'wind'
+            : selection.kind === 'clouds'
+              ? t('live.detail.cloud_station')
+              : selection.kind === 'wind'
               ? t('live.detail.wind_station')
               : selection.kind === 'sea_level'
                 ? t('live.detail.sea_level_station')
@@ -514,6 +550,8 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({
       {selection.kind === 'ship' && <ShipBody ship={selection.item} meta={shipMetaEntry} />}
 
       {selection.kind === 'observation' && <StationBody station={selection.item} />}
+
+      {selection.kind === 'clouds' && <CloudBody station={selection.item} />}
 
       {selection.kind === 'wind' && <WindBody wind={selection.item} />}
 
