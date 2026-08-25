@@ -186,6 +186,23 @@ export const FEED_GROUPS: FeedGroup[] = [
       // going dark. Forecast values are drawn in italic and stated as forecasts
       // everywhere they appear; see observations.ts.
       { id: 'observations', labelKey: 'live.feed.observations', status: 'live', coverage: 'national', time: 'forecast', defaultOn: false },
+      // Cloud amount at the same national station network the temperature layer
+      // reads — the same FMI `simple` query, `n_man` (oktas, eighths of the sky)
+      // instead of `t2m`. It is the other half of the shadow layer's sentence: the
+      // shadows cast the sun's geometry, this says whether the sun is reaching the
+      // ground at all — a distinction a rain radar cannot draw, since a sky can be
+      // solid overcast with nothing falling. Drawn as the meteorologist's own
+      // sky-cover circle, filled to the okta, so it needs no colour ramp to compete
+      // with the shadows.
+      //
+      // 'archive', not 'forecast', and it is the source's limit rather than a
+      // choice: ECMWF's obsstations collection answers `TotalCloudCover` as `NaN` at
+      // every station (the air-quality index's trap), so there is no forecast half
+      // to carry it past now. Like wind and air quality it measures and goes dark
+      // ahead of the clock, and the readout says so. 'national' without a caveat:
+      // the weather stations blanket the country. OFF BY DEFAULT, the same cost
+      // decision the other weather feeds make.
+      { id: 'clouds', labelKey: 'live.feed.clouds', status: 'live', coverage: 'national', time: 'archive', defaultOn: false },
       // Surface wind at the same national station network the temperature layer
       // reads — the same FMI `simple` query, the three wind parameters instead of
       // one. Drawn as direction arrows whose LENGTH is the speed, because a colour
