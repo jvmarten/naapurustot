@@ -1,6 +1,33 @@
 import type { Map as MapLibreMap, MapGeoJSONFeature, PointLike } from 'maplibre-gl';
 import { trackEvent } from './analytics';
 
+/**
+ * True while `map` still has a live style — i.e. `map.remove()` has not run and the
+ * WebGL context has not been lost.
+ *
+ * MapLibre nulls the map's internal `style` in both cases, and every layer/source
+ * method dereferences it (`getLayer(e){return this.style.getLayer(e)}`), so calling
+ * one on a torn-down or context-lost map throws "Cannot read properties of null
+ * (reading 'getLayer'|'getSource')" (Chrome) or "undefined is not an object
+ * (evaluating 'this.style.getLayer')" (Safari). Two shapes of caller outlive the
+ * style and must gate on this:
+ *
+ *  - Effect *cleanups* that remove layers/sources. React runs the map-init effect's
+ *    cleanup — which calls `map.remove()` — before later effects' cleanups on the same
+ *    unmount (destroy order follows mount order), so a `map.getLayer(...)` in a later
+ *    cleanup runs against an already-styleless map. This is the dominant crash: a route
+ *    swap off the map tears the whole subtree down in one commit.
+ *  - Deferred callbacks (queued `requestAnimationFrame`, pointer handlers) that fire in
+ *    the window after a WebGL context loss, while the map object and its listeners still
+ *    exist but `style` is transiently null.
+ *
+ * Read through a cast so this stays independent of whether maplibre marks `style`
+ * public — it is reading the very field maplibre's own methods dereference.
+ */
+export function isStyleAlive(map: MapLibreMap): boolean {
+  return Boolean((map as unknown as { style?: unknown }).style);
+}
+
 /** One-shot: a poisoned tile throws on every frame, so reporting must not flood. */
 let reported = false;
 

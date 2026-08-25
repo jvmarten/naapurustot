@@ -30,19 +30,36 @@ function claimReload(now: number): boolean {
   }
 }
 
+// Set once a recovery reload has been triggered this page load. Module-scoped so
+// error reporting can ask about it: Vite's `__vitePreload` runs `import(chunk).catch(i)`,
+// and `i()` re-throws the load error ONLY when the `vite:preloadError` event is left to
+// its default. We call `preventDefault()` (the page is reloading), so `.catch(i)` instead
+// resolves the import to `undefined` — and `React.lazy` then does `undefined.default`,
+// throwing "Cannot read properties of undefined (reading 'default')" (Sentry
+// NAAPURUSTOT-WEB-S). That crash is a transient of the reload we just started, not a code
+// bug, so the Sentry hook drops any event while this is true (see main.tsx beforeSend).
+let reloadPending = false;
+
+/** True once a chunk-recovery reload has been triggered and navigation is imminent. */
+export function isChunkReloadPending(): boolean {
+  return reloadPending;
+}
+
 // Reload once when a dynamic import fails so the page picks up fresh chunk
 // references after a deployment. Call once at startup; returns a disposer.
 export function installChunkReloadHandler(): () => void {
-  let reloading = false;
+  // Reset on (re)install so a fresh handler starts clean — also keeps unit tests,
+  // which reinstall per case, independent of each other.
+  reloadPending = false;
   const onPreloadError = (event: Event) => {
-    if (reloading) {
+    if (reloadPending) {
       // A reload from an earlier failed import this page load is already in
       // flight — swallow the rest of the burst.
       event.preventDefault();
       return;
     }
     if (!claimReload(Date.now())) return;
-    reloading = true;
+    reloadPending = true;
     // Suppress the otherwise-uncaught error — the page is about to reload.
     event.preventDefault();
     window.location.reload();

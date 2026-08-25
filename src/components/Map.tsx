@@ -14,7 +14,7 @@ import { useTheme } from '../hooks/useTheme';
 import { trackEvent } from '../utils/analytics';
 import { t, useI18nVersion } from '../utils/i18n';
 import { DEFAULT_CENTER, DEFAULT_ZOOM, MAP_MIN_ZOOM, MAP_MAX_ZOOM } from '../utils/mapConstants';
-import { queryFeaturesSafe } from '../utils/mapQuery';
+import { queryFeaturesSafe, isStyleAlive } from '../utils/mapQuery';
 import { basemapTileUrl } from '../utils/basemap';
 // CF-5 Phase D1: pre-baked boundary outlines of all 69 Finnish seutukunnat.
 import seutukunnatUrl from '../data/seutukunnat.topojson?url';
@@ -1048,8 +1048,16 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const onPlanningClick = (e: maplibregl.MapLayerMouseEvent) => {
-      const f = e.features?.[0];
+    const onPlanningClick = (e: maplibregl.MapMouseEvent) => {
+      // A map-level click can fire during a WebGL context loss (map alive, style null),
+      // where any query throws "Cannot read properties of null". Bail before hit-testing.
+      if (!isStyleAlive(map)) return;
+      // Mirror MapLibre's own layer-scoped delegate: query only the planning layers that
+      // currently exist, and skip the hit-test entirely when planning mode is off (no
+      // layers) — so a plain map click costs no query and logs no unknown-layer warning.
+      const layers = PLANNING_LAYER_IDS.filter((l) => map.getLayer(l));
+      if (layers.length === 0) return;
+      const f = queryFeaturesSafe(map, e.point, layers)[0];
       if (!f) return;
       const p = f.properties as Record<string, string>;
       const typeLabel = t(`panel.plan_type_${p.ptype}`);
@@ -1063,21 +1071,17 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         .setHTML(`<div style="font-size:12px;line-height:1.4"><strong>${escapeAttr(p.name || '')}</strong><br>${meta}<br>${link}</div>`)
         .addTo(map);
     };
-    // Click only — deliberately no layer-scoped mouseenter/mouseleave for the cursor.
-    // Each of those would add an unthrottled internal queryRenderedFeatures per raw
-    // pointer move that we cannot guard (see the 'mouseout' note in the handler effect
-    // below, and mapQuery.ts). The cursor is unaffected in practice: FILL_LAYER is added
-    // unfiltered, so it underlies every plan polygon, and processMouseMove already sets
-    // cursor:'pointer' there. The click delegate does query, but only on a discrete click
-    // and only over the `planning` source, whose worker parse has no image/glyph
-    // dependency to suspend on and so cannot hit the corrupt-tile race.
-    for (const l of PLANNING_LAYER_IDS) {
-      map.on('click', l, onPlanningClick);
-    }
+    // Map-level click, NOT a layer-scoped `on('click', LAYER, …)` delegate. The
+    // layer-scoped form makes MapLibre run its own `layers.filter(id => this.getLayer(id))`
+    // inside the delegate before our handler — and after a WebGL context loss that
+    // dereferences a null `this.style` and throws, unguardably, from library code (it did:
+    // Sentry NAAPURUSTOT-WEB-W). Querying the same layers ourselves via queryFeaturesSafe
+    // keeps us on the guarded path (isStyleAlive + the corrupt-tile catch in mapQuery.ts)
+    // and needs no layer-scoped mouseenter/mouseleave: FILL_LAYER underlies every plan
+    // polygon, so processMouseMove already sets cursor:'pointer' there.
+    map.on('click', onPlanningClick);
     return () => {
-      for (const l of PLANNING_LAYER_IDS) {
-        map.off('click', l, onPlanningClick);
-      }
+      map.off('click', onPlanningClick);
     };
   }, []);
 
@@ -1112,7 +1116,9 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         // Guard against the captured `map` being a stale (removed) instance after an
         // unmount/remount: only proceed if it is still the live map. mapRef.current
         // is nulled (and the map removed) on cleanup, so equality proves liveness.
-        if (!geo || mapRef.current !== map) return;
+        // isStyleAlive additionally covers a WebGL context loss during the fetch/idle
+        // wait, where mapRef.current === map but map.style is null (getLayer would throw).
+        if (!geo || mapRef.current !== map || !isStyleAlive(map)) return;
         if (map.getLayer(SEUTUKUNNAT_LINE_LAYER)) return;
         if (!map.getSource(SEUTUKUNNAT_SOURCE_ID)) {
           map.addSource(SEUTUKUNNAT_SOURCE_ID, { type: 'geojson', data: geo });
@@ -1281,7 +1287,9 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
 
       layerTransitionRef.current = setTimeout(() => {
         layerTransitionRef.current = null;
-        if (!mapRef.current || !mapRef.current.getLayer(FILL_LAYER)) return;
+        // isStyleAlive first: a WebGL context loss during the fade window nulls the
+        // style, and the getLayer() in this very guard would then throw on it.
+        if (!mapRef.current || !isStyleAlive(mapRef.current) || !mapRef.current.getLayer(FILL_LAYER)) return;
 
         // Swap the color expression while fully transparent
         mapRef.current.setPaintProperty(FILL_LAYER, 'fill-color', buildFillColorExpression(layer, undefined, fillFallbackColor(layer)));
@@ -1326,7 +1334,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         // Reset transition to default after fade-in completes
         layerTransitionResetRef.current = setTimeout(() => {
           layerTransitionResetRef.current = null;
-          if (!mapRef.current || !mapRef.current.getLayer(FILL_LAYER)) return;
+          if (!mapRef.current || !isStyleAlive(mapRef.current) || !mapRef.current.getLayer(FILL_LAYER)) return;
           mapRef.current.setPaintProperty(FILL_LAYER, 'fill-opacity-transition', { duration: 300, delay: 0 });
           if (mapRef.current.getLayer(GRID_FILL_LAYER)) {
             mapRef.current.setPaintProperty(GRID_FILL_LAYER, 'fill-opacity-transition', { duration: 300, delay: 0 });
@@ -1464,6 +1472,10 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       if (!e) return;
       pendingMouseEvent = null;
 
+      // A queued frame can fire after a WebGL context loss nulls `map.style`; every
+      // getSource/setFeatureState below then throws "Cannot read properties of null".
+      if (!isStyleAlive(map)) return;
+
       if (drawModeRef.current) {
         map.getCanvas().style.cursor = 'crosshair';
         onHoverRef.current(null, 0, 0);
@@ -1519,6 +1531,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     const onMouseLeave = () => {
       pendingMouseEvent = null;
       if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
+      if (!isStyleAlive(map)) return;
       if (hoveredIdRef.current) {
         map.setFeatureState({ source: SOURCE_ID, id: hoveredIdRef.current }, { hover: false });
         hoveredIdRef.current = null;
@@ -1534,6 +1547,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         onDrawClickRef.current?.([e.lngLat.lng, e.lngLat.lat]);
         return;
       }
+      if (!isStyleAlive(map)) return;
       if (!map.getSource(SOURCE_ID)) return;
       const features = queryNeighborhoodsAt(map, e.point);
       if (features.length > 0) {
@@ -1944,6 +1958,13 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     }
 
     return () => {
+      // A route swap off the map unmounts this whole subtree in one commit: the
+      // map-init effect's cleanup runs `map.remove()` before this cleanup (destroy
+      // order follows mount order), leaving `map.style` null. Calling getLayer on it
+      // then throws "Cannot read properties of null (reading 'getLayer')" — the crash
+      // the <ErrorBoundary> was silently swallowing (and still reporting to Sentry).
+      // Nothing to remove from a removed map, so bail.
+      if (!isStyleAlive(map)) return;
       if (map.getLayer(DRAW_LINE_LAYER)) map.removeLayer(DRAW_LINE_LAYER);
       if (map.getLayer(DRAW_FILL_LAYER)) map.removeLayer(DRAW_FILL_LAYER);
       if (map.getSource(DRAW_SOURCE_ID)) map.removeSource(DRAW_SOURCE_ID);

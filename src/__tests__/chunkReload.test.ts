@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { installChunkReloadHandler } from '../utils/chunkReload';
+import { installChunkReloadHandler, isChunkReloadPending } from '../utils/chunkReload';
 
 const RELOAD_MARK_KEY = 'naapurustot:chunk-reload-at';
 const reload = vi.fn();
@@ -64,5 +64,24 @@ describe('installChunkReloadHandler', () => {
     dispatchPreloadError();
     dispatchPreloadError();
     expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('flags a pending reload so in-flight crash reports can be dropped', () => {
+    // Before any failure there is nothing to suppress.
+    expect(isChunkReloadPending()).toBe(false);
+    dispatchPreloadError();
+    expect(reload).toHaveBeenCalledTimes(1);
+    // Now navigating away: the undefined-lazy crash Vite's swallowed import produces
+    // (NAAPURUSTOT-WEB-S) should be treated as transient teardown noise.
+    expect(isChunkReloadPending()).toBe(true);
+  });
+
+  it('does not flag a pending reload when the cooldown blocks recovery', () => {
+    // On cooldown the handler lets the error surface (a real "reload didn't help"
+    // signal), so reporting must stay enabled.
+    sessionStorage.setItem(RELOAD_MARK_KEY, String(Date.now()));
+    dispatchPreloadError();
+    expect(reload).not.toHaveBeenCalled();
+    expect(isChunkReloadPending()).toBe(false);
   });
 });

@@ -76,6 +76,33 @@ describe('queryFeaturesSafe', () => {
   });
 });
 
+describe('isStyleAlive', () => {
+  async function freshIsStyleAlive() {
+    vi.resetModules();
+    return (await import('../utils/mapQuery')).isStyleAlive;
+  }
+
+  it('is true while the map has a style (live map)', async () => {
+    const isStyleAlive = await freshIsStyleAlive();
+    const map = { style: {} } as unknown as MapLibreMap;
+    expect(isStyleAlive(map)).toBe(true);
+  });
+
+  it('is false once map.remove() has nulled the style (unmount teardown)', async () => {
+    const isStyleAlive = await freshIsStyleAlive();
+    // maplibre nulls `style` in remove(); this is what made getLayer throw
+    // "Cannot read properties of null (reading 'getLayer')" in a route-swap teardown.
+    const map = { style: null } as unknown as MapLibreMap;
+    expect(isStyleAlive(map)).toBe(false);
+  });
+
+  it('is false while the style is transiently absent (WebGL context loss)', async () => {
+    const isStyleAlive = await freshIsStyleAlive();
+    const map = { style: undefined } as unknown as MapLibreMap;
+    expect(isStyleAlive(map)).toBe(false);
+  });
+});
+
 // Vite-native raw source read, matching src/__tests__/i18nUnusedKeys.test.ts —
 // node:fs is not in this tsconfig's types.
 const mapSources = import.meta.glob('../components/{Map,SplitMapView}.tsx', {
@@ -107,6 +134,19 @@ describe('map hit-test call sites', () => {
     '%s routes every hit-test through queryFeaturesSafe',
     (file) => {
       expect(read(file)).not.toMatch(/\.queryRenderedFeatures\(/);
+    },
+  );
+
+  // Regression guard for Sentry NAAPURUSTOT-WEB-W. A layer-scoped `on('click', LAYER, …)`
+  // delegate makes MapLibre run `layers.filter(id => this.getLayer(id))` inside the library
+  // before our handler; after a WebGL context loss that dereferences a null `this.style` and
+  // throws, unguardably. Query the layers ourselves (map-level click + queryFeaturesSafe) so
+  // the crash stays on the guarded path.
+  it.each(['Map.tsx', 'SplitMapView.tsx'])(
+    '%s registers no layer-scoped click delegate',
+    (file) => {
+      const src = read(file).replace(/^\s*\/\/.*$/gm, '');
+      expect(src).not.toMatch(/\.(on|once)\(\s*['"]click['"]\s*,[^,)]+,/);
     },
   );
 });

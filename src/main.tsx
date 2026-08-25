@@ -5,7 +5,7 @@ import { registerSW } from 'virtual:pwa-register';
 import { ThemeProvider } from './hooks/useTheme';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { setErrorReporter } from './utils/errorReporter';
-import { installChunkReloadHandler } from './utils/chunkReload';
+import { installChunkReloadHandler, isChunkReloadPending } from './utils/chunkReload';
 import { isInjectedScriptSyntaxError } from './utils/sentryFilters';
 import { detectBrowserLang, getLang, setLang, loadFiExtra } from './utils/i18n';
 import './index.css';
@@ -185,7 +185,13 @@ if (SENTRY_DSN) {
       // filename is our own page), so match on the missing script frame instead.
       // Syntax errors in code we actually shipped keep their /assets/*.js frame
       // and still report — see src/utils/sentryFilters.ts.
-      beforeSend: (event) => (isInjectedScriptSyntaxError(event) ? null : event),
+      beforeSend: (event) => {
+        // A recovery reload is already navigating the page away: any crash now is a
+        // transient of that teardown, most often React.lazy hitting a `__vitePreload`
+        // import we deliberately let resolve to `undefined` (NAAPURUSTOT-WEB-S). Drop it.
+        if (isChunkReloadPending()) return null;
+        return isInjectedScriptSyntaxError(event) ? null : event;
+      },
     });
     // React swallows anything an ErrorBoundary catches, so those crashes never
     // reached Sentry's global handlers — the boundary's fallback was the only
