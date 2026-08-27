@@ -142,7 +142,15 @@ import { join } from 'node:path';
 // 324,470 — only ~503 B, since the redirect-to-hosted-invoice model needs no QR/BOLT11
 // library in the bundle (the server hands back a hosted URL, exactly like Stripe). Bumped
 // 1 KB to restore headroom to ~1.5 KB, per the Services-honesty note — 530 B is a hair.)
-const BUDGET = 326_000;
+// → 329500 B (2026-08-27: AI housing assistant (AS-1) — a feature that did not exist at
+// all. The lazy AssistantPanel chunk (free-text box → filter proposal + explanation), the
+// assistCatalog builder, the api.ts `assist` call + its types + error keys, the "Ask AI"
+// item in ToolsDropdown, App's open/apply wiring, and 19 fi.json strings in the
+// always-loaded i18n chunk. The panel is lazy but still counted (this gate deliberately
+// includes lazy chunks) and cannot be exempted — it is reached from the map header, not
+// from /live/. Measured baseline 324,490 → 327,749, i.e. ~3.26 KB of genuine feature;
+// headroom set to ~1.75 KB, per the Services-honesty note.)
+const BUDGET = 329_500;
 const ASSETS_DIR = 'dist/assets';
 
 // Second budget: the /live/ realtime sub-app.

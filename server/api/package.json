@@ -13,6 +13,7 @@
     "revoke-lightning": "node dist/scripts/lightning.js revoke"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.121.0",
     "@sentry/node": "^10.53.1",
     "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
@@ -20,7 +21,8 @@
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.16.0",
-    "stripe": "^22.5.0"
+    "stripe": "^22.5.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",

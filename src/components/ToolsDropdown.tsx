@@ -7,6 +7,12 @@ interface ToolsDropdownProps {
   onToggleFilter: () => void;
   onToggleRanking: () => void;
   onOpenWizard: () => void;
+  /** AS-1: open the AI housing assistant. Absent when the assistant isn't wired in. */
+  onOpenAssistant?: () => void;
+  /** AS-1: true once the backend confirms the assistant is configured. */
+  assistAvailable?: boolean;
+  /** AS-1: lazily probe assistant availability; fired when the menu first opens. */
+  onAssistProbe?: () => void;
   onPrint?: () => void;
   wizardHighlightActive?: boolean;
   onClearWizardHighlight?: () => void;
@@ -36,6 +42,9 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
   onToggleFilter,
   onToggleRanking,
   onOpenWizard,
+  onOpenAssistant,
+  assistAvailable,
+  onAssistProbe,
   onPrint,
   wizardHighlightActive,
   onClearWizardHighlight,
@@ -99,6 +108,12 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
     first?.focus();
   }, [open]);
 
+  // AS-1: probe assistant availability lazily, only once the menu is opened, so
+  // map-only visitors never hit the API server just to hide a menu item.
+  useEffect(() => {
+    if (open) onAssistProbe?.();
+  }, [open, onAssistProbe]);
+
   // A4: role="menu" promises arrow-key navigation to screen readers, so wire up
   // Up/Down (with wrap) and Home/End between the menu items. Tab still works too.
   const handleMenuKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -158,6 +173,22 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = React.memo(({
                        border border-surface-200 dark:border-surface-700/40 shadow-2xl backdrop-blur-md
                        py-1 z-50 max-h-[calc(100vh-80px)] overflow-y-auto"
         >
+          {/* AS-1: AI housing assistant — a headline entry at the top of the menu.
+              Distinct brand tint + sparkle icon so it reads as the "ask in plain
+              language" front door to the filters. Only shown when wired in. */}
+          {onOpenAssistant && assistAvailable && (
+            <button
+              role="menuitem"
+              onClick={() => { onOpenAssistant(); setOpen(false); }}
+              className={`${itemClass} text-brand-700 dark:text-brand-300 font-medium`}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+              </svg>
+              <span>{t('assist.open')}</span>
+            </button>
+          )}
+
           {/* QW-3: Show my area (geolocation) */}
           {onUseLocation && (
             <button
