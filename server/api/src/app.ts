@@ -13,6 +13,7 @@ import * as Sentry from '@sentry/node';
 import authRouter, { LARGE_BODY_ROUTES, httpErrorStatus } from './auth.js';
 import { stripeWebhookHandler } from './billing.js';
 import { lightningWebhookHandler } from './lightning.js';
+import assistRouter from './assist.js';
 import { rateLimit } from './rateLimit.js';
 
 export const ALLOWED_ORIGINS = [
@@ -124,6 +125,12 @@ export function createApp() {
   // their own stricter limiters (separate buckets) inside the router, and IN-5 adds a
   // per-user limiter inside the router too.
   app.use('/auth', rateLimit(300, 60_000, 'auth'), sameOriginOnly, authRouter);
+
+  // AI housing assistant (AS-1). Same-origin guarded like /auth so a drive-by
+  // cross-site POST can't spend model calls; its own per-IP + daily rate limits
+  // live inside the router. Optional: answers { configured: false } with no
+  // ANTHROPIC_API_KEY set, and the frontend hides the feature accordingly.
+  app.use('/assist', sameOriginOnly, assistRouter);
 
   // Must be registered after routes — captures errors thrown from handlers.
   Sentry.setupExpressErrorHandler(app);

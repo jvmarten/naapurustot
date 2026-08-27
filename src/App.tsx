@@ -24,6 +24,7 @@ import { computeMatchingPnos, type FilterCriterion } from './utils/filterUtils';
 import { useFilterPresets } from './hooks/useFilterPresets';
 import { useQualityWeights } from './hooks/useQualityWeights';
 import { useWizardProfile, wizardAnswersToQualityWeights, type WizardAnswers } from './hooks/useWizardProfile';
+import { useAssistAvailable } from './hooks/useAssistAvailable';
 import { trackEvent } from './utils/analytics';
 import type { Feature, FeatureCollection, Polygon, MultiPolygon, Position } from 'geojson';
 
@@ -39,6 +40,7 @@ const RankingTable = lazy(() => import('./components/RankingTable').then(m => ({
 const FilterPanel = lazy(() => import('./components/FilterPanel').then(m => ({ default: m.FilterPanel })));
 const CustomQualityPanel = lazy(() => import('./components/CustomQualityPanel').then(m => ({ default: m.CustomQualityPanel })));
 const NeighborhoodWizard = lazy(() => import('./components/NeighborhoodWizard').then(m => ({ default: m.NeighborhoodWizard })));
+const AssistantPanel = lazy(() => import('./components/AssistantPanel').then(m => ({ default: m.AssistantPanel })));
 const SplitMapView = lazy(() => import('./components/SplitMapView').then(m => ({ default: m.SplitMapView })));
 const AreaSummaryPanel = lazy(() => import('./components/AreaSummaryPanel').then(m => ({ default: m.AreaSummaryPanel })));
 const CorrelationExplorer = lazy(() => import('./components/CorrelationExplorer').then(m => ({ default: m.CorrelationExplorer })));
@@ -562,6 +564,8 @@ const App: React.FC = () => {
   const [colorblind, setColorblind] = useState(getColorblindMode);
   const [qualityScale, setQualityScale] = useState(getQualityScaleMode);
   const [showWizard, setShowWizard] = useState(false);
+  // AS-1: the AI housing assistant panel.
+  const [showAssistant, setShowAssistant] = useState(false);
   // CF-4: persistent, shareable wizard priority profile (localStorage + cloud sync).
   const { profile: wizardProfile, setProfile: setWizardProfile, seedProfile: seedWizardProfile, resetLocal: resetWizardProfileLocal } = useWizardProfile(user?.id ?? null);
   const { presets: savedPresets, addPreset: saveFilterPreset, removePreset: removeFilterPreset, resetLocal: resetFilterPresetsLocal } = useFilterPresets(user?.id ?? null);
@@ -1920,6 +1924,16 @@ const App: React.FC = () => {
   const handleCloseFilter = useCallback(() => setShowFilter(false), []);
   const handleCloseCustomQuality = useCallback(() => setShowCustomQuality(false), []);
   const handleCloseWizard = useCallback(() => setShowWizard(false), []);
+  // AS-1: the assistant is a plain-language front door to the filters. Opening it
+  // is a lazy import; applying its result reuses the exact filter path the
+  // FilterPanel uses, so the map highlight + ranked results light up for free.
+  const handleOpenAssistant = useCallback(() => { trackEvent('open-assistant'); setShowAssistant(true); }, []);
+  const { available: assistAvailable, probe: probeAssist } = useAssistAvailable();
+  const handleCloseAssistant = useCallback(() => setShowAssistant(false), []);
+  const handleAssistantApply = useCallback((next: FilterCriterion[]) => {
+    setFilters(next);
+    setShowFilter(true);
+  }, []);
   const handleWizardShowOnMap = useCallback((pnos: string[]) => {
     setWizardResultPnos(pnos);
     setShowWizard(false);
@@ -2392,8 +2406,8 @@ const App: React.FC = () => {
   // QW-4 / QW-2: global keydown — Escape cascade + power-user shortcuts.
   // Uses refs to avoid re-subscribing the listener on every state change
   // (the previous version had a 10-item dependency array that churned constantly).
-  const escapeStateRef = useRef({ selectMode, drawMode, drawnPolygon, showWizard, showCustomQuality, selected, showFilter, showRanking, showRegionRanking, splitMode });
-  escapeStateRef.current = { selectMode, drawMode, drawnPolygon, showWizard, showCustomQuality, selected, showFilter, showRanking, showRegionRanking, splitMode };
+  const escapeStateRef = useRef({ selectMode, drawMode, drawnPolygon, showAssistant, showWizard, showCustomQuality, selected, showFilter, showRanking, showRegionRanking, splitMode });
+  escapeStateRef.current = { selectMode, drawMode, drawnPolygon, showAssistant, showWizard, showCustomQuality, selected, showFilter, showRanking, showRegionRanking, splitMode };
   const escapeActionsRef = useRef({ deselect, handleClearDraw });
   escapeActionsRef.current = { deselect, handleClearDraw };
   // QW-2: shortcut state + actions, read at keypress time to keep the listener stable.
@@ -2425,6 +2439,7 @@ const App: React.FC = () => {
         if (s.selectMode) { setSelectMode(false); setSelectedAreaPnos([]); return; }
         if (s.drawMode) { setDrawMode(false); setDrawVertices([]); drawVerticesRef.current = []; return; }
         if (s.drawnPolygon) { a.handleClearDraw(); return; }
+        if (s.showAssistant) { setShowAssistant(false); return; }
         if (s.showWizard) { setShowWizard(false); return; }
         if (s.showCustomQuality) { setShowCustomQuality(false); return; }
         if (s.selected) { a.deselect(); return; }
@@ -2680,6 +2695,9 @@ const App: React.FC = () => {
             onToggleFilter={toggleFilter}
             onToggleRanking={toggleRanking}
             onOpenWizard={handleOpenWizard}
+            onOpenAssistant={handleOpenAssistant}
+            assistAvailable={assistAvailable}
+            onAssistProbe={probeAssist}
             wizardHighlightActive={wizardResultPnos.length > 0}
             onClearWizardHighlight={handleClearWizardHighlight}
             splitMode={splitMode}
@@ -3086,6 +3104,19 @@ const App: React.FC = () => {
               onClose={() => setShowRegionRanking(false)}
               qualityWeights={qualityWeights}
               selectedRegion={selected?.city ?? null}
+            />
+          </Suspense>
+        </ErrorBoundary>
+      )}
+
+      {/* AS-1: AI housing assistant */}
+      {showAssistant && (
+        <ErrorBoundary>
+          <Suspense fallback={null}>
+            <AssistantPanel
+              lang={lang}
+              onApply={handleAssistantApply}
+              onClose={handleCloseAssistant}
             />
           </Suspense>
         </ErrorBoundary>

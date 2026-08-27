@@ -42,6 +42,34 @@ interface ApiResponse<T> {
   status?: number;
 }
 
+/** AS-1: one selectable data layer sent to the assistant (built from LAYERS + i18n labels). */
+export interface AssistCatalogEntry {
+  id: string;
+  label: string;
+  higherIsBetter: boolean;
+}
+
+/** AS-1: a percentile-mode filter criterion the assistant proposes. */
+export interface AssistCriterion {
+  layerId: string;
+  min: number;
+  max: number;
+  mode: 'percentile';
+}
+
+/**
+ * AS-1: the assistant's structured answer. It never contains a statistic about a
+ * specific area — `criteria` are percentile ranges the app resolves against the real
+ * loaded data, and `explanation`/`unmatched` are prose only.
+ */
+export interface AssistResult {
+  title: string;
+  explanation: string;
+  criteria: AssistCriterion[];
+  similarTo: string | null;
+  unmatched: string[];
+}
+
 /** Map known server error messages to i18n keys for localised display. */
 const SERVER_ERROR_KEYS: Record<string, string> = {
   'Username and password are required': 'auth.error.fields_required',
@@ -55,6 +83,9 @@ const SERVER_ERROR_KEYS: Record<string, string> = {
   'Too many requests. Please try again later.': 'auth.error.rate_limited',
   'Internal server error': 'auth.error.server_error',
   'Payload too large': 'auth.error.too_large',
+  'Assistant not configured': 'assist.error.unavailable',
+  'Assistant unavailable': 'assist.error.unavailable',
+  'Invalid query': 'assist.error.invalid_query',
   'Invalid or expired reset link': 'auth.error.reset_link_invalid',
   'Current password is required': 'auth.error.password_required',
   'Incorrect password': 'auth.error.password_incorrect',
@@ -119,6 +150,19 @@ type PreferencesPayload = {
 let preferencesInFlight: Promise<ApiResponse<PreferencesPayload>> | null = null;
 
 export const api = {
+  /** AS-1: is the assistant configured on the backend (ANTHROPIC_API_KEY set)?
+   *  Used to gate the UI so the feature stays dormant until the operator turns it on. */
+  getAssistStatus: () => request<{ configured: boolean }>('/assist'),
+
+  /** AS-1: translate a plain-language housing wish into map filter criteria.
+   *  The server calls the model; every value the user then sees is computed from
+   *  real data on the client. Resolves to `{ error }` (never throws) like all methods. */
+  assist: (query: string, lang: string, catalog: AssistCatalogEntry[]) =>
+    request<AssistResult>('/assist/query', {
+      method: 'POST',
+      body: JSON.stringify({ query, lang, catalog }),
+    }),
+
   signup: (username: string, password: string, turnstileToken: string, email?: string, displayName?: string) =>
     request<{ user: ApiUser }>('/auth/signup', {
       method: 'POST',
