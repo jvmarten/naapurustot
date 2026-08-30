@@ -4,10 +4,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import type { Feature, FeatureCollection, Geometry, Polygon, MultiPolygon } from 'geojson';
 import { useTheme } from '../../hooks/useTheme';
 import { t, useI18nVersion } from '../../utils/i18n';
-import { basemapTileUrl } from '../../utils/basemap';
-
-const BASEMAP_LIGHT = (import.meta.env.VITE_BASEMAP_LIGHT_URL as string) || 'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png';
-const BASEMAP_DARK = (import.meta.env.VITE_BASEMAP_DARK_URL as string) || 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png';
+import { basemapStyleUrl, baseInsertBeforeId } from '../../utils/basemap';
 
 interface MiniMapProps {
   feature: Feature<Polygon | MultiPolygon>;
@@ -57,24 +54,13 @@ export const MiniMap: React.FC<MiniMapProps> = ({ feature, allFeatures }) => {
     const geometry = feature.geometry as Geometry | null;
     if (!isPolygonal(geometry)) return;
 
-    const tiles = basemapTileUrl(theme === 'dark' ? BASEMAP_DARK : BASEMAP_LIGHT);
     const bbox = computeBbox(geometry);
 
     let map: maplibregl.Map;
     try {
       map = new maplibregl.Map({
         container: containerRef.current,
-        style: {
-          version: 8,
-          sources: {
-            carto: {
-              type: 'raster',
-              tiles: [tiles],
-              tileSize: 256,
-            },
-          },
-          layers: [{ id: 'carto-tiles', type: 'raster', source: 'carto', minzoom: 0, maxzoom: 20 }],
-        },
+        style: basemapStyleUrl(theme),
         bounds: [bbox[0], bbox[1], bbox[2], bbox[3]] as [number, number, number, number],
         fitBoundsOptions: { padding: 40 },
         interactive: false,
@@ -96,6 +82,9 @@ export const MiniMap: React.FC<MiniMapProps> = ({ feature, allFeatures }) => {
       // constructor — an uncaught throw here surfaces as a global window.onerror
       // and crashes the profile page. Degrade to the static fallback instead.
       try {
+        // Insert the locator layers below the vector basemap's roads/labels so
+        // place names stay legible on top of the muted fills.
+        const beforeId = baseInsertBeforeId(map);
         // Add surrounding neighborhoods with muted fill
         if (allFeatures) {
           const fc: FeatureCollection = { type: 'FeatureCollection', features: allFeatures };
@@ -108,7 +97,7 @@ export const MiniMap: React.FC<MiniMapProps> = ({ feature, allFeatures }) => {
               'fill-color': theme === 'dark' ? '#374151' : '#e5e7eb',
               'fill-opacity': 0.3,
             },
-          });
+          }, beforeId);
           map.addLayer({
             id: 'all-line',
             type: 'line',
@@ -117,7 +106,7 @@ export const MiniMap: React.FC<MiniMapProps> = ({ feature, allFeatures }) => {
               'line-color': theme === 'dark' ? '#4b5563' : '#d1d5db',
               'line-width': 0.5,
             },
-          });
+          }, beforeId);
         }
 
         // Highlight the selected neighborhood
@@ -130,7 +119,7 @@ export const MiniMap: React.FC<MiniMapProps> = ({ feature, allFeatures }) => {
             'fill-color': '#6366f1',
             'fill-opacity': 0.35,
           },
-        });
+        }, beforeId);
         map.addLayer({
           id: 'highlight-line',
           type: 'line',
@@ -139,7 +128,7 @@ export const MiniMap: React.FC<MiniMapProps> = ({ feature, allFeatures }) => {
             'line-color': '#6366f1',
             'line-width': 2.5,
           },
-        });
+        }, beforeId);
       } catch (err) {
         console.warn('MiniMap: failed to add map layers, hiding map', err);
         setWebglFailed(true);

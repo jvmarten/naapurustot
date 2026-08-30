@@ -9,7 +9,7 @@ import {
   frameAltitude,
   type SolarFrame,
 } from '../utils/sun';
-import { basemapTileUrl } from '../utils/basemap';
+import { basemapStyleUrl, BASEMAP_ATTRIBUTION } from '../utils/basemap';
 import { t, getLang, setLang, useI18nVersion, type Lang } from '../utils/i18n';
 import { useTheme } from '../hooks/useTheme';
 import { FeedSidebar } from './FeedSidebar';
@@ -215,25 +215,6 @@ import {
  * stop existing at dusk.
  */
 
-// Same four basemap URLs the main map uses, so /live/ renders in whichever theme
-// the visitor already chose site-wide rather than forcing its own.
-const BASEMAP_LIGHT =
-  (import.meta.env.VITE_BASEMAP_LIGHT_URL as string) ||
-  'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png';
-const BASEMAP_DARK =
-  (import.meta.env.VITE_BASEMAP_DARK_URL as string) ||
-  'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png';
-const BASEMAP_LIGHT_LABELS =
-  (import.meta.env.VITE_BASEMAP_LIGHT_LABELS_URL as string) ||
-  'https://basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}@2x.png';
-const BASEMAP_DARK_LABELS =
-  (import.meta.env.VITE_BASEMAP_DARK_LABELS_URL as string) ||
-  'https://basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}@2x.png';
-
-const tilesFor = (theme: 'dark' | 'light') =>
-  basemapTileUrl(theme === 'dark' ? BASEMAP_DARK : BASEMAP_LIGHT);
-const labelTilesFor = (theme: 'dark' | 'light') =>
-  basemapTileUrl(theme === 'dark' ? BASEMAP_DARK_LABELS : BASEMAP_LIGHT_LABELS);
 
 /** Helsinki centre — the densest place where OSM actually has building heights. */
 const DEFAULT_CENTER: [number, number] = [24.9384, 60.1699];
@@ -2413,6 +2394,10 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   // tile URLs in place instead.
   const themeRef = useRef(theme);
   themeRef.current = theme;
+  // Which theme's base style is currently applied to the map, so the theme effect
+  // only calls setStyle on an actual change (not on the initial mapReady bump, when
+  // the map was just built with this theme).
+  const appliedBaseThemeRef = useRef<'dark' | 'light' | null>(null);
 
   /**
    * The link this page was opened with, and the camera it resolves to.
@@ -4423,27 +4408,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
       try {
         created = new maplibregl.Map({
         container,
-        style: {
-          version: 8,
-          sources: {
-            carto: {
-              type: 'raster',
-              tiles: [tilesFor(themeRef.current)],
-              tileSize: 256,
-              attribution:
-                '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
-            },
-            'carto-labels': {
-              type: 'raster',
-              tiles: [labelTilesFor(themeRef.current)],
-              tileSize: 256,
-            },
-          },
-          layers: [
-            { id: 'carto-tiles', type: 'raster', source: 'carto', minzoom: 0, maxzoom: 20 },
-            { id: 'carto-label-tiles', type: 'raster', source: 'carto-labels', minzoom: 0, maxzoom: 20 },
-          ],
-        },
+        style: basemapStyleUrl(themeRef.current),
         // From the link, else the camera this browser was last left at, else
         // Helsinki — resolved once, above, because the constructor is the only
         // place a camera can be set without the map visibly flying there.
@@ -4465,7 +4430,8 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
         return;
       }
       mapRef.current = created;
-      created.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
+      appliedBaseThemeRef.current = themeRef.current;
+      created.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: BASEMAP_ATTRIBUTION }), 'bottom-right');
       created.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
       // The listener effect below runs before this resolves, so it needs a nudge
       // once there is actually a map to bind to.
@@ -5255,22 +5221,20 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     };
   }, [mapReady]);
 
-  // Follow the site-wide light/dark choice by swapping the raster tile URLs in
-  // place. Deliberately not `setStyle` — that tears down and rebuilds every
-  // source and layer, which on this page would drop the camera and force a
-  // fresh building fetch for a change that only affects two URLs.
+  // Follow the site-wide light/dark choice by swapping the vector basemap style.
+  // OpenFreeMap's positron (light) and dark styles share the `openmaptiles` source,
+  // so setStyle with `diff` repaints the base without refetching tiles, and it keeps
+  // the camera. Nothing on this page adds MapLibre layers — every feed and the shadow
+  // layer draws on the overlay canvas — so there is nothing to carry across the swap;
+  // the overlay repaints on the next `render`, and the building fetch is `moveend`-
+  // driven, so a style swap neither moves the camera nor forces a refetch. Guard on the
+  // applied-theme ref so the initial mapReady bump (map already built with this theme)
+  // does not trigger a redundant style reload.
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
-    for (const [id, url] of [
-      ['carto', tilesFor(theme)],
-      ['carto-labels', labelTilesFor(theme)],
-    ] as const) {
-      const source = map.getSource(id);
-      // setTiles exists on RasterTileSource; guard because getSource is typed
-      // as the union of every source kind.
-      if (source && 'setTiles' in source) (source as { setTiles: (t: string[]) => void }).setTiles([url]);
-    }
+    if (!map || appliedBaseThemeRef.current === theme) return;
+    appliedBaseThemeRef.current = theme;
+    map.setStyle(basemapStyleUrl(theme), { diff: true });
   }, [theme, mapReady]);
 
   const toggleFeed = (feedId: string) =>

@@ -314,14 +314,15 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <!-- Open the TLS connection to the basemap tile CDN during HTML parse so the
+    <!-- Open the TLS connection to the basemap host during HTML parse so the
          handshake overlaps the JS download instead of starting only when MapLibre
-         requests the first tile. crossorigin is REQUIRED: MapLibre fetches raster
-         tiles as anonymous-CORS images for WebGL texturing, so a plain preconnect
-         would open a second, unused connection. dns-prefetch is a fallback for
+         requests the style/tiles. crossorigin is REQUIRED: MapLibre fetches vector
+         tiles, glyphs and sprites as anonymous-CORS requests, so a plain preconnect
+         would open a second, unused connection. OpenFreeMap serves the style, tiles,
+         sprites and glyphs all from this one origin. dns-prefetch is a fallback for
          browsers that ignore preconnect, plus the analytics origin. -->
-    <link rel="preconnect" href="https://basemaps.cartocdn.com" crossorigin />
-    <link rel="dns-prefetch" href="https://basemaps.cartocdn.com" />
+    <link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin />
+    <link rel="dns-prefetch" href="https://tiles.openfreemap.org" />
     <link rel="dns-prefetch" href="https://analytics.naapurustot.fi" />
     <!-- Load brand fonts without blocking first paint: fetch the stylesheet as
          print media (non-render-blocking), then flip it to all media once loaded.
