@@ -46,18 +46,22 @@ const BASE_SOURCE_IDS = new Set(['openmaptiles', 'ne2_shaded']);
 
 /**
  * Id of the base-style layer the choropleth (and its borders/highlights) should be
- * inserted *below*, so the base map's roads and place labels stay crisp on top of the
- * coloured fills. That is the first road/label layer: the first layer drawing the
- * OpenMapTiles `transportation` source-layer, falling back to the first `symbol`
- * (label) layer, and finally to `undefined` (append on top) if the style has neither.
+ * inserted *below*: the first place-name label layer (the OpenMapTiles `place`
+ * source-layer). Everything before it — land, water, buildings AND roads — therefore
+ * sits under the semi-transparent choropleth (~0.65 fill), so roads ghost through the
+ * data rather than forming a bold web on top of it, while city / neighbourhood names
+ * stay crisp above the fills. Falls back to the first `symbol` layer, and finally to
+ * `undefined` (append on top) if the style has no labels at all.
  *
  * Pure over a layers array so it is unit-testable without a live map. Kept style-agnostic
  * (matches on `source-layer`/`type`, not hardcoded layer ids) so it survives OpenFreeMap
  * renaming or reordering its layers.
  */
 export function firstOverlayLayerId(layers: readonly LayerSpecification[]): string | undefined {
-  const road = layers.find((l) => (l as { 'source-layer'?: string })['source-layer'] === 'transportation');
-  if (road) return road.id;
+  const placeLabel = layers.find(
+    (l) => l.type === 'symbol' && (l as { 'source-layer'?: string })['source-layer'] === 'place',
+  );
+  if (placeLabel) return placeLabel.id;
   const symbol = layers.find((l) => l.type === 'symbol');
   return symbol?.id;
 }
@@ -77,7 +81,7 @@ export function baseInsertBeforeId(map: MaplibreMap): string | undefined {
  * source, so switching only repaints the base — but MapLibre would otherwise drop every
  * layer/source not present in the incoming style. This re-attaches our neighbourhood /
  * grid / overlay sources and layers (everything whose source is not a base source) and
- * re-inserts the layers just below the new base's first road/label layer, preserving the
+ * re-inserts the layers just below the new base's first place-name label layer, preserving the
  * stacking order the map was built with.
  */
 export function carryDataLayers(

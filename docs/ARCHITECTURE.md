@@ -128,7 +128,7 @@ Event handlers attach exactly once and read state through refs. Hover/selection 
 | `neighborhoods-highlight` | line | Hover/selection (feature-state driven) |
 | `neighborhoods-no-data-pattern` | fill | Diagonal-hatch pattern on missing-data areas |
 | pinned / select-area / filter / wizard highlights, 6 `draw-*` layers | line/fill | Added on demand, below the basemap's roads/labels |
-| basemap roads + place labels (OpenFreeMap) | line/symbol | Drawn on top of the choropleth — data layers are inserted below the base style's first road/label layer, so roads and labels stay crisp (replaces the old raster labels overlay + roads-ghost) |
+| basemap place labels (OpenFreeMap) | symbol | Kept on top of the choropleth — data layers are inserted below the base style's first `place` label layer, so the base roads sit UNDER the ~0.65 fill and ghost through it (not a bold web on top) while city/neighbourhood names stay crisp (replaces the old raster labels overlay + roads-ghost) |
 
 MapLibre gotchas this file works around (don't regress them):
 

@@ -50,23 +50,34 @@ describe('BASEMAP_ATTRIBUTION', () => {
 });
 
 describe('firstOverlayLayerId', () => {
-  it('returns the first transportation (road) layer id', () => {
-    expect(firstOverlayLayerId(baseStyle().layers)).toBe('road_major');
+  it('returns the first place-name label layer id (choropleth goes above roads, below place names)', () => {
+    expect(firstOverlayLayerId(baseStyle().layers)).toBe('place_label');
   });
 
-  it('falls back to the first symbol layer when there is no transportation layer', () => {
+  it('picks the place label even when other symbol layers (e.g. road names) come first', () => {
     const layers = [
       { id: 'background', type: 'background' },
-      { id: 'water', type: 'fill', source: 'openmaptiles', 'source-layer': 'water' },
-      { id: 'label', type: 'symbol', source: 'openmaptiles', 'source-layer': 'place' },
+      { id: 'road', type: 'line', source: 'openmaptiles', 'source-layer': 'transportation' },
+      { id: 'road_name', type: 'symbol', source: 'openmaptiles', 'source-layer': 'transportation_name' },
+      { id: 'place_label', type: 'symbol', source: 'openmaptiles', 'source-layer': 'place' },
     ] as unknown as LayerSpecification[];
-    expect(firstOverlayLayerId(layers)).toBe('label');
+    expect(firstOverlayLayerId(layers)).toBe('place_label');
   });
 
-  it('returns undefined when there is neither a road nor a label layer', () => {
+  it('falls back to the first symbol layer when there is no place label', () => {
     const layers = [
       { id: 'background', type: 'background' },
       { id: 'water', type: 'fill', source: 'openmaptiles', 'source-layer': 'water' },
+      { id: 'water_name', type: 'symbol', source: 'openmaptiles', 'source-layer': 'water_name' },
+    ] as unknown as LayerSpecification[];
+    expect(firstOverlayLayerId(layers)).toBe('water_name');
+  });
+
+  it('returns undefined when there is no label (symbol) layer at all', () => {
+    const layers = [
+      { id: 'background', type: 'background' },
+      { id: 'water', type: 'fill', source: 'openmaptiles', 'source-layer': 'water' },
+      { id: 'road', type: 'line', source: 'openmaptiles', 'source-layer': 'transportation' },
     ] as unknown as LayerSpecification[];
     expect(firstOverlayLayerId(layers)).toBeUndefined();
   });
@@ -88,8 +99,9 @@ describe('carryDataLayers', () => {
         neighborhoods: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
         'grid-cells': { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
       },
-      // As the app builds it: data layers sit just below the road layer.
-      layers: [s.layers[0], s.layers[1], ...dataLayers, s.layers[2], s.layers[3]] as unknown as LayerSpecification[],
+      // As the app builds it: data layers sit just below the place-name label,
+      // i.e. above the base roads.
+      layers: [s.layers[0], s.layers[1], s.layers[2], ...dataLayers, s.layers[3]] as unknown as LayerSpecification[],
     };
   }
 
@@ -105,17 +117,18 @@ describe('carryDataLayers', () => {
     );
   });
 
-  it('re-inserts the data layers below the new base road/label layer, in order', () => {
+  it('re-inserts the data layers below the new base place-name label, in order', () => {
     const merged = carryDataLayers(styleWithData(), baseStyle());
     const ids = merged.layers.map((l) => l.id);
-    // Base layers preserved; data layers land immediately before the road layer.
+    // Base layers preserved; data layers land above the roads, immediately before
+    // the place-name label — so roads stay under the fill after a theme swap too.
     expect(ids).toEqual([
       'background',
       'water',
+      'road_major',
       'neighborhoods-fill',
       'neighborhoods-line',
       'grid-fill',
-      'road_major',
       'place_label',
     ]);
   });

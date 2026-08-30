@@ -148,8 +148,9 @@ const SOURCE_ID = 'neighborhoods';
 const FILL_LAYER = 'neighborhoods-fill';
 const LINE_LAYER = 'neighborhoods-line';
 
-// Insert the choropleth below the vector basemap's first road/label layer, so
-// roads and place names stay crisp on top of the coloured fills (mirrors Map.tsx).
+// Insert the choropleth below the vector basemap's place-name labels but above its
+// roads, so roads ghost through the semi-transparent fill (not a bold web on top) and
+// place names stay crisp on top (mirrors Map.tsx).
 function beforeLabels(map: maplibregl.Map): string | undefined {
   return baseInsertBeforeId(map);
 }
@@ -197,9 +198,10 @@ const METRO_LINE_LAYER = 'neighborhoods-metro-line';
 const NO_DATA_LAYER = 'neighborhoods-no-data-pattern';
 const HIGHLIGHT_LAYER = 'neighborhoods-highlight';
 
-// Map readability — mirrors Map.tsx. Roads-on-top is native to the vector basemap
-// (the choropleth is inserted below its road/label layers, see beforeLabels), so the
-// old raster roads-ghost overlay is gone. Softened, zoom-gated postal borders remain.
+// Map readability — mirrors Map.tsx. The choropleth is inserted below the vector
+// basemap's place-name labels but above its roads (see beforeLabels), so roads ghost
+// through the semi-transparent fill instead of drawing on top; the old raster
+// roads-ghost overlay is gone. Softened, zoom-gated postal borders remain.
 const postalBorderColor = (theme: 'dark' | 'light') => (theme === 'dark' ? '#334155' : '#94a3b8');
 const POSTAL_BORDER_WIDTH = ['interpolate', ['linear'], ['zoom'], 8, 0.3, 11, 0.6, 14, 1] as unknown as maplibregl.ExpressionSpecification;
 const POSTAL_BORDER_OPACITY = ['interpolate', ['linear'], ['zoom'], 7, 0.12, 10, 0.32, 13, 0.55] as unknown as maplibregl.ExpressionSpecification;
