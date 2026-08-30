@@ -107,10 +107,11 @@ function escapeAttr(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
-/** Resolve a beforeId so the layer is inserted below the basemap's roads and
- *  labels (its first road/label layer) — keeping the choropleth under a crisp
- *  road+label skeleton, which is how the vector basemap reproduces the old
- *  labels-on-top + roads-ghost treatment without any raster overlay.
+/** Resolve a beforeId so the layer is inserted below the basemap's place-name
+ *  labels (its first `place` symbol layer). Roads and the rest of the base
+ *  geometry therefore sit UNDER the semi-transparent choropleth and ghost
+ *  through it, rather than drawing as a bold web on top; only city/neighbourhood
+ *  names stay crisp above the data — the same treatment CARTO's raster gave us.
  *  If the caller already specified one, keep it (those layers — e.g. the grid
  *  fill below LINE_LAYER, seutukunta lines below FILL_LAYER — sit below the
  *  basemap labels transitively). Falls back to undefined when the base style is
@@ -134,11 +135,12 @@ const WIZARD_HIGHLIGHT_LAYER = 'neighborhoods-wizard-highlight';
 const NO_DATA_LAYER = 'neighborhoods-no-data-pattern';
 
 // ── Map readability ──────────────────────────────────────────────────────────
-// Roads-on-top orientation is now native to the vector basemap: the choropleth is
-// inserted below the base style's road + label layers (see beforeLabels), so roads
-// and place names stay crisp on top of the coloured fills. That replaces the old
-// raster "roads-ghost" overlay — a second copy of the CARTO raster re-drawn above
-// the fill — which is gone along with the raster basemap.
+// The choropleth is inserted below the vector basemap's place-name labels but ABOVE
+// its road/geometry layers (see beforeLabels), so the base roads ghost through the
+// semi-transparent fill (~0.65) instead of drawing as a bold white web on top of the
+// data — while city/neighbourhood names stay crisp above it. That reproduces the old
+// CARTO look (subtle roads under the fill, labels on top) and replaces the raster
+// "roads-ghost" overlay, which is gone along with the raster basemap.
 
 // Softened postal-code borders: the old #475569 / width-1 / opacity-0.6 stroke
 // around every one of 3,018 polygons turned dense city-centre areas into a
