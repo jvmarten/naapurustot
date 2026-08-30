@@ -15,17 +15,9 @@ import { trackEvent } from '../utils/analytics';
 import { t, useI18nVersion } from '../utils/i18n';
 import { DEFAULT_CENTER, DEFAULT_ZOOM, MAP_MIN_ZOOM, MAP_MAX_ZOOM } from '../utils/mapConstants';
 import { queryFeaturesSafe, isStyleAlive } from '../utils/mapQuery';
-import { basemapTileUrl } from '../utils/basemap';
+import { basemapStyleUrl, baseInsertBeforeId, carryDataLayers, BASEMAP_ATTRIBUTION } from '../utils/basemap';
 // CF-5 Phase D1: pre-baked boundary outlines of all 69 Finnish seutukunnat.
 import seutukunnatUrl from '../data/seutukunnat.topojson?url';
-
-const BASEMAP_LIGHT = (import.meta.env.VITE_BASEMAP_LIGHT_URL as string) || 'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png';
-const BASEMAP_DARK = (import.meta.env.VITE_BASEMAP_DARK_URL as string) || 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png';
-// Labels-only overlay rendered above the choropleth so place names stay
-// readable on top of the colored fills (the baked-in labels in the base
-// raster are hidden under the fill).
-const BASEMAP_LIGHT_LABELS = (import.meta.env.VITE_BASEMAP_LIGHT_LABELS_URL as string) || 'https://basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}@2x.png';
-const BASEMAP_DARK_LABELS = (import.meta.env.VITE_BASEMAP_DARK_LABELS_URL as string) || 'https://basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}@2x.png';
 
 interface MapProps {
   data: FeatureCollection | null;
@@ -106,9 +98,6 @@ const MOBILE_BREAKPOINT = 768;
 // matches the 13.5 default used elsewhere for point navigation.
 const FIT_MAX_ZOOM = 13.5;
 
-const LABELS_SOURCE_ID = 'carto-labels';
-const LABELS_LAYER = 'carto-labels';
-
 /** CF-2: minimal HTML escape for the planning popup's interpolated text/URLs. */
 function escapeAttr(s: string): string {
   return String(s)
@@ -118,54 +107,17 @@ function escapeAttr(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
-/** Resolve a beforeId so the layer is inserted below the labels overlay.
- *  If the caller already specified one, keep it (those layers — e.g. the
- *  grid fill below LINE_LAYER, seutukunta lines below FILL_LAYER — sit
- *  below labels transitively). Falls back to undefined when the labels
- *  layer is absent (e.g. style not yet loaded) so addLayer never throws. */
+/** Resolve a beforeId so the layer is inserted below the basemap's roads and
+ *  labels (its first road/label layer) — keeping the choropleth under a crisp
+ *  road+label skeleton, which is how the vector basemap reproduces the old
+ *  labels-on-top + roads-ghost treatment without any raster overlay.
+ *  If the caller already specified one, keep it (those layers — e.g. the grid
+ *  fill below LINE_LAYER, seutukunta lines below FILL_LAYER — sit below the
+ *  basemap labels transitively). Falls back to undefined when the base style is
+ *  not yet loaded so addLayer never throws (the layer appends on top). */
 function beforeLabels(map: maplibregl.Map, beforeId?: string): string | undefined {
   if (beforeId) return beforeId;
-  return map.getLayer(LABELS_LAYER) ? LABELS_LAYER : undefined;
-}
-
-function makeStyle(theme: 'dark' | 'light'): maplibregl.StyleSpecification {
-  const tiles = basemapTileUrl(theme === 'dark' ? BASEMAP_DARK : BASEMAP_LIGHT);
-  const labelTiles = basemapTileUrl(theme === 'dark' ? BASEMAP_DARK_LABELS : BASEMAP_LIGHT_LABELS);
-  return {
-    version: 8,
-    name: theme === 'dark' ? 'Dark' : 'Light',
-    sources: {
-      carto: {
-        type: 'raster',
-        tiles: [tiles],
-        tileSize: 256,
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
-      },
-      [LABELS_SOURCE_ID]: {
-        type: 'raster',
-        tiles: [labelTiles],
-        tileSize: 256,
-      },
-    },
-    layers: [
-      {
-        id: 'carto-tiles',
-        type: 'raster',
-        source: 'carto',
-        minzoom: 0,
-        maxzoom: 20,
-      },
-      // Last in initial layer stack — choropleth layers are inserted
-      // below this via beforeId=LABELS_LAYER so labels stay on top.
-      {
-        id: LABELS_LAYER,
-        type: 'raster',
-        source: LABELS_SOURCE_ID,
-        minzoom: 0,
-        maxzoom: 20,
-      },
-    ],
-  };
+  return baseInsertBeforeId(map);
 }
 
 const SOURCE_ID = 'neighborhoods';
@@ -181,29 +133,14 @@ const FILTER_HIGHLIGHT_LAYER = 'neighborhoods-filter-highlight';
 const WIZARD_HIGHLIGHT_LAYER = 'neighborhoods-wizard-highlight';
 const NO_DATA_LAYER = 'neighborhoods-no-data-pattern';
 
-// ── Map readability prototype ────────────────────────────────────────────────
-// #1 Roads-on-top: a second copy of the base raster drawn ABOVE the choropleth
-// fill at low opacity, so the road network (buried under the fill in the base
-// layer) ghosts back through and gives the eye a structural skeleton to orient
-// by — the main reason a dark-basemap map like peaceandquiet.io reads so cleanly.
-// The overlay reuses the same `carto` raster source as the base layer (one
-// source, two layers) so a theme swap via setTiles updates both. The effect is
-// far stronger on the dark basemap (light roads over dark land); on the light
-// (Positron) basemap it is a subtler wash. Tune per theme; set to 0 to disable.
-const ROAD_OVERLAY_LAYER = 'carto-roads-overlay';
-// Peak overlay opacity per theme. Dialed back from the initial 0.45/0.6: at city
-// zoom the overlay is a full-strength wash over the choropleth, and the dark
-// basemap raster at 0.6 muted the region colours noticeably (worst in dark mode).
-// Lower peaks keep the road skeleton readable while letting the data colour show.
-const ROAD_OVERLAY_OPACITY: Record<'dark' | 'light', number> = { light: 0.4, dark: 0.48 };
-// Fade the overlay in from z7.5→z10 so the all-Finland / regional overview stays
-// clean (a constant wash there just desaturates the region colours) and the road
-// skeleton only appears once you are zoomed into a city — in step with the border
-// fade below. Zoom interpolation is a camera expression, valid for raster-opacity.
-const roadOverlayOpacity = (theme: 'dark' | 'light') =>
-  ['interpolate', ['linear'], ['zoom'], 7.5, 0, 10, ROAD_OVERLAY_OPACITY[theme]] as unknown as maplibregl.ExpressionSpecification;
+// ── Map readability ──────────────────────────────────────────────────────────
+// Roads-on-top orientation is now native to the vector basemap: the choropleth is
+// inserted below the base style's road + label layers (see beforeLabels), so roads
+// and place names stay crisp on top of the coloured fills. That replaces the old
+// raster "roads-ghost" overlay — a second copy of the CARTO raster re-drawn above
+// the fill — which is gone along with the raster basemap.
 
-// #2 Softened postal-code borders: the old #475569 / width-1 / opacity-0.6 stroke
+// Softened postal-code borders: the old #475569 / width-1 / opacity-0.6 stroke
 // around every one of 3,018 polygons turned dense city-centre areas into a
 // "stained glass" mesh. Lighter colour, thinner, and zoom-gated so borders are
 // nearly invisible at overview zoom and only firm up once you are inside a city.
@@ -466,7 +403,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     try {
       map = new maplibregl.Map({
         container: containerRef.current,
-        style: makeStyle(theme),
+        style: basemapStyleUrl(theme),
         center: initialCenter,
         zoom: initialZoom,
         minZoom: MAP_MIN_ZOOM,
@@ -482,7 +419,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       return;
     }
 
-    map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
+    map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: BASEMAP_ATTRIBUTION }), 'bottom-right');
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
 
     // E5: recover from runtime WebGL context loss (GPU reset, tab backgrounding,
@@ -598,21 +535,36 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   // eslint-disable-next-line react-hooks/exhaustive-deps -- init once; theme changes handled by separate effect
   }, []);
 
-  // Switch basemap on theme change
+  // Switch basemap style on theme change. OpenFreeMap's positron (light) and dark
+  // styles share the `openmaptiles` vector source, so setStyle only repaints the base
+  // rather than refetching tiles; carryDataLayers (setStyle's transformStyle) preserves
+  // our neighbourhood/grid/overlay sources and layers across the swap and re-inserts
+  // them below the new base's road/label layers, keeping the stacking order. On the
+  // first mount the map is already built with the right theme, so gate on the loaded
+  // ref — there is nothing to swap until the initial style has loaded.
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
+    if (!map || !mapStyleLoadedRef.current) return;
 
-    const source = map.getSource('carto') as maplibregl.RasterTileSource | undefined;
-    if (source) {
-      const tiles = basemapTileUrl(theme === 'dark' ? BASEMAP_DARK : BASEMAP_LIGHT);
-      source.setTiles([tiles]);
-    }
-    const labelsSource = map.getSource(LABELS_SOURCE_ID) as maplibregl.RasterTileSource | undefined;
-    if (labelsSource) {
-      const labelTiles = basemapTileUrl(theme === 'dark' ? BASEMAP_DARK_LABELS : BASEMAP_LIGHT_LABELS);
-      labelsSource.setTiles([labelTiles]);
-    }
+    map.setStyle(basemapStyleUrl(theme), { diff: true, transformStyle: carryDataLayers });
+
+    // setStyle re-creates every source, which clears feature-state — so the hover /
+    // selection rings (driven by feature-state, not paint) blank out until the next
+    // interaction. Re-apply the tracked selection once the new style settles. The
+    // border/highlight COLOURS are handled by the in-place repaint effect below: its
+    // synchronous setPaintProperty runs before the async setStyle commits, so those
+    // updated colours are what carryDataLayers carries over.
+    const reapplyState = () => {
+      if (!map.getSource(SOURCE_ID)) return;
+      if (selectedIdRef.current) {
+        map.setFeatureState({ source: SOURCE_ID, id: selectedIdRef.current }, { selected: true });
+      }
+      if (hoveredIdRef.current) {
+        map.setFeatureState({ source: SOURCE_ID, id: hoveredIdRef.current }, { hover: true });
+      }
+    };
+    map.once('idle', reapplyState);
+    return () => { map.off('idle', reapplyState); };
   }, [theme]);
 
   // Add source + layers once. On subsequent `data` changes we call setData on
@@ -721,23 +673,6 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         },
       }, beforeLabels(map));
 
-      // #1: roads-on-top ghost overlay (see ROAD_OVERLAY_* above). Reuses the
-      // base `carto` raster source; inserted above the fill but below the data
-      // borders/highlights (beforeId=LINE_LAYER) so selection rings stay crisp.
-      if (ROAD_OVERLAY_OPACITY[theme] > 0 && !map.getLayer(ROAD_OVERLAY_LAYER)) {
-        map.addLayer({
-          id: ROAD_OVERLAY_LAYER,
-          type: 'raster',
-          source: 'carto',
-          paint: {
-            'raster-opacity': roadOverlayOpacity(theme),
-            // Nudge contrast so road casings separate from the near-white land
-            // on the light basemap instead of dissolving into a flat grey wash.
-            'raster-contrast': 0.15,
-          },
-        }, LINE_LAYER);
-      }
-
       // FILL_LAYER now exists — flush any pending grid layer that arrived
       // before this effect ran. Without this callback, addGridLayer's
       // beforeId=FILL_LAYER fails silently when grid data wins the race,
@@ -776,10 +711,6 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         // #2: postal borders use the softened palette; width/opacity are
         // zoom expressions (theme-independent) so they need no re-set here.
         map.setPaintProperty(LINE_LAYER, 'line-color', postalBorderColor(theme));
-      }
-      if (map.getLayer(ROAD_OVERLAY_LAYER)) {
-        // #1: tiles are swapped by the source-swap effect; just retune opacity.
-        map.setPaintProperty(ROAD_OVERLAY_LAYER, 'raster-opacity', roadOverlayOpacity(theme));
       }
       if (map.getLayer(METRO_LINE_LAYER)) {
         // Region outlines share the softened postal palette; width/opacity are

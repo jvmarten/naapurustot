@@ -110,7 +110,7 @@ Hover state lives in an external store (`tooltipStore.ts`) subscribed via `useSy
 
 ## Map architecture (MapLibre GL)
 
-`Map.tsx` (~1,500 lines) creates the map **once** and mutates it in place through ~20 independent `useEffect` hooks — init, theme (raster `setTiles`, no style rebuild), data (`setData`), layer switch (fill-color swap with a 150/200 ms cross-fade, skipped under reduced motion), quality version, grid overlay, isochrone, region boundaries, opacity, filter/wizard/pinned/selection highlights, draw mode, flyTo, resize. The `[data]` effect deliberately depends only on `data`; everything else has its own effect so a quality-weight slider tick doesn't tear down the layer stack.
+`Map.tsx` (~1,500 lines) creates the map **once** and mutates it in place through ~20 independent `useEffect` hooks — init, theme (vector `setStyle` with a `transformStyle` that carries the data layers across the base swap), data (`setData`), layer switch (fill-color swap with a 150/200 ms cross-fade, skipped under reduced motion), quality version, grid overlay, isochrone, region boundaries, opacity, filter/wizard/pinned/selection highlights, draw mode, flyTo, resize. The `[data]` effect deliberately depends only on `data`; everything else has its own effect so a quality-weight slider tick doesn't tear down the layer stack.
 
 Event handlers attach exactly once and read state through refs. Hover/selection use MapLibre **feature-state** (source `promoteId: 'pno'`) with rAF-throttled mousemove — no per-frame `setFilter`.
 
@@ -118,7 +118,7 @@ Event handlers attach exactly once and read state through refs. Hover/selection 
 
 | Layer id | Type | Purpose |
 |----------|------|---------|
-| `carto-tiles` | raster | Basemap (light/dark swapped via `setTiles`) |
+| basemap fills/roads (OpenFreeMap) | vector | Basemap; light/dark swapped via `setStyle` (shared `openmaptiles` source) |
 | `seutukunnat-boundary-line` | line | Region outlines (added at browser idle; ~199 KB fetch) |
 | `neighborhoods-fill` | fill | The choropleth |
 | `grid-fill` | fill | 250–500 m grid overlay; cross-fades with the postal fill over zoom 7→8.5 |
@@ -127,8 +127,8 @@ Event handlers attach exactly once and read state through refs. Hover/selection 
 | `isochrone-fill` / `-line` | fill/line | Travel-time reachable area |
 | `neighborhoods-highlight` | line | Hover/selection (feature-state driven) |
 | `neighborhoods-no-data-pattern` | fill | Diagonal-hatch pattern on missing-data areas |
-| pinned / select-area / filter / wizard highlights, 6 `draw-*` layers | line/fill | Added on demand, before labels |
-| `carto-labels` | raster | Labels-only tiles kept on top of all data layers |
+| pinned / select-area / filter / wizard highlights, 6 `draw-*` layers | line/fill | Added on demand, below the basemap's roads/labels |
+| basemap roads + place labels (OpenFreeMap) | line/symbol | Drawn on top of the choropleth — data layers are inserted below the base style's first road/label layer, so roads and labels stay crisp (replaces the old raster labels overlay + roads-ghost) |
 
 MapLibre gotchas this file works around (don't regress them):
 
@@ -223,7 +223,7 @@ npm run build = tsc -b && vite build
 │   maps uploaded then deleted from dist/
 ├── compression: gzip + Brotli for js/css/html/json/topojson/svg ≥1 KB
 ├── VitePWA (prompt): precache js/css/icons only — HTML excluded
-│   (NetworkFirst, 3 s timeout), CARTO tiles CacheFirst (500/30 d),
+│   (NetworkFirst, 3 s timeout), OpenFreeMap tiles CacheFirst (500/30 d),
 │   topojson/geojson StaleWhileRevalidate (20/30 d). main.tsx defers
 │   the update reload until the tab is hidden (no mid-session reset)
 ├── stripBuildOnlyData plugin: deletes metro_neighborhoods.geojson and

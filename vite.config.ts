@@ -199,8 +199,9 @@ export default defineConfig({
             },
           },
           {
-            // Cache map tiles
-            urlPattern: /^https:\/\/basemaps\.cartocdn\.com\//,
+            // Cache map tiles (OpenFreeMap serves the style JSON, vector tiles,
+            // sprites and glyphs all from this one origin).
+            urlPattern: /^https:\/\/tiles\.openfreemap\.org\//,
             handler: 'CacheFirst',
             options: {
               cacheName: 'map-tiles',

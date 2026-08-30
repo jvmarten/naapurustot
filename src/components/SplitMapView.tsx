@@ -11,7 +11,7 @@ import { useTheme } from '../hooks/useTheme';
 import { t, useI18nVersion } from '../utils/i18n';
 import { DEFAULT_CENTER, DEFAULT_ZOOM, MAP_MAX_ZOOM, MAP_MIN_ZOOM } from '../utils/mapConstants';
 import { queryFeaturesSafe, isStyleAlive } from '../utils/mapQuery';
-import { basemapTileUrl } from '../utils/basemap';
+import { basemapStyleUrl, baseInsertBeforeId, carryDataLayers, BASEMAP_ATTRIBUTION } from '../utils/basemap';
 
 /**
  * Compact dropdown for choosing a data layer on one side of the split view.
@@ -144,19 +144,14 @@ const SplitPaneLegend: React.FC<{ layer: LayerConfig; side: 'left' | 'right'; gr
   );
 };
 
-const BASEMAP_LIGHT = (import.meta.env.VITE_BASEMAP_LIGHT_URL as string) || 'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png';
-const BASEMAP_DARK = (import.meta.env.VITE_BASEMAP_DARK_URL as string) || 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png';
-const BASEMAP_LIGHT_LABELS = (import.meta.env.VITE_BASEMAP_LIGHT_LABELS_URL as string) || 'https://basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}@2x.png';
-const BASEMAP_DARK_LABELS = (import.meta.env.VITE_BASEMAP_DARK_LABELS_URL as string) || 'https://basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}@2x.png';
-
 const SOURCE_ID = 'neighborhoods';
 const FILL_LAYER = 'neighborhoods-fill';
 const LINE_LAYER = 'neighborhoods-line';
-const LABELS_SOURCE_ID = 'carto-labels';
-const LABELS_LAYER = 'carto-labels';
 
+// Insert the choropleth below the vector basemap's first road/label layer, so
+// roads and place names stay crisp on top of the coloured fills (mirrors Map.tsx).
 function beforeLabels(map: maplibregl.Map): string | undefined {
-  return map.getLayer(LABELS_LAYER) ? LABELS_LAYER : undefined;
+  return baseInsertBeforeId(map);
 }
 
 interface SplitMapViewProps {
@@ -198,61 +193,13 @@ interface PaneHover {
   gridValue?: number | null;
 }
 
-function makeStyle(theme: 'dark' | 'light'): maplibregl.StyleSpecification {
-  const tiles = basemapTileUrl(theme === 'dark' ? BASEMAP_DARK : BASEMAP_LIGHT);
-  const labelTiles = basemapTileUrl(theme === 'dark' ? BASEMAP_DARK_LABELS : BASEMAP_LIGHT_LABELS);
-  return {
-    version: 8,
-    name: theme === 'dark' ? 'Dark' : 'Light',
-    sources: {
-      carto: {
-        type: 'raster',
-        tiles: [tiles],
-        tileSize: 256,
-        attribution:
-          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
-      },
-      [LABELS_SOURCE_ID]: {
-        type: 'raster',
-        tiles: [labelTiles],
-        tileSize: 256,
-      },
-    },
-    layers: [
-      {
-        id: 'carto-tiles',
-        type: 'raster',
-        source: 'carto',
-        minzoom: 0,
-        maxzoom: 20,
-      },
-      // Labels overlay sits above the choropleth so place names render
-      // on top of the colored fills; choropleth layers are inserted via
-      // beforeId=LABELS_LAYER.
-      {
-        id: LABELS_LAYER,
-        type: 'raster',
-        source: LABELS_SOURCE_ID,
-        minzoom: 0,
-        maxzoom: 20,
-      },
-    ],
-  };
-}
-
 const METRO_LINE_LAYER = 'neighborhoods-metro-line';
 const NO_DATA_LAYER = 'neighborhoods-no-data-pattern';
 const HIGHLIGHT_LAYER = 'neighborhoods-highlight';
 
-// Map readability prototype — mirrors Map.tsx. #1 roads-on-top ghost overlay
-// (base raster redrawn above the fill so roads punch back through) and #2
-// softened, zoom-gated postal borders. Keep in sync with Map.tsx.
-const ROAD_OVERLAY_LAYER = 'carto-roads-overlay';
-// Peak overlay opacity dialed back from 0.45/0.6 so the road wash stops muting
-// the choropleth at city zoom (worst in dark). Keep in sync with Map.tsx.
-const ROAD_OVERLAY_OPACITY: Record<'dark' | 'light', number> = { light: 0.4, dark: 0.48 };
-const roadOverlayOpacity = (theme: 'dark' | 'light') =>
-  ['interpolate', ['linear'], ['zoom'], 7.5, 0, 10, ROAD_OVERLAY_OPACITY[theme]] as unknown as maplibregl.ExpressionSpecification;
+// Map readability — mirrors Map.tsx. Roads-on-top is native to the vector basemap
+// (the choropleth is inserted below its road/label layers, see beforeLabels), so the
+// old raster roads-ghost overlay is gone. Softened, zoom-gated postal borders remain.
 const postalBorderColor = (theme: 'dark' | 'light') => (theme === 'dark' ? '#334155' : '#94a3b8');
 const POSTAL_BORDER_WIDTH = ['interpolate', ['linear'], ['zoom'], 8, 0.3, 11, 0.6, 14, 1] as unknown as maplibregl.ExpressionSpecification;
 const POSTAL_BORDER_OPACITY = ['interpolate', ['linear'], ['zoom'], 7, 0.12, 10, 0.32, 13, 0.55] as unknown as maplibregl.ExpressionSpecification;
@@ -458,20 +405,6 @@ function addDataLayers(
     },
   }, beforeLabels(map));
 
-  // #1: roads-on-top ghost overlay (reuses the `carto` raster source), above
-  // the fill but below the borders/highlights.
-  if (ROAD_OVERLAY_OPACITY[theme] > 0 && !map.getLayer(ROAD_OVERLAY_LAYER)) {
-    map.addLayer({
-      id: ROAD_OVERLAY_LAYER,
-      type: 'raster',
-      source: 'carto',
-      paint: {
-        'raster-opacity': roadOverlayOpacity(theme),
-        'raster-contrast': 0.15,
-      },
-    }, LINE_LAYER);
-  }
-
   // IN-1: grid layer added last so LINE_LAYER already exists for beforeId.
   syncGridLayer(map, layer, gridData, fillOpacity);
 }
@@ -480,9 +413,6 @@ function updateThemeColors(map: maplibregl.Map, theme: 'dark' | 'light') {
   if (map.getLayer(LINE_LAYER)) {
     // #2: softened postal borders; width/opacity are theme-independent zoom exprs.
     map.setPaintProperty(LINE_LAYER, 'line-color', postalBorderColor(theme));
-  }
-  if (map.getLayer(ROAD_OVERLAY_LAYER)) {
-    map.setPaintProperty(ROAD_OVERLAY_LAYER, 'raster-opacity', roadOverlayOpacity(theme));
   }
   if (map.getLayer(METRO_LINE_LAYER)) {
     // Region outlines share the softened postal palette; width/opacity are zoom exprs.
@@ -608,14 +538,14 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
     try {
       leftMap = new maplibregl.Map({
         container: leftContainerRef.current,
-        style: makeStyle(theme),
+        style: basemapStyleUrl(theme),
         ...commonOptions,
       });
       createdLeft = leftMap;
 
       rightMap = new maplibregl.Map({
         container: rightContainerRef.current,
-        style: makeStyle(theme),
+        style: basemapStyleUrl(theme),
         ...commonOptions,
       });
     } catch (err) {
@@ -628,7 +558,7 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
       return;
     }
 
-    leftMap.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-left');
+    leftMap.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: BASEMAP_ATTRIBUTION }), 'bottom-left');
     rightMap.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
 
     leftMapRef.current = leftMap;
@@ -679,41 +609,36 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Switch basemap on theme change, and repaint the border colors in place.
-  // Previously theme change rebuilt source + 3 layers on BOTH maps.
+  // Switch basemap style on theme change. OpenFreeMap's positron/dark share the
+  // `openmaptiles` vector source, so setStyle only repaints the base; carryDataLayers
+  // (setStyle's transformStyle) preserves each pane's neighbourhood/grid/overlay
+  // sources and layers across the swap. Gate on the persistent loaded flag so the
+  // effect no-ops on mount (each pane is already built with the right theme) and only
+  // swaps once a pane's style is ready.
   useEffect(() => {
-    const tiles = basemapTileUrl(theme === 'dark' ? BASEMAP_DARK : BASEMAP_LIGHT);
-    const labelTiles = basemapTileUrl(theme === 'dark' ? BASEMAP_DARK_LABELS : BASEMAP_LIGHT_LABELS);
-    const pendingListeners: { map: maplibregl.Map; fn: () => void }[] = [];
+    const cleanups: Array<() => void> = [];
     const pairs: [React.RefObject<maplibregl.Map | null>, React.RefObject<boolean>][] = [
       [leftMapRef, leftLoadedRef],
       [rightMapRef, rightLoadedRef],
     ];
     for (const [mapRef, loadedRef] of pairs) {
       const map = mapRef.current;
-      if (!map) continue;
-      const source = map.getSource('carto') as maplibregl.RasterTileSource | undefined;
-      if (source) {
-        source.setTiles([tiles]);
-      }
-      const labelsSource = map.getSource(LABELS_SOURCE_ID) as maplibregl.RasterTileSource | undefined;
-      if (labelsSource) {
-        labelsSource.setTiles([labelTiles]);
-      }
-      const apply = () => updateThemeColors(map, theme);
-      // Gate on the persistent loaded flag, not isStyleLoaded() — a theme toggle
-      // during an in-flight setData would otherwise queue the repaint on the
-      // already-fired 'load' event and the border colors would stay stale.
-      if (loadedRef.current) apply();
-      else {
-        map.on('load', apply);
-        pendingListeners.push({ map, fn: apply });
-      }
+      if (!map || !loadedRef.current) continue;
+      map.setStyle(basemapStyleUrl(theme), { diff: true, transformStyle: carryDataLayers });
+      // Once the new style settles, repaint theme-dependent border/highlight colours
+      // on the carried layers and re-apply the selection ring (setStyle clears the
+      // feature-state that drives it).
+      const apply = () => {
+        updateThemeColors(map, theme);
+        if (prevSelectedRef.current && map.getSource(SOURCE_ID)) {
+          map.setFeatureState({ source: SOURCE_ID, id: prevSelectedRef.current }, { selected: true });
+        }
+      };
+      map.once('idle', apply);
+      cleanups.push(() => map.off('idle', apply));
     }
     return () => {
-      for (const { map, fn } of pendingListeners) {
-        map.off('load', fn);
-      }
+      for (const c of cleanups) c();
     };
   }, [theme]);
 

@@ -204,8 +204,8 @@ html.theme-transition *::after {
     display: none !important;
   }
 
-  /* Keep the basemap/data attribution visible on mobile — OSM/CARTO are CC BY 4.0
-     and require visible credit. The control is created with `compact: true`, so it
+  /* Keep the basemap/data attribution visible on mobile — OSM/OpenFreeMap/OpenMapTiles
+     require visible credit. The control is created with `compact: true`, so it
      collapses to a small ⓘ that expands the full attribution on tap; constrain its
      expanded width so it never spans the whole screen on a narrow viewport. */
   .maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-inner {

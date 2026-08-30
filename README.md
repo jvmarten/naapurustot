@@ -111,8 +111,7 @@ public/data/
 | `VITE_MAP_CENTER_LNG` / `VITE_MAP_CENTER_LAT` | `24.94` / `60.17` | Initial map center |
 | `VITE_MAP_ZOOM` | `9.2` | Initial zoom |
 | `VITE_MAP_MIN_ZOOM` / `VITE_MAP_MAX_ZOOM` | `2` / `16` | Zoom limits (min must allow the whole-Finland view, zoom ~4.8) |
-| `VITE_BASEMAP_LIGHT_URL` / `VITE_BASEMAP_DARK_URL` | CARTO | Raster basemap tile URLs |
-| `VITE_BASEMAP_LIGHT_LABELS_URL` / `VITE_BASEMAP_DARK_LABELS_URL` | CARTO | Labels-only overlay drawn above the choropleth |
+| `VITE_BASEMAP_STYLE_LIGHT_URL` / `VITE_BASEMAP_STYLE_DARK_URL` | OpenFreeMap `positron` / `dark` | Vector basemap style JSON URLs (keyless); override to point at a self-hosted mirror |
 | `VITE_DIGITRANSIT_API_KEY` | *(unset)* | Enables travel-time isochrones **and** street-address search ([register free](https://digitransit.fi/en/developers/)); unset hides isochrones and degrades search to name/postal-code only |
 | `VITE_DIGITRANSIT_ROUTER` | `finland` | Routing graph: `finland`, `hsl`, or `waltti` |
 | `VITE_SENTRY_DSN` | *(unset)* | Enables Sentry error tracking; unset tree-shakes Sentry out entirely |
@@ -296,4 +295,4 @@ When signed in, favorites/notes/shortlist/presets/weights additionally sync to t
 
 ## License
 
-Data: CC BY 4.0 (Statistics Finland, HSL, HSY) and ODbL (OpenStreetMap contributors). Map tiles by CARTO.
+Data: CC BY 4.0 (Statistics Finland, HSL, HSY) and ODbL (OpenStreetMap contributors). Basemap by [OpenFreeMap](https://openfreemap.org) and [OpenMapTiles](https://www.openmaptiles.org/), data © OpenStreetMap contributors.
