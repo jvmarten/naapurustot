@@ -3,6 +3,7 @@ import type { FeatureCollection } from 'geojson';
 import { loadAllData, loadRegionData, resetDataCache } from '../utils/dataLoader';
 import type { RegionId } from '../utils/regions';
 import { mergeRegionData } from '../utils/regionSet';
+import { applyQualityScale } from '../utils/qualityScale';
 
 interface MapDataState {
   data: FeatureCollection | null;
@@ -86,6 +87,11 @@ export function useMapData(regionId?: RegionId | 'all', opts?: { skipAllFetch?: 
     loadFn()
       .then((result) => {
         if (cancelled) return;
+        // Each region's processing re-pointed the global quality cohort (bands, ramp
+        // stops, quality_display) at that region alone; re-derive it over the union on
+        // screen, so a cold `city=a,b` load or a retry matches an add from the prompt.
+        // After the cancel check: a superseded merge must not rescale the live view.
+        if (ids && ids.length > 1) applyQualityScale(result.data.features);
         setState({ data: result.data, loading: false, error: null, metroAverages: result.metroAverages });
       })
       .catch((err: unknown) => {

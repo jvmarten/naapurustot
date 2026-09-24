@@ -15,7 +15,6 @@ import type { FeatureCollection, Feature } from 'geojson';
 import type { CityFilter } from '../components/CitySelector';
 import type { ProcessedData } from './dataLoader';
 import { computeMetroAverages } from './metrics';
-import { applyQualityScale } from './qualityScale';
 import { REGION_IDS, type RegionId } from './regions';
 import { CITY_VIEWPORTS } from './mapConstants';
 
@@ -100,16 +99,11 @@ export function regionsViewport(regions: readonly string[]): { center: [number, 
  * be wrong for every ratio metric (unemployment = Σ unemployed / Σ labour force).
  * The feature objects stay shared with dataLoader's per-region cache; that is fine
  * because the multi-region view always scores against the national ranges, where an
- * area's score depends on nothing but its own values.
- *
- * The quality SCALE is the exception: each region's processing re-pointed the global
- * cohort (bands, ramp stops, `quality_display`) at that region alone, and whichever
- * finished last would win. Re-derive it over the union, so a cold `city=a,b` load, a
- * retry and an add from the prompt all describe the same areas on screen.
+ * area's score depends on nothing but its own values. (The quality SCALE is not:
+ * useMapData re-derives it over the union once the merge is known to be current.)
  */
 export function mergeRegionData(results: ProcessedData[]): ProcessedData {
   const features = results.flatMap((r) => r.data.features);
-  applyQualityScale(features);
   const data: FeatureCollection = { type: 'FeatureCollection', features };
   return { data, metroAverages: computeMetroAverages(features) };
 }

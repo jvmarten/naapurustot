@@ -442,38 +442,45 @@ describe('TooltipOverlay per-region averages', () => {
   });
 });
 
-// ─── Desktop select: keyboard path to "add to map" ───────────────────────────────
+// ─── Desktop add path: a button list, never options inside the switch select ────
 
-describe('CitySelector desktop select add group', () => {
+describe('CitySelector desktop add path', () => {
   const select = () => screen.getByRole('combobox', { name: t('city.select') });
 
-  it('offers "+ region" options for every region not on the map, and choosing one adds', () => {
-    const onChange = vi.fn();
-    const onAdd = vi.fn();
-    render(<CitySelector value="helsinki_metro" onChange={onChange} displayed={['helsinki_metro', 'lahti']} onAdd={onAdd} />);
-    const group = within(select()).getByRole('group', { name: t('region_switch.add') });
-    const values = within(group).getAllByRole('option').map((o) => (o as HTMLOptionElement).value);
-    expect(values).toHaveLength(REGION_IDS.length - 2);
-    expect(values).not.toContain('+helsinki_metro');
-    expect(values).not.toContain('+lahti');
-    expect(values).not.toContain('+all');
-    fireEvent.change(select(), { target: { value: '+turku' } });
-    expect(onAdd).toHaveBeenCalledWith('turku');
-    expect(onChange).not.toHaveBeenCalled();
-  });
-
-  it('a plain option still switches', () => {
+  it('the native switch select carries no add options, even with onAdd (arrow keys must never add)', () => {
     const onChange = vi.fn();
     const onAdd = vi.fn();
     render(<CitySelector value="helsinki_metro" onChange={onChange} displayed={['helsinki_metro']} onAdd={onAdd} />);
+    expect(within(select()).queryByRole('group')).toBeNull();
+    const values = within(select()).getAllByRole('option').map((o) => (o as HTMLOptionElement).value);
+    expect(values.some((v) => v.startsWith('+'))).toBe(false);
     fireEvent.change(select(), { target: { value: 'turku' } });
     expect(onChange).toHaveBeenCalledWith('turku');
     expect(onAdd).not.toHaveBeenCalled();
   });
 
-  it('without onAdd (the all-Finland view) there is no add group', () => {
-    render(<CitySelector value="all" onChange={vi.fn()} />);
-    expect(within(select()).queryByRole('group')).toBeNull();
+  it('addOnly renders just an "add to map" button — no select', () => {
+    render(<CitySelector addOnly value="helsinki_metro" onChange={vi.fn()} displayed={['helsinki_metro']} onAdd={vi.fn()} />);
+    expect(screen.queryByRole('combobox', { name: t('city.select') })).toBeNull();
+    expect(screen.getByRole('button', { name: `+ ${t('region_switch.add')}` })).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('its list offers only regions not on the map, and a pick adds (never switches) and closes', () => {
+    const onChange = vi.fn();
+    const onAdd = vi.fn();
+    render(<CitySelector addOnly value="helsinki_metro" onChange={onChange} displayed={['helsinki_metro', 'lahti']} onAdd={onAdd} />);
+    const trigger = screen.getByRole('button', { name: `+ ${t('region_switch.add')}` });
+    fireEvent.click(trigger);
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.queryByRole('button', { name: name('helsinki_metro') })).toBeNull();
+    expect(screen.queryByRole('button', { name: name('lahti') })).toBeNull();
+    expect(screen.queryByRole('button', { name: t('city.all') })).toBeNull();
+    // No nested "+" buttons in the add list: the row itself is the add.
+    expect(screen.queryAllByRole('button', { name: new RegExp('^' + escapeRe(t('region_switch.add')) + ':') })).toHaveLength(0);
+    fireEvent.click(screen.getByRole('button', { name: name('turku') }));
+    expect(onAdd).toHaveBeenCalledWith('turku');
+    expect(onChange).not.toHaveBeenCalled();
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
   });
 });
 

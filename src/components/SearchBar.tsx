@@ -452,6 +452,13 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
         </div>
       )}
 
+      {/* Every popup below overlays the column rather than taking flow space: the
+          region chips and the desktop planning panel sit under this search bar in the
+          same column, and an in-flow list pushed them down while open and yanked them
+          back up on the outside mousedown that closes it — swallowing the click. Still
+          inside containerRef, so outside-click and keyboard handling are unchanged. */}
+      <div className="relative">
+      <div className="absolute left-0 right-0 top-0 z-20">
       {/* PO-5: Recent neighborhoods when input is empty/focused.
           SN-3: when shown, this IS the live combobox popup (id matches aria-controls)
           and each option is keyboard-navigable via aria-activedescendant. */}
@@ -645,6 +652,8 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
           </div>
         </div>
       )}
+      </div>
+      </div>
     </div>
   );
 });

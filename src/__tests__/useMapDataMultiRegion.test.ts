@@ -40,6 +40,8 @@ import { useMapData } from '../hooks/useMapData';
 import { loadAllData, loadRegionData, resetDataCache } from '../utils/dataLoader';
 import { computeMetroAverages, type NeighborhoodProperties } from '../utils/metrics';
 import type { RegionId } from '../utils/regions';
+import { getQualityBands } from '../utils/qualityBands';
+import { applyQualityScale } from '../utils/qualityScale';
 
 const loadAllDataMock = loadAllData as unknown as ReturnType<typeof vi.fn>;
 const loadRegionDataMock = loadRegionData as unknown as ReturnType<typeof vi.fn>;
@@ -425,6 +427,41 @@ describe('useMapData — multi-region (opts.extra)', () => {
   // -------------------------------------------------------------------------
   // Cancellation
   // -------------------------------------------------------------------------
+
+  it('re-derives the quality scale over the merged regions (not whichever region processed last)', async () => {
+    const q = (pno: string, city: RegionId, qi: number) => feature(pno, city, { he_vakiy: 100, quality_index: qi });
+    RESULTS.helsinki_metro = loaded([q('00100', 'helsinki_metro', 41), q('00200', 'helsinki_metro', 42), q('00300', 'helsinki_metro', 43)], 1);
+    RESULTS.lahti = loaded([q('15100', 'lahti', 61), q('15200', 'lahti', 62)], 2);
+    applyQualityScale(RESULTS.lahti.data.features); // Lahti's own processing "finished last"
+    expect(getQualityBands()?.n).toBe(2);
+    resolveByRegion();
+    const { result } = renderHook(() => useMapData('helsinki_metro', { extra: ['lahti'] }));
+    await waitFor(() => expect(result.current.data?.features).toHaveLength(5));
+    expect(getQualityBands()?.n).toBe(5);
+    for (const f of result.current.data!.features) expect(typeof f.properties?.quality_display).toBe('number');
+  });
+
+  it('a superseded merge landing late does not rescale the view that replaced it', async () => {
+    const q = (pno: string, city: RegionId, qi: number) => feature(pno, city, { he_vakiy: 100, quality_index: qi });
+    RESULTS.helsinki_metro = loaded([q('00100', 'helsinki_metro', 41), q('00200', 'helsinki_metro', 42)], 1);
+    RESULTS.lahti = loaded([q('15100', 'lahti', 61)], 2);
+    const pending = deferByRegion();
+    const { result, rerender } = renderHook(({ r, extra }: Props) => useMapData(r, { extra }), {
+      initialProps: { r: 'helsinki_metro', extra: ['lahti'] } as Props,
+    });
+    rerender({ r: 'turku', extra: [] });
+    act(() => { pending.turku[0].resolve(RESULTS.turku); });
+    await waitFor(() => expect(result.current.data).toBe(RESULTS.turku.data));
+    applyQualityScale(RESULTS.turku.data.features);
+    const bands = getQualityBands();
+    act(() => {
+      pending.helsinki_metro[0].resolve(RESULTS.helsinki_metro);
+      pending.lahti[0].resolve(RESULTS.lahti);
+    });
+    await act(async () => { await new Promise((r) => setTimeout(r, 10)); });
+    expect(getQualityBands()).toBe(bands);
+    expect(RESULTS.lahti.data.features[0].properties?.quality_display).toBeUndefined();
+  });
 
   it('ignores a stale in-flight multi load after switching to a single region', async () => {
     const pending = deferByRegion();

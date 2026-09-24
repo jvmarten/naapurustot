@@ -1416,11 +1416,14 @@ const App: React.FC = () => {
   const [peek, setPeek] = useState<NeighborhoodProperties | null>(null);
   // A tap on a neighbouring seutukunta in a region view → "switch / show both" prompt.
   const [regionPrompt, setRegionPrompt] = useState<RegionId | null>(null);
-  // The prompt belongs to the view it was raised over: any change of the displayed set
-  // (CitySelector, search, deep link, geolocation, favorites, chips), a new selection by
-  // any path, or entering split/draw/select mode retires it (render-phase reset, so a
-  // stale prompt never paints over the new view, even for a frame).
-  const promptScope = `${regionParam}|${selected?.pno ?? ''}|${splitMode || drawMode || selectMode}`;
+  // The prompt belongs to the view it was raised over: a switch of the primary region
+  // (CitySelector, search, deep link, geolocation, favorites), a new selection by any
+  // path, or entering split/draw/select mode retires it (render-phase reset, so a stale
+  // prompt never paints over the new view, even for a frame). Keyed on the primary, not
+  // the whole displayed set: an earlier "show both" landing in the background must not
+  // yank away a prompt the user has just opened for a third region (promptRegion hides
+  // it once that region itself is on the map; removing a chip clears it explicitly).
+  const promptScope = `${cityFilter}|${selected?.pno ?? ''}|${splitMode || drawMode || selectMode}`;
   const [promptScopeSeen, setPromptScopeSeen] = useState(promptScope);
   if (promptScopeSeen !== promptScope) {
     setPromptScopeSeen(promptScope);
@@ -1450,36 +1453,49 @@ const App: React.FC = () => {
     if (peek) { select(peek); setPeek(null); }
   }, [peek, select]);
 
+  // Clear first, set next frame: a repeated message (reopening the same prompt, removing
+  // the same region twice) must still change the live region's text to be announced.
+  // `still` drops it if what it describes is gone by then (e.g. a double-click zoom
+  // closes the prompt its first click opened).
+  const regionPromptRef = useRef(regionPrompt);
+  regionPromptRef.current = regionPrompt;
+  const announce = useCallback((msg: string, still?: () => boolean) => {
+    setAriaAnnouncement('');
+    requestAnimationFrame(() => { if (!still || still()) setAriaAnnouncement(msg); });
+  }, []);
+
   // Map reports the seutukunta under any click that hit no postal area (null over sea
   // or on a double-click zoom). One already on the map needs no prompt.
   const handleRegionClick = useCallback((r: string | null) => {
     if (!r || displayedRef.current.includes(r)) { setRegionPrompt(null); return; }
     setPeek(null);
     setRegionPrompt(r as RegionId);
-    // Clear first so reopening the same region's prompt still changes the live text.
-    const msg = t('region_switch.prompt').replace('{city}', t('city.' + r));
-    setAriaAnnouncement('');
-    requestAnimationFrame(() => setAriaAnnouncement(msg));
-  }, []);
+    announce(t('region_switch.prompt').replace('{city}', t('city.' + r)), () => regionPromptRef.current === r);
+  }, [announce]);
   const handleRegionSwitch = useCallback((r: RegionId) => {
     setRegionPrompt(null);
     handleCityChange(r);
     setAriaAnnouncement(t('city.switched_to').replace('{city}', t('city.' + r)));
   }, [handleCityChange]);
   const [addsInFlight, setAddsInFlight] = useState(0);
+  // Regions being added. A second pick of one still loading is a no-op, and a switch of
+  // the primary empties the set (effect below), which voids those adds — so switching
+  // away and back (A → all → A) doesn't resurrect one the user walked away from.
+  const addsPendingRef = useRef(new Set<RegionId>());
+  useEffect(() => { addsPendingRef.current.clear(); }, [cityFilter]);
   const handleAddRegion = useCallback((r: RegionId) => {
     setRegionPrompt(null);
-    if (displayedRef.current.includes(r)) return;
+    const pending = addsPendingRef.current;
+    if (displayedRef.current.includes(r) || pending.has(r)) return;
+    pending.add(r);
     setAddsInFlight((n) => n + 1);
-    const primary = cityFilterRef.current;
     // Load BEFORE committing: useMapData errors the whole merged set when any region
     // fails, so an unreachable region must not take the working view down with it. The
     // per-region cache then makes the merge that follows immediate.
     loadRegionData(r)
       .then(() => {
-        // Only a real switch (another primary, or 'all') voids the add; a compatible add
-        // or remove that landed meanwhile does not, and the reducer dedupes repeats.
-        if (cityFilterRef.current !== primary || displayedRef.current.includes(r)) return;
+        // A compatible add or remove that landed meanwhile keeps the add; a switch voided it.
+        if (!pending.delete(r) || displayedRef.current.includes(r)) return;
         setCityFilter({ add: r });
         // Several regions on one map are compared on the national scale — "within this
         // region" has no single region left to mean.
@@ -1488,18 +1504,19 @@ const App: React.FC = () => {
         if (vp) setFlyTarget(vp);
         showToast(t('region_switch.added').replace('{city}', t('city.' + r)));
         trackEvent('add-region', { city: r });
-      }, () => showToast(t('error.load_failed')))
+      }, () => { pending.delete(r); showToast(t('error.load_failed')); })
       .finally(() => setAddsInFlight((n) => n - 1));
   }, [showToast]);
   const handleRemoveRegion = useCallback((r: string) => {
     setCityFilter({ remove: r as RegionId });
+    setRegionPrompt(null);
     if (selectedRef.current?.city === r) deselect();
     setPeek((p) => (p?.city === r ? null : p));
     // A drawn / multi-selected area may reach into the region leaving the map.
     resetAreaTools();
-    setAriaAnnouncement(t('region_switch.removed').replace('{city}', t('city.' + r)));
+    announce(t('region_switch.removed').replace('{city}', t('city.' + r)));
     trackEvent('remove-region', { city: r });
-  }, [deselect, resetAreaTools]);
+  }, [deselect, resetAreaTools, announce]);
 
   // Refs for values read inside handleSearch — avoids recreating the callback
   // when filteredData/cityFilter change (which would defeat React.memo on SearchBar).
@@ -2069,18 +2086,25 @@ const App: React.FC = () => {
     // greyed-out control whose only tooltip restates the current scope.
     // Hidden too with several regions on the map: they are compared on the national
     // scale (handleAddRegion), since "within this region" has no single region to mean.
-    cityFilter === 'all' || multiRegion ? null : (
-      // pointer-events-auto: re-enables events on this child of LayerSelector's
-      // pointer-events-none wrapper (which lets map drags pass through the gap).
-      <div className="pointer-events-auto rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden">
-        <ComparisonScopeToggle
-          scope={comparisonScope}
-          onChange={handleScopeChange}
-          disabled={false}
-        />
-      </div>
+    // Beside it, the desktop "add to map" list — the keyboard (and discoverable) path to
+    // the multi-region view; mobile has the per-row "+" in the header region list.
+    cityFilter === 'all' ? null : (
+      <>
+        <CitySelector addOnly value={cityFilter} onChange={handleCityChange} displayed={displayed} onAdd={handleAddRegion} lang={lang} />
+        {!multiRegion && (
+          // pointer-events-auto: re-enables events on this child of LayerSelector's
+          // pointer-events-none wrapper (which lets map drags pass through the gap).
+          <div className="pointer-events-auto rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden">
+            <ComparisonScopeToggle
+              scope={comparisonScope}
+              onChange={handleScopeChange}
+              disabled={false}
+            />
+          </div>
+        )}
+      </>
     )
-  ), [comparisonScope, cityFilter, multiRegion, handleScopeChange]);
+  ), [comparisonScope, cityFilter, multiRegion, handleScopeChange, handleCityChange, displayed, handleAddRegion, lang]);
   // Mobile-only planning overlay controls, folded into the Layers sheet. On desktop
   // the same PlanningControls render as a standalone floating panel below (see the
   // `hidden md:block` block near the LayerSelector); LayerSelector renders this slot
