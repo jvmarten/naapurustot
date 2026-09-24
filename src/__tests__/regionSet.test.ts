@@ -596,19 +596,15 @@ describe('averagesByRegion', () => {
   });
 });
 
-describe('mergeRegionData — quality scale over the union', () => {
-  it('re-derives the global quality cohort over every merged region, not the last one processed', () => {
+describe('mergeRegionData — purity', () => {
+  it('leaves the global quality scale alone (useMapData re-derives it once the merge is current)', () => {
     const a = [1, 2, 3].map((i) => feature({ pno: `0010${i}`, city: 'helsinki_metro', quality_index: 40 + i }));
     const b = [1, 2].map((i) => feature({ pno: `1510${i}`, city: 'lahti', quality_index: 60 + i }));
-    // Each region's own processing points the cohort at itself; Lahti "finished last".
-    applyQualityScale(a);
     applyQualityScale(b);
-    expect(getQualityBands()?.n).toBe(2);
-    const merged = mergeRegionData([processed(a), processed(b)]);
-    expect(getQualityBands()?.n).toBe(5);
-    for (const f of merged.data.features) {
-      expect(typeof f.properties?.quality_display).toBe('number');
-    }
+    const before = getQualityBands();
+    mergeRegionData([processed(a), processed(b)]);
+    expect(getQualityBands()).toBe(before);
+    expect(a[0].properties?.quality_display).toBeUndefined();
   });
 });
 

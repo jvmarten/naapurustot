@@ -15,6 +15,9 @@ interface CitySelectorProps {
   displayed?: readonly string[];
   /** Region view: a per-row "+" in the mobile list shows that region alongside. */
   onAdd?: (city: RegionId) => void;
+  /** Render only an "add to map" button whose list adds on pick (the desktop add path,
+   *  next to the layers panel) — no select, no switching. */
+  addOnly?: boolean;
 }
 
 /**
@@ -49,7 +52,7 @@ function getCoverageBadge(regionId: CityFilter): string {
   return ` (${t('city.coverage.partial').replace('{pct}', String(pct))})`;
 }
 
-export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, onChange, lang: _lang, displayed, onAdd }) => {
+export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, onChange, lang: _lang, displayed, onAdd, addOnly }) => {
   useI18nVersion();
   const [open, setOpen] = useState(false);
   // SN-2: filter text for the mobile popover — 70 rows in a small unsearchable
@@ -60,9 +63,11 @@ export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, on
   const triggerRef = useRef<HTMLButtonElement>(null);
   const options = OPTIONS;
   const foldedFilter = fold(filter.trim());
-  const visibleOptions = foldedFilter
+  const isShown = (id: CityFilter) => id === value || !!displayed?.includes(id);
+  const visibleOptions = (foldedFilter
     ? options.filter((opt) => fold(t(opt.labelKey)).includes(foldedFilter))
-    : options;
+    : options
+  ).filter((opt) => !addOnly || (opt.id !== 'all' && !isShown(opt.id)));
 
   useEffect(() => {
     if (!open) return;
@@ -91,17 +96,13 @@ export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, on
 
   return (
     <>
-      {/* Desktop: native select. In a region view it also carries an "add to map" group
-          ("+ Lahden seutu"), the keyboard path to the multi-region view; the controlled
-          value snaps back to the primary after an add. */}
-      <select
+      {/* Desktop: native select, switch only. Adding lives in a separate button list
+          (addOnly): a closed select fires `change` on every arrow / End / type-ahead key
+          on Windows and Linux, so "add" options inside it fired on mere browsing. */}
+      {!addOnly && <select
         data-tour-id="cities"
         value={value}
-        onChange={(e) => {
-          const v = e.target.value;
-          if (v.startsWith('+')) onAdd?.(v.slice(1) as RegionId);
-          else onChange(v as CityFilter);
-        }}
+        onChange={(e) => onChange(e.target.value as CityFilter)}
         className="hidden md:block text-sm bg-brand-500/90 hover:bg-brand-600/90 text-white font-medium rounded-lg px-3 py-1.5 appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-400 pr-7 bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22white%22%3E%3Cpath%20fill-rule%3D%22evenodd%22%20d%3D%22M5.23%207.21a.75.75%200%20011.06.02L10%2011.168l3.71-3.938a.75.75%200%20111.08%201.04l-4.25%204.5a.75.75%200%2001-1.08%200l-4.25-4.5a.75.75%200%2001.02-1.06z%22%20clip-rule%3D%22evenodd%22%2F%3E%3C%2Fsvg%3E')] bg-[length:1.25rem] bg-[position:right_0.25rem_center] bg-no-repeat"
         aria-label={t('city.select')}
       >
@@ -110,17 +111,22 @@ export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, on
             {t(opt.labelKey)}{getCoverageBadge(opt.id)}
           </option>
         ))}
-        {onAdd && (
-          <optgroup label={t('region_switch.add')}>
-            {options.filter((opt) => opt.id !== 'all' && opt.id !== value && !displayed?.includes(opt.id)).map((opt) => (
-              <option key={opt.id} value={'+' + opt.id}>+ {t(opt.labelKey)}</option>
-            ))}
-          </optgroup>
-        )}
-      </select>
+      </select>}
 
-      {/* Mobile: icon button + scrollable dropdown */}
-      <div data-tour-id="cities" ref={ref} className="relative md:hidden">
+      {/* Mobile: icon button + scrollable dropdown (addOnly: the desktop "add to map" list) */}
+      <div data-tour-id={addOnly ? undefined : 'cities'} ref={ref} className={addOnly ? 'relative pointer-events-auto' : 'relative md:hidden'}>
+        {addOnly ? (
+          <button
+            ref={triggerRef}
+            onClick={() => setOpen((prev) => !prev)}
+            aria-haspopup="listbox"
+            aria-expanded={open}
+            className="px-3 py-2 rounded-xl text-xs font-semibold shadow-2xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md
+                       border border-surface-200 dark:border-surface-700/40 text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-800"
+          >
+            + {t('region_switch.add')}
+          </button>
+        ) : (
         <button
           ref={triggerRef}
           onClick={() => setOpen((prev) => !prev)}
@@ -147,6 +153,7 @@ export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, on
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 3a15 15 0 014 9 15 15 0 01-4 9 15 15 0 01-4-9 15 15 0 014-9z" />
           </svg>
         </button>
+        )}
 
         {open && (
           <div className="absolute right-0 top-full mt-2 w-48 max-h-80 flex flex-col rounded-xl bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700/40 shadow-2xl backdrop-blur-md z-50 py-1">
@@ -165,15 +172,17 @@ export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, on
             </div>
             <div className="overflow-y-auto flex-1 min-h-0">
               {visibleOptions.map((opt) => {
-                const shown = opt.id === value || !!displayed?.includes(opt.id);
+                const shown = isShown(opt.id);
                 return (
                   <div key={opt.id} className="flex">
                     <button
                       onClick={() => {
-                        // Multi-region: the primary is already on the map, and re-picking it
-                        // must not collapse the view (the desktop select fires nothing for
-                        // its current value either).
-                        if (!(opt.id === value && (displayed?.length ?? 0) > 1)) onChange(opt.id);
+                        // addOnly: every row is an add. Otherwise a switch — except that
+                        // re-picking the primary while other regions are shown must not
+                        // collapse the view (the desktop select fires nothing for its
+                        // current value either).
+                        if (addOnly) onAdd?.(opt.id as RegionId);
+                        else if (!(opt.id === value && (displayed?.length ?? 0) > 1)) onChange(opt.id);
                         setOpen(false);
                       }}
                       aria-current={shown || undefined}
@@ -185,7 +194,7 @@ export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, on
                     >
                       {t(opt.labelKey)}{getCoverageBadge(opt.id)}
                     </button>
-                    {onAdd && !shown && opt.id !== 'all' && (
+                    {onAdd && !addOnly && !shown && opt.id !== 'all' && (
                       <button
                         onClick={() => {
                           onAdd(opt.id as RegionId);
