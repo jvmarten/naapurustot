@@ -252,7 +252,7 @@ The app encodes shareable state in query parameters (defaults are omitted to kee
 | `pno` | `?pno=00100` | Selected area (5-digit postal code) |
 | `layer` | `?layer=median_income` | Active layer (default `quality_index`) |
 | `compare` | `?compare=00100,02100` | Pinned comparison areas (max 3) |
-| `city` | `?city=helsinki_metro` | Active region (default `all` = whole Finland) |
+| `city` | `?city=helsinki_metro` | Active region (default `all` = whole Finland). A comma list shows several regions' postal-code areas at once, primary first: `?city=helsinki_metro,lahti` |
 
 Extended analytical state uses additional params — `scope`, `year`, `cb` (colorblind), `lang`, `ref` (home baseline), `filter`, `qp`/`qw` (quality persona/weights), `iso` (isochrone), `v` (viewport), `sl` (shortlist), `aff`, `simw`, `draw`, `wp` (wizard) — versioned with `_v` so future schema changes degrade gracefully. Legacy `#hash` URLs migrate automatically. See `src/hooks/useUrlState.ts`.
 

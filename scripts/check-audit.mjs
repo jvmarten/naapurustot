@@ -50,6 +50,24 @@ export const ALLOWLIST = [
       'react-router advisories that DO touch a declarative SPA (route-matching DoS ' +
       'GHSA-chx6-hx7r-mcp5, open redirect / deserializeErrors) are fixed in 7.18.0 and taken.',
   },
+  {
+    id: 'GHSA-jrc7-96c5-q579',
+    package: 'maplibre-gl',
+    scope: '.',
+    until: '2026-11-30',
+    reason:
+      'XSS sanitizer bypass in MapLibre\'s internal DOM.sanitize(). In maplibre-gl 5.x its only ' +
+      'caller is AttributionControl, which sanitizes the map sources\' attribution HTML before ' +
+      'setting innerHTML. What reaches it here: our constant BASEMAP_ATTRIBUTION (utils/basemap.ts) ' +
+      'and the attribution field of the OpenFreeMap TileJSON for the basemap vector source. Every ' +
+      'app-added source (postal areas, grids, planning, /live/ rasters) sets no attribution, and no ' +
+      'user- or URL-controlled string is ever passed to a source or the control. Exploiting it would ' +
+      'therefore need a compromise of tiles.openfreemap.org (or of the build-time basemap style URL) — ' +
+      'a residual supply-chain risk, not a reachable input. The fix exists only in maplibre-gl ' +
+      '6.4.1+, a major bump of the map library behind every view (and the /live/ app) that also ' +
+      'retires the 5.18–5.24 query regression worked around in utils/mapQuery.ts. The short `until` ' +
+      'is deliberate: it forces that migration rather than letting this exemption drift.',
+  },
 ];
 
 /** Run `npm audit --json` in `cwd`. Exits non-zero when vulnerabilities exist, so the

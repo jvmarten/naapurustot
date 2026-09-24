@@ -179,6 +179,9 @@ interface SplitMapViewProps {
   rightGridLoading?: boolean;
   /** IN-1: per-metric region averages, for the hover tooltip's "vs avg" line. */
   metroAverages?: Record<string, number>;
+  /** Multi-region view: each seutukunta's own averages keyed by `city` (null otherwise),
+   *  so "vs avg" matches the main map's tooltip. */
+  regionAverages?: Record<string, Record<string, number>> | null;
   /** IN-1: open the detail panel when a neighborhood is clicked in either pane. */
   onSelectNeighborhood?: (props: NeighborhoodProperties) => void;
 }
@@ -445,6 +448,7 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
   leftGridLoading = false,
   rightGridLoading = false,
   metroAverages,
+  regionAverages,
   onSelectNeighborhood,
 }) => {
   useI18nVersion();
@@ -894,7 +898,7 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
           <SplitPaneTooltip
             hover={leftHover}
             layer={leftConfig}
-            metroAverage={metroAverages?.[leftConfig.property]}
+            metroAverage={regionAverages?.[leftHover.props.city ?? '']?.[leftConfig.property] ?? metroAverages?.[leftConfig.property]}
             side="left"
           />
         )}
@@ -922,7 +926,7 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
           <SplitPaneTooltip
             hover={rightHover}
             layer={rightConfig}
-            metroAverage={metroAverages?.[rightConfig.property]}
+            metroAverage={regionAverages?.[rightHover.props.city ?? '']?.[rightConfig.property] ?? metroAverages?.[rightConfig.property]}
             side="right"
           />
         )}

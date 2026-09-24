@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import type { FeatureCollection } from 'geojson';
 import { loadAllData, loadRegionData, resetDataCache } from '../utils/dataLoader';
 import type { RegionId } from '../utils/regions';
+import { mergeRegionData } from '../utils/regionSet';
 
 interface MapDataState {
   data: FeatureCollection | null;
@@ -23,12 +24,19 @@ interface MapDataState {
  * `data`-gated path (pnoFeatureMap, drawn-area, quality recompute, deep-link restore)
  * cleanly no-ops until a trigger flips `skipAllFetch` off and the full set loads.
  *
+ * `{ extra }` adds more regions alongside `regionId` (the multi-region postal view):
+ * each is loaded through the same per-region cache and the results are merged into
+ * one dataset, with averages recomputed over the union.
+ *
  * Processing pipeline: TopoJSON → GeoJSON → filter islands → compute quality indices →
  * compute change metrics → compute quick-win metrics → compute metro averages.
  */
-export function useMapData(regionId?: RegionId | 'all', opts?: { skipAllFetch?: boolean }): MapDataState {
+export function useMapData(regionId?: RegionId | 'all', opts?: { skipAllFetch?: boolean; extra?: readonly RegionId[] }): MapDataState {
   // Only meaningful for the all-cities view (regionId 'all' or undefined).
   const skipAllFetch = !!opts?.skipAllFetch && (regionId === 'all' || regionId == null);
+  // One string identity for the displayed set ('lahti', 'helsinki_metro,lahti'): the
+  // render-phase reset and the load effect key on it, never on the array's identity.
+  const key = regionId && regionId !== 'all' && opts?.extra?.length ? [regionId, ...opts.extra].join(',') : regionId;
   const [state, setState] = useState<Omit<MapDataState, 'retry'>>({
     data: null,
     loading: true,
@@ -40,14 +48,14 @@ export function useMapData(regionId?: RegionId | 'all', opts?: { skipAllFetch?: 
   // (e.g. App.tsx → buildMetroAreaFeatures in the "all" view) would compute
   // from stale single-region features. Reset state during render so the next
   // render sees `data: null` instead of the previous region's data.
-  const [loadedRegion, setLoadedRegion] = useState<typeof regionId>(regionId);
+  const [loadedRegion, setLoadedRegion] = useState<string | undefined>(key);
   const [attempt, setAttempt] = useState(0);
   // Track last attempt that triggered a cache reset, so region switches with
   // a stale attempt > 0 don't unnecessarily clear cached data for other regions.
   const lastResetAttemptRef = useRef(0);
 
-  if (loadedRegion !== regionId) {
-    setLoadedRegion(regionId);
+  if (loadedRegion !== key) {
+    setLoadedRegion(key);
     setState({ data: null, loading: true, error: null, metroAverages: {} });
   }
 
@@ -68,9 +76,12 @@ export function useMapData(regionId?: RegionId | 'all', opts?: { skipAllFetch?: 
       lastResetAttemptRef.current = attempt;
     }
 
-    const loadFn = regionId && regionId !== 'all'
-      ? () => loadRegionData(regionId)
-      : () => loadAllData();
+    const ids = key && key !== 'all' ? (key.split(',') as RegionId[]) : null;
+    const loadFn = !ids
+      ? () => loadAllData()
+      : ids.length === 1
+        ? () => loadRegionData(ids[0])
+        : () => Promise.all(ids.map((id) => loadRegionData(id))).then(mergeRegionData);
 
     loadFn()
       .then((result) => {
@@ -86,7 +97,7 @@ export function useMapData(regionId?: RegionId | 'all', opts?: { skipAllFetch?: 
         setState({ data: null, loading: false, error: 'load_failed', metroAverages: {} });
       });
     return () => { cancelled = true; };
-  }, [regionId, attempt, skipAllFetch]);
+  }, [key, attempt, skipAllFetch]);
 
   const retry = useCallback(() => setAttempt((a) => a + 1), []);
 
