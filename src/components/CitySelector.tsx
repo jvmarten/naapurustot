@@ -11,6 +11,10 @@ interface CitySelectorProps {
   onChange: (city: CityFilter) => void;
   /** Pass current language to trigger re-render on language change */
   lang?: Lang;
+  /** Regions on the map (primary first) — all are marked current in the mobile list. */
+  displayed?: readonly string[];
+  /** Region view: a per-row "+" in the mobile list shows that region alongside. */
+  onAdd?: (city: RegionId) => void;
 }
 
 /**
@@ -45,7 +49,7 @@ function getCoverageBadge(regionId: CityFilter): string {
   return ` (${t('city.coverage.partial').replace('{pct}', String(pct))})`;
 }
 
-export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, onChange, lang: _lang }) => {
+export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, onChange, lang: _lang, displayed, onAdd }) => {
   useI18nVersion();
   const [open, setOpen] = useState(false);
   // SN-2: filter text for the mobile popover — 70 rows in a small unsearchable
@@ -147,22 +151,38 @@ export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, on
               />
             </div>
             <div className="overflow-y-auto flex-1 min-h-0">
-              {visibleOptions.map((opt) => (
-                <button
-                  key={opt.id}
-                  onClick={() => {
-                    onChange(opt.id);
-                    setOpen(false);
-                  }}
-                  className={`w-full text-left px-4 py-3 text-sm transition-colors ${
-                    opt.id === value
-                      ? 'bg-brand-500/15 text-brand-700 dark:text-brand-300 font-medium'
-                      : 'text-surface-700 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800/60'
-                  }`}
-                >
-                  {t(opt.labelKey)}{getCoverageBadge(opt.id)}
-                </button>
-              ))}
+              {visibleOptions.map((opt) => {
+                const shown = opt.id === value || !!displayed?.includes(opt.id);
+                return (
+                  <div key={opt.id} className="flex">
+                    <button
+                      onClick={() => {
+                        onChange(opt.id);
+                        setOpen(false);
+                      }}
+                      className={`flex-1 min-w-0 text-left px-4 py-3 text-sm transition-colors ${
+                        shown
+                          ? 'bg-brand-500/15 text-brand-700 dark:text-brand-300 font-medium'
+                          : 'text-surface-700 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800/60'
+                      }`}
+                    >
+                      {t(opt.labelKey)}{getCoverageBadge(opt.id)}
+                    </button>
+                    {onAdd && !shown && opt.id !== 'all' && (
+                      <button
+                        onClick={() => {
+                          onAdd(opt.id as RegionId);
+                          setOpen(false);
+                        }}
+                        aria-label={`${t('region_switch.add')}: ${t(opt.labelKey)}`}
+                        className="shrink-0 w-11 flex items-center justify-center text-lg font-semibold text-brand-700 dark:text-brand-300 hover:bg-surface-100 dark:hover:bg-surface-800/60"
+                      >
+                        +
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
               {visibleOptions.length === 0 && (
                 <div className="px-4 py-3 text-xs text-surface-500 dark:text-surface-400">{t('city.filter_no_match')}</div>
               )}

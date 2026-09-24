@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo, useReducer, lazy, Suspense } from 'react';
 // #3 perf: the MapLibre-backed <Map> is the single largest eager chunk (~44% of app
 // JS, ~1 MB raw). A static import blocks first App mount on its download+parse. Lazy-
 // load it (like SplitMapView already is) so the App shell — header, search, selectors,
@@ -14,6 +14,9 @@ import { ContactMenu } from './components/ContactMenu';
 import { CitySelector, type CityFilter } from './components/CitySelector';
 import { ComparisonScopeToggle, type ComparisonScope } from './components/ComparisonScopeToggle';
 import { TooltipOverlay } from './components/TooltipOverlay';
+import { RegionSwitchPrompt, RegionChips } from './components/RegionSwitch';
+import { regionReducer, displayedRegions, regionKey, regionsViewport, averagesByRegion } from './utils/regionSet';
+import { getRegionOutlines, regionAt } from './utils/regionHit';
 import { setTooltipData } from './utils/tooltipStore';
 import { Legend } from './components/Legend';
 import { SettingsDropdown } from './components/SettingsDropdown';
@@ -104,6 +107,11 @@ const REGION_ID_SET = new Set<string>(REGION_IDS);
 // most specific (smallest-area) containing region. Best-effort: the precise
 // neighborhood is then found via point-in-polygon once that region loads.
 function findRegionForCoords(lng: number, lat: number): CityFilter | null {
+  // Exact once the seutukunta outlines have loaded (the map fetches them at idle in every
+  // view). The bboxes below are narrowed viewport presets that misfile real places —
+  // Hyvinkää and Lohja belong to helsinki_metro but fall outside its box.
+  const hit = regionAt(getRegionOutlines(), lng, lat);
+  if (hit && REGION_ID_SET.has(hit)) return hit as CityFilter;
   let best: CityFilter | null = null;
   let bestArea = Infinity;
   for (const id of REGION_IDS) {
@@ -243,8 +251,22 @@ const App: React.FC = () => {
     if (initialUrl.lang) void setLang(initialUrl.lang);
   }
 
-  // City filter — declared before useMapData so the hook can load the right region
-  const [cityFilter, setCityFilter] = useState<CityFilter>((initialUrl.city as CityFilter) ?? DEFAULT_CITY);
+  // City filter — declared before useMapData so the hook can load the right region.
+  // `city` is the primary region (or 'all'); `extra` are regions shown alongside it
+  // (`city=helsinki_metro,lahti`, added from the region-tap prompt). Dispatching a bare
+  // CityFilter is a plain switch that drops the extras, so every pre-existing switch path
+  // (search, deep link, geolocation, favorites, CitySelector) keeps its single-region meaning.
+  const [regionSel, setCityFilter] = useReducer(regionReducer, {
+    city: (initialUrl.city as CityFilter) ?? DEFAULT_CITY,
+    extra: initialUrl.extraCities,
+  });
+  const cityFilter = regionSel.city;
+  const extraRegions = regionSel.extra;
+  const multiRegion = extraRegions.length > 0;
+  const displayed = useMemo(() => displayedRegions(regionSel), [regionSel]);
+  // The displayed set as one string ('lahti', 'helsinki_metro,lahti'): the `city` URL
+  // value and the key for anything that must re-run when a region is added or removed.
+  const regionParam = regionKey(regionSel);
 
   // CF-8: the all-Finland landing paints from the small region_aggregates.json, not
   // the ~10.6 MB national set. The full set is loaded only when a feature genuinely
@@ -267,7 +289,7 @@ const App: React.FC = () => {
   const [deepLinkSettled, setDeepLinkSettled] = useState(!bareDeepLink);
 
   // Load only the selected region's data (or combined data for "all" view)
-  const { data, loading, error, metroAverages: rawMetroAverages, retry } = useMapData(cityFilter, { skipAllFetch });
+  const { data, loading, error, metroAverages: rawMetroAverages, retry } = useMapData(cityFilter, { skipAllFetch, extra: extraRegions });
 
   // CF-8: prebuilt per-region aggregates for the all-cities first paint.
   const { aggregates, loading: aggLoading, error: aggError, retry: aggRetry } = useAllCitiesAggregates(cityFilter);
@@ -407,7 +429,7 @@ const App: React.FC = () => {
   const { selected, select, deselect, pinned, pin, unpin, clearPinned, refreshPinned } = useSelectedNeighborhood();
   const [activeLayer, setActiveLayerRaw] = useState<LayerId>(initialUrl.layer ?? 'quality_index');
   const setActiveLayer = useCallback((layer: LayerId) => { trackEvent('change-layer', { layer }); setActiveLayerRaw(layer); }, []);
-  const { gridData: rawGridData, loading: gridLoading, error: gridError } = useGridData(activeLayer, cityFilter);
+  const { gridData: rawGridData, loading: gridLoading, error: gridError } = useGridData(activeLayer, cityFilter, !multiRegion);
   // Clip grid cells to the loaded region so a region-scoped view (e.g. Helsinki
   // Metro) doesn't leak grid cells from other regions (e.g. Turku, Tampere).
   // For the all-cities view this is effectively a no-op (the region covers all
@@ -520,7 +542,7 @@ const App: React.FC = () => {
       return { center: initialUrl.viewport.center, zoom: initialUrl.viewport.zoom };
     }
     const city = (initialUrl.city as CityFilter) ?? DEFAULT_CITY;
-    const vp = CITY_VIEWPORTS[city];
+    const vp = initialUrl.extraCities.length ? regionsViewport([city, ...initialUrl.extraCities]) : CITY_VIEWPORTS[city];
     if (vp?.bounds) {
       return { center: vp.center, zoom: vp.zoom, bounds: vp.bounds };
     }
@@ -587,7 +609,7 @@ const App: React.FC = () => {
   // so this is free for the common case. Clipped to the loaded region's bbox so a
   // region view doesn't leak national grid cells (cheaper sync clip than the main
   // pane's async point-in-polygon refine, which is overkill for a comparison pane).
-  const { gridData: rawSecondaryGrid, loading: secondaryGridLoading } = useGridData(secondaryLayer, cityFilter);
+  const { gridData: rawSecondaryGrid, loading: secondaryGridLoading } = useGridData(secondaryLayer, cityFilter, !multiRegion);
   const secondaryGridData = useMemo(
     () => clipGridToData(rawSecondaryGrid, data),
     [rawSecondaryGrid, data],
@@ -672,7 +694,7 @@ const App: React.FC = () => {
   const [ariaAnnouncement, setAriaAnnouncement] = useState('');
   const [isOffline, setIsOffline] = useState(() => typeof navigator !== 'undefined' && !navigator.onLine);
 
-  const [comparisonScope, setComparisonScope] = useState<ComparisonScope>(initialUrl.scope ?? 'all');
+  const [comparisonScope, setComparisonScope] = useState<ComparisonScope>(initialUrl.extraCities.length ? 'all' : initialUrl.scope ?? 'all');
 
   // C4: explain the region-scoping rescale the FIRST time the user switches to
   // 'region' (persisted flag mirrors the fill-opacity localStorage try/catch).
@@ -797,6 +819,15 @@ const App: React.FC = () => {
     return computeMetroAverages(filteredData.features);
   }, [filteredData, qualityVersion, cityFilter, metroAverages]);
 
+  // Multi-region view: each region's own averages, so "vs. seutu" in the panel, peek and
+  // tooltip still means the area's OWN seutukunta, not a blend of every region shown.
+  // `cityAverages` (the union) stays for the surfaces that describe the whole map.
+  const regionAverages = useMemo(
+    () => (multiRegion && filteredData ? averagesByRegion(filteredData.features) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- qualityVersion signals in-place data mutation
+    [multiRegion, filteredData, qualityVersion],
+  );
+
   // CF-5: custom reference baseline — compare the panel's diffs + radar overlay
   // against a user-pinned neighbourhood instead of the region average. Falls back to
   // the average when no reference is set or when viewing the reference area itself.
@@ -811,8 +842,8 @@ const App: React.FC = () => {
     () =>
       referenceProps && referencePno !== selected?.pno
         ? (referenceProps as unknown as Record<string, number>)
-        : cityAverages,
-    [referenceProps, referencePno, selected?.pno, cityAverages],
+        : (selected?.city && regionAverages?.[selected.city]) || cityAverages,
+    [referenceProps, referencePno, selected?.pno, selected?.city, regionAverages, cityAverages],
   );
 
   // T1: the selected area's seutukunta (sub-region) housing/rent price averages, used
@@ -824,7 +855,7 @@ const App: React.FC = () => {
     const city = selected?.city;
     if (!city) return null;
     const src: Record<string, unknown> | undefined =
-      cityFilter !== 'all' ? cityAverages : aggregates?.regions?.[city];
+      cityFilter !== 'all' ? regionAverages?.[city] ?? cityAverages : aggregates?.regions?.[city];
     if (!src) return null;
     const out: Record<string, number> = {};
     const pp = src.property_price_sqm;
@@ -832,22 +863,23 @@ const App: React.FC = () => {
     if (typeof pp === 'number' && isFinite(pp)) out.property_price_sqm = pp;
     if (typeof rp === 'number' && isFinite(rp)) out.rental_price_sqm = rp;
     return out;
-  }, [selected?.city, cityFilter, cityAverages, aggregates]);
+  }, [selected?.city, cityFilter, regionAverages, cityAverages, aggregates]);
   const selectedRegionName = selected?.city ? t('city.' + selected.city) : '';
 
   // T1: in a region view with a housing/rent price layer active, the seutukunta's
   // average for that metric — drives the map's region-estimate tint and the tooltip
   // fallback for areas with no own value. Null in the all-Finland view (which shows
-  // region aggregates, not per-area gaps) and during time-scrubbing (the estimate is
-  // not year-matched).
+  // region aggregates, not per-area gaps), during time-scrubbing (the estimate is
+  // not year-matched), and with several regions on the map (one tint cannot stand for
+  // several seutukunnat's averages — those gaps get the ordinary no-data hatch).
   const priceFallbackValue = useMemo<number | null>(() => {
-    if (cityFilter === 'all' || timeYear != null) return null;
+    if (cityFilter === 'all' || multiRegion || timeYear != null) return null;
     const prop = activeLayer === 'property_price' ? 'property_price_sqm'
       : activeLayer === 'rental_price' ? 'rental_price_sqm' : null;
     if (!prop) return null;
     const v = cityAverages[prop];
     return typeof v === 'number' && isFinite(v) ? v : null;
-  }, [cityFilter, timeYear, activeLayer, cityAverages]);
+  }, [cityFilter, multiRegion, timeYear, activeLayer, cityAverages]);
   const handleSetReference = useCallback((pno: string | null) => {
     setReferencePno(pno);
     // QW-2: mirror to localStorage so "my home" survives reloads (URL `ref` still
@@ -1087,16 +1119,19 @@ const App: React.FC = () => {
   // Without `data` in the dependency array, switching regions would use quality indices
   // computed with default weights in processTopology, ignoring custom user weights.
   const prevScopeRef = useRef(comparisonScope);
-  const prevCityFilterRef = useRef(cityFilter);
+  const prevCityFilterRef = useRef(regionParam);
   useEffect(() => {
     if (!data) return;
     // Skip the expensive recomputation on initial data load when scope is 'all'
     // and weights are default — processTopology already computed identical indices.
     // Only recompute when scope/city actually changed, or when custom weights are active.
     const scopeChanged = prevScopeRef.current !== comparisonScope;
-    const cityChanged = prevCityFilterRef.current !== cityFilter;
+    // Keyed on the whole displayed set, not the primary: adding or removing a region
+    // must re-derive the quality scale over the union actually on screen (loading a
+    // region re-points the global cohort at that region alone).
+    const cityChanged = prevCityFilterRef.current !== regionParam;
     prevScopeRef.current = comparisonScope;
-    prevCityFilterRef.current = cityFilter;
+    prevCityFilterRef.current = regionParam;
     const needsRecompute = scopeChanged || cityChanged || customWeights;
 
     if (needsRecompute) {
@@ -1124,7 +1159,7 @@ const App: React.FC = () => {
       refreshPinned(updated);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- qualityWeights changes are handled by the debounced handleQualityWeightsChange; selected/pinned/pnoFeatureMap are read from current render values
-  }, [comparisonScope, cityFilter, data]);
+  }, [comparisonScope, regionParam, data]);
 
   // Restore neighborhood selection and pinned comparisons from URL once data is loaded
   useEffect(() => {
@@ -1223,7 +1258,7 @@ const App: React.FC = () => {
   // too: `filteredData` goes non-null early from the aggregates, and writing the URL
   // before the full set loads + the restoration effect runs would clobber the deep
   // link's pno/compare before they can be restored.
-  useSyncUrlState(selected?.pno ?? null, activeLayer, pinnedPnos, cityFilter, !!filteredData && (!needFullNational || !!data) && deepLinkSettled, {
+  useSyncUrlState(selected?.pno ?? null, activeLayer, pinnedPnos, regionParam, !!filteredData && (!needFullNational || !!data) && deepLinkSettled, {
     scope: comparisonScope,
     year: timeYear,
     colorblind,
@@ -1261,6 +1296,10 @@ const App: React.FC = () => {
   comparisonScopeRef.current = comparisonScope;
   const cityFilterRef = useRef(cityFilter);
   cityFilterRef.current = cityFilter;
+  // Regions on the map: a target region already among them needs no switch (a pno in an
+  // added region selects in place instead of collapsing the view to that region).
+  const displayedRef = useRef<readonly string[]>(displayed);
+  displayedRef.current = displayed;
   const filteredDataRef = useRef(filteredData);
   filteredDataRef.current = filteredData;
   const pnoFeatureMapRef = useRef(pnoFeatureMap);
@@ -1375,9 +1414,12 @@ const App: React.FC = () => {
   // Peek preview only applies where the peek bar can actually show (narrow + touch).
   const usePeekOnTap = isCoarsePointer && isNarrowViewport;
   const [peek, setPeek] = useState<NeighborhoodProperties | null>(null);
+  // A tap on a neighbouring seutukunta in a region view → "switch / show both" prompt.
+  const [regionPrompt, setRegionPrompt] = useState<RegionId | null>(null);
 
   const handleClick = useCallback(
     (props: NeighborhoodProperties) => {
+      setRegionPrompt(null);
       // On narrow touch layouts, a first tap previews; "details" (or a tap while a
       // panel is already open) selects. Desktop / wide / fine-pointer is unchanged
       // (tap opens the panel directly).
@@ -1397,6 +1439,51 @@ const App: React.FC = () => {
   const handlePeekDetails = useCallback(() => {
     if (peek) { select(peek); setPeek(null); }
   }, [peek, select]);
+
+  // Map reports the seutukunta under any click that hit no postal area (null over sea
+  // or on a double-click zoom). One already on the map needs no prompt.
+  const handleRegionClick = useCallback((r: string | null) => {
+    if (!r || displayedRef.current.includes(r)) { setRegionPrompt(null); return; }
+    setPeek(null);
+    setRegionPrompt(r as RegionId);
+    setAriaAnnouncement(t('city.' + r));
+  }, []);
+  const handleRegionSwitch = useCallback((r: RegionId) => {
+    setRegionPrompt(null);
+    handleCityChange(r);
+    setAriaAnnouncement(t('city.switched_to').replace('{city}', t('city.' + r)));
+  }, [handleCityChange]);
+  const [addingRegion, setAddingRegion] = useState(false);
+  const handleAddRegion = useCallback((r: RegionId) => {
+    setRegionPrompt(null);
+    if (displayedRef.current.includes(r)) return;
+    setAddingRegion(true);
+    const before = displayedRef.current;
+    // Load BEFORE committing: useMapData errors the whole merged set when any region
+    // fails, so an unreachable region must not take the working view down with it. The
+    // per-region cache then makes the merge that follows immediate.
+    loadRegionData(r)
+      .then(() => {
+        if (displayedRef.current !== before) return; // the view moved on meanwhile
+        setCityFilter({ add: r });
+        // Several regions on one map are compared on the national scale — "within this
+        // region" has no single region left to mean.
+        setComparisonScope('all');
+        const vp = regionsViewport([...before, r]);
+        if (vp) setFlyTarget(vp);
+        showToast(t('region_switch.added').replace('{city}', t('city.' + r)));
+        trackEvent('add-region', { city: r });
+      }, () => showToast(t('error.load_failed')))
+      .finally(() => setAddingRegion(false));
+  }, [showToast]);
+  const handleRemoveRegion = useCallback((r: string) => {
+    setCityFilter({ remove: r as RegionId });
+    if (selectedRef.current?.city === r) deselect();
+    setPeek((p) => (p?.city === r ? null : p));
+    // A drawn / multi-selected area may reach into the region leaving the map.
+    resetAreaTools();
+    trackEvent('remove-region', { city: r });
+  }, [deselect, resetAreaTools]);
 
   // Refs for values read inside handleSearch — avoids recreating the callback
   // when filteredData/cityFilter change (which would defeat React.memo on SearchBar).
@@ -1436,7 +1523,7 @@ const App: React.FC = () => {
           showToast(t('address.no_neighborhood'));
           return;
         }
-        if (cityFilterRef.current !== target) {
+        if (!displayedRef.current.includes(target)) {
           // Switch to the owning region; the geolocation resolver effect selects
           // the containing neighborhood once that region's geometry loads.
           pendingGeoRef.current = center;
@@ -1466,7 +1553,6 @@ const App: React.FC = () => {
         return;
       }
 
-      const currentCity = cityFilterRef.current;
       const currentFiltered = filteredDataRef.current;
       const lookup = pnoFeatureMapRef.current;
       // Feature with geometry from the currently loaded region, if present.
@@ -1486,7 +1572,7 @@ const App: React.FC = () => {
       // which getFeatureCenter returns for the index's null-geometry features.
       const targetRegion = pnoRegionMapRef.current.get(pno)
         ?? (localFeature?.properties?.city as CityFilter | undefined);
-      if (targetRegion && targetRegion !== currentCity) {
+      if (targetRegion && !displayedRef.current.includes(targetRegion)) {
         pendingSearchRef.current = pno;
         setCityFilter(targetRegion);
         deselect();
@@ -1494,6 +1580,9 @@ const App: React.FC = () => {
         showToast(t('city.switched_to').replace('{city}', t('city.' + targetRegion)));
         return;
       }
+      // Its region is on the map but its geometry is still loading (a region was just
+      // added): the resolver below selects it once the merged set lands.
+      if (targetRegion) pendingSearchRef.current = pno;
 
       // Same region but geometry isn't available yet (or region unknown) —
       // best-effort fly to the provided center, but never to the [0,0] sentinel.
@@ -1544,7 +1633,7 @@ const App: React.FC = () => {
     // Defer selection to the resolver above; no toast — this is a silent route, not a
     // user-initiated city switch.
     pendingSearchRef.current = pno;
-    if (region !== cityFilterRef.current) setCityFilter(region);
+    if (!displayedRef.current.includes(region)) setCityFilter(region);
   }, [searchIndex, pnoRegionMap, bareDeepLink, initialUrl.pno]);
 
   // QW-3: restore a region-id deep link (?pno=<regionId>) from the already-built 69-
@@ -1642,7 +1731,7 @@ const App: React.FC = () => {
         if (!target) { setGeoStatus('outside'); return; }
         // Already viewing the right region with geometry loaded → resolve now.
         const current = dataRef.current;
-        if (cityFilterRef.current === target && current) {
+        if (displayedRef.current.includes(target) && current) {
           try {
             const f = await findNeighborhoodForPoint(coords, current.features);
             if (f?.properties) {
@@ -1663,7 +1752,7 @@ const App: React.FC = () => {
         // selects the neighborhood once that region's data finishes loading.
         pendingGeoRef.current = coords;
         setFlyTarget({ center: coords, zoom: 12 });
-        if (cityFilterRef.current !== target) {
+        if (!displayedRef.current.includes(target)) {
           setCityFilter(target);
           deselect();
         }
@@ -1956,7 +2045,9 @@ const App: React.FC = () => {
     // DT-4: the comparison-scope toggle is meaningless on the all-Finland view (no
     // sub-region to compare within), so hide it entirely there rather than showing a
     // greyed-out control whose only tooltip restates the current scope.
-    cityFilter === 'all' ? null : (
+    // Hidden too with several regions on the map: they are compared on the national
+    // scale (handleAddRegion), since "within this region" has no single region to mean.
+    cityFilter === 'all' || multiRegion ? null : (
       // pointer-events-auto: re-enables events on this child of LayerSelector's
       // pointer-events-none wrapper (which lets map drags pass through the gap).
       <div className="pointer-events-auto rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden">
@@ -1967,7 +2058,7 @@ const App: React.FC = () => {
         />
       </div>
     )
-  ), [comparisonScope, cityFilter, handleScopeChange]);
+  ), [comparisonScope, cityFilter, multiRegion, handleScopeChange]);
   // Mobile-only planning overlay controls, folded into the Layers sheet. On desktop
   // the same PlanningControls render as a standalone floating panel below (see the
   // `hidden md:block` block near the LayerSelector); LayerSelector renders this slot
@@ -2052,7 +2143,7 @@ const App: React.FC = () => {
         ?.properties?.city as CityFilter | undefined);
     if (targetRegion) {
       pendingFavoritePno.current = pno;
-      if (targetRegion !== cityFilterRef.current) {
+      if (!displayedRef.current.includes(targetRegion)) {
         setCityFilter(targetRegion);
         deselect();
         // C7: surface the forced region switch (mirrors handleSearch).
@@ -2162,8 +2253,8 @@ const App: React.FC = () => {
   // CF-11: a MINIMAL share link carrying ONLY the shortlist + city, so a recipient
   // gets the candidate set on a clean view (none of the author's layer/filter/weight state).
   const shortlistShareUrl = useMemo(
-    () => buildShortlistShareUrl(shortlist, cityFilter),
-    [shortlist, cityFilter],
+    () => buildShortlistShareUrl(shortlist, regionParam),
+    [shortlist, regionParam],
   );
 
   // Resolve a pending favorite once its region's data becomes available. Prefer the
@@ -2328,13 +2419,13 @@ const App: React.FC = () => {
   const getEmbedSnippet = useCallback((): string => buildEmbedSnippet({
     pno: selected?.pno ?? null,
     layer: activeLayer,
-    city: cityFilter,
+    city: regionParam,
     compare: pinnedPnos,
     scope: comparisonScope,
     year: timeYear,
     colorblind,
     lang,
-  }), [selected?.pno, activeLayer, cityFilter, pinnedPnos, comparisonScope, timeYear, colorblind, lang]);
+  }), [selected?.pno, activeLayer, regionParam, pinnedPnos, comparisonScope, timeYear, colorblind, lang]);
 
   // CF-1: build a shareable link to the exact configured view — selection, layer,
   // comparison, scope, year, filters, custom weights, isochrone and shortlist are
@@ -2406,8 +2497,24 @@ const App: React.FC = () => {
   // QW-4 / QW-2: global keydown — Escape cascade + power-user shortcuts.
   // Uses refs to avoid re-subscribing the listener on every state change
   // (the previous version had a 10-item dependency array that churned constantly).
-  const escapeStateRef = useRef({ selectMode, drawMode, drawnPolygon, showAssistant, showWizard, showCustomQuality, selected, showFilter, showRanking, showRegionRanking, splitMode });
-  escapeStateRef.current = { selectMode, drawMode, drawnPolygon, showAssistant, showWizard, showCustomQuality, selected, showFilter, showRanking, showRegionRanking, splitMode };
+  // The region-tap prompt, while it still applies: gone once that region is on the map
+  // (added, or reached by any other switch path) and outside the modes it can't serve.
+  const promptRegion = regionPrompt && cityFilter !== 'all' && !displayed.includes(regionPrompt) && !splitMode && !drawMode && !selectMode
+    ? regionPrompt : null;
+  // Narrow touch layouts with no panel open show it in the peek bar's bottom slot (thumb
+  // reach, and the top stack would cover the search bar); otherwise the top-centre stack.
+  const promptAtBottom = !!promptRegion && usePeekOnTap && !selected;
+  const regionPromptEl = promptRegion && (
+    <RegionSwitchPrompt
+      region={promptRegion}
+      shownCount={displayed.length}
+      onSwitch={() => handleRegionSwitch(promptRegion)}
+      onAdd={() => handleAddRegion(promptRegion)}
+      onClose={() => setRegionPrompt(null)}
+    />
+  );
+  const escapeStateRef = useRef({ selectMode, drawMode, drawnPolygon, showAssistant, showWizard, showCustomQuality, promptRegion, selected, showFilter, showRanking, showRegionRanking, splitMode });
+  escapeStateRef.current = { selectMode, drawMode, drawnPolygon, showAssistant, showWizard, showCustomQuality, promptRegion, selected, showFilter, showRanking, showRegionRanking, splitMode };
   const escapeActionsRef = useRef({ deselect, handleClearDraw });
   escapeActionsRef.current = { deselect, handleClearDraw };
   // QW-2: shortcut state + actions, read at keypress time to keep the listener stable.
@@ -2442,6 +2549,7 @@ const App: React.FC = () => {
         if (s.showAssistant) { setShowAssistant(false); return; }
         if (s.showWizard) { setShowWizard(false); return; }
         if (s.showCustomQuality) { setShowCustomQuality(false); return; }
+        if (s.promptRegion) { setRegionPrompt(null); return; }
         if (s.selected) { a.deselect(); return; }
         if (s.showFilter) { setShowFilter(false); return; }
         if (s.showRanking) { setShowRanking(false); return; }
@@ -2503,7 +2611,7 @@ const App: React.FC = () => {
   // with the auth modal (its own document-Escape listener) at the very top.
   const anyOverlayOpen =
     showAuth || showShortcuts || selectMode || drawMode || !!drawnPolygon ||
-    showWizard || showCustomQuality || showScatter || !!selected || !!peek ||
+    showWizard || showCustomQuality || showScatter || !!promptRegion || !!selected || !!peek ||
     pinned.length > 0 || showFilter || showRanking || showRegionRanking || splitMode;
   useBackGesture(anyOverlayOpen, () => {
     if (showAuth) { setShowAuth(false); return; }
@@ -2516,6 +2624,7 @@ const App: React.FC = () => {
     // PO-1: CorrelationExplorer is a z-40 full-screen modal that can cover the
     // selected panel, so close it before `selected`.
     if (showScatter) { setShowScatter(false); return; }
+    if (promptRegion) { setRegionPrompt(null); return; }
     if (selected) { deselect(); return; }
     // PO-1: the mobile peek strip (z-30) and the compare tray (z-20, ComparisonPanel)
     // are back-dismissable surfaces too — without these, Back exits the site while they
@@ -2610,6 +2719,7 @@ const App: React.FC = () => {
             onMoveEnd={handleMapMoveEnd}
             priceFallbackValue={priceFallbackValue}
             onReady={handleMapReady}
+            onRegionClick={cityFilter === 'all' || IS_EMBED ? undefined : handleRegionClick}
           />
           </Suspense>
         )}
@@ -2652,7 +2762,7 @@ const App: React.FC = () => {
       {/* C1: subsequent region/scope switches — slim, non-blocking progress bar
           just below the header. The previous map stays visible and all chrome
           (search, settings, tools, city selector) stays interactive. */}
-      {(effectiveLoading || fullNationalPending) && firstLoadDone && (
+      {(effectiveLoading || fullNationalPending || addingRegion) && firstLoadDone && (
         <div
           data-testid="loading-progress"
           className="absolute top-12 left-0 right-0 z-40 pointer-events-none"
@@ -2794,7 +2904,7 @@ const App: React.FC = () => {
               <span className="hidden md:inline">{t('auth.login')}</span>
             </button>
           )}
-          <CitySelector value={cityFilter} onChange={handleCityChange} lang={lang} />
+          <CitySelector value={cityFilter} onChange={handleCityChange} lang={lang} displayed={displayed} onAdd={cityFilter === 'all' ? undefined : handleAddRegion} />
         </div>
       </header>
       )}
@@ -2825,12 +2935,13 @@ const App: React.FC = () => {
             homeName={referenceName}
             onSetHome={handleSetReference}
           />
+          {multiRegion && <RegionChips regions={extraRegions} onRemove={handleRemoveRegion} />}
         </div>
       )}
 
       {/* Comparison scope toggle — mobile only (desktop rendered inside LayerSelector via headerSlot).
           DT-4: hidden in embed mode and on the all-Finland view (no sub-region to compare within). */}
-      {!IS_EMBED && cityFilter !== 'all' && (
+      {!IS_EMBED && cityFilter !== 'all' && !multiRegion && (
         <div className="absolute top-[3.5rem] right-3 z-10 md:hidden flex items-center gap-1.5">
           {comparisonScope === 'region' && (
             <div className="px-2.5 py-1 rounded-lg bg-amber-500/90 text-white text-[10px] font-semibold backdrop-blur-sm">
@@ -2900,14 +3011,14 @@ const App: React.FC = () => {
           lang={lang}
           // UX MO-2: hide during the touch peek too — a long peeked area name can
           // reach the bottom-right Layers FAB.
-          hidden={!!selected || !!peek || splitMode}
+          hidden={!!selected || !!peek || promptAtBottom || splitMode}
         />
       )}
 
       {/* CF-2: kaavat & hankkeet overlay toggle — region scope only (the overlay is
           per-region), hidden behind the open area panel / split view / embed. */}
       {!IS_EMBED && !selected && !splitMode && cityFilter !== 'all' && regionHasPlanningGeometry(cityFilter) && (
-        <div className="hidden md:block absolute top-[6.75rem] left-3 md:left-4 z-[5] w-52 md:w-64 pointer-events-auto">
+        <div className={`hidden md:block absolute ${multiRegion ? 'top-[9.25rem]' : 'top-[6.75rem]'} left-3 md:left-4 z-[5] w-52 md:w-64 pointer-events-auto`}>
           <PlanningControls enabled={planningEnabled} region={cityFilter} onToggle={handlePlanningToggle} loading={planningLoading} error={planningError} onRetry={handlePlanningRetry} />
         </div>
       )}
@@ -2917,7 +3028,7 @@ const App: React.FC = () => {
           is selected or it's explicitly dismissed (persisted). */}
       {/* LO-1: gated on mapPainted too — this pill told first-timers to tap a map
           that had not been drawn yet. */}
-      {!effectiveLoading && mapPainted && !selected && !peek && !splitMode && !drawMode && !showTour && !areaHintDismissed && (
+      {!effectiveLoading && mapPainted && !selected && !peek && !promptAtBottom && !splitMode && !drawMode && !showTour && !areaHintDismissed && (
         <div className="fixed md:absolute bottom-[calc(1.5rem+env(safe-area-inset-bottom))] md:bottom-8 left-1/2 -translate-x-1/2 z-20
                        flex items-center gap-2 px-3 py-1.5 rounded-full shadow-lg backdrop-blur-sm
                        bg-surface-900/90 dark:bg-white/90 text-white dark:text-surface-900 text-xs font-medium">
@@ -2933,13 +3044,21 @@ const App: React.FC = () => {
         </div>
       )}
 
+      {/* Region-tap prompt in the peek bar's slot (narrow touch, no panel open). The two
+          never show together: opening the prompt clears the peek and vice versa. */}
+      {promptAtBottom && (
+        <div className="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 z-30">
+          {regionPromptEl}
+        </div>
+      )}
+
       {/* M4: lightweight touch "peek" bar — a single tap shows name + active-layer
           value + vs-avg so mobile users can compare areas without opening the full
           sheet each time; "details" opens the panel. Touch/mobile only. */}
       {peek && !selected && (() => {
         const prop = effectiveLayer.property;
         const v = (peek as unknown as Record<string, number | null | undefined>)[prop];
-        const avgV = cityAverages[prop];
+        const avgV = (regionAverages?.[peek.city ?? ''] ?? cityAverages)[prop];
         const delta = (typeof v === 'number' && typeof avgV === 'number') ? v - avgV : null;
         return (
           <div className="fixed md:hidden bottom-[calc(1.5rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 z-30
@@ -2992,7 +3111,7 @@ const App: React.FC = () => {
 
       {/* Legend — repositioned for mobile (MO2: suppressed on mobile when an area panel covers it;
           UX MO-2: also during the touch peek — the peek bar paints over the same bottom band) */}
-      <Legend layerId={activeLayer} colorblind={colorblind} layerConfig={effectiveLayer} lang={lang} gridLoading={gridLoading && hasGridData(activeLayer)} gridError={gridError && hasGridData(activeLayer)} hidden={!!selected || !!peek} subregionEstimate={priceFallbackValue != null} gridFilterInactive={gridCellsVisible && ((showFilter && filters.length > 0) || wizardResultPnos.length > 0)} gridActive={gridCellsVisible} />
+      <Legend layerId={activeLayer} colorblind={colorblind} layerConfig={effectiveLayer} lang={lang} gridLoading={gridLoading && hasGridData(activeLayer)} gridError={gridError && hasGridData(activeLayer)} hidden={!!selected || !!peek || promptAtBottom} subregionEstimate={priceFallbackValue != null} gridFilterInactive={gridCellsVisible && ((showFilter && filters.length > 0) || wizardResultPnos.length > 0)} gridActive={gridCellsVisible} />
 
       {/* PO-2: Time slider / historical playback (only when a time-series metric is active) */}
       {!IS_EMBED && timeYear != null && availableYears.length > 1 && (
@@ -3015,6 +3134,7 @@ const App: React.FC = () => {
         effectiveLayer={effectiveLayer}
         metroAverage={(comparisonScope === 'region' ? cityAverages : metroAverages)[effectiveLayer.property]}
         priceFallbackValue={priceFallbackValue}
+        regionAverages={regionAverages}
       />
 
       {/* Custom quality sliders panel */}
@@ -3339,6 +3459,8 @@ const App: React.FC = () => {
           </div>
         )}
 
+        {!promptAtBottom && regionPromptEl}
+
         {/* E9: locale dictionary load failure — non-blocking notice with retry + dismiss.
             ER-2: copy comes from the hardcoded trilingual constant (NOT t()), since by
             definition the failed language's dictionary is the one that's unavailable. */}
@@ -3407,7 +3529,7 @@ const App: React.FC = () => {
             {
               pno: selected?.pno ?? null,
               layer: activeLayer,
-              city: cityFilter,
+              city: regionParam,
               compare: pinnedPnos,
               scope: comparisonScope,
               year: timeYear,

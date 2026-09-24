@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import type { LayerId, ColorblindType } from '../utils/colorScales';
 import { LAYERS } from '../utils/colorScales';
-import { REGION_IDS, DEFAULT_CITY } from '../utils/regions';
+import { REGION_IDS, DEFAULT_CITY, type RegionId } from '../utils/regions';
+import { parseCityParam } from '../utils/regionSet';
 import type { Lang } from '../utils/i18n';
 import type { FilterCriterion } from '../utils/filterUtils';
 import { serializeFilters, deserializeFilters } from '../utils/filterUtils';
@@ -82,6 +83,8 @@ interface UrlState {
   layer: LayerId | null;
   compare: string[];
   city: string | null;
+  /** Regions displayed alongside `city` (`city=helsinki_metro,lahti`); [] when single. */
+  extraCities: RegionId[];
   // CF-1: extended analytical state (null when absent from the URL).
   scope: UrlScope | null;
   year: number | null;
@@ -438,6 +441,8 @@ function parseUrl(): UrlState {
   const refRaw = searchParams.get('ref');
   const planRaw = searchParams.get('plan');
 
+  const cityParam = parseCityParam(city);
+
   let weights: QualityWeights | null = null;
   if (qpRaw && VALID_PERSONA.has(qpRaw) && qpRaw !== 'default') weights = getPersonaWeights(qpRaw);
   else if (qwRaw) weights = deserializeWeightDiff(qwRaw);
@@ -448,7 +453,9 @@ function parseUrl(): UrlState {
     compare: compare
       ? compare.split(',').filter((p) => /^\d{5}$/.test(p) || VALID_CITIES.has(p))
       : [],
-    city: city && VALID_CITIES.has(city) ? city : null,
+    // A comma list is the multi-region view (primary first); a single id is unchanged.
+    city: cityParam.city,
+    extraCities: cityParam.extra,
     scope: scopeRaw === 'all' || scopeRaw === 'region' ? scopeRaw : null,
     year: yearRaw && /^\d{4}$/.test(yearRaw) ? Number(yearRaw) : null,
     colorblind: cbRaw && VALID_CB.has(cbRaw) ? (cbRaw as ColorblindType) : null,

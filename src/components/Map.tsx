@@ -3,8 +3,6 @@ import maplibregl from 'maplibre-gl';
 import { prefersReducedMotion } from '../hooks/useReducedMotion';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { Feature, FeatureCollection, Polygon, MultiPolygon, Position } from 'geojson';
-import { feature as topoFeature } from 'topojson-client';
-import type { Topology } from 'topojson-specification';
 import { buildFillColorExpression, getInterpolatedColor, type LayerId, type LayerConfig, getLayerById } from '../utils/colorScales';
 import { ensureHatchImage } from '../utils/hatchPattern';
 import { GRID_ZOOM_FADE_IN, buildFillOpacityFadeOut, buildGridFillOpacity } from '../utils/gridFade';
@@ -17,7 +15,7 @@ import { DEFAULT_CENTER, DEFAULT_ZOOM, MAP_MIN_ZOOM, MAP_MAX_ZOOM } from '../uti
 import { queryFeaturesSafe, isStyleAlive } from '../utils/mapQuery';
 import { basemapStyleUrl, baseInsertBeforeId, carryDataLayers, BASEMAP_ATTRIBUTION } from '../utils/basemap';
 // CF-5 Phase D1: pre-baked boundary outlines of all 69 Finnish seutukunnat.
-import seutukunnatUrl from '../data/seutukunnat.topojson?url';
+import { loadRegionOutlines, getRegionOutlines, regionAt } from '../utils/regionHit';
 
 interface MapProps {
   data: FeatureCollection | null;
@@ -75,6 +73,10 @@ interface MapProps {
    *  overlay lifted on the (much faster) data fetch and a mid-range phone was left
    *  looking at an empty page with a "tap an area" hint over nothing. */
   onReady?: () => void;
+  /** Region view: a click that hits no postal area reports the seutukunta under it
+   *  (null over sea / abroad, or on a double-click zoom), so the host can offer
+   *  "switch to / show both" for a neighbouring region. Omitted → no region taps. */
+  onRegionClick?: (region: string | null) => void;
 }
 
 // Stable empty defaults to avoid creating new references on every render
@@ -192,9 +194,10 @@ const TAP_FALLBACK_RADII = [8, 14];
 function queryNeighborhoodsAt(
   map: maplibregl.Map,
   point: maplibregl.Point,
+  ring = COARSE_POINTER,
 ): maplibregl.MapGeoJSONFeature[] {
   const exact = queryFeaturesSafe(map, point, [FILL_LAYER]);
-  if (exact.length > 0 || !COARSE_POINTER) return exact;
+  if (exact.length > 0 || !ring) return exact;
   for (const r of TAP_FALLBACK_RADII) {
     for (let i = 0; i < 8; i++) {
       const ang = (i / 8) * Math.PI * 2;
@@ -237,30 +240,8 @@ const PROJECT_TYPE_COLOR = ['match', ['get', 'ptype'],
 // data regions' hover + click behavior.
 const SEUTUKUNNAT_SOURCE_ID = 'seutukunnat-boundaries';
 const SEUTUKUNNAT_LINE_LAYER = 'seutukunnat-boundary-line';
-
-// Module-level cache: the seutukunta boundary GeoJSON is fetched + parsed once
-// and shared across map instances (main map + split view).
-let seutukunnatGeoPromise: Promise<FeatureCollection | null> | null = null;
-function loadSeutukunnatBoundaries(): Promise<FeatureCollection | null> {
-  if (!seutukunnatGeoPromise) {
-    seutukunnatGeoPromise = fetch(seutukunnatUrl)
-      .then((res) => {
-        if (!res.ok) throw new Error(`seutukunnat boundaries: ${res.status}`);
-        return res.json() as Promise<Topology>;
-      })
-      .then((topo) => {
-        const objName = Object.keys(topo.objects ?? {})[0];
-        if (!objName) return null;
-        return topoFeature(topo, topo.objects[objName]) as FeatureCollection;
-      })
-      .catch((err) => {
-        console.warn('[Map] failed to load seutukunta boundaries', err);
-        seutukunnatGeoPromise = null;
-        return null;
-      });
-  }
-  return seutukunnatGeoPromise;
-}
+// The boundary GeoJSON is fetched + parsed once (utils/regionHit.ts module cache) and
+// shared across map instances — the same parse also answers "which region was tapped".
 
 // CF-6: Draw polygon layer constants
 const DRAW_SOURCE_ID = 'draw-polygon';
@@ -306,7 +287,7 @@ function buildFillOpacity(o: number, overrides?: { matchExpr?: unknown[]; matchV
   return base;
 }
 
-export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1, gridData = null, drawMode = false, onDrawClick, onDrawDoubleClick, drawVertices, drawnPolygon = null, drawnAreaPnos = EMPTY_ARRAY, selectMode = false, selectedAreaPnos = EMPTY_ARRAY, onSelectAreaClick, layerConfig, isochrone = null, planningData = null, onMoveEnd, priceFallbackValue = null, onReady }) => {
+export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1, gridData = null, drawMode = false, onDrawClick, onDrawDoubleClick, drawVertices, drawnPolygon = null, drawnAreaPnos = EMPTY_ARRAY, selectMode = false, selectedAreaPnos = EMPTY_ARRAY, onSelectAreaClick, layerConfig, isochrone = null, planningData = null, onMoveEnd, priceFallbackValue = null, onReady, onRegionClick }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const hoveredIdRef = useRef<string | null>(null);
@@ -1045,7 +1026,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     // background context. Running it at idle keeps it from contending with the
     // region data fetch and first map paint on a cold single-region load.
     const addSeutukunnatLayer = () => {
-      void loadSeutukunnatBoundaries().then((geo) => {
+      void loadRegionOutlines().then((geo) => {
         // Guard against the captured `map` being a stale (removed) instance after an
         // unmount/remount: only proceed if it is still the live map. mapRef.current
         // is nulled (and the map removed) on cleanup, so equality proves liveness.
@@ -1381,6 +1362,8 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   onSelectAreaClickRef.current = onSelectAreaClick;
   const onMoveEndRef = useRef(onMoveEnd);
   onMoveEndRef.current = onMoveEnd;
+  const onRegionClickRef = useRef(onRegionClick);
+  onRegionClickRef.current = onRegionClick;
   const handlersAttachedRef = useRef(false);
 
   // The handler effect below depends only on whether data exists, not its identity
@@ -1492,13 +1475,29 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         }
         trackEvent('map-click-neighborhood', { pno: props.pno });
         onClickRef.current(props);
+        return;
       }
+      // Region view: a click on no postal area may be on a neighbouring seutukunta
+      // (resolved against the outlines already parsed for the boundary line — no
+      // hit-test layer). Not in select mode; not on a planning feature (a road or rail
+      // line runs on past the region's postal areas and opens its own popup); and not
+      // within the touch ring of a drawn area, because the outlines are generalised
+      // (1:1,000,000) and a click in the region's own bay can land in a neighbour's.
+      const onRegion = onRegionClickRef.current;
+      if (!onRegion || selectModeRef.current) return;
+      const planning = PLANNING_LAYER_IDS.filter((l) => map.getLayer(l));
+      if (planning.length > 0 && queryFeaturesSafe(map, e.point, planning).length > 0) return;
+      if (!COARSE_POINTER && queryNeighborhoodsAt(map, e.point, true).length > 0) return;
+      onRegion(regionAt(getRegionOutlines(), e.lngLat.lng, e.lngLat.lat));
     };
 
     const onMapDblClick = (e: maplibregl.MapMouseEvent) => {
       if (drawModeRef.current) {
         e.preventDefault();
         onDrawDoubleClickRef.current?.();
+      } else {
+        // A double-click zoom fires two clicks first — don't leave a prompt behind it.
+        onRegionClickRef.current?.(null);
       }
     };
 

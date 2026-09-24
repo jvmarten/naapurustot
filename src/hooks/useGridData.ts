@@ -154,7 +154,13 @@ function parseGridResponse(path: string, json: unknown): FeatureCollection {
 // parsed; without eviction the cache pinned every grid ever viewed for the session.
 const GRID_LRU_CAP = 2;
 
-export function useGridData(activeLayer: LayerId, cityFilter?: string): GridDataState {
+/**
+ * `enabled: false` behaves as a layer with no grid at all. The multi-region postal view
+ * passes it: a grid only covers the primary's shard (or a Helsinki-only bbox), yet its
+ * zoom crossfade takes the WHOLE postal fill to opacity 0 — every added region would go
+ * blank above the fade instead of showing its postal areas.
+ */
+export function useGridData(activeLayer: LayerId, cityFilter?: string, enabled = true): GridDataState {
   const [cache, setCache] = useState<Record<string, FeatureCollection>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
@@ -164,7 +170,7 @@ export function useGridData(activeLayer: LayerId, cityFilter?: string): GridData
   // CF-9: insertion order of cache keys for LRU eviction.
   const lruRef = useRef<string[]>([]);
 
-  const entry = GRID_MANIFEST[activeLayer as string];
+  const entry = enabled ? GRID_MANIFEST[activeLayer as string] : undefined;
   // CF-9: for a national grid in a region-scoped session, fetch only that region's
   // shard. Falls back to the whole file for ?city=all or when no shard exists.
   const shardRel = cityFilter && cityFilter !== 'all' && entry?.shardPattern

@@ -16,13 +16,16 @@ interface TooltipOverlayProps {
   metroAverage: number | undefined;
   /** T1: seutukunta price average shown for price-layer areas with no own value. */
   priceFallbackValue?: number | null;
+  /** Multi-region view: each region's own averages, so "vs. avg" compares an area with
+   *  its own seutukunta rather than the blend of every region on the map. */
+  regionAverages?: Record<string, Record<string, number>> | null;
 }
 
 /**
  * Self-contained tooltip renderer that subscribes to the tooltip external store.
  * Only this component re-renders on mouse move — the parent App is unaffected.
  */
-export const TooltipOverlay: React.FC<TooltipOverlayProps> = React.memo(({ hidden, effectiveLayer, metroAverage, priceFallbackValue }) => {
+export const TooltipOverlay: React.FC<TooltipOverlayProps> = React.memo(({ hidden, effectiveLayer, metroAverage, priceFallbackValue, regionAverages }) => {
   useI18nVersion();
   const tooltip = useSyncExternalStore(subscribeTooltip, getTooltipSnapshot, getServerSnapshot);
 
@@ -55,7 +58,7 @@ export const TooltipOverlay: React.FC<TooltipOverlayProps> = React.memo(({ hidde
       name={tooltip.props.nimi || tooltip.props.pno}
       value={useFallback ? priceFallbackValue! : ownValue}
       layer={effectiveLayer}
-      metroAverage={isGridCell || useFallback ? undefined : metroAverage}
+      metroAverage={isGridCell || useFallback ? undefined : (regionAverages?.[tooltip.props.city ?? '']?.[effectiveLayer.property] ?? metroAverage)}
       schools={schools}
       cellLabel={isGridCell ? t('tooltip.cell_value') : (useFallback ? t('data.subregion_estimate') : undefined)}
     />
