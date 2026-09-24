@@ -6,7 +6,9 @@ const CLOSE_ICON = (
   </svg>
 );
 
-const BTN = 'flex-1 px-3 min-h-[44px] md:min-h-[32px] rounded-lg text-sm font-semibold whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400';
+// Focus falls through to the global :focus-visible outline (3:1 on white; a brand-400
+// ring would not be).
+const BTN = 'flex-1 px-3 min-h-[44px] md:min-h-[32px] rounded-lg text-sm font-semibold whitespace-nowrap transition-colors';
 
 interface RegionSwitchPromptProps {
   /** Region id the user tapped (a seutukunta not currently on the map). */
@@ -81,9 +83,16 @@ export function RegionChips({ regions, onRemove }: RegionChipsProps) {
             <span className="truncate">{name}</span>
             <button
               type="button"
-              onClick={() => onRemove(r)}
+              onClick={(e) => {
+                // This button is about to unmount: hand focus to a surviving chip (or the
+                // map) so a keyboard user isn't dropped onto <body>.
+                const chip = e.currentTarget.parentElement;
+                ((chip?.nextElementSibling ?? chip?.previousElementSibling)?.querySelector('button')
+                  ?? document.querySelector<HTMLElement>('.maplibregl-canvas'))?.focus();
+                onRemove(r);
+              }}
               aria-label={t('region_switch.remove').replace('{city}', name)}
-              className="shrink-0 flex items-center justify-center min-w-[32px] min-h-[32px] rounded-full text-surface-500 hover:text-surface-800 dark:text-surface-400 dark:hover:text-white"
+              className="shrink-0 flex items-center justify-center min-w-[44px] min-h-[44px] md:min-w-[32px] md:min-h-[32px] rounded-full text-surface-500 hover:text-surface-800 dark:text-surface-400 dark:hover:text-white"
             >
               {CLOSE_ICON}
             </button>

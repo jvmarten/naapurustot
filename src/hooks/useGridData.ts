@@ -185,8 +185,9 @@ export function useGridData(activeLayer: LayerId, cityFilter?: string, enabled =
     const fetched = fetchedRef.current;
     if (fetched.has(cacheKey)) {
       // Already fetched/cached (or a prior in-flight fetch is still tracked): clear
-      // any stale loading flag left by a cancelled fetch of a different key.
+      // any stale loading/error flag left by a fetch of a different key.
       setLoading(false);
+      setError(false);
       return;
     }
     fetched.add(cacheKey);

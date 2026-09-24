@@ -150,7 +150,7 @@ import { join } from 'node:path';
 // includes lazy chunks) and cannot be exempted — it is reached from the map header, not
 // from /live/. Measured baseline 324,490 → 327,749, i.e. ~3.26 KB of genuine feature;
 // headroom set to ~1.75 KB, per the Services-honesty note.)
-// → 331000 B (2026-09-24: region switching + multi-region postal view — a feature that
+// → 331500 B (2026-09-24: region switching + multi-region postal view — a feature that
 // did not exist at all. A tap on a neighbouring seutukunta in a region view offers
 // "switch / show both"; several regions' postal areas can share one map (`city=a,b`).
 // utils/regionSet.ts (selection reducer, URL list codec, union viewport, merge +
@@ -158,10 +158,11 @@ import { join } from 'node:path';
 // plus a synchronous point-in-region test — chosen over a hit-test fill layer so the
 // map style is untouched), the RegionSwitch prompt + chips, a per-row "+" in the mobile
 // region list, App's wiring (load-before-commit add, remove, per-region "vs. seutu"
-// baselines, Escape/Back, bottom-slot placement) and 5 fi.json strings. Measured
-// 327,203 → 329,521, i.e. ~2.3 KB of genuine feature; headroom restored to ~1.5 KB,
-// per the Services-honesty note.)
-const BUDGET = 331_000;
+// baselines, Escape/Back, bottom-slot placement) and 7 fi.json strings. Measured
+// 327,203 → 329,961, i.e. ~2.8 KB of genuine feature (incl. its review fixes: the
+// desktop keyboard add path, concurrent adds, prompt lifetime, focus handling);
+// headroom restored to ~1.5 KB, per the Services-honesty note.)
+const BUDGET = 331_500;
 const ASSETS_DIR = 'dist/assets';
 
 // Second budget: the /live/ realtime sub-app.

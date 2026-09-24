@@ -1416,6 +1416,16 @@ const App: React.FC = () => {
   const [peek, setPeek] = useState<NeighborhoodProperties | null>(null);
   // A tap on a neighbouring seutukunta in a region view → "switch / show both" prompt.
   const [regionPrompt, setRegionPrompt] = useState<RegionId | null>(null);
+  // The prompt belongs to the view it was raised over: any change of the displayed set
+  // (CitySelector, search, deep link, geolocation, favorites, chips), a new selection by
+  // any path, or entering split/draw/select mode retires it (render-phase reset, so a
+  // stale prompt never paints over the new view, even for a frame).
+  const promptScope = `${regionParam}|${selected?.pno ?? ''}|${splitMode || drawMode || selectMode}`;
+  const [promptScopeSeen, setPromptScopeSeen] = useState(promptScope);
+  if (promptScopeSeen !== promptScope) {
+    setPromptScopeSeen(promptScope);
+    setRegionPrompt(null);
+  }
 
   const handleClick = useCallback(
     (props: NeighborhoodProperties) => {
@@ -1446,35 +1456,40 @@ const App: React.FC = () => {
     if (!r || displayedRef.current.includes(r)) { setRegionPrompt(null); return; }
     setPeek(null);
     setRegionPrompt(r as RegionId);
-    setAriaAnnouncement(t('city.' + r));
+    // Clear first so reopening the same region's prompt still changes the live text.
+    const msg = t('region_switch.prompt').replace('{city}', t('city.' + r));
+    setAriaAnnouncement('');
+    requestAnimationFrame(() => setAriaAnnouncement(msg));
   }, []);
   const handleRegionSwitch = useCallback((r: RegionId) => {
     setRegionPrompt(null);
     handleCityChange(r);
     setAriaAnnouncement(t('city.switched_to').replace('{city}', t('city.' + r)));
   }, [handleCityChange]);
-  const [addingRegion, setAddingRegion] = useState(false);
+  const [addsInFlight, setAddsInFlight] = useState(0);
   const handleAddRegion = useCallback((r: RegionId) => {
     setRegionPrompt(null);
     if (displayedRef.current.includes(r)) return;
-    setAddingRegion(true);
-    const before = displayedRef.current;
+    setAddsInFlight((n) => n + 1);
+    const primary = cityFilterRef.current;
     // Load BEFORE committing: useMapData errors the whole merged set when any region
     // fails, so an unreachable region must not take the working view down with it. The
     // per-region cache then makes the merge that follows immediate.
     loadRegionData(r)
       .then(() => {
-        if (displayedRef.current !== before) return; // the view moved on meanwhile
+        // Only a real switch (another primary, or 'all') voids the add; a compatible add
+        // or remove that landed meanwhile does not, and the reducer dedupes repeats.
+        if (cityFilterRef.current !== primary || displayedRef.current.includes(r)) return;
         setCityFilter({ add: r });
         // Several regions on one map are compared on the national scale — "within this
         // region" has no single region left to mean.
         setComparisonScope('all');
-        const vp = regionsViewport([...before, r]);
+        const vp = regionsViewport([...displayedRef.current, r]);
         if (vp) setFlyTarget(vp);
         showToast(t('region_switch.added').replace('{city}', t('city.' + r)));
         trackEvent('add-region', { city: r });
       }, () => showToast(t('error.load_failed')))
-      .finally(() => setAddingRegion(false));
+      .finally(() => setAddsInFlight((n) => n - 1));
   }, [showToast]);
   const handleRemoveRegion = useCallback((r: string) => {
     setCityFilter({ remove: r as RegionId });
@@ -1482,6 +1497,7 @@ const App: React.FC = () => {
     setPeek((p) => (p?.city === r ? null : p));
     // A drawn / multi-selected area may reach into the region leaving the map.
     resetAreaTools();
+    setAriaAnnouncement(t('region_switch.removed').replace('{city}', t('city.' + r)));
     trackEvent('remove-region', { city: r });
   }, [deselect, resetAreaTools]);
 
@@ -1600,7 +1616,13 @@ const App: React.FC = () => {
     const pno = pendingSearchRef.current;
     if (!pno || !filteredData) return;
     const feature = pnoFeatureMap.get(pno);
-    if (!feature?.properties || !feature.geometry) return; // region still loading
+    if (!feature?.properties || !feature.geometry) {
+      // Still loading — unless the region it waits for has left the map (chip removed,
+      // switched away): forget it then, or it fires the next time that region is shown.
+      const r = pnoRegionMapRef.current.get(pno);
+      if (r && !displayedRef.current.includes(r)) pendingSearchRef.current = null;
+      return;
+    }
     pendingSearchRef.current = null;
     selectAndFly(feature);
   }, [filteredData, pnoFeatureMap, selectAndFly]);
@@ -2679,6 +2701,7 @@ const App: React.FC = () => {
               leftGridLoading={gridLoading && hasGridData(activeLayer)}
               rightGridLoading={secondaryGridLoading && hasGridData(secondaryLayer)}
               metroAverages={cityAverages}
+              regionAverages={regionAverages}
               onSelectNeighborhood={handleClick}
             />
           </Suspense>
@@ -2762,7 +2785,7 @@ const App: React.FC = () => {
       {/* C1: subsequent region/scope switches — slim, non-blocking progress bar
           just below the header. The previous map stays visible and all chrome
           (search, settings, tools, city selector) stays interactive. */}
-      {(effectiveLoading || fullNationalPending || addingRegion) && firstLoadDone && (
+      {(effectiveLoading || fullNationalPending || addsInFlight > 0) && firstLoadDone && (
         <div
           data-testid="loading-progress"
           className="absolute top-12 left-0 right-0 z-40 pointer-events-none"
@@ -2780,7 +2803,7 @@ const App: React.FC = () => {
 
       {/* QW-7: Header is hidden in embed mode so the map renders edge-to-edge. */}
       {!IS_EMBED && (
-      <header className="absolute top-0 left-0 right-0 z-20 h-12 flex items-center justify-between px-3 md:px-4 bg-white/80 dark:bg-surface-950/80 backdrop-blur-md border-b border-surface-200/50 dark:border-white/10">
+      <header onPointerDownCapture={() => setRegionPrompt(null)} className="absolute top-0 left-0 right-0 z-20 h-12 flex items-center justify-between px-3 md:px-4 bg-white/80 dark:bg-surface-950/80 backdrop-blur-md border-b border-surface-200/50 dark:border-white/10">
         {/* Left: settings, tools & auth */}
         <div className="flex items-center gap-1 md:gap-2 shrink-0">
           <SettingsDropdown
@@ -2921,7 +2944,8 @@ const App: React.FC = () => {
       {/* MO-1: suppress the global search while the split-compare view is open — it
           renders directly over the left pane's layer picker (and is meaningless there). */}
       {!IS_EMBED && !splitMode && (
-        <div data-tour-id="search" className="absolute top-[3.5rem] left-3 md:left-4 z-10 w-52 md:w-72">
+        <div className="absolute top-[3.5rem] left-3 md:left-4 z-10 w-52 md:w-72 pointer-events-none">
+        <div data-tour-id="search" className="pointer-events-auto">
           <SearchBar
             data={data}
             searchData={searchIndex}
@@ -2935,7 +2959,22 @@ const App: React.FC = () => {
             homeName={referenceName}
             onSetHome={handleSetReference}
           />
-          {multiRegion && <RegionChips regions={extraRegions} onRemove={handleRemoveRegion} />}
+          {/* The filter / ranking panels open over this column (top-28): hide the chips
+              rather than leave a sliver of them poking out above the panel. */}
+          {multiRegion && !showFilter && !showRanking && !showRegionRanking && (
+            <RegionChips regions={extraRegions} onRemove={handleRemoveRegion} />
+          )}
+        </div>
+        {/* CF-2: kaavat & hankkeet overlay toggle (desktop; mobile folds it into the Layers
+            sheet) — region scope only (the overlay is per-region), hidden behind the open
+            area panel. In flow under the search column, so wrapped region chips or the home
+            chip push it down instead of painting over it (mt-2.5 keeps the single-region
+            position at 6.75rem). */}
+        {!selected && cityFilter !== 'all' && regionHasPlanningGeometry(cityFilter) && (
+          <div className="hidden md:block mt-2.5 md:w-64 pointer-events-auto">
+            <PlanningControls enabled={planningEnabled} region={cityFilter} onToggle={handlePlanningToggle} loading={planningLoading} error={planningError} onRetry={handlePlanningRetry} />
+          </div>
+        )}
         </div>
       )}
 
@@ -2966,7 +3005,7 @@ const App: React.FC = () => {
               layerConfig={effectiveLayer}
               onSelect={handleSearch}
               onClose={handleCloseRanking}
-              city={cityFilter}
+              city={regionParam}
               scope={comparisonScope}
               selectedPno={selected?.pno ?? null}
             />
@@ -3013,14 +3052,6 @@ const App: React.FC = () => {
           // reach the bottom-right Layers FAB.
           hidden={!!selected || !!peek || promptAtBottom || splitMode}
         />
-      )}
-
-      {/* CF-2: kaavat & hankkeet overlay toggle — region scope only (the overlay is
-          per-region), hidden behind the open area panel / split view / embed. */}
-      {!IS_EMBED && !selected && !splitMode && cityFilter !== 'all' && regionHasPlanningGeometry(cityFilter) && (
-        <div className={`hidden md:block absolute ${multiRegion ? 'top-[9.25rem]' : 'top-[6.75rem]'} left-3 md:left-4 z-[5] w-52 md:w-64 pointer-events-auto`}>
-          <PlanningControls enabled={planningEnabled} region={cityFilter} onToggle={handlePlanningToggle} loading={planningLoading} error={planningError} onRetry={handlePlanningRetry} />
-        </div>
       )}
 
       {/* O3: persistent, dismissible on-map hint teaching the core "click an area"
@@ -3122,7 +3153,7 @@ const App: React.FC = () => {
             onYearChange={handleScrubYear}
             playing={timePlaying}
             onTogglePlay={handleToggleTimePlay}
-            hidden={!!selected}
+            hidden={!!selected || promptAtBottom}
           />
         </Suspense>
       )}
@@ -3274,7 +3305,7 @@ const App: React.FC = () => {
           all-Finland view (skipAllFetch → data is null there), where returning users,
           ?sl= link recipients, and wizard "add all" land — otherwise the flagship synced
           shortlist was invisible on its highest-traffic surface. */}
-      {!IS_EMBED && !showTour && shortlist.length > 0 && (() => {
+      {!IS_EMBED && !showTour && !promptAtBottom && shortlist.length > 0 && (() => {
         const idle = !selected && pinned.length === 0;
         // Geometry/props live only in a loaded region set (pnoFeatureMap); the default
         // all-Finland view is geometry-stripped, so Compare (pins loaded features) and the

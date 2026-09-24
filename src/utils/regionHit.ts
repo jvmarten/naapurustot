@@ -26,9 +26,11 @@ export function loadRegionOutlines(): Promise<FeatureCollection | null> {
       })
       .then((topo) => {
         const objName = Object.keys(topo.objects ?? {})[0];
-        if (!objName) return null;
-        outlines = topoFeature(topo, topo.objects[objName]) as FeatureCollection;
-        return outlines;
+        const fc = objName ? topoFeature(topo, topo.objects[objName]) : null;
+        // An empty or single-shape parse is a failure too: caching it would switch the
+        // region taps off for the session instead of retrying on the next call.
+        if (fc?.type !== 'FeatureCollection' || fc.features.length === 0) throw new Error('seutukunnat boundaries: empty');
+        return (outlines = fc);
       })
       .catch((err) => {
         console.warn('[regions] failed to load seutukunta boundaries', err);

@@ -1488,7 +1488,9 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       const planning = PLANNING_LAYER_IDS.filter((l) => map.getLayer(l));
       if (planning.length > 0 && queryFeaturesSafe(map, e.point, planning).length > 0) return;
       if (!COARSE_POINTER && queryNeighborhoodsAt(map, e.point, true).length > 0) return;
-      onRegion(regionAt(getRegionOutlines(), e.lngLat.lng, e.lngLat.lat));
+      const outlines = getRegionOutlines();
+      if (!outlines) void loadRegionOutlines(); // a failed idle load retries on the next tap
+      onRegion(regionAt(outlines, e.lngLat.lng, e.lngLat.lat));
     };
 
     const onMapDblClick = (e: maplibregl.MapMouseEvent) => {

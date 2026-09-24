@@ -744,6 +744,8 @@
   "region_switch.add": "Lisää kartalle",
   "region_switch.remove": "Poista {city} kartalta",
   "region_switch.added": "{city} lisättiin kartalle",
+  "region_switch.prompt": "{city}: vaihda alueeseen tai näytä kartalla",
+  "region_switch.removed": "{city} poistettiin kartalta",
   "scope.active_hint": "Tämän alueen sisällä",
   "scope.all": "Koko Suomi",
   "scope.label": "Vertailualue",

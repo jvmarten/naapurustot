@@ -15,6 +15,7 @@ import type { FeatureCollection, Feature } from 'geojson';
 import type { CityFilter } from '../components/CitySelector';
 import type { ProcessedData } from './dataLoader';
 import { computeMetroAverages } from './metrics';
+import { applyQualityScale } from './qualityScale';
 import { REGION_IDS, type RegionId } from './regions';
 import { CITY_VIEWPORTS } from './mapConstants';
 
@@ -23,8 +24,9 @@ export interface RegionSelection {
   extra: RegionId[];
 }
 
-/** Shared empty list, so a state that is already single-region keeps its identity. */
-export const NO_REGIONS: RegionId[] = [];
+/** Shared empty list, so a state that is already single-region keeps its identity.
+ *  Frozen: every single-region parse and switch hands out this same array. */
+export const NO_REGIONS = Object.freeze([]) as unknown as RegionId[];
 
 /**
  * Reducer action: a bare CityFilter switches to exactly that view (dropping any added
@@ -99,9 +101,15 @@ export function regionsViewport(regions: readonly string[]): { center: [number, 
  * The feature objects stay shared with dataLoader's per-region cache; that is fine
  * because the multi-region view always scores against the national ranges, where an
  * area's score depends on nothing but its own values.
+ *
+ * The quality SCALE is the exception: each region's processing re-pointed the global
+ * cohort (bands, ramp stops, `quality_display`) at that region alone, and whichever
+ * finished last would win. Re-derive it over the union, so a cold `city=a,b` load, a
+ * retry and an add from the prompt all describe the same areas on screen.
  */
 export function mergeRegionData(results: ProcessedData[]): ProcessedData {
   const features = results.flatMap((r) => r.data.features);
+  applyQualityScale(features);
   const data: FeatureCollection = { type: 'FeatureCollection', features };
   return { data, metroAverages: computeMetroAverages(features) };
 }
@@ -112,12 +120,12 @@ export function mergeRegionData(results: ProcessedData[]): ProcessedData {
  * OWN seutukunta, not a blend of Helsinki and Lahti.
  */
 export function averagesByRegion(features: Feature[]): Record<string, Record<string, number>> {
-  const groups: Record<string, Feature[]> = {};
+  const groups: Record<string, Feature[]> = Object.create(null);
   for (const f of features) {
     const c = f.properties?.city;
     if (typeof c === 'string') (groups[c] ??= []).push(f);
   }
-  const out: Record<string, Record<string, number>> = {};
+  const out: Record<string, Record<string, number>> = Object.create(null);
   for (const c in groups) out[c] = computeMetroAverages(groups[c]);
   return out;
 }
