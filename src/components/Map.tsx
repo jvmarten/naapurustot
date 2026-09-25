@@ -6,6 +6,7 @@ import type { Feature, FeatureCollection, Polygon, MultiPolygon, Position } from
 import { buildFillColorExpression, getInterpolatedColor, type LayerId, type LayerConfig, getLayerById } from '../utils/colorScales';
 import { ensureHatchImage } from '../utils/hatchPattern';
 import { GRID_ZOOM_FADE_IN, buildFillOpacityFadeOut, buildGridFillOpacity } from '../utils/gridFade';
+import { buildFillOpacity } from '../utils/fillOpacity';
 import { hasGridCells } from '../hooks/useGridData';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { useTheme } from '../hooks/useTheme';
@@ -254,38 +255,10 @@ const DRAW_PREVIEW_VERTEX_LAYER = 'draw-preview-vertices';
 const DRAW_SNAP_FILL_LAYER = 'draw-snap-fill';
 const DRAW_SNAP_LINE_LAYER = 'draw-snap-line';
 
-
-/**
- * Build a MapLibre fill-opacity expression that:
- * 1. Highlights hovered/selected features at 85% opacity
- * 2. Optionally dims non-matching features (used by filter and wizard highlight modes)
- * 3. Scales all values by the user's opacity slider multiplier `o` (0–1)
- *
- * Returns a MapLibre "case" expression array.
- *
- * IMPORTANT: never replace this with a constant via setPaintProperty on a
- * layer whose fill-opacity was initialized state-dependent. MapLibre's
- * ProgramConfiguration.updatePaintArrays keeps the stale binder, reassigns
- * its `.expression` to the new constant value, then calls `.evaluate()` on
- * it — and constants have no `evaluate`, so the next setFeatureState during
- * a render frame throws `this.expression.evaluate is not a function`. Pass
- * `o = 0` here to "hide" the fill while keeping the expression state-dependent.
- */
-function buildFillOpacity(o: number, overrides?: { matchExpr?: unknown[]; matchVal?: number; dimVal?: number }) {
-  const base: unknown[] = [
-    'case',
-    ['boolean', ['feature-state', 'hover'], false],
-    0.85 * o,
-    ['boolean', ['feature-state', 'selected'], false],
-    0.85 * o,
-  ];
-  if (overrides?.matchExpr) {
-    base.push(overrides.matchExpr, (overrides.matchVal ?? 0.8) * o, (overrides.dimVal ?? 0.15) * o);
-  } else {
-    base.push(0.65 * o);
-  }
-  return base;
-}
+// The postal fill's opacity expression (hover/selected/filter-dim states, the
+// opacity slider, and a slight close-zoom easing) is buildFillOpacity in
+// utils/fillOpacity.ts. Its IMPORTANT note applies: never replace it with a
+// constant via setPaintProperty.
 
 export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1, gridData = null, drawMode = false, onDrawClick, onDrawDoubleClick, drawVertices, drawnPolygon = null, drawnAreaPnos = EMPTY_ARRAY, selectMode = false, selectedAreaPnos = EMPTY_ARRAY, onSelectAreaClick, layerConfig, isochrone = null, planningData = null, onMoveEnd, priceFallbackValue = null, onReady, onRegionClick }) => {
   const containerRef = useRef<HTMLDivElement>(null);
