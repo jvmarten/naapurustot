@@ -5,6 +5,7 @@ import type { FeatureCollection } from 'geojson';
 import { buildFillColorExpression, LAYERS, type LayerId, type LayerConfig, getLayerById } from '../utils/colorScales';
 import { ensureHatchImage } from '../utils/hatchPattern';
 import { buildFillOpacityFadeOut, buildGridFillOpacity, GRID_ZOOM_FADE_IN } from '../utils/gridFade';
+import { buildPaneFillOpacity } from '../utils/fillOpacity';
 import { getGridInfo, hasGridCells } from '../hooks/useGridData';
 import { getCoveragePct, isLowCoverage, formatCoveragePct, type NeighborhoodProperties } from '../utils/metrics';
 import { useTheme } from '../hooks/useTheme';
@@ -248,14 +249,9 @@ function gridActive(layer: LayerConfig, gridData: FeatureCollection | null | und
 // split panes honour it like the main map. Kept STATE-DEPENDENT (references feature-state
 // hover/selected) on purpose — replacing a state-dependent fill-opacity with a bare
 // constant makes the next setFeatureState throw (see Map.tsx). hover/selected bump +0.15.
+// Eases down slightly at close zoom like the main map (utils/fillOpacity.ts).
 function baseFillOpacity(opacity: number): maplibregl.ExpressionSpecification {
-  const bump = Math.min(1, opacity + 0.15);
-  return [
-    'case',
-    ['boolean', ['feature-state', 'hover'], false], bump,
-    ['boolean', ['feature-state', 'selected'], false], bump,
-    opacity,
-  ] as unknown as maplibregl.ExpressionSpecification;
+  return buildPaneFillOpacity(opacity) as unknown as maplibregl.ExpressionSpecification;
 }
 
 /**

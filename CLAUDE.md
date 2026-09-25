@@ -259,6 +259,7 @@ The all-Finland view (`?city=all`, the default) shows seutukunta outlines, not i
 ### MapLibre
 
 - Never replace a state-dependent paint expression with a constant (`setPaintProperty`) — the next `setFeatureState` throws. Hide layers via `buildFillOpacity(0)`.
+- The postal fill's opacity is a zoom curve (close-zoom easing, `src/utils/fillOpacity.ts`), so its buckets hold composite binders: a zoom-less feature-state `case` set on it throws the same way. Build every fill-opacity through `withCloseZoomDamping`. And a zoom `interpolate` nested inside a `case` is rejected by validation — the layer silently keeps its old value (`buildFillOpacityFadeOut` has that shape and never applies).
 - Gate post-init layer work on the persistent `mapStyleLoadedRef`, not `map.isStyleLoaded()` (returns false during in-flight `setData` re-parses, silently dropping work).
 
 ### /live/ shadows

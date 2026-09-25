@@ -9,12 +9,15 @@
  * the constants risks the two views drifting apart.
  */
 
+import { CLOSE_ZOOM_DAMP_END, CLOSE_ZOOM_DAMP_FACTOR, CLOSE_ZOOM_DAMP_START } from './fillOpacity';
+
 // Zoom range over which the grid takes over from the postal choropleth for
 // grid-capable layers. Below GRID_ZOOM_FADE_IN only the smooth choropleth
 // shows; above GRID_ZOOM_FADE_OUT only the grid shows. Centered around zoom
 // 7.75 — between the all-Finland viewport (~4.8) and city defaults (~9), so
 // country views stay smooth and city/postal views show the detailed grid at
-// full opacity.
+// full opacity. GRID_ZOOM_FADE_OUT must stay below CLOSE_ZOOM_DAMP_START:
+// buildGridFillOpacity's stops run fade-in then damping, and must ascend.
 export const GRID_ZOOM_FADE_IN = 7;
 export const GRID_ZOOM_FADE_OUT = 8.5;
 
@@ -39,11 +42,15 @@ export function buildFillOpacityFadeOut(o: number): unknown[] {
 }
 
 /** Grid opacity that fades in over the same zoom range buildFillOpacityFadeOut
- *  fades out. */
+ *  fades out, then eases down slightly at close zoom like the postal fill
+ *  (see fillOpacity.ts). One zoom curve holds both ramps — MapLibre allows
+ *  only one per expression. */
 export function buildGridFillOpacity(o: number): unknown[] {
   return [
     'interpolate', ['linear'], ['zoom'],
     GRID_ZOOM_FADE_IN, 0,
     GRID_ZOOM_FADE_OUT, 0.8 * o,
+    CLOSE_ZOOM_DAMP_START, 0.8 * o,
+    CLOSE_ZOOM_DAMP_END, 0.8 * o * CLOSE_ZOOM_DAMP_FACTOR,
   ];
 }
