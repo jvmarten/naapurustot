@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isInjectedScriptSyntaxError, type SentryEventShape } from '../utils/sentryFilters';
+import { isInjectedPageScriptError, isInjectedScriptSyntaxError, type SentryEventShape } from '../utils/sentryFilters';
 
 /**
  * Regression tests for the Sentry noise filter.
@@ -85,5 +85,46 @@ describe('isInjectedScriptSyntaxError — our own errors still report', () => {
   it('keeps events with no exception (messages, transactions)', () => {
     expect(isInjectedScriptSyntaxError({})).toBe(false);
     expect(isInjectedScriptSyntaxError({ exception: { values: [] } })).toBe(false);
+  });
+});
+
+/** Build an event whose frames carry both a filename and a function name. */
+function framed(type: string, frames: { filename?: string; function?: string }[]): SentryEventShape {
+  return { exception: { values: [{ type, stacktrace: { frames } }] } };
+}
+
+describe('isInjectedPageScriptError — named functions on the page URL are not ours', () => {
+  const page = 'https://naapurustot.fi/';
+
+  it('drops the Chrome-iOS stack overflow (NAAPURUSTOT-WEB-12/-13)', () => {
+    // As reported: unnamed frames at the bottom, then Ok/Qk recursing on the page URL.
+    const frames = [
+      { filename: page },
+      { filename: page },
+      ...Array.from({ length: 20 }, (_, i) => ({ filename: page, function: i % 2 ? 'Qk' : 'Ok' })),
+    ];
+    expect(isInjectedPageScriptError(framed('RangeError', frames))).toBe(true);
+  });
+
+  it('keeps anything with a frame in a script we shipped', () => {
+    expect(
+      isInjectedPageScriptError(
+        framed('RangeError', [
+          { filename: page, function: 'Ok' },
+          { filename: 'https://naapurustot.fi/assets/index-abc.js', function: 'Qk' },
+        ]),
+      ),
+    ).toBe(false);
+  });
+
+  it('keeps errors from our own inline snippets, which only produce unnamed frames', () => {
+    for (const fn of [undefined, '?', '<anonymous>', 'global code', 'onload']) {
+      expect(isInjectedPageScriptError(framed('TypeError', [{ filename: page, function: fn }]))).toBe(false);
+    }
+  });
+
+  it('keeps events with no stack to judge by', () => {
+    expect(isInjectedPageScriptError({})).toBe(false);
+    expect(isInjectedPageScriptError({ exception: { values: [{ type: 'TypeError' }] } })).toBe(false);
   });
 });
