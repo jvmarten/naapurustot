@@ -10,7 +10,7 @@ export interface SentryEventShape {
   exception?: {
     values?: {
       type?: string;
-      stacktrace?: { frames?: { filename?: string }[] }
+      stacktrace?: { frames?: { filename?: string; function?: string }[] }
     }[]
   };
 }
@@ -47,4 +47,37 @@ export function isInjectedScriptSyntaxError(event: SentryEventShape): boolean {
   if (!values.every((v) => v.type === 'SyntaxError')) return false;
   const frames = values.flatMap((v) => v.stacktrace?.frames ?? []);
   return !frames.some((f) => isScriptFile(f.filename));
+}
+
+/**
+ * Frame names an engine gives code that is not inside a named function: top-level
+ * script ("global code" on WebKit), an inline event-handler attribute, or Sentry's
+ * placeholder for an unnamed frame. Our own inline snippets in index.html (the
+ * anonymous theme-guard IIFE and the font link's `onload`) only ever produce these.
+ */
+const UNNAMED_FRAME = /^(\?|<anonymous>|anonymous|global code|onload)$/;
+
+/**
+ * A runtime error thrown by a *named function* that lives in the document itself.
+ *
+ * iOS browsers other than Safari (Chrome, Edge, Firefox, in-app views) inject their
+ * own minified scripts into every page through WKUserScript, and WebKit attributes
+ * those scripts to the document URL. NAAPURUSTOT-WEB-12/-13 are one of them blowing
+ * its stack on Chrome Mobile iOS: forty frames of `Ok`/`Qk` recursing at
+ * https://naapurustot.fi/:226:408 — a line of index.html that is a bare `</script>`
+ * thirteen characters long, below JSON-LD that is not even executable.
+ *
+ * The page's own JavaScript in the document is exactly two snippets, an anonymous
+ * IIFE and an attribute handler, so neither can put a named frame on the page URL.
+ * Everything else we ship runs from `/assets/*.js` and keeps that frame, so an error
+ * with a stack, no `.js` frame anywhere in it and a named function among its frames
+ * is somebody else's code.
+ */
+export function isInjectedPageScriptError(event: SentryEventShape): boolean {
+  const values = event.exception?.values;
+  if (!values?.length) return false;
+  const frames = values.flatMap((v) => v.stacktrace?.frames ?? []);
+  if (!frames.length) return false;
+  if (frames.some((f) => isScriptFile(f.filename))) return false;
+  return frames.some((f) => !!f.function && !UNNAMED_FRAME.test(f.function));
 }

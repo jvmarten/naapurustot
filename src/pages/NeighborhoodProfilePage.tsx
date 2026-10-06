@@ -18,6 +18,7 @@ import { LanguagePicker } from '../components/LanguagePicker';
 import { StatCard } from '../components/profile/StatCard';
 import { JsonLd } from '../components/profile/JsonLd';
 import { FitForYouBadge } from '../components/FitForYouBadge';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 import { readStoredWizardProfile } from '../hooks/useWizardProfile';
 import { readStoredQualityWeights } from '../hooks/useQualityWeights';
 import { useFavorites } from '../hooks/useFavorites';
@@ -711,12 +712,18 @@ export const NeighborhoodProfilePage: React.FC = () => {
                 aria-label={t('profile.explore_on_map')}
                 className="group relative block rounded-xl overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
               >
-                <Suspense fallback={<div className="w-full h-64 md:h-80 rounded-xl bg-surface-100 dark:bg-surface-900/60 animate-pulse" />}>
-                  <MiniMap
-                    feature={state.geoFeature}
-                    allFeatures={state.regionFeatures}
-                  />
-                </Suspense>
+                {/* The map is decoration on this page: if its chunk fails to load (a
+                    dropped connection — NAAPURUSTOT-WEB-T/-Z, or its maplibre CSS,
+                    -10) the slot stays a still placeholder instead of the route's
+                    boundary replacing the whole profile with the error screen. */}
+                <ErrorBoundary fallback={<div className="w-full h-64 md:h-80 rounded-xl bg-surface-100 dark:bg-surface-900/60" />}>
+                  <Suspense fallback={<div className="w-full h-64 md:h-80 rounded-xl bg-surface-100 dark:bg-surface-900/60 animate-pulse" />}>
+                    <MiniMap
+                      feature={state.geoFeature}
+                      allFeatures={state.regionFeatures}
+                    />
+                  </Suspense>
+                </ErrorBoundary>
                 <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-center gap-1.5 py-2
                                  bg-gradient-to-t from-black/55 to-transparent text-white text-xs font-medium
                                  opacity-0 group-hover:opacity-100 transition-opacity">

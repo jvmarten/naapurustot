@@ -6,7 +6,7 @@ import { ThemeProvider } from './hooks/useTheme';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { setErrorReporter } from './utils/errorReporter';
 import { installChunkReloadHandler, isChunkReloadPending } from './utils/chunkReload';
-import { isInjectedScriptSyntaxError } from './utils/sentryFilters';
+import { isInjectedPageScriptError, isInjectedScriptSyntaxError } from './utils/sentryFilters';
 import { detectBrowserLang, getLang, setLang, loadFiExtra } from './utils/i18n';
 import './index.css';
 
@@ -169,6 +169,10 @@ if (SENTRY_DSN) {
         // regardless of each browser's wording ("Fetch is aborted" on Safari,
         // "The user aborted a request" on Chrome, etc.).
         /AbortError/,
+        // Snapchat's iOS in-app browser calls into its native bridge from injected
+        // top-level code before defining it (NAAPURUSTOT-WEB-11). Its frame is the
+        // page's "global code" at 1:16, so only the variable name tells it apart.
+        /SCDynimacBridge/,
       ],
       // Drop events whose stack frames all point at extension URLs. Different
       // browsers use different protocols for injected extension scripts.
@@ -190,7 +194,9 @@ if (SENTRY_DSN) {
         // transient of that teardown, most often React.lazy hitting a `__vitePreload`
         // import we deliberately let resolve to `undefined` (NAAPURUSTOT-WEB-S). Drop it.
         if (isChunkReloadPending()) return null;
-        return isInjectedScriptSyntaxError(event) ? null : event;
+        // iOS browsers inject named functions into the page the same way, and their
+        // runtime errors land on the page URL too (NAAPURUSTOT-WEB-12/-13).
+        return isInjectedScriptSyntaxError(event) || isInjectedPageScriptError(event) ? null : event;
       },
     });
     // React swallows anything an ErrorBoundary catches, so those crashes never

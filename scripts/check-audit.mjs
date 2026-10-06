@@ -68,6 +68,18 @@ export const ALLOWLIST = [
       'retires the 5.18–5.24 query regression worked around in utils/mapQuery.ts. The short `until` ' +
       'is deliberate: it forces that migration rather than letting this exemption drift.',
   },
+  {
+    id: 'GHSA-vfj7-8cjw-p6xm',
+    package: 'braces',
+    scope: '.',
+    until: '2026-11-30',
+    reason:
+      'Stack-exhaustion DoS on deeply nested brace patterns. braces is reached only through ' +
+      'tailwindcss@3 (micromatch and chokidar) at build/dev time, expanding the glob patterns in ' +
+      'our own tailwind.config.js `content` list — never user input, and nothing in the shipped ' +
+      'bundle. No patched release exists (3.0.3 is the latest and is itself affected), so there ' +
+      'is no override to pin. Re-review when braces ships a fix or tailwind 4 drops it.',
+  },
 ];
 
 /** Run `npm audit --json` in `cwd`. Exits non-zero when vulnerabilities exist, so the
