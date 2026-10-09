@@ -253,7 +253,12 @@ const ASSETS_DIR = 'dist/assets';
 // sun/uvTheory chunk it shares with /live/ (~1.8 kB, previously folded into
 // LivePage-). This sum now spans two routes that never load together, so it
 // overstates either page's cost; measured 39,714 → ~44,500 B, headroom ~2 kB.)
-const LIVE_BUDGET = 46_500;
+// → 49,000 B (2026-10-09: /live/uv/ redesign — card layout, headline stats,
+// WHO band labels and UV pills in the table, month ruler under the slider, an
+// FI/EN/SV switch, a Today button, and click-a-map-point-to-add with an
+// OpenStreetMap Nominatim reverse lookup for the point's name. Measured
+// 44,596 → ~46,800 B, all of it in the UvPage- chunk /live/ never loads.)
+const LIVE_BUDGET = 49_000;
 
 const fmtKB = (b) => (b / 1024).toFixed(2);
 
