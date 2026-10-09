@@ -303,5 +303,14 @@
   "live.uv.source": "Mallin arvo, ei mitattu: Copernicus CAMS (Open-Meteo).",
   "live.uv.loading": "Haetaan UV-indeksiä…",
   "live.uv.failed": "UV-indeksiä ei saatu haettua.",
-  "live.uv.none": "CAMS ei ole laskenut UV-indeksiä tälle hetkelle."
+  "live.uv.none": "CAMS ei ole laskenut UV-indeksiä tälle hetkelle.",
+  "live.feed.uv_theory": "Teoreettinen UV (kirkas taivas)",
+  "live.uvt.search": "Hae mitä tahansa kaupunkia maailmasta",
+  "live.uvt.here": "Kartan keskipiste",
+  "live.uvt.reading": "{place}: nyt {v} · huippu {peak} aurinkokeskipäivällä, aurinko {alt}° korkeudella · koko päivä {sed} SED.",
+  "live.uvt.dark": "{place}: aurinko ei nouse tänään – UV-indeksi 0.",
+  "live.uvt.note": "Teoreettinen UV-indeksi kirkkaalla taivaalla: pelkkä auringon geometria – ei pilviä, otsonia 300 DU, merenpinnan taso. Ei mittaus eikä ennuste.",
+  "live.uvt.failed": "Kaupunkihaku epäonnistui.",
+  "live.uvt.no_results": "Paikkoja ei löytynyt.",
+  "live.uvt.clear": "Takaisin kartan keskipisteeseen"
 }

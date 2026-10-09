@@ -241,7 +241,13 @@ const ASSETS_DIR = 'dist/assets';
 // restored to ~5.1 kB on the same principle as every bump above: the registry
 // still lists two unwired feeds this budget exists to hold, and a hair's headroom
 // fails the next branch for no reason of its own.
-const LIVE_BUDGET = 40_000;
+// → 42,000 B (2026-10-09: theoretical clear-sky UV — a computed wash of the
+// UV index the sun's geometry alone delivers, sampled on the twilight lattice,
+// plus a worldwide city search (Open-Meteo geocoder) whose readout gives the
+// chosen place's index now, its solar-noon peak and the whole-day dose; see
+// uvTheory.ts / UvTheoryRow.tsx. Measured 38,216 → 39,714 B, ~1.5 kB, the whole
+// of it this feature. Headroom restored to ~2.3 kB on the same principle.)
+const LIVE_BUDGET = 42_000;
 
 const fmtKB = (b) => (b / 1024).toFixed(2);
 

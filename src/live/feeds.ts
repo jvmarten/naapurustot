@@ -127,6 +127,13 @@ export const FEED_GROUPS: FeedGroup[] = [
       // decline a model — and it is also the switch on the page's only
       // third-party request outside FMI, Fintraffic and MET Norway.
       { id: 'uv_index', labelKey: 'live.feed.uv_index', status: 'live', coverage: 'national', time: 'modelled', defaultOn: true },
+      // Astronomy again, with no source to fetch: the clear-sky UV index the
+      // sun's geometry alone delivers, drawn as a wash over the whole map and
+      // readable for any city on Earth through a geocoder search (uvTheory.ts).
+      // 'computed' because it is exact at any instant; 'national' only in the
+      // sense that it covers everything — the formula has no edge. OFF BY
+      // DEFAULT: a full-viewport colour wash competes with the shadows.
+      { id: 'uv_theory', labelKey: 'live.feed.uv_theory', status: 'live', coverage: 'national', time: 'computed', defaultOn: false },
     ],
   },
   {

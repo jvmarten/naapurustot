@@ -115,6 +115,8 @@ import {
   type NowcastRun,
 } from './nowcast';
 import { fetchUvDay, formatUv, pickUv, uvBand, uvCell, type UvHour } from './uv';
+import { sunDistanceFactor, clearSkyUvi, uvTheoryRgb } from './uvTheory';
+import { UvTheoryRow } from './UvTheoryRow';
 import {
   createTimeline,
   clearTimeline,
@@ -775,6 +777,54 @@ function screenToLonLat(t: Affine, sx: number, sy: number): [number, number] {
     t.ox + (t.by * x - t.bx * y) / det,
     t.oy + (t.ax * y - t.ay * x) / det,
   );
+}
+
+/** Scratch canvas for the theoretical-UV wash, at lattice resolution. */
+let uvTheoryCanvas: HTMLCanvasElement | null = null;
+
+/**
+ * The theoretical clear-sky UV index as a colour wash (see uvTheory.ts).
+ *
+ * Sampled on the twilight lattice from the same solar frame — the sun is a field
+ * over the map, so is its UV — and stretched with smoothing, which blends the
+ * band edges over one lattice step. Transparent wherever the sun is down, so the
+ * wash ends at the terminator rather than painting night grey.
+ */
+function paintUvTheory(
+  ctx: CanvasRenderingContext2D,
+  map: MaplibreMap,
+  frame: SolarFrame,
+  distance: number,
+  width: number,
+  height: number,
+): void {
+  const cols = Math.max(2, Math.ceil(width / TWILIGHT_STEP_PX));
+  const rows = Math.max(2, Math.ceil(height / TWILIGHT_STEP_PX));
+  uvTheoryCanvas ??= document.createElement('canvas');
+  uvTheoryCanvas.width = cols;
+  uvTheoryCanvas.height = rows;
+  const uctx = uvTheoryCanvas.getContext('2d');
+  if (!uctx) return;
+  const img = uctx.createImageData(cols, rows);
+  const t0 = cameraAffine(map);
+  for (let j = 0, k = 0; j < rows; j++) {
+    for (let i = 0; i < cols; i++, k += 4) {
+      const [lon, lat] = screenToLonLat(t0, (i + 0.5) * TWILIGHT_STEP_PX, (j + 0.5) * TWILIGHT_STEP_PX);
+      const alt = frameAltitude(frame, lat, lon);
+      if (!(alt > 0)) continue;
+      const [r, g, b] = uvTheoryRgb(clearSkyUvi(alt, distance));
+      img.data[k] = r;
+      img.data[k + 1] = g;
+      img.data[k + 2] = b;
+      img.data[k + 3] = 255;
+    }
+  }
+  uctx.putImageData(img, 0, 0);
+  ctx.save();
+  ctx.globalAlpha = 0.5;
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(uvTheoryCanvas, 0, 0, cols * TWILIGHT_STEP_PX, rows * TWILIGHT_STEP_PX);
+  ctx.restore();
 }
 
 /**
@@ -2638,6 +2688,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   const shadowsOn = enabled.has('shadows');
   const sunOn = enabled.has('sun_position');
   const uvOn = enabled.has('uv_index');
+  const uvTheoryOn = enabled.has('uv_theory');
   const trainsOn = enabled.has('trains');
   const shipsOn = enabled.has('ships');
   const incidentsOn = enabled.has('road_incidents');
@@ -3571,6 +3622,8 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
       paintBuildings(ctx, buildingsOn, theme, zoom, width, height);
     };
 
+    // Under the shade, so a shadow reads as what it is: less UV.
+    if (uvTheoryOn) paintUvTheory(ctx, map, solarFrame(when), sunDistanceFactor(whenMs), width, height);
     if (shadowsOn) paintShade();
     // Last, and above the shade — see paintTrains for why they are not a
     // MapLibre layer.
@@ -3700,6 +3753,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     }
   }, [
     shadowsOn,
+    uvTheoryOn,
     trainsOn,
     shipsOn,
     incidentsOn,
@@ -5376,7 +5430,8 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     sealevelOn ||
     lightningOn ||
     radarOn ||
-    uvOn;
+    uvOn ||
+    uvTheoryOn;
 
   /**
    * Whether any of those sentences is a failure rather than a result.
@@ -6030,6 +6085,16 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
                     {t('live.uv.source')}
                   </p>
                 )
+              )}
+
+              {/* Computed, so it answers for any city on Earth — the search is
+                  this row's own, and picking a place flies the map there. */}
+              {uvTheoryOn && (
+                <UvTheoryRow
+                  whenMs={whenMs}
+                  center={center}
+                  onPick={(p) => mapRef.current?.flyTo({ center: [p.lon, p.lat], zoom: 7 })}
+                />
               )}
 
               {/* EVERY SENTENCE HERE NAMES ITS WINDOW, because this feed's does
