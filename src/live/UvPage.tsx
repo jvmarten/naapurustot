@@ -542,13 +542,13 @@ export function UvPage({ lang }: { lang?: Lang }) {
         </section>
 
         <section className={`${card} mt-4 p-4 sm:p-5`}>
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="mr-auto text-[24px] font-semibold tabular-nums">{dateLabel}</span>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <span className="min-w-0 flex-1 truncate text-[20px] font-semibold tabular-nums sm:text-[24px]">{dateLabel}</span>
             <button
               type="button"
               disabled={isToday}
               onClick={goToday}
-              className={`${pill} ${isToday ? 'border-white/10 text-[#5d6875]' : pillOff}`}
+              className={`${pill} shrink-0 whitespace-nowrap ${isToday ? 'border-white/10 text-[#5d6875]' : pillOff}`}
             >
               {t('live.uvp.today')}
             </button>
@@ -556,9 +556,11 @@ export function UvPage({ lang }: { lang?: Lang }) {
               type="button"
               onClick={() => setPlaying((p) => !p)}
               aria-pressed={playing}
-              className={`${pill} min-w-[96px] whitespace-nowrap font-semibold ${playing ? pillOn : 'border-white/20 bg-white text-[#0b1016] hover:bg-white/90'}`}
+              aria-label={playing ? t('live.uvp.pause') : t('live.uvp.play')}
+              className={`${pill} shrink-0 whitespace-nowrap font-semibold sm:min-w-[96px] ${playing ? pillOn : 'border-white/20 bg-white text-[#0b1016] hover:bg-white/90'}`}
             >
-              {playing ? `❚❚ ${t('live.uvp.pause')}` : `▶ ${t('live.uvp.play')}`}
+              {playing ? '❚❚' : '▶'}
+              <span className="hidden sm:inline"> {playing ? t('live.uvp.pause') : t('live.uvp.play')}</span>
             </button>
           </div>
 
