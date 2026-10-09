@@ -163,4 +163,17 @@ test.describe('/live/', () => {
     // bookmarked /live/ no longer drops the reader over Helsinki every time.
     await expect(page).toHaveURL(/at=65\.01210,25\.46510/, { timeout: 15000 });
   });
+
+  test('/live/uv/ draws the year view and its comparison table', async ({ page }) => {
+    // Computed entirely in the browser, so this needs no network beyond the
+    // page's own assets (the coastline is a same-origin text file).
+    await page.goto('/en/live/uv/');
+    await expect(page.getByRole('heading', { name: 'Theoretical UV index through the year' })).toBeVisible();
+    await expect(page.locator('canvas')).toBeVisible();
+    // The default comparison row, and a chip that moves the slider.
+    await expect(page.getByRole('button', { name: 'Remove Helsinki' })).toBeVisible();
+    await page.getByRole('button', { name: 'Jun solstice' }).click();
+    await expect(page.getByText('day 172 of')).toBeVisible();
+    await expect(page.getByRole('slider', { name: 'Day of year' })).toHaveValue('172');
+  });
 });

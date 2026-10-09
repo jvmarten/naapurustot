@@ -2024,11 +2024,11 @@ const LIVE_ROUTES = {
   sv: { path: 'sv/live', url: 'https://naapurustot.fi/sv/live/' },
 };
 
-function generateLivePage(lang) {
-  const title = LOCALES[lang]['live.page.title'];
-  const description = LOCALES[lang]['live.page.description'];
-  const { fi: fiR, en: enR, sv: svR } = LIVE_ROUTES;
-  const canonicalUrl = LIVE_ROUTES[lang].url;
+function generateLivePage(lang, routes = LIVE_ROUTES, keys = { title: 'live.page.title', description: 'live.page.description' }) {
+  const title = LOCALES[lang][keys.title];
+  const description = LOCALES[lang][keys.description];
+  const { fi: fiR, en: enR, sv: svR } = routes;
+  const canonicalUrl = routes[lang].url;
 
   let html = template;
   html = html.replace('<html lang="fi">', `<html lang="${lang}">`);
@@ -2062,6 +2062,22 @@ for (const [lang, route] of Object.entries(LIVE_ROUTES)) {
   writeFileSync(join(dir, 'index.html'), html);
 }
 console.log('Prerendered 3 live pages (/live, /en/live, /sv/live).');
+
+// /live/uv/ — the theoretical-UV year view. Same shell, its own title and
+// description; prerendered for the same 200-not-404 reason as /live/ itself.
+const LIVE_UV_ROUTES = {
+  fi: { path: 'live/uv', url: 'https://naapurustot.fi/live/uv/' },
+  en: { path: 'en/live/uv', url: 'https://naapurustot.fi/en/live/uv/' },
+  sv: { path: 'sv/live/uv', url: 'https://naapurustot.fi/sv/live/uv/' },
+};
+for (const [lang, route] of Object.entries(LIVE_UV_ROUTES)) {
+  const html = generateLivePage(lang, LIVE_UV_ROUTES, { title: 'live.uvp.title', description: 'live.uvp.description' });
+  assertHeadIntegrity(html, { context: route.path, expectThemeGuard: true });
+  const dir = join(DIST, ...route.path.split('/'));
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'index.html'), html);
+}
+console.log('Prerendered 3 live UV pages (/live/uv, /en/live/uv, /sv/live/uv).');
 
 // Landing page for the link in a password-reset email.
 //

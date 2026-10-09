@@ -247,12 +247,24 @@ const ASSETS_DIR = 'dist/assets';
 // chosen place's index now, its solar-noon peak and the whole-day dose; see
 // uvTheory.ts / UvTheoryRow.tsx. Measured 38,216 → 39,714 B, ~1.5 kB, the whole
 // of it this feature. Headroom restored to ~2.3 kB on the same principle.)
-const LIVE_BUDGET = 42_000;
+// → 46,500 B (2026-10-09: /live/uv/, the theoretical-UV year view — a second
+// route on the /live/ surface: band map, day-of-year slider + date picker, ozone
+// slider and a city comparison table. Its own chunk (`UvPage-`, ~4.4 kB) plus the
+// sun/uvTheory chunk it shares with /live/ (~1.8 kB, previously folded into
+// LivePage-). This sum now spans two routes that never load together, so it
+// overstates either page's cost; measured 39,714 → ~44,500 B, headroom ~2 kB.)
+const LIVE_BUDGET = 46_500;
 
 const fmtKB = (b) => (b / 1024).toFixed(2);
 
 const allFiles = readdirSync(ASSETS_DIR);
-const isLive = (f) => f.startsWith('LivePage-');
+// `UvPage-` is /live/uv/, the theoretical-UV year view: a route of its own that
+// only its own URL reaches, so it belongs to the /live/ surface, not the map's.
+// `uvTheory-` is the chunk Rolldown splits out for what those two routes share
+// (src/utils/sun.ts + src/live/uvTheory.ts) — reached by nothing on the map. If it
+// is ever renamed it falls back to the map budget, which fails loudly.
+const LIVE_PREFIXES = ['LivePage-', 'UvPage-', 'uvTheory-'];
+const isLive = (f) => LIVE_PREFIXES.some((p) => f.startsWith(p));
 const jsFiles = allFiles.filter((f) => f.endsWith('.js') && !f.startsWith('maplibre-'));
 
 let jsTotal = 0;

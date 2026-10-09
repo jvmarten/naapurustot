@@ -72,6 +72,12 @@ const ResetPasswordPage = lazy(() =>
 const LivePage = lazy(() =>
   Promise.all([import('./live/LivePage'), loadFiExtra()]).then(([m]) => ({ default: m.LivePage })));
 
+// /live/uv/ — the theoretical-UV year view. Its own lazy chunk (`UvPage-*`), held
+// to the /live/ budget by check-bundle-size.mjs: only this route reaches it.
+// eslint-disable-next-line react-refresh/only-export-components
+const UvPage = lazy(() =>
+  Promise.all([import('./live/UvPage'), loadFiExtra()]).then(([m]) => ({ default: m.UvPage })));
+
 // An <ErrorBoundary> latches `hasError` until something clears it, so a crash on one
 // route otherwise renders the error screen on every route the user visits afterwards.
 // Feeding it the current pathname clears the fallback on navigation — which is also
@@ -277,6 +283,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
               <Route path="/live" element={<LivePage lang="fi" />} />
               <Route path="/en/live" element={<LivePage lang="en" />} />
               <Route path="/sv/live" element={<LivePage lang="sv" />} />
+              <Route path="/live/uv" element={<UvPage lang="fi" />} />
+              <Route path="/en/live/uv" element={<UvPage lang="en" />} />
+              <Route path="/sv/live/uv" element={<UvPage lang="sv" />} />
               <Route path="/tietosuoja" element={<PrivacyPage lang="fi" />} />
               <Route path="/en/privacy" element={<PrivacyPage lang="en" />} />
               <Route path="/sv/integritet" element={<PrivacyPage lang="sv" />} />

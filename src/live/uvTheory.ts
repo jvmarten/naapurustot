@@ -45,6 +45,15 @@ export function theoryUviAt(lat: number, lon: number, ms: number): number {
   return clearSkyUvi(frameAltitude(solarFrame(new Date(ms)), lat, lon), sunDistanceFactor(ms));
 }
 
+/**
+ * The solar-noon index at a latitude on a date — what the /live/uv/ bands draw.
+ * Longitude-free: at its own noon every meridian sees the same sun.
+ */
+export function noonBandUvi(lat: number, dateMs: number, ozone = UV_THEORY_OZONE_DU): number {
+  const dec = (Math.asin(solarFrame(new Date(dateMs)).sinDec) * 180) / Math.PI;
+  return clearSkyUvi(90 - Math.abs(lat - dec), sunDistanceFactor(dateMs), ozone);
+}
+
 export interface UvTheoryDay {
   /** Highest value through the solar day, at local solar noon. */
   peak: number;
@@ -52,6 +61,8 @@ export interface UvTheoryDay {
   noonAltitude: number;
   /** Whole-day erythemal dose in SED (1 SED = 100 J/m²; UVI 1 for 1 h = 0.9 SED). */
   sed: number;
+  /** Hours with the sun's centre above the horizon (no refraction). */
+  daylight: number;
 }
 
 /** Sampling step for the whole-day integral. */
@@ -65,7 +76,7 @@ const STEP_MIN = 5;
  * its own noon, and integrating the viewer's midnight-to-midnight would split
  * its day in two.
  */
-export function theoryDay(lat: number, lon: number, ms: number): UvTheoryDay {
+export function theoryDay(lat: number, lon: number, ms: number, ozone = UV_THEORY_OZONE_DU): UvTheoryDay {
   // Solar noon at this longitude ≈ 12:00 UTC − lon/15 h (equation of time
   // ignored: ±16 min moves the window, not the integral, by a few minutes).
   const offset = DAY_MS / 2 - (lon / 360) * DAY_MS;
@@ -74,14 +85,16 @@ export function theoryDay(lat: number, lon: number, ms: number): UvTheoryDay {
   let peak = 0;
   let noonAltitude = -90;
   let sum = 0;
+  let up = 0;
   for (let m = -720 + STEP_MIN / 2; m < 720; m += STEP_MIN) {
     const alt = frameAltitude(solarFrame(new Date(noon + m * 60_000)), lat, lon);
-    const v = clearSkyUvi(alt, dist);
+    const v = clearSkyUvi(alt, dist, ozone);
     sum += v;
+    if (alt > 0) up++;
     if (alt > noonAltitude) noonAltitude = alt;
     if (v > peak) peak = v;
   }
-  return { peak, noonAltitude, sed: (0.9 * sum * STEP_MIN) / 60 };
+  return { peak, noonAltitude, sed: (0.9 * sum * STEP_MIN) / 60, daylight: (up * STEP_MIN) / 60 };
 }
 
 /**

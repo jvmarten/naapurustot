@@ -137,6 +137,12 @@ export function UvTheoryRow({
         ))}
       </div>
       <p className="text-surface-500 dark:text-surface-400">{t('live.uvt.note')}</p>
+      <a
+        href={getLang() === 'fi' ? '/live/uv/' : `/${getLang()}/live/uv/`}
+        className="inline-block font-medium text-sky-700 underline hover:text-sky-900 dark:text-sky-400 dark:hover:text-sky-300"
+      >
+        {t('live.uvt.year_link')}
+      </a>
     </div>
   );
 }
