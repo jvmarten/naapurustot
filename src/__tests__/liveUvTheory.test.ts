@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   clearSkyUvi,
   geocodeUrl,
+  noonBandUvi,
   parseGeocode,
   sunDistanceFactor,
   theoryDay,
@@ -92,5 +93,26 @@ describe('registry', () => {
     expect(f?.status).toBe('live');
     expect(f?.time).toBe('computed');
     expect(defaultEnabledFeeds().has('uv_theory')).toBe(false);
+  });
+});
+
+describe('year view helpers', () => {
+  it('daylight runs from none in polar night to all day under the midnight sun', () => {
+    expect(theoryDay(69.9, 27.0, Date.UTC(2026, 11, 21, 12)).daylight).toBe(0);
+    expect(theoryDay(69.9, 27.0, Date.UTC(2026, 5, 21, 12)).daylight).toBe(24);
+    const eq = theoryDay(0, 0, Date.UTC(2026, 2, 20, 12)).daylight;
+    expect(eq).toBeGreaterThan(11.8);
+    expect(eq).toBeLessThan(12.2);
+  });
+
+  it('the band peaks under the subsolar point and matches the table at noon', () => {
+    const june = Date.UTC(2026, 5, 21, 12);
+    expect(noonBandUvi(23.4, june)).toBeGreaterThan(noonBandUvi(0, june));
+    expect(noonBandUvi(60.17, june)).toBeCloseTo(theoryDay(60.17, 0, june).peak, 0);
+  });
+
+  it('a thinner ozone column raises the whole day', () => {
+    const d = Date.UTC(2026, 5, 21, 12);
+    expect(theoryDay(35, 139, d, 250).sed).toBeGreaterThan(theoryDay(35, 139, d, 300).sed);
   });
 });

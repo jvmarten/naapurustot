@@ -121,6 +121,16 @@ const live = {
 pagesUrls.push({ loc: live.fi, priority: '0.7', changefreq: 'daily', alternates: live });
 pagesUrls.push({ loc: live.en, priority: '0.6', changefreq: 'daily', alternates: live });
 pagesUrls.push({ loc: live.sv, priority: '0.6', changefreq: 'daily', alternates: live });
+// /live/uv/ — the theoretical-UV year view. Computed, so its content changes
+// only with the code: monthly.
+const liveUv = {
+  fi: `${ORIGIN}/live/uv/`,
+  en: `${ORIGIN}/en/live/uv/`,
+  sv: `${ORIGIN}/sv/live/uv/`,
+};
+pagesUrls.push({ loc: liveUv.fi, priority: '0.5', changefreq: 'monthly', alternates: liveUv });
+pagesUrls.push({ loc: liveUv.en, priority: '0.4', changefreq: 'monthly', alternates: liveUv });
+pagesUrls.push({ loc: liveUv.sv, priority: '0.4', changefreq: 'monthly', alternates: liveUv });
 
 // CF-9: data sources & methodology page. CF-10: trailing slash to match the
 // prerendered canonical (served as a directory index).
