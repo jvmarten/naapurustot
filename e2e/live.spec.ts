@@ -173,7 +173,8 @@ test.describe('/live/', () => {
     // The default comparison row, and a chip that moves the slider.
     await expect(page.getByRole('button', { name: 'Remove Helsinki' })).toBeVisible();
     await page.getByRole('button', { name: 'Jun solstice' }).click();
-    await expect(page.getByText('day 172 of')).toBeVisible();
+    await expect(page.getByText(/^172 \/ 36[56]$/)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Today' })).toBeEnabled();
     await expect(page.getByRole('slider', { name: 'Day of year' })).toHaveValue('172');
   });
 });

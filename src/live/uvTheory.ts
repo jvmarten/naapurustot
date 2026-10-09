@@ -159,3 +159,41 @@ export async function geocode(query: string, lang: string, signal?: AbortSignal)
   if (!res.ok) throw new Error(`Geocoding failed: ${res.status}`);
   return parseGeocode(await res.json());
 }
+
+interface ReverseResult {
+  name?: string;
+  address?: Record<string, string>;
+  error?: string;
+}
+
+/**
+ * The place name under a point, from OpenStreetMap's Nominatim (ODbL, CORS `*`).
+ *
+ * Asked only on an explicit map click, never on hover — Nominatim's usage
+ * policy is one request a second at most, and a click is far below that. Open
+ * sea answers `{"error": "Unable to geocode"}`, which is `null` here: the
+ * caller names the point by its coordinates instead.
+ */
+export async function reverseGeocode(
+  lat: number,
+  lon: number,
+  lang: string,
+  signal?: AbortSignal,
+): Promise<{ name: string; where: string } | null> {
+  const p = new URLSearchParams({
+    lat: lat.toFixed(4),
+    lon: lon.toFixed(4),
+    zoom: '10',
+    format: 'jsonv2',
+    'accept-language': lang,
+  });
+  const res = await fetch(`https://nominatim.openstreetmap.org/reverse?${p}`, { signal });
+  if (!res.ok) return null;
+  const j = (await res.json()) as ReverseResult;
+  if (j.error) return null;
+  const a = j.address ?? {};
+  const name = a.city ?? a.town ?? a.village ?? a.municipality ?? a.county ?? a.state ?? j.name;
+  if (!name) return null;
+  return { name, where: [a.state, a.country].filter((s) => s && s !== name).join(', ') };
+}
+

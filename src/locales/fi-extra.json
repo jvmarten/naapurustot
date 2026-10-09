@@ -318,7 +318,6 @@
   "live.uvp.description": "Kirkkaan taivaan UV-indeksi aurinkokeskipäivällä mille tahansa päivälle ja missä tahansa kaupungissa – pelkkä auringon geometria, kaupunkivertailun kera.",
   "live.uvp.subtitle": "Huippuarvo paikallisena aurinkokeskipäivänä, kirkas taivas, merenpinnan taso. Pelkkä geometria ja rata – ei säätä, ei korkeutta.",
   "live.uvp.back": "← Reaaliaikakartta",
-  "live.uvp.day_of": "päivä {n}/{total}",
   "live.uvp.slider": "Vuoden päivä",
   "live.uvp.play": "Toista vuosi",
   "live.uvp.pause": "Tauko",
@@ -344,5 +343,14 @@
   "live.uvp.foot_bands": "Vyöhykkeet ovat vaakasuoria, koska mikään tässä ei riipu pituuspiiristä – mallissa on sama ilmakehä kaikkialla. Todellisissa kartoissa otsoni, pilvet ja maasto taivuttavat vyöhykkeitä.",
   "live.uvp.foot_formula": "missä z on zeniittikulma, Ω otsonikerroksen paksuus ja d Maan ja Auringon etäisyyskorjaus (±3,3 % vuoden mittaan, suurin tammikuun alussa). Koko päivän luku integroi lausekkeen auringon kaaren yli viiden minuutin askelin; 1 SED = 100 J/m², ja UVI 1 tunnin ajan on 0,9 SED.",
   "live.uvp.foot_scale": "Mittakaavaksi: ruskettumaton vaalea iho punoittaa noin 2–3 SED:n kohdalla, joten kesän luvut ovat päivän koko saatavilla oleva määrä, eivät kenenkään keräämä annos.",
-  "live.uvp.foot_sources": "Laskettu, ei mitattu eikä ennustettu. Kaupunkihaku: Open-Meteo geocoding (GeoNames, CC BY 4.0)."
+  "live.uvp.foot_sources": "Laskettu, ei mitattu eikä ennustettu. Kaupunkihaku: Open-Meteo geocoding (GeoNames, CC BY 4.0). Klikattujen kohtien nimet: OpenStreetMap Nominatim (© OpenStreetMapin tekijät, ODbL).",
+  "live.uvp.lang": "Kieli",
+  "live.uvp.today": "Tänään",
+  "live.uvp.stat_subsolar": "Aurinko lakipisteessä",
+  "live.uvp.stat_peak": "Maapallon korkein UVI",
+  "live.uvp.compare": "Vertaa paikkoja",
+  "live.uvp.click_hint": "Klikkaa mitä tahansa kohtaa kartalla lisätäksesi sen vertailuun.",
+  "live.uvp.pick_add": "Lisää vertailuun",
+  "live.uvp.pick_loading": "Haetaan paikkaa…",
+  "live.uvp.pick_close": "Sulje"
 }

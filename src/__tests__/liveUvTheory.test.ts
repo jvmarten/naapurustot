@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   clearSkyUvi,
   geocodeUrl,
   noonBandUvi,
   parseGeocode,
+  reverseGeocode,
   sunDistanceFactor,
   theoryDay,
   theoryUviAt,
@@ -114,5 +115,21 @@ describe('year view helpers', () => {
   it('a thinner ozone column raises the whole day', () => {
     const d = Date.UTC(2026, 5, 21, 12);
     expect(theoryDay(35, 139, d, 250).sed).toBeGreaterThan(theoryDay(35, 139, d, 300).sed);
+  });
+});
+
+describe('reverseGeocode', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const stub = (body: unknown) =>
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(body), { status: 200 })));
+
+  it('names a point by its settlement, region and country', async () => {
+    stub({ name: 'Shibuya', address: { city: 'Shibuya', state: 'Tokyo', country: 'Japan' } });
+    expect(await reverseGeocode(35.66, 139.7, 'en')).toEqual({ name: 'Shibuya', where: 'Tokyo, Japan' });
+  });
+
+  it('answers null for open sea, so the caller falls back to coordinates', async () => {
+    stub({ error: 'Unable to geocode' });
+    expect(await reverseGeocode(0, -30, 'en')).toBeNull();
   });
 });
