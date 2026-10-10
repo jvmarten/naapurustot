@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { getLayerById, type LayerId, type LayerConfig } from '../utils/colorScales';
 import { t, useI18nVersion, type Lang } from '../utils/i18n';
+import { AreaHintPill } from './AreaHintPill';
 import { getGridInfo } from '../hooks/useGridData';
 import { getMetricSource, getCoveragePct, isPartialCoverage, isLowCoverage, formatCoveragePct } from '../utils/metrics';
 
@@ -29,10 +30,13 @@ interface LegendProps {
    *  The map then draws the postal choropleth, so the ▦ "fine-grained grid" badge
    *  must not claim ~250 m detail. Undefined = no grid concern (unit tests, no data yet). */
   gridActive?: boolean;
+  /** Phones: show the "click an area" hint directly above the legend card. */
+  areaHint?: boolean;
+  onDismissAreaHint?: () => void;
 }
 
 // colorblind prop triggers re-render when mode changes (getLayerById reads global state)
-export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: _colorblind, layerConfig, lang: _lang, gridLoading, gridError, hidden, subregionEstimate, gridFilterInactive, gridActive }) => {
+export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: _colorblind, layerConfig, lang: _lang, gridLoading, gridError, hidden, subregionEstimate, gridFilterInactive, gridActive, areaHint, onDismissAreaHint }) => {
   useI18nVersion();
   const layer = layerConfig ?? getLayerById(layerId);
 
@@ -94,7 +98,12 @@ export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: 
   const coverageLabel = coverage != null ? formatCoveragePct(coverage) : null;
 
   return (
-    <div className={`fixed md:absolute bottom-[calc(1.25rem+env(safe-area-inset-bottom))] md:bottom-8 left-3 md:left-4 z-10 ${hidden ? 'hidden md:block' : ''}`}>
+    <div className={`fixed md:absolute bottom-[calc(1.25rem+env(safe-area-inset-bottom))] md:bottom-8 left-3 md:left-4 z-10 flex-col items-start ${hidden ? 'hidden md:flex' : 'flex'}`}>
+      {/* In the same container, so the hint rides above the card however tall its notes
+          make it. Centred over the map (as on desktop) it overprinted the legend. */}
+      {areaHint && onDismissAreaHint && (
+        <AreaHintPill onDismiss={onDismissAreaHint} className="md:hidden max-w-[calc(100vw-1.5rem)] mb-2" />
+      )}
       <div className="rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl px-4 py-3">
         <div className="text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-2 flex items-center gap-1">
           <span>{t(layer.labelKey)}</span>
