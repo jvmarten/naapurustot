@@ -19,6 +19,7 @@ import { regionReducer, displayedRegions, regionKey, regionsViewport, averagesBy
 import { getRegionOutlines, regionAt } from './utils/regionHit';
 import { setTooltipData } from './utils/tooltipStore';
 import { Legend } from './components/Legend';
+import { AreaHintPill } from './components/AreaHintPill';
 import { SettingsDropdown } from './components/SettingsDropdown';
 import { ToolsDropdown } from './components/ToolsDropdown';
 import { ErrorBanner } from './components/ErrorBanner';
@@ -2687,13 +2688,19 @@ const App: React.FC = () => {
   });
 
   // C6: any transient state worth a one-tap reset. Drives the "Clear all" chip.
+  // Work the user built up, not a lone selection: the area panel has its own close
+  // button, and a loud "Clear all" after a single click read as if something needed
+  // undoing — while its reset also jumps a region view back to all of Finland.
   const isDirty =
-    !!selected ||
     pinned.length > 0 ||
     !!drawnPolygon ||
     filters.length > 0 ||
     wizardResultPnos.length > 0 ||
     comparisonScope !== 'all';
+
+  // O3's "click an area" hint is for someone who has not engaged yet: once there is
+  // state to clear, they have, and on desktop the hint sat directly over "Clear all".
+  const showAreaHint = !effectiveLoading && mapPainted && !selected && !peek && !promptAtBottom && !splitMode && !drawMode && !showTour && !areaHintDismissed && !isDirty;
 
   // E9: surface a failed locale dictionary fetch (re-render via useI18nVersion above).
   const localeLoadError = getLocaleLoadError();
@@ -2829,9 +2836,14 @@ const App: React.FC = () => {
 
       {/* QW-7: Header is hidden in embed mode so the map renders edge-to-edge. */}
       {!IS_EMBED && (
-      <header onPointerDownCapture={() => setRegionPrompt(null)} className="absolute top-0 left-0 right-0 z-20 h-12 flex items-center justify-between px-3 md:px-4 bg-white/80 dark:bg-surface-950/80 backdrop-blur-md border-b border-surface-200/50 dark:border-white/10">
-        {/* Left: settings, tools & auth */}
-        <div className="flex items-center gap-1 md:gap-2 shrink-0">
+      // Three columns, 1fr | auto | 1fr: the wordmark sits at the true centre while both
+      // control groups fit beside it, and is pushed aside (then truncated) rather than
+      // painted over when they do not. Absolute centring overlapped the right group on
+      // every phone width (320–414 px) and on 768 px tablets. Mobile drops the group
+      // gaps and most of the side padding — the 44 px tap boxes already space the icons.
+      <header onPointerDownCapture={() => setRegionPrompt(null)} className="absolute top-0 left-0 right-0 z-20 h-12 grid grid-cols-[1fr_auto_1fr] items-center gap-x-1 md:gap-x-3 px-1 md:px-4 bg-white/80 dark:bg-surface-950/80 backdrop-blur-md border-b border-surface-200/50 dark:border-white/10">
+        {/* Left: settings & tools */}
+        <div className="flex items-center md:gap-2 justify-self-start">
           <SettingsDropdown
             colorblind={colorblind}
             onColorblindChange={handleColorblindChange}
@@ -2881,23 +2893,22 @@ const App: React.FC = () => {
           />
         </div>
 
-        {/* Center: brand — absolutely positioned for true centering. The
-            Neighborhood Finder lives in the Tools menu, so the left control group
-            stays narrow enough for the wordmark to show on mobile too. */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        {/* Center: brand. min-w-0 lets the auto track shrink below the wordmark's
+            width, so on the narrowest phones it truncates instead of overlapping. */}
+        <div className="min-w-0 flex justify-center">
           <button
             onClick={handleResetView}
-            className="cursor-pointer bg-transparent border-none truncate pointer-events-auto"
+            className="min-w-0 max-w-full cursor-pointer bg-transparent border-none"
             title={t('map.reset_view')}
           >
-            <h1 className="text-lg font-display font-bold text-surface-900 dark:text-white/90 tracking-tight whitespace-nowrap">
+            <h1 className="text-base md:text-lg font-display font-bold text-surface-900 dark:text-white/90 tracking-tight whitespace-nowrap truncate">
               naapurustot<span className="text-brand-600 dark:text-brand-400">.fi</span>
             </h1>
           </button>
         </div>
 
         {/* Right: city selector & auth */}
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center md:gap-1.5 justify-self-end">
           {/* EM1: signed-out users get a favorites surface too — the star toggle
               persists to localStorage, so they need somewhere to see saved areas. */}
           {!user && favoriteEntries.length > 0 && (
@@ -2923,7 +2934,9 @@ const App: React.FC = () => {
               <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.847-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.847.813a4.5 4.5 0 0 0-3.09 3.09Z" />
               </svg>
-              <span className="hidden md:inline">{t('supporter.cta.open')}</span>
+              {/* lg, not md: with the label, the right group alone is ~410 px and a
+                  768 px tablet header could not fit the wordmark between the groups. */}
+              <span className="hidden lg:inline">{t('supporter.cta.open')}</span>
             </button>
           )}
           {user ? (
@@ -3080,6 +3093,7 @@ const App: React.FC = () => {
           // UX MO-2: hide during the touch peek too — a long peeked area name can
           // reach the bottom-right Layers FAB.
           hidden={!!selected || !!peek || promptAtBottom || splitMode}
+          areaOpen={!!selected}
         />
       )}
 
@@ -3088,20 +3102,9 @@ const App: React.FC = () => {
           is selected or it's explicitly dismissed (persisted). */}
       {/* LO-1: gated on mapPainted too — this pill told first-timers to tap a map
           that had not been drawn yet. */}
-      {!effectiveLoading && mapPainted && !selected && !peek && !promptAtBottom && !splitMode && !drawMode && !showTour && !areaHintDismissed && (
-        <div className="fixed md:absolute bottom-[calc(1.5rem+env(safe-area-inset-bottom))] md:bottom-8 left-1/2 -translate-x-1/2 z-20
-                       flex items-center gap-2 px-3 py-1.5 rounded-full shadow-lg backdrop-blur-sm
-                       bg-surface-900/90 dark:bg-white/90 text-white dark:text-surface-900 text-xs font-medium">
-          <span aria-hidden="true">👆</span>
-          <span>{t('map.click_hint_pill')}</span>
-          <button
-            onClick={dismissAreaHint}
-            aria-label={t('aria.close')}
-            className="-mr-1 shrink-0 text-white/70 dark:text-surface-900/70 hover:text-white dark:hover:text-surface-900"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
-        </div>
+      {/* Desktop only: on phones Legend stacks it above the legend card. */}
+      {showAreaHint && (
+        <AreaHintPill onDismiss={dismissAreaHint} className="hidden md:flex absolute bottom-8 left-1/2 -translate-x-1/2 z-20" />
       )}
 
       {/* Region-tap prompt in the peek bar's slot (narrow touch, no panel open). The two
@@ -3171,7 +3174,7 @@ const App: React.FC = () => {
 
       {/* Legend — repositioned for mobile (MO2: suppressed on mobile when an area panel covers it;
           UX MO-2: also during the touch peek — the peek bar paints over the same bottom band) */}
-      <Legend layerId={activeLayer} colorblind={colorblind} layerConfig={effectiveLayer} lang={lang} gridLoading={gridLoading && hasGridData(activeLayer)} gridError={gridError && hasGridData(activeLayer)} hidden={!!selected || !!peek || promptAtBottom} subregionEstimate={priceFallbackValue != null} gridFilterInactive={gridCellsVisible && ((showFilter && filters.length > 0) || wizardResultPnos.length > 0)} gridActive={gridCellsVisible} />
+      <Legend layerId={activeLayer} colorblind={colorblind} layerConfig={effectiveLayer} lang={lang} gridLoading={gridLoading && hasGridData(activeLayer)} gridError={gridError && hasGridData(activeLayer)} hidden={!!selected || !!peek || promptAtBottom} subregionEstimate={priceFallbackValue != null} gridFilterInactive={gridCellsVisible && ((showFilter && filters.length > 0) || wizardResultPnos.length > 0)} gridActive={gridCellsVisible} areaHint={showAreaHint} onDismissAreaHint={dismissAreaHint} />
 
       {/* PO-2: Time slider / historical playback (only when a time-series metric is active) */}
       {!IS_EMBED && timeYear != null && availableYears.length > 1 && (
@@ -3442,8 +3445,10 @@ const App: React.FC = () => {
           Suppressed while actively drawing/selecting so it doesn't stack on those hint pills. */}
       {isDirty && !drawMode && !selectMode && (
         // MO-4: when the full shortlist tray is showing on mobile (bottom-24, growing
-        // upward) lift this chip clear of its footprint so they don't pile up.
-        <div className={`absolute ${shortlist.length > 0 ? 'bottom-[calc(11rem+env(safe-area-inset-bottom))]' : 'bottom-[calc(5rem+env(safe-area-inset-bottom))]'} md:bottom-8 left-1/2 -translate-x-1/2 z-10`}>
+        // upward) lift this chip clear of its footprint so they don't pile up. On phones
+        // it sits right-aligned just above the Layers FAB (bottom 2rem + 3.5rem): centred
+        // at 5rem it printed over the legend card.
+        <div className={`absolute ${shortlist.length > 0 ? 'bottom-[calc(11rem+env(safe-area-inset-bottom))]' : 'bottom-[calc(6rem+env(safe-area-inset-bottom))]'} right-3 md:right-auto md:bottom-8 md:left-1/2 md:-translate-x-1/2 z-10`}>
           <button
             onClick={handleResetView}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-700

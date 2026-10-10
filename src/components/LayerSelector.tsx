@@ -41,6 +41,9 @@ interface LayerSelectorProps {
   lang?: Lang;
   /** MO2: on mobile, suppress the FAB when a full-width panel covers it (desktop dropdown is unaffected). */
   hidden?: boolean;
+  /** Desktop: an area panel is open — fold the panel to its pill so the map isn't
+   *  squeezed between two panels. The user's own choice comes back when it closes. */
+  areaOpen?: boolean;
 }
 
 type LayerGroup = {
@@ -125,7 +128,7 @@ const LayerSignals: React.FC<{ property: string }> = ({ property }) => {
   );
 };
 
-export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeLayer, onLayerChange, onCustomizeQuality, isCustomWeights = false, headerSlot, planningSlot, lang: _lang, hidden }) => {
+export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeLayer, onLayerChange, onCustomizeQuality, isCustomWeights = false, headerSlot, planningSlot, lang: _lang, hidden, areaOpen = false }) => {
   useI18nVersion();
   // M5: instant sheet snap when the user prefers reduced motion.
   const reducedMotion = useReducedMotion();
@@ -145,6 +148,11 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
   // C4: desktop panel starts expanded so the 59 layers are discoverable without
   // a first click into the minimized pill.
   const [minimized, setMinimized] = useState(false);
+  // Folded while an area panel is open unless the user re-opens it; their own
+  // `minimized` choice is left untouched and applies again once the area closes.
+  const [expandedOverArea, setExpandedOverArea] = useState(false);
+  useEffect(() => { if (!areaOpen) setExpandedOverArea(false); }, [areaOpen]);
+  const folded = areaOpen ? !expandedOverArea : minimized;
   const sheetRef = useRef<HTMLDivElement>(null);
 
   // QW-3: Unified bottom sheet drag behavior
@@ -300,20 +308,20 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
               // so it is absent from the arrow-key flat list. Without tabIndex=0 it
               // is unreachable by keyboard whenever it is not the active layer.
               tabIndex={0}
-              className={`flex-1 text-left px-3 py-2.5 md:py-1.5 rounded-lg text-sm transition-all duration-150 min-h-[44px] md:min-h-0 ${
+              className={`flex-1 min-w-0 text-left px-3 py-2.5 md:py-1.5 rounded-lg text-sm transition-all duration-150 min-h-[44px] md:min-h-0 ${
                 isActive
                   ? 'bg-brand-500/15 dark:bg-brand-600/20 text-brand-700 dark:text-brand-300 font-medium'
                   : 'text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800/60 hover:text-surface-900 dark:hover:text-white'
               }`}
             >
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 min-w-0">
                 <div
                   className="w-3 h-3 md:w-2.5 md:h-2.5 rounded-full flex-shrink-0"
                   style={{
                     backgroundColor: isActive ? qLayer.colors[5] || qLayer.colors[3] : '#94a3b8',
                   }}
                 />
-                {t(qLayer.labelKey)}
+                <span className="truncate min-w-0">{t(qLayer.labelKey)}</span>
               </div>
             </button>
             {showEditBtn && (
@@ -445,18 +453,30 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
       {/* pointer-events-none on the wrapper lets map drags pass through the empty
           area below the (short) headerSlot down to the (tall) panel's height —
           the two real children opt back in via pointer-events-auto. */}
-      <div data-tour-id="layers" className={`hidden md:flex items-start gap-1.5 absolute top-[3.5rem] right-4 z-10 pointer-events-none ${minimized ? 'w-auto' : ''}`}>
+      <div data-tour-id="layers" className={`hidden md:flex items-start gap-1.5 absolute top-[3.5rem] right-4 z-10 pointer-events-none ${folded ? 'w-auto' : ''}`}>
         {headerSlot}
-        <div className={`pointer-events-auto rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden ${minimized ? 'w-auto' : 'w-52 max-h-[80vh] overflow-y-auto'}`}>
+        {/* w-60: at w-52 the quality row's "Muokkaa" / "Anpassa" ran 17–24 px past
+            the panel's edge in fi and sv. */}
+        <div className={`pointer-events-auto rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden ${folded ? 'w-auto' : 'w-60 max-h-[80vh] overflow-y-auto'}`}>
           <button
-            onClick={() => setMinimized((prev) => !prev)}
+            onClick={() => (areaOpen ? setExpandedOverArea((prev) => !prev) : setMinimized((prev) => !prev))}
+            aria-expanded={!folded}
             className="w-full px-4 py-3 flex items-center justify-between gap-2 cursor-pointer hover:bg-surface-100/50 dark:hover:bg-surface-800/30 transition-colors"
           >
             <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400">
               {t('layers.title')}
             </h3>
+            {/* Folded, the pill still says what the map is showing. */}
+            {folded && (() => {
+              const labelKey = LAYER_MAP.get(activeLayer)?.labelKey;
+              return labelKey ? (
+                <span className="text-xs font-medium text-surface-800 dark:text-surface-100 truncate max-w-[12rem]">
+                  {t(labelKey)}
+                </span>
+              ) : null;
+            })()}
             <svg
-              className={`w-3 h-3 text-surface-500 dark:text-surface-400 transition-transform duration-200 ${minimized ? '-rotate-90' : ''}`}
+              className={`w-3 h-3 text-surface-500 dark:text-surface-400 transition-transform duration-200 ${folded ? '-rotate-90' : ''}`}
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -465,7 +485,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
               <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
             </svg>
           </button>
-          {!minimized && layerList}
+          {!folded && layerList}
         </div>
       </div>
 

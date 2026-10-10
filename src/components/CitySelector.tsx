@@ -103,7 +103,14 @@ export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, on
         data-tour-id="cities"
         value={value}
         onChange={(e) => onChange(e.target.value as CityFilter)}
-        className="hidden md:block text-sm bg-brand-500/90 hover:bg-brand-600/90 text-white font-medium rounded-lg px-3 py-1.5 appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-400 pr-7 bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22white%22%3E%3Cpath%20fill-rule%3D%22evenodd%22%20d%3D%22M5.23%207.21a.75.75%200%20011.06.02L10%2011.168l3.71-3.938a.75.75%200%20111.08%201.04l-4.25%204.5a.75.75%200%2001-1.08%200l-4.25-4.5a.75.75%200%2001.02-1.06z%22%20clip-rule%3D%22evenodd%22%2F%3E%3C%2Fsvg%3E')] bg-[length:1.25rem] bg-[position:right_0.25rem_center] bg-no-repeat"
+        // Neutral, like the other header controls: as a solid brand-blue fill it was the
+        // loudest thing on the page. Opaque backgrounds on purpose — Chrome on Windows
+        // paints the native option list with the select's colours, and a translucent
+        // fill there turns white option text invisible on the white popup.
+        className="hidden md:block text-sm font-medium rounded-lg pl-3 pr-7 py-1.5 appearance-none cursor-pointer
+                   bg-white dark:bg-surface-800 hover:bg-surface-50 dark:hover:bg-surface-700 text-surface-800 dark:text-white/90
+                   border border-surface-200 dark:border-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60
+                   bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22%2364748b%22%3E%3Cpath%20fill-rule%3D%22evenodd%22%20d%3D%22M5.23%207.21a.75.75%200%20011.06.02L10%2011.168l3.71-3.938a.75.75%200%20111.08%201.04l-4.25%204.5a.75.75%200%2001-1.08%200l-4.25-4.5a.75.75%200%2001.02-1.06z%22%20clip-rule%3D%22evenodd%22%2F%3E%3C%2Fsvg%3E')] bg-[length:1.25rem] bg-[position:right_0.25rem_center] bg-no-repeat"
         aria-label={t('city.select')}
       >
         {options.map((opt) => (
@@ -131,7 +138,7 @@ export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, on
           ref={triggerRef}
           onClick={() => setOpen((prev) => !prev)}
           className={`flex gap-1.5 px-2.5 py-2 rounded-lg text-xs font-semibold transition-all items-center justify-center
-                     min-h-[44px] md:min-h-0 cursor-pointer
+                     min-w-[44px] min-h-[44px] md:min-h-0 cursor-pointer
                      ${open
                        ? 'bg-brand-500/20 text-brand-700 dark:text-brand-300 border border-brand-500/30'
                        : 'text-surface-600 dark:text-white/70 hover:text-surface-900 dark:hover:text-white hover:bg-surface-100 dark:hover:bg-white/10 border border-transparent'
