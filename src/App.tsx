@@ -694,7 +694,10 @@ const App: React.FC = () => {
   const [ariaAnnouncement, setAriaAnnouncement] = useState('');
   const [isOffline, setIsOffline] = useState(() => typeof navigator !== 'undefined' && !navigator.onLine);
 
-  const [comparisonScope, setComparisonScope] = useState<ComparisonScope>(initialUrl.extraCities.length ? 'all' : initialUrl.scope ?? 'all');
+  // 'region' with several regions on the map means all of them together: every
+  // region-scoped consumer (colour rescale, quality index, ranking, legend) reads the
+  // merged `filteredData`, i.e. the union of the displayed regions.
+  const [comparisonScope, setComparisonScope] = useState<ComparisonScope>(initialUrl.scope ?? 'all');
 
   // C4: explain the region-scoping rescale the FIRST time the user switches to
   // 'region' (persisted flag mirrors the fill-opacity localStorage try/catch).
@@ -704,12 +707,12 @@ const App: React.FC = () => {
       try {
         if (!localStorage.getItem('naapurustot-scope-hint-seen')) {
           localStorage.setItem('naapurustot-scope-hint-seen', '1');
-          showToast(t('scope.rescale_note'));
+          showToast(t(multiRegion ? 'scope.rescale_note_multi' : 'scope.rescale_note'));
         }
       } catch { /* localStorage unavailable */ }
     }
     setComparisonScope(next);
-  }, [showToast]);
+  }, [showToast, multiRegion]);
 
   // With per-region loading, single-region data is already scoped — no client-side filter needed.
   // Only the "all" view needs metro area aggregation.
@@ -865,6 +868,9 @@ const App: React.FC = () => {
     return out;
   }, [selected?.city, cityFilter, regionAverages, cityAverages, aggregates]);
   const selectedRegionName = selected?.city ? t('city.' + selected.city) : '';
+  // The cohort a region-scoped standing is ranked within: with several regions on the
+  // map that is all of them, not the area's own seutukunta.
+  const scopeRegionName = multiRegion ? displayed.map((r) => t('city.' + r)).join(' + ') : selectedRegionName;
 
   // T1: in a region view with a housing/rent price layer active, the seutukunta's
   // average for that metric — drives the map's region-estimate tint and the tooltip
@@ -1496,10 +1502,8 @@ const App: React.FC = () => {
       .then(() => {
         // A compatible add or remove that landed meanwhile keeps the add; a switch voided it.
         if (!pending.delete(r) || displayedRef.current.includes(r)) return;
+        // The comparison scope is kept: "within region" now spans the added region too.
         setCityFilter({ add: r });
-        // Several regions on one map are compared on the national scale — "within this
-        // region" has no single region left to mean.
-        setComparisonScope('all');
         const vp = regionsViewport([...displayedRef.current, r]);
         if (vp) setFlyTarget(vp);
         showToast(t('region_switch.added').replace('{city}', t('city.' + r)));
@@ -2084,24 +2088,22 @@ const App: React.FC = () => {
     // DT-4: the comparison-scope toggle is meaningless on the all-Finland view (no
     // sub-region to compare within), so hide it entirely there rather than showing a
     // greyed-out control whose only tooltip restates the current scope.
-    // Hidden too with several regions on the map: they are compared on the national
-    // scale (handleAddRegion), since "within this region" has no single region to mean.
+    // With several regions on the map, "within" means all of them together.
     // Beside it, the desktop "add to map" list — the keyboard (and discoverable) path to
     // the multi-region view; mobile has the per-row "+" in the header region list.
     cityFilter === 'all' ? null : (
       <>
         <CitySelector addOnly value={cityFilter} onChange={handleCityChange} displayed={displayed} onAdd={handleAddRegion} lang={lang} />
-        {!multiRegion && (
-          // pointer-events-auto: re-enables events on this child of LayerSelector's
-          // pointer-events-none wrapper (which lets map drags pass through the gap).
-          <div className="pointer-events-auto rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden">
-            <ComparisonScopeToggle
-              scope={comparisonScope}
-              onChange={handleScopeChange}
-              disabled={false}
-            />
-          </div>
-        )}
+        {/* pointer-events-auto: re-enables events on this child of LayerSelector's
+            pointer-events-none wrapper (which lets map drags pass through the gap). */}
+        <div className="pointer-events-auto rounded-xl bg-white/90 dark:bg-surface-900/90 backdrop-blur-md border border-surface-200 dark:border-surface-700/40 shadow-2xl overflow-hidden">
+          <ComparisonScopeToggle
+            scope={comparisonScope}
+            onChange={handleScopeChange}
+            disabled={false}
+            multi={multiRegion}
+          />
+        </div>
       </>
     )
   ), [comparisonScope, cityFilter, multiRegion, handleScopeChange, handleCityChange, displayed, handleAddRegion, lang]);
@@ -3004,18 +3006,21 @@ const App: React.FC = () => {
 
       {/* Comparison scope toggle — mobile only (desktop rendered inside LayerSelector via headerSlot).
           DT-4: hidden in embed mode and on the all-Finland view (no sub-region to compare within). */}
-      {!IS_EMBED && cityFilter !== 'all' && !multiRegion && (
-        <div className="absolute top-[3.5rem] right-3 z-10 md:hidden flex items-center gap-1.5">
-          {comparisonScope === 'region' && (
-            <div className="px-2.5 py-1 rounded-lg bg-amber-500/90 text-white text-[10px] font-semibold backdrop-blur-sm">
-              {t('scope.active_hint')}
-            </div>
-          )}
+      {/* The hint stacks UNDER the button: beside it, it ran into the search column
+          (w-52) on phones up to ~390px wide. */}
+      {!IS_EMBED && cityFilter !== 'all' && (
+        <div className="absolute top-[3.5rem] right-3 z-10 md:hidden flex flex-col items-end gap-1.5">
           <ComparisonScopeToggle
             scope={comparisonScope}
             onChange={handleScopeChange}
             disabled={false}
+            multi={multiRegion}
           />
+          {comparisonScope === 'region' && (
+            <div className="px-2.5 py-1 rounded-lg bg-amber-500/90 text-white text-[10px] font-semibold backdrop-blur-sm">
+              {t(multiRegion ? 'scope.region_multi' : 'scope.active_hint')}
+            </div>
+          )}
         </div>
       )}
 
@@ -3233,6 +3238,7 @@ const App: React.FC = () => {
             onSetReference={handleSetReference}
             regionPriceAverages={selectedRegionAverages}
             regionName={selectedRegionName}
+            scopeRegionName={scopeRegionName}
             wizardProfile={wizardProfile}
             onOpenWizard={handleOpenWizard}
             qualityScope={comparisonScope === 'region' && cityFilter !== 'all' ? 'region' : 'national'}
