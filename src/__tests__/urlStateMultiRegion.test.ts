@@ -204,8 +204,7 @@ describe('readInitialUrlState — city comma list', () => {
     expect(s.compare).toEqual(['00100', '15100']);
     expect(s.city).toBe('helsinki_metro');
     expect(s.extraCities).toEqual(['lahti']);
-    // The hook reports the URL faithfully; forcing scope to 'all' in a multi-region
-    // view is App's job, not the codec's.
+    // 'region' with several regions means within all of them together.
     expect(s.scope).toBe('region');
   });
 });

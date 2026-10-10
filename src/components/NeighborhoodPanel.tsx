@@ -92,6 +92,9 @@ interface PanelProps {
   regionPriceAverages?: Record<string, number> | null;
   /** T1: the selected area's seutukunta display name, shown in the fallback disclaimer. */
   regionName?: string;
+  /** Name of the cohort a region-scoped standing is ranked within — every region on the
+   *  map when several are shown. Defaults to `regionName`. */
+  scopeRegionName?: string;
   /** "Fit for you": the user's saved priority profile, so the header can show a
    *  match score for this area (or a CTA to set priorities when none is saved). */
   wizardProfile?: WizardAnswers | null;
@@ -933,7 +936,7 @@ const NotesEditor: React.FC<{ pno: string; userId?: string | null }> = React.mem
 });
 NotesEditor.displayName = 'NotesEditor';
 
-export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, qualityWeights, allFeatures, activeLayer, onFlyTo, isFavorite = false, onToggleFavorite, isInShortlist = false, onToggleShortlist, referencePno, referenceName, onSetReference, qualityScope = 'national', onExploreCity, userId, isochroneEnabled = false, isochroneMode = 'walk', isochroneBudget = 20, isochroneLoading = false, isochroneError = false, isochroneActive = false, onIsochroneChange, onIsochroneClear, similarityWeights, onSimilarityWeightChange, onSimilarityToggle, regionPriceAverages, regionName, wizardProfile, onOpenWizard }) => {
+export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, qualityWeights, allFeatures, activeLayer, onFlyTo, isFavorite = false, onToggleFavorite, isInShortlist = false, onToggleShortlist, referencePno, referenceName, onSetReference, qualityScope = 'national', onExploreCity, userId, isochroneEnabled = false, isochroneMode = 'walk', isochroneBudget = 20, isochroneLoading = false, isochroneError = false, isochroneActive = false, onIsochroneChange, onIsochroneClear, similarityWeights, onSimilarityWeightChange, onSimilarityToggle, regionPriceAverages, regionName, scopeRegionName, wizardProfile, onOpenWizard }) => {
   // QW-4: capture the i18n version so memos that build translated strings (the
   // MOBILE_SECTIONS tab labels) recompute on a language switch / lazy-dict arrival.
   const i18nVersion = useI18nVersion();
@@ -1427,7 +1430,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
 
       {/* CF-2: auto-composed plain-language strengths & weaknesses from real percentiles */}
       {allFeatures && allFeatures.length > 1 && (
-        <AreaSummarySection props={d} allFeatures={allFeatures} scope={qualityScope} region={regionName} isCustomWeights={isCustomWeights} />
+        <AreaSummarySection props={d} allFeatures={allFeatures} scope={qualityScope} region={scopeRegionName ?? regionName} isCustomWeights={isCustomWeights} />
       )}
 
       {/* CF-5: travel-time isochrone controls (real neighborhoods only; needs a Digitransit key) */}
