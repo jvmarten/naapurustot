@@ -41,10 +41,19 @@ function profileHref(pno: string, name: string): string {
   return `${base}${toSlug(pno, name)}/`;
 }
 
-/** The "explore postal code areas" button's light sweep (`.explore-cue`, index.css) plays
- *  on the first EXPLORE_CUE_MAX region panels and never again once the button is used. */
-const EXPLORE_CUE_KEY = 'naapurustot-explore-cue';
+/** The "explore postal code areas" button's orbiting comet (`.explore-cue`, index.css) plays
+ *  on the first EXPLORE_CUE_MAX region panels and never again once the button is used.
+ *  (v2: the key was bumped when the one-shot sweep became the comet.) */
+const EXPLORE_CUE_KEY = 'naapurustot-explore-cue-v2';
 const EXPLORE_CUE_MAX = 4;
+/** The comet's dashes as [length in % of the perimeter, opacity], all sharing one leading
+ *  edge: a faint full ring that lights the whole border, ten tail dashes (denser towards
+ *  the head) whose overlaps fade the tail smoothly, and last the head. */
+const EXPLORE_CUE_DASHES: [number, number][] = [
+  [100, 0.12],
+  ...Array.from({ length: 10 }, (_, k): [number, number] => [34 * ((k + 1) / 10) ** 1.5, 0.2]),
+  [0.8, 1],
+];
 function takeExploreCue(): boolean {
   try {
     const shown = Number(localStorage.getItem(EXPLORE_CUE_KEY) ?? 0);
@@ -2138,10 +2147,19 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
         try { localStorage.setItem(EXPLORE_CUE_KEY, String(EXPLORE_CUE_MAX)); } catch { /* ignore */ }
         onExploreCity(d.city as string);
       }}
-      className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl
+      className="relative w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl
                  bg-brand-500/10 hover:bg-brand-500/20 text-brand-600 dark:text-brand-400
-                 font-medium text-sm transition-colors border border-brand-500/20${exploreCuePno === d.pno ? ' explore-cue' : ''}`}
+                 font-medium text-sm transition-colors border border-brand-500/20"
     >
+      {exploreCuePno === d.pno && (
+        <svg className="explore-cue" aria-hidden="true">
+          {EXPLORE_CUE_DASHES.map(([len, opacity], i) => (
+            <rect key={i} width="100%" height="100%" rx="11.5" pathLength={100}
+              className={i === EXPLORE_CUE_DASHES.length - 1 ? 'explore-cue-head' : undefined}
+              strokeDasharray={`0 ${100 - len} ${len} 0`} opacity={opacity} />
+          ))}
+        </svg>
+      )}
       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
       </svg>
