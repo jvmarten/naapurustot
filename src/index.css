@@ -76,52 +76,53 @@ body,
   }
 }
 
-/* "Explore postal code areas" cue: a band of light glides across the button's outline
-   (and, faintly, its face) twice when a region panel opens, then the button rests.
-   NeighborhoodPanel adds the class only on the first few region panels and never again
-   once the button has been used — teach, then step aside. A sweep rather than a lap of
-   the perimeter: a conic "rotating border" on a ~7:1 button dwells on the long edges and
-   flickers round the ends. Both layers sit at z-index -1 inside the button's own stacking
-   context: above its background and border, below its icon and label. */
+/* "Explore postal code areas" cue: a glowing comet circles the button's border three
+   times when a region panel opens, then fades and the button rests. NeighborhoodPanel
+   renders it only on the first few region panels and never again once the button has
+   been used — teach, then step aside.
+   An SVG dash, not a rotating conic gradient: a conic's head moves at constant ANGLE,
+   which on a ~7:1 button crawls along the long edges and whips round the ends.
+   pathLength=100 makes the dash travel at constant speed whatever the button's width.
+   Each <rect> is one dash ending at the same leading edge (dasharray `0 100-L L 0`), so
+   the stacked overlaps build a tail that fades behind a solid head. The SVG spans the
+   border's centre line (-0.5px) so the 2px stroke sits on the 1px border. */
 .explore-cue {
-  position: relative;
-  isolation: isolate;
-}
-.explore-cue::before,
-.explore-cue::after {
-  content: '';
   position: absolute;
-  z-index: -1;
-  border-radius: inherit;
+  top: -0.5px;
+  left: -0.5px;
+  width: calc(100% + 1px);
+  height: calc(100% + 1px);
+  overflow: visible;
   pointer-events: none;
-  background-size: 250% 100%;
-  background-repeat: no-repeat;
-  animation: explore-cue-sweep 1.9s 0.55s 2 both;
+  color: #0c93e7;
+  filter: drop-shadow(0 0 3px currentColor);
+  animation: explore-cue-fade 7.2s 0.4s both;
 }
-/* Outline: the gradient masked down to a ring laid over the 1px border. */
-.explore-cue::before {
-  inset: -1px;
-  padding: 1.5px;
-  background-image: linear-gradient(100deg, transparent 40%, rgb(12 147 231 / 0.95) 50%, transparent 60%);
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
+.dark .explore-cue {
+  color: #7cc8fb;
 }
-.explore-cue::after {
-  inset: 0;
-  background-image: linear-gradient(100deg, transparent 38%, rgb(54 173 246 / 0.16) 50%, transparent 62%);
+.explore-cue rect {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2px;
+  animation: explore-cue-orbit 2.4s linear 0.4s 3 both;
 }
-.dark .explore-cue::before {
-  background-image: linear-gradient(100deg, transparent 40%, rgb(124 200 251 / 0.95) 50%, transparent 60%);
+/* Round caps only on the head: there they also paint the pattern's zero-length dash,
+   which sits exactly on the leading edge — on the tail dashes that would be a stray dot. */
+.explore-cue .explore-cue-head {
+  stroke-width: 3px;
+  stroke-linecap: round;
 }
-@keyframes explore-cue-sweep {
-  0% { background-position: 100% 0; animation-timing-function: cubic-bezier(0.45, 0, 0.25, 1); }
-  45%, 100% { background-position: 0% 0; }
+@keyframes explore-cue-orbit {
+  to { stroke-dashoffset: -100; }
+}
+@keyframes explore-cue-fade {
+  0% { opacity: 0; }
+  6%, 86% { opacity: 1; }
+  100% { opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .explore-cue::before,
-  .explore-cue::after {
-    animation: none;
+  .explore-cue {
     display: none;
   }
 }
