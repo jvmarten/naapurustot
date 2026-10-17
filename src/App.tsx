@@ -18,6 +18,7 @@ import { RegionSwitchPrompt, RegionChips } from './components/RegionSwitch';
 import { regionReducer, displayedRegions, regionKey, regionsViewport, averagesByRegion } from './utils/regionSet';
 import { getRegionOutlines, regionAt } from './utils/regionHit';
 import { setTooltipData } from './utils/tooltipStore';
+import { setMapHighlight } from './utils/mapHighlight';
 import { Legend } from './components/Legend';
 import { AreaHintPill } from './components/AreaHintPill';
 import { SettingsDropdown } from './components/SettingsDropdown';
@@ -3050,6 +3051,7 @@ const App: React.FC = () => {
               city={regionParam}
               scope={comparisonScope}
               selectedPno={selected?.pno ?? null}
+              onHoverArea={setMapHighlight}
             />
           </Suspense>
         </ErrorBoundary>

@@ -14,6 +14,7 @@ import { trackEvent } from '../utils/analytics';
 import { t, useI18nVersion } from '../utils/i18n';
 import { DEFAULT_CENTER, DEFAULT_ZOOM, MAP_MIN_ZOOM, MAP_MAX_ZOOM } from '../utils/mapConstants';
 import { queryFeaturesSafe, isStyleAlive } from '../utils/mapQuery';
+import { subscribeMapHighlight } from '../utils/mapHighlight';
 import { basemapStyleUrl, baseInsertBeforeId, carryDataLayers, BASEMAP_ATTRIBUTION } from '../utils/basemap';
 // CF-5 Phase D1: pre-baked boundary outlines of all 69 Finnish seutukunnat.
 import { loadRegionOutlines, getRegionOutlines, regionAt } from '../utils/regionHit';
@@ -1554,6 +1555,22 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   // theme is included because the data/theme effect destroys and recreates the source,
   // which clears all feature states — without this, the selection highlight is lost on theme change.
   }, [selectedPno, data, theme]);
+
+  // Ranking-list hover: light the row's area with the same feature-state a map hover
+  // uses. Subscribed outside React (utils/mapHighlight.ts) so a row hover re-renders
+  // nothing. The cursor can't be over the list and the map at once, but never clear a
+  // pno the map's own hover handler currently owns.
+  const listHoverIdRef = useRef<string | null>(null);
+  useEffect(() => subscribeMapHighlight((pno) => {
+    const map = mapRef.current;
+    if (!map || !isStyleAlive(map) || !map.getSource(SOURCE_ID)) return;
+    const prev = listHoverIdRef.current;
+    if (prev && prev !== hoveredIdRef.current) {
+      map.setFeatureState({ source: SOURCE_ID, id: prev }, { hover: false });
+    }
+    if (pno) map.setFeatureState({ source: SOURCE_ID, id: pno }, { hover: true });
+    listHoverIdRef.current = pno;
+  }), []);
 
   // Highlight pinned neighborhoods — uses setFilter on existing layer to avoid layer recreation.
   useEffect(() => {
