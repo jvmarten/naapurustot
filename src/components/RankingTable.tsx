@@ -23,6 +23,8 @@ interface RankingTableProps {
   /** QW-2: the currently selected area — its row is highlighted, badged and
    *  scrolled into view so "where does my area rank?" is answered at a glance. */
   selectedPno?: string | null;
+  /** Hovering a row reports its pno (null on leave) so the map can light that area. */
+  onHoverArea?: (pno: string | null) => void;
 }
 
 interface RankedItem {
@@ -35,7 +37,7 @@ interface RankedItem {
 
 // Removed hardcoded LOWER_IS_BETTER set — now uses layer.higherIsBetter from LayerConfig
 
-export const RankingTable: React.FC<RankingTableProps> = React.memo(({ data, activeLayer, layerConfig, onSelect, onClose, city, scope, selectedPno }) => {
+export const RankingTable: React.FC<RankingTableProps> = React.memo(({ data, activeLayer, layerConfig, onSelect, onClose, city, scope, selectedPno, onHoverArea }) => {
   useI18nVersion();
   // Prefer the rescaled config (region-comparison mode) so swatch colors match the
   // map fill and Legend; fall back to the base layer when none is provided.
@@ -106,6 +108,10 @@ export const RankingTable: React.FC<RankingTableProps> = React.memo(({ data, act
   React.useEffect(() => {
     selectedRowRef.current?.scrollIntoView({ block: 'center' });
   }, [selectedPno, items]);
+
+  // A row removed or the panel closed under the cursor never sees pointerleave —
+  // don't leave its area lit on the map.
+  React.useEffect(() => () => onHoverArea?.(null), [onHoverArea]);
 
   return (
     // DT-1: offset below the search bar (top-14 left-4) like FilterPanel — the
@@ -209,6 +215,10 @@ export const RankingTable: React.FC<RankingTableProps> = React.memo(({ data, act
               key={item.pno}
               ref={isSelected ? selectedRowRef : undefined}
               onClick={() => onSelect(item.pno, getFeatureCenter(item.feature))}
+              // Hovering a row lights its area on the map. Touch has no hover: a tap's
+              // pointerenter would only flash the ring ahead of the selection.
+              onPointerEnter={(e) => { if (e.pointerType !== 'touch') onHoverArea?.(item.pno); }}
+              onPointerLeave={() => onHoverArea?.(null)}
               aria-current={isSelected || undefined}
               className={`w-full text-left px-4 py-2 flex items-center gap-3
                          hover:bg-surface-100 dark:hover:bg-surface-800/60 transition-colors
