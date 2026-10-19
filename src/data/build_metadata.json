@@ -1,6 +1,6 @@
 {
-  "generated": "2026-08-17T18:17:24.230Z",
-  "source_hash": "e8839af18ae41b8d",
+  "generated": "2026-10-19T08:47:06.209Z",
+  "source_hash": "b21fc731758f11f9",
   "rows_total": 3018,
   "metrics": {
     "active_plan_count": {
@@ -85,7 +85,7 @@
     },
     "daycare_density": {
       "source": "OpenStreetMap",
-      "vintage": 2024,
+      "vintage": 2026,
       "granularity": "postal",
       "is_proxy": false,
       "row_count": 3018,
@@ -173,7 +173,7 @@
     },
     "grocery_density": {
       "source": "OpenStreetMap",
-      "vintage": 2024,
+      "vintage": 2026,
       "granularity": "postal",
       "is_proxy": false,
       "row_count": 3018,
@@ -205,7 +205,7 @@
     },
     "healthcare_density": {
       "source": "OpenStreetMap",
-      "vintage": 2024,
+      "vintage": 2026,
       "granularity": "postal",
       "is_proxy": false,
       "row_count": 3018,
@@ -485,7 +485,7 @@
     },
     "restaurant_density": {
       "source": "OpenStreetMap",
-      "vintage": 2024,
+      "vintage": 2026,
       "granularity": "postal",
       "is_proxy": false,
       "row_count": 3018,
@@ -493,7 +493,7 @@
     },
     "school_density": {
       "source": "OpenStreetMap",
-      "vintage": 2024,
+      "vintage": 2026,
       "granularity": "postal",
       "is_proxy": false,
       "row_count": 3018,
@@ -533,7 +533,7 @@
     },
     "sports_facility_density": {
       "source": "LIPAS (Jyväskylän yliopisto)",
-      "vintage": 2025,
+      "vintage": 2026,
       "granularity": "postal",
       "is_proxy": false,
       "row_count": 3018,

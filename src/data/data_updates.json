@@ -1,5 +1,53 @@
 [
   {
+    "date": "2026-10-19",
+    "metric": "daycare_density",
+    "type": "vintage",
+    "from": 2024,
+    "to": 2026,
+    "title": "daycare_density refreshed to 2026 vintage"
+  },
+  {
+    "date": "2026-10-19",
+    "metric": "grocery_density",
+    "type": "vintage",
+    "from": 2024,
+    "to": 2026,
+    "title": "grocery_density refreshed to 2026 vintage"
+  },
+  {
+    "date": "2026-10-19",
+    "metric": "healthcare_density",
+    "type": "vintage",
+    "from": 2024,
+    "to": 2026,
+    "title": "healthcare_density refreshed to 2026 vintage"
+  },
+  {
+    "date": "2026-10-19",
+    "metric": "restaurant_density",
+    "type": "vintage",
+    "from": 2024,
+    "to": 2026,
+    "title": "restaurant_density refreshed to 2026 vintage"
+  },
+  {
+    "date": "2026-10-19",
+    "metric": "school_density",
+    "type": "vintage",
+    "from": 2024,
+    "to": 2026,
+    "title": "school_density refreshed to 2026 vintage"
+  },
+  {
+    "date": "2026-10-19",
+    "metric": "sports_facility_density",
+    "type": "vintage",
+    "from": 2025,
+    "to": 2026,
+    "title": "sports_facility_density refreshed to 2026 vintage"
+  },
+  {
     "date": "2026-07-27",
     "metric": "air_quality_index",
     "type": "vintage",

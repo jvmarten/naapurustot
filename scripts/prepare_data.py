@@ -1407,16 +1407,21 @@ def _assign_poi_density(gdf, counts: dict, density_key: str, count_key: str | No
                 gdf.at[idx, count_key] = None
 
 
+# The five service queries below ask for `nwr` — nodes, ways AND relations — with
+# `out center`. A facility's grounds drawn as a multipolygon is a relation, and
+# asking only for node+way silently drops it: 02620 Karakallio (8,783 residents)
+# shipped "0 schools" because Rastaalan koulu is relation 20290074. Restaurants
+# were nodes-only and groceries took ways only for supermarkets, so any café or
+# corner shop drawn as a building outline was invisible too.
+# See scripts/services_recount_2026_10.py.
 def fetch_osm_daycares():
     """Fetch daycare/kindergarten locations from OSM."""
     logger.info("Fetching daycare data from OpenStreetMap...")
     query = """
     [out:json][timeout:60];
     (
-      node["amenity"="kindergarten"]({BBOX});
-      way["amenity"="kindergarten"]({BBOX});
-      node["amenity"="childcare"]({BBOX});
-      way["amenity"="childcare"]({BBOX});
+      nwr["amenity"="kindergarten"]({BBOX});
+      nwr["amenity"="childcare"]({BBOX});
     );
     out center;
     """
@@ -1457,8 +1462,7 @@ def fetch_osm_schools():
     query = """
     [out:json][timeout:60];
     (
-      node["amenity"="school"]({BBOX});
-      way["amenity"="school"]({BBOX});
+      nwr["amenity"="school"]({BBOX});
     );
     out center;
     """
@@ -1499,14 +1503,10 @@ def fetch_osm_healthcare():
     query = """
     [out:json][timeout:60];
     (
-      node["amenity"="hospital"]({BBOX});
-      way["amenity"="hospital"]({BBOX});
-      node["amenity"="clinic"]({BBOX});
-      way["amenity"="clinic"]({BBOX});
-      node["amenity"="doctors"]({BBOX});
-      way["amenity"="doctors"]({BBOX});
-      node["healthcare"]({BBOX});
-      way["healthcare"]({BBOX});
+      nwr["amenity"="hospital"]({BBOX});
+      nwr["amenity"="clinic"]({BBOX});
+      nwr["amenity"="doctors"]({BBOX});
+      nwr["healthcare"]({BBOX});
     );
     out center;
     """
@@ -1547,12 +1547,12 @@ def fetch_osm_restaurants():
     query = """
     [out:json][timeout:60];
     (
-      node["amenity"="restaurant"]({BBOX});
-      node["amenity"="cafe"]({BBOX});
-      node["amenity"="bar"]({BBOX});
-      node["amenity"="fast_food"]({BBOX});
+      nwr["amenity"="restaurant"]({BBOX});
+      nwr["amenity"="cafe"]({BBOX});
+      nwr["amenity"="bar"]({BBOX});
+      nwr["amenity"="fast_food"]({BBOX});
     );
-    out;
+    out center;
     """
     return _overpass_query_all_regions(query, "OSM restaurants")
 
@@ -1570,8 +1570,8 @@ def join_restaurants(gdf, elements):
 
     counts = {}
     for el in elements:
-        lat = el.get("lat")
-        lon = el.get("lon")
+        lat = el.get("lat") or (el.get("center", {}) or {}).get("lat")
+        lon = el.get("lon") or (el.get("center", {}) or {}).get("lon")
         if lat is None or lon is None:
             continue
         point = Point(float(lon), float(lat))
@@ -1591,10 +1591,9 @@ def fetch_osm_groceries():
     query = """
     [out:json][timeout:60];
     (
-      node["shop"="supermarket"]({BBOX});
-      way["shop"="supermarket"]({BBOX});
-      node["shop"="convenience"]({BBOX});
-      node["shop"="grocery"]({BBOX});
+      nwr["shop"="supermarket"]({BBOX});
+      nwr["shop"="convenience"]({BBOX});
+      nwr["shop"="grocery"]({BBOX});
     );
     out center;
     """
