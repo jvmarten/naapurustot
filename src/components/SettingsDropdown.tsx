@@ -9,19 +9,6 @@ import type { ColorblindType } from '../utils/colorScales';
 import { QUALITY_SCALE_MODES, type QualityScaleMode } from '../utils/qualityScale';
 import { LanguagePicker } from './LanguagePicker';
 
-/** Format the build timestamp as a localized month + year (e.g. "May 2026"). */
-function formatBuildDate(iso: string | undefined, lang: Lang): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return '';
-  const locale = lang === 'fi' ? 'fi-FI' : lang === 'sv' ? 'sv-SE' : 'en-GB';
-  try {
-    return d.toLocaleDateString(locale, { year: 'numeric', month: 'long' });
-  } catch {
-    return iso.slice(0, 7);
-  }
-}
-
 interface SettingsDropdownProps {
   colorblind: ColorblindType;
   onColorblindChange: (mode: ColorblindType) => void;
@@ -534,17 +521,6 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
                 </button>
               </div>
             </div>
-          )}
-
-          {/* PO-6 / QW-1: Data freshness indicator — build-derived (inlined via the
-              __BUILD_DATE__ define so the full build_metadata.json stays out of the bundle). */}
-          {formatBuildDate(__BUILD_DATE__, lang) && (
-            <>
-              <div className="border-t border-surface-100 dark:border-surface-700/40 my-1" />
-              <div className="px-4 py-2 text-[10px] text-surface-500 dark:text-surface-400">
-                {t('data.last_updated')}: {formatBuildDate(__BUILD_DATE__, lang)}
-              </div>
-            </>
           )}
         </div>
       )}

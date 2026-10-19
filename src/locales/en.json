@@ -212,7 +212,6 @@
   "custom_quality.title": "Customize Quality Index",
   "data.estimate": "Estimate",
   "data.estimate_desc": "This value is a model-based estimate, not a direct measurement.",
-  "data.last_updated": "Site updated",
   "data.subregion_estimate": "Sub-region estimate",
   "data.subregion_estimate_desc": "No price data for this area. Showing the {region} sub-region average.",
   "donate.button": "Support this project",
