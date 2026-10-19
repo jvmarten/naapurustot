@@ -212,7 +212,6 @@
   "custom_quality.title": "Muokkaa laatuindeksiä",
   "data.estimate": "Arvio",
   "data.estimate_desc": "Tämä arvo on mallinnettu arvio, ei suora mittaus.",
-  "data.last_updated": "Sivusto päivitetty",
   "data.subregion_estimate": "Seutuarvio",
   "data.subregion_estimate_desc": "Tältä alueelta ei ole omaa hintatietoa. Näytetään seutukunnan {region} keskiarvo.",
   "donate.button": "Tue projektia",

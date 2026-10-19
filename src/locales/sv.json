@@ -212,7 +212,6 @@
   "custom_quality.title": "Anpassa kvalitetsindex",
   "data.estimate": "Uppskattning",
   "data.estimate_desc": "Det här värdet är en modellbaserad uppskattning, inte en direkt mätning.",
-  "data.last_updated": "Webbplats uppdaterad",
   "data.subregion_estimate": "Regionuppskattning",
   "data.subregion_estimate_desc": "Inga prisuppgifter för detta område. Visar genomsnittet för regionen {region}.",
   "donate.button": "Stöd projektet",
