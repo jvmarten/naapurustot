@@ -41,7 +41,13 @@ def main():
         values = {str(k): v for k, v in json.load(f).items()}
 
     with open(GEOJSON, encoding="utf-8") as f:
+        head = f.read(32)
+        f.seek(0)
         data = json.load(f)
+    # The file has been written both ways: compact by GDAL/fiona, and with
+    # Python's default json.dump by the honesty scripts (services_honesty_2026_08
+    # and later). Keep whichever it is now, or one property becomes a 44 MB diff.
+    default_format = head.startswith('{"type": ')
 
     matched = 0
     for feat in data["features"]:
@@ -54,7 +60,10 @@ def main():
             props[args.property] = None
 
     with open(GEOJSON, "w", encoding="utf-8") as f:
-        json.dump(data, f, separators=(",", ":"), ensure_ascii=False)
+        if default_format:
+            json.dump(data, f)
+        else:
+            json.dump(data, f, separators=(",", ":"), ensure_ascii=False)
 
     print(f"Injected '{args.property}': {matched}/{len(data['features'])} features matched "
           f"({'merge' if args.merge else 'full-replace'} mode)")

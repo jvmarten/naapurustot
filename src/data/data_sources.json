@@ -314,7 +314,7 @@
     "restaurant_density": {
       "source": "OpenStreetMap",
       "publisher": "osm",
-      "vintage": 2024,
+      "vintage": 2026,
       "granularity": "postal",
       "is_proxy": false,
       "note": "note.osm_service_density"
@@ -322,7 +322,7 @@
     "grocery_density": {
       "source": "OpenStreetMap",
       "publisher": "osm",
-      "vintage": 2024,
+      "vintage": 2026,
       "granularity": "postal",
       "is_proxy": false,
       "note": "note.osm_service_density"
@@ -330,7 +330,7 @@
     "daycare_density": {
       "source": "OpenStreetMap",
       "publisher": "osm",
-      "vintage": 2024,
+      "vintage": 2026,
       "granularity": "postal",
       "is_proxy": false,
       "note": "note.osm_service_density"
@@ -338,7 +338,7 @@
     "school_density": {
       "source": "OpenStreetMap",
       "publisher": "osm",
-      "vintage": 2024,
+      "vintage": 2026,
       "granularity": "postal",
       "is_proxy": false,
       "note": "note.osm_service_density"
@@ -346,7 +346,7 @@
     "healthcare_density": {
       "source": "OpenStreetMap",
       "publisher": "osm",
-      "vintage": 2024,
+      "vintage": 2026,
       "granularity": "postal",
       "is_proxy": false,
       "note": "note.osm_service_density"
@@ -354,7 +354,7 @@
     "sports_facility_density": {
       "source": "LIPAS (Jyväskylän yliopisto)",
       "publisher": "lipas",
-      "vintage": 2025,
+      "vintage": 2026,
       "granularity": "postal",
       "is_proxy": false
     },

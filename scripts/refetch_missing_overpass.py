@@ -47,10 +47,9 @@ LAYERS = {
         "query": """
     [out:json][timeout:60];
     (
-      node["shop"="supermarket"]({BBOX});
-      way["shop"="supermarket"]({BBOX});
-      node["shop"="convenience"]({BBOX});
-      node["shop"="grocery"]({BBOX});
+      nwr["shop"="supermarket"]({BBOX});
+      nwr["shop"="convenience"]({BBOX});
+      nwr["shop"="grocery"]({BBOX});
     );
     out center;
     """,
@@ -60,10 +59,8 @@ LAYERS = {
         "query": """
     [out:json][timeout:60];
     (
-      node["amenity"="kindergarten"]({BBOX});
-      way["amenity"="kindergarten"]({BBOX});
-      node["amenity"="childcare"]({BBOX});
-      way["amenity"="childcare"]({BBOX});
+      nwr["amenity"="kindergarten"]({BBOX});
+      nwr["amenity"="childcare"]({BBOX});
     );
     out center;
     """,
@@ -73,8 +70,7 @@ LAYERS = {
         "query": """
     [out:json][timeout:60];
     (
-      node["amenity"="school"]({BBOX});
-      way["amenity"="school"]({BBOX});
+      nwr["amenity"="school"]({BBOX});
     );
     out center;
     """,
@@ -84,14 +80,10 @@ LAYERS = {
         "query": """
     [out:json][timeout:60];
     (
-      node["amenity"="hospital"]({BBOX});
-      way["amenity"="hospital"]({BBOX});
-      node["amenity"="clinic"]({BBOX});
-      way["amenity"="clinic"]({BBOX});
-      node["amenity"="doctors"]({BBOX});
-      way["amenity"="doctors"]({BBOX});
-      node["healthcare"]({BBOX});
-      way["healthcare"]({BBOX});
+      nwr["amenity"="hospital"]({BBOX});
+      nwr["amenity"="clinic"]({BBOX});
+      nwr["amenity"="doctors"]({BBOX});
+      nwr["healthcare"]({BBOX});
     );
     out center;
     """,
@@ -101,12 +93,12 @@ LAYERS = {
         "query": """
     [out:json][timeout:60];
     (
-      node["amenity"="restaurant"]({BBOX});
-      node["amenity"="cafe"]({BBOX});
-      node["amenity"="bar"]({BBOX});
-      node["amenity"="fast_food"]({BBOX});
+      nwr["amenity"="restaurant"]({BBOX});
+      nwr["amenity"="cafe"]({BBOX});
+      nwr["amenity"="bar"]({BBOX});
+      nwr["amenity"="fast_food"]({BBOX});
     );
-    out;
+    out center;
     """,
     },
     "cycling": {
