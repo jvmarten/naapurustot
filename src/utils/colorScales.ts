@@ -511,14 +511,16 @@ export const LAYERS: LayerConfig[] = [
   // (0.5, 1, 2, ... ) predated the rounding fix and assumed urban-scale
   // densities: only 3-8 % of postal areas reached even the first stop, so
   // 92-97 % of the country shared one flat colour and the top two stops were
-  // unreachable nationally. See scripts/services_honesty_2026_08.py.
+  // unreachable nationally. See scripts/services_honesty_2026_08.py. Daycare and
+  // school stops were re-derived the same way in 2026-10, when both layers moved
+  // from OSM to the national registers (scripts/fetch_education_registers.py).
   {
     id: 'daycare_density',
     labelKey: 'layer.daycare_density',
     property: 'daycare_density',
     unit: '/km²',
     colors: ['#f7fbff', '#deebf7', '#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#084594'],
-    stops: [0.007, 0.02, 0.05, 0.15, 0.4, 0.8, 1.5, 4],
+    stops: [0.006, 0.015, 0.03, 0.065, 0.25, 0.65, 1.4, 3.4],
     format: density,
   },
   {
@@ -527,7 +529,7 @@ export const LAYERS: LayerConfig[] = [
     property: 'school_density',
     unit: '/km²',
     colors: ['#f7fbff', '#deebf7', '#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#084594'],
-    stops: [0.006, 0.01, 0.02, 0.035, 0.09, 0.25, 0.75, 2],
+    stops: [0.005, 0.01, 0.02, 0.03, 0.08, 0.25, 0.55, 1.35],
     format: density,
   },
   {

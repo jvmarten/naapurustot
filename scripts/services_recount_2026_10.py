@@ -94,11 +94,11 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPT_DIR.parent
 GEOJSON = ROOT / "public" / "data" / "metro_neighborhoods.geojson"
 
-# layer -> (density property, count property)
+# layer -> (density property, count property). Schools and daycares were recounted
+# here too, then moved to the national registers the same month
+# (scripts/fetch_education_registers.py); a re-run must not overwrite them with OSM.
 LAYERS = {
     "grocery": ("grocery_density", "grocery_count"),
-    "school": ("school_density", "school_count"),
-    "daycare": ("daycare_density", "daycare_count"),
     "healthcare": ("healthcare_density", "healthcare_count"),
     "restaurant": ("restaurant_density", "restaurant_count"),
 }
@@ -231,8 +231,9 @@ def main() -> int:
         for ci in tree.query(pt):
             if geoms[ci].contains(pt):
                 for layer in p["layers"]:
-                    c = counts[layer]
-                    c[pnos[ci]] = c.get(pnos[ci], 0) + 1
+                    if layer in counts:
+                        c = counts[layer]
+                        c[pnos[ci]] = c.get(pnos[ci], 0) + 1
                 break
 
     rescued = {layer: 0 for layer in LAYERS}

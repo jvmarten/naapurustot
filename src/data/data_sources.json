@@ -30,6 +30,11 @@
       "url": "https://www.poliisi.fi/",
       "license": "CC BY 4.0"
     },
+    "oph": {
+      "name": "Opetushallitus (Opintopolku, Varda)",
+      "url": "https://opintopolku.fi/",
+      "license": "Avoin rajapinta (Opetushallitus)"
+    },
     "osm": {
       "name": "OpenStreetMap",
       "url": "https://www.openstreetmap.org/copyright",
@@ -328,20 +333,20 @@
       "note": "note.osm_service_density"
     },
     "daycare_density": {
-      "source": "OpenStreetMap",
-      "publisher": "osm",
+      "source": "Varda – varhaiskasvatuksen tietovaranto (Opetushallitus)",
+      "publisher": "oph",
       "vintage": 2026,
       "granularity": "postal",
       "is_proxy": false,
-      "note": "note.osm_service_density"
+      "note": "note.daycare_register"
     },
     "school_density": {
-      "source": "OpenStreetMap",
-      "publisher": "osm",
+      "source": "Opintopolku – oppilaitosrekisteri (Opetushallitus)",
+      "publisher": "oph",
       "vintage": 2026,
       "granularity": "postal",
       "is_proxy": false,
-      "note": "note.osm_service_density"
+      "note": "note.school_register"
     },
     "healthcare_density": {
       "source": "OpenStreetMap",

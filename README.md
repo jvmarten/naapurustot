@@ -178,7 +178,9 @@ All map data is produced by the Python pipeline in `scripts/` and baked into sta
 | Helsinki Region Travel Time Matrix (Zenodo) | Transit reachability (Helsinki; regression-based proxy elsewhere) | CC BY 4.0 |
 | [HSY](https://www.hsy.fi/) / FMI ENFUSER + SILAM | Air quality (station + grid, nationwide model fill), tree canopy LiDAR (Helsinki) | CC BY 4.0 |
 | Copernicus HRL | Tree canopy outside Helsinki | free |
-| [OpenStreetMap](https://www.openstreetmap.org/) (Overpass) | Restaurants, groceries, healthcare, schools, daycares, cycling, EV charging, green space, water proximity | ODbL |
+| [OpenStreetMap](https://www.openstreetmap.org/) (Overpass) | Restaurants, groceries, healthcare, cycling, EV charging, green space, water proximity | ODbL |
+| [Opintopolku](https://opintopolku.fi/) / Varda (Opetushallitus) | Schools (comprehensive + upper secondary) and daycare centres, from the national registers | Open API |
+| [Ryhti](https://www.syke.fi/ryhti) (SYKE) | Building addresses — locates register schools and daycares | CC BY 4.0 |
 | Poliisi (via PxWeb) | Crime index (municipality-level, distributed to postal codes — flagged as proxy) | CC BY 4.0 |
 | [Traficom](https://www.traficom.fi/) | Broadband coverage | CC BY 4.0 |
 | [Väylävirasto](https://vayla.fi/) | Traffic accidents | CC BY 4.0 |
