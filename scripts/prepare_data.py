@@ -197,6 +197,14 @@ TRANSIT_REACHABILITY_FILE = Path(__file__).parent / "transit_reachability.json"
 # LIPAS sports facility density (facilities/km²)
 SPORTS_FACILITY_FILE = Path(__file__).parent / "sports_facility_density.json"
 
+# Schools (Opintopolku) and daycare centres (Varda), one row per unit with the
+# postal area it was placed in — written by scripts/fetch_education_registers.py.
+EDUCATION_REGISTERS_FILE = Path(__file__).parent / "education_registers.json"
+# Varda does not cover Åland (early education there is Åland's own legislation).
+ALAND_MUNICIPALITIES = (REGION_MUNICIPALITY_CODES["mariehamns_stad"]
+                        | REGION_MUNICIPALITY_CODES["alands_landsbygd"]
+                        | REGION_MUNICIPALITY_CODES["alands_skargard"])
+
 # --- Phase 9: Real open data layers ---
 
 # Statistics Finland rental prices. NOTE: the postal-code-level rent table
@@ -1407,96 +1415,43 @@ def _assign_poi_density(gdf, counts: dict, density_key: str, count_key: str | No
                 gdf.at[idx, count_key] = None
 
 
-# The five service queries below ask for `nwr` — nodes, ways AND relations — with
-# `out center`. A facility's grounds drawn as a multipolygon is a relation, and
-# asking only for node+way silently drops it: 02620 Karakallio (8,783 residents)
-# shipped "0 schools" because Rastaalan koulu is relation 20290074. Restaurants
-# were nodes-only and groceries took ways only for supermarkets, so any café or
-# corner shop drawn as a building outline was invisible too.
+def join_education_registers(gdf, data: dict):
+    """school_count / daycare_count and their densities from the national registers.
+
+    Schools come from Opintopolku (comprehensive and upper-secondary schools) and
+    daycare centres from Varda, each already placed in a postal area by
+    scripts/fetch_education_registers.py — see its docstring for why these two
+    layers left OpenStreetMap. Varda does not cover Åland, so its postal areas get
+    no daycare value rather than a measured-looking zero.
+    """
+    units = (data or {}).get("units") or []
+    if not units:
+        logger.warning("  No education register data — school/daycare columns will be null")
+        for key in ("school_density", "school_count", "daycare_density", "daycare_count"):
+            gdf[key] = None
+        return gdf
+
+    for layer, density_key, count_key in (("school", "school_density", "school_count"),
+                                          ("daycare", "daycare_density", "daycare_count")):
+        counts: dict = {}
+        for u in units:
+            if u.get("layer") == layer and u.get("pno"):
+                counts[u["pno"]] = counts.get(u["pno"], 0) + 1
+        _assign_poi_density(gdf, counts, density_key, count_key)
+        logger.info("  %s: %s units in %s postal codes", layer, sum(counts.values()), len(counts))
+
+    aland = gdf["kunta"].isin(ALAND_MUNICIPALITIES)
+    gdf.loc[aland, ["daycare_density", "daycare_count"]] = None
+    return gdf
+
+
+# The three OSM service queries below ask for `nwr` — nodes, ways AND relations —
+# with `out center`. A facility's grounds drawn as a multipolygon is a relation,
+# and asking only for node+way silently dropped it (02620 Karakallio shipped "0
+# schools" that way while schools still came from OSM). Restaurants were
+# nodes-only and groceries took ways only for supermarkets, so any café or corner
+# shop drawn as a building outline was invisible too.
 # See scripts/services_recount_2026_10.py.
-def fetch_osm_daycares():
-    """Fetch daycare/kindergarten locations from OSM."""
-    logger.info("Fetching daycare data from OpenStreetMap...")
-    query = """
-    [out:json][timeout:60];
-    (
-      nwr["amenity"="kindergarten"]({BBOX});
-      nwr["amenity"="childcare"]({BBOX});
-    );
-    out center;
-    """
-    return _overpass_query_all_regions(query, "OSM daycares")
-
-
-def join_daycares(gdf, elements):
-    """Calculate daycare density per postal code area."""
-    if not elements:
-        gdf["daycare_density"] = None
-        return gdf
-
-    logger.info("Joining daycare data...")
-    from shapely.geometry import Point
-
-    tree, geoms, valid_rows = _build_spatial_index(gdf)
-
-    counts = {}
-    for el in elements:
-        lat = el.get("lat") or (el.get("center", {}) or {}).get("lat")
-        lon = el.get("lon") or (el.get("center", {}) or {}).get("lon")
-        if lat is None or lon is None:
-            continue
-        point = Point(float(lon), float(lat))
-        pno = _point_to_pno(point, tree, geoms, valid_rows)
-        if pno is not None:
-            counts[pno] = counts.get(pno, 0) + 1
-
-    _assign_poi_density(gdf, counts, "daycare_density", "daycare_count")
-
-    logger.info("  Computed daycare density for %s postal codes", len(counts))
-    return gdf
-
-
-def fetch_osm_schools():
-    """Fetch school locations from OSM."""
-    logger.info("Fetching school data from OpenStreetMap...")
-    query = """
-    [out:json][timeout:60];
-    (
-      nwr["amenity"="school"]({BBOX});
-    );
-    out center;
-    """
-    return _overpass_query_all_regions(query, "OSM schools")
-
-
-def join_schools(gdf, elements):
-    """Calculate school density per postal code area."""
-    if not elements:
-        gdf["school_density"] = None
-        return gdf
-
-    logger.info("Joining school data...")
-    from shapely.geometry import Point
-
-    tree, geoms, valid_rows = _build_spatial_index(gdf)
-
-    counts = {}
-    for el in elements:
-        lat = el.get("lat") or (el.get("center", {}) or {}).get("lat")
-        lon = el.get("lon") or (el.get("center", {}) or {}).get("lon")
-        if lat is None or lon is None:
-            continue
-        point = Point(float(lon), float(lat))
-        pno = _point_to_pno(point, tree, geoms, valid_rows)
-        if pno is not None:
-            counts[pno] = counts.get(pno, 0) + 1
-
-    _assign_poi_density(gdf, counts, "school_density", "school_count")
-
-    logger.info("  Computed school density for %s postal codes", len(counts))
-    return gdf
-
-
 def fetch_osm_healthcare():
     """Fetch healthcare facility locations from OSM."""
     logger.info("Fetching healthcare data from OpenStreetMap...")
@@ -2782,14 +2737,11 @@ def main():
     aq_data = fetch_air_quality()
     gdf = join_air_quality(gdf, aq_data)
 
-    # --- Phase 3: OSM-based data sources ---
-    _rate_limit()
-    daycare_data = fetch_osm_daycares()
-    gdf = join_daycares(gdf, daycare_data)
-
-    _rate_limit()
-    school_data = fetch_osm_schools()
-    gdf = join_schools(gdf, school_data)
+    # --- Phase 3: service counts ---
+    # Schools and daycare centres: the national registers (run
+    # scripts/fetch_education_registers.py first; data-refresh.yml does).
+    education = _load_json_data(EDUCATION_REGISTERS_FILE, "education registers")
+    gdf = join_education_registers(gdf, education)
 
     _rate_limit()
     healthcare_data = fetch_osm_healthcare()

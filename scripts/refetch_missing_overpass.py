@@ -54,27 +54,6 @@ LAYERS = {
     out center;
     """,
     },
-    "daycares": {
-        "label": "OSM daycares",
-        "query": """
-    [out:json][timeout:60];
-    (
-      nwr["amenity"="kindergarten"]({BBOX});
-      nwr["amenity"="childcare"]({BBOX});
-    );
-    out center;
-    """,
-    },
-    "schools": {
-        "label": "OSM schools",
-        "query": """
-    [out:json][timeout:60];
-    (
-      nwr["amenity"="school"]({BBOX});
-    );
-    out center;
-    """,
-    },
     "healthcare": {
         "label": "OSM healthcare",
         "query": """

@@ -1,6 +1,6 @@
 {
-  "generated": "2026-10-19T08:47:06.209Z",
-  "source_hash": "b21fc731758f11f9",
+  "generated": "2026-10-19T11:04:38.368Z",
+  "source_hash": "0410879182c73428",
   "rows_total": 3018,
   "metrics": {
     "active_plan_count": {
@@ -84,12 +84,12 @@
       "coverage_pct": 100
     },
     "daycare_density": {
-      "source": "OpenStreetMap",
+      "source": "Varda – varhaiskasvatuksen tietovaranto (Opetushallitus)",
       "vintage": 2026,
       "granularity": "postal",
       "is_proxy": false,
-      "row_count": 3018,
-      "coverage_pct": 100
+      "row_count": 2986,
+      "coverage_pct": 98.9
     },
     "detached_house_share": {
       "source": "Tilastokeskus (Paavo)",
@@ -492,7 +492,7 @@
       "coverage_pct": 100
     },
     "school_density": {
-      "source": "OpenStreetMap",
+      "source": "Opintopolku – oppilaitosrekisteri (Opetushallitus)",
       "vintage": 2026,
       "granularity": "postal",
       "is_proxy": false,

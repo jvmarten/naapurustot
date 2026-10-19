@@ -41,6 +41,20 @@ jobs:
       - name: Install Node dependencies
         run: npm ci
 
+      # prepare_data.py reads these two from committed intermediates rather than
+      # fetching them itself, so without these steps they refresh only when someone
+      # remembers to — which is how sports_facility_density sat on a truncated LIPAS
+      # walk at 1 decimal until 2026-10. Both scripts raise before writing on any
+      # partial fetch, so a failure here leaves the last complete snapshot in place
+      # instead of blocking the rest of the quarterly refresh.
+      - name: Fetch school and daycare registers
+        continue-on-error: true
+        run: python scripts/fetch_education_registers.py
+
+      - name: Fetch LIPAS sports facilities
+        continue-on-error: true
+        run: python scripts/fetch_lipas.py
+
       - name: Run data pipeline
         run: python scripts/prepare_data.py
 

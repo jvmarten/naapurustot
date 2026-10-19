@@ -2,6 +2,14 @@
   {
     "date": "2026-10-19",
     "metric": "daycare_density",
+    "type": "coverage",
+    "from": 100,
+    "to": 98.9,
+    "title": "daycare_density coverage changed to 98.9%"
+  },
+  {
+    "date": "2026-10-19",
+    "metric": "daycare_density",
     "type": "vintage",
     "from": 2024,
     "to": 2026,
