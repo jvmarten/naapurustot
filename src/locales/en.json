@@ -757,6 +757,7 @@
   "panel.light_pollution": "Light Pollution (nW/cm²/sr)",
   "panel.manufacturing_jobs": "Manufacturing (%)",
   "panel.median_income": "Median Income",
+  "panel.more_actions": "More actions",
   "panel.neighbors": "Neighboring areas",
   "panel.neighbors_chip_title": "Fly to {name}",
   "panel.neighbors_help": "Bordering areas, cheapest €/m² first.",

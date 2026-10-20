@@ -92,8 +92,8 @@ test.describe('pin neighborhoods and comparison panel', () => {
     const panelHeading = page.locator('.hidden.md\\:block.absolute h2').first();
     await expect(panelHeading).toBeVisible({ timeout: 10000 });
 
-    // The pin button should be visible with text "Lisää vertailuun" (Add to comparison)
-    const pinButton = page.locator('text=Lisää vertailuun').first();
+    // The pin button is a ⊕ icon beside the area name, titled "Lisää vertailuun" (Add to comparison)
+    const pinButton = page.locator('.hidden.md\\:block.absolute').getByTitle('Lisää vertailuun');
     await expect(pinButton).toBeVisible({ timeout: 3000 });
   });
 });

@@ -734,8 +734,8 @@ const App: React.FC = () => {
     if (data) return buildMetroAreaFeatures(data.features);
     if (aggregates) return buildMetroAreaFeaturesFromAggregates(aggregates.regions, aggregates.qualityCohort);
     return null;
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- lang triggers rebuild so metro area names respect language; unionReady signals the pre-baked region outlines fetch resolved; qualityVersion signals in-place data mutation
-  }, [data, aggregates, cityFilter, lang, unionReady, qualityVersion]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- i18nVersion triggers rebuild so region names follow the language: it bumps on a switch AND when the lazy en/sv dictionary lands (keying on `lang` alone left a non-Finnish first load with the Finnish fallback names for good); unionReady signals the pre-baked region outlines fetch resolved; qualityVersion signals in-place data mutation
+  }, [data, aggregates, cityFilter, i18nVersion, unionReady, qualityVersion]);
 
   const filteredData = cityFilter === 'all' ? allCitiesData : singleCityData;
 
