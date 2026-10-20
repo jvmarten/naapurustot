@@ -1008,6 +1008,29 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
   const [pinToast, setPinToast] = useState(false);
   const pinToastTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   React.useEffect(() => () => clearTimeout(pinToastTimerRef.current), []);
+  // The header's "more" menu (copy link, shortlist, reference, exports). Closes on a
+  // pointerdown outside any [data-panel-menu] element, and on Escape — which is
+  // stopped here so the global Escape handler doesn't also close the whole panel.
+  const [menuOpen, setMenuOpen] = useState(false);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e: PointerEvent) => {
+      if (!(e.target as Element).closest?.('[data-panel-menu]')) setMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.stopPropagation(); setMenuOpen(false); }
+    };
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen]);
+  // Region names are localized when the region features are built, so a panel opened
+  // before the lazy en/sv dictionary landed (or across a language switch) holds the
+  // Finnish name in its snapshot — resolve it from the live dictionary instead.
+  const name = d._isMetroArea ? t(`city.${d.pno}`) : d.nimi;
   const handleCopyLink = useCallback(async () => {
     trackEvent('share-link');
     const url = window.location.href;
@@ -1017,7 +1040,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
       try {
         await navigator.share({
           title: t('share.title'),
-          text: t('share.text').replace('{name}', d.nimi ?? d.pno),
+          text: t('share.text').replace('{name}', name ?? d.pno),
           url,
         });
         return; // Native share sheet handled it
@@ -1043,7 +1066,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
     } catch {
       setCopyFallbackUrl(url);
     }
-  }, [d.nimi, d.pno]);
+  }, [name, d.pno]);
 
   // QW-3: Bottom sheet state (mobile only) — uses shared useBottomSheet hook
   const sheetRef = useRef<HTMLDivElement>(null);
@@ -1119,11 +1142,14 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
     tablistRef.current?.querySelector<HTMLButtonElement>(`#section-tab-${next}`)?.focus();
   }, [activeSection, setActiveSection, MOBILE_SECTIONS.length]);
 
+  // The header's icon buttons: 44 px touch targets on mobile, compact on desktop.
+  const iconBtn = `p-1.5 rounded-lg transition-colors min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 flex items-center justify-center flex-shrink-0
+        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-surface-950`;
+
   const favoriteButton = onToggleFavorite && (
     <button
       onClick={() => { trackEvent(isFavorite ? 'unfavorite' : 'favorite'); onToggleFavorite(); }}
-      className={`p-1.5 rounded-lg transition-colors min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 flex items-center justify-center
-        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-surface-950 ${
+      className={`${iconBtn} ${
         isFavorite
           ? 'text-amber-500 hover:text-amber-600'
           : 'text-surface-400 hover:text-amber-500'
@@ -1141,39 +1167,11 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
   const refActive = !!referencePno && !!referenceName && referencePno !== d.pno;
   const vsLabel = refActive ? t('panel.vs_reference').replace('{ref}', referenceName as string) : null;
 
-  const referenceButton = onSetReference && !d._isMetroArea && (
-    <button
-      onClick={() => onSetReference(isReference ? null : d.pno)}
-      className={`p-1.5 rounded-lg transition-colors min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 flex items-center justify-center
-        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-surface-950 ${
-        isReference ? 'text-brand-600 hover:text-brand-600' : 'text-surface-400 hover:text-brand-600'
-      }`}
-      title={isReference ? t('panel.clear_reference') : t('panel.set_reference')}
-    >
-      <svg className="w-5 h-5" fill={isReference ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-      </svg>
-    </button>
-  );
-
-  const shortlistButton = onToggleShortlist && (
-    <button
-      onClick={() => { trackEvent(isInShortlist ? 'shortlist-remove' : 'shortlist-add'); onToggleShortlist(); }}
-      className={`p-1.5 rounded-lg transition-colors min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 flex items-center justify-center
-        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-surface-950 ${
-        isInShortlist ? 'text-brand-600 hover:text-brand-600' : 'text-surface-400 hover:text-brand-600'
-      }`}
-      title={isInShortlist ? t('shortlist.remove') : t('shortlist.add')}
-    >
-      <svg className="w-5 h-5" fill={isInShortlist ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
-      </svg>
-    </button>
-  );
-
   // C9: at the cap, keep the greyed/not-allowed look but DON'T set `disabled` — a
   // disabled button swallows the tap on touch, making a full-cap tap a silent
   // no-op. Instead handle the capped tap in onClick and surface a brief toast.
+  // A ⊕ beside the name (✓ once pinned) — the full-width "Add to comparison" button
+  // it replaces held the row the explore button now sits in.
   const pinCapped = !isPinned && pinCount >= 3;
   const pinButton = onPin && (
     <button
@@ -1187,17 +1185,18 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
         trackEvent(isPinned ? 'unpin-compare' : 'pin-compare');
         if (isPinned && onUnpin) { onUnpin(d.pno); } else { onPin(d); }
       }}
-      className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors min-h-[44px] md:min-h-0
-        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-surface-950 ${
+      className={`${iconBtn} ${
         isPinned
-          ? 'bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 hover:bg-rose-100 hover:text-rose-600 dark:hover:bg-rose-900/30 dark:hover:text-rose-400'
+          ? 'text-brand-600 dark:text-brand-400 hover:text-rose-500'
           : pinCapped
-            ? 'bg-surface-100 dark:bg-surface-800 text-surface-400 cursor-not-allowed'
-            : 'bg-brand-600 hover:bg-brand-700 text-white'
+            ? 'text-surface-300 dark:text-surface-600 cursor-not-allowed'
+            : 'text-surface-400 hover:text-brand-600'
       }`}
       title={isPinned ? t('compare.pinned') : pinCapped ? t('compare.max') : t('compare.pin')}
     >
-      {isPinned ? t('compare.pinned') : t('compare.pin')}
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d={isPinned ? 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' : 'M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z'} />
+      </svg>
     </button>
   );
 
@@ -1209,56 +1208,45 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
     return f ?? { type: 'Feature', geometry: null, properties: d as unknown as GeoJSON.GeoJsonProperties };
   }, [allFeatures, d]);
 
-  const exportButtons = (
-    <div className="flex flex-wrap items-center justify-center gap-3 px-6 py-4 border-t border-surface-200 dark:border-surface-800/50">
-      <button
-        onClick={() => { trackEvent('export-csv'); exportCsv(d, avg); }}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium min-h-[44px] md:min-h-0
-                   text-surface-500 dark:text-surface-400
-                   hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-surface-700 dark:hover:text-surface-200 transition-colors"
-      >
-        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
-        {t('export.csv')}
+  // The "more" menu's rows — copy link, the shortlist + reference toggles (CF-3/CF-5),
+  // then the exports that used to sit as a row of buttons under every section. One
+  // list, rendered as a dropdown on desktop and as an action sheet on mobile. Every
+  // row closes the menu; a click on the sheet's backdrop does too.
+  const menuItem = `w-full flex items-center gap-3 px-4 py-3 md:py-2 text-sm text-left transition-colors
+                    text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-800`;
+  const menuIcon = (path: string, filled?: boolean) => (
+    <svg className="w-4 h-4 flex-shrink-0 text-surface-400" fill={filled ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d={path} />
+    </svg>
+  );
+  const menuItems = (
+    <>
+      <button className={menuItem} onClick={() => { setMenuOpen(false); handleCopyLink(); }}>
+        {menuIcon('M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1')}
+        {t('panel.copy_link')}
       </button>
-      <button
-        onClick={() => { trackEvent('export-pdf'); exportPdf(d, avg); }}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium min-h-[44px] md:min-h-0
-                   text-surface-500 dark:text-surface-400
-                   hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-surface-700 dark:hover:text-surface-200 transition-colors"
-      >
-        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-        </svg>
-        {t('export.pdf')}
-      </button>
-      {/* CF-10: machine-readable GeoJSON (geometry + raw values) for QGIS/pandas */}
-      <button
-        onClick={() => { trackEvent('export-geojson'); exportGeoJson([selectedFeature]); }}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium min-h-[44px] md:min-h-0
-                   text-surface-500 dark:text-surface-400
-                   hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-surface-700 dark:hover:text-surface-200 transition-colors"
-        title={t('export.geojson')}
-      >
-        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-        </svg>
-        {t('export.geojson')}
-      </button>
-      {/* PO-2: raw-numeric JSON (unit-free values) for analysis/spreadsheets */}
-      <button
-        onClick={() => { trackEvent('export-json'); exportJson([selectedFeature]); }}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium min-h-[44px] md:min-h-0
-                   text-surface-500 dark:text-surface-400
-                   hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-surface-700 dark:hover:text-surface-200 transition-colors"
-        title={t('export.json')}
-      >
-        {t('export.json')}
-      </button>
+      {onToggleShortlist && (
+        <button
+          className={menuItem}
+          onClick={() => { setMenuOpen(false); trackEvent(isInShortlist ? 'shortlist-remove' : 'shortlist-add'); onToggleShortlist(); }}
+        >
+          {menuIcon('M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z', isInShortlist)}
+          {isInShortlist ? t('shortlist.remove') : t('shortlist.add')}
+        </button>
+      )}
+      {onSetReference && !d._isMetroArea && (
+        <button className={menuItem} onClick={() => { setMenuOpen(false); onSetReference(isReference ? null : d.pno); }}>
+          {menuIcon('M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6', isReference)}
+          {isReference ? t('panel.clear_reference') : t('panel.set_reference')}
+        </button>
+      )}
+      <div className="my-1 border-t border-surface-200 dark:border-surface-800" />
       {/* CF-2: Share as image */}
       <button
+        className={menuItem}
+        disabled={sharingImage}
         onClick={() => {
+          setMenuOpen(false);
           if (sharingImage) return;
           trackEvent('export-image');
           setSharingImage(true);
@@ -1270,17 +1258,44 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
             imgErrorTimerRef.current = setTimeout(() => setImgError(false), 3000);
           }).finally(() => setSharingImage(false));
         }}
-        disabled={sharingImage}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium min-h-[44px] md:min-h-0
-                   text-brand-700 dark:text-brand-300
-                   hover:bg-brand-500/10 dark:hover:bg-brand-600/15 transition-colors disabled:opacity-50"
       >
-        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-        </svg>
+        {menuIcon('M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z')}
         {sharingImage ? t('share.generating') : t('share.image')}
       </button>
-    </div>
+      <button className={menuItem} onClick={() => { setMenuOpen(false); trackEvent('export-csv'); exportCsv(d, avg); }}>
+        {menuIcon('M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z')}
+        {t('export.csv')}
+      </button>
+      <button className={menuItem} onClick={() => { setMenuOpen(false); trackEvent('export-pdf'); exportPdf(d, avg); }}>
+        {menuIcon('M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z')}
+        {t('export.pdf')}
+      </button>
+      {/* CF-10: machine-readable GeoJSON (geometry + raw values) for QGIS/pandas */}
+      <button className={menuItem} onClick={() => { setMenuOpen(false); trackEvent('export-geojson'); exportGeoJson([selectedFeature]); }}>
+        {menuIcon('M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7')}
+        {t('export.geojson')}
+      </button>
+      {/* PO-2: raw-numeric JSON (unit-free values) for analysis/spreadsheets */}
+      <button className={menuItem} onClick={() => { setMenuOpen(false); trackEvent('export-json'); exportJson([selectedFeature]); }}>
+        {menuIcon('M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4')}
+        {t('export.json')}
+      </button>
+    </>
+  );
+
+  // The "more" trigger. Wrapped (with the desktop dropdown) in a [data-panel-menu]
+  // element so the outside-pointerdown listener ignores taps on it.
+  const moreButton = (
+    <button
+      onClick={() => setMenuOpen((o) => !o)}
+      aria-expanded={menuOpen}
+      title={t('panel.more_actions')}
+      className={`${iconBtn} text-surface-400 hover:text-surface-700 dark:hover:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-800`}
+    >
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+        <path strokeLinecap="round" d="M5 12h.01M12 12h.01M19 12h.01" />
+      </svg>
+    </button>
   );
 
   const incomeHistory = useMemo(() => parseTrendSeries(d.income_history), [d.income_history]);
@@ -2132,6 +2147,8 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
     if (canExplore && takeExploreCue()) setExploreCuePno(d.pno);
   }, [canExplore, d.pno]);
 
+  // Lives in the panel header (sticky on desktop, outside the scrolling carousel on
+  // mobile), so drilling into a region's postal areas never scrolls out of reach.
   const exploreButton = d._isMetroArea && onExploreCity ? (
     <button
       key={d.pno}
@@ -2139,7 +2156,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
         try { localStorage.setItem(EXPLORE_CUE_KEY, String(EXPLORE_CUE_MAX)); } catch { /* ignore */ }
         onExploreCity(d.city as string);
       }}
-      className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl
+      className={`mt-3 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl
                  bg-brand-500/10 hover:bg-brand-500/20 text-brand-600 dark:text-brand-400
                  font-medium text-sm transition-colors border border-brand-500/20${exploreCuePno === d.pno ? ' explore-cue' : ''}`}
     >
@@ -2189,7 +2206,6 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
 
   const panelContent = d._noData ? noDataContent : (
     <div className="px-6 py-4 space-y-6">
-      {exploreButton}
       {sectionOverview}
       {profileLink}
       {sectionTrends}
@@ -2208,7 +2224,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
         ref={desktopPanelRef}
         tabIndex={-1}
         role="complementary"
-        aria-label={t('aria.panel_label').replace('{name}', d.nimi ?? d.pno)}
+        aria-label={t('aria.panel_label').replace('{name}', name ?? d.pno)}
         className="hidden md:block absolute top-0 left-0 z-20 h-full w-[380px] max-w-[90vw] overflow-y-auto outline-none
                       bg-white/95 dark:bg-surface-950/95 backdrop-blur-xl border-r border-surface-200 dark:border-surface-800/50 shadow-2xl">
         {/* Header — backdrop-blur-sm (not -xl): this sticky bar re-rasterizes its
@@ -2216,31 +2232,22 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
             The 95%-opaque bg already reads as solid, so a smaller blur radius keeps
             the frosted look while cutting per-scroll-frame GPU work. */}
         <div className="sticky top-0 z-10 bg-white/95 dark:bg-surface-950/95 backdrop-blur-sm border-b border-surface-200 dark:border-surface-800/50 px-6 py-5">
-          <div className="flex items-start justify-between gap-2">
+          <div className="flex items-start justify-between gap-1">
             <div className="min-w-0 flex-1">
-              <div className="flex items-start gap-2">
-                <h2 className="text-xl font-display font-bold text-surface-900 dark:text-white break-words min-w-0">{d.nimi}</h2>
-                <button
-                  onClick={handleCopyLink}
-                  className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-surface-400 hover:text-surface-600 dark:hover:text-surface-200 flex-shrink-0
-                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-surface-950"
-                  title={t('panel.copy_link')}
-                >
-                  {copied ? (
-                    <svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                  ) : (
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                    </svg>
-                  )}
-                </button>
-                {copied && (
-                  <span className="text-xs text-emerald-500 font-medium animate-fade-in">{t('panel.copied')}</span>
-                )}
+              <div className="flex items-center gap-1">
+                <h2 className="text-xl font-display font-bold text-surface-900 dark:text-white break-words min-w-0 mr-1">{name}</h2>
+                {favoriteButton}
+                {pinButton}
               </div>
               {!d._isMetroArea && <p className="text-surface-500 dark:text-surface-400 text-sm mt-0.5">{d.pno}</p>}
+            </div>
+            <div className="relative" data-panel-menu>
+              {moreButton}
+              {menuOpen && (
+                <div className="absolute right-0 top-full mt-1 z-30 w-60 py-1 rounded-xl bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 shadow-xl animate-fade-in">
+                  {menuItems}
+                </div>
+              )}
             </div>
             <button
               onClick={onClose}
@@ -2254,18 +2261,10 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
               </svg>
             </button>
           </div>
-          {(favoriteButton || shortlistButton || referenceButton || pinButton) && (
-            <div className="flex items-center gap-1 mt-3">
-              {favoriteButton}
-              {shortlistButton}
-              {referenceButton}
-              {pinButton}
-            </div>
-          )}
+          {exploreButton}
           {fitBadge && <div className="mt-3">{fitBadge}</div>}
         </div>
         {panelContent}
-        {exportButtons}
       </div>
 
       {/* Mobile: bottom sheet — role=dialog with aria-modal flipped on only at the
@@ -2278,8 +2277,8 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
         aria-modal={snap === 'full'}
         aria-label={
           snap === 'full'
-            ? t('aria.panel_label_full').replace('{name}', d.nimi ?? d.pno)
-            : t('aria.panel_label').replace('{name}', d.nimi ?? d.pno)
+            ? t('aria.panel_label_full').replace('{name}', name ?? d.pno)
+            : t('aria.panel_label').replace('{name}', name ?? d.pno)
         }
         className="md:hidden fixed bottom-0 left-0 right-0 z-20 outline-none
                    bg-white/95 dark:bg-surface-950/95 backdrop-blur-xl
@@ -2308,32 +2307,18 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
 
         {/* Header */}
         <div className="px-5 pb-3 border-b border-surface-200 dark:border-surface-800/50">
-          <div className="flex items-start justify-between gap-2">
+          <div className="flex items-start justify-between gap-1">
             <div className="min-w-0 flex-1">
-              <div className="flex items-start gap-2">
-                <h2 className="text-lg font-display font-bold text-surface-900 dark:text-white break-words min-w-0">{d.nimi}</h2>
-                <button
-                  onClick={handleCopyLink}
-                  className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-surface-400 hover:text-surface-600 dark:hover:text-surface-200 flex-shrink-0
-                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-surface-950"
-                  title={t('panel.copy_link')}
-                >
-                  {copied ? (
-                    <svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                  ) : (
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                    </svg>
-                  )}
-                </button>
-                {copied && (
-                  <span className="text-xs text-emerald-500 font-medium">{t('panel.copied')}</span>
-                )}
+              <div className="flex items-center gap-1">
+                <h2 className="text-lg font-display font-bold text-surface-900 dark:text-white break-words min-w-0 mr-1">{name}</h2>
+                {favoriteButton}
+                {pinButton}
               </div>
               {!d._isMetroArea && <p className="text-surface-500 dark:text-surface-400 text-xs">{d.pno}</p>}
             </div>
+            {/* CF-3: the shortlist + reference toggles live in this menu, so phone users
+                can still reach them (the sheet once omitted them entirely). */}
+            <div data-panel-menu>{moreButton}</div>
             <button
               onClick={onClose}
               aria-label={t('aria.close')}
@@ -2346,17 +2331,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
               </svg>
             </button>
           </div>
-          {/* CF-3: the mobile sheet header previously omitted the shortlist + reference
-              buttons, so phone users had NO way to add an area to the shortlist (a flagship
-              synced feature). Render them alongside favorite/pin like the desktop panel. */}
-          {(favoriteButton || pinButton || shortlistButton || referenceButton) && (
-            <div className="flex items-center gap-1 mt-2">
-              {favoriteButton}
-              {pinButton}
-              {shortlistButton}
-              {referenceButton}
-            </div>
-          )}
+          {exploreButton}
           {/* MO-3: on mobile the comparison sheet and this area sheet both anchor
               bottom-0 z-20, so the comparison hard-hides itself whenever an area is
               selected — and the 1-pin nudge pill is suppressed too. Tapping "add to
@@ -2449,7 +2424,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
               // CF-7: each pane is a tabpanel labelled by its tab and focusable for
               // SR users (tabIndex=0). Inactive panes are rendered off-screen (the
               // translateX carousel), so they're marked `inert` — keeping Tab focus
-              // out of their hidden export buttons / explore links and out of the SR
+              // out of their hidden controls and out of the SR
               // tree, while leaving swipe/touch behavior untouched.
               <div
                 key={i}
@@ -2462,10 +2437,8 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
                 style={{ minWidth: '100%' }}
               >
                 <div className="px-6 py-4 pb-safe space-y-6">
-                  {i === 0 && exploreButton}
                   {section}
                   {i === 0 && profileLink}
-                  {section && exportButtons}
                 </div>
               </div>
             ))}
@@ -2473,6 +2446,19 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
         </div>
         </>)}
       </div>
+
+      {/* The "more" menu on mobile: an action sheet over everything, rendered outside the
+          bottom sheet (whose overflow-hidden would clip a dropdown at the half snap).
+          The backdrop carries data-panel-menu so a tap on it closes via onClick rather
+          than on pointerdown — closing on pointerdown would let the tap fall through
+          to the map and select whatever area is under it. */}
+      {menuOpen && (
+        <div data-panel-menu className="md:hidden fixed inset-0 z-50 bg-black/30 animate-fade-in" onClick={() => setMenuOpen(false)}>
+          <div className="absolute bottom-0 inset-x-0 rounded-t-2xl bg-white dark:bg-surface-900 pt-2 pb-safe shadow-2xl">
+            {menuItems}
+          </div>
+        </div>
+      )}
 
       {/* QW-2: Toast notification for clipboard copy. PO-3: role=status so screen
           readers announce the otherwise-silent confirmation. */}

@@ -599,6 +599,7 @@
   "panel.light_pollution": "Valosaaste (nW/cm²/sr)",
   "panel.manufacturing_jobs": "Teollisuus (%)",
   "panel.median_income": "Mediaanitulo",
+  "panel.more_actions": "Muut toiminnot",
   "panel.neighbors": "Naapurialueet",
   "panel.neighbors_chip_title": "Lennä alueelle {name}",
   "panel.neighbors_help": "Rajanaapurit, edullisimmat €/m² ensin.",

@@ -757,6 +757,7 @@
   "panel.light_pollution": "Ljusförorening (nW/cm²/sr)",
   "panel.manufacturing_jobs": "Industri (%)",
   "panel.median_income": "Medianinkomst",
+  "panel.more_actions": "Fler åtgärder",
   "panel.neighbors": "Grannområden",
   "panel.neighbors_chip_title": "Flyg till {name}",
   "panel.neighbors_help": "Angränsande områden, billigast €/m² först.",
