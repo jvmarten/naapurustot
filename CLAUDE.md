@@ -27,6 +27,7 @@ npm run build:pages    # Pre-render profile/hub pages + sitemap (Node 22.18+)
 - `docs/ARCHITECTURE.md` — system architecture, data flow, map layers, CI/CD
 - `docs/QUALITY_INDEX.md` — quality index methodology and weights
 - `docs/FEATURE_ROADMAP.md` — feature history and planning
+- `docs/SERVER_MIGRATION.md` — DigitalOcean → Hetzner backend migration runbook, written to be run by Claude on the new server
 
 ## Architecture
 
