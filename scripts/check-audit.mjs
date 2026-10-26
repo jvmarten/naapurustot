@@ -35,22 +35,6 @@ const FAIL_LEVELS = new Set(['high', 'critical']);
  */
 export const ALLOWLIST = [
   {
-    id: 'GHSA-qwww-vcr4-c8h2',
-    package: 'react-router',
-    scope: '.',
-    until: '2026-10-31',
-    reason:
-      'RSC Mode CSRF Bypass. Only reachable through React Router\'s RSC mode: it lets an ' +
-      'action run before the framework returns 400 on a cross-origin request. This app is a ' +
-      'static SPA — main.tsx mounts a plain <BrowserRouter> with declarative <Route> elements, ' +
-      'there is no server request handler, no RSC, no actions, and no framework mode. The fix ' +
-      'ships only in react-router 8.3.0, and react-router-dom has no 8.x release at all (latest ' +
-      '7.18.1), so clearing it means migrating every import off react-router-dom onto ' +
-      'react-router@8 — a routing major bump for a vulnerability we cannot reach. The two ' +
-      'react-router advisories that DO touch a declarative SPA (route-matching DoS ' +
-      'GHSA-chx6-hx7r-mcp5, open redirect / deserializeErrors) are fixed in 7.18.0 and taken.',
-  },
-  {
     id: 'GHSA-jrc7-96c5-q579',
     package: 'maplibre-gl',
     scope: '.',
@@ -67,18 +51,6 @@ export const ALLOWLIST = [
       '6.4.1+, a major bump of the map library behind every view (and the /live/ app) that also ' +
       'retires the 5.18–5.24 query regression worked around in utils/mapQuery.ts. The short `until` ' +
       'is deliberate: it forces that migration rather than letting this exemption drift.',
-  },
-  {
-    id: 'GHSA-vfj7-8cjw-p6xm',
-    package: 'braces',
-    scope: '.',
-    until: '2026-11-30',
-    reason:
-      'Stack-exhaustion DoS on deeply nested brace patterns. braces is reached only through ' +
-      'tailwindcss@3 (micromatch and chokidar) at build/dev time, expanding the glob patterns in ' +
-      'our own tailwind.config.js `content` list — never user input, and nothing in the shipped ' +
-      'bundle. No patched release exists (3.0.3 is the latest and is itself affected), so there ' +
-      'is no override to pin. Re-review when braces ships a fix or tailwind 4 drops it.',
   },
 ];
 
