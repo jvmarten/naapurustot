@@ -1,0 +1,65 @@
+analytics.naapurustot.fi {
+	reverse_proxy umami:3000
+}
+
+api.naapurustot.fi {
+	reverse_proxy api:3001
+}
+
+# The static site, synced into /srv/naapurustot/releases/ by deploy.yml's
+# deploy-droplet job; `current` is a symlink switched to the newest release in one
+# step. GitHub Pages receives the same build and stays the standby.
+#
+# SITE_HOSTS comes from server/.env through docker-compose.yml and is substituted
+# before parsing, so it can hold several addresses. Until the cutover it is the test
+# address next.naapurustot.fi (noindex); at the cutover it becomes
+# "naapurustot.fi, www.naapurustot.fi". See docs/SERVER_MIGRATION.md, phase 2.
+{$SITE_HOSTS:next.naapurustot.fi} {
+	@next host next.naapurustot.fi
+	header @next X-Robots-Tag "noindex"
+
+	@www host www.naapurustot.fi
+	redir @www https://naapurustot.fi{uri} permanent
+
+	root * /srv/naapurustot/current
+	encode zstd gzip
+
+	# Types Go's built-in table lacks. Without them Caddy falls back to the image's
+	# /etc/mime.types, which may not list them; a file served with no type is also
+	# not compressed. Values are what Pages sends.
+	@json path *.topojson *.map
+	header @json Content-Type "application/json; charset=utf-8"
+	@geojson path *.geojson
+	header @geojson Content-Type "application/geo+json"
+	@manifest path *.webmanifest
+	header @manifest Content-Type "application/manifest+json; charset=utf-8"
+	@csv path *.csv
+	header @csv Content-Type "text/csv; charset=utf-8"
+	@text path *.txt
+	header @text Content-Type "text/plain; charset=utf-8"
+	@atom path *.atom
+	header @atom Content-Type "application/atom+xml"
+	# The sitemaps are .xml.gz files, served as-is (never with Content-Encoding).
+	@gzip path *.gz
+	header @gzip Content-Type "application/gzip"
+
+	# Vite content-hashes everything under /assets/. Everything else keeps Pages'
+	# 10 minutes, including sw.js and the HTML.
+	@hashed path /assets/*
+	header @hashed Cache-Control "public, max-age=31536000, immutable"
+	@unhashed not path /assets/*
+	header @unhashed Cache-Control "max-age=600"
+
+	file_server
+
+	# Same as Pages: unknown paths get the SPA shell (404.html is a copy of
+	# index.html, made by deploy.yml) with a real 404 status.
+	# The Cache-Control set above would otherwise ride on the 404 too, and a
+	# missing /assets/ file must not be cached for a year. Pages sends none.
+	handle_errors 404 {
+		header -Cache-Control
+		rewrite * /404.html
+		encode zstd gzip
+		file_server
+	}
+}

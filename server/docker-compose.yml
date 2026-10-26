@@ -6,10 +6,20 @@ services:
       - "80:80"
       - "443:443"
       - "443:443/udp"
+    environment:
+      # Address(es) of the static-site block in caddy/Caddyfile. Never empty: an empty
+      # value would leave that site block with no address.
+      SITE_HOSTS: ${SITE_HOSTS:-next.naapurustot.fi}
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
+      # The directory, not the file: `git pull` replaces Caddyfile with a new inode,
+      # and a single-file bind mount keeps showing the container the old one. A
+      # directory mount sees the new file; deploy-server.yml then reloads Caddy.
+      - ./caddy:/etc/caddy
       - caddy_data:/data
       - caddy_config:/config
+      # The static site: release folders plus the `current` symlink that deploy.yml
+      # switches. Mounted at the same path so the symlink resolves inside the container.
+      - /srv/naapurustot:/srv/naapurustot:ro
 
   api:
     build: ./api

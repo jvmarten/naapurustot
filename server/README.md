@@ -11,6 +11,7 @@ Internet
   │
   ├── analytics.naapurustot.fi → Caddy → Umami (privacy-friendly analytics)
   ├── api.naapurustot.fi → Caddy → Express API (auth + user-data sync)
+  ├── $SITE_HOSTS → Caddy → /srv/naapurustot/current (the static site; see below)
   │
   └── PostgreSQL 16 (shared)
       ├── umami database (analytics data)
@@ -26,6 +27,20 @@ Internet
 | **Umami** | 3000 (internal) | Self-hosted analytics dashboard |
 | **PostgreSQL** | 5432 (internal) | Database for both services |
 | **db-backup** | — | Daily `pg_dump` of both databases into `./backups/` (14-day retention) |
+
+Caddy's config is `caddy/Caddyfile`, mounted as a directory so a `git pull` reaches the
+running container; `deploy-server.yml` reloads Caddy after every pull.
+
+### Static site
+
+`deploy.yml`'s `deploy-droplet` job publishes every site build here as well as to GitHub
+Pages: rsync into `/srv/naapurustot/releases/<time>-<sha>/` (unchanged files hard-linked
+from the previous release), then one rename switches the `current` symlink. The last five
+releases are kept. Caddy serves `current` at the address(es) in `SITE_HOSTS` (`server/.env`),
+which defaults to the noindexed test address `next.naapurustot.fi`. Pointing
+`naapurustot.fi` at this server is a DNS change at Cloudflare plus
+`SITE_HOSTS="naapurustot.fi, www.naapurustot.fi"` and `docker compose up -d caddy`; GitHub
+Pages keeps receiving every build as the standby. Steps: `docs/SERVER_MIGRATION.md`, phase 2.
 
 ## API endpoints
 

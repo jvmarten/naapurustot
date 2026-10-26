@@ -33,6 +33,12 @@ jobs:
             export SENTRY_DSN SENTRY_RELEASE
             docker compose build api
             docker compose up -d
+            # Caddy reads its config only at start, and `up -d` recreates the container
+            # only when docker-compose.yml changes, so a Caddyfile edit used to reach the
+            # running proxy never. The config directory is bind-mounted, so the pull above
+            # already shows the container the new file; reload applies it. A no-op when
+            # nothing changed; an invalid config fails here and Caddy keeps the old one.
+            docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
             # backup.sh is a bind mount (docker-compose.yml: ./backup.sh:/backup.sh:ro),
             # so editing it changes no service config and `up -d` will NOT recreate
             # db-backup — the running container stays inside its `while true; sleep

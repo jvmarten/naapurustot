@@ -155,6 +155,93 @@ jobs:
           # genuinely stuck deployment, not to police a slow one.
           timeout: 1200000 # 20 min
 
+  # The same build, published to the droplet as well (docs/SERVER_MIGRATION.md, phase 2).
+  # Caddy serves /srv/naapurustot/current there; until the DNS cutover it answers only
+  # on the test address, and Pages stays the standby after it. A job of its own, needing
+  # only `build`, so neither publish can hold the other back: a stuck Pages environment
+  # does not delay the droplet, and an unreachable droplet does not block Pages.
+  #
+  # Each run lands in a fresh release folder. rsync hard-links every file whose checksum
+  # matches the current release (--link-dest), so only changed files cross the wire or
+  # take disk, and the folder is renamed into place only once complete. The switch is
+  # one rename of the `current` symlink, so no request ever sees half a deploy. -c
+  # because times are not preserved: the build stamps every file new, and a size+mtime
+  # quick check would resend all ~40,000.
+  deploy-droplet:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: github-pages
+
+      - name: Unpack the Pages artifact
+        run: |
+          mkdir site
+          tar -xf artifact.tar -C site
+          test -s site/index.html && test -s site/404.html
+
+      - name: Sync to the droplet and switch `current`
+        env:
+          DEPLOY_SERVER_IP: ${{ secrets.DEPLOY_SERVER_IP }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh_cmd="ssh -i $HOME/.ssh/deploy_key -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=20"
+          host="root@$DEPLOY_SERVER_IP"
+          root=/srv/naapurustot
+          # Named by time first, so a plain sort orders releases oldest to newest.
+          release="$(date -u +%Y%m%dT%H%M%SZ)-${GITHUB_SHA:0:12}"
+
+          # A previous run cut off mid-sync leaves a .partial folder; it is never `current`.
+          # The test exits 1 on the very first deploy, which simply means nothing to link against.
+          link_dest=()
+          if $ssh_cmd "$host" "mkdir -p $root/releases && rm -rf $root/releases/*.partial && test -d $root/current/"; then
+            link_dest=(--link-dest="$root/current/")
+          fi
+
+          rsync -rlcz --delete "${link_dest[@]}" -e "$ssh_cmd" site/ "$host:$root/releases/$release.partial/"
+
+          $ssh_cmd "$host" bash -s -- "$root" "$release" <<'REMOTE'
+          set -euo pipefail
+          root=$1 release=$2
+          cd "$root/releases"
+          test -s "$release.partial/index.html"
+          mv "$release.partial" "$release"
+          ln -sfn "releases/$release" "$root/current.tmp"
+          mv -Tf "$root/current.tmp" "$root/current"
+          # Keep the five newest releases; never the one `current` points at.
+          live=$(basename "$(readlink "$root/current")")
+          ls -1 | sort | head -n -5 | while read -r old; do
+            [ "$old" = "$live" ] || rm -rf -- "$old"
+          done
+          echo "current -> $(readlink "$root/current")"
+          du -sh "$root/releases"
+          df -h /
+          REMOTE
+
+      - name: Open an issue for the failed droplet sync
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cat > body.md <<EOF
+          deploy.yml could not publish the site to the droplet.
+
+          Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          The droplet still serves its previous release. GitHub Pages is unaffected.
+          EOF
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "Droplet site deploy failed (run ${{ github.run_id }})" --body-file body.md \
+            || echo "::warning::could not open an issue for this failed run"
+
   # A job carrying an `environment:` does not start until GitHub grants it that
   # environment, and `timeout-minutes` does NOT cover that wait: it measures execution,
   # and a job still waiting on an environment has not begun executing. So the 30-minute

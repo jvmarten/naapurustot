@@ -1,7 +1,0 @@
-analytics.naapurustot.fi {
-	reverse_proxy umami:3000
-}
-
-api.naapurustot.fi {
-	reverse_proxy api:3001
-}
