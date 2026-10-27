@@ -1076,6 +1076,8 @@
   "metric_explanation.low_economic_standard_pct": "Niiden asukkaiden osuus, joiden taloudellinen standardi on alle 60 % koko Ruotsin mediaanista (SCB).",
   "metric_explanation.foreign_background_pct": "Niiden asukkaiden osuus, jotka ovat syntyneet ulkomailla tai joiden molemmat vanhemmat ovat syntyneet ulkomailla (SCB:n määritelmä).",
   "note.se_population_density": "Ruotsi: asukkaita maapinta-alan neliökilometriä kohden (SCB).",
+  "note.se_transit_stops": "Ruotsi: OpenStreetMapiin merkityt bussi-, raitiovaunu- ja junapysäkit. Ruotsin kansallinen pysäkkirekisteri (Trafiklab) vaatii API-avaimen, joten luku ei tule samasta rekisteristä kuin Suomen Digiroad-pysäkit.",
+  "note.se_schools": "Ruotsi: Skolverketin koulurekisterin toimivat perus- ja toisen asteen koulut (grundskola, gymnasieskola, myös anpassad, sameskola ja specialskola) käyntiosoitteen mukaan.",
   "note.se_foreign_background": "SCB:n määritelmä: ulkomailla syntynyt tai molemmat vanhemmat ulkomailla syntyneitä. Eri käsite kuin Suomen kielipohjaiset tasot.",
   "note.se_households": "Ruotsi: kotitaloudet SCB:n kotitaloustyypin mukaan; lapsiksi lasketaan kotona asuvat alle 25-vuotiaat. Suomen luvussa lapset ovat alle 18-vuotiaita.",
   "note.se_tenure": "Ruotsi: asukkaiden osuus asunnon hallintamuodon mukaan (SCB). Omistus = omistusoikeus tai bostadsrätt (osuusasunto), vuokra = hyresrätt. Hallintamuoto perustuu talon omistukseen, ei asukkaan asemaan. Suomen luku on kotitalouksien osuus.",

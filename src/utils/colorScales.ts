@@ -1232,6 +1232,10 @@ const SE_LAYERS: ReadonlySet<LayerId> = new Set<LayerId>([
   'population_density', 'elderly_ratio', 'gender_ratio', 'avg_household_size',
   'families_with_children', 'single_parent_hh', 'ownership', 'rental', 'detached_houses',
   'employment_rate', 'unemployment', 'education',
+  // Counted the same way in both countries (OpenStreetMap tags, a school register), so
+  // these keep Finland's stops: one scale is what lets the two be compared.
+  'transit_access', 'school_density', 'healthcare_access', 'restaurant_density',
+  'grocery_access', 'cycling_infra',
 ]);
 
 /** Whether a layer has data in `country`; with no country (both on the map), every layer. */

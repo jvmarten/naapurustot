@@ -1430,6 +1430,8 @@
   "metric_explanation.low_economic_standard_pct": "Andel invånare vars ekonomiska standard är under 60 % av medianen för hela Sverige (SCB).",
   "metric_explanation.foreign_background_pct": "Andel invånare som är födda utomlands eller födda i Sverige med två utrikes födda föräldrar (SCB:s definition).",
   "note.se_population_density": "Sverige: invånare per km² landareal (SCB).",
+  "note.se_transit_stops": "Sverige: buss-, spårvagns- och tåghållplatser kartlagda i OpenStreetMap. Sveriges nationella hållplatsregister (Trafiklab) kräver en API-nyckel, så siffran kommer inte från samma slags register som Finlands Digiroad-hållplatser.",
+  "note.se_schools": "Sverige: aktiva grund- och gymnasieskolor (även anpassad, sameskola och specialskola) i Skolverkets skolenhetsregister, placerade efter besöksadress.",
   "note.se_foreign_background": "SCB:s definition: utrikes född eller två utrikes födda föräldrar. Ett annat begrepp än Finlands språkbaserade lager.",
   "note.se_households": "Sverige: hushåll efter SCB:s hushållstyp; barn är hemmaboende under 25 år. Finlands siffra räknar barn under 18 år.",
   "note.se_tenure": "Sverige: andel invånare efter upplåtelseform (SCB). Ägt = äganderätt eller bostadsrätt, hyrt = hyresrätt. Upplåtelseformen utgår från fastighetens ägarförhållande, inte de boendes. Finlands siffra är en andel av hushållen.",

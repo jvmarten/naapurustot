@@ -1658,6 +1658,9 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
       <CollapsibleSection title={t('layers.demographics')} defaultOpen>
         {seRows(['population_density', 'foreign_background', 'elderly_ratio', 'gender_ratio', 'families_with_children', 'single_parent_hh'])}
       </CollapsibleSection>
+      <CollapsibleSection title={t('layers.services')} defaultOpen>
+        {seRows(['transit_access', 'school_density', 'healthcare_access', 'grocery_access', 'restaurant_density', 'cycling_infra'])}
+      </CollapsibleSection>
     </>
   );
 

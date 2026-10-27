@@ -935,6 +935,12 @@ SE_PCT_PROPS = [
 ]
 
 
+SE_COUNTED_DENSITIES = [
+    ("school_count", "school_density"), ("healthcare_count", "healthcare_density"),
+    ("grocery_count", "grocery_density"), ("restaurant_count", "restaurant_density"),
+]
+
+
 def check_se_registry_provenance(_features: list) -> list[str]:
     """Sweden's registry section (data_sources.json countries.se.metrics) must match
     provenance.json countries.se.vintages exactly, both ways, like the Finnish check."""
@@ -992,6 +998,9 @@ def check_se_dataset(_features: list) -> list[str]:
                 filled[k] += 1
         if not f.get("geometry"):
             errors.append(f"{pno}: no geometry")
+        for count_key, density_key in SE_COUNTED_DENSITIES:
+            if (p.get(count_key) or 0) > 0 and p.get(density_key) == 0:
+                errors.append(f"{pno}: {count_key}={p.get(count_key)} but {density_key}=0")
     for k, n in filled.items():
         if n == 0:
             errors.append(f"SE registry metric '{k}' is empty in se_deso.geojson")
