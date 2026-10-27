@@ -9,6 +9,14 @@ async function waitForMapIdle(page: import('@playwright/test').Page) {
   await page.waitForSelector('.maplibregl-canvas', { timeout: 15000 });
   // Allow map tiles and choropleth paint to finish
   await page.waitForTimeout(2000);
+  // The basemap credit folds to its (i) five seconds after the map is created
+  // (addBasemapAttribution). Shoot the folded state every time: a test finishing
+  // near that mark would otherwise catch either one, depending on runner speed.
+  await page.waitForFunction(
+    () => !document.querySelector('.maplibregl-ctrl-attrib.maplibregl-compact-show'),
+    null,
+    { timeout: 15000 },
+  );
 }
 
 test.describe('visual regression', () => {
