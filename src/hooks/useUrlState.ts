@@ -18,6 +18,7 @@ import {
 } from '../utils/similarity';
 import type { WizardAnswers } from './useWizardProfile';
 import { deserializeWizardProfile } from './useWizardProfile';
+import { isAreaId } from '../utils/areaId';
 
 /**
  * IN-3: share-URL schema version.
@@ -312,7 +313,7 @@ function deserializeDraw(s: string): UrlDraw | null {
   const tag = s[0];
   const body = s.slice(2);
   if (tag === 's') {
-    const pnos = body.split('.').filter((p) => /^\d{5}$/.test(p));
+    const pnos = body.split('.').filter((p) => isAreaId(p));
     return pnos.length > 0 ? { mode: 'select', pnos } : null;
   }
   if (tag === 'p') {
@@ -448,10 +449,10 @@ function parseUrl(): UrlState {
   else if (qwRaw) weights = deserializeWeightDiff(qwRaw);
 
   return {
-    pno: pno && (VALID_CITIES.has(pno) || /^\d{5}$/.test(pno)) ? pno : null,
+    pno: pno && (VALID_CITIES.has(pno) || isAreaId(pno)) ? pno : null,
     layer: layer && VALID_LAYER_IDS.has(layer) ? (layer as LayerId) : null,
     compare: compare
-      ? compare.split(',').filter((p) => /^\d{5}$/.test(p) || VALID_CITIES.has(p))
+      ? compare.split(',').filter((p) => isAreaId(p) || VALID_CITIES.has(p))
       : [],
     // A comma list is the multi-region view (primary first); a single id is unchanged.
     city: cityParam.city,
@@ -460,12 +461,12 @@ function parseUrl(): UrlState {
     year: yearRaw && /^\d{4}$/.test(yearRaw) ? Number(yearRaw) : null,
     colorblind: cbRaw && VALID_CB.has(cbRaw) ? (cbRaw as ColorblindType) : null,
     lang: langRaw && VALID_LANG.has(langRaw) ? (langRaw as Lang) : null,
-    ref: refRaw && /^\d{5}$/.test(refRaw) ? refRaw : null,
+    ref: refRaw && isAreaId(refRaw) ? refRaw : null,
     filters: filterRaw ? deserializeFilters(filterRaw) : [],
     weights,
     isochrone: isoRaw ? deserializeIsochrone(isoRaw) : null,
     viewport: viewRaw ? deserializeViewport(viewRaw) : null,
-    shortlist: slRaw ? slRaw.split('.').filter((p) => /^\d{5}$/.test(p)) : [],
+    shortlist: slRaw ? slRaw.split('.').filter((p) => isAreaId(p)) : [],
     affordability: affRaw ? deserializeAffordability(affRaw) : null,
     simWeights: simwRaw ? deserializeSimWeights(simwRaw) : null,
     draw: drawRaw ? deserializeDraw(drawRaw) : null,
@@ -590,7 +591,7 @@ export function readInitialUrlState(): UrlState {
  */
 export function buildShortlistShareUrl(shortlist: string[], city: string = DEFAULT_CITY): string {
   const base = `${window.location.origin}${window.location.pathname}`;
-  const pnos = shortlist.filter((p) => /^\d{5}$/.test(p));
+  const pnos = shortlist.filter((p) => isAreaId(p));
   if (pnos.length === 0) return base;
   const params = serializeUrlParams(null, 'quality_index', [], city, { shortlist: pnos });
   stampSchemaVersion(params);

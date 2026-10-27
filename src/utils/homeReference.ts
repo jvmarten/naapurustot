@@ -7,13 +7,15 @@
  * explicit intent); otherwise we fall back to the stored home.
  */
 
+import { isAreaId } from './areaId';
+
 const STORAGE_KEY = 'naapurustot-home-reference';
 
 /** Read the persisted home reference pno, or null when unset/invalid/unavailable. */
 export function loadHomeReference(): string | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw && /^\d{5}$/.test(raw)) return raw;
+    if (raw && isAreaId(raw)) return raw;
   } catch {
     /* localStorage unavailable */
   }
@@ -23,7 +25,7 @@ export function loadHomeReference(): string | null {
 /** Persist (or clear, when null) the home reference pno. Best-effort. */
 export function saveHomeReference(pno: string | null): void {
   try {
-    if (pno && /^\d{5}$/.test(pno)) localStorage.setItem(STORAGE_KEY, pno);
+    if (pno && isAreaId(pno)) localStorage.setItem(STORAGE_KEY, pno);
     else localStorage.removeItem(STORAGE_KEY);
   } catch {
     /* quota exceeded or unavailable */

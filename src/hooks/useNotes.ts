@@ -3,6 +3,7 @@ import { api } from '../utils/api';
 import { runSync } from '../utils/syncStatus';
 import { addTombstone, clearTombstone, readTombstones } from '../utils/syncTombstones';
 import { editedAt, markEdited } from '../utils/syncMeta';
+import { isAreaId } from '../utils/areaId';
 
 const STORAGE_KEY = 'naapurustot-notes';
 // CF-6: pnos whose note the user cleared on this device — skipped on the
@@ -18,7 +19,7 @@ function loadNotes(): Record<string, string> {
         // Validate that all values are strings to guard against tampered localStorage
         const result: Record<string, string> = {};
         for (const [key, val] of Object.entries(parsed)) {
-          if (/^\d{5}$/.test(key) && typeof val === 'string') result[key] = val;
+          if (isAreaId(key) && typeof val === 'string') result[key] = val;
         }
         return result;
       }
@@ -192,8 +193,8 @@ export function useNotes(userId?: string | null) {
   const getNote = useCallback((pno: string): string => notes[pno] ?? '', [notes]);
 
   const setNote = useCallback((pno: string, text: string) => {
-    // Only accept valid 5-digit postal codes as keys
-    if (!/^\d{5}$/.test(pno)) return;
+    // Only accept valid area ids as keys
+    if (!isAreaId(pno)) return;
     // Limit note length to prevent localStorage quota exhaustion
     const trimmed = text.slice(0, 5000);
     // CF-6: a cleared note is a deletion (tombstone it); writing text is a re-add.

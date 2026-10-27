@@ -917,11 +917,11 @@ router.put('/favorites', async (req: Request, res: Response): Promise<void> => {
     res.status(400).json({ error: 'Too many favorites (max 200)' });
     return;
   }
-  // Validate that each entry is a plausible identifier (5-digit postal code
-  // or region ID like "helsinki_metro"). Reject arbitrary strings to prevent
-  // storing XSS payloads or other junk data that might be rendered by
-  // future features.
-  const FAVORITE_RE = /^[a-z0-9_]{1,30}$/;
+  // Validate that each entry is a plausible identifier (an area id such as
+  // "00100" or the Swedish DeSO "0180C1090", or a region ID like "helsinki_metro").
+  // Reject arbitrary strings to prevent storing XSS payloads or other junk data
+  // that might be rendered by future features.
+  const FAVORITE_RE = /^[A-Za-z0-9_]{1,30}$/;
   if (favorites.some((v: string) => !FAVORITE_RE.test(v))) {
     res.status(400).json({ error: 'Invalid favorite entry format' });
     return;
@@ -970,9 +970,9 @@ router.put('/shortlist', async (req: Request, res: Response): Promise<void> => {
     res.status(400).json({ error: 'Too many shortlist entries (max 200)' });
     return;
   }
-  // Same identifier constraint as favorites (5-digit postal code or region ID like
+  // Same identifier constraint as favorites (area id or region ID like
   // "helsinki_metro") — reject arbitrary strings to prevent storing junk/XSS payloads.
-  const SHORTLIST_RE = /^[a-z0-9_]{1,30}$/;
+  const SHORTLIST_RE = /^[A-Za-z0-9_]{1,30}$/;
   if (shortlist.some((v: string) => !SHORTLIST_RE.test(v))) {
     res.status(400).json({ error: 'Invalid shortlist entry format' });
     return;
@@ -989,7 +989,8 @@ router.put('/shortlist', async (req: Request, res: Response): Promise<void> => {
 
 // ── Notes sync (QW-6) ──
 
-const PNO_RE = /^\d{5}$/;
+// Area id: a Finnish postal code or a Swedish DeSO code. Mirrors src/utils/areaId.ts.
+const AREA_ID_RE = /^(?:\d{5}|\d{4}[A-C]\d{4})$/;
 const MAX_NOTE_LEN = 5000;
 const MAX_NOTES = 500;
 
@@ -1029,8 +1030,8 @@ router.put('/notes', async (req: Request, res: Response): Promise<void> => {
   }
   const sanitized: Record<string, string> = {};
   for (const [key, val] of entries) {
-    if (!PNO_RE.test(key)) {
-      res.status(400).json({ error: 'Invalid note key (must be 5-digit postal code)' });
+    if (!AREA_ID_RE.test(key)) {
+      res.status(400).json({ error: 'Invalid note key (must be an area id)' });
       return;
     }
     if (typeof val !== 'string') {

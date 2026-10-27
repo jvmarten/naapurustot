@@ -1,11 +1,14 @@
 /**
  * Slug utilities for neighborhood profile page URLs.
  *
- * URL format: /alue/{pno}-{slugified-name}
+ * URL format: /alue/{id}-{slugified-name}
  * Example: /alue/00100-helsinki-keskusta-etu-toolo
+ *          /sv/omrade/0180c1090-sodermalm  (a Swedish DeSO, lower-cased in the URL)
  *
- * The postal code prefix guarantees uniqueness and enables O(1) lookup.
+ * The area-id prefix guarantees uniqueness and enables O(1) lookup.
  */
+
+import { normalizeAreaId } from './areaId';
 
 /**
  * Lowercase and strip diacritics / Finnish special characters, WITHOUT slugifying.
@@ -38,18 +41,18 @@ function slugify(text: string): string {
     .replace(/^-|-$/g, '');
 }
 
-/** Build a URL slug from postal code and Finnish name. */
+/** Build a URL slug from an area id and its name. */
 export function toSlug(pno: string, nimi: string): string {
-  return `${pno}-${slugify(nimi)}`;
+  return `${pno.toLowerCase()}-${slugify(nimi)}`;
 }
 
-/** Extract postal code from a slug. Returns null if it does not match the
- *  `{pno}-{slugified-name}` shape (optionally just `{pno}`, or `{pno}-` when
+/** Extract the canonical area id from a slug. Returns null if it does not match the
+ *  `{id}-{slugified-name}` shape (optionally just `{id}`, or `{id}-` when
  *  the name is empty — which is what `toSlug` produces in that case).
  *  Previously this accepted any 5-digit prefix (e.g. "12345abcde") and also
  *  permitted consecutive/trailing dashes ("00100---foo", "00100-foo--bar"),
  *  silently stripping garbage after the first five chars. */
 export function parseSlug(slug: string): string | null {
-  if (!/^\d{5}(?:-(?:[a-z0-9]+(?:-[a-z0-9]+)*)?)?$/.test(slug.toLowerCase())) return null;
-  return slug.slice(0, 5);
+  const m = /^([0-9a-z]+)(?:-(?:[a-z0-9]+(?:-[a-z0-9]+)*)?)?$/.exec(slug.toLowerCase());
+  return m ? normalizeAreaId(m[1]) : null;
 }

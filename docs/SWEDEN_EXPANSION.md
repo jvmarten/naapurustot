@@ -1,6 +1,6 @@
 # Sweden expansion — scoping
 
-Status: scoping, 2026-10-27. Nothing here is built yet.
+Status: decided 2026-10-27 (§6). Step 1 of §5 is in progress.
 
 The goal is to add Sweden as a second country, at SCB's **DeSO** level (6,160
 demographic statistical areas, 700–2,700 residents each), which is finer than
@@ -19,7 +19,7 @@ the auto-merge queue can land one at a time.
 | DeSO codes look like `0180C1090`: 4-digit municipality, a letter A/B/C, then 4 digits. | They can never collide with a Finnish 5-digit `pno`, so no ID prefix is needed (§3.1). |
 | **DeSO areas have no names**, only codes. RegSO (3,363 areas, each an aggregate of DeSOs) do have names. | Display names, slugs and search have to come from RegSO (and municipality) names (§3.6). |
 | Boundaries are open geodata on Lantmäteriet's Geodataportalen; the statistics sit in SCB's Statistikdatabasen, which is PxWeb ([SCB open geodata](https://www.scb.se/hitta-statistik/regional-statistik-och-kartor/geodata/oppna-geodata/), [DeSO tables](https://www.scb.se/hitta-statistik/regional-statistik-och-kartor/regionala-indelningar/demografiska-statistikomraden-deso/deso-tabellerna-i-ssd--information-och-instruktioner/)). | `scripts/pxweb.py` is a starting point, but SCB's API v2 needs checking against it. |
-| Sweden's region equivalent to seutukunnat is the FA-region: 60 in FA15, now being replaced by FA25 ([SCB](https://www.scb.se/hitta-statistik/regional-statistik-och-kartor/regionala-indelningar/funktionella-regioner-och-kommungrupper/)). | The region tier carries over directly. The FA25 count and membership are unconfirmed (open question Q4). |
+| Sweden's region equivalent to seutukunnat is the FA-region (funktionell analysregion), published by **Tillväxtverket**, not SCB. FA25 (2025, for 2025–2035) has **71 regions** ([Tillväxtverket](https://tillvaxtverket.se/tillvaxtverket/statistikochanalys/statistikomregionalutveckling/regionalaindelningar/faregioner.1799.html)). Checked 2026-10-27: its list assigns all 290 municipalities exactly once, and every code matches SCB's municipality list. Two names differ only in spelling (`0114` Upplands-Väsby, `2023` Malung); we use SCB's names. | The region tier carries over directly. Stockholm-Solna (36 municipalities), Göteborg (27) and Malmö-Lund (27) are the metro regions. |
 
 ## 2. Inventory: what assumes Finland today
 
@@ -89,8 +89,8 @@ DeSO areas and postal areas are different-sized units, so cross-country ranks wo
 ### 3.7 Names, slugs, search
 Display name = RegSO name, plus the municipality when needed to tell areas apart. Several DeSOs share one RegSO, so the slug is `{deso}-{regso-name}` (e.g. `/sv/omrade/0180C1090-sodermalm/`). It's unique because of the code, as Finnish slugs are. `parseSlug` reads the ID with `isAreaId` instead of `slice(0, 5)`. Search indexes RegSO and municipality names. A typed Swedish postnummer goes to geocoding instead of an ID lookup.
 
-### 3.8 Profile pages: sv + en only for Sweden
-Prerender Swedish areas in Swedish and English (about 12,300 pages and 6,160 cards), not Finnish. Even so, the deploy tree roughly doubles: measure the `deploy` job and the Pages artifact on the pilot before going national.
+### 3.8 Profile pages: all three languages
+Swedish areas get `/alue/`, `/en/area/` and `/sv/omrade/` pages like Finnish ones (decided, Q2): about 18,500 more pages and 6,160 more cards, roughly tripling the deploy tree. The droplet serves the site, but the Pages standby still has to stay deployable inside `actions/deploy-pages`' timeout, so measure the `deploy` job, the artifact size and the card rasterising time on the Stockholm pilot before going national.
 
 ### 3.9 Services
 Geocoding and isochrones are switched off for Swedish regions at first, with the controls hidden rather than broken. Trafiklab ResRobot is the candidate to replace them later.
@@ -126,19 +126,20 @@ Finnish layers with **no** Swedish equivalent found yet (radon, health index, br
 Each is one `claude/*` branch, landed and verified on `main` before the next is pushed.
 
 1. **`areaId` validator.** Add `src/utils/areaId.ts` and switch every §2.1 site plus the server to it. Finland behaviour is unchanged; tests cover both formats. Small, and costs a few bytes.
-2. **Make bundle room.** Find a few hundred bytes of savings in the map path before any country code lands, or decide explicitly to raise `BUDGET` (Q3).
+2. ~~Make bundle room.~~ Not a separate step: each branch raises `BUDGET` by its measured cost plus ~1.5 kB, with the reason recorded in `scripts/check-bundle-size.mjs` (Q3).
 3. **Country dimension, Finland only.** Add `CountryId`, `country` on `RegionConfig`, per-country viewport bounds (widen the URL codecs), and a per-country level in `data_sources.json` / `provenance.json` / `validate_data.py`. No user-visible change.
 4. **Per-country `build:data`.** Loop the build over countries, keeping Finland's output byte-identical (the idempotency gate proves it), and add the `src/data/<country>/` layout and the loader paths.
-5. **Sweden pipeline, Stockholm pilot.** Add `scripts/se/` fetchers for DeSO boundaries, the SCB core tables and the OSM densities for the Stockholm FA-region only. Write `public/data/se_deso.geojson` and build the artifacts.
-6. **Frontend: Sweden switch.** Add the fetched region registry and names, SEK formatting, per-country ranges, and hide Digitransit features. Ship the Stockholm pilot behind a non-default region. No quality index yet.
-7. **Profile pages for Sweden.** sv/en prerender and slugs; measure deploy time and artifact size.
-8. **National Sweden.** All FA-regions plus the `city=se` outline view.
-9. **More layers**, then a Swedish quality index with its own factor set.
+5. **Commit FA25 as source data** (Q4): Tillväxtverket's FA25 list joined to SCB's municipality codes, and fail the build if a municipality is unassigned or assigned twice.
+6. **Sweden pipeline, Stockholm pilot.** Add `scripts/se/` fetchers for DeSO boundaries, the SCB core tables and the OSM densities for the Stockholm FA-region only. Write `public/data/se_deso.geojson` and build the artifacts.
+7. **Frontend: Sweden switch.** Add the fetched region registry and names, SEK formatting, per-country ranges, and hide Digitransit features. Ship the Stockholm pilot behind a non-default region. No quality index yet.
+8. **Profile pages for Sweden.** fi/en/sv prerender and slugs; measure deploy time and artifact size.
+9. **National Sweden.** All FA-regions plus the `city=se` outline view.
+10. **More layers**, then a Swedish quality index with its own factor set.
 
-## 6. Open questions
+## 6. Decisions (2026-10-27)
 
-- **Q1 Domain and brand.** naapurustot.fi is a Finnish name. Do Swedish pages live under naapurustot.fi/sv/…, or under a Swedish domain?
-- **Q2 Finnish-language UI for Swedish areas.** §3.8 proposes no `/alue/` pages for Swedish areas. Is that OK?
-- **Q3 Bundle budget.** Make room (slow, uncertain) or raise `BUDGET` by a stated amount for the country plumbing?
-- **Q4 FA15 vs FA25.** Use the current 60 FA15 regions, or wait for, or adopt, FA25? Its count and membership are still to be confirmed.
-- **Q5 Trends.** Start Swedish history at 2024 (DeSO 2025), or match the DeSO 2018 series where boundaries are unchanged (SCB says about 1,000 changed only cosmetically)?
+- **Q1 Domain:** everything stays under naapurustot.fi. A global domain can come later.
+- **Q2 Languages:** Swedish areas get Finnish, English and Swedish pages, the same as Finnish areas.
+- **Q3 Bundle budget:** raise it. `BUDGET` is a ratchet set just above the measured size, so each feature bumps it by its measured cost plus ~1.5 kB, with the reason recorded. Swedish region data still stays out of JS, so a Finnish visitor never downloads Sweden.
+- **Q4 Regions:** FA25. Membership is confirmed against SCB's municipality codes (§1); §5 step 5 commits it as source data with a build check.
+- **Q5 History:** the latest values are the same either way. Older history (matching DeSO 2018 areas whose boundaries didn't change) is optional and can come later.

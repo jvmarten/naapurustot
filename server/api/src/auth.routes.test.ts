@@ -132,6 +132,23 @@ test('credentialed GET/PUT favorites round-trip persists and reads back', async 
   assert.ok(get2.body.updatedAt, 'GET favorites surfaces updatedAt');
 });
 
+test('favorites accept Swedish DeSO area ids and still reject junk', async () => {
+  const ok = await request(app)
+    .put('/auth/favorites')
+    .set('Cookie', authCookie())
+    .set('Origin', ORIGIN)
+    .send({ favorites: ['00100', '0180C1090', 'helsinki_metro'] });
+  assert.equal(ok.status, 200);
+  assert.deepEqual(ok.body.favorites, ['00100', '0180C1090', 'helsinki_metro']);
+
+  const bad = await request(app)
+    .put('/auth/favorites')
+    .set('Cookie', authCookie())
+    .set('Origin', ORIGIN)
+    .send({ favorites: ['<script>'] });
+  assert.equal(bad.status, 400);
+});
+
 test('GET without a valid token is rejected with 401', async () => {
   const res = await request(app).get('/auth/favorites');
   assert.equal(res.status, 401);

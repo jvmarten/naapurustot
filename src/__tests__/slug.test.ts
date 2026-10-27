@@ -96,3 +96,17 @@ describe('parseSlug', () => {
     expect(parseSlug('99999-test')).toBe('99999');
   });
 });
+
+describe('Swedish DeSO slugs', () => {
+  it('lower-cases the id in the slug and restores it when parsing', () => {
+    const slug = toSlug('0180C1090', 'Södermalm');
+    expect(slug).toBe('0180c1090-sodermalm');
+    expect(parseSlug(slug)).toBe('0180C1090');
+    expect(parseSlug('0180C1090')).toBe('0180C1090');
+  });
+
+  it('rejects ids that are neither format', () => {
+    expect(parseSlug('0180d1090-foo')).toBeNull();
+    expect(parseSlug('12345abcde')).toBeNull();
+  });
+});
