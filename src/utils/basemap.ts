@@ -106,28 +106,70 @@ function isCountryBoundary(l: LayerSpecification): boolean {
 }
 
 /**
- * The base style's own border lines, trimmed to what the map needs: country borders on
- * land. Our region outlines already draw the regions, so the base's province and
- * municipal lines (positron's levels 3–6, dark's level 4) only cross-hatched them, and
- * the dark style draws sea borders too, which ran loops around Gotland and across the
- * Baltic. Returns the layer unchanged, a filter with sea borders excluded, or null to
- * hide it. Idempotent, so it can run on every style load.
+ * Country borders, drawn so a change of country reads differently from a region
+ * boundary: lighter and thicker than the region outlines (~1 px, ~0.5 opacity) in the
+ * dark theme, darker in the light one, and never dashed or blurred.
  */
-export function trimBoundaryLayer(l: LayerSpecification): LayerSpecification | null {
-  if (!('source-layer' in l) || l['source-layer'] !== 'boundary') return l;
-  if (!isCountryBoundary(l)) return null;
-  const filter = (l as { filter?: ExpressionSpecification }).filter;
-  if (!filter || JSON.stringify(filter).includes('"maritime"')) return l;
-  return { ...l, filter: ['all', filter, NOT_MARITIME] } as LayerSpecification;
+const COUNTRY_BORDER_PAINT: Record<'dark' | 'light', Record<string, unknown>> = {
+  dark: { 'line-color': '#cbd5e1', 'line-opacity': 0.8 },
+  light: { 'line-color': '#334155', 'line-opacity': 0.75 },
+};
+const COUNTRY_BORDER_WIDTH: ExpressionSpecification = ['interpolate', ['linear'], ['zoom'], 3, 1.2, 6, 1.8, 10, 2.6];
+
+/**
+ * The base style's own border lines, cut down to what the map needs and lifted above it.
+ *
+ * Kept: country borders on land, restyled (COUNTRY_BORDER_PAINT) and moved to just above
+ * the first place-name label — so above our choropleth, which is inserted below that
+ * label, where the base had them hidden under the fill. Hidden: the base's province and
+ * municipal lines (positron's levels 3–6, dark's level 4), which only cross-hatched our
+ * own region outlines, and sea borders (the dark style drew them, as loops around
+ * Gotland and lines across the Baltic). Idempotent, so it can run on every style load.
+ */
+export function styleBaseBorders(layers: readonly LayerSpecification[], theme: 'dark' | 'light'): LayerSpecification[] {
+  const borders: LayerSpecification[] = [];
+  const rest: LayerSpecification[] = [];
+  for (const l of layers) {
+    if (!('source-layer' in l) || l['source-layer'] !== 'boundary') rest.push(l);
+    else if (isCountryBoundary(l)) borders.push(countryBorder(l, theme));
+  }
+  const anchor = firstOverlayLayerId(rest);
+  const at = anchor ? rest.findIndex((l) => l.id === anchor) + 1 : rest.length;
+  return [...rest.slice(0, at), ...borders, ...rest.slice(at)];
 }
 
-/** Apply trimBoundaryLayer to a live map's base style (call on every `style.load`). */
-export function trimBaseBoundaries(map: MaplibreMap): void {
-  for (const l of map.getStyle()?.layers ?? []) {
-    const t = trimBoundaryLayer(l);
-    if (t === l) continue;
-    if (t === null) map.setLayoutProperty(l.id, 'visibility', 'none');
-    else map.setFilter(l.id, (t as { filter: FilterSpecification }).filter);
+function countryBorder(l: LayerSpecification, theme: 'dark' | 'light'): LayerSpecification {
+  const filter = (l as { filter?: ExpressionSpecification }).filter;
+  const landOnly = !filter || JSON.stringify(filter).includes('"maritime"') ? filter : ['all', filter, NOT_MARITIME];
+  return {
+    ...l,
+    filter: landOnly,
+    paint: { ...COUNTRY_BORDER_PAINT[theme], 'line-width': COUNTRY_BORDER_WIDTH },
+  } as LayerSpecification;
+}
+
+/** Apply styleBaseBorders to a live map's style (call on every `style.load`). */
+export function applyBaseBorders(map: MaplibreMap, theme: 'dark' | 'light'): void {
+  const current = map.getStyle()?.layers ?? [];
+  const target = styleBaseBorders(current, theme);
+  const kept = new Set(target.map((l) => l.id));
+  for (const l of current) {
+    if (!('source-layer' in l) || l['source-layer'] !== 'boundary') continue;
+    if (!kept.has(l.id)) {
+      map.setLayoutProperty(l.id, 'visibility', 'none');
+      continue;
+    }
+    const t = target.find((x) => x.id === l.id) as LayerSpecification & { filter?: FilterSpecification; paint: Record<string, unknown> };
+    map.setFilter(l.id, t.filter ?? null);
+    for (const key of Object.keys((l as { paint?: object }).paint ?? {})) {
+      if (!(key in t.paint)) map.setPaintProperty(l.id, key, undefined);
+    }
+    for (const [key, value] of Object.entries(t.paint)) map.setPaintProperty(l.id, key, value);
+  }
+  // Restack: each border goes just below whatever follows it in the target order.
+  for (let i = target.length - 1; i >= 0; i--) {
+    const l = target[i];
+    if ('source-layer' in l && l['source-layer'] === 'boundary') map.moveLayer(l.id, target[i + 1]?.id);
   }
 }
 
@@ -142,14 +184,8 @@ export function trimBaseBoundaries(map: MaplibreMap): void {
  */
 export function carryDataLayers(
   previous: StyleSpecification | undefined,
-  incoming: StyleSpecification,
+  next: StyleSpecification,
 ): StyleSpecification {
-  // The incoming base gets its borders trimmed here too: a diffed setStyle may not fire
-  // `style.load`, where the first style's trim runs.
-  const next = {
-    ...incoming,
-    layers: incoming.layers.map(trimBoundaryLayer).filter((l): l is LayerSpecification => l !== null),
-  };
   if (!previous) return next;
 
   const baseSourceIds = new Set(Object.keys(next.sources));

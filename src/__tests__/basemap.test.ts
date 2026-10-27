@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { AttributionControl, LayerSpecification, Map as MaplibreMap, StyleSpecification } from 'maplibre-gl';
 import {
-  trimBoundaryLayer,
+  styleBaseBorders,
   basemapStyleUrl,
   firstOverlayLayerId,
   carryDataLayers,
@@ -168,9 +168,8 @@ describe('carryDataLayers', () => {
   }
 
   it('returns the incoming style unchanged on the initial load (no previous style)', () => {
-    // A copy (the borders are trimmed into a new layers array), equal when there are none.
     const next = baseStyle();
-    expect(carryDataLayers(undefined, next)).toEqual(next);
+    expect(carryDataLayers(undefined, next)).toBe(next);
   });
 
   it('carries the app data sources across the swap and drops nothing base', () => {
@@ -204,30 +203,39 @@ describe('carryDataLayers', () => {
   });
 });
 
-describe('trimBoundaryLayer', () => {
+describe('styleBaseBorders', () => {
   const line = (id: string, filter: unknown, sourceLayer = 'boundary') =>
-    ({ id, type: 'line', source: 'openmaptiles', 'source-layer': sourceLayer, filter }) as LayerSpecification;
+    ({ id, type: 'line', source: 'openmaptiles', 'source-layer': sourceLayer, filter, paint: { 'line-dasharray': [2, 2] } }) as LayerSpecification;
+  const label = (id: string, sourceLayer: string) =>
+    ({ id, type: 'symbol', source: 'openmaptiles', 'source-layer': sourceLayer }) as LayerSpecification;
 
-  // The two OpenFreeMap styles' boundary layers, as they ship.
-  const darkState = line('boundary_state', ['==', ['get', 'admin_level'], 4]);
-  const darkCountry = line('boundary_country_z5-', ['==', ['get', 'admin_level'], 2]);
-  const positron3 = line('boundary_3', ['all', ['>=', ['get', 'admin_level'], 3], ['<=', ['get', 'admin_level'], 6], ['!=', ['get', 'maritime'], 1]]);
+  // The OpenFreeMap dark style's boundary layers, as they ship, around a water layer and labels.
+  const water = line('water', ['==', ['get', 'class'], 'lake'], 'water');
+  const state = line('boundary_state', ['==', ['get', 'admin_level'], 4]);
+  const country = line('boundary_country_z5-', ['==', ['get', 'admin_level'], 2]);
   const positron2 = line('boundary_2', ['all', ['==', ['get', 'admin_level'], 2], ['!=', ['get', 'maritime'], 1]]);
+  const road = label('road_label', 'transportation_name');
+  const city = label('place_city', 'place');
+  const village = label('place_village', 'place');
 
-  it('hides sub-national borders', () => {
-    expect(trimBoundaryLayer(darkState)).toBeNull();
-    expect(trimBoundaryLayer(positron3)).toBeNull();
+  it('drops sub-national borders and lifts country borders just above the first place label', () => {
+    const out = styleBaseBorders([water, state, country, road, city, village], 'dark');
+    expect(out.map((l) => l.id)).toEqual(['water', 'road_label', 'place_city', 'boundary_country_z5-', 'place_village']);
   });
 
-  it('keeps country borders but drops their sea segments', () => {
-    const t = trimBoundaryLayer(darkCountry) as LayerSpecification & { filter: unknown };
-    expect(t.filter).toEqual(['all', ['==', ['get', 'admin_level'], 2], ['!=', ['get', 'maritime'], 1]]);
-    expect(trimBoundaryLayer(t)).toBe(t);
-    expect(trimBoundaryLayer(positron2)).toBe(positron2);
+  it('keeps only land segments and replaces the base paint with the theme\'s', () => {
+    const [b] = styleBaseBorders([country], 'light') as (LayerSpecification & { filter: unknown; paint: Record<string, unknown> })[];
+    expect(b.filter).toEqual(['all', ['==', ['get', 'admin_level'], 2], ['!=', ['get', 'maritime'], 1]]);
+    expect(b.paint['line-dasharray']).toBeUndefined();
+    expect(b.paint['line-color']).not.toEqual(
+      (styleBaseBorders([country], 'dark')[0] as { paint: Record<string, unknown> }).paint['line-color'],
+    );
+    const [p] = styleBaseBorders([positron2], 'light') as (LayerSpecification & { filter: unknown })[];
+    expect(p.filter).toEqual((positron2 as { filter: unknown }).filter);
   });
 
-  it('leaves non-boundary layers alone', () => {
-    const water = line('water', ['==', ['get', 'class'], 'lake'], 'water');
-    expect(trimBoundaryLayer(water)).toBe(water);
+  it('is idempotent', () => {
+    const once = styleBaseBorders([water, state, country, road, city, village], 'dark');
+    expect(styleBaseBorders(once, 'dark')).toEqual(once);
   });
 });

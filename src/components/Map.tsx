@@ -15,7 +15,7 @@ import { t, useI18nVersion } from '../utils/i18n';
 import { DEFAULT_CENTER, DEFAULT_ZOOM, MAP_MIN_ZOOM, MAP_MAX_ZOOM } from '../utils/mapConstants';
 import { queryFeaturesSafe, isStyleAlive } from '../utils/mapQuery';
 import { subscribeMapHighlight } from '../utils/mapHighlight';
-import { basemapStyleUrl, baseInsertBeforeId, carryDataLayers, addBasemapAttribution, trimBaseBoundaries } from '../utils/basemap';
+import { basemapStyleUrl, baseInsertBeforeId, carryDataLayers, addBasemapAttribution, applyBaseBorders, styleBaseBorders } from '../utils/basemap';
 // CF-5 Phase D1: pre-baked boundary outlines of all 69 Finnish seutukunnat.
 import type { CountryId } from '../utils/areaId';
 import { loadRegionOutlines, getRegionOutlines, regionAt } from '../utils/regionHit';
@@ -276,6 +276,8 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   const hoveredIdRef = useRef<string | null>(null);
   const selectedIdRef = useRef<string | null>(null);
   const { theme } = useTheme();
+  const themeRef = useRef(theme);
+  themeRef.current = theme;
   // True when MapLibre can't create a WebGL context. Surfaces an explicit
   // "map unavailable" message instead of throwing into the ErrorBoundary
   // (whose generic "try again / reload" UI is misleading for a permanent
@@ -388,9 +390,9 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     }
 
     addBasemapAttribution(map, maplibregl.AttributionControl, 'bottom-right');
-    // Country borders only: no sea borders or sub-national lines under our outlines.
+    // The base's borders: country borders on land only, restyled above the fills.
     const builtMap = map;
-    map.on('style.load', () => trimBaseBoundaries(builtMap));
+    map.on('style.load', () => applyBaseBorders(builtMap, themeRef.current));
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
 
     // E5: recover from runtime WebGL context loss (GPU reset, tab backgrounding,
@@ -517,7 +519,11 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     const map = mapRef.current;
     if (!map || !mapStyleLoadedRef.current) return;
 
-    map.setStyle(basemapStyleUrl(theme), { diff: true, transformStyle: carryDataLayers });
+    map.setStyle(basemapStyleUrl(theme), {
+      diff: true,
+      // Restyle the incoming base's borders in the style itself: a diffed swap need not fire `style.load`.
+      transformStyle: (prev, next) => carryDataLayers(prev, { ...next, layers: styleBaseBorders(next.layers, theme) }),
+    });
 
     // setStyle re-creates every source, which clears feature-state — so the hover /
     // selection rings (driven by feature-state, not paint) blank out until the next
