@@ -1,10 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { REGION_IDS, type RegionId } from '../utils/regions';
+import type { CountryId } from '../utils/areaId';
 import { t, useI18nVersion, type Lang } from '../utils/i18n';
 import { fold } from '../utils/slug';
 import coverageManifest from '../data/region_coverage.json';
 
 export type CityFilter = RegionId | 'all';
+/** The list's top level: the national view of both countries ('all'), or one country framed. */
+export type ScopeId = 'all' | CountryId;
 
 interface CitySelectorProps {
   value: CityFilter;
@@ -18,18 +21,26 @@ interface CitySelectorProps {
   /** Render only an "add to map" button whose list adds on pick (the desktop add path,
    *  next to the layers panel) — no select, no switching. */
   addOnly?: boolean;
+  /** Pick of a top-level row (World / Finland / Sweden). Without it, World falls back
+   *  to onChange('all') and the country rows are not offered. */
+  onScope?: (scope: ScopeId) => void;
 }
 
 /**
- * Options list: "All" first, then every region in config order — the 3 with
- * data, then the scaffolded seutukunnat. CF-5 Phase D: the selector lists all
- * 69 seutukunnat; regions without data are still selectable (shown gray on the
- * map) and carry a "(no data)" badge. Computed once at module level.
+ * The top level of the list: World (the national view of both countries) and one row
+ * per country. With 140 regions across two countries the region rows are reached by
+ * searching — the popover lists them only once something is typed (plus the regions
+ * already on the map, so the current view is always visible). Computed once at module level.
  */
-const OPTIONS: { id: CityFilter; labelKey: string }[] = [
+const SCOPES: { id: ScopeId; labelKey: string }[] = [
   { id: 'all', labelKey: 'city.all' },
-  ...REGION_IDS.map((id) => ({ id: id as CityFilter, labelKey: `city.${id}` })),
+  { id: 'fi', labelKey: 'city.scope.fi' },
+  { id: 'se', labelKey: 'city.scope.se' },
 ];
+const REGION_OPTIONS: { id: RegionId; labelKey: string }[] =
+  REGION_IDS.map((id) => ({ id, labelKey: `city.${id}` }));
+/** Desktop select value for a country row — never a valid region id. */
+const SCOPE_VALUE_PREFIX = 'scope:';
 
 // CF-5 Phase C/D: coverage-aware labeling. A region with no ingested data gets
 // a "(no data)" badge; a region with partial data gets "(X%)" or "(low data)".
@@ -52,7 +63,7 @@ function getCoverageBadge(regionId: CityFilter): string {
   return ` (${t('city.coverage.partial').replace('{pct}', String(pct))})`;
 }
 
-export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, onChange, lang: _lang, displayed, onAdd, addOnly }) => {
+export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, onChange, lang: _lang, displayed, onAdd, addOnly, onScope }) => {
   useI18nVersion();
   const [open, setOpen] = useState(false);
   // SN-2: filter text for the mobile popover — 70 rows in a small unsearchable
@@ -61,13 +72,19 @@ export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, on
   const [filter, setFilter] = useState('');
   const ref = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const options = OPTIONS;
   const foldedFilter = fold(filter.trim());
   const isShown = (id: CityFilter) => id === value || !!displayed?.includes(id);
-  const visibleOptions = (foldedFilter
-    ? options.filter((opt) => fold(t(opt.labelKey)).includes(foldedFilter))
-    : options
-  ).filter((opt) => !addOnly || (opt.id !== 'all' && !isShown(opt.id)));
+  const scopes = onScope ? SCOPES : SCOPES.slice(0, 1);
+  const pickScope = (scope: ScopeId) => (onScope ? onScope(scope) : onChange('all'));
+  // addOnly lists every addable region (it is a short add path, not the switcher).
+  // Otherwise an empty filter shows the regions on the map; typing searches all of them.
+  const visibleScopes = addOnly || foldedFilter ? [] : scopes;
+  const visibleRegions = addOnly
+    ? REGION_OPTIONS.filter((opt) => !isShown(opt.id)
+        && (!foldedFilter || fold(t(opt.labelKey)).includes(foldedFilter)))
+    : foldedFilter
+      ? REGION_OPTIONS.filter((opt) => fold(t(opt.labelKey)).includes(foldedFilter))
+      : REGION_OPTIONS.filter((opt) => isShown(opt.id));
 
   useEffect(() => {
     if (!open) return;
@@ -102,7 +119,11 @@ export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, on
       {!addOnly && <select
         data-tour-id="cities"
         value={value}
-        onChange={(e) => onChange(e.target.value as CityFilter)}
+        onChange={(e) => {
+          const v = e.target.value;
+          if (v.startsWith(SCOPE_VALUE_PREFIX)) pickScope(v.slice(SCOPE_VALUE_PREFIX.length) as ScopeId);
+          else onChange(v as CityFilter);
+        }}
         // Neutral, like the other header controls: as a solid brand-blue fill it was the
         // loudest thing on the page. Opaque backgrounds on purpose — Chrome on Windows
         // paints the native option list with the select's colours, and a translucent
@@ -113,7 +134,15 @@ export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, on
                    bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22%2364748b%22%3E%3Cpath%20fill-rule%3D%22evenodd%22%20d%3D%22M5.23%207.21a.75.75%200%20011.06.02L10%2011.168l3.71-3.938a.75.75%200%20111.08%201.04l-4.25%204.5a.75.75%200%2001-1.08%200l-4.25-4.5a.75.75%200%2001.02-1.06z%22%20clip-rule%3D%22evenodd%22%2F%3E%3C%2Fsvg%3E')] bg-[length:1.25rem] bg-[position:right_0.25rem_center] bg-no-repeat"
         aria-label={t('city.select')}
       >
-        {options.map((opt) => (
+        {/* A native select cannot be searched, so it keeps every region below the
+            top-level rows. Country rows reframe the national view; while they are
+            picked the select still reads World, the view they belong to. */}
+        {scopes.map((s) => (
+          <option key={s.id} value={s.id === 'all' ? 'all' : SCOPE_VALUE_PREFIX + s.id}>
+            {t(s.labelKey)}
+          </option>
+        ))}
+        {REGION_OPTIONS.map((opt) => (
           <option key={opt.id} value={opt.id}>
             {t(opt.labelKey)}{getCoverageBadge(opt.id)}
           </option>
@@ -178,7 +207,27 @@ export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, on
               />
             </div>
             <div className="overflow-y-auto flex-1 min-h-0">
-              {visibleOptions.map((opt) => {
+              {visibleScopes.map((s) => {
+                const shown = s.id === 'all' && value === 'all';
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => {
+                      pickScope(s.id);
+                      setOpen(false);
+                    }}
+                    aria-current={shown || undefined}
+                    className={`w-full text-left px-4 py-3 text-sm transition-colors ${
+                      shown
+                        ? 'bg-brand-500/15 text-brand-700 dark:text-brand-300 font-medium'
+                        : 'text-surface-700 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800/60'
+                    }`}
+                  >
+                    {t(s.labelKey)}
+                  </button>
+                );
+              })}
+              {visibleRegions.map((opt) => {
                 const shown = isShown(opt.id);
                 return (
                   <div key={opt.id} className="flex">
@@ -188,7 +237,7 @@ export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, on
                         // re-picking the primary while other regions are shown must not
                         // collapse the view (the desktop select fires nothing for its
                         // current value either).
-                        if (addOnly) onAdd?.(opt.id as RegionId);
+                        if (addOnly) onAdd?.(opt.id);
                         else if (!(opt.id === value && (displayed?.length ?? 0) > 1)) onChange(opt.id);
                         setOpen(false);
                       }}
@@ -201,10 +250,10 @@ export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, on
                     >
                       {t(opt.labelKey)}{getCoverageBadge(opt.id)}
                     </button>
-                    {onAdd && !addOnly && !shown && opt.id !== 'all' && (
+                    {onAdd && !addOnly && !shown && (
                       <button
                         onClick={() => {
-                          onAdd(opt.id as RegionId);
+                          onAdd(opt.id);
                           setOpen(false);
                         }}
                         aria-label={`${t('region_switch.add')}: ${t(opt.labelKey)}`}
@@ -216,7 +265,7 @@ export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, on
                   </div>
                 );
               })}
-              {visibleOptions.length === 0 && (
+              {foldedFilter && visibleRegions.length === 0 && (
                 <div className="px-4 py-3 text-xs text-surface-500 dark:text-surface-400">{t('city.filter_no_match')}</div>
               )}
             </div>
