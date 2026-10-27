@@ -1441,5 +1441,6 @@
   "scope.all_se": "Whole of Sweden",
   "scope.national_hint_se": "Compared across all of Sweden — tap to compare within this region",
   "sources.se_heading": "Sweden",
-  "sources.se_intro": "Swedish areas are Statistics Sweden (SCB) DeSO 2025 areas (6,160 areas of 700–2,700 residents), grouped into Tillväxtverket's FA25 regions. From 2025 SCB adds a small random noise to every figure to protect privacy and withholds counts of 1–2 people; such shares are shown only where the published precision determines them. Swedish figures follow SCB's definitions, so they are never put on one scale with Finland's. The quality index covers Finnish areas only for now."
+  "sources.se_intro": "Swedish areas are Statistics Sweden (SCB) DeSO 2025 areas (6,160 areas of 700–2,700 residents), grouped into Tillväxtverket's FA25 regions. From 2025 SCB adds a small random noise to every figure to protect privacy and withholds counts of 1–2 people; such shares are shown only where the published precision determines them. Swedish figures follow SCB's definitions, so they are never put on one scale with Finland's. The quality index covers Finnish areas only for now.",
+  "profile.deso_code": "DeSO area"
 }

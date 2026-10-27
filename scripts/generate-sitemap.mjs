@@ -33,7 +33,7 @@
  * Run after prerendering:  node scripts/generate-sitemap.mjs
  */
 
-import { readFileSync, writeFileSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { gzipSync } from 'zlib';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -46,7 +46,7 @@ const BUILD_METADATA_PATH = join(ROOT, 'src', 'data', 'build_metadata.json');
 const ORIGIN = 'https://naapurustot.fi';
 
 // Ceiling guard — headroom under the sitemaps.org 50,000-URL / 50 MB-per-file limits.
-const MAX_URLS_TOTAL = 45000;
+const MAX_URLS_PER_CHILD = 45000;
 const MAX_CHILD_BYTES = 45 * 1024 * 1024;
 
 const geojson = JSON.parse(readFileSync(GEOJSON_PATH, 'utf-8'));
@@ -85,7 +85,8 @@ function slugify(text) {
 }
 
 function toSlug(pno, nimi) {
-  return `${pno}-${slugify(nimi)}`;
+  // Lower-case: a Swedish DeSO id carries a letter (0180C1090 → 0180c1090), as src/utils/slug.ts does.
+  return `${String(pno).toLowerCase()}-${slugify(nimi)}`;
 }
 
 // --- Family: static pages -------------------------------------------------
@@ -186,6 +187,23 @@ for (const feature of features) {
   alueUrls.push({ loc: alt.sv, priority: '0.6', changefreq: 'monthly', alternates: alt });
 }
 
+// --- Family: Sweden's DeSO profile pages (scripts/prerender-se.mjs) ---------
+const alueSeUrls = [];
+const sePath = join(ROOT, 'public', 'data', 'se_deso.geojson');
+if (existsSync(sePath)) {
+  for (const feature of JSON.parse(readFileSync(sePath, 'utf-8')).features) {
+    const slug = toSlug(feature.properties.pno, feature.properties.nimi);
+    const alt = {
+      fi: `${ORIGIN}/alue/${slug}/`,
+      en: `${ORIGIN}/en/area/${slug}/`,
+      sv: `${ORIGIN}/sv/omrade/${slug}/`,
+    };
+    alueSeUrls.push({ loc: alt.fi, priority: '0.5', changefreq: 'monthly', alternates: alt });
+    alueSeUrls.push({ loc: alt.en, priority: '0.5', changefreq: 'monthly', alternates: alt });
+    alueSeUrls.push({ loc: alt.sv, priority: '0.6', changefreq: 'monthly', alternates: alt });
+  }
+}
+
 // --- Manifest-driven families ---------------------------------------------
 // prerender-hubs.mjs writes a manifest of {fi,en,sv} alternates for exactly the pages
 // it generated (coverage gating lives there) — read it so every <loc> resolves to a real
@@ -218,6 +236,7 @@ const vertaaUrls = loadManifestFamily('vertaa-pages.json', { fi: '0.5', en: '0.4
 const families = [
   { name: 'pages', urls: pagesUrls },
   { name: 'alue', urls: alueUrls },
+  { name: 'alue-se', urls: alueSeUrls },
   { name: 'kaupunki', urls: kaupunkiUrls },
   { name: 'parhaat', urls: parhaatUrls },
   { name: 'kaavoitus', urls: kaavoitusUrls },
@@ -226,12 +245,15 @@ const families = [
 ];
 
 // --- Ceiling guard --------------------------------------------------------
-const totalUrls = families.reduce((n, f) => n + f.urls.length, 0);
-if (totalUrls > MAX_URLS_TOTAL) {
-  throw new Error(
-    `Sitemap exceeds ${MAX_URLS_TOTAL} URLs (${totalUrls}). Split a family into more children ` +
-      `or the sitemap risks the sitemaps.org 50k-URL limit.`,
-  );
+// The sitemaps.org 50k-URL limit is per <urlset> file, and this is an index of
+// children, so the ceiling applies to each family's child, not to the sum.
+for (const family of families) {
+  if (family.urls.length > MAX_URLS_PER_CHILD) {
+    throw new Error(
+      `Sitemap child "${family.name}" exceeds ${MAX_URLS_PER_CHILD} URLs (${family.urls.length}). Split it ` +
+        `into more children or it risks the sitemaps.org 50k-URL limit.`,
+    );
+  }
 }
 
 // --- XML rendering --------------------------------------------------------
@@ -302,7 +324,7 @@ ${indexEntries
 writeFileSync(join(DIST, 'sitemap.xml'), indexXml);
 
 console.log(
-  `Generated sitemap index (${indexEntries.length} children, ${totalUrls} URLs total):`,
+  `Generated sitemap index (${indexEntries.length} children, ${families.reduce((n, f) => n + f.urls.length, 0)} URLs total):`,
 );
 for (const e of indexEntries) {
   console.log(`  ${e.file} — ${e.count} URLs`);

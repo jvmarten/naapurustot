@@ -63,17 +63,23 @@ const MiB = 1024 * 1024;
 //     succeeded), and the binding constraint is sync TIME, which scales with file count. The
 //     headroom below absorbs normal growth and trips long before anything approaches the size
 //     that broke the deploy.
+//
+// 2026-10-27, Sweden (docs/SWEDEN_EXPANSION.md): 6,160 DeSO areas × 3 languages = 18,480
+// profile pages at ~15 KB (scripts/prerender-se.mjs — no social card, no oEmbed, so neither
+// the card rasterization nor the PNG bytes grow). Measured pages profile 845 MB / 58,936
+// files. Both budgets raised to hold that with headroom; the file budget stays below the
+// ~65,000 that crossed the old 10-minute Pages timeout, and deploy-pages now has 20 minutes.
 const PROFILES = {
   pages: {
     hard: true,
-    budget: 640 * MiB,
-    fileBudget: 50_000,
+    budget: 960 * MiB,
+    fileBudget: 66_000,
     label: 'Prerendered page mesh (pre-rasterize)',
   },
   deploy: {
     hard: true,
-    budget: 1200 * MiB, // ~22% over today's 980 MB
-    fileBudget: 50_000, // ~20% over today's 41,825 — sync time tracks this more than bytes
+    budget: 1450 * MiB, // pages mesh + the ~450 MB of Finnish card PNGs, with headroom
+    fileBudget: 66_000, // same file count as `pages` — sync time tracks this more than bytes
     label: 'Full published site (post-rasterize)',
   },
 };

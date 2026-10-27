@@ -2234,8 +2234,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
       </p>
     </div>
   );
-  // Swedish areas have no prerendered profile pages yet.
-  const profileLink = !d._isMetroArea && !isSe ? (
+  const profileLink = !d._isMetroArea ? (
     <a
       href={profileHref(d.pno, d.nimi)}
       onClick={(e) => {

@@ -10,7 +10,7 @@ import type { RegionId } from '../utils/regions';
 import { t, getLang, setLang, useI18nVersion, type Lang } from '../utils/i18n';
 import { formatNumber, formatEuro, formatPct, formatDiff, formatDecimal, formatDensity, formatFineDensity } from '../utils/formatting';
 import { getQualityCategory, getQualityCategories, QUALITY_DIMENSIONS, isCustomWeights } from '../utils/qualityIndex';
-import { getLayerById, getInterpolatedColor, readableTextColor } from '../utils/colorScales';
+import { getLayerById, getInterpolatedColor, readableTextColor, type LayerId } from '../utils/colorScales';
 import { findSimilarNeighborhoods } from '../utils/similarity';
 import { getFeatureCenter } from '../utils/geometryFilter';
 import { ContactMenu } from '../components/ContactMenu';
@@ -22,6 +22,7 @@ import { ErrorBoundary } from '../components/ErrorBoundary';
 import { readStoredWizardProfile } from '../hooks/useWizardProfile';
 import { readStoredQualityWeights } from '../hooks/useQualityWeights';
 import { useFavorites } from '../hooks/useFavorites';
+import { countryOfId } from '../utils/areaId';
 
 const MiniMap = lazy(() => import('../components/profile/MiniMap').then(m => ({ default: m.MiniMap })));
 
@@ -518,6 +519,14 @@ export const NeighborhoodProfilePage: React.FC = () => {
   }
 
   const d = state.feature.properties as NeighborhoodProperties;
+  // Sweden: SCB's metrics, not Paavo's — its own sections below, no fit score, no
+  // region-hub link (Swedish regions have no hub pages; the map is the region view).
+  const isSe = countryOfId(d.pno) === 'se';
+  const seItems = (ids: LayerId[]) => ids.map((id) => {
+    const layer = getLayerById(id);
+    const v = (d as unknown as Record<string, unknown>)[layer.property];
+    return <StatItem key={id} label={t(layer.labelKey)} value={typeof v === 'number' && isFinite(v) ? layer.format(v) : '—'} />;
+  });
   const saved = isFavorite(d.pno);
   const avg = state.metroAverages;
   const center = getFeatureCenter(state.geoFeature ?? state.feature);
@@ -584,7 +593,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
           <div className="animate-pulse text-surface-600 dark:text-surface-300">{t('loading')}</div>
         </div>
       )}
-      <JsonLd properties={d} center={center} url={canonicalUrl} lang={lang} percentiles={state.percentiles} nationalFeatures={state.allFeatures} regionFeatures={state.regionFeatures} />
+      {!isSe && <JsonLd properties={d} center={center} url={canonicalUrl} lang={lang} percentiles={state.percentiles} nationalFeatures={state.allFeatures} regionFeatures={state.regionFeatures} />}
 
       {/* Header */}
       <header className="border-b border-surface-200 dark:border-surface-800">
@@ -616,7 +625,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
         <nav className="text-sm text-surface-600 dark:text-surface-400 mb-6">
           <Link to="/" className="hover:text-brand-600">{t('app.title')}</Link>
           <span className="mx-2">/</span>
-          <a href={`${cityHubPrefix[lang]}/${d.city ?? 'helsinki_metro'}/`} className="hover:text-brand-600">{cityName}</a>
+          <a href={isSe ? `/?city=${d.city}` : `${cityHubPrefix[lang]}/${d.city ?? 'helsinki_metro'}/`} className="hover:text-brand-600">{cityName}</a>
           {prerenderedNav?.muni && (
             <>
               <span className="mx-2">/</span>
@@ -677,7 +686,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
               </button>
             </div>
             <p className="text-surface-600 dark:text-surface-400 mb-4 md:mb-0">
-              {altName ? `${altName} · ` : ''}{t('profile.postal_code')} {d.pno} · {cityName}
+              {altName ? `${altName} · ` : ''}{t(isSe ? 'profile.deso_code' : 'profile.postal_code')} {d.pno} · {cityName}
             </p>
             {/* #1 conversion: primary app entry points, above the fold on DESKTOP — the
                 mobile sticky bar (bottom of the tree) already covers small screens, but
@@ -693,12 +702,15 @@ export const NeighborhoodProfilePage: React.FC = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
                 </svg>
               </Link>
+              {/* The finder ranks Finland's areas only. */}
+              {!isSe && (
               <Link
                 to="/?finder=1"
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-surface-300 dark:border-surface-700 text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors font-medium"
               >
                 {t('fit.cta')}
               </Link>
+              )}
             </div>
           </div>
           {state.geoFeature ? (
@@ -799,10 +811,36 @@ export const NeighborhoodProfilePage: React.FC = () => {
 
         {/* Fit for you — match score against the visitor's saved priority profile, or a
             CTA to set priorities. Opens the Neighborhood Finder on the home page. */}
-        <div className="mb-8">
-          <FitForYouBadge data={d} profile={wizardProfile} variant="banner" />
-        </div>
+        {!isSe && (
+          <div className="mb-8">
+            <FitForYouBadge data={d} profile={wizardProfile} variant="banner" />
+          </div>
+        )}
 
+        {isSe ? (
+          <>
+            <Section title={t('layers.economy')}>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {seItems(['economic_standard', 'low_economic_standard', 'unemployment', 'employment_rate', 'education'])}
+              </div>
+            </Section>
+            <Section title={t('profile.demographics')}>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <StatItem label={t('profile.population')} value={formatNumber(d.he_vakiy)} />
+                {seItems(['population_density', 'foreign_background', 'elderly_ratio', 'gender_ratio'])}
+              </div>
+            </Section>
+            <Section title={t('profile.housing')}>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {seItems(['ownership', 'rental', 'detached_houses', 'avg_household_size', 'families_with_children', 'single_parent_hh'])}
+              </div>
+              <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+                <Link to={sourcesPath} className="hover:text-brand-600 underline decoration-dotted underline-offset-2">{t('profile.data_sources')}</Link>
+                {' · Statistiska centralbyrån (SCB), DeSO 2025'}
+              </p>
+            </Section>
+          </>
+        ) : (<>
         {/* Key Stats Grid */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
           <StatCard
@@ -952,8 +990,10 @@ export const NeighborhoodProfilePage: React.FC = () => {
           </div>
         </Section>
 
+        </>)}
+
         {/* Similar Neighborhoods */}
-        {similar.length > 0 && (
+        {!isSe && similar.length > 0 && (
           <section className="mb-8">
             <h2 className="text-lg font-semibold mb-4">{t('profile.similar')}</h2>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -1027,12 +1067,14 @@ export const NeighborhoodProfilePage: React.FC = () => {
             <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
           </svg>
         </Link>
+        {!isSe && (
         <Link
           to="/?finder=1"
           className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg border border-surface-300 dark:border-surface-700 text-surface-700 dark:text-surface-200 font-medium text-sm hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors"
         >
           {t('fit.cta')}
         </Link>
+        )}
       </div>
     </div>
   );
