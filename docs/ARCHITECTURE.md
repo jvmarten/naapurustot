@@ -310,8 +310,8 @@ The profile page reads the prerender-embedded payload for instant paint (guarded
 |----------|---------|-------|
 | `ci.yml` | push/PR to main | 3 parallel jobs (security audits / lint+type+test+build+e2e+visual+bundle / lighthouse); **skips claude/* PRs entirely**; bundle-delta PR comment; budget 314,000 B gzip (the shared `BUDGET` in `scripts/check-bundle-size.mjs`) |
 | `auto-merge.yml` | push to `claude/**` | The only gate for those branches: parallel jobs mirroring CI (security / checks / data-validation / e2e / lighthouse / server; no visual tests). `data-validation` runs the FULL `validate_data.py` suite when the branch touches `public/data/**` or `scripts/**`, then `merge --no-ff` to main with push-retry/backoff (conflicts fail immediately), branch delete, **explicit** `gh workflow run deploy.yml` (bot pushes don't trigger workflows). Concurrency group cancels an in-flight run when a second claude/* branch pushes — serialize or stack branches |
-| `deploy.yml` | CI success on main / manual | build (+ Sentry secrets) → `build:pages` → rasterize social cards → dist-size guard → 404 fallback copy → GitHub Pages |
-| `deploy-server.yml` | push to main touching `server/**` / manual | SSH → `git pull` → rebuild api → `compose up -d` |
+| `deploy.yml` | CI success on main / manual | build (+ Sentry secrets) → `build:pages` → rasterize social cards → dist-size guard → 404 fallback copy → GitHub Pages, and in parallel (`deploy-droplet`) rsync of the same artifact into a new release folder on the droplet + atomic `current` switch |
+| `deploy-server.yml` | push to main touching `server/**` / manual | SSH → `git pull` → rebuild api → `compose up -d` → `caddy reload` |
 | `data-refresh.yml` | quarterly cron / manual | pipeline + validation → PR on change |
 | `health-check.yml` | daily cron | site/API/sitemap/data-age checks → GitHub issue on failure |
 | `codeql.yml` | push/PR + weekly | JS/TS + Python |

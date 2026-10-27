@@ -253,9 +253,13 @@ than a few minutes, first dump its `naapurustot` database, copy it to `OLD` and 
 
 ## Phase 2: serve the site from NEW
 
-Start only after phase 1 has run cleanly for a week or two **and** the phase 2 repo changes
-(server job in `deploy.yml`, site block in the Caddyfile, `SITE_HOSTS`) have merged. Claude
-checks the second condition first and stops if it fails:
+Phase 2 does not depend on phase 1: on 2026-10-26 the operator chose to run it on the
+existing DigitalOcean droplet (resized to 2 GB / 50 GB first) and to defer the Hetzner move. On
+the droplet, read `NEW` below as the droplet's IP; `deploy.yml` already targets
+`DEPLOY_SERVER_IP`. On a new server, start only after phase 1 has run cleanly for a week or
+two. Either way the phase 2 repo changes (the `deploy-droplet` job in `deploy.yml`, the site
+block in `caddy/Caddyfile`, `SITE_HOSTS`) must have merged. Claude checks that first and
+stops if it fails:
 
 ```bash
 grep -q SITE_HOSTS /opt/naapurustot/server/docker-compose.yml \

@@ -281,7 +281,7 @@ When signed in, favorites/notes/shortlist/presets/weights additionally sync to t
 |----------|---------|-------------|
 | `ci.yml` | Push/PR to main (skips `claude/*` PRs) | 3 parallel jobs: security audits; lint → type check → tests + coverage ratchet → build → E2E → visual → bundle budget; Lighthouse |
 | `auto-merge.yml` | Push to `claude/**` | Mirrors the CI gates in 4 parallel jobs, then merges to main, deletes the branch, triggers deploy |
-| `deploy.yml` | CI success on main / manual | Build + `build:pages` + sitemap → GitHub Pages |
+| `deploy.yml` | CI success on main / manual | Build + `build:pages` + sitemap → GitHub Pages, and the same build to the droplet |
 | `deploy-server.yml` | Push to main touching `server/**` / manual | SSH deploy of backend containers |
 | `data-refresh.yml` | Quarterly cron / manual | Re-run data pipeline, validate, open PR if changed |
 | `health-check.yml` | Daily cron | Synthetic checks of site, API, sitemap, data freshness; files an issue on failure |
