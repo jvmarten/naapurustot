@@ -23,7 +23,7 @@ The frontend is fully static — all data ships as pre-built TopoJSON/JSON asset
 - **Trilingual** — Finnish (default), English, Swedish
 - **User accounts (optional)** — favorites/notes/preferences sync, GDPR data export and account deletion
 - **PWA** — installable, offline-capable; dark/light/system theme; colorblind palettes (protanopia, deuteranopia, tritanopia); keyboard shortcuts (press `?`)
-- **SEO pages** — ~9,000 pre-rendered profile pages plus region hub pages with JSON-LD structured data
+- **SEO pages** — ~9,000 pre-rendered Finnish profile pages and 18,480 Swedish ones (6,160 DeSO areas × fi/en/sv), plus region hub pages with JSON-LD structured data
 
 ## Quick start
 
@@ -69,6 +69,7 @@ scripts/                  # Data pipeline (Python) + build tooling (Node)
 ├── build_region_data.mjs # GeoJSON → per-region TopoJSON + manifests
 ├── build_national_ranges.mjs / build_grid_data.mjs
 ├── prerender.mjs         # Static HTML for ~9,000 profile pages (+ social cards, JSON-LD)
+├── prerender-se.mjs      # Static HTML for Sweden's 18,480 profile pages (no cards — see CLAUDE.md)
 ├── prerender-hubs.mjs    # Region hub/directory pages
 └── generate-sitemap.mjs  # sitemap.xml (~9,270 URLs, hreflang alternates)
 
@@ -243,7 +244,7 @@ Deploys run automatically on pushes to `main` touching `server/**` (or manually 
 | `/tietosuoja` · `/en/privacy` · `/sv/integritet` | Privacy page |
 | `*` | 404 |
 
-Profile pages are pre-rendered to static HTML at build time (`npm run build:pages`); the slug's 5-digit postal-code prefix enables O(1) lookup. Region hub pages (`/kaupungit/`, `/kaupunki/{region}/` + en/sv variants) are standalone prerendered HTML, *not* React routes.
+Profile pages are pre-rendered to static HTML at build time (`npm run build:pages`); the slug's area-id prefix (a 5-digit postal code, or a Swedish DeSO code such as `0180c1090`) enables O(1) lookup. Region hub pages (`/kaupungit/`, `/kaupunki/{region}/` + en/sv variants) are standalone prerendered HTML, *not* React routes.
 
 ## URL state
 
