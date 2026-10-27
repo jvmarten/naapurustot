@@ -15,7 +15,7 @@ import { t, useI18nVersion } from '../utils/i18n';
 import { DEFAULT_CENTER, DEFAULT_ZOOM, MAP_MIN_ZOOM, MAP_MAX_ZOOM } from '../utils/mapConstants';
 import { queryFeaturesSafe, isStyleAlive } from '../utils/mapQuery';
 import { subscribeMapHighlight } from '../utils/mapHighlight';
-import { basemapStyleUrl, baseInsertBeforeId, carryDataLayers, BASEMAP_ATTRIBUTION } from '../utils/basemap';
+import { basemapStyleUrl, baseInsertBeforeId, carryDataLayers, addBasemapAttribution } from '../utils/basemap';
 // CF-5 Phase D1: pre-baked boundary outlines of all 69 Finnish seutukunnat.
 import { loadRegionOutlines, getRegionOutlines, regionAt } from '../utils/regionHit';
 
@@ -376,7 +376,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       return;
     }
 
-    map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: BASEMAP_ATTRIBUTION }), 'bottom-right');
+    addBasemapAttribution(map, maplibregl.AttributionControl, 'bottom-right');
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
 
     // E5: recover from runtime WebGL context loss (GPU reset, tab backgrounding,

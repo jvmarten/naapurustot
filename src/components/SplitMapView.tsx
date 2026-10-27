@@ -12,7 +12,7 @@ import { useTheme } from '../hooks/useTheme';
 import { t, useI18nVersion } from '../utils/i18n';
 import { DEFAULT_CENTER, DEFAULT_ZOOM, MAP_MAX_ZOOM, MAP_MIN_ZOOM } from '../utils/mapConstants';
 import { queryFeaturesSafe, isStyleAlive } from '../utils/mapQuery';
-import { basemapStyleUrl, baseInsertBeforeId, carryDataLayers, BASEMAP_ATTRIBUTION } from '../utils/basemap';
+import { basemapStyleUrl, baseInsertBeforeId, carryDataLayers, addBasemapAttribution } from '../utils/basemap';
 
 /**
  * Compact dropdown for choosing a data layer on one side of the split view.
@@ -560,7 +560,7 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
       return;
     }
 
-    leftMap.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: BASEMAP_ATTRIBUTION }), 'bottom-left');
+    addBasemapAttribution(leftMap, maplibregl.AttributionControl, 'bottom-left');
     rightMap.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
 
     leftMapRef.current = leftMap;

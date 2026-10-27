@@ -1,9 +1,11 @@
-import { describe, it, expect } from 'vitest';
-import type { LayerSpecification, StyleSpecification } from 'maplibre-gl';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import type { AttributionControl, LayerSpecification, Map as MaplibreMap, StyleSpecification } from 'maplibre-gl';
 import {
   basemapStyleUrl,
   firstOverlayLayerId,
   carryDataLayers,
+  addBasemapAttribution,
+  ATTRIBUTION_FOLD_MS,
   BASEMAP_STYLE_LIGHT,
   BASEMAP_STYLE_DARK,
   BASEMAP_ATTRIBUTION,
@@ -46,6 +48,65 @@ describe('BASEMAP_ATTRIBUTION', () => {
     expect(BASEMAP_ATTRIBUTION).toContain('openfreemap.org');
     expect(BASEMAP_ATTRIBUTION).toContain('openmaptiles.org');
     expect(BASEMAP_ATTRIBUTION).toContain('openstreetmap.org');
+  });
+
+  it('is exactly the tile source TileJSON attribution, so MapLibre shows one copy', () => {
+    // MapLibre dedupes a source attribution against the custom one only on an exact
+    // string match; this is what tiles.openfreemap.org/planet served on 2026-10-27.
+    expect(BASEMAP_ATTRIBUTION).toBe(
+      '<a href="https://openfreemap.org" target="_blank">OpenFreeMap</a> <a href="https://www.openmaptiles.org/" target="_blank">&copy; OpenMapTiles</a> Data from <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>',
+    );
+  });
+});
+
+describe('addBasemapAttribution', () => {
+  afterEach(() => vi.useRealTimers());
+
+  /** Stands in for maplibregl.AttributionControl in its post-onAdd, compact-expanded state. */
+  function setup() {
+    const created: { options: unknown; _container: HTMLElement }[] = [];
+    class FakeControl {
+      options: unknown;
+      _container = document.createElement('details');
+      constructor(options: unknown) {
+        this.options = options;
+        this._container.classList.add('maplibregl-compact', 'maplibregl-compact-show');
+        created.push(this);
+      }
+    }
+    const map = { addControl: vi.fn() };
+    addBasemapAttribution(
+      map as unknown as MaplibreMap,
+      FakeControl as unknown as typeof AttributionControl,
+      'bottom-right',
+    );
+    return { map, ctrl: created[0] };
+  }
+
+  it('adds a compact control carrying the basemap credit', () => {
+    vi.useFakeTimers();
+    const { map, ctrl } = setup();
+    expect(ctrl.options).toEqual({ compact: true, customAttribution: BASEMAP_ATTRIBUTION });
+    expect(map.addControl).toHaveBeenCalledWith(ctrl, 'bottom-right');
+  });
+
+  it('shows the credit on load and folds it to the (i) after five seconds', () => {
+    vi.useFakeTimers();
+    const { ctrl } = setup();
+    vi.advanceTimersByTime(ATTRIBUTION_FOLD_MS - 1);
+    expect(ctrl._container.classList.contains('maplibregl-compact-show')).toBe(true);
+    vi.advanceTimersByTime(1);
+    expect(ctrl._container.classList.contains('maplibregl-compact-show')).toBe(false);
+    expect(ctrl._container.classList.contains('maplibregl-compact')).toBe(true);
+    expect(ATTRIBUTION_FOLD_MS).toBeGreaterThanOrEqual(5000); // OSMF: an automatic collapse no sooner than 5 s
+  });
+
+  it('does not fold a control the viewer has already tapped', () => {
+    vi.useFakeTimers();
+    const { ctrl } = setup();
+    ctrl._container.click();
+    vi.advanceTimersByTime(ATTRIBUTION_FOLD_MS);
+    expect(ctrl._container.classList.contains('maplibregl-compact-show')).toBe(true);
   });
 });
 
