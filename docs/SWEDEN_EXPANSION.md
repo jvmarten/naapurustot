@@ -1,7 +1,7 @@
 # Sweden expansion — scoping
 
-Status: all of Sweden is on the map (2026-10-27). What was built, and where it differs
-from the plan below, is in §7. Profile pages for Swedish areas are the next step.
+Status: all of Sweden is on the map and has profile pages (2026-10-27). What was built,
+and where it differs from the plan below, is in §7.
 
 The goal is to add Sweden as a second country, at SCB's **DeSO** level (6,160
 demographic statistical areas, 700–2,700 residents each), which is finer than
@@ -176,5 +176,11 @@ pipeline handles the whole country as cheaply as one region. Differences from th
   both bounds round to the same decimal. Region aggregates use the 1.5 midpoint inside
   Σ numerator / Σ denominator, which is at most half a person per area, so they are not
   biased by leaving those areas out.
-- **Not yet:** Swedish profile pages and sitemap (step 8), OSM service densities, a
-  Swedish quality index, and Swedish history before 2024 (Q5).
+- **Profile pages (step 8):** all 18,480 (fi/en/sv), at the same routes as Finland's,
+  from `scripts/prerender-se.mjs`, plus their own sitemap child (`sitemap-alue-se`). They
+  are about 15 KB each, with no per-area social card or oEmbed, so the published tree grew
+  in pages but not in rasterizing time: 58,936 files (guard raised to 66,000), kept under
+  the ~65,000 that once broke the Pages sync. The region link in the breadcrumb opens the
+  region on the map, because Swedish regions have no hub pages yet.
+- **Not yet:** Swedish region hubs and ranking pages, OSM service densities, a Swedish
+  quality index, and Swedish history before 2024 (Q5).

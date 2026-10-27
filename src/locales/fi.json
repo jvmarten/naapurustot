@@ -1085,5 +1085,6 @@
   "note.se_education": "Ruotsi: eftergymnasial- eli korkea-asteen koulutuksen suorittaneiden osuus 25–65-vuotiaista, joiden koulutustaso tunnetaan (SCB). Suomen luku koskee 18 vuotta täyttäneitä.",
   "panel.se_no_trends": "Ruotsin alueille ei vielä ole aikasarjoja: SCB julkaisee DeSO 2025 -aluejaon tiedot vuodesta 2024 alkaen.",
   "scope.all_se": "Koko Ruotsi",
-  "scope.national_hint_se": "Verrataan koko Ruotsiin — napauta vertaillaksesi alueen sisällä"
+  "scope.national_hint_se": "Verrataan koko Ruotsiin — napauta vertaillaksesi alueen sisällä",
+  "profile.deso_code": "DeSO-alue"
 }

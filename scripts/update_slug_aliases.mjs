@@ -34,7 +34,8 @@ export function slugify(text) {
     .replace(/^-|-$/g, '');
 }
 export function toSlug(pno, nimi) {
-  return `${pno}-${slugify(nimi)}`;
+  // Lower-case: a Swedish DeSO id carries a letter (0180C1090 → 0180c1090), as src/utils/slug.ts does.
+  return `${String(pno).toLowerCase()}-${slugify(nimi)}`;
 }
 
 /** Path segment (no leading slash) per language for a profile URL. */

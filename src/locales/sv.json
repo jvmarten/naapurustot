@@ -1441,5 +1441,6 @@
   "scope.all_se": "Hela Sverige",
   "scope.national_hint_se": "Jämförs med hela Sverige — tryck för att jämföra inom regionen",
   "sources.se_heading": "Sverige",
-  "sources.se_intro": "De svenska områdena är SCB:s DeSO 2025 (6 160 områden med 700–2 700 invånare), grupperade i Tillväxtverkets FA25-regioner. Från 2025 tillför SCB en liten slumpmässig osäkerhet i alla uppgifter för att skydda enskilda och redovisar inte antal på 1–2 personer; sådana andelar visas bara där den publicerade precisionen avgör dem. Svenska siffror följer SCB:s definitioner och ställs därför aldrig på samma skala som Finlands. Kvalitetsindexet omfattar tills vidare bara finska områden."
+  "sources.se_intro": "De svenska områdena är SCB:s DeSO 2025 (6 160 områden med 700–2 700 invånare), grupperade i Tillväxtverkets FA25-regioner. Från 2025 tillför SCB en liten slumpmässig osäkerhet i alla uppgifter för att skydda enskilda och redovisar inte antal på 1–2 personer; sådana andelar visas bara där den publicerade precisionen avgör dem. Svenska siffror följer SCB:s definitioner och ställs därför aldrig på samma skala som Finlands. Kvalitetsindexet omfattar tills vidare bara finska områden.",
+  "profile.deso_code": "DeSO-område"
 }

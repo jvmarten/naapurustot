@@ -31,6 +31,7 @@ import { buildStubHtml, AREA_PREFIX as ALIAS_AREA_PREFIX } from './update_slug_a
 // each assembled page turns that into a loud build failure instead of ~9,000 broken
 // pages. Pure + side-effect-free, and unit-tested in prerenderOutput.test.ts.
 import { assertHeadIntegrity, stripHomeOnlyPreloads } from './prerender-lib.mjs';
+import { loadSwedishAreas, generateSePage } from './prerender-se.mjs';
 // The app's data-processing functions, reused at build time so each page can
 // embed a render-ready payload. Both modules have type-only imports, so Node's
 // TypeScript stripping (Node 22.18+/24) loads them without a build step.
@@ -344,7 +345,8 @@ function slugify(text) {
 }
 
 function toSlug(pno, nimi) {
-  return `${pno}-${slugify(nimi)}`;
+  // Lower-case: a Swedish DeSO id carries a letter (0180C1090 → 0180c1090), as src/utils/slug.ts does.
+  return `${String(pno).toLowerCase()}-${slugify(nimi)}`;
 }
 
 function escapeHtml(str) {
@@ -1961,6 +1963,30 @@ for (const feature of features) {
 }
 
 console.log(`Prerendered ${count} neighbourhoods (${count * 3} HTML files, ${cardsWritten} social cards in dist/og/).`);
+
+// Sweden's DeSO areas, same three routes (scripts/prerender-se.mjs: no social card, no
+// oEmbed, no FAQ — see the module docstring for why).
+{
+  const { features: seFeatures, regionAverages } = loadSwedishAreas(ROOT);
+  const seCtx = {
+    template, LOCALES, LOCALE_TAG, escapeHtml, toSlug, getRegionName, localizeOgLocale,
+    BUILD_DATE: String(BUILD_METADATA.generated || '').slice(0, 10), regionAverages,
+  };
+  const SE_DIRS = { fi: ['alue'], en: ['en', 'area'], sv: ['sv', 'omrade'] };
+  let seCount = 0;
+  for (const feature of seFeatures) {
+    const slug = toSlug(feature.properties.pno, feature.properties.nimi);
+    for (const lang of ['fi', 'en', 'sv']) {
+      const html = generateSePage(feature, lang, seCtx);
+      assertHeadIntegrity(html, { context: `${SE_DIRS[lang].join('/')}/${slug}`, expectProfilePayload: true, expectThemeGuard: true });
+      const dir = join(DIST, ...SE_DIRS[lang], slug);
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, 'index.html'), html);
+    }
+    seCount++;
+  }
+  console.log(`Prerendered ${seCount} Swedish areas (${seCount * 3} HTML files).`);
+}
 
 // IN-8: write redirect stubs for retired slugs. When a Paavo refresh renames an
 // area, slug_aliases.json records old-slug → pno; we write a tiny canonical+refresh
