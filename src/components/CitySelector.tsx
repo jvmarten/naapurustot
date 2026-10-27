@@ -24,6 +24,8 @@ interface CitySelectorProps {
   /** Pick of a top-level row (World / Finland / Sweden). Without it, World falls back
    *  to onChange('all') and the country rows are not offered. */
   onScope?: (scope: ScopeId) => void;
+  /** The country the national view is narrowed to (value 'all'), or null for both. */
+  country?: CountryId | null;
 }
 
 /**
@@ -63,7 +65,7 @@ function getCoverageBadge(regionId: CityFilter): string {
   return ` (${t('city.coverage.partial').replace('{pct}', String(pct))})`;
 }
 
-export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, onChange, lang: _lang, displayed, onAdd, addOnly, onScope }) => {
+export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, onChange, lang: _lang, displayed, onAdd, addOnly, onScope, country }) => {
   useI18nVersion();
   const [open, setOpen] = useState(false);
   // SN-2: filter text for the mobile popover — 70 rows in a small unsearchable
@@ -76,6 +78,8 @@ export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, on
   const isShown = (id: CityFilter) => id === value || !!displayed?.includes(id);
   const scopes = onScope ? SCOPES : SCOPES.slice(0, 1);
   const pickScope = (scope: ScopeId) => (onScope ? onScope(scope) : onChange('all'));
+  // The top-level row the map is on: World, or the country it is narrowed to.
+  const currentScope: ScopeId | null = value === 'all' ? (onScope && country) || 'all' : null;
   // addOnly lists every addable region (it is a short add path, not the switcher).
   // Otherwise an empty filter shows the regions on the map; typing searches all of them.
   const visibleScopes = addOnly || foldedFilter ? [] : scopes;
@@ -118,7 +122,7 @@ export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, on
           on Windows and Linux, so "add" options inside it fired on mere browsing. */}
       {!addOnly && <select
         data-tour-id="cities"
-        value={value}
+        value={currentScope && currentScope !== 'all' ? SCOPE_VALUE_PREFIX + currentScope : value}
         onChange={(e) => {
           const v = e.target.value;
           if (v.startsWith(SCOPE_VALUE_PREFIX)) pickScope(v.slice(SCOPE_VALUE_PREFIX.length) as ScopeId);
@@ -135,8 +139,7 @@ export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, on
         aria-label={t('city.select')}
       >
         {/* A native select cannot be searched, so it keeps every region below the
-            top-level rows. Country rows reframe the national view; while they are
-            picked the select still reads World, the view they belong to. */}
+            top-level rows. A country row narrows the national view to that country. */}
         {scopes.map((s) => (
           <option key={s.id} value={s.id === 'all' ? 'all' : SCOPE_VALUE_PREFIX + s.id}>
             {t(s.labelKey)}
@@ -176,7 +179,7 @@ export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, on
           // it has to carry the current region — otherwise a screen-reader user has
           // no way to know which region is active without opening the list. The
           // popup/expanded pair announces that this opens something, and its state.
-          aria-label={`${t('city.select')}: ${t(`city.${value}`)}`}
+          aria-label={`${t('city.select')}: ${t(currentScope && currentScope !== 'all' ? `city.scope.${currentScope}` : `city.${value}`)}`}
           title={t('city.select')}
           aria-haspopup="listbox"
           aria-expanded={open}
@@ -208,7 +211,7 @@ export const CitySelector: React.FC<CitySelectorProps> = React.memo(({ value, on
             </div>
             <div className="overflow-y-auto flex-1 min-h-0">
               {visibleScopes.map((s) => {
-                const shown = s.id === 'all' && value === 'all';
+                const shown = s.id === currentScope;
                 return (
                   <button
                     key={s.id}

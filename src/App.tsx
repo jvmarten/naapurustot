@@ -261,9 +261,12 @@ const App: React.FC = () => {
   const [regionSel, setCityFilter] = useReducer(regionReducer, {
     city: (initialUrl.city as CityFilter) ?? DEFAULT_CITY,
     extra: initialUrl.extraCities,
+    ...(initialUrl.country ? { country: initialUrl.country } : {}),
   });
   const cityFilter = regionSel.city;
   const extraRegions = regionSel.extra;
+  // `city=fi` / `city=se`: the national view showing only that country's regions.
+  const countryScope = regionSel.country ?? null;
   const multiRegion = extraRegions.length > 0;
   const displayed = useMemo(() => displayedRegions(regionSel), [regionSel]);
   // The displayed set as one string ('lahti', 'helsinki_metro,lahti'): the `city` URL
@@ -435,10 +438,10 @@ const App: React.FC = () => {
   // selection). Sweden publishes a different set of metrics, so a one-country view whose
   // layer that country has no data for opens on its default layer instead of a blank map.
   const viewCountry = useMemo(() => {
-    if (cityFilter === 'all') return null;
+    if (cityFilter === 'all') return countryScope;
     const countries = new Set(displayed.map(regionCountry));
     return countries.size === 1 ? [...countries][0] : null;
-  }, [cityFilter, displayed]);
+  }, [cityFilter, displayed, countryScope]);
   useEffect(() => {
     if (viewCountry && !layerInCountry(activeLayer, viewCountry)) setActiveLayerRaw(DEFAULT_LAYER_BY_COUNTRY[viewCountry]);
   }, [viewCountry, activeLayer]);
@@ -555,7 +558,9 @@ const App: React.FC = () => {
       return { center: initialUrl.viewport.center, zoom: initialUrl.viewport.zoom };
     }
     const city = (initialUrl.city as CityFilter) ?? DEFAULT_CITY;
-    const vp = initialUrl.extraCities.length ? regionsViewport([city, ...initialUrl.extraCities]) : CITY_VIEWPORTS[city];
+    const vp = initialUrl.country
+      ? regionsViewport(REGION_IDS.filter((id) => regionCountry(id) === initialUrl.country))
+      : initialUrl.extraCities.length ? regionsViewport([city, ...initialUrl.extraCities]) : CITY_VIEWPORTS[city];
     if (vp?.bounds) {
       return { center: vp.center, zoom: vp.zoom, bounds: vp.bounds };
     }
@@ -742,11 +747,14 @@ const App: React.FC = () => {
   // from aggregates → full is seamless (no colour shift).
   const allCitiesData = useMemo(() => {
     if (cityFilter !== 'all') return null;
-    if (data) return buildMetroAreaFeatures(data.features);
-    if (aggregates) return buildMetroAreaFeaturesFromAggregates(aggregates.regions, aggregates.qualityCohort);
-    return null;
+    const fc = data
+      ? buildMetroAreaFeatures(data.features)
+      : aggregates ? buildMetroAreaFeaturesFromAggregates(aggregates.regions, aggregates.qualityCohort) : null;
+    // A country picked in the region selector: only its regions are on the map.
+    if (!fc || !countryScope) return fc;
+    return { ...fc, features: fc.features.filter((f) => regionCountry(String(f.properties?.city)) === countryScope) };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- i18nVersion triggers rebuild so region names follow the language: it bumps on a switch AND when the lazy en/sv dictionary lands (keying on `lang` alone left a non-Finnish first load with the Finnish fallback names for good); unionReady signals the pre-baked region outlines fetch resolved; qualityVersion signals in-place data mutation
-  }, [data, aggregates, cityFilter, i18nVersion, unionReady, qualityVersion]);
+  }, [data, aggregates, cityFilter, countryScope, i18nVersion, unionReady, qualityVersion]);
 
   const filteredData = cityFilter === 'all' ? allCitiesData : singleCityData;
 
@@ -986,10 +994,11 @@ const App: React.FC = () => {
     }
   }, [deselect, resetAreaTools]);
 
-  // The selector's top level: World and each country are all the national view, framed
-  // differently — World on both countries, a country on the union of its regions.
+  // The selector's top level: World and each country are all the national view — World
+  // shows both countries, a country only its own regions, framed on their union.
   const handleScope = useCallback((scope: ScopeId) => {
     handleCityChange('all');
+    setCityFilter({ country: scope === 'all' ? null : scope });
     const vp = regionsViewport(scope === 'all' ? REGION_IDS : REGION_IDS.filter((id) => regionCountry(id) === scope));
     if (vp) setFlyTarget(vp);
   }, [handleCityChange]);
@@ -2797,6 +2806,7 @@ const App: React.FC = () => {
             priceFallbackValue={priceFallbackValue}
             onReady={handleMapReady}
             onRegionClick={cityFilter === 'all' || IS_EMBED ? undefined : handleRegionClick}
+            country={cityFilter === 'all' ? countryScope : null}
           />
           </Suspense>
         )}
@@ -2987,7 +2997,7 @@ const App: React.FC = () => {
               <span className="hidden md:inline">{t('auth.login')}</span>
             </button>
           )}
-          <CitySelector value={cityFilter} onChange={handleCityChange} onScope={handleScope} lang={lang} displayed={displayed} onAdd={cityFilter === 'all' ? undefined : handleAddRegion} />
+          <CitySelector value={cityFilter} country={countryScope} onChange={handleCityChange} onScope={handleScope} lang={lang} displayed={displayed} onAdd={cityFilter === 'all' ? undefined : handleAddRegion} />
         </div>
       </header>
       )}

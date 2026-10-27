@@ -17,6 +17,7 @@ import { queryFeaturesSafe, isStyleAlive } from '../utils/mapQuery';
 import { subscribeMapHighlight } from '../utils/mapHighlight';
 import { basemapStyleUrl, baseInsertBeforeId, carryDataLayers, addBasemapAttribution } from '../utils/basemap';
 // CF-5 Phase D1: pre-baked boundary outlines of all 69 Finnish seutukunnat.
+import type { CountryId } from '../utils/areaId';
 import { loadRegionOutlines, getRegionOutlines, regionAt } from '../utils/regionHit';
 
 interface MapProps {
@@ -79,6 +80,9 @@ interface MapProps {
    *  (null over sea / abroad, or on a double-click zoom), so the host can offer
    *  "switch to / show both" for a neighbouring region. Omitted → no region taps. */
   onRegionClick?: (region: string | null) => void;
+  /** The national view narrowed to one country: the background region outlines show
+   *  only that country's regions too. Null/omitted → both countries. */
+  country?: CountryId | null;
 }
 
 // Stable empty defaults to avoid creating new references on every render
@@ -242,6 +246,11 @@ const PROJECT_TYPE_COLOR = ['match', ['get', 'ptype'],
 // data regions' hover + click behavior.
 const SEUTUKUNNAT_SOURCE_ID = 'seutukunnat-boundaries';
 const SEUTUKUNNAT_LINE_LAYER = 'seutukunnat-boundary-line';
+/** Outline features carry `region`; Swedish region ids start `se_`. */
+function outlineCountryFilter(country: CountryId | null): maplibregl.FilterSpecification | null {
+  if (!country) return null;
+  return [country === 'se' ? '==' : '!=', ['slice', ['get', 'region'], 0, 3], 'se_'];
+}
 // The boundary GeoJSON is fetched + parsed once (utils/regionHit.ts module cache) and
 // shared across map instances — the same parse also answers "which region was tapped".
 
@@ -261,7 +270,7 @@ const DRAW_SNAP_LINE_LAYER = 'draw-snap-line';
 // utils/fillOpacity.ts. Its IMPORTANT note applies: never replace it with a
 // constant via setPaintProperty.
 
-export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1, gridData = null, drawMode = false, onDrawClick, onDrawDoubleClick, drawVertices, drawnPolygon = null, drawnAreaPnos = EMPTY_ARRAY, selectMode = false, selectedAreaPnos = EMPTY_ARRAY, onSelectAreaClick, layerConfig, isochrone = null, planningData = null, onMoveEnd, priceFallbackValue = null, onReady, onRegionClick }) => {
+export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1, gridData = null, drawMode = false, onDrawClick, onDrawDoubleClick, drawVertices, drawnPolygon = null, drawnAreaPnos = EMPTY_ARRAY, selectMode = false, selectedAreaPnos = EMPTY_ARRAY, onSelectAreaClick, layerConfig, isochrone = null, planningData = null, onMoveEnd, priceFallbackValue = null, onReady, onRegionClick, country = null }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const hoveredIdRef = useRef<string | null>(null);
@@ -313,6 +322,8 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   // identity, and so a remount can't fire it twice into the same host state.
   const onReadyRef = useRef(onReady);
   onReadyRef.current = onReady;
+  const countryRef = useRef(country);
+  countryRef.current = country;
   const reportedReadyRef = useRef(false);
   const reportReady = useCallback(() => {
     if (reportedReadyRef.current) return;
@@ -1015,10 +1026,12 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         // added later, ends up on top anyway. Falls back to the labels overlay
         // so the boundary never paints above place names.
         const beforeId = map.getLayer(FILL_LAYER) ? FILL_LAYER : undefined;
+        const filter = outlineCountryFilter(countryRef.current);
         map.addLayer({
           id: SEUTUKUNNAT_LINE_LAYER,
           type: 'line',
           source: SEUTUKUNNAT_SOURCE_ID,
+          ...(filter ? { filter } : {}),
           paint: {
             'line-color': lineColor,
             'line-width': ['interpolate', ['linear'], ['zoom'], 5, 0.9, 8, 1.2, 12, 0.5],
@@ -1054,6 +1067,14 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       if (idleHandle !== undefined) cancelIdle(idleHandle);
     };
   }, [theme]);
+
+  // A country picked in the region selector hides the other country's outlines too.
+  // A layer added later reads countryRef (above) when it is created.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !isStyleAlive(map) || !map.getLayer(SEUTUKUNNAT_LINE_LAYER)) return;
+    map.setFilter(SEUTUKUNNAT_LINE_LAYER, outlineCountryFilter(country));
+  }, [country]);
 
   // Update fill opacity when user adjusts the slider.
   // Handles ALL rendering modes (default, filter, wizard, grid) so that the

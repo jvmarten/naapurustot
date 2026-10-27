@@ -3,7 +3,7 @@
 
 Outputs (all committed except the raw cache):
   scripts/se/cache/deso_2025_raw.geojson  full-resolution DeSO polygons (git-ignored,
-                                          input to simplify_deso.mjs)
+                                          input to clip_deso_land.py)
   scripts/se/regso_2025.json              {regsokod: {name, kommun}} for all 3,363 RegSO
   scripts/se/deso_index.json              {desokod: {regso, kommun}} for all 6,160 DeSO
   scripts/se/fa25.json                    FA25 regions with their municipality codes

@@ -6,7 +6,8 @@ display name and the metrics derived from scripts/se/scb_deso.json. Like the Fin
 file it is a build:data INPUT only: it never ships in dist/.
 
 Inputs (all produced by the fetch scripts in this directory):
-  cache/deso_2025_raw.geojson   fetch_se_boundaries.py (full resolution, git-ignored)
+  cache/deso_2025_land.geojson  clip_deso_land.py (fetch_se_boundaries.py's full-resolution
+                                polygons cut at the shore; git-ignored)
   deso_index.json, regso_2025.json, fa25.json, kommuner.json   fetch_se_boundaries.py
   scb_deso.json                 fetch_scb_deso.py
   osm_deso.json                 fetch_se_osm.py (OpenStreetMap service counts)
@@ -14,10 +15,12 @@ Inputs (all produced by the fetch scripts in this directory):
   air_quality_deso.json         fetch_se_air_quality.py (FMI SILAM)
   water_proximity_deso.json     fetch_se_water_proximity.py (OSM water + SCB 1 km grid)
 
-Geometry is simplified ONCE here, on a shared-arc topology (geo2topo -> toposimplify ->
-topo2geo), so neighbouring DeSOs keep a common edge instead of opening slivers. The
-threshold (1e-7 deg², ~600 m² triangles at Swedish latitudes) takes 2.31 M vertices to
-0.62 M while a 0.1 km² inner-city DeSO keeps its shape.
+Geometry is cut at the shore first (clip_deso_land.py: SCB's polygons run out into the
+sea, Paavo's do not), then simplified ONCE here, on a shared-arc topology (geo2topo ->
+toposimplify -> topo2geo), so neighbouring DeSOs keep a common edge instead of opening
+slivers. The threshold (3e-7 deg², ~1,800 m² triangles at Swedish latitudes) keeps the
+national file near 0.65 M vertices with the coast and archipelagos drawn, while a 0.1 km²
+inner-city DeSO keeps its shape; islands under MIN_PART_KM2 are then dropped.
 
 Metric definitions follow SCB's tables, NOT Paavo's. Where a key is shared with Finland
 the concept is the same but the definition differs in ways stated in
@@ -41,6 +44,7 @@ Usage: python scripts/se/build_se_geojson.py
 from __future__ import annotations
 
 import json
+import math
 import subprocess
 import sys
 import tempfile
@@ -57,7 +61,13 @@ OUTLINES = HERE / "fa25_outlines.geojson"
 # Region outlines are drawn at zoom 4–8, so they take a much coarser threshold than the
 # areas: 1e-5 deg² keeps 17.5 k vertices for all 71 regions (Finland's 69 hold ~19 k).
 OUTLINE_SIMPLIFY_DEG2 = "1e-5"
-SIMPLIFY_DEG2 = "1e-7"
+SIMPLIFY_DEG2 = "3e-7"
+# Islands and holes smaller than this are dropped after the shore clip
+# (clip_deso_land.py). Paavo's smallest island is ~0.004 km², so 0.01 km² keeps the
+# coast as detailed as Finland's while Stockholm's archipelago does not double its
+# region file. Outlines are drawn at zoom 4–8, where 0.5 km² is a few pixels.
+MIN_PART_KM2 = 0.01
+OUTLINE_MIN_PART_KM2 = 0.5
 COORD_DECIMALS = 6
 
 AGE_65_PLUS = ["65-69", "70-74", "75-79", "80-"]
@@ -68,9 +78,9 @@ def load(name: str):
 
 
 def simplified_geometry() -> dict[str, dict]:
-    raw = HERE / "cache" / "deso_2025_raw.geojson"
+    raw = HERE / "cache" / "deso_2025_land.geojson"
     if not raw.exists():
-        raise SystemExit(f"{raw} missing — run scripts/se/fetch_se_boundaries.py first")
+        raise SystemExit(f"{raw} missing — run fetch_se_boundaries.py, then clip_deso_land.py")
     with tempfile.TemporaryDirectory() as tmp:
         t = Path(tmp)
         run = lambda cmd: subprocess.run(cmd, shell=True, check=True, cwd=ROOT)  # noqa: E731
@@ -78,7 +88,27 @@ def simplified_geometry() -> dict[str, dict]:
         run(f'npx -y -p topojson-simplify toposimplify -p {SIMPLIFY_DEG2} -f "{t}/q.topojson" > "{t}/s.topojson"')
         run(f'npx -y -p topojson-client topo2geo deso="{t}/s.geojson" < "{t}/s.topojson"')
         fc = json.loads((t / "s.geojson").read_text())
-    return {f["properties"]["deso"]: f["geometry"] for f in fc["features"]}
+    return {f["properties"]["deso"]: drop_small_parts(f["geometry"], MIN_PART_KM2) for f in fc["features"]}
+
+
+def ring_km2(ring) -> float:
+    """Planar ring area in km², scaled at the ring's own latitude (lng/lat degrees)."""
+    a = 0.0
+    for (x0, y0), (x1, y1) in zip(ring, ring[1:]):
+        a += x0 * y1 - x1 * y0
+    return abs(a) / 2 * 111.32 ** 2 * math.cos(math.radians(ring[0][1]))
+
+
+def drop_small_parts(geom: dict, min_km2: float) -> dict:
+    """Drop islands and holes under min_km2. The largest part always stays, so no area
+    loses its polygon."""
+    polys = geom["coordinates"] if geom["type"] == "MultiPolygon" else [geom["coordinates"]]
+    largest = max(polys, key=lambda p: ring_km2(p[0]))
+    kept = [[p[0]] + [h for h in p[1:] if ring_km2(h) >= min_km2]
+            for p in polys if p is largest or ring_km2(p[0]) >= min_km2]
+    if len(kept) == 1:
+        return {"type": "Polygon", "coordinates": kept[0]}
+    return {"type": "MultiPolygon", "coordinates": kept}
 
 
 def round_coords(c):
@@ -260,7 +290,7 @@ def write_outlines(features: list[dict]) -> None:
         merged = json.loads((t / "fa.geojson").read_text())
     out = []
     for f in sorted(merged["features"], key=lambda f: f["id"]):
-        g = f["geometry"]
+        g = drop_small_parts(f["geometry"], OUTLINE_MIN_PART_KM2)
         out.append({"type": "Feature", "properties": {"region": f["id"]},
                     "geometry": {"type": g["type"], "coordinates": round_coords(g["coordinates"])}})
     OUTLINES.write_text(json.dumps({"type": "FeatureCollection", "features": out}, separators=(",", ":")) + "\n")
