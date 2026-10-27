@@ -154,7 +154,10 @@ const SIMILAR_METRICS = [
 const SIMILAR_ELSEWHERE = (() => {
   let areas;
   try {
-    areas = decodeColumnar(JSON.parse(readFileSync(join(ROOT, 'src', 'data', 'region_properties.json'), 'utf-8')));
+    // Finland's areas only — Sweden's carry SCB definitions on shared keys and would move
+    // the min-max normalization every Finnish pairing is computed on.
+    areas = decodeColumnar(JSON.parse(readFileSync(join(ROOT, 'src', 'data', 'region_properties.json'), 'utf-8')))
+      .filter((a) => /^\d{5}$/.test(String(a.pno)));
   } catch {
     return {};
   }
