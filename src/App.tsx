@@ -3562,14 +3562,13 @@ const App: React.FC = () => {
         })()}
       </div>
 
-      {/* Attribution footer (full attribution hidden in embed mode) */}
+      {/* Footer links (hidden in embed mode). The per-source credit list lives on the
+          data sources page (source + licence per layer, which CC BY 4.0 allows to be
+          a link) and OSM is credited by the map's attribution control — spelled out
+          here it was a run-on line of agency names across the bottom of the map. */}
       {!IS_EMBED && (
         <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 hidden md:block">
           <p className="text-[10px] text-surface-600 dark:text-surface-400">
-            {t('footer.attribution')}
-            {' · '}
-            <ContactMenu className="underline hover:text-brand-600 dark:hover:text-brand-300" />
-            {' · '}
             {/* CF-9: link to the public data sources & methodology page (lang-aware) */}
             <a
               href={lang === 'en' ? '/en/data-sources' : lang === 'sv' ? '/sv/datakallor' : '/tietolahteet'}
@@ -3585,6 +3584,8 @@ const App: React.FC = () => {
             >
               {t('privacy.link')}
             </a>
+            {' · '}
+            <ContactMenu className="underline hover:text-brand-600 dark:hover:text-brand-300" />
           </p>
         </div>
       )}
