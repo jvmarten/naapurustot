@@ -1,6 +1,7 @@
 import { describe, it, expect, afterAll } from 'vitest';
 import regionProps from '../data/region_properties.json';
 import { computeQualityIndices } from '../utils/qualityIndex';
+import { countryOfId } from '../utils/areaId';
 import {
   applyQualityScale, scaleComposite, setQualityScaleMode, getQualityScaleMode,
   scaleUsesFixedBands, QUALITY_SCALE_MODES, type QualityScaleMode,
@@ -17,7 +18,9 @@ const feats: { type: 'Feature'; geometry: null; properties: Record<string, unkno
 for (let i = 0; i < cols[0].length; i++) {
   const p: Record<string, unknown> = {};
   keys.forEach((k, j) => { p[k] = cols[j][i]; });
-  feats.push({ type: 'Feature', geometry: null, properties: p });
+  // Finland's cohort: these shares describe Finland's composite. Sweden is scored against
+  // its own areas from fewer factors, so its composite has a different spread.
+  if (countryOfId(p.pno) === 'fi') feats.push({ type: 'Feature', geometry: null, properties: p });
 }
 computeQualityIndices(feats as never);
 

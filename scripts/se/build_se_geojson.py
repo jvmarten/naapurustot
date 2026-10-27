@@ -11,6 +11,8 @@ Inputs (all produced by the fetch scripts in this directory):
   scb_deso.json                 fetch_scb_deso.py
   osm_deso.json                 fetch_se_osm.py (OpenStreetMap service counts)
   schools_deso.json             fetch_se_schools.py (Skolverket's school register)
+  air_quality_deso.json         fetch_se_air_quality.py (FMI SILAM)
+  water_proximity_deso.json     fetch_se_water_proximity.py (OSM water + SCB 1 km grid)
 
 Geometry is simplified ONCE here, on a shared-arc topology (geo2topo -> toposimplify ->
 topo2geo), so neighbouring DeSOs keep a common edge instead of opening slivers. The
@@ -157,6 +159,33 @@ def services(counts: dict[str, int], key: str, pinta_ala_m2: int | None, density
     return out
 
 
+# Finland's walkability components (prepare_data.calculate_walkability), in its order.
+WALK_COMPONENTS = [
+    "restaurant_density", "grocery_density", "transit_stop_density",
+    "healthcare_density", "cycling_density", "school_density",
+]
+WALK_MIN_COMPONENTS = 3
+
+
+def add_walkability(features: list[dict]) -> None:
+    """walkability_index: the mean mid-rank percentile of the six service densities, as
+    Finland's — taken over Sweden's DeSO areas, so it is each area's standing in its own
+    country. A tie block scores at its midpoint (prepare_data's `_percentile_score`)."""
+    import bisect
+    cols = {c: sorted(f["properties"][c] for f in features if f["properties"].get(c) is not None)
+            for c in WALK_COMPONENTS}
+    for f in features:
+        scores = []
+        for c in WALK_COMPONENTS:
+            v, vals = f["properties"].get(c), cols[c]
+            if v is None or not vals:
+                continue
+            lt, le = bisect.bisect_left(vals, v), bisect.bisect_right(vals, v)
+            scores.append(round((lt + (le - lt) / 2) / len(vals) * 100, 1))
+        f["properties"]["walkability_index"] = (
+            round(sum(scores) / len(scores)) if len(scores) >= WALK_MIN_COMPONENTS else None)
+
+
 def display_names(index: dict, regso: dict) -> dict[str, str]:
     """RegSO name for each DeSO; numbered (in DeSO-code order) when a RegSO holds several.
 
@@ -245,6 +274,8 @@ def main() -> None:
     scb = load("scb_deso.json")["tables"]
     osm = load("osm_deso.json")["counts"]
     schools = load("schools_deso.json")["counts"]
+    air = load("air_quality_deso.json")["values"]
+    water = load("water_proximity_deso.json")["values"]
 
     region_of = {k: r["id"] for r in fa25 for k in r["kommuner"]}
     names = display_names(index, regso)
@@ -346,9 +377,12 @@ def main() -> None:
             props.update(services({key: osm[key].get(deso, 0)}, key, props["pinta_ala"], density, count))
         props.update(services({"school": schools.get(deso, 0)}, "school", props["pinta_ala"],
                               "school_density", "school_count"))
+        props["air_quality_index"] = air.get(deso)
+        props["water_proximity_m"] = water.get(deso)
         features.append({"type": "Feature", "properties": props, "geometry": {
             "type": geom["type"], "coordinates": round_coords(geom["coordinates"])}})
 
+    add_walkability(features)
     write_regions(fa25, features)
     write_outlines(features)
 

@@ -1078,6 +1078,8 @@
   "note.se_population_density": "Ruotsi: asukkaita maapinta-alan neliökilometriä kohden (SCB).",
   "note.se_transit_stops": "Ruotsi: OpenStreetMapiin merkityt bussi-, raitiovaunu- ja junapysäkit. Ruotsin kansallinen pysäkkirekisteri (Trafiklab) vaatii API-avaimen, joten luku ei tule samasta rekisteristä kuin Suomen Digiroad-pysäkit.",
   "note.se_schools": "Ruotsi: Skolverketin koulurekisterin toimivat perus- ja toisen asteen koulut (grundskola, gymnasieskola, myös anpassad, sameskola ja specialskola) käyntiosoitteen mukaan.",
+  "note.se_air_quality": "Ruotsi: Ilmatieteen laitoksen SILAM-mallin (n. 5–10 km) PM2.5- ja NO2-ennuste yhdeltä tunnilta, muunnettuna samaan indeksiin kuin Suomen luvut. Ei kaupunkitason mallia.",
+  "note.se_walkability": "Ruotsi: kuuden palvelutiheyden keskimääräinen persentiili Ruotsin DeSO-alueiden joukossa, eli alueen sijoitus omassa maassaan.",
   "note.se_foreign_background": "SCB:n määritelmä: ulkomailla syntynyt tai molemmat vanhemmat ulkomailla syntyneitä. Eri käsite kuin Suomen kielipohjaiset tasot.",
   "note.se_households": "Ruotsi: kotitaloudet SCB:n kotitaloustyypin mukaan; lapsiksi lasketaan kotona asuvat alle 25-vuotiaat. Suomen luvussa lapset ovat alle 18-vuotiaita.",
   "note.se_tenure": "Ruotsi: asukkaiden osuus asunnon hallintamuodon mukaan (SCB). Omistus = omistusoikeus tai bostadsrätt (osuusasunto), vuokra = hyresrätt. Hallintamuoto perustuu talon omistukseen, ei asukkaan asemaan. Suomen luku on kotitalouksien osuus.",

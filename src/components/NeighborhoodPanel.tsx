@@ -6,7 +6,7 @@ import { t, getLang, useI18nVersion } from '../utils/i18n';
 import { getQualityCategory, getQualityCategories, getQualityBandPosition, QUALITY_DIMENSIONS, computeQualityCoverage, type QualityWeights } from '../utils/qualityIndex';
 import { usePlanningArea, planningInfo } from '../hooks/usePlanningData';
 import { computeAreaSummary, fillTemplate } from '../utils/areaSummary';
-import { loadNationalPercentiles, type NationalLadder } from '../utils/nationalRanges';
+import { loadNationalPercentiles, getCountryRanges, type NationalLadder } from '../utils/nationalRanges';
 import { exportCsv, exportPdf, exportGeoJson, exportJson } from '../utils/export';
 import { TrendSection } from './TrendChart';
 import Sparkline from './Sparkline';
@@ -803,7 +803,7 @@ const QualityCoverageSection: React.FC<{ props: NeighborhoodProperties; scope?: 
   const lang = getLang();
   // CF-1: audit the live-weighted factors (so the chip matches the displayed score
   // under a custom/persona lens), not the default-weighted set.
-  const coverage = useMemo(() => computeQualityCoverage(props, qualityWeights), [props, qualityWeights]);
+  const coverage = useMemo(() => computeQualityCoverage(props, qualityWeights, getCountryRanges().se), [props, qualityWeights]);
   const dimScores = props.quality_dimension_scores ?? {};
   if (coverage.total === 0) return null;
   const pct = Math.round((coverage.present / coverage.total) * 100);
@@ -1659,7 +1659,10 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
         {seRows(['population_density', 'foreign_background', 'elderly_ratio', 'gender_ratio', 'families_with_children', 'single_parent_hh'])}
       </CollapsibleSection>
       <CollapsibleSection title={t('layers.services')} defaultOpen>
-        {seRows(['transit_access', 'school_density', 'healthcare_access', 'grocery_access', 'restaurant_density', 'cycling_infra'])}
+        {seRows(['walkability', 'transit_access', 'school_density', 'healthcare_access', 'grocery_access', 'restaurant_density', 'cycling_infra'])}
+      </CollapsibleSection>
+      <CollapsibleSection title={t('layers.environment')} defaultOpen>
+        {seRows(['air_quality', 'water_proximity'])}
       </CollapsibleSection>
     </>
   );

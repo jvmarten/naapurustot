@@ -43,17 +43,15 @@ const propsArray = decodeColumnar(JSON.parse(readFileSync(propertiesPath, 'utf-8
 
 // National normalization ranges (written by build_national_ranges.mjs). Mirror
 // getNationalRanges(): a Map<property, { min, max, avg }>.
-const rangesRaw = JSON.parse(readFileSync(rangesPath, 'utf-8')).ranges ?? {};
-const nationalRanges = new Map();
-for (const key of Object.keys(rangesRaw)) {
-  const r = rangesRaw[key];
-  nationalRanges.set(key, { min: r.min, max: r.max, avg: r.avg });
-}
+// getCountryRanges(): each country's areas are scored against their own country.
+const rangesFile = JSON.parse(readFileSync(rangesPath, 'utf-8'));
+const toMap = (raw) => new Map(Object.entries(raw ?? {}).map(([k, r]) => [k, { min: r.min, max: r.max, avg: r.avg }]));
+const countryRanges = { fi: toMap(rangesFile.ranges), se: toMap(rangesFile.countries?.se?.ranges) };
 
 // Wrap into features and process EXACTLY as the runtime processProperties does
 // (geometry: null; quality against national ranges; change + quick-win metrics).
 const features = propsArray.map((properties) => ({ type: 'Feature', properties, geometry: null }));
-computeQualityIndices(features, undefined, nationalRanges);
+computeQualityIndices(features, undefined, countryRanges);
 computeChangeMetrics(features);
 computeQuickWinMetrics(features);
 

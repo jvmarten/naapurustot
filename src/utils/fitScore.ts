@@ -16,6 +16,7 @@ import type { AffordabilityState } from '../hooks/useAffordability';
 import { affordabilityScore, orientationForTenure, type AffordabilityScore } from './affordability';
 import { formatFineDensity } from './formatting';
 import { getNationalRanges } from './nationalRanges';
+import { FIT_RANGE_KEYS as FIT_KEYS } from './rangeKeys';
 import { t } from './i18n';
 
 /** How affordability is folded into the match. Owned by the scorer (was the wizard). */
@@ -43,14 +44,7 @@ export interface FitResult {
 export type FitRanges = Record<string, { min: number; max: number }>;
 
 /** The metrics the scorer normalizes against (every one exists in national_ranges.json). */
-export const FIT_RANGE_KEYS: (keyof NeighborhoodProperties)[] = [
-  'transit_stop_density', 'restaurant_density', 'ra_as_kpa', 'child_ratio',
-  'daycare_density', 'school_density', 'healthcare_density', 'ownership_rate', 'rental_rate',
-  // All three foreign-language variants: the scorer normalizes against whichever one
-  // it actually read (latest estimate → 2020 postal → municipal proxy), and their
-  // national spreads differ enough that the ranges are not interchangeable.
-  'foreign_language_est_pct', 'foreign_language_pct', 'foreign_language_municipal_pct',
-];
+export const FIT_RANGE_KEYS: readonly (keyof NeighborhoodProperties)[] = FIT_KEYS;
 
 /** Normalize a value within a range to 0–1 (0.5 for missing/degenerate ranges). */
 export function normalize(value: number | null | undefined, min: number, max: number): number {

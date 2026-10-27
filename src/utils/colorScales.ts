@@ -1235,7 +1235,9 @@ const SE_LAYERS: ReadonlySet<LayerId> = new Set<LayerId>([
   // Counted the same way in both countries (OpenStreetMap tags, a school register), so
   // these keep Finland's stops: one scale is what lets the two be compared.
   'transit_access', 'school_density', 'healthcare_access', 'restaurant_density',
-  'grocery_access', 'cycling_infra',
+  'grocery_access', 'cycling_infra', 'air_quality', 'walkability', 'water_proximity',
+  // Scored against Sweden's own areas (computeQualityIndices), from the factors it has.
+  'quality_index',
 ]);
 
 /** Whether a layer has data in `country`; with no country (both on the map), every layer. */
@@ -1253,7 +1255,7 @@ export function layerForCountry(layer: LayerConfig, country: CountryId | null): 
 /** The layer a view of `country` opens on when the current one has no data there. */
 export const DEFAULT_LAYER_BY_COUNTRY: Record<CountryId, LayerId> = {
   fi: 'quality_index',
-  se: 'economic_standard',
+  se: 'quality_index',
 };
 
 export const LAYER_MAP = new Map<LayerId, LayerConfig>();

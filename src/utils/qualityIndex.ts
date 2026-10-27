@@ -1,7 +1,7 @@
 import { getCoveragePct, type NeighborhoodProperties } from './metrics.ts';
 import { getQualityBands } from './qualityBands.ts';
 import { applyQualityScale, scaleUsesFixedBands } from './qualityScale.ts';
-import { countryOfId } from './areaId.ts';
+import { countryOfId, type CountryId } from './areaId.ts';
 
 /**
  * Computes a composite Quality Index (0–100) for each neighborhood.
@@ -73,6 +73,9 @@ export interface QualityFactor {
   defaultWeight: number;
   /** Property key(s) on NeighborhoodProperties to read */
   properties: (keyof NeighborhoodProperties)[];
+  /** Sweden's property for the same concept where SCB defines it differently (income
+   *  is ekonomisk standard in SEK, not Paavo's euros). Absent: Sweden reads `properties`. */
+  propertiesSe?: (keyof NeighborhoodProperties)[];
   /**
    * DATA fact, not a preference: true when the raw column runs OPPOSITE to the
    * factor's own label — `water_proximity_m` is a distance while the label is
@@ -174,6 +177,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     label: { fi: 'Tulotaso', en: 'Income', sv: 'Inkomst' },
     defaultWeight: 10,
     properties: ['hr_mtu'],
+    propertiesSe: ['economic_standard_median'],
     invert: false,
     primary: true,
   },
@@ -244,6 +248,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     label: { fi: 'Pienituloisuus', en: 'Low-income share', sv: 'Låginkomstandel' },
     defaultWeight: 0,
     properties: ['low_income_pct'],
+    propertiesSe: ['low_economic_standard_pct'],
     invert: false,
     primary: false,
   },
@@ -760,6 +765,11 @@ export function isCustomWeights(weights: QualityWeights): boolean {
 let rangeCache: Map<string, MinMax> | null = null;
 let rangeCacheFeatures: GeoJSON.Feature[] | null = null;
 
+/** Income columns store a non-positive placeholder for "no value". */
+function requiresPositive(prop: keyof NeighborhoodProperties): boolean {
+  return prop === 'hr_mtu' || prop === 'economic_standard_median';
+}
+
 function collectRange(features: GeoJSON.Feature[], prop: keyof NeighborhoodProperties): MinMax {
   // Check cache first
   if (rangeCacheFeatures === features && rangeCache) {
@@ -778,7 +788,7 @@ function collectRange(features: GeoJSON.Feature[], prop: keyof NeighborhoodPrope
   for (const f of features) {
     const v = (f.properties as NeighborhoodProperties)[prop];
     if (typeof v === 'number' && isFinite(v)) {
-      if (prop === 'hr_mtu' && v <= 0) continue;
+      if (requiresPositive(prop) && v <= 0) continue;
       if (v < min) min = v;
       if (v > max) max = v;
       sum += v;
@@ -796,19 +806,53 @@ function collectRange(features: GeoJSON.Feature[], prop: keyof NeighborhoodPrope
  *  (Invert-stable: 100 - 50 === 50.) */
 const NEUTRAL_SCORE = 50;
 
+/** The properties a factor reads for an area in `country`. */
+export function factorProperties(factor: QualityFactor, country: CountryId): (keyof NeighborhoodProperties)[] {
+  return country === 'se' && factor.propertiesSe ? factor.propertiesSe : factor.properties;
+}
+
+/**
+ * Each country's composite under the DEFAULT weights as a quantile curve (equal steps from
+ * p0 to p100), built by scripts/build_national_ranges.mjs. A Swedish composite is mapped
+ * from Sweden's curve onto Finland's, so the same number means the same standing in
+ * either country. Without it the factor mix decides the level: Sweden has no crime,
+ * noise, accident or canopy source, the factors most Finnish areas score well on, so its
+ * raw composite runs ~8 points lower for reasons that are about the data, not the places.
+ */
+export type QualityCalibration = Partial<Record<CountryId, number[]>>;
+
+/** Normalisation ranges per country. A bare Map is Finland's (national_ranges.json's
+ *  top level); Swedish areas then get no score, since there is nothing to rank them by. */
+export type CountryRanges =
+  | Map<string, MinMax>
+  | (Partial<Record<CountryId, Map<string, MinMax>>> & { calibration?: QualityCalibration });
+
+/** Map `v` from one quantile curve onto another at the same quantile (both ascending). */
+export function mapQuantile(v: number, from: number[], to: number[]): number {
+  const n = from.length - 1;
+  if (v <= from[0]) return to[0];
+  if (v >= from[n]) return to[n];
+  let i = 0;
+  while (i < n - 1 && from[i + 1] < v) i++;
+  const span = from[i + 1] - from[i];
+  const t = span > 0 ? (v - from[i]) / span : 0;
+  return to[i] + t * (to[i + 1] - to[i]);
+}
+
 function getFactorScore(
   p: NeighborhoodProperties,
   factor: QualityFactor,
   ranges: Map<string, MinMax>,
   neutralizeMissing: boolean,
+  country: CountryId,
 ): number | null {
   const scores: number[] = [];
-  for (const prop of factor.properties) {
+  for (const prop of factorProperties(factor, country)) {
     const raw = p[prop];
     const range = ranges.get(prop as string);
     if (!range) continue;
     const isMissing =
-      typeof raw !== 'number' || !isFinite(raw) || (prop === 'hr_mtu' && raw <= 0);
+      typeof raw !== 'number' || !isFinite(raw) || (requiresPositive(prop) && raw <= 0);
     if (isMissing) {
       // National scope: impute the neutral midpoint. A metric that is simply
       // absent (e.g. transit_stop_density has zero coverage in most regions)
@@ -850,7 +894,7 @@ function applyDirection(labelScore: number, weight: number): number {
 export function computeQualityIndices(
   features: GeoJSON.Feature[],
   weights?: QualityWeights,
-  nationalRanges?: Map<string, MinMax> | null,
+  nationalRanges?: CountryRanges | null,
 ): void {
   const w = weights ?? getDefaultWeights();
   // National scope neutralizes missing metrics (see getFactorScore); region
@@ -868,24 +912,56 @@ export function computeQualityIndices(
   // region_properties.json) falls back to the loaded-feature range. When
   // `nationalRanges` is null/undefined the metric is normalized over `features`
   // only — the explicit "within region" scope.
-  const ranges = new Map<string, MinMax>();
-  for (const factor of QUALITY_FACTORS) {
-    if (Math.abs(w[factor.id] ?? 0) <= 0) continue;
-    for (const prop of factor.properties) {
-      const key = prop as string;
-      if (ranges.has(key)) continue;
-      const national = nationalRanges?.get(key);
-      ranges.set(key, national ?? collectRange(features, prop));
+  //
+  // Each country is ranged against ITSELF. A Swedish DeSO holds ~1,700 residents and
+  // in a city covers a tenth of a km², while a Finnish city postal area holds 5–20
+  // thousand over several km², so a density on one scale would rank the unit size,
+  // not the place; and SCB's income, unemployment and education are defined
+  // differently from Paavo's. The score therefore says where an area stands in its own
+  // country, which is the one statement both countries' data support. A factor with
+  // no range in a country (Sweden has no crime, noise or accident source yet) drops
+  // out of that country's score instead of scoring everyone a neutral 50.
+  const perCountry: Partial<Record<CountryId, Map<string, MinMax> | undefined>> =
+    nationalRanges instanceof Map ? { fi: nationalRanges } : nationalRanges ?? {};
+  // The curves describe the default weighting; a custom lens is shown uncalibrated.
+  const calibration = nationalRanges && !(nationalRanges instanceof Map) && !isCustomWeights(w)
+    ? nationalRanges.calibration : undefined;
+  const rangeCache = new Map<CountryId, Map<string, MinMax> | null>();
+  const rangesFor = (country: CountryId): Map<string, MinMax> | null => {
+    const hit = rangeCache.get(country);
+    if (hit !== undefined) return hit;
+    const national = nationalRanges ? perCountry[country] : undefined;
+    if (nationalRanges && !national) {
+      rangeCache.set(country, null);
+      return null;
     }
-  }
+    // The loaded features of this country (the array itself when it is all one
+    // country, which keeps collectRange's identity cache working).
+    const isOwn = (f: GeoJSON.Feature) => countryOfId((f.properties as NeighborhoodProperties).pno) === country;
+    const own = features.every(isOwn) ? features : features.filter(isOwn);
+    const out = new Map<string, MinMax>();
+    for (const factor of QUALITY_FACTORS) {
+      if (Math.abs(w[factor.id] ?? 0) <= 0) continue;
+      for (const prop of factorProperties(factor, country)) {
+        const key = prop as string;
+        if (out.has(key)) continue;
+        const r = national?.get(key);
+        // Finland: a property absent from the artifact (a derived field) falls back to
+        // the loaded features' range. Sweden's artifact lists every property it has
+        // data for, so absence there means no data, and the factor drops out.
+        if (r) out.set(key, r);
+        else if (!national || country === 'fi') out.set(key, collectRange(own, prop));
+      }
+    }
+    rangeCache.set(country, out);
+    return out;
+  };
 
   for (const f of features) {
     const p = f.properties as NeighborhoodProperties;
-
-    // The index's factors, ranges and weights are Finland's. Sweden publishes a
-    // different set under different definitions, so a Swedish area gets no score
-    // rather than one assembled from the few factors that happen to share a key.
-    if (countryOfId(p.pno) !== 'fi') {
+    const country = countryOfId(p.pno);
+    const ranges = rangesFor(country);
+    if (!ranges) {
       p.quality_index = null;
       p.quality_dimension_scores = null;
       continue;
@@ -899,7 +975,7 @@ export function computeQualityIndices(
       const factorWeight = w[factor.id] ?? 0;
       const absWeight = Math.abs(factorWeight);
       if (absWeight <= 0) continue;
-      const labelScore = getFactorScore(p, factor, ranges, neutralizeMissing);
+      const labelScore = getFactorScore(p, factor, ranges, neutralizeMissing, country);
       if (labelScore == null) continue;
       const score = applyDirection(labelScore, factorWeight);
       scores.push({ value: score, weight: absWeight });
@@ -933,7 +1009,10 @@ export function computeQualityIndices(
       // has always stored the regional aggregate at one decimal, so the integer here
       // was the odd one out. Display sites round for presentation; nobody is shown
       // "50.7" (see quality_display, which carries the finer value for the ramp).
-      const composite = Math.round((weighted / totalWeight) * 10) / 10;
+      let raw = weighted / totalWeight;
+      const fromCurve = calibration?.[country];
+      if (country !== 'fi' && fromCurve && calibration?.fi) raw = mapQuantile(raw, fromCurve, calibration.fi);
+      const composite = Math.round(raw * 10) / 10;
       (f.properties as NeighborhoodProperties).quality_index = composite;
       const dimScores: Record<string, number> = {};
       for (const [dim, acc] of dimAcc) {
@@ -1197,7 +1276,8 @@ export interface FactorCoverage {
  */
 export const FACTOR_THIN_COVERAGE_THRESHOLD = 95;
 
-/** PO-11: best (max) national coverage across a factor's source properties, or null. */
+/** PO-11: best (max) national coverage across a factor's source properties, or null.
+ *  Coverage figures are Finland's; for Sweden see computeQualityCoverage. */
 function factorNationalCoverage(factor: QualityFactor): number | null {
   let best: number | null = null;
   for (const prop of factor.properties) {
@@ -1232,10 +1312,10 @@ export interface QualityCoverage {
 
 /** A factor "has data" when at least one source property is finite (income also
  *  requires > 0, matching the index's own missing-data rule in getFactorScore). */
-function factorHasData(p: NeighborhoodProperties, factor: QualityFactor): boolean {
-  return factor.properties.some((prop) => {
+function factorHasData(p: NeighborhoodProperties, factor: QualityFactor, country: CountryId): boolean {
+  return factorProperties(factor, country).some((prop) => {
     const raw = p[prop];
-    return typeof raw === 'number' && isFinite(raw) && !(prop === 'hr_mtu' && raw <= 0);
+    return typeof raw === 'number' && isFinite(raw) && !(requiresPositive(prop) && raw <= 0);
   });
 }
 
@@ -1246,7 +1326,13 @@ function factorHasData(p: NeighborhoodProperties, factor: QualityFactor): boolea
  * certain than a fully-covered urban one. Descriptive (zero-weight) dimensions are
  * excluded — they don't move the headline score.
  */
-export function computeQualityCoverage(p: NeighborhoodProperties, weights?: QualityWeights): QualityCoverage {
+export function computeQualityCoverage(
+  p: NeighborhoodProperties,
+  weights?: QualityWeights,
+  /** Sweden's per-property ranges: a factor with none has no Swedish source at all. */
+  seRanges?: Map<string, MinMax>,
+): QualityCoverage {
+  const country = countryOfId(p.pno);
   // CF-1: audit the factors that actually contribute to the *displayed* score —
   // i.e. those with a non-zero live weight — not the default-weighted set. Under a
   // custom/persona lens this surfaces factors the default zeroes (e.g. the Nature
@@ -1258,13 +1344,16 @@ export function computeQualityCoverage(p: NeighborhoodProperties, weights?: Qual
   for (const f of active) {
     const dim = getFactorDimension(f.id);
     if (!byDim.has(dim)) byDim.set(dim, []);
-    const nationalCoveragePct = factorNationalCoverage(f);
-    const nationallyThin =
-      nationalCoveragePct != null && nationalCoveragePct < FACTOR_THIN_COVERAGE_THRESHOLD;
+    // A Swedish gap is national when Sweden has no source for the factor at all.
+    const seMissing = country === 'se'
+      && !factorProperties(f, 'se').some((prop) => seRanges?.has(prop as string));
+    const nationalCoveragePct = seMissing ? 0 : country === 'se' ? null : factorNationalCoverage(f);
+    const nationallyThin = seMissing
+      || (nationalCoveragePct != null && nationalCoveragePct < FACTOR_THIN_COVERAGE_THRESHOLD);
     byDim.get(dim)!.push({
       id: f.id,
       label: f.label,
-      present: factorHasData(p, f),
+      present: factorHasData(p, f, country),
       nationalCoveragePct,
       nationallyThin,
     });

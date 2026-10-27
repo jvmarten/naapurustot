@@ -8,7 +8,7 @@ import { useFocusTrap } from '../hooks/useFocusTrap';
 import { getFeatureCenter } from '../utils/geometryFilter';
 import { loadAllData } from '../utils/dataLoader';
 import { computeQualityIndices, isCustomWeights, type QualityWeights } from '../utils/qualityIndex';
-import { getNationalRanges } from '../utils/nationalRanges';
+import { getCountryRanges } from '../utils/nationalRanges';
 import { buildProfileUrl } from '../utils/profileUrl';
 import { ComparisonScopeToggle, type ComparisonScope } from './ComparisonScopeToggle';
 import { defaultWizardAnswers, budgetForPriceLevel, priceLevelFromBudget, type WizardAnswers, type WizardQuestionKey } from '../hooks/useWizardProfile';
@@ -198,7 +198,7 @@ export const NeighborhoodWizard: React.FC<WizardProps> = ({ data, onSelect, onCl
         // matches use the same quality_index as the region map. loadAllData is
         // cached → re-running on a weights change is instant.
         if (qualityWeights && isCustomWeights(qualityWeights)) {
-          computeQualityIndices(fc.features, qualityWeights, getNationalRanges());
+          computeQualityIndices(fc.features, qualityWeights, getCountryRanges());
         }
         setNationalData({ ...fc, features: [...fc.features] });
       })

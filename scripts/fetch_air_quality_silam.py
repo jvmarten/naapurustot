@@ -146,8 +146,8 @@ def _flatten_coords(geom: dict) -> list[tuple[float, float]]:
 # ---------------------------------------------------------------------------
 
 
-def fetch_silam_species(param: str) -> bytes | None:
-    """Hit FMI /download for one SILAM species over Finland.
+def fetch_silam_species(param: str, bbox: str = FINLAND_BBOX) -> bytes | None:
+    """Hit FMI /download for one SILAM species over `bbox` (Finland by default).
 
     Returns the latest forecast NetCDF or None on failure.
     """
@@ -158,7 +158,7 @@ def fetch_silam_species(param: str) -> bytes | None:
     params = {
         "producer": SILAM_PRODUCER,
         "param": param,
-        "bbox": FINLAND_BBOX,
+        "bbox": bbox,
         "levels": "0",
         "starttime": start_time.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "endtime": end_time.strftime("%Y-%m-%dT%H:%M:%SZ"),
