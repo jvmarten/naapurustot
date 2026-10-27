@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { AttributionControl, LayerSpecification, Map as MaplibreMap, StyleSpecification } from 'maplibre-gl';
 import {
+  trimBoundaryLayer,
   basemapStyleUrl,
   firstOverlayLayerId,
   carryDataLayers,
@@ -167,8 +168,9 @@ describe('carryDataLayers', () => {
   }
 
   it('returns the incoming style unchanged on the initial load (no previous style)', () => {
+    // A copy (the borders are trimmed into a new layers array), equal when there are none.
     const next = baseStyle();
-    expect(carryDataLayers(undefined, next)).toBe(next);
+    expect(carryDataLayers(undefined, next)).toEqual(next);
   });
 
   it('carries the app data sources across the swap and drops nothing base', () => {
@@ -199,5 +201,33 @@ describe('carryDataLayers', () => {
     // Exactly one of each base layer — no duplication from mis-detecting them as custom.
     expect(merged.layers.filter((l) => l.id === 'road_major')).toHaveLength(1);
     expect(merged.layers.filter((l) => l.id === 'background')).toHaveLength(1);
+  });
+});
+
+describe('trimBoundaryLayer', () => {
+  const line = (id: string, filter: unknown, sourceLayer = 'boundary') =>
+    ({ id, type: 'line', source: 'openmaptiles', 'source-layer': sourceLayer, filter }) as LayerSpecification;
+
+  // The two OpenFreeMap styles' boundary layers, as they ship.
+  const darkState = line('boundary_state', ['==', ['get', 'admin_level'], 4]);
+  const darkCountry = line('boundary_country_z5-', ['==', ['get', 'admin_level'], 2]);
+  const positron3 = line('boundary_3', ['all', ['>=', ['get', 'admin_level'], 3], ['<=', ['get', 'admin_level'], 6], ['!=', ['get', 'maritime'], 1]]);
+  const positron2 = line('boundary_2', ['all', ['==', ['get', 'admin_level'], 2], ['!=', ['get', 'maritime'], 1]]);
+
+  it('hides sub-national borders', () => {
+    expect(trimBoundaryLayer(darkState)).toBeNull();
+    expect(trimBoundaryLayer(positron3)).toBeNull();
+  });
+
+  it('keeps country borders but drops their sea segments', () => {
+    const t = trimBoundaryLayer(darkCountry) as LayerSpecification & { filter: unknown };
+    expect(t.filter).toEqual(['all', ['==', ['get', 'admin_level'], 2], ['!=', ['get', 'maritime'], 1]]);
+    expect(trimBoundaryLayer(t)).toBe(t);
+    expect(trimBoundaryLayer(positron2)).toBe(positron2);
+  });
+
+  it('leaves non-boundary layers alone', () => {
+    const water = line('water', ['==', ['get', 'class'], 'lake'], 'water');
+    expect(trimBoundaryLayer(water)).toBe(water);
   });
 });
