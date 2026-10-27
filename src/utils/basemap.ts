@@ -13,7 +13,7 @@
  * The URLs are overridable via env so the whole basemap can later be repointed at a
  * self-hosted mirror without touching component code.
  */
-import type { AttributionControl, ControlPosition, LayerSpecification, Map as MaplibreMap, StyleSpecification } from 'maplibre-gl';
+import type { AttributionControl, ControlPosition, ExpressionSpecification, FilterSpecification, LayerSpecification, Map as MaplibreMap, StyleSpecification } from 'maplibre-gl';
 
 export const BASEMAP_STYLE_LIGHT =
   (import.meta.env.VITE_BASEMAP_STYLE_LIGHT_URL as string) ||
@@ -98,6 +98,39 @@ export function baseInsertBeforeId(map: MaplibreMap): string | undefined {
   }
 }
 
+const NOT_MARITIME: ExpressionSpecification = ['!=', ['get', 'maritime'], 1];
+
+/** A country border layer: its filter pins admin_level to 2 somewhere. */
+function isCountryBoundary(l: LayerSpecification): boolean {
+  return 'filter' in l && /\["get","admin_level"\],2\]/.test(JSON.stringify(l.filter));
+}
+
+/**
+ * The base style's own border lines, trimmed to what the map needs: country borders on
+ * land. Our region outlines already draw the regions, so the base's province and
+ * municipal lines (positron's levels 3–6, dark's level 4) only cross-hatched them, and
+ * the dark style draws sea borders too, which ran loops around Gotland and across the
+ * Baltic. Returns the layer unchanged, a filter with sea borders excluded, or null to
+ * hide it. Idempotent, so it can run on every style load.
+ */
+export function trimBoundaryLayer(l: LayerSpecification): LayerSpecification | null {
+  if (!('source-layer' in l) || l['source-layer'] !== 'boundary') return l;
+  if (!isCountryBoundary(l)) return null;
+  const filter = (l as { filter?: ExpressionSpecification }).filter;
+  if (!filter || JSON.stringify(filter).includes('"maritime"')) return l;
+  return { ...l, filter: ['all', filter, NOT_MARITIME] } as LayerSpecification;
+}
+
+/** Apply trimBoundaryLayer to a live map's base style (call on every `style.load`). */
+export function trimBaseBoundaries(map: MaplibreMap): void {
+  for (const l of map.getStyle()?.layers ?? []) {
+    const t = trimBoundaryLayer(l);
+    if (t === l) continue;
+    if (t === null) map.setLayoutProperty(l.id, 'visibility', 'none');
+    else map.setFilter(l.id, (t as { filter: FilterSpecification }).filter);
+  }
+}
+
 /**
  * `setStyle` `transformStyle` that carries the app's data sources and layers across a
  * base-style (theme) swap. OpenFreeMap's positron/dark share the `openmaptiles` vector
@@ -109,8 +142,14 @@ export function baseInsertBeforeId(map: MaplibreMap): string | undefined {
  */
 export function carryDataLayers(
   previous: StyleSpecification | undefined,
-  next: StyleSpecification,
+  incoming: StyleSpecification,
 ): StyleSpecification {
+  // The incoming base gets its borders trimmed here too: a diffed setStyle may not fire
+  // `style.load`, where the first style's trim runs.
+  const next = {
+    ...incoming,
+    layers: incoming.layers.map(trimBoundaryLayer).filter((l): l is LayerSpecification => l !== null),
+  };
   if (!previous) return next;
 
   const baseSourceIds = new Set(Object.keys(next.sources));
