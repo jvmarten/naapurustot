@@ -30,9 +30,10 @@ Browser
 │  hub pages + en/sv variants — prerendered HTML only              │
 └──────────────────────────────────────────────────────────────────┘
 
-Server (optional, Docker Compose on a DigitalOcean droplet)
+Server (Docker Compose on a DigitalOcean droplet; the API is optional)
 ┌──────────────────────────────────────────────────────────────────┐
 │  Caddy (auto-HTTPS)                                              │
+│  ├── naapurustot.fi → static site, /srv/naapurustot/current      │
 │  ├── api.naapurustot.fi → Express 5 API (auth + user-data sync)  │
 │  ├── analytics.naapurustot.fi → Umami                            │
 │  ├── PostgreSQL 16 (shared by API + Umami)                       │
@@ -213,7 +214,7 @@ The backend is fully optional — `api.ts` returns `{ error }` objects instead o
 - **Rate limiting** is an in-process Map keyed on `req.ip` with `trust proxy = 1` (one hop = Caddy). Never hand-parse `X-Forwarded-For` — the leftmost entry is attacker-controlled and a previous implementation allowed limit-bucket minting.
 - **Turnstile**: verified server-side on signup; an unset `TURNSTILE_SECRET` silently disables the check, a Cloudflare outage fails closed. Tokens are single-use — the client remounts the widget after a failed signup.
 - **Database** (PostgreSQL 16, tables auto-created with `CREATE TABLE IF NOT EXISTS`; column changes go through the forward-only migration runner in `db.ts`, serialized on a pg advisory lock): `users` plus four JSONB tables keyed `user_id UUID PK FK ... ON DELETE CASCADE` (`user_favorites`, `user_notes`, `user_preferences`, `user_shortlist`) and `password_reset_tokens` (SHA-256 hash only, 1-hour expiry, single-use, redeemed by one atomic conditional `UPDATE ... RETURNING`).
-- **Password reset**: `POST /auth/forgot-password` answers `200 {ok:true}` for every address — real, unknown or malformed — and answers *before* doing the lookup or the send, so neither the body nor the latency is an account-enumeration oracle. Mail goes out via Resend (`mailer.ts`, no SDK — global `fetch`), which no-ops when `RESEND_API_KEY` is unset. The emailed link points at `/uusi-salasana/`, a real prerendered directory. A client-only route would work — `deploy.yml` copies `index.html` over `404.html`, so Pages serves the SPA shell for unknown paths and the router matches client-side — but it would answer HTTP 404 with `robots: index, follow` and a canonical pointing at `/`. Prerendering gets it a 200, a noindex and its own title. (The redirect stub in `public/404.html`, which *would* drop the path, survives only in local `npm run preview`.)
+- **Password reset**: `POST /auth/forgot-password` answers `200 {ok:true}` for every address — real, unknown or malformed — and answers *before* doing the lookup or the send, so neither the body nor the latency is an account-enumeration oracle. Mail goes out via Resend (`mailer.ts`, no SDK — global `fetch`), which no-ops when `RESEND_API_KEY` is unset. The emailed link points at `/uusi-salasana/`, a real prerendered directory. A client-only route would work — `deploy.yml` copies `index.html` over `404.html`, so the host (Caddy on the droplet, and Pages as the standby) serves the SPA shell for unknown paths and the router matches client-side — but it would answer HTTP 404 with `robots: index, follow` and a canonical pointing at `/`. Prerendering gets it a 200, a noindex and its own title. (The redirect stub in `public/404.html`, which *would* drop the path, survives only in local `npm run preview`.)
 - Email is **optional** at signup, so accounts without one cannot be recovered; `PATCH /auth/email` (re-authenticated with the current password, because the address is the reset channel) lets users add one later, surfaced in `UserMenu`.
 - **Changing a password while signed in** (`PATCH /auth/password`) bumps `token_version` like a reset but RE-ISSUES the caller's cookie against the new generation, so only the other sessions die. It also rejects reuse of the current password, which the reset path deliberately allows — see server/README.md for why the two differ.
 - Known gap: the client sends `wizardProfile` in `PUT /auth/preferences` but the server ignores it (and a wizardProfile-only PUT gets a 400) — CF-4 server support is unimplemented.
@@ -316,6 +317,17 @@ The profile page reads the prerender-embedded payload for instant paint (guarded
 | `health-check.yml` | daily cron | site/API/sitemap/data-age checks → GitHub issue on failure |
 | `codeql.yml` | push/PR + weekly | JS/TS + Python |
 | `issue-to-pr.yml` | issue labeled `claude` | Claude Code action implements the issue |
+
+### Hosting
+
+Since 2026-10-27 `naapurustot.fi` and `www` resolve (Cloudflare DNS, unproxied) to the
+DigitalOcean droplet, where Caddy serves `/srv/naapurustot/current` alongside the API and
+Umami (`server/caddy/Caddyfile`, address from `SITE_HOSTS` in `server/.env`). Every
+`deploy.yml` run publishes the same artifact twice: `deploy-droplet` rsyncs it into a new
+release folder and switches the `current` symlink, and `deploy` keeps GitHub Pages current as
+the standby. Switching to the standby is a DNS change: point the apex back at GitHub's four A
+records and `www` back at `jvmarten.github.io` (steps in `docs/SERVER_MIGRATION.md`, phase 2).
+The Pages constraints below still apply, because the standby must stay deployable.
 
 ### Social-card cache
 

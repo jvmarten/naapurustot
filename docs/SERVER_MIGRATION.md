@@ -253,6 +253,10 @@ than a few minutes, first dump its `naapurustot` database, copy it to `OLD` and 
 
 ## Phase 2: serve the site from NEW
 
+**Done on the droplet, 2026-10-27:** `naapurustot.fi` and `www` point at it, `SITE_HOSTS` is
+set, sign-in and sync verified, GitHub Pages is the standby. The steps below stay as the record
+and for a future move to another server.
+
 Phase 2 does not depend on phase 1: on 2026-10-26 the operator chose to run it on the
 existing DigitalOcean droplet (resized to 2 GB / 50 GB first) and to defer the Hetzner move. On
 the droplet, read `NEW` below as the droplet's IP; `deploy.yml` already targets
