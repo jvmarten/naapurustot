@@ -129,6 +129,11 @@
       "name": "Statistiska centralbyrån (SCB)",
       "url": "https://www.scb.se/",
       "license": "CC0 1.0"
+    },
+    "skolverket": {
+      "name": "Skolverket (Skolenhetsregistret)",
+      "url": "https://www.skolverket.se/",
+      "license": "Öppna data (Skolverket)"
     }
   },
   "metrics": {
@@ -883,6 +888,54 @@
           "granularity": "deso",
           "is_proxy": false,
           "note": "note.se_education"
+        },
+        "healthcare_density": {
+          "source": "OpenStreetMap (Sverige, 2026-10-27)",
+          "publisher": "osm",
+          "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": false,
+          "note": "note.osm_service_density"
+        },
+        "grocery_density": {
+          "source": "OpenStreetMap (Sverige, 2026-10-27)",
+          "publisher": "osm",
+          "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": false,
+          "note": "note.osm_service_density"
+        },
+        "restaurant_density": {
+          "source": "OpenStreetMap (Sverige, 2026-10-27)",
+          "publisher": "osm",
+          "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": false,
+          "note": "note.osm_service_density"
+        },
+        "cycling_density": {
+          "source": "OpenStreetMap (Sverige, 2026-10-27)",
+          "publisher": "osm",
+          "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": false,
+          "note": "note.osm_service_density"
+        },
+        "transit_stop_density": {
+          "source": "OpenStreetMap (Sverige, 2026-10-27)",
+          "publisher": "osm",
+          "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": false,
+          "note": "note.se_transit_stops"
+        },
+        "school_density": {
+          "source": "Skolverket (Skolenhetsregistret, 2026-10-27)",
+          "publisher": "skolverket",
+          "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": false,
+          "note": "note.se_schools"
         }
       }
     }

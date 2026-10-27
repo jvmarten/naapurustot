@@ -834,9 +834,14 @@ export const NeighborhoodProfilePage: React.FC = () => {
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 {seItems(['ownership', 'rental', 'detached_houses', 'avg_household_size', 'families_with_children', 'single_parent_hh'])}
               </div>
+            </Section>
+            <Section title={t('layers.services')}>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {seItems(['transit_access', 'school_density', 'healthcare_access', 'grocery_access', 'restaurant_density', 'cycling_infra'])}
+              </div>
               <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
                 <Link to={sourcesPath} className="hover:text-brand-600 underline decoration-dotted underline-offset-2">{t('profile.data_sources')}</Link>
-                {' · Statistiska centralbyrån (SCB), DeSO 2025'}
+                {' · Statistiska centralbyrån (SCB), DeSO 2025 · Skolverket · © OpenStreetMap'}
               </p>
             </Section>
           </>

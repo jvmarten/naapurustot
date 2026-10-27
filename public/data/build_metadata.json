@@ -1,6 +1,6 @@
 {
-  "generated": "2026-10-27T12:30:15.399Z",
-  "source_hash": "ed3cef9afb9be2a8",
+  "generated": "2026-10-27T18:22:24.907Z",
+  "source_hash": "fd59d6e54c15e990",
   "rows_total": 3018,
   "metrics": {
     "active_plan_count": {
@@ -672,6 +672,14 @@
           "row_count": 6160,
           "coverage_pct": 100
         },
+        "cycling_density": {
+          "source": "OpenStreetMap (Sverige, 2026-10-27)",
+          "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": false,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
         "detached_house_share": {
           "source": "SCB (Antal personer efter hustyp, DeSO 2025)",
           "vintage": 2025,
@@ -728,9 +736,25 @@
           "row_count": 6160,
           "coverage_pct": 100
         },
+        "grocery_density": {
+          "source": "OpenStreetMap (Sverige, 2026-10-27)",
+          "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": false,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
         "he_vakiy": {
           "source": "SCB (Folkmängden per region, DeSO 2025)",
           "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": false,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
+        "healthcare_density": {
+          "source": "OpenStreetMap (Sverige, 2026-10-27)",
+          "vintage": 2026,
           "granularity": "deso",
           "is_proxy": false,
           "row_count": 6160,
@@ -776,9 +800,33 @@
           "row_count": 6098,
           "coverage_pct": 99
         },
+        "restaurant_density": {
+          "source": "OpenStreetMap (Sverige, 2026-10-27)",
+          "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": false,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
+        "school_density": {
+          "source": "Skolverket (Skolenhetsregistret, 2026-10-27)",
+          "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": false,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
         "single_parent_hh_pct": {
           "source": "SCB (Antal hushåll efter hushållstyp, DeSO 2025)",
           "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": false,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
+        "transit_stop_density": {
+          "source": "OpenStreetMap (Sverige, 2026-10-27)",
+          "vintage": 2026,
           "granularity": "deso",
           "is_proxy": false,
           "row_count": 6160,

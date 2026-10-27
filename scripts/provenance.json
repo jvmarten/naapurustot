@@ -102,7 +102,13 @@
         "low_economic_standard_pct": 2024,
         "employment_rate": 2024,
         "unemployment_rate": 2024,
-        "higher_education_rate": 2025
+        "higher_education_rate": 2025,
+        "healthcare_density": 2026,
+        "grocery_density": 2026,
+        "restaurant_density": 2026,
+        "cycling_density": 2026,
+        "transit_stop_density": 2026,
+        "school_density": 2026
       }
     }
   }

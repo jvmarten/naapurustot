@@ -5,6 +5,7 @@ import {
   getColorForValue,
   buildFillColorExpression,
   layerForCountry,
+  layerInCountry,
 } from '../utils/colorScales';
 
 describe('LAYERS', () => {
@@ -36,6 +37,16 @@ describe('LAYERS', () => {
     expect(layerForCountry(l, 'se').stops).toEqual(l.stopsSe);
     expect(layerForCountry(l, 'fi')).toBe(l);
     expect(layerForCountry(l, null)).toBe(l);
+  });
+
+  it('Swedish service layers are offered on one scale with Finland (no stopsSe)', () => {
+    for (const id of ['transit_access', 'school_density', 'healthcare_access', 'restaurant_density', 'grocery_access', 'cycling_infra'] as const) {
+      expect(layerInCountry(id, 'se'), id).toBe(true);
+      const l = getLayerById(id);
+      expect(layerForCountry(l, 'se'), id).toBe(l);
+    }
+    // Daycare has no Swedish source yet (preschools are not in Skolverket's register).
+    expect(layerInCountry('daycare_density', 'se')).toBe(false);
   });
 
   it('has unique IDs', () => {

@@ -174,6 +174,7 @@ data is available. This catalogue is generated from the live layer registry.
 - **Student Share** — Share of working-age residents who are full-time students.
 - **Foreign-Language Speakers**
 - **Foreign-Language Speakers (municipal)**
+- **Foreign background (Sweden)**
 - **Pensioner Share**
 - **Single-Person HH**
 - **Single-Parent Households**
@@ -183,7 +184,9 @@ data is available. This catalogue is generated from the live layer registry.
 ### Economy
 - **Median Income**
 - **Disposable Income**
+- **Economic standard (Sweden)**
 - **Low-income Share**
+- **Low economic standard (Sweden)**
 - **Job Self-sufficiency** — Jobs located in the area per 100 employed residents (tp_tyopy / pt_tyoll). Above 100 = a net job importer / employment hub; below 100 = a residential area residents commute out of.
 - **Unemployment Rate**
 - **Employment Rate** — Share of working-age residents currently employed (ages 15–74).
@@ -289,8 +292,9 @@ publishers.
 | Source | Provides | Licence |
 |---|---|---|
 | Tilastokeskus | Average Age, Avg. Apartment Size, Building Age, Centre Party (vote share), Construction Activity, Crime Change (%), Crime Rate, Detached Houses, Disposable Income, Elderly (65+), Employment Rate, Families with Children, Finns Party (vote share), Foreign-Language Speakers, Foreign-Language Speakers (municipal), Gender Ratio, Green League (vote share), Healthcare Workers, Higher Education, Home Ownership, Household Size, Income Change (%), Job Self-sufficiency, Left Alliance (vote share), Living Space per Person, Low-income Share, Manufacturing Jobs, Median Income, National Coalition (vote share), New Construction, Pensioner Share, Political Diversity, Political Lean (Left–Right), Population Change (%), Population Density, Population Projection (%), Price-to-Rent Ratio, Property Crime, Property Price Change, Property Prices, Public Sector Jobs, Rent Level, Rental Rate, Service Sector Jobs, Single-Parent Households, Single-Person HH, Social Democrats (vote share), Student Share, Swedish People's Party (vote share), Tech Sector Jobs, Unemployment Change (%), Unemployment Rate, Violent Crime, Voter Turnout, Young Adults (18–29), Young Children (0-6) | CC BY 4.0 |
-| OpenStreetMap | Cycling Infrastructure, Daycare Density, EV Charging Stations, Grocery Stores, Healthcare Access, Restaurants & Cafes, School Density, Walkability Index, Water Proximity | ODbL 1.0 |
+| OpenStreetMap | Cycling Infrastructure, EV Charging Stations, Grocery Stores, Healthcare Access, Restaurants & Cafes, Walkability Index, Water Proximity | ODbL 1.0 |
 | Väylävirasto | Traffic Accidents, Transit Access | CC BY 4.0 |
+| Opetushallitus (Opintopolku, Varda) | Daycare Density, School Density | Avoin rajapinta (Opetushallitus) |
 | Ilmatieteen laitos / HSY | Air Quality | CC BY 4.0 |
 | LIPAS (Jyväskylän yliopisto) | Sports Facilities | CC BY 4.0 |
 | Traficom | Broadband Coverage | CC BY 4.0 |

@@ -9,6 +9,8 @@ Inputs (all produced by the fetch scripts in this directory):
   cache/deso_2025_raw.geojson   fetch_se_boundaries.py (full resolution, git-ignored)
   deso_index.json, regso_2025.json, fa25.json, kommuner.json   fetch_se_boundaries.py
   scb_deso.json                 fetch_scb_deso.py
+  osm_deso.json                 fetch_se_osm.py (OpenStreetMap service counts)
+  schools_deso.json             fetch_se_schools.py (Skolverket's school register)
 
 Geometry is simplified ONCE here, on a shared-arc topology (geo2topo -> toposimplify ->
 topo2geo), so neighbouring DeSOs keep a common edge instead of opening slivers. The
@@ -127,6 +129,34 @@ def midpoint(interval: tuple[float, float]) -> float:
     return (interval[0] + interval[1]) / 2
 
 
+# Same precision as Finland's service densities (prepare_data.POI_DENSITY_DECIMALS):
+# at fewer decimals one facility in a large rural DeSO rounds to a measured-looking 0.
+POI_DENSITY_DECIMALS = 4
+
+# (count file key, density property, count property). Cycling counts way records, which
+# measure how contributors split ways rather than a number of things, so it has no count
+# column — the rule Finland's `_assign_poi_density` states.
+OSM_SERVICES = [
+    ("healthcare", "healthcare_density", "healthcare_count"),
+    ("grocery", "grocery_density", "grocery_count"),
+    ("restaurant", "restaurant_density", "restaurant_count"),
+    ("cycling", "cycling_density", None),
+    ("transit", "transit_stop_density", None),
+]
+
+
+def services(counts: dict[str, int], key: str, pinta_ala_m2: int | None, density: str,
+             count: str | None) -> dict:
+    """Density per km² of total area (pinta_ala, as Finland's) plus the raw count. The
+    counts come from national sources covering every DeSO, so an area absent from them
+    holds zero. With no area to divide by the density is unknown, not zero."""
+    n = counts.get(key, 0)
+    out = {density: None if not pinta_ala_m2 else round(n / (pinta_ala_m2 / 1e6), POI_DENSITY_DECIMALS)}
+    if count:
+        out[count] = None if not pinta_ala_m2 else n
+    return out
+
+
 def display_names(index: dict, regso: dict) -> dict[str, str]:
     """RegSO name for each DeSO; numbered (in DeSO-code order) when a RegSO holds several.
 
@@ -213,6 +243,8 @@ def main() -> None:
     fa25 = load("fa25.json")
     kommuner = load("kommuner.json")
     scb = load("scb_deso.json")["tables"]
+    osm = load("osm_deso.json")["counts"]
+    schools = load("schools_deso.json")["counts"]
 
     region_of = {k: r["id"] for r in fa25 for k in r["kommuner"]}
     names = display_names(index, regso)
@@ -310,6 +342,10 @@ def main() -> None:
             "se_smahus": midpoint(smahus) if house_total else None,
             "se_land": land_km2,
         }
+        for key, density, count in OSM_SERVICES:
+            props.update(services({key: osm[key].get(deso, 0)}, key, props["pinta_ala"], density, count))
+        props.update(services({"school": schools.get(deso, 0)}, "school", props["pinta_ala"],
+                              "school_density", "school_count"))
         features.append({"type": "Feature", "properties": props, "geometry": {
             "type": geom["type"], "coordinates": round_coords(geom["coordinates"])}})
 

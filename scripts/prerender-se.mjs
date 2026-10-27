@@ -39,6 +39,14 @@ const SECTIONS_SE = [
     { prop: 'families_with_children_pct', label: 'layer.families_with_children', fmt: 'pct', schema: 'Households with children (%)' },
     { prop: 'single_parent_hh_pct', label: 'layer.single_parent_hh', fmt: 'pct', schema: 'Single-parent households (%)' },
   ] },
+  { title: { fi: 'Palvelut', en: 'Services', sv: 'Service' }, metrics: [
+    { prop: 'transit_stop_density', label: 'layer.transit_access', fmt: 'poi', schema: 'Public transport stops per km² (OpenStreetMap)' },
+    { prop: 'school_density', label: 'layer.school_density', fmt: 'poi', schema: 'Schools per km² (Skolverket)' },
+    { prop: 'healthcare_density', label: 'layer.healthcare_access', fmt: 'poi', schema: 'Healthcare facilities per km² (OpenStreetMap)' },
+    { prop: 'grocery_density', label: 'layer.grocery_access', fmt: 'poi', schema: 'Grocery stores per km² (OpenStreetMap)' },
+    { prop: 'restaurant_density', label: 'layer.restaurant_density', fmt: 'poi', schema: 'Restaurants and cafés per km² (OpenStreetMap)' },
+    { prop: 'cycling_density', label: 'layer.cycling_infra', fmt: 'poi', schema: 'Cycleway segments per km² (OpenStreetMap)' },
+  ] },
 ];
 
 const TEXT_SE = {
@@ -47,7 +55,7 @@ const TEXT_SE = {
     titleCat: 'asuinalue ja tilastot',
     intro: (n, m, r) => `${n} on DeSO-tilastoalue ${m}n kunnassa (${r}), Ruotsissa. Tiedot: Tilastokeskus SCB, DeSO 2025.`,
     desc: (n, m) => `${n}, ${m}, Ruotsi: väkiluku, taloudellinen standardi, työllisyys, koulutus ja asuminen. Lähde: SCB.`,
-    sources: 'Lähde: Statistiska centralbyrån (SCB), DeSO 2025 -aluejako, CC0. Määritelmät noudattavat SCB:tä, eikä niitä verrata Suomen lukuihin samalla asteikolla.',
+    sources: 'Lähde: Statistiska centralbyrån (SCB), DeSO 2025 -aluejako, CC0. Palvelut: Skolverket (koulut) ja © OpenStreetMap-tekijät (ODbL). Määritelmät noudattavat SCB:tä, eikä niitä verrata Suomen lukuihin samalla asteikolla.',
     mapLink: 'Avaa kartalla',
     sourcesLink: 'Tietolähteet',
   },
@@ -56,7 +64,7 @@ const TEXT_SE = {
     titleCat: 'neighbourhood & statistics',
     intro: (n, m, r) => `${n} is a DeSO statistical area in ${m} municipality (${r}), Sweden. Data: Statistics Sweden (SCB), DeSO 2025.`,
     desc: (n, m) => `${n}, ${m}, Sweden: population, economic standard, employment, education and housing. Source: SCB.`,
-    sources: 'Source: Statistics Sweden (SCB), DeSO 2025 areas, CC0. Definitions follow SCB and are never put on one scale with Finland\'s figures.',
+    sources: 'Source: Statistics Sweden (SCB), DeSO 2025 areas, CC0. Services: Skolverket (schools) and © OpenStreetMap contributors (ODbL). Definitions follow SCB and are never put on one scale with Finland\'s figures.',
     mapLink: 'Open on the map',
     sourcesLink: 'Data sources',
   },
@@ -65,7 +73,7 @@ const TEXT_SE = {
     titleCat: 'bostadsområde och statistik',
     intro: (n, m, r) => `${n} är ett DeSO-område i ${m} kommun (${r}), Sverige. Data: Statistiska centralbyrån (SCB), DeSO 2025.`,
     desc: (n, m) => `${n}, ${m}: folkmängd, ekonomisk standard, sysselsättning, utbildning och boende. Källa: SCB.`,
-    sources: 'Källa: Statistiska centralbyrån (SCB), DeSO 2025, CC0. Definitionerna följer SCB och ställs aldrig på samma skala som Finlands siffror.',
+    sources: 'Källa: Statistiska centralbyrån (SCB), DeSO 2025, CC0. Service: Skolverket (skolor) och © OpenStreetMaps bidragsgivare (ODbL). Definitionerna följer SCB och ställs aldrig på samma skala som Finlands siffror.',
     mapLink: 'Öppna på kartan',
     sourcesLink: 'Datakällor',
   },
@@ -108,6 +116,9 @@ export function generateSePage(feature, lang, ctx) {
       case 'pct': return `${num(v, 1)} %`;
       case 'int': return num(v, 0);
       case 'density': return `${num(v, v < 10 ? 2 : 0)} /km²`;
+      // Service densities run from 0.0003 in a large rural DeSO to hundreds in a city
+      // block, so the decimals follow the magnitude rather than rounding a real 0.004 to 0.
+      case 'poi': return `${num(v, v === 0 || v >= 10 ? 0 : v >= 1 ? 1 : v >= 0.1 ? 2 : 3)} /km²`;
       case 'dec2': return num(v, 2);
       default: return String(v);
     }
