@@ -36,3 +36,12 @@ export function normalizeAreaId(s: string): string | null {
 export function countryOf(id: string): CountryId {
   return id.length === 5 ? 'fi' : 'se';
 }
+
+/**
+ * Country of any feature id on the map: an area id, or a region id (the all-country
+ * view's region features carry their region id as `pno`; Swedish ones start `se_`).
+ */
+export function countryOfId(id: unknown): CountryId {
+  const s = String(id ?? '');
+  return s.startsWith('se_') || (s.length === 9 && isAreaId(s)) ? 'se' : 'fi';
+}

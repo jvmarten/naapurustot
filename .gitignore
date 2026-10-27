@@ -48,3 +48,6 @@ server/backups/
 # CF-1: build-internal per-pno reverse-nav manifest (read by prerender within one
 # build:pages run; never committed, never shipped to dist).
 scripts/area_nav.generated.json
+
+# Swedish pipeline: full-resolution downloads (scripts/se/fetch_se_boundaries.py)
+scripts/se/cache/

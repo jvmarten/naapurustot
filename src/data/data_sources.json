@@ -124,6 +124,11 @@
       "name": "Suomen ympäristökeskus (SYKE)",
       "url": "https://www.syke.fi/",
       "license": "CC BY 4.0"
+    },
+    "scb": {
+      "name": "Statistiska centralbyrån (SCB)",
+      "url": "https://www.scb.se/",
+      "license": "CC0 1.0"
     }
   },
   "metrics": {
@@ -750,6 +755,136 @@
       "granularity": "postal",
       "is_proxy": false,
       "note": "note.flood_risk"
+    }
+  },
+  "countries": {
+    "se": {
+      "metrics": {
+        "he_vakiy": {
+          "source": "SCB (Folkmängden per region, DeSO 2025)",
+          "publisher": "scb",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": false
+        },
+        "population_density": {
+          "source": "SCB (Folkmängd + land- och vattenareal, DeSO 2025)",
+          "publisher": "scb",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": false,
+          "note": "note.se_population_density"
+        },
+        "elderly_ratio_pct": {
+          "source": "SCB (Folkmängden per region, DeSO 2025)",
+          "publisher": "scb",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": false
+        },
+        "gender_ratio": {
+          "source": "SCB (Folkmängden per region, DeSO 2025)",
+          "publisher": "scb",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": false
+        },
+        "foreign_background_pct": {
+          "source": "SCB (Folkmängden efter utländsk/svensk bakgrund, DeSO 2025)",
+          "publisher": "scb",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": false,
+          "note": "note.se_foreign_background"
+        },
+        "avg_household_size": {
+          "source": "SCB (Antal hushåll efter hushållstyp, DeSO 2025)",
+          "publisher": "scb",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": false
+        },
+        "families_with_children_pct": {
+          "source": "SCB (Antal hushåll efter hushållstyp, DeSO 2025)",
+          "publisher": "scb",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": false,
+          "note": "note.se_households"
+        },
+        "single_parent_hh_pct": {
+          "source": "SCB (Antal hushåll efter hushållstyp, DeSO 2025)",
+          "publisher": "scb",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": false,
+          "note": "note.se_households"
+        },
+        "ownership_rate": {
+          "source": "SCB (Antal personer efter upplåtelseform, DeSO 2025)",
+          "publisher": "scb",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": false,
+          "note": "note.se_tenure"
+        },
+        "rental_rate": {
+          "source": "SCB (Antal personer efter upplåtelseform, DeSO 2025)",
+          "publisher": "scb",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": false,
+          "note": "note.se_tenure"
+        },
+        "detached_house_share": {
+          "source": "SCB (Antal personer efter hustyp, DeSO 2025)",
+          "publisher": "scb",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": false,
+          "note": "note.se_detached"
+        },
+        "economic_standard_median": {
+          "source": "SCB (Ekonomisk standard, DeSO 2025)",
+          "publisher": "scb",
+          "vintage": 2024,
+          "granularity": "deso",
+          "is_proxy": false,
+          "note": "note.se_economic_standard"
+        },
+        "low_economic_standard_pct": {
+          "source": "SCB (Ekonomisk standard, DeSO 2025)",
+          "publisher": "scb",
+          "vintage": 2024,
+          "granularity": "deso",
+          "is_proxy": false,
+          "note": "note.se_low_economic_standard"
+        },
+        "employment_rate": {
+          "source": "SCB (Arbetsmarknadsstatus, DeSO 2025)",
+          "publisher": "scb",
+          "vintage": 2024,
+          "granularity": "deso",
+          "is_proxy": false,
+          "note": "note.se_employment"
+        },
+        "unemployment_rate": {
+          "source": "SCB (Arbetsmarknadsstatus, DeSO 2025)",
+          "publisher": "scb",
+          "vintage": 2024,
+          "granularity": "deso",
+          "is_proxy": false,
+          "note": "note.se_unemployment"
+        },
+        "higher_education_rate": {
+          "source": "SCB (Befolkning 25–65 år efter utbildningsnivå, DeSO 2025)",
+          "publisher": "scb",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": false,
+          "note": "note.se_education"
+        }
+      }
     }
   }
 }

@@ -17,6 +17,7 @@ import { computeQualityIndices } from './qualityIndex';
 import { getNationalRanges } from './nationalRanges';
 import { filterSmallIslands } from './geometryFilter';
 import type { RegionId } from './regions';
+import { countryOfId } from './areaId';
 
 // Vite resolves these glob imports at build time into asset URLs.
 //
@@ -148,7 +149,11 @@ function processProperties(propsArray: Record<string, unknown>[]): ProcessedData
   computeQualityIndices(geojson.features, undefined, getNationalRanges());
   computeChangeMetrics(geojson.features);
   computeQuickWinMetrics(geojson.features);
-  const metroAverages = computeMetroAverages(geojson.features);
+  // The national averages are Finland's (see buildRegionAggregates), even though the
+  // set also carries Sweden's areas.
+  const metroAverages = computeMetroAverages(
+    geojson.features.filter((f) => countryOfId(f.properties?.pno) === 'fi'),
+  );
 
   return { data: geojson, metroAverages };
 }

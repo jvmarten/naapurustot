@@ -25,6 +25,9 @@ import { encodeColumnar } from './lib/columnar.mjs';
 
 const rootDir = resolve(import.meta.dirname, '..');
 const geojsonPath = resolve(rootDir, 'public', 'data', 'metro_neighborhoods.geojson');
+// Sweden's DeSO areas (scripts/se/build_se_geojson.py). Same role as the Finnish file:
+// a build input that never ships. Its regions carry an `se_` id prefix.
+const seGeojsonPath = resolve(rootDir, 'public', 'data', 'se_deso.geojson');
 const regionsDir = resolve(rootDir, 'src', 'data', 'regions');
 const propertiesOutput = resolve(rootDir, 'src', 'data', 'region_properties.json');
 const payloadManifestPath = resolve(rootDir, 'src', 'data', 'region_payload_manifest.json');
@@ -40,8 +43,12 @@ if (!existsSync(geojsonPath)) {
 console.log('Reading source GeoJSON...');
 const geojsonRaw = readFileSync(geojsonPath, 'utf-8');
 const geojson = JSON.parse(geojsonRaw);
-const features = geojson.features;
-console.log(`  ${features.length} features total`);
+const fiFeatures = geojson.features;
+const seGeojsonRaw = existsSync(seGeojsonPath) ? readFileSync(seGeojsonPath, 'utf-8') : null;
+const seFeatures = seGeojsonRaw ? JSON.parse(seGeojsonRaw).features : [];
+const features = [...fiFeatures, ...seFeatures];
+const countryOfRegion = (regionId) => (regionId.startsWith('se_') ? 'se' : 'fi');
+console.log(`  ${features.length} features total (${fiFeatures.length} Finland, ${seFeatures.length} Sweden)`);
 
 // CF-4: municipality name + WGS84 centroid (lat/lon) are baked into the GeoJSON
 // properties by the pipeline (prepare_data.py / scripts on refresh), so they flow
@@ -204,7 +211,10 @@ writeFileSync(
   JSON.stringify(features.map((f) => {
     const p = f.properties || {};
     const muni = p.municipality && p.municipality !== p.nimi ? p.municipality : undefined;
-    return { pno: p.pno, nimi: p.nimi, namn: p.namn, city: p.city, muni };
+    // `namn` only when it differs: Swedish areas carry one name in both fields, and the
+    // search falls back to `nimi` (SearchBar), so the copy would be pure payload.
+    const namn = p.namn && p.namn !== p.nimi ? p.namn : undefined;
+    return { pno: p.pno, nimi: p.nimi, namn, city: p.city, muni };
   })),
 );
 console.log(`  → region_search_index.json (${features.length} areas)`);
@@ -237,7 +247,9 @@ function isMeaningful(value) {
 }
 
 const presentByRegion = new Map();
-const allMetricKeys = new Set();
+// The metric universe is per country: Sweden publishes a different set, and a shared
+// denominator would quietly lower every Finnish region's "present/total" figure.
+const allMetricKeys = { fi: new Set(), se: new Set() };
 
 for (const [regionId, regionFeatures] of byRegion) {
   if (regionId === 'other' || regionId === 'unknown') continue;
@@ -259,18 +271,18 @@ for (const [regionId, regionFeatures] of byRegion) {
   for (const [key, count] of propCounts) {
     if (count / total >= COVERAGE_THRESHOLD) {
       present.add(key);
-      allMetricKeys.add(key);
+      allMetricKeys[countryOfRegion(regionId)].add(key);
     }
   }
   presentByRegion.set(regionId, present);
 }
 
-const totalMetrics = allMetricKeys.size;
+const totalMetrics = allMetricKeys.fi.size;
 const coverageManifest = {};
 for (const [regionId, present] of presentByRegion) {
   coverageManifest[regionId] = {
     present: present.size,
-    total: totalMetrics,
+    total: allMetricKeys[countryOfRegion(regionId)].size,
   };
 }
 
@@ -294,24 +306,31 @@ for (const [regionId, { present, total }] of Object.entries(coverageManifest)) {
 // freshness panel — without re-running the (network-bound) Python pipeline.
 const registryPath = resolve(rootDir, 'src', 'data', 'data_sources.json');
 const registry = JSON.parse(readFileSync(registryPath, 'utf-8'));
-const provenanceMetrics = {};
-for (const [metric, meta] of Object.entries(registry.metrics ?? {})) {
-  if (meta.stored === false) continue; // client-derived (e.g. quality index): no stored column
-  let count = 0;
-  for (const f of features) {
-    if (isMeaningful((f.properties ?? {})[metric])) count += 1;
+// Top-level `metrics` are Finland's (counted over Finnish areas only); each other
+// country's registry section is counted over its own areas.
+function provenanceFor(registryMetrics, rows) {
+  const out = {};
+  for (const [metric, meta] of Object.entries(registryMetrics ?? {})) {
+    if (meta.stored === false) continue; // client-derived (e.g. quality index): no stored column
+    let count = 0;
+    for (const f of rows) {
+      if (isMeaningful((f.properties ?? {})[metric])) count += 1;
+    }
+    out[metric] = {
+      source: meta.source,
+      vintage: meta.vintage,
+      granularity: meta.granularity,
+      is_proxy: Boolean(meta.is_proxy),
+      row_count: count,
+      coverage_pct: rows.length ? Math.round((count / rows.length) * 1000) / 10 : 0,
+    };
   }
-  provenanceMetrics[metric] = {
-    source: meta.source,
-    vintage: meta.vintage,
-    granularity: meta.granularity,
-    is_proxy: Boolean(meta.is_proxy),
-    row_count: count,
-    coverage_pct: features.length ? Math.round((count / features.length) * 1000) / 10 : 0,
-  };
+  const sorted = {};
+  for (const k of Object.keys(out).sort()) sorted[k] = out[k];
+  return sorted;
 }
-const sortedProvenanceMetrics = {};
-for (const k of Object.keys(provenanceMetrics).sort()) sortedProvenanceMetrics[k] = provenanceMetrics[k];
+const sortedProvenanceMetrics = provenanceFor(registry.metrics, fiFeatures);
+const seProvenanceMetrics = provenanceFor(registry.countries?.se?.metrics, seFeatures);
 
 const metadataPath = resolve(rootDir, 'src', 'data', 'build_metadata.json');
 // IN-5: derive `generated` from a hash of the source GeoJSON content instead of
@@ -323,7 +342,7 @@ const metadataPath = resolve(rootDir, 'src', 'data', 'build_metadata.json');
 // when the underlying data actually changes. The timestamp is captured the first
 // time a given dataset is built (during the data refresh) and then preserved across
 // rebuilds of the same data.
-const sourceHash = createHash('sha256').update(geojsonRaw).digest('hex').slice(0, 16);
+const sourceHash = createHash('sha256').update(geojsonRaw).update(seGeojsonRaw ?? '').digest('hex').slice(0, 16);
 let prevMetadata = {};
 try { prevMetadata = JSON.parse(readFileSync(metadataPath, 'utf-8')); } catch { /* first build */ }
 const generated =
@@ -333,8 +352,9 @@ const generated =
 const buildMetadata = {
   generated,
   source_hash: sourceHash,
-  rows_total: features.length,
+  rows_total: fiFeatures.length,
   metrics: sortedProvenanceMetrics,
+  countries: { se: { rows_total: seFeatures.length, metrics: seProvenanceMetrics } },
 };
 // PO-5: append real data-change events (vintage/coverage shifts vs the PREVIOUS
 // build_metadata, read before we overwrite it) to the committed data_updates.json,

@@ -2,7 +2,7 @@
 
 ## Overview
 
-naapurustot is a React + TypeScript SPA that visualizes postal-code-level statistics for all of Finland — 3,018 postal-code areas across 69 sub-regions (*seutukunnat*) — on an interactive MapLibre GL map. The frontend is fully static: all data ships as pre-built TopoJSON/JSON assets and every computation (quality index, filtering, similarity, correlation, aggregation) happens client-side. An optional Express backend provides user accounts and sync of favorites, shortlist, notes, and preferences.
+naapurustot is a React + TypeScript SPA that visualizes postal-code-level statistics for all of Finland — 3,018 postal-code areas across 69 sub-regions (*seutukunnat*) — and all of Sweden (6,160 SCB DeSO areas in 71 FA25 regions, see `docs/SWEDEN_EXPANSION.md`) — on an interactive MapLibre GL map. The frontend is fully static: all data ships as pre-built TopoJSON/JSON assets and every computation (quality index, filtering, similarity, correlation, aggregation) happens client-side. An optional Express backend provides user accounts and sync of favorites, shortlist, notes, and preferences.
 
 The default landing view is the whole country (`DEFAULT_CITY = 'all'` in `src/utils/regions.ts`); individual regions load lazily as separate TopoJSON assets when selected. SEO-critical pages (~9,000 area profiles, region hubs) are pre-rendered to static HTML at build time.
 
@@ -49,8 +49,8 @@ Server (Docker Compose on a DigitalOcean droplet; the API is optional)
    - Single region:  src/data/regions/{id}.topojson (one of 69 lazy
      assets via import.meta.glob)
    - 'all' view:     region_properties.json — geometry-stripped
-     properties of all 3,018 areas; region outline geometry comes
-     separately from src/data/seutukunnat.topojson
+     properties of all 3,018 Finnish + 6,160 Swedish areas; region outline
+     geometry comes separately from src/data/region_outlines.topojson
    - Each fetch is cached as a Promise (dedup); rejected promises are
      evicted so navigation retries after a transient failure
 3. processTopology() runs a fixed pipeline (dataLoader.ts):
@@ -143,7 +143,7 @@ MapLibre gotchas this file works around (don't regress them):
 
 ### All-Finland view (metro areas)
 
-`metroAreas.ts` no longer dissolves polygons with `@turf/union`. Region geometry is **pre-baked** into `src/data/seutukunnat.topojson` (built by `scripts/build_seutukunta_boundaries.mjs` from the official Tilastokeskus seutukunta boundaries) and fetched lazily; the runtime fallback while it loads is raw MultiPolygon concatenation. The cache (`metroAreaCache`) records whether it was built with outlines (`usedOutlines`) and rebuilds when they arrive — do not remove that check, or the all-Finland view can lock onto the fallback that shows internal postal borders. `ensureOutlinesLoaded` also resets its promise on failure *and* on an empty parse for the same reason. Both `Map.tsx` and `SplitMapView.tsx` must keep filtering `_isMetroArea` features out of the regular line/no-data layers. Dataless regions are emitted into the same source as `_noData: true` features so they share hover/click behavior. `clearMetroAreaCache({ qualityIndexOnly: true })` recomputes only per-region quality averages — the dominant cost of dragging a quality-weight slider in the all-Finland view.
+`metroAreas.ts` no longer dissolves polygons with `@turf/union`. Region geometry is **pre-baked** into `src/data/region_outlines.topojson` (`scripts/build_region_outlines.mjs` merges `seutukunnat.topojson`, built by `scripts/build_seutukunta_boundaries.mjs` from the official Tilastokeskus seutukunta boundaries, with Sweden's FA25 outlines from `scripts/se/`) and fetched lazily; the runtime fallback while it loads is raw MultiPolygon concatenation. The cache (`metroAreaCache`) records whether it was built with outlines (`usedOutlines`) and rebuilds when they arrive — do not remove that check, or the all-Finland view can lock onto the fallback that shows internal postal borders. `ensureOutlinesLoaded` also resets its promise on failure *and* on an empty parse for the same reason. Both `Map.tsx` and `SplitMapView.tsx` must keep filtering `_isMetroArea` features out of the regular line/no-data layers. Dataless regions are emitted into the same source as `_noData: true` features so they share hover/click behavior. `clearMetroAreaCache({ qualityIndexOnly: true })` recomputes only per-region quality averages — the dominant cost of dragging a quality-weight slider in the all-Finland view.
 
 ### Region switching and the multi-region view
 

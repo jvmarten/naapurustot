@@ -38,20 +38,23 @@ export function accumulateAdjacencyFromTopology(topology, into = {}) {
   const geometries = topology.objects[objectName]?.geometries ?? [];
 
   // Region TopoJSONs store their properties once per file, column-major, leaving
-  // each geometry with just a row index — so the postal code has to be resolved
-  // through that block. Reading `geom.properties.postinumeroalue` directly would
-  // find nothing, silently emit an EMPTY adjacency graph, and still be perfectly
-  // deterministic, so the build:data idempotency gate would happily commit it.
+  // each geometry with just a row index — so the area id has to be resolved
+  // through that block. Reading `geom.properties.pno` directly would find nothing,
+  // silently emit an EMPTY adjacency graph, and still be perfectly deterministic,
+  // so the build:data idempotency gate would happily commit it. `pno` is the area
+  // id in every country (Finnish postal code, Swedish DeSO); only Finnish features
+  // also carry Paavo's `postinumeroalue`, kept as the fallback for older files.
   const columnar = topology.propertiesColumnar;
+  const idKey = columnar && columnar.keys.includes('pno') ? 'pno' : 'postinumeroalue';
   const pnoColumn = columnar
-    ? columnar.cols[columnar.keys.indexOf('postinumeroalue')]
+    ? columnar.cols[columnar.keys.indexOf(idKey)]
     : null;
   const pnoOf = (geom) => (pnoColumn
     ? pnoColumn[geom.properties?.i]
-    : geom.properties?.postinumeroalue);
+    : geom.properties?.pno ?? geom.properties?.postinumeroalue);
 
   if (columnar && !pnoColumn) {
-    throw new Error('adjacency: region TopoJSON has no postinumeroalue column');
+    throw new Error('adjacency: region TopoJSON has no pno/postinumeroalue column');
   }
 
   // arc index -> Set of postal codes that reference it

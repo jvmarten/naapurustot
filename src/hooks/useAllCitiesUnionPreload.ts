@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { preloadUnion } from '../utils/metroAreas';
 
 /**
- * Lazily fetches the pre-baked seutukunta outlines (src/data/seutukunnat.topojson,
+ * Lazily fetches the pre-baked seutukunta outlines (src/data/region_outlines.topojson,
  * via `preloadUnion()` → `ensureOutlinesLoaded()` in metroAreas) whenever the user
  * is on the all-cities view, and returns a monotonically increasing counter that
  * bumps once the fetch resolves. Consumers include the counter in any `useMemo`

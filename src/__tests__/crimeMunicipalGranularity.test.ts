@@ -20,9 +20,10 @@ import { QUALITY_FACTORS } from '../utils/qualityIndex';
  */
 
 type Area = Record<string, unknown>;
+// Finland's areas: crime is a Finnish (StatFin) layer, and Sweden's carry none.
 const areas = decodeColumnar<Area>(
   regionProperties as unknown as { keys: string[]; cols: unknown[][] },
-);
+).filter((a) => /^\d{5}$/.test(String(a.pno)));
 
 const num = (v: unknown): number | null =>
   typeof v === 'number' && isFinite(v) ? v : null;

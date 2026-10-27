@@ -65,7 +65,11 @@ function percentile(sorted, p) {
 }
 
 console.log('Reading region_properties.json...');
-const props = decodeColumnar(JSON.parse(readFileSync(propertiesPath, 'utf-8')));
+// Finland's ranges only. region_properties.json also carries Sweden's DeSO areas, whose
+// metrics are defined differently (docs/SWEDEN_EXPANSION.md) and must not move the
+// scale every Finnish score is normalized against.
+const props = decodeColumnar(JSON.parse(readFileSync(propertiesPath, 'utf-8')))
+  .filter((p) => /^\d{5}$/.test(String(p.pno)));
 console.log(`  ${props.length} postal codes`);
 
 // Collect every finite numeric value per property, mirroring collectRange in
