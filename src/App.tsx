@@ -11,7 +11,7 @@ import { loadRegionData, loadAllData } from './utils/dataLoader';
 import { LayerSelector } from './components/LayerSelector';
 import { SearchBar } from './components/SearchBar';
 import { ContactMenu } from './components/ContactMenu';
-import { CitySelector, type CityFilter } from './components/CitySelector';
+import { CitySelector, type CityFilter, type ScopeId } from './components/CitySelector';
 import { ComparisonScopeToggle, type ComparisonScope } from './components/ComparisonScopeToggle';
 import { TooltipOverlay } from './components/TooltipOverlay';
 import { RegionSwitchPrompt, RegionChips } from './components/RegionSwitch';
@@ -985,6 +985,14 @@ const App: React.FC = () => {
       setFlyTarget({ center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM });
     }
   }, [deselect, resetAreaTools]);
+
+  // The selector's top level: World and each country are all the national view, framed
+  // differently — World on both countries, a country on the union of its regions.
+  const handleScope = useCallback((scope: ScopeId) => {
+    handleCityChange('all');
+    const vp = regionsViewport(scope === 'all' ? REGION_IDS : REGION_IDS.filter((id) => regionCountry(id) === scope));
+    if (vp) setFlyTarget(vp);
+  }, [handleCityChange]);
 
   // CF-6: Draw polygon state
   const [drawMode, setDrawMode] = useState(false);
@@ -2979,7 +2987,7 @@ const App: React.FC = () => {
               <span className="hidden md:inline">{t('auth.login')}</span>
             </button>
           )}
-          <CitySelector value={cityFilter} onChange={handleCityChange} lang={lang} displayed={displayed} onAdd={cityFilter === 'all' ? undefined : handleAddRegion} />
+          <CitySelector value={cityFilter} onChange={handleCityChange} onScope={handleScope} lang={lang} displayed={displayed} onAdd={cityFilter === 'all' ? undefined : handleAddRegion} />
         </div>
       </header>
       )}

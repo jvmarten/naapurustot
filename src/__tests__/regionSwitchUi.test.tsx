@@ -200,23 +200,61 @@ describe('CitySelector mobile popover with region add', () => {
   /** The main (select) button of a popover row — its name is the region label. */
   const rowButton = (id: string) => screen.getByRole('button', { name: name(id) });
 
-  it('gives a "+" to every region not on the map, and none to shown regions or "all"', () => {
+  /** Region rows not on the map are reached by searching. */
+  const search = (text: string) =>
+    fireEvent.change(screen.getByPlaceholderText(t('city.filter_placeholder')), { target: { value: text } });
+
+  it('unsearched, lists only World / Finland / Sweden and the regions on the map', () => {
+    const onScope = vi.fn();
+    const onChange = vi.fn();
+    render(<CitySelector value="helsinki_metro" onChange={onChange} onScope={onScope} displayed={['helsinki_metro', 'lahti']} onAdd={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: new RegExp('^' + escapeRe(t('city.select')) + ':') }));
+    expect(screen.getByRole('button', { name: t('city.all') })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: t('city.scope.fi') })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: t('city.scope.se') })).toBeInTheDocument();
+    expect(rowButton('helsinki_metro')).toBeInTheDocument();
+    expect(rowButton('lahti')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: name('turku') })).toBeNull();
+    // Nothing to add until a search brings an off-map region into the list.
+    expect(plusButtons()).toHaveLength(0);
+    fireEvent.click(screen.getByRole('button', { name: t('city.scope.se') }));
+    expect(onScope).toHaveBeenCalledWith('se');
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('searching finds regions of both countries and hides the top level', () => {
+    const seId = REGION_IDS.find((id) => id.startsWith('se_'))!;
+    openSelector({ value: 'helsinki_metro', displayed: ['helsinki_metro'], onAdd: vi.fn() });
+    search(name(seId));
+    expect(rowButton(seId)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: t('city.all') })).toBeNull();
+    search(name('turku'));
+    expect(rowButton('turku')).toBeInTheDocument();
+  });
+
+  it('without onScope, World switches to the national view and no country rows are offered', () => {
+    const { onChange } = openSelector({ value: 'helsinki_metro' });
+    expect(screen.queryByRole('button', { name: t('city.scope.fi') })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: t('city.all') }));
+    expect(onChange).toHaveBeenCalledWith('all');
+  });
+
+  it('gives a "+" to every searched region not on the map, and none to shown regions', () => {
     const displayed = ['helsinki_metro', 'lahti'];
     openSelector({ value: 'helsinki_metro', displayed, onAdd: vi.fn() });
+    search(name('turku'));
     const plus = plusButtons();
-    // Every region except the two displayed; "all" never gets one.
-    expect(plus).toHaveLength(REGION_IDS.length - displayed.length);
-    const labels = plus.map((b) => b.getAttribute('aria-label') ?? '');
-    for (const id of displayed) {
-      expect(labels.some((l) => l.endsWith(name(id)))).toBe(false);
-    }
-    expect(labels.some((l) => l.includes(t('city.all')))).toBe(false);
-    expect(labels.some((l) => l.endsWith(name('turku')))).toBe(true);
-    plus.forEach((b) => expect(b.textContent).toBe('+'));
+    expect(plus).toHaveLength(1);
+    expect(plus[0].getAttribute('aria-label')).toBe(`${addLabel()}: ${name('turku')}`);
+    expect(plus[0].textContent).toBe('+');
+    search(name('lahti'));
+    expect(rowButton('lahti')).toBeInTheDocument();
+    expect(plusButtons()).toHaveLength(0);
   });
 
   it('"+" aria-label names both the action and the region', () => {
     openSelector({ onAdd: vi.fn(), displayed: ['helsinki_metro'] });
+    search(name('turku'));
     const btn = screen.getByRole('button', { name: `${addLabel()}: ${name('turku')}` });
     const label = btn.getAttribute('aria-label') ?? '';
     expect(label).toContain(addLabel());
@@ -226,6 +264,7 @@ describe('CitySelector mobile popover with region add', () => {
   it('clicking "+" calls onAdd(id), closes the popover and does not call onChange', () => {
     const onAdd = vi.fn();
     const { onChange, trigger } = openSelector({ onAdd, displayed: ['helsinki_metro'] });
+    search(name('turku'));
     fireEvent.click(screen.getByRole('button', { name: `${addLabel()}: ${name('turku')}` }));
     expect(onAdd).toHaveBeenCalledTimes(1);
     expect(onAdd).toHaveBeenCalledWith('turku');
@@ -251,12 +290,14 @@ describe('CitySelector mobile popover with region add', () => {
     openSelector({ value: 'helsinki_metro', displayed: ['helsinki_metro', 'lahti'], onAdd: vi.fn() });
     expect(rowButton('helsinki_metro')).toHaveAttribute('aria-current', 'true');
     expect(rowButton('lahti')).toHaveAttribute('aria-current', 'true');
+    search(name('turku'));
     expect(rowButton('turku')).not.toHaveAttribute('aria-current');
   });
 
   it('clicking the row itself still switches (onChange) and never adds', () => {
     const onAdd = vi.fn();
     const { onChange } = openSelector({ onAdd, displayed: ['helsinki_metro'] });
+    search(name('turku'));
     fireEvent.click(rowButton('turku'));
     expect(onChange).toHaveBeenCalledWith('turku');
     expect(onAdd).not.toHaveBeenCalled();
@@ -269,17 +310,19 @@ describe('CitySelector mobile popover with region add', () => {
     for (const id of displayed) {
       expect(rowButton(id).className).toContain('bg-brand-500/15');
     }
-    expect(rowButton('turku').className).not.toContain('bg-brand-500/15');
-    expect(rowButton('oulu').className).not.toContain('bg-brand-500/15');
     expect(screen.getByRole('button', { name: t('city.all') }).className).not.toContain('bg-brand-500/15');
+    search(name('turku'));
+    expect(rowButton('turku').className).not.toContain('bg-brand-500/15');
+    search(name('oulu'));
+    expect(rowButton('oulu').className).not.toContain('bg-brand-500/15');
   });
 
   it('treats the value as shown even when displayed is omitted', () => {
     openSelector({ value: 'tampere', onAdd: vi.fn() });
     expect(rowButton('tampere').className).toContain('bg-brand-500/15');
     expect(screen.queryByRole('button', { name: `${addLabel()}: ${name('tampere')}` })).toBeNull();
-    // Every other region is addable.
-    expect(plusButtons()).toHaveLength(REGION_IDS.length - 1);
+    search(name('turku'));
+    expect(plusButtons()).toHaveLength(1);
   });
 
   it('without onAdd there are no "+" buttons at all', () => {
@@ -457,6 +500,17 @@ describe('CitySelector desktop add path', () => {
     fireEvent.change(select(), { target: { value: 'turku' } });
     expect(onChange).toHaveBeenCalledWith('turku');
     expect(onAdd).not.toHaveBeenCalled();
+  });
+
+  it('the select offers World / Finland / Sweden first; a country routes to onScope', () => {
+    const onChange = vi.fn();
+    const onScope = vi.fn();
+    render(<CitySelector value="all" onChange={onChange} onScope={onScope} />);
+    const labels = within(select()).getAllByRole('option').slice(0, 3).map((o) => o.textContent);
+    expect(labels).toEqual([t('city.all'), t('city.scope.fi'), t('city.scope.se')]);
+    fireEvent.change(select(), { target: { value: 'scope:fi' } });
+    expect(onScope).toHaveBeenCalledWith('fi');
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it('addOnly renders just an "add to map" button — no select', () => {
