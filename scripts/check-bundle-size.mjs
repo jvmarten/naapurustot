@@ -162,7 +162,16 @@ import { join } from 'node:path';
 // 327,203 → 329,961, i.e. ~2.8 KB of genuine feature (incl. its review fixes: the
 // desktop keyboard add path, concurrent adds, prompt lifetime, focus handling);
 // headroom restored to ~1.5 KB, per the Services-honesty note.)
-const BUDGET = 331_500;
+// → 333000 B (2026-10-27: owner's call after the headroom had run down to 121 B on
+// toolchain codegen alone (vite 8.1.6 / rolldown 1.1.5, react-router 7.18.4 — no app
+// change). This batch: the onboarding card sits beside a tall anchor instead of under
+// the fold (+42), the footer drops its spelled-out source list (−9), and the basemap
+// credit comes from one shared helper that matches OpenFreeMap's TileJSON string (so
+// MapLibre shows it once) and folds the compact control to its (i) after five seconds
+// (+114). Measured 331,379 → 331,526; headroom restored to ~1.5 KB, per the
+// Services-honesty note. The site moving from GitHub Pages to the droplet changes
+// nothing here: this caps what a visitor's device downloads and parses, not hosting.)
+const BUDGET = 333_000;
 const ASSETS_DIR = 'dist/assets';
 
 // Second budget: the /live/ realtime sub-app.

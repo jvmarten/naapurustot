@@ -13,7 +13,7 @@
  * The URLs are overridable via env so the whole basemap can later be repointed at a
  * self-hosted mirror without touching component code.
  */
-import type { LayerSpecification, Map as MaplibreMap, StyleSpecification } from 'maplibre-gl';
+import type { AttributionControl, ControlPosition, LayerSpecification, Map as MaplibreMap, StyleSpecification } from 'maplibre-gl';
 
 export const BASEMAP_STYLE_LIGHT =
   (import.meta.env.VITE_BASEMAP_STYLE_LIGHT_URL as string) ||
@@ -23,14 +23,37 @@ export const BASEMAP_STYLE_DARK =
   'https://tiles.openfreemap.org/styles/dark';
 
 /**
- * Attribution for the OpenFreeMap / OpenMapTiles / OpenStreetMap basemap. OpenFreeMap's
- * hosted styles ship without a visible attribution string, so we supply it ourselves via
- * `AttributionControl({ customAttribution })`.
+ * Attribution for the OpenFreeMap / OpenMapTiles / OpenStreetMap basemap — byte for byte
+ * the `attribution` OpenFreeMap's TileJSON (tiles.openfreemap.org/planet) carries. The
+ * style JSON has none, but MapLibre also shows the tile source's own once its TileJSON
+ * loads, and it drops only an EXACT duplicate: our copy with `rel` attributes added
+ * rendered the credit twice. We still pass it ourselves so the credit never depends on
+ * the tile source — if OpenFreeMap's string changes, the worst case is two copies, not none.
  */
 export const BASEMAP_ATTRIBUTION =
-  '<a href="https://openfreemap.org" target="_blank" rel="noopener noreferrer">OpenFreeMap</a> ' +
-  '<a href="https://www.openmaptiles.org/" target="_blank" rel="noopener noreferrer">&copy; OpenMapTiles</a> ' +
-  'Data from <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a>';
+  '<a href="https://openfreemap.org" target="_blank">OpenFreeMap</a> ' +
+  '<a href="https://www.openmaptiles.org/" target="_blank">&copy; OpenMapTiles</a> ' +
+  'Data from <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>';
+
+/** How long the credit stays expanded before folding to its (i) button. */
+export const ATTRIBUTION_FOLD_MS = 5000;
+
+/**
+ * Adds the basemap attribution as a compact control that folds to its (i) after
+ * ATTRIBUTION_FOLD_MS. MapLibre's compact mode starts expanded and folds only on the
+ * first drag, so a visitor who never pans keeps a full credit line across the bottom
+ * of the map. It cannot start folded: OSMF's attribution guidelines require the credit
+ * to be visible without interacting with the map, and allow collapsing it after five
+ * seconds or on map interaction, provided an (i) brings it back. A tap on the control
+ * before the fold cancels it, so it never closes under someone who just opened it.
+ */
+export function addBasemapAttribution(map: MaplibreMap, Control: typeof AttributionControl, position: ControlPosition): void {
+  const ctrl = new Control({ compact: true, customAttribution: BASEMAP_ATTRIBUTION });
+  map.addControl(ctrl, position);
+  const el = ctrl._container;
+  const fold = setTimeout(() => el.classList.remove('maplibregl-compact-show'), ATTRIBUTION_FOLD_MS);
+  el.addEventListener('click', () => clearTimeout(fold), { once: true });
+}
 
 /** Resolve the basemap style URL for the active theme. */
 export function basemapStyleUrl(theme: 'dark' | 'light'): string {

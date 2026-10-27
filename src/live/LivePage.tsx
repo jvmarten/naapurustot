@@ -9,7 +9,7 @@ import {
   frameAltitude,
   type SolarFrame,
 } from '../utils/sun';
-import { basemapStyleUrl, BASEMAP_ATTRIBUTION } from '../utils/basemap';
+import { basemapStyleUrl, addBasemapAttribution } from '../utils/basemap';
 import { t, getLang, setLang, useI18nVersion, type Lang } from '../utils/i18n';
 import { useTheme } from '../hooks/useTheme';
 import { FeedSidebar } from './FeedSidebar';
@@ -4485,7 +4485,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
       }
       mapRef.current = created;
       appliedBaseThemeRef.current = themeRef.current;
-      created.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: BASEMAP_ATTRIBUTION }), 'bottom-right');
+      addBasemapAttribution(created, maplibregl.AttributionControl, 'bottom-right');
       created.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
       // The listener effect below runs before this resolves, so it needs a nudge
       // once there is actually a map to bind to.
