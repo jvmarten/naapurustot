@@ -51,6 +51,8 @@ const ALL_STEPS: Step[] = [
 ];
 
 const POPOVER_W = 320;
+/** Tallest anchored card, measured at POPOVER_W across fi/en/sv (282 px). */
+const CARD_H = 300;
 const POPOVER_PAD = 16;
 const SPOTLIGHT_PAD = 6;
 const SPOTLIGHT_RADIUS = 14;
@@ -251,12 +253,19 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({ onComplete, skip
         translateY: '-50%',
       };
     }
-    const centerX = unionRect.left + unionRect.width / 2;
-    const left = clamp(centerX - popoverWidth / 2, POPOVER_PAD, viewport.w - popoverWidth - POPOVER_PAD);
     const spaceBelow = viewport.h - unionRect.bottom;
     const spaceAbove = unionRect.top;
-    // Need ~220px for the card. If below has room, prefer it; else flip.
-    if (spaceBelow >= 240 || spaceBelow > spaceAbove) {
+    // Neither side holds the card when the anchor is the desktop layer panel (80vh
+    // tall): "below" put the card — Next button included — under the fold. Sit
+    // beside it instead, centered on it and clamped into the viewport.
+    const side = unionRect.left - popoverWidth - POPOVER_PAD;
+    if (spaceBelow < CARD_H && spaceAbove < CARD_H && side >= POPOVER_PAD) {
+      const top = clamp(unionRect.top + unionRect.height / 2, CARD_H / 2 + POPOVER_PAD, viewport.h - CARD_H / 2 - POPOVER_PAD);
+      return { top, left: side, translateY: '-50%' };
+    }
+    const centerX = unionRect.left + unionRect.width / 2;
+    const left = clamp(centerX - popoverWidth / 2, POPOVER_PAD, viewport.w - popoverWidth - POPOVER_PAD);
+    if (spaceBelow >= CARD_H || spaceBelow > spaceAbove) {
       return { top: unionRect.bottom + POPOVER_PAD, left, translateY: '0' };
     }
     return { top: unionRect.top - POPOVER_PAD, left, translateY: '-100%' };
