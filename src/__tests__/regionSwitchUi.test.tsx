@@ -513,6 +513,14 @@ describe('CitySelector desktop add path', () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
+  it('a narrowed national view reads as its country, in the select and the popover', () => {
+    render(<CitySelector value="all" country="se" onChange={vi.fn()} onScope={vi.fn()} />);
+    expect((select() as HTMLSelectElement).value).toBe('scope:se');
+    fireEvent.click(screen.getByRole('button', { name: `${t('city.select')}: ${t('city.scope.se')}` }));
+    expect(screen.getByRole('button', { name: t('city.scope.se') })).toHaveAttribute('aria-current', 'true');
+    expect(screen.getByRole('button', { name: t('city.all') })).not.toHaveAttribute('aria-current');
+  });
+
   it('addOnly renders just an "add to map" button — no select', () => {
     render(<CitySelector addOnly value="helsinki_metro" onChange={vi.fn()} displayed={['helsinki_metro']} onAdd={vi.fn()} />);
     expect(screen.queryByRole('combobox', { name: t('city.select') })).toBeNull();

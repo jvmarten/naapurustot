@@ -16,12 +16,18 @@ import type { CityFilter } from '../components/CitySelector';
 import type { ProcessedData } from './dataLoader';
 import { computeMetroAverages } from './metrics';
 import { REGION_IDS, type RegionId } from './regions';
+import type { CountryId } from './areaId';
 import { CITY_VIEWPORTS } from './mapConstants';
 
 export interface RegionSelection {
   city: CityFilter;
   extra: RegionId[];
+  /** The national view narrowed to one country's regions (`city=fi` / `city=se`).
+   *  Only ever set alongside city 'all'; absent for the view of both countries. */
+  country?: CountryId;
 }
+
+const COUNTRY_PARAMS: readonly string[] = ['fi', 'se'] satisfies CountryId[];
 
 /** Shared empty list, so a state that is already single-region keeps its identity.
  *  Frozen: every single-region parse and switch hands out this same array. */
@@ -30,13 +36,19 @@ export const NO_REGIONS = Object.freeze([]) as unknown as RegionId[];
 /**
  * Reducer action: a bare CityFilter switches to exactly that view (dropping any added
  * regions — every pre-existing "switch region" path keeps its single-region meaning),
- * `{ add }` puts a region alongside the current ones, `{ remove }` takes one off.
+ * `{ add }` puts a region alongside the current ones, `{ remove }` takes one off, and
+ * `{ country }` switches to the national view of one country (null: both countries).
  */
-export type RegionAction = CityFilter | { add: RegionId } | { remove: RegionId };
+export type RegionAction = CityFilter | { add: RegionId } | { remove: RegionId } | { country: CountryId | null };
 
 export function regionReducer(s: RegionSelection, a: RegionAction): RegionSelection {
   if (typeof a === 'string') {
-    return s.city === a && s.extra.length === 0 ? s : { city: a, extra: NO_REGIONS };
+    return s.city === a && s.extra.length === 0 && !s.country ? s : { city: a, extra: NO_REGIONS };
+  }
+  if ('country' in a) {
+    const country = a.country ?? undefined;
+    if (s.city === 'all' && s.country === country) return s;
+    return country ? { city: 'all', extra: NO_REGIONS, country } : { city: 'all', extra: NO_REGIONS };
   }
   if ('add' in a) {
     const r = a.add;
@@ -58,22 +70,25 @@ export function displayedRegions(s: RegionSelection): RegionId[] {
 
 /**
  * Stable string identity of the displayed set — the `city` URL value and the key every
- * region-keyed effect depends on: 'all', 'lahti', or 'helsinki_metro,lahti'.
+ * region-keyed effect depends on: 'all', 'se' (one country), 'lahti', or
+ * 'helsinki_metro,lahti'.
  */
 export function regionKey(s: RegionSelection): string {
-  return s.city === 'all' ? 'all' : [s.city, ...s.extra].join(',');
+  return s.city === 'all' ? s.country ?? 'all' : [s.city, ...s.extra].join(',');
 }
 
 const REGION_ID_SET = new Set<string>(REGION_IDS);
 
 /**
  * Parse a `city` URL value. A single id (or 'all') behaves exactly as it always has; a
- * comma list is primary-first, with unknown and repeated ids dropped. An invalid primary
- * falls through to the next valid id rather than discarding the whole list.
+ * country code ('fi', 'se') is the national view of that country; a comma list is
+ * primary-first, with unknown and repeated ids dropped. An invalid primary falls through
+ * to the next valid id rather than discarding the whole list.
  */
-export function parseCityParam(raw: string | null): { city: CityFilter | null; extra: RegionId[] } {
+export function parseCityParam(raw: string | null): { city: CityFilter | null; extra: RegionId[]; country?: CountryId } {
   if (!raw) return { city: null, extra: NO_REGIONS };
   if (raw === 'all') return { city: 'all', extra: NO_REGIONS };
+  if (COUNTRY_PARAMS.includes(raw)) return { city: 'all', extra: NO_REGIONS, country: raw as CountryId };
   const ids = [...new Set(raw.split(',').filter((c) => REGION_ID_SET.has(c)))] as RegionId[];
   if (ids.length === 0) return { city: null, extra: NO_REGIONS };
   return { city: ids[0], extra: ids.length > 1 ? ids.slice(1) : NO_REGIONS };

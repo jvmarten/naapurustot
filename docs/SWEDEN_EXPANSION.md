@@ -182,6 +182,11 @@ pipeline handles the whole country as cheaply as one region. Differences from th
   in pages but not in rasterizing time: 58,936 files (guard raised to 66,000), kept under
   the ~65,000 that once broke the Pages sync. The region link in the breadcrumb opens the
   region on the map, because Swedish regions have no hub pages yet.
+- **Country views and coastline (later the same day).** Picking Finland or Sweden in the
+  region selector now narrows the national view to that country (`city=fi` / `city=se`),
+  as §3.2 first planned. DeSO polygons are cut to OSM's land polygons before
+  simplifying (`scripts/se/clip_deso_land.py`), because SCB's run out to sea where
+  Paavo's stop at the shore.
 - **Not yet:** Swedish region hubs and ranking pages, and Swedish history before 2024 (Q5).
 
 ## 8. Quality index for Sweden (2026-10-27)
@@ -205,5 +210,5 @@ The default factors, Swedish source per factor (all per DeSO unless noted):
 
 Scoring: each country against its own p2/p98 ranges, missing factors dropped, then the
 Swedish composite mapped onto Finland's by quantile under the default weights (CLAUDE.md,
-Sweden note 6). Because the factors Sweden lacks are the rural-favouring ones, Swedish
+Sweden note 8). Because the factors Sweden lacks are the rural-favouring ones, Swedish
 region averages lean urban until they arrive.

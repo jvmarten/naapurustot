@@ -18,7 +18,7 @@ import {
 } from '../utils/similarity';
 import type { WizardAnswers } from './useWizardProfile';
 import { deserializeWizardProfile } from './useWizardProfile';
-import { isAreaId } from '../utils/areaId';
+import { isAreaId, type CountryId } from '../utils/areaId';
 
 // Bounds a URL-carried position must fall inside: Finland and Sweden, generously.
 const MAP_LNG_MIN = 10, MAP_LNG_MAX = 33, MAP_LAT_MIN = 55, MAP_LAT_MAX = 71;
@@ -89,6 +89,8 @@ interface UrlState {
   city: string | null;
   /** Regions displayed alongside `city` (`city=helsinki_metro,lahti`); [] when single. */
   extraCities: RegionId[];
+  /** `city=fi` / `city=se`: the national view narrowed to one country (city is 'all'). */
+  country: CountryId | null;
   // CF-1: extended analytical state (null when absent from the URL).
   scope: UrlScope | null;
   year: number | null;
@@ -461,6 +463,7 @@ function parseUrl(): UrlState {
     // A comma list is the multi-region view (primary first); a single id is unchanged.
     city: cityParam.city,
     extraCities: cityParam.extra,
+    country: cityParam.country ?? null,
     scope: scopeRaw === 'all' || scopeRaw === 'region' ? scopeRaw : null,
     year: yearRaw && /^\d{4}$/.test(yearRaw) ? Number(yearRaw) : null,
     colorblind: cbRaw && VALID_CB.has(cbRaw) ? (cbRaw as ColorblindType) : null,

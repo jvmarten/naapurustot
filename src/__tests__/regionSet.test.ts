@@ -52,6 +52,36 @@ function processed(features: Feature[]): ProcessedData {
 // regionReducer
 // ---------------------------------------------------------------------------
 
+describe('country scope — the national view narrowed to one country', () => {
+  it('parses city=fi / city=se as the national view of that country', () => {
+    expect(parseCityParam('se')).toEqual({ city: 'all', extra: NO_REGIONS, country: 'se' });
+    expect(parseCityParam('fi')).toEqual({ city: 'all', extra: NO_REGIONS, country: 'fi' });
+  });
+
+  it('round-trips through regionKey, and both countries stay "all"', () => {
+    const se = regionReducer(sel('lahti', ['turku']), { country: 'se' });
+    expect(se).toEqual({ city: 'all', extra: NO_REGIONS, country: 'se' });
+    expect(regionKey(se)).toBe('se');
+    expect(displayedRegions(se)).toEqual([]);
+    const both = regionReducer(se, { country: null });
+    expect(both).toEqual({ city: 'all', extra: NO_REGIONS });
+    expect(regionKey(both)).toBe('all');
+  });
+
+  it('a bare switch drops the country, even to "all"', () => {
+    const se = regionReducer(sel('all'), { country: 'se' });
+    expect(regionReducer(se, 'all')).toEqual({ city: 'all', extra: NO_REGIONS });
+    expect(regionReducer(se, 'lahti')).toEqual({ city: 'lahti', extra: NO_REGIONS });
+  });
+
+  it('returns the same state when the country is already picked', () => {
+    const se = regionReducer(sel('all'), { country: 'se' });
+    expect(regionReducer(se, { country: 'se' })).toBe(se);
+    const all = sel('all');
+    expect(regionReducer(all, { country: null })).toBe(all);
+  });
+});
+
 describe('regionReducer — bare CityFilter switch', () => {
   it('returns the SAME state object when switching to the current single region', () => {
     const s = sel('lahti');
