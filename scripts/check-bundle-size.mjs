@@ -171,6 +171,9 @@ import { join } from 'node:path';
 // (+114). Measured 331,379 → 331,526; headroom restored to ~1.5 KB, per the
 // Services-honesty note. The site moving from GitHub Pages to the droplet changes
 // nothing here: this caps what a visitor's device downloads and parses, not hosting.)
+// (Same day, no bump: country-generic area ids for the Sweden expansion — utils/areaId.ts
+// replaces the 5-digit postal-code checks in the URL codec, slugs, shortlist, notes,
+// home reference and search. Measured 331,526 → 331,640, headroom 1,360.)
 const BUDGET = 333_000;
 const ASSETS_DIR = 'dist/assets';
 

@@ -6,6 +6,7 @@ import { geocodeAddressDetailed, GEOCODING_ENABLED, type GeocodeResult } from '.
 import { getFeatureCenter } from '../utils/geometryFilter';
 import { fold } from '../utils/slug';
 import { trackEvent } from '../utils/analytics';
+import { isAreaId } from '../utils/areaId';
 
 interface SearchBarProps {
   /** Region-scoped data with geometry — used to resolve geocoded addresses to a containing neighborhood. */
@@ -183,7 +184,7 @@ export const SearchBar: React.FC<SearchBarProps> = React.memo(({ data, searchDat
     // SN-4: in a keyless build address search is unavailable — never flip the
     // "searching addresses…" flag (it would flash a header that resolves to nothing)
     // and never surface an address error.
-    if (!GEOCODING_ENABLED || query.length < 3 || /^\d{5}$/.test(query.trim())) {
+    if (!GEOCODING_ENABLED || query.length < 3 || isAreaId(query.trim())) {
       setAddressResults([]);
       setIsGeocoding(false);
       setAddressError(false);

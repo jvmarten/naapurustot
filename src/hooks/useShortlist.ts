@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { api } from '../utils/api';
 import { runSync } from '../utils/syncStatus';
 import { addTombstone, addTombstones, clearTombstone, mergeRespectingTombstones } from '../utils/syncTombstones';
+import { isAreaId } from '../utils/areaId';
 
 const STORAGE_KEY = 'naapurustot-shortlist';
 // CF-6: shortlist entries the user explicitly removed on this device — skipped on
@@ -152,7 +153,7 @@ export function useShortlist(userId?: string | null) {
   // QW-2: adopt postal codes from a shared URL without clobbering the local list.
   // CF-6: importing a shared list is an explicit re-add, so clear any tombstones.
   const mergeIntoShortlist = useCallback((pnos: string[]) => {
-    const valid = pnos.filter((p) => /^\d{5}$/.test(p));
+    const valid = pnos.filter((p) => isAreaId(p));
     if (valid.length === 0) return;
     for (const p of valid) clearTombstone(TOMBSTONE_KEY, p);
     setShortlist((prev) => {
