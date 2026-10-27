@@ -12,7 +12,7 @@ import { useTheme } from '../hooks/useTheme';
 import { t, useI18nVersion } from '../utils/i18n';
 import { DEFAULT_CENTER, DEFAULT_ZOOM, MAP_MAX_ZOOM, MAP_MIN_ZOOM } from '../utils/mapConstants';
 import { queryFeaturesSafe, isStyleAlive } from '../utils/mapQuery';
-import { basemapStyleUrl, baseInsertBeforeId, carryDataLayers, addBasemapAttribution, trimBaseBoundaries } from '../utils/basemap';
+import { basemapStyleUrl, baseInsertBeforeId, carryDataLayers, addBasemapAttribution, applyBaseBorders, styleBaseBorders } from '../utils/basemap';
 
 /**
  * Compact dropdown for choosing a data layer on one side of the split view.
@@ -464,6 +464,9 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
   const rightLoadedRef = useRef(false);
   const syncingRef = useRef(false);
   const { theme } = useTheme();
+  // Read by the panes' style.load handler, which outlives the render it was made in.
+  const themeRef = useRef(theme);
+  useEffect(() => { themeRef.current = theme; }, [theme]);
   // True when MapLibre can't create a WebGL context for either pane — show a
   // fallback message rather than throwing into the ErrorBoundary.
   const [webglFailed, setWebglFailed] = useState(false);
@@ -561,8 +564,8 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
     }
 
     addBasemapAttribution(leftMap, maplibregl.AttributionControl, 'bottom-left');
-    // Country borders only: no sea borders or sub-national lines under our outlines.
-    for (const m of [leftMap, rightMap]) m.on('style.load', () => trimBaseBoundaries(m));
+    // The base's borders: country borders on land only, restyled above the fills.
+    for (const m of [leftMap, rightMap]) m.on('style.load', () => applyBaseBorders(m, themeRef.current));
     rightMap.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
 
     leftMapRef.current = leftMap;
@@ -628,7 +631,11 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
     for (const [mapRef, loadedRef] of pairs) {
       const map = mapRef.current;
       if (!map || !loadedRef.current) continue;
-      map.setStyle(basemapStyleUrl(theme), { diff: true, transformStyle: carryDataLayers });
+      map.setStyle(basemapStyleUrl(theme), {
+      diff: true,
+      // Restyle the incoming base's borders in the style itself: a diffed swap need not fire `style.load`.
+      transformStyle: (prev, next) => carryDataLayers(prev, { ...next, layers: styleBaseBorders(next.layers, theme) }),
+    });
       // Once the new style settles, repaint theme-dependent border/highlight colours
       // on the carried layers and re-apply the selection ring (setStyle clears the
       // feature-state that drives it).
