@@ -148,7 +148,7 @@ Only needed when running the backend. Copy `server/.env.example`.
 | Quality gates | ESLint 9, bundle-size budget, Lighthouse CI, CodeQL, npm/pip audit |
 | Backend (optional) | Express 5, PostgreSQL 16, bcrypt, JWT, Cloudflare Turnstile |
 | Analytics | Umami (self-hosted, cookieless) |
-| Hosting | GitHub Pages (frontend), DigitalOcean droplet + Caddy (backend) |
+| Hosting | DigitalOcean droplet + Caddy (site, API, analytics); GitHub Pages as the standby for the site |
 
 ## Testing
 
@@ -217,9 +217,9 @@ The `data-refresh.yml` workflow runs the pipeline quarterly (1 Jan/Apr/Jul/Oct) 
 
 ## Deployment
 
-### Frontend (GitHub Pages)
+### Frontend (droplet, GitHub Pages as standby)
 
-Pushes to `main` run CI (`ci.yml`); on success, `deploy.yml` builds, pre-renders all profile/hub pages, generates the sitemap, and publishes to GitHub Pages (custom domain `naapurustot.fi`).
+Pushes to `main` run CI (`ci.yml`); on success, `deploy.yml` builds, pre-renders all profile/hub pages, generates the sitemap, and publishes the result twice: to the droplet, where Caddy serves `naapurustot.fi`, and to GitHub Pages, which stays configured for the same domain as the standby. Which one is live is decided by DNS at Cloudflare; see `docs/ARCHITECTURE.md` → Hosting.
 
 The hard CI gate is the **bundle-size budget: 280,000 bytes gzipped** for *all* app JS (lazy chunks included) excluding only the `maplibre` chunk — currently within ~1 KB of the limit, so treat every new dependency as suspect. Heavy data (locales en/sv, region TopoJSONs, `region_properties.json`, `adjacency.json`) is deliberately fetched as static assets rather than imported, to stay outside the budget. A bundle analysis report lands in `dist/stats.html` on every build.
 
@@ -227,9 +227,9 @@ Branches named `claude/*` follow a separate path: `ci.yml` skips them entirely a
 
 ### Backend (DigitalOcean)
 
-The server is optional — the app is fully functional without it. See [`server/README.md`](server/README.md).
+The API is optional — the app is fully functional without it — but the droplet also serves the site itself. See [`server/README.md`](server/README.md).
 
-Services via Docker Compose: **Caddy** (auto-HTTPS for `api.` and `analytics.naapurustot.fi`), **API** (Express auth/sync server), **Umami** (analytics), **PostgreSQL 16** (shared), and a **daily backup sidecar** (gzipped `pg_dump`, retention `BACKUP_RETENTION_DAYS`). The `postgres_data` volume is external — create it once with `docker volume create postgres_data`.
+Services via Docker Compose: **Caddy** (auto-HTTPS for `naapurustot.fi`, `api.` and `analytics.naapurustot.fi`), **API** (Express auth/sync server), **Umami** (analytics), **PostgreSQL 16** (shared), and a **daily backup sidecar** (gzipped `pg_dump`, retention `BACKUP_RETENTION_DAYS`). The `postgres_data` volume is external — create it once with `docker volume create postgres_data`.
 
 Deploys run automatically on pushes to `main` touching `server/**` (or manually via `deploy-server.yml`): SSH to the droplet, `git pull`, `docker compose build api && docker compose up -d`.
 

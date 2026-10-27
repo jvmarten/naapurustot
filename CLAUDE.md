@@ -2,7 +2,7 @@
 
 ## Project overview
 
-naapurustot is a static React + TypeScript map application for exploring postal-code-level statistics across all of Finland — 3,018 postal-code areas in 69 sub-regions (seutukunnat). Live at naapurustot.fi. The frontend runs entirely in the browser from pre-built TopoJSON/JSON assets; an optional Express + PostgreSQL backend (`server/`) adds accounts and sync of favorites/shortlist/notes/preferences. The app works fully without it.
+naapurustot is a static React + TypeScript map application for exploring postal-code-level statistics across all of Finland — 3,018 postal-code areas in 69 sub-regions (seutukunnat). Live at naapurustot.fi, served from the DigitalOcean droplet by Caddy, with GitHub Pages as the standby (see "Where the site is served"). The frontend runs entirely in the browser from pre-built TopoJSON/JSON assets; an optional Express + PostgreSQL backend (`server/`) adds accounts and sync of favorites/shortlist/notes/preferences. The app works fully without it.
 
 ## Commands
 
@@ -151,6 +151,18 @@ The container is ephemeral, so verify within the session that produced the push.
 - **`security` — `node scripts/check-audit.mjs` / `… server/api`** (`npm run audit:check` locally; run for both trees): a transitive high-severity advisory. Fix by pinning the offending package in that tree's `package.json` `overrides` to the first patched version *within its parent's compatible major* (e.g. `"undici": "^7.28.0"` to satisfy jsdom's `^7.x`), then `npm install` and re-run the gate. Don't jump a major (it can break the parent) — and when the patch exists only in a later major, verify the parents can load it before forcing it: `brace-expansion@5` needed `"minimatch": "^10.2.5"` alongside it, because `minimatch@3` does `require('brace-expansion')` as a callable and v5 exports a namespace. Moderate-only advisories don't fail the gate. If a high advisory genuinely cannot apply to this codebase and its only fix is a major bump, add a reviewed entry to `ALLOWLIST` in `scripts/check-audit.mjs` with the reason, the `scope` (`.` or `server/api`) and an `until` date — the gate fails once an exemption expires, so it can't become permanent.
 - **`checks` — build:data idempotency gate**: re-running `npm run build:data` must reproduce committed `src/data`/`public/data` byte-for-byte. A diff means a generator is non-deterministic — it must derive any timestamp/vintage from committed source data, never `new Date()`/`Date.now()` (e.g. the planning snapshot is read from `scripts/planning_raw/snapshot.txt`, stamped by the fetch scripts at fetch time). Fix the generator; only commit a regenerated artifact when the source data genuinely changed.
 
+### Where the site is served
+
+Since 2026-10-27 `naapurustot.fi` and `www` resolve to the droplet, where Caddy serves
+`/srv/naapurustot/current` (`server/caddy/Caddyfile`; `SITE_HOSTS` in the droplet's
+`server/.env` picks the address). Every `deploy.yml` run publishes the build twice:
+`deploy-droplet` is the live site, `deploy` keeps GitHub Pages current as the standby. So
+"is it live" means `deploy-droplet` succeeded; when it fails it opens an issue and the droplet
+keeps serving the previous release. The Pages notes below still apply: a wedged Pages run
+holds the `pages` concurrency group, so the *next* run's droplet deploy waits behind it too,
+and the standby has to stay deployable. Switching to the standby is a DNS change at
+Cloudflare — `docs/ARCHITECTURE.md` → Hosting.
+
 ### The wedged Pages deploy (`deploy` job queued forever)
 
 A green auto-merge is not a deployed site. `deploy.yml`'s `deploy` job carries
@@ -207,6 +219,15 @@ Keep data out of JS: fetch it as a static asset (`?url` imports) like the locale
 Per-km² metrics are stored at 4 decimals (`prepare_data.POI_DENSITY_DECIMALS`, mirrored in `fetch_lipas.py`, `fetch_ev_charging.py`, `fetch_transit_stops.py` and `METRIC_DEFS`). At 1 decimal anything below 0.05/km² becomes exactly `0.0`, and the median Finnish postal area is 52 km² — so one real facility rounds away across three-quarters of the country (this shipped for months: 3,169 false zeros). The five service layers also carry a raw `*_count`; `validate_data.py` hard-fails on a positive count with a zero density. See `docs/ARCHITECTURE.md` → "Density precision".
 
 A partial national fetch must never be written. `_overpass_query` rejects responses carrying a `remark` (Overpass reports server-side timeouts as HTTP 200), `_overpass_query_all_regions` aborts if any of the 69 bboxes is unfetchable, and `fetch_lipas.py` retries then raises rather than writing a truncated page walk. Every one of these guards exists because the alternative silently shipped as measured zeros.
+
+### Server env vars must be listed in docker-compose.yml
+
+The API reads `process.env` directly (no dotenv), so a variable in the droplet's
+`server/.env` reaches the container only if `server/docker-compose.yml` names it under the
+`api` service. The Lightning tier and the AI assistant sat silently disabled in production
+for exactly this reason. `server/api/src/composeEnv.test.ts` now fails when code reads a
+variable compose does not pass; if you add an indirect reader like lightning.ts's
+`envInt('NAME')`, add its pattern to that test.
 
 ### `tsc -p tsconfig.json` checks nothing
 

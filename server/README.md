@@ -2,7 +2,7 @@
 
 Optional backend infrastructure for user accounts, user-data sync (favorites, shortlist, notes, preferences), and analytics (Umami), running on a DigitalOcean droplet via Docker Compose.
 
-**The frontend works fully without this server.** User preferences (favorites, notes, filter presets) fall back to localStorage when no server is available.
+**The app's features work fully without the API.** User preferences (favorites, notes, filter presets) fall back to localStorage when no server is available. Since 2026-10-27 this droplet also *serves* the site (see "Static site" below), with GitHub Pages as the standby, so an outage here takes the map down until DNS is pointed back at Pages.
 
 ## Architecture
 
@@ -36,11 +36,17 @@ running container; `deploy-server.yml` reloads Caddy after every pull.
 `deploy.yml`'s `deploy-droplet` job publishes every site build here as well as to GitHub
 Pages: rsync into `/srv/naapurustot/releases/<time>-<sha>/` (unchanged files hard-linked
 from the previous release), then one rename switches the `current` symlink. The last five
-releases are kept. Caddy serves `current` at the address(es) in `SITE_HOSTS` (`server/.env`),
-which defaults to the noindexed test address `next.naapurustot.fi`. Pointing
-`naapurustot.fi` at this server is a DNS change at Cloudflare plus
-`SITE_HOSTS="naapurustot.fi, www.naapurustot.fi"` and `docker compose up -d caddy`; GitHub
-Pages keeps receiving every build as the standby. Steps: `docs/SERVER_MIGRATION.md`, phase 2.
+releases are kept. Caddy serves `current` at the address(es) in `SITE_HOSTS` (`server/.env`):
+since 2026-10-27 `SITE_HOSTS="naapurustot.fi, www.naapurustot.fi"`, with Cloudflare's A
+records for both pointing here. Unset, it falls back to the noindexed test address
+`next.naapurustot.fi`.
+
+**Switching to the GitHub Pages standby** (it receives every build): at Cloudflare, point the
+apex back at `185.199.108.153`, `185.199.109.153`, `185.199.110.153` and `185.199.111.153`
+and `www` back to a CNAME for `jvmarten.github.io`; then on the droplet
+`sed -i '/^SITE_HOSTS=/d' .env && docker compose up -d caddy`. If HTTPS on Pages does not come
+back within minutes, remove and re-add the custom domain under the repo's Settings → Pages.
+Steps and checks: `docs/SERVER_MIGRATION.md`, phase 2.
 
 ## API endpoints
 
