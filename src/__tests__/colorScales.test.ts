@@ -4,6 +4,7 @@ import {
   getLayerById,
   getColorForValue,
   buildFillColorExpression,
+  layerForCountry,
 } from '../utils/colorScales';
 
 describe('LAYERS', () => {
@@ -19,6 +20,22 @@ describe('LAYERS', () => {
         expect(layer.stops[i]).toBeGreaterThan(layer.stops[i - 1]);
       }
     }
+  });
+
+  it("Sweden's stops (stopsSe) align with the palette and ascend", () => {
+    for (const layer of LAYERS.filter((l) => l.stopsSe)) {
+      expect(layer.stopsSe!.length, layer.id).toBe(layer.colors.length);
+      for (let i = 1; i < layer.stopsSe!.length; i++) {
+        expect(layer.stopsSe![i], layer.id).toBeGreaterThan(layer.stopsSe![i - 1]);
+      }
+    }
+  });
+
+  it('layerForCountry swaps in Sweden\'s stops only for a Swedish map', () => {
+    const l = getLayerById('unemployment');
+    expect(layerForCountry(l, 'se').stops).toEqual(l.stopsSe);
+    expect(layerForCountry(l, 'fi')).toBe(l);
+    expect(layerForCountry(l, null)).toBe(l);
   });
 
   it('has unique IDs', () => {

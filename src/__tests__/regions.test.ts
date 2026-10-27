@@ -12,6 +12,7 @@ import {
   ALL_FINLAND_VIEWPORT,
   getAllMunicipalityCodes,
   getRegionByMunicipality,
+  regionCountry,
 } from '../utils/regions';
 
 describe('REGIONS configuration integrity', () => {
@@ -24,13 +25,15 @@ describe('REGIONS configuration integrity', () => {
       const r = REGIONS[id];
       expect(r.labelKey).toBeTruthy();
       expect(r.center).toHaveLength(2);
-      expect(r.center[0]).toBeGreaterThan(19); // Finland longitude range
-      expect(r.center[0]).toBeLessThan(32);
-      expect(r.center[1]).toBeGreaterThan(59); // Finland latitude range
-      expect(r.center[1]).toBeLessThan(71);
+      // Finland's or Sweden's longitude / latitude range, by the region's country.
+      const [w, e, s, n] = regionCountry(id) === 'se' ? [10.5, 24.5, 55, 69.5] : [19, 32, 59, 71];
+      expect(r.center[0]).toBeGreaterThan(w);
+      expect(r.center[0]).toBeLessThan(e);
+      expect(r.center[1]).toBeGreaterThan(s);
+      expect(r.center[1]).toBeLessThan(n);
       expect(r.zoom).toBeGreaterThan(0);
       expect(r.bounds).toHaveLength(4);
-      expect(r.municipalityCodes.length).toBeGreaterThan(0);
+      expect(r.municipalityCount ?? r.municipalityCodes.length).toBeGreaterThan(0);
       expect(r.dataFile).toMatch(/\.topojson$/);
     }
   });
@@ -49,12 +52,19 @@ describe('REGIONS configuration integrity', () => {
     }
   });
 
-  it('municipality codes are 3-digit strings', () => {
+  it('municipality codes are 3-digit (Finland) or 4-digit (Sweden) strings', () => {
     for (const id of REGION_IDS) {
+      const re = regionCountry(id) === 'se' ? /^\d{4}$/ : /^\d{3}$/;
       for (const code of REGIONS[id].municipalityCodes) {
-        expect(code).toMatch(/^\d{3}$/);
+        expect(code).toMatch(re);
       }
     }
+  });
+
+  it("Sweden's 71 FA25 regions cover all 290 municipalities once", () => {
+    const se = REGION_IDS.filter((id) => regionCountry(id) === 'se');
+    expect(se).toHaveLength(71);
+    expect(se.reduce((n, id) => n + (REGIONS[id].municipalityCount ?? 0), 0)).toBe(290);
   });
 
   it('bounds enclose the center point', () => {
@@ -137,9 +147,9 @@ describe('ALL_FINLAND_VIEWPORT', () => {
     expect(ALL_FINLAND_VIEWPORT.center[1]).toBeLessThan(71);
   });
 
-  it('bounds cover all region centers', () => {
+  it('bounds cover all Finnish region centers', () => {
     const [west, south, east, north] = ALL_FINLAND_VIEWPORT.bounds;
-    for (const id of REGION_IDS) {
+    for (const id of REGION_IDS.filter((r) => regionCountry(r) === 'fi')) {
       const [lng, lat] = REGIONS[id].center;
       expect(lng).toBeGreaterThanOrEqual(west);
       expect(lng).toBeLessThanOrEqual(east);

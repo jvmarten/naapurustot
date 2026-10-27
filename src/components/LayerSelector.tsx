@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { LAYER_MAP, type LayerId } from '../utils/colorScales';
+import { LAYER_MAP, layerInCountry, type LayerId } from '../utils/colorScales';
+import type { CountryId } from '../utils/areaId';
 import {
   getCoveragePct,
   isPartialCoverage,
@@ -44,6 +45,8 @@ interface LayerSelectorProps {
   /** Desktop: an area panel is open — fold the panel to its pill so the map isn't
    *  squeezed between two panels. The user's own choice comes back when it closes. */
   areaOpen?: boolean;
+  /** Country on the map; null when both are. Rows without data there are hidden. */
+  country?: CountryId | null;
 }
 
 type LayerGroup = {
@@ -54,8 +57,8 @@ type LayerGroup = {
 const LAYER_GROUPS: LayerGroup[] = [
   { labelKey: 'layers.quality', ids: ['transit_access', 'transit_reachability', 'air_quality', 'walkability'] },
   { labelKey: 'layers.trends', ids: ['income_change', 'population_change', 'population_projection', 'unemployment_change', 'property_price_change', 'crime_index_change'] },
-  { labelKey: 'layers.demographics', ids: ['avg_age', 'population_density', 'child_ratio', 'youth_ratio', 'elderly_ratio', 'gender_ratio', 'student_share', 'foreign_lang', 'foreign_lang_municipal', 'pensioners', 'single_person_hh', 'single_parent_hh', 'families_with_children', 'avg_household_size'] },
-  { labelKey: 'layers.economy', ids: ['median_income', 'disposable_income', 'low_income', 'job_self_sufficiency', 'unemployment', 'employment_rate', 'education', 'property_price', 'tech_sector_jobs', 'healthcare_workers', 'manufacturing_jobs', 'public_sector_jobs', 'service_sector_jobs'] },
+  { labelKey: 'layers.demographics', ids: ['avg_age', 'population_density', 'child_ratio', 'youth_ratio', 'elderly_ratio', 'gender_ratio', 'student_share', 'foreign_lang', 'foreign_lang_municipal', 'foreign_background', 'pensioners', 'single_person_hh', 'single_parent_hh', 'families_with_children', 'avg_household_size'] },
+  { labelKey: 'layers.economy', ids: ['median_income', 'disposable_income', 'economic_standard', 'low_income', 'low_economic_standard', 'job_self_sufficiency', 'unemployment', 'employment_rate', 'education', 'property_price', 'tech_sector_jobs', 'healthcare_workers', 'manufacturing_jobs', 'public_sector_jobs', 'service_sector_jobs'] },
   { labelKey: 'layers.housing', ids: ['ownership', 'rental', 'apt_size', 'living_space', 'detached_houses', 'new_construction', 'construction_activity', 'active_plan_count', 'building_age', 'rental_price', 'price_to_rent'] },
   { labelKey: 'layers.services', ids: ['restaurant_density', 'grocery_access', 'daycare_density', 'school_density', 'healthcare_access', 'school_quality', 'sports_facilities'] },
   { labelKey: 'layers.safety', ids: ['violent_crime', 'property_crime', 'crime_rate', 'traffic_accidents'] },
@@ -75,11 +78,11 @@ const LAYER_GROUPS: LayerGroup[] = [
  * common case stays visually clean. Caller must call useI18nVersion() (LayerSelector
  * does) so the t() titles re-render on a language switch.
  */
-const LayerSignals: React.FC<{ property: string }> = ({ property }) => {
-  const coverage = getCoveragePct(property);
-  const partial = isPartialCoverage(property);
-  const low = isLowCoverage(property);
-  const src = getMetricSource(property);
+const LayerSignals: React.FC<{ property: string; country: CountryId }> = ({ property, country }) => {
+  const coverage = getCoveragePct(property, country);
+  const partial = isPartialCoverage(property, country);
+  const low = isLowCoverage(property, country);
+  const src = getMetricSource(property, country);
   const proxy = src?.isProxy ?? false;
   const fresh = vintageFreshness(src?.year);
   const stale = fresh?.isStale ?? false;
@@ -128,7 +131,7 @@ const LayerSignals: React.FC<{ property: string }> = ({ property }) => {
   );
 };
 
-export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeLayer, onLayerChange, onCustomizeQuality, isCustomWeights = false, headerSlot, planningSlot, lang: _lang, hidden, areaOpen = false }) => {
+export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeLayer, onLayerChange, onCustomizeQuality, isCustomWeights = false, headerSlot, planningSlot, lang: _lang, hidden, areaOpen = false, country = null }) => {
   useI18nVersion();
   // M5: instant sheet snap when the user prefers reduced motion.
   const reducedMotion = useReducedMotion();
@@ -179,7 +182,8 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
   // EM-1: quality_index renders above the groups and belongs to none of them, so
   // the "nothing matched" check has to account for it separately.
   const qualityIndexLabelKey = LAYER_MAP.get('quality_index')?.labelKey;
-  const qualityIndexMatches = !!qualityIndexLabelKey && labelMatches(qualityIndexLabelKey, searchQuery);
+  const qualityIndexMatches = !!qualityIndexLabelKey && labelMatches(qualityIndexLabelKey, searchQuery)
+    && layerInCountry('quality_index', country);
 
   // Build flat list of visible layer IDs for keyboard navigation. Mirrors the
   // render path exactly: groups force-expand while searching, and each id must
@@ -192,10 +196,10 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
         if (isCollapsed) return [];
         return group.ids.filter((id) => {
           const layer = LAYER_MAP.get(id);
-          return layer ? labelMatches(layer.labelKey, searchQuery) : false;
+          return layer ? labelMatches(layer.labelKey, searchQuery) && layerInCountry(id, country) : false;
         });
       }),
-    [collapsed, searchQuery],
+    [collapsed, searchQuery, country],
   );
 
   // Read frequently-changing values from refs to avoid re-registering
@@ -293,7 +297,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
       {(() => {
         const qLayer = LAYER_MAP.get('quality_index');
         if (!qLayer) return null;
-        if (!labelMatches(qLayer.labelKey, searchQuery)) return null;
+        if (!labelMatches(qLayer.labelKey, searchQuery) || !layerInCountry(qLayer.id, country)) return null;
         const isActive = qLayer.id === activeLayer;
         const showEditBtn = qLayer.id === 'quality_index' && onCustomizeQuality;
         return (
@@ -352,7 +356,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
         const groupLayers = group.ids
           .map((id) => LAYER_MAP.get(id))
           .filter(Boolean)
-          .filter((layer) => labelMatches(layer!.labelKey, searchQuery));
+          .filter((layer) => labelMatches(layer!.labelKey, searchQuery) && layerInCountry(layer!.id, country));
         if (groupLayers.length === 0) return null;
         // PO-3: Auto-expand groups when searching
         const isCollapsed = searchQuery ? false : !!collapsed[group.labelKey];
@@ -415,7 +419,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
                         }}
                       />
                       <span className="truncate min-w-0">{t(layer.labelKey)}</span>
-                      <LayerSignals property={layer.property} />
+                      <LayerSignals property={layer.property} country={country ?? 'fi'} />
                     </div>
                   </button>
                 </div>

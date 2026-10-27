@@ -174,7 +174,15 @@ import { join } from 'node:path';
 // (Same day, no bump: country-generic area ids for the Sweden expansion — utils/areaId.ts
 // replaces the 5-digit postal-code checks in the URL codec, slugs, shortlist, notes,
 // home reference and search. Measured 331,526 → 331,640, headroom 1,360.)
-const BUDGET = 333_000;
+// → 341500 B (2026-10-27: all of Sweden — a second country on the map, owner's call to
+// raise the budget for it (docs/SWEDEN_EXPANSION.md, Q3). The 71 FA25 regions as compact
+// tuples (utils/regionsSe.ts, 1.9 KB gz — centres, zooms and municipality codes left out,
+// -1.4 KB), their names and SCB's definition notes in the bundled fi.json (~1.9 KB), 71 more
+// hashed region-file URLs in dataLoader's eager glob (~1.5 KB), the registry's countries.se
+// block, and the per-country plumbing (layerInCountry / stopsSe, the Swedish panel rows,
+// the Swedish branch of computeMetroAverages). Measured 331,640 → 339,928; headroom
+// restored to ~1.5 KB, per the Services-honesty note.)
+const BUDGET = 341_500;
 const ASSETS_DIR = 'dist/assets';
 
 // Second budget: the /live/ realtime sub-app.

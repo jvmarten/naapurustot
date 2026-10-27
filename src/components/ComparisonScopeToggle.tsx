@@ -1,5 +1,6 @@
 import React from 'react';
 import { t, useI18nVersion } from '../utils/i18n';
+import type { CountryId } from '../utils/areaId';
 
 export type ComparisonScope = 'all' | 'region';
 
@@ -9,12 +10,15 @@ interface ComparisonScopeToggleProps {
   disabled: boolean;
   /** Several regions on the map: 'region' then means all of them together, so say "these regions". */
   multi?: boolean;
+  /** Sweden on the map alone: the whole-country scale is Sweden's, so say so. */
+  country?: CountryId | null;
 }
 
-export const ComparisonScopeToggle: React.FC<ComparisonScopeToggleProps> = React.memo(({ scope, onChange, disabled, multi = false }) => {
+export const ComparisonScopeToggle: React.FC<ComparisonScopeToggleProps> = React.memo(({ scope, onChange, disabled, multi = false, country = null }) => {
   useI18nVersion();
   const isRegion = scope === 'region';
   const regionLabel = t(multi ? 'scope.region_multi' : 'scope.region');
+  const allLabel = t(country === 'se' ? 'scope.all_se' : 'scope.all');
 
   return (
     <button
@@ -27,14 +31,14 @@ export const ComparisonScopeToggle: React.FC<ComparisonScopeToggleProps> = React
             ? 'bg-amber-500/90 hover:bg-amber-600/90 text-white'
             : 'md:bg-transparent md:hover:bg-surface-100/50 md:dark:hover:bg-surface-800/30 bg-surface-200/80 hover:bg-surface-300/80 text-surface-600 dark:bg-surface-700/60 dark:hover:bg-surface-600/60 dark:text-surface-300 md:dark:bg-transparent'
         }`}
-      title={disabled ? t('scope.all') : isRegion ? (multi ? regionLabel : t('scope.active_hint')) : t(multi ? 'scope.national_hint_multi' : 'scope.national_hint')}
+      title={disabled ? allLabel : isRegion ? (multi ? regionLabel : t('scope.active_hint')) : t(country === 'se' ? 'scope.national_hint_se' : multi ? 'scope.national_hint_multi' : 'scope.national_hint')}
       aria-label={t('scope.label')}
     >
       <span className="flex items-center gap-1.5">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
           <path fillRule="evenodd" d="M4.25 2A2.25 2.25 0 002 4.25v2.5A2.25 2.25 0 004.25 9h2.5A2.25 2.25 0 009 6.75v-2.5A2.25 2.25 0 006.75 2h-2.5zm0 9A2.25 2.25 0 002 13.25v2.5A2.25 2.25 0 004.25 18h2.5A2.25 2.25 0 009 15.75v-2.5A2.25 2.25 0 006.75 11h-2.5zm9-9A2.25 2.25 0 0011 4.25v2.5A2.25 2.25 0 0013.25 9h2.5A2.25 2.25 0 0018 6.75v-2.5A2.25 2.25 0 0015.75 2h-2.5zm0 9A2.25 2.25 0 0011 13.25v2.5A2.25 2.25 0 0013.25 18h2.5A2.25 2.25 0 0018 15.75v-2.5A2.25 2.25 0 0015.75 11h-2.5z" clipRule="evenodd" />
         </svg>
-        <span className="hidden md:inline whitespace-nowrap">{scope === 'all' ? t('scope.all') : regionLabel}</span>
+        <span className="hidden md:inline whitespace-nowrap">{scope === 'all' ? allLabel : regionLabel}</span>
       </span>
     </button>
   );

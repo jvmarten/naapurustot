@@ -26,12 +26,15 @@ const BUILD_DATE = readBuildDate()
 // from build_metadata.json via a `define`, so the sources page, legend caption, and
 // low-coverage banner can read real coverage without pulling the full ~12.7KB metadata
 // table (source/vintage/granularity/row_count per metric) into the budget-counted bundle.
-function readCoverageMap(): Record<string, number> {
+// `country` picks a country's section (build_metadata.countries.<id>); omitted, Finland's.
+function readCoverageMap(country?: string): Record<string, number> {
   try {
     const raw = readFileSync(new URL('./src/data/build_metadata.json', import.meta.url), 'utf8')
-    const parsed = JSON.parse(raw) as { metrics?: Record<string, { coverage_pct?: number }> }
+    type Metrics = { metrics?: Record<string, { coverage_pct?: number }> }
+    const parsed = JSON.parse(raw) as Metrics & { countries?: Record<string, Metrics> }
+    const section = country ? parsed.countries?.[country] : parsed
     const out: Record<string, number> = {}
-    for (const [prop, m] of Object.entries(parsed.metrics ?? {})) {
+    for (const [prop, m] of Object.entries(section?.metrics ?? {})) {
       if (typeof m?.coverage_pct === 'number') out[prop] = m.coverage_pct
     }
     return out
@@ -40,6 +43,7 @@ function readCoverageMap(): Record<string, number> {
   }
 }
 const COVERAGE_PCT = readCoverageMap()
+const COVERAGE_PCT_SE = readCoverageMap('se')
 
 // IN-3: Keep build-only pipeline inputs out of the deployed site.
 //
@@ -53,7 +57,7 @@ const COVERAGE_PCT = readCoverageMap()
 // in the repo: the files must stay committed (prerender + build:data read them,
 // and the deploy build never re-runs the data pipeline), and moving them would
 // mean touching the data-integrity-sensitive Python pipeline + data-refresh
-// workflow. Rule: always drop metro_neighborhoods.geojson (never fetched at
+// workflow. Rule: always drop metro_neighborhoods.geojson and Sweden's se_deso.geojson (never fetched at
 // runtime); drop a *_grid.geojson only when its *_grid.topojson sibling exists
 // (the TopoJSON is the runtime form). Raw-GeoJSON grids that are served directly
 // — e.g. light_pollution_grid.geojson, which useGridData fetches as-is — have no
@@ -72,7 +76,7 @@ function stripBuildOnlyData(): Plugin {
       const files = readdirSync(dataDir)
       const removed: string[] = []
       for (const f of files) {
-        const isMonolith = f === 'metro_neighborhoods.geojson'
+        const isMonolith = f === 'metro_neighborhoods.geojson' || f === 'se_deso.geojson'
         const isConvertedGrid =
           f.endsWith('_grid.geojson') && files.includes(f.replace(/\.geojson$/, '.topojson'))
         // Same rule for the /live/ building shards: scripts/build_buildings_data.mjs
@@ -292,6 +296,7 @@ export default defineConfig({
     __BUILD_DATE__: JSON.stringify(BUILD_DATE),
     // PO-2: compact per-metric coverage map inlined (see readCoverageMap).
     __COVERAGE_PCT__: JSON.stringify(COVERAGE_PCT),
+    __COVERAGE_PCT_SE__: JSON.stringify(COVERAGE_PCT_SE),
   },
   build: {
     assetsInlineLimit: 0, // Never inline data files — always emit as hashed assets

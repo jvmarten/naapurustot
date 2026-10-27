@@ -1,4 +1,5 @@
 import type { RegionId } from './regions';
+import { countryOfId, type CountryId } from './areaId.ts';
 // Import attribute required so this module runs under Node's type-stripping in
 // scripts/prerender.mjs (which imports metrics.ts directly), not just under Vite.
 import dataSources from '../data/data_sources.json' with { type: 'json' };
@@ -93,6 +94,26 @@ export interface NeighborhoodProperties {
   te_vuok_as: number | null;
   /** Land area (m²) */
   pinta_ala: number | null;
+  /** Sweden (SCB, DeSO) — see docs/SWEDEN_EXPANSION.md. Absent on Finnish areas. */
+  /** Share with foreign background: born abroad, or both parents born abroad (%). */
+  foreign_background_pct?: number | null;
+  /** Median economic standard: disposable income per consumption unit (SEK/yr). */
+  economic_standard_median?: number | null;
+  /** Share below 60 % of Sweden's median economic standard (%). */
+  low_economic_standard_pct?: number | null;
+  /** SCB numerators/denominators behind the Swedish rates (region aggregation only). */
+  se_lf?: number | null;
+  se_unemp?: number | null;
+  se_emp?: number | null;
+  se_pop2064?: number | null;
+  se_edu?: number | null;
+  se_edu3?: number | null;
+  se_ten?: number | null;
+  se_own?: number | null;
+  se_rent?: number | null;
+  se_hus?: number | null;
+  se_smahus?: number | null;
+  se_land?: number | null;
   /** Children aged 0–2 */
   he_0_2: number | null;
   /** Children aged 3–6 */
@@ -522,7 +543,7 @@ export interface MetricSource {
  * in the info popover alongside the source attribution.
  */
 export const METRIC_EXPLANATIONS: ReadonlySet<string> = new Set([
-  'he_vakiy', 'hr_mtu', 'hr_ktu', 'low_income_pct', 'job_self_sufficiency', 'unemployment_rate', 'employment_rate',
+  'he_vakiy', 'hr_mtu', 'hr_ktu', 'economic_standard_median', 'low_economic_standard_pct', 'foreign_background_pct', 'low_income_pct', 'job_self_sufficiency', 'unemployment_rate', 'employment_rate',
   'higher_education_rate', 'property_price_sqm', 'foreign_language_pct',
   'foreign_language_municipal_pct', 'foreign_language_est_pct',
   'population_density', 'child_ratio', 'student_share', 'single_person_hh_pct',
@@ -596,6 +617,8 @@ interface RegistryMetricEntry {
 interface DataSourceRegistry {
   publishers: Record<string, DataSourcePublisher>;
   metrics: Record<string, RegistryMetricEntry>;
+  /** Other countries' metrics, keyed by country id; top-level `metrics` are Finland's. */
+  countries?: Partial<Record<CountryId, { metrics: Record<string, RegistryMetricEntry> }>>;
 }
 
 // IN-2: single source-of-truth registry. METRIC_SOURCES below and the richer
@@ -617,8 +640,8 @@ export const DATA_SOURCE_METRICS: Record<string, RegistryMetricEntry> = REGISTRY
  * property has no registry row. Backs the public sources page (CF-9), the proxy
  * badge (PO-2), and the per-layer freshness panel (PO-3).
  */
-export function getMetricSource(property: string): ResolvedMetricSource | undefined {
-  const entry = REGISTRY.metrics[property];
+export function getMetricSource(property: string, country: CountryId = 'fi'): ResolvedMetricSource | undefined {
+  const entry = country === 'fi' ? REGISTRY.metrics[property] : REGISTRY.countries?.[country]?.metrics[property];
   if (!entry) return undefined;
   const pub = REGISTRY.publishers[entry.publisher];
   return {
@@ -644,14 +667,16 @@ export function getMetricSource(property: string): ResolvedMetricSource | undefi
  */
 const COVERAGE_PCT: Record<string, number> =
   typeof __COVERAGE_PCT__ !== 'undefined' ? __COVERAGE_PCT__ : {};
+const COVERAGE_PCT_SE: Record<string, number> =
+  typeof __COVERAGE_PCT_SE__ !== 'undefined' ? __COVERAGE_PCT_SE__ : {};
 
 /**
  * PO-2: real coverage (% of metro postal codes with a value) for a metric, or
  * null when build_metadata.json carries no coverage_pct for it. Degrades to null
  * rather than fabricating a number, so the UI can simply omit the caption/column.
  */
-export function getCoveragePct(property: string): number | null {
-  const v = COVERAGE_PCT[property];
+export function getCoveragePct(property: string, country: CountryId = 'fi'): number | null {
+  const v = (country === 'se' ? COVERAGE_PCT_SE : COVERAGE_PCT)[property];
   return typeof v === 'number' && Number.isFinite(v) ? v : null;
 }
 
@@ -671,14 +696,14 @@ export const PARTIAL_COVERAGE_THRESHOLD = 95;
 export const LOW_COVERAGE_THRESHOLD = 50;
 
 /** PO-2: true when a metric has a real, below-threshold coverage value. */
-export function isPartialCoverage(property: string): boolean {
-  const c = getCoveragePct(property);
+export function isPartialCoverage(property: string, country: CountryId = 'fi'): boolean {
+  const c = getCoveragePct(property, country);
   return c != null && c < PARTIAL_COVERAGE_THRESHOLD;
 }
 
 /** PO-2: true when a metric has real coverage below the low-coverage threshold. */
-export function isLowCoverage(property: string): boolean {
-  const c = getCoveragePct(property);
+export function isLowCoverage(property: string, country: CountryId = 'fi'): boolean {
+  const c = getCoveragePct(property, country);
   return c != null && c < LOW_COVERAGE_THRESHOLD;
 }
 
@@ -839,6 +864,11 @@ const METRIC_DEFS: MetricDef[] = [
   // Phase 10: Water proximity & building age
   { property: 'water_proximity_m', weight: 'population', precision: 0 },
   { property: 'avg_construction_year', weight: 'population', precision: 0 },
+  // Sweden (SCB, DeSO). The median follows hr_mtu's precedent: a population-weighted
+  // mean of the areas' medians, since a median cannot be re-derived from medians.
+  { property: 'foreign_background_pct', weight: 'population', precision: 1, pctOfPop: true },
+  { property: 'economic_standard_median', weight: 'population', precision: 0, requirePositive: true },
+  { property: 'low_economic_standard_pct', weight: 'population', precision: 1, pctOfPop: true },
 ];
 
 function roundTo(value: number, precision: number): number {
@@ -903,6 +933,16 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
   let hasDetachedData = false;
   let hasLowIncomeData = false;
   let hasJobsData = false;
+  // Sweden: SCB's own numerators/denominators (se_*), summed per pair so a region's
+  // rate is Σ numerator / Σ denominator over areas that publish both.
+  const se: Record<string, [number, number]> = {};
+  let hasFinnish = false;
+  const seAdd = (key: string, num: number | null | undefined, den: number | null | undefined) => {
+    if (num == null || den == null || den <= 0) return;
+    const acc = (se[key] ??= [0, 0]);
+    acc[0] += num;
+    acc[1] += den;
+  };
 
   for (const f of features) {
     const p = f.properties as NeighborhoodProperties;
@@ -911,29 +951,42 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
 
     totalPop += pop;
 
-    // Count-based special metrics
-    if (p.pt_tyoll != null) { totalEmployed += p.pt_tyoll; hasEmployedData = true; }
-    if (p.hr_pi_tul != null) { totalLowIncomeHh += p.hr_pi_tul; hasLowIncomeData = true; }
-    if (p.hr_tuy != null) totalIncomeHh += p.hr_tuy;
-    if (p.tp_tyopy != null) { totalJobs += p.tp_tyopy; hasJobsData = true; }
-    if (p.pt_tyott != null) { totalUnemployed += p.pt_tyott; hasUnemployedData = true; }
-    if (p.ko_yl_kork != null) { totalKoYlKork += p.ko_yl_kork; hasHigherEdData = true; }
-    if (p.ko_al_kork != null) { totalKoAlKork += p.ko_al_kork; hasHigherEdData = true; }
-    if (p.ko_ammat != null) totalKoAmmat += p.ko_ammat;
-    if (p.ko_perus != null) totalKoPerus += p.ko_perus;
-    if (p.ko_ika18y != null) totalAdultPop += p.ko_ika18y;
-    if (p.te_omis_as != null) { totalOwnerOcc += p.te_omis_as; hasOwnershipData = true; }
-    if (p.te_taly != null) totalHouseholds += p.te_taly;
-    if (p.te_vuok_as != null) { totalRental += p.te_vuok_as; hasRentalData = true; }
-    if (p.pt_opisk != null) { totalStudents += p.pt_opisk; hasStudentData = true; }
-    if (p.pt_vakiy != null) totalActPop += p.pt_vakiy;
-    else totalActPop += pop;
-    if (p.he_0_2 != null) { totalChildren += p.he_0_2; hasChildrenData = true; }
-    if (p.he_3_6 != null) { totalChildren += p.he_3_6; hasChildrenData = true; }
-    if (p.pinta_ala != null) totalArea += p.pinta_ala;
-    if (p.ra_pt_as != null) { totalDetached += p.ra_pt_as; hasDetachedData = true; }
-    if (p.ra_asunn != null) totalDwellings += p.ra_asunn;
-    if (p.pt_elakel != null) { totalPensioners += p.pt_elakel; hasPensionerData = true; }
+    // Paavo's raw counts are Finland's; a Swedish area contributes SCB's own pairs
+    // instead, so a mixed selection never pads a Finnish denominator with Swedish people.
+    if (countryOfId(p.pno) === 'fi') {
+      hasFinnish = true;
+      // Count-based special metrics
+      if (p.pt_tyoll != null) { totalEmployed += p.pt_tyoll; hasEmployedData = true; }
+      if (p.hr_pi_tul != null) { totalLowIncomeHh += p.hr_pi_tul; hasLowIncomeData = true; }
+      if (p.hr_tuy != null) totalIncomeHh += p.hr_tuy;
+      if (p.tp_tyopy != null) { totalJobs += p.tp_tyopy; hasJobsData = true; }
+      if (p.pt_tyott != null) { totalUnemployed += p.pt_tyott; hasUnemployedData = true; }
+      if (p.ko_yl_kork != null) { totalKoYlKork += p.ko_yl_kork; hasHigherEdData = true; }
+      if (p.ko_al_kork != null) { totalKoAlKork += p.ko_al_kork; hasHigherEdData = true; }
+      if (p.ko_ammat != null) totalKoAmmat += p.ko_ammat;
+      if (p.ko_perus != null) totalKoPerus += p.ko_perus;
+      if (p.ko_ika18y != null) totalAdultPop += p.ko_ika18y;
+      if (p.te_omis_as != null) { totalOwnerOcc += p.te_omis_as; hasOwnershipData = true; }
+      if (p.te_taly != null) totalHouseholds += p.te_taly;
+      if (p.te_vuok_as != null) { totalRental += p.te_vuok_as; hasRentalData = true; }
+      if (p.pt_opisk != null) { totalStudents += p.pt_opisk; hasStudentData = true; }
+      if (p.pt_vakiy != null) totalActPop += p.pt_vakiy;
+      else totalActPop += pop;
+      if (p.he_0_2 != null) { totalChildren += p.he_0_2; hasChildrenData = true; }
+      if (p.he_3_6 != null) { totalChildren += p.he_3_6; hasChildrenData = true; }
+      if (p.pinta_ala != null) totalArea += p.pinta_ala;
+      if (p.ra_pt_as != null) { totalDetached += p.ra_pt_as; hasDetachedData = true; }
+      if (p.ra_asunn != null) totalDwellings += p.ra_asunn;
+      if (p.pt_elakel != null) { totalPensioners += p.pt_elakel; hasPensionerData = true; }
+    } else {
+      seAdd('unemployment_rate', p.se_unemp, p.se_lf);
+      seAdd('employment_rate', p.se_emp, p.se_pop2064);
+      seAdd('higher_education_rate', p.se_edu3, p.se_edu);
+      seAdd('ownership_rate', p.se_own, p.se_ten);
+      seAdd('rental_rate', p.se_rent, p.se_ten);
+      seAdd('detached_house_share', p.se_smahus, p.se_hus);
+      seAdd('population_density', pop, p.se_land);
+    }
 
     // Data-driven weighted metrics
     for (const def of METRIC_DEFS) {
@@ -1034,17 +1087,25 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
     result.job_self_sufficiency = roundTo((totalJobs / totalEmployed) * 100, 1);
   }
 
+  for (const [key, [num, den]] of Object.entries(se)) {
+    if (key in result) continue; // a mixed selection keeps Finland's definition
+    result[key] = key === 'population_density' ? roundTo(num / den, 2) : roundTo((num / den) * 100, 1);
+  }
+
   // Raw counts: the panel's Education Breakdown and Activity Status sections
   // read these directly (they show counts, not rates), so the metro-area
   // feature must carry them or those sections render blank.
-  result.ko_yl_kork = totalKoYlKork;
-  result.ko_al_kork = totalKoAlKork;
-  result.ko_ammat = totalKoAmmat;
-  result.ko_perus = totalKoPerus;
-  result.pt_tyoll = totalEmployed;
-  result.pt_tyott = totalUnemployed;
-  result.pt_opisk = totalStudents;
-  result.pt_elakel = totalPensioners;
+  // Paavo counts only: a Swedish-only set has none, and 0 would read as "measured zero".
+  if (hasFinnish) {
+    result.ko_yl_kork = totalKoYlKork;
+    result.ko_al_kork = totalKoAlKork;
+    result.ko_ammat = totalKoAmmat;
+    result.ko_perus = totalKoPerus;
+    result.pt_tyoll = totalEmployed;
+    result.pt_tyott = totalUnemployed;
+    result.pt_opisk = totalStudents;
+    result.pt_elakel = totalPensioners;
+  }
 
   return result;
 }

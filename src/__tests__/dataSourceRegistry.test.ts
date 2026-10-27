@@ -24,8 +24,9 @@ const VALID_GRANULARITY = new Set(['postal', '250m grid', 'derived']);
 describe('Data-source registry (IN-2)', () => {
   it('every map layer has a registry entry for its property', () => {
     for (const layer of LAYERS) {
+      // A Sweden-only layer is registered under countries.se instead.
       expect(
-        DATA_SOURCE_METRICS[layer.property],
+        DATA_SOURCE_METRICS[layer.property] ?? getMetricSource(layer.property, 'se'),
         `Layer "${layer.id}" (property "${layer.property}") has no row in data_sources.json`,
       ).toBeDefined();
     }

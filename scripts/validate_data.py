@@ -924,6 +924,80 @@ def check_pno_format(features: list) -> list[str]:
     return errors
 
 
+# ── Sweden (scripts/se/) ─────────────────────────────────────────────
+SE_GEOJSON_PATH = GEOJSON_PATH.parent / "se_deso.geojson"
+SE_FEATURE_COUNT = 6160  # DeSO 2025, a fixed SCB classification
+SE_REQUIRED = ["pno", "nimi", "namn", "kunta", "municipality", "city", "lat", "lon", "he_vakiy"]
+SE_PCT_PROPS = [
+    "elderly_ratio_pct", "foreign_background_pct", "families_with_children_pct",
+    "single_parent_hh_pct", "ownership_rate", "rental_rate", "detached_house_share",
+    "low_economic_standard_pct", "employment_rate", "unemployment_rate", "higher_education_rate",
+]
+
+
+def check_se_registry_provenance(_features: list) -> list[str]:
+    """Sweden's registry section (data_sources.json countries.se.metrics) must match
+    provenance.json countries.se.vintages exactly, both ways, like the Finnish check."""
+    registry = json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
+    provenance = json.loads(PROVENANCE_PATH.read_text(encoding="utf-8"))
+    reg = registry.get("countries", {}).get("se", {}).get("metrics", {})
+    prov = provenance.get("countries", {}).get("se", {}).get("vintages", {})
+    errors = []
+    for prop in sorted(set(reg) | set(prov)):
+        if prop not in prov:
+            errors.append(f"SE metric '{prop}' has no vintage in provenance.json countries.se")
+        elif prop not in reg:
+            errors.append(f"SE provenance entry '{prop}' is absent from data_sources.json countries.se")
+        elif _normalize_vintage(reg[prop].get("vintage")) != _normalize_vintage(prov[prop]):
+            errors.append(f"SE metric '{prop}' vintage mismatch: {reg[prop].get('vintage')!r} vs {prov[prop]!r}")
+        elif reg[prop].get("publisher") not in registry.get("publishers", {}):
+            errors.append(f"SE metric '{prop}' names unknown publisher {reg[prop].get('publisher')!r}")
+    return errors
+
+
+def check_se_dataset(_features: list) -> list[str]:
+    """se_deso.geojson: every DeSO once, well-formed ids, required props, shares in
+    range, every stored metric registered, and no registered metric entirely empty."""
+    if not SE_GEOJSON_PATH.exists():
+        return []
+    import re
+    data = json.loads(SE_GEOJSON_PATH.read_text(encoding="utf-8"))
+    feats = data.get("features", [])
+    errors = []
+    if len(feats) != SE_FEATURE_COUNT:
+        errors.append(f"expected {SE_FEATURE_COUNT} DeSO features, found {len(feats)}")
+    seen = set()
+    registry = json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
+    reg = registry.get("countries", {}).get("se", {}).get("metrics", {})
+    filled = {k: 0 for k in reg}
+    for f in feats:
+        p = f.get("properties", {})
+        pno = p.get("pno")
+        if not isinstance(pno, str) or not re.fullmatch(r"\d{4}[A-C]\d{4}", pno):
+            errors.append(f"invalid DeSO code {pno!r}")
+        if pno in seen:
+            errors.append(f"duplicate DeSO {pno}")
+        seen.add(pno)
+        for k in SE_REQUIRED:
+            if p.get(k) in (None, ""):
+                errors.append(f"{pno}: missing {k}")
+        if not str(p.get("city", "")).startswith("se_"):
+            errors.append(f"{pno}: region {p.get('city')!r} lacks the se_ prefix")
+        for k in SE_PCT_PROPS:
+            v = p.get(k)
+            if v is not None and not (0 <= v <= 100):
+                errors.append(f"{pno}: {k}={v} outside 0–100")
+        for k in reg:
+            if p.get(k) is not None:
+                filled[k] += 1
+        if not f.get("geometry"):
+            errors.append(f"{pno}: no geometry")
+    for k, n in filled.items():
+        if n == 0:
+            errors.append(f"SE registry metric '{k}' is empty in se_deso.geojson")
+    return errors[:50]
+
+
 def _run_checks(checks: list) -> int:
     """Print each check's result and return 1 if any produced errors, else 0."""
     all_errors: list[str] = []
@@ -959,6 +1033,7 @@ def main() -> int:
             ("Distributed proxy flags", check_distributed_proxy_flags([])),
             ("Derived proxy inheritance", check_derived_proxy_inheritance([])),
             ("Provenance vintage match", check_provenance_vintage_match([])),
+            ("Sweden registry vs provenance", check_se_registry_provenance([])),
         ])
 
     print(f"Validating {path} ...")
@@ -991,6 +1066,8 @@ def main() -> int:
         ("Coverage regression", check_coverage_regression(features)),
         ("Geometries", check_geometries(features)),
         ("Postal code format", check_pno_format(features)),
+        ("Sweden registry vs provenance", check_se_registry_provenance(features)),
+        ("Sweden dataset", check_se_dataset(features)),
     ])
 
 

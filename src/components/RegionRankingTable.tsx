@@ -114,7 +114,10 @@ export const RegionRankingTable: React.FC<Props> = React.memo(({ activeLayer, la
     const cfg = (REGIONS as Record<string, { labelKey: string }>)[id];
     return cfg ? t(cfg.labelKey) : id;
   };
-  const muniCount = (id: string) => (REGIONS as Record<string, { municipalityCodes: string[] }>)[id]?.municipalityCodes.length ?? 0;
+  const muniCount = (id: string) => {
+    const cfg = (REGIONS as Record<string, { municipalityCodes: string[]; municipalityCount?: number }>)[id];
+    return cfg?.municipalityCount ?? cfg?.municipalityCodes.length ?? 0;
+  };
 
   return (
     // DT-1: offset below the search bar (top-14 left-4) like FilterPanel — the

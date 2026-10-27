@@ -29,7 +29,10 @@ const ROOT = join(__dirname, '..');
 const DIST = join(ROOT, 'dist');
 const ORIGIN = 'https://naapurustot.fi';
 
-const PROPS = decodeColumnar(JSON.parse(readFileSync(join(ROOT, 'src', 'data', 'region_properties.json'), 'utf-8')));
+// Finland's areas only: region_properties.json also carries Sweden's DeSO areas, whose
+// metrics follow SCB's definitions and are not described by this codebook or provenance.
+const PROPS = decodeColumnar(JSON.parse(readFileSync(join(ROOT, 'src', 'data', 'region_properties.json'), 'utf-8')))
+  .filter((p) => /^\d{5}$/.test(String(p.pno)));
 const REGISTRY = JSON.parse(readFileSync(join(ROOT, 'src', 'data', 'data_sources.json'), 'utf-8'));
 const BUILD_METADATA = JSON.parse(readFileSync(join(ROOT, 'src', 'data', 'build_metadata.json'), 'utf-8'));
 // IN-1 planning corpus: { pno: [{ name, kind, ptype, subtype, status, date, url, source }] }.

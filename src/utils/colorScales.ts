@@ -9,6 +9,9 @@ import { getQualityBands } from './qualityBands';
 export type LayerId =
   | 'quality_index'
   | 'median_income'
+  | 'economic_standard'
+  | 'low_economic_standard'
+  | 'foreign_background'
   | 'disposable_income'
   | 'low_income'
   | 'job_self_sufficiency'
@@ -139,6 +142,10 @@ export interface LayerConfig {
   colors: string[];
   /** Breakpoint values for the color scale, aligned with `colors` */
   stops: number[];
+  /** Sweden's breakpoints for a key both countries publish, from Sweden's own DeSO
+   *  distribution (p2…p98): SCB's definitions differ, so Finland's stops can leave a
+   *  Swedish map in two colours. Used when the map shows Sweden only (`layerForCountry`). */
+  stopsSe?: number[];
   /** Format a raw value for display in tooltips, legends, and panels */
   format: (v: number) => string;
   /**
@@ -171,6 +178,7 @@ export interface LayerConfig {
 }
 
 import { getLang } from './i18n';
+import type { CountryId } from './areaId';
 
 // Cache Intl.NumberFormat per locale to avoid recreating on every format call.
 // These format functions run on the tooltip hot path (~60Hz mousemove).
@@ -191,6 +199,9 @@ function numFmt(opts?: Intl.NumberFormatOptions): Intl.NumberFormat {
 }
 
 const euro = (v: number) => `${numFmt().format(v)} €`;
+// Swedish kronor, for SCB's income layers. Never converted to euros: a rate we chose
+// would be baked into every value. Sweden's layers are ranked and coloured on their own.
+const sek = (v: number) => `${numFmt().format(v)} kr`;
 const pct = (v: number) => `${v.toFixed(1)} %`;
 // QW-1: whole-number percent — job_self_sufficiency can reach tens of thousands in a tiny
 // residential postal code hosting a large employer, where a one-decimal format is unusable.
@@ -263,6 +274,30 @@ export const LAYERS: LayerConfig[] = [
     format: euro,
   },
   {
+    // Sweden (SCB): median economic standard — household disposable income per
+    // consumption unit, SEK per year. Stops follow Sweden's own DeSO distribution
+    // (p2 206k, median 325k, p98 540k).
+    id: 'economic_standard',
+    labelKey: 'layer.economic_standard',
+    property: 'economic_standard_median',
+    unit: 'kr',
+    colors: ['#1a1a2e', '#16213e', '#0f3460', '#1a759f', '#34a0a4', '#76c893', '#b5e48c', '#d9ed92'],
+    stops: [200000, 250000, 290000, 310000, 330000, 370000, 430000, 540000],
+    format: sek,
+  },
+  {
+    // Sweden (SCB): share of residents below 60 % of the national median economic
+    // standard. Stops follow Sweden's DeSO distribution (median 10 %, p98 45 %).
+    id: 'low_economic_standard',
+    labelKey: 'layer.low_economic_standard',
+    property: 'low_economic_standard_pct',
+    unit: '%',
+    colors: ['#fff5f0', '#fee0d2', '#fcbba1', '#fc9272', '#fb6a4a', '#ef3b2c', '#cb181d', '#99000d'],
+    stops: [2, 4, 6, 9, 12, 17, 25, 45],
+    format: pct,
+    higherIsBetter: false,
+  },
+  {
     // QW-1: median household DISPOSABLE income (tr_mtu, after tax+transfers) —
     // distinct from median_income (hr_mtu, residents' taxable income).
     id: 'disposable_income',
@@ -306,6 +341,7 @@ export const LAYERS: LayerConfig[] = [
     unit: '%',
     colors: ['#1a9850', '#66bd63', '#a6d96a', '#d9ef8b', '#ffffbf', '#fee08b', '#fdae61', '#f46d43', '#d73027', '#a50026'],
     stops: [1, 2, 3, 4, 5, 6, 7, 8, 9, 11],
+    stopsSe: [1, 2, 2.5, 3, 3.5, 4, 5, 7, 10, 20],
     format: pct,
     higherIsBetter: false,
   },
@@ -316,6 +352,7 @@ export const LAYERS: LayerConfig[] = [
     unit: '%',
     colors: ['#1a1a2e', '#16213e', '#0f3460', '#533483', '#7b2d8e', '#e94560', '#f38375', '#f8c291'],
     stops: [10, 20, 30, 40, 50, 60, 70, 80],
+    stopsSe: [24, 32, 37, 42, 49, 57, 68, 82],
     format: pct,
   },
   // Foreign-language postal layer = a time series. The scalar property is the latest
@@ -331,6 +368,17 @@ export const LAYERS: LayerConfig[] = [
     unit: '%',
     colors: ['#f0f0f0', '#d4b9da', '#c994c7', '#df65b0', '#e7298a', '#ce1256', '#980043', '#67001f'],
     stops: [2, 5, 10, 15, 20, 25, 35, 50],
+    format: pct,
+  },
+  // Sweden (SCB): foreign background — born abroad, or born in Sweden with both parents
+  // born abroad. A different concept from Finland's language-based layers, so its own.
+  {
+    id: 'foreign_background',
+    labelKey: 'layer.foreign_background',
+    property: 'foreign_background_pct',
+    unit: '%',
+    colors: ['#f0f0f0', '#d4b9da', '#c994c7', '#df65b0', '#e7298a', '#ce1256', '#980043', '#67001f'],
+    stops: [5, 10, 15, 20, 25, 35, 55, 85],
     format: pct,
   },
   // Real LATEST-year municipal foreign-language share (StatFin vaerak 159t) assigned
@@ -372,6 +420,7 @@ export const LAYERS: LayerConfig[] = [
     unit: '%',
     colors: ['#fff5eb', '#fee6ce', '#fdd0a2', '#fdae6b', '#fd8d3c', '#f16913', '#d94801', '#8c2d04'],
     stops: [10, 20, 30, 40, 50, 60, 70, 85],
+    stopsSe: [8, 40, 58, 70, 80, 90, 95, 99],
     format: pct,
   },
   {
@@ -381,6 +430,7 @@ export const LAYERS: LayerConfig[] = [
     unit: '%',
     colors: ['#f7fcf5', '#e5f5e0', '#c7e9c0', '#a1d99b', '#74c476', '#41ab5d', '#238b45', '#005a32'],
     stops: [10, 20, 30, 40, 50, 60, 70, 85],
+    stopsSe: [0.5, 2.5, 7, 15, 26, 40, 60, 95],
     format: pct,
   },
   {
@@ -410,6 +460,7 @@ export const LAYERS: LayerConfig[] = [
     unit: '%',
     colors: ['#f7fcfd', '#e5f5f9', '#ccece6', '#99d8c9', '#66c2a4', '#41ae76', '#238b45', '#005824'],
     stops: [0, 5, 10, 20, 30, 40, 55, 75],
+    stopsSe: [0, 3, 27, 55, 75, 88, 95, 99],
     format: pct,
   },
   {
@@ -428,6 +479,7 @@ export const LAYERS: LayerConfig[] = [
     unit: '/km²',
     colors: ['#fff7ec', '#fee8c8', '#fdd49e', '#fdbb84', '#fc8d59', '#ef6548', '#d7301f', '#990000'],
     stops: [500, 1000, 2000, 4000, 6000, 8000, 12000, 20000],
+    stopsSe: [5, 30, 250, 600, 1500, 3000, 7500, 25000],
     format: density,
   },
   {
@@ -818,6 +870,7 @@ export const LAYERS: LayerConfig[] = [
     unit: '%',
     colors: ['#f7fcf5', '#e5f5e0', '#c7e9c0', '#a1d99b', '#74c476', '#41ab5d', '#238b45', '#005a32'],
     stops: [2, 4, 6, 8, 10, 14, 18, 25],
+    stopsSe: [3, 4.5, 5.5, 6, 7, 8, 9.5, 14],
     format: pct,
   },
   {
@@ -827,6 +880,7 @@ export const LAYERS: LayerConfig[] = [
     unit: '%',
     colors: ['#f7fcf0', '#e0f3db', '#ccebc5', '#a8ddb5', '#7bccc4', '#4eb3d3', '#2b8cbe', '#08589e'],
     stops: [5, 10, 15, 20, 25, 30, 35, 45],
+    stopsSe: [11, 19, 24, 27, 31, 35, 41, 55],
     format: pct,
   },
   {
@@ -855,6 +909,7 @@ export const LAYERS: LayerConfig[] = [
     unit: '%',
     colors: ['#d73027', '#f46d43', '#fdae61', '#fee08b', '#d9ef8b', '#a6d96a', '#66bd63', '#1a9850'],
     stops: [30, 40, 50, 55, 60, 65, 70, 80],
+    stopsSe: [59, 74, 79, 82, 84.5, 86.5, 88.5, 92],
     format: pct,
   },
   {
@@ -864,6 +919,7 @@ export const LAYERS: LayerConfig[] = [
     unit: '%',
     colors: ['#f7fbff', '#deebf7', '#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#084594'],
     stops: [5, 10, 15, 20, 25, 30, 35, 45],
+    stopsSe: [6, 14, 17, 20, 23, 26, 30, 40],
     format: pct,
   },
   {
@@ -873,6 +929,7 @@ export const LAYERS: LayerConfig[] = [
     unit: '',
     colors: ['#f7f4f9', '#e7e1ef', '#d4b9da', '#c994c7', '#df65b0', '#e7298a', '#ce1256', '#91003f'],
     stops: [1.0, 1.3, 1.5, 1.7, 1.9, 2.2, 2.5, 3.0],
+    stopsSe: [1.5, 1.8, 1.95, 2.1, 2.2, 2.4, 2.6, 3],
     format: (v: number) => `${v.toFixed(2)}`,
   },
   {
@@ -1162,6 +1219,39 @@ function runsWarmToCool(colors: string[]): boolean {
 
 // O(1) layer lookup instead of O(n) Array.find() on every call.
 // getLayerById is called on every hover (tooltip), layer switch, and map paint update.
+/**
+ * Layers Sweden has data for (SCB, DeSO 2025). Every other layer is Finland's alone.
+ * The three listed in SE_ONLY_LAYERS are Sweden's alone; the rest share a property key
+ * with Finland but are defined by SCB (see data_sources.json countries.se).
+ */
+export const SE_ONLY_LAYERS: ReadonlySet<LayerId> = new Set<LayerId>([
+  'economic_standard', 'low_economic_standard', 'foreign_background',
+]);
+const SE_LAYERS: ReadonlySet<LayerId> = new Set<LayerId>([
+  ...SE_ONLY_LAYERS,
+  'population_density', 'elderly_ratio', 'gender_ratio', 'avg_household_size',
+  'families_with_children', 'single_parent_hh', 'ownership', 'rental', 'detached_houses',
+  'employment_rate', 'unemployment', 'education',
+]);
+
+/** Whether a layer has data in `country`; with no country (both on the map), every layer. */
+export function layerInCountry(id: LayerId, country: CountryId | null): boolean {
+  if (country === 'se') return SE_LAYERS.has(id);
+  if (country === 'fi') return !SE_ONLY_LAYERS.has(id);
+  return true;
+}
+
+/** The layer as drawn for a one-country map: Sweden's stops where it has its own. */
+export function layerForCountry(layer: LayerConfig, country: CountryId | null): LayerConfig {
+  return country === 'se' && layer.stopsSe ? { ...layer, stops: layer.stopsSe } : layer;
+}
+
+/** The layer a view of `country` opens on when the current one has no data there. */
+export const DEFAULT_LAYER_BY_COUNTRY: Record<CountryId, LayerId> = {
+  fi: 'quality_index',
+  se: 'economic_standard',
+};
+
 export const LAYER_MAP = new Map<LayerId, LayerConfig>();
 for (const layer of LAYERS) {
   LAYER_MAP.set(layer.id, layer);

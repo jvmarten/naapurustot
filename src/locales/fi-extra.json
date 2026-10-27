@@ -352,5 +352,7 @@
   "live.uvp.click_hint": "Klikkaa mitä tahansa kohtaa kartalla lisätäksesi sen vertailuun.",
   "live.uvp.pick_add": "Lisää vertailuun",
   "live.uvp.pick_loading": "Haetaan paikkaa…",
-  "live.uvp.pick_close": "Sulje"
+  "live.uvp.pick_close": "Sulje",
+  "sources.se_heading": "Ruotsi",
+  "sources.se_intro": "Ruotsin alueet ovat Tilastokeskus SCB:n DeSO 2025 -alueita (6 160 aluetta, 700–2 700 asukasta), ja alueet on ryhmitelty Tillväxtverketin FA25-seutuihin. SCB lisää vuodesta 2025 alkaen kaikkiin lukuihin pienen satunnaisen häiriön yksityisyyden suojaamiseksi ja jättää 1–2 hengen lukumäärät julkaisematta; tällaiset osuudet näytetään vain, kun ne voidaan päätellä julkaistulla tarkkuudella. Ruotsin luvut perustuvat SCB:n määritelmiin, joten niitä ei verrata Suomen lukuihin samalla asteikolla. Laatuindeksi on toistaiseksi vain Suomen alueille."
 }

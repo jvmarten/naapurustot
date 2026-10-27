@@ -12,13 +12,13 @@ import { t } from './i18n';
 import { aggregateTrendHistories, type RegionAggregateRecord } from './metroAggregation';
 
 // CF-5 Phase D: the "all cities" view uses the full official seutukunta
-// boundaries (src/data/seutukunnat.topojson, all 69 sub-regions) as the
+// boundaries (src/data/region_outlines.topojson: Finland's 69 seutukunnat and Sweden's 71 FA25 regions) as the
 // geometry for each metro-area feature. A data region therefore renders at
 // its full seutukunta extent, not just the dissolved outline of the
 // postal codes that happen to be ingested. This also keeps the runtime free
 // of @turf/union (the boundaries are pre-baked at build time — see
 // CLAUDE.md pitfalls #1-#4). Lazy-loaded on first entry to the all-cities view.
-import outlinesUrl from '../data/seutukunnat.topojson?url';
+import outlinesUrl from '../data/region_outlines.topojson?url';
 
 type OutlineGeometry = Polygon | MultiPolygon;
 
@@ -39,7 +39,7 @@ function ensureOutlinesLoaded(): Promise<void> {
           const decoded = feature(topo, topo.objects[objectName]);
           const features = decoded.type === 'FeatureCollection' ? decoded.features : [decoded];
           for (const f of features) {
-            // seutukunnat.topojson keys each boundary by its regions.ts region id.
+            // region_outlines.topojson keys each boundary by its regions.ts region id.
             const region = (f.properties as { region?: string } | null)?.region;
             const g = f.geometry;
             // Runtime-narrow to OutlineGeometry rather than casting feature()'s

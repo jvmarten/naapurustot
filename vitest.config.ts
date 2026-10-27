@@ -20,6 +20,7 @@ export default defineConfig({
       property_price_sqm: 36.3, // CF-16: sales-weighted multi-year ashi 13mu
       rental_price_sqm: 18.2, // CF-15: asvu 15fa
     }),
+    __COVERAGE_PCT_SE__: JSON.stringify({ he_vakiy: 100, ownership_rate: 79.2 }),
   },
   test: {
     globals: true,

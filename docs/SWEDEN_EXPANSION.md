@@ -1,6 +1,7 @@
 # Sweden expansion — scoping
 
-Status: decided 2026-10-27 (§6). Step 1 of §5 is in progress.
+Status: all of Sweden is on the map (2026-10-27). What was built, and where it differs
+from the plan below, is in §7. Profile pages for Swedish areas are the next step.
 
 The goal is to add Sweden as a second country, at SCB's **DeSO** level (6,160
 demographic statistical areas, 700–2,700 residents each), which is finer than
@@ -143,3 +144,37 @@ Each is one `claude/*` branch, landed and verified on `main` before the next is 
 - **Q3 Bundle budget:** raise it. `BUDGET` is a ratchet set just above the measured size, so each feature bumps it by its measured cost plus ~1.5 kB, with the reason recorded. Swedish region data still stays out of JS, so a Finnish visitor never downloads Sweden.
 - **Q4 Regions:** FA25. Membership is confirmed against SCB's municipality codes (§1); §5 step 5 commits it as source data with a build check.
 - **Q5 History:** the latest values are the same either way. Older history (matching DeSO 2018 areas whose boundaries didn't change) is optional and can come later.
+
+## 7. As built (2026-10-27)
+
+Steps 1–7 and 9 of §5 landed together. The Stockholm-only pilot was skipped, because the
+pipeline handles the whole country as cheaply as one region. Differences from the plan:
+
+- **One national view for both countries, not `city=se`.** `city=all` ("Suomi ja Ruotsi")
+  draws Finland's 69 and Sweden's 71 region outlines from one file,
+  `src/data/region_outlines.topojson`, built in `build:data`. National ranges, national
+  averages and the quality index stay Finland's (filtered by `countryOfId`), so no Finnish
+  figure moved. Every Finnish artifact rebuilt byte-identical.
+- **One set of artifacts, not `src/data/<country>/`.** Swedish region files sit beside the
+  Finnish ones (`regions/se_*.topojson`), and `region_properties.json` carries both
+  countries (1.0 → 1.5 MB gzipped, fetched only by the national-set features). The search
+  index, fetched at idle, grew from 43 to 102 kB gzipped.
+- **The region registry is code, not a fetched file.** `src/utils/regionsSe.ts` is generated
+  as compact tuples, without centres, zooms or municipality codes, because every caller of
+  `REGIONS` reads it synchronously. That, the 71 names in the bundled `fi.json`, and the
+  extra region-file URLs are what the map bundle grew by (§2.5, Q3).
+- **Layers.** Sweden has 15: three of its own (economic standard in SEK, low economic
+  standard, foreign background) and twelve that share a key with Finland under SCB's
+  definitions. Each shared key has a definition note and its own colour stops (`stopsSe`).
+  On a Sweden-only map the layer list shows only these, the comparison scope reads
+  "Koko Ruotsi", and a Finnish-only layer switches to economic standard.
+- **Panel.** A Swedish area gets SCB's rows. Paavo-shaped breakdowns, the radar, the
+  strengths summary, trends, the fit badge and the profile link are hidden, because each
+  would score against Finland or render empty.
+- **Suppressed cells.** In the tenure and house-type tables SCB never publishes a 1 or a 2,
+  so a suppressed cell holds 1–2 persons. A share containing one is published only when
+  both bounds round to the same decimal. Region aggregates use the 1.5 midpoint inside
+  Σ numerator / Σ denominator, which is at most half a person per area, so they are not
+  biased by leaving those areas out.
+- **Not yet:** Swedish profile pages and sitemap (step 8), OSM service densities, a
+  Swedish quality index, and Swedish history before 2024 (Q5).

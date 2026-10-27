@@ -20,6 +20,9 @@ import type { WizardAnswers } from './useWizardProfile';
 import { deserializeWizardProfile } from './useWizardProfile';
 import { isAreaId } from '../utils/areaId';
 
+// Bounds a URL-carried position must fall inside: Finland and Sweden, generously.
+const MAP_LNG_MIN = 10, MAP_LNG_MAX = 33, MAP_LAT_MIN = 55, MAP_LAT_MAX = 71;
+
 /**
  * IN-3: share-URL schema version.
  *
@@ -201,9 +204,9 @@ function deserializeViewport(s: string): UrlViewport | null {
   const lat = Number(parts[1]);
   const zoom = Number(parts[2]);
   if (![lng, lat, zoom].every((n) => Number.isFinite(n))) return null;
-  // Clamp to a generous Finland bounding box + valid zoom so a hand-edited link
-  // can never fling the camera off-world.
-  if (lng < 18 || lng > 33 || lat < 58 || lat > 71 || zoom < 0 || zoom > 22) return null;
+  // Clamp to a generous Finland + Sweden bounding box + valid zoom so a hand-edited
+  // link can never fling the camera off-world.
+  if (lng < MAP_LNG_MIN || lng > MAP_LNG_MAX || lat < MAP_LAT_MIN || lat > MAP_LAT_MAX || zoom < 0 || zoom > 22) return null;
   return { center: [lng, lat], zoom };
 }
 
@@ -296,8 +299,9 @@ function deserializeSimWeights(encoded: string): Record<string, number> | null {
 // Polygons are capped at DRAW_MAX_VERTICES and every vertex is Finland-bbox-clamped
 // on PARSE so a hand-edited link can never inject an off-world or unbounded ring.
 const DRAW_MAX_VERTICES = 60;
-// Finland bounding box (shared with the viewport codec): lng 18–33, lat 58–71.
-const FIN_LNG_MIN = 18, FIN_LNG_MAX = 33, FIN_LAT_MIN = 58, FIN_LAT_MAX = 71;
+// FIN_* are the map's bounds (shared with the viewport codec above), named before Sweden
+// widened them to lng 10–33, lat 55–71.
+const FIN_LNG_MIN = MAP_LNG_MIN, FIN_LNG_MAX = MAP_LNG_MAX, FIN_LAT_MIN = MAP_LAT_MIN, FIN_LAT_MAX = MAP_LAT_MAX;
 
 function serializeDraw(d: UrlDraw): string {
   if (d.mode === 'select') return `s:${d.pnos.join('.')}`;

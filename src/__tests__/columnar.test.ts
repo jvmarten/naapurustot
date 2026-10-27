@@ -59,12 +59,13 @@ describe('columnar codec', () => {
     expect(() => decodeNode(null)).toThrow(TypeError);
   });
 
-  it('the committed artifact is in the expected format and decodes to 3,018 areas', () => {
+  it('the committed artifact is in the expected format and decodes to 3,018 Finnish + 6,160 Swedish areas', () => {
     const payload = regionProperties as unknown as { format: string; keys: string[]; cols: unknown[][] };
     expect(payload.format).toBe(COLUMNAR_FORMAT);
     expect(payload.keys).toContain('pno');
     const decoded = decodeColumnar<Record<string, unknown>>(payload);
-    expect(decoded).toHaveLength(3018);
+    expect(decoded).toHaveLength(3018 + 6160);
+    expect(decoded.filter((r) => /^\d{5}$/.test(String(r.pno)))).toHaveLength(3018);
     expect(String(decoded[0].pno)).toMatch(/^\d{5}$/);
     // Every record must carry every key — that is what makes the column layout safe.
     expect(Object.keys(decoded[0])).toHaveLength(payload.keys.length);

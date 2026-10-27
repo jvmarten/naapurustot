@@ -1,0 +1,789 @@
+[
+ {
+  "fa25": "01",
+  "name": "Kiruna",
+  "id": "se_kiruna",
+  "kommuner": [
+   "2584"
+  ]
+ },
+ {
+  "fa25": "02",
+  "name": "Pajala",
+  "id": "se_pajala",
+  "kommuner": [
+   "2521"
+  ]
+ },
+ {
+  "fa25": "03",
+  "name": "Gällivare",
+  "id": "se_gallivare",
+  "kommuner": [
+   "2510",
+   "2523"
+  ]
+ },
+ {
+  "fa25": "04",
+  "name": "Övertorneå",
+  "id": "se_overtornea",
+  "kommuner": [
+   "2518"
+  ]
+ },
+ {
+  "fa25": "05",
+  "name": "Överkalix",
+  "id": "se_overkalix",
+  "kommuner": [
+   "2513"
+  ]
+ },
+ {
+  "fa25": "06",
+  "name": "Haparanda",
+  "id": "se_haparanda",
+  "kommuner": [
+   "2583"
+  ]
+ },
+ {
+  "fa25": "07",
+  "name": "Luleå",
+  "id": "se_lulea",
+  "kommuner": [
+   "2514",
+   "2560",
+   "2580",
+   "2581",
+   "2582"
+  ]
+ },
+ {
+  "fa25": "08",
+  "name": "Arjeplog",
+  "id": "se_arjeplog",
+  "kommuner": [
+   "2422",
+   "2506"
+  ]
+ },
+ {
+  "fa25": "09",
+  "name": "Arvidsjaur",
+  "id": "se_arvidsjaur",
+  "kommuner": [
+   "2505"
+  ]
+ },
+ {
+  "fa25": "10",
+  "name": "Skellefteå",
+  "id": "se_skelleftea",
+  "kommuner": [
+   "2417",
+   "2482"
+  ]
+ },
+ {
+  "fa25": "11",
+  "name": "Lycksele",
+  "id": "se_lycksele",
+  "kommuner": [
+   "2418",
+   "2481"
+  ]
+ },
+ {
+  "fa25": "12",
+  "name": "Storuman",
+  "id": "se_storuman",
+  "kommuner": [
+   "2421"
+  ]
+ },
+ {
+  "fa25": "13",
+  "name": "Vilhelmina",
+  "id": "se_vilhelmina",
+  "kommuner": [
+   "2462"
+  ]
+ },
+ {
+  "fa25": "14",
+  "name": "Åsele",
+  "id": "se_asele",
+  "kommuner": [
+   "2463"
+  ]
+ },
+ {
+  "fa25": "15",
+  "name": "Umeå",
+  "id": "se_umea",
+  "kommuner": [
+   "2401",
+   "2403",
+   "2404",
+   "2409",
+   "2460",
+   "2480"
+  ]
+ },
+ {
+  "fa25": "16",
+  "name": "Dorotea",
+  "id": "se_dorotea",
+  "kommuner": [
+   "2425"
+  ]
+ },
+ {
+  "fa25": "17",
+  "name": "Strömsund",
+  "id": "se_stromsund",
+  "kommuner": [
+   "2313"
+  ]
+ },
+ {
+  "fa25": "18",
+  "name": "Örnsköldsvik",
+  "id": "se_ornskoldsvik",
+  "kommuner": [
+   "2284"
+  ]
+ },
+ {
+  "fa25": "19",
+  "name": "Sollefteå",
+  "id": "se_solleftea",
+  "kommuner": [
+   "2283"
+  ]
+ },
+ {
+  "fa25": "20",
+  "name": "Östersund",
+  "id": "se_ostersund",
+  "kommuner": [
+   "2303",
+   "2305",
+   "2309",
+   "2321",
+   "2326",
+   "2380"
+  ]
+ },
+ {
+  "fa25": "21",
+  "name": "Kramfors",
+  "id": "se_kramfors",
+  "kommuner": [
+   "2282"
+  ]
+ },
+ {
+  "fa25": "22",
+  "name": "Sundsvall",
+  "id": "se_sundsvall",
+  "kommuner": [
+   "2260",
+   "2262",
+   "2280",
+   "2281"
+  ]
+ },
+ {
+  "fa25": "23",
+  "name": "Härjedalen",
+  "id": "se_harjedalen",
+  "kommuner": [
+   "2361"
+  ]
+ },
+ {
+  "fa25": "24",
+  "name": "Ljusdal",
+  "id": "se_ljusdal",
+  "kommuner": [
+   "2161"
+  ]
+ },
+ {
+  "fa25": "25",
+  "name": "Hudiksvall",
+  "id": "se_hudiksvall",
+  "kommuner": [
+   "2132",
+   "2184"
+  ]
+ },
+ {
+  "fa25": "26",
+  "name": "Mora",
+  "id": "se_mora",
+  "kommuner": [
+   "2034",
+   "2039",
+   "2062"
+  ]
+ },
+ {
+  "fa25": "27",
+  "name": "Bollnäs-Ovanåker",
+  "id": "se_bollnas_ovanaker",
+  "kommuner": [
+   "2121",
+   "2183"
+  ]
+ },
+ {
+  "fa25": "28",
+  "name": "Söderhamn",
+  "id": "se_soderhamn",
+  "kommuner": [
+   "2182"
+  ]
+ },
+ {
+  "fa25": "29",
+  "name": "Malung-Sälen",
+  "id": "se_malung_salen",
+  "kommuner": [
+   "2023"
+  ]
+ },
+ {
+  "fa25": "30",
+  "name": "Falun-Borlänge",
+  "id": "se_falun_borlange",
+  "kommuner": [
+   "2026",
+   "2029",
+   "2031",
+   "2080",
+   "2081",
+   "2082"
+  ]
+ },
+ {
+  "fa25": "31",
+  "name": "Gävle",
+  "id": "se_gavle",
+  "kommuner": [
+   "0319",
+   "2101",
+   "2104",
+   "2180",
+   "2181"
+  ]
+ },
+ {
+  "fa25": "32",
+  "name": "Torsby",
+  "id": "se_torsby",
+  "kommuner": [
+   "1737",
+   "1766"
+  ]
+ },
+ {
+  "fa25": "33",
+  "name": "Vansbro",
+  "id": "se_vansbro",
+  "kommuner": [
+   "2021"
+  ]
+ },
+ {
+  "fa25": "34",
+  "name": "Avesta-Hedemora",
+  "id": "se_avesta_hedemora",
+  "kommuner": [
+   "2083",
+   "2084"
+  ]
+ },
+ {
+  "fa25": "35",
+  "name": "Hagfors",
+  "id": "se_hagfors",
+  "kommuner": [
+   "1783"
+  ]
+ },
+ {
+  "fa25": "36",
+  "name": "Ludvika",
+  "id": "se_ludvika",
+  "kommuner": [
+   "2061",
+   "2085"
+  ]
+ },
+ {
+  "fa25": "37",
+  "name": "Fagersta-Norberg",
+  "id": "se_fagersta_norberg",
+  "kommuner": [
+   "1904",
+   "1962",
+   "1982"
+  ]
+ },
+ {
+  "fa25": "38",
+  "name": "Västerås",
+  "id": "se_vasteras",
+  "kommuner": [
+   "1907",
+   "1960",
+   "1961",
+   "1980",
+   "1981",
+   "1983",
+   "1984"
+  ]
+ },
+ {
+  "fa25": "39",
+  "name": "Stockholm-Solna",
+  "id": "se_stockholm_solna",
+  "kommuner": [
+   "0114",
+   "0115",
+   "0117",
+   "0120",
+   "0123",
+   "0125",
+   "0126",
+   "0127",
+   "0128",
+   "0136",
+   "0138",
+   "0139",
+   "0140",
+   "0160",
+   "0162",
+   "0163",
+   "0180",
+   "0181",
+   "0182",
+   "0183",
+   "0184",
+   "0186",
+   "0187",
+   "0188",
+   "0191",
+   "0192",
+   "0305",
+   "0330",
+   "0331",
+   "0360",
+   "0380",
+   "0381",
+   "0382",
+   "0461",
+   "0486",
+   "0488"
+  ]
+ },
+ {
+  "fa25": "40",
+  "name": "Hällefors",
+  "id": "se_hallefors",
+  "kommuner": [
+   "1863"
+  ]
+ },
+ {
+  "fa25": "41",
+  "name": "Örebro",
+  "id": "se_orebro",
+  "kommuner": [
+   "1760",
+   "1814",
+   "1860",
+   "1861",
+   "1862",
+   "1864",
+   "1880",
+   "1881",
+   "1882",
+   "1883",
+   "1884",
+   "1885"
+  ]
+ },
+ {
+  "fa25": "42",
+  "name": "Eskilstuna",
+  "id": "se_eskilstuna",
+  "kommuner": [
+   "0484"
+  ]
+ },
+ {
+  "fa25": "43",
+  "name": "Arvika",
+  "id": "se_arvika",
+  "kommuner": [
+   "1730",
+   "1784"
+  ]
+ },
+ {
+  "fa25": "44",
+  "name": "Karlstad",
+  "id": "se_karlstad",
+  "kommuner": [
+   "1492",
+   "1715",
+   "1761",
+   "1762",
+   "1763",
+   "1764",
+   "1780",
+   "1781",
+   "1782",
+   "1785"
+  ]
+ },
+ {
+  "fa25": "45",
+  "name": "Årjäng",
+  "id": "se_arjang",
+  "kommuner": [
+   "1765"
+  ]
+ },
+ {
+  "fa25": "46",
+  "name": "Bengtsfors-Dals-Ed",
+  "id": "se_bengtsfors_dals_ed",
+  "kommuner": [
+   "1438",
+   "1460"
+  ]
+ },
+ {
+  "fa25": "47",
+  "name": "Katrineholm-Flen",
+  "id": "se_katrineholm_flen",
+  "kommuner": [
+   "0428",
+   "0482",
+   "0483"
+  ]
+ },
+ {
+  "fa25": "48",
+  "name": "Nyköping-Oxelösund",
+  "id": "se_nykoping_oxelosund",
+  "kommuner": [
+   "0480",
+   "0481"
+  ]
+ },
+ {
+  "fa25": "49",
+  "name": "Strömstad",
+  "id": "se_stromstad",
+  "kommuner": [
+   "1435",
+   "1486"
+  ]
+ },
+ {
+  "fa25": "50",
+  "name": "Göteborg",
+  "id": "se_goteborg",
+  "kommuner": [
+   "1382",
+   "1383",
+   "1384",
+   "1401",
+   "1402",
+   "1407",
+   "1415",
+   "1419",
+   "1421",
+   "1427",
+   "1430",
+   "1439",
+   "1440",
+   "1441",
+   "1442",
+   "1443",
+   "1444",
+   "1461",
+   "1462",
+   "1480",
+   "1481",
+   "1482",
+   "1484",
+   "1485",
+   "1487",
+   "1488",
+   "1489"
+  ]
+ },
+ {
+  "fa25": "51",
+  "name": "Lidköping-Götene",
+  "id": "se_lidkoping_gotene",
+  "kommuner": [
+   "1445",
+   "1470",
+   "1471",
+   "1494"
+  ]
+ },
+ {
+  "fa25": "52",
+  "name": "Skövde-Skara",
+  "id": "se_skovde_skara",
+  "kommuner": [
+   "1446",
+   "1447",
+   "1472",
+   "1473",
+   "1493",
+   "1495",
+   "1496",
+   "1497",
+   "1498",
+   "1499"
+  ]
+ },
+ {
+  "fa25": "53",
+  "name": "Linköping",
+  "id": "se_linkoping",
+  "kommuner": [
+   "0509",
+   "0513",
+   "0560",
+   "0561",
+   "0580",
+   "0583",
+   "0584",
+   "0586"
+  ]
+ },
+ {
+  "fa25": "54",
+  "name": "Norrköping",
+  "id": "se_norrkoping",
+  "kommuner": [
+   "0562",
+   "0563",
+   "0581",
+   "0582"
+  ]
+ },
+ {
+  "fa25": "55",
+  "name": "Gotland",
+  "id": "se_gotland",
+  "kommuner": [
+   "0980"
+  ]
+ },
+ {
+  "fa25": "56",
+  "name": "Västervik",
+  "id": "se_vastervik",
+  "kommuner": [
+   "0883"
+  ]
+ },
+ {
+  "fa25": "57",
+  "name": "Jönköping",
+  "id": "se_jonkoping",
+  "kommuner": [
+   "0512",
+   "0604",
+   "0642",
+   "0643",
+   "0665",
+   "0680",
+   "0682",
+   "0686",
+   "0687"
+  ]
+ },
+ {
+  "fa25": "58",
+  "name": "Borås",
+  "id": "se_boras",
+  "kommuner": [
+   "1452",
+   "1463",
+   "1465",
+   "1466",
+   "1490",
+   "1491"
+  ]
+ },
+ {
+  "fa25": "59",
+  "name": "Värnamo-Gislaved",
+  "id": "se_varnamo_gislaved",
+  "kommuner": [
+   "0617",
+   "0662",
+   "0683"
+  ]
+ },
+ {
+  "fa25": "60",
+  "name": "Vetlanda",
+  "id": "se_vetlanda",
+  "kommuner": [
+   "0684",
+   "0685"
+  ]
+ },
+ {
+  "fa25": "61",
+  "name": "Vimmerby-Hultsfred",
+  "id": "se_vimmerby_hultsfred",
+  "kommuner": [
+   "0860",
+   "0884"
+  ]
+ },
+ {
+  "fa25": "62",
+  "name": "Oskarshamn",
+  "id": "se_oskarshamn",
+  "kommuner": [
+   "0821",
+   "0861",
+   "0882"
+  ]
+ },
+ {
+  "fa25": "63",
+  "name": "Växjö",
+  "id": "se_vaxjo",
+  "kommuner": [
+   "0760",
+   "0761",
+   "0763",
+   "0764",
+   "0780"
+  ]
+ },
+ {
+  "fa25": "64",
+  "name": "Ljungby",
+  "id": "se_ljungby",
+  "kommuner": [
+   "0767",
+   "0781"
+  ]
+ },
+ {
+  "fa25": "65",
+  "name": "Halmstad",
+  "id": "se_halmstad",
+  "kommuner": [
+   "1315",
+   "1380",
+   "1381"
+  ]
+ },
+ {
+  "fa25": "66",
+  "name": "Älmhult",
+  "id": "se_almhult",
+  "kommuner": [
+   "0765",
+   "1273"
+  ]
+ },
+ {
+  "fa25": "67",
+  "name": "Kalmar",
+  "id": "se_kalmar",
+  "kommuner": [
+   "0834",
+   "0840",
+   "0862",
+   "0880",
+   "0881",
+   "0885"
+  ]
+ },
+ {
+  "fa25": "68",
+  "name": "Karlskrona",
+  "id": "se_karlskrona",
+  "kommuner": [
+   "1080",
+   "1081"
+  ]
+ },
+ {
+  "fa25": "69",
+  "name": "Karlshamn-Olofström",
+  "id": "se_karlshamn_olofstrom",
+  "kommuner": [
+   "1060",
+   "1082"
+  ]
+ },
+ {
+  "fa25": "70",
+  "name": "Kristianstad-Hässleholm",
+  "id": "se_kristianstad_hassleholm",
+  "kommuner": [
+   "1083",
+   "1256",
+   "1272",
+   "1275",
+   "1290",
+   "1293"
+  ]
+ },
+ {
+  "fa25": "71",
+  "name": "Malmö-Lund",
+  "id": "se_malmo_lund",
+  "kommuner": [
+   "1214",
+   "1230",
+   "1231",
+   "1233",
+   "1257",
+   "1260",
+   "1261",
+   "1262",
+   "1263",
+   "1264",
+   "1265",
+   "1266",
+   "1267",
+   "1270",
+   "1276",
+   "1277",
+   "1278",
+   "1280",
+   "1281",
+   "1282",
+   "1283",
+   "1284",
+   "1285",
+   "1286",
+   "1287",
+   "1291",
+   "1292"
+  ]
+ }
+]

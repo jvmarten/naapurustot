@@ -1,6 +1,7 @@
 import { getCoveragePct, type NeighborhoodProperties } from './metrics.ts';
 import { getQualityBands } from './qualityBands.ts';
 import { applyQualityScale, scaleUsesFixedBands } from './qualityScale.ts';
+import { countryOfId } from './areaId.ts';
 
 /**
  * Computes a composite Quality Index (0–100) for each neighborhood.
@@ -880,6 +881,15 @@ export function computeQualityIndices(
 
   for (const f of features) {
     const p = f.properties as NeighborhoodProperties;
+
+    // The index's factors, ranges and weights are Finland's. Sweden publishes a
+    // different set under different definitions, so a Swedish area gets no score
+    // rather than one assembled from the few factors that happen to share a key.
+    if (countryOfId(p.pno) !== 'fi') {
+      p.quality_index = null;
+      p.quality_dimension_scores = null;
+      continue;
+    }
 
     const scores: { value: number; weight: number }[] = [];
     // CF-8: accumulate the same weighted scores bucketed by conceptual dimension,

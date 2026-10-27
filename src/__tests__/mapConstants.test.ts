@@ -36,11 +36,12 @@ describe('CITY_VIEWPORTS', () => {
       const [minLng, minLat, maxLng, maxLat] = CITY_VIEWPORTS[id].bounds;
       expect(minLng).toBeLessThan(maxLng);
       expect(minLat).toBeLessThan(maxLat);
-      // Finland roughly spans [19, 59] → [32, 71]
-      expect(minLng).toBeGreaterThan(18);
-      expect(maxLng).toBeLessThan(33);
-      expect(minLat).toBeGreaterThan(58);
-      expect(maxLat).toBeLessThan(71);
+      // Finland roughly spans [19, 59] → [32, 71]; Sweden [10.5, 55] → [24.5, 69.5]
+      const se = id.startsWith('se_');
+      expect(minLng).toBeGreaterThan(se ? 10.5 : 18);
+      expect(maxLng).toBeLessThan(se ? 24.5 : 33);
+      expect(minLat).toBeGreaterThan(se ? 55 : 58);
+      expect(maxLat).toBeLessThan(se ? 69.5 : 71);
     }
   });
 

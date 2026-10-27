@@ -9,7 +9,7 @@
  *  - a region the click is NOT in must never be returned (null for sea / abroad);
  *  - the module-level outline cache: one fetch shared by concurrent callers, null on
  *    failure with a retry on the next call, and getRegionOutlines never fetching.
- * Plus a sanity pass over the REAL committed seutukunnat.topojson.
+ * Plus a sanity pass over the REAL committed region_outlines.topojson (Finland + Sweden).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Feature, FeatureCollection, Geometry, Position } from 'geojson';
@@ -282,14 +282,14 @@ describe('loadRegionOutlines / getRegionOutlines', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('fetches the seutukunnat.topojson asset and parses it into a FeatureCollection', async () => {
+  it('fetches the region_outlines.topojson asset and parses it into a FeatureCollection', async () => {
     fetchMock.mockResolvedValueOnce(okJson(TOPO));
     const mod = await fresh();
 
     const outlines = await mod.loadRegionOutlines();
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(String(fetchMock.mock.calls[0][0])).toMatch(/seutukunnat\.topojson/);
+    expect(String(fetchMock.mock.calls[0][0])).toMatch(/region_outlines\.topojson/);
     expect(outlines).not.toBeNull();
     expect(outlines!.type).toBe('FeatureCollection');
     expect(outlines!.features).toHaveLength(3);
@@ -463,24 +463,24 @@ describe('loadRegionOutlines / getRegionOutlines', () => {
 
 // Vite-native raw read, matching i18nUnusedKeys.test.ts / mapQueryGuard.test.ts —
 // node:fs is not in this tsconfig's types.
-const outlineFiles = import.meta.glob('../data/seutukunnat.topojson', {
+const outlineFiles = import.meta.glob('../data/region_outlines.topojson', {
   query: '?raw',
   import: 'default',
   eager: true,
 }) as Record<string, string>;
 
 function realTopology(): Topology {
-  const raw = outlineFiles['../data/seutukunnat.topojson'];
-  if (!raw) throw new Error(`could not read seutukunnat.topojson (globbed: ${Object.keys(outlineFiles).join(', ')})`);
+  const raw = outlineFiles['../data/region_outlines.topojson'];
+  if (!raw) throw new Error(`could not read region_outlines.topojson (globbed: ${Object.keys(outlineFiles).join(', ')})`);
   return JSON.parse(raw) as Topology;
 }
 
-describe('regionAt against the real seutukunnat.topojson', () => {
+describe('regionAt against the real region_outlines.topojson', () => {
   const topo = realTopology();
   const objName = Object.keys(topo.objects)[0];
   const real = topoFeature(topo, topo.objects[objName]) as FeatureCollection;
 
-  it('decodes to 69 areal features, each keyed by a distinct known region id', () => {
+  it('decodes to one areal feature per region (69 Finnish + 71 Swedish), each keyed by a distinct known region id', () => {
     expect(real.type).toBe('FeatureCollection');
     expect(real.features).toHaveLength(REGION_IDS.length);
     const known = new Set<string>(REGION_IDS);
@@ -506,13 +506,16 @@ describe('regionAt against the real seutukunnat.topojson', () => {
     ['Turku', 22.27, 60.45, 'turku'],
     ['Oulu', 25.47, 65.01, 'oulu'],
     ['Rovaniemi', 25.73, 66.5, 'rovaniemi'],
+    ['Stockholm', 18.07, 59.33, 'se_stockholm_solna'],
+    ['Göteborg', 11.97, 57.71, 'se_goteborg'],
+    ['Malmö', 13.0, 55.6, 'se_malmo_lund'],
+    ['Kiruna', 20.23, 67.86, 'se_kiruna'],
   ])('%s [%f, %f] → %s', (_name, lng, lat, expected) => {
     expect(regionAt(real, lng, lat)).toBe(expected);
   });
 
   it.each([
     ['the sea south of Helsinki', 24.9, 59.9],
-    ['Stockholm', 18.07, 59.33],
     ['Tallinn', 24.75, 59.44],
   ])('%s → null', (_name, lng, lat) => {
     expect(regionAt(real, lng, lat)).toBeNull();

@@ -17,10 +17,17 @@
  * Per-region data coverage varies — see `src/data/region_coverage.json`. The
  * CitySelector surfaces a coverage badge, and sparse metrics render via the
  * gray/hatched fallback under the partial-coverage stance.
+ *
+ * Sweden's 71 FA25 functional regions (Tillväxtverket) follow the Finnish ones. They
+ * are generated into `regionsSe.ts` by scripts/se/build_se_geojson.py and carry an
+ * `se_` id prefix, so the two countries' ids can never collide.
  */
 
-/** A region identifier. */
-export type RegionId =
+import { SE_REGION_ROWS, type SeRegionId } from './regionsSe.ts';
+import type { CountryId } from './areaId';
+
+/** A Finnish region (seutukunta) identifier. */
+type FiRegionId =
   | 'helsinki_metro'
   | 'turku'
   | 'tampere'
@@ -92,6 +99,9 @@ export type RegionId =
   | 'yla_savo'
   | 'ylivieska';
 
+/** A region identifier: a Finnish seutukunta or a Swedish FA25 region (`se_…`). */
+export type RegionId = FiRegionId | SeRegionId;
+
 export interface RegionConfig {
   /** Display name i18n key */
   labelKey: string;
@@ -99,8 +109,11 @@ export interface RegionConfig {
   center: [number, number];
   zoom: number;
   bounds: [number, number, number, number];
-  /** Municipality codes belonging to this region (canonical seutukunta extent) */
+  /** Municipality codes belonging to this region (canonical seutukunta extent).
+   *  Empty for Sweden, whose codes are not shipped (see regionsSe.ts). */
   municipalityCodes: string[];
+  /** Number of municipalities, when the codes themselves are not shipped. */
+  municipalityCount?: number;
   /** TopoJSON file path (relative to src/data/regions/) */
   dataFile: string;
 }
@@ -112,7 +125,7 @@ export interface RegionConfig {
  * Viewports are approximate bounding boxes — narrower than the full seutukunta
  * extent for regions where the current data only covers a subset.
  */
-export const REGIONS: Record<RegionId, RegionConfig> = {
+const FI_REGIONS: Record<FiRegionId, RegionConfig> = {
   helsinki_metro: {
     // Helsingin seutukunta (code 011) — 17 munis: Helsinki, Espoo, Vantaa,
     // Kauniainen, Hyvinkää, Järvenpää, Karkkila, Kerava, Kirkkonummi, Lohja,
@@ -743,8 +756,35 @@ export const REGIONS: Record<RegionId, RegionConfig> = {
   },
 };
 
+/** Opening zoom for a bbox — the rule scripts/build_seutukunta_boundaries.mjs derived
+ *  Finland's zooms with (longitude degrees count half at these latitudes). */
+function zoomFor(w: number, s: number, e: number, n: number): number {
+  const span = Math.max((e - w) * 0.5, n - s, 0.05);
+  return Math.min(11, Math.max(5, Math.round((8.05 - Math.log2(span)) * 10) / 10));
+}
+
+const SE_REGIONS = Object.fromEntries(
+  SE_REGION_ROWS.map(([id, w, s, e, n, municipalityCount]) => [id, {
+    labelKey: `city.${id}`,
+    center: [(w + e) / 2, (s + n) / 2],
+    zoom: zoomFor(w, s, e, n),
+    bounds: [w, s, e, n],
+    municipalityCodes: [],
+    municipalityCount,
+    dataFile: `${id}.topojson`,
+  }]),
+) as unknown as Record<SeRegionId, RegionConfig>;
+
+/** All regions: Finland's, then Sweden's. Order determines display order in the selector. */
+export const REGIONS: Record<RegionId, RegionConfig> = { ...FI_REGIONS, ...SE_REGIONS };
+
 /** All region IDs in display order. */
 export const REGION_IDS = Object.keys(REGIONS) as RegionId[];
+
+/** Country a region id belongs to. */
+export function regionCountry(id: string): CountryId {
+  return id.startsWith('se_') ? 'se' : 'fi';
+}
 
 /**
  * Region IDs that have ingested data. All 69 seutukunnat are populated, so this

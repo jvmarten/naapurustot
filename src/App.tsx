@@ -6,7 +6,7 @@ import React, { useState, useCallback, useEffect, useRef, useMemo, useReducer, l
 // parse instead of serializing behind it. maplibre-* is excluded from the bundle-budget
 // gate, so this is budget-neutral. Declared with the other lazy components below.
 import { DEFAULT_CENTER, DEFAULT_ZOOM, CITY_VIEWPORTS } from './utils/mapConstants';
-import { REGION_IDS, DEFAULT_CITY, type RegionId } from './utils/regions';
+import { REGION_IDS, DEFAULT_CITY, regionCountry, type RegionId } from './utils/regions';
 import { loadRegionData, loadAllData } from './utils/dataLoader';
 import { LayerSelector } from './components/LayerSelector';
 import { SearchBar } from './components/SearchBar';
@@ -73,7 +73,7 @@ const TimeSlider = lazy(() => import('./components/TimeSlider').then(m => ({ def
 import { UserMenu, type FavoriteEntry } from './components/UserMenu';
 import { FavoritesButton } from './components/FavoritesButton';
 import { ShortlistTray } from './components/ShortlistTray';
-import { type LayerId, type ColorblindType, getLayerById, getColorblindMode, setColorblindMode, rescaleLayerToData, clearRescaleCache, TIME_SERIES_LAYERS } from './utils/colorScales';
+import { type LayerId, type ColorblindType, layerInCountry, layerForCountry, DEFAULT_LAYER_BY_COUNTRY, getLayerById, getColorblindMode, setColorblindMode, rescaleLayerToData, clearRescaleCache, TIME_SERIES_LAYERS } from './utils/colorScales';
 import { readInitialUrlState, useSyncUrlState, buildViewportShareUrl, buildShortlistShareUrl, type UrlViewport, type UrlDraw } from './hooks/useUrlState';
 import type { NeighborhoodProperties } from './utils/metrics';
 import { computeMetroAverages, timeSeriesYearProp, getAvailableYears } from './utils/metrics';
@@ -431,6 +431,17 @@ const App: React.FC = () => {
   const { selected, select, deselect, pinned, pin, unpin, clearPinned, refreshPinned } = useSelectedNeighborhood();
   const [activeLayer, setActiveLayerRaw] = useState<LayerId>(initialUrl.layer ?? 'quality_index');
   const setActiveLayer = useCallback((layer: LayerId) => { trackEvent('change-layer', { layer }); setActiveLayerRaw(layer); }, []);
+  // The country on the map, or null when both are (the national view, or a mixed
+  // selection). Sweden publishes a different set of metrics, so a one-country view whose
+  // layer that country has no data for opens on its default layer instead of a blank map.
+  const viewCountry = useMemo(() => {
+    if (cityFilter === 'all') return null;
+    const countries = new Set(displayed.map(regionCountry));
+    return countries.size === 1 ? [...countries][0] : null;
+  }, [cityFilter, displayed]);
+  useEffect(() => {
+    if (viewCountry && !layerInCountry(activeLayer, viewCountry)) setActiveLayerRaw(DEFAULT_LAYER_BY_COUNTRY[viewCountry]);
+  }, [viewCountry, activeLayer]);
   const { gridData: rawGridData, loading: gridLoading, error: gridError } = useGridData(activeLayer, cityFilter, !multiRegion);
   // Clip grid cells to the loaded region so a region-scoped view (e.g. Helsinki
   // Metro) doesn't leak grid cells from other regions (e.g. Turku, Tampere).
@@ -908,7 +919,7 @@ const App: React.FC = () => {
 
   const prevEffectiveLayerRef = useRef<ReturnType<typeof getLayerById> | null>(null);
   const effectiveLayer = useMemo(() => {
-    const base = getLayerById(activeLayer);
+    const base = layerForCountry(getLayerById(activeLayer), viewCountry);
     // PO-2: scrub the choropleth to a single year's value while keeping the
     // metric's fixed color scale (so the animation shows change, not a rescale).
     if (timeYear != null && timeHistoryProp) {
@@ -931,7 +942,7 @@ const App: React.FC = () => {
   // effective layer must recompute when the mode changes — otherwise the choropleth
   // keeps the old palette until a reload (the cache is cleared in setColorblindMode).
   // eslint-disable-next-line react-hooks/exhaustive-deps -- qualityVersion signals in-place data mutation for quality_index layer
-  }, [activeLayer, comparisonScope, cityFilter, filteredData, qualityVersion, timeYear, timeHistoryProp, colorblind]);
+  }, [activeLayer, comparisonScope, cityFilter, filteredData, qualityVersion, timeYear, timeHistoryProp, colorblind, viewCountry]);
 
   // CF-2: effective config for the split view's SECONDARY (right) pane — same region
   // rescale + colorblind palette as effectiveLayer, so split mode no longer renders a
@@ -2104,11 +2115,12 @@ const App: React.FC = () => {
             onChange={handleScopeChange}
             disabled={false}
             multi={multiRegion}
+            country={viewCountry}
           />
         </div>
       </>
     )
-  ), [comparisonScope, cityFilter, multiRegion, handleScopeChange, handleCityChange, displayed, handleAddRegion, lang]);
+  ), [comparisonScope, cityFilter, multiRegion, handleScopeChange, handleCityChange, displayed, handleAddRegion, lang, viewCountry]);
   // Mobile-only planning overlay controls, folded into the Layers sheet. On desktop
   // the same PlanningControls render as a standalone floating panel below (see the
   // `hidden md:block` block near the LayerSelector); LayerSelector renders this slot
@@ -3029,6 +3041,7 @@ const App: React.FC = () => {
             onChange={handleScopeChange}
             disabled={false}
             multi={multiRegion}
+            country={viewCountry}
           />
           {comparisonScope === 'region' && (
             <div className="px-2.5 py-1 rounded-lg bg-amber-500/90 text-white text-[10px] font-semibold backdrop-blur-sm">
@@ -3096,6 +3109,7 @@ const App: React.FC = () => {
           // reach the bottom-right Layers FAB.
           hidden={!!selected || !!peek || promptAtBottom || splitMode}
           areaOpen={!!selected}
+          country={viewCountry}
         />
       )}
 

@@ -83,5 +83,27 @@
     "radon": 2023,
     "health_index": 2023,
     "flood_risk_pct": 2024
+  },
+  "countries": {
+    "se": {
+      "vintages": {
+        "he_vakiy": 2025,
+        "population_density": 2025,
+        "elderly_ratio_pct": 2025,
+        "gender_ratio": 2025,
+        "foreign_background_pct": 2025,
+        "avg_household_size": 2025,
+        "families_with_children_pct": 2025,
+        "single_parent_hh_pct": 2025,
+        "ownership_rate": 2025,
+        "rental_rate": 2025,
+        "detached_house_share": 2025,
+        "economic_standard_median": 2024,
+        "low_economic_standard_pct": 2024,
+        "employment_rate": 2024,
+        "unemployment_rate": 2024,
+        "higher_education_rate": 2025
+      }
+    }
   }
 }

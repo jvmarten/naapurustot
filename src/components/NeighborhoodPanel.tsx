@@ -31,6 +31,7 @@ import { generateScoreCard } from '../utils/scoreCard';
 import { useNotes } from '../hooks/useNotes';
 import { FitForYouBadge } from './FitForYouBadge';
 import type { WizardAnswers } from '../hooks/useWizardProfile';
+import { countryOfId, type CountryId } from '../utils/areaId';
 
 /** QW-5: per-language profile-page path so EN/SV users reach the localized URL
  *  (/en/area/, /sv/omrade/) instead of the Finnish /alue/ one. Shared by the panel's
@@ -120,6 +121,10 @@ interface PanelProps {
  *  active, else null so StatRow falls back to the "vs metro/region" default. */
 const BaselineLabelContext = React.createContext<string | null>(null);
 
+/** The open area's country: StatRow's source, definition note and explanation are that
+ *  country's — a Swedish area's unemployment is SCB's figure, not Paavo's. */
+const AreaCountryContext = React.createContext<CountryId>('fi');
+
 /** The per-row delta next to each value ("+11,717.0 vs. metro"). Off: at the panel's
  *  width it crowds the number it annotates and reads as clutter. Every StatRow still
  *  computes and passes `diff`/`diffClass`, so flipping this back to `true` restores
@@ -145,8 +150,12 @@ const StatRow: React.FC<{
   useI18nVersion();
   // CF-5: "vs <reference>" when a custom reference baseline is active, else "vs metro".
   const baselineLabel = React.useContext(BaselineLabelContext);
-  const source = property ? getMetricSource(property) : undefined;
-  const hasExplanation = !!property && METRIC_EXPLANATIONS.has(property);
+  const country = React.useContext(AreaCountryContext);
+  const source = property ? getMetricSource(property, country) : undefined;
+  // The plain-language explanations describe Finland's definitions. For a Swedish area
+  // only a Sweden-only metric's applies; a shared key's Swedish definition is its note.
+  const hasExplanation = !!property && METRIC_EXPLANATIONS.has(property)
+    && (country === 'fi' || !getMetricSource(property, 'fi'));
   // PO-2: surface regression/derived estimates honestly rather than giving them
   // the same visual weight as a direct measurement.
   const isEstimate = !!source?.isProxy;
@@ -957,7 +966,8 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
   // "Fit for you": a match score for this area vs the saved priority profile (or a
   // CTA to set one). Hidden for the all-Finland region aggregates, where a per-area
   // fit is meaningless, and only when an open-Finder handler is wired in.
-  const fitBadge = (!d._isMetroArea && onOpenWizard)
+  // Fit scores against Finland's national ranges and metrics, so not for a Swedish area.
+  const fitBadge = (!d._isMetroArea && onOpenWizard && countryOfId(d.pno) === 'fi')
     ? <FitForYouBadge data={d} profile={wizardProfile} onSetPriorities={onOpenWizard} />
     : null;
   // M5: honor "Reduce Motion" on the two most frequent mobile interactions (sheet
@@ -1433,6 +1443,20 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
     return list;
   }, [neighborPnos, allFeatures]);
 
+  // Sweden: SCB publishes a different set of metrics, so a Swedish area gets its own
+  // rows (one per layer Sweden has, formatted by that layer) in place of the Paavo-shaped
+  // breakdowns, which would otherwise render as rows of dashes or measured-looking zeros.
+  const isSe = countryOfId(d.pno) === 'se';
+  const seRows = (ids: LayerId[]) => (
+    <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
+      {ids.map((id) => {
+        const layer = getLayerById(id);
+        const v = toNum((d as unknown as Record<string, unknown>)[layer.property]);
+        return <StatRow key={id} label={t(layer.labelKey)} value={v == null ? '—' : layer.format(v)} property={layer.property} />;
+      })}
+    </div>
+  );
+
   // PO-3: Shared section content — used by both desktop and mobile
   const sectionOverview = (
     <>
@@ -1457,8 +1481,9 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
       {/* CF-8: Quality Index auditability — factor coverage for this area */}
       {d.quality_index != null && <QualityCoverageSection props={d} scope={qualityScope} qualityWeights={qualityWeights} />}
 
-      {/* CF-2: auto-composed plain-language strengths & weaknesses from real percentiles */}
-      {allFeatures && allFeatures.length > 1 && (
+      {/* CF-2: auto-composed plain-language strengths & weaknesses from real percentiles.
+          Finland only: its percentiles are Finland's national ladders. */}
+      {!isSe && allFeatures && allFeatures.length > 1 && (
         <AreaSummarySection props={d} allFeatures={allFeatures} scope={qualityScope} region={scopeRegionName ?? regionName} isCustomWeights={isCustomWeights} />
       )}
 
@@ -1475,6 +1500,14 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
         />
       )}
 
+      {isSe && (
+        <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
+          <StatRow label={t('panel.population')} value={formatNumber(d.he_vakiy)} property="he_vakiy" />
+          {seRows(['economic_standard', 'unemployment', 'foreign_background'])}
+        </div>
+      )}
+
+      {!isSe && <>
       {/* Key stats */}
       <div>
         <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
@@ -1556,6 +1589,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
 
       {/* CF-4: Radar chart */}
       <RadarChart data={d} metroAverages={avg} />
+      </>}
 
       {/* QW-1: distribution + percentile of the active layer's metric across the loaded scope */}
       {activeLayer && allFeatures && allFeatures.length > 1 && (
@@ -1613,7 +1647,21 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
     </>
   );
 
-  const sectionStats = (
+  const sectionStatsSe = (
+    <>
+      <CollapsibleSection title={t('layers.economy')} defaultOpen>
+        {seRows(['economic_standard', 'low_economic_standard', 'unemployment', 'employment_rate', 'education'])}
+      </CollapsibleSection>
+      <CollapsibleSection title={t('panel.housing')} defaultOpen>
+        {seRows(['ownership', 'rental', 'detached_houses', 'avg_household_size'])}
+      </CollapsibleSection>
+      <CollapsibleSection title={t('layers.demographics')} defaultOpen>
+        {seRows(['population_density', 'foreign_background', 'elderly_ratio', 'gender_ratio', 'families_with_children', 'single_parent_hh'])}
+      </CollapsibleSection>
+    </>
+  );
+
+  const sectionStats = isSe ? sectionStatsSe : (
     <>
       {/* Housing section — PO-2: collapsible, default open */}
       <CollapsibleSection title={t('panel.housing')} defaultOpen>
@@ -1937,7 +1985,10 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
     </>
   );
 
-  const sectionTrends = (
+  const sectionTrends = isSe ? (
+    // DeSO 2025 statistics start at 2024 and are not back-cast to older years.
+    <p className="text-xs text-surface-500 dark:text-surface-400">{t('panel.se_no_trends')}</p>
+  ) : (
     <TrendSection
       incomeData={incomeHistory}
       populationData={populationHistory}
@@ -2183,7 +2234,8 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
       </p>
     </div>
   );
-  const profileLink = !d._isMetroArea ? (
+  // Swedish areas have no prerendered profile pages yet.
+  const profileLink = !d._isMetroArea && !isSe ? (
     <a
       href={profileHref(d.pno, d.nimi)}
       onClick={(e) => {
@@ -2215,6 +2267,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
   );
 
   return (
+    <AreaCountryContext.Provider value={countryOfId(d.pno)}>
     <BaselineLabelContext.Provider value={vsLabel}>
     <>
       {/* Desktop: side panel — role=complementary (NOT dialog): it is non-modal and
@@ -2518,6 +2571,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
       )}
     </>
     </BaselineLabelContext.Provider>
+    </AreaCountryContext.Provider>
   );
 });
 

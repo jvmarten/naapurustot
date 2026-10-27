@@ -51,8 +51,14 @@ export const DataSourcesPage: React.FC<{ lang: Lang }> = ({ lang }) => {
 
   // Distinct publishers actually referenced by the shown layers.
   const usedPublishers = Array.from(
-    new Set(LAYERS.map((l) => getMetricSource(l.property)?.publisher).filter(Boolean) as string[]),
+    new Set(LAYERS.flatMap((l) => [getMetricSource(l.property)?.publisher, getMetricSource(l.property, 'se')?.publisher])
+      .filter(Boolean) as string[]),
   ).map((id) => ({ id, ...DATA_SOURCE_PUBLISHERS[id] }));
+  // Sweden's layers, each with SCB's own source row (data_sources.json countries.se).
+  const seRows = LAYERS.flatMap((layer) => {
+    const s = getMetricSource(layer.property, 'se');
+    return s ? [{ layer, s }] : [];
+  });
 
   // PO-3: optional recency sort. null keeps the original LAYERS order; 'newest'/'oldest'
   // orders by the freshest year in each layer's vintage (yearless rows sort last).
@@ -255,6 +261,47 @@ export const DataSourcesPage: React.FC<{ lang: Lang }> = ({ lang }) => {
                       ) : (
                         <span className="text-surface-500 dark:text-surface-500">{t('sources.type_measured')}</span>
                       )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <h2 className="mt-10 mb-3 text-lg font-semibold text-surface-900 dark:text-white">
+          {t('sources.se_heading')}
+        </h2>
+        <p className="mb-3 text-sm text-surface-600 dark:text-surface-400">{t('sources.se_intro')}</p>
+        <div className="overflow-x-auto rounded-xl border border-surface-200 dark:border-surface-800">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="bg-surface-100 dark:bg-surface-900 text-left text-xs uppercase tracking-wider text-surface-500 dark:text-surface-400">
+                <th className="px-3 py-2 font-semibold">{t('sources.col_layer')}</th>
+                <th className="px-3 py-2 font-semibold">{t('sources.col_source')}</th>
+                <th className="px-3 py-2 font-semibold">{t('sources.col_license')}</th>
+                <th className="px-3 py-2 font-semibold">{t('sources.col_year')}</th>
+                <th className="px-3 py-2 font-semibold">{t('sources.col_coverage')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {seRows.map(({ layer, s }) => {
+                const cov = getCoveragePct(layer.property, 'se');
+                return (
+                  <tr key={layer.id} className="border-t border-surface-100 dark:border-surface-800/70 align-top">
+                    <td className="px-3 py-2 text-surface-800 dark:text-surface-200">{t(layer.labelKey)}</td>
+                    <td className="px-3 py-2">
+                      <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-brand-600 dark:text-brand-400 hover:underline">
+                        {s.source}
+                      </a>
+                      {s.note && (
+                        <span className="mt-0.5 block text-[11px] leading-snug text-surface-500 dark:text-surface-400">{t(s.note)}</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-surface-600 dark:text-surface-400 whitespace-nowrap">{s.license}</td>
+                    <td className="px-3 py-2 text-surface-600 dark:text-surface-400 whitespace-nowrap">{s.year}</td>
+                    <td className="px-3 py-2 whitespace-nowrap text-surface-600 dark:text-surface-400">
+                      {cov != null ? t('sources.coverage_value').replace('{pct}', formatCoveragePct(cov)) : '—'}
                     </td>
                   </tr>
                 );

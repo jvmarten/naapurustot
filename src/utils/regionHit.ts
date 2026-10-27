@@ -1,7 +1,7 @@
 /**
  * Seutukunta (sub-region) outlines at runtime, and "which region is this point in?".
  *
- * The outline file is the same pre-baked `seutukunnat.topojson` the map draws its faint
+ * The outline file is the same pre-baked `region_outlines.topojson` the map draws its faint
  * Finland-wide boundary line from. It is loaded once (module cache, shared by the main
  * map and every caller here) and kept around as a parsed FeatureCollection so a tap on
  * the map can be resolved to a region synchronously — no extra hit-test layer, no async
@@ -11,7 +11,7 @@
 import type { FeatureCollection, Position } from 'geojson';
 import { feature as topoFeature } from 'topojson-client';
 import type { Topology } from 'topojson-specification';
-import seutukunnatUrl from '../data/seutukunnat.topojson?url';
+import seutukunnatUrl from '../data/region_outlines.topojson?url';
 
 let outlinesPromise: Promise<FeatureCollection | null> | null = null;
 let outlines: FeatureCollection | null = null;

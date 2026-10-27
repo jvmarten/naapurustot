@@ -17,6 +17,7 @@ import type { NeighborhoodProperties, TrendDataPoint } from './metrics';
 // erased, so they don't need one). The app's bundler resolution accepts .ts too.
 import { computeMetroAverages, computeChangeMetrics, parseTrendSeries } from './metrics.ts';
 import { REGIONS } from './regions.ts';
+import { countryOfId } from './areaId.ts';
 
 /**
  * Aggregate trend history series across neighborhoods for a metro area.
@@ -189,5 +190,8 @@ export function buildRegionAggregates(allFeatures: Feature[]): RegionAggregatesD
     regions[order[i]] = synthetic[i].properties as RegionAggregateRecord;
   }
 
-  return { national: computeMetroAverages(allFeatures), regions };
+  // "National" means Finland: Swedish areas have their own regions here, but averaging
+  // them into Finland's figures would move every "vs. whole country" comparison.
+  const finnish = allFeatures.filter((f) => countryOfId((f.properties as NeighborhoodProperties)?.pno) === 'fi');
+  return { national: computeMetroAverages(finnish), regions };
 }

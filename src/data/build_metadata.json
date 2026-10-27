@@ -1,6 +1,6 @@
 {
-  "generated": "2026-10-19T11:04:38.368Z",
-  "source_hash": "0410879182c73428",
+  "generated": "2026-10-27T12:30:15.399Z",
+  "source_hash": "ed3cef9afb9be2a8",
   "rows_total": 3018,
   "metrics": {
     "active_plan_count": {
@@ -658,6 +658,141 @@
       "is_proxy": false,
       "row_count": 2937,
       "coverage_pct": 97.3
+    }
+  },
+  "countries": {
+    "se": {
+      "rows_total": 6160,
+      "metrics": {
+        "avg_household_size": {
+          "source": "SCB (Antal hushåll efter hushållstyp, DeSO 2025)",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": false,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
+        "detached_house_share": {
+          "source": "SCB (Antal personer efter hustyp, DeSO 2025)",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": false,
+          "row_count": 5818,
+          "coverage_pct": 94.4
+        },
+        "economic_standard_median": {
+          "source": "SCB (Ekonomisk standard, DeSO 2025)",
+          "vintage": 2024,
+          "granularity": "deso",
+          "is_proxy": false,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
+        "elderly_ratio_pct": {
+          "source": "SCB (Folkmängden per region, DeSO 2025)",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": false,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
+        "employment_rate": {
+          "source": "SCB (Arbetsmarknadsstatus, DeSO 2025)",
+          "vintage": 2024,
+          "granularity": "deso",
+          "is_proxy": false,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
+        "families_with_children_pct": {
+          "source": "SCB (Antal hushåll efter hushållstyp, DeSO 2025)",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": false,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
+        "foreign_background_pct": {
+          "source": "SCB (Folkmängden efter utländsk/svensk bakgrund, DeSO 2025)",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": false,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
+        "gender_ratio": {
+          "source": "SCB (Folkmängden per region, DeSO 2025)",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": false,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
+        "he_vakiy": {
+          "source": "SCB (Folkmängden per region, DeSO 2025)",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": false,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
+        "higher_education_rate": {
+          "source": "SCB (Befolkning 25–65 år efter utbildningsnivå, DeSO 2025)",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": false,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
+        "low_economic_standard_pct": {
+          "source": "SCB (Ekonomisk standard, DeSO 2025)",
+          "vintage": 2024,
+          "granularity": "deso",
+          "is_proxy": false,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
+        "ownership_rate": {
+          "source": "SCB (Antal personer efter upplåtelseform, DeSO 2025)",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": false,
+          "row_count": 4876,
+          "coverage_pct": 79.2
+        },
+        "population_density": {
+          "source": "SCB (Folkmängd + land- och vattenareal, DeSO 2025)",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": false,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
+        "rental_rate": {
+          "source": "SCB (Antal personer efter upplåtelseform, DeSO 2025)",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": false,
+          "row_count": 6098,
+          "coverage_pct": 99
+        },
+        "single_parent_hh_pct": {
+          "source": "SCB (Antal hushåll efter hushållstyp, DeSO 2025)",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": false,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
+        "unemployment_rate": {
+          "source": "SCB (Arbetsmarknadsstatus, DeSO 2025)",
+          "vintage": 2024,
+          "granularity": "deso",
+          "is_proxy": false,
+          "row_count": 6160,
+          "coverage_pct": 100
+        }
+      }
     }
   }
 }
