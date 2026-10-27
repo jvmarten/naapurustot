@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { t, useI18nVersion } from '../utils/i18n';
 import { getNationalRanges } from '../utils/nationalRanges';
+import { RADAR_METRICS } from '../utils/rangeKeys';
 
 interface RadarChartProps {
   data: NeighborhoodProperties;
@@ -15,7 +16,7 @@ interface AxisSpec {
   extractAvg: (avg: Record<string, number>) => number;
   /** national_ranges.json properties this axis normalizes against; a multi-metric
    *  (composite) axis averages its constituents' bounds. */
-  metrics: string[];
+  metrics: readonly string[];
   inverted: boolean;
 }
 
@@ -29,28 +30,28 @@ const AXIS_SPECS: AxisSpec[] = [
     key: 'radar.income',
     extract: (p) => p.hr_mtu,
     extractAvg: (a) => a.hr_mtu,
-    metrics: ['hr_mtu'],
+    metrics: RADAR_METRICS['radar.income'],
     inverted: false,
   },
   {
     key: 'radar.safety',
     extract: (p) => p.crime_index,
     extractAvg: (a) => a.crime_index,
-    metrics: ['crime_index'],
+    metrics: RADAR_METRICS['radar.safety'],
     inverted: true,
   },
   {
     key: 'radar.transit',
     extract: (p) => p.transit_stop_density,
     extractAvg: (a) => a.transit_stop_density,
-    metrics: ['transit_stop_density'],
+    metrics: RADAR_METRICS['radar.transit'],
     inverted: false,
   },
   {
     key: 'radar.education',
     extract: (p) => p.higher_education_rate,
     extractAvg: (a) => a.higher_education_rate,
-    metrics: ['higher_education_rate'],
+    metrics: RADAR_METRICS['radar.education'],
     inverted: false,
   },
   {
@@ -64,14 +65,14 @@ const AXIS_SPECS: AxisSpec[] = [
     },
     extractAvg: (a) =>
       ((a.grocery_density ?? 0) + (a.healthcare_density ?? 0) + (a.school_density ?? 0)) / 3,
-    metrics: ['grocery_density', 'healthcare_density', 'school_density'],
+    metrics: RADAR_METRICS['radar.services'],
     inverted: false,
   },
   {
     key: 'radar.housing',
     extract: (p) => p.property_price_sqm,
     extractAvg: (a) => a.property_price_sqm,
-    metrics: ['property_price_sqm'],
+    metrics: RADAR_METRICS['radar.housing'],
     inverted: true,
   },
 ];
@@ -82,7 +83,7 @@ const AXIS_SPECS: AxisSpec[] = [
 // A composite axis averages its constituents' bounds. normalize() treats a
 // degenerate (missing-metric) 0-width range as mid-scale, so an absent range key
 // degrades safely rather than corrupting the polygon.
-function axisBounds(metrics: string[]): { min: number; max: number } {
+function axisBounds(metrics: readonly string[]): { min: number; max: number } {
   const ranges = getNationalRanges();
   let minSum = 0;
   let maxSum = 0;

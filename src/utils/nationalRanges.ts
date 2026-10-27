@@ -12,7 +12,8 @@
  * single extreme postal code can't compress the rest of the country.
  */
 import rangesData from '../data/national_ranges.json';
-import type { MinMax } from './qualityIndex';
+import type { MinMax, QualityCalibration } from './qualityIndex';
+import type { CountryId } from './areaId';
 // CF-2: the 101-point national percentile ladders are a SEPARATE ?url asset (URL string
 // only — the JSON stays out of every JS chunk, exactly like adjacency.json). Do NOT static-
 // import it the way national_ranges.json is imported above, or it charges the full payload.
@@ -24,8 +25,14 @@ interface RawRange {
   avg: number;
 }
 
-// Build once and memoize — the artifact is static for the lifetime of the bundle.
-let cached: Map<string, MinMax> | null = null;
+// Build once per country and memoize — the artifact is static for the lifetime of the bundle.
+const cached: Partial<Record<CountryId, Map<string, MinMax>>> = {};
+
+type RangesFile = {
+  ranges: Record<string, RawRange>;
+  countries?: { se?: { ranges: Record<string, RawRange> } };
+  calibration?: QualityCalibration;
+};
 
 /**
  * National per-metric ranges keyed by property name. Each entry is the
@@ -34,16 +41,32 @@ let cached: Map<string, MinMax> | null = null;
  * true national mean. (National-scope scoring imputes a neutral 50 for missing
  * values rather than this mean — see `neutralizeMissing` in getFactorScore.)
  */
-export function getNationalRanges(): Map<string, MinMax> {
-  if (cached) return cached;
+export function getNationalRanges(country: CountryId = 'fi'): Map<string, MinMax> {
+  const hit = cached[country];
+  if (hit) return hit;
   const map = new Map<string, MinMax>();
-  const ranges = (rangesData as { ranges: Record<string, RawRange> }).ranges;
+  const file = rangesData as RangesFile;
+  // Sweden's carry only the quality index's properties (scripts/build_national_ranges.mjs).
+  const ranges = country === 'se' ? file.countries?.se?.ranges ?? {} : file.ranges;
   for (const key of Object.keys(ranges)) {
     const r = ranges[key];
     map.set(key, { min: r.min, max: r.max, avg: r.avg });
   }
-  cached = map;
+  cached[country] = map;
   return map;
+}
+
+type CountryRangeSet = { fi: Map<string, MinMax>; se: Map<string, MinMax>; calibration?: QualityCalibration };
+let countryRanges: CountryRangeSet | null = null;
+
+/** Both countries' ranges, for computeQualityIndices: each area is scored against its own
+ *  country, and Sweden's composite is put on Finland's scale by quantile. */
+export function getCountryRanges(): CountryRangeSet {
+  return countryRanges ??= {
+    fi: getNationalRanges('fi'),
+    se: getNationalRanges('se'),
+    calibration: (rangesData as RangesFile).calibration,
+  };
 }
 
 /** One metric's national quantile ladder: 101 ascending breakpoints + the finite count. */

@@ -182,5 +182,28 @@ pipeline handles the whole country as cheaply as one region. Differences from th
   in pages but not in rasterizing time: 58,936 files (guard raised to 66,000), kept under
   the ~65,000 that once broke the Pages sync. The region link in the breadcrumb opens the
   region on the map, because Swedish regions have no hub pages yet.
-- **Not yet:** Swedish region hubs and ranking pages, OSM service densities, a Swedish
-  quality index, and Swedish history before 2024 (Q5).
+- **Not yet:** Swedish region hubs and ranking pages, and Swedish history before 2024 (Q5).
+
+## 8. Quality index for Sweden (2026-10-27)
+
+The default factors, Swedish source per factor (all per DeSO unless noted):
+
+| Factor | Sweden | Same method as Finland? |
+|---|---|---|
+| Employment, education | SCB | SCB's definitions (scored within Sweden) |
+| Income | SCB ekonomisk standard, SEK (`propertiesSe`) | Different concept, scored within Sweden |
+| Transit, healthcare, grocery, cycling | OpenStreetMap extract (`fetch_se_osm.py`) | Same tags. Swedish stops look under-mapped (60k vs Finland's 95k OSM stops) |
+| Schools | Skolverket register (`fetch_se_schools.py`) | Register, like Opintopolku |
+| Daycare | — | Preschools are not in Skolverket's register |
+| Air quality | FMI SILAM (`fetch_se_air_quality.py`) | Same model and index as Finland's SILAM fill-in |
+| Walkability | Six densities' percentiles within Sweden | Same formula |
+| Water proximity | OSM water + SCB 1 km grid (`fetch_se_water_proximity.py`) | Same method |
+| Tree canopy | — | Same EEA service as Finland; it answered 502 on 2026-10-27 |
+| Safety (violent crime) | — | BRÅ's statistics database (`statistik.bra.se`) is blocked from the build container |
+| Traffic accidents | — | Trafikanalys publishes municipal injury counts only; Finland's are point-level |
+| Noise | — | Not attempted yet |
+
+Scoring: each country against its own p2/p98 ranges, missing factors dropped, then the
+Swedish composite mapped onto Finland's by quantile under the default weights (CLAUDE.md,
+Sweden note 6). Because the factors Sweden lacks are the rural-favouring ones, Swedish
+region averages lean urban until they arrive.

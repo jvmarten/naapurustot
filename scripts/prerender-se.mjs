@@ -46,6 +46,11 @@ const SECTIONS_SE = [
     { prop: 'grocery_density', label: 'layer.grocery_access', fmt: 'poi', schema: 'Grocery stores per km² (OpenStreetMap)' },
     { prop: 'restaurant_density', label: 'layer.restaurant_density', fmt: 'poi', schema: 'Restaurants and cafés per km² (OpenStreetMap)' },
     { prop: 'cycling_density', label: 'layer.cycling_infra', fmt: 'poi', schema: 'Cycleway segments per km² (OpenStreetMap)' },
+    { prop: 'walkability_index', label: 'layer.walkability', fmt: 'int', schema: 'Walkability (0–100, standing among Swedish areas)' },
+  ] },
+  { title: { fi: 'Ympäristö', en: 'Environment', sv: 'Miljö' }, metrics: [
+    { prop: 'air_quality_index', label: 'layer.air_quality', fmt: 'dec1', schema: 'Air quality index (FMI SILAM; higher is worse)' },
+    { prop: 'water_proximity_m', label: 'layer.water_proximity', fmt: 'm', schema: 'Residents\' mean distance to water (m)' },
   ] },
 ];
 
@@ -120,6 +125,8 @@ export function generateSePage(feature, lang, ctx) {
       // block, so the decimals follow the magnitude rather than rounding a real 0.004 to 0.
       case 'poi': return `${num(v, v === 0 || v >= 10 ? 0 : v >= 1 ? 1 : v >= 0.1 ? 2 : 3)} /km²`;
       case 'dec2': return num(v, 2);
+      case 'dec1': return num(v, 1);
+      case 'm': return `${num(v, 0)} m`;
       default: return String(v);
     }
   };

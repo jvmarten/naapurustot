@@ -108,7 +108,10 @@
         "restaurant_density": 2026,
         "cycling_density": 2026,
         "transit_stop_density": 2026,
-        "school_density": 2026
+        "school_density": 2026,
+        "air_quality_index": 2026,
+        "walkability_index": 2026,
+        "water_proximity_m": 2026
       }
     }
   }

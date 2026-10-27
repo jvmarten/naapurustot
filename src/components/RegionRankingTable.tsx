@@ -3,7 +3,7 @@ import { type LayerId, type LayerConfig, getLayerById, getColorForValue } from '
 import { t, useI18nVersion } from '../utils/i18n';
 import { loadAllData } from '../utils/dataLoader';
 import { computeQualityIndices, isCustomWeights, type QualityWeights } from '../utils/qualityIndex';
-import { getNationalRanges } from '../utils/nationalRanges';
+import { getCountryRanges } from '../utils/nationalRanges';
 import { REGIONS } from '../utils/regions';
 import { getCoveragePct, formatCoveragePct } from '../utils/metrics';
 
@@ -78,7 +78,7 @@ export const RegionRankingTable: React.FC<Props> = React.memo(({ activeLayer, la
         // identically here and on the region map. loadAllData is cached, so re-running
         // on a weights change is instant; the shared features are mutated consistently.
         if (qualityWeights && isCustomWeights(qualityWeights)) {
-          computeQualityIndices(feats, qualityWeights, getNationalRanges());
+          computeQualityIndices(feats, qualityWeights, getCountryRanges());
         }
         setFeatures([...feats]);
       })

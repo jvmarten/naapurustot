@@ -10,7 +10,7 @@ import { generateCorrelationCard } from '../utils/scoreCard';
 import { exportCorrelationCsv } from '../utils/export';
 import { loadAllData } from '../utils/dataLoader';
 import { computeQualityIndices, isCustomWeights, type QualityWeights } from '../utils/qualityIndex';
-import { getNationalRanges } from '../utils/nationalRanges';
+import { getCountryRanges } from '../utils/nationalRanges';
 import { buildProfileUrl } from '../utils/profileUrl';
 import { ComparisonScopeToggle, type ComparisonScope } from './ComparisonScopeToggle';
 
@@ -70,7 +70,7 @@ export const CorrelationExplorer: React.FC<Props> = ({ data, onSelect, onClose, 
         // weights). loadAllData is cached, so re-running on a weights change is
         // instant; the new wrapper object forces the scatter to recompute.
         if (qualityWeights && isCustomWeights(qualityWeights)) {
-          computeQualityIndices(fc.features, qualityWeights, getNationalRanges());
+          computeQualityIndices(fc.features, qualityWeights, getCountryRanges());
         }
         setNationalData({ ...fc, features: [...fc.features] });
       })

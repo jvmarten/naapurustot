@@ -936,6 +936,29 @@
           "granularity": "deso",
           "is_proxy": false,
           "note": "note.se_schools"
+        },
+        "air_quality_index": {
+          "source": "FMI SILAM (Eurooppa, PM2.5 + NO2)",
+          "publisher": "fmi",
+          "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": true,
+          "note": "note.se_air_quality"
+        },
+        "walkability_index": {
+          "source": "OpenStreetMap + Skolverket (koostettu)",
+          "publisher": "osm",
+          "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": true,
+          "note": "note.se_walkability"
+        },
+        "water_proximity_m": {
+          "source": "OpenStreetMap (vesistöt) / SCB (befolkning 1 km-rutor 2025)",
+          "publisher": "osm",
+          "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": false
         }
       }
     }

@@ -27,9 +27,10 @@ import { resolve } from 'node:path';
 // CF-2: reuse the app's summary/percentile metric sets so the national ladder set stays
 // in lockstep, and computeQualityIndices to derive the (unpersisted) quality_index ladder.
 // Node v24 strips TS types natively; build_region_aggregates.mjs already imports these .ts.
-import { computeQualityIndices } from '../src/utils/qualityIndex.ts';
+import { computeQualityIndices, QUALITY_FACTORS } from '../src/utils/qualityIndex.ts';
 import { SUMMARY_METRICS } from '../src/utils/areaSummary.ts';
 import { PERCENTILE_METRICS } from '../src/utils/percentileRanks.ts';
+import { FIT_RANGE_KEYS, RADAR_METRICS } from '../src/utils/rangeKeys.ts';
 import { decodeColumnar } from './lib/columnar.mjs';
 
 const rootDir = resolve(import.meta.dirname, '..');
@@ -68,8 +69,11 @@ console.log('Reading region_properties.json...');
 // Finland's ranges only. region_properties.json also carries Sweden's DeSO areas, whose
 // metrics are defined differently (docs/SWEDEN_EXPANSION.md) and must not move the
 // scale every Finnish score is normalized against.
-const props = decodeColumnar(JSON.parse(readFileSync(propertiesPath, 'utf-8')))
-  .filter((p) => /^\d{5}$/.test(String(p.pno)));
+const allProps = decodeColumnar(JSON.parse(readFileSync(propertiesPath, 'utf-8')));
+const props = allProps.filter((p) => /^\d{5}$/.test(String(p.pno)));
+// Sweden's DeSO areas, ranged on their own: the quality index scores each area against
+// its own country (see computeQualityIndices), so these never mix with Finland's.
+const seProps = allProps.filter((p) => /^\d{4}[A-C]\d{4}$/.test(String(p.pno)));
 console.log(`  ${props.length} postal codes`);
 
 // Collect every finite numeric value per property, mirroring collectRange in
@@ -108,18 +112,58 @@ for (const [key, values] of valuesByProp) {
   count++;
 }
 
+// Only the properties the quality index reads: this file is bundled, and the rest of
+// Sweden's metrics have no client-side use for a range.
+const qiProps = new Set(QUALITY_FACTORS.flatMap((f) => [...f.properties, ...(f.propertiesSe ?? [])]));
+const seRanges = {};
+for (const key of [...qiProps].sort()) {
+  const values = [];
+  for (const p of seProps) {
+    const v = p[key];
+    if (typeof v === 'number' && isFinite(v) && !(key === 'economic_standard_median' && v <= 0)) values.push(v);
+  }
+  if (values.length === 0) continue;
+  values.sort((a, b) => a - b);
+  const avg = values.reduce((s, v) => s + v, 0) / values.length;
+  // Four significant figures: the file is bundled, and a normalisation bound needs no more.
+  const sig = (v) => Number(v.toPrecision(4));
+  seRanges[key] = { min: sig(percentile(values, LOWER_PCT)), max: sig(percentile(values, UPPER_PCT)), avg: sig(avg) };
+}
+
+// The bundled file carries only what client code normalizes against: the quality index's
+// factors, the radar axes and the fit scorer. Everything else here had no reader and cost
+// ~3 kB of the map's gzipped budget. The ladders below still use every property.
+const clientProps = new Set([...qiProps, ...FIT_RANGE_KEYS, ...Object.values(RADAR_METRICS).flat()]);
+const shippedRanges = Object.fromEntries(Object.entries(ranges).filter(([k]) => clientProps.has(k)));
+
+// Quantile curves of each country's composite under the default weights, which
+// computeQualityIndices uses to put Sweden's composite on Finland's scale (see
+// QualityCalibration). Computed from uncalibrated scores against the ranges shipped here.
+const CALIBRATION_POINTS = 21;
+const toRangeMap = (raw) => new Map(Object.entries(raw).map(([k, r]) => [k, { min: r.min, max: r.max, avg: r.avg }]));
+const rawComposite = (rows) => {
+  const feats = rows.map((p) => ({ properties: { ...p } }));
+  computeQualityIndices(feats, undefined, { fi: toRangeMap(shippedRanges), se: toRangeMap(seRanges) });
+  const v = feats.map((f) => f.properties.quality_index).filter((x) => typeof x === 'number').sort((a, b) => a - b);
+  return Array.from({ length: CALIBRATION_POINTS }, (_, i) => Math.round(percentile(v, i / (CALIBRATION_POINTS - 1)) * 10) / 10);
+};
+const calibration = { fi: rawComposite(props), se: rawComposite(seProps) };
+
 const artifact = {
   // Document how the bounds were derived so the file is self-explaining.
   method: 'winsorized-minmax',
   lowerPercentile: LOWER_PCT,
   upperPercentile: UPPER_PCT,
   postalCodeCount: props.length,
-  rangeCount: count,
-  ranges,
+  rangeCount: Object.keys(shippedRanges).length,
+  ranges: shippedRanges,
+  countries: { se: { areaCount: seProps.length, ranges: seRanges } },
+  calibration,
 };
 
 writeFileSync(outputPath, JSON.stringify(artifact, null, 2) + '\n');
-console.log(`  → national_ranges.json (${count} properties over ${props.length} postal codes)`);
+console.log(`  → national_ranges.json (${Object.keys(shippedRanges).length} of ${count} properties over ${props.length} postal codes; `
+  + `${Object.keys(seRanges).length} quality-index properties over ${seProps.length} DeSO areas)`);
 
 // CF-2: national percentile LADDERS. national_ranges.json carries only winsorized
 // min/max/avg (for QI normalization); it cannot answer "top X% nationally". This second

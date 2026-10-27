@@ -80,7 +80,7 @@ import { computeMetroAverages, timeSeriesYearProp, getAvailableYears } from './u
 import { t, getLang, setLang, useI18nVersion, getLocaleLoadError, retryLocaleLoad, type Lang } from './utils/i18n';
 import { computeQualityIndices, isCustomWeights, type QualityWeights } from './utils/qualityIndex';
 import { applyQualityScale, getQualityScaleMode, setQualityScaleMode, type QualityScaleMode } from './utils/qualityScale';
-import { getNationalRanges } from './utils/nationalRanges';
+import { getCountryRanges } from './utils/nationalRanges';
 import { buildMetroAreaFeatures, buildMetroAreaFeaturesFromAggregates, clearMetroAreaCache } from './utils/metroAreas';
 import { useAllCitiesUnionPreload } from './hooks/useAllCitiesUnionPreload';
 import { useAllCitiesAggregates } from './hooks/useAllCitiesAggregates';
@@ -1167,7 +1167,7 @@ const App: React.FC = () => {
       // loaded region only.
       const regionScoped = comparisonScope === 'region' && cityFilter !== 'all' && !!filteredData;
       const features = regionScoped ? filteredData!.features : data.features;
-      computeQualityIndices(features, qualityWeights, regionScoped ? null : getNationalRanges());
+      computeQualityIndices(features, qualityWeights, regionScoped ? null : getCountryRanges());
     }
     // Only quality_index changed (computeQualityIndices mutates nothing else),
     // so recompute just the metro-area quality_index averages, not all ~46.
@@ -1348,7 +1348,7 @@ const App: React.FC = () => {
         if (data) {
           const regionScoped = comparisonScopeRef.current === 'region' && cityFilterRef.current !== 'all' && !!filteredDataRef.current;
           const features = regionScoped ? filteredDataRef.current!.features : data.features;
-          computeQualityIndices(features, newWeights, regionScoped ? null : getNationalRanges());
+          computeQualityIndices(features, newWeights, regionScoped ? null : getCountryRanges());
           clearMetroAreaCache({ qualityIndexOnly: true });
           clearRescaleCache();
           setQualityVersion((v) => v + 1);
@@ -1385,7 +1385,7 @@ const App: React.FC = () => {
     if (!data) return;
     const regionScoped = comparisonScopeRef.current === 'region' && cityFilterRef.current !== 'all' && !!filteredDataRef.current;
     const features = regionScoped ? filteredDataRef.current!.features : data.features;
-    computeQualityIndices(features, qualityWeights, regionScoped ? null : getNationalRanges());
+    computeQualityIndices(features, qualityWeights, regionScoped ? null : getCountryRanges());
     clearMetroAreaCache({ qualityIndexOnly: true });
     clearRescaleCache();
     setQualityVersion((v) => v + 1);
