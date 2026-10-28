@@ -99,6 +99,13 @@ TABLES: dict[str, tuple[str, dict[str, list[str]]]] = {
         "ArealTyp": ["01", "05"],  # land, total
         "ContentsCode": ["000007DY"],  # km²
     }),
+    # Bostadsbebyggelsens ålder efter region (avg_construction_year, by decade)
+    "building_age": ("TAB6540", {
+        "ByggAr": ["-1920", "1921-1930", "1931-1940", "1941-1950", "1951-1960", "1961-1970",
+                   "1971-1980", "1981-1990", "1991-2000", "2001-2010", "2011-2020", "2021-2030",
+                   "Okänt", "Totalt"],
+        "ContentsCode": ["0000080B"],  # antal
+    }),
 }
 
 
@@ -193,8 +200,19 @@ def _prod(xs):
 
 
 def main() -> None:
+    """All tables, or with `--only key,key` just those, merged into the existing file."""
+    only = None
+    if len(sys.argv) == 3 and sys.argv[1] == "--only":
+        only = sys.argv[2].split(",")
+        unknown = [k for k in only if k not in TABLES]
+        if unknown:
+            raise SystemExit(f"no such table key: {unknown}")
     result: dict = {"source": "SCB Statistikdatabasen (PxWeb API v2), CC0", "tables": {}}
+    if only:
+        result = json.loads(OUT.read_text())
     for key, (table, dims) in TABLES.items():
+        if only and key not in only:
+            continue
         year, data = fetch_table(table, dims)
         result["tables"][key] = {"table": table, "year": int(year), "data": data}
     OUT.write_text(json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n")

@@ -10,6 +10,7 @@ one national file cannot come back partial the way 69 bbox queries can):
   restaurant   nwr amenity=restaurant|cafe|bar|fast_food
   cycling      way highway=cycleway, cycleway=lane|track, bicycle=designated
   transit      node highway=bus_stop, railway=station|halt|tram_stop
+  ev           node/way amenity=charging_station, one per coordinate (fetch_ev_charging.py)
 
 A way is placed by the centre of its bounding box and a multipolygon relation by the
 centre of its area's bounding box, which is what Overpass's `out center` returns. The
@@ -68,6 +69,10 @@ def is_transit(tags) -> bool:
     return tags.get("highway") == "bus_stop" or tags.get("railway") in TRANSIT_RAILWAY
 
 
+def is_ev(tags) -> bool:
+    return tags.get("amenity") == "charging_station"
+
+
 def bbox_centre(locations) -> tuple[float, float] | None:
     xs, ys = [], []
     for loc in locations:
@@ -91,6 +96,8 @@ def collect(pbf: str) -> dict[str, list[tuple[float, float]]]:
             cats = poi_categories(tags)
             if is_transit(tags):
                 cats.append("transit")
+            if is_ev(tags):
+                cats.append("ev")
             if cats and obj.location.valid():
                 for c in cats:
                     pts[c].append((obj.location.lon, obj.location.lat))
@@ -98,6 +105,8 @@ def collect(pbf: str) -> dict[str, list[tuple[float, float]]]:
             cats = poi_categories(tags)
             if is_cycling(tags):
                 cats.append("cycling")
+            if is_ev(tags):
+                cats.append("ev")
             if cats:
                 c = bbox_centre(n.location for n in obj.nodes)
                 if c:
@@ -134,7 +143,10 @@ def main() -> None:
 
     pts = collect(pbf)
     counts: dict[str, dict[str, int]] = {}
-    for cat in ("healthcare", "grocery", "restaurant", "cycling", "transit"):
+    # Finland's EV query takes nodes and ways and keeps one station per coordinate
+    # (fetch_ev_charging.py); the same rule here, so a station mapped twice counts once.
+    pts["ev"] = list(dict.fromkeys((round(x, 6), round(y, 6)) for x, y in pts.get("ev", [])))
+    for cat in ("healthcare", "grocery", "restaurant", "cycling", "transit", "ev"):
         xy = pts.get(cat, [])
         if not xy:
             raise SystemExit(f"no {cat} elements in the extract — refusing to write all-zero counts")

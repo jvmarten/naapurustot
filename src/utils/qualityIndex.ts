@@ -815,8 +815,8 @@ export function factorProperties(factor: QualityFactor, country: CountryId): (ke
  * Each country's composite under the DEFAULT weights as a quantile curve (equal steps from
  * p0 to p100), built by scripts/build_national_ranges.mjs. A Swedish composite is mapped
  * from Sweden's curve onto Finland's, so the same number means the same standing in
- * either country. Without it the factor mix decides the level: Sweden has no noise,
- * accident or canopy source, factors most Finnish areas score well on, so its raw
+ * either country. Without it the factor mix decides the level: Sweden has no noise or
+ * accident source, factors most Finnish areas score well on, so its raw
  * composite would run lower for reasons that are about the data, not the places.
  */
 export type QualityCalibration = Partial<Record<CountryId, number[]>>;

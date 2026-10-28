@@ -114,7 +114,11 @@
         "water_proximity_m": 2026,
         "violent_crime_rate": "2021–2025",
         "property_crime_rate": 2025,
-        "crime_index": 2025
+        "crime_index": 2025,
+        "single_person_hh_pct": 2025,
+        "avg_construction_year": 2025,
+        "tree_canopy_pct": 2018,
+        "ev_charging_density": 2026
       }
     }
   }

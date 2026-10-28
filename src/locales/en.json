@@ -1439,6 +1439,7 @@
   "note.se_walkability": "Sweden: the mean percentile of the six service densities among Sweden's DeSO areas, i.e. the area's standing within its own country.",
   "note.se_foreign_background": "SCB's definition: born abroad, or both parents born abroad. A different concept from Finland's language-based layers.",
   "note.se_households": "Sweden: households by SCB household type; children are those under 25 living at home. Finland's figure counts children under 18.",
+  "note.se_building_age": "Sweden: SCB's residential buildings by construction decade, averaged at each decade's midpoint.",
   "note.se_tenure": "Sweden: share of residents by tenure (SCB). Owned = ownership or bostadsrätt (co-operative flat), rented = hyresrätt. Tenure follows the building's ownership, not the occupant's. Finland's figure is a share of households.",
   "note.se_detached": "Sweden: share of residents living in småhus (detached, semi-detached and terraced houses) (SCB). Finland's figure is a share of dwellings.",
   "note.se_economic_standard": "Household disposable income per consumption unit, median, kronor per year (SCB, constant prices). Not converted to euros.",

@@ -14,6 +14,7 @@ Inputs (all produced by the fetch scripts in this directory):
   schools_deso.json             fetch_se_schools.py (Skolverket's school register)
   air_quality_deso.json         fetch_se_air_quality.py (FMI SILAM)
   water_proximity_deso.json     fetch_se_water_proximity.py (OSM water + SCB 1 km grid)
+  canopy_deso.json              fetch_se_canopy.py (Copernicus Tree Cover Density 2018)
   crime_kommun.json             fetch_se_crime.py (Brå, per municipality and city district)
   deso_district.json            fetch_se_districts.py (DeSO -> district in the three largest cities)
 
@@ -220,6 +221,40 @@ def add_walkability(features: list[dict]) -> None:
 
 CRIME_KEYS = ["violent_crime_rate", "property_crime_rate", "crime_index"]
 
+# Residential buildings by construction decade (TAB6540) -> the year each decade counts
+# as, Finland's convention (fetch_building_age.DECADE_MIDPOINTS): the open first class at
+# 1900, each decade at its middle, and the current one at the middle of the years it
+# has had so far (2021–2025 for a stock counted on 31 December 2025). Okänt is left out.
+BUILT_DECADES = {
+    "-1920": 1900, "1921-1930": 1925, "1931-1940": 1935, "1941-1950": 1945,
+    "1951-1960": 1955, "1961-1970": 1965, "1971-1980": 1975, "1981-1990": 1985,
+    "1991-2000": 1995, "2001-2010": 2005, "2011-2020": 2015, "2021-2030": 2023,
+}
+
+
+def avg_construction_year(row: dict) -> int | None:
+    """Mean construction year of the DeSO's residential buildings, by decade midpoint."""
+    n = total_year = 0
+    for decade, year in BUILT_DECADES.items():
+        k = row.get(f"{decade}|0000080B")
+        if k:
+            n += k
+            total_year += k * year
+    return round(total_year / n) if n else None
+
+
+def extra_props(hh: dict, built: dict, canopy: dict, osm: dict, pinta_ala, deso: str) -> dict:
+    """Layers added after the first national release, in the order a rebuild writes them
+    (after the crime figures). apply_se_layers.py writes the same into the committed file."""
+    hh_total = hh.get("TOTALT|000007Y1")
+    props = {
+        "single_person_hh_pct": pct(hh.get("ESUB|000007Y1"), hh_total),
+        "avg_construction_year": avg_construction_year(built),
+        "tree_canopy_pct": canopy.get(deso),
+    }
+    props.update(services({"ev": osm["ev"].get(deso, 0)}, "ev", pinta_ala, "ev_charging_density", None))
+    return props
+
 
 def crime_props(crime: dict, district_of: dict[str, str], deso: str) -> dict:
     """Brå's figures for the DeSO's city district in Stockholm, Göteborg and Malmö, else for
@@ -319,6 +354,7 @@ def main() -> None:
     schools = load("schools_deso.json")["counts"]
     air = load("air_quality_deso.json")["values"]
     water = load("water_proximity_deso.json")["values"]
+    canopy = load("canopy_deso.json")["values"]
     crime = load("crime_kommun.json")
     district_of = load("deso_district.json")
 
@@ -425,6 +461,7 @@ def main() -> None:
         props["air_quality_index"] = air.get(deso)
         props["water_proximity_m"] = water.get(deso)
         props.update(crime_props(crime, district_of, deso))
+        props.update(extra_props(hh, t("building_age", deso), canopy, osm, props["pinta_ala"], deso))
         features.append({"type": "Feature", "properties": props, "geometry": {
             "type": geom["type"], "coordinates": round_coords(geom["coordinates"])}})
 

@@ -203,7 +203,7 @@ The default factors, Swedish source per factor (all per DeSO unless noted):
 | Air quality | FMI SILAM (`fetch_se_air_quality.py`) | Same model and index as Finland's SILAM fill-in |
 | Walkability | Six densities' percentiles within Sweden | Same formula |
 | Water proximity | OSM water + SCB 1 km grid (`fetch_se_water_proximity.py`) | Same method |
-| Tree canopy | — | Same EEA service as Finland; it answered 502 on 2026-10-27 |
+| Tree canopy | Copernicus TCD 2018, 10 m, from the CDSE S3 archive (`fetch_se_canopy.py`) | Same product and method; Finland moved to the same reader (`scripts/tcd_cdse.py`) |
 | Safety (violent crime) | Brå, BrB 3 kap., 2021–2025 mean, per municipality and, in Stockholm, Göteborg and Malmö, per city district (`fetch_se_crime.py`) | Same concept and method; Swedish counting rules, so own stops. `is_proxy` |
 | Traffic accidents | — | Trafikanalys publishes municipal injury counts only; Finland's are point-level |
 | Noise | — | Not attempted yet |
@@ -231,5 +231,36 @@ so their violent figure is a 2024–2025 mean.
 
 Scoring: each country against its own p2/p98 ranges, missing factors dropped, then the
 Swedish composite mapped onto Finland's by quantile under the default weights (CLAUDE.md,
-Sweden note 9). Because the factors Sweden still lacks (accidents, noise, canopy) are
+Sweden note 9). Because the factors Sweden still lacks (accidents, noise) are
 rural-favouring ones, Swedish region averages lean urban until they arrive.
+
+## 9. More layers (2026-10-28)
+
+Sweden went from 28 to 32 layers:
+
+| Layer | Source | Notes |
+|---|---|---|
+| Tree canopy | Copernicus HRL Tree Cover Density 2018, 10 m (CLMS VLCC release) | The EEA ImageServer both countries used was retired; `scripts/tcd_cdse.py` finds the tiles in the CDSE catalogue (no login) and reads them from CDSE's S3 (`CDSE_S3_ACCESS_KEY`/`CDSE_S3_SECRET_KEY`), counting every pixel whose centre is inside the area. Finland's postal areas outside the capital region were re-measured from the same tiles, so both countries share one product and Finland's colour stops. Swedish areas are measured inside the shore-clipped polygons. The canopy factor now scores Swedish areas. |
+| EV charging | OpenStreetMap `amenity=charging_station`, nodes and ways, one per coordinate | Same rule as `fetch_ev_charging.py`, from the same 2026-10-27 extract as the other OSM counts (those came out unchanged). Finland's stops. |
+| Single-person households | SCB TAB6568, *ensamstående utan barn* / all households | Sweden's own stops (`note.se_households`). |
+| Building age | SCB TAB6540, residential buildings by construction decade | Mean of decade midpoints, Finland's convention; Sweden's is per DeSO, not a municipal proxy. Sweden's own stops. |
+
+Checked and left out, so they are not re-investigated:
+
+- **Population, income and unemployment change.** The DeSO 2025 series begin in 2024 (SCB
+  returns 0 for 2010–2023 under the new codes). 5,835 codes carry over from DeSO 2018, but a
+  shared code does not mean a shared boundary: 1,230 of them differ by over 1 % of their
+  area (only 2,922 are identical), and DeSOs are redrawn where population grew, so keeping
+  only unchanged areas would leave out the growth. Revisit once the 2025 series spans five
+  years (reference year 2029).
+- **Young children (0–6) and young adults (18–29).** SCB's DeSO ages come in five-year
+  bands (0–4, 15–19, ...), which cannot give the age span the layer is named for.
+- **Jobs by sector.** SCB publishes employed people by where they live (TAB6681/TAB6682);
+  Finland's layers count jobs where they are. Different measures.
+- **Light pollution.** Same pipeline would apply (`fetch_viirs_cmr.py` →
+  `aggregate_viirs_postal.py`), but it needs a NASA Earthdata token (`EARTHDATA_TOKEN`).
+- **Daycare and sports facilities.** Finland's come from registers (Varda, LIPAS); an OSM
+  count would be a different measure. Preschools are not in Skolverket's register (§8).
+- **Not attempted yet:** property prices and rent, broadband, radon, noise, flood risk,
+  traffic accidents, elections. Candidate sources are in §4.
+
