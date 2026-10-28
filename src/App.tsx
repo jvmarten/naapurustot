@@ -7,6 +7,7 @@ import React, { useState, useCallback, useEffect, useRef, useMemo, useReducer, l
 // gate, so this is budget-neutral. Declared with the other lazy components below.
 import { DEFAULT_CENTER, DEFAULT_ZOOM, CITY_VIEWPORTS } from './utils/mapConstants';
 import { REGION_IDS, DEFAULT_CITY, regionCountry, type RegionId } from './utils/regions';
+import type { CountryId } from './utils/areaId';
 import { loadRegionData, loadAllData } from './utils/dataLoader';
 import { LayerSelector } from './components/LayerSelector';
 import { SearchBar } from './components/SearchBar';
@@ -442,6 +443,11 @@ const App: React.FC = () => {
     const countries = new Set(displayed.map(regionCountry));
     return countries.size === 1 ? [...countries][0] : null;
   }, [cityFilter, displayed, countryScope]);
+  // Countries whose data is on the map — their borders are the ones drawn strong.
+  const dataCountries = useMemo<CountryId[]>(() => {
+    if (cityFilter === 'all') return countryScope ? [countryScope] : ['fi', 'se'];
+    return [...new Set(displayed.map(regionCountry))];
+  }, [cityFilter, countryScope, displayed]);
   useEffect(() => {
     if (viewCountry && !layerInCountry(activeLayer, viewCountry)) setActiveLayerRaw(DEFAULT_LAYER_BY_COUNTRY[viewCountry]);
   }, [viewCountry, activeLayer]);
@@ -2750,6 +2756,7 @@ const App: React.FC = () => {
           <Suspense fallback={<ModalFallback />}>
             <SplitMapView
               data={filteredData}
+              dataCountries={dataCountries}
               leftLayer={activeLayer}
               rightLayer={secondaryLayer}
               leftLayerConfig={effectiveLayer}
@@ -2807,6 +2814,7 @@ const App: React.FC = () => {
             onReady={handleMapReady}
             onRegionClick={cityFilter === 'all' || IS_EMBED ? undefined : handleRegionClick}
             country={cityFilter === 'all' ? countryScope : null}
+            dataCountries={dataCountries}
           />
           </Suspense>
         )}

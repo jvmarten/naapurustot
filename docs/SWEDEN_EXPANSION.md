@@ -210,5 +210,5 @@ The default factors, Swedish source per factor (all per DeSO unless noted):
 
 Scoring: each country against its own p2/p98 ranges, missing factors dropped, then the
 Swedish composite mapped onto Finland's by quantile under the default weights (CLAUDE.md,
-Sweden note 8). Because the factors Sweden lacks are the rural-favouring ones, Swedish
+Sweden note 9). Because the factors Sweden lacks are the rural-favouring ones, Swedish
 region averages lean urban until they arrive.
