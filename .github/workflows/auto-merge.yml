@@ -424,7 +424,7 @@ jobs:
 
           Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
-          Fix: re-run \`deploy.yml\` manually (Actions -> Deploy to GitHub Pages -> Run workflow).
+          Fix: re-run \`deploy.yml\` manually (Actions -> Deploy site -> Run workflow).
           EOF
           gh issue create --repo "$GITHUB_REPOSITORY" \
             --title "Deploy dispatch failed after merge (run ${{ github.run_id }})" \
