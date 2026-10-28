@@ -528,6 +528,7 @@ export const LAYERS: LayerConfig[] = [
     unit: '/1000',
     colors: ['#f7fcf5', '#d5efcf', '#a1d99b', '#74c476', '#f9d057', '#fd8d3c', '#e5533d', '#b00026'],
     stops: [20, 35, 50, 65, 80, 100, 130, 170],
+    stopsSe: [65, 78, 94, 104, 114, 132, 150, 190],
     format: perThousand,
     higherIsBetter: false,
   },
@@ -542,6 +543,7 @@ export const LAYERS: LayerConfig[] = [
     unit: '/1000',
     colors: ['#f7fcf5', '#d5efcf', '#a1d99b', '#74c476', '#f9d057', '#fd8d3c', '#e5533d', '#b00026'],
     stops: [3, 4.5, 5.5, 6.5, 7.5, 9, 11, 13],
+    stopsSe: [4, 5.5, 6.5, 7.5, 8.5, 9.5, 11, 12.5],
     format: perThousand,
     higherIsBetter: false,
   },
@@ -554,6 +556,7 @@ export const LAYERS: LayerConfig[] = [
     unit: '/1000',
     colors: ['#f7fcf5', '#d5efcf', '#a1d99b', '#74c476', '#f9d057', '#fd8d3c', '#e5533d', '#b00026'],
     stops: [14, 19, 24, 30, 36, 44, 55, 70],
+    stopsSe: [32, 38, 45, 52, 58, 70, 80, 120],
     format: perThousand,
     higherIsBetter: false,
   },
@@ -1236,6 +1239,8 @@ const SE_LAYERS: ReadonlySet<LayerId> = new Set<LayerId>([
   // these keep Finland's stops: one scale is what lets the two be compared.
   'transit_access', 'school_density', 'healthcare_access', 'restaurant_density',
   'grocery_access', 'cycling_infra', 'air_quality', 'walkability', 'water_proximity',
+  // Brå's municipal figures, under Swedish counting rules: Sweden's own stops.
+  'violent_crime', 'property_crime', 'crime_rate',
   // Scored against Sweden's own areas (computeQualityIndices), from the factors it has.
   'quality_index',
 ]);

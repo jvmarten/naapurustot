@@ -1,6 +1,6 @@
 {
-  "generated": "2026-10-27T20:02:28.298Z",
-  "source_hash": "d54d20e4fd369dd3",
+  "generated": "2026-10-28T08:09:46.864Z",
+  "source_hash": "7202139659610c51",
   "rows_total": 3018,
   "metrics": {
     "active_plan_count": {
@@ -680,6 +680,14 @@
           "row_count": 6160,
           "coverage_pct": 100
         },
+        "crime_index": {
+          "source": "Brå (Anmälda brott, totalt)",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": true,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
         "cycling_density": {
           "source": "OpenStreetMap (Sverige, 2026-10-27)",
           "vintage": 2026,
@@ -800,6 +808,14 @@
           "row_count": 6160,
           "coverage_pct": 100
         },
+        "property_crime_rate": {
+          "source": "Brå (Anmälda brott, BrB 8–12 kap.)",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": true,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
         "rental_rate": {
           "source": "SCB (Antal personer efter upplåtelseform, DeSO 2025)",
           "vintage": 2025,
@@ -845,6 +861,14 @@
           "vintage": 2024,
           "granularity": "deso",
           "is_proxy": false,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
+        "violent_crime_rate": {
+          "source": "Brå (Anmälda brott, BrB 3 kap. brott mot liv och hälsa)",
+          "vintage": "2021–2025",
+          "granularity": "deso",
+          "is_proxy": true,
           "row_count": 6160,
           "coverage_pct": 100
         },

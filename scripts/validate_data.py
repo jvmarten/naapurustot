@@ -941,6 +941,11 @@ SE_COUNTED_DENSITIES = [
 ]
 
 
+# Brå publishes crime per municipality (fetch_se_crime.py); every DeSO carries its
+# kommun's figure, so these are proxies on DeSO geometry, as Finland's are on postal.
+SE_MUNICIPAL_PROXIES = ["violent_crime_rate", "property_crime_rate", "crime_index"]
+
+
 def check_se_registry_provenance(_features: list) -> list[str]:
     """Sweden's registry section (data_sources.json countries.se.metrics) must match
     provenance.json countries.se.vintages exactly, both ways, like the Finnish check."""
@@ -958,6 +963,9 @@ def check_se_registry_provenance(_features: list) -> list[str]:
             errors.append(f"SE metric '{prop}' vintage mismatch: {reg[prop].get('vintage')!r} vs {prov[prop]!r}")
         elif reg[prop].get("publisher") not in registry.get("publishers", {}):
             errors.append(f"SE metric '{prop}' names unknown publisher {reg[prop].get('publisher')!r}")
+    for prop in SE_MUNICIPAL_PROXIES:
+        if prop in reg and reg[prop].get("is_proxy") is not True:
+            errors.append(f"SE metric '{prop}' is a municipal figure but is not flagged is_proxy:true")
     return errors
 
 

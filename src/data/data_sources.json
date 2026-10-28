@@ -130,6 +130,11 @@
       "url": "https://www.scb.se/",
       "license": "CC0 1.0"
     },
+    "bra": {
+      "name": "Brottsförebyggande rådet (Brå)",
+      "url": "https://bra.se/statistik",
+      "license": "Fritt vidareutnyttjande, källa Brå"
+    },
     "skolverket": {
       "name": "Skolverket (Skolenhetsregistret)",
       "url": "https://www.skolverket.se/",
@@ -959,6 +964,30 @@
           "vintage": 2026,
           "granularity": "deso",
           "is_proxy": false
+        },
+        "violent_crime_rate": {
+          "source": "Brå (Anmälda brott, BrB 3 kap. brott mot liv och hälsa)",
+          "publisher": "bra",
+          "vintage": "2021–2025",
+          "granularity": "deso",
+          "is_proxy": true,
+          "note": "note.se_violent_crime"
+        },
+        "property_crime_rate": {
+          "source": "Brå (Anmälda brott, BrB 8–12 kap.)",
+          "publisher": "bra",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": true,
+          "note": "note.se_property_crime"
+        },
+        "crime_index": {
+          "source": "Brå (Anmälda brott, totalt)",
+          "publisher": "bra",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": true,
+          "note": "note.se_crime_index"
         }
       }
     }

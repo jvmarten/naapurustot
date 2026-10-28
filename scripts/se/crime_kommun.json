@@ -1,0 +1,2044 @@
+{
+ "kommuner": {
+  "0114": {
+   "crime_index": 113.3,
+   "property_crime_rate": 59.7,
+   "total_count": 5712,
+   "violent_count": 2284,
+   "violent_crime_rate": 9.3
+  },
+  "0115": {
+   "crime_index": 109.9,
+   "property_crime_rate": 74.7,
+   "total_count": 3874,
+   "violent_count": 880,
+   "violent_crime_rate": 5.0
+  },
+  "0117": {
+   "crime_index": 86.5,
+   "property_crime_rate": 52.5,
+   "total_count": 4315,
+   "violent_count": 1378,
+   "violent_crime_rate": 5.6
+  },
+  "0120": {
+   "crime_index": 108.9,
+   "property_crime_rate": 63.1,
+   "total_count": 5075,
+   "violent_count": 1436,
+   "violent_crime_rate": 6.2
+  },
+  "0123": {
+   "crime_index": 151.0,
+   "property_crime_rate": 77.1,
+   "total_count": 13528,
+   "violent_count": 3762,
+   "violent_crime_rate": 8.8
+  },
+  "0125": {
+   "crime_index": 84.8,
+   "property_crime_rate": 50.2,
+   "total_count": 2457,
+   "violent_count": 741,
+   "violent_crime_rate": 5.1
+  },
+  "0126": {
+   "crime_index": 118.4,
+   "property_crime_rate": 56.3,
+   "total_count": 13554,
+   "violent_count": 5526,
+   "violent_crime_rate": 9.7
+  },
+  "0127": {
+   "crime_index": 132.8,
+   "property_crime_rate": 59.3,
+   "total_count": 12793,
+   "violent_count": 5466,
+   "violent_crime_rate": 11.4
+  },
+  "0128": {
+   "crime_index": 93.8,
+   "property_crime_rate": 43.1,
+   "total_count": 1635,
+   "violent_count": 669,
+   "violent_crime_rate": 7.7
+  },
+  "0136": {
+   "crime_index": 134.7,
+   "property_crime_rate": 61.6,
+   "total_count": 13628,
+   "violent_count": 5368,
+   "violent_crime_rate": 10.9
+  },
+  "0138": {
+   "crime_index": 88.3,
+   "property_crime_rate": 47.3,
+   "total_count": 4361,
+   "violent_count": 1758,
+   "violent_crime_rate": 7.2
+  },
+  "0139": {
+   "crime_index": 129.1,
+   "property_crime_rate": 75.2,
+   "total_count": 4273,
+   "violent_count": 1429,
+   "violent_crime_rate": 8.9
+  },
+  "0140": {
+   "crime_index": 81.1,
+   "property_crime_rate": 39.7,
+   "total_count": 1003,
+   "violent_count": 384,
+   "violent_crime_rate": 6.5
+  },
+  "0160": {
+   "crime_index": 93.8,
+   "property_crime_rate": 59.9,
+   "total_count": 7328,
+   "violent_count": 1670,
+   "violent_crime_rate": 4.4
+  },
+  "0162": {
+   "crime_index": 109.1,
+   "property_crime_rate": 80.9,
+   "total_count": 3543,
+   "violent_count": 690,
+   "violent_crime_rate": 4.2
+  },
+  "0163": {
+   "crime_index": 114.7,
+   "property_crime_rate": 63.3,
+   "total_count": 8929,
+   "violent_count": 2888,
+   "violent_crime_rate": 7.6
+  },
+  "0180": {
+   "crime_index": 191.6,
+   "property_crime_rate": 121.5,
+   "total_count": 191090,
+   "violent_count": 53449,
+   "violent_crime_rate": 10.8
+  },
+  "0181": {
+   "crime_index": 144.9,
+   "property_crime_rate": 74.4,
+   "total_count": 14898,
+   "violent_count": 6254,
+   "violent_crime_rate": 12.2
+  },
+  "0182": {
+   "crime_index": 99.8,
+   "property_crime_rate": 62.8,
+   "total_count": 11275,
+   "violent_count": 2856,
+   "violent_crime_rate": 5.2
+  },
+  "0183": {
+   "crime_index": 143.7,
+   "property_crime_rate": 73.8,
+   "total_count": 8138,
+   "violent_count": 2428,
+   "violent_crime_rate": 8.8
+  },
+  "0184": {
+   "crime_index": 144.1,
+   "property_crime_rate": 79.5,
+   "total_count": 12411,
+   "violent_count": 3572,
+   "violent_crime_rate": 8.4
+  },
+  "0186": {
+   "crime_index": 86.6,
+   "property_crime_rate": 51.4,
+   "total_count": 4188,
+   "violent_count": 1178,
+   "violent_crime_rate": 4.9
+  },
+  "0187": {
+   "crime_index": 56.5,
+   "property_crime_rate": 35.1,
+   "total_count": 663,
+   "violent_count": 194,
+   "violent_crime_rate": 3.3
+  },
+  "0188": {
+   "crime_index": 127.9,
+   "property_crime_rate": 62.0,
+   "total_count": 8532,
+   "violent_count": 3603,
+   "violent_crime_rate": 11.0
+  },
+  "0191": {
+   "crime_index": 181.9,
+   "property_crime_rate": 81.1,
+   "total_count": 9655,
+   "violent_count": 3013,
+   "violent_crime_rate": 11.6
+  },
+  "0192": {
+   "crime_index": 148.1,
+   "property_crime_rate": 78.1,
+   "total_count": 4530,
+   "violent_count": 1535,
+   "violent_crime_rate": 10.2
+  },
+  "0305": {
+   "crime_index": 106.4,
+   "property_crime_rate": 43.0,
+   "total_count": 2460,
+   "violent_count": 833,
+   "violent_crime_rate": 7.3
+  },
+  "0319": {
+   "crime_index": 135.4,
+   "property_crime_rate": 48.2,
+   "total_count": 1295,
+   "violent_count": 421,
+   "violent_crime_rate": 8.8
+  },
+  "0330": {
+   "crime_index": 90.3,
+   "property_crime_rate": 39.9,
+   "total_count": 1938,
+   "violent_count": 522,
+   "violent_crime_rate": 5.1
+  },
+  "0331": {
+   "crime_index": 95.0,
+   "property_crime_rate": 36.5,
+   "total_count": 1359,
+   "violent_count": 483,
+   "violent_crime_rate": 6.7
+  },
+  "0360": {
+   "crime_index": 105.7,
+   "property_crime_rate": 44.6,
+   "total_count": 2226,
+   "violent_count": 852,
+   "violent_crime_rate": 8.0
+  },
+  "0380": {
+   "crime_index": 111.4,
+   "property_crime_rate": 58.1,
+   "total_count": 27718,
+   "violent_count": 8481,
+   "violent_crime_rate": 7.0
+  },
+  "0381": {
+   "crime_index": 117.2,
+   "property_crime_rate": 47.2,
+   "total_count": 5707,
+   "violent_count": 2064,
+   "violent_crime_rate": 8.6
+  },
+  "0382": {
+   "crime_index": 66.6,
+   "property_crime_rate": 35.0,
+   "total_count": 1475,
+   "violent_count": 624,
+   "violent_crime_rate": 5.6
+  },
+  "0428": {
+   "crime_index": 113.0,
+   "property_crime_rate": 56.5,
+   "total_count": 984,
+   "violent_count": 416,
+   "violent_crime_rate": 9.3
+  },
+  "0461": {
+   "crime_index": 91.7,
+   "property_crime_rate": 46.3,
+   "total_count": 1045,
+   "violent_count": 403,
+   "violent_crime_rate": 7.0
+  },
+  "0480": {
+   "crime_index": 136.3,
+   "property_crime_rate": 65.1,
+   "total_count": 7953,
+   "violent_count": 2877,
+   "violent_crime_rate": 9.9
+  },
+  "0481": {
+   "crime_index": 111.2,
+   "property_crime_rate": 49.5,
+   "total_count": 1334,
+   "violent_count": 547,
+   "violent_crime_rate": 9.1
+  },
+  "0482": {
+   "crime_index": 129.0,
+   "property_crime_rate": 56.9,
+   "total_count": 1965,
+   "violent_count": 1006,
+   "violent_crime_rate": 12.7
+  },
+  "0483": {
+   "crime_index": 144.8,
+   "property_crime_rate": 59.9,
+   "total_count": 4932,
+   "violent_count": 1934,
+   "violent_crime_rate": 11.2
+  },
+  "0484": {
+   "crime_index": 149.9,
+   "property_crime_rate": 68.8,
+   "total_count": 16035,
+   "violent_count": 6595,
+   "violent_crime_rate": 12.3
+  },
+  "0486": {
+   "crime_index": 93.6,
+   "property_crime_rate": 45.5,
+   "total_count": 3684,
+   "violent_count": 1660,
+   "violent_crime_rate": 8.6
+  },
+  "0488": {
+   "crime_index": 79.6,
+   "property_crime_rate": 44.3,
+   "total_count": 1187,
+   "violent_count": 442,
+   "violent_crime_rate": 6.0
+  },
+  "0509": {
+   "crime_index": 106.3,
+   "property_crime_rate": 62.9,
+   "total_count": 556,
+   "violent_count": 148,
+   "violent_crime_rate": 5.6
+  },
+  "0512": {
+   "crime_index": 57.4,
+   "property_crime_rate": 29.0,
+   "total_count": 208,
+   "violent_count": 77,
+   "violent_crime_rate": 4.2
+  },
+  "0513": {
+   "crime_index": 53.8,
+   "property_crime_rate": 28.6,
+   "total_count": 535,
+   "violent_count": 165,
+   "violent_crime_rate": 3.3
+  },
+  "0560": {
+   "crime_index": 69.5,
+   "property_crime_rate": 36.3,
+   "total_count": 381,
+   "violent_count": 155,
+   "violent_crime_rate": 5.6
+  },
+  "0561": {
+   "crime_index": 92.2,
+   "property_crime_rate": 41.7,
+   "total_count": 1058,
+   "violent_count": 377,
+   "violent_crime_rate": 6.6
+  },
+  "0562": {
+   "crime_index": 94.0,
+   "property_crime_rate": 50.6,
+   "total_count": 2028,
+   "violent_count": 899,
+   "violent_crime_rate": 8.3
+  },
+  "0563": {
+   "crime_index": 94.5,
+   "property_crime_rate": 51.3,
+   "total_count": 711,
+   "violent_count": 239,
+   "violent_crime_rate": 6.3
+  },
+  "0580": {
+   "crime_index": 103.2,
+   "property_crime_rate": 57.7,
+   "total_count": 17379,
+   "violent_count": 5495,
+   "violent_crime_rate": 6.6
+  },
+  "0581": {
+   "crime_index": 128.3,
+   "property_crime_rate": 70.3,
+   "total_count": 18599,
+   "violent_count": 6817,
+   "violent_crime_rate": 9.4
+  },
+  "0582": {
+   "crime_index": 68.2,
+   "property_crime_rate": 38.6,
+   "total_count": 1007,
+   "violent_count": 329,
+   "violent_crime_rate": 4.5
+  },
+  "0583": {
+   "crime_index": 122.9,
+   "property_crime_rate": 67.8,
+   "total_count": 5322,
+   "violent_count": 1721,
+   "violent_crime_rate": 7.9
+  },
+  "0584": {
+   "crime_index": 88.2,
+   "property_crime_rate": 45.9,
+   "total_count": 660,
+   "violent_count": 229,
+   "violent_crime_rate": 6.1
+  },
+  "0586": {
+   "crime_index": 100.0,
+   "property_crime_rate": 46.6,
+   "total_count": 2875,
+   "violent_count": 1122,
+   "violent_crime_rate": 7.9
+  },
+  "0604": {
+   "crime_index": 77.5,
+   "property_crime_rate": 32.7,
+   "total_count": 529,
+   "violent_count": 240,
+   "violent_crime_rate": 7.0
+  },
+  "0617": {
+   "crime_index": 64.2,
+   "property_crime_rate": 25.1,
+   "total_count": 582,
+   "violent_count": 321,
+   "violent_crime_rate": 6.9
+  },
+  "0642": {
+   "crime_index": 66.6,
+   "property_crime_rate": 35.8,
+   "total_count": 504,
+   "violent_count": 210,
+   "violent_crime_rate": 5.6
+  },
+  "0643": {
+   "crime_index": 50.9,
+   "property_crime_rate": 27.0,
+   "total_count": 686,
+   "violent_count": 255,
+   "violent_crime_rate": 3.9
+  },
+  "0662": {
+   "crime_index": 100.6,
+   "property_crime_rate": 40.5,
+   "total_count": 2897,
+   "violent_count": 1128,
+   "violent_crime_rate": 7.7
+  },
+  "0665": {
+   "crime_index": 72.2,
+   "property_crime_rate": 32.1,
+   "total_count": 1075,
+   "violent_count": 465,
+   "violent_crime_rate": 6.3
+  },
+  "0680": {
+   "crime_index": 97.8,
+   "property_crime_rate": 46.8,
+   "total_count": 14468,
+   "violent_count": 5881,
+   "violent_crime_rate": 8.1
+  },
+  "0682": {
+   "crime_index": 112.7,
+   "property_crime_rate": 49.8,
+   "total_count": 3554,
+   "violent_count": 1603,
+   "violent_crime_rate": 10.1
+  },
+  "0683": {
+   "crime_index": 106.1,
+   "property_crime_rate": 46.1,
+   "total_count": 3663,
+   "violent_count": 1360,
+   "violent_crime_rate": 7.9
+  },
+  "0684": {
+   "crime_index": 102.5,
+   "property_crime_rate": 43.7,
+   "total_count": 1184,
+   "violent_count": 386,
+   "violent_crime_rate": 6.6
+  },
+  "0685": {
+   "crime_index": 87.3,
+   "property_crime_rate": 44.8,
+   "total_count": 2394,
+   "violent_count": 1081,
+   "violent_crime_rate": 7.8
+  },
+  "0686": {
+   "crime_index": 118.6,
+   "property_crime_rate": 48.1,
+   "total_count": 2102,
+   "violent_count": 1015,
+   "violent_crime_rate": 11.4
+  },
+  "0687": {
+   "crime_index": 103.5,
+   "property_crime_rate": 47.9,
+   "total_count": 1924,
+   "violent_count": 975,
+   "violent_crime_rate": 10.4
+  },
+  "0760": {
+   "crime_index": 115.3,
+   "property_crime_rate": 58.8,
+   "total_count": 1036,
+   "violent_count": 403,
+   "violent_crime_rate": 8.7
+  },
+  "0761": {
+   "crime_index": 102.7,
+   "property_crime_rate": 40.6,
+   "total_count": 842,
+   "violent_count": 402,
+   "violent_crime_rate": 9.6
+  },
+  "0763": {
+   "crime_index": 111.4,
+   "property_crime_rate": 51.9,
+   "total_count": 1329,
+   "violent_count": 556,
+   "violent_crime_rate": 9.1
+  },
+  "0764": {
+   "crime_index": 83.4,
+   "property_crime_rate": 35.8,
+   "total_count": 1648,
+   "violent_count": 690,
+   "violent_crime_rate": 6.9
+  },
+  "0765": {
+   "crime_index": 100.2,
+   "property_crime_rate": 48.9,
+   "total_count": 1765,
+   "violent_count": 606,
+   "violent_crime_rate": 6.8
+  },
+  "0767": {
+   "crime_index": 113.2,
+   "property_crime_rate": 53.7,
+   "total_count": 1121,
+   "violent_count": 383,
+   "violent_crime_rate": 7.6
+  },
+  "0780": {
+   "crime_index": 121.2,
+   "property_crime_rate": 60.2,
+   "total_count": 11959,
+   "violent_count": 3791,
+   "violent_crime_rate": 7.8
+  },
+  "0781": {
+   "crime_index": 109.0,
+   "property_crime_rate": 48.6,
+   "total_count": 3076,
+   "violent_count": 984,
+   "violent_crime_rate": 6.9
+  },
+  "0821": {
+   "crime_index": 104.1,
+   "property_crime_rate": 50.5,
+   "total_count": 544,
+   "violent_count": 267,
+   "violent_crime_rate": 9.7
+  },
+  "0834": {
+   "crime_index": 88.3,
+   "property_crime_rate": 45.8,
+   "total_count": 614,
+   "violent_count": 198,
+   "violent_crime_rate": 5.6
+  },
+  "0840": {
+   "crime_index": 66.6,
+   "property_crime_rate": 32.5,
+   "total_count": 1083,
+   "violent_count": 365,
+   "violent_crime_rate": 4.6
+  },
+  "0860": {
+   "crime_index": 115.3,
+   "property_crime_rate": 47.6,
+   "total_count": 1565,
+   "violent_count": 684,
+   "violent_crime_rate": 9.9
+  },
+  "0861": {
+   "crime_index": 80.7,
+   "property_crime_rate": 36.6,
+   "total_count": 1051,
+   "violent_count": 430,
+   "violent_crime_rate": 6.5
+  },
+  "0862": {
+   "crime_index": 111.5,
+   "property_crime_rate": 56.7,
+   "total_count": 993,
+   "violent_count": 336,
+   "violent_crime_rate": 7.3
+  },
+  "0880": {
+   "crime_index": 127.7,
+   "property_crime_rate": 62.3,
+   "total_count": 9308,
+   "violent_count": 3024,
+   "violent_crime_rate": 8.4
+  },
+  "0881": {
+   "crime_index": 119.3,
+   "property_crime_rate": 50.7,
+   "total_count": 2371,
+   "violent_count": 980,
+   "violent_crime_rate": 9.7
+  },
+  "0882": {
+   "crime_index": 94.5,
+   "property_crime_rate": 45.6,
+   "total_count": 2537,
+   "violent_count": 949,
+   "violent_crime_rate": 7.0
+  },
+  "0883": {
+   "crime_index": 101.8,
+   "property_crime_rate": 49.3,
+   "total_count": 3701,
+   "violent_count": 1440,
+   "violent_crime_rate": 7.9
+  },
+  "0884": {
+   "crime_index": 105.2,
+   "property_crime_rate": 41.4,
+   "total_count": 1616,
+   "violent_count": 542,
+   "violent_crime_rate": 7.0
+  },
+  "0885": {
+   "crime_index": 118.0,
+   "property_crime_rate": 58.5,
+   "total_count": 1256,
+   "violent_count": 470,
+   "violent_crime_rate": 8.7
+  },
+  "0980": {
+   "crime_index": 108.4,
+   "property_crime_rate": 43.8,
+   "total_count": 6604,
+   "violent_count": 2356,
+   "violent_crime_rate": 7.7
+  },
+  "1060": {
+   "crime_index": 115.5,
+   "property_crime_rate": 64.4,
+   "total_count": 1492,
+   "violent_count": 542,
+   "violent_crime_rate": 8.3
+  },
+  "1080": {
+   "crime_index": 104.2,
+   "property_crime_rate": 56.8,
+   "total_count": 6893,
+   "violent_count": 2484,
+   "violent_crime_rate": 7.5
+  },
+  "1081": {
+   "crime_index": 117.3,
+   "property_crime_rate": 61.2,
+   "total_count": 3370,
+   "violent_count": 1364,
+   "violent_crime_rate": 9.4
+  },
+  "1082": {
+   "crime_index": 113.0,
+   "property_crime_rate": 58.8,
+   "total_count": 3581,
+   "violent_count": 1209,
+   "violent_crime_rate": 7.5
+  },
+  "1083": {
+   "crime_index": 116.4,
+   "property_crime_rate": 60.2,
+   "total_count": 2027,
+   "violent_count": 729,
+   "violent_crime_rate": 8.3
+  },
+  "1214": {
+   "crime_index": 99.5,
+   "property_crime_rate": 58.1,
+   "total_count": 1444,
+   "violent_count": 553,
+   "violent_crime_rate": 7.6
+  },
+  "1230": {
+   "crime_index": 78.6,
+   "property_crime_rate": 43.2,
+   "total_count": 2154,
+   "violent_count": 746,
+   "violent_crime_rate": 5.6
+  },
+  "1231": {
+   "crime_index": 140.4,
+   "property_crime_rate": 65.3,
+   "total_count": 2847,
+   "violent_count": 1091,
+   "violent_crime_rate": 11.0
+  },
+  "1233": {
+   "crime_index": 67.1,
+   "property_crime_rate": 42.8,
+   "total_count": 2539,
+   "violent_count": 660,
+   "violent_crime_rate": 3.5
+  },
+  "1256": {
+   "crime_index": 113.5,
+   "property_crime_rate": 56.8,
+   "total_count": 1572,
+   "violent_count": 685,
+   "violent_crime_rate": 9.5
+  },
+  "1257": {
+   "crime_index": 131.6,
+   "property_crime_rate": 62.6,
+   "total_count": 1353,
+   "violent_count": 579,
+   "violent_crime_rate": 11.1
+  },
+  "1260": {
+   "crime_index": 138.1,
+   "property_crime_rate": 71.1,
+   "total_count": 2212,
+   "violent_count": 799,
+   "violent_crime_rate": 10.0
+  },
+  "1261": {
+   "crime_index": 83.4,
+   "property_crime_rate": 46.8,
+   "total_count": 2717,
+   "violent_count": 946,
+   "violent_crime_rate": 5.8
+  },
+  "1262": {
+   "crime_index": 76.3,
+   "property_crime_rate": 47.9,
+   "total_count": 1885,
+   "violent_count": 409,
+   "violent_crime_rate": 3.3
+  },
+  "1263": {
+   "crime_index": 73.6,
+   "property_crime_rate": 38.3,
+   "total_count": 1741,
+   "violent_count": 619,
+   "violent_crime_rate": 5.3
+  },
+  "1264": {
+   "crime_index": 99.0,
+   "property_crime_rate": 45.9,
+   "total_count": 1695,
+   "violent_count": 711,
+   "violent_crime_rate": 8.5
+  },
+  "1265": {
+   "crime_index": 111.7,
+   "property_crime_rate": 58.7,
+   "total_count": 2163,
+   "violent_count": 673,
+   "violent_crime_rate": 6.9
+  },
+  "1266": {
+   "crime_index": 96.2,
+   "property_crime_rate": 48.8,
+   "total_count": 1497,
+   "violent_count": 678,
+   "violent_crime_rate": 8.7
+  },
+  "1267": {
+   "crime_index": 95.1,
+   "property_crime_rate": 49.8,
+   "total_count": 1673,
+   "violent_count": 644,
+   "violent_crime_rate": 7.5
+  },
+  "1270": {
+   "crime_index": 127.7,
+   "property_crime_rate": 66.5,
+   "total_count": 1743,
+   "violent_count": 571,
+   "violent_crime_rate": 8.3
+  },
+  "1272": {
+   "crime_index": 98.5,
+   "property_crime_rate": 42.6,
+   "total_count": 1229,
+   "violent_count": 526,
+   "violent_crime_rate": 8.4
+  },
+  "1273": {
+   "crime_index": 113.1,
+   "property_crime_rate": 59.5,
+   "total_count": 1459,
+   "violent_count": 457,
+   "violent_crime_rate": 7.0
+  },
+  "1275": {
+   "crime_index": 134.6,
+   "property_crime_rate": 60.8,
+   "total_count": 966,
+   "violent_count": 574,
+   "violent_crime_rate": 15.6
+  },
+  "1276": {
+   "crime_index": 133.3,
+   "property_crime_rate": 60.8,
+   "total_count": 2361,
+   "violent_count": 938,
+   "violent_crime_rate": 10.6
+  },
+  "1277": {
+   "crime_index": 117.0,
+   "property_crime_rate": 54.6,
+   "total_count": 1927,
+   "violent_count": 908,
+   "violent_crime_rate": 11.1
+  },
+  "1278": {
+   "crime_index": 95.7,
+   "property_crime_rate": 59.2,
+   "total_count": 1535,
+   "violent_count": 453,
+   "violent_crime_rate": 5.7
+  },
+  "1280": {
+   "crime_index": 161.8,
+   "property_crime_rate": 87.1,
+   "total_count": 59355,
+   "violent_count": 21345,
+   "violent_crime_rate": 11.9
+  },
+  "1281": {
+   "crime_index": 111.7,
+   "property_crime_rate": 71.4,
+   "total_count": 14746,
+   "violent_count": 4053,
+   "violent_crime_rate": 6.3
+  },
+  "1282": {
+   "crime_index": 145.8,
+   "property_crime_rate": 74.3,
+   "total_count": 6916,
+   "violent_count": 2771,
+   "violent_crime_rate": 11.8
+  },
+  "1283": {
+   "crime_index": 155.8,
+   "property_crime_rate": 81.0,
+   "total_count": 23753,
+   "violent_count": 9027,
+   "violent_crime_rate": 11.9
+  },
+  "1284": {
+   "crime_index": 69.8,
+   "property_crime_rate": 40.6,
+   "total_count": 1988,
+   "violent_count": 670,
+   "violent_crime_rate": 4.8
+  },
+  "1285": {
+   "crime_index": 103.9,
+   "property_crime_rate": 48.3,
+   "total_count": 3640,
+   "violent_count": 1780,
+   "violent_crime_rate": 10.3
+  },
+  "1286": {
+   "crime_index": 119.2,
+   "property_crime_rate": 58.2,
+   "total_count": 3831,
+   "violent_count": 1196,
+   "violent_crime_rate": 7.5
+  },
+  "1287": {
+   "crime_index": 101.4,
+   "property_crime_rate": 48.0,
+   "total_count": 4801,
+   "violent_count": 1731,
+   "violent_crime_rate": 7.4
+  },
+  "1290": {
+   "crime_index": 113.6,
+   "property_crime_rate": 54.5,
+   "total_count": 9784,
+   "violent_count": 3811,
+   "violent_crime_rate": 8.8
+  },
+  "1291": {
+   "crime_index": 85.6,
+   "property_crime_rate": 49.2,
+   "total_count": 1612,
+   "violent_count": 612,
+   "violent_crime_rate": 6.4
+  },
+  "1292": {
+   "crime_index": 98.2,
+   "property_crime_rate": 54.8,
+   "total_count": 4431,
+   "violent_count": 1401,
+   "violent_crime_rate": 6.3
+  },
+  "1293": {
+   "crime_index": 129.2,
+   "property_crime_rate": 70.8,
+   "total_count": 6719,
+   "violent_count": 2395,
+   "violent_crime_rate": 9.2
+  },
+  "1315": {
+   "crime_index": 95.2,
+   "property_crime_rate": 44.4,
+   "total_count": 966,
+   "violent_count": 577,
+   "violent_crime_rate": 11.1
+  },
+  "1380": {
+   "crime_index": 129.5,
+   "property_crime_rate": 68.1,
+   "total_count": 13751,
+   "violent_count": 5632,
+   "violent_crime_rate": 10.7
+  },
+  "1381": {
+   "crime_index": 89.7,
+   "property_crime_rate": 47.3,
+   "total_count": 2385,
+   "violent_count": 918,
+   "violent_crime_rate": 6.9
+  },
+  "1382": {
+   "crime_index": 94.3,
+   "property_crime_rate": 55.3,
+   "total_count": 4462,
+   "violent_count": 1586,
+   "violent_crime_rate": 6.7
+  },
+  "1383": {
+   "crime_index": 79.1,
+   "property_crime_rate": 42.6,
+   "total_count": 5478,
+   "violent_count": 2012,
+   "violent_crime_rate": 5.9
+  },
+  "1384": {
+   "crime_index": 75.9,
+   "property_crime_rate": 42.6,
+   "total_count": 6532,
+   "violent_count": 2155,
+   "violent_crime_rate": 5.0
+  },
+  "1401": {
+   "crime_index": 99.5,
+   "property_crime_rate": 55.0,
+   "total_count": 3980,
+   "violent_count": 955,
+   "violent_crime_rate": 4.8
+  },
+  "1402": {
+   "crime_index": 88.1,
+   "property_crime_rate": 52.8,
+   "total_count": 3622,
+   "violent_count": 1204,
+   "violent_crime_rate": 6.0
+  },
+  "1407": {
+   "crime_index": 57.0,
+   "property_crime_rate": 34.2,
+   "total_count": 730,
+   "violent_count": 256,
+   "violent_crime_rate": 4.0
+  },
+  "1415": {
+   "crime_index": 75.9,
+   "property_crime_rate": 40.3,
+   "total_count": 2113,
+   "violent_count": 864,
+   "violent_crime_rate": 6.2
+  },
+  "1419": {
+   "crime_index": 62.7,
+   "property_crime_rate": 35.7,
+   "total_count": 1006,
+   "violent_count": 306,
+   "violent_crime_rate": 3.8
+  },
+  "1421": {
+   "crime_index": 75.7,
+   "property_crime_rate": 43.9,
+   "total_count": 1163,
+   "violent_count": 341,
+   "violent_crime_rate": 4.4
+  },
+  "1427": {
+   "crime_index": 88.5,
+   "property_crime_rate": 44.1,
+   "total_count": 803,
+   "violent_count": 320,
+   "violent_crime_rate": 7.0
+  },
+  "1430": {
+   "crime_index": 89.7,
+   "property_crime_rate": 49.9,
+   "total_count": 925,
+   "violent_count": 324,
+   "violent_crime_rate": 6.2
+  },
+  "1435": {
+   "crime_index": 98.9,
+   "property_crime_rate": 50.5,
+   "total_count": 1258,
+   "violent_count": 333,
+   "violent_crime_rate": 5.2
+  },
+  "1438": {
+   "crime_index": 73.9,
+   "property_crime_rate": 29.6,
+   "total_count": 339,
+   "violent_count": 126,
+   "violent_crime_rate": 5.4
+  },
+  "1439": {
+   "crime_index": 99.7,
+   "property_crime_rate": 52.0,
+   "total_count": 631,
+   "violent_count": 237,
+   "violent_crime_rate": 7.3
+  },
+  "1440": {
+   "crime_index": 83.3,
+   "property_crime_rate": 43.4,
+   "total_count": 2716,
+   "violent_count": 902,
+   "violent_crime_rate": 5.6
+  },
+  "1441": {
+   "crime_index": 73.6,
+   "property_crime_rate": 44.1,
+   "total_count": 3213,
+   "violent_count": 771,
+   "violent_crime_rate": 3.5
+  },
+  "1442": {
+   "crime_index": 67.0,
+   "property_crime_rate": 32.4,
+   "total_count": 836,
+   "violent_count": 417,
+   "violent_crime_rate": 6.8
+  },
+  "1443": {
+   "crime_index": 70.7,
+   "property_crime_rate": 38.4,
+   "total_count": 692,
+   "violent_count": 197,
+   "violent_crime_rate": 4.1
+  },
+  "1444": {
+   "crime_index": 75.8,
+   "property_crime_rate": 38.2,
+   "total_count": 423,
+   "violent_count": 158,
+   "violent_crime_rate": 5.6
+  },
+  "1445": {
+   "crime_index": 86.5,
+   "property_crime_rate": 46.6,
+   "total_count": 481,
+   "violent_count": 189,
+   "violent_crime_rate": 6.7
+  },
+  "1446": {
+   "crime_index": 54.6,
+   "property_crime_rate": 28.9,
+   "total_count": 384,
+   "violent_count": 105,
+   "violent_crime_rate": 3.0
+  },
+  "1447": {
+   "crime_index": 103.2,
+   "property_crime_rate": 46.9,
+   "total_count": 515,
+   "violent_count": 209,
+   "violent_crime_rate": 8.2
+  },
+  "1452": {
+   "crime_index": 84.8,
+   "property_crime_rate": 40.4,
+   "total_count": 1006,
+   "violent_count": 351,
+   "violent_crime_rate": 5.9
+  },
+  "1460": {
+   "crime_index": 78.8,
+   "property_crime_rate": 37.9,
+   "total_count": 710,
+   "violent_count": 295,
+   "violent_crime_rate": 6.4
+  },
+  "1461": {
+   "crime_index": 132.0,
+   "property_crime_rate": 56.7,
+   "total_count": 1194,
+   "violent_count": 353,
+   "violent_crime_rate": 7.7
+  },
+  "1462": {
+   "crime_index": 95.3,
+   "property_crime_rate": 45.2,
+   "total_count": 1374,
+   "violent_count": 551,
+   "violent_crime_rate": 7.6
+  },
+  "1463": {
+   "crime_index": 76.9,
+   "property_crime_rate": 39.4,
+   "total_count": 2702,
+   "violent_count": 1043,
+   "violent_crime_rate": 5.9
+  },
+  "1465": {
+   "crime_index": 111.3,
+   "property_crime_rate": 47.2,
+   "total_count": 1189,
+   "violent_count": 581,
+   "violent_crime_rate": 10.8
+  },
+  "1466": {
+   "crime_index": 94.7,
+   "property_crime_rate": 51.1,
+   "total_count": 900,
+   "violent_count": 368,
+   "violent_crime_rate": 7.8
+  },
+  "1470": {
+   "crime_index": 98.8,
+   "property_crime_rate": 53.4,
+   "total_count": 1585,
+   "violent_count": 667,
+   "violent_crime_rate": 8.3
+  },
+  "1471": {
+   "crime_index": 78.3,
+   "property_crime_rate": 41.6,
+   "total_count": 1038,
+   "violent_count": 368,
+   "violent_crime_rate": 5.6
+  },
+  "1472": {
+   "crime_index": 95.7,
+   "property_crime_rate": 40.9,
+   "total_count": 1084,
+   "violent_count": 372,
+   "violent_crime_rate": 6.6
+  },
+  "1473": {
+   "crime_index": 101.1,
+   "property_crime_rate": 46.5,
+   "total_count": 917,
+   "violent_count": 414,
+   "violent_crime_rate": 9.1
+  },
+  "1480": {
+   "crime_index": 138.8,
+   "property_crime_rate": 80.1,
+   "total_count": 84816,
+   "violent_count": 28437,
+   "violent_crime_rate": 9.5
+  },
+  "1481": {
+   "crime_index": 95.4,
+   "property_crime_rate": 55.5,
+   "total_count": 6850,
+   "violent_count": 1891,
+   "violent_crime_rate": 5.4
+  },
+  "1482": {
+   "crime_index": 71.4,
+   "property_crime_rate": 38.9,
+   "total_count": 3601,
+   "violent_count": 1389,
+   "violent_crime_rate": 5.6
+  },
+  "1484": {
+   "crime_index": 79.2,
+   "property_crime_rate": 40.2,
+   "total_count": 1097,
+   "violent_count": 454,
+   "violent_crime_rate": 6.5
+  },
+  "1485": {
+   "crime_index": 110.4,
+   "property_crime_rate": 49.9,
+   "total_count": 6280,
+   "violent_count": 2417,
+   "violent_crime_rate": 8.5
+  },
+  "1486": {
+   "crime_index": 122.4,
+   "property_crime_rate": 49.1,
+   "total_count": 1655,
+   "violent_count": 566,
+   "violent_crime_rate": 8.4
+  },
+  "1487": {
+   "crime_index": 103.7,
+   "property_crime_rate": 51.8,
+   "total_count": 4155,
+   "violent_count": 1509,
+   "violent_crime_rate": 7.6
+  },
+  "1488": {
+   "crime_index": 99.9,
+   "property_crime_rate": 50.3,
+   "total_count": 5905,
+   "violent_count": 2276,
+   "violent_crime_rate": 7.7
+  },
+  "1489": {
+   "crime_index": 98.7,
+   "property_crime_rate": 50.5,
+   "total_count": 4225,
+   "violent_count": 1258,
+   "violent_crime_rate": 6.0
+  },
+  "1490": {
+   "crime_index": 119.7,
+   "property_crime_rate": 52.3,
+   "total_count": 13772,
+   "violent_count": 5589,
+   "violent_crime_rate": 9.8
+  },
+  "1491": {
+   "crime_index": 85.2,
+   "property_crime_rate": 42.4,
+   "total_count": 2128,
+   "violent_count": 773,
+   "violent_crime_rate": 6.2
+  },
+  "1492": {
+   "crime_index": 99.5,
+   "property_crime_rate": 50.7,
+   "total_count": 1174,
+   "violent_count": 566,
+   "violent_crime_rate": 9.4
+  },
+  "1493": {
+   "crime_index": 98.7,
+   "property_crime_rate": 49.4,
+   "total_count": 2418,
+   "violent_count": 895,
+   "violent_crime_rate": 7.3
+  },
+  "1494": {
+   "crime_index": 91.0,
+   "property_crime_rate": 46.2,
+   "total_count": 3677,
+   "violent_count": 1510,
+   "violent_crime_rate": 7.5
+  },
+  "1495": {
+   "crime_index": 128.9,
+   "property_crime_rate": 74.2,
+   "total_count": 2414,
+   "violent_count": 718,
+   "violent_crime_rate": 7.7
+  },
+  "1496": {
+   "crime_index": 94.3,
+   "property_crime_rate": 47.2,
+   "total_count": 5482,
+   "violent_count": 2053,
+   "violent_crime_rate": 7.1
+  },
+  "1497": {
+   "crime_index": 74.0,
+   "property_crime_rate": 43.9,
+   "total_count": 691,
+   "violent_count": 245,
+   "violent_crime_rate": 5.3
+  },
+  "1498": {
+   "crime_index": 74.9,
+   "property_crime_rate": 37.9,
+   "total_count": 957,
+   "violent_count": 454,
+   "violent_crime_rate": 7.1
+  },
+  "1499": {
+   "crime_index": 103.5,
+   "property_crime_rate": 46.9,
+   "total_count": 3395,
+   "violent_count": 1389,
+   "violent_crime_rate": 8.4
+  },
+  "1715": {
+   "crime_index": 50.2,
+   "property_crime_rate": 25.4,
+   "total_count": 604,
+   "violent_count": 299,
+   "violent_crime_rate": 4.9
+  },
+  "1730": {
+   "crime_index": 98.1,
+   "property_crime_rate": 45.3,
+   "total_count": 819,
+   "violent_count": 353,
+   "violent_crime_rate": 8.3
+  },
+  "1737": {
+   "crime_index": 83.1,
+   "property_crime_rate": 32.3,
+   "total_count": 939,
+   "violent_count": 488,
+   "violent_crime_rate": 8.6
+  },
+  "1760": {
+   "crime_index": 73.5,
+   "property_crime_rate": 34.6,
+   "total_count": 278,
+   "violent_count": 181,
+   "violent_crime_rate": 9.4
+  },
+  "1761": {
+   "crime_index": 47.4,
+   "property_crime_rate": 29.7,
+   "total_count": 804,
+   "violent_count": 234,
+   "violent_crime_rate": 2.8
+  },
+  "1762": {
+   "crime_index": 76.6,
+   "property_crime_rate": 33.0,
+   "total_count": 278,
+   "violent_count": 136,
+   "violent_crime_rate": 7.4
+  },
+  "1763": {
+   "crime_index": 47.7,
+   "property_crime_rate": 20.6,
+   "total_count": 548,
+   "violent_count": 375,
+   "violent_crime_rate": 6.5
+  },
+  "1764": {
+   "crime_index": 73.7,
+   "property_crime_rate": 31.8,
+   "total_count": 658,
+   "violent_count": 404,
+   "violent_crime_rate": 8.9
+  },
+  "1765": {
+   "crime_index": 72.0,
+   "property_crime_rate": 34.7,
+   "total_count": 704,
+   "violent_count": 305,
+   "violent_crime_rate": 6.2
+  },
+  "1766": {
+   "crime_index": 74.7,
+   "property_crime_rate": 36.8,
+   "total_count": 998,
+   "violent_count": 352,
+   "violent_crime_rate": 5.3
+  },
+  "1780": {
+   "crime_index": 99.6,
+   "property_crime_rate": 60.3,
+   "total_count": 9815,
+   "violent_count": 3659,
+   "violent_crime_rate": 7.6
+  },
+  "1781": {
+   "crime_index": 87.7,
+   "property_crime_rate": 41.0,
+   "total_count": 2076,
+   "violent_count": 1068,
+   "violent_crime_rate": 8.9
+  },
+  "1782": {
+   "crime_index": 93.7,
+   "property_crime_rate": 38.5,
+   "total_count": 909,
+   "violent_count": 624,
+   "violent_crime_rate": 12.4
+  },
+  "1783": {
+   "crime_index": 77.4,
+   "property_crime_rate": 30.9,
+   "total_count": 880,
+   "violent_count": 443,
+   "violent_crime_rate": 7.7
+  },
+  "1784": {
+   "crime_index": 79.6,
+   "property_crime_rate": 43.9,
+   "total_count": 2028,
+   "violent_count": 870,
+   "violent_crime_rate": 6.8
+  },
+  "1785": {
+   "crime_index": 88.9,
+   "property_crime_rate": 43.6,
+   "total_count": 1318,
+   "violent_count": 643,
+   "violent_crime_rate": 8.5
+  },
+  "1814": {
+   "crime_index": 48.3,
+   "property_crime_rate": 23.2,
+   "total_count": 416,
+   "violent_count": 174,
+   "violent_crime_rate": 4.0
+  },
+  "1860": {
+   "crime_index": 110.0,
+   "property_crime_rate": 52.7,
+   "total_count": 595,
+   "violent_count": 275,
+   "violent_crime_rate": 10.0
+  },
+  "1861": {
+   "crime_index": 146.6,
+   "property_crime_rate": 47.4,
+   "total_count": 2360,
+   "violent_count": 688,
+   "violent_crime_rate": 8.5
+  },
+  "1862": {
+   "crime_index": 141.0,
+   "property_crime_rate": 42.7,
+   "total_count": 1305,
+   "violent_count": 384,
+   "violent_crime_rate": 8.2
+  },
+  "1863": {
+   "crime_index": 74.0,
+   "property_crime_rate": 38.3,
+   "total_count": 466,
+   "violent_count": 245,
+   "violent_crime_rate": 7.4
+  },
+  "1864": {
+   "crime_index": 130.3,
+   "property_crime_rate": 64.2,
+   "total_count": 564,
+   "violent_count": 282,
+   "violent_crime_rate": 12.6
+  },
+  "1880": {
+   "crime_index": 139.2,
+   "property_crime_rate": 78.0,
+   "total_count": 22321,
+   "violent_count": 7395,
+   "violent_crime_rate": 9.3
+  },
+  "1881": {
+   "crime_index": 98.0,
+   "property_crime_rate": 34.6,
+   "total_count": 2221,
+   "violent_count": 1385,
+   "violent_crime_rate": 12.4
+  },
+  "1882": {
+   "crime_index": 73.8,
+   "property_crime_rate": 37.1,
+   "total_count": 844,
+   "violent_count": 501,
+   "violent_crime_rate": 8.7
+  },
+  "1883": {
+   "crime_index": 105.6,
+   "property_crime_rate": 51.5,
+   "total_count": 3183,
+   "violent_count": 1408,
+   "violent_crime_rate": 9.3
+  },
+  "1884": {
+   "crime_index": 73.2,
+   "property_crime_rate": 28.6,
+   "total_count": 777,
+   "violent_count": 350,
+   "violent_crime_rate": 6.6
+  },
+  "1885": {
+   "crime_index": 86.1,
+   "property_crime_rate": 37.9,
+   "total_count": 1987,
+   "violent_count": 1076,
+   "violent_crime_rate": 9.2
+  },
+  "1904": {
+   "crime_index": 105.1,
+   "property_crime_rate": 43.8,
+   "total_count": 446,
+   "violent_count": 213,
+   "violent_crime_rate": 9.8
+  },
+  "1907": {
+   "crime_index": 89.7,
+   "property_crime_rate": 44.1,
+   "total_count": 878,
+   "violent_count": 408,
+   "violent_crime_rate": 8.2
+  },
+  "1960": {
+   "crime_index": 88.0,
+   "property_crime_rate": 41.6,
+   "total_count": 759,
+   "violent_count": 286,
+   "violent_crime_rate": 6.6
+  },
+  "1961": {
+   "crime_index": 111.8,
+   "property_crime_rate": 56.9,
+   "total_count": 1859,
+   "violent_count": 638,
+   "violent_crime_rate": 7.7
+  },
+  "1962": {
+   "crime_index": 125.2,
+   "property_crime_rate": 57.4,
+   "total_count": 676,
+   "violent_count": 246,
+   "violent_crime_rate": 8.8
+  },
+  "1980": {
+   "crime_index": 141.5,
+   "property_crime_rate": 71.9,
+   "total_count": 22777,
+   "violent_count": 6324,
+   "violent_crime_rate": 8.0
+  },
+  "1981": {
+   "crime_index": 135.7,
+   "property_crime_rate": 53.4,
+   "total_count": 3084,
+   "violent_count": 1191,
+   "violent_crime_rate": 10.4
+  },
+  "1982": {
+   "crime_index": 130.4,
+   "property_crime_rate": 47.9,
+   "total_count": 1695,
+   "violent_count": 715,
+   "violent_crime_rate": 10.8
+  },
+  "1983": {
+   "crime_index": 115.9,
+   "property_crime_rate": 56.6,
+   "total_count": 2976,
+   "violent_count": 1186,
+   "violent_crime_rate": 9.1
+  },
+  "1984": {
+   "crime_index": 102.0,
+   "property_crime_rate": 50.6,
+   "total_count": 1424,
+   "violent_count": 484,
+   "violent_crime_rate": 6.9
+  },
+  "2021": {
+   "crime_index": 77.7,
+   "property_crime_rate": 37.4,
+   "total_count": 524,
+   "violent_count": 144,
+   "violent_crime_rate": 4.3
+  },
+  "2023": {
+   "crime_index": 107.7,
+   "property_crime_rate": 56.0,
+   "total_count": 1101,
+   "violent_count": 530,
+   "violent_crime_rate": 10.4
+  },
+  "2026": {
+   "crime_index": 49.8,
+   "property_crime_rate": 28.7,
+   "total_count": 515,
+   "violent_count": 213,
+   "violent_crime_rate": 4.1
+  },
+  "2029": {
+   "crime_index": 57.3,
+   "property_crime_rate": 32.5,
+   "total_count": 925,
+   "violent_count": 385,
+   "violent_crime_rate": 4.8
+  },
+  "2031": {
+   "crime_index": 98.3,
+   "property_crime_rate": 48.9,
+   "total_count": 1080,
+   "violent_count": 472,
+   "violent_crime_rate": 8.5
+  },
+  "2034": {
+   "crime_index": 95.0,
+   "property_crime_rate": 41.2,
+   "total_count": 653,
+   "violent_count": 247,
+   "violent_crime_rate": 7.2
+  },
+  "2039": {
+   "crime_index": 75.5,
+   "property_crime_rate": 34.6,
+   "total_count": 518,
+   "violent_count": 254,
+   "violent_crime_rate": 7.3
+  },
+  "2061": {
+   "crime_index": 71.5,
+   "property_crime_rate": 37.5,
+   "total_count": 772,
+   "violent_count": 353,
+   "violent_crime_rate": 6.5
+  },
+  "2062": {
+   "crime_index": 80.2,
+   "property_crime_rate": 34.3,
+   "total_count": 1643,
+   "violent_count": 681,
+   "violent_crime_rate": 6.6
+  },
+  "2080": {
+   "crime_index": 74.8,
+   "property_crime_rate": 38.1,
+   "total_count": 4485,
+   "violent_count": 2008,
+   "violent_crime_rate": 6.7
+  },
+  "2081": {
+   "crime_index": 113.8,
+   "property_crime_rate": 54.2,
+   "total_count": 5846,
+   "violent_count": 2799,
+   "violent_crime_rate": 10.8
+  },
+  "2082": {
+   "crime_index": 66.2,
+   "property_crime_rate": 36.0,
+   "total_count": 743,
+   "violent_count": 363,
+   "violent_crime_rate": 6.5
+  },
+  "2083": {
+   "crime_index": 106.7,
+   "property_crime_rate": 52.5,
+   "total_count": 1616,
+   "violent_count": 772,
+   "violent_crime_rate": 10.1
+  },
+  "2084": {
+   "crime_index": 109.1,
+   "property_crime_rate": 52.7,
+   "total_count": 2443,
+   "violent_count": 1121,
+   "violent_crime_rate": 9.9
+  },
+  "2085": {
+   "crime_index": 81.4,
+   "property_crime_rate": 38.2,
+   "total_count": 2176,
+   "violent_count": 1270,
+   "violent_crime_rate": 9.6
+  },
+  "2101": {
+   "crime_index": 77.5,
+   "property_crime_rate": 39.5,
+   "total_count": 443,
+   "violent_count": 260,
+   "violent_crime_rate": 9.0
+  },
+  "2104": {
+   "crime_index": 87.2,
+   "property_crime_rate": 44.8,
+   "total_count": 803,
+   "violent_count": 420,
+   "violent_crime_rate": 8.9
+  },
+  "2121": {
+   "crime_index": 67.5,
+   "property_crime_rate": 35.9,
+   "total_count": 763,
+   "violent_count": 248,
+   "violent_crime_rate": 4.3
+  },
+  "2132": {
+   "crime_index": 82.7,
+   "property_crime_rate": 38.1,
+   "total_count": 767,
+   "violent_count": 357,
+   "violent_crime_rate": 7.6
+  },
+  "2161": {
+   "crime_index": 76.9,
+   "property_crime_rate": 35.4,
+   "total_count": 1416,
+   "violent_count": 658,
+   "violent_crime_rate": 7.1
+  },
+  "2180": {
+   "crime_index": 127.3,
+   "property_crime_rate": 63.7,
+   "total_count": 13238,
+   "violent_count": 4762,
+   "violent_crime_rate": 9.2
+  },
+  "2181": {
+   "crime_index": 94.1,
+   "property_crime_rate": 45.7,
+   "total_count": 3595,
+   "violent_count": 1405,
+   "violent_crime_rate": 7.2
+  },
+  "2182": {
+   "crime_index": 120.6,
+   "property_crime_rate": 55.9,
+   "total_count": 2938,
+   "violent_count": 1331,
+   "violent_crime_rate": 10.7
+  },
+  "2183": {
+   "crime_index": 95.5,
+   "property_crime_rate": 42.8,
+   "total_count": 2496,
+   "violent_count": 1180,
+   "violent_crime_rate": 8.9
+  },
+  "2184": {
+   "crime_index": 112.5,
+   "property_crime_rate": 56.2,
+   "total_count": 4210,
+   "violent_count": 1393,
+   "violent_crime_rate": 7.4
+  },
+  "2260": {
+   "crime_index": 93.1,
+   "property_crime_rate": 43.8,
+   "total_count": 840,
+   "violent_count": 356,
+   "violent_crime_rate": 7.8
+  },
+  "2262": {
+   "crime_index": 80.7,
+   "property_crime_rate": 36.6,
+   "total_count": 1411,
+   "violent_count": 786,
+   "violent_crime_rate": 8.9
+  },
+  "2280": {
+   "crime_index": 120.3,
+   "property_crime_rate": 47.9,
+   "total_count": 2939,
+   "violent_count": 1752,
+   "violent_crime_rate": 14.2
+  },
+  "2281": {
+   "crime_index": 96.5,
+   "property_crime_rate": 41.0,
+   "total_count": 9554,
+   "violent_count": 4605,
+   "violent_crime_rate": 9.3
+  },
+  "2282": {
+   "crime_index": 113.5,
+   "property_crime_rate": 49.2,
+   "total_count": 1980,
+   "violent_count": 985,
+   "violent_crime_rate": 11.1
+  },
+  "2283": {
+   "crime_index": 98.9,
+   "property_crime_rate": 44.8,
+   "total_count": 1806,
+   "violent_count": 983,
+   "violent_crime_rate": 10.6
+  },
+  "2284": {
+   "crime_index": 81.0,
+   "property_crime_rate": 35.6,
+   "total_count": 4488,
+   "violent_count": 1851,
+   "violent_crime_rate": 6.7
+  },
+  "2303": {
+   "crime_index": 81.2,
+   "property_crime_rate": 35.4,
+   "total_count": 418,
+   "violent_count": 172,
+   "violent_crime_rate": 6.7
+  },
+  "2305": {
+   "crime_index": 119.5,
+   "property_crime_rate": 60.2,
+   "total_count": 716,
+   "violent_count": 287,
+   "violent_crime_rate": 9.4
+  },
+  "2309": {
+   "crime_index": 57.5,
+   "property_crime_rate": 25.5,
+   "total_count": 905,
+   "violent_count": 397,
+   "violent_crime_rate": 5.1
+  },
+  "2313": {
+   "crime_index": 91.5,
+   "property_crime_rate": 41.9,
+   "total_count": 1003,
+   "violent_count": 377,
+   "violent_crime_rate": 6.7
+  },
+  "2321": {
+   "crime_index": 100.3,
+   "property_crime_rate": 38.8,
+   "total_count": 1277,
+   "violent_count": 424,
+   "violent_crime_rate": 6.8
+  },
+  "2326": {
+   "crime_index": 88.9,
+   "property_crime_rate": 41.7,
+   "total_count": 631,
+   "violent_count": 246,
+   "violent_crime_rate": 6.9
+  },
+  "2361": {
+   "crime_index": 90.6,
+   "property_crime_rate": 37.5,
+   "total_count": 919,
+   "violent_count": 290,
+   "violent_crime_rate": 5.7
+  },
+  "2380": {
+   "crime_index": 117.4,
+   "property_crime_rate": 56.6,
+   "total_count": 7630,
+   "violent_count": 2740,
+   "violent_crime_rate": 8.5
+  },
+  "2401": {
+   "crime_index": 72.8,
+   "property_crime_rate": 26.1,
+   "total_count": 504,
+   "violent_count": 254,
+   "violent_crime_rate": 7.2
+  },
+  "2403": {
+   "crime_index": 102.4,
+   "property_crime_rate": 37.6,
+   "total_count": 240,
+   "violent_count": 82,
+   "violent_crime_rate": 6.9
+  },
+  "2404": {
+   "crime_index": 93.9,
+   "property_crime_rate": 35.4,
+   "total_count": 509,
+   "violent_count": 148,
+   "violent_crime_rate": 5.4
+  },
+  "2409": {
+   "crime_index": 92.1,
+   "property_crime_rate": 33.9,
+   "total_count": 612,
+   "violent_count": 269,
+   "violent_crime_rate": 8.0
+  },
+  "2417": {
+   "crime_index": 55.0,
+   "property_crime_rate": 26.8,
+   "total_count": 214,
+   "violent_count": 89,
+   "violent_crime_rate": 4.5
+  },
+  "2418": {
+   "crime_index": 75.4,
+   "property_crime_rate": 33.4,
+   "total_count": 221,
+   "violent_count": 123,
+   "violent_crime_rate": 8.2
+  },
+  "2421": {
+   "crime_index": 102.7,
+   "property_crime_rate": 36.7,
+   "total_count": 571,
+   "violent_count": 168,
+   "violent_crime_rate": 5.9
+  },
+  "2422": {
+   "crime_index": 91.1,
+   "property_crime_rate": 28.4,
+   "total_count": 215,
+   "violent_count": 79,
+   "violent_crime_rate": 6.6
+  },
+  "2425": {
+   "crime_index": 100.1,
+   "property_crime_rate": 44.1,
+   "total_count": 227,
+   "violent_count": 59,
+   "violent_crime_rate": 5.0
+  },
+  "2460": {
+   "crime_index": 81.5,
+   "property_crime_rate": 40.5,
+   "total_count": 748,
+   "violent_count": 255,
+   "violent_crime_rate": 5.6
+  },
+  "2462": {
+   "crime_index": 97.9,
+   "property_crime_rate": 35.3,
+   "total_count": 607,
+   "violent_count": 254,
+   "violent_crime_rate": 8.0
+  },
+  "2463": {
+   "crime_index": 97.1,
+   "property_crime_rate": 32.4,
+   "total_count": 261,
+   "violent_count": 117,
+   "violent_crime_rate": 8.5
+  },
+  "2480": {
+   "crime_index": 92.1,
+   "property_crime_rate": 38.5,
+   "total_count": 12411,
+   "violent_count": 4383,
+   "violent_crime_rate": 6.6
+  },
+  "2481": {
+   "crime_index": 106.1,
+   "property_crime_rate": 39.0,
+   "total_count": 1288,
+   "violent_count": 541,
+   "violent_crime_rate": 8.9
+  },
+  "2482": {
+   "crime_index": 95.2,
+   "property_crime_rate": 42.5,
+   "total_count": 7312,
+   "violent_count": 2971,
+   "violent_crime_rate": 7.9
+  },
+  "2505": {
+   "crime_index": 74.8,
+   "property_crime_rate": 29.9,
+   "total_count": 453,
+   "violent_count": 170,
+   "violent_crime_rate": 5.6
+  },
+  "2506": {
+   "crime_index": 80.5,
+   "property_crime_rate": 39.1,
+   "total_count": 208,
+   "violent_count": 67,
+   "violent_crime_rate": 5.1
+  },
+  "2510": {
+   "crime_index": 108.6,
+   "property_crime_rate": 49.8,
+   "total_count": 510,
+   "violent_count": 172,
+   "violent_crime_rate": 7.2
+  },
+  "2513": {
+   "crime_index": 86.2,
+   "property_crime_rate": 42.6,
+   "total_count": 275,
+   "violent_count": 121,
+   "violent_crime_rate": 7.5
+  },
+  "2514": {
+   "crime_index": 101.8,
+   "property_crime_rate": 46.7,
+   "total_count": 1559,
+   "violent_count": 669,
+   "violent_crime_rate": 8.6
+  },
+  "2518": {
+   "crime_index": 88.4,
+   "property_crime_rate": 31.6,
+   "total_count": 356,
+   "violent_count": 178,
+   "violent_crime_rate": 8.7
+  },
+  "2521": {
+   "crime_index": 63.6,
+   "property_crime_rate": 27.7,
+   "total_count": 368,
+   "violent_count": 149,
+   "violent_crime_rate": 5.1
+  },
+  "2523": {
+   "crime_index": 90.9,
+   "property_crime_rate": 34.4,
+   "total_count": 1562,
+   "violent_count": 809,
+   "violent_crime_rate": 9.3
+  },
+  "2560": {
+   "crime_index": 91.2,
+   "property_crime_rate": 39.8,
+   "total_count": 711,
+   "violent_count": 254,
+   "violent_crime_rate": 6.5
+  },
+  "2580": {
+   "crime_index": 104.9,
+   "property_crime_rate": 53.5,
+   "total_count": 8392,
+   "violent_count": 3116,
+   "violent_crime_rate": 7.9
+  },
+  "2581": {
+   "crime_index": 73.8,
+   "property_crime_rate": 33.1,
+   "total_count": 3121,
+   "violent_count": 1328,
+   "violent_crime_rate": 6.3
+  },
+  "2582": {
+   "crime_index": 105.7,
+   "property_crime_rate": 44.6,
+   "total_count": 2995,
+   "violent_count": 1339,
+   "violent_crime_rate": 9.5
+  },
+  "2583": {
+   "crime_index": 139.5,
+   "property_crime_rate": 51.0,
+   "total_count": 1268,
+   "violent_count": 524,
+   "violent_crime_rate": 11.3
+  },
+  "2584": {
+   "crime_index": 85.7,
+   "property_crime_rate": 34.3,
+   "total_count": 1920,
+   "violent_count": 897,
+   "violent_crime_rate": 8.0
+  }
+ },
+ "latest_year": 2025,
+ "source": "Brå, Anmälda brott (statistik.bra.se), per kommun",
+ "violent_years": [
+  2021,
+  2022,
+  2023,
+  2024,
+  2025
+ ],
+ "withheld_under_population": 2000
+}
