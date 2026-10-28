@@ -214,7 +214,7 @@ The backend is fully optional — `api.ts` returns `{ error }` objects instead o
 - **Rate limiting** is an in-process Map keyed on `req.ip` with `trust proxy = 1` (one hop = Caddy). Never hand-parse `X-Forwarded-For` — the leftmost entry is attacker-controlled and a previous implementation allowed limit-bucket minting.
 - **Turnstile**: verified server-side on signup; an unset `TURNSTILE_SECRET` silently disables the check, a Cloudflare outage fails closed. Tokens are single-use — the client remounts the widget after a failed signup.
 - **Database** (PostgreSQL 16, tables auto-created with `CREATE TABLE IF NOT EXISTS`; column changes go through the forward-only migration runner in `db.ts`, serialized on a pg advisory lock): `users` plus four JSONB tables keyed `user_id UUID PK FK ... ON DELETE CASCADE` (`user_favorites`, `user_notes`, `user_preferences`, `user_shortlist`) and `password_reset_tokens` (SHA-256 hash only, 1-hour expiry, single-use, redeemed by one atomic conditional `UPDATE ... RETURNING`).
-- **Password reset**: `POST /auth/forgot-password` answers `200 {ok:true}` for every address — real, unknown or malformed — and answers *before* doing the lookup or the send, so neither the body nor the latency is an account-enumeration oracle. Mail goes out via Resend (`mailer.ts`, no SDK — global `fetch`), which no-ops when `RESEND_API_KEY` is unset. The emailed link points at `/uusi-salasana/`, a real prerendered directory. A client-only route would work — `deploy.yml` copies `index.html` over `404.html`, so the host (Caddy on the droplet, and Pages as the standby) serves the SPA shell for unknown paths and the router matches client-side — but it would answer HTTP 404 with `robots: index, follow` and a canonical pointing at `/`. Prerendering gets it a 200, a noindex and its own title. (The redirect stub in `public/404.html`, which *would* drop the path, survives only in local `npm run preview`.)
+- **Password reset**: `POST /auth/forgot-password` answers `200 {ok:true}` for every address — real, unknown or malformed — and answers *before* doing the lookup or the send, so neither the body nor the latency is an account-enumeration oracle. Mail goes out via Resend (`mailer.ts`, no SDK — global `fetch`), which no-ops when `RESEND_API_KEY` is unset. The emailed link points at `/uusi-salasana/`, a real prerendered directory. A client-only route would work — `deploy.yml` copies `index.html` over `404.html`, so the host (Caddy on the droplet) serves the SPA shell for unknown paths and the router matches client-side — but it would answer HTTP 404 with `robots: index, follow` and a canonical pointing at `/`. Prerendering gets it a 200, a noindex and its own title. (The redirect stub in `public/404.html`, which *would* drop the path, survives only in local `npm run preview`.)
 - Email is **optional** at signup, so accounts without one cannot be recovered; `PATCH /auth/email` (re-authenticated with the current password, because the address is the reset channel) lets users add one later, surfaced in `UserMenu`.
 - **Changing a password while signed in** (`PATCH /auth/password`) bumps `token_version` like a reset but RE-ISSUES the caller's cookie against the new generation, so only the other sessions die. It also rejects reuse of the current password, which the reset path deliberately allows — see server/README.md for why the two differ.
 - Known gap: the client sends `wizardProfile` in `PUT /auth/preferences` but the server ignores it (and a wizardProfile-only PUT gets a 400) — CF-4 server support is unimplemented.
@@ -311,7 +311,7 @@ The profile page reads the prerender-embedded payload for instant paint (guarded
 |----------|---------|-------|
 | `ci.yml` | push/PR to main | 3 parallel jobs (security audits / lint+type+test+build+e2e+visual+bundle / lighthouse); **skips claude/* PRs entirely**; bundle-delta PR comment; budget 314,000 B gzip (the shared `BUDGET` in `scripts/check-bundle-size.mjs`) |
 | `auto-merge.yml` | push to `claude/**` | The only gate for those branches: parallel jobs mirroring CI (security / checks / data-validation / e2e / lighthouse / server; no visual tests). `data-validation` runs the FULL `validate_data.py` suite when the branch touches `public/data/**` or `scripts/**`, then `merge --no-ff` to main with push-retry/backoff (conflicts fail immediately), branch delete, **explicit** `gh workflow run deploy.yml` (bot pushes don't trigger workflows). Concurrency group cancels an in-flight run when a second claude/* branch pushes — serialize or stack branches |
-| `deploy.yml` | CI success on main / manual | build (+ Sentry secrets) → `build:pages` → rasterize social cards → dist-size guard → 404 fallback copy → GitHub Pages, and in parallel (`deploy-droplet`) rsync of the same artifact into a new release folder on the droplet + atomic `current` switch |
+| `deploy.yml` | CI success on main / manual | build (+ Sentry secrets) → `build:pages` → rasterize social cards → dist-size guard → 404 fallback copy → rsync into a new release folder on the droplet + atomic `current` switch; opens an issue on failure |
 | `deploy-server.yml` | push to main touching `server/**` / manual | SSH → `git pull` → rebuild api → `compose up -d` → `caddy reload` |
 | `data-refresh.yml` | quarterly cron / manual | pipeline + validation → PR on change |
 | `health-check.yml` | daily cron | site/API/sitemap/data-age checks → GitHub issue on failure |
@@ -322,12 +322,16 @@ The profile page reads the prerender-embedded payload for instant paint (guarded
 
 Since 2026-10-27 `naapurustot.fi` and `www` resolve (Cloudflare DNS, unproxied) to the
 DigitalOcean droplet, where Caddy serves `/srv/naapurustot/current` alongside the API and
-Umami (`server/caddy/Caddyfile`, address from `SITE_HOSTS` in `server/.env`). Every
-`deploy.yml` run publishes the same artifact twice: `deploy-droplet` rsyncs it into a new
-release folder and switches the `current` symlink, and `deploy` keeps GitHub Pages current as
-the standby. Switching to the standby is a DNS change: point the apex back at GitHub's four A
-records and `www` back at `jvmarten.github.io` (steps in `docs/SERVER_MIGRATION.md`, phase 2).
-The Pages constraints below still apply, because the standby must stay deployable.
+Umami (`server/caddy/Caddyfile`, address from `SITE_HOSTS` in `server/.env`). The droplet is
+the only host. Each `deploy.yml` run builds the site and rsyncs it into a new release folder,
+then switches the `current` symlink; the five newest releases are kept, so a rollback is
+pointing `current` at the previous one.
+
+GitHub Pages was the standby until 2026-10-28 and was dropped: its deploy shared a
+concurrency group with the droplet's, so a Pages environment that never started (one wedge
+held every deploy for 1 h 44 m) also held the live site back, and the published tree
+(~59,000 files with Sweden) had outgrown what Pages syncs comfortably. If the droplet is
+lost, the recovery is a new server (`docs/SERVER_MIGRATION.md`), not a DNS switch.
 
 ### Social-card cache
 
@@ -345,10 +349,10 @@ cache is a **ratchet** unless two invariants hold, and in Aug 2026 both were bro
 
 Without them the tree reached **2.4 GB / ~65,000 files** (32,538 in `dist/og` against
 ~9,000 real cards). Nothing failed loudly: the `deploy` dist-size guard had been made
-warn-only, so the only symptom was the Pages sync creeping up until it passed
+warn-only, so the only symptom was the (then) Pages sync creeping up until it passed
 `actions/deploy-pages`' **10-minute default timeout** — 9m52s on the last green run, then
-three straight failures stuck in `deployment_queued`. `deploy.yml` now sets that timeout
-explicitly, but it is a backstop; the invariants above are the actual fix.
+three straight failures stuck in `deployment_queued`. The invariants above are the fix; the
+droplet sync has no such timeout, which makes a creeping tree quieter, not harmless.
 
 `npm run dist:check` (the `pages` profile) is the hard pre-merge gate on the prerendered
 mesh, which is where combinatorial page growth lives. The `deploy` profile guards the full

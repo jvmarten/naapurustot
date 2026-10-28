@@ -2,7 +2,7 @@
 
 ## Project overview
 
-naapurustot is a static React + TypeScript map application for exploring postal-code-level statistics across all of Finland — 3,018 postal-code areas in 69 sub-regions (seutukunnat) — and all of Sweden: 6,160 SCB DeSO areas in 71 FA25 regions (`docs/SWEDEN_EXPANSION.md`). Live at naapurustot.fi, served from the DigitalOcean droplet by Caddy, with GitHub Pages as the standby (see "Where the site is served"). The frontend runs entirely in the browser from pre-built TopoJSON/JSON assets; an optional Express + PostgreSQL backend (`server/`) adds accounts and sync of favorites/shortlist/notes/preferences. The app works fully without it.
+naapurustot is a static React + TypeScript map application for exploring postal-code-level statistics across all of Finland — 3,018 postal-code areas in 69 sub-regions (seutukunnat) — and all of Sweden: 6,160 SCB DeSO areas in 71 FA25 regions (`docs/SWEDEN_EXPANSION.md`). Live at naapurustot.fi, served from the DigitalOcean droplet by Caddy (see "Where the site is served"). The frontend runs entirely in the browser from pre-built TopoJSON/JSON assets; an optional Express + PostgreSQL backend (`server/`) adds accounts and sync of favorites/shortlist/notes/preferences. The app works fully without it.
 
 ## Commands
 
@@ -154,44 +154,21 @@ The container is ephemeral, so verify within the session that produced the push.
 
 ### Where the site is served
 
-Since 2026-10-27 `naapurustot.fi` and `www` resolve to the droplet, where Caddy serves
+`naapurustot.fi` and `www` resolve to the droplet, where Caddy serves
 `/srv/naapurustot/current` (`server/caddy/Caddyfile`; `SITE_HOSTS` in the droplet's
-`server/.env` picks the address). Every `deploy.yml` run publishes the build twice:
-`deploy-droplet` is the live site, `deploy` keeps GitHub Pages current as the standby. So
-"is it live" means `deploy-droplet` succeeded; when it fails it opens an issue and the droplet
-keeps serving the previous release. The Pages notes below still apply: a wedged Pages run
-holds the `pages` concurrency group, so the *next* run's droplet deploy waits behind it too,
-and the standby has to stay deployable. Switching to the standby is a DNS change at
-Cloudflare — `docs/ARCHITECTURE.md` → Hosting.
+`server/.env` picks the address). `deploy.yml` ("Deploy site") is one job: build, prerender,
+rasterize cards, then rsync into a new release folder and switch `current`. "Is it live"
+means that run succeeded; on failure it opens an issue and the droplet keeps serving the
+previous release (the five newest are kept, so a rollback is re-pointing `current`).
+`deploy-server.yml` ("Deploy Server") is a different thing — the backend API, run only when
+`server/**` changes — so its going quiet says nothing about the site.
 
-### The wedged Pages deploy (`deploy` job queued forever)
-
-A green auto-merge is not a deployed site. `deploy.yml`'s `deploy` job carries
-`environment: github-pages`, and a job waiting on an environment **has not started**, so
-`timeout-minutes` never ticks — the 30-minute cap cannot bound it. Measured 2026-08-09:
-job 93229767509 sat at `status: "queued"`, `runner_id: 0`, no steps, for **1 h 44 m**
-before a human cancelled it. It is not runner capacity; the sibling `build` job gets a
-runner in 2–3 s on this repo.
-
-One wedge is a full stop, not a delay. `concurrency: pages` is workflow-level with
-`cancel-in-progress: false`, so every later deploy waits for the wedged run to *end* —
-the next run did not start its **build** for 1 h 38 m — and GitHub keeps only **one**
-pending run per group, so a third dispatch silently drops the second. Several sessions
-merging in a row is exactly how you get "merged to main, never went live".
-
-Cancelling the head run clears it in seconds (cancel 11:47:05 → next build 11:47:08 →
-deployed 11:50:50). `deploy-watchdog` in `deploy.yml` now does that cancel automatically
-after 8 minutes, dispatching a replacement first when nothing is queued behind it. To
-check or clear it by hand:
-
-```bash
-npm run queue:check              # exit 2 = wedged, names the run to cancel
-npm run queue:check -- --unstick # cancel the wedged run; the queue drains behind it
-```
-
-Signature to recognise in the API: run `status: "pending"` (concurrency gate) stacked
-behind a run whose `deploy` job is `queued` with no `runner_id`. A red `deploy` job with
-a green `build` job is a different problem — see the social-card cache note below.
+**There is no GitHub Pages standby any more** (dropped 2026-10-28, `docs/ARCHITECTURE.md` →
+Hosting). Its deploy shared a concurrency group with the droplet's, so a Pages environment
+that never started — a job waiting on an environment has not begun, so `timeout-minutes`
+never ticks; one sat 1 h 44 m — held every later deploy, live site included. Do not bring
+it back as a second publish in the same workflow. `npm run queue:check`'s exit 2 ("wedged
+deploy") detects that Pages-era state and should no longer occur.
 
 ## Code style
 
@@ -255,12 +232,10 @@ sure the incremental build info is not answering for you.
 They interlock: the orphan prune in `rasterize-cards.mjs` deletes a PNG only when no SVG of
 that content-hashed name remains, so **one surviving stale SVG shields its stale PNG forever**.
 With both broken the tree hit 2.4 GB / ~65,000 files (32,538 in `dist/og` against ~9,000 real
-cards). It failed silently — the `deploy` dist-size guard was warn-only — until the Pages sync
-crossed `actions/deploy-pages`' 10-minute default timeout: 9m52s on the last green run, then
-three failures stuck in `deployment_queued` with a green `build` job. **A red `deploy` job with
-a green `build` job is a size/time problem, not a code problem** — check the artifact size
-(`list_workflow_run_artifacts`) before anything else. `deploy.yml` now sets `timeout` explicitly,
-but that is a backstop; keep the tree small.
+cards). It failed silently — the `deploy` dist-size guard was warn-only — until the (then) Pages
+sync crossed `actions/deploy-pages`' 10-minute default timeout. The droplet sync has no such
+timeout, so a ratcheting tree now shows up only as a slower sync and a fuller disk — the
+`check-dist-size.mjs --profile deploy` gate is what catches it; keep the tree small.
 
 A third, separate constraint governs how the cards are *rendered*. Batches run one per core,
 and each child costs ~200 MiB fixed plus ~3 MiB per card (a 1200×630 RGBA pixmap
@@ -350,7 +325,7 @@ The sidebar is generated entirely from `FEED_GROUPS` in `src/live/feeds.ts`, so 
 2. **Never put the two countries on one scale.** Shared keys (`unemployment_rate`, `ownership_rate`, …) carry SCB's definitions for Swedish areas, documented per metric in `data_sources.json` → `countries.se`. National ranges and national averages are Finland's alone (filtered by `countryOfId`); Swedish views use `stopsSe` (`layerForCountry`) and `layerInCountry` hides layers a country has no data for. Layers counted the same way in both countries (OSM services, Skolverket schools, SILAM air, water proximity) keep Finland's stops instead.
 3. **SCB tables carry both DeSO versions**: only `…_DeSO2025` codes match the 2025 boundaries. From 2025 SCB adds cell noise (a part can exceed its total; shares are capped at 100) and suppresses counts of 1–2 as `..`. A share with a suppressed cell is written only when both bounds round to the same published decimal — never imputed (`build_se_geojson.py`).
 4. **Region averages need numerators and denominators**: Swedish features carry `se_*` counts and `computeMetroAverages` sums them per country, so a mixed selection never pads a Finnish denominator with Swedish residents.
-5. **Profile pages are lean on purpose** (`scripts/prerender-se.mjs`): 6,160 areas × 3 languages = 18,480 pages at ~15 KB, with no social card and no oEmbed, because the published tree's FILE COUNT is what drives the Pages sync time (see the social-card note). `check-dist-size.mjs` budgets were raised to 66,000 files for them; measured 58,936. A per-area Swedish card would add 18,480 files and minutes of rasterizing per deploy — don't add one without re-measuring that. Scripts that read `region_properties.json` (open data, the similar-areas mesh, national ranges) filter to Finland: it carries both countries.
+5. **Profile pages are lean on purpose** (`scripts/prerender-se.mjs`): 6,160 areas × 3 languages = 18,480 pages at ~15 KB, with no social card and no oEmbed, because the published tree's FILE COUNT is what drives deploy time (see the social-card note). `check-dist-size.mjs` budgets were raised to 66,000 files for them; measured 58,936. A per-area Swedish card would add 18,480 files and minutes of rasterizing per deploy — don't add one without re-measuring that. Scripts that read `region_properties.json` (open data, the similar-areas mesh, national ranges) filter to Finland: it carries both countries.
 6. **DeSO polygons are cut at the shore** (`scripts/se/clip_deso_land.py`, OSM land polygons; run after `fetch_se_boundaries.py`, before `build_se_geojson.py`). SCB's own polygons follow municipal borders out to sea, so Sweden drew smooth blobs over the Baltic and its region outlines (also the always-on outline line layer in `Map.tsx`) ran out to the maritime border. Lakes stay, as in Paavo. Only display geometry: every area figure comes from SCB's tables.
 7. **Country borders are strong only where they touch a country on the map** (`styleBaseBorders` in `src/utils/basemap.ts`, `dataCountries` in App). From zoom 5 the basemap tiles name each side (`adm0_l`/`adm0_r`, ISO alpha-3); **below zoom 5 OpenFreeMap's tiles carry no country codes**, so those zooms draw `src/data/country_borders.geojson` (Natural Earth, `scripts/fetch_country_borders.py`, `maxzoom: 5`) instead. A new country needs its ISO code in `ISO3` and in that script's `COUNTRIES`.
 8. **`city=fi` / `city=se` is the national view of one country** (`RegionSelection.country`, `parseCityParam`): `cityFilter` stays `'all'`, the region features and the outline lines are filtered to that country, and `viewCountry` follows it. Picking Finland or Sweden in the region selector sets it; a region pick or World clears it.

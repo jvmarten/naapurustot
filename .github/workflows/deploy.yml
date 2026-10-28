@@ -1,12 +1,14 @@
-name: Deploy to GitHub Pages
+name: Deploy site
+
+# Builds the site and publishes it to the droplet, where Caddy serves
+# /srv/naapurustot/current as naapurustot.fi (server/caddy/Caddyfile). The droplet is
+# the only host: the GitHub Pages standby was dropped on 2026-10-28, because sharing its
+# queue let a stuck Pages environment hold the live site back (one wedge stopped every
+# deploy for 1 h 44 m), and the site's ~59,000 files were outgrowing Pages anyway.
+# Rollback is a release switch on the droplet (five are kept, see the sync step).
 
 on:
   workflow_dispatch:
-    inputs:
-      watchdog_retry:
-        description: 'Set only by deploy-watchdog when it replaces a wedged run. Stops a replacement from dispatching another one.'
-        type: boolean
-        default: false
   workflow_run:
     workflows: ["CI"]
     types:
@@ -14,39 +16,31 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
-# Deploys serialize rather than supersede. `cancel-in-progress: true` would clear a
-# wedged run automatically, but it would also let a burst of merges starve the site:
-# each new dispatch would kill a build already minutes in, and with several Claude
-# sessions merging through auto-merge.yml a cold ~7-minute build can easily be
-# superseded before it publishes. The wedge is handled by the deploy-watchdog job
-# below, which cancels only when the deploy job is provably stuck — so ordering stays
-# safe AND the queue still clears itself.
+# Deploys serialize rather than supersede: with several sessions merging through
+# auto-merge.yml, cancel-in-progress would let a burst of merges kill each build
+# minutes in. GitHub keeps one pending run per group, so a burst collapses to the
+# newest, which checks out main and so carries every merge before it.
 concurrency:
-  group: pages
+  group: deploy-site
   cancel-in-progress: false
 
 jobs:
-  build:
+  deploy:
     if: >-
       github.event_name != 'workflow_run' ||
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
-    # Belt-and-suspenders: a hung build (e.g. the card rasterizer regressing again)
-    # should fail fast with a clear message instead of the default 6-hour ceiling.
-    #
-    # Measured budget. Warm (og cache hit, the normal case) the whole job is ~3.5 min. The
-    # cold path — a data refresh or card-layout change invalidating every card — is the one
-    # that has to fit: ~10 s npm ci + ~30 s build + ~20 s cache restore + ~100 s build:pages
-    # + ~7 s fonts + ~230 s rasterize (9,261 cards, 4 workers) + ~30 s upload ≈ 7 min.
-    # That leaves ~4x headroom. It used to leave ~1.7x: rasterize-cards.mjs ran its batches
-    # through a sequential spawnSync loop, using one core of the runner's four, so a cold
-    # rasterize alone took ~14.5 min of an ~18 min job. Even if the fan-out degenerates to
-    # one worker (a single-core runner), the cold job still lands ~18 min, inside this cap.
-    timeout-minutes: 30
+    # Measured budget. Warm (og cache hit, the normal case) the build is ~3.5 min and the
+    # sync ~2 min. The cold path — a data refresh or card-layout change invalidating every
+    # card — is ~7 min of build (~230 s of it rasterizing 9,261 cards on 4 workers) plus a
+    # longer sync of the new PNGs. 40 minutes leaves room for both on a slow runner, and
+    # stops a hung step long before the default 6-hour ceiling.
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      issues: write
     steps:
       - uses: actions/checkout@v5
         with:
@@ -89,7 +83,7 @@ jobs:
       #      which only deletes a PNG when no SVG of that name remains.
       #   2. rasterize-cards.mjs deletes the SVGs once the PNGs exist — the cache is saved
       #      from dist/og itself, so anything left here is carried into the next deploy
-      #      AND uploaded to Pages.
+      #      AND synced to the server.
       # `check-dist-size.mjs --profile deploy` below is the hard backstop on both.
       - name: Restore rasterized social-card cache
         uses: actions/cache@v4
@@ -110,7 +104,7 @@ jobs:
 
       # CF-11: rasterize the per-area/per-region social-card SVGs to PNG (FB/LinkedIn/
       # WhatsApp/X don't render SVG og:images). DEPLOY-ONLY — the ~9,000 PNGs add a few
-      # hundred MB to dist/ (within the 1 GB Pages cap) and are pointless for the
+      # hundred MB to dist/ and are pointless for the
       # ci/auto-merge build:pages gates. fonts-dejavu-core gives @resvg an ä/ö/å-capable
       # font for the card text. Most of the cards are served from the cache restored
       # above; only changed cards re-render.
@@ -119,8 +113,8 @@ jobs:
       - run: node scripts/rasterize-cards.mjs
 
       # IN-3: guard the FULL published tree (mesh + rasterized card PNGs) before upload —
-      # fail loudly here rather than let a slow Pages sync time the deployment out with no
-      # explanation. Runs post-rasterize so it measures the real upload, which is now
+      # fail loudly here rather than let an outsized tree fill the server's disk or stretch
+      # the sync. Runs post-rasterize so it measures the real upload, which is now
       # deterministic: the cache carries PNGs only and the SVG set is regenerated every build,
       # so this is a pure function of committed data and can be a HARD gate again.
       - name: Guard published site size (IN-3)
@@ -128,63 +122,12 @@ jobs:
 
       - run: cp dist/index.html dist/404.html
 
-      - uses: actions/upload-pages-artifact@v4
-        with:
-          path: dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    # The Pages sync is the long pole (tens of thousands of files); cap the job well above
-    # the action's own timeout below so the action reports the real reason, not a job kill.
-    timeout-minutes: 30
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v5
-        with:
-          # deploy-pages defaults to a 10-MINUTE timeout, and that default is what turned a
-          # slow deploy into a red one: the published tree had ratcheted up to 2.4 GB /
-          # ~65,000 files (see prerender-hubs.mjs + rasterize-cards.mjs for the card-cache
-          # ratchet that caused it), the sync crept up to 9m52s on the last green run, and
-          # the next three crossed 10:00 and aborted while still `deployment_queued`.
-          # The card fixes bring the tree back down, but Pages sync time is not something
-          # this repo controls, so give it real headroom — this timeout exists to stop a
-          # genuinely stuck deployment, not to police a slow one.
-          timeout: 1200000 # 20 min
-
-  # The same build, published to the droplet as well (docs/SERVER_MIGRATION.md, phase 2).
-  # Caddy serves /srv/naapurustot/current there; until the DNS cutover it answers only
-  # on the test address, and Pages stays the standby after it. A job of its own, needing
-  # only `build`, so neither publish can hold the other back: a stuck Pages environment
-  # does not delay the droplet, and an unreachable droplet does not block Pages.
-  #
-  # Each run lands in a fresh release folder. rsync hard-links every file whose checksum
-  # matches the current release (--link-dest), so only changed files cross the wire or
-  # take disk, and the folder is renamed into place only once complete. The switch is
-  # one rename of the `current` symlink, so no request ever sees half a deploy. -c
-  # because times are not preserved: the build stamps every file new, and a size+mtime
-  # quick check would resend all ~40,000.
-  deploy-droplet:
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    permissions:
-      contents: read
-      issues: write
-    steps:
-      - uses: actions/download-artifact@v7
-        with:
-          name: github-pages
-
-      - name: Unpack the Pages artifact
-        run: |
-          mkdir site
-          tar -xf artifact.tar -C site
-          test -s site/index.html && test -s site/404.html
-
+      # Each run lands in a fresh release folder. rsync hard-links every file whose
+      # checksum matches the current release (--link-dest), so only changed files cross
+      # the wire or take disk, and the folder is renamed into place only once complete.
+      # The switch is one rename of the `current` symlink, so no request ever sees half a
+      # deploy. -c because times are not preserved: the build stamps every file new, and a
+      # size+mtime quick check would resend all ~59,000.
       - name: Sync to the droplet and switch `current`
         env:
           DEPLOY_SERVER_IP: ${{ secrets.DEPLOY_SERVER_IP }}
@@ -207,7 +150,7 @@ jobs:
             link_dest=(--link-dest="$root/current/")
           fi
 
-          rsync -rlcz --delete "${link_dest[@]}" -e "$ssh_cmd" site/ "$host:$root/releases/$release.partial/"
+          rsync -rlcz --delete "${link_dest[@]}" -e "$ssh_cmd" dist/ "$host:$root/releases/$release.partial/"
 
           $ssh_cmd "$host" bash -s -- "$root" "$release" <<'REMOTE'
           set -euo pipefail
@@ -227,153 +170,21 @@ jobs:
           df -h /
           REMOTE
 
-      - name: Open an issue for the failed droplet sync
+      # Nothing else watches this workflow: there is no PR, and CI stays green on every
+      # branch while a deploy-only failure (the card rasterizer OOMing, an expired
+      # SENTRY_AUTH_TOKEN, an unreachable droplet) keeps every merged fix from visitors.
+      - name: Open an issue for the failed deploy
         if: failure()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cat > body.md <<EOF
-          deploy.yml could not publish the site to the droplet.
+          deploy.yml could not build or publish the site.
 
           Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
-          The droplet still serves its previous release. GitHub Pages is unaffected.
+          The droplet still serves its previous release, so every merge to main since the
+          last successful deploy is not live.
           EOF
-          gh issue create --repo "$GITHUB_REPOSITORY" --title "Droplet site deploy failed (run ${{ github.run_id }})" --body-file body.md \
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "Site deploy failed (run ${{ github.run_id }})" --body-file body.md \
             || echo "::warning::could not open an issue for this failed run"
-
-  # A job carrying an `environment:` does not start until GitHub grants it that
-  # environment, and `timeout-minutes` does NOT cover that wait: it measures execution,
-  # and a job still waiting on an environment has not begun executing. So the 30-minute
-  # cap on `deploy` above cannot bound the failure this job exists for. Nothing inside
-  # the workflow can.
-  #
-  # Measured, run 31307093810 (2026-08-09): `build` succeeded at 10:03:02; the `deploy`
-  # job was created at 10:03:02 and then sat at `status: "queued"` with `runner_id: 0`
-  # and no steps until a human cancelled it at 11:47:05 — 1 h 44 m under that 30-minute
-  # cap. It is not a capacity problem: the sibling `build` job is assigned a runner in
-  # 2-3 s on this repo, so a `deploy` job with no runner is waiting on `github-pages`.
-  #
-  # The cost is a full stop, not a slow deploy. `concurrency: pages` is workflow-level
-  # with cancel-in-progress:false, so every later deploy waits for this run to END — the
-  # next run (dispatched 10:08:43) did not start its BUILD until 11:47:08 — and GitHub
-  # keeps only ONE pending run per group, so a third dispatch silently drops the second.
-  # With several sessions merging through auto-merge.yml, that is merges landing on main
-  # and never reaching visitors.
-  #
-  # Cancelling the head run clears it in seconds (cancel 11:47:05 -> next run's build
-  # 11:47:08 -> deployed 11:50:50). That cancel is the entire remedy and it was being
-  # done by hand; this job does it instead.
-  deploy-watchdog:
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    # A watchdog hiccup (API 500, rate limit) must never turn an otherwise healthy
-    # deploy red — this job only ever removes a blockage, so failing it is worse noise
-    # than skipping it.
-    continue-on-error: true
-    permissions:
-      actions: write
-      issues: write
-    steps:
-      - name: Cancel this run if the deploy job never gets the environment
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # How long `deploy` may sit in `queued` before we call it wedged. The healthy
-          # transition is ~3 s, so 8 minutes is far outside normal without being
-          # trigger-happy on a slow morning.
-          STUCK_MINUTES: '8'
-          WATCHDOG_RETRY: ${{ inputs.watchdog_retry }}
-        run: |
-          set -u
-          jobs_api="repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs"
-          deadline=$(( $(date +%s) + STUCK_MINUTES * 60 ))
-          status=""
-
-          while :; do
-            # Exactly one job is named `deploy` (deploy-watchdog does not match), so this
-            # yields a single line. An API blip yields an empty one — handled below.
-            status=$(gh api "$jobs_api" --jq '.jobs[] | select(.name == "deploy") | .status' || echo "")
-            case "$status" in
-              in_progress|completed)
-                echo "deploy job is '$status' — nothing to unstick"
-                exit 0
-                ;;
-            esac
-            [ "$(date +%s)" -ge "$deadline" ] && break
-            sleep 20
-          done
-
-          # Only act on a state we actually observed. If the last poll failed we do not
-          # know the job is stuck, and cancelling a healthy production deploy on the
-          # strength of a failed API call would be a far worse bug than the wedge.
-          if [ "$status" != "queued" ]; then
-            echo "could not confirm a wedge (last observed status: '${status:-unknown}') — leaving this run alone"
-            exit 0
-          fi
-
-          echo "::warning::deploy job has been queued ${STUCK_MINUTES}m with no runner — treating the github-pages environment as wedged"
-
-          # Queue the replacement BEFORE cancelling: a run dispatched now waits at the
-          # `pages` gate and starts the moment this run ends, which is exactly the
-          # measured recovery. Dispatching after the cancel would race the cancel.
-          #
-          # But GitHub keeps exactly ONE pending run per concurrency group, so
-          # dispatching while another deploy is already in line would CANCEL that one
-          # rather than add to the queue. Only dispatch when nothing is waiting.
-          waiting=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/deploy.yml/runs?per_page=50" \
-            --jq '[.workflow_runs[]
-                   | select((.id | tostring) != env.GITHUB_RUN_ID)
-                   | select(.status == "queued" or .status == "pending"
-                            or .status == "waiting" or .status == "in_progress")]
-                  | length' || echo "0")
-
-          if [ "${waiting:-0}" -gt 0 ]; then
-            echo "$waiting deploy run(s) already queued behind this one — they start as soon as this run ends"
-          elif [ "$WATCHDOG_RETRY" = "true" ]; then
-            # A replacement that wedges too means the environment is not recovering, so a
-            # third would just burn another cycle. Escalate to a human instead.
-            echo "::error::this run was itself a watchdog replacement and wedged again — not dispatching a third"
-            gh issue create --repo "$GITHUB_REPOSITORY" \
-              --title "Pages deploy wedged twice on the github-pages environment" \
-              --body "deploy.yml run ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} was dispatched by deploy-watchdog to replace an earlier wedged run, and its own \`deploy\` job also sat in \`queued\` for ${STUCK_MINUTES} minutes without a runner.
-
-          The published site is now STALE: every merge to main since the last successful deploy is not live. Two consecutive wedges means the \`github-pages\` environment is not clearing on its own — check https://www.githubstatus.com/ and re-run deploy.yml once Pages is healthy." \
-              || echo "::warning::could not open an issue for the repeated wedge"
-          else
-            echo "nothing queued behind this run — dispatching a replacement before cancelling"
-            gh workflow run deploy.yml --ref main -f watchdog_retry=true \
-              || echo "::warning::replacement dispatch failed — the next merge to main will deploy instead"
-          fi
-
-          # Cancel LAST. This kills the watchdog job too, so nothing after it runs.
-          echo "cancelling run $GITHUB_RUN_ID to release the github-pages environment"
-          gh api -X POST "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/cancel"
-
-  # Nothing anywhere watched these workflows. There is no PR to annotate and no
-  # webhook, and the only two `if: failure()` steps in the whole tree were an
-  # artifact upload and issue-to-pr. A deploy-only failure -- the card rasterizer
-  # OOMing, an expired SENTRY_AUTH_TOKEN, an upload timeout -- therefore stopped
-  # every merged fix from reaching visitors while CI stayed green on every
-  # branch, and the earliest automated detector was health-check's 200-DAY
-  # data-age threshold. Open an issue instead.
-  notify-failure:
-    needs: [build, deploy]
-    if: failure()
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      issues: write
-    steps:
-      - name: Open an issue for the failed run
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          cat > body.md <<EOF
-          deploy.yml failed on ${{ github.ref_name }}.
-
-          Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-          The published site is now STALE: every merge to main since the last successful deploy is not live.
-          EOF
-          gh issue create --repo "$GITHUB_REPOSITORY"             --title "Pages deploy failed (run ${{ github.run_id }})"             --body-file body.md             || echo "::warning::could not open an issue for this failed run"
