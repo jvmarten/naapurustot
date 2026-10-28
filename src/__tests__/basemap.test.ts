@@ -219,23 +219,32 @@ describe('styleBaseBorders', () => {
   const village = label('place_village', 'place');
 
   it('drops sub-national borders and lifts country borders just above the first place label', () => {
-    const out = styleBaseBorders([water, state, country, road, city, village], 'dark');
+    const out = styleBaseBorders([water, state, country, road, city, village], 'dark', ['fi', 'se']);
     expect(out.map((l) => l.id)).toEqual(['water', 'road_label', 'place_city', 'boundary_country_z5-', 'place_village']);
   });
 
   it('keeps only land segments and replaces the base paint with the theme\'s', () => {
-    const [b] = styleBaseBorders([country], 'light') as (LayerSpecification & { filter: unknown; paint: Record<string, unknown> })[];
+    const [b] = styleBaseBorders([country], 'light', ['fi', 'se']) as (LayerSpecification & { filter: unknown; paint: Record<string, unknown> })[];
     expect(b.filter).toEqual(['all', ['==', ['get', 'admin_level'], 2], ['!=', ['get', 'maritime'], 1]]);
     expect(b.paint['line-dasharray']).toBeUndefined();
     expect(b.paint['line-color']).not.toEqual(
-      (styleBaseBorders([country], 'dark')[0] as { paint: Record<string, unknown> }).paint['line-color'],
+      (styleBaseBorders([country], 'dark', ['fi', 'se'])[0] as { paint: Record<string, unknown> }).paint['line-color'],
     );
-    const [p] = styleBaseBorders([positron2], 'light') as (LayerSpecification & { filter: unknown })[];
+    const [p] = styleBaseBorders([positron2], 'light', ['fi', 'se']) as (LayerSpecification & { filter: unknown })[];
     expect(p.filter).toEqual((positron2 as { filter: unknown }).filter);
   });
 
+  it('draws a border strong only where it touches a country whose data is on the map', () => {
+    const [b] = styleBaseBorders([country], 'dark', ['se']) as { paint: Record<string, unknown> }[];
+    const touches = (b.paint['line-color'] as unknown[])[1];
+    expect(JSON.stringify(touches)).toContain('["literal",["SWE"]]');
+    expect(JSON.stringify(touches)).toContain('"adm0_l"');
+    expect(JSON.stringify(touches)).toContain('"adm0_r"');
+    expect(JSON.stringify(touches)).not.toContain('FIN');
+  });
+
   it('is idempotent', () => {
-    const once = styleBaseBorders([water, state, country, road, city, village], 'dark');
-    expect(styleBaseBorders(once, 'dark')).toEqual(once);
+    const once = styleBaseBorders([water, state, country, road, city, village], 'dark', ['fi', 'se']);
+    expect(styleBaseBorders(once, 'dark', ['fi', 'se'])).toEqual(once);
   });
 });

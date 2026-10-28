@@ -12,7 +12,8 @@ import { useTheme } from '../hooks/useTheme';
 import { t, useI18nVersion } from '../utils/i18n';
 import { DEFAULT_CENTER, DEFAULT_ZOOM, MAP_MAX_ZOOM, MAP_MIN_ZOOM } from '../utils/mapConstants';
 import { queryFeaturesSafe, isStyleAlive } from '../utils/mapQuery';
-import { basemapStyleUrl, baseInsertBeforeId, carryDataLayers, addBasemapAttribution, applyBaseBorders, styleBaseBorders } from '../utils/basemap';
+import type { CountryId } from '../utils/areaId';
+import { basemapStyleUrl, baseInsertBeforeId, carryDataLayers, addBasemapAttribution, applyBaseBorders, styleBaseBorders, addCountryBorderLayer } from '../utils/basemap';
 
 /**
  * Compact dropdown for choosing a data layer on one side of the split view.
@@ -156,6 +157,8 @@ function beforeLabels(map: maplibregl.Map): string | undefined {
   return baseInsertBeforeId(map);
 }
 
+const BOTH_COUNTRIES: readonly CountryId[] = ['fi', 'se'];
+
 interface SplitMapViewProps {
   data: FeatureCollection | null;
   leftLayer: LayerId;
@@ -185,6 +188,8 @@ interface SplitMapViewProps {
   regionAverages?: Record<string, Record<string, number>> | null;
   /** IN-1: open the detail panel when a neighborhood is clicked in either pane. */
   onSelectNeighborhood?: (props: NeighborhoodProperties) => void;
+  /** Countries whose data is on the map: their borders are drawn strong, others faint. */
+  dataCountries?: readonly CountryId[];
 }
 
 /** IN-1: local hover state for one pane's in-map tooltip. */
@@ -446,6 +451,7 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
   metroAverages,
   regionAverages,
   onSelectNeighborhood,
+  dataCountries = BOTH_COUNTRIES,
 }) => {
   useI18nVersion();
   // CF-2: prefer the App-level effective (region-rescaled / colorblind) config so the
@@ -467,6 +473,16 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
   // Read by the panes' style.load handler, which outlives the render it was made in.
   const themeRef = useRef(theme);
   useEffect(() => { themeRef.current = theme; }, [theme]);
+  const dataCountriesRef = useRef(dataCountries);
+  const dataCountriesKey = dataCountries.join(',');
+  useEffect(() => {
+    dataCountriesRef.current = dataCountries;
+    const panes = [[leftMapRef.current, leftLoadedRef.current], [rightMapRef.current, rightLoadedRef.current]] as const;
+    for (const [map, loaded] of panes) {
+      if (map && loaded && isStyleAlive(map)) applyBaseBorders(map, themeRef.current, dataCountries);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the list's contents, not its identity
+  }, [dataCountriesKey]);
   // True when MapLibre can't create a WebGL context for either pane — show a
   // fallback message rather than throwing into the ErrorBoundary.
   const [webglFailed, setWebglFailed] = useState(false);
@@ -565,7 +581,12 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
 
     addBasemapAttribution(leftMap, maplibregl.AttributionControl, 'bottom-left');
     // The base's borders: country borders on land only, restyled above the fills.
-    for (const m of [leftMap, rightMap]) m.on('style.load', () => applyBaseBorders(m, themeRef.current));
+    for (const m of [leftMap, rightMap]) {
+      m.on('style.load', () => {
+        addCountryBorderLayer(m);
+        applyBaseBorders(m, themeRef.current, dataCountriesRef.current);
+      });
+    }
     rightMap.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
 
     leftMapRef.current = leftMap;
@@ -634,7 +655,10 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
       map.setStyle(basemapStyleUrl(theme), {
       diff: true,
       // Restyle the incoming base's borders in the style itself: a diffed swap need not fire `style.load`.
-      transformStyle: (prev, next) => carryDataLayers(prev, { ...next, layers: styleBaseBorders(next.layers, theme) }),
+      transformStyle: (prev, next) => {
+        const carried = carryDataLayers(prev, next);
+        return { ...carried, layers: styleBaseBorders(carried.layers, theme, dataCountriesRef.current) };
+      },
     });
       // Once the new style settles, repaint theme-dependent border/highlight colours
       // on the carried layers and re-apply the selection ring (setStyle clears the

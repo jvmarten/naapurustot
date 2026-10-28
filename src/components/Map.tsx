@@ -15,7 +15,7 @@ import { t, useI18nVersion } from '../utils/i18n';
 import { DEFAULT_CENTER, DEFAULT_ZOOM, MAP_MIN_ZOOM, MAP_MAX_ZOOM } from '../utils/mapConstants';
 import { queryFeaturesSafe, isStyleAlive } from '../utils/mapQuery';
 import { subscribeMapHighlight } from '../utils/mapHighlight';
-import { basemapStyleUrl, baseInsertBeforeId, carryDataLayers, addBasemapAttribution, applyBaseBorders, styleBaseBorders } from '../utils/basemap';
+import { basemapStyleUrl, baseInsertBeforeId, carryDataLayers, addBasemapAttribution, applyBaseBorders, styleBaseBorders, addCountryBorderLayer } from '../utils/basemap';
 // CF-5 Phase D1: pre-baked boundary outlines of all 69 Finnish seutukunnat.
 import type { CountryId } from '../utils/areaId';
 import { loadRegionOutlines, getRegionOutlines, regionAt } from '../utils/regionHit';
@@ -83,6 +83,8 @@ interface MapProps {
   /** The national view narrowed to one country: the background region outlines show
    *  only that country's regions too. Null/omitted → both countries. */
   country?: CountryId | null;
+  /** Countries whose data is on the map: their borders are drawn strong, others faint. */
+  dataCountries?: readonly CountryId[];
 }
 
 // Stable empty defaults to avoid creating new references on every render
@@ -246,6 +248,7 @@ const PROJECT_TYPE_COLOR = ['match', ['get', 'ptype'],
 // data regions' hover + click behavior.
 const SEUTUKUNNAT_SOURCE_ID = 'seutukunnat-boundaries';
 const SEUTUKUNNAT_LINE_LAYER = 'seutukunnat-boundary-line';
+const BOTH_COUNTRIES: readonly CountryId[] = ['fi', 'se'];
 /** Outline features carry `region`; Swedish region ids start `se_`. */
 function outlineCountryFilter(country: CountryId | null): maplibregl.FilterSpecification | null {
   if (!country) return null;
@@ -270,7 +273,7 @@ const DRAW_SNAP_LINE_LAYER = 'draw-snap-line';
 // utils/fillOpacity.ts. Its IMPORTANT note applies: never replace it with a
 // constant via setPaintProperty.
 
-export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1, gridData = null, drawMode = false, onDrawClick, onDrawDoubleClick, drawVertices, drawnPolygon = null, drawnAreaPnos = EMPTY_ARRAY, selectMode = false, selectedAreaPnos = EMPTY_ARRAY, onSelectAreaClick, layerConfig, isochrone = null, planningData = null, onMoveEnd, priceFallbackValue = null, onReady, onRegionClick, country = null }) => {
+export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1, gridData = null, drawMode = false, onDrawClick, onDrawDoubleClick, drawVertices, drawnPolygon = null, drawnAreaPnos = EMPTY_ARRAY, selectMode = false, selectedAreaPnos = EMPTY_ARRAY, onSelectAreaClick, layerConfig, isochrone = null, planningData = null, onMoveEnd, priceFallbackValue = null, onReady, onRegionClick, country = null, dataCountries = BOTH_COUNTRIES }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const hoveredIdRef = useRef<string | null>(null);
@@ -326,6 +329,8 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   onReadyRef.current = onReady;
   const countryRef = useRef(country);
   countryRef.current = country;
+  const dataCountriesRef = useRef(dataCountries);
+  dataCountriesRef.current = dataCountries;
   const reportedReadyRef = useRef(false);
   const reportReady = useCallback(() => {
     if (reportedReadyRef.current) return;
@@ -392,7 +397,10 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     addBasemapAttribution(map, maplibregl.AttributionControl, 'bottom-right');
     // The base's borders: country borders on land only, restyled above the fills.
     const builtMap = map;
-    map.on('style.load', () => applyBaseBorders(builtMap, themeRef.current));
+    map.on('style.load', () => {
+      addCountryBorderLayer(builtMap);
+      applyBaseBorders(builtMap, themeRef.current, dataCountriesRef.current);
+    });
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
 
     // E5: recover from runtime WebGL context loss (GPU reset, tab backgrounding,
@@ -522,7 +530,10 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     map.setStyle(basemapStyleUrl(theme), {
       diff: true,
       // Restyle the incoming base's borders in the style itself: a diffed swap need not fire `style.load`.
-      transformStyle: (prev, next) => carryDataLayers(prev, { ...next, layers: styleBaseBorders(next.layers, theme) }),
+      transformStyle: (prev, next) => {
+        const carried = carryDataLayers(prev, next);
+        return { ...carried, layers: styleBaseBorders(carried.layers, theme, dataCountriesRef.current) };
+      },
     });
 
     // setStyle re-creates every source, which clears feature-state — so the hover /
@@ -1076,6 +1087,14 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       if (idleHandle !== undefined) cancelIdle(idleHandle);
     };
   }, [theme]);
+
+  // Re-pick which country borders are strong when the countries on the map change.
+  const dataCountriesKey = dataCountries.join(',');
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapStyleLoadedRef.current || !isStyleAlive(map)) return;
+    applyBaseBorders(map, themeRef.current, dataCountriesRef.current);
+  }, [dataCountriesKey]);
 
   // A country picked in the region selector hides the other country's outlines too.
   // A layer added later reads countryRef (above) when it is created.
