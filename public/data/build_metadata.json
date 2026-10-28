@@ -1,6 +1,6 @@
 {
-  "generated": "2026-10-28T08:09:46.864Z",
-  "source_hash": "7202139659610c51",
+  "generated": "2026-10-28T08:57:36.835Z",
+  "source_hash": "4d9c00286aae2da6",
   "rows_total": 3018,
   "metrics": {
     "active_plan_count": {
@@ -681,7 +681,7 @@
           "coverage_pct": 100
         },
         "crime_index": {
-          "source": "Brå (Anmälda brott, totalt)",
+          "source": "Brå (Anmälda brott, totalt; kommun, storstädernas stadsområden)",
           "vintage": 2025,
           "granularity": "deso",
           "is_proxy": true,
@@ -809,7 +809,7 @@
           "coverage_pct": 100
         },
         "property_crime_rate": {
-          "source": "Brå (Anmälda brott, BrB 8–12 kap.)",
+          "source": "Brå (Anmälda brott, BrB 8–12 kap.; kommun, storstädernas stadsområden)",
           "vintage": 2025,
           "granularity": "deso",
           "is_proxy": true,
@@ -865,7 +865,7 @@
           "coverage_pct": 100
         },
         "violent_crime_rate": {
-          "source": "Brå (Anmälda brott, BrB 3 kap. brott mot liv och hälsa)",
+          "source": "Brå (Anmälda brott, BrB 3 kap. brott mot liv och hälsa; kommun, storstädernas stadsområden)",
           "vintage": "2021–2025",
           "granularity": "deso",
           "is_proxy": true,
