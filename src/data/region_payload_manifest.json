@@ -1,8 +1,8 @@
 {
   "total": {
     "regions": 140,
-    "topojson_bytes": 17542822,
-    "gzip_bytes": 5535716,
+    "topojson_bytes": 17541809,
+    "gzip_bytes": 5537337,
     "feature_count": 9178
   },
   "regions": {
@@ -362,8 +362,8 @@
       "feature_count": 94
     },
     "se_goteborg": {
-      "topojson_bytes": 809077,
-      "gzip_bytes": 248990,
+      "topojson_bytes": 808816,
+      "gzip_bytes": 249280,
       "feature_count": 801
     },
     "se_gotland": {
@@ -482,8 +482,8 @@
       "feature_count": 11
     },
     "se_malmo_lund": {
-      "topojson_bytes": 529504,
-      "gzip_bytes": 159302,
+      "topojson_bytes": 529423,
+      "gzip_bytes": 159657,
       "feature_count": 708
     },
     "se_malung_salen": {
@@ -562,8 +562,8 @@
       "feature_count": 15
     },
     "se_stockholm_solna": {
-      "topojson_bytes": 1655949,
-      "gzip_bytes": 496436,
+      "topojson_bytes": 1655278,
+      "gzip_bytes": 497412,
       "feature_count": 1648
     },
     "se_storuman": {

@@ -204,7 +204,7 @@ The default factors, Swedish source per factor (all per DeSO unless noted):
 | Walkability | Six densities' percentiles within Sweden | Same formula |
 | Water proximity | OSM water + SCB 1 km grid (`fetch_se_water_proximity.py`) | Same method |
 | Tree canopy | — | Same EEA service as Finland; it answered 502 on 2026-10-27 |
-| Safety (violent crime) | Brå, BrB 3 kap., per municipality, 2021–2025 mean (`fetch_se_crime.py`) | Same concept and method; Swedish counting rules, so own stops. `is_proxy` |
+| Safety (violent crime) | Brå, BrB 3 kap., 2021–2025 mean, per municipality and, in Stockholm, Göteborg and Malmö, per city district (`fetch_se_crime.py`) | Same concept and method; Swedish counting rules, so own stops. `is_proxy` |
 | Traffic accidents | — | Trafikanalys publishes municipal injury counts only; Finland's are point-level |
 | Noise | — | Not attempted yet |
 
@@ -215,12 +215,19 @@ browsers repair and Python does not. `fetch_se_crime.py` appends the right inter
 for all 290 municipalities: violent crime (BrB 3 kap., five-year mean, the default safety
 factor), property crime (8–12 kap.) and total offences, per 1,000. Totals match Brå's
 published municipal CSV exactly. `apply_se_crime.py` writes them into the committed
-`se_deso.geojson`; a full `build_se_geojson.py` run does the same. Brå also publishes
-20 city districts of Stockholm, Göteborg and Malmö (from 2002); using them needs the
-districts' boundaries (Malmö's 2013 stadsområden are CC0 on opendata.malmo.se; Stockholm's
-2024 stadsdelsområden and Göteborg's 2021 stadsområden are not yet sourced), and two
-Stockholm districts formed in 2024 report 0 for earlier years, which must be read as
-"did not exist", not as no crime.
+`se_deso.geojson`; a full `build_se_geojson.py` run does the same.
+
+The same afternoon, the three largest cities went to district level. Brå publishes their
+20 current districts; `fetch_se_districts.py` downloads the cities' own boundaries
+(Stockholm's 11 stadsdelsområden from 2024, dataportalen.stockholm.se, no licence stated;
+Göteborg's four stadsområden from 2021, CC0; Malmö's five 2013 stadsområden, CC0, which
+Malmö no longer uses but Brå still reports by) and assigns each of the 1,098 DeSOs to the
+district holding most of its area (`deso_district.json`; 26 straddle a boundary at under
+90 %). The check that the assignment fits Brå's geography: each district's population
+implied by Brå's count and rate agrees with the sum of its assigned DeSOs' residents to
+within 0–3.4 %. Järva and Norra innerstaden (formed 2024) report 0 offences for earlier
+years; a year with no offences at all is read as "did not exist" and left out of the mean,
+so their violent figure is a 2024–2025 mean.
 
 Scoring: each country against its own p2/p98 ranges, missing factors dropped, then the
 Swedish composite mapped onto Finland's by quantile under the default weights (CLAUDE.md,

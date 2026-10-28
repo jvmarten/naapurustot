@@ -14,7 +14,8 @@ Inputs (all produced by the fetch scripts in this directory):
   schools_deso.json             fetch_se_schools.py (Skolverket's school register)
   air_quality_deso.json         fetch_se_air_quality.py (FMI SILAM)
   water_proximity_deso.json     fetch_se_water_proximity.py (OSM water + SCB 1 km grid)
-  crime_kommun.json             fetch_se_crime.py (Brå, per municipality)
+  crime_kommun.json             fetch_se_crime.py (Brå, per municipality and city district)
+  deso_district.json            fetch_se_districts.py (DeSO -> district in the three largest cities)
 
 Geometry is cut at the shore first (clip_deso_land.py: SCB's polygons run out into the
 sea, Paavo's do not), then simplified ONCE here, on a shared-arc topology (geo2topo ->
@@ -220,10 +221,11 @@ def add_walkability(features: list[dict]) -> None:
 CRIME_KEYS = ["violent_crime_rate", "property_crime_rate", "crime_index"]
 
 
-def crime_props(crime: dict, deso: str) -> dict:
-    """The DeSO's municipality's Brå figures (a DeSO code starts with its kommun code).
-    Municipal, like Finland's: Brå publishes nothing finer outside three cities' districts."""
-    rec = crime.get(deso[:4], {})
+def crime_props(crime: dict, district_of: dict[str, str], deso: str) -> dict:
+    """Brå's figures for the DeSO's city district in Stockholm, Göteborg and Malmö, else for
+    its municipality (a DeSO code starts with its kommun code). Brå publishes nothing finer."""
+    district = district_of.get(deso)
+    rec = crime["districts"][district] if district else crime["kommuner"].get(deso[:4], {})
     return {k: rec.get(k) for k in CRIME_KEYS}
 
 
@@ -317,7 +319,8 @@ def main() -> None:
     schools = load("schools_deso.json")["counts"]
     air = load("air_quality_deso.json")["values"]
     water = load("water_proximity_deso.json")["values"]
-    crime = load("crime_kommun.json")["kommuner"]
+    crime = load("crime_kommun.json")
+    district_of = load("deso_district.json")
 
     region_of = {k: r["id"] for r in fa25 for k in r["kommuner"]}
     names = display_names(index, regso)
@@ -421,7 +424,7 @@ def main() -> None:
                               "school_density", "school_count"))
         props["air_quality_index"] = air.get(deso)
         props["water_proximity_m"] = water.get(deso)
-        props.update(crime_props(crime, deso))
+        props.update(crime_props(crime, district_of, deso))
         features.append({"type": "Feature", "properties": props, "geometry": {
             "type": geom["type"], "coordinates": round_coords(geom["coordinates"])}})
 

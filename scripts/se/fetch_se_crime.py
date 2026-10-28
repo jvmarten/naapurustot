@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reported crime per Swedish municipality from Brå -> scripts/se/crime_kommun.json.
+"""Reported crime per Swedish municipality and city district from Brå -> scripts/se/crime_kommun.json.
 
 Source: Brottsförebyggande rådet (Brå), "Anmälda brott" in its statistics database
 (statistik.bra.se/solwebb). Brå has no API; this drives the database's own table form
@@ -22,9 +22,12 @@ All per 1,000 residents, from Brå's own per-100,000 rates. These are Swedish co
 rules (every offence in a report counts, including attempts), so they are never put on
 Finland's scale (stopsSe; computeQualityIndices ranges each country on its own).
 
-Brå also publishes the city districts (stadsområden) of Stockholm, Göteborg and Malmö.
-They are not used yet: applying them needs the districts' boundaries, which are not in
-this pipeline. Every DeSO carries its municipality's figure (is_proxy).
+Brå also publishes the city districts of Stockholm, Göteborg and Malmö (20 current ones),
+written under "districts" here; fetch_se_districts.py says which DeSO lies in which, and a
+DeSO there carries its district's figure, every other DeSO its municipality's (is_proxy
+either way). A district created later than the first violent year (Järva and Norra
+innerstaden, 2024) reports 0 offences for the years before it existed: a year with no
+offences at all is read as "did not exist" and left out of its mean, never as no crime.
 
 TLS: statistik.bra.se serves the wrong intermediate certificate (GeoTrust EV RSA CA 2018,
 while its own certificate is issued by DigiCert EV RSA CA G2). Browsers fetch the right
@@ -50,6 +53,7 @@ import requests
 HERE = Path(__file__).resolve().parent
 OUT = HERE / "crime_kommun.json"
 KOMMUNER = HERE / "kommuner.json"
+DISTRICTS = HERE / "deso_district.json"
 INTERMEDIATE = HERE / "certs" / "digicert_ev_rsa_ca_g2.pem"
 ROOT = "https://statistik.bra.se/solwebb/action"
 BASE = f"{ROOT}/anmalda/urval"
@@ -104,6 +108,15 @@ def municipality_ids(page: str) -> dict[str, str]:
     return out
 
 
+def district_ids(page: str) -> dict[str, str]:
+    """Brå region id -> district name, for every district fetch_se_districts.py assigns."""
+    wanted = set(json.loads(DISTRICTS.read_text()).values())
+    out = {r[0]: r[1].strip() for r in js_entries(page, "arrayRegionNivaEtt") if r[1].strip() in wanted}
+    if set(out.values()) != wanted:
+        raise SystemExit(f"Brå lists no district named {sorted(wanted - set(out.values()))}")
+    return out
+
+
 def year_ids(page: str) -> dict[int, str]:
     return {int(r[1]): r[0] for r in js_entries(page, "arrayPeriod") if r[2] == "311"}
 
@@ -146,43 +159,56 @@ def main() -> None:
     # table catalogue first, as the site's own start page does.
     latin1(s.get(f"{ROOT}/start", params={"menykatalogid": 1}, timeout=60, verify=ca))
     form_page = latin1(s.get(f"{BASE}/urval", params={"menyid": MENU_ID}, timeout=60, verify=ca))
-    regions = municipality_ids(form_page)
+    kommuner = municipality_ids(form_page)
+    districts = district_ids(form_page)
     years = year_ids(form_page)
     latest = max(years)
     violent_years = list(range(latest - VIOLENT_YEARS + 1, latest + 1))
-    rids = sorted(regions)
+    rids = sorted(kommuner) + sorted(districts)
 
-    violent = table(s, ca, [VIOLENT], rids, [years[y] for y in violent_years])
+    violent = table(s, ca, [VIOLENT, TOTAL], rids, [years[y] for y in violent_years])
     latest_t = table(s, ca, [TOTAL, *PROPERTY], rids, [years[latest]])
     p = years[latest]
 
     out: dict[str, dict] = {}
+    by_district: dict[str, dict] = {}
     withheld = []
     for rid in rids:
         total_n, total_r = latest_t[(p, TOTAL, rid, "antal")], latest_t[(p, TOTAL, rid, "antal_100")]
         population = round(total_n * 100_000 / total_r) if total_r else 0
+        existed = [y for y in violent_years if violent[(years[y], TOTAL, rid, "antal")] > 0]
+        if latest not in existed:
+            raise SystemExit(f"region {rid}: no offences recorded in {latest}")
         rec = {
             "crime_index": round(total_r / 100, 1),
             "violent_crime_rate": round(
-                sum(violent[(years[y], VIOLENT, rid, "antal_100")] for y in violent_years) / len(violent_years) / 100, 1),
+                sum(violent[(years[y], VIOLENT, rid, "antal_100")] for y in existed) / len(existed) / 100, 1),
             "property_crime_rate": round(sum(latest_t[(p, o, rid, "antal_100")] for o in PROPERTY) / 100, 1),
-            "violent_count": sum(violent[(years[y], VIOLENT, rid, "antal")] for y in violent_years),
+            "violent_count": sum(violent[(years[y], VIOLENT, rid, "antal")] for y in existed),
             "total_count": total_n,
+            "population": population,
         }
+        if existed != violent_years:
+            rec["violent_years"] = existed
         if population < MIN_POPULATION:
-            withheld.append(regions[rid])
+            withheld.append(rid)
             rec["violent_crime_rate"] = rec["property_crime_rate"] = None
-        out[regions[rid]] = rec
+        if rid in kommuner:
+            out[kommuner[rid]] = rec
+        else:
+            by_district[districts[rid]] = rec
 
     OUT.write_text(json.dumps({
-        "source": "Brå, Anmälda brott (statistik.bra.se), per kommun",
+        "source": "Brå, Anmälda brott (statistik.bra.se), per kommun och storstädernas stadsområden",
         "latest_year": latest,
         "violent_years": violent_years,
         "withheld_under_population": MIN_POPULATION,
         "kommuner": dict(sorted(out.items())),
+        "districts": dict(sorted(by_district.items())),
     }, ensure_ascii=False, indent=1, sort_keys=True) + "\n")
     v = sorted(r["violent_crime_rate"] for r in out.values() if r["violent_crime_rate"] is not None)
-    print(f"wrote {OUT}: {len(out)} municipalities ({len(withheld)} withheld), violent "
+    print(f"wrote {OUT}: {len(out)} municipalities, {len(by_district)} districts "
+          f"({len(withheld)} withheld), violent "
           f"{violent_years[0]}–{violent_years[-1]} per 1,000: min {v[0]}, median {v[len(v) // 2]}, "
           f"max {v[-1]}", file=sys.stderr)
 

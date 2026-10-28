@@ -23,7 +23,8 @@ from build_se_geojson import CRIME_KEYS, OUT, crime_props, load  # noqa: E402
 
 
 def main() -> None:
-    crime = load("crime_kommun.json")["kommuner"]
+    crime = load("crime_kommun.json")
+    district_of = load("deso_district.json")
     fc = json.loads(OUT.read_text())
     filled = 0
     for f in fc["features"]:
@@ -34,7 +35,7 @@ def main() -> None:
                 continue
             new[k] = v
             if k == "water_proximity_m":
-                new.update(crime_props(crime, old["pno"]))
+                new.update(crime_props(crime, district_of, old["pno"]))
         if "water_proximity_m" not in old:
             raise SystemExit(f"{old['pno']}: no water_proximity_m to place the crime figures after")
         f["properties"] = new
