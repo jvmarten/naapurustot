@@ -182,7 +182,12 @@ import { join } from 'node:path';
 // block, and the per-country plumbing (layerInCountry / stopsSe, the Swedish panel rows,
 // the Swedish branch of computeMetroAverages). Measured 331,640 → 339,928; headroom
 // restored to ~1.5 KB, per the Services-honesty note.)
-const BUDGET = 341_500;
+// → 343000 B (2026-10-28: Sweden's next four layers, by Q3's rule — tree canopy
+// (Copernicus TCD 2018, same product as Finland's), EV charging (OSM), single-person
+// households and building age (SCB): four more ids in the Swedish layer set and panel
+// rows, two stopsSe ladders, and the building-age definition note in the bundled fi.json.
+// Measured 341,358 → 341,605; headroom restored to ~1.4 KB.)
+const BUDGET = 343_000;
 const ASSETS_DIR = 'dist/assets';
 
 // Second budget: the /live/ realtime sub-app.

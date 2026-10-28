@@ -471,7 +471,7 @@
       "is_proxy": false
     },
     "tree_canopy_pct": {
-      "source": "Copernicus HRL Tree Cover Density (HSY LiDAR pääkaupunkiseudulla)",
+      "source": "Copernicus HRL Tree Cover Density 2018 (HSY LiDAR pääkaupunkiseudulla)",
       "publisher": "copernicus",
       "vintage": 2018,
       "granularity": "postal",
@@ -988,6 +988,36 @@
           "granularity": "deso",
           "is_proxy": true,
           "note": "note.se_crime_index"
+        },
+        "single_person_hh_pct": {
+          "source": "SCB (Antal hushåll efter hushållstyp, DeSO 2025)",
+          "publisher": "scb",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": false,
+          "note": "note.se_households"
+        },
+        "avg_construction_year": {
+          "source": "SCB (Bostadsbebyggelsens ålder, DeSO 2025)",
+          "publisher": "scb",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": false,
+          "note": "note.se_building_age"
+        },
+        "tree_canopy_pct": {
+          "source": "Copernicus HRL Tree Cover Density 2018 (10 m)",
+          "publisher": "copernicus",
+          "vintage": 2018,
+          "granularity": "deso",
+          "is_proxy": false
+        },
+        "ev_charging_density": {
+          "source": "OpenStreetMap (Sverige, 2026-10-27)",
+          "publisher": "osm",
+          "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": false
         }
       }
     }

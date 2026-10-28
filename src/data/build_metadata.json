@@ -1,6 +1,6 @@
 {
-  "generated": "2026-10-28T08:57:36.835Z",
-  "source_hash": "4d9c00286aae2da6",
+  "generated": "2026-10-28T11:37:22.161Z",
+  "source_hash": "1ce6959ce17cf60f",
   "rows_total": 3018,
   "metrics": {
     "active_plan_count": {
@@ -596,7 +596,7 @@
       "coverage_pct": 100
     },
     "tree_canopy_pct": {
-      "source": "Copernicus HRL Tree Cover Density (HSY LiDAR pääkaupunkiseudulla)",
+      "source": "Copernicus HRL Tree Cover Density 2018 (HSY LiDAR pääkaupunkiseudulla)",
       "vintage": 2018,
       "granularity": "postal",
       "is_proxy": false,
@@ -672,6 +672,14 @@
           "row_count": 6160,
           "coverage_pct": 100
         },
+        "avg_construction_year": {
+          "source": "SCB (Bostadsbebyggelsens ålder, DeSO 2025)",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": false,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
         "avg_household_size": {
           "source": "SCB (Antal hushåll efter hushållstyp, DeSO 2025)",
           "vintage": 2025,
@@ -723,6 +731,14 @@
         "employment_rate": {
           "source": "SCB (Arbetsmarknadsstatus, DeSO 2025)",
           "vintage": 2024,
+          "granularity": "deso",
+          "is_proxy": false,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
+        "ev_charging_density": {
+          "source": "OpenStreetMap (Sverige, 2026-10-27)",
+          "vintage": 2026,
           "granularity": "deso",
           "is_proxy": false,
           "row_count": 6160,
@@ -848,9 +864,25 @@
           "row_count": 6160,
           "coverage_pct": 100
         },
+        "single_person_hh_pct": {
+          "source": "SCB (Antal hushåll efter hushållstyp, DeSO 2025)",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": false,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
         "transit_stop_density": {
           "source": "OpenStreetMap (Sverige, 2026-10-27)",
           "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": false,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
+        "tree_canopy_pct": {
+          "source": "Copernicus HRL Tree Cover Density 2018 (10 m)",
+          "vintage": 2018,
           "granularity": "deso",
           "is_proxy": false,
           "row_count": 6160,

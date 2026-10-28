@@ -1085,6 +1085,7 @@
   "note.se_walkability": "Ruotsi: kuuden palvelutiheyden keskimääräinen persentiili Ruotsin DeSO-alueiden joukossa, eli alueen sijoitus omassa maassaan.",
   "note.se_foreign_background": "SCB:n määritelmä: ulkomailla syntynyt tai molemmat vanhemmat ulkomailla syntyneitä. Eri käsite kuin Suomen kielipohjaiset tasot.",
   "note.se_households": "Ruotsi: kotitaloudet SCB:n kotitaloustyypin mukaan; lapsiksi lasketaan kotona asuvat alle 25-vuotiaat. Suomen luvussa lapset ovat alle 18-vuotiaita.",
+  "note.se_building_age": "Ruotsi: SCB:n asuinrakennukset valmistumisvuosikymmenittäin, keskiarvo vuosikymmenten keskivuosista.",
   "note.se_tenure": "Ruotsi: asukkaiden osuus asunnon hallintamuodon mukaan (SCB). Omistus = omistusoikeus tai bostadsrätt (osuusasunto), vuokra = hyresrätt. Hallintamuoto perustuu talon omistukseen, ei asukkaan asemaan. Suomen luku on kotitalouksien osuus.",
   "note.se_detached": "Ruotsi: pientaloissa (småhus, sisältää rivitalot) asuvien osuus asukkaista (SCB). Suomen luku on pientaloasuntojen osuus asunnoista.",
   "note.se_economic_standard": "Kotitalouden käytettävissä olevat tulot kulutusyksikköä kohden, mediaani, kruunua vuodessa (SCB, kiintein hinnoin). Ei muunneta euroiksi.",

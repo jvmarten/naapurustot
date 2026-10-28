@@ -1439,6 +1439,7 @@
   "note.se_walkability": "Sverige: genomsnittlig percentil för de sex servicetätheterna bland Sveriges DeSO-områden, alltså områdets placering i det egna landet.",
   "note.se_foreign_background": "SCB:s definition: utrikes född eller två utrikes födda föräldrar. Ett annat begrepp än Finlands språkbaserade lager.",
   "note.se_households": "Sverige: hushåll efter SCB:s hushållstyp; barn är hemmaboende under 25 år. Finlands siffra räknar barn under 18 år.",
+  "note.se_building_age": "Sverige: SCB:s bostadsbyggnader efter byggårtionde, medelvärdet av årtiondenas mittår.",
   "note.se_tenure": "Sverige: andel invånare efter upplåtelseform (SCB). Ägt = äganderätt eller bostadsrätt, hyrt = hyresrätt. Upplåtelseformen utgår från fastighetens ägarförhållande, inte de boendes. Finlands siffra är en andel av hushållen.",
   "note.se_detached": "Sverige: andel invånare som bor i småhus (inklusive radhus) (SCB). Finlands siffra är en andel av bostäderna.",
   "note.se_economic_standard": "Hushållets disponibla inkomst per konsumtionsenhet, median, kronor per år (SCB, fasta priser).",

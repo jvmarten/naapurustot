@@ -646,6 +646,7 @@ export const LAYERS: LayerConfig[] = [
     unit: '%',
     colors: ['#ffffd4', '#fee391', '#fec44f', '#fe9929', '#ec7014', '#cc4c02', '#993404', '#662506'],
     stops: [10, 20, 30, 40, 50, 60, 70, 85],
+    stopsSe: [15, 22, 28, 33, 39, 46, 53, 62],
     format: pct,
   },
   // CF-4: Change over time layers
@@ -1102,6 +1103,8 @@ export const LAYERS: LayerConfig[] = [
     unit: '',
     colors: ['#67000d', '#a50f15', '#cb181d', '#ef3b2c', '#fb6a4a', '#fc9272', '#fcbba1', '#fee0d2'],
     stops: [1940, 1955, 1965, 1975, 1985, 1995, 2005, 2015],
+    // SCB's residential buildings per DeSO: older stock than Finland's municipal estimate.
+    stopsSe: [1925, 1940, 1950, 1960, 1970, 1980, 1995, 2010],
     format: yearFmt,
   },
   // CF-11: construction activity — new dwellings completed 2020- per 1,000
@@ -1234,11 +1237,13 @@ const SE_LAYERS: ReadonlySet<LayerId> = new Set<LayerId>([
   ...SE_ONLY_LAYERS,
   'population_density', 'elderly_ratio', 'gender_ratio', 'avg_household_size',
   'families_with_children', 'single_parent_hh', 'ownership', 'rental', 'detached_houses',
-  'employment_rate', 'unemployment', 'education',
+  'employment_rate', 'unemployment', 'education', 'single_person_hh', 'building_age',
   // Counted the same way in both countries (OpenStreetMap tags, a school register), so
-  // these keep Finland's stops: one scale is what lets the two be compared.
+  // these keep Finland's stops: one scale is what lets the two be compared. Canopy is one
+  // product for both (Copernicus Tree Cover Density 2018, scripts/tcd_cdse.py).
   'transit_access', 'school_density', 'healthcare_access', 'restaurant_density',
   'grocery_access', 'cycling_infra', 'air_quality', 'walkability', 'water_proximity',
+  'ev_charging_density', 'tree_canopy',
   // Brå's municipal figures, under Swedish counting rules: Sweden's own stops.
   'violent_crime', 'property_crime', 'crime_rate',
   // Scored against Sweden's own areas (computeQualityIndices), from the factors it has.
