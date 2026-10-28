@@ -121,7 +121,8 @@ const OTHER_BORDER_PAINT: Record<'dark' | 'light', { color: string; opacity: num
   dark: { color: '#3b3b3b', opacity: 1 },
   light: { color: '#b3b3b3', opacity: 1 },
 };
-const COUNTRY_BORDER_WIDTH: ExpressionSpecification = ['interpolate', ['linear'], ['zoom'], 3, 1.2, 6, 1.8, 10, 2.6];
+/** Width by zoom of a strong border; faint ones stay 1 px. */
+const COUNTRY_BORDER_WIDTH: readonly [number, number][] = [[3, 1.2], [6, 1.8], [10, 2.6]];
 /** The boundary tiles name the country on each side by ISO 3166-1 alpha-3 (`adm0_l`/`adm0_r`). */
 const ISO3: Record<CountryId, string> = { fi: 'FIN', se: 'SWE' };
 
@@ -137,7 +138,11 @@ function countryBorderPaint(theme: 'dark' | 'light', countries: readonly Country
   return {
     'line-color': ['case', touches, on.color, off.color],
     'line-opacity': ['case', touches, on.opacity, off.opacity],
-    'line-width': ['case', touches, COUNTRY_BORDER_WIDTH, 1],
+    // Zoom must stay the top-level input: a zoom interpolate nested inside the `case` fails
+    // validation, which silently kept the width at first load and broke the whole style on
+    // a theme swap (the base stayed light under a dark UI).
+    'line-width': ['interpolate', ['linear'], ['zoom'],
+      ...COUNTRY_BORDER_WIDTH.flatMap(([z, w]) => [z, ['case', touches, w, 1]])],
   };
 }
 

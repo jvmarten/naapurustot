@@ -243,6 +243,13 @@ describe('styleBaseBorders', () => {
     expect(JSON.stringify(touches)).not.toContain('FIN');
   });
 
+  it('keeps zoom the top-level input of line-width (a zoom curve inside a case fails validation)', () => {
+    const [b] = styleBaseBorders([country], 'dark', ['fi']) as { paint: Record<string, unknown> }[];
+    const width = b.paint['line-width'] as unknown[];
+    expect(width.slice(0, 3)).toEqual(['interpolate', ['linear'], ['zoom']]);
+    expect(JSON.stringify(width.slice(3))).not.toContain('"zoom"');
+  });
+
   it('is idempotent', () => {
     const once = styleBaseBorders([water, state, country, road, city, village], 'dark', ['fi', 'se']);
     expect(styleBaseBorders(once, 'dark', ['fi', 'se'])).toEqual(once);
