@@ -8,7 +8,7 @@ Data sources:
     satellite, worth keeping as a special case for the dense urban core).
     WFS: kartta.hsy.fi/geoserver/wfs
     Layer: asuminen_ja_maankaytto:puusto
-  - Everywhere else: Copernicus HRL Tree Cover Density 2018 (10 m, pan-European),
+  - Everywhere else: Copernicus HRL Tree Cover Density (10 m, pan-European, newest year),
     read from the CDSE S3 archive (scripts/tcd_cdse.py, shared with Sweden's
     scripts/se/fetch_se_canopy.py): the exact mean over every pixel in the postal
     area — no random sampling, no estimation. Needs CDSE_S3_ACCESS_KEY and
@@ -22,6 +22,9 @@ variation, and (c) using one methodology nationwide makes regions comparable.
 
 Output: tree_canopy.json
 Format: {"00100": 15.3, "00120": 42.1, ...}  (% of area covered by trees)
+Output: tree_canopy_history.json — Copernicus for EVERY postal code and year 2018-,
+        capital region included, for the year slider (HSY has a single year)
+Format: {"00100": [[2018, 14.9], ..., [2024, 15.6]], ...}
 """
 
 import json
@@ -34,7 +37,7 @@ from shapely import STRtree
 from shapely.ops import unary_union
 from shapely.validation import make_valid
 
-from tcd_cdse import mean_tcd
+from tcd_cdse import history, mean_tcd
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -147,15 +150,19 @@ def main():
     else:
         logger.info("Skipping HSY fetch (already have %d Helsinki entries)", hki_count)
 
-    # Everywhere outside the capital region: Copernicus TCD 2018, the exact mean over
-    # every 10 m pixel in the postal area (scripts/tcd_cdse.py, also Sweden's source).
+    # Copernicus TCD for every postal code and year, the exact mean over every 10 m pixel
+    # in the area (scripts/tcd_cdse.py, also Sweden's source). The series feeds the year
+    # slider; its newest year is the current value outside the capital region.
+    by_year = mean_tcd(postal_4326, "pno", label="Nationwide TCD")
+    latest = by_year[max(by_year)]
+    if len(latest) != len(postal_4326):
+        raise SystemExit(f"TCD: {len(postal_4326) - len(latest)} postal codes got no mapped pixel")
     result = {k: v for k, v in result.items() if k[:2] in HSY_PREFIXES}
-    rest = postal_4326[~postal_4326["pno"].isin(result)]
-    tcd = mean_tcd(rest, "pno", label="Nationwide TCD")
-    if len(tcd) != len(rest):
-        raise SystemExit(f"TCD: {len(rest) - len(tcd)} postal codes got no mapped pixel")
-    result.update(tcd)
+    result.update({k: v for k, v in latest.items() if k not in result})
     result = dict(sorted(result.items()))
+    with open(OUT_DIR / "tree_canopy_history.json", "w", encoding="utf-8") as f:
+        json.dump(history(by_year), f, separators=(",", ":"))
+        f.write("\n")
 
     logger.info("Total tree canopy data: %d postal codes", len(result))
 

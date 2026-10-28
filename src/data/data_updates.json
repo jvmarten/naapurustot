@@ -1,5 +1,13 @@
 [
   {
+    "date": "2026-10-28",
+    "metric": "tree_canopy_pct",
+    "type": "vintage",
+    "from": 2018,
+    "to": 2024,
+    "title": "tree_canopy_pct refreshed to 2024 vintage"
+  },
+  {
     "date": "2026-10-19",
     "metric": "daycare_density",
     "type": "coverage",

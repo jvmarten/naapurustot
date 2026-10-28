@@ -471,9 +471,9 @@
       "is_proxy": false
     },
     "tree_canopy_pct": {
-      "source": "Copernicus HRL Tree Cover Density 2018 (HSY LiDAR pääkaupunkiseudulla)",
+      "source": "Copernicus HRL Tree Cover Density (HSY LiDAR pääkaupunkiseudulla)",
       "publisher": "copernicus",
-      "vintage": 2018,
+      "vintage": 2024,
       "granularity": "postal",
       "is_proxy": false,
       "note": "note.tree_canopy_pct"
@@ -1006,9 +1006,9 @@
           "note": "note.se_building_age"
         },
         "tree_canopy_pct": {
-          "source": "Copernicus HRL Tree Cover Density 2018 (10 m)",
+          "source": "Copernicus HRL Tree Cover Density (10 m)",
           "publisher": "copernicus",
-          "vintage": 2018,
+          "vintage": 2024,
           "granularity": "deso",
           "is_proxy": false
         },

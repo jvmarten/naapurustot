@@ -2,7 +2,10 @@
 """Tree canopy per Swedish DeSO area -> scripts/se/canopy_deso.json.
 
 Finland's method and product (scripts/tcd_cdse.py): the mean Copernicus Tree Cover
-Density 2018 (10 m) over every pixel inside the area, read from the CDSE S3 archive.
+Density (10 m) over every pixel inside the area, read from the CDSE S3 archive, for every
+year the product holds. `values` is the newest year; `history` is the series the year
+slider plays.
+
 Measured against the shore-clipped polygons in public/data/se_deso.geojson, so the sea
 SCB's own boundaries run out over does not dilute a coastal area's figure; lakes stay
 inside, as in Finland's postal areas.
@@ -23,7 +26,7 @@ import geopandas as gpd
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
-from tcd_cdse import mean_tcd  # noqa: E402
+from tcd_cdse import history, mean_tcd  # noqa: E402
 
 GEOJSON = HERE.parent.parent / "public" / "data" / "se_deso.geojson"
 OUT = HERE / "canopy_deso.json"
@@ -32,13 +35,17 @@ OUT = HERE / "canopy_deso.json"
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
     deso = gpd.read_file(GEOJSON)[["pno", "geometry"]]
-    values = mean_tcd(deso, "pno", label="Sweden TCD")
+    by_year = mean_tcd(deso, "pno", label="Sweden TCD")
+    year = max(by_year)
+    values = by_year[year]
     missing = len(deso) - len(values)
     if missing:
         raise SystemExit(f"{missing} DeSO areas got no mapped pixel")
     OUT.write_text(json.dumps({
-        "source": "Copernicus HRL Tree Cover Density 2018, 10 m (CLMS VLCC release, CDSE)",
+        "source": "Copernicus HRL Tree Cover Density, 10 m (CLMS VLCC yearly release, CDSE)",
+        "year": year,
         "values": dict(sorted(values.items())),
+        "history": history(by_year),
     }, separators=(",", ":")) + "\n")
     print(f"wrote {OUT}: {len(values)} DeSO areas", file=sys.stderr)
 

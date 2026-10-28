@@ -27,6 +27,7 @@ import { countryOfId } from './areaId.ts';
  * - unemployment_history: population-weighted average per year
  * - property_price_history: population-weighted average per year
  * - crime_index_history: population-weighted average per year
+ * - tree_canopy_history: population-weighted average per year (as tree_canopy_pct)
  */
 export function aggregateTrendHistories(features: Feature[]): Record<string, string> {
   const result: Record<string, string> = {};
@@ -42,6 +43,7 @@ export function aggregateTrendHistories(features: Feature[]): Record<string, str
     { key: 'unemployment_history', mode: 'weighted', entries: [] },
     { key: 'property_price_history', mode: 'weighted', entries: [] },
     { key: 'crime_index_history', mode: 'weighted', entries: [] },
+    { key: 'tree_canopy_history', mode: 'weighted', entries: [] },
   ];
 
   for (const f of features) {

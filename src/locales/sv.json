@@ -761,7 +761,7 @@
   "note.property_crime_rate": "Brottsstatistik på kommunnivå (Statistikcentralen). Ingen brottsstatistik publiceras under kommunnivå. Visas inte för kommuner med under 2 000 invånare.",
   "note.radon": "STUK:s radonmätningar i småhus (1980–2023) per postnummerområde; områden med minst 10 mätta bostäder. Täcker ungefär hälften av områdena, övriga visas grå.",
   "note.transit_reachability": "Kollektivtrafikens tillgänglighet i Helsingforsregionen från Helsingforsregionens restidsmatris 2023 (Helsingfors universitet, Digital Geography Lab): ett verkligt 250 m restidsrutnät; postnummerområdets värde är medelvärdet av rutorna. Täcker endast Helsingforsregionen.",
-  "note.tree_canopy_pct": "Copernicus HRL Tree Cover Density 2018 (10 m) i hela landet; HRM:s LiDAR-marktäcke 2024 i huvudstadsregionen.",
+  "note.tree_canopy_pct": "Copernicus HRL Tree Cover Density 2024 (10 m) i hela landet; HRM:s LiDAR-marktäcke 2024 i huvudstadsregionen. Årsreglaget visar Copernicus 2018–2024 för alla områden.",
   "note.violent_crime_rate": "Brottsstatistik på kommunnivå (Statistikcentralen), femårsmedelvärde. Ingen brottsstatistik publiceras under kommunnivå. Visas inte för kommuner med under 2 000 invånare, där antalet fall är för litet.",
   "note.walkability": "Ett sammansatt index byggt på OpenStreetMaps service-, korsnings- och gatunätsdata.",
   "note.water_proximity": "Avståndet mäts från bebodda 1 km-rutor (Statistikcentralen) till närmaste vattendrag på minst en hektar (OpenStreetMap) och viktas med rutornas invånarantal. Siffran anger alltså hur långt områdets invånare i genomsnitt bor från vatten — inte var postnummerområdets gräns råkar gå.",

@@ -282,9 +282,12 @@ const HISTORY_SERIES = [
   // and the later ones scale it per municipality — the codebook row for the metric
   // states both (is_proxy, and a source naming the 2020 postal level it derives from).
   { key: 'foreign_language_history', metric: 'foreign_language_est_pct' },
+  // Copernicus every year for every postal code, the capital region included, whose
+  // current tree_canopy_pct is HSY's LiDAR instead.
+  { key: 'tree_canopy_history', metric: 'tree_canopy_pct' },
 ];
 
-// All six history series are stored as real arrays. foreign_language_history was a
+// Every history series is stored as a real array. foreign_language_history was a
 // JSON string for a while — written by a different pipeline script — and an
 // Array.isArray check alone exported zero rows for it while the build still reported
 // success, which is indistinguishable from a series that genuinely has no data. The

@@ -234,7 +234,7 @@ const EXCLUDED_PROPS = new Set([
   'population_history', 'income_history', 'unemployment_history',
   // CF-7: property-price & crime time-series arrays are trend data, not a
   // coverage metric — exclude from the per-region density count.
-  'property_price_history', 'crime_index_history',
+  'property_price_history', 'crime_index_history', 'tree_canopy_history',
   // Foreign-language estimate time series — trend data, not a coverage metric.
   'foreign_language_history',
 ]);

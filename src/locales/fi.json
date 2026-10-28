@@ -603,7 +603,7 @@
   "note.property_crime_rate": "Kuntatason rikostilasto (Tilastokeskus). Rikostilastoa ei julkaista kuntaa tarkemmalla tasolla. Alle 2000 asukkaan kunnista lukua ei näytetä.",
   "note.radon": "STUKin pientalojen radonmittaukset (1980–2023) postinumeroalueittain; mukana alueet, joilla on vähintään 10 mitattua asuntoa. Kattaa noin puolet alueista, muut näkyvät harmaana.",
   "note.transit_reachability": "Julkisen liikenteen saavutettavuus Helsingin seudulla Helsingin seudun matka-aikamatriisista 2023 (Helsingin yliopisto, Digital Geography Lab): aito 250 m matka-aikaruudukko; postinumeroalueen arvo on alueen ruutujen keskiarvo. Kattaa vain Helsingin seudun.",
-  "note.tree_canopy_pct": "Copernicus HRL Tree Cover Density 2018 (10 m) koko maassa; pääkaupunkiseudulla HSY:n LiDAR-maanpeite 2024.",
+  "note.tree_canopy_pct": "Copernicus HRL Tree Cover Density 2024 (10 m) koko maassa; pääkaupunkiseudulla HSY:n LiDAR-maanpeite 2024. Vuosiliukusäädin näyttää Copernicuksen vuodet 2018–2024 kaikilla alueilla.",
   "note.violent_crime_rate": "Kuntatason rikostilasto (Tilastokeskus), viiden vuoden keskiarvo. Rikostilastoa ei julkaista kuntaa tarkemmalla tasolla. Alle 2000 asukkaan kunnista lukua ei näytetä, koska tapauksia on liian vähän luotettavaan arvioon.",
   "note.walkability": "Yhdistelmäindeksi OpenStreetMapin palvelu-, risteys- ja katuverkkotiedoista.",
   "note.water_proximity": "Etäisyys mitataan asutuista 1 km:n väestöruuduista (Tilastokeskus) lähimpään vähintään hehtaarin kokoiseen vesistöön (OpenStreetMap) ja painotetaan ruutujen asukasmäärällä. Luku kertoo siis, kuinka kaukana alueen asukkaat keskimäärin asuvat vedestä — ei sitä, mihin postinumeroalueen raja sattuu ulottumaan.",

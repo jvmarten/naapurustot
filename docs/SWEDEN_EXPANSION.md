@@ -203,7 +203,7 @@ The default factors, Swedish source per factor (all per DeSO unless noted):
 | Air quality | FMI SILAM (`fetch_se_air_quality.py`) | Same model and index as Finland's SILAM fill-in |
 | Walkability | Six densities' percentiles within Sweden | Same formula |
 | Water proximity | OSM water + SCB 1 km grid (`fetch_se_water_proximity.py`) | Same method |
-| Tree canopy | Copernicus TCD 2018, 10 m, from the CDSE S3 archive (`fetch_se_canopy.py`) | Same product and method; Finland moved to the same reader (`scripts/tcd_cdse.py`) |
+| Tree canopy | Copernicus TCD 2024, 10 m, from the CDSE S3 archive (`fetch_se_canopy.py`), 2018–2024 as a series | Same product and method; Finland moved to the same reader (`scripts/tcd_cdse.py`) |
 | Safety (violent crime) | Brå, BrB 3 kap., 2021–2025 mean, per municipality and, in Stockholm, Göteborg and Malmö, per city district (`fetch_se_crime.py`) | Same concept and method; Swedish counting rules, so own stops. `is_proxy` |
 | Traffic accidents | — | Trafikanalys publishes municipal injury counts only; Finland's are point-level |
 | Noise | — | Not attempted yet |
@@ -240,7 +240,7 @@ Sweden went from 28 to 32 layers:
 
 | Layer | Source | Notes |
 |---|---|---|
-| Tree canopy | Copernicus HRL Tree Cover Density 2018, 10 m (CLMS VLCC release) | The EEA ImageServer both countries used was retired; `scripts/tcd_cdse.py` finds the tiles in the CDSE catalogue (no login) and reads them from CDSE's S3 (`CDSE_S3_ACCESS_KEY`/`CDSE_S3_SECRET_KEY`), counting every pixel whose centre is inside the area. Finland's postal areas outside the capital region were re-measured from the same tiles, so both countries share one product and Finland's colour stops. Swedish areas are measured inside the shore-clipped polygons. The canopy factor now scores Swedish areas. |
+| Tree canopy | Copernicus HRL Tree Cover Density, 10 m, yearly VLCC release: 2024 on the map, 2018–2024 on the year slider | The EEA ImageServer both countries used was retired; `scripts/tcd_cdse.py` finds the tiles in the CDSE catalogue (no login) and reads them from CDSE's S3 (`CDSE_S3_ACCESS_KEY`/`CDSE_S3_SECRET_KEY`), counting every pixel whose centre is inside the area. Every year sits on the same 100 km grid, so one label raster per tile serves all seven. Finland's postal areas were re-measured from the same tiles, so both countries share one product and Finland's colour stops; the capital region keeps HSY's 2024 LiDAR as its current value, and its slider years are Copernicus like everywhere else. Swedish areas are measured inside the shore-clipped polygons. The canopy factor now scores Swedish areas. |
 | EV charging | OpenStreetMap `amenity=charging_station`, nodes and ways, one per coordinate | Same rule as `fetch_ev_charging.py`, from the same 2026-10-27 extract as the other OSM counts (those came out unchanged). Finland's stops. |
 | Single-person households | SCB TAB6568, *ensamstående utan barn* / all households | Sweden's own stops (`note.se_households`). |
 | Building age | SCB TAB6540, residential buildings by construction decade | Mean of decade midpoints, Finland's convention; Sweden's is per DeSO, not a municipal proxy. Sweden's own stops. |
