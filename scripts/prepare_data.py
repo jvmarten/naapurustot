@@ -189,6 +189,9 @@ EV_CHARGING_FILE = Path(__file__).parent / "ev_charging.json"
 
 # Tree canopy coverage (% of area covered by trees) — HSY LiDAR
 TREE_CANOPY_FILE = Path(__file__).parent / "tree_canopy.json"
+# Copernicus TCD per year 2018- for every postal code (fetch_tree_canopy.py) — the slider's
+# series, capital region included, where tree_canopy_pct itself is HSY's single year.
+TREE_CANOPY_HISTORY_FILE = Path(__file__).parent / "tree_canopy_history.json"
 
 
 # Transit reachability score (0-100, jobs/services within 30 min) — HSL
@@ -2808,6 +2811,12 @@ def main():
 
     canopy_data = _load_json_data(TREE_CANOPY_FILE, "tree canopy coverage")
     gdf = _join_simple_data(gdf, canopy_data, "tree_canopy_pct", "tree canopy coverage")
+    canopy_hist = _load_json_data(TREE_CANOPY_HISTORY_FILE, "tree canopy history")
+    gdf["tree_canopy_history"] = None
+    for idx, row in gdf.iterrows():
+        series = canopy_hist.get(row.get("pno", "") or row.get("postinumeroalue", ""))
+        if series and len(series) >= 2:
+            gdf.at[idx, "tree_canopy_history"] = json.dumps(series)
 
 
     reach_data = _load_json_data(TRANSIT_REACHABILITY_FILE, "transit reachability")
@@ -2881,6 +2890,7 @@ def main():
         "property_price_history",
         "crime_index_history",
         "crime_index_change_pct",
+        "tree_canopy_history",
     ]
     gdf = _backfill_nulls(gdf, previous, backfill_columns)
 

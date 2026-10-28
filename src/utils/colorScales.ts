@@ -116,6 +116,9 @@ export const TIME_SERIES_LAYERS: Partial<Record<LayerId, string>> = {
   // change). Scrub the slider to compare years; foreign_lang_municipal shows the
   // separate flat real current municipal share.
   foreign_lang: 'foreign_language_history',
+  // Copernicus Tree Cover Density, every year 2018- for every area in both countries. In
+  // the capital region the current value is HSY's LiDAR and the series is Copernicus.
+  tree_canopy: 'tree_canopy_history',
 };
 
 /**

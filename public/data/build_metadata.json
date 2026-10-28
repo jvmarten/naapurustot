@@ -1,6 +1,6 @@
 {
-  "generated": "2026-10-28T11:37:22.161Z",
-  "source_hash": "1ce6959ce17cf60f",
+  "generated": "2026-10-28T14:16:19.065Z",
+  "source_hash": "6948ddffa4391e20",
   "rows_total": 3018,
   "metrics": {
     "active_plan_count": {
@@ -596,8 +596,8 @@
       "coverage_pct": 100
     },
     "tree_canopy_pct": {
-      "source": "Copernicus HRL Tree Cover Density 2018 (HSY LiDAR pääkaupunkiseudulla)",
-      "vintage": 2018,
+      "source": "Copernicus HRL Tree Cover Density (HSY LiDAR pääkaupunkiseudulla)",
+      "vintage": 2024,
       "granularity": "postal",
       "is_proxy": false,
       "row_count": 3018,
@@ -881,8 +881,8 @@
           "coverage_pct": 100
         },
         "tree_canopy_pct": {
-          "source": "Copernicus HRL Tree Cover Density 2018 (10 m)",
-          "vintage": 2018,
+          "source": "Copernicus HRL Tree Cover Density (10 m)",
+          "vintage": 2024,
           "granularity": "deso",
           "is_proxy": false,
           "row_count": 6160,

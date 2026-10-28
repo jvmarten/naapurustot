@@ -1,18 +1,20 @@
-"""Mean Copernicus Tree Cover Density 2018 per polygon, from the CDSE S3 archive.
+"""Mean Copernicus Tree Cover Density per polygon and year, from the CDSE S3 archive.
 
 Shared by Finland's scripts/fetch_tree_canopy.py and Sweden's scripts/se/fetch_se_canopy.py,
 so both countries are measured from one product by one method.
 
-Product: CLMS High Resolution Layer "Tree Cover Density" 2018, 10 m, the VLCC release
-(`clms_vlcc_tree-cover-density_europe_10m_yearly_v1`). Values are crown cover 0-100 % per
-pixel; 255 is outside the mapped area and is not counted. The EEA ImageServer the Finnish
-fetcher used to call (computeHistograms) was retired; this reads the same raster directly.
+Product: CLMS High Resolution Layer "Tree Cover Density", 10 m, the yearly VLCC release
+(`clms_vlcc_tree-cover-density_europe_10m_yearly_v1`, 2018-2024). Values are crown cover
+0-100 % per pixel; 255 is outside the mapped area and is not counted. Every year is
+published on the same 100 km EPSG:3035 grid, so one label raster per tile serves every
+year, and a year-to-year difference is the product's own change, not a regridding. The EEA
+ImageServer the Finnish fetcher used to call (computeHistograms, 2018 only) was retired.
 
 Method: every 10 m pixel whose centre lies inside a polygon is counted once, and the
 area's value is the mean over those pixels — the exact histogram mean the ImageServer
-returned, with no sampling. Tiles are 100 km squares in EPSG:3035 (`E43N35` = x 4.3e6,
-y 3.5e6); each is downloaded, read, and deleted before the next, so disk use stays at one
-tile (~10 MB).
+returned, with no sampling. Tiles are named by their lower-left corner (`E43N35` = x 4.3e6,
+y 3.5e6); each tile's years are downloaded together, read, and deleted before the next
+tile, so disk use stays at one tile per year (~10 MB each).
 
 Finding tiles needs no login (catalogue.dataspace.copernicus.eu OData); downloading them
 needs CDSE S3 keys in CDSE_S3_ACCESS_KEY / CDSE_S3_SECRET_KEY.
@@ -24,6 +26,7 @@ import logging
 import os
 import tempfile
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import geopandas as gpd
@@ -35,16 +38,18 @@ logger = logging.getLogger(__name__)
 
 CATALOGUE = "https://catalogue.dataspace.copernicus.eu/odata/v1/Products"
 S3_ENDPOINT = "https://eodata.dataspace.copernicus.eu"
-PRODUCT = "TCD_S2018_R10m"
+# Every year the yearly product holds. The newest is what the map shows; the series feeds
+# the year slider (tree_canopy_history).
+YEARS = (2018, 2019, 2020, 2021, 2022, 2023, 2024)
 TILE_M = 100_000
 NODATA = 255
 
 
-def _tiles_by_name() -> dict[str, str]:
-    """Every 10 m TCD 2018 tile in the archive -> its S3 prefix (no login)."""
+def _tiles_by_name(year: int) -> dict[str, str]:
+    """Every 10 m TCD tile of `year` in the archive -> its S3 prefix (no login)."""
     out: dict[str, str] = {}
     url, params = CATALOGUE, {
-        "$filter": f"Collection/Name eq 'CLMS' and contains(Name,'{PRODUCT}')",
+        "$filter": f"Collection/Name eq 'CLMS' and contains(Name,'TCD_S{year}_R10m')",
         "$top": 1000, "$orderby": "Name",
     }
     while url:
@@ -68,11 +73,13 @@ def _s3():
     )
 
 
-def mean_tcd(areas: gpd.GeoDataFrame, id_col: str, label: str = "TCD") -> dict[str, float]:
-    """{area id: mean TCD %, 1 decimal} for every polygon with at least one mapped pixel.
+def mean_tcd(areas: gpd.GeoDataFrame, id_col: str, label: str = "TCD",
+             years: tuple[int, ...] = YEARS) -> dict[int, dict[str, float]]:
+    """{year: {area id: mean TCD %, 1 decimal}} for every polygon with a mapped pixel.
 
-    Raises if a tile the polygons need is missing from the archive or cannot be read:
-    a partial national pass would ship as measured values for only some areas.
+    Raises if a tile the polygons need is missing from any year or cannot be read: a
+    partial national pass would ship as measured values for only some areas, and a year
+    missing one tile would draw that tile's areas as a change that never happened.
     """
     import rasterio
     from rasterio.features import rasterize
@@ -89,46 +96,68 @@ def mean_tcd(areas: gpd.GeoDataFrame, id_col: str, label: str = "TCD") -> dict[s
             for ty in range(int(miny // TILE_M), int(maxy // TILE_M) + 1):
                 need[f"E{tx}N{ty}"].append(i)
 
-    archive = _tiles_by_name()
-    missing = sorted(t for t in need if t not in archive)
+    archive = {y: _tiles_by_name(y) for y in years}
     # A tile can be absent only where it holds no mapped land at all (open sea); check
     # that each such tile is really the bbox overlap of polygons that live elsewhere.
-    for t in missing:
+    for t in sorted(need):
+        absent = [y for y in years if t not in archive[y]]
+        if not absent:
+            continue
         tx, ty = int(t[1:t.index("N")]), int(t[t.index("N") + 1:])
         sq = box(tx * TILE_M, ty * TILE_M, (tx + 1) * TILE_M, (ty + 1) * TILE_M)
         if any(gdf.geometry.iloc[i].intersects(sq) for i in need[t]):
-            raise SystemExit(f"{label}: tile {t} overlaps an area but is not in the archive")
+            raise SystemExit(f"{label}: tile {t} overlaps an area but is not in the archive for {absent}")
         del need[t]
 
     s3 = _s3()
-    total = np.zeros(len(gdf), dtype=np.float64)
-    count = np.zeros(len(gdf), dtype=np.int64)
-    with tempfile.TemporaryDirectory() as tmp:
-        path = Path(tmp) / "tile.tif"
+    total = {y: np.zeros(len(gdf), dtype=np.float64) for y in years}
+    count = {y: np.zeros(len(gdf), dtype=np.int64) for y in years}
+    with tempfile.TemporaryDirectory() as tmp, ThreadPoolExecutor(len(years)) as pool:
         for n, (tile, members) in enumerate(sorted(need.items()), 1):
-            prefix = archive[tile]
-            key = f"{prefix}/{prefix.rsplit('/', 1)[1]}.tif"
-            s3.download_file("eodata", key, str(path))
-            with rasterio.open(path) as ds:
-                sub = gdf.iloc[members]
-                minx, miny, maxx, maxy = sub.total_bounds
-                win = from_bounds(max(minx, ds.bounds.left), max(miny, ds.bounds.bottom),
-                                  min(maxx, ds.bounds.right), min(maxy, ds.bounds.top),
-                                  ds.transform).round_offsets().round_lengths()
-                if win.width <= 0 or win.height <= 0:
+            paths = {y: Path(tmp) / f"{y}.tif" for y in years}
+
+            def fetch(y: int) -> None:
+                prefix = archive[y][tile]
+                s3.download_file("eodata", f"{prefix}/{prefix.rsplit('/', 1)[1]}.tif", str(paths[y]))
+
+            list(pool.map(fetch, years))
+            sub = gdf.iloc[members]
+            labels = transform = win = None
+            for y in years:
+                with rasterio.open(paths[y]) as ds:
+                    if win is None:
+                        minx, miny, maxx, maxy = sub.total_bounds
+                        win = from_bounds(max(minx, ds.bounds.left), max(miny, ds.bounds.bottom),
+                                          min(maxx, ds.bounds.right), min(maxy, ds.bounds.top),
+                                          ds.transform).round_offsets().round_lengths()
+                        transform = ds.window_transform(win)
+                    elif ds.window_transform(win) != transform:
+                        raise SystemExit(f"{label}: tile {tile} {y} is not on the other years' grid")
+                    band = ds.read(1, window=win) if win.width > 0 and win.height > 0 else None
+                paths[y].unlink()
+                if band is None:
                     continue
-                band = ds.read(1, window=win)
-                transform = ds.window_transform(win)
-            # Label raster: pixel -> 1 + index into gdf (0 = no polygon). Pixel-centre rule.
-            labels = rasterize(
-                ((geom, i + 1) for i, geom in zip(members, sub.geometry)),
-                out_shape=band.shape, transform=transform, fill=0, dtype="int32",
-            )
-            valid = (labels > 0) & (band != NODATA)
-            lab = labels[valid] - 1
-            total += np.bincount(lab, weights=band[valid].astype(np.float64), minlength=len(gdf))
-            count += np.bincount(lab, minlength=len(gdf))
-            path.unlink()
+                if labels is None:
+                    # Label raster: pixel -> 1 + index into gdf (0 = no polygon). Pixel-centre rule.
+                    labels = rasterize(
+                        ((geom, i + 1) for i, geom in zip(members, sub.geometry)),
+                        out_shape=band.shape, transform=transform, fill=0, dtype="int32",
+                    )
+                    inside = labels > 0
+                valid = inside & (band != NODATA)
+                lab = labels[valid] - 1
+                total[y] += np.bincount(lab, weights=band[valid].astype(np.float64), minlength=len(gdf))
+                count[y] += np.bincount(lab, minlength=len(gdf))
             logger.info("  %s: tile %s (%d/%d), %d polygons", label, tile, n, len(need), len(members))
 
-    return {ids[i]: round(float(total[i] / count[i]), 1) for i in range(len(gdf)) if count[i] > 0}
+    return {y: {ids[i]: round(float(total[y][i] / count[y][i]), 1)
+                for i in range(len(gdf)) if count[y][i] > 0} for y in years}
+
+
+def history(by_year: dict[int, dict[str, float]]) -> dict[str, list[list[float]]]:
+    """{area id: [[year, value], ...]} in year order, the shape the *_history columns use."""
+    out: dict[str, list[list[float]]] = defaultdict(list)
+    for y in sorted(by_year):
+        for k, v in by_year[y].items():
+            out[k].append([y, v])
+    return dict(sorted(out.items()))

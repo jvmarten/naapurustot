@@ -108,14 +108,14 @@ describe('Data-source registry (IN-2)', () => {
   });
 
   it('attributes tree canopy to Copernicus, and dates it to the year it was captured', () => {
-    // 2,851 of 3,018 areas (94.5 %) come from Copernicus HRL Tree Cover Density
-    // 2018; only the 167 capital-region areas use HSY's 2024 LiDAR land cover.
-    // The vintage must be 2018, not a "2018–2024" range: latestVintageYear takes
-    // Math.max over every 4-digit match, so a range would keep the freshness
-    // badge lit over eight-year-old data for 94.5 % of the country.
-    expect(METRIC_SOURCES.tree_canopy_pct.year).toBe(2018);
+    // 2,820 of 3,018 areas come from Copernicus HRL Tree Cover Density 2024 (the
+    // yearly release, 2018–2024 behind the year slider); the capital region uses
+    // HSY's 2024 LiDAR land cover. The vintage is the year the shown value was
+    // captured, never the series' "2018–2024" span: latestVintageYear takes Math.max
+    // over every 4-digit match, so a span reads as its newest year whatever is shown.
+    expect(METRIC_SOURCES.tree_canopy_pct.year).toBe(2024);
     expect(DATA_SOURCE_METRICS.tree_canopy_pct.publisher).toBe('copernicus');
-    expect(latestVintageYear(DATA_SOURCE_METRICS.tree_canopy_pct.vintage)).toBe(2018);
+    expect(latestVintageYear(DATA_SOURCE_METRICS.tree_canopy_pct.vintage)).toBe(2024);
   });
 
   it('flags modelled air quality as a proxy (no area has a station reading)', () => {

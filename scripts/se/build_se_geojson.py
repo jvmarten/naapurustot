@@ -14,7 +14,7 @@ Inputs (all produced by the fetch scripts in this directory):
   schools_deso.json             fetch_se_schools.py (Skolverket's school register)
   air_quality_deso.json         fetch_se_air_quality.py (FMI SILAM)
   water_proximity_deso.json     fetch_se_water_proximity.py (OSM water + SCB 1 km grid)
-  canopy_deso.json              fetch_se_canopy.py (Copernicus Tree Cover Density 2018)
+  canopy_deso.json              fetch_se_canopy.py (Copernicus Tree Cover Density, 2018-)
   crime_kommun.json             fetch_se_crime.py (Brå, per municipality and city district)
   deso_district.json            fetch_se_districts.py (DeSO -> district in the three largest cities)
 
@@ -250,7 +250,8 @@ def extra_props(hh: dict, built: dict, canopy: dict, osm: dict, pinta_ala, deso:
     props = {
         "single_person_hh_pct": pct(hh.get("ESUB|000007Y1"), hh_total),
         "avg_construction_year": avg_construction_year(built),
-        "tree_canopy_pct": canopy.get(deso),
+        "tree_canopy_pct": canopy["values"].get(deso),
+        "tree_canopy_history": canopy["history"].get(deso),
     }
     props.update(services({"ev": osm["ev"].get(deso, 0)}, "ev", pinta_ala, "ev_charging_density", None))
     return props
@@ -354,7 +355,7 @@ def main() -> None:
     schools = load("schools_deso.json")["counts"]
     air = load("air_quality_deso.json")["values"]
     water = load("water_proximity_deso.json")["values"]
-    canopy = load("canopy_deso.json")["values"]
+    canopy = load("canopy_deso.json")
     crime = load("crime_kommun.json")
     district_of = load("deso_district.json")
 

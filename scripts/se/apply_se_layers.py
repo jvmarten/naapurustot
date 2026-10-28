@@ -26,7 +26,7 @@ ANCHOR = CRIME_KEYS[-1]
 
 def main() -> None:
     scb = load("scb_deso.json")["tables"]
-    canopy = load("canopy_deso.json")["values"]
+    canopy = load("canopy_deso.json")
     osm = load("osm_deso.json")["counts"]
     fc = json.loads(OUT.read_text())
     for f in fc["features"]:
@@ -47,7 +47,8 @@ def main() -> None:
         f["properties"] = new
     OUT.write_text(json.dumps(fc, ensure_ascii=False, separators=(",", ":")) + "\n")
     n = len(fc["features"])
-    for k in ("single_person_hh_pct", "avg_construction_year", "tree_canopy_pct", "ev_charging_density"):
+    for k in ("single_person_hh_pct", "avg_construction_year", "tree_canopy_pct", "tree_canopy_history",
+              "ev_charging_density"):
         print(f"{k}: {sum(f['properties'][k] is not None for f in fc['features'])} of {n}", file=sys.stderr)
 
 
