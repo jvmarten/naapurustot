@@ -14,6 +14,7 @@ Inputs (all produced by the fetch scripts in this directory):
   schools_deso.json             fetch_se_schools.py (Skolverket's school register)
   air_quality_deso.json         fetch_se_air_quality.py (FMI SILAM)
   water_proximity_deso.json     fetch_se_water_proximity.py (OSM water + SCB 1 km grid)
+  crime_kommun.json             fetch_se_crime.py (Brå, per municipality)
 
 Geometry is cut at the shore first (clip_deso_land.py: SCB's polygons run out into the
 sea, Paavo's do not), then simplified ONCE here, on a shared-arc topology (geo2topo ->
@@ -216,6 +217,16 @@ def add_walkability(features: list[dict]) -> None:
             round(sum(scores) / len(scores)) if len(scores) >= WALK_MIN_COMPONENTS else None)
 
 
+CRIME_KEYS = ["violent_crime_rate", "property_crime_rate", "crime_index"]
+
+
+def crime_props(crime: dict, deso: str) -> dict:
+    """The DeSO's municipality's Brå figures (a DeSO code starts with its kommun code).
+    Municipal, like Finland's: Brå publishes nothing finer outside three cities' districts."""
+    rec = crime.get(deso[:4], {})
+    return {k: rec.get(k) for k in CRIME_KEYS}
+
+
 def display_names(index: dict, regso: dict) -> dict[str, str]:
     """RegSO name for each DeSO; numbered (in DeSO-code order) when a RegSO holds several.
 
@@ -306,6 +317,7 @@ def main() -> None:
     schools = load("schools_deso.json")["counts"]
     air = load("air_quality_deso.json")["values"]
     water = load("water_proximity_deso.json")["values"]
+    crime = load("crime_kommun.json")["kommuner"]
 
     region_of = {k: r["id"] for r in fa25 for k in r["kommuner"]}
     names = display_names(index, regso)
@@ -409,6 +421,7 @@ def main() -> None:
                               "school_density", "school_count"))
         props["air_quality_index"] = air.get(deso)
         props["water_proximity_m"] = water.get(deso)
+        props.update(crime_props(crime, deso))
         features.append({"type": "Feature", "properties": props, "geometry": {
             "type": geom["type"], "coordinates": round_coords(geom["coordinates"])}})
 

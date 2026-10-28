@@ -204,11 +204,25 @@ The default factors, Swedish source per factor (all per DeSO unless noted):
 | Walkability | Six densities' percentiles within Sweden | Same formula |
 | Water proximity | OSM water + SCB 1 km grid (`fetch_se_water_proximity.py`) | Same method |
 | Tree canopy | — | Same EEA service as Finland; it answered 502 on 2026-10-27 |
-| Safety (violent crime) | — | BRÅ's statistics database (`statistik.bra.se`) is blocked from the build container |
+| Safety (violent crime) | Brå, BrB 3 kap., per municipality, 2021–2025 mean (`fetch_se_crime.py`) | Same concept and method; Swedish counting rules, so own stops. `is_proxy` |
 | Traffic accidents | — | Trafikanalys publishes municipal injury counts only; Finland's are point-level |
 | Noise | — | Not attempted yet |
 
+**Crime (2026-10-28).** `statistik.bra.se` was never blocked: it serves the wrong
+intermediate certificate (GeoTrust EV RSA CA 2018 instead of DigiCert EV RSA CA G2), which
+browsers repair and Python does not. `fetch_se_crime.py` appends the right intermediate
+(`scripts/se/certs/`) to the CA bundle, keeps verification on, and drives Brå's table form
+for all 290 municipalities: violent crime (BrB 3 kap., five-year mean, the default safety
+factor), property crime (8–12 kap.) and total offences, per 1,000. Totals match Brå's
+published municipal CSV exactly. `apply_se_crime.py` writes them into the committed
+`se_deso.geojson`; a full `build_se_geojson.py` run does the same. Brå also publishes
+20 city districts of Stockholm, Göteborg and Malmö (from 2002); using them needs the
+districts' boundaries (Malmö's 2013 stadsområden are CC0 on opendata.malmo.se; Stockholm's
+2024 stadsdelsområden and Göteborg's 2021 stadsområden are not yet sourced), and two
+Stockholm districts formed in 2024 report 0 for earlier years, which must be read as
+"did not exist", not as no crime.
+
 Scoring: each country against its own p2/p98 ranges, missing factors dropped, then the
 Swedish composite mapped onto Finland's by quantile under the default weights (CLAUDE.md,
-Sweden note 9). Because the factors Sweden lacks are the rural-favouring ones, Swedish
-region averages lean urban until they arrive.
+Sweden note 9). Because the factors Sweden still lacks (accidents, noise, canopy) are
+rural-favouring ones, Swedish region averages lean urban until they arrive.
