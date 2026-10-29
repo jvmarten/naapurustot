@@ -3,6 +3,7 @@ import { getLayerById, type LayerId, type LayerConfig } from '../utils/colorScal
 import { t, useI18nVersion, type Lang } from '../utils/i18n';
 import { AreaHintPill } from './AreaHintPill';
 import { getGridInfo } from '../hooks/useGridData';
+import type { CountryId } from '../utils/areaId';
 import { getMetricSource, getCoveragePct, isPartialCoverage, isLowCoverage, formatCoveragePct } from '../utils/metrics';
 
 interface LegendProps {
@@ -33,10 +34,13 @@ interface LegendProps {
   /** Phones: show the "click an area" hint directly above the legend card. */
   areaHint?: boolean;
   onDismissAreaHint?: () => void;
+  /** The one country on the map: a shared key's source, proxy flag and coverage are
+   *  per country (Sweden's turnout is not Finland's municipal proxy). Null = both. */
+  country?: CountryId | null;
 }
 
 // colorblind prop triggers re-render when mode changes (getLayerById reads global state)
-export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: _colorblind, layerConfig, lang: _lang, gridLoading, gridError, hidden, subregionEstimate, gridFilterInactive, gridActive, areaHint, onDismissAreaHint }) => {
+export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: _colorblind, layerConfig, lang: _lang, gridLoading, gridError, hidden, subregionEstimate, gridFilterInactive, gridActive, areaHint, onDismissAreaHint, country }) => {
   useI18nVersion();
   const layer = layerConfig ?? getLayerById(layerId);
 
@@ -87,14 +91,15 @@ export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: 
   // measurement. Data freshness (vintage) is intentionally NOT shown here — it
   // lives in the settings menu ("data last updated") and the data-sources page,
   // so the on-map legend stays clean and uncluttered.
-  const src = getMetricSource(layer.property);
+  const c = country ?? 'fi';
+  const src = getMetricSource(layer.property, c);
 
   // PO-2: surface real per-layer coverage. Partial layers (<95% of postal codes)
   // get a subtle caption; genuinely sparse ones (<50%) get a warning banner instead,
   // since the gray no-data polygons (PO-1 hatch) then dominate the choropleth.
-  const coverage = getCoveragePct(layer.property);
-  const partial = isPartialCoverage(layer.property);
-  const lowCoverage = isLowCoverage(layer.property);
+  const coverage = getCoveragePct(layer.property, c);
+  const partial = isPartialCoverage(layer.property, c);
+  const lowCoverage = isLowCoverage(layer.property, c);
   const coverageLabel = coverage != null ? formatCoveragePct(coverage) : null;
 
   return (

@@ -3216,7 +3216,7 @@ const App: React.FC = () => {
 
       {/* Legend — repositioned for mobile (MO2: suppressed on mobile when an area panel covers it;
           UX MO-2: also during the touch peek — the peek bar paints over the same bottom band) */}
-      <Legend layerId={activeLayer} colorblind={colorblind} layerConfig={effectiveLayer} lang={lang} gridLoading={gridLoading && hasGridData(activeLayer)} gridError={gridError && hasGridData(activeLayer)} hidden={!!selected || !!peek || promptAtBottom} subregionEstimate={priceFallbackValue != null} gridFilterInactive={gridCellsVisible && ((showFilter && filters.length > 0) || wizardResultPnos.length > 0)} gridActive={gridCellsVisible} areaHint={showAreaHint} onDismissAreaHint={dismissAreaHint} />
+      <Legend layerId={activeLayer} colorblind={colorblind} layerConfig={effectiveLayer} lang={lang} gridLoading={gridLoading && hasGridData(activeLayer)} gridError={gridError && hasGridData(activeLayer)} hidden={!!selected || !!peek || promptAtBottom} subregionEstimate={priceFallbackValue != null} gridFilterInactive={gridCellsVisible && ((showFilter && filters.length > 0) || wizardResultPnos.length > 0)} gridActive={gridCellsVisible} areaHint={showAreaHint} onDismissAreaHint={dismissAreaHint} country={viewCountry} />
 
       {/* PO-2: Time slider / historical playback (only when a time-series metric is active) */}
       {!IS_EMBED && timeYear != null && availableYears.length > 1 && (

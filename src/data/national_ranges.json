@@ -460,6 +460,16 @@
           "max": 99.25,
           "avg": 69.54
         },
+        "party_diversity_index": {
+          "min": 0.5632,
+          "max": 0.8048,
+          "avg": 0.7164
+        },
+        "political_lean_index": {
+          "min": 38.62,
+          "max": 68.6,
+          "avg": 58.28
+        },
         "population_density": {
           "min": 2.461,
           "max": 25660,
@@ -514,6 +524,11 @@
           "min": 4.1,
           "max": 14,
           "avg": 8.443
+        },
+        "voter_turnout_pct": {
+          "min": 64.72,
+          "max": 95.3,
+          "avg": 84.83
         },
         "walkability_index": {
           "min": 22,

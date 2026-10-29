@@ -187,7 +187,13 @@ import { join } from 'node:path';
 // households and building age (SCB): four more ids in the Swedish layer set and panel
 // rows, two stopsSe ladders, and the building-age definition note in the bundled fi.json.
 // Measured 341,358 → 341,605; headroom restored to ~1.4 KB.)
-const BUDGET = 343_000;
+// → 344300 B (2026-10-29: Sweden's election layers, by Q3's rule — turnout, party
+// diversity and political lean on the shared keys, plus eight Riksdag-party layers
+// (a `seParty` factory over single-hue ramps now shared with Finland's party layers),
+// their labels and three definition notes in the bundled fi.json, the panel/profile
+// voting rows, and the legend reading the shown country's source entry. Measured
+// 341,598 → 342,799; headroom restored to ~1.5 KB.)
+const BUDGET = 344_300;
 const ASSETS_DIR = 'dist/assets';
 
 // Second budget: the /live/ realtime sub-app.

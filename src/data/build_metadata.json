@@ -1,6 +1,6 @@
 {
-  "generated": "2026-10-28T14:16:19.065Z",
-  "source_hash": "6948ddffa4391e20",
+  "generated": "2026-10-29T09:52:37.370Z",
+  "source_hash": "a8eb57a3ace24c03",
   "rows_total": 3018,
   "metrics": {
     "active_plan_count": {
@@ -816,6 +816,86 @@
           "row_count": 4876,
           "coverage_pct": 79.2
         },
+        "party_diversity_index": {
+          "source": "Valmyndigheten (riksdagsvalet 2026, slutlig rösträkning per valdistrikt)",
+          "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": false,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
+        "party_vote_se_c_pct": {
+          "source": "Valmyndigheten (riksdagsvalet 2026, slutlig rösträkning per valdistrikt)",
+          "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": false,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
+        "party_vote_se_kd_pct": {
+          "source": "Valmyndigheten (riksdagsvalet 2026, slutlig rösträkning per valdistrikt)",
+          "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": false,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
+        "party_vote_se_l_pct": {
+          "source": "Valmyndigheten (riksdagsvalet 2026, slutlig rösträkning per valdistrikt)",
+          "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": false,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
+        "party_vote_se_m_pct": {
+          "source": "Valmyndigheten (riksdagsvalet 2026, slutlig rösträkning per valdistrikt)",
+          "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": false,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
+        "party_vote_se_mp_pct": {
+          "source": "Valmyndigheten (riksdagsvalet 2026, slutlig rösträkning per valdistrikt)",
+          "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": false,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
+        "party_vote_se_s_pct": {
+          "source": "Valmyndigheten (riksdagsvalet 2026, slutlig rösträkning per valdistrikt)",
+          "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": false,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
+        "party_vote_se_sd_pct": {
+          "source": "Valmyndigheten (riksdagsvalet 2026, slutlig rösträkning per valdistrikt)",
+          "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": false,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
+        "party_vote_se_v_pct": {
+          "source": "Valmyndigheten (riksdagsvalet 2026, slutlig rösträkning per valdistrikt)",
+          "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": false,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
+        "political_lean_index": {
+          "source": "Valmyndigheten (riksdagsvalet 2026, slutlig rösträkning per valdistrikt)",
+          "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": false,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
         "population_density": {
           "source": "SCB (Folkmängd + land- och vattenareal, DeSO 2025)",
           "vintage": 2025,
@@ -901,6 +981,14 @@
           "vintage": "2021–2025",
           "granularity": "deso",
           "is_proxy": true,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
+        "voter_turnout_pct": {
+          "source": "Valmyndigheten (riksdagsvalet 2026, slutlig rösträkning per valdistrikt)",
+          "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": false,
           "row_count": 6160,
           "coverage_pct": 100
         },

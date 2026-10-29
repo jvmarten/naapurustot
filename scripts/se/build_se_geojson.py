@@ -17,6 +17,7 @@ Inputs (all produced by the fetch scripts in this directory):
   canopy_deso.json              fetch_se_canopy.py (Copernicus Tree Cover Density, 2018-)
   crime_kommun.json             fetch_se_crime.py (Brå, per municipality and city district)
   deso_district.json            fetch_se_districts.py (DeSO -> district in the three largest cities)
+  election_deso.json            fetch_se_election.py (Valmyndigheten, riksdagsvalet 2026)
 
 Geometry is cut at the shore first (clip_deso_land.py: SCB's polygons run out into the
 sea, Paavo's do not), then simplified ONCE here, on a shared-arc topology (geo2topo ->
@@ -257,6 +258,32 @@ def extra_props(hh: dict, built: dict, canopy: dict, osm: dict, pinta_ala, deso:
     return props
 
 
+# election_deso.json party abbreviation -> property. Sweden's parties are not Finland's, so
+# they get keys of their own; turnout, diversity and lean share Finland's keys.
+ELECTION_PARTIES = {
+    "S": "party_vote_se_s_pct", "M": "party_vote_se_m_pct", "SD": "party_vote_se_sd_pct",
+    "V": "party_vote_se_v_pct", "C": "party_vote_se_c_pct", "KD": "party_vote_se_kd_pct",
+    "MP": "party_vote_se_mp_pct", "L": "party_vote_se_l_pct",
+}
+ELECTION_KEYS = ["voter_turnout_pct", "party_diversity_index", "political_lean_index", *ELECTION_PARTIES.values()]
+
+
+def election_props(election: dict, deso: str) -> dict:
+    """The 2026 Riksdag election, apportioned from Valmyndigheten's districts
+    (fetch_se_election.py). Written after extra_props; apply_se_election.py patches the
+    committed file with the same function."""
+    rec = election["values"].get(deso)
+    if not rec:
+        return dict.fromkeys(ELECTION_KEYS)
+    props = {
+        "voter_turnout_pct": rec["turnout_pct"],
+        "party_diversity_index": rec["diversity"],
+        "political_lean_index": rec["lean"],
+    }
+    props.update({key: rec["party"][abbr] for abbr, key in ELECTION_PARTIES.items()})
+    return props
+
+
 def crime_props(crime: dict, district_of: dict[str, str], deso: str) -> dict:
     """Brå's figures for the DeSO's city district in Stockholm, Göteborg and Malmö, else for
     its municipality (a DeSO code starts with its kommun code). Brå publishes nothing finer."""
@@ -358,6 +385,7 @@ def main() -> None:
     canopy = load("canopy_deso.json")
     crime = load("crime_kommun.json")
     district_of = load("deso_district.json")
+    election = load("election_deso.json")
 
     region_of = {k: r["id"] for r in fa25 for k in r["kommuner"]}
     names = display_names(index, regso)
@@ -463,6 +491,7 @@ def main() -> None:
         props["water_proximity_m"] = water.get(deso)
         props.update(crime_props(crime, district_of, deso))
         props.update(extra_props(hh, t("building_age", deso), canopy, osm, props["pinta_ala"], deso))
+        props.update(election_props(election, deso))
         features.append({"type": "Feature", "properties": props, "geometry": {
             "type": geom["type"], "coordinates": round_coords(geom["coordinates"])}})
 

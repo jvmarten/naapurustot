@@ -44,6 +44,7 @@ const DYNAMIC_PREFIXES = [
   'error.',              // NeighborhoodProfilePage → `error.${code}`
   'panel.plan_type_',    // NeighborhoodPanel → `panel.plan_type_${ptype}` (CF-3)
   'panel.plan_status_',  // NeighborhoodPanel → `panel.plan_status_${status}` (CF-3)
+  'layer.party_se_',     // colorScales seParty → `layer.party_se_${party}` (Riksdag parties)
 ];
 
 // Vite-native source scan: eagerly load every src + scripts code file as raw
