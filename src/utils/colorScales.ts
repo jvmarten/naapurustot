@@ -71,6 +71,11 @@ export type LayerId =
   | 'party_se_l'
   | 'house_price_se'
   | 'rent_se'
+  | 'new_buildings_se'
+  | 'school_grades_se'
+  | 'sickness_se'
+  | 'pensioners_se'
+  | 'planned_homes_se'
   | 'broadband_coverage'
   | 'ev_charging_density'
   | 'tree_canopy'
@@ -216,6 +221,8 @@ const euro = (v: number) => `${numFmt().format(v)} €`;
 // would be baked into every value. Sweden's layers are ranked and coloured on their own.
 const sek = (v: number) => `${numFmt().format(v)} kr`;
 const sekSqmMonth = (v: number) => `${v.toFixed(0)} kr/m²/kk`;
+const gradePts = (v: number) => `${v.toFixed(1)}/20`;
+const days = (v: number) => `${v.toFixed(1)} pv`;
 const pct = (v: number) => `${v.toFixed(1)} %`;
 // QW-1: whole-number percent — job_self_sufficiency can reach tens of thousands in a tiny
 // residential postal code hosting a large employer, where a one-decimal format is unusable.
@@ -366,6 +373,7 @@ export const LAYERS: LayerConfig[] = [
     unit: '%',
     colors: ['#2166ac', '#4393c3', '#92c5de', '#d1e5f0', '#fddbc7', '#f4a582', '#d6604d', '#b2182b'],
     stops: [40, 60, 80, 100, 140, 200, 300, 500],
+    stopsSe: [50, 65, 80, 95, 105, 115, 125, 140],
     format: wholePct,
     divergingCenter: 100,
   },
@@ -436,6 +444,7 @@ export const LAYERS: LayerConfig[] = [
     unit: '',
     colors: ['#ffffcc', '#ffeda0', '#fed976', '#feb24c', '#fd8d3c', '#fc4e2a', '#e31a1c', '#b10026'],
     stops: [28, 32, 36, 38, 40, 42, 45, 50],
+    stopsSe: [39, 40, 41, 42, 43, 44.5, 46, 48.5],
     format: age,
   },
   {
@@ -445,6 +454,17 @@ export const LAYERS: LayerConfig[] = [
     unit: '%',
     colors: ['#f7fbff', '#deebf7', '#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#084594'],
     stops: [5, 10, 15, 20, 25, 30, 35, 45],
+    format: pct,
+  },
+  // Sweden: pensioners among residents aged 65-74, per kommun (Kolada N02287) — a rate
+  // within one age band, not Finland's share of all residents.
+  {
+    id: 'pensioners_se',
+    labelKey: 'layer.pensioners_se',
+    property: 'pensioners_6574_pct',
+    unit: '%',
+    colors: ['#f7fbff', '#deebf7', '#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#084594'],
+    stops: [61, 65, 66.5, 68, 69.5, 70.5, 72.5, 75],
     format: pct,
   },
   // --- Phase 1: Housing & Demographics ---
@@ -1030,6 +1050,17 @@ export const LAYERS: LayerConfig[] = [
     stops: [0, 2, 5, 8, 12, 18, 25, 40],
     format: pct,
   },
+  // Sweden: residential buildings built 2021 or later, per DeSO (SCB TAB6540). Finished
+  // buildings, where Finland's new_construction counts ones under way.
+  {
+    id: 'new_buildings_se',
+    labelKey: 'layer.new_buildings_se',
+    property: 'new_buildings_pct',
+    unit: '%',
+    colors: ['#f7fcf5', '#e5f5e0', '#c7e9c0', '#a1d99b', '#74c476', '#41ab5d', '#238b45', '#005a32'],
+    stops: [0, 0.2, 0.6, 1.3, 3, 6, 12, 25],
+    format: pct,
+  },
   // --- Phase 9: Real open data layers ---
   {
     id: 'rental_price',
@@ -1100,6 +1131,17 @@ export const LAYERS: LayerConfig[] = [
     format: formatYtlGrade,
     tooltipFormat: formatYtlGradeFull,
   },
+  // Sweden: upper-secondary schools' average grade points (0-20) for diploma students,
+  // the mean of the schools in the DeSO (Skolverket). Not on Finland's YTL scale.
+  {
+    id: 'school_grades_se',
+    labelKey: 'layer.school_grades_se',
+    property: 'school_grade_points',
+    unit: '/20',
+    colors: ['#67001f', '#b2182b', '#d6604d', '#f4a582', '#d1e5f0', '#92c5de', '#4393c3', '#2166ac'],
+    stops: [11.8, 12.6, 13.3, 13.7, 14, 14.5, 15.1, 17],
+    format: gradePts,
+  },
   {
     id: 'light_pollution',
     labelKey: 'layer.light_pollution',
@@ -1141,6 +1183,18 @@ export const LAYERS: LayerConfig[] = [
     colors: ['#1a9850', '#66bd63', '#a6d96a', '#d9ef8b', '#fee08b', '#fdae61', '#f46d43', '#d73027'],
     stops: [85, 92, 97, 100, 104, 108, 115, 130],
     format: age,
+    higherIsBetter: false,
+  },
+  // Sweden: Försäkringskassan's ohälsotal, benefit days per resident aged 16-64, per kommun
+  // (Kolada N00957). Not Kela's age-standardised morbidity index.
+  {
+    id: 'sickness_se',
+    labelKey: 'layer.sickness_se',
+    property: 'sickness_days',
+    unit: 'pv',
+    colors: ['#1a9850', '#66bd63', '#a6d96a', '#d9ef8b', '#fee08b', '#fdae61', '#f46d43', '#d73027'],
+    stops: [12.5, 15, 17.5, 20.5, 23, 25.5, 29, 34.5],
+    format: days,
     higherIsBetter: false,
   },
   // CF-20: SYKE 1/100a flood hazard exposure (% of postal land in the flood zone).
@@ -1205,6 +1259,17 @@ export const LAYERS: LayerConfig[] = [
     colors: ['#ffffd9', '#edf8b1', '#c7e9b4', '#7fcdbb', '#41b6c4', '#1d91c0', '#225ea8', '#0c2c84'],
     stops: [0, 1, 2, 3, 4, 6, 8, 12],
     format: count,
+  },
+  // Sweden: new homes current detailed plans allow, per 1,000 residents, per kommun (SKR's
+  // survey via Kolada N07923). A municipal total, not Finland's nearby planning cases.
+  {
+    id: 'planned_homes_se',
+    labelKey: 'layer.planned_homes_se',
+    property: 'planned_homes_per_1000',
+    unit: '/1000',
+    colors: ['#ffffd9', '#edf8b1', '#c7e9b4', '#7fcdbb', '#41b6c4', '#1d91c0', '#225ea8', '#0c2c84'],
+    stops: [0, 10, 20, 26, 30, 40, 55, 120],
+    format: perThousand,
   },
 ];
 
@@ -1302,7 +1367,8 @@ function runsWarmToCool(colors: string[]): boolean {
 export const SE_ONLY_LAYERS: ReadonlySet<LayerId> = new Set<LayerId>([
   'economic_standard', 'low_economic_standard', 'foreign_background',
   'party_se_s', 'party_se_m', 'party_se_sd', 'party_se_v', 'party_se_c', 'party_se_kd',
-  'party_se_mp', 'party_se_l', 'house_price_se', 'rent_se',
+  'party_se_mp', 'party_se_l', 'house_price_se', 'rent_se', 'new_buildings_se',
+  'school_grades_se', 'sickness_se', 'pensioners_se', 'planned_homes_se',
 ]);
 const SE_LAYERS: ReadonlySet<LayerId> = new Set<LayerId>([
   ...SE_ONLY_LAYERS,
@@ -1324,6 +1390,8 @@ const SE_LAYERS: ReadonlySet<LayerId> = new Set<LayerId>([
   'broadband_coverage', 'traffic_accidents',
   // Finland's method on EEA's END road-noise contours, so Finland's stops.
   'noise_pollution',
+  // SCB per kommun (Finland's are per postal area): Sweden's own stops.
+  'job_self_sufficiency', 'avg_age',
   // Scored against Sweden's own areas (computeQualityIndices), from the factors it has.
   'quality_index',
 ]);

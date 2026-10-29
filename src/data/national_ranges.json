@@ -445,6 +445,11 @@
           "max": 20,
           "avg": 1.811
         },
+        "he_kika": {
+          "min": 39.2,
+          "max": 48.5,
+          "avg": 42.59
+        },
         "healthcare_density": {
           "min": 0,
           "max": 23.08,

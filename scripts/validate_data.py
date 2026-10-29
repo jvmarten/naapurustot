@@ -934,7 +934,7 @@ SE_PCT_PROPS = [
     "low_economic_standard_pct", "employment_rate", "unemployment_rate", "higher_education_rate",
     "voter_turnout_pct", "party_vote_se_s_pct", "party_vote_se_m_pct", "party_vote_se_sd_pct",
     "party_vote_se_v_pct", "party_vote_se_c_pct", "party_vote_se_kd_pct", "party_vote_se_mp_pct",
-    "party_vote_se_l_pct", "broadband_coverage_pct",
+    "party_vote_se_l_pct", "broadband_coverage_pct", "new_buildings_pct", "pensioners_6574_pct",
 ]
 
 
@@ -949,7 +949,8 @@ SE_COUNTED_DENSITIES = [
 # carries its kommun's figure, so these are proxies on DeSO geometry, as Finland's are on postal.
 SE_MUNICIPAL_PROXIES = ["violent_crime_rate", "property_crime_rate", "crime_index",
                         "rent_sqm_month_sek", "house_price_sek", "broadband_coverage_pct",
-                        "traffic_accident_rate"]
+                        "traffic_accident_rate", "job_self_sufficiency", "he_kika", "sickness_days",
+                        "pensioners_6574_pct", "planned_homes_per_1000"]
 
 
 def check_se_registry_provenance(_features: list) -> list[str]:

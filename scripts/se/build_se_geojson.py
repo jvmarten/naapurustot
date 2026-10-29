@@ -20,6 +20,8 @@ Inputs (all produced by the fetch scripts in this directory):
   election_deso.json            fetch_se_election.py (Valmyndigheten, riksdagsvalet 2026)
   kommun_layers.json            fetch_se_kommun_layers.py (rent, house prices, broadband, road accidents)
   noise_deso.json               fetch_se_noise.py (EEA road-noise Lden contours)
+  extra_layers.json             fetch_se_extra.py (new buildings, jobs, age, ohälsotal, pensioners, plans)
+  school_grades_deso.json       fetch_se_school_grades.py (Skolverket upper-secondary grade points)
 
 Geometry is cut at the shore first (clip_deso_land.py: SCB's polygons run out into the
 sea, Paavo's do not), then simplified ONCE here, on a shared-arc topology (geo2topo ->
@@ -305,6 +307,27 @@ def later_props(layers: dict, noise: dict, district_of: dict[str, str], deso: st
     }
 
 
+EXTRA_KEYS = ["new_buildings_pct", "job_self_sufficiency", "he_kika", "sickness_days",
+              "pensioners_6574_pct", "planned_homes_per_1000", "school_grade_points"]
+
+
+def extra2_props(extra: dict, grades: dict, deso: str) -> dict:
+    """New residential buildings and school grade points per DeSO; jobs per employed
+    resident, mean age, ohälsotal, pensioner share and planning reserve per kommun.
+    Written after later_props; apply_se_extra.py patches the committed file with it."""
+    kommun = deso[:4]
+    k = lambda key: extra[key]["kommuner"].get(kommun)  # noqa: E731
+    return {
+        "new_buildings_pct": extra["new_buildings"]["deso"].get(deso),
+        "job_self_sufficiency": k("jobs"),
+        "he_kika": k("avg_age"),
+        "sickness_days": k("sickness_days"),
+        "pensioners_6574_pct": k("pensioners"),
+        "planned_homes_per_1000": k("planned_homes"),
+        "school_grade_points": grades["values"].get(deso),
+    }
+
+
 def crime_props(crime: dict, district_of: dict[str, str], deso: str) -> dict:
     """Brå's figures for the DeSO's city district in Stockholm, Göteborg and Malmö, else for
     its municipality (a DeSO code starts with its kommun code). Brå publishes nothing finer."""
@@ -409,6 +432,8 @@ def main() -> None:
     election = load("election_deso.json")
     layers = load("kommun_layers.json")
     noise = load("noise_deso.json")
+    extra = load("extra_layers.json")
+    grades = load("school_grades_deso.json")
 
     region_of = {k: r["id"] for r in fa25 for k in r["kommuner"]}
     names = display_names(index, regso)
@@ -516,6 +541,7 @@ def main() -> None:
         props.update(extra_props(hh, t("building_age", deso), canopy, osm, props["pinta_ala"], deso))
         props.update(election_props(election, deso))
         props.update(later_props(layers, noise, district_of, deso))
+        props.update(extra2_props(extra, grades, deso))
         features.append({"type": "Feature", "properties": props, "geometry": {
             "type": geom["type"], "coordinates": round_coords(geom["coordinates"])}})
 

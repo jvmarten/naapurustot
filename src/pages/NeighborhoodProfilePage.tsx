@@ -821,23 +821,23 @@ export const NeighborhoodProfilePage: React.FC = () => {
           <>
             <Section title={t('layers.economy')}>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {seItems(['economic_standard', 'low_economic_standard', 'unemployment', 'employment_rate', 'education'])}
+                {seItems(['economic_standard', 'low_economic_standard', 'unemployment', 'employment_rate', 'education', 'job_self_sufficiency'])}
               </div>
             </Section>
             <Section title={t('profile.demographics')}>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <StatItem label={t('profile.population')} value={formatNumber(d.he_vakiy)} />
-                {seItems(['population_density', 'foreign_background', 'elderly_ratio', 'gender_ratio'])}
+                {seItems(['population_density', 'avg_age', 'foreign_background', 'elderly_ratio', 'gender_ratio', 'sickness_se'])}
               </div>
             </Section>
             <Section title={t('profile.housing')}>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {seItems(['rent_se', 'house_price_se', 'ownership', 'rental', 'detached_houses', 'avg_household_size', 'families_with_children', 'single_parent_hh'])}
+                {seItems(['rent_se', 'house_price_se', 'ownership', 'rental', 'detached_houses', 'new_buildings_se', 'avg_household_size', 'families_with_children', 'single_parent_hh'])}
               </div>
             </Section>
             <Section title={t('layers.services')}>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {seItems(['walkability', 'transit_access', 'school_density', 'healthcare_access', 'grocery_access', 'restaurant_density', 'cycling_infra'])}
+                {seItems(['walkability', 'transit_access', 'school_density', 'school_grades_se', 'healthcare_access', 'grocery_access', 'restaurant_density', 'cycling_infra'])}
               </div>
             </Section>
             <Section title={t('layers.voting')}>

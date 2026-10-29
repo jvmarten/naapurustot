@@ -197,7 +197,12 @@ import { join } from 'node:path';
 // detached-house prices as Sweden-only SEK layers, broadband / accidents / noise on the
 // shared keys (two stopsSe ladders), their five definition notes in the bundled fi.json,
 // the panel/profile rows. Measured 342,799 → 343,969; headroom restored to ~1.5 KB.)
-const BUDGET = 345_500;
+// → 346700 B (2026-10-29: seven more Swedish layers, by Q3's rule — new buildings, school
+// grade points, ohälsotal, pensioners 65-74 and planning reserve as Sweden-only layers,
+// job self-sufficiency and mean age on the shared keys (two stopsSe ladders), seven notes
+// in the bundled fi.json, the panel/profile rows. Measured 343,969 → 345,162; headroom
+// restored to ~1.5 KB.)
+const BUDGET = 346_700;
 const ASSETS_DIR = 'dist/assets';
 
 // Second budget: the /live/ realtime sub-app.
