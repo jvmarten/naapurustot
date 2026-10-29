@@ -323,9 +323,16 @@ Checked and left out, so they are not re-investigated:
   nationally for only 4 of its 80 mapped watercourses (the rest carry only the highest
   computed flow), its Floods-Directive maps cover 25 areas with coastal levels as 2150
   climate scenarios, and no service has a mapped-extent polygon, so "mapped and dry"
-  cannot be told from "never mapped".
+  cannot be told from "never mapped". The pan-European alternative was tried and rejected: the
+  Copernicus EMS / JRC river flood hazard map (v3.1.1, RP100, 90 m, CC BY 4.0) covers
+  every DeSO, but its 90 m terrain floods whole flat neighbourhoods. In central Uppsala it
+  puts six DeSOs at 100 % where MCF's own 5 m Fyrisån 100-year map gives 0, 0, 0, 3.3,
+  18.4 and 43.5 %. A layer that wrong where people live is worse than no layer.
 - **Radon.** Finland's is STUK's measured indoor radon per postal code. Sweden has no
   national register of indoor measurements (SSM leaves them to the kommuner, SCB has no
-  table); SGU's ground-radiation maps measure something else.
+  table); SGU's ground-radiation maps measure something else. The JRC European Atlas of
+  Natural Radiation does map indoor radon on 10 km cells from national surveys, but only
+  in its viewer (no download), and its terms say no action may be taken on the data
+  without consulting each data provider.
 - **Price-to-rent.** Needs flat prices per kommun, which SCB does not publish.
 
