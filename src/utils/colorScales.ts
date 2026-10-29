@@ -69,6 +69,8 @@ export type LayerId =
   | 'party_se_kd'
   | 'party_se_mp'
   | 'party_se_l'
+  | 'house_price_se'
+  | 'rent_se'
   | 'broadband_coverage'
   | 'ev_charging_density'
   | 'tree_canopy'
@@ -213,6 +215,7 @@ const euro = (v: number) => `${numFmt().format(v)} €`;
 // Swedish kronor, for SCB's income layers. Never converted to euros: a rate we chose
 // would be baked into every value. Sweden's layers are ranked and coloured on their own.
 const sek = (v: number) => `${numFmt().format(v)} kr`;
+const sekSqmMonth = (v: number) => `${v.toFixed(0)} kr/m²/kk`;
 const pct = (v: number) => `${v.toFixed(1)} %`;
 // QW-1: whole-number percent — job_self_sufficiency can reach tens of thousands in a tiny
 // residential postal code hosting a large employer, where a one-decimal format is unusable.
@@ -532,6 +535,17 @@ export const LAYERS: LayerConfig[] = [
     colors: ['#ffffb2', '#fed976', '#feb24c', '#fd8d3c', '#fc4e2a', '#e31a1c', '#bd0026', '#800026'],
     stops: [1000, 2000, 3000, 4000, 5000, 6000, 8000, 12000],
     format: euroSqm,
+  },
+  // Sweden: mean price of detached houses sold per kommun (SCB TAB1169). Not per m² and not
+  // flats, so not Finland's property_price.
+  {
+    id: 'house_price_se',
+    labelKey: 'layer.house_price_se',
+    property: 'house_price_sek',
+    unit: 'kr',
+    colors: ['#ffffb2', '#fed976', '#feb24c', '#fd8d3c', '#fc4e2a', '#e31a1c', '#bd0026', '#800026'],
+    stops: [950000, 1750000, 2450000, 3450000, 4200000, 5400000, 7150000, 10000000],
+    format: sek,
   },
   {
     id: 'transit_access',
@@ -858,6 +872,7 @@ export const LAYERS: LayerConfig[] = [
     unit: '%',
     colors: ['#f7fcf5', '#e5f5e0', '#c7e9c0', '#a1d99b', '#74c476', '#41ab5d', '#238b45', '#005a32'],
     stops: [30, 50, 60, 70, 80, 85, 90, 98],
+    stopsSe: [93, 96, 97.5, 98.5, 99.2, 99.6, 99.85, 99.99],
     format: pct,
   },
   {
@@ -1025,6 +1040,16 @@ export const LAYERS: LayerConfig[] = [
     stops: [8, 12, 15, 18, 21, 25, 30, 40],
     format: euroSqmMonth,
   },
+  // Sweden: mean rent per m² in rental flats (SCB), kommun or Stockholm/Malmö district.
+  {
+    id: 'rent_se',
+    labelKey: 'layer.rent_se',
+    property: 'rent_sqm_month_sek',
+    unit: 'kr/m²/kk',
+    colors: ['#ffffb2', '#fed976', '#feb24c', '#fd8d3c', '#fc4e2a', '#e31a1c', '#bd0026', '#800026'],
+    stops: [94, 103, 113, 120, 129, 135, 150, 172],
+    format: sekSqmMonth,
+  },
   {
     id: 'price_to_rent',
     labelKey: 'layer.price_to_rent',
@@ -1051,6 +1076,7 @@ export const LAYERS: LayerConfig[] = [
     unit: '/1000',
     colors: ['#f7fcf5', '#d5efcf', '#a1d99b', '#74c476', '#f9d057', '#fd8d3c', '#e5533d', '#b00026'],
     stops: [0.5, 1, 2, 3, 5, 8, 12, 20],
+    stopsSe: [0.6, 0.75, 0.9, 1, 1.1, 1.2, 1.45, 1.8],
     format: perThousand,
     higherIsBetter: false,
   },
@@ -1276,7 +1302,7 @@ function runsWarmToCool(colors: string[]): boolean {
 export const SE_ONLY_LAYERS: ReadonlySet<LayerId> = new Set<LayerId>([
   'economic_standard', 'low_economic_standard', 'foreign_background',
   'party_se_s', 'party_se_m', 'party_se_sd', 'party_se_v', 'party_se_c', 'party_se_kd',
-  'party_se_mp', 'party_se_l',
+  'party_se_mp', 'party_se_l', 'house_price_se', 'rent_se',
 ]);
 const SE_LAYERS: ReadonlySet<LayerId> = new Set<LayerId>([
   ...SE_ONLY_LAYERS,
@@ -1294,6 +1320,10 @@ const SE_LAYERS: ReadonlySet<LayerId> = new Set<LayerId>([
   // Valmyndigheten's 2026 districts, apportioned to DeSO. Lean is CHES 2019 for both
   // countries, so it keeps Finland's stops; turnout and diversity run higher in Sweden.
   'voter_turnout', 'party_diversity', 'political_lean',
+  // Municipal figures under Swedish definitions (PTS, Trafikanalys): Sweden's own stops.
+  'broadband_coverage', 'traffic_accidents',
+  // Finland's method on EEA's END road-noise contours, so Finland's stops.
+  'noise_pollution',
   // Scored against Sweden's own areas (computeQualityIndices), from the factors it has.
   'quality_index',
 ]);

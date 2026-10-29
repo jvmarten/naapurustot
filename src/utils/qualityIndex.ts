@@ -815,9 +815,10 @@ export function factorProperties(factor: QualityFactor, country: CountryId): (ke
  * Each country's composite under the DEFAULT weights as a quantile curve (equal steps from
  * p0 to p100), built by scripts/build_national_ranges.mjs. A Swedish composite is mapped
  * from Sweden's curve onto Finland's, so the same number means the same standing in
- * either country. Without it the factor mix decides the level: Sweden has no noise or
- * accident source, factors most Finnish areas score well on, so its raw
- * composite would run lower for reasons that are about the data, not the places.
+ * either country. Without it the factor mix decides the level: a factor one country has
+ * no source for drops out of its composite, and each country's data sit differently on
+ * the shared ranges, so a raw composite would run higher or lower for reasons that are
+ * about the data, not the places.
  */
 export type QualityCalibration = Partial<Record<CountryId, number[]>>;
 
@@ -919,7 +920,7 @@ export function computeQualityIndices(
   // not the place; and SCB's income, unemployment and education are defined
   // differently from Paavo's. The score therefore says where an area stands in its own
   // country, which is the one statement both countries' data support. A factor with
-  // no range in a country (Sweden has no noise or accident source yet) drops
+  // no range in a country (Sweden lacks several opt-in sources) drops
   // out of that country's score instead of scoring everyone a neutral 50.
   const perCountry: Partial<Record<CountryId, Map<string, MinMax> | undefined>> =
     nationalRanges instanceof Map ? { fi: nationalRanges } : nationalRanges ?? {};

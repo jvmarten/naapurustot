@@ -78,11 +78,12 @@ describe('Swedish quality index', () => {
   it('the shipped artifact gives Sweden a range for the factors it has data for', () => {
     const r = getCountryRanges().se;
     for (const prop of ['unemployment_rate', 'economic_standard_median', 'higher_education_rate',
-      'transit_stop_density', 'air_quality_index', 'walkability_index', 'violent_crime_rate']) {
+      'transit_stop_density', 'air_quality_index', 'walkability_index', 'violent_crime_rate',
+      'traffic_accident_rate', 'noise_pollution']) {
       expect(r.has(prop), prop).toBe(true);
     }
-    // No Swedish source yet: these must stay absent so the factor drops out.
-    for (const prop of ['traffic_accident_rate', 'noise_pollution', 'hr_mtu']) {
+    // Paavo's income is Finland's alone: Sweden scores income on economic standard.
+    for (const prop of ['hr_mtu', 'property_price_sqm']) {
       expect(r.has(prop), prop).toBe(false);
     }
   });

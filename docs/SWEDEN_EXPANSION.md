@@ -120,7 +120,7 @@ All unverified until a fetcher runs against them. "Level" is the finest level we
 | Air quality | CAMS | ~10 km | `is_proxy` |
 | Flood risk | MSB översvämningskarteringar | Polygon | Check coverage and licence |
 
-Finnish layers with **no** Swedish equivalent found yet (radon, health index, broadband, noise, planning) are left out for Sweden, not filled in.
+Finnish layers with **no** Swedish equivalent found yet (radon, health index, flood risk, planning) are left out for Sweden, not filled in; §11 says why for radon and flood risk.
 
 ## 5. Branch order
 
@@ -205,8 +205,8 @@ The default factors, Swedish source per factor (all per DeSO unless noted):
 | Water proximity | OSM water + SCB 1 km grid (`fetch_se_water_proximity.py`) | Same method |
 | Tree canopy | Copernicus TCD 2024, 10 m, from the CDSE S3 archive (`fetch_se_canopy.py`), 2018–2024 as a series | Same product and method; Finland moved to the same reader (`scripts/tcd_cdse.py`) |
 | Safety (violent crime) | Brå, BrB 3 kap., 2021–2025 mean, per municipality and, in Stockholm, Göteborg and Malmö, per city district (`fetch_se_crime.py`) | Same concept and method; Swedish counting rules, so own stops. `is_proxy` |
-| Traffic accidents | — | Trafikanalys publishes municipal injury counts only; Finland's are point-level |
-| Noise | — | Not attempted yet |
+| Traffic accidents | Trafikanalys, police-reported injury accidents per kommun, 2022–2024 (`fetch_se_kommun_layers.py`, §11) | Municipal proxy and injury-only; Finland's are point-level and include property damage. Own stops |
+| Noise | EEA's END round-4 road Lden contours (`fetch_se_noise.py`, §11) | Same method (band midpoints, 40 dB outside the contours) |
 
 **Crime (2026-10-28).** `statistik.bra.se` was never blocked: it serves the wrong
 intermediate certificate (GeoTrust EV RSA CA 2018 instead of DigiCert EV RSA CA G2), which
@@ -231,8 +231,8 @@ so their violent figure is a 2024–2025 mean.
 
 Scoring: each country against its own p2/p98 ranges, missing factors dropped, then the
 Swedish composite mapped onto Finland's by quantile under the default weights (CLAUDE.md,
-Sweden note 9). Because the factors Sweden still lacks (accidents, noise) are
-rural-favouring ones, Swedish region averages lean urban until they arrive.
+Sweden note 9). Accidents and noise arrived in §11, so every default factor now has a
+Swedish source; within the services factor Sweden still has no daycare count.
 
 ## 9. More layers (2026-10-28)
 
@@ -261,8 +261,8 @@ Checked and left out, so they are not re-investigated:
   `aggregate_viirs_postal.py`), but it needs a NASA Earthdata token (`EARTHDATA_TOKEN`).
 - **Daycare and sports facilities.** Finland's come from registers (Varda, LIPAS); an OSM
   count would be a different measure. Preschools are not in Skolverket's register (§8).
-- **Not attempted yet:** property prices and rent, broadband, radon, noise, flood risk,
-  traffic accidents. Candidate sources are in §4.
+- **Then attempted (§11):** property prices and rent, broadband, radon, noise, flood risk,
+  traffic accidents.
 
 ## 10. Elections (2026-10-29)
 
@@ -297,4 +297,35 @@ national valid votes, electorate and votes cast equal the published totals.
   Party shares use only the votes counted in districts, which are the ones with a place.
 - Extremes are Valmyndigheten's own: an Ekerö district counted 49 % (0125C1080 reads
   55 %), Södra Ängby 98 %.
+
+## 11. The rest of the list (2026-10-29)
+
+Sweden went from 43 to 48 layers. Every Finnish layer on §9's "not attempted" list was
+looked for; three came in on Finland's keys, two as Sweden-only layers, two stay out.
+
+| Layer | Source | Level | Notes |
+|---|---|---|---|
+| Rent (`rent_se`, kr/m²/month) | SCB TAB4590 / TAB4549, mean annual rent per m² in rental flats ÷ 12, 2026 | kommun; Stockholm's 11 and Malmö's 5 districts | Göteborg's SCB districts are the ten pre-2021 SDNs, which no current boundary matches, so it takes the kommun figure. SEK, so its own layer rather than Finland's €-formatted key |
+| House price (`house_price_se`, kr) | SCB TAB1169, mean purchase price of permanent detached houses sold, 2025 | kommun | Finland's `property_price` is flats per m²; SCB publishes flats (bostadsrätter) only per län |
+| Broadband (`broadband_coverage_pct`) | PTS bredbandskartläggning 2025 (bredbandskartan's GeoServer), households and workplaces with access to ≥ 100 Mbit/s | kommun | Finland counts buildings. PTS prints no table for Sundbyberg (its sparse part is one household), so Sundbyberg is empty, not imputed. Own stops (96–99.99 %) |
+| Traffic accidents (`traffic_accident_rate`) | Trafikanalys, police-reported injury accidents by the kommun where they happened, 2022–2024 mean per 1,000 residents | kommun | Injury accidents only; Finland's register points include property damage. The kommuner add up to Trafikanalys's national total every year (its "–" read as 0). Own stops |
+| Road noise (`noise_pollution`) | EEA, END round-4 road Lden contours as reported by Sweden (10 m raster, update April 2026) | DeSO | Finland's method: band midpoints, ">75" as 77.5, 40 dB outside the contours; Finland's stops. 12 % of DeSO land is outside the mosaic's footprint (northern Lapland, inland Småland), i.e. no road the directive maps; it takes the background like ground between contours |
+
+All four municipal figures are flagged `is_proxy` (`validate_data.py` enforces it).
+Accidents and noise are default quality-index factors, so Swedish scores now include them:
+the calibration curve was rebuilt, Swedish region averages moved by −0.6 (Storuman) to +7.4
+(Bollnäs-Ovanåker), rural regions up, as §8 expected. No Finnish figure changed.
+
+Checked and left out, so they are not re-investigated:
+
+- **Flood risk.** Finland's figure is the share of land in the 1/100a zone *within SYKE's
+  mapped extent*, null outside it. MCF (formerly MSB) publishes 100-year river floods
+  nationally for only 4 of its 80 mapped watercourses (the rest carry only the highest
+  computed flow), its Floods-Directive maps cover 25 areas with coastal levels as 2150
+  climate scenarios, and no service has a mapped-extent polygon, so "mapped and dry"
+  cannot be told from "never mapped".
+- **Radon.** Finland's is STUK's measured indoor radon per postal code. Sweden has no
+  national register of indoor measurements (SSM leaves them to the kommuner, SCB has no
+  table); SGU's ground-radiation maps measure something else.
+- **Price-to-rent.** Needs flat prices per kommun, which SCB does not publish.
 

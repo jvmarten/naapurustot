@@ -193,7 +193,11 @@ import { join } from 'node:path';
 // their labels and three definition notes in the bundled fi.json, the panel/profile
 // voting rows, and the legend reading the shown country's source entry. Measured
 // 341,598 → 342,799; headroom restored to ~1.5 KB.)
-const BUDGET = 344_300;
+// → 345500 B (2026-10-29: the rest of Sweden's missing-layer list, by Q3's rule — rent and
+// detached-house prices as Sweden-only SEK layers, broadband / accidents / noise on the
+// shared keys (two stopsSe ladders), their five definition notes in the bundled fi.json,
+// the panel/profile rows. Measured 342,799 → 343,969; headroom restored to ~1.5 KB.)
+const BUDGET = 345_500;
 const ASSETS_DIR = 'dist/assets';
 
 // Second budget: the /live/ realtime sub-app.
