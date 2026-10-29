@@ -832,7 +832,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
             </Section>
             <Section title={t('profile.housing')}>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {seItems(['ownership', 'rental', 'detached_houses', 'avg_household_size', 'families_with_children', 'single_parent_hh'])}
+                {seItems(['rent_se', 'house_price_se', 'ownership', 'rental', 'detached_houses', 'avg_household_size', 'families_with_children', 'single_parent_hh'])}
               </div>
             </Section>
             <Section title={t('layers.services')}>
@@ -847,7 +847,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
             </Section>
             <Section title={t('layers.environment')}>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {seItems(['air_quality', 'water_proximity'])}
+                {seItems(['air_quality', 'noise_pollution', 'water_proximity'])}
               </div>
               <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
                 <Link to={sourcesPath} className="hover:text-brand-600 underline decoration-dotted underline-offset-2">{t('profile.data_sources')}</Link>

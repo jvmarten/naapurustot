@@ -1653,19 +1653,19 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
         {seRows(['economic_standard', 'low_economic_standard', 'unemployment', 'employment_rate', 'education'])}
       </CollapsibleSection>
       <CollapsibleSection title={t('panel.housing')} defaultOpen>
-        {seRows(['ownership', 'rental', 'detached_houses', 'building_age', 'avg_household_size'])}
+        {seRows(['rent_se', 'house_price_se', 'ownership', 'rental', 'detached_houses', 'building_age', 'avg_household_size'])}
       </CollapsibleSection>
       <CollapsibleSection title={t('layers.demographics')} defaultOpen>
         {seRows(['population_density', 'foreign_background', 'elderly_ratio', 'gender_ratio', 'families_with_children', 'single_parent_hh', 'single_person_hh'])}
       </CollapsibleSection>
       <CollapsibleSection title={t('layers.services')} defaultOpen>
-        {seRows(['walkability', 'transit_access', 'school_density', 'healthcare_access', 'grocery_access', 'restaurant_density', 'cycling_infra', 'ev_charging_density'])}
+        {seRows(['walkability', 'transit_access', 'school_density', 'healthcare_access', 'grocery_access', 'restaurant_density', 'cycling_infra', 'ev_charging_density', 'broadband_coverage'])}
       </CollapsibleSection>
       <CollapsibleSection title={t('layers.environment')} defaultOpen>
-        {seRows(['air_quality', 'tree_canopy', 'water_proximity'])}
+        {seRows(['air_quality', 'noise_pollution', 'tree_canopy', 'water_proximity'])}
       </CollapsibleSection>
       <CollapsibleSection title={t('layers.safety')} defaultOpen>
-        {seRows(['violent_crime', 'property_crime', 'crime_rate'])}
+        {seRows(['violent_crime', 'property_crime', 'crime_rate', 'traffic_accidents'])}
       </CollapsibleSection>
       <CollapsibleSection title={t('layers.voting')}>
         {seRows(['voter_turnout', 'political_lean', 'party_diversity', 'party_se_s', 'party_se_sd', 'party_se_m', 'party_se_v', 'party_se_c', 'party_se_kd', 'party_se_mp', 'party_se_l'])}

@@ -192,6 +192,7 @@ data is available. This catalogue is generated from the live layer registry.
 - **Employment Rate** — Share of working-age residents currently employed (ages 15–74).
 - **Higher Education**
 - **Property Prices**
+- **Average detached-house price**
 - **Tech Sector Jobs**
 - **Healthcare Workers**
 - **Manufacturing Jobs**
@@ -209,6 +210,7 @@ data is available. This catalogue is generated from the live layer registry.
 - **Planning & Development Activity**
 - **Building Age**
 - **Rent Level**
+- **Average rent (SEK/m²/month)**
 - **Price-to-Rent Ratio**
 
 ### Services

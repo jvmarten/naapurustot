@@ -18,6 +18,8 @@ Inputs (all produced by the fetch scripts in this directory):
   crime_kommun.json             fetch_se_crime.py (Brå, per municipality and city district)
   deso_district.json            fetch_se_districts.py (DeSO -> district in the three largest cities)
   election_deso.json            fetch_se_election.py (Valmyndigheten, riksdagsvalet 2026)
+  kommun_layers.json            fetch_se_kommun_layers.py (rent, house prices, broadband, road accidents)
+  noise_deso.json               fetch_se_noise.py (EEA road-noise Lden contours)
 
 Geometry is cut at the shore first (clip_deso_land.py: SCB's polygons run out into the
 sea, Paavo's do not), then simplified ONCE here, on a shared-arc topology (geo2topo ->
@@ -284,6 +286,25 @@ def election_props(election: dict, deso: str) -> dict:
     return props
 
 
+LATER_KEYS = ["rent_sqm_month_sek", "house_price_sek", "broadband_coverage_pct",
+              "traffic_accident_rate", "noise_pollution"]
+
+
+def later_props(layers: dict, noise: dict, district_of: dict[str, str], deso: str) -> dict:
+    """Rent, house prices, broadband and accidents per kommun (rent per city district in
+    Stockholm and Malmö) and road noise per DeSO. Written after election_props;
+    apply_se_later.py patches the committed file with the same function."""
+    kommun = deso[:4]
+    rent = layers["rent"]["districts"].get(district_of.get(deso, ""))
+    return {
+        "rent_sqm_month_sek": rent if rent is not None else layers["rent"]["kommuner"].get(kommun),
+        "house_price_sek": layers["house_price"]["kommuner"].get(kommun),
+        "broadband_coverage_pct": layers["broadband"]["kommuner"].get(kommun),
+        "traffic_accident_rate": layers["accidents"]["kommuner"].get(kommun),
+        "noise_pollution": noise["values"].get(deso),
+    }
+
+
 def crime_props(crime: dict, district_of: dict[str, str], deso: str) -> dict:
     """Brå's figures for the DeSO's city district in Stockholm, Göteborg and Malmö, else for
     its municipality (a DeSO code starts with its kommun code). Brå publishes nothing finer."""
@@ -386,6 +407,8 @@ def main() -> None:
     crime = load("crime_kommun.json")
     district_of = load("deso_district.json")
     election = load("election_deso.json")
+    layers = load("kommun_layers.json")
+    noise = load("noise_deso.json")
 
     region_of = {k: r["id"] for r in fa25 for k in r["kommuner"]}
     names = display_names(index, regso)
@@ -492,6 +515,7 @@ def main() -> None:
         props.update(crime_props(crime, district_of, deso))
         props.update(extra_props(hh, t("building_age", deso), canopy, osm, props["pinta_ala"], deso))
         props.update(election_props(election, deso))
+        props.update(later_props(layers, noise, district_of, deso))
         features.append({"type": "Feature", "properties": props, "geometry": {
             "type": geom["type"], "coordinates": round_coords(geom["coordinates"])}})
 

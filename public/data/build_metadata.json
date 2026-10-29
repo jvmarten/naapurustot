@@ -1,6 +1,6 @@
 {
-  "generated": "2026-10-29T09:52:37.370Z",
-  "source_hash": "a8eb57a3ace24c03",
+  "generated": "2026-10-29T11:02:00.444Z",
+  "source_hash": "94a7f99e9a18abc8",
   "rows_total": 3018,
   "metrics": {
     "active_plan_count": {
@@ -688,6 +688,14 @@
           "row_count": 6160,
           "coverage_pct": 100
         },
+        "broadband_coverage_pct": {
+          "source": "PTS (Bredbandskartläggning 2025, kommun)",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": true,
+          "row_count": 6130,
+          "coverage_pct": 99.5
+        },
         "crime_index": {
           "source": "Brå (Anmälda brott, totalt; kommun, storstädernas stadsområden)",
           "vintage": 2025,
@@ -800,9 +808,25 @@
           "row_count": 6160,
           "coverage_pct": 100
         },
+        "house_price_sek": {
+          "source": "SCB (Försålda småhus, köpeskilling per kommun)",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": true,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
         "low_economic_standard_pct": {
           "source": "SCB (Ekonomisk standard, DeSO 2025)",
           "vintage": 2024,
+          "granularity": "deso",
+          "is_proxy": false,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
+        "noise_pollution": {
+          "source": "EEA (END round 4, road noise Lden contours, reported by Sweden)",
+          "vintage": 2022,
           "granularity": "deso",
           "is_proxy": false,
           "row_count": 6160,
@@ -912,6 +936,14 @@
           "row_count": 6160,
           "coverage_pct": 100
         },
+        "rent_sqm_month_sek": {
+          "source": "SCB (Hyra i hyreslägenheter, kommun och stadsdelsområde)",
+          "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": true,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
         "rental_rate": {
           "source": "SCB (Antal personer efter upplåtelseform, DeSO 2025)",
           "vintage": 2025,
@@ -949,6 +981,14 @@
           "vintage": 2025,
           "granularity": "deso",
           "is_proxy": false,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
+        "traffic_accident_rate": {
+          "source": "Trafikanalys (Vägtrafikskador, polisrapporterade olyckor med personskada per kommun)",
+          "vintage": "2022–2024",
+          "granularity": "deso",
+          "is_proxy": true,
           "row_count": 6160,
           "coverage_pct": 100
         },

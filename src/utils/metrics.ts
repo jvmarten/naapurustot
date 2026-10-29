@@ -229,6 +229,9 @@ export interface NeighborhoodProperties {
   party_vote_se_kd_pct?: number | null;
   party_vote_se_mp_pct?: number | null;
   party_vote_se_l_pct?: number | null;
+  /** Sweden, per kommun (rent also per Stockholm/Malmö district): SCB. */
+  rent_sqm_month_sek?: number | null;
+  house_price_sek?: number | null;
   broadband_coverage_pct: number | null;
   ev_charging_density: number | null;
   tree_canopy_pct: number | null;
@@ -844,6 +847,8 @@ const METRIC_DEFS: MetricDef[] = [
   { property: 'party_vote_se_kd_pct', weight: 'population', precision: 1 },
   { property: 'party_vote_se_mp_pct', weight: 'population', precision: 1 },
   { property: 'party_vote_se_l_pct', weight: 'population', precision: 1 },
+  { property: 'rent_sqm_month_sek', weight: 'population', precision: 1 },
+  { property: 'house_price_sek', weight: 'population', precision: 0 },
   { property: 'broadband_coverage_pct', weight: 'population', precision: 1 },
   { property: 'ev_charging_density', weight: 'population', precision: 4 },
   { property: 'tree_canopy_pct', weight: 'population', precision: 1 },

@@ -144,6 +144,21 @@
       "name": "Valmyndigheten",
       "url": "https://www.val.se/valresultat-och-statistik/statistik-och-data/radata-val-2026",
       "license": "Fri att använda, källa Valmyndigheten"
+    },
+    "pts": {
+      "name": "Post- och telestyrelsen (PTS)",
+      "url": "https://statistik.pts.se/mobiltacknings-och-bredbandskartlaggning",
+      "license": "Fri att använda, källa PTS"
+    },
+    "trafikanalys": {
+      "name": "Trafikanalys",
+      "url": "https://www.trafa.se/vagtrafik/vagtrafikskador/",
+      "license": "Fri att använda, källa Trafikanalys"
+    },
+    "eea": {
+      "name": "European Environment Agency (EEA)",
+      "url": "https://www.eea.europa.eu/en/topics/in-depth/noise",
+      "license": "CC BY 4.0"
     }
   },
   "metrics": {
@@ -1111,6 +1126,46 @@
           "granularity": "deso",
           "is_proxy": false,
           "note": "note.se_election"
+        },
+        "rent_sqm_month_sek": {
+          "source": "SCB (Hyra i hyreslägenheter, kommun och stadsdelsområde)",
+          "publisher": "scb",
+          "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": true,
+          "note": "note.se_rent"
+        },
+        "house_price_sek": {
+          "source": "SCB (Försålda småhus, köpeskilling per kommun)",
+          "publisher": "scb",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": true,
+          "note": "note.se_house_price"
+        },
+        "broadband_coverage_pct": {
+          "source": "PTS (Bredbandskartläggning 2025, kommun)",
+          "publisher": "pts",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": true,
+          "note": "note.se_broadband"
+        },
+        "traffic_accident_rate": {
+          "source": "Trafikanalys (Vägtrafikskador, polisrapporterade olyckor med personskada per kommun)",
+          "publisher": "trafikanalys",
+          "vintage": "2022–2024",
+          "granularity": "deso",
+          "is_proxy": true,
+          "note": "note.se_accidents"
+        },
+        "noise_pollution": {
+          "source": "EEA (END round 4, road noise Lden contours, reported by Sweden)",
+          "publisher": "eea",
+          "vintage": 2022,
+          "granularity": "deso",
+          "is_proxy": false,
+          "note": "note.se_noise"
         }
       }
     }

@@ -129,7 +129,12 @@
         "party_vote_se_c_pct": 2026,
         "party_vote_se_kd_pct": 2026,
         "party_vote_se_mp_pct": 2026,
-        "party_vote_se_l_pct": 2026
+        "party_vote_se_l_pct": 2026,
+        "rent_sqm_month_sek": 2026,
+        "house_price_sek": 2025,
+        "broadband_coverage_pct": 2025,
+        "traffic_accident_rate": "2022–2024",
+        "noise_pollution": 2022
       }
     }
   }
