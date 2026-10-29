@@ -176,6 +176,7 @@ data is available. This catalogue is generated from the live layer registry.
 - **Foreign-Language Speakers (municipal)**
 - **Foreign background (Sweden)**
 - **Pensioner Share**
+- **Pensioners among 65–74s**
 - **Single-Person HH**
 - **Single-Parent Households**
 - **Families with Children**
@@ -206,8 +207,10 @@ data is available. This catalogue is generated from the live layer registry.
 - **Living Space per Person**
 - **Detached Houses**
 - **New Construction**
+- **New residential buildings (2021–)**
 - **Construction Activity**
 - **Planning & Development Activity**
+- **Planned homes (per 1,000 residents)**
 - **Building Age**
 - **Rent Level**
 - **Average rent (SEK/m²/month)**
@@ -220,6 +223,7 @@ data is available. This catalogue is generated from the live layer registry.
 - **School Density** — Primary and secondary schools per square kilometer.
 - **Healthcare Access**
 - **School Quality**
+- **Upper-secondary grades (Sweden)**
 - **Sports Facilities**
 
 ### Safety
@@ -242,6 +246,7 @@ data is available. This catalogue is generated from the live layer registry.
 
 ### Health
 - **Morbidity index** — THL/Kela age-standardized morbidity index (national health index); 100 = national average, lower is better. Municipal value assigned to postal codes.
+- **Sickness days (ohälsotal)**
 
 ### Voting & Politics
 - **Voter Turnout**

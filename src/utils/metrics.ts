@@ -232,6 +232,13 @@ export interface NeighborhoodProperties {
   /** Sweden, per kommun (rent also per Stockholm/Malmö district): SCB. */
   rent_sqm_month_sek?: number | null;
   house_price_sek?: number | null;
+  /** Sweden: SCB new residential buildings (DeSO), Skolverket grade points (school DeSOs),
+   *  and per kommun ohälsotal, pensioners among 65-74, planned homes per 1,000. */
+  new_buildings_pct?: number | null;
+  school_grade_points?: number | null;
+  sickness_days?: number | null;
+  pensioners_6574_pct?: number | null;
+  planned_homes_per_1000?: number | null;
   broadband_coverage_pct: number | null;
   ev_charging_density: number | null;
   tree_canopy_pct: number | null;
@@ -849,6 +856,11 @@ const METRIC_DEFS: MetricDef[] = [
   { property: 'party_vote_se_l_pct', weight: 'population', precision: 1 },
   { property: 'rent_sqm_month_sek', weight: 'population', precision: 1 },
   { property: 'house_price_sek', weight: 'population', precision: 0 },
+  { property: 'new_buildings_pct', weight: 'population', precision: 1 },
+  { property: 'school_grade_points', weight: 'population', precision: 1 },
+  { property: 'sickness_days', weight: 'population', precision: 1 },
+  { property: 'pensioners_6574_pct', weight: 'population', precision: 1 },
+  { property: 'planned_homes_per_1000', weight: 'population', precision: 1 },
   { property: 'broadband_coverage_pct', weight: 'population', precision: 1 },
   { property: 'ev_charging_density', weight: 'population', precision: 4 },
   { property: 'tree_canopy_pct', weight: 'population', precision: 1 },

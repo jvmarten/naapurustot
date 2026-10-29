@@ -336,3 +336,29 @@ Checked and left out, so they are not re-investigated:
   without consulting each data provider.
 - **Price-to-rent.** Needs flat prices per kommun, which SCB does not publish.
 
+## 12. Layers checked on request (2026-10-29)
+
+Sweden went from 48 to 55 layers. Of the twelve Finnish layers never looked into before,
+seven came in, five stay out.
+
+| Layer | Source | Level | Notes |
+|---|---|---|---|
+| New residential buildings (`new_buildings_se`) | SCB TAB6540, residential buildings built 2021–2030 / those with a known decade, 2025 | DeSO | Finland's `new_construction` counts buildings under way, so own layer. SCB's ".." here is a zero: with it read as 0 each kommun's DeSOs add up to the kommun's published count (281 of 290 exactly, the rest within the ±2 cell noise), which `fetch_se_extra.py` re-checks |
+| School grade points (`school_grades_se`) | Skolverket planned-educations API v3, upper-secondary average grade points (0–20) for diploma students, three latest years per programme | DeSO holding the school (560) | Finland's mean of the lukios in a postal area, null elsewhere, mirrored. A school is the plain mean of its programmes (sizes given only as "cirka 40") |
+| Job self-sufficiency (`job_self_sufficiency`) | SCB TAB1828, jobs in the kommun per 100 employed residents, 2024 | kommun | Same ratio as Finland's; no Swedish region average (no job counts to sum). Own stops |
+| Mean age (`he_kika`) | SCB TAB637, 2025 | kommun | DeSO tables have only 5-year bands. Own stops |
+| Ohälsotal (`sickness_se`) | Försäkringskassan via Kolada N00957, benefit days per resident 16–64, 2025 | kommun | Not Kela's age-standardised morbidity index, so own layer |
+| Pensioners 65–74 (`pensioners_se`) | Kolada N02287, 2024 | kommun | A rate within one age band, not Finland's share of all residents |
+| Planning reserve (`planned_homes_se`) | SKR via Kolada N07923, homes current detailed plans allow per 1,000 residents, 2025 | kommun | Self-reported survey: 198 of 290 kommuner answered; the rest are empty |
+
+All kommun figures are `is_proxy`. None is a default quality-index factor; scores did not move.
+
+Checked and left out:
+
+- **Average apartment size.** Only dwellings counted in 10 m² bands per kommun (TAB826);
+  a mean would need assumed band midpoints, including for "under 31" and "over 200".
+- **Living space per person.** No source below national level (TAB828 is a survey).
+- **Student share.** SCB counts students where they study, not where they live.
+- **Transit reachability.** Needs Trafiklab's ResRobot (API key) and a routing run.
+- **Price-to-rent.** As §11.
+

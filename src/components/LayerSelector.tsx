@@ -57,14 +57,14 @@ type LayerGroup = {
 const LAYER_GROUPS: LayerGroup[] = [
   { labelKey: 'layers.quality', ids: ['transit_access', 'transit_reachability', 'air_quality', 'walkability'] },
   { labelKey: 'layers.trends', ids: ['income_change', 'population_change', 'population_projection', 'unemployment_change', 'property_price_change', 'crime_index_change'] },
-  { labelKey: 'layers.demographics', ids: ['avg_age', 'population_density', 'child_ratio', 'youth_ratio', 'elderly_ratio', 'gender_ratio', 'student_share', 'foreign_lang', 'foreign_lang_municipal', 'foreign_background', 'pensioners', 'single_person_hh', 'single_parent_hh', 'families_with_children', 'avg_household_size'] },
+  { labelKey: 'layers.demographics', ids: ['avg_age', 'population_density', 'child_ratio', 'youth_ratio', 'elderly_ratio', 'gender_ratio', 'student_share', 'foreign_lang', 'foreign_lang_municipal', 'foreign_background', 'pensioners', 'pensioners_se', 'single_person_hh', 'single_parent_hh', 'families_with_children', 'avg_household_size'] },
   { labelKey: 'layers.economy', ids: ['median_income', 'disposable_income', 'economic_standard', 'low_income', 'low_economic_standard', 'job_self_sufficiency', 'unemployment', 'employment_rate', 'education', 'property_price', 'house_price_se', 'tech_sector_jobs', 'healthcare_workers', 'manufacturing_jobs', 'public_sector_jobs', 'service_sector_jobs'] },
-  { labelKey: 'layers.housing', ids: ['ownership', 'rental', 'apt_size', 'living_space', 'detached_houses', 'new_construction', 'construction_activity', 'active_plan_count', 'building_age', 'rental_price', 'rent_se', 'price_to_rent'] },
-  { labelKey: 'layers.services', ids: ['restaurant_density', 'grocery_access', 'daycare_density', 'school_density', 'healthcare_access', 'school_quality', 'sports_facilities'] },
+  { labelKey: 'layers.housing', ids: ['ownership', 'rental', 'apt_size', 'living_space', 'detached_houses', 'new_construction', 'new_buildings_se', 'construction_activity', 'active_plan_count', 'planned_homes_se', 'building_age', 'rental_price', 'rent_se', 'price_to_rent'] },
+  { labelKey: 'layers.services', ids: ['restaurant_density', 'grocery_access', 'daycare_density', 'school_density', 'healthcare_access', 'school_quality', 'school_grades_se', 'sports_facilities'] },
   { labelKey: 'layers.safety', ids: ['violent_crime', 'property_crime', 'crime_rate', 'traffic_accidents'] },
   { labelKey: 'layers.mobility', ids: ['cycling_infra', 'ev_charging_density'] },
   { labelKey: 'layers.environment', ids: ['tree_canopy', 'water_proximity', 'light_pollution', 'noise_pollution', 'radon', 'flood_risk'] },
-  { labelKey: 'layers.health', ids: ['health_index'] },
+  { labelKey: 'layers.health', ids: ['health_index', 'sickness_se'] },
   { labelKey: 'layers.voting', ids: ['voter_turnout', 'party_diversity', 'political_lean', 'party_kok', 'party_sdp', 'party_ps', 'party_kesk', 'party_vihr', 'party_vas', 'party_rkp', 'party_se_s', 'party_se_m', 'party_se_sd', 'party_se_v', 'party_se_c', 'party_se_kd', 'party_se_mp', 'party_se_l'] },
   { labelKey: 'layers.connectivity', ids: ['broadband_coverage'] },
 ];

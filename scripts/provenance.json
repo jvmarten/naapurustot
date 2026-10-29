@@ -134,7 +134,14 @@
         "house_price_sek": 2025,
         "broadband_coverage_pct": 2025,
         "traffic_accident_rate": "2022–2024",
-        "noise_pollution": 2022
+        "noise_pollution": 2022,
+        "new_buildings_pct": 2025,
+        "job_self_sufficiency": 2024,
+        "he_kika": 2025,
+        "sickness_days": 2025,
+        "pensioners_6574_pct": 2024,
+        "planned_homes_per_1000": 2025,
+        "school_grade_points": "2022/23–2024/25"
       }
     }
   }

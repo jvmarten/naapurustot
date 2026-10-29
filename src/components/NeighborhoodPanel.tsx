@@ -1650,16 +1650,16 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
   const sectionStatsSe = (
     <>
       <CollapsibleSection title={t('layers.economy')} defaultOpen>
-        {seRows(['economic_standard', 'low_economic_standard', 'unemployment', 'employment_rate', 'education'])}
+        {seRows(['economic_standard', 'low_economic_standard', 'unemployment', 'employment_rate', 'education', 'job_self_sufficiency'])}
       </CollapsibleSection>
       <CollapsibleSection title={t('panel.housing')} defaultOpen>
-        {seRows(['rent_se', 'house_price_se', 'ownership', 'rental', 'detached_houses', 'building_age', 'avg_household_size'])}
+        {seRows(['rent_se', 'house_price_se', 'ownership', 'rental', 'detached_houses', 'building_age', 'new_buildings_se', 'planned_homes_se', 'avg_household_size'])}
       </CollapsibleSection>
       <CollapsibleSection title={t('layers.demographics')} defaultOpen>
-        {seRows(['population_density', 'foreign_background', 'elderly_ratio', 'gender_ratio', 'families_with_children', 'single_parent_hh', 'single_person_hh'])}
+        {seRows(['population_density', 'avg_age', 'foreign_background', 'elderly_ratio', 'pensioners_se', 'gender_ratio', 'families_with_children', 'single_parent_hh', 'single_person_hh', 'sickness_se'])}
       </CollapsibleSection>
       <CollapsibleSection title={t('layers.services')} defaultOpen>
-        {seRows(['walkability', 'transit_access', 'school_density', 'healthcare_access', 'grocery_access', 'restaurant_density', 'cycling_infra', 'ev_charging_density', 'broadband_coverage'])}
+        {seRows(['walkability', 'transit_access', 'school_density', 'school_grades_se', 'healthcare_access', 'grocery_access', 'restaurant_density', 'cycling_infra', 'ev_charging_density', 'broadband_coverage'])}
       </CollapsibleSection>
       <CollapsibleSection title={t('layers.environment')} defaultOpen>
         {seRows(['air_quality', 'noise_pollution', 'tree_canopy', 'water_proximity'])}

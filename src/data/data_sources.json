@@ -159,6 +159,11 @@
       "name": "European Environment Agency (EEA)",
       "url": "https://www.eea.europa.eu/en/topics/in-depth/noise",
       "license": "CC BY 4.0"
+    },
+    "kolada": {
+      "name": "Kolada (RKA)",
+      "url": "https://www.kolada.se/",
+      "license": "Fri att använda, källa Kolada och ursprunglig källa"
     }
   },
   "metrics": {
@@ -1166,6 +1171,62 @@
           "granularity": "deso",
           "is_proxy": false,
           "note": "note.se_noise"
+        },
+        "new_buildings_pct": {
+          "source": "SCB (Bostadsbebyggelsens ålder, DeSO 2025)",
+          "publisher": "scb",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": false,
+          "note": "note.se_new_buildings"
+        },
+        "job_self_sufficiency": {
+          "source": "SCB (Sysselsatta efter bostadens och arbetsställets belägenhet, kommun)",
+          "publisher": "scb",
+          "vintage": 2024,
+          "granularity": "deso",
+          "is_proxy": true,
+          "note": "note.se_jobs"
+        },
+        "he_kika": {
+          "source": "SCB (Befolkningens medelålder, kommun)",
+          "publisher": "scb",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": true,
+          "note": "note.se_avg_age"
+        },
+        "sickness_days": {
+          "source": "Försäkringskassan, ohälsotal (Kolada N00957, kommun)",
+          "publisher": "kolada",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": true,
+          "note": "note.se_sickness"
+        },
+        "pensioners_6574_pct": {
+          "source": "Kolada N02287 (pensionärer 65–74 år, kommun)",
+          "publisher": "kolada",
+          "vintage": 2024,
+          "granularity": "deso",
+          "is_proxy": true,
+          "note": "note.se_pensioners"
+        },
+        "planned_homes_per_1000": {
+          "source": "SKR, planberedskap (Kolada N07923, kommun)",
+          "publisher": "kolada",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": true,
+          "note": "note.se_planned_homes"
+        },
+        "school_grade_points": {
+          "source": "Skolverket (genomsnittlig betygspoäng, gymnasieskola, skolenhet)",
+          "publisher": "skolverket",
+          "vintage": "2022/23–2024/25",
+          "granularity": "deso",
+          "is_proxy": false,
+          "note": "note.se_school_grades"
         }
       }
     }

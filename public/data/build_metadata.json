@@ -1,6 +1,6 @@
 {
-  "generated": "2026-10-29T11:02:00.444Z",
-  "source_hash": "94a7f99e9a18abc8",
+  "generated": "2026-10-29T12:25:05.130Z",
+  "source_hash": "9be883e355743b41",
   "rows_total": 3018,
   "metrics": {
     "active_plan_count": {
@@ -784,6 +784,14 @@
           "row_count": 6160,
           "coverage_pct": 100
         },
+        "he_kika": {
+          "source": "SCB (Befolkningens medelålder, kommun)",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": true,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
         "he_vakiy": {
           "source": "SCB (Folkmängden per region, DeSO 2025)",
           "vintage": 2025,
@@ -816,9 +824,25 @@
           "row_count": 6160,
           "coverage_pct": 100
         },
+        "job_self_sufficiency": {
+          "source": "SCB (Sysselsatta efter bostadens och arbetsställets belägenhet, kommun)",
+          "vintage": 2024,
+          "granularity": "deso",
+          "is_proxy": true,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
         "low_economic_standard_pct": {
           "source": "SCB (Ekonomisk standard, DeSO 2025)",
           "vintage": 2024,
+          "granularity": "deso",
+          "is_proxy": false,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
+        "new_buildings_pct": {
+          "source": "SCB (Bostadsbebyggelsens ålder, DeSO 2025)",
+          "vintage": 2025,
           "granularity": "deso",
           "is_proxy": false,
           "row_count": 6160,
@@ -912,6 +936,22 @@
           "row_count": 6160,
           "coverage_pct": 100
         },
+        "pensioners_6574_pct": {
+          "source": "Kolada N02287 (pensionärer 65–74 år, kommun)",
+          "vintage": 2024,
+          "granularity": "deso",
+          "is_proxy": true,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
+        "planned_homes_per_1000": {
+          "source": "SKR, planberedskap (Kolada N07923, kommun)",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": true,
+          "row_count": 4854,
+          "coverage_pct": 78.8
+        },
         "political_lean_index": {
           "source": "Valmyndigheten (riksdagsvalet 2026, slutlig rösträkning per valdistrikt)",
           "vintage": 2026,
@@ -965,6 +1005,22 @@
           "vintage": 2026,
           "granularity": "deso",
           "is_proxy": false,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
+        "school_grade_points": {
+          "source": "Skolverket (genomsnittlig betygspoäng, gymnasieskola, skolenhet)",
+          "vintage": "2022/23–2024/25",
+          "granularity": "deso",
+          "is_proxy": false,
+          "row_count": 560,
+          "coverage_pct": 9.1
+        },
+        "sickness_days": {
+          "source": "Försäkringskassan, ohälsotal (Kolada N00957, kommun)",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": true,
           "row_count": 6160,
           "coverage_pct": 100
         },
