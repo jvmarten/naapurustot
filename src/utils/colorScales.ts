@@ -61,6 +61,14 @@ export type LayerId =
   | 'party_vihr'
   | 'party_vas'
   | 'party_rkp'
+  | 'party_se_s'
+  | 'party_se_m'
+  | 'party_se_sd'
+  | 'party_se_v'
+  | 'party_se_c'
+  | 'party_se_kd'
+  | 'party_se_mp'
+  | 'party_se_l'
   | 'broadband_coverage'
   | 'ev_charging_density'
   | 'tree_canopy'
@@ -237,6 +245,27 @@ const meters = (v: number) => `${numFmt().format(v)} m`;
 const yearFmt = (v: number) => `${v.toFixed(0)}`;
 // CF-5: a whole-number count of nearby kaavat & hankkeet (planning entries).
 const count = (v: number) => numFmt().format(Math.round(v));
+
+// Single-hue ramps shared by the voting layers: each party layer is drawn alone, and
+// both countries' parties reuse them (a Swedish party takes its sister party's hue).
+const BLUES = ['#f7fbff', '#deebf7', '#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#084594'];
+const REDS = ['#fff5f0', '#fee0d2', '#fcbba1', '#fc9272', '#fb6a4a', '#ef3b2c', '#cb181d', '#99000d'];
+const INDIGO = ['#f7f7ff', '#e0e0f0', '#c0c0e0', '#9090c8', '#6060b0', '#404098', '#2a2a80', '#16165a'];
+const GREENS = ['#f7fcf5', '#e5f5e0', '#c7e9c0', '#a1d99b', '#74c476', '#41ab5d', '#238b45', '#005a32'];
+const YLGN = ['#ffffe5', '#f7fcb9', '#d9f0a3', '#addd8e', '#78c679', '#41ab5d', '#238443', '#005a32'];
+const RDPU = ['#fff7f3', '#fde0dd', '#fcc5c0', '#fa9fb5', '#f768a1', '#dd3497', '#ae017e', '#7a0177'];
+const YLORBR = ['#ffffe5', '#fff7bc', '#fee391', '#fec44f', '#fe9929', '#ec7014', '#cc4c02', '#8c2d04'];
+
+/** A Swedish Riksdag party's vote share (Valmyndigheten 2026, fetch_se_election.py). */
+const seParty = (p: string, colors: string[], stops: number[]): LayerConfig => ({
+  id: `party_se_${p}` as LayerId,
+  labelKey: `layer.party_se_${p}`,
+  property: `party_vote_se_${p}_pct`,
+  unit: '%',
+  colors,
+  stops,
+  format: pct,
+});
 
 export const LAYERS: LayerConfig[] = [
   {
@@ -718,8 +747,9 @@ export const LAYERS: LayerConfig[] = [
     labelKey: 'layer.voter_turnout',
     property: 'voter_turnout_pct',
     unit: '%',
-    colors: ['#f7fbff', '#deebf7', '#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#084594'],
+    colors: BLUES,
     stops: [40, 50, 55, 60, 65, 70, 75, 85],
+    stopsSe: [65, 75, 81.5, 84.5, 87, 89, 91.5, 95],
     format: pct,
   },
   {
@@ -729,6 +759,7 @@ export const LAYERS: LayerConfig[] = [
     unit: '',
     colors: ['#f7f4f9', '#e7e1ef', '#d4b9da', '#c994c7', '#df65b0', '#e7298a', '#ce1256', '#91003f'],
     stops: [0.4, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.85],
+    stopsSe: [0.56, 0.66, 0.69, 0.71, 0.73, 0.74, 0.76, 0.8],
     format: gini,
   },
   // Political lean — vote-weighted left–right position (0 = left … 100 = right),
@@ -752,7 +783,7 @@ export const LAYERS: LayerConfig[] = [
     labelKey: 'layer.party_kok',
     property: 'party_vote_kok_pct',
     unit: '%',
-    colors: ['#f7fbff', '#deebf7', '#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#084594'],
+    colors: BLUES,
     stops: [4, 8, 14, 20, 26, 32, 38, 44],
     format: pct,
   },
@@ -761,7 +792,7 @@ export const LAYERS: LayerConfig[] = [
     labelKey: 'layer.party_sdp',
     property: 'party_vote_sdp_pct',
     unit: '%',
-    colors: ['#fff5f0', '#fee0d2', '#fcbba1', '#fc9272', '#fb6a4a', '#ef3b2c', '#cb181d', '#99000d'],
+    colors: REDS,
     stops: [5, 10, 15, 20, 25, 30, 35, 40],
     format: pct,
   },
@@ -770,7 +801,7 @@ export const LAYERS: LayerConfig[] = [
     labelKey: 'layer.party_ps',
     property: 'party_vote_ps_pct',
     unit: '%',
-    colors: ['#f7f7ff', '#e0e0f0', '#c0c0e0', '#9090c8', '#6060b0', '#404098', '#2a2a80', '#16165a'],
+    colors: INDIGO,
     stops: [5, 12, 20, 28, 35, 42, 48, 55],
     format: pct,
   },
@@ -779,7 +810,7 @@ export const LAYERS: LayerConfig[] = [
     labelKey: 'layer.party_kesk',
     property: 'party_vote_kesk_pct',
     unit: '%',
-    colors: ['#f7fcf5', '#e5f5e0', '#c7e9c0', '#a1d99b', '#74c476', '#41ab5d', '#238b45', '#005a32'],
+    colors: GREENS,
     stops: [3, 8, 16, 24, 32, 40, 48, 56],
     format: pct,
   },
@@ -788,7 +819,7 @@ export const LAYERS: LayerConfig[] = [
     labelKey: 'layer.party_vihr',
     property: 'party_vote_vihr_pct',
     unit: '%',
-    colors: ['#ffffe5', '#f7fcb9', '#d9f0a3', '#addd8e', '#78c679', '#41ab5d', '#238443', '#005a32'],
+    colors: YLGN,
     stops: [1, 2, 4, 6, 8, 10, 12, 15],
     format: pct,
   },
@@ -797,7 +828,7 @@ export const LAYERS: LayerConfig[] = [
     labelKey: 'layer.party_vas',
     property: 'party_vote_vas_pct',
     unit: '%',
-    colors: ['#fff7f3', '#fde0dd', '#fcc5c0', '#fa9fb5', '#f768a1', '#dd3497', '#ae017e', '#7a0177'],
+    colors: RDPU,
     stops: [1, 3, 6, 9, 12, 16, 20, 28],
     format: pct,
   },
@@ -806,10 +837,19 @@ export const LAYERS: LayerConfig[] = [
     labelKey: 'layer.party_rkp',
     property: 'party_vote_rkp_pct',
     unit: '%',
-    colors: ['#ffffe5', '#fff7bc', '#fee391', '#fec44f', '#fe9929', '#ec7014', '#cc4c02', '#8c2d04'],
+    colors: YLORBR,
     stops: [1, 3, 6, 12, 25, 45, 65, 88],
     format: pct,
   },
+  // Sweden's eight Riksdag parties, 2026 (% of valid votes counted in the districts).
+  seParty('s', REDS, [13.5, 19, 23, 26, 29, 32, 36.5, 45]),
+  seParty('m', BLUES, [5, 11, 15, 17.5, 19.5, 22, 25.5, 35.5]),
+  seParty('sd', YLORBR, [5, 8, 12, 15.5, 18.5, 22, 26, 34]),
+  seParty('v', RDPU, [1.5, 3, 4, 5, 6.5, 9, 14.5, 33.5]),
+  seParty('c', GREENS, [1, 3, 4.5, 5.5, 7, 8, 10, 15]),
+  seParty('kd', INDIGO, [1.5, 3, 4.5, 5.5, 6.5, 7, 8.5, 13]),
+  seParty('mp', YLGN, [1.5, 2.5, 3.5, 4, 5, 6.5, 9, 18.5]),
+  seParty('l', ['#f7fcf0', '#e0f3db', '#ccebc5', '#a8ddb5', '#7bccc4', '#4eb3d3', '#2b8cbe', '#08589e'], [1, 2.5, 3.5, 4, 5, 6, 7.5, 13]),
   // #8 Internet & Connectivity
   {
     id: 'broadband_coverage',
@@ -1230,11 +1270,13 @@ function runsWarmToCool(colors: string[]): boolean {
 // getLayerById is called on every hover (tooltip), layer switch, and map paint update.
 /**
  * Layers Sweden has data for (SCB, DeSO 2025). Every other layer is Finland's alone.
- * The three listed in SE_ONLY_LAYERS are Sweden's alone; the rest share a property key
+ * SE_ONLY_LAYERS are Sweden's alone; the rest share a property key
  * with Finland but are defined by SCB (see data_sources.json countries.se).
  */
 export const SE_ONLY_LAYERS: ReadonlySet<LayerId> = new Set<LayerId>([
   'economic_standard', 'low_economic_standard', 'foreign_background',
+  'party_se_s', 'party_se_m', 'party_se_sd', 'party_se_v', 'party_se_c', 'party_se_kd',
+  'party_se_mp', 'party_se_l',
 ]);
 const SE_LAYERS: ReadonlySet<LayerId> = new Set<LayerId>([
   ...SE_ONLY_LAYERS,
@@ -1249,6 +1291,9 @@ const SE_LAYERS: ReadonlySet<LayerId> = new Set<LayerId>([
   'ev_charging_density', 'tree_canopy',
   // Brå's municipal figures, under Swedish counting rules: Sweden's own stops.
   'violent_crime', 'property_crime', 'crime_rate',
+  // Valmyndigheten's 2026 districts, apportioned to DeSO. Lean is CHES 2019 for both
+  // countries, so it keeps Finland's stops; turnout and diversity run higher in Sweden.
+  'voter_turnout', 'party_diversity', 'political_lean',
   // Scored against Sweden's own areas (computeQualityIndices), from the factors it has.
   'quality_index',
 ]);

@@ -220,6 +220,15 @@ export interface NeighborhoodProperties {
   party_vote_vihr_pct: number | null;
   party_vote_vas_pct: number | null;
   party_vote_rkp_pct: number | null;
+  /** Sweden's Riksdag parties, 2026 (Valmyndigheten, apportioned to DeSO). */
+  party_vote_se_s_pct?: number | null;
+  party_vote_se_m_pct?: number | null;
+  party_vote_se_sd_pct?: number | null;
+  party_vote_se_v_pct?: number | null;
+  party_vote_se_c_pct?: number | null;
+  party_vote_se_kd_pct?: number | null;
+  party_vote_se_mp_pct?: number | null;
+  party_vote_se_l_pct?: number | null;
   broadband_coverage_pct: number | null;
   ev_charging_density: number | null;
   tree_canopy_pct: number | null;
@@ -827,6 +836,14 @@ const METRIC_DEFS: MetricDef[] = [
   { property: 'party_vote_vihr_pct', weight: 'population', precision: 1 },
   { property: 'party_vote_vas_pct', weight: 'population', precision: 1 },
   { property: 'party_vote_rkp_pct', weight: 'population', precision: 1 },
+  { property: 'party_vote_se_s_pct', weight: 'population', precision: 1 },
+  { property: 'party_vote_se_m_pct', weight: 'population', precision: 1 },
+  { property: 'party_vote_se_sd_pct', weight: 'population', precision: 1 },
+  { property: 'party_vote_se_v_pct', weight: 'population', precision: 1 },
+  { property: 'party_vote_se_c_pct', weight: 'population', precision: 1 },
+  { property: 'party_vote_se_kd_pct', weight: 'population', precision: 1 },
+  { property: 'party_vote_se_mp_pct', weight: 'population', precision: 1 },
+  { property: 'party_vote_se_l_pct', weight: 'population', precision: 1 },
   { property: 'broadband_coverage_pct', weight: 'population', precision: 1 },
   { property: 'ev_charging_density', weight: 'population', precision: 4 },
   { property: 'tree_canopy_pct', weight: 'population', precision: 1 },

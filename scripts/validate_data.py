@@ -932,6 +932,9 @@ SE_PCT_PROPS = [
     "elderly_ratio_pct", "foreign_background_pct", "families_with_children_pct",
     "single_parent_hh_pct", "ownership_rate", "rental_rate", "detached_house_share",
     "low_economic_standard_pct", "employment_rate", "unemployment_rate", "higher_education_rate",
+    "voter_turnout_pct", "party_vote_se_s_pct", "party_vote_se_m_pct", "party_vote_se_sd_pct",
+    "party_vote_se_v_pct", "party_vote_se_c_pct", "party_vote_se_kd_pct", "party_vote_se_mp_pct",
+    "party_vote_se_l_pct",
 ]
 
 

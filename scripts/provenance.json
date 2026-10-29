@@ -118,7 +118,18 @@
         "single_person_hh_pct": 2025,
         "avg_construction_year": 2025,
         "tree_canopy_pct": 2024,
-        "ev_charging_density": 2026
+        "ev_charging_density": 2026,
+        "voter_turnout_pct": 2026,
+        "party_diversity_index": 2026,
+        "political_lean_index": 2026,
+        "party_vote_se_s_pct": 2026,
+        "party_vote_se_m_pct": 2026,
+        "party_vote_se_sd_pct": 2026,
+        "party_vote_se_v_pct": 2026,
+        "party_vote_se_c_pct": 2026,
+        "party_vote_se_kd_pct": 2026,
+        "party_vote_se_mp_pct": 2026,
+        "party_vote_se_l_pct": 2026
       }
     }
   }

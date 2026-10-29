@@ -262,5 +262,39 @@ Checked and left out, so they are not re-investigated:
 - **Daycare and sports facilities.** Finland's come from registers (Varda, LIPAS); an OSM
   count would be a different measure. Preschools are not in Skolverket's register (§8).
 - **Not attempted yet:** property prices and rent, broadband, radon, noise, flood risk,
-  traffic accidents, elections. Candidate sources are in §4.
+  traffic accidents. Candidate sources are in §4.
+
+## 10. Elections (2026-10-29)
+
+Sweden went from 32 to 43 layers with the Riksdag election of 13 September 2026:
+turnout, party diversity and political lean on Finland's keys, and the eight Riksdag
+parties (S, M, SD, V, C, KD, MP, L) as Sweden-only layers (`party_se_*`). Source:
+Valmyndigheten's final count per election district (`roster-per-distrikt-slutligt-…
+-riksdagsvalet-2026.xlsx`) and its 2026 district boundaries (`valdistrikt-riket-2026.zip`),
+both from val.se's *Rådata val 2026* page, free to use with Valmyndigheten named.
+`scripts/se/fetch_se_election.py` → `election_deso.json` → `apply_se_election.py` (or a
+full `build_se_geojson.py`).
+
+That is finer than Finland's figures, which are municipal outside the capital region:
+6,312 districts with a boundary, each ~1,000–2,000 voters. Districts and DeSOs are drawn
+independently (31,233 overlaps), so each district's counts go to the DeSOs it overlaps by
+where its residents live — SCB's 1 km population grid, cells split by area — and every
+metric is computed from the apportioned counts. The script fails unless the apportioned
+national valid votes, electorate and votes cast equal the published totals.
+
+- **Formulas are Finland's** (`fetch_election_results.derive_metrics`). Lean uses CHES 2019
+  `lrgen` for the Swedish parties (CHES2019V3.csv, country 16), the survey Finland's index
+  uses, so it keeps Finland's colour stops. Diversity is the normalised Shannon entropy per
+  district, then a valid-vote-weighted mean per DeSO: the index divides by ln(parties with
+  votes), and apportioning would hand every DeSO its neighbours' one-vote parties.
+- **Collection districts.** Early votes arriving too late for the polling stations are
+  counted on the Wednesday in an *uppsamlingsdistrikt*, which has votes but no area and no
+  electorate: median 5.5 % of a municipality's votes, 1.4 % (Ovanåker) to 23 % (Dorotea),
+  highest in sparsely populated municipalities. Valmyndigheten's district turnout leaves
+  them out, which would draw rural Norrland as low-turnout for reasons of post. For turnout
+  they are spread over the municipality's districts in proportion to the votes counted
+  there, so each municipality's DeSOs add up to its published turnout (national 84.9 %).
+  Party shares use only the votes counted in districts, which are the ones with a place.
+- Extremes are Valmyndigheten's own: an Ekerö district counted 49 % (0125C1080 reads
+  55 %), Södra Ängby 98 %.
 

@@ -139,6 +139,11 @@
       "name": "Skolverket (Skolenhetsregistret)",
       "url": "https://www.skolverket.se/",
       "license": "Öppna data (Skolverket)"
+    },
+    "valmyndigheten": {
+      "name": "Valmyndigheten",
+      "url": "https://www.val.se/valresultat-och-statistik/statistik-och-data/radata-val-2026",
+      "license": "Fri att använda, källa Valmyndigheten"
     }
   },
   "metrics": {
@@ -1018,6 +1023,94 @@
           "vintage": 2026,
           "granularity": "deso",
           "is_proxy": false
+        },
+        "voter_turnout_pct": {
+          "source": "Valmyndigheten (riksdagsvalet 2026, slutlig rösträkning per valdistrikt)",
+          "publisher": "valmyndigheten",
+          "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": false,
+          "note": "note.se_turnout"
+        },
+        "party_diversity_index": {
+          "source": "Valmyndigheten (riksdagsvalet 2026, slutlig rösträkning per valdistrikt)",
+          "publisher": "valmyndigheten",
+          "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": false,
+          "note": "note.se_election"
+        },
+        "political_lean_index": {
+          "source": "Valmyndigheten (riksdagsvalet 2026, slutlig rösträkning per valdistrikt)",
+          "publisher": "valmyndigheten",
+          "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": false,
+          "note": "note.se_political_lean"
+        },
+        "party_vote_se_s_pct": {
+          "source": "Valmyndigheten (riksdagsvalet 2026, slutlig rösträkning per valdistrikt)",
+          "publisher": "valmyndigheten",
+          "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": false,
+          "note": "note.se_election"
+        },
+        "party_vote_se_m_pct": {
+          "source": "Valmyndigheten (riksdagsvalet 2026, slutlig rösträkning per valdistrikt)",
+          "publisher": "valmyndigheten",
+          "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": false,
+          "note": "note.se_election"
+        },
+        "party_vote_se_sd_pct": {
+          "source": "Valmyndigheten (riksdagsvalet 2026, slutlig rösträkning per valdistrikt)",
+          "publisher": "valmyndigheten",
+          "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": false,
+          "note": "note.se_election"
+        },
+        "party_vote_se_v_pct": {
+          "source": "Valmyndigheten (riksdagsvalet 2026, slutlig rösträkning per valdistrikt)",
+          "publisher": "valmyndigheten",
+          "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": false,
+          "note": "note.se_election"
+        },
+        "party_vote_se_c_pct": {
+          "source": "Valmyndigheten (riksdagsvalet 2026, slutlig rösträkning per valdistrikt)",
+          "publisher": "valmyndigheten",
+          "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": false,
+          "note": "note.se_election"
+        },
+        "party_vote_se_kd_pct": {
+          "source": "Valmyndigheten (riksdagsvalet 2026, slutlig rösträkning per valdistrikt)",
+          "publisher": "valmyndigheten",
+          "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": false,
+          "note": "note.se_election"
+        },
+        "party_vote_se_mp_pct": {
+          "source": "Valmyndigheten (riksdagsvalet 2026, slutlig rösträkning per valdistrikt)",
+          "publisher": "valmyndigheten",
+          "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": false,
+          "note": "note.se_election"
+        },
+        "party_vote_se_l_pct": {
+          "source": "Valmyndigheten (riksdagsvalet 2026, slutlig rösträkning per valdistrikt)",
+          "publisher": "valmyndigheten",
+          "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": false,
+          "note": "note.se_election"
         }
       }
     }

@@ -840,6 +840,11 @@ export const NeighborhoodProfilePage: React.FC = () => {
                 {seItems(['walkability', 'transit_access', 'school_density', 'healthcare_access', 'grocery_access', 'restaurant_density', 'cycling_infra'])}
               </div>
             </Section>
+            <Section title={t('layers.voting')}>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {seItems(['voter_turnout', 'political_lean', 'party_diversity', 'party_se_s', 'party_se_sd', 'party_se_m', 'party_se_v', 'party_se_c', 'party_se_kd', 'party_se_mp', 'party_se_l'])}
+              </div>
+            </Section>
             <Section title={t('layers.environment')}>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 {seItems(['air_quality', 'water_proximity'])}
