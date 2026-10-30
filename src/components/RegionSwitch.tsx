@@ -63,12 +63,13 @@ export function RegionSwitchPrompt({ region, shownCount, onSwitch, onAdd, onClos
 }
 
 interface RegionChipsProps {
-  /** Regions added alongside the primary one (the primary is the CitySelector's value). */
-  regions: string[];
+  /** Every region on the map, primary first. Any of them can go — removing the primary
+   *  promotes the next one (regionReducer) — so the region you started from is not stuck. */
+  regions: readonly string[];
   onRemove: (region: string) => void;
 }
 
-/** Removable chips for the regions shown alongside the primary, under the search bar. */
+/** Removable chips for the regions on the map (shown once there are two or more), under the search bar. */
 export function RegionChips({ regions, onRemove }: RegionChipsProps) {
   return (
     <div className="mt-1.5 flex flex-wrap gap-1">

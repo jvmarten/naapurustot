@@ -3044,7 +3044,7 @@ const App: React.FC = () => {
           {/* The filter / ranking panels open over this column (top-28): hide the chips
               rather than leave a sliver of them poking out above the panel. */}
           {multiRegion && !showFilter && !showRanking && !showRegionRanking && (
-            <RegionChips regions={extraRegions} onRemove={handleRemoveRegion} />
+            <RegionChips regions={displayed} onRemove={handleRemoveRegion} />
           )}
         </div>
         {/* CF-2: kaavat & hankkeet overlay toggle (desktop; mobile folds it into the Layers
