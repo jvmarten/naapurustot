@@ -14,6 +14,7 @@ import authRouter, { LARGE_BODY_ROUTES, httpErrorStatus } from './auth.js';
 import { stripeWebhookHandler } from './billing.js';
 import { lightningWebhookHandler } from './lightning.js';
 import assistRouter from './assist.js';
+import feedbackRouter from './feedback.js';
 import { rateLimit } from './rateLimit.js';
 
 export const ALLOWED_ORIGINS = [
@@ -131,6 +132,10 @@ export function createApp() {
   // live inside the router. Optional: answers { configured: false } with no
   // ANTHROPIC_API_KEY set, and the frontend hides the feature accordingly.
   app.use('/assist', sameOriginOnly, assistRouter);
+
+  // Visitor feedback, emailed to the site inbox (feedback.ts). Same-origin guarded so a
+  // cross-site page can't relay mail through it; Turnstile and a per-IP limit inside.
+  app.use('/feedback', sameOriginOnly, feedbackRouter);
 
   // Must be registered after routes — captures errors thrown from handlers.
   Sentry.setupExpressErrorHandler(app);

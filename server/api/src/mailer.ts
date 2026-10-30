@@ -146,6 +146,32 @@ export function renderResetEmail(resetUrl: string, username: string, lang: MailL
   return { subject: c.subject, html, text };
 }
 
+/** POST one message to Resend. Never throws; the body of a failed send is for the
+ *  log only (it can name the recipient), never for the HTTP response. */
+async function postEmail(payload: Record<string, unknown>): Promise<MailResult> {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return { ok: false, disabled: true, error: 'mail not configured' };
+  try {
+    const res = await fetch(RESEND_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ from: fromAddress(), ...payload }),
+      signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
+    });
+
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      return { ok: false, error: `resend ${res.status}: ${detail.slice(0, 200)}` };
+    }
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'send failed' };
+  }
+}
+
 /**
  * Send the password-reset email. Resolves `{ ok: false, disabled: true }` when no
  * API key is configured (dev, tests, and any deploy that hasn't set the secret),
@@ -157,37 +183,45 @@ export async function sendPasswordResetEmail(
   username: string,
   lang: MailLang,
 ): Promise<MailResult> {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) return { ok: false, disabled: true, error: 'mail not configured' };
-
   const { subject, html, text } = renderResetEmail(resetUrl, username, lang);
+  return postEmail({ to: [to], reply_to: REPLY_TO, subject, html, text });
+}
 
-  try {
-    const res = await fetch(RESEND_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: fromAddress(),
-        to: [to],
-        reply_to: REPLY_TO,
-        subject,
-        html,
-        text,
-      }),
-      signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
-    });
+export interface Feedback {
+  message: string;
+  /** The sender's address, when they want an answer: becomes the Reply-To. */
+  email: string | null;
+  /** The page the sender was on (an app URL), when they chose to include it. */
+  page: string | null;
+  lang: MailLang;
+}
 
-    if (!res.ok) {
-      // Read the body for the log only — it can name the recipient, so it must
-      // never reach the HTTP response.
-      const detail = await res.text().catch(() => '');
-      return { ok: false, error: `resend ${res.status}: ${detail.slice(0, 200)}` };
-    }
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : 'send failed' };
-  }
+/** Render a feedback message for the site's own inbox. Every field is visitor text,
+ *  so the HTML part escapes all of it. Exported for tests. */
+export function renderFeedbackEmail(f: Feedback): { subject: string; html: string; text: string } {
+  // The subject is a header: one line, never anything a CR/LF could split.
+  const firstLine = f.message.split(/[\r\n]/, 1)[0].trim().slice(0, 60);
+  const subject = `Palaute: ${firstLine}`;
+  const meta = [
+    `Kieli / language: ${f.lang}`,
+    f.email ? `Vastausosoite / reply to: ${f.email}` : 'Ei vastausosoitetta / no reply address',
+    f.page ? `Sivu / page: ${f.page}` : null,
+  ].filter((l): l is string => l !== null);
+  const html = `<!doctype html>
+<html>
+  <body style="margin:0;padding:24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1f2933">
+    <p style="margin:0 0 16px;white-space:pre-wrap;font-size:15px;line-height:1.6">${escapeHtml(f.message)}</p>
+    <hr style="border:0;border-top:1px solid #e4e7eb;margin:16px 0">
+    ${meta.map((l) => `<p style="margin:0 0 4px;font-size:13px;color:#5c6773;word-break:break-all">${escapeHtml(l)}</p>`).join('\n    ')}
+  </body>
+</html>`;
+  const text = [f.message, '', '—', ...meta].join('\n');
+  return { subject, html, text };
+}
+
+/** Deliver visitor feedback to the site's inbox (REPLY_TO, forwarded by Cloudflare
+ *  Email Routing), replying to the sender when they gave an address. */
+export async function sendFeedbackEmail(f: Feedback): Promise<MailResult> {
+  const { subject, html, text } = renderFeedbackEmail(f);
+  return postEmail({ to: [REPLY_TO], ...(f.email ? { reply_to: f.email } : {}), subject, html, text });
 }

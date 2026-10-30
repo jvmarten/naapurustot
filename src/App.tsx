@@ -67,6 +67,7 @@ import { useSimilarityMetrics } from './hooks/useSimilarityMetrics';
 import { useAuth } from './hooks/useAuth';
 import { resetSyncStatus } from './utils/syncStatus';
 const AuthModal = lazy(() => import('./components/AuthModal').then(m => ({ default: m.AuthModal })));
+const FeedbackModal = lazy(() => import('./components/FeedbackModal').then(m => ({ default: m.FeedbackModal })));
 const SupporterModal = lazy(() => import('./components/SupporterModal').then(m => ({ default: m.SupporterModal })));
 const OnboardingTour = lazy(() => import('./components/OnboardingTour').then(m => ({ default: m.OnboardingTour })));
 const ShortcutsOverlay = lazy(() => import('./components/ShortcutsOverlay').then(m => ({ default: m.ShortcutsOverlay })));
@@ -318,6 +319,9 @@ const App: React.FC = () => {
   // Auth
   const { user, loading: authLoading, login, signup, logout, exportData, deleteAccount, updateEmail, changePassword, refresh } = useAuth();
   const [showAuth, setShowAuth] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
+  const openFeedback = useCallback(() => setShowFeedback(true), []);
+  const closeFeedback = useCallback(() => setShowFeedback(false), []);
   // Supporter (paid tier) modal. `supporterSuccess` is set on the ?supporter=success
   // return from Stripe Checkout so the modal shows the "activating" state.
   const [showSupporter, setShowSupporter] = useState(false);
@@ -2902,6 +2906,7 @@ const App: React.FC = () => {
             onCopyShareLink={handleCopyShareLink}
             getShareUrl={getShareUrl}
             getEmbedSnippet={getEmbedSnippet}
+            onFeedback={IS_EMBED ? undefined : openFeedback}
           />
           <ToolsDropdown
             showFilter={showFilter}
@@ -3679,6 +3684,13 @@ const App: React.FC = () => {
       )}
 
       {/* Auth modal (hidden in embed mode) */}
+      {!IS_EMBED && showFeedback && (
+        <ErrorBoundary>
+          <Suspense fallback={<ModalFallback />}>
+            <FeedbackModal onClose={closeFeedback} />
+          </Suspense>
+        </ErrorBoundary>
+      )}
       {!IS_EMBED && showAuth && (
         <ErrorBoundary>
           <Suspense fallback={<ModalFallback />}>
