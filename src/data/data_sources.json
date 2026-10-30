@@ -1235,6 +1235,22 @@
           "granularity": "deso",
           "is_proxy": false,
           "note": "note.se_light"
+        },
+        "crime_index_change_pct": {
+          "source": "Brå (Anmälda brott, totalt; kommun)",
+          "publisher": "bra",
+          "vintage": "2020–2025",
+          "granularity": "kommun",
+          "is_proxy": true,
+          "note": "note.se_crime_change"
+        },
+        "house_price_change_pct": {
+          "source": "SCB (Försålda småhus, köpeskilling per kommun)",
+          "publisher": "scb",
+          "vintage": "2020–2025",
+          "granularity": "deso",
+          "is_proxy": true,
+          "note": "note.se_house_price_change"
         }
       }
     }

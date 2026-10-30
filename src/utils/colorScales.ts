@@ -70,6 +70,7 @@ export type LayerId =
   | 'party_se_mp'
   | 'party_se_l'
   | 'house_price_se'
+  | 'house_price_change_se'
   | 'rent_se'
   | 'new_buildings_se'
   | 'school_grades_se'
@@ -1121,6 +1122,17 @@ export const LAYERS: LayerConfig[] = [
     format: pct,
     divergingCenter: 0,
   },
+  // Sweden: change in house_price_se's mean, 2020–2025, per kommun (SCB TAB1169).
+  {
+    id: 'house_price_change_se',
+    labelKey: 'layer.house_price_change_se',
+    property: 'house_price_change_pct',
+    unit: '%',
+    colors: ['#b2182b', '#d6604d', '#f4a582', '#fddbc7', '#d1e5f0', '#92c5de', '#4393c3', '#2166ac'],
+    stops: [-10, 0, 5, 10, 15, 20, 30, 50],
+    format: pct,
+    divergingCenter: 0,
+  },
   {
     id: 'school_quality',
     labelKey: 'layer.school_quality',
@@ -1367,7 +1379,7 @@ function runsWarmToCool(colors: string[]): boolean {
 export const SE_ONLY_LAYERS: ReadonlySet<LayerId> = new Set<LayerId>([
   'economic_standard', 'low_economic_standard', 'foreign_background',
   'party_se_s', 'party_se_m', 'party_se_sd', 'party_se_v', 'party_se_c', 'party_se_kd',
-  'party_se_mp', 'party_se_l', 'house_price_se', 'rent_se', 'new_buildings_se',
+  'party_se_mp', 'party_se_l', 'house_price_se', 'house_price_change_se', 'rent_se', 'new_buildings_se',
   'school_grades_se', 'sickness_se', 'pensioners_se', 'planned_homes_se',
 ]);
 const SE_LAYERS: ReadonlySet<LayerId> = new Set<LayerId>([
@@ -1381,8 +1393,9 @@ const SE_LAYERS: ReadonlySet<LayerId> = new Set<LayerId>([
   'transit_access', 'school_density', 'healthcare_access', 'restaurant_density',
   'grocery_access', 'cycling_infra', 'air_quality', 'walkability', 'water_proximity',
   'ev_charging_density', 'tree_canopy',
-  // Brå's municipal figures, under Swedish counting rules: Sweden's own stops.
-  'violent_crime', 'property_crime', 'crime_rate',
+  // Brå's municipal figures, under Swedish counting rules: Sweden's own stops. Their
+  // 2020– change is relative to each country's own rate, so it keeps Finland's.
+  'violent_crime', 'property_crime', 'crime_rate', 'crime_index_change',
   // Valmyndigheten's 2026 districts, apportioned to DeSO. Lean is CHES 2019 for both
   // countries, so it keeps Finland's stops; turnout and diversity run higher in Sweden.
   'voter_turnout', 'party_diversity', 'political_lean',

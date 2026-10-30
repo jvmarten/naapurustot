@@ -832,7 +832,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
             </Section>
             <Section title={t('profile.housing')}>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {seItems(['rent_se', 'house_price_se', 'ownership', 'rental', 'detached_houses', 'new_buildings_se', 'avg_household_size', 'families_with_children', 'single_parent_hh'])}
+                {seItems(['rent_se', 'house_price_se', 'house_price_change_se', 'ownership', 'rental', 'detached_houses', 'new_buildings_se', 'avg_household_size', 'families_with_children', 'single_parent_hh'])}
               </div>
             </Section>
             <Section title={t('layers.services')}>

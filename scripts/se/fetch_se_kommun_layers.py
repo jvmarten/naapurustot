@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Municipal figures for four Swedish layers -> scripts/se/kommun_layers.json.
+"""Municipal figures for five Swedish layers -> scripts/se/kommun_layers.json.
 
 None of these is published below the municipality (rent also per city district in
 Stockholm and Malmö), so each DeSO carries its kommun's (or district's) figure and the
@@ -14,6 +14,11 @@ registry flags them is_proxy, as Finland's municipal figures are.
                takes its kommun figure. CC0.
   house_price  SCB TAB1169, "Försålda småhus": mean purchase price of permanent
                detached houses sold (köpeskilling, tkr) per kommun. CC0.
+  house_price_change
+               The same mean's change from HOUSE_CHANGE_FROM to HOUSE_YEAR, Finland's
+               property-price window (2020–). SCB publishes every kommun however few
+               houses sold; the fewest is Dorotea (11 in 2020, 8 in 2025), so the counts
+               are written alongside.
   broadband    PTS bredbandskartläggning 2025 (bredbandskartan's GeoServer,
                w_i_read:bbk_kommun_2025_1000_tat): share of households and workplaces
                with access to at least 100 Mbit/s, "Totalt" column of the 2020 goal
@@ -48,6 +53,7 @@ PTS_WFS = "https://hajk-bredbandskartan.pts.se/geoserver/w_i_read/wfs"
 TRAFA = "https://api.trafa.se/api/data"
 RENT_YEAR = "2026"
 HOUSE_YEAR = "2025"
+HOUSE_CHANGE_FROM = "2020"
 ACCIDENT_YEARS = ["2022", "2023", "2024"]
 
 # SCB TAB4549 district code -> the district name in deso_district.json.
@@ -97,6 +103,17 @@ def house_price(kommuner: dict) -> dict:
     v = scb("TAB1169", {"Region": list(kommuner), "Fastighetstyp": ["220"], "ContentsCode": ["BO0501C2"],
                         "Tid": [HOUSE_YEAR]})
     return {key[0]: None if x is None else round(x * 1000) for key, x in v.items()}
+
+
+def house_price_change(kommuner: dict) -> dict:
+    v = scb("TAB1169", {"Region": list(kommuner), "Fastighetstyp": ["220"],
+                        "ContentsCode": ["BO0501C1", "BO0501C2"], "Tid": [HOUSE_CHANGE_FROM, HOUSE_YEAR]})
+    out, sold = {}, {}
+    for k in kommuner:
+        before, after = v[(k, "220", "BO0501C2", HOUSE_CHANGE_FROM)], v[(k, "220", "BO0501C2", HOUSE_YEAR)]
+        out[k] = None if not before or after is None else round((after - before) / before * 100, 1)
+        sold[k] = [v[(k, "220", "BO0501C1", y)] for y in (HOUSE_CHANGE_FROM, HOUSE_YEAR)]
+    return {"kommuner": out, "sold": sold}
 
 
 def norm(name: str) -> str:
@@ -171,11 +188,12 @@ def main() -> None:
     out = {
         "rent": {"year": int(RENT_YEAR), **rent(kommuner)},
         "house_price": {"year": int(HOUSE_YEAR), "kommuner": house_price(kommuner)},
+        "house_price_change": {"years": f"{HOUSE_CHANGE_FROM}–{HOUSE_YEAR}", **house_price_change(kommuner)},
         "broadband": {"year": 2025, "kommuner": broadband(kommuner)},
         "accidents": {"years": "2022–2024", "kommuner": accidents(kommuner, population)},
     }
     OUT.write_text(json.dumps(out, ensure_ascii=False, indent=1, sort_keys=True) + "\n")
-    for key in ("house_price", "broadband", "accidents"):
+    for key in ("house_price", "house_price_change", "broadband", "accidents"):
         vals = out[key]["kommuner"]
         print(f"{key}: {sum(v is not None for v in vals.values())} of {len(vals)} kommuner", file=sys.stderr)
     print(f"rent: {sum(v is not None for v in out['rent']['kommuner'].values())} kommuner, "

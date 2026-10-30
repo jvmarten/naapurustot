@@ -17,6 +17,12 @@ Three figures, matching Finland's crime layers (scripts/fetch_crime_index.py):
                        against creditors, criminal damage — Finland's offences against
                        property (rikoslaki 28–37 luku, robbery included). Latest year.
   crime_index          All reported offences. Latest year.
+  crime_index_change_pct
+                       Change in the all-offence rate from CHANGE_FROM to the latest year,
+                       per municipality only — Finland's (fetch_price_crime_history.py) is
+                       the municipal rate's change over the same 2020– window. Districts
+                       get none: two of the twenty (Järva, Norra innerstaden) did not exist
+                       before 2024, so a DeSO there carries its municipality's change.
 
 All per 1,000 residents, from Brå's own per-100,000 rates. These are Swedish counting
 rules (every offence in a report counts, including attempts), so they are never put on
@@ -65,6 +71,7 @@ TOTAL = "5036"            # Totalt antal brott
 VIOLENT = "11090"         # 3 kap. Brott mot liv och hälsa
 PROPERTY = ["11095", "11096", "11097", "11098", "11099"]  # 8–12 kap.
 VIOLENT_YEARS = 5
+CHANGE_FROM = 2020
 # Finland's floor (fetch_crime_index.CATEGORY_MIN_POPULATION). No Swedish municipality is
 # under it today; kept so a figure never rests on a handful of incidents.
 MIN_POPULATION = 2000
@@ -168,6 +175,7 @@ def main() -> None:
 
     violent = table(s, ca, [VIOLENT, TOTAL], rids, [years[y] for y in violent_years])
     latest_t = table(s, ca, [TOTAL, *PROPERTY], rids, [years[latest]])
+    change_t = table(s, ca, [TOTAL], sorted(kommuner), [years[CHANGE_FROM]])
     p = years[latest]
 
     out: dict[str, dict] = {}
@@ -194,6 +202,10 @@ def main() -> None:
             withheld.append(rid)
             rec["violent_crime_rate"] = rec["property_crime_rate"] = None
         if rid in kommuner:
+            before = change_t[(years[CHANGE_FROM], TOTAL, rid, "antal_100")]
+            if before == 0:
+                raise SystemExit(f"region {rid}: no offences recorded in {CHANGE_FROM}")
+            rec["crime_index_change_pct"] = round((total_r - before) / before * 100, 1)
             out[kommuner[rid]] = rec
         else:
             by_district[districts[rid]] = rec
@@ -202,6 +214,7 @@ def main() -> None:
         "source": "Brå, Anmälda brott (statistik.bra.se), per kommun och storstädernas stadsområden",
         "latest_year": latest,
         "violent_years": violent_years,
+        "change_from": CHANGE_FROM,
         "withheld_under_population": MIN_POPULATION,
         "kommuner": dict(sorted(out.items())),
         "districts": dict(sorted(by_district.items())),

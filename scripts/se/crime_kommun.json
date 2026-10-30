@@ -1,4 +1,5 @@
 {
+ "change_from": 2020,
  "districts": {
   "Stadsdelsområde Bromma (Sthlm)": {
    "crime_index": 132.2,
@@ -172,6 +173,7 @@
  "kommuner": {
   "0114": {
    "crime_index": 113.3,
+   "crime_index_change_pct": -27.4,
    "population": 50410,
    "property_crime_rate": 59.7,
    "total_count": 5712,
@@ -180,6 +182,7 @@
   },
   "0115": {
    "crime_index": 109.9,
+   "crime_index_change_pct": 8.0,
    "population": 35241,
    "property_crime_rate": 74.7,
    "total_count": 3874,
@@ -188,6 +191,7 @@
   },
   "0117": {
    "crime_index": 86.5,
+   "crime_index_change_pct": 1.1,
    "population": 49867,
    "property_crime_rate": 52.5,
    "total_count": 4315,
@@ -196,6 +200,7 @@
   },
   "0120": {
    "crime_index": 108.9,
+   "crime_index_change_pct": 14.0,
    "population": 46620,
    "property_crime_rate": 63.1,
    "total_count": 5075,
@@ -204,6 +209,7 @@
   },
   "0123": {
    "crime_index": 151.0,
+   "crime_index_change_pct": 15.2,
    "population": 89566,
    "property_crime_rate": 77.1,
    "total_count": 13528,
@@ -212,6 +218,7 @@
   },
   "0125": {
    "crime_index": 84.8,
+   "crime_index_change_pct": 21.8,
    "population": 28984,
    "property_crime_rate": 50.2,
    "total_count": 2457,
@@ -220,6 +227,7 @@
   },
   "0126": {
    "crime_index": 118.4,
+   "crime_index_change_pct": -10.5,
    "population": 114496,
    "property_crime_rate": 56.3,
    "total_count": 13554,
@@ -228,6 +236,7 @@
   },
   "0127": {
    "crime_index": 132.8,
+   "crime_index_change_pct": -7.9,
    "population": 96326,
    "property_crime_rate": 59.3,
    "total_count": 12793,
@@ -236,6 +245,7 @@
   },
   "0128": {
    "crime_index": 93.8,
+   "crime_index_change_pct": -0.9,
    "population": 17438,
    "property_crime_rate": 43.1,
    "total_count": 1635,
@@ -244,6 +254,7 @@
   },
   "0136": {
    "crime_index": 134.7,
+   "crime_index_change_pct": -5.9,
    "population": 101150,
    "property_crime_rate": 61.6,
    "total_count": 13628,
@@ -252,6 +263,7 @@
   },
   "0138": {
    "crime_index": 88.3,
+   "crime_index_change_pct": -21.8,
    "population": 49411,
    "property_crime_rate": 47.3,
    "total_count": 4361,
@@ -260,6 +272,7 @@
   },
   "0139": {
    "crime_index": 129.1,
+   "crime_index_change_pct": -15.1,
    "population": 33101,
    "property_crime_rate": 75.2,
    "total_count": 4273,
@@ -268,6 +281,7 @@
   },
   "0140": {
    "crime_index": 81.1,
+   "crime_index_change_pct": -13.2,
    "population": 12363,
    "property_crime_rate": 39.7,
    "total_count": 1003,
@@ -276,6 +290,7 @@
   },
   "0160": {
    "crime_index": 93.8,
+   "crime_index_change_pct": 6.3,
    "population": 78132,
    "property_crime_rate": 59.9,
    "total_count": 7328,
@@ -284,6 +299,7 @@
   },
   "0162": {
    "crime_index": 109.1,
+   "crime_index_change_pct": 0.4,
    "population": 32463,
    "property_crime_rate": 80.9,
    "total_count": 3543,
@@ -292,6 +308,7 @@
   },
   "0163": {
    "crime_index": 114.7,
+   "crime_index_change_pct": -3.9,
    "population": 77826,
    "property_crime_rate": 63.3,
    "total_count": 8929,
@@ -300,6 +317,7 @@
   },
   "0180": {
    "crime_index": 191.6,
+   "crime_index_change_pct": -11.1,
    "population": 997390,
    "property_crime_rate": 121.5,
    "total_count": 191090,
@@ -308,6 +326,7 @@
   },
   "0181": {
    "crime_index": 144.9,
+   "crime_index_change_pct": -14.6,
    "population": 102844,
    "property_crime_rate": 74.4,
    "total_count": 14898,
@@ -316,6 +335,7 @@
   },
   "0182": {
    "crime_index": 99.8,
+   "crime_index_change_pct": -3.5,
    "population": 112919,
    "property_crime_rate": 62.8,
    "total_count": 11275,
@@ -324,6 +344,7 @@
   },
   "0183": {
    "crime_index": 143.7,
+   "crime_index_change_pct": -5.9,
    "population": 56636,
    "property_crime_rate": 73.8,
    "total_count": 8138,
@@ -332,6 +353,7 @@
   },
   "0184": {
    "crime_index": 144.1,
+   "crime_index_change_pct": -6.6,
    "population": 86110,
    "property_crime_rate": 79.5,
    "total_count": 12411,
@@ -340,6 +362,7 @@
   },
   "0186": {
    "crime_index": 86.6,
+   "crime_index_change_pct": 22.4,
    "population": 48371,
    "property_crime_rate": 51.4,
    "total_count": 4188,
@@ -348,6 +371,7 @@
   },
   "0187": {
    "crime_index": 56.5,
+   "crime_index_change_pct": -6.3,
    "population": 11728,
    "property_crime_rate": 35.1,
    "total_count": 663,
@@ -356,6 +380,7 @@
   },
   "0188": {
    "crime_index": 127.9,
+   "crime_index_change_pct": 4.5,
    "population": 66708,
    "property_crime_rate": 62.0,
    "total_count": 8532,
@@ -364,6 +389,7 @@
   },
   "0191": {
    "crime_index": 181.9,
+   "crime_index_change_pct": 28.2,
    "population": 53067,
    "property_crime_rate": 81.1,
    "total_count": 9655,
@@ -372,6 +398,7 @@
   },
   "0192": {
    "crime_index": 148.1,
+   "crime_index_change_pct": -6.4,
    "population": 30594,
    "property_crime_rate": 78.1,
    "total_count": 4530,
@@ -380,6 +407,7 @@
   },
   "0305": {
    "crime_index": 106.4,
+   "crime_index_change_pct": 2.2,
    "population": 23112,
    "property_crime_rate": 43.0,
    "total_count": 2460,
@@ -388,6 +416,7 @@
   },
   "0319": {
    "crime_index": 135.4,
+   "crime_index_change_pct": 54.4,
    "population": 9563,
    "property_crime_rate": 48.2,
    "total_count": 1295,
@@ -396,6 +425,7 @@
   },
   "0330": {
    "crime_index": 90.3,
+   "crime_index_change_pct": 35.7,
    "population": 21464,
    "property_crime_rate": 39.9,
    "total_count": 1938,
@@ -404,6 +434,7 @@
   },
   "0331": {
    "crime_index": 95.0,
+   "crime_index_change_pct": 20.3,
    "population": 14310,
    "property_crime_rate": 36.5,
    "total_count": 1359,
@@ -412,6 +443,7 @@
   },
   "0360": {
    "crime_index": 105.7,
+   "crime_index_change_pct": 7.9,
    "population": 21066,
    "property_crime_rate": 44.6,
    "total_count": 2226,
@@ -420,6 +452,7 @@
   },
   "0380": {
    "crime_index": 111.4,
+   "crime_index_change_pct": 4.4,
    "population": 248882,
    "property_crime_rate": 58.1,
    "total_count": 27718,
@@ -428,6 +461,7 @@
   },
   "0381": {
    "crime_index": 117.2,
+   "crime_index_change_pct": 3.7,
    "population": 48699,
    "property_crime_rate": 47.2,
    "total_count": 5707,
@@ -436,6 +470,7 @@
   },
   "0382": {
    "crime_index": 66.6,
+   "crime_index_change_pct": -13.0,
    "population": 22160,
    "property_crime_rate": 35.0,
    "total_count": 1475,
@@ -444,6 +479,7 @@
   },
   "0428": {
    "crime_index": 113.0,
+   "crime_index_change_pct": 6.1,
    "population": 8708,
    "property_crime_rate": 56.5,
    "total_count": 984,
@@ -452,6 +488,7 @@
   },
   "0461": {
    "crime_index": 91.7,
+   "crime_index_change_pct": -4.5,
    "population": 11401,
    "property_crime_rate": 46.3,
    "total_count": 1045,
@@ -460,6 +497,7 @@
   },
   "0480": {
    "crime_index": 136.3,
+   "crime_index_change_pct": 9.6,
    "population": 58328,
    "property_crime_rate": 65.1,
    "total_count": 7953,
@@ -468,6 +506,7 @@
   },
   "0481": {
    "crime_index": 111.2,
+   "crime_index_change_pct": 34.3,
    "population": 11996,
    "property_crime_rate": 49.5,
    "total_count": 1334,
@@ -476,6 +515,7 @@
   },
   "0482": {
    "crime_index": 129.0,
+   "crime_index_change_pct": 9.6,
    "population": 15229,
    "property_crime_rate": 56.9,
    "total_count": 1965,
@@ -484,6 +524,7 @@
   },
   "0483": {
    "crime_index": 144.8,
+   "crime_index_change_pct": 20.6,
    "population": 34068,
    "property_crime_rate": 59.9,
    "total_count": 4932,
@@ -492,6 +533,7 @@
   },
   "0484": {
    "crime_index": 149.9,
+   "crime_index_change_pct": 0.8,
    "population": 106993,
    "property_crime_rate": 68.8,
    "total_count": 16035,
@@ -500,6 +542,7 @@
   },
   "0486": {
    "crime_index": 93.6,
+   "crime_index_change_pct": -9.7,
    "population": 39351,
    "property_crime_rate": 45.5,
    "total_count": 3684,
@@ -508,6 +551,7 @@
   },
   "0488": {
    "crime_index": 79.6,
+   "crime_index_change_pct": -4.8,
    "population": 14914,
    "property_crime_rate": 44.3,
    "total_count": 1187,
@@ -516,6 +560,7 @@
   },
   "0509": {
    "crime_index": 106.3,
+   "crime_index_change_pct": 59.0,
    "population": 5229,
    "property_crime_rate": 62.9,
    "total_count": 556,
@@ -524,6 +569,7 @@
   },
   "0512": {
    "crime_index": 57.4,
+   "crime_index_change_pct": 23.3,
    "population": 3622,
    "property_crime_rate": 29.0,
    "total_count": 208,
@@ -532,6 +578,7 @@
   },
   "0513": {
    "crime_index": 53.8,
+   "crime_index_change_pct": -14.2,
    "population": 9941,
    "property_crime_rate": 28.6,
    "total_count": 535,
@@ -540,6 +587,7 @@
   },
   "0560": {
    "crime_index": 69.5,
+   "crime_index_change_pct": -12.6,
    "population": 5484,
    "property_crime_rate": 36.3,
    "total_count": 381,
@@ -548,6 +596,7 @@
   },
   "0561": {
    "crime_index": 92.2,
+   "crime_index_change_pct": 64.9,
    "population": 11479,
    "property_crime_rate": 41.7,
    "total_count": 1058,
@@ -556,6 +605,7 @@
   },
   "0562": {
    "crime_index": 94.0,
+   "crime_index_change_pct": 29.5,
    "population": 21563,
    "property_crime_rate": 50.6,
    "total_count": 2028,
@@ -564,6 +614,7 @@
   },
   "0563": {
    "crime_index": 94.5,
+   "crime_index_change_pct": 47.2,
    "population": 7525,
    "property_crime_rate": 51.3,
    "total_count": 711,
@@ -572,6 +623,7 @@
   },
   "0580": {
    "crime_index": 103.2,
+   "crime_index_change_pct": -7.8,
    "population": 168369,
    "property_crime_rate": 57.7,
    "total_count": 17379,
@@ -580,6 +632,7 @@
   },
   "0581": {
    "crime_index": 128.3,
+   "crime_index_change_pct": 9.3,
    "population": 144942,
    "property_crime_rate": 70.3,
    "total_count": 18599,
@@ -588,6 +641,7 @@
   },
   "0582": {
    "crime_index": 68.2,
+   "crime_index_change_pct": 27.2,
    "population": 14765,
    "property_crime_rate": 38.6,
    "total_count": 1007,
@@ -596,6 +650,7 @@
   },
   "0583": {
    "crime_index": 122.9,
+   "crime_index_change_pct": 20.3,
    "population": 43318,
    "property_crime_rate": 67.8,
    "total_count": 5322,
@@ -604,6 +659,7 @@
   },
   "0584": {
    "crime_index": 88.2,
+   "crime_index_change_pct": 44.2,
    "population": 7487,
    "property_crime_rate": 45.9,
    "total_count": 660,
@@ -612,6 +668,7 @@
   },
   "0586": {
    "crime_index": 100.0,
+   "crime_index_change_pct": -6.2,
    "population": 28759,
    "property_crime_rate": 46.6,
    "total_count": 2875,
@@ -620,6 +677,7 @@
   },
   "0604": {
    "crime_index": 77.5,
+   "crime_index_change_pct": 22.9,
    "population": 6824,
    "property_crime_rate": 32.7,
    "total_count": 529,
@@ -628,6 +686,7 @@
   },
   "0617": {
    "crime_index": 64.2,
+   "crime_index_change_pct": -13.3,
    "population": 9071,
    "property_crime_rate": 25.1,
    "total_count": 582,
@@ -636,6 +695,7 @@
   },
   "0642": {
    "crime_index": 66.6,
+   "crime_index_change_pct": -14.3,
    "population": 7570,
    "property_crime_rate": 35.8,
    "total_count": 504,
@@ -644,6 +704,7 @@
   },
   "0643": {
    "crime_index": 50.9,
+   "crime_index_change_pct": 30.2,
    "population": 13483,
    "property_crime_rate": 27.0,
    "total_count": 686,
@@ -652,6 +713,7 @@
   },
   "0662": {
    "crime_index": 100.6,
+   "crime_index_change_pct": -1.0,
    "population": 28789,
    "property_crime_rate": 40.5,
    "total_count": 2897,
@@ -660,6 +722,7 @@
   },
   "0665": {
    "crime_index": 72.2,
+   "crime_index_change_pct": -5.8,
    "population": 14883,
    "property_crime_rate": 32.1,
    "total_count": 1075,
@@ -668,6 +731,7 @@
   },
   "0680": {
    "crime_index": 97.8,
+   "crime_index_change_pct": 2.2,
    "population": 147904,
    "property_crime_rate": 46.8,
    "total_count": 14468,
@@ -676,6 +740,7 @@
   },
   "0682": {
    "crime_index": 112.7,
+   "crime_index_change_pct": 3.5,
    "population": 31529,
    "property_crime_rate": 49.8,
    "total_count": 3554,
@@ -684,6 +749,7 @@
   },
   "0683": {
    "crime_index": 106.1,
+   "crime_index_change_pct": 7.7,
    "population": 34537,
    "property_crime_rate": 46.1,
    "total_count": 3663,
@@ -692,6 +758,7 @@
   },
   "0684": {
    "crime_index": 102.5,
+   "crime_index_change_pct": 50.9,
    "population": 11547,
    "property_crime_rate": 43.7,
    "total_count": 1184,
@@ -700,6 +767,7 @@
   },
   "0685": {
    "crime_index": 87.3,
+   "crime_index_change_pct": 24.7,
    "population": 27420,
    "property_crime_rate": 44.8,
    "total_count": 2394,
@@ -708,6 +776,7 @@
   },
   "0686": {
    "crime_index": 118.6,
+   "crime_index_change_pct": 9.3,
    "population": 17726,
    "property_crime_rate": 48.1,
    "total_count": 2102,
@@ -716,6 +785,7 @@
   },
   "0687": {
    "crime_index": 103.5,
+   "crime_index_change_pct": 9.6,
    "population": 18580,
    "property_crime_rate": 47.9,
    "total_count": 1924,
@@ -724,6 +794,7 @@
   },
   "0760": {
    "crime_index": 115.3,
+   "crime_index_change_pct": 50.5,
    "population": 8986,
    "property_crime_rate": 58.8,
    "total_count": 1036,
@@ -732,6 +803,7 @@
   },
   "0761": {
    "crime_index": 102.7,
+   "crime_index_change_pct": 1.3,
    "population": 8202,
    "property_crime_rate": 40.6,
    "total_count": 842,
@@ -740,6 +812,7 @@
   },
   "0763": {
    "crime_index": 111.4,
+   "crime_index_change_pct": 32.2,
    "population": 11931,
    "property_crime_rate": 51.9,
    "total_count": 1329,
@@ -748,6 +821,7 @@
   },
   "0764": {
    "crime_index": 83.4,
+   "crime_index_change_pct": 5.3,
    "population": 19758,
    "property_crime_rate": 35.8,
    "total_count": 1648,
@@ -756,6 +830,7 @@
   },
   "0765": {
    "crime_index": 100.2,
+   "crime_index_change_pct": 48.0,
    "population": 17617,
    "property_crime_rate": 48.9,
    "total_count": 1765,
@@ -764,6 +839,7 @@
   },
   "0767": {
    "crime_index": 113.2,
+   "crime_index_change_pct": -9.0,
    "population": 9900,
    "property_crime_rate": 53.7,
    "total_count": 1121,
@@ -772,6 +848,7 @@
   },
   "0780": {
    "crime_index": 121.2,
+   "crime_index_change_pct": 26.6,
    "population": 98639,
    "property_crime_rate": 60.2,
    "total_count": 11959,
@@ -780,6 +857,7 @@
   },
   "0781": {
    "crime_index": 109.0,
+   "crime_index_change_pct": 16.3,
    "population": 28207,
    "property_crime_rate": 48.6,
    "total_count": 3076,
@@ -788,6 +866,7 @@
   },
   "0821": {
    "crime_index": 104.1,
+   "crime_index_change_pct": -7.6,
    "population": 5227,
    "property_crime_rate": 50.5,
    "total_count": 544,
@@ -796,6 +875,7 @@
   },
   "0834": {
    "crime_index": 88.3,
+   "crime_index_change_pct": -15.8,
    "population": 6951,
    "property_crime_rate": 45.8,
    "total_count": 614,
@@ -804,6 +884,7 @@
   },
   "0840": {
    "crime_index": 66.6,
+   "crime_index_change_pct": 32.0,
    "population": 16266,
    "property_crime_rate": 32.5,
    "total_count": 1083,
@@ -812,6 +893,7 @@
   },
   "0860": {
    "crime_index": 115.3,
+   "crime_index_change_pct": 11.2,
    "population": 13578,
    "property_crime_rate": 47.6,
    "total_count": 1565,
@@ -820,6 +902,7 @@
   },
   "0861": {
    "crime_index": 80.7,
+   "crime_index_change_pct": 0.8,
    "population": 13024,
    "property_crime_rate": 36.6,
    "total_count": 1051,
@@ -828,6 +911,7 @@
   },
   "0862": {
    "crime_index": 111.5,
+   "crime_index_change_pct": -2.7,
    "population": 8907,
    "property_crime_rate": 56.7,
    "total_count": 993,
@@ -836,6 +920,7 @@
   },
   "0880": {
    "crime_index": 127.7,
+   "crime_index_change_pct": -2.5,
    "population": 72884,
    "property_crime_rate": 62.3,
    "total_count": 9308,
@@ -844,6 +929,7 @@
   },
   "0881": {
    "crime_index": 119.3,
+   "crime_index_change_pct": -1.5,
    "population": 19878,
    "property_crime_rate": 50.7,
    "total_count": 2371,
@@ -852,6 +938,7 @@
   },
   "0882": {
    "crime_index": 94.5,
+   "crime_index_change_pct": 7.6,
    "population": 26844,
    "property_crime_rate": 45.6,
    "total_count": 2537,
@@ -860,6 +947,7 @@
   },
   "0883": {
    "crime_index": 101.8,
+   "crime_index_change_pct": 18.2,
    "population": 36359,
    "property_crime_rate": 49.3,
    "total_count": 3701,
@@ -868,6 +956,7 @@
   },
   "0884": {
    "crime_index": 105.2,
+   "crime_index_change_pct": 40.4,
    "population": 15355,
    "property_crime_rate": 41.4,
    "total_count": 1616,
@@ -876,6 +965,7 @@
   },
   "0885": {
    "crime_index": 118.0,
+   "crime_index_change_pct": 51.9,
    "population": 10646,
    "property_crime_rate": 58.5,
    "total_count": 1256,
@@ -884,6 +974,7 @@
   },
   "0980": {
    "crime_index": 108.4,
+   "crime_index_change_pct": 17.2,
    "population": 60911,
    "property_crime_rate": 43.8,
    "total_count": 6604,
@@ -892,6 +983,7 @@
   },
   "1060": {
    "crime_index": 115.5,
+   "crime_index_change_pct": 20.6,
    "population": 12922,
    "property_crime_rate": 64.4,
    "total_count": 1492,
@@ -900,6 +992,7 @@
   },
   "1080": {
    "crime_index": 104.2,
+   "crime_index_change_pct": 26.5,
    "population": 66158,
    "property_crime_rate": 56.8,
    "total_count": 6893,
@@ -908,6 +1001,7 @@
   },
   "1081": {
    "crime_index": 117.3,
+   "crime_index_change_pct": 44.1,
    "population": 28725,
    "property_crime_rate": 61.2,
    "total_count": 3370,
@@ -916,6 +1010,7 @@
   },
   "1082": {
    "crime_index": 113.0,
+   "crime_index_change_pct": 12.1,
    "population": 31696,
    "property_crime_rate": 58.8,
    "total_count": 3581,
@@ -924,6 +1019,7 @@
   },
   "1083": {
    "crime_index": 116.4,
+   "crime_index_change_pct": 20.5,
    "population": 17417,
    "property_crime_rate": 60.2,
    "total_count": 2027,
@@ -932,6 +1028,7 @@
   },
   "1214": {
    "crime_index": 99.5,
+   "crime_index_change_pct": 7.0,
    "population": 14508,
    "property_crime_rate": 58.1,
    "total_count": 1444,
@@ -940,6 +1037,7 @@
   },
   "1230": {
    "crime_index": 78.6,
+   "crime_index_change_pct": 9.6,
    "population": 27394,
    "property_crime_rate": 43.2,
    "total_count": 2154,
@@ -948,6 +1046,7 @@
   },
   "1231": {
    "crime_index": 140.4,
+   "crime_index_change_pct": 7.2,
    "population": 20272,
    "property_crime_rate": 65.3,
    "total_count": 2847,
@@ -956,6 +1055,7 @@
   },
   "1233": {
    "crime_index": 67.1,
+   "crime_index_change_pct": 9.8,
    "population": 37822,
    "property_crime_rate": 42.8,
    "total_count": 2539,
@@ -964,6 +1064,7 @@
   },
   "1256": {
    "crime_index": 113.5,
+   "crime_index_change_pct": 14.4,
    "population": 13848,
    "property_crime_rate": 56.8,
    "total_count": 1572,
@@ -972,6 +1073,7 @@
   },
   "1257": {
    "crime_index": 131.6,
+   "crime_index_change_pct": 1.8,
    "population": 10285,
    "property_crime_rate": 62.6,
    "total_count": 1353,
@@ -980,6 +1082,7 @@
   },
   "1260": {
    "crime_index": 138.1,
+   "crime_index_change_pct": 5.1,
    "population": 16019,
    "property_crime_rate": 71.1,
    "total_count": 2212,
@@ -988,6 +1091,7 @@
   },
   "1261": {
    "crime_index": 83.4,
+   "crime_index_change_pct": 9.6,
    "population": 32566,
    "property_crime_rate": 46.8,
    "total_count": 2717,
@@ -996,6 +1100,7 @@
   },
   "1262": {
    "crime_index": 76.3,
+   "crime_index_change_pct": 29.4,
    "population": 24695,
    "property_crime_rate": 47.9,
    "total_count": 1885,
@@ -1004,6 +1109,7 @@
   },
   "1263": {
    "crime_index": 73.6,
+   "crime_index_change_pct": 19.5,
    "population": 23648,
    "property_crime_rate": 38.3,
    "total_count": 1741,
@@ -1012,6 +1118,7 @@
   },
   "1264": {
    "crime_index": 99.0,
+   "crime_index_change_pct": 18.1,
    "population": 17119,
    "property_crime_rate": 45.9,
    "total_count": 1695,
@@ -1020,6 +1127,7 @@
   },
   "1265": {
    "crime_index": 111.7,
+   "crime_index_change_pct": 30.1,
    "population": 19368,
    "property_crime_rate": 58.7,
    "total_count": 2163,
@@ -1028,6 +1136,7 @@
   },
   "1266": {
    "crime_index": 96.2,
+   "crime_index_change_pct": 11.9,
    "population": 15560,
    "property_crime_rate": 48.8,
    "total_count": 1497,
@@ -1036,6 +1145,7 @@
   },
   "1267": {
    "crime_index": 95.1,
+   "crime_index_change_pct": 12.0,
    "population": 17599,
    "property_crime_rate": 49.8,
    "total_count": 1673,
@@ -1044,6 +1154,7 @@
   },
   "1270": {
    "crime_index": 127.7,
+   "crime_index_change_pct": 26.9,
    "population": 13655,
    "property_crime_rate": 66.5,
    "total_count": 1743,
@@ -1052,6 +1163,7 @@
   },
   "1272": {
    "crime_index": 98.5,
+   "crime_index_change_pct": -8.8,
    "population": 12483,
    "property_crime_rate": 42.6,
    "total_count": 1229,
@@ -1060,6 +1172,7 @@
   },
   "1273": {
    "crime_index": 113.1,
+   "crime_index_change_pct": 32.2,
    "population": 12904,
    "property_crime_rate": 59.5,
    "total_count": 1459,
@@ -1068,6 +1181,7 @@
   },
   "1275": {
    "crime_index": 134.6,
+   "crime_index_change_pct": -1.1,
    "population": 7175,
    "property_crime_rate": 60.8,
    "total_count": 966,
@@ -1076,6 +1190,7 @@
   },
   "1276": {
    "crime_index": 133.3,
+   "crime_index_change_pct": 3.5,
    "population": 17713,
    "property_crime_rate": 60.8,
    "total_count": 2361,
@@ -1084,6 +1199,7 @@
   },
   "1277": {
    "crime_index": 117.0,
+   "crime_index_change_pct": -20.2,
    "population": 16470,
    "property_crime_rate": 54.6,
    "total_count": 1927,
@@ -1092,6 +1208,7 @@
   },
   "1278": {
    "crime_index": 95.7,
+   "crime_index_change_pct": 11.2,
    "population": 16036,
    "property_crime_rate": 59.2,
    "total_count": 1535,
@@ -1100,6 +1217,7 @@
   },
   "1280": {
    "crime_index": 161.8,
+   "crime_index_change_pct": -4.1,
    "population": 366774,
    "property_crime_rate": 87.1,
    "total_count": 59355,
@@ -1108,6 +1226,7 @@
   },
   "1281": {
    "crime_index": 111.7,
+   "crime_index_change_pct": 9.1,
    "population": 131967,
    "property_crime_rate": 71.4,
    "total_count": 14746,
@@ -1116,6 +1235,7 @@
   },
   "1282": {
    "crime_index": 145.8,
+   "crime_index_change_pct": 10.9,
    "population": 47441,
    "property_crime_rate": 74.3,
    "total_count": 6916,
@@ -1124,6 +1244,7 @@
   },
   "1283": {
    "crime_index": 155.8,
+   "crime_index_change_pct": 6.0,
    "population": 152429,
    "property_crime_rate": 81.0,
    "total_count": 23753,
@@ -1132,6 +1253,7 @@
   },
   "1284": {
    "crime_index": 69.8,
+   "crime_index_change_pct": -3.3,
    "population": 28461,
    "property_crime_rate": 40.6,
    "total_count": 1988,
@@ -1140,6 +1262,7 @@
   },
   "1285": {
    "crime_index": 103.9,
+   "crime_index_change_pct": 11.5,
    "population": 35024,
    "property_crime_rate": 48.3,
    "total_count": 3640,
@@ -1148,6 +1271,7 @@
   },
   "1286": {
    "crime_index": 119.2,
+   "crime_index_change_pct": 44.5,
    "population": 32147,
    "property_crime_rate": 58.2,
    "total_count": 3831,
@@ -1156,6 +1280,7 @@
   },
   "1287": {
    "crime_index": 101.4,
+   "crime_index_change_pct": 14.1,
    "population": 47338,
    "property_crime_rate": 48.0,
    "total_count": 4801,
@@ -1164,6 +1289,7 @@
   },
   "1290": {
    "crime_index": 113.6,
+   "crime_index_change_pct": -5.2,
    "population": 86142,
    "property_crime_rate": 54.5,
    "total_count": 9784,
@@ -1172,6 +1298,7 @@
   },
   "1291": {
    "crime_index": 85.6,
+   "crime_index_change_pct": 11.0,
    "population": 18834,
    "property_crime_rate": 49.2,
    "total_count": 1612,
@@ -1180,6 +1307,7 @@
   },
   "1292": {
    "crime_index": 98.2,
+   "crime_index_change_pct": -3.6,
    "population": 45136,
    "property_crime_rate": 54.8,
    "total_count": 4431,
@@ -1188,6 +1316,7 @@
   },
   "1293": {
    "crime_index": 129.2,
+   "crime_index_change_pct": 12.1,
    "population": 52013,
    "property_crime_rate": 70.8,
    "total_count": 6719,
@@ -1196,6 +1325,7 @@
   },
   "1315": {
    "crime_index": 95.2,
+   "crime_index_change_pct": -31.1,
    "population": 10145,
    "property_crime_rate": 44.4,
    "total_count": 966,
@@ -1204,6 +1334,7 @@
   },
   "1380": {
    "crime_index": 129.5,
+   "crime_index_change_pct": 7.9,
    "population": 106202,
    "property_crime_rate": 68.1,
    "total_count": 13751,
@@ -1212,6 +1343,7 @@
   },
   "1381": {
    "crime_index": 89.7,
+   "crime_index_change_pct": -12.5,
    "population": 26580,
    "property_crime_rate": 47.3,
    "total_count": 2385,
@@ -1220,6 +1352,7 @@
   },
   "1382": {
    "crime_index": 94.3,
+   "crime_index_change_pct": -0.5,
    "population": 47327,
    "property_crime_rate": 55.3,
    "total_count": 4462,
@@ -1228,6 +1361,7 @@
   },
   "1383": {
    "crime_index": 79.1,
+   "crime_index_change_pct": 6.9,
    "population": 69263,
    "property_crime_rate": 42.6,
    "total_count": 5478,
@@ -1236,6 +1370,7 @@
   },
   "1384": {
    "crime_index": 75.9,
+   "crime_index_change_pct": 12.4,
    "population": 86061,
    "property_crime_rate": 42.6,
    "total_count": 6532,
@@ -1244,6 +1379,7 @@
   },
   "1401": {
    "crime_index": 99.5,
+   "crime_index_change_pct": 11.1,
    "population": 40008,
    "property_crime_rate": 55.0,
    "total_count": 3980,
@@ -1252,6 +1388,7 @@
   },
   "1402": {
    "crime_index": 88.1,
+   "crime_index_change_pct": -9.6,
    "population": 41112,
    "property_crime_rate": 52.8,
    "total_count": 3622,
@@ -1260,6 +1397,7 @@
   },
   "1407": {
    "crime_index": 57.0,
+   "crime_index_change_pct": 18.7,
    "population": 12816,
    "property_crime_rate": 34.2,
    "total_count": 730,
@@ -1268,6 +1406,7 @@
   },
   "1415": {
    "crime_index": 75.9,
+   "crime_index_change_pct": -17.5,
    "population": 27854,
    "property_crime_rate": 40.3,
    "total_count": 2113,
@@ -1276,6 +1415,7 @@
   },
   "1419": {
    "crime_index": 62.7,
+   "crime_index_change_pct": -8.0,
    "population": 16047,
    "property_crime_rate": 35.7,
    "total_count": 1006,
@@ -1284,6 +1424,7 @@
   },
   "1421": {
    "crime_index": 75.7,
+   "crime_index_change_pct": 1.9,
    "population": 15357,
    "property_crime_rate": 43.9,
    "total_count": 1163,
@@ -1292,6 +1433,7 @@
   },
   "1427": {
    "crime_index": 88.5,
+   "crime_index_change_pct": -0.5,
    "population": 9070,
    "property_crime_rate": 44.1,
    "total_count": 803,
@@ -1300,6 +1442,7 @@
   },
   "1430": {
    "crime_index": 89.7,
+   "crime_index_change_pct": -3.4,
    "population": 10313,
    "property_crime_rate": 49.9,
    "total_count": 925,
@@ -1308,6 +1451,7 @@
   },
   "1435": {
    "crime_index": 98.9,
+   "crime_index_change_pct": 37.5,
    "population": 12725,
    "property_crime_rate": 50.5,
    "total_count": 1258,
@@ -1316,6 +1460,7 @@
   },
   "1438": {
    "crime_index": 73.9,
+   "crime_index_change_pct": 7.8,
    "population": 4589,
    "property_crime_rate": 29.6,
    "total_count": 339,
@@ -1324,6 +1469,7 @@
   },
   "1439": {
    "crime_index": 99.7,
+   "crime_index_change_pct": 12.5,
    "population": 6332,
    "property_crime_rate": 52.0,
    "total_count": 631,
@@ -1332,6 +1478,7 @@
   },
   "1440": {
    "crime_index": 83.3,
+   "crime_index_change_pct": 1.7,
    "population": 32597,
    "property_crime_rate": 43.4,
    "total_count": 2716,
@@ -1340,6 +1487,7 @@
   },
   "1441": {
    "crime_index": 73.6,
+   "crime_index_change_pct": -5.5,
    "population": 43661,
    "property_crime_rate": 44.1,
    "total_count": 3213,
@@ -1348,6 +1496,7 @@
   },
   "1442": {
    "crime_index": 67.0,
+   "crime_index_change_pct": -15.6,
    "population": 12474,
    "property_crime_rate": 32.4,
    "total_count": 836,
@@ -1356,6 +1505,7 @@
   },
   "1443": {
    "crime_index": 70.7,
+   "crime_index_change_pct": 26.4,
    "population": 9793,
    "property_crime_rate": 38.4,
    "total_count": 692,
@@ -1364,6 +1514,7 @@
   },
   "1444": {
    "crime_index": 75.8,
+   "crime_index_change_pct": 6.2,
    "population": 5578,
    "property_crime_rate": 38.2,
    "total_count": 423,
@@ -1372,6 +1523,7 @@
   },
   "1445": {
    "crime_index": 86.5,
+   "crime_index_change_pct": -21.1,
    "population": 5559,
    "property_crime_rate": 46.6,
    "total_count": 481,
@@ -1380,6 +1532,7 @@
   },
   "1446": {
    "crime_index": 54.6,
+   "crime_index_change_pct": -7.9,
    "population": 7036,
    "property_crime_rate": 28.9,
    "total_count": 384,
@@ -1388,6 +1541,7 @@
   },
   "1447": {
    "crime_index": 103.2,
+   "crime_index_change_pct": 13.5,
    "population": 4990,
    "property_crime_rate": 46.9,
    "total_count": 515,
@@ -1396,6 +1550,7 @@
   },
   "1452": {
    "crime_index": 84.8,
+   "crime_index_change_pct": 15.4,
    "population": 11856,
    "property_crime_rate": 40.4,
    "total_count": 1006,
@@ -1404,6 +1559,7 @@
   },
   "1460": {
    "crime_index": 78.8,
+   "crime_index_change_pct": -25.0,
    "population": 9016,
    "property_crime_rate": 37.9,
    "total_count": 710,
@@ -1412,6 +1568,7 @@
   },
   "1461": {
    "crime_index": 132.0,
+   "crime_index_change_pct": 27.8,
    "population": 9045,
    "property_crime_rate": 56.7,
    "total_count": 1194,
@@ -1420,6 +1577,7 @@
   },
   "1462": {
    "crime_index": 95.3,
+   "crime_index_change_pct": -0.3,
    "population": 14421,
    "property_crime_rate": 45.2,
    "total_count": 1374,
@@ -1428,6 +1586,7 @@
   },
   "1463": {
    "crime_index": 76.9,
+   "crime_index_change_pct": -10.2,
    "population": 35146,
    "property_crime_rate": 39.4,
    "total_count": 2702,
@@ -1436,6 +1595,7 @@
   },
   "1465": {
    "crime_index": 111.3,
+   "crime_index_change_pct": 29.0,
    "population": 10682,
    "property_crime_rate": 47.2,
    "total_count": 1189,
@@ -1444,6 +1604,7 @@
   },
   "1466": {
    "crime_index": 94.7,
+   "crime_index_change_pct": 10.8,
    "population": 9503,
    "property_crime_rate": 51.1,
    "total_count": 900,
@@ -1452,6 +1613,7 @@
   },
   "1470": {
    "crime_index": 98.8,
+   "crime_index_change_pct": -19.2,
    "population": 16049,
    "property_crime_rate": 53.4,
    "total_count": 1585,
@@ -1460,6 +1622,7 @@
   },
   "1471": {
    "crime_index": 78.3,
+   "crime_index_change_pct": -12.9,
    "population": 13255,
    "property_crime_rate": 41.6,
    "total_count": 1038,
@@ -1468,6 +1631,7 @@
   },
   "1472": {
    "crime_index": 95.7,
+   "crime_index_change_pct": 28.8,
    "population": 11332,
    "property_crime_rate": 40.9,
    "total_count": 1084,
@@ -1476,6 +1640,7 @@
   },
   "1473": {
    "crime_index": 101.1,
+   "crime_index_change_pct": 9.4,
    "population": 9068,
    "property_crime_rate": 46.5,
    "total_count": 917,
@@ -1484,6 +1649,7 @@
   },
   "1480": {
    "crime_index": 138.8,
+   "crime_index_change_pct": -14.2,
    "population": 611154,
    "property_crime_rate": 80.1,
    "total_count": 84816,
@@ -1492,6 +1658,7 @@
   },
   "1481": {
    "crime_index": 95.4,
+   "crime_index_change_pct": 1.8,
    "population": 71773,
    "property_crime_rate": 55.5,
    "total_count": 6850,
@@ -1500,6 +1667,7 @@
   },
   "1482": {
    "crime_index": 71.4,
+   "crime_index_change_pct": -25.2,
    "population": 50406,
    "property_crime_rate": 38.9,
    "total_count": 3601,
@@ -1508,6 +1676,7 @@
   },
   "1484": {
    "crime_index": 79.2,
+   "crime_index_change_pct": -20.2,
    "population": 13851,
    "property_crime_rate": 40.2,
    "total_count": 1097,
@@ -1516,6 +1685,7 @@
   },
   "1485": {
    "crime_index": 110.4,
+   "crime_index_change_pct": -7.3,
    "population": 56879,
    "property_crime_rate": 49.9,
    "total_count": 6280,
@@ -1524,6 +1694,7 @@
   },
   "1486": {
    "crime_index": 122.4,
+   "crime_index_change_pct": 29.5,
    "population": 13519,
    "property_crime_rate": 49.1,
    "total_count": 1655,
@@ -1532,6 +1703,7 @@
   },
   "1487": {
    "crime_index": 103.7,
+   "crime_index_change_pct": 6.8,
    "population": 40060,
    "property_crime_rate": 51.8,
    "total_count": 4155,
@@ -1540,6 +1712,7 @@
   },
   "1488": {
    "crime_index": 99.9,
+   "crime_index_change_pct": -21.1,
    "population": 59133,
    "property_crime_rate": 50.3,
    "total_count": 5905,
@@ -1548,6 +1721,7 @@
   },
   "1489": {
    "crime_index": 98.7,
+   "crime_index_change_pct": 7.3,
    "population": 42793,
    "property_crime_rate": 50.5,
    "total_count": 4225,
@@ -1556,6 +1730,7 @@
   },
   "1490": {
    "crime_index": 119.7,
+   "crime_index_change_pct": 4.4,
    "population": 115054,
    "property_crime_rate": 52.3,
    "total_count": 13772,
@@ -1564,6 +1739,7 @@
   },
   "1491": {
    "crime_index": 85.2,
+   "crime_index_change_pct": 6.4,
    "population": 24971,
    "property_crime_rate": 42.4,
    "total_count": 2128,
@@ -1572,6 +1748,7 @@
   },
   "1492": {
    "crime_index": 99.5,
+   "crime_index_change_pct": -4.8,
    "population": 11793,
    "property_crime_rate": 50.7,
    "total_count": 1174,
@@ -1580,6 +1757,7 @@
   },
   "1493": {
    "crime_index": 98.7,
+   "crime_index_change_pct": -12.1,
    "population": 24501,
    "property_crime_rate": 49.4,
    "total_count": 2418,
@@ -1588,6 +1766,7 @@
   },
   "1494": {
    "crime_index": 91.0,
+   "crime_index_change_pct": -11.0,
    "population": 40393,
    "property_crime_rate": 46.2,
    "total_count": 3677,
@@ -1596,6 +1775,7 @@
   },
   "1495": {
    "crime_index": 128.9,
+   "crime_index_change_pct": 11.0,
    "population": 18731,
    "property_crime_rate": 74.2,
    "total_count": 2414,
@@ -1604,6 +1784,7 @@
   },
   "1496": {
    "crime_index": 94.3,
+   "crime_index_change_pct": -9.6,
    "population": 58134,
    "property_crime_rate": 47.2,
    "total_count": 5482,
@@ -1612,6 +1793,7 @@
   },
   "1497": {
    "crime_index": 74.0,
+   "crime_index_change_pct": 22.5,
    "population": 9337,
    "property_crime_rate": 43.9,
    "total_count": 691,
@@ -1620,6 +1802,7 @@
   },
   "1498": {
    "crime_index": 74.9,
+   "crime_index_change_pct": -27.9,
    "population": 12770,
    "property_crime_rate": 37.9,
    "total_count": 957,
@@ -1628,6 +1811,7 @@
   },
   "1499": {
    "crime_index": 103.5,
+   "crime_index_change_pct": -8.2,
    "population": 32799,
    "property_crime_rate": 46.9,
    "total_count": 3395,
@@ -1636,6 +1820,7 @@
   },
   "1715": {
    "crime_index": 50.2,
+   "crime_index_change_pct": -13.3,
    "population": 12041,
    "property_crime_rate": 25.4,
    "total_count": 604,
@@ -1644,6 +1829,7 @@
   },
   "1730": {
    "crime_index": 98.1,
+   "crime_index_change_pct": 16.1,
    "population": 8350,
    "property_crime_rate": 45.3,
    "total_count": 819,
@@ -1652,6 +1838,7 @@
   },
   "1737": {
    "crime_index": 83.1,
+   "crime_index_change_pct": 22.3,
    "population": 11300,
    "property_crime_rate": 32.3,
    "total_count": 939,
@@ -1660,6 +1847,7 @@
   },
   "1760": {
    "crime_index": 73.5,
+   "crime_index_change_pct": 11.4,
    "population": 3782,
    "property_crime_rate": 34.6,
    "total_count": 278,
@@ -1668,6 +1856,7 @@
   },
   "1761": {
    "crime_index": 47.4,
+   "crime_index_change_pct": 8.5,
    "population": 16962,
    "property_crime_rate": 29.7,
    "total_count": 804,
@@ -1676,6 +1865,7 @@
   },
   "1762": {
    "crime_index": 76.6,
+   "crime_index_change_pct": -11.5,
    "population": 3631,
    "property_crime_rate": 33.0,
    "total_count": 278,
@@ -1684,6 +1874,7 @@
   },
   "1763": {
    "crime_index": 47.7,
+   "crime_index_change_pct": -14.8,
    "population": 11479,
    "property_crime_rate": 20.6,
    "total_count": 548,
@@ -1692,6 +1883,7 @@
   },
   "1764": {
    "crime_index": 73.7,
+   "crime_index_change_pct": -38.6,
    "population": 8929,
    "property_crime_rate": 31.8,
    "total_count": 658,
@@ -1700,6 +1892,7 @@
   },
   "1765": {
    "crime_index": 72.0,
+   "crime_index_change_pct": 16.5,
    "population": 9779,
    "property_crime_rate": 34.7,
    "total_count": 704,
@@ -1708,6 +1901,7 @@
   },
   "1766": {
    "crime_index": 74.7,
+   "crime_index_change_pct": 23.4,
    "population": 13355,
    "property_crime_rate": 36.8,
    "total_count": 998,
@@ -1716,6 +1910,7 @@
   },
   "1780": {
    "crime_index": 99.6,
+   "crime_index_change_pct": -4.1,
    "population": 98544,
    "property_crime_rate": 60.3,
    "total_count": 9815,
@@ -1724,6 +1919,7 @@
   },
   "1781": {
    "crime_index": 87.7,
+   "crime_index_change_pct": -21.8,
    "population": 23674,
    "property_crime_rate": 41.0,
    "total_count": 2076,
@@ -1732,6 +1928,7 @@
   },
   "1782": {
    "crime_index": 93.7,
+   "crime_index_change_pct": -10.2,
    "population": 9700,
    "property_crime_rate": 38.5,
    "total_count": 909,
@@ -1740,6 +1937,7 @@
   },
   "1783": {
    "crime_index": 77.4,
+   "crime_index_change_pct": -13.7,
    "population": 11371,
    "property_crime_rate": 30.9,
    "total_count": 880,
@@ -1748,6 +1946,7 @@
   },
   "1784": {
    "crime_index": 79.6,
+   "crime_index_change_pct": -5.3,
    "population": 25477,
    "property_crime_rate": 43.9,
    "total_count": 2028,
@@ -1756,6 +1955,7 @@
   },
   "1785": {
    "crime_index": 88.9,
+   "crime_index_change_pct": -9.1,
    "population": 14827,
    "property_crime_rate": 43.6,
    "total_count": 1318,
@@ -1764,6 +1964,7 @@
   },
   "1814": {
    "crime_index": 48.3,
+   "crime_index_change_pct": -3.9,
    "population": 8607,
    "property_crime_rate": 23.2,
    "total_count": 416,
@@ -1772,6 +1973,7 @@
   },
   "1860": {
    "crime_index": 110.0,
+   "crime_index_change_pct": 17.5,
    "population": 5410,
    "property_crime_rate": 52.7,
    "total_count": 595,
@@ -1780,6 +1982,7 @@
   },
   "1861": {
    "crime_index": 146.6,
+   "crime_index_change_pct": 44.6,
    "population": 16102,
    "property_crime_rate": 47.4,
    "total_count": 2360,
@@ -1788,6 +1991,7 @@
   },
   "1862": {
    "crime_index": 141.0,
+   "crime_index_change_pct": 42.6,
    "population": 9257,
    "property_crime_rate": 42.7,
    "total_count": 1305,
@@ -1796,6 +2000,7 @@
   },
   "1863": {
    "crime_index": 74.0,
+   "crime_index_change_pct": -34.4,
    "population": 6295,
    "property_crime_rate": 38.3,
    "total_count": 466,
@@ -1804,6 +2009,7 @@
   },
   "1864": {
    "crime_index": 130.3,
+   "crime_index_change_pct": -29.4,
    "population": 4329,
    "property_crime_rate": 64.2,
    "total_count": 564,
@@ -1812,6 +2018,7 @@
   },
   "1880": {
    "crime_index": 139.2,
+   "crime_index_change_pct": -4.5,
    "population": 160410,
    "property_crime_rate": 78.0,
    "total_count": 22321,
@@ -1820,6 +2027,7 @@
   },
   "1881": {
    "crime_index": 98.0,
+   "crime_index_change_pct": -16.2,
    "population": 22673,
    "property_crime_rate": 34.6,
    "total_count": 2221,
@@ -1828,6 +2036,7 @@
   },
   "1882": {
    "crime_index": 73.8,
+   "crime_index_change_pct": -7.5,
    "population": 11430,
    "property_crime_rate": 37.1,
    "total_count": 844,
@@ -1836,6 +2045,7 @@
   },
   "1883": {
    "crime_index": 105.6,
+   "crime_index_change_pct": -5.1,
    "population": 30153,
    "property_crime_rate": 51.5,
    "total_count": 3183,
@@ -1844,6 +2054,7 @@
   },
   "1884": {
    "crime_index": 73.2,
+   "crime_index_change_pct": 6.0,
    "population": 10621,
    "property_crime_rate": 28.6,
    "total_count": 777,
@@ -1852,6 +2063,7 @@
   },
   "1885": {
    "crime_index": 86.1,
+   "crime_index_change_pct": 8.8,
    "population": 23078,
    "property_crime_rate": 37.9,
    "total_count": 1987,
@@ -1860,6 +2072,7 @@
   },
   "1904": {
    "crime_index": 105.1,
+   "crime_index_change_pct": -29.0,
    "population": 4245,
    "property_crime_rate": 43.8,
    "total_count": 446,
@@ -1868,6 +2081,7 @@
   },
   "1907": {
    "crime_index": 89.7,
+   "crime_index_change_pct": -9.9,
    "population": 9789,
    "property_crime_rate": 44.1,
    "total_count": 878,
@@ -1876,6 +2090,7 @@
   },
   "1960": {
    "crime_index": 88.0,
+   "crime_index_change_pct": 22.7,
    "population": 8622,
    "property_crime_rate": 41.6,
    "total_count": 759,
@@ -1884,6 +2099,7 @@
   },
   "1961": {
    "crime_index": 111.8,
+   "crime_index_change_pct": 20.3,
    "population": 16626,
    "property_crime_rate": 56.9,
    "total_count": 1859,
@@ -1892,6 +2108,7 @@
   },
   "1962": {
    "crime_index": 125.2,
+   "crime_index_change_pct": 20.7,
    "population": 5402,
    "property_crime_rate": 57.4,
    "total_count": 676,
@@ -1900,6 +2117,7 @@
   },
   "1980": {
    "crime_index": 141.5,
+   "crime_index_change_pct": -0.2,
    "population": 160934,
    "property_crime_rate": 71.9,
    "total_count": 22777,
@@ -1908,6 +2126,7 @@
   },
   "1981": {
    "crime_index": 135.7,
+   "crime_index_change_pct": 22.4,
    "population": 22722,
    "property_crime_rate": 53.4,
    "total_count": 3084,
@@ -1916,6 +2135,7 @@
   },
   "1982": {
    "crime_index": 130.4,
+   "crime_index_change_pct": 9.5,
    "population": 12993,
    "property_crime_rate": 47.9,
    "total_count": 1695,
@@ -1924,6 +2144,7 @@
   },
   "1983": {
    "crime_index": 115.9,
+   "crime_index_change_pct": -1.2,
    "population": 25668,
    "property_crime_rate": 56.6,
    "total_count": 2976,
@@ -1932,6 +2153,7 @@
   },
   "1984": {
    "crime_index": 102.0,
+   "crime_index_change_pct": -5.7,
    "population": 13954,
    "property_crime_rate": 50.6,
    "total_count": 1424,
@@ -1940,6 +2162,7 @@
   },
   "2021": {
    "crime_index": 77.7,
+   "crime_index_change_pct": 24.6,
    "population": 6746,
    "property_crime_rate": 37.4,
    "total_count": 524,
@@ -1948,6 +2171,7 @@
   },
   "2023": {
    "crime_index": 107.7,
+   "crime_index_change_pct": 55.4,
    "population": 10223,
    "property_crime_rate": 56.0,
    "total_count": 1101,
@@ -1956,6 +2180,7 @@
   },
   "2026": {
    "crime_index": 49.8,
+   "crime_index_change_pct": 29.0,
    "population": 10346,
    "property_crime_rate": 28.7,
    "total_count": 515,
@@ -1964,6 +2189,7 @@
   },
   "2029": {
    "crime_index": 57.3,
+   "crime_index_change_pct": 17.8,
    "population": 16152,
    "property_crime_rate": 32.5,
    "total_count": 925,
@@ -1972,6 +2198,7 @@
   },
   "2031": {
    "crime_index": 98.3,
+   "crime_index_change_pct": 73.8,
    "population": 10988,
    "property_crime_rate": 48.9,
    "total_count": 1080,
@@ -1980,6 +2207,7 @@
   },
   "2034": {
    "crime_index": 95.0,
+   "crime_index_change_pct": 7.1,
    "population": 6877,
    "property_crime_rate": 41.2,
    "total_count": 653,
@@ -1988,6 +2216,7 @@
   },
   "2039": {
    "crime_index": 75.5,
+   "crime_index_change_pct": 13.0,
    "population": 6856,
    "property_crime_rate": 34.6,
    "total_count": 518,
@@ -1996,6 +2225,7 @@
   },
   "2061": {
    "crime_index": 71.5,
+   "crime_index_change_pct": 13.2,
    "population": 10791,
    "property_crime_rate": 37.5,
    "total_count": 772,
@@ -2004,6 +2234,7 @@
   },
   "2062": {
    "crime_index": 80.2,
+   "crime_index_change_pct": 8.0,
    "population": 20479,
    "property_crime_rate": 34.3,
    "total_count": 1643,
@@ -2012,6 +2243,7 @@
   },
   "2080": {
    "crime_index": 74.8,
+   "crime_index_change_pct": -10.8,
    "population": 59960,
    "property_crime_rate": 38.1,
    "total_count": 4485,
@@ -2020,6 +2252,7 @@
   },
   "2081": {
    "crime_index": 113.8,
+   "crime_index_change_pct": 2.6,
    "population": 51389,
    "property_crime_rate": 54.2,
    "total_count": 5846,
@@ -2028,6 +2261,7 @@
   },
   "2082": {
    "crime_index": 66.2,
+   "crime_index_change_pct": 5.9,
    "population": 11222,
    "property_crime_rate": 36.0,
    "total_count": 743,
@@ -2036,6 +2270,7 @@
   },
   "2083": {
    "crime_index": 106.7,
+   "crime_index_change_pct": 9.6,
    "population": 15152,
    "property_crime_rate": 52.5,
    "total_count": 1616,
@@ -2044,6 +2279,7 @@
   },
   "2084": {
    "crime_index": 109.1,
+   "crime_index_change_pct": 6.6,
    "population": 22392,
    "property_crime_rate": 52.7,
    "total_count": 2443,
@@ -2052,6 +2288,7 @@
   },
   "2085": {
    "crime_index": 81.4,
+   "crime_index_change_pct": -19.5,
    "population": 26722,
    "property_crime_rate": 38.2,
    "total_count": 2176,
@@ -2060,6 +2297,7 @@
   },
   "2101": {
    "crime_index": 77.5,
+   "crime_index_change_pct": -14.6,
    "population": 5715,
    "property_crime_rate": 39.5,
    "total_count": 443,
@@ -2068,6 +2306,7 @@
   },
   "2104": {
    "crime_index": 87.2,
+   "crime_index_change_pct": 7.1,
    "population": 9210,
    "property_crime_rate": 44.8,
    "total_count": 803,
@@ -2076,6 +2315,7 @@
   },
   "2121": {
    "crime_index": 67.5,
+   "crime_index_change_pct": 2.7,
    "population": 11307,
    "property_crime_rate": 35.9,
    "total_count": 763,
@@ -2084,6 +2324,7 @@
   },
   "2132": {
    "crime_index": 82.7,
+   "crime_index_change_pct": -7.3,
    "population": 9273,
    "property_crime_rate": 38.1,
    "total_count": 767,
@@ -2092,6 +2333,7 @@
   },
   "2161": {
    "crime_index": 76.9,
+   "crime_index_change_pct": -4.4,
    "population": 18411,
    "property_crime_rate": 35.4,
    "total_count": 1416,
@@ -2100,6 +2342,7 @@
   },
   "2180": {
    "crime_index": 127.3,
+   "crime_index_change_pct": -5.1,
    "population": 103974,
    "property_crime_rate": 63.7,
    "total_count": 13238,
@@ -2108,6 +2351,7 @@
   },
   "2181": {
    "crime_index": 94.1,
+   "crime_index_change_pct": 0.7,
    "population": 38196,
    "property_crime_rate": 45.7,
    "total_count": 3595,
@@ -2116,6 +2360,7 @@
   },
   "2182": {
    "crime_index": 120.6,
+   "crime_index_change_pct": 4.3,
    "population": 24353,
    "property_crime_rate": 55.9,
    "total_count": 2938,
@@ -2124,6 +2369,7 @@
   },
   "2183": {
    "crime_index": 95.5,
+   "crime_index_change_pct": -12.6,
    "population": 26131,
    "property_crime_rate": 42.8,
    "total_count": 2496,
@@ -2132,6 +2378,7 @@
   },
   "2184": {
    "crime_index": 112.5,
+   "crime_index_change_pct": 18.3,
    "population": 37436,
    "property_crime_rate": 56.2,
    "total_count": 4210,
@@ -2140,6 +2387,7 @@
   },
   "2260": {
    "crime_index": 93.1,
+   "crime_index_change_pct": 0.8,
    "population": 9022,
    "property_crime_rate": 43.8,
    "total_count": 840,
@@ -2148,6 +2396,7 @@
   },
   "2262": {
    "crime_index": 80.7,
+   "crime_index_change_pct": -17.7,
    "population": 17493,
    "property_crime_rate": 36.6,
    "total_count": 1411,
@@ -2156,6 +2405,7 @@
   },
   "2280": {
    "crime_index": 120.3,
+   "crime_index_change_pct": -7.9,
    "population": 24431,
    "property_crime_rate": 47.9,
    "total_count": 2939,
@@ -2164,6 +2414,7 @@
   },
   "2281": {
    "crime_index": 96.5,
+   "crime_index_change_pct": -22.5,
    "population": 99005,
    "property_crime_rate": 41.0,
    "total_count": 9554,
@@ -2172,6 +2423,7 @@
   },
   "2282": {
    "crime_index": 113.5,
+   "crime_index_change_pct": -17.4,
    "population": 17440,
    "property_crime_rate": 49.2,
    "total_count": 1980,
@@ -2180,6 +2432,7 @@
   },
   "2283": {
    "crime_index": 98.9,
+   "crime_index_change_pct": -17.7,
    "population": 18266,
    "property_crime_rate": 44.8,
    "total_count": 1806,
@@ -2188,6 +2441,7 @@
   },
   "2284": {
    "crime_index": 81.0,
+   "crime_index_change_pct": -14.1,
    "population": 55394,
    "property_crime_rate": 35.6,
    "total_count": 4488,
@@ -2196,6 +2450,7 @@
   },
   "2303": {
    "crime_index": 81.2,
+   "crime_index_change_pct": 16.4,
    "population": 5149,
    "property_crime_rate": 35.4,
    "total_count": 418,
@@ -2204,6 +2459,7 @@
   },
   "2305": {
    "crime_index": 119.5,
+   "crime_index_change_pct": 37.3,
    "population": 5993,
    "property_crime_rate": 60.2,
    "total_count": 716,
@@ -2212,6 +2468,7 @@
   },
   "2309": {
    "crime_index": 57.5,
+   "crime_index_change_pct": -12.4,
    "population": 15736,
    "property_crime_rate": 25.5,
    "total_count": 905,
@@ -2220,6 +2477,7 @@
   },
   "2313": {
    "crime_index": 91.5,
+   "crime_index_change_pct": 5.6,
    "population": 10963,
    "property_crime_rate": 41.9,
    "total_count": 1003,
@@ -2228,6 +2486,7 @@
   },
   "2321": {
    "crime_index": 100.3,
+   "crime_index_change_pct": 8.2,
    "population": 12732,
    "property_crime_rate": 38.8,
    "total_count": 1277,
@@ -2236,6 +2495,7 @@
   },
   "2326": {
    "crime_index": 88.9,
+   "crime_index_change_pct": 23.9,
    "population": 7096,
    "property_crime_rate": 41.7,
    "total_count": 631,
@@ -2244,6 +2504,7 @@
   },
   "2361": {
    "crime_index": 90.6,
+   "crime_index_change_pct": 3.2,
    "population": 10146,
    "property_crime_rate": 37.5,
    "total_count": 919,
@@ -2252,6 +2513,7 @@
   },
   "2380": {
    "crime_index": 117.4,
+   "crime_index_change_pct": -18.7,
    "population": 64969,
    "property_crime_rate": 56.6,
    "total_count": 7630,
@@ -2260,6 +2522,7 @@
   },
   "2401": {
    "crime_index": 72.8,
+   "crime_index_change_pct": -15.2,
    "population": 6923,
    "property_crime_rate": 26.1,
    "total_count": 504,
@@ -2268,6 +2531,7 @@
   },
   "2403": {
    "crime_index": 102.4,
+   "crime_index_change_pct": 47.0,
    "population": 2343,
    "property_crime_rate": 37.6,
    "total_count": 240,
@@ -2276,6 +2540,7 @@
   },
   "2404": {
    "crime_index": 93.9,
+   "crime_index_change_pct": 32.4,
    "population": 5419,
    "property_crime_rate": 35.4,
    "total_count": 509,
@@ -2284,6 +2549,7 @@
   },
   "2409": {
    "crime_index": 92.1,
+   "crime_index_change_pct": 13.9,
    "population": 6643,
    "property_crime_rate": 33.9,
    "total_count": 612,
@@ -2292,6 +2558,7 @@
   },
   "2417": {
    "crime_index": 55.0,
+   "crime_index_change_pct": -25.0,
    "population": 3889,
    "property_crime_rate": 26.8,
    "total_count": 214,
@@ -2300,6 +2567,7 @@
   },
   "2418": {
    "crime_index": 75.4,
+   "crime_index_change_pct": 12.0,
    "population": 2932,
    "property_crime_rate": 33.4,
    "total_count": 221,
@@ -2308,6 +2576,7 @@
   },
   "2421": {
    "crime_index": 102.7,
+   "crime_index_change_pct": 27.0,
    "population": 5560,
    "property_crime_rate": 36.7,
    "total_count": 571,
@@ -2316,6 +2585,7 @@
   },
   "2422": {
    "crime_index": 91.1,
+   "crime_index_change_pct": 24.1,
    "population": 2360,
    "property_crime_rate": 28.4,
    "total_count": 215,
@@ -2324,6 +2594,7 @@
   },
   "2425": {
    "crime_index": 100.1,
+   "crime_index_change_pct": -17.7,
    "population": 2268,
    "property_crime_rate": 44.1,
    "total_count": 227,
@@ -2332,6 +2603,7 @@
   },
   "2460": {
    "crime_index": 81.5,
+   "crime_index_change_pct": 16.9,
    "population": 9179,
    "property_crime_rate": 40.5,
    "total_count": 748,
@@ -2340,6 +2612,7 @@
   },
   "2462": {
    "crime_index": 97.9,
+   "crime_index_change_pct": 5.8,
    "population": 6200,
    "property_crime_rate": 35.3,
    "total_count": 607,
@@ -2348,6 +2621,7 @@
   },
   "2463": {
    "crime_index": 97.1,
+   "crime_index_change_pct": -7.2,
    "population": 2689,
    "property_crime_rate": 32.4,
    "total_count": 261,
@@ -2356,6 +2630,7 @@
   },
   "2480": {
    "crime_index": 92.1,
+   "crime_index_change_pct": -1.5,
    "population": 134756,
    "property_crime_rate": 38.5,
    "total_count": 12411,
@@ -2364,6 +2639,7 @@
   },
   "2481": {
    "crime_index": 106.1,
+   "crime_index_change_pct": 9.1,
    "population": 12138,
    "property_crime_rate": 39.0,
    "total_count": 1288,
@@ -2372,6 +2648,7 @@
   },
   "2482": {
    "crime_index": 95.2,
+   "crime_index_change_pct": 0.3,
    "population": 76774,
    "property_crime_rate": 42.5,
    "total_count": 7312,
@@ -2380,6 +2657,7 @@
   },
   "2505": {
    "crime_index": 74.8,
+   "crime_index_change_pct": -13.1,
    "population": 6058,
    "property_crime_rate": 29.9,
    "total_count": 453,
@@ -2388,6 +2666,7 @@
   },
   "2506": {
    "crime_index": 80.5,
+   "crime_index_change_pct": -33.7,
    "population": 2584,
    "property_crime_rate": 39.1,
    "total_count": 208,
@@ -2396,6 +2675,7 @@
   },
   "2510": {
    "crime_index": 108.6,
+   "crime_index_change_pct": 1.4,
    "population": 4698,
    "property_crime_rate": 49.8,
    "total_count": 510,
@@ -2404,6 +2684,7 @@
   },
   "2513": {
    "crime_index": 86.2,
+   "crime_index_change_pct": 18.0,
    "population": 3192,
    "property_crime_rate": 42.6,
    "total_count": 275,
@@ -2412,6 +2693,7 @@
   },
   "2514": {
    "crime_index": 101.8,
+   "crime_index_change_pct": -14.9,
    "population": 15322,
    "property_crime_rate": 46.7,
    "total_count": 1559,
@@ -2420,6 +2702,7 @@
   },
   "2518": {
    "crime_index": 88.4,
+   "crime_index_change_pct": 38.4,
    "population": 4026,
    "property_crime_rate": 31.6,
    "total_count": 356,
@@ -2428,6 +2711,7 @@
   },
   "2521": {
    "crime_index": 63.6,
+   "crime_index_change_pct": -10.6,
    "population": 5782,
    "property_crime_rate": 27.7,
    "total_count": 368,
@@ -2436,6 +2720,7 @@
   },
   "2523": {
    "crime_index": 90.9,
+   "crime_index_change_pct": -17.6,
    "population": 17184,
    "property_crime_rate": 34.4,
    "total_count": 1562,
@@ -2444,6 +2729,7 @@
   },
   "2560": {
    "crime_index": 91.2,
+   "crime_index_change_pct": -7.7,
    "population": 7794,
    "property_crime_rate": 39.8,
    "total_count": 711,
@@ -2452,6 +2738,7 @@
   },
   "2580": {
    "crime_index": 104.9,
+   "crime_index_change_pct": -23.1,
    "population": 79977,
    "property_crime_rate": 53.5,
    "total_count": 8392,
@@ -2460,6 +2747,7 @@
   },
   "2581": {
    "crime_index": 73.8,
+   "crime_index_change_pct": -9.6,
    "population": 42313,
    "property_crime_rate": 33.1,
    "total_count": 3121,
@@ -2468,6 +2756,7 @@
   },
   "2582": {
    "crime_index": 105.7,
+   "crime_index_change_pct": -11.2,
    "population": 28338,
    "property_crime_rate": 44.6,
    "total_count": 2995,
@@ -2476,6 +2765,7 @@
   },
   "2583": {
    "crime_index": 139.5,
+   "crime_index_change_pct": 18.4,
    "population": 9089,
    "property_crime_rate": 51.0,
    "total_count": 1268,
@@ -2484,6 +2774,7 @@
   },
   "2584": {
    "crime_index": 85.7,
+   "crime_index_change_pct": -10.1,
    "population": 22414,
    "property_crime_rate": 34.3,
    "total_count": 1920,
@@ -2492,7 +2783,7 @@
   }
  },
  "latest_year": 2025,
- "source": "Brå, Anmälda brott (statistik.bra.se), per kommun",
+ "source": "Brå, Anmälda brott (statistik.bra.se), per kommun och storstädernas stadsområden",
  "violent_years": [
   2021,
   2022,

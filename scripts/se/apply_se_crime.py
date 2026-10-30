@@ -3,7 +3,7 @@
 
 build_se_geojson.py does the same on a full rebuild, but that needs the shore-clipped
 boundary cache (git-ignored, refetched from SCB). This patches the committed file in
-place: the same three properties from the same function (crime_props), placed where a
+place: the same four properties from the same function (crime_props), placed where a
 rebuild puts them (after water_proximity_m), so a later rebuild produces the same bytes.
 The file is re-serialized exactly as build_se_geojson.py writes it, so `git diff` shows
 values only.

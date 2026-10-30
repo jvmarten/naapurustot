@@ -387,3 +387,16 @@ that, a Swedish region asked for a shard that does not exist and fell back to th
 11 MB Finnish file, only to clip every cell away. The layer's default quality-index weight
 is 0, so scores did not move.
 
+## 14. Trend layers (2026-10-30)
+
+Sweden went from 56 to 58 layers, both over Finland's 2020–2025 window and both per kommun
+(`is_proxy`).
+
+| Layer | Source | Notes |
+|---|---|---|
+| Crime change (`crime_index_change_pct`) | Brå, all reported offences per 100,000, 2020 → 2025 | Finland's figure is its municipal rate's change over the same years, so Finland's key and stops (a relative change, whatever the counting rules). Per kommun even where the level is per city district: Järva and Norra innerstaden did not exist before 2024. `fetch_se_crime.py`, written by `crime_props` |
+| House price change (`house_price_change_se`) | SCB TAB1169, mean purchase price of permanent detached houses sold, 2020 → 2025 | Sweden-only, as `house_price_se` is. SCB prints every kommun however few houses sold (fewest: Dorotea, 11 then 8), so the counts are kept beside it in `kommun_layers.json`. Median +18.5 %, one fall (Dorotea −26 %). `fetch_se_kommun_layers.py`, written by `later_props` |
+
+Neither has a region figure in the all-regions view yet: Finland's change there is derived
+from the aggregated history arrays, and Sweden carries none for these two.
+

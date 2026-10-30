@@ -1,6 +1,6 @@
 {
-  "generated": "2026-10-30T11:00:41.507Z",
-  "source_hash": "273fff3c105aef3b",
+  "generated": "2026-10-30T11:19:43.417Z",
+  "source_hash": "fc2303bd9bd1758c",
   "rows_total": 3018,
   "metrics": {
     "active_plan_count": {
@@ -704,6 +704,14 @@
           "row_count": 6160,
           "coverage_pct": 100
         },
+        "crime_index_change_pct": {
+          "source": "Brå (Anmälda brott, totalt; kommun)",
+          "vintage": "2020–2025",
+          "granularity": "kommun",
+          "is_proxy": true,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
         "cycling_density": {
           "source": "OpenStreetMap (Sverige, 2026-10-27)",
           "vintage": 2026,
@@ -813,6 +821,14 @@
           "vintage": 2025,
           "granularity": "deso",
           "is_proxy": false,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
+        "house_price_change_pct": {
+          "source": "SCB (Försålda småhus, köpeskilling per kommun)",
+          "vintage": "2020–2025",
+          "granularity": "deso",
+          "is_proxy": true,
           "row_count": 6160,
           "coverage_pct": 100
         },
