@@ -1,8 +1,8 @@
 {
   "total": {
     "regions": 140,
-    "topojson_bytes": 19301930,
-    "gzip_bytes": 5932952,
+    "topojson_bytes": 19330557,
+    "gzip_bytes": 5944652,
     "feature_count": 9178
   },
   "regions": {
@@ -282,358 +282,358 @@
       "feature_count": 51
     },
     "se_almhult": {
-      "topojson_bytes": 34858,
-      "gzip_bytes": 13102,
+      "topojson_bytes": 34971,
+      "gzip_bytes": 13157,
       "feature_count": 18
     },
     "se_arjang": {
-      "topojson_bytes": 18577,
-      "gzip_bytes": 7426,
+      "topojson_bytes": 18643,
+      "gzip_bytes": 7455,
       "feature_count": 8
     },
     "se_arjeplog": {
-      "topojson_bytes": 9424,
-      "gzip_bytes": 4090,
-      "feature_count": 4
-    },
-    "se_arvidsjaur": {
-      "topojson_bytes": 13160,
-      "gzip_bytes": 5437,
-      "feature_count": 4
-    },
-    "se_arvika": {
-      "topojson_bytes": 35003,
-      "gzip_bytes": 13057,
-      "feature_count": 21
-    },
-    "se_asele": {
-      "topojson_bytes": 6564,
-      "gzip_bytes": 2957,
-      "feature_count": 2
-    },
-    "se_avesta_hedemora": {
-      "topojson_bytes": 33645,
-      "gzip_bytes": 12172,
-      "feature_count": 23
-    },
-    "se_bengtsfors_dals_ed": {
-      "topojson_bytes": 25354,
-      "gzip_bytes": 9996,
-      "feature_count": 9
-    },
-    "se_bollnas_ovanaker": {
-      "topojson_bytes": 35230,
-      "gzip_bytes": 12819,
-      "feature_count": 24
-    },
-    "se_boras": {
-      "topojson_bytes": 166694,
-      "gzip_bytes": 53004,
-      "feature_count": 135
-    },
-    "se_dorotea": {
-      "topojson_bytes": 9133,
-      "gzip_bytes": 3905,
-      "feature_count": 2
-    },
-    "se_eskilstuna": {
-      "topojson_bytes": 65803,
-      "gzip_bytes": 21196,
-      "feature_count": 62
-    },
-    "se_fagersta_norberg": {
-      "topojson_bytes": 23585,
-      "gzip_bytes": 9179,
-      "feature_count": 13
-    },
-    "se_falun_borlange": {
-      "topojson_bytes": 119793,
-      "gzip_bytes": 38467,
-      "feature_count": 94
-    },
-    "se_gallivare": {
-      "topojson_bytes": 32710,
-      "gzip_bytes": 12158,
-      "feature_count": 15
-    },
-    "se_gavle": {
-      "topojson_bytes": 142583,
-      "gzip_bytes": 46810,
-      "feature_count": 94
-    },
-    "se_goteborg": {
-      "topojson_bytes": 998979,
-      "gzip_bytes": 286337,
-      "feature_count": 801
-    },
-    "se_gotland": {
-      "topojson_bytes": 92025,
-      "gzip_bytes": 31543,
-      "feature_count": 38
-    },
-    "se_hagfors": {
-      "topojson_bytes": 18627,
-      "gzip_bytes": 7423,
-      "feature_count": 9
-    },
-    "se_hallefors": {
-      "topojson_bytes": 11232,
-      "gzip_bytes": 4713,
-      "feature_count": 5
-    },
-    "se_halmstad": {
-      "topojson_bytes": 105584,
-      "gzip_bytes": 34758,
-      "feature_count": 80
-    },
-    "se_haparanda": {
-      "topojson_bytes": 49807,
-      "gzip_bytes": 18865,
-      "feature_count": 6
-    },
-    "se_harjedalen": {
-      "topojson_bytes": 16982,
-      "gzip_bytes": 6810,
-      "feature_count": 8
-    },
-    "se_hudiksvall": {
-      "topojson_bytes": 101657,
-      "gzip_bytes": 35266,
-      "feature_count": 31
-    },
-    "se_jonkoping": {
-      "topojson_bytes": 191193,
-      "gzip_bytes": 60563,
-      "feature_count": 145
-    },
-    "se_kalmar": {
-      "topojson_bytes": 160554,
-      "gzip_bytes": 53398,
-      "feature_count": 83
-    },
-    "se_karlshamn_olofstrom": {
-      "topojson_bytes": 53804,
-      "gzip_bytes": 19465,
-      "feature_count": 26
-    },
-    "se_karlskrona": {
-      "topojson_bytes": 137027,
-      "gzip_bytes": 46763,
-      "feature_count": 58
-    },
-    "se_karlstad": {
-      "topojson_bytes": 150295,
-      "gzip_bytes": 47530,
-      "feature_count": 130
-    },
-    "se_katrineholm_flen": {
-      "topojson_bytes": 50706,
-      "gzip_bytes": 17897,
-      "feature_count": 37
-    },
-    "se_kiruna": {
-      "topojson_bytes": 34341,
-      "gzip_bytes": 12506,
-      "feature_count": 16
-    },
-    "se_kramfors": {
-      "topojson_bytes": 55768,
-      "gzip_bytes": 20557,
-      "feature_count": 13
-    },
-    "se_kristianstad_hassleholm": {
-      "topojson_bytes": 155161,
-      "gzip_bytes": 49359,
-      "feature_count": 111
-    },
-    "se_lidkoping_gotene": {
-      "topojson_bytes": 68937,
-      "gzip_bytes": 23971,
-      "feature_count": 46
-    },
-    "se_linkoping": {
-      "topojson_bytes": 189193,
-      "gzip_bytes": 58007,
-      "feature_count": 169
-    },
-    "se_ljungby": {
-      "topojson_bytes": 34330,
-      "gzip_bytes": 12902,
-      "feature_count": 20
-    },
-    "se_ljusdal": {
-      "topojson_bytes": 25815,
-      "gzip_bytes": 9884,
-      "feature_count": 13
-    },
-    "se_ludvika": {
-      "topojson_bytes": 36667,
-      "gzip_bytes": 13216,
-      "feature_count": 26
-    },
-    "se_lulea": {
-      "topojson_bytes": 288402,
-      "gzip_bytes": 93397,
-      "feature_count": 110
-    },
-    "se_lycksele": {
-      "topojson_bytes": 20450,
-      "gzip_bytes": 8106,
-      "feature_count": 11
-    },
-    "se_malmo_lund": {
-      "topojson_bytes": 694387,
-      "gzip_bytes": 190805,
-      "feature_count": 708
-    },
-    "se_malung_salen": {
-      "topojson_bytes": 11945,
-      "gzip_bytes": 4953,
-      "feature_count": 6
-    },
-    "se_mora": {
-      "topojson_bytes": 34906,
-      "gzip_bytes": 12999,
-      "feature_count": 22
-    },
-    "se_norrkoping": {
-      "topojson_bytes": 284558,
-      "gzip_bytes": 94001,
-      "feature_count": 108
-    },
-    "se_nykoping_oxelosund": {
-      "topojson_bytes": 100735,
-      "gzip_bytes": 34714,
-      "feature_count": 40
-    },
-    "se_orebro": {
-      "topojson_bytes": 210028,
-      "gzip_bytes": 65307,
-      "feature_count": 181
-    },
-    "se_ornskoldsvik": {
-      "topojson_bytes": 84013,
-      "gzip_bytes": 29109,
-      "feature_count": 37
-    },
-    "se_oskarshamn": {
-      "topojson_bytes": 133421,
-      "gzip_bytes": 46887,
-      "feature_count": 31
-    },
-    "se_ostersund": {
-      "topojson_bytes": 100794,
-      "gzip_bytes": 33713,
-      "feature_count": 69
-    },
-    "se_overkalix": {
-      "topojson_bytes": 7086,
-      "gzip_bytes": 3187,
-      "feature_count": 2
-    },
-    "se_overtornea": {
-      "topojson_bytes": 14042,
-      "gzip_bytes": 5797,
-      "feature_count": 4
-    },
-    "se_pajala": {
-      "topojson_bytes": 20128,
-      "gzip_bytes": 8022,
-      "feature_count": 5
-    },
-    "se_skelleftea": {
-      "topojson_bytes": 108371,
-      "gzip_bytes": 35843,
-      "feature_count": 52
-    },
-    "se_skovde_skara": {
-      "topojson_bytes": 148475,
-      "gzip_bytes": 47956,
-      "feature_count": 113
-    },
-    "se_soderhamn": {
-      "topojson_bytes": 56738,
-      "gzip_bytes": 20774,
-      "feature_count": 16
-    },
-    "se_solleftea": {
-      "topojson_bytes": 24021,
-      "gzip_bytes": 8999,
-      "feature_count": 15
-    },
-    "se_stockholm_solna": {
-      "topojson_bytes": 2043165,
-      "gzip_bytes": 567196,
-      "feature_count": 1648
-    },
-    "se_storuman": {
-      "topojson_bytes": 9577,
+      "topojson_bytes": 9468,
       "gzip_bytes": 4112,
       "feature_count": 4
     },
+    "se_arvidsjaur": {
+      "topojson_bytes": 13204,
+      "gzip_bytes": 5458,
+      "feature_count": 4
+    },
+    "se_arvika": {
+      "topojson_bytes": 35126,
+      "gzip_bytes": 13113,
+      "feature_count": 21
+    },
+    "se_asele": {
+      "topojson_bytes": 6603,
+      "gzip_bytes": 2975,
+      "feature_count": 2
+    },
+    "se_avesta_hedemora": {
+      "topojson_bytes": 33774,
+      "gzip_bytes": 12227,
+      "feature_count": 23
+    },
+    "se_bengtsfors_dals_ed": {
+      "topojson_bytes": 25421,
+      "gzip_bytes": 10029,
+      "feature_count": 9
+    },
+    "se_bollnas_ovanaker": {
+      "topojson_bytes": 35367,
+      "gzip_bytes": 12881,
+      "feature_count": 24
+    },
+    "se_boras": {
+      "topojson_bytes": 167308,
+      "gzip_bytes": 53263,
+      "feature_count": 135
+    },
+    "se_dorotea": {
+      "topojson_bytes": 9173,
+      "gzip_bytes": 3924,
+      "feature_count": 2
+    },
+    "se_eskilstuna": {
+      "topojson_bytes": 66116,
+      "gzip_bytes": 21343,
+      "feature_count": 62
+    },
+    "se_fagersta_norberg": {
+      "topojson_bytes": 23671,
+      "gzip_bytes": 9215,
+      "feature_count": 13
+    },
+    "se_falun_borlange": {
+      "topojson_bytes": 120219,
+      "gzip_bytes": 38650,
+      "feature_count": 94
+    },
+    "se_gallivare": {
+      "topojson_bytes": 32796,
+      "gzip_bytes": 12199,
+      "feature_count": 15
+    },
+    "se_gavle": {
+      "topojson_bytes": 143035,
+      "gzip_bytes": 47014,
+      "feature_count": 94
+    },
+    "se_goteborg": {
+      "topojson_bytes": 1002391,
+      "gzip_bytes": 287655,
+      "feature_count": 801
+    },
+    "se_gotland": {
+      "topojson_bytes": 92209,
+      "gzip_bytes": 31621,
+      "feature_count": 38
+    },
+    "se_hagfors": {
+      "topojson_bytes": 18700,
+      "gzip_bytes": 7455,
+      "feature_count": 9
+    },
+    "se_hallefors": {
+      "topojson_bytes": 11286,
+      "gzip_bytes": 4739,
+      "feature_count": 5
+    },
+    "se_halmstad": {
+      "topojson_bytes": 105974,
+      "gzip_bytes": 34927,
+      "feature_count": 80
+    },
+    "se_haparanda": {
+      "topojson_bytes": 49863,
+      "gzip_bytes": 18894,
+      "feature_count": 6
+    },
+    "se_harjedalen": {
+      "topojson_bytes": 17039,
+      "gzip_bytes": 6835,
+      "feature_count": 8
+    },
+    "se_hudiksvall": {
+      "topojson_bytes": 101813,
+      "gzip_bytes": 35339,
+      "feature_count": 31
+    },
+    "se_jonkoping": {
+      "topojson_bytes": 191811,
+      "gzip_bytes": 60827,
+      "feature_count": 145
+    },
+    "se_kalmar": {
+      "topojson_bytes": 160949,
+      "gzip_bytes": 53561,
+      "feature_count": 83
+    },
+    "se_karlshamn_olofstrom": {
+      "topojson_bytes": 53951,
+      "gzip_bytes": 19530,
+      "feature_count": 26
+    },
+    "se_karlskrona": {
+      "topojson_bytes": 137311,
+      "gzip_bytes": 46891,
+      "feature_count": 58
+    },
+    "se_karlstad": {
+      "topojson_bytes": 150851,
+      "gzip_bytes": 47758,
+      "feature_count": 130
+    },
+    "se_katrineholm_flen": {
+      "topojson_bytes": 50906,
+      "gzip_bytes": 17982,
+      "feature_count": 37
+    },
+    "se_kiruna": {
+      "topojson_bytes": 34444,
+      "gzip_bytes": 12556,
+      "feature_count": 16
+    },
+    "se_kramfors": {
+      "topojson_bytes": 55850,
+      "gzip_bytes": 20596,
+      "feature_count": 13
+    },
+    "se_kristianstad_hassleholm": {
+      "topojson_bytes": 155689,
+      "gzip_bytes": 49585,
+      "feature_count": 111
+    },
+    "se_lidkoping_gotene": {
+      "topojson_bytes": 69134,
+      "gzip_bytes": 24057,
+      "feature_count": 46
+    },
+    "se_linkoping": {
+      "topojson_bytes": 189979,
+      "gzip_bytes": 58330,
+      "feature_count": 169
+    },
+    "se_ljungby": {
+      "topojson_bytes": 34453,
+      "gzip_bytes": 12960,
+      "feature_count": 20
+    },
+    "se_ljusdal": {
+      "topojson_bytes": 25906,
+      "gzip_bytes": 9925,
+      "feature_count": 13
+    },
+    "se_ludvika": {
+      "topojson_bytes": 36812,
+      "gzip_bytes": 13284,
+      "feature_count": 26
+    },
+    "se_lulea": {
+      "topojson_bytes": 288820,
+      "gzip_bytes": 93559,
+      "feature_count": 110
+    },
+    "se_lycksele": {
+      "topojson_bytes": 20516,
+      "gzip_bytes": 8136,
+      "feature_count": 11
+    },
+    "se_malmo_lund": {
+      "topojson_bytes": 697398,
+      "gzip_bytes": 191960,
+      "feature_count": 708
+    },
+    "se_malung_salen": {
+      "topojson_bytes": 11998,
+      "gzip_bytes": 4977,
+      "feature_count": 6
+    },
+    "se_mora": {
+      "topojson_bytes": 35032,
+      "gzip_bytes": 13054,
+      "feature_count": 22
+    },
+    "se_norrkoping": {
+      "topojson_bytes": 285079,
+      "gzip_bytes": 94224,
+      "feature_count": 108
+    },
+    "se_nykoping_oxelosund": {
+      "topojson_bytes": 100939,
+      "gzip_bytes": 34805,
+      "feature_count": 40
+    },
+    "se_orebro": {
+      "topojson_bytes": 210830,
+      "gzip_bytes": 65633,
+      "feature_count": 181
+    },
+    "se_ornskoldsvik": {
+      "topojson_bytes": 84201,
+      "gzip_bytes": 29194,
+      "feature_count": 37
+    },
+    "se_oskarshamn": {
+      "topojson_bytes": 133589,
+      "gzip_bytes": 46967,
+      "feature_count": 31
+    },
+    "se_ostersund": {
+      "topojson_bytes": 101090,
+      "gzip_bytes": 33842,
+      "feature_count": 69
+    },
+    "se_overkalix": {
+      "topojson_bytes": 7127,
+      "gzip_bytes": 3208,
+      "feature_count": 2
+    },
+    "se_overtornea": {
+      "topojson_bytes": 14086,
+      "gzip_bytes": 5818,
+      "feature_count": 4
+    },
+    "se_pajala": {
+      "topojson_bytes": 20177,
+      "gzip_bytes": 8047,
+      "feature_count": 5
+    },
+    "se_skelleftea": {
+      "topojson_bytes": 108628,
+      "gzip_bytes": 35958,
+      "feature_count": 52
+    },
+    "se_skovde_skara": {
+      "topojson_bytes": 148942,
+      "gzip_bytes": 48140,
+      "feature_count": 113
+    },
+    "se_soderhamn": {
+      "topojson_bytes": 56845,
+      "gzip_bytes": 20829,
+      "feature_count": 16
+    },
+    "se_solleftea": {
+      "topojson_bytes": 24113,
+      "gzip_bytes": 9043,
+      "feature_count": 15
+    },
+    "se_stockholm_solna": {
+      "topojson_bytes": 2050552,
+      "gzip_bytes": 569961,
+      "feature_count": 1648
+    },
+    "se_storuman": {
+      "topojson_bytes": 9623,
+      "gzip_bytes": 4135,
+      "feature_count": 4
+    },
     "se_stromstad": {
-      "topojson_bytes": 110103,
-      "gzip_bytes": 39865,
+      "topojson_bytes": 110183,
+      "gzip_bytes": 39902,
       "feature_count": 14
     },
     "se_stromsund": {
-      "topojson_bytes": 19541,
-      "gzip_bytes": 7684,
+      "topojson_bytes": 19601,
+      "gzip_bytes": 7712,
       "feature_count": 8
     },
     "se_sundsvall": {
-      "topojson_bytes": 145162,
-      "gzip_bytes": 47281,
+      "topojson_bytes": 145571,
+      "gzip_bytes": 47466,
       "feature_count": 92
     },
     "se_torsby": {
-      "topojson_bytes": 30736,
-      "gzip_bytes": 11509,
+      "topojson_bytes": 30822,
+      "gzip_bytes": 11546,
       "feature_count": 18
     },
     "se_umea": {
-      "topojson_bytes": 190494,
-      "gzip_bytes": 62437,
+      "topojson_bytes": 190925,
+      "gzip_bytes": 62621,
       "feature_count": 91
     },
     "se_vansbro": {
-      "topojson_bytes": 10423,
-      "gzip_bytes": 4459,
+      "topojson_bytes": 10472,
+      "gzip_bytes": 4484,
       "feature_count": 4
     },
     "se_varnamo_gislaved": {
-      "topojson_bytes": 76259,
-      "gzip_bytes": 26241,
+      "topojson_bytes": 76494,
+      "gzip_bytes": 26343,
       "feature_count": 47
     },
     "se_vasteras": {
-      "topojson_bytes": 154624,
-      "gzip_bytes": 47902,
+      "topojson_bytes": 155333,
+      "gzip_bytes": 48214,
       "feature_count": 146
     },
     "se_vastervik": {
-      "topojson_bytes": 129260,
-      "gzip_bytes": 45915,
+      "topojson_bytes": 129401,
+      "gzip_bytes": 45983,
       "feature_count": 25
     },
     "se_vaxjo": {
-      "topojson_bytes": 122692,
-      "gzip_bytes": 40449,
+      "topojson_bytes": 123084,
+      "gzip_bytes": 40616,
       "feature_count": 86
     },
     "se_vetlanda": {
-      "topojson_bytes": 54036,
-      "gzip_bytes": 19591,
+      "topojson_bytes": 54148,
+      "gzip_bytes": 19643,
       "feature_count": 24
     },
     "se_vilhelmina": {
-      "topojson_bytes": 10975,
-      "gzip_bytes": 4637,
+      "topojson_bytes": 11027,
+      "gzip_bytes": 4663,
       "feature_count": 5
     },
     "se_vimmerby_hultsfred": {
-      "topojson_bytes": 38274,
-      "gzip_bytes": 14357,
+      "topojson_bytes": 38386,
+      "gzip_bytes": 14407,
       "feature_count": 19
     },
     "seinajoki": {

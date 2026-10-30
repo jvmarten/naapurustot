@@ -837,7 +837,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
             </Section>
             <Section title={t('layers.services')}>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {seItems(['walkability', 'transit_access', 'school_density', 'school_grades_se', 'healthcare_access', 'grocery_access', 'restaurant_density', 'cycling_infra'])}
+                {seItems(['walkability', 'transit_access', 'transit_reachability', 'school_density', 'school_grades_se', 'healthcare_access', 'grocery_access', 'restaurant_density', 'cycling_infra'])}
               </div>
             </Section>
             <Section title={t('layers.voting')}>

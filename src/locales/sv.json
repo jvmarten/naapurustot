@@ -1466,6 +1466,7 @@
   "note.se_accidents": "Sverige: polisrapporterade vägtrafikolyckor med personskada efter olyckskommun, per 1 000 invånare och år, 2022–2024 (Trafikanalys). Finlands siffra räknar även egendomsskador.",
   "note.se_noise": "Sverige: vägtrafikbullrets Lden-zoner från EU:s bullerkartläggning (EEA, omgång 4): de mest trafikerade vägarna och alla gator i de största tätortsområdena. Beräknat som för Finland, 40 dB utanför zonerna.",
   "note.se_light": "Sverige: nattljusstrålning från NASA VIIRS Black Marble, årssammanställning 2024, medelvärde per DeSO. Det fina rutnätet täcker bara Finland.",
+  "note.se_transit_reachability": "Sverige: genomsnittlig restid dörr till dörr med kollektivtrafik till regionens centrum (dess mest trafikerade station), avresa varje minut 8–9 en vardagsmorgon, beräknad på Samtrafikens nationella tidtabell (GTFS Sweden 3). Poäng som i Finland (10 min = 100, 90 min = 0), viktat efter invånare. Finlands värde mäts till fyra centrum i Helsingforsregionen.",
   "note.se_new_buildings": "Sverige: andel bostadsbyggnader färdigställda 2021 eller senare (SCB, DeSO). Finlands siffra räknar byggnader under uppförande.",
   "note.se_construction": "Sverige: färdigställda lägenheter i nybyggda hus 2020–2025 per 1 000 invånare i kommunen (SCB), som för Finland.",
   "note.se_projection": "Sverige: kommunens framskrivna befolkningsförändring 2022–2040 (SCB:s befolkningsframskrivning 2022, den senaste per kommun; senare gäller bara riket).",

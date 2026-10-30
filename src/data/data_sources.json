@@ -155,6 +155,11 @@
       "url": "https://www.trafa.se/vagtrafik/vagtrafikskador/",
       "license": "Fri att använda, källa Trafikanalys"
     },
+    "samtrafiken": {
+      "name": "Samtrafiken (GTFS Sweden 3, via Trafiklab)",
+      "url": "https://www.trafiklab.se/api/gtfs-datasets/gtfs-sweden/",
+      "license": "CC0 1.0"
+    },
     "eea": {
       "name": "European Environment Agency (EEA)",
       "url": "https://www.eea.europa.eu/en/topics/in-depth/noise",
@@ -1235,6 +1240,14 @@
           "granularity": "deso",
           "is_proxy": false,
           "note": "note.se_light"
+        },
+        "transit_reachability_score": {
+          "source": "GTFS Sweden 3 (Samtrafiken via Trafiklab), weekday 2026-11-10, routed door to door to each FA25 region's centre; SCB 1 km population grid 2025",
+          "publisher": "samtrafiken",
+          "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": false,
+          "note": "note.se_transit_reachability"
         },
         "crime_index_change_pct": {
           "source": "Brå (Anmälda brott, totalt; kommun)",

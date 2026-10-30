@@ -1409,6 +1409,9 @@ const SE_LAYERS: ReadonlySet<LayerId> = new Set<LayerId>([
   // SCB's completed dwellings 2020– per 1,000 residents and its projected population
   // change to 2040, per kommun: Finland's measures and level, so Finland's stops.
   'construction_activity', 'population_projection',
+  // Finland's score (mean rush-hour door-to-door minutes, 10 → 100, 90 → 0), routed on
+  // GTFS Sweden 3 to each region's centre rather than read from Helsinki's matrix.
+  'transit_reachability',
   // Scored against Sweden's own areas (computeQualityIndices), from the factors it has.
   'quality_index',
 ]);
