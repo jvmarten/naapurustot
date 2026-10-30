@@ -165,6 +165,12 @@ export interface LayerConfig {
    *  distribution (p2…p98): SCB's definitions differ, so Finland's stops can leave a
    *  Swedish map in two colours. Used when the map shows Sweden only (`layerForCountry`). */
   stopsSe?: number[];
+  /** Label for a Sweden-only map, where the layer's Swedish source measures something
+   *  close to but not the same as Finland's (see `crossCountryNoteKey`). */
+  labelKeySe?: string;
+  /** Shown under the legend whenever Sweden is on the map: the layer joins two
+   *  countries' related but differently defined measures on one scale, and says so. */
+  crossCountryNoteKey?: string;
   /** Format a raw value for display in tooltips, legends, and panels */
   format: (v: number) => string;
   /**
@@ -405,10 +411,15 @@ export const LAYERS: LayerConfig[] = [
   // the 2020 within-city distribution per municipality by the StatFin vaerak 159t share
   // change — open postal-code language data exists only for 2020. The estimate disclaimer
   // and method are in metric_explanation.foreign_language_est_pct + note.foreign_language_estimate.
+  // foreign_share_pct is this estimate in Finland and SCB's foreign background in Sweden
+  // (computeQuickWinMetrics), which keeps no language statistics: related, not equal,
+  // so one scale and a note on the legend rather than a pretend-identical number.
   {
     id: 'foreign_lang',
     labelKey: 'layer.foreign_lang',
-    property: 'foreign_language_est_pct',
+    labelKeySe: 'layer.foreign_background',
+    crossCountryNoteKey: 'note.foreign_cross_country',
+    property: 'foreign_share_pct',
     unit: '%',
     colors: ['#f0f0f0', '#d4b9da', '#c994c7', '#df65b0', '#e7298a', '#ce1256', '#980043', '#67001f'],
     stops: [2, 5, 10, 15, 20, 25, 35, 50],
@@ -1394,6 +1405,9 @@ const SE_LAYERS: ReadonlySet<LayerId> = new Set<LayerId>([
   'transit_access', 'school_density', 'healthcare_access', 'restaurant_density',
   'grocery_access', 'cycling_infra', 'air_quality', 'walkability', 'water_proximity',
   'ev_charging_density', 'tree_canopy',
+  // Foreign-language share in Finland, foreign background in Sweden: one scale, with a
+  // note on the legend (crossCountryNoteKey).
+  'foreign_lang',
   // Employed share of 20–64-year-olds in both (SCB's definition, Paavo's counts).
   'employment_rate',
   // Brå's municipal figures, under Swedish counting rules: Sweden's own stops. Their
@@ -1426,9 +1440,10 @@ export function layerInCountry(id: LayerId, country: CountryId | null): boolean 
   return true;
 }
 
-/** The layer as drawn for a one-country map: Sweden's stops where it has its own. */
+/** The layer as drawn for a one-country map: Sweden's stops and label where it has its own. */
 export function layerForCountry(layer: LayerConfig, country: CountryId | null): LayerConfig {
-  return country === 'se' && layer.stopsSe ? { ...layer, stops: layer.stopsSe } : layer;
+  if (country !== 'se' || !(layer.stopsSe || layer.labelKeySe)) return layer;
+  return { ...layer, stops: layer.stopsSe ?? layer.stops, labelKey: layer.labelKeySe ?? layer.labelKey };
 }
 
 /** The layer a view of `country` opens on when the current one has no data there. */

@@ -57,7 +57,7 @@ type LayerGroup = {
 const LAYER_GROUPS: LayerGroup[] = [
   { labelKey: 'layers.quality', ids: ['transit_access', 'transit_reachability', 'air_quality', 'walkability'] },
   { labelKey: 'layers.trends', ids: ['income_change', 'population_change', 'population_projection', 'unemployment_change', 'property_price_change', 'house_price_change_se', 'crime_index_change'] },
-  { labelKey: 'layers.demographics', ids: ['avg_age', 'population_density', 'child_ratio', 'youth_ratio', 'elderly_ratio', 'gender_ratio', 'student_share', 'foreign_lang', 'foreign_lang_municipal', 'foreign_background', 'pensioners', 'pensioners_se', 'single_person_hh', 'single_parent_hh', 'families_with_children', 'avg_household_size'] },
+  { labelKey: 'layers.demographics', ids: ['avg_age', 'population_density', 'child_ratio', 'youth_ratio', 'elderly_ratio', 'gender_ratio', 'student_share', 'foreign_lang', 'foreign_lang_municipal', 'pensioners', 'pensioners_se', 'single_person_hh', 'single_parent_hh', 'families_with_children', 'avg_household_size'] },
   { labelKey: 'layers.economy', ids: ['median_income', 'disposable_income', 'economic_standard', 'low_income', 'low_economic_standard', 'job_self_sufficiency', 'unemployment', 'employment_rate', 'education', 'property_price', 'house_price_se', 'tech_sector_jobs', 'healthcare_workers', 'manufacturing_jobs', 'public_sector_jobs', 'service_sector_jobs'] },
   { labelKey: 'layers.housing', ids: ['ownership', 'rental', 'apt_size', 'living_space', 'detached_houses', 'new_construction', 'new_buildings_se', 'construction_activity', 'active_plan_count', 'planned_homes_se', 'building_age', 'rental_price', 'rent_se', 'price_to_rent'] },
   { labelKey: 'layers.services', ids: ['restaurant_density', 'grocery_access', 'daycare_density', 'school_density', 'healthcare_access', 'school_quality', 'school_grades_se', 'sports_facilities'] },
@@ -196,7 +196,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
         if (isCollapsed) return [];
         return group.ids.filter((id) => {
           const layer = LAYER_MAP.get(id);
-          return layer ? labelMatches(layer.labelKey, searchQuery) && layerInCountry(id, country) : false;
+          return layer ? labelMatches(country === 'se' ? layer.labelKeySe ?? layer.labelKey : layer.labelKey, searchQuery) && layerInCountry(id, country) : false;
         });
       }),
     [collapsed, searchQuery, country],
@@ -418,7 +418,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
                           backgroundColor: isActive ? layer.colors[5] || layer.colors[3] : '#94a3b8',
                         }}
                       />
-                      <span className="truncate min-w-0">{t(layer.labelKey)}</span>
+                      <span className="truncate min-w-0">{t(country === 'se' ? layer.labelKeySe ?? layer.labelKey : layer.labelKey)}</span>
                       <LayerSignals property={layer.property} country={country ?? 'fi'} />
                     </div>
                   </button>

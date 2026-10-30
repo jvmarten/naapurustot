@@ -766,6 +766,7 @@
   "note.cycling_density": "Räknar antalet cykelvägssegment i OpenStreetMap per kvadratkilometer, inte deras längd. Siffran speglar delvis hur fint lederna har delats upp på kartan.",
   "note.fi_employment": "Sysselsatta / invånare 20–64 år (Paavo). Paavo delar inte upp de sysselsatta efter ålder, så de som arbetar under 20 eller över 64 år räknas med och siffran blir cirka 2–3 procentenheter för hög. Där den skulle överstiga 100 % visas inget värde.",
   "note.flood_risk": "SYKE:s översvämningskartor (1/100a, vattendrag + hav). Översvämningskartor finns bara för ca 119 betydande översvämningsriskområden; övriga områden är okartlagda (ingen data). Källa: Syke och NTM-centralerna.",
+  "note.foreign_cross_country": "Sverige: utländsk bakgrund (född utomlands eller båda föräldrarna). Sverige för ingen språkstatistik – närliggande, men inte samma mått.",
   "note.foreign_language_estimate": "Uppskattning efter 2020: den verkliga fördelningen 2020 skalad med kommunens förändring i andelen med främmande språk. År 2020 är verkliga data.",
   "note.foreign_language_municipal": "Kommunal uppgift (Statistikcentralen vaerak 159t) tilldelad postnummerområden; lika i hela kommunen.",
   "note.health_index": "Sjukfrekvensindex på kommunnivå (THL/FPA, Sotkanet, 2023) tilldelat varje kommuns postnummerområden. En uppskattning på postnummernivå.",

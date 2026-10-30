@@ -130,6 +130,9 @@ export interface NeighborhoodProperties {
    *  distribution scaled by the municipal share change (see foreign_language_history
    *  for the full series). Optional (absent in legacy fixtures). */
   foreign_language_est_pct?: number | null;
+  /** The foreign_lang layer's value: foreign_language_est_pct in Finland, SCB's
+   *  foreign_background_pct in Sweden (no language statistics there). Client-derived. */
+  foreign_share_pct?: number | null;
   quality_index: number | null;
   /** The composite as presented under the active display scale (see qualityScale.ts).
    *  Equals quality_index in the default 'raw' mode. This is what the map, panel and
@@ -394,6 +397,10 @@ export function computeQuickWinMetrics(features: GeoJSON.Feature[]): void {
   for (const f of features) {
     const p = f.properties as NeighborhoodProperties;
     const pop = p.he_vakiy;
+
+    // One layer for both countries' nearest measures (see foreign_share_pct).
+    const foreign = countryOfId(p.pno) === 'se' ? p.foreign_background_pct : p.foreign_language_est_pct;
+    if (foreign != null) p.foreign_share_pct = foreign;
 
     // Youth ratio (18-29 year olds as % of population)
     const he_18_19 = p.he_18_19 as number | null;
@@ -856,6 +863,7 @@ const METRIC_DEFS: MetricDef[] = [
   { property: 'foreign_language_municipal_pct', weight: 'population', precision: 1, pctOfPop: true },
   // Postal foreign-language estimate (is_proxy); same population-weighted treatment.
   { property: 'foreign_language_est_pct', weight: 'population', precision: 1, pctOfPop: true },
+  { property: 'foreign_share_pct', weight: 'population', precision: 1, pctOfPop: true },
   { property: 'single_person_hh_pct', weight: 'household', precision: 1, pctOfHh: true },
 
   // Mobility
