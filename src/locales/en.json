@@ -1467,6 +1467,8 @@
   "note.se_noise": "Sweden: road noise Lden zones from the EU noise mapping (EEA, round 4): the busiest roads and every street in the largest urban areas. Computed as for Finland, 40 dB outside the zones.",
   "note.se_light": "Sweden: NASA VIIRS Black Marble night-time radiance, 2024 annual composite, averaged over each DeSO. The fine grid covers Finland only.",
   "note.se_new_buildings": "Sweden: share of residential buildings completed in 2021 or later (SCB, DeSO). Finland’s figure counts buildings under construction.",
+  "note.se_construction": "Sweden: dwellings completed in new buildings 2020–2025 per 1,000 residents of the municipality (SCB), as for Finland.",
+  "note.se_projection": "Sweden: the municipality’s projected population change 2022–2040 (SCB projection 2022, its latest by municipality; later ones are national only).",
   "note.se_jobs": "Sweden: jobs located in the municipality per 100 employed residents (SCB 2024). The municipality’s figure; Finland’s is per postal area.",
   "note.se_avg_age": "Sweden: mean age of the municipality’s population (SCB 2025). DeSO areas are published only in five-year age bands.",
   "note.se_sickness": "Sweden: Försäkringskassan’s ohälsotal, days of sickness, rehabilitation and disability benefit per resident aged 16–64 per year, per municipality (Kolada). Not Kela’s age-standardised morbidity index.",

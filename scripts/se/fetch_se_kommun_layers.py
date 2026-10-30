@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Municipal figures for five Swedish layers -> scripts/se/kommun_layers.json.
+"""Municipal figures for seven Swedish layers -> scripts/se/kommun_layers.json.
 
 None of these is published below the municipality (rent also per city district in
 Stockholm and Malmö), so each DeSO carries its kommun's (or district's) figure and the
@@ -29,6 +29,15 @@ registry flags them is_proxy, as Finland's municipal figures are.
                sum of the kommun's DeSOs). Trafikanalys prints "–" for nothing to report;
                every year's kommuner add up to its national total with "–" read as 0,
                which the script checks.
+  construction SCB TAB2538, completed dwellings in newly constructed buildings (both
+               building types) in CONSTRUCTION_YEARS per 1,000 residents (SCB 2025, as for
+               accidents) — Finland's construction_activity is the dwellings completed
+               2020 onward per 1,000 residents of the municipality. Every year's kommuner
+               add up to SCB's national total, which the script checks.
+  projection   SCB TAB6300, Befolkningsframskrivning 2022: projected population from
+               PROJECTION_BASE to PROJECTION_TARGET per kommun, as Finland's
+               population_projection_pct (Tilastokeskus 2024, base year to 2040). 2022 is
+               SCB's latest regional projection: its 2023-2025 editions are national only.
 
 Usage: python scripts/se/fetch_se_kommun_layers.py
 """
@@ -55,6 +64,8 @@ RENT_YEAR = "2026"
 HOUSE_YEAR = "2025"
 HOUSE_CHANGE_FROM = "2020"
 ACCIDENT_YEARS = ["2022", "2023", "2024"]
+CONSTRUCTION_YEARS = [str(y) for y in range(2020, 2026)]
+PROJECTION_BASE, PROJECTION_TARGET = "2022", "2040"
 
 # SCB TAB4549 district code -> the district name in deso_district.json.
 RENT_DISTRICTS = {
@@ -179,6 +190,33 @@ def accidents(kommuner: dict, population: dict[str, int]) -> dict:
     return {k: round(sum(v.values()) / len(ACCIDENT_YEARS) / population[k] * 1000, 2) for k, v in per.items()}
 
 
+def construction(kommuner: dict, population: dict[str, int]) -> dict:
+    types = ["FLERBO", "SMÅHUS"]
+    v = scb("TAB2538", {"Region": ["00", *kommuner], "Hustyp": types, "ContentsCode": ["BO0101A5"],
+                        "Tid": CONSTRUCTION_YEARS})
+    if any(x is None for x in v.values()):
+        raise SystemExit("construction: SCB left a cell empty")
+    for y in CONSTRUCTION_YEARS:
+        nat = sum(v[("00", h, "BO0101A5", y)] for h in types)
+        got = sum(v[(k, h, "BO0101A5", y)] for k in kommuner for h in types)
+        if got != nat:
+            raise SystemExit(f"construction {y}: kommuner sum to {got}, national total {nat}")
+    built = {k: sum(v[(k, h, "BO0101A5", y)] for h in types for y in CONSTRUCTION_YEARS) for k in kommuner}
+    return {k: round(n / population[k] * 1000, 1) for k, n in built.items()}
+
+
+def projection(kommuner: dict) -> dict:
+    v = scb("TAB6300", {"Region": list(kommuner), "ContentsCode": ["000006N0"],
+                        "Tid": [PROJECTION_BASE, PROJECTION_TARGET]})
+    out = {}
+    for k in kommuner:
+        base, target = v[(k, "000006N0", PROJECTION_BASE)], v[(k, "000006N0", PROJECTION_TARGET)]
+        if not base or target is None:
+            raise SystemExit(f"projection: {k} has no {PROJECTION_BASE}/{PROJECTION_TARGET} population")
+        out[k] = round((target - base) / base * 100, 1)
+    return out
+
+
 def main() -> None:
     kommuner = json.loads((HERE / "kommuner.json").read_text())
     fc = json.loads((ROOT / "public" / "data" / "se_deso.geojson").read_text())
@@ -191,9 +229,12 @@ def main() -> None:
         "house_price_change": {"years": f"{HOUSE_CHANGE_FROM}–{HOUSE_YEAR}", **house_price_change(kommuner)},
         "broadband": {"year": 2025, "kommuner": broadband(kommuner)},
         "accidents": {"years": "2022–2024", "kommuner": accidents(kommuner, population)},
+        "construction": {"years": f"{CONSTRUCTION_YEARS[0]}–{CONSTRUCTION_YEARS[-1]}",
+                         "kommuner": construction(kommuner, population)},
+        "projection": {"years": f"{PROJECTION_BASE}–{PROJECTION_TARGET}", "kommuner": projection(kommuner)},
     }
     OUT.write_text(json.dumps(out, ensure_ascii=False, indent=1, sort_keys=True) + "\n")
-    for key in ("house_price", "house_price_change", "broadband", "accidents"):
+    for key in ("house_price", "house_price_change", "broadband", "accidents", "construction", "projection"):
         vals = out[key]["kommuner"]
         print(f"{key}: {sum(v is not None for v in vals.values())} of {len(vals)} kommuner", file=sys.stderr)
     print(f"rent: {sum(v is not None for v in out['rent']['kommuner'].values())} kommuner, "

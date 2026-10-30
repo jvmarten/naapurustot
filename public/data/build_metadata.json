@@ -1,6 +1,6 @@
 {
-  "generated": "2026-10-30T11:19:43.417Z",
-  "source_hash": "fc2303bd9bd1758c",
+  "generated": "2026-10-30T11:34:12.703Z",
+  "source_hash": "6ce7da5d4760c610",
   "rows_total": 3018,
   "metrics": {
     "active_plan_count": {
@@ -696,6 +696,14 @@
           "row_count": 6130,
           "coverage_pct": 99.5
         },
+        "construction_activity": {
+          "source": "SCB (Färdigställda lägenheter i nybyggda hus, per kommun)",
+          "vintage": "2020–2025",
+          "granularity": "deso",
+          "is_proxy": true,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
         "crime_index": {
           "source": "Brå (Anmälda brott, totalt; kommun, storstädernas stadsområden)",
           "vintage": 2025,
@@ -989,6 +997,14 @@
           "vintage": 2025,
           "granularity": "deso",
           "is_proxy": false,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
+        "population_projection_pct": {
+          "source": "SCB (Befolkningsframskrivning 2022, per kommun)",
+          "vintage": 2022,
+          "granularity": "deso",
+          "is_proxy": true,
           "row_count": 6160,
           "coverage_pct": 100
         },

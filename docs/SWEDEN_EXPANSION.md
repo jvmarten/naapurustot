@@ -389,14 +389,17 @@ is 0, so scores did not move.
 
 ## 14. Trend layers (2026-10-30)
 
-Sweden went from 56 to 58 layers, both over Finland's 2020–2025 window and both per kommun
-(`is_proxy`).
+Sweden went from 56 to 60 layers, all per kommun (`is_proxy`) and all on Finland's windows.
 
 | Layer | Source | Notes |
 |---|---|---|
 | Crime change (`crime_index_change_pct`) | Brå, all reported offences per 100,000, 2020 → 2025 | Finland's figure is its municipal rate's change over the same years, so Finland's key and stops (a relative change, whatever the counting rules). Per kommun even where the level is per city district: Järva and Norra innerstaden did not exist before 2024. `fetch_se_crime.py`, written by `crime_props` |
 | House price change (`house_price_change_se`) | SCB TAB1169, mean purchase price of permanent detached houses sold, 2020 → 2025 | Sweden-only, as `house_price_se` is. SCB prints every kommun however few houses sold (fewest: Dorotea, 11 then 8), so the counts are kept beside it in `kommun_layers.json`. Median +18.5 %, one fall (Dorotea −26 %). `fetch_se_kommun_layers.py`, written by `later_props` |
 
-Neither has a region figure in the all-regions view yet: Finland's change there is derived
-from the aggregated history arrays, and Sweden carries none for these two.
+| Construction activity (`construction_activity`) | SCB TAB2538, completed dwellings in newly constructed buildings, 2020–2025, per 1,000 residents (SCB 2025) | Finland's measure (dwellings completed 2020– per 1,000 residents of the municipality), so Finland's key and stops; the two distributions are close (medians 14.2 and 12.1). The kommuner add up to SCB's national total every year, which the script checks |
+| Population projection (`population_projection_pct`) | SCB TAB6300, Befolkningsframskrivning 2022, population 2022 → 2040 | Finland's is Tilastokeskus 2024, base year → 2040. 2022 is SCB's latest projection by kommun: the 2023–2025 editions are national only, so the vintage is two years older than Finland's. Finland's key and stops (−18.5 to +22.7 %) |
+
+Both crime change and house price change lack a region figure in the all-regions view:
+Finland's change there is derived from the aggregated history arrays, and Sweden carries
+none for these two.
 

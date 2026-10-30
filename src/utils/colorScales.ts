@@ -1406,6 +1406,9 @@ const SE_LAYERS: ReadonlySet<LayerId> = new Set<LayerId>([
   'noise_pollution', 'light_pollution',
   // SCB per kommun (Finland's are per postal area): Sweden's own stops.
   'job_self_sufficiency', 'avg_age',
+  // SCB's completed dwellings 2020– per 1,000 residents and its projected population
+  // change to 2040, per kommun: Finland's measures and level, so Finland's stops.
+  'construction_activity', 'population_projection',
   // Scored against Sweden's own areas (computeQualityIndices), from the factors it has.
   'quality_index',
 ]);

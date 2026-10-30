@@ -949,7 +949,8 @@ SE_COUNTED_DENSITIES = [
 # carries its kommun's figure, so these are proxies on DeSO geometry, as Finland's are on postal.
 SE_MUNICIPAL_PROXIES = ["violent_crime_rate", "property_crime_rate", "crime_index", "crime_index_change_pct",
                         "rent_sqm_month_sek", "house_price_sek", "house_price_change_pct", "broadband_coverage_pct",
-                        "traffic_accident_rate", "job_self_sufficiency", "he_kika", "sickness_days",
+                        "traffic_accident_rate", "construction_activity", "population_projection_pct",
+                        "job_self_sufficiency", "he_kika", "sickness_days",
                         "pensioners_6574_pct", "planned_homes_per_1000"]
 
 

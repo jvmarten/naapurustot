@@ -18,7 +18,8 @@ Inputs (all produced by the fetch scripts in this directory):
   crime_kommun.json             fetch_se_crime.py (Brå, per municipality and city district)
   deso_district.json            fetch_se_districts.py (DeSO -> district in the three largest cities)
   election_deso.json            fetch_se_election.py (Valmyndigheten, riksdagsvalet 2026)
-  kommun_layers.json            fetch_se_kommun_layers.py (rent, house prices and their change, broadband, road accidents)
+  kommun_layers.json            fetch_se_kommun_layers.py (rent, house prices and their change, broadband, road accidents,
+                                completed dwellings, population projection)
   noise_deso.json               fetch_se_noise.py (EEA road-noise Lden contours)
   extra_layers.json             fetch_se_extra.py (new buildings, jobs, age, ohälsotal, pensioners, plans)
   school_grades_deso.json       fetch_se_school_grades.py (Skolverket upper-secondary grade points)
@@ -290,11 +291,13 @@ def election_props(election: dict, deso: str) -> dict:
 
 
 LATER_KEYS = ["rent_sqm_month_sek", "house_price_sek", "house_price_change_pct", "broadband_coverage_pct",
-              "traffic_accident_rate", "noise_pollution"]
+              "traffic_accident_rate", "construction_activity", "population_projection_pct",
+              "noise_pollution"]
 
 
 def later_props(layers: dict, noise: dict, district_of: dict[str, str], deso: str) -> dict:
-    """Rent, house prices and their 2020– change, broadband and accidents per kommun (rent per city district in
+    """Rent, house prices and their 2020– change, broadband, accidents, completed dwellings and
+    the projected population per kommun (rent per city district in
     Stockholm and Malmö) and road noise per DeSO. Written after election_props;
     apply_se_later.py patches the committed file with the same function."""
     kommun = deso[:4]
@@ -305,6 +308,8 @@ def later_props(layers: dict, noise: dict, district_of: dict[str, str], deso: st
         "house_price_change_pct": layers["house_price_change"]["kommuner"].get(kommun),
         "broadband_coverage_pct": layers["broadband"]["kommuner"].get(kommun),
         "traffic_accident_rate": layers["accidents"]["kommuner"].get(kommun),
+        "construction_activity": layers["construction"]["kommuner"].get(kommun),
+        "population_projection_pct": layers["projection"]["kommuner"].get(kommun),
         "noise_pollution": noise["values"].get(deso),
     }
 
