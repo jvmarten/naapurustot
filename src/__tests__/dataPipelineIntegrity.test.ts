@@ -5,6 +5,7 @@ import { filterSmallIslands } from '../utils/geometryFilter';
 import { computeMatchingPnos } from '../utils/filterUtils';
 import { findSimilarNeighborhoods } from '../utils/similarity';
 import type { NeighborhoodProperties } from '../utils/metrics';
+import { ages2064 } from './ages2064';
 
 /**
  * Integration test: validates the full data processing pipeline
@@ -40,7 +41,7 @@ function buildRealisticDataset(): GeoJSON.Feature[] {
       he_vakiy: 8000, hr_mtu: 45000, hr_ktu: 50000,
       unemployment_rate: 3, higher_education_rate: 70,
       ko_ika18y: 6500, ko_yl_kork: 3000, ko_al_kork: 1500,
-      pt_tyott: 200, pt_vakiy: 7000, pt_tyoll: 5800,
+      pt_tyott: 200, pt_vakiy: 7000, ...ages2064(7000), pt_tyoll: 5800,
       te_omis_as: 1200, te_taly: 4000, te_vuok_as: 2500,
       he_0_2: 200, he_3_6: 250, pinta_ala: 1_500_000,
       ra_pt_as: 50, ra_asunn: 3000,
@@ -60,7 +61,7 @@ function buildRealisticDataset(): GeoJSON.Feature[] {
       he_vakiy: 12000, hr_mtu: 22000, hr_ktu: 24000,
       unemployment_rate: 12, higher_education_rate: 25,
       ko_ika18y: 9000, ko_yl_kork: 1000, ko_al_kork: 1200,
-      pt_tyott: 1200, pt_vakiy: 10000, pt_tyoll: 7000,
+      pt_tyott: 1200, pt_vakiy: 10000, ...ages2064(10000), pt_tyoll: 7000,
       te_omis_as: 2000, te_taly: 5500, te_vuok_as: 3000,
       he_0_2: 600, he_3_6: 700, pinta_ala: 3_000_000,
       ra_pt_as: 200, ra_asunn: 4500,
@@ -80,7 +81,7 @@ function buildRealisticDataset(): GeoJSON.Feature[] {
       he_vakiy: 10000, hr_mtu: 38000, hr_ktu: 42000,
       unemployment_rate: 5, higher_education_rate: 55,
       ko_ika18y: 8000, ko_yl_kork: 2500, ko_al_kork: 1900,
-      pt_tyott: 400, pt_vakiy: 8500, pt_tyoll: 7200,
+      pt_tyott: 400, pt_vakiy: 8500, ...ages2064(8500), pt_tyoll: 7200,
       te_omis_as: 3000, te_taly: 4500, te_vuok_as: 1200,
       he_0_2: 400, he_3_6: 450, pinta_ala: 4_000_000,
       ra_pt_as: 500, ra_asunn: 3500,

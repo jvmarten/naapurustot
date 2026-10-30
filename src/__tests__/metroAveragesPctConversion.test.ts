@@ -10,6 +10,7 @@
 import { describe, it, expect } from 'vitest';
 import { computeMetroAverages } from '../utils/metrics';
 import type { NeighborhoodProperties } from '../utils/metrics';
+import { ages2064 } from './ages2064';
 
 function makeFeature(props: Partial<NeighborhoodProperties>): GeoJSON.Feature {
   return {
@@ -46,13 +47,13 @@ describe('computeMetroAverages — all pctOfPop metrics', () => {
     expect(avg.elderly_ratio_pct).toBe(14.0);
   });
 
-  it('employment_rate is computed from raw counts (pt_tyoll / pt_vakiy)', () => {
+  it('employment_rate is computed from raw counts (pt_tyoll / residents 20–64)', () => {
     // Area A: working-age 2000, employed 1800 → 90%
     // Area B: working-age 1000, employed 500 → 50%
     // Total: 2300 / 3000 = 76.7%
     const features = [
-      makeFeature({ he_vakiy: 3000, pt_vakiy: 2000, pt_tyoll: 1800 }),
-      makeFeature({ he_vakiy: 1000, pt_vakiy: 1000, pt_tyoll: 500 }),
+      makeFeature({ he_vakiy: 3000, pt_vakiy: 2000, ...ages2064(2000), pt_tyoll: 1800 }),
+      makeFeature({ he_vakiy: 1000, pt_vakiy: 1000, ...ages2064(1000), pt_tyoll: 500 }),
     ];
     const avg = computeMetroAverages(features);
     expect(avg.employment_rate).toBe(76.7);

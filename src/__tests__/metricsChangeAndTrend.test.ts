@@ -13,6 +13,7 @@ import {
   computeMetroAverages,
 } from '../utils/metrics';
 import type { NeighborhoodProperties } from '../utils/metrics';
+import { ages2064 } from './ages2064';
 
 describe('parseTrendSeries — validation', () => {
   it('parses valid JSON array of [year, value] pairs', () => {
@@ -222,7 +223,7 @@ describe('computeQuickWinMetrics — edge cases', () => {
     const features = [
       makeFeature({
         pt_tyoll: 3000,
-        pt_vakiy: 4000,
+        pt_vakiy: 4000, ...ages2064(4000),
       }),
     ];
     computeQuickWinMetrics(features);
@@ -267,7 +268,7 @@ describe('computeMetroAverages — special ratio metrics', () => {
         namn: 'Test',
         he_vakiy: 5000,
         pt_tyott: 300,
-        pt_vakiy: 4000,
+        pt_vakiy: 4000, ...ages2064(4000),
         ko_ika18y: 4000,
         ko_yl_kork: 800,
         ko_al_kork: 600,

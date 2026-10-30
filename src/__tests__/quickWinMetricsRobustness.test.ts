@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { computeQuickWinMetrics } from '../utils/metrics';
 import type { NeighborhoodProperties } from '../utils/metrics';
+import { ages2064 } from './ages2064';
 
 function makeFeature(overrides: Partial<NeighborhoodProperties>): GeoJSON.Feature {
   return {
@@ -71,7 +72,7 @@ describe('computeQuickWinMetrics', () => {
   });
 
   it('computes employment_rate correctly', () => {
-    const f = makeFeature({ pt_tyoll: 400, pt_vakiy: 500 });
+    const f = makeFeature({ pt_tyoll: 400, pt_vakiy: 500, ...ages2064(500) });
     computeQuickWinMetrics([f]);
     expect((f.properties as NeighborhoodProperties).employment_rate).toBe(80.0);
   });

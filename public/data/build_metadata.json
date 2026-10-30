@@ -1,6 +1,6 @@
 {
-  "generated": "2026-10-30T12:56:18.996Z",
-  "source_hash": "b4b1e50274e462c9",
+  "generated": "2026-10-30T13:25:25.153Z",
+  "source_hash": "92379aef0bbaa4df",
   "rows_total": 3018,
   "metrics": {
     "active_plan_count": {
@@ -112,8 +112,8 @@
       "vintage": 2024,
       "granularity": "postal",
       "is_proxy": false,
-      "row_count": 2937,
-      "coverage_pct": 97.3
+      "row_count": 2929,
+      "coverage_pct": 97.1
     },
     "ev_charging_density": {
       "source": "OpenStreetMap",

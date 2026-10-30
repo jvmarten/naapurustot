@@ -514,7 +514,7 @@ const SECTIONS = [
   { id: 'income', metrics: [
     { prop: 'hr_mtu', label: 'layer.median_income', fmt: 'euro', schema: 'Median income (EUR)' },
     { prop: 'unemployment_rate', label: 'layer.unemployment', fmt: 'pct', schema: 'Unemployment rate (%)' },
-    { prop: 'employment_rate', label: 'layer.employment_rate', fmt: 'pct', schema: 'Employment rate (%)' },
+    { prop: 'employment_rate', label: 'layer.employment_rate', fmt: 'pct', schema: 'Employment, 20–64 (%)' },
     { prop: 'higher_education_rate', label: 'layer.education', fmt: 'pct', schema: 'Higher education (%)' },
   ] },
   { id: 'housing', metrics: [

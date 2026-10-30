@@ -991,8 +991,9 @@ export const LAYERS: LayerConfig[] = [
     property: 'employment_rate',
     unit: '%',
     colors: ['#d73027', '#f46d43', '#fdae61', '#fee08b', '#d9ef8b', '#a6d96a', '#66bd63', '#1a9850'],
-    stops: [30, 40, 50, 55, 60, 65, 70, 80],
-    stopsSe: [59, 74, 79, 82, 84.5, 86.5, 88.5, 92],
+    // Employed per 100 residents aged 20–64 in both countries (SCB's definition;
+    // Finland's from Paavo, see prepare_data.fi_employment_rate), so one scale.
+    stops: [62, 70, 75, 78.5, 81, 83.5, 86, 90],
     format: pct,
   },
   {
@@ -1386,13 +1387,15 @@ const SE_LAYERS: ReadonlySet<LayerId> = new Set<LayerId>([
   ...SE_ONLY_LAYERS,
   'population_density', 'elderly_ratio', 'gender_ratio', 'avg_household_size',
   'families_with_children', 'single_parent_hh', 'ownership', 'rental', 'detached_houses',
-  'employment_rate', 'unemployment', 'education', 'single_person_hh', 'building_age',
+  'unemployment', 'education', 'single_person_hh', 'building_age',
   // Counted the same way in both countries (OpenStreetMap tags, a school register), so
   // these keep Finland's stops: one scale is what lets the two be compared. Canopy is one
   // product for both (Copernicus Tree Cover Density 2018, scripts/tcd_cdse.py).
   'transit_access', 'school_density', 'healthcare_access', 'restaurant_density',
   'grocery_access', 'cycling_infra', 'air_quality', 'walkability', 'water_proximity',
   'ev_charging_density', 'tree_canopy',
+  // Employed share of 20–64-year-olds in both (SCB's definition, Paavo's counts).
+  'employment_rate',
   // Brå's municipal figures, under Swedish counting rules: Sweden's own stops. Their
   // 2020– change is relative to each country's own rate, so it keeps Finland's.
   'violent_crime', 'property_crime', 'crime_rate', 'crime_index_change',

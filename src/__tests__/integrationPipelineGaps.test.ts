@@ -13,6 +13,7 @@ import { computeMatchingPnos, type FilterCriterion } from '../utils/filterUtils'
 import { filterSmallIslands, getFeatureCenter } from '../utils/geometryFilter';
 import { findSimilarNeighborhoods } from '../utils/similarity';
 import type { Feature, FeatureCollection } from 'geojson';
+import { ages2064 } from './ages2064';
 
 function makeFeature(props: Record<string, unknown>): Feature {
   return {
@@ -45,7 +46,7 @@ function makeRealisticFeature(pno: string, overrides: Record<string, unknown> = 
     pt_tyoll: 1800,
     pt_tyott: 200,
     pt_opisk: 300,
-    pt_vakiy: 2500,
+    pt_vakiy: 2500, ...ages2064(2500),
     pt_elakel: 400,
     ra_asunn: 1500,
     ra_as_kpa: 65,
@@ -270,7 +271,7 @@ describe('Pipeline: metro averages include quick-win metrics', () => {
   it('metro averages contain employment_rate from quick-win computation', () => {
     const features = [
       makeRealisticFeature('00100'),
-      makeRealisticFeature('00200', { pt_tyoll: 2000, pt_vakiy: 2500 }),
+      makeRealisticFeature('00200', { pt_tyoll: 2000, pt_vakiy: 2500, ...ages2064(2500) }),
     ];
 
     computeQuickWinMetrics(features);

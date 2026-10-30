@@ -517,6 +517,24 @@ def safe_val(v):
     return v
 
 
+AGE_BANDS_20_64 = (
+    "he_20_24", "he_25_29", "he_30_34", "he_35_39", "he_40_44",
+    "he_45_49", "he_50_54", "he_55_59", "he_60_64",
+)
+
+
+def fi_employment_rate(props):
+    """Employed (Paavo pt_tyoll, any age) per 100 residents aged 20–64, or None."""
+    employed = safe_val(props.get("pt_tyoll"))
+    bands = [safe_val(props.get(k)) for k in AGE_BANDS_20_64]
+    if employed is None or any(b is None for b in bands):
+        return None
+    pop_20_64 = sum(bands)
+    if pop_20_64 <= 0 or employed > pop_20_64:
+        return None
+    return round(employed / pop_20_64 * 100, 1)
+
+
 def safe_div(a, b):
     """Safe division — returns None if either operand is None/zero/NaN."""
     if a is None or b is None or b == 0:
@@ -716,13 +734,12 @@ def calculate_metrics(gdf):
 
         # --- Phase 8: More demographic detail ---
 
-        # Employment rate (employed / working-age population)
-        pt_tyoll = safe_val(row.get("pt_tyoll"))
-        pt_vakiy = safe_val(row.get("pt_vakiy"))
-        if pt_tyoll is not None and pt_vakiy is not None and pt_vakiy > 0:
-            gdf.at[idx, "employment_rate"] = round(pt_tyoll / pt_vakiy * 100, 1)
-        else:
-            gdf.at[idx, "employment_rate"] = None
+        # Employment rate: employed / residents aged 20–64, SCB's and the EU's
+        # definition, so Finland and Sweden share one scale. Paavo does not split
+        # the employed by age, so the numerator also holds working under-20s and
+        # over-64s (~2–3 points high nationally). Where those outnumber the gap
+        # and the ratio passes 100 %, the approximation has failed: no value.
+        gdf.at[idx, "employment_rate"] = fi_employment_rate(row)
 
         # Elderly ratio (65+ as % of population)
         he_65_69 = safe_val(row.get("he_65_69"))
