@@ -141,7 +141,8 @@
         "sickness_days": 2025,
         "pensioners_6574_pct": 2024,
         "planned_homes_per_1000": 2025,
-        "school_grade_points": "2022/23–2024/25"
+        "school_grade_points": "2022/23–2024/25",
+        "light_pollution": 2024
       }
     }
   }

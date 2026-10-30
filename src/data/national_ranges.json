@@ -460,6 +460,11 @@
           "max": 82.2,
           "avg": 48.48
         },
+        "light_pollution": {
+          "min": 0.03,
+          "max": 113.4,
+          "avg": 25.83
+        },
         "low_economic_standard_pct": {
           "min": 2,
           "max": 45,

@@ -1227,6 +1227,14 @@
           "granularity": "deso",
           "is_proxy": false,
           "note": "note.se_school_grades"
+        },
+        "light_pollution": {
+          "source": "NASA VIIRS Black Marble (VNP46A4 nighttime radiance, 2024 annual composite)",
+          "publisher": "nasa",
+          "vintage": 2024,
+          "granularity": "deso",
+          "is_proxy": false,
+          "note": "note.se_light"
         }
       }
     }

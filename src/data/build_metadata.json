@@ -1,6 +1,6 @@
 {
-  "generated": "2026-10-29T12:25:05.130Z",
-  "source_hash": "9be883e355743b41",
+  "generated": "2026-10-30T11:00:41.507Z",
+  "source_hash": "273fff3c105aef3b",
   "rows_total": 3018,
   "metrics": {
     "active_plan_count": {
@@ -829,6 +829,14 @@
           "vintage": 2024,
           "granularity": "deso",
           "is_proxy": true,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
+        "light_pollution": {
+          "source": "NASA VIIRS Black Marble (VNP46A4 nighttime radiance, 2024 annual composite)",
+          "vintage": 2024,
+          "granularity": "deso",
+          "is_proxy": false,
           "row_count": 6160,
           "coverage_pct": 100
         },

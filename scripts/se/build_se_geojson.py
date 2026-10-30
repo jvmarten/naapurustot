@@ -22,6 +22,7 @@ Inputs (all produced by the fetch scripts in this directory):
   noise_deso.json               fetch_se_noise.py (EEA road-noise Lden contours)
   extra_layers.json             fetch_se_extra.py (new buildings, jobs, age, ohälsotal, pensioners, plans)
   school_grades_deso.json       fetch_se_school_grades.py (Skolverket upper-secondary grade points)
+  light_deso.json               fetch_se_light.py (NASA VIIRS Black Marble night-time radiance)
 
 Geometry is cut at the shore first (clip_deso_land.py: SCB's polygons run out into the
 sea, Paavo's do not), then simplified ONCE here, on a shared-arc topology (geo2topo ->
@@ -328,6 +329,15 @@ def extra2_props(extra: dict, grades: dict, deso: str) -> dict:
     }
 
 
+LIGHT_KEYS = ["light_pollution"]
+
+
+def light_props(light: dict, deso: str) -> dict:
+    """Mean VIIRS night-time radiance per DeSO, Finland's product and year. Written after
+    extra2_props; apply_se_light.py patches the committed file with it."""
+    return {"light_pollution": light["values"].get(deso)}
+
+
 def crime_props(crime: dict, district_of: dict[str, str], deso: str) -> dict:
     """Brå's figures for the DeSO's city district in Stockholm, Göteborg and Malmö, else for
     its municipality (a DeSO code starts with its kommun code). Brå publishes nothing finer."""
@@ -434,6 +444,7 @@ def main() -> None:
     noise = load("noise_deso.json")
     extra = load("extra_layers.json")
     grades = load("school_grades_deso.json")
+    light = load("light_deso.json")
 
     region_of = {k: r["id"] for r in fa25 for k in r["kommuner"]}
     names = display_names(index, regso)
@@ -542,6 +553,7 @@ def main() -> None:
         props.update(election_props(election, deso))
         props.update(later_props(layers, noise, district_of, deso))
         props.update(extra2_props(extra, grades, deso))
+        props.update(light_props(light, deso))
         features.append({"type": "Feature", "properties": props, "geometry": {
             "type": geom["type"], "coordinates": round_coords(geom["coordinates"])}})
 
