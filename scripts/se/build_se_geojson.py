@@ -18,7 +18,7 @@ Inputs (all produced by the fetch scripts in this directory):
   crime_kommun.json             fetch_se_crime.py (Brå, per municipality and city district)
   deso_district.json            fetch_se_districts.py (DeSO -> district in the three largest cities)
   election_deso.json            fetch_se_election.py (Valmyndigheten, riksdagsvalet 2026)
-  kommun_layers.json            fetch_se_kommun_layers.py (rent, house prices, broadband, road accidents)
+  kommun_layers.json            fetch_se_kommun_layers.py (rent, house prices and their change, broadband, road accidents)
   noise_deso.json               fetch_se_noise.py (EEA road-noise Lden contours)
   extra_layers.json             fetch_se_extra.py (new buildings, jobs, age, ohälsotal, pensioners, plans)
   school_grades_deso.json       fetch_se_school_grades.py (Skolverket upper-secondary grade points)
@@ -225,7 +225,7 @@ def add_walkability(features: list[dict]) -> None:
             round(sum(scores) / len(scores)) if len(scores) >= WALK_MIN_COMPONENTS else None)
 
 
-CRIME_KEYS = ["violent_crime_rate", "property_crime_rate", "crime_index"]
+CRIME_KEYS = ["violent_crime_rate", "property_crime_rate", "crime_index", "crime_index_change_pct"]
 
 # Residential buildings by construction decade (TAB6540) -> the year each decade counts
 # as, Finland's convention (fetch_building_age.DECADE_MIDPOINTS): the open first class at
@@ -289,12 +289,12 @@ def election_props(election: dict, deso: str) -> dict:
     return props
 
 
-LATER_KEYS = ["rent_sqm_month_sek", "house_price_sek", "broadband_coverage_pct",
+LATER_KEYS = ["rent_sqm_month_sek", "house_price_sek", "house_price_change_pct", "broadband_coverage_pct",
               "traffic_accident_rate", "noise_pollution"]
 
 
 def later_props(layers: dict, noise: dict, district_of: dict[str, str], deso: str) -> dict:
-    """Rent, house prices, broadband and accidents per kommun (rent per city district in
+    """Rent, house prices and their 2020– change, broadband and accidents per kommun (rent per city district in
     Stockholm and Malmö) and road noise per DeSO. Written after election_props;
     apply_se_later.py patches the committed file with the same function."""
     kommun = deso[:4]
@@ -302,6 +302,7 @@ def later_props(layers: dict, noise: dict, district_of: dict[str, str], deso: st
     return {
         "rent_sqm_month_sek": rent if rent is not None else layers["rent"]["kommuner"].get(kommun),
         "house_price_sek": layers["house_price"]["kommuner"].get(kommun),
+        "house_price_change_pct": layers["house_price_change"]["kommuner"].get(kommun),
         "broadband_coverage_pct": layers["broadband"]["kommuner"].get(kommun),
         "traffic_accident_rate": layers["accidents"]["kommuner"].get(kommun),
         "noise_pollution": noise["values"].get(deso),
@@ -340,10 +341,12 @@ def light_props(light: dict, deso: str) -> dict:
 
 def crime_props(crime: dict, district_of: dict[str, str], deso: str) -> dict:
     """Brå's figures for the DeSO's city district in Stockholm, Göteborg and Malmö, else for
-    its municipality (a DeSO code starts with its kommun code). Brå publishes nothing finer."""
+    its municipality (a DeSO code starts with its kommun code). Brå publishes nothing finer.
+    The 2020– change is the municipality's everywhere (fetch_se_crime.py says why)."""
     district = district_of.get(deso)
-    rec = crime["districts"][district] if district else crime["kommuner"].get(deso[:4], {})
-    return {k: rec.get(k) for k in CRIME_KEYS}
+    kommun = crime["kommuner"].get(deso[:4], {})
+    rec = crime["districts"][district] if district else kommun
+    return {**{k: rec.get(k) for k in CRIME_KEYS}, "crime_index_change_pct": kommun.get("crime_index_change_pct")}
 
 
 def display_names(index: dict, regso: dict) -> dict[str, str]:

@@ -232,6 +232,7 @@ export interface NeighborhoodProperties {
   /** Sweden, per kommun (rent also per Stockholm/Malmö district): SCB. */
   rent_sqm_month_sek?: number | null;
   house_price_sek?: number | null;
+  house_price_change_pct?: number | null;
   /** Sweden: SCB new residential buildings (DeSO), Skolverket grade points (school DeSOs),
    *  and per kommun ohälsotal, pensioners among 65-74, planned homes per 1,000. */
   new_buildings_pct?: number | null;
@@ -856,6 +857,7 @@ const METRIC_DEFS: MetricDef[] = [
   { property: 'party_vote_se_l_pct', weight: 'population', precision: 1 },
   { property: 'rent_sqm_month_sek', weight: 'population', precision: 1 },
   { property: 'house_price_sek', weight: 'population', precision: 0 },
+  { property: 'house_price_change_pct', weight: 'population', precision: 1 },
   { property: 'new_buildings_pct', weight: 'population', precision: 1 },
   { property: 'school_grade_points', weight: 'population', precision: 1 },
   { property: 'sickness_days', weight: 'population', precision: 1 },

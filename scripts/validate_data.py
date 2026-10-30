@@ -947,8 +947,8 @@ SE_COUNTED_DENSITIES = [
 # Brå publishes crime per municipality (fetch_se_crime.py), and rent, house prices,
 # broadband and road accidents are municipal too (fetch_se_kommun_layers.py); every DeSO
 # carries its kommun's figure, so these are proxies on DeSO geometry, as Finland's are on postal.
-SE_MUNICIPAL_PROXIES = ["violent_crime_rate", "property_crime_rate", "crime_index",
-                        "rent_sqm_month_sek", "house_price_sek", "broadband_coverage_pct",
+SE_MUNICIPAL_PROXIES = ["violent_crime_rate", "property_crime_rate", "crime_index", "crime_index_change_pct",
+                        "rent_sqm_month_sek", "house_price_sek", "house_price_change_pct", "broadband_coverage_pct",
                         "traffic_accident_rate", "job_self_sufficiency", "he_kika", "sickness_days",
                         "pensioners_6574_pct", "planned_homes_per_1000"]
 
