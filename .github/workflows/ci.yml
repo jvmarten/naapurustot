@@ -43,7 +43,9 @@ jobs:
   ci:
     # Skip CI on PRs from claude/* branches — auto-merge.yml already runs the full suite
     if: github.event_name == 'push' || !startsWith(github.head_ref, 'claude/')
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest moved to 26.04, where Playwright 1.58 refuses to install
+    # Chromium's dependencies. Return to ubuntu-latest once Playwright supports it.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
 
