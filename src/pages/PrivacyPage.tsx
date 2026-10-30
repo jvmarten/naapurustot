@@ -11,8 +11,9 @@ import { t, getLang, setLang, useI18nVersion, type Lang } from '../utils/i18n';
  *    Umami, cookieless). Account is optional and stores username, a hashed
  *    password, an optional email, and synced favorites/shortlist/notes/
  *    preferences (see src/utils/api.ts).
- *  - Third parties: Cloudflare Turnstile (signup bot check), Sentry (error
- *    reporting, opt-in via build), self-hosted Umami (cookieless analytics).
+ *  - Third parties: Cloudflare Turnstile (signup and feedback bot check), Sentry
+ *    (error reporting, opt-in via build), self-hosted Umami (cookieless analytics),
+ *    Resend (password-reset mail, and feedback forwarded to the inbox, unstored).
  *  - Self-service export (JSON download) and account deletion (CF-13, UserMenu).
  *  - Contact reuses the existing site channel info@naapurustot.fi (ContactMenu).
  *

@@ -32,6 +32,8 @@ interface SettingsDropdownProps {
   getShareUrl?: () => string;
   /** X1: read the embed snippet for the manual-copy fallback when clipboard write fails. */
   getEmbedSnippet?: () => string;
+  /** Opens the "Send feedback" form. */
+  onFeedback?: () => void;
 }
 
 const CONTACT_EMAIL = 'info@naapurustot.fi';
@@ -97,6 +99,7 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
   onFillOpacityChange,
   onShowTour,
   onShowShortcuts,
+  onFeedback,
   onCopyEmbed,
   onCopyShareLink,
   getShareUrl,
@@ -483,6 +486,21 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = React.memo(({
             </svg>
             <span>{t('footer.sources')}</span>
           </a>
+
+          {onFeedback && (
+            <button
+              type="button"
+              onClick={() => { onFeedback(); setOpen(false); }}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-200
+                         hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors
+                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h5m-9 6l3.5-3H18a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v14z" />
+              </svg>
+              <span>{t('feedback.title')}</span>
+            </button>
+          )}
 
           {/* DX-1: Contact — the footer's ContactMenu is desktop-only (hidden md:block),
               so mobile users had no contact affordance; mirror its reveal-and-copy

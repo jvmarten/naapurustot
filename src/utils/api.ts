@@ -81,6 +81,7 @@ const SERVER_ERROR_KEYS: Record<string, string> = {
   'Email already registered': 'auth.error.email_taken',
   'Invalid username or password': 'auth.error.invalid_credentials',
   'Too many requests. Please try again later.': 'auth.error.rate_limited',
+  'Feedback is unavailable right now': 'feedback.unavailable',
   'Internal server error': 'auth.error.server_error',
   'Payload too large': 'auth.error.too_large',
   'Assistant not configured': 'assist.error.unavailable',
@@ -265,6 +266,10 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
+
+  // Visitor feedback, emailed to the site inbox; nothing is stored (server feedback.ts).
+  sendFeedback: (body: { message: string; email?: string; page?: string; lang: string; turnstileToken: string }) =>
+    request<{ ok: boolean }>('/feedback', { method: 'POST', body: JSON.stringify(body) }),
 
   // CF-13 (GDPR): download the full stored record as JSON.
   exportData: () =>

@@ -202,7 +202,11 @@ import { join } from 'node:path';
 // job self-sufficiency and mean age on the shared keys (two stopsSe ladders), seven notes
 // in the bundled fi.json, the panel/profile rows. Measured 343,969 → 345,162; headroom
 // restored to ~1.5 KB.)
-const BUDGET = 346_700;
+// → 350500 B (2026-10-30: the "Send feedback" form, by the owner's call — a lazy
+// FeedbackModal chunk (1.7 kB), Turnstile split out of AuthModal into a chunk the two
+// share, and the form's strings in the bundled fi.json. Measured 346,474 → 349,002;
+// headroom restored to ~1.5 KB.)
+const BUDGET = 350_500;
 const ASSETS_DIR = 'dist/assets';
 
 // Second budget: the /live/ realtime sub-app.
