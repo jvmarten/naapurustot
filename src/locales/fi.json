@@ -1108,6 +1108,7 @@
   "note.se_broadband": "Ruotsi: kotitalouksien ja toimipaikkojen osuus, joilla on vähintään 100 Mbit/s yhteys (PTS 2025), kunnittain. Suomen luku laskee rakennuksia.",
   "note.se_accidents": "Ruotsi: poliisin tietoon tulleet henkilövahinkoon johtaneet tieliikenneonnettomuudet tapahtumakunnan mukaan 1000 asukasta kohti vuodessa, 2022–2024 (Trafikanalys). Suomen luvussa ovat mukana myös omaisuusvahingot.",
   "note.se_noise": "Ruotsi: tieliikennemelun Lden-vyöhykkeet EU:n meluselvityksestä (EEA, 4. kierros): vilkkaimmat tiet ja suurimpien kaupunkiseutujen kaikki kadut. Laskettu kuten Suomessa, vyöhykkeiden ulkopuolella 40 dB.",
+  "note.se_light": "Ruotsi: NASA VIIRS Black Marble -yövalon säteily, vuoden 2024 vuosikooste, DeSO-alueen keskiarvo. Tarkka ruudukko vain Suomessa.",
   "note.se_new_buildings": "Ruotsi: vuonna 2021 tai myöhemmin valmistuneiden asuinrakennusten osuus (SCB, DeSO). Suomen luku laskee rakenteilla olevia rakennuksia.",
   "note.se_jobs": "Ruotsi: kunnassa sijaitsevat työpaikat 100 kunnassa asuvaa työllistä kohti (SCB 2024). Kunnan luku; Suomessa postinumeroalueen.",
   "note.se_avg_age": "Ruotsi: kunnan väestön keski-ikä (SCB 2025). DeSO-alueille julkaistaan vain viiden vuoden ikäryhmät.",

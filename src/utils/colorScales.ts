@@ -1388,8 +1388,9 @@ const SE_LAYERS: ReadonlySet<LayerId> = new Set<LayerId>([
   'voter_turnout', 'party_diversity', 'political_lean',
   // Municipal figures under Swedish definitions (PTS, Trafikanalys): Sweden's own stops.
   'broadband_coverage', 'traffic_accidents',
-  // Finland's method on EEA's END road-noise contours, so Finland's stops.
-  'noise_pollution',
+  // Finland's method on EEA's END road-noise contours, and the same VIIRS composite
+  // (2024) as Finland's light pollution, so Finland's stops.
+  'noise_pollution', 'light_pollution',
   // SCB per kommun (Finland's are per postal area): Sweden's own stops.
   'job_self_sufficiency', 'avg_age',
   // Scored against Sweden's own areas (computeQualityIndices), from the factors it has.

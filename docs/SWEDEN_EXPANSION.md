@@ -257,8 +257,7 @@ Checked and left out, so they are not re-investigated:
   bands (0–4, 15–19, ...), which cannot give the age span the layer is named for.
 - **Jobs by sector.** SCB publishes employed people by where they live (TAB6681/TAB6682);
   Finland's layers count jobs where they are. Different measures.
-- **Light pollution.** Same pipeline would apply (`fetch_viirs_cmr.py` →
-  `aggregate_viirs_postal.py`), but it needs a NASA Earthdata token (`EARTHDATA_TOKEN`).
+- **Light pollution.** Since added (§13).
 - **Daycare and sports facilities.** Finland's come from registers (Varda, LIPAS); an OSM
   count would be a different measure. Preschools are not in Skolverket's register (§8).
 - **Then attempted (§11):** property prices and rent, broadband, radon, noise, flood risk,
@@ -361,4 +360,30 @@ Checked and left out:
 - **Student share.** SCB counts students where they study, not where they live.
 - **Transit reachability.** Needs Trafiklab's ResRobot (API key) and a routing run.
 - **Price-to-rent.** As §11.
+
+## 13. Light pollution (2026-10-30)
+
+Sweden went from 55 to 56 layers. `light_pollution` is on Finland's key and Finland's
+stops: NASA Black Marble VNP46A4 (collection 2), `NearNadir_Composite_Snow_Free`, the
+**2024** annual composite. That is Finland's year: its 500 m grid matched the 2024 tiles
+cell for cell (1,004 of 1,004 sampled) and the 2025 tiles in none. 2025 is published; a
+move to it should change both countries together.
+
+`scripts/se/fetch_se_light.py` → `light_deso.json` → `apply_se_light.py` (or a full
+`build_se_geojson.py`). Tiles h19v02, h19v03 and h20v02 (h20v03 holds no Swedish land),
+found through CMR and read from LAADS DAAC, both under a NASA Earthdata bearer token. In
+the cloud sessions the network proxy adds that token for `cmr.earthdata.nasa.gov` and
+`data.laadsdaac.earthdatacloud.nasa.gov`; the script sends `EARTHDATA_TOKEN` only if it is
+set. Each DeSO is the mean of the pixels whose centres lie inside its shore-clipped polygon,
+as Finland's postal mean is. A pixel is ~460 × 230 m, so 209 small city DeSOs hold no
+pixel centre; they take the mean of the pixels they touch, rasterized one by one (in a
+shared label raster a neighbour drawn later takes the shared pixels, which left 64 of them
+with nothing). All 6,160 have a value: median 14.7, max 261 (Södra Hammarbyhamnen),
+six forest DeSOs in Värmland at 0.
+
+Finland's 500 m grid overlay is not extended to Sweden: every grid in `grid_manifest.json`
+is Finland's, so a Swedish view (`viewCountry === 'se'`) no longer fetches one. Before
+that, a Swedish region asked for a shard that does not exist and fell back to the whole
+11 MB Finnish file, only to clip every cell away. The layer's default quality-index weight
+is 0, so scores did not move.
 

@@ -79,7 +79,7 @@ describe('Swedish quality index', () => {
     const r = getCountryRanges().se;
     for (const prop of ['unemployment_rate', 'economic_standard_median', 'higher_education_rate',
       'transit_stop_density', 'air_quality_index', 'walkability_index', 'violent_crime_rate',
-      'traffic_accident_rate', 'noise_pollution']) {
+      'traffic_accident_rate', 'noise_pollution', 'light_pollution']) {
       expect(r.has(prop), prop).toBe(true);
     }
     // Paavo's income is Finland's alone: Sweden scores income on economic standard.

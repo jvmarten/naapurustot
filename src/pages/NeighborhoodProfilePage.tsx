@@ -847,7 +847,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
             </Section>
             <Section title={t('layers.environment')}>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {seItems(['air_quality', 'noise_pollution', 'water_proximity'])}
+                {seItems(['air_quality', 'noise_pollution', 'light_pollution', 'water_proximity'])}
               </div>
               <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
                 <Link to={sourcesPath} className="hover:text-brand-600 underline decoration-dotted underline-offset-2">{t('profile.data_sources')}</Link>

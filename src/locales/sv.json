@@ -1462,6 +1462,7 @@
   "note.se_broadband": "Sverige: andel hushåll och arbetsställen med tillgång till minst 100 Mbit/s (PTS 2025), per kommun. Finlands siffra räknar byggnader.",
   "note.se_accidents": "Sverige: polisrapporterade vägtrafikolyckor med personskada efter olyckskommun, per 1 000 invånare och år, 2022–2024 (Trafikanalys). Finlands siffra räknar även egendomsskador.",
   "note.se_noise": "Sverige: vägtrafikbullrets Lden-zoner från EU:s bullerkartläggning (EEA, omgång 4): de mest trafikerade vägarna och alla gator i de största tätortsområdena. Beräknat som för Finland, 40 dB utanför zonerna.",
+  "note.se_light": "Sverige: nattljusstrålning från NASA VIIRS Black Marble, årssammanställning 2024, medelvärde per DeSO. Det fina rutnätet täcker bara Finland.",
   "note.se_new_buildings": "Sverige: andel bostadsbyggnader färdigställda 2021 eller senare (SCB, DeSO). Finlands siffra räknar byggnader under uppförande.",
   "note.se_jobs": "Sverige: arbetstillfällen i kommunen per 100 förvärvsarbetande invånare (SCB 2024). Kommunens siffra; Finlands är per postnummerområde.",
   "note.se_avg_age": "Sverige: kommunbefolkningens medelålder (SCB 2025). För DeSO-områden publiceras bara femårsklasser.",

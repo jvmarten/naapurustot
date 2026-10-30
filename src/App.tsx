@@ -451,7 +451,11 @@ const App: React.FC = () => {
   useEffect(() => {
     if (viewCountry && !layerInCountry(activeLayer, viewCountry)) setActiveLayerRaw(DEFAULT_LAYER_BY_COUNTRY[viewCountry]);
   }, [viewCountry, activeLayer]);
-  const { gridData: rawGridData, loading: gridLoading, error: gridError } = useGridData(activeLayer, cityFilter, !multiRegion);
+  // Every grid is Finland's (light pollution's 500 m cells, Helsinki's air and transit).
+  // A Swedish view has no shard to fetch, so it would fall back to the whole Finnish
+  // file (11 MB for light) only to clip every cell away; it draws its DeSOs instead.
+  const gridEnabled = !multiRegion && viewCountry !== 'se';
+  const { gridData: rawGridData, loading: gridLoading, error: gridError } = useGridData(activeLayer, cityFilter, gridEnabled);
   // Clip grid cells to the loaded region so a region-scoped view (e.g. Helsinki
   // Metro) doesn't leak grid cells from other regions (e.g. Turku, Tampere).
   // For the all-cities view this is effectively a no-op (the region covers all
@@ -633,7 +637,7 @@ const App: React.FC = () => {
   // so this is free for the common case. Clipped to the loaded region's bbox so a
   // region view doesn't leak national grid cells (cheaper sync clip than the main
   // pane's async point-in-polygon refine, which is overkill for a comparison pane).
-  const { gridData: rawSecondaryGrid, loading: secondaryGridLoading } = useGridData(secondaryLayer, cityFilter, !multiRegion);
+  const { gridData: rawSecondaryGrid, loading: secondaryGridLoading } = useGridData(secondaryLayer, cityFilter, gridEnabled);
   const secondaryGridData = useMemo(
     () => clipGridToData(rawSecondaryGrid, data),
     [rawSecondaryGrid, data],
