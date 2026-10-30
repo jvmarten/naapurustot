@@ -358,7 +358,7 @@ Checked and left out:
   a mean would need assumed band midpoints, including for "under 31" and "over 200".
 - **Living space per person.** No source below national level (TAB828 is a survey).
 - **Student share.** SCB counts students where they study, not where they live.
-- **Transit reachability.** Needs Trafiklab's ResRobot (API key) and a routing run.
+- **Transit reachability.** Needs a routing run — done in §15.
 - **Price-to-rent.** As §11.
 
 ## 13. Light pollution (2026-10-30)
@@ -402,4 +402,47 @@ Sweden went from 56 to 60 layers, all per kommun (`is_proxy`) and all on Finland
 Both crime change and house price change lack a region figure in the all-regions view:
 Finland's change there is derived from the aggregated history arrays, and Sweden carries
 none for these two.
+
+## 15. Transit reachability (2026-10-30)
+
+Sweden went from 60 to 61 layers. `transit_reachability_score` is on Finland's key, formula
+and stops: the mean rush-hour door-to-door public-transport time from where people live to
+the region's centre, mapped linearly from 10 min (100) to 90 min (0). Finland reads its
+times from the Helsinki Region Travel Time Matrix; Sweden has no such matrix, so
+`scripts/se/fetch_se_transit.py` routes them on Samtrafiken's national timetable.
+
+- **Timetable.** GTFS Sweden 3 (Trafiklab, CC0; `TRAFIKLAB_KEY`), feed 2026-10-30, the
+  ordinary Tuesday 2026-11-10: 131,772 trips and 876,492 connections leaving 08:00–14:00.
+  The endpoint answers 406 without `Accept-Encoding: gzip`. The 840 MB zip is cached in
+  `scripts/se/cache/` (git-ignored), and so is the ~10-minute stop_times parse.
+  Three stops have no usable position (e.g. "Stockholm, Tallink" at 0° N 0° E): ridden
+  through, never walked to.
+- **Routing.** A profile Connection Scan in C (`scripts/se/transit_profile.c`, compiled by
+  the script), one backward pass per hub. Door to door: a walk of up to 1.5 km to a stop,
+  waiting, riding, changes (1 min slack, walks of up to 400 m between stops), the walk from
+  any platform within 500 m of the hub, or walking all the way if that is faster. Walks
+  are straight lines × 1.3 at 4.5 km/h — not the street network the Helsinki matrix uses.
+  Each origin departs at every minute 08:00–08:59 and the time is the mean of the 60.
+  ResRobot (`TRAFIKLAB_RESROBOT_KEY`) was not needed: 1.6 M origins × 60 departures is
+  far past any API quota, and the timetable it routes on is this one.
+- **Hubs.** Each FA25 region is named after its centre municipality or two of them;
+  the hub is that seat's travel centre by name (`<seat> Centralstation / C / resecentrum /
+  station / busstation / terminal`, 70 of 85), else the station with the most departures
+  08:00–14:00 within 500 m (15, all in their town centres: Sjötorgsgatan in Gällivare,
+  Älgen in Örnsköldsvik, Edsbyn Centrum, …). Busiest-cluster alone was tried first and
+  rejected: it put Stockholm's hub at Stadsbiblioteket, Malmö's at Möllevångstorget and
+  Storuman's in Stensele. Two-centre regions take the mean of both, as Finland's cell
+  takes the mean of its four. The chosen hubs are written to `transit_deso.json`.
+- **Origins.** Finland averages a postal area's 250 m cells. Here each DeSO's 250 m points
+  are weighted by the residents of the SCB 1 km population grid cell holding them
+  (`stat:befolkning_1km_2025`), so a 2,000 km² forest DeSO is scored where its village
+  is: 1.62 M points; 53 DeSOs with none are scored at their representative point.
+- **Bounds.** A departure minute from which nothing reaches the hub on a connection
+  leaving by 14:00 is only a lower bound; 308 points whose bounded mean still scored above
+  0 were left out rather than published high.
+
+All 6,160 DeSOs have a value: median 45.3 (Finland's 183 Helsinki-region postal areas:
+64.4), 856 at 0, mostly Norrland and Gotland outside their towns. Majorna and Kortedala
+in Göteborg score ~80, Möllevången in Malmö 85, Stockholm's suburbs 50–75. Default
+quality-index weight is 0, so no score moved.
 

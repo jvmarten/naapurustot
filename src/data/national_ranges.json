@@ -530,6 +530,11 @@
           "max": 1.79,
           "avg": 1.124
         },
+        "transit_reachability_score": {
+          "min": 0,
+          "max": 97,
+          "avg": 43.09
+        },
         "transit_stop_density": {
           "min": 0,
           "max": 40,

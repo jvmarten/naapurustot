@@ -1466,6 +1466,7 @@
   "note.se_accidents": "Sweden: police-reported road accidents with injuries by the municipality where they happened, per 1,000 residents per year, 2022–2024 (Trafikanalys). Finland’s figure also counts property-damage accidents.",
   "note.se_noise": "Sweden: road noise Lden zones from the EU noise mapping (EEA, round 4): the busiest roads and every street in the largest urban areas. Computed as for Finland, 40 dB outside the zones.",
   "note.se_light": "Sweden: NASA VIIRS Black Marble night-time radiance, 2024 annual composite, averaged over each DeSO. The fine grid covers Finland only.",
+  "note.se_transit_reachability": "Sweden: mean door-to-door public-transport time to the region’s centre (its busiest station), leaving every minute 8–9 on a weekday morning, routed on Samtrafiken’s national timetable (GTFS Sweden 3). Scored as in Finland (10 min = 100, 90 min = 0), weighted by residents. Finland’s figure is measured to four Helsinki-region centres.",
   "note.se_new_buildings": "Sweden: share of residential buildings completed in 2021 or later (SCB, DeSO). Finland’s figure counts buildings under construction.",
   "note.se_construction": "Sweden: dwellings completed in new buildings 2020–2025 per 1,000 residents of the municipality (SCB), as for Finland.",
   "note.se_projection": "Sweden: the municipality’s projected population change 2022–2040 (SCB projection 2022, its latest by municipality; later ones are national only).",

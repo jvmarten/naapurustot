@@ -146,7 +146,8 @@
         "crime_index_change_pct": "2020–2025",
         "house_price_change_pct": "2020–2025",
         "construction_activity": "2020–2025",
-        "population_projection_pct": 2022
+        "population_projection_pct": 2022,
+        "transit_reachability_score": 2026
       }
     }
   }

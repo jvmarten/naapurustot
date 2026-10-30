@@ -24,6 +24,7 @@ Inputs (all produced by the fetch scripts in this directory):
   extra_layers.json             fetch_se_extra.py (new buildings, jobs, age, ohälsotal, pensioners, plans)
   school_grades_deso.json       fetch_se_school_grades.py (Skolverket upper-secondary grade points)
   light_deso.json               fetch_se_light.py (NASA VIIRS Black Marble night-time radiance)
+  transit_deso.json             fetch_se_transit.py (GTFS Sweden 3, routed to each region's centre)
 
 Geometry is cut at the shore first (clip_deso_land.py: SCB's polygons run out into the
 sea, Paavo's do not), then simplified ONCE here, on a shared-arc topology (geo2topo ->
@@ -344,6 +345,15 @@ def light_props(light: dict, deso: str) -> dict:
     return {"light_pollution": light["values"].get(deso)}
 
 
+TRANSIT_KEYS = ["transit_reachability_score"]
+
+
+def transit_props(transit: dict, deso: str) -> dict:
+    """Finland's reachability score, routed on GTFS Sweden 3 to the region's centre. Written
+    after light_props; apply_se_transit.py patches the committed file with it."""
+    return {"transit_reachability_score": transit["values"].get(deso)}
+
+
 def crime_props(crime: dict, district_of: dict[str, str], deso: str) -> dict:
     """Brå's figures for the DeSO's city district in Stockholm, Göteborg and Malmö, else for
     its municipality (a DeSO code starts with its kommun code). Brå publishes nothing finer.
@@ -453,6 +463,7 @@ def main() -> None:
     extra = load("extra_layers.json")
     grades = load("school_grades_deso.json")
     light = load("light_deso.json")
+    transit = load("transit_deso.json")
 
     region_of = {k: r["id"] for r in fa25 for k in r["kommuner"]}
     names = display_names(index, regso)
@@ -562,6 +573,7 @@ def main() -> None:
         props.update(later_props(layers, noise, district_of, deso))
         props.update(extra2_props(extra, grades, deso))
         props.update(light_props(light, deso))
+        props.update(transit_props(transit, deso))
         features.append({"type": "Feature", "properties": props, "geometry": {
             "type": geom["type"], "coordinates": round_coords(geom["coordinates"])}})
 

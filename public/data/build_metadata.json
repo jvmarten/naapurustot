@@ -1,6 +1,6 @@
 {
-  "generated": "2026-10-30T11:34:12.703Z",
-  "source_hash": "6ce7da5d4760c610",
+  "generated": "2026-10-30T12:56:18.996Z",
+  "source_hash": "b4b1e50274e462c9",
   "rows_total": 3018,
   "metrics": {
     "active_plan_count": {
@@ -1085,6 +1085,14 @@
           "vintage": "2022–2024",
           "granularity": "deso",
           "is_proxy": true,
+          "row_count": 6160,
+          "coverage_pct": 100
+        },
+        "transit_reachability_score": {
+          "source": "GTFS Sweden 3 (Samtrafiken via Trafiklab), weekday 2026-11-10, routed door to door to each FA25 region's centre; SCB 1 km population grid 2025",
+          "vintage": 2026,
+          "granularity": "deso",
+          "is_proxy": false,
           "row_count": 6160,
           "coverage_pct": 100
         },
