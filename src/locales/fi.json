@@ -608,6 +608,7 @@
   "note.cycling_density": "Laskee OpenStreetMapiin merkittyjen pyöräväyläosuuksien lukumäärän neliökilometriä kohti, ei niiden pituutta. Luku riippuu osin siitä, miten tiheästi väylät on pilkottu osiin kartalla.",
   "note.fi_employment": "Työlliset / 20–64-vuotiaat asukkaat (Paavo). Paavo ei jaa työllisiä iän mukaan, joten alle 20- ja yli 64-vuotiaat työlliset ovat mukana ja luku on noin 2–3 %-yks. liian suuri. Jos se ylittäisi 100 %, arvoa ei näytetä.",
   "note.flood_risk": "SYKEn tulvavaarakartat (1/100a, vesistö- ja meritulva). Tulvakartat on tehty vain noin 119 merkittävälle tulvariskialueelle; muut alueet ovat kartoittamattomia (ei tietoa). Lähde: Syke ja ELY-keskukset.",
+  "note.foreign_cross_country": "Ruotsi: ulkomaalaistausta (syntynyt ulkomailla tai molemmat vanhemmat). Ruotsi ei tilastoi kieltä – lähellä, mutta ei sama mittari.",
   "note.foreign_language_estimate": "Arvio vuoden 2020 jälkeen: todellinen vuoden 2020 postinumerojakauma kerrottuna kunnan vieraskielisten osuuden muutoksella. Vuosi 2020 on todellista dataa.",
   "note.foreign_language_municipal": "Kuntatason luku (Tilastokeskus vaerak 159t) kohdistettu postinumeroalueille; sama kaikkialla kunnassa.",
   "note.health_index": "Kuntatason THL/Kela-sairastavuusindeksi (Sotkanet, 2023) sijoitettu kunkin kunnan postinumeroalueille. Arvio postinumerotasolla.",

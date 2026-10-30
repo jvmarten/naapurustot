@@ -252,6 +252,15 @@
       "is_proxy": true,
       "note": "note.foreign_language_estimate"
     },
+    "foreign_share_pct": {
+      "source": "Tilastokeskus (2020 postinumerotaso + Väestörakenne vaerak 159t)",
+      "publisher": "tilastokeskus",
+      "vintage": 2025,
+      "granularity": "postal",
+      "is_proxy": true,
+      "stored": false,
+      "note": "note.foreign_language_estimate"
+    },
     "population_density": {
       "source": "Tilastokeskus (Paavo)",
       "publisher": "tilastokeskus",
@@ -836,6 +845,15 @@
           "vintage": 2025,
           "granularity": "deso",
           "is_proxy": false,
+          "note": "note.se_foreign_background"
+        },
+        "foreign_share_pct": {
+          "source": "SCB (Folkmängden efter utländsk/svensk bakgrund, DeSO 2025)",
+          "publisher": "scb",
+          "vintage": 2025,
+          "granularity": "deso",
+          "is_proxy": false,
+          "stored": false,
           "note": "note.se_foreign_background"
         },
         "avg_household_size": {

@@ -766,6 +766,7 @@
   "note.cycling_density": "Counts the number of OpenStreetMap cycleway segments per square kilometre, not their length. The figure partly reflects how finely paths have been split up on the map.",
   "note.fi_employment": "Employed residents / residents aged 20–64 (Paavo). Paavo does not split the employed by age, so those working under 20 or over 64 are counted and the figure runs about 2–3 points high. Where it would pass 100 %, no value is shown.",
   "note.flood_risk": "SYKE flood hazard maps (1/100a fluvial + coastal). Flood maps exist only for ~119 significant flood-risk sites; other areas are unmapped (no data). Source: Syke and the ELY Centres.",
+  "note.foreign_cross_country": "Sweden: foreign background (born abroad, or both parents were). Sweden keeps no language statistics – close, but not the same measure.",
   "note.foreign_language_estimate": "Estimate after 2020: the real 2020 postal distribution scaled by each municipality's change in foreign-language share. 2020 itself is real data.",
   "note.foreign_language_municipal": "Municipal figure (Statistics Finland vaerak 159t) assigned to postal codes; identical throughout the municipality.",
   "note.health_index": "Municipality-level THL/Kela morbidity index (Sotkanet, 2023) assigned to each municipality's postal codes. An estimate at postal-code level.",

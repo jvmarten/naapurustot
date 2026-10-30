@@ -990,7 +990,9 @@ def check_se_dataset(_features: list) -> list[str]:
         errors.append(f"expected {SE_FEATURE_COUNT} DeSO features, found {len(feats)}")
     seen = set()
     registry = json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
-    reg = registry.get("countries", {}).get("se", {}).get("metrics", {})
+    # Client-derived metrics (stored: false) have no column to fill, as in Finland's check.
+    reg = {k: e for k, e in registry.get("countries", {}).get("se", {}).get("metrics", {}).items()
+           if e.get("stored", True) is not False}
     filled = {k: 0 for k in reg}
     for f in feats:
         p = f.get("properties", {})
