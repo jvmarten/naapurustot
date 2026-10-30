@@ -1467,6 +1467,8 @@
   "note.se_noise": "Sverige: vägtrafikbullrets Lden-zoner från EU:s bullerkartläggning (EEA, omgång 4): de mest trafikerade vägarna och alla gator i de största tätortsområdena. Beräknat som för Finland, 40 dB utanför zonerna.",
   "note.se_light": "Sverige: nattljusstrålning från NASA VIIRS Black Marble, årssammanställning 2024, medelvärde per DeSO. Det fina rutnätet täcker bara Finland.",
   "note.se_new_buildings": "Sverige: andel bostadsbyggnader färdigställda 2021 eller senare (SCB, DeSO). Finlands siffra räknar byggnader under uppförande.",
+  "note.se_construction": "Sverige: färdigställda lägenheter i nybyggda hus 2020–2025 per 1 000 invånare i kommunen (SCB), som för Finland.",
+  "note.se_projection": "Sverige: kommunens framskrivna befolkningsförändring 2022–2040 (SCB:s befolkningsframskrivning 2022, den senaste per kommun; senare gäller bara riket).",
   "note.se_jobs": "Sverige: arbetstillfällen i kommunen per 100 förvärvsarbetande invånare (SCB 2024). Kommunens siffra; Finlands är per postnummerområde.",
   "note.se_avg_age": "Sverige: kommunbefolkningens medelålder (SCB 2025). För DeSO-områden publiceras bara femårsklasser.",
   "note.se_sickness": "Sverige: Försäkringskassans ohälsotal, dagar med sjukpenning, rehabiliteringspenning samt sjuk- och aktivitetsersättning per invånare 16–64 år och år, per kommun (Kolada). Inte FPA:s åldersstandardiserade sjuklighetsindex.",

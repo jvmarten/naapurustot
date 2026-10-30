@@ -1653,7 +1653,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
         {seRows(['economic_standard', 'low_economic_standard', 'unemployment', 'employment_rate', 'education', 'job_self_sufficiency'])}
       </CollapsibleSection>
       <CollapsibleSection title={t('panel.housing')} defaultOpen>
-        {seRows(['rent_se', 'house_price_se', 'house_price_change_se', 'ownership', 'rental', 'detached_houses', 'building_age', 'new_buildings_se', 'planned_homes_se', 'avg_household_size'])}
+        {seRows(['rent_se', 'house_price_se', 'house_price_change_se', 'ownership', 'rental', 'detached_houses', 'building_age', 'new_buildings_se', 'construction_activity', 'planned_homes_se', 'avg_household_size'])}
       </CollapsibleSection>
       <CollapsibleSection title={t('layers.demographics')} defaultOpen>
         {seRows(['population_density', 'avg_age', 'foreign_background', 'elderly_ratio', 'pensioners_se', 'gender_ratio', 'families_with_children', 'single_parent_hh', 'single_person_hh', 'sickness_se'])}

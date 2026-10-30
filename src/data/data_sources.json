@@ -1251,6 +1251,22 @@
           "granularity": "deso",
           "is_proxy": true,
           "note": "note.se_house_price_change"
+        },
+        "construction_activity": {
+          "source": "SCB (Färdigställda lägenheter i nybyggda hus, per kommun)",
+          "publisher": "scb",
+          "vintage": "2020–2025",
+          "granularity": "deso",
+          "is_proxy": true,
+          "note": "note.se_construction"
+        },
+        "population_projection_pct": {
+          "source": "SCB (Befolkningsframskrivning 2022, per kommun)",
+          "publisher": "scb",
+          "vintage": 2022,
+          "granularity": "deso",
+          "is_proxy": true,
+          "note": "note.se_projection"
         }
       }
     }

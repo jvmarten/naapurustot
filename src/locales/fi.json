@@ -1113,6 +1113,8 @@
   "note.se_noise": "Ruotsi: tieliikennemelun Lden-vyöhykkeet EU:n meluselvityksestä (EEA, 4. kierros): vilkkaimmat tiet ja suurimpien kaupunkiseutujen kaikki kadut. Laskettu kuten Suomessa, vyöhykkeiden ulkopuolella 40 dB.",
   "note.se_light": "Ruotsi: NASA VIIRS Black Marble -yövalon säteily, vuoden 2024 vuosikooste, DeSO-alueen keskiarvo. Tarkka ruudukko vain Suomessa.",
   "note.se_new_buildings": "Ruotsi: vuonna 2021 tai myöhemmin valmistuneiden asuinrakennusten osuus (SCB, DeSO). Suomen luku laskee rakenteilla olevia rakennuksia.",
+  "note.se_construction": "Ruotsi: uusiin rakennuksiin valmistuneet asunnot 2020–2025 kunnan 1000 asukasta kohti (SCB), kuten Suomessa.",
+  "note.se_projection": "Ruotsi: kunnan ennustettu väestönmuutos 2022–2040 (SCB:n väestöennuste 2022, uusin kunnittainen; sen jälkeiset vain koko maasta).",
   "note.se_jobs": "Ruotsi: kunnassa sijaitsevat työpaikat 100 kunnassa asuvaa työllistä kohti (SCB 2024). Kunnan luku; Suomessa postinumeroalueen.",
   "note.se_avg_age": "Ruotsi: kunnan väestön keski-ikä (SCB 2025). DeSO-alueille julkaistaan vain viiden vuoden ikäryhmät.",
   "note.se_sickness": "Ruotsi: Försäkringskassanin ohälsotal, sairaus-, kuntoutus- ja työkyvyttömyyspäiviä 16–64-vuotiasta kohti vuodessa, kunnittain (Kolada). Ei Kelan ikävakioitu sairastavuusindeksi.",
