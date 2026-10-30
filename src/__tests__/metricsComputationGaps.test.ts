@@ -6,6 +6,7 @@ import {
   computeMetroAverages,
 } from '../utils/metrics';
 import type { Feature } from 'geojson';
+import { ages2064, ages3064 } from './ages2064';
 
 function makeFeature(props: Record<string, unknown>): Feature {
   return {
@@ -204,7 +205,7 @@ describe('computeQuickWinMetrics', () => {
 
   it('computes employment_rate correctly', () => {
     const features = [makeFeature({
-      pt_tyoll: 400, pt_vakiy: 800,
+      pt_tyoll: 400, pt_vakiy: 800, ...ages2064(800),
     })];
     computeQuickWinMetrics(features);
     expect(features[0].properties!.employment_rate).toBe(50);
@@ -299,7 +300,7 @@ describe('computeQuickWinMetrics', () => {
       te_eil_np: 50, te_taly: 2000, te_laps: 600,
       tp_j_info: 100, tp_q_terv: 200, tp_tyopy: 2000,
       tp_jalo_bf: 300, tp_o_julk: 150, tp_palv_gu: 500,
-      pt_tyoll: 3000, pt_vakiy: 4000,
+      pt_tyoll: 3000, pt_vakiy: 4000, ...ages3064(4000 - 200 - 300),
       he_65_69: 200, he_70_74: 150, he_75_79: 100, he_80_84: 50, he_85_: 30,
       ra_raky: 20, ra_asunn: 1500,
     })];

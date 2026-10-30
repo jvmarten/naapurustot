@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { computeQuickWinMetrics } from '../utils/metrics';
 import type { Feature } from 'geojson';
+import { ages2064 } from './ages2064';
 
 // Mock i18n
 vi.mock('../utils/i18n', () => ({
@@ -136,7 +137,7 @@ describe('computeQuickWinMetrics', () => {
     it('computes employment rate from employed / working-age pop', () => {
       const f = makeFeature({
         pt_tyoll: 400,
-        pt_vakiy: 500,
+        pt_vakiy: 500, ...ages2064(500),
       });
       computeQuickWinMetrics([f]);
       // 400 / 500 * 100 = 80.0%

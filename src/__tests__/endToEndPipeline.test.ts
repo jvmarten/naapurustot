@@ -12,6 +12,7 @@ import { computeQuickWinMetrics, computeChangeMetrics, computeMetroAverages } fr
 import { computeQualityIndices } from '../utils/qualityIndex';
 import { findSimilarNeighborhoods } from '../utils/similarity';
 import type { NeighborhoodProperties } from '../utils/metrics';
+import { ages2064 } from './ages2064';
 
 function makeRealisticFeature(pno: string, overrides: Partial<NeighborhoodProperties>): GeoJSON.Feature {
   return {
@@ -32,7 +33,7 @@ function makeRealisticFeature(pno: string, overrides: Partial<NeighborhoodProper
       pt_tyoll: 1800,
       pt_tyott: 180,
       pt_opisk: 300,
-      pt_vakiy: 2500,
+      pt_vakiy: 2500, ...ages2064(2500),
       pt_elakel: 200,
       ra_asunn: 1500,
       ra_as_kpa: 60,

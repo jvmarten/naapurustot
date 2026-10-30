@@ -14,6 +14,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { computeQuickWinMetrics, computeChangeMetrics, computeMetroAverages } from '../utils/metrics';
 import { computeQualityIndices } from '../utils/qualityIndex';
 import { filterSmallIslands } from '../utils/geometryFilter';
+import { ages3064 } from './ages2064';
 
 // Test the numeric coercion logic that processTopology performs
 describe('processTopology — numeric coercion logic', () => {
@@ -170,7 +171,7 @@ describe('processTopology — pipeline integration', () => {
           hr_mtu: 35000,
           pt_tyoll: 3000,
           pt_tyott: 300,
-          pt_vakiy: 4000,
+          pt_vakiy: 4000, ...ages3064(4000 - 300 - 350),
           ko_ika18y: 4000,
           ko_yl_kork: 800,
           ko_al_kork: 600,

@@ -6,6 +6,7 @@ import {
   computeMetroAverages,
 } from '../utils/metrics';
 import type { NeighborhoodProperties } from '../utils/metrics';
+import { ages2064 } from './ages2064';
 
 function makeFeature(props: Partial<NeighborhoodProperties>): GeoJSON.Feature {
   return {
@@ -185,7 +186,7 @@ describe('computeQuickWinMetrics', () => {
 
   it('computes employment rate from employed / working-age', () => {
     const features = [
-      makeFeature({ pt_tyoll: 600, pt_vakiy: 1000 }),
+      makeFeature({ pt_tyoll: 600, pt_vakiy: 1000, ...ages2064(1000) }),
     ];
     computeQuickWinMetrics(features);
     expect((features[0].properties as NeighborhoodProperties).employment_rate).toBeCloseTo(60, 1);

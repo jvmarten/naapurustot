@@ -10,6 +10,7 @@ import {
   parseTrendSeries,
 } from '../utils/metrics';
 import type { NeighborhoodProperties } from '../utils/metrics';
+import { ages2064 } from './ages2064';
 
 function makeFeature(props: Partial<NeighborhoodProperties>): GeoJSON.Feature {
   return {
@@ -279,11 +280,11 @@ describe('computeQuickWinMetrics — division safety and rounding', () => {
     expect((f.properties as NeighborhoodProperties).youth_ratio_pct).toBeUndefined();
   });
 
-  it('employment_rate uses pt_vakiy as denominator, not he_vakiy', () => {
+  it('employment_rate uses residents 20–64 as denominator, not he_vakiy', () => {
     const f = makeFeature({
       he_vakiy: 2000,
       pt_tyoll: 500,
-      pt_vakiy: 1000,
+      pt_vakiy: 1000, ...ages2064(1000),
     });
     computeQuickWinMetrics([f]);
     // 500/1000 * 100 = 50%

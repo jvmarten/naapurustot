@@ -9,6 +9,7 @@ import { describe, it, expect } from 'vitest';
 import { computeMetroAverages, computeChangeMetrics, computeQuickWinMetrics, parseTrendSeries } from '../utils/metrics';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import type { Feature } from 'geojson';
+import { ages2064 } from './ages2064';
 
 function makeFeature(props: Partial<NeighborhoodProperties>): Feature {
   return {
@@ -308,7 +309,7 @@ describe('computeQuickWinMetrics — derived demographic metrics', () => {
 
   it('computes employment rate from employed/working-age', () => {
     const features = [
-      makeFeature({ pt_tyoll: 700, pt_vakiy: 1000, he_vakiy: 1200, pno: '00100' }),
+      makeFeature({ pt_tyoll: 700, pt_vakiy: 1000, ...ages2064(1000), he_vakiy: 1200, pno: '00100' }),
     ];
 
     computeQuickWinMetrics(features);

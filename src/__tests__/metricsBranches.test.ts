@@ -6,6 +6,7 @@ import {
   computeMetroAverages,
 } from '../utils/metrics';
 import type { Feature } from 'geojson';
+import { ages2064, ages3064 } from './ages2064';
 
 function makeFeature(props: Record<string, unknown>): Feature {
   return {
@@ -114,7 +115,7 @@ describe('computeQuickWinMetrics — denominator edge cases', () => {
         he_naiset: 520, he_miehet: 480,
         te_eil_np: 30, te_taly: 400, te_laps: 120,
         tp_j_info: 20, tp_tyopy: 200, tp_q_terv: 30,
-        pt_tyoll: 600, pt_vakiy: 800,
+        pt_tyoll: 600, pt_vakiy: 800, ...ages3064(800 - 100 - 80),
         he_65_69: 50, he_70_74: 40, he_75_79: 30, he_80_84: 20, he_85_: 10,
         tp_jalo_bf: 40, tp_o_julk: 25, tp_palv_gu: 60,
         ra_raky: 5, ra_asunn: 500,
@@ -315,10 +316,10 @@ describe('computeMetroAverages — untested branches', () => {
     expect(avg.hr_mtu).toBeUndefined();
   });
 
-  it('computes employment_rate from raw counts (pt_tyoll / pt_vakiy)', () => {
+  it('computes employment_rate from raw counts (pt_tyoll / residents 20–64)', () => {
     const features = [
-      makeFeature({ he_vakiy: 1000, pt_vakiy: 800, pt_tyoll: 560 }),
-      makeFeature({ he_vakiy: 3000, pt_vakiy: 2400, pt_tyoll: 1920 }),
+      makeFeature({ he_vakiy: 1000, pt_vakiy: 800, ...ages2064(800), pt_tyoll: 560 }),
+      makeFeature({ he_vakiy: 3000, pt_vakiy: 2400, ...ages2064(2400), pt_tyoll: 1920 }),
     ];
     const avg = computeMetroAverages(features);
     // totalEmployed = 560 + 1920 = 2480

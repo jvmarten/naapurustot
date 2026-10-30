@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { computeMetroAverages } from '../utils/metrics';
 import type { Feature } from 'geojson';
+import { ages2064 } from './ages2064';
 
 function makeFeature(props: Record<string, unknown>): Feature {
   return {
@@ -24,8 +25,8 @@ describe('computeMetroAverages — pctOfPop conversion', () => {
 
   it('correctly computes employment_rate from raw counts', () => {
     const features = [
-      makeFeature({ he_vakiy: 1000, pt_vakiy: 800, pt_tyoll: 560 }), // 70%
-      makeFeature({ he_vakiy: 1000, pt_vakiy: 800, pt_tyoll: 400 }), // 50%
+      makeFeature({ he_vakiy: 1000, pt_vakiy: 800, ...ages2064(800), pt_tyoll: 560 }), // 70%
+      makeFeature({ he_vakiy: 1000, pt_vakiy: 800, ...ages2064(800), pt_tyoll: 400 }), // 50%
     ];
     const avg = computeMetroAverages(features);
     // totalEmployed = 960, totalActPop = 1600, pct = (960/1600)*100 = 60

@@ -13,6 +13,7 @@ import { computeMatchingPnos, type FilterCriterion } from '../utils/filterUtils'
 import { filterSmallIslands } from '../utils/geometryFilter';
 import { findSimilarNeighborhoods } from '../utils/similarity';
 import type { Feature, FeatureCollection } from 'geojson';
+import { ages3064 } from './ages2064';
 
 function makeFeature(pno: string, props: Record<string, unknown>): Feature {
   return {
@@ -55,7 +56,7 @@ describe('full data pipeline integration', () => {
         tp_j_info: 400,
         tp_q_terv: 200,
         pt_tyoll: 3000,
-        pt_vakiy: 4000,
+        pt_vakiy: 4000, ...ages3064(4000 - 300 - 400),
         he_65_69: 200,
         he_70_74: 150,
         he_75_79: 100,
@@ -93,7 +94,7 @@ describe('full data pipeline integration', () => {
         tp_j_info: 50,
         tp_q_terv: 100,
         pt_tyoll: 1500,
-        pt_vakiy: 2500,
+        pt_vakiy: 2500, ...ages3064(2500 - 100 - 150),
         he_65_69: 100,
         he_70_74: 80,
         he_75_79: 60,

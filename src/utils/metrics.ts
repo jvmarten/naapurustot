@@ -270,6 +270,14 @@ export interface NeighborhoodProperties {
   he_20_24: number | null;
   /** Population aged 25–29 */
   he_25_29: number | null;
+  /** Population aged 30–34 … 60–64 (with 20–29: the employment rate's denominator) */
+  he_30_34?: number | null;
+  he_35_39?: number | null;
+  he_40_44?: number | null;
+  he_45_49?: number | null;
+  he_50_54?: number | null;
+  he_55_59?: number | null;
+  he_60_64?: number | null;
   /** Population aged 65–69 */
   he_65_69: number | null;
   /** Population aged 70–74 */
@@ -362,6 +370,22 @@ export function parseTrendSeries(raw: string | null | undefined): TrendDataPoint
   return null;
 }
 
+const AGE_BANDS_20_64 = [
+  'he_20_24', 'he_25_29', 'he_30_34', 'he_35_39', 'he_40_44',
+  'he_45_49', 'he_50_54', 'he_55_59', 'he_60_64',
+] as const;
+
+/** Residents aged 20–64 from Paavo's five-year bands, or null if any band is suppressed. */
+export function pop20to64(p: NeighborhoodProperties): number | null {
+  let sum = 0;
+  for (const k of AGE_BANDS_20_64) {
+    const v = p[k];
+    if (v == null || v < 0) return null;
+    sum += v;
+  }
+  return sum;
+}
+
 /**
  * Phase 7: Compute demographic detail metrics from existing Paavo fields.
  * These layers require no new data — they derive from fields already in the GeoJSON.
@@ -412,11 +436,13 @@ export function computeQuickWinMetrics(features: GeoJSON.Feature[]): void {
       p.healthcare_workers_pct = Math.round((tp_qr_terv / tp_tyopy) * 1000) / 10;
     }
 
-    // Phase 8: Employment rate (employed / working-age population)
+    // Employment rate: employed per 100 residents aged 20–64 (SCB's definition, so
+    // the two countries share a scale). Paavo's employed count has no age split, so
+    // a ratio past 100 % is the approximation failing — left without a value.
     const pt_tyoll = p.pt_tyoll as number | null;
-    const pt_vakiy = p.pt_vakiy as number | null;
-    if (pt_tyoll != null && pt_vakiy != null && pt_vakiy > 0) {
-      p.employment_rate = Math.round((pt_tyoll / pt_vakiy) * 1000) / 10;
+    const pop2064 = pop20to64(p);
+    if (pt_tyoll != null && pop2064 != null && pop2064 > 0 && pt_tyoll <= pop2064) {
+      p.employment_rate = Math.round((pt_tyoll / pop2064) * 1000) / 10;
     }
 
     // Elderly ratio (65+ as % of population)
@@ -874,7 +900,7 @@ const METRIC_DEFS: MetricDef[] = [
   { property: 'tech_sector_pct', weight: 'count', precision: 1, pctOfJobs: true },
   { property: 'healthcare_workers_pct', weight: 'count', precision: 1, pctOfJobs: true },
   // Phase 8: More demographic detail + trends
-  // employment_rate is handled as a special ratio below (totalEmployed / totalActPop)
+  // employment_rate is handled as a special ratio below (totalEmployed2064 / totalPop2064)
   { property: 'elderly_ratio_pct', weight: 'population', precision: 1, pctOfPop: true },
   { property: 'avg_household_size', weight: 'population', precision: 2 },
   { property: 'manufacturing_jobs_pct', weight: 'count', precision: 1, pctOfJobs: true },
@@ -948,6 +974,10 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
   let totalDwellings = 0;
   let totalPensioners = 0;
   let totalEmployed = 0;
+  // Employment rate: Σ employed / Σ residents 20–64, over areas publishing both
+  // (Paavo's counts in Finland, SCB's in Sweden).
+  let totalEmployed2064 = 0;
+  let totalPop2064 = 0;
   // QW-1: sum numerators and denominators for the two derived ratios — NEVER average per-area
   // ratios. low_income_pct = Σhr_pi_tul / Σhr_tuy; job_self_sufficiency = Σtp_tyopy / Σpt_tyoll.
   let totalLowIncomeHh = 0;
@@ -994,6 +1024,8 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
       hasFinnish = true;
       // Count-based special metrics
       if (p.pt_tyoll != null) { totalEmployed += p.pt_tyoll; hasEmployedData = true; }
+      const pop2064 = pop20to64(p);
+      if (p.pt_tyoll != null && pop2064 != null) { totalEmployed2064 += p.pt_tyoll; totalPop2064 += pop2064; }
       if (p.hr_pi_tul != null) { totalLowIncomeHh += p.hr_pi_tul; hasLowIncomeData = true; }
       if (p.hr_tuy != null) totalIncomeHh += p.hr_tuy;
       if (p.tp_tyopy != null) { totalJobs += p.tp_tyopy; hasJobsData = true; }
@@ -1017,7 +1049,11 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
       if (p.pt_elakel != null) { totalPensioners += p.pt_elakel; hasPensionerData = true; }
     } else {
       seAdd('unemployment_rate', p.se_unemp, p.se_lf);
-      seAdd('employment_rate', p.se_emp, p.se_pop2064);
+      // One definition in both countries (20–64), so a mixed selection pools them.
+      if (p.se_emp != null && p.se_pop2064 != null && p.se_pop2064 > 0) {
+        totalEmployed2064 += p.se_emp;
+        totalPop2064 += p.se_pop2064;
+      }
       seAdd('higher_education_rate', p.se_edu3, p.se_edu);
       seAdd('ownership_rate', p.se_own, p.se_ten);
       seAdd('rental_rate', p.se_rent, p.se_ten);
@@ -1085,9 +1121,9 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
     if (hasStudentData) {
       result.student_share = roundTo((totalStudents / totalActPop) * 100, 1);
     }
-    if (hasEmployedData) {
-      result.employment_rate = roundTo((totalEmployed / totalActPop) * 100, 1);
-    }
+  }
+  if (totalPop2064 > 0) {
+    result.employment_rate = roundTo((totalEmployed2064 / totalPop2064) * 100, 1);
   }
   if (totalAdultPop > 0 && hasHigherEdData) {
     result.higher_education_rate = roundTo(((totalKoYlKork + totalKoAlKork) / totalAdultPop) * 100, 1);
