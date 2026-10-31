@@ -125,7 +125,8 @@ describe('buildFillColorExpression', () => {
   });
 
   it('includes all stops and colors in interpolation', () => {
-    const layer = getLayerById('unemployment');
+    // A comparable layer: one ramp (a not-comparable one wraps two, crossCountryScales.test).
+    const layer = getLayerById('elderly_ratio');
     const expr = buildFillColorExpression(layer) as unknown as unknown[];
     const interpolation = expr[2] as unknown[];
     // 3 header items + 2 per stop (value, color)

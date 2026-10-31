@@ -8,6 +8,7 @@ import { getFeatureCenter } from '../utils/geometryFilter';
 import { exportRankingCsv } from '../utils/export';
 import { buildFullViewUrl } from '../utils/embed';
 import { FilterEmptyIllustration } from './EmptyStateIllustrations';
+import { countryOfId } from '../utils/areaId';
 
 interface RankingTableProps {
   data: FeatureCollection | null;
@@ -207,7 +208,7 @@ export const RankingTable: React.FC<RankingTableProps> = React.memo(({ data, act
       <div className="overflow-y-auto flex-1 min-h-0">
         {items.map((item) => {
           const barWidth = maxVal !== 0 ? (Math.abs(item.value) / maxVal) * 100 : 0;
-          const color = getColorForValue(layer, item.value);
+          const color = getColorForValue(layer, item.value, countryOfId(item.pno));
           const isSelected = selectedPno != null && item.pno === selectedPno;
 
           return (

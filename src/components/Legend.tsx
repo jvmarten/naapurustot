@@ -67,6 +67,8 @@ export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: 
     };
   }, [helpOpen]);
 
+  const perCountry = !country && !!layer.stopsSe;
+
   // Show only first and last tick values
   const n = layer.stops.length;
   const tickIndices = [0, n - 1];
@@ -149,16 +151,25 @@ export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: 
             <div key={i} aria-hidden="true" className="w-6 h-3 first:rounded-l last:rounded-r" style={{ backgroundColor: color }} />
           ))}
         </div>
-        <div className="flex justify-between mt-1.5" style={{ width: `${layer.colors.length * 24}px` }}>
-          {tickIndices.map((idx) => (
-            <span
-              key={idx}
-              className="text-[10px] text-surface-500"
-            >
-              {layer.format(layer.stops[idx])}
-            </span>
-          ))}
-        </div>
+        {/* Not comparable across the border (stopsSe) with both countries on the map: each
+            is coloured on its own scale, so print both ranges and say why. */}
+        {(perCountry ? [['FI', layer.stops], ['SE', layer.stopsSe!]] as const : [[null, layer.stops]] as const).map(([cc, stops]) => (
+          <div key={cc ?? 'all'} className="flex justify-between mt-1.5" style={{ width: `${layer.colors.length * 24}px` }}>
+            {tickIndices.map((idx) => (
+              <span
+                key={idx}
+                className="text-[10px] text-surface-500"
+              >
+                {idx === 0 && cc ? `${cc} ` : ''}{layer.format(stops[idx])}
+              </span>
+            ))}
+          </div>
+        ))}
+        {perCountry && (
+          <div className="mt-1.5 text-[10px] text-surface-500 dark:text-surface-400 max-w-[220px] leading-snug">
+            {t('legend.per_country')}
+          </div>
+        )}
         {grid && !gridError && (
           <div className="mt-2 flex items-center gap-1 text-[10px] text-surface-500 dark:text-surface-400">
             <span aria-hidden="true">▦</span>

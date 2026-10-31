@@ -161,9 +161,12 @@ export interface LayerConfig {
   colors: string[];
   /** Breakpoint values for the color scale, aligned with `colors` */
   stops: number[];
-  /** Sweden's breakpoints for a key both countries publish, from Sweden's own DeSO
-   *  distribution (p2…p98): SCB's definitions differ, so Finland's stops can leave a
-   *  Swedish map in two colours. Used when the map shows Sweden only (`layerForCountry`). */
+  /** Sweden's breakpoints for a key both countries publish under definitions that do not
+   *  compare (different registers, counting rules or bases), from Sweden's own DeSO
+   *  distribution (p2…p98). Its presence is the "not comparable" flag: a Sweden-only map
+   *  uses these stops (`layerForCountry`), and a map showing both countries colours each
+   *  feature on its own country's scale (`buildFillColorExpression`) and says so in the
+   *  legend. Metrics that do compare share Finland's stops and carry no `stopsSe`. */
   stopsSe?: number[];
   /** Label for a Sweden-only map, where the layer's Swedish source measures something
    *  close to but not the same as Finland's (see `crossCountryNoteKey`). */
@@ -376,11 +379,11 @@ export const LAYERS: LayerConfig[] = [
     // residential/commuter (<100), red = employment hub (>100); city centres exceed 300.
     id: 'job_self_sufficiency',
     labelKey: 'layer.job_self_sufficiency',
+    crossCountryNoteKey: 'note.xc_municipal',
     property: 'job_self_sufficiency',
     unit: '%',
     colors: ['#2166ac', '#4393c3', '#92c5de', '#d1e5f0', '#fddbc7', '#f4a582', '#d6604d', '#b2182b'],
     stops: [40, 60, 80, 100, 140, 200, 300, 500],
-    stopsSe: [50, 65, 80, 95, 105, 115, 125, 140],
     format: wholePct,
     divergingCenter: 100,
   },
@@ -452,11 +455,11 @@ export const LAYERS: LayerConfig[] = [
   {
     id: 'avg_age',
     labelKey: 'layer.avg_age',
+    crossCountryNoteKey: 'note.xc_municipal',
     property: 'he_kika',
     unit: '',
     colors: ['#ffffcc', '#ffeda0', '#fed976', '#feb24c', '#fd8d3c', '#fc4e2a', '#e31a1c', '#b10026'],
     stops: [28, 32, 36, 38, 40, 42, 45, 50],
-    stopsSe: [39, 40, 41, 42, 43, 44.5, 46, 48.5],
     format: age,
   },
   {
@@ -546,7 +549,6 @@ export const LAYERS: LayerConfig[] = [
     unit: '/km²',
     colors: ['#fff7ec', '#fee8c8', '#fdd49e', '#fdbb84', '#fc8d59', '#ef6548', '#d7301f', '#990000'],
     stops: [500, 1000, 2000, 4000, 6000, 8000, 12000, 20000],
-    stopsSe: [5, 30, 250, 600, 1500, 3000, 7500, 25000],
     format: density,
   },
   {
@@ -582,6 +584,7 @@ export const LAYERS: LayerConfig[] = [
   {
     id: 'transit_access',
     labelKey: 'layer.transit_access',
+    crossCountryNoteKey: 'note.xc_transit_stops',
     property: 'transit_stop_density',
     unit: '/km²',
     colors: ['#f7f4f9', '#e7e1ef', '#d4b9da', '#c994c7', '#df65b0', '#e7298a', '#ce1256', '#91003f'],
@@ -724,7 +727,6 @@ export const LAYERS: LayerConfig[] = [
     unit: '%',
     colors: ['#ffffd4', '#fee391', '#fec44f', '#fe9929', '#ec7014', '#cc4c02', '#993404', '#662506'],
     stops: [10, 20, 30, 40, 50, 60, 70, 85],
-    stopsSe: [15, 22, 28, 33, 39, 46, 53, 62],
     format: pct,
   },
   // CF-4: Change over time layers
@@ -756,6 +758,7 @@ export const LAYERS: LayerConfig[] = [
   {
     id: 'population_projection',
     labelKey: 'layer.population_projection',
+    crossCountryNoteKey: 'note.xc_projection',
     property: 'population_projection_pct',
     unit: '%',
     colors: ['#b2182b', '#d6604d', '#f4a582', '#fddbc7', '#d1e5f0', '#92c5de', '#4393c3', '#2166ac'],
@@ -791,11 +794,11 @@ export const LAYERS: LayerConfig[] = [
   {
     id: 'voter_turnout',
     labelKey: 'layer.voter_turnout',
+    crossCountryNoteKey: 'note.xc_turnout',
     property: 'voter_turnout_pct',
     unit: '%',
     colors: BLUES,
     stops: [40, 50, 55, 60, 65, 70, 75, 85],
-    stopsSe: [65, 75, 81.5, 84.5, 87, 89, 91.5, 95],
     format: pct,
   },
   {
@@ -900,11 +903,11 @@ export const LAYERS: LayerConfig[] = [
   {
     id: 'broadband_coverage',
     labelKey: 'layer.broadband_coverage',
+    crossCountryNoteKey: 'note.xc_broadband',
     property: 'broadband_coverage_pct',
     unit: '%',
     colors: ['#f7fcf5', '#e5f5e0', '#c7e9c0', '#a1d99b', '#74c476', '#41ab5d', '#238b45', '#005a32'],
     stops: [30, 50, 60, 70, 80, 85, 90, 98],
-    stopsSe: [93, 96, 97.5, 98.5, 99.2, 99.6, 99.85, 99.99],
     format: pct,
   },
   {
@@ -930,6 +933,7 @@ export const LAYERS: LayerConfig[] = [
   {
     id: 'transit_reachability',
     labelKey: 'layer.transit_reachability',
+    crossCountryNoteKey: 'note.xc_transit_reach',
     property: 'transit_reachability_score',
     unit: '/100',
     colors: ['#67001f', '#b2182b', '#d6604d', '#f4a582', '#d1e5f0', '#92c5de', '#4393c3', '#2166ac'],
@@ -1014,7 +1018,6 @@ export const LAYERS: LayerConfig[] = [
     unit: '%',
     colors: ['#f7fbff', '#deebf7', '#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#084594'],
     stops: [5, 10, 15, 20, 25, 30, 35, 45],
-    stopsSe: [6, 14, 17, 20, 23, 26, 30, 40],
     format: pct,
   },
   {
@@ -1024,7 +1027,6 @@ export const LAYERS: LayerConfig[] = [
     unit: '',
     colors: ['#f7f4f9', '#e7e1ef', '#d4b9da', '#c994c7', '#df65b0', '#e7298a', '#ce1256', '#91003f'],
     stops: [1.0, 1.3, 1.5, 1.7, 1.9, 2.2, 2.5, 3.0],
-    stopsSe: [1.5, 1.8, 1.95, 2.1, 2.2, 2.4, 2.6, 3],
     format: (v: number) => `${v.toFixed(2)}`,
   },
   {
@@ -1246,12 +1248,12 @@ export const LAYERS: LayerConfig[] = [
   {
     id: 'building_age',
     labelKey: 'layer.building_age',
+    crossCountryNoteKey: 'note.xc_building_age',
     property: 'avg_construction_year',
     unit: '',
     colors: ['#67000d', '#a50f15', '#cb181d', '#ef3b2c', '#fb6a4a', '#fc9272', '#fcbba1', '#fee0d2'],
     stops: [1940, 1955, 1965, 1975, 1985, 1995, 2005, 2015],
     // SCB's residential buildings per DeSO: older stock than Finland's municipal estimate.
-    stopsSe: [1925, 1940, 1950, 1960, 1970, 1980, 1995, 2010],
     format: yearFmt,
   },
   // CF-11: construction activity — new dwellings completed 2020- per 1,000
@@ -1396,39 +1398,24 @@ export const SE_ONLY_LAYERS: ReadonlySet<LayerId> = new Set<LayerId>([
 ]);
 const SE_LAYERS: ReadonlySet<LayerId> = new Set<LayerId>([
   ...SE_ONLY_LAYERS,
-  'population_density', 'elderly_ratio', 'gender_ratio', 'avg_household_size',
-  'families_with_children', 'single_parent_hh', 'ownership', 'rental', 'detached_houses',
-  'unemployment', 'education', 'single_person_hh', 'building_age',
-  // Counted the same way in both countries (OpenStreetMap tags, a school register), so
-  // these keep Finland's stops: one scale is what lets the two be compared. Canopy is one
-  // product for both (Copernicus Tree Cover Density 2018, scripts/tcd_cdse.py).
+  // Comparable across the border (same definition, product or method): Finland's stops
+  // for both. Where a source or base still differs, crossCountryNoteKey says so on the
+  // legend — jobs per resident and mean age are Sweden's municipal figures, transit stops
+  // are Digiroad's register in Finland and OpenStreetMap in Sweden, and so on.
+  'population_density', 'elderly_ratio', 'gender_ratio', 'avg_household_size', 'single_person_hh',
+  'building_age', 'avg_age', 'job_self_sufficiency', 'broadband_coverage', 'voter_turnout',
   'transit_access', 'school_density', 'healthcare_access', 'restaurant_density',
   'grocery_access', 'cycling_infra', 'air_quality', 'walkability', 'water_proximity',
-  'ev_charging_density', 'tree_canopy',
-  // Foreign-language share in Finland, foreign background in Sweden: one scale, with a
-  // note on the legend (crossCountryNoteKey).
-  'foreign_lang',
-  // Employed share of 20–64-year-olds in both (SCB's definition, Paavo's counts).
-  'employment_rate',
-  // Brå's municipal figures, under Swedish counting rules: Sweden's own stops. Their
-  // 2020– change is relative to each country's own rate, so it keeps Finland's.
-  'violent_crime', 'property_crime', 'crime_rate', 'crime_index_change',
-  // Valmyndigheten's 2026 districts, apportioned to DeSO. Lean is CHES 2019 for both
-  // countries, so it keeps Finland's stops; turnout and diversity run higher in Sweden.
-  'voter_turnout', 'party_diversity', 'political_lean',
-  // Municipal figures under Swedish definitions (PTS, Trafikanalys): Sweden's own stops.
-  'broadband_coverage', 'traffic_accidents',
-  // Finland's method on EEA's END road-noise contours, and the same VIIRS composite
-  // (2024) as Finland's light pollution, so Finland's stops.
-  'noise_pollution', 'light_pollution',
-  // SCB per kommun (Finland's are per postal area): Sweden's own stops.
-  'job_self_sufficiency', 'avg_age',
-  // SCB's completed dwellings 2020– per 1,000 residents and its projected population
-  // change to 2040, per kommun: Finland's measures and level, so Finland's stops.
-  'construction_activity', 'population_projection',
-  // Finland's score (mean rush-hour door-to-door minutes, 10 → 100, 90 → 0), routed on
-  // GTFS Sweden 3 to each region's centre rather than read from Helsinki's matrix.
-  'transit_reachability',
+  'ev_charging_density', 'tree_canopy', 'noise_pollution', 'light_pollution',
+  'construction_activity', 'population_projection', 'crime_index_change', 'political_lean',
+  'transit_reachability', 'employment_rate', 'foreign_lang',
+  // Not comparable (stopsSe): different registers (unemployment), counting rules (Brå's
+  // crime, Trafikanalys's injury-only accidents), bases (households vs residents for
+  // tenure and house type; children under 25 vs 18; education 25–65 vs 18+) or party
+  // systems. Each country is coloured on its own scale, including when both are shown.
+  'unemployment', 'education', 'ownership', 'rental', 'detached_houses',
+  'families_with_children', 'single_parent_hh', 'violent_crime', 'property_crime', 'crime_rate',
+  'traffic_accidents', 'party_diversity',
   // Scored against Sweden's own areas (computeQualityIndices), from the factors it has.
   'quality_index',
 ]);
@@ -1443,7 +1430,9 @@ export function layerInCountry(id: LayerId, country: CountryId | null): boolean 
 /** The layer as drawn for a one-country map: Sweden's stops and label where it has its own. */
 export function layerForCountry(layer: LayerConfig, country: CountryId | null): LayerConfig {
   if (country !== 'se' || !(layer.stopsSe || layer.labelKeySe)) return layer;
-  return { ...layer, stops: layer.stopsSe ?? layer.stops, labelKey: layer.labelKeySe ?? layer.labelKey };
+  // Sweden's stops become THE stops, so the per-country branch has nothing left to do
+  // (and a region rescale of `stops` is not undone by a stale `stopsSe`).
+  return { ...layer, stops: layer.stopsSe ?? layer.stops, stopsSe: undefined, labelKey: layer.labelKeySe ?? layer.labelKey };
 }
 
 /** The layer a view of `country` opens on when the current one has no data there. */
@@ -1498,11 +1487,13 @@ export function getLayerById(id: LayerId): LayerConfig {
   return result;
 }
 
-/** Map a numeric value to a color from the layer's scale. Returns gray for null/undefined. */
-export function getColorForValue(layer: LayerConfig, value: number | null | undefined): string {
+/** Map a numeric value to a color from the layer's scale — Sweden's own for a Swedish
+ *  area of a not-comparable layer (`stopsSe`). Returns gray for null/undefined. */
+export function getColorForValue(layer: LayerConfig, value: number | null | undefined, country: CountryId = 'fi'): string {
   if (value == null) return '#d1d5db';
-  for (let i = layer.stops.length - 1; i >= 0; i--) {
-    if (value >= layer.stops[i]) return layer.colors[i];
+  const stops = country === 'se' && layer.stopsSe ? layer.stopsSe : layer.stops;
+  for (let i = stops.length - 1; i >= 0; i--) {
+    if (value >= stops[i]) return layer.colors[i];
   }
   return layer.colors[0];
 }
@@ -1684,10 +1675,18 @@ export function buildFillColorExpression(layer: LayerConfig, propertyOverride?: 
   // so no coercion fallback is needed. String-encoded numeric properties are converted
   // to real numbers by useMapData at load time.
   const numericValue = ['get', prop];
-  const interpolation: unknown[] = ['interpolate', ['linear'], numericValue];
-  for (let i = 0; i < layer.stops.length; i++) {
-    interpolation.push(layer.stops[i], layer.colors[i]);
-  }
+  const ramp = (stops: number[]) => {
+    const r: unknown[] = ['interpolate', ['linear'], numericValue];
+    for (let i = 0; i < stops.length; i++) r.push(stops[i], layer.colors[i]);
+    return r;
+  };
+  // A not-comparable layer (stopsSe) colours every feature on its own country's scale,
+  // so a map showing both never reads a definitional gap as a difference between them.
+  // Every feature carries its region id in `city`, and Sweden's begin `se_`. Grid cells
+  // (propertyOverride) are Finland's alone.
+  const interpolation = layer.stopsSe && !propertyOverride
+    ? ['case', ['==', ['slice', ['to-string', ['get', 'city']], 0, 3], 'se_'], ramp(layer.stopsSe), ramp(layer.stops)]
+    : ramp(layer.stops);
   // Show gray for features where the property is null/missing/non-numeric.
   // The typeof check prevents non-numeric strings (e.g. "N/A") from being
   // silently coerced to 0 by the to-number fallback. T1: when a `fallbackColor`

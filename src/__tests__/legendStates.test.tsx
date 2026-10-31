@@ -73,3 +73,24 @@ describe('Legend other captions', () => {
     expect(container.querySelector('.hidden')).not.toBeNull();
   });
 });
+
+// A layer the two countries count differently is coloured on each country's own scale
+// when both are on the map, so the legend prints both ranges and says why — and says
+// nothing of the kind once one country is shown.
+describe('Legend across the border', () => {
+  it('prints both scales and the reason for a not-comparable layer with both countries shown', () => {
+    const { rerender } = render(<Legend layerId="unemployment" country={null} />);
+    expect(screen.getByText(t('legend.per_country'))).toBeInTheDocument();
+    expect(screen.getByText(/^SE /)).toBeInTheDocument();
+
+    rerender(<Legend layerId="unemployment" country="fi" />);
+    expect(screen.queryByText(t('legend.per_country'))).toBeNull();
+    expect(screen.queryByText(/^SE /)).toBeNull();
+  });
+
+  it('keeps one scale, with its note, for a comparable layer whose sources differ', () => {
+    render(<Legend layerId="transit_access" country={null} />);
+    expect(screen.queryByText(t('legend.per_country'))).toBeNull();
+    expect(screen.getByText(t('note.xc_transit_stops'))).toBeInTheDocument();
+  });
+});
