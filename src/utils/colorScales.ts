@@ -393,7 +393,9 @@ export const LAYERS: LayerConfig[] = [
     property: 'unemployment_rate',
     unit: '%',
     colors: ['#1a9850', '#66bd63', '#a6d96a', '#d9ef8b', '#ffffbf', '#fee08b', '#fdae61', '#f46d43', '#d73027', '#a50026'],
-    stops: [1, 2, 3, 4, 5, 6, 7, 8, 9, 11],
+    // Unemployed per labour force in both, but Finland's register counts every unemployed
+    // jobseeker and SCB's far fewer (national 10.9 % vs 5.4 %), so each its own stops.
+    stops: [3, 5, 7, 8.5, 10, 11.5, 13, 15, 18, 25],
     stopsSe: [1, 2, 2.5, 3, 3.5, 4, 5, 7, 10, 20],
     format: pct,
     higherIsBetter: false,

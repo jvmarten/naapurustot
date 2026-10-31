@@ -26,8 +26,8 @@ describe('computeMetroAverages — weighted averaging correctness', () => {
     // Area A: 1000 people, 10% unemployment → 100 unemployed from 1000 working-age
     // Area B: 100 people, 50% unemployment → 50 unemployed from 100 working-age
     const features = [
-      makeFeature({ he_vakiy: 1000, pt_tyott: 100, pt_vakiy: 1000 }),
-      makeFeature({ pno: '00200', he_vakiy: 100, pt_tyott: 50, pt_vakiy: 100 }),
+      makeFeature({ he_vakiy: 1000, pt_tyott: 100, pt_tyoll: 900, pt_vakiy: 1000 }),
+      makeFeature({ pno: '00200', he_vakiy: 100, pt_tyott: 50, pt_tyoll: 50, pt_vakiy: 100 }),
     ];
     const avg = computeMetroAverages(features);
     // Correct: 150/1100 = 13.6%, NOT naive average (10+50)/2 = 30%

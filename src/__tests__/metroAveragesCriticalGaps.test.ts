@@ -67,22 +67,22 @@ describe('computeMetroAverages — pctOfHh conversion', () => {
 });
 
 describe('computeMetroAverages — ratio metric denominators', () => {
-  it('unemployment uses working-age pop (pt_vakiy), not total pop', () => {
+  it('unemployment uses the labour force (employed + unemployed), not total pop', () => {
     const features = [
-      makeFeature({ he_vakiy: 5000, pt_vakiy: 3000, pt_tyott: 300 }),
-      makeFeature({ he_vakiy: 5000, pt_vakiy: 4000, pt_tyott: 200 }),
+      makeFeature({ he_vakiy: 5000, pt_vakiy: 3000, pt_tyott: 300, pt_tyoll: 2700 }),
+      makeFeature({ he_vakiy: 5000, pt_vakiy: 4000, pt_tyott: 200, pt_tyoll: 3800 }),
     ];
     const avg = computeMetroAverages(features);
     // totalUnemployed = 500, totalActPop = 7000 (not 10000)
     expect(avg.unemployment_rate).toBeCloseTo((500 / 7000) * 100, 1);
   });
 
-  it('falls back to he_vakiy when pt_vakiy is null', () => {
+  it('unemployment rate needs no pt_vakiy: its base is the labour force', () => {
     const features = [
-      makeFeature({ he_vakiy: 1000, pt_vakiy: null, pt_tyott: 100 }),
+      makeFeature({ he_vakiy: 1000, pt_vakiy: null, pt_tyott: 100, pt_tyoll: 900 }),
     ];
     const avg = computeMetroAverages(features);
-    // totalActPop falls back to he_vakiy = 1000
+    // 100 / (100 + 900) — pt_vakiy plays no part
     expect(avg.unemployment_rate).toBe(10);
   });
 
@@ -177,5 +177,24 @@ describe('computeMetroAverages — edge cases', () => {
     const avg = computeMetroAverages(features);
     // totalChildren = 50 (only he_0_2), totalPop = 1000
     expect(avg.child_ratio).toBe(5);
+  });
+});
+
+// Finland's unemployment rate is per labour force (employed + unemployed), Statistics
+// Finland's own definition. It was unemployed / all residents, about half the real rate.
+describe('computeMetroAverages — unemployment per labour force', () => {
+  it('divides by employed + unemployed, not by residents', () => {
+    const avg = computeMetroAverages([
+      makeFeature({ he_vakiy: 10000, pt_vakiy: 10000, pt_tyott: 400, pt_tyoll: 3600 }),
+    ]);
+    expect(avg.unemployment_rate).toBe(10);
+  });
+
+  it('leaves out an area that publishes no employed count', () => {
+    const avg = computeMetroAverages([
+      makeFeature({ he_vakiy: 1000, pt_tyott: 100, pt_tyoll: 900 }),
+      makeFeature({ pno: '00200', he_vakiy: 1000, pt_tyott: 500, pt_tyoll: null }),
+    ]);
+    expect(avg.unemployment_rate).toBe(10);
   });
 });

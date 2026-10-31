@@ -623,7 +623,14 @@ def calculate_metrics(gdf):
         bachelor = safe_val(row.get("ko_al_kork"))
         pensioners = safe_val(row.get("pt_elakel"))
 
-        gdf.at[idx, "unemployment_rate"] = safe_div(unemployed, pop)
+        # Unemployed per labour force (employed + unemployed), the definition Statistics
+        # Finland and SCB publish. It was unemployed / all residents, which counted
+        # children and pensioners into the base and read about half the real rate.
+        employed = safe_val(row.get("pt_tyoll"))
+        gdf.at[idx, "unemployment_rate"] = (
+            safe_div(unemployed, employed + unemployed)
+            if unemployed is not None and employed is not None else None
+        )
         gdf.at[idx, "higher_education_rate"] = (
             safe_div((higher or 0) + (bachelor or 0), adult_pop)
             if higher is not None and bachelor is not None and adult_pop
@@ -1793,7 +1800,7 @@ def fetch_historical_paavo(latest_year: int):
 
     # Structure: { pno: { "hr_mtu": {2019: val, ...}, "he_vakiy": {...}, "unemployment_rate": {...} } }
     history = {}
-    trend_fields = ["hr_mtu", "he_vakiy", "pt_tyott", "ko_ika18y"]
+    trend_fields = ["hr_mtu", "he_vakiy", "pt_tyott", "pt_tyoll", "ko_ika18y"]
 
     for year in historical_years:
         url = WFS_FEATURE_TEMPLATE.format(year=year)
@@ -1849,15 +1856,15 @@ def _build_trend_arrays(history: dict) -> dict:
             if len(series) >= 2:
                 entry["population_history"] = series
 
-        # Unemployment rate trend (pt_tyott / he_vakiy)
+        # Unemployment rate trend (pt_tyott / (pt_tyoll + pt_tyott), the labour force)
         pt_tyott = metrics.get("pt_tyott", {})
-        he_vakiy_hist = metrics.get("he_vakiy", {})
-        if pt_tyott and he_vakiy_hist:
+        pt_tyoll = metrics.get("pt_tyoll", {})
+        if pt_tyott and pt_tyoll:
             unemp_series = []
             for y in sorted(pt_tyott.keys()):
-                pop = he_vakiy_hist.get(y)
-                if pop and pop > 0:
-                    rate = round(pt_tyott[y] / pop * 100, 1)
+                employed = pt_tyoll.get(y)
+                if employed is not None and pt_tyott[y] + employed > 0:
+                    rate = round(pt_tyott[y] / (pt_tyott[y] + employed) * 100, 1)
                     unemp_series.append([int(y), rate])
             if len(unemp_series) >= 2:
                 entry["unemployment_history"] = unemp_series

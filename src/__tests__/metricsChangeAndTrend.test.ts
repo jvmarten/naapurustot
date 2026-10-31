@@ -290,8 +290,8 @@ describe('computeMetroAverages — special ratio metrics', () => {
 
   it('unemployment_rate is count-based (not averaged)', () => {
     const features = [
-      makeFeature({ he_vakiy: 10000, pt_tyott: 500, pt_vakiy: 5000 }),
-      makeFeature({ he_vakiy: 5000, pt_tyott: 100, pt_vakiy: 2000 }),
+      makeFeature({ he_vakiy: 10000, pt_tyott: 500, pt_tyoll: 4500, pt_vakiy: 5000 }),
+      makeFeature({ he_vakiy: 5000, pt_tyott: 100, pt_tyoll: 1900, pt_vakiy: 2000 }),
     ];
 
     const avg = computeMetroAverages(features);

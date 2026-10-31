@@ -489,10 +489,10 @@ describe('regionsViewport', () => {
 
 describe('mergeRegionData', () => {
   // Region A: 10 % unemployed (50 / 500), 20 % foreign-language (200 / 1000), income 20k.
-  const a1 = feature({ pno: '00100', city: 'helsinki_metro', he_vakiy: 1000, pt_vakiy: 500, pt_tyott: 50, foreign_language_pct: 20, hr_mtu: 20000 });
+  const a1 = feature({ pno: '00100', city: 'helsinki_metro', he_vakiy: 1000, pt_vakiy: 500, pt_tyott: 50, pt_tyoll: 450, foreign_language_pct: 20, hr_mtu: 20000 });
   // Region B: 20 % unemployed (300 / 1500), 10 % foreign-language (300 / 3000), income 40k.
-  const b1 = feature({ pno: '15100', city: 'lahti', he_vakiy: 3000, pt_vakiy: 1500, pt_tyott: 300, foreign_language_pct: 10, hr_mtu: 40000 });
-  const b2 = feature({ pno: '15110', city: 'lahti', he_vakiy: 1000, pt_vakiy: 500, pt_tyott: 100, foreign_language_pct: 10, hr_mtu: 40000 });
+  const b1 = feature({ pno: '15100', city: 'lahti', he_vakiy: 3000, pt_vakiy: 1500, pt_tyott: 300, pt_tyoll: 1200, foreign_language_pct: 10, hr_mtu: 40000 });
+  const b2 = feature({ pno: '15110', city: 'lahti', he_vakiy: 1000, pt_vakiy: 500, pt_tyott: 100, pt_tyoll: 400, foreign_language_pct: 10, hr_mtu: 40000 });
 
   it('concatenates the features in region order, then feature order', () => {
     const merged = mergeRegionData([processed([a1]), processed([b1, b2])]);
@@ -574,9 +574,9 @@ describe('mergeRegionData', () => {
 // ---------------------------------------------------------------------------
 
 describe('averagesByRegion', () => {
-  const h1 = feature({ pno: '00100', city: 'helsinki_metro', he_vakiy: 1000, pt_vakiy: 500, pt_tyott: 50, hr_mtu: 20000 });
-  const h2 = feature({ pno: '00200', city: 'helsinki_metro', he_vakiy: 1000, pt_vakiy: 500, pt_tyott: 150, hr_mtu: 30000 });
-  const l1 = feature({ pno: '15100', city: 'lahti', he_vakiy: 3000, pt_vakiy: 1500, pt_tyott: 300, hr_mtu: 40000 });
+  const h1 = feature({ pno: '00100', city: 'helsinki_metro', he_vakiy: 1000, pt_vakiy: 500, pt_tyott: 50, pt_tyoll: 450, hr_mtu: 20000 });
+  const h2 = feature({ pno: '00200', city: 'helsinki_metro', he_vakiy: 1000, pt_vakiy: 500, pt_tyott: 150, pt_tyoll: 350, hr_mtu: 30000 });
+  const l1 = feature({ pno: '15100', city: 'lahti', he_vakiy: 3000, pt_vakiy: 1500, pt_tyott: 300, pt_tyoll: 1200, hr_mtu: 40000 });
 
   it('groups by properties.city and computes each region over its OWN features', () => {
     // Interleaved on purpose: grouping must not depend on contiguity.

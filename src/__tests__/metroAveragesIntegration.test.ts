@@ -46,8 +46,8 @@ describe('computeMetroAverages — weighted aggregation', () => {
     // Area B: 50 unemployed out of 5000 working-age = 1%
     // Correct metro average: 150/6000 = 2.5%, NOT (10+1)/2 = 5.5%
     const features = [
-      makeFeature({ he_vakiy: 1000, pt_tyott: 100, pt_vakiy: 1000, pno: '00100' }),
-      makeFeature({ he_vakiy: 5000, pt_tyott: 50, pt_vakiy: 5000, pno: '00200' }),
+      makeFeature({ he_vakiy: 1000, pt_tyott: 100, pt_tyoll: 900, pt_vakiy: 1000, pno: '00100' }),
+      makeFeature({ he_vakiy: 5000, pt_tyott: 50, pt_tyoll: 4950, pt_vakiy: 5000, pno: '00200' }),
     ];
     const avg = computeMetroAverages(features);
     expect(avg.unemployment_rate).toBe(2.5);

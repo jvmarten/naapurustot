@@ -19,11 +19,11 @@ describe('computeMatchingPnos — outlier handling at slider extremes', () => {
     // Unemployment stops start at 1. A neighborhood with 0.5% should still match
     // when slider min is at the stop minimum (1)
     const data = makeFC([
-      { pno: '00100', he_vakiy: 1000, unemployment_rate: 0.5 },
-      { pno: '00200', he_vakiy: 1000, unemployment_rate: 5 },
+      { pno: '00100', he_vakiy: 1000, unemployment_rate: 1.9 },
+      { pno: '00200', he_vakiy: 1000, unemployment_rate: 11.8 },
     ]);
 
-    const filters = [{ layerId: 'unemployment' as LayerId, min: 1, max: 11 }];
+    const filters = [{ layerId: 'unemployment' as LayerId, min: 3, max: 25 }];
     const result = computeMatchingPnos(data, filters);
 
     // min=1 equals the first stop (rangeMin), so minOk should be true for all values
@@ -33,11 +33,11 @@ describe('computeMatchingPnos — outlier handling at slider extremes', () => {
 
   it('includes values above last stop when slider max is at stop maximum', () => {
     const data = makeFC([
-      { pno: '00100', he_vakiy: 1000, unemployment_rate: 5 },
-      { pno: '00200', he_vakiy: 1000, unemployment_rate: 15 }, // above max stop
+      { pno: '00100', he_vakiy: 1000, unemployment_rate: 11.8 },
+      { pno: '00200', he_vakiy: 1000, unemployment_rate: 33.8 }, // above max stop
     ]);
 
-    const filters = [{ layerId: 'unemployment' as LayerId, min: 1, max: 11 }];
+    const filters = [{ layerId: 'unemployment' as LayerId, min: 3, max: 25 }];
     const result = computeMatchingPnos(data, filters);
 
     // max=11 equals the last stop (rangeMax), so maxOk should be true for all
@@ -46,11 +46,11 @@ describe('computeMatchingPnos — outlier handling at slider extremes', () => {
 
   it('excludes values outside a narrower filter range', () => {
     const data = makeFC([
-      { pno: '00100', he_vakiy: 1000, unemployment_rate: 3 },
-      { pno: '00200', he_vakiy: 1000, unemployment_rate: 8 },
+      { pno: '00100', he_vakiy: 1000, unemployment_rate: 7.4 },
+      { pno: '00200', he_vakiy: 1000, unemployment_rate: 18.4 },
     ]);
 
-    const filters = [{ layerId: 'unemployment' as LayerId, min: 5, max: 7 }];
+    const filters = [{ layerId: 'unemployment' as LayerId, min: 11.8, max: 16.2 }];
     const result = computeMatchingPnos(data, filters);
 
     expect(result.has('00100')).toBe(false);
@@ -61,14 +61,14 @@ describe('computeMatchingPnos — outlier handling at slider extremes', () => {
 describe('computeMatchingPnos — AND logic with multiple filters', () => {
   it('requires all filters to match', () => {
     const data = makeFC([
-      { pno: '00100', he_vakiy: 1000, hr_mtu: 40000, unemployment_rate: 3 },
-      { pno: '00200', he_vakiy: 1000, hr_mtu: 25000, unemployment_rate: 3 },
-      { pno: '00300', he_vakiy: 1000, hr_mtu: 40000, unemployment_rate: 8 },
+      { pno: '00100', he_vakiy: 1000, hr_mtu: 40000, unemployment_rate: 7.4 },
+      { pno: '00200', he_vakiy: 1000, hr_mtu: 25000, unemployment_rate: 7.4 },
+      { pno: '00300', he_vakiy: 1000, hr_mtu: 40000, unemployment_rate: 18.4 },
     ]);
 
     const filters = [
       { layerId: 'median_income' as LayerId, min: 30000, max: 55000 },
-      { layerId: 'unemployment' as LayerId, min: 1, max: 5 },
+      { layerId: 'unemployment' as LayerId, min: 3, max: 11.8 },
     ];
     const result = computeMatchingPnos(data, filters);
 

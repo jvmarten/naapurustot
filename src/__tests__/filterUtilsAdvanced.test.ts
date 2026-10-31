@@ -51,13 +51,13 @@ describe('computeMatchingPnos', () => {
 
   it('applies AND logic for multiple criteria', () => {
     const data = makeCollection([
-      { hr_mtu: 30000, unemployment_rate: 5 },
-      { hr_mtu: 30000, unemployment_rate: 15 },
-      { hr_mtu: 50000, unemployment_rate: 5 },
+      { hr_mtu: 30000, unemployment_rate: 11.8 },
+      { hr_mtu: 30000, unemployment_rate: 33.8 },
+      { hr_mtu: 50000, unemployment_rate: 11.8 },
     ]);
     const filters: FilterCriterion[] = [
       { layerId: 'median_income', min: 25000, max: 35000 },
-      { layerId: 'unemployment', min: 1, max: 10 },
+      { layerId: 'unemployment', min: 3, max: 22.8 },
     ];
     const result = computeMatchingPnos(data, filters);
     // Only first matches both criteria
@@ -90,24 +90,24 @@ describe('computeMatchingPnos', () => {
     // When criterion.min <= rangeMin, all values below rangeMin are included
     // When criterion.max >= rangeMax, all values above rangeMax are included
     const data = makeCollection([
-      { unemployment_rate: 0.5 },  // below stops range
-      { unemployment_rate: 5 },    // within range
-      { unemployment_rate: 20 },   // above stops range
+      { unemployment_rate: 1.9 },  // below stops range
+      { unemployment_rate: 11.8 },    // within range
+      { unemployment_rate: 44.8 },   // above stops range
     ]);
     // Unemployment layer stops: [1, ..., 11]
     // Setting min=1 (at rangeMin) and max=11 (at rangeMax) should include all outliers
-    const filter: FilterCriterion = { layerId: 'unemployment', min: 1, max: 11 };
+    const filter: FilterCriterion = { layerId: 'unemployment', min: 3, max: 25 };
     const result = computeMatchingPnos(data, [filter]);
     expect(result.size).toBe(3); // all included because sliders at extremes
   });
 
   it('excludes outlier values when slider is not at extreme', () => {
     const data = makeCollection([
-      { unemployment_rate: 0.5 },  // below stops range
-      { unemployment_rate: 5 },    // within range
+      { unemployment_rate: 1.9 },  // below stops range
+      { unemployment_rate: 11.8 },    // within range
     ]);
     // Setting min=2 (NOT at rangeMin of 1) means 0.5 should be excluded
-    const filter: FilterCriterion = { layerId: 'unemployment', min: 2, max: 11 };
+    const filter: FilterCriterion = { layerId: 'unemployment', min: 5.2, max: 25 };
     const result = computeMatchingPnos(data, [filter]);
     expect(result.size).toBe(1); // only 5 matches
   });

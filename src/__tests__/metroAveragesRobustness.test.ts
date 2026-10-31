@@ -79,8 +79,8 @@ describe('computeMetroAverages', () => {
 
   it('computes unemployment rate from raw counts, not averaging percentages', () => {
     const result = computeMetroAverages([
-      makeFeature({ he_vakiy: 1000, pt_tyott: 100, pt_vakiy: 500 }),
-      makeFeature({ he_vakiy: 1000, pt_tyott: 50, pt_vakiy: 1000 }),
+      makeFeature({ he_vakiy: 1000, pt_tyott: 100, pt_tyoll: 400, pt_vakiy: 500 }),
+      makeFeature({ he_vakiy: 1000, pt_tyott: 50, pt_tyoll: 950, pt_vakiy: 1000 }),
     ]);
     // Total unemployed: 150, total working-age: 1500
     // Rate: 150/1500 * 100 = 10.0%
@@ -146,9 +146,9 @@ describe('computeMetroAverages', () => {
     expect(result.hr_mtu).toBe(40000);
   });
 
-  it('falls back to he_vakiy when pt_vakiy is null for unemployment calc', () => {
+  it('unemployment rate needs no pt_vakiy: its base is the labour force', () => {
     const result = computeMetroAverages([
-      makeFeature({ he_vakiy: 2000, pt_tyott: 100, pt_vakiy: null }),
+      makeFeature({ he_vakiy: 2000, pt_tyott: 100, pt_tyoll: 1900, pt_vakiy: null }),
     ]);
     // totalActPop falls back to pop (2000)
     // Rate: 100/2000 * 100 = 5.0%

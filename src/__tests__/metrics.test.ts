@@ -23,8 +23,8 @@ describe('computeMetroAverages', () => {
 
   it('computes unemployment rate from raw counts', () => {
     const features = [
-      makeFeature({ he_vakiy: 1000, pt_tyott: 100 }),
-      makeFeature({ he_vakiy: 1000, pt_tyott: 200 }),
+      makeFeature({ he_vakiy: 1000, pt_tyott: 100, pt_tyoll: 900 }),
+      makeFeature({ he_vakiy: 1000, pt_tyott: 200, pt_tyoll: 800 }),
     ];
     const avg = computeMetroAverages(features);
     // (100 + 200) / 2000 * 100 = 15.0 → rounded to 1 decimal = 15
