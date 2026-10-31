@@ -4,7 +4,7 @@ import { t, useI18nVersion } from '../utils/i18n';
 import { loadAllData } from '../utils/dataLoader';
 import { computeQualityIndices, isCustomWeights, type QualityWeights } from '../utils/qualityIndex';
 import { getCountryRanges } from '../utils/nationalRanges';
-import { REGIONS } from '../utils/regions';
+import { REGIONS, regionCountry } from '../utils/regions';
 import { getCoveragePct, formatCoveragePct } from '../utils/metrics';
 
 interface Props {
@@ -180,7 +180,7 @@ export const RegionRankingTable: React.FC<Props> = React.memo(({ activeLayer, la
         )}
         {displayItems.map((item, i) => {
           const barWidth = maxVal !== 0 ? (Math.abs(item.value!) / maxVal) * 100 : 0;
-          const color = getColorForValue(layer, item.value!);
+          const color = getColorForValue(layer, item.value!, regionCountry(item.regionId));
           const rank = reversed ? displayItems.length - i : i + 1;
           const isSelected = selectedRegion != null && item.regionId === selectedRegion;
           return (
