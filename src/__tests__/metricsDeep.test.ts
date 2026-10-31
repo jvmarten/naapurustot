@@ -86,8 +86,8 @@ describe('computeMetroAverages — edge cases', () => {
 
   it('computes unemployment_rate from raw counts, not averaging percentages', () => {
     const features = [
-      makeFeature({ he_vakiy: 1000, pt_tyott: 50 }),
-      makeFeature({ he_vakiy: 4000, pt_tyott: 400 }),
+      makeFeature({ he_vakiy: 1000, pt_tyott: 50, pt_tyoll: 950 }),
+      makeFeature({ he_vakiy: 4000, pt_tyott: 400, pt_tyoll: 3600 }),
     ];
     const avg = computeMetroAverages(features);
     // 450 unemployed / 5000 total population = 9%
@@ -120,6 +120,7 @@ describe('computeMetroAverages — edge cases', () => {
         he_vakiy: 5000,
         hr_mtu: 35000,
         pt_tyott: 250,
+        pt_tyoll: 4750,
         ko_yl_kork: 1000,
         ko_al_kork: 500,
         ko_ika18y: 3000,
@@ -130,7 +131,7 @@ describe('computeMetroAverages — edge cases', () => {
     ];
     const avg = computeMetroAverages(features);
     expect(avg.hr_mtu).toBe(35000);
-    expect(avg.unemployment_rate).toBe(5); // 250/5000 = 5%
+    expect(avg.unemployment_rate).toBe(5); // 250/(250 + 4750) = 5%
     expect(avg.ownership_rate).toBe(60); // 1500/2500 = 60%
     expect(avg.rental_rate).toBe(32); // 800/2500 = 32%
   });

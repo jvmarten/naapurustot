@@ -982,6 +982,9 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
   let totalDwellings = 0;
   let totalPensioners = 0;
   let totalEmployed = 0;
+  // Unemployment rate: Σ unemployed / Σ labour force, over areas publishing both counts.
+  let totalUnemployedLf = 0;
+  let totalLabourForce = 0;
   // Employment rate: Σ employed / Σ residents 20–64, over areas publishing both
   // (Paavo's counts in Finland, SCB's in Sweden).
   let totalEmployed2064 = 0;
@@ -997,7 +1000,6 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
   // emit a fabricated 0% (because totalActPop falls back to pop and totalX
   // stays at 0) — making the all-Finland choropleth color it as "0%" instead
   // of rendering gray for "no data".
-  let hasUnemployedData = false;
   let hasEmployedData = false;
   let hasStudentData = false;
   let hasHigherEdData = false;
@@ -1037,7 +1039,8 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
       if (p.hr_pi_tul != null) { totalLowIncomeHh += p.hr_pi_tul; hasLowIncomeData = true; }
       if (p.hr_tuy != null) totalIncomeHh += p.hr_tuy;
       if (p.tp_tyopy != null) { totalJobs += p.tp_tyopy; hasJobsData = true; }
-      if (p.pt_tyott != null) { totalUnemployed += p.pt_tyott; hasUnemployedData = true; }
+      if (p.pt_tyott != null) totalUnemployed += p.pt_tyott;
+      if (p.pt_tyott != null && p.pt_tyoll != null) { totalUnemployedLf += p.pt_tyott; totalLabourForce += p.pt_tyott + p.pt_tyoll; }
       if (p.ko_yl_kork != null) { totalKoYlKork += p.ko_yl_kork; hasHigherEdData = true; }
       if (p.ko_al_kork != null) { totalKoAlKork += p.ko_al_kork; hasHigherEdData = true; }
       if (p.ko_ammat != null) totalKoAmmat += p.ko_ammat;
@@ -1123,12 +1126,12 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
   // region gray instead of as a fabricated 0%.
   result.he_vakiy = totalPop;
   if (totalActPop > 0) {
-    if (hasUnemployedData) {
-      result.unemployment_rate = roundTo((totalUnemployed / totalActPop) * 100, 1);
-    }
     if (hasStudentData) {
       result.student_share = roundTo((totalStudents / totalActPop) * 100, 1);
     }
+  }
+  if (totalLabourForce > 0) {
+    result.unemployment_rate = roundTo((totalUnemployedLf / totalLabourForce) * 100, 1);
   }
   if (totalPop2064 > 0) {
     result.employment_rate = roundTo((totalEmployed2064 / totalPop2064) * 100, 1);

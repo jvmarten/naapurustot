@@ -255,8 +255,8 @@ describe('computeMetroAverages', () => {
 
   it('computes ratio-based unemployment rate from raw counts', () => {
     const features = [
-      makeFeature({ he_vakiy: 1000, pt_tyott: 50, pt_vakiy: 800 }),
-      makeFeature({ pno: '00200', he_vakiy: 2000, pt_tyott: 200, pt_vakiy: 1600 }),
+      makeFeature({ he_vakiy: 1000, pt_tyott: 50, pt_tyoll: 750, pt_vakiy: 800 }),
+      makeFeature({ pno: '00200', he_vakiy: 2000, pt_tyott: 200, pt_tyoll: 1400, pt_vakiy: 1600 }),
     ];
     const avg = computeMetroAverages(features);
     // total unemployed = 250, total active pop = 2400

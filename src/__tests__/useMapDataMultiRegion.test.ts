@@ -61,13 +61,13 @@ function feature(pno: string, city: RegionId, props: Partial<NeighborhoodPropert
 }
 
 // Population-weighted income (hr_mtu, METRIC_DEFS) and a count ratio
-// (unemployment_rate = Σpt_tyott / Σpt_vakiy) — both differ between "recomputed
+// (unemployment_rate = Σpt_tyott / Σ(pt_tyott + pt_tyoll)) — both differ between "recomputed
 // over the union" and "mean of the per-region averages", so a wrong merge shows.
-const H1 = feature('00100', 'helsinki_metro', { he_vakiy: 1000, hr_mtu: 40000, pt_tyott: 50, pt_vakiy: 1000 });
-const H2 = feature('00200', 'helsinki_metro', { he_vakiy: 3000, hr_mtu: 30000, pt_tyott: 300, pt_vakiy: 3000 });
-const L1 = feature('15100', 'lahti', { he_vakiy: 1000, hr_mtu: 20000, pt_tyott: 200, pt_vakiy: 1000 });
-const T1 = feature('20100', 'turku', { he_vakiy: 2000, hr_mtu: 25000, pt_tyott: 100, pt_vakiy: 2000 });
-const P1 = feature('33100', 'tampere', { he_vakiy: 500, hr_mtu: 28000, pt_tyott: 25, pt_vakiy: 500 });
+const H1 = feature('00100', 'helsinki_metro', { he_vakiy: 1000, hr_mtu: 40000, pt_tyott: 50, pt_tyoll: 950, pt_vakiy: 1000 });
+const H2 = feature('00200', 'helsinki_metro', { he_vakiy: 3000, hr_mtu: 30000, pt_tyott: 300, pt_tyoll: 2700, pt_vakiy: 3000 });
+const L1 = feature('15100', 'lahti', { he_vakiy: 1000, hr_mtu: 20000, pt_tyott: 200, pt_tyoll: 800, pt_vakiy: 1000 });
+const T1 = feature('20100', 'turku', { he_vakiy: 2000, hr_mtu: 25000, pt_tyott: 100, pt_tyoll: 1900, pt_vakiy: 2000 });
+const P1 = feature('33100', 'tampere', { he_vakiy: 500, hr_mtu: 28000, pt_tyott: 25, pt_tyoll: 475, pt_vakiy: 500 });
 
 // Per-region results carry deliberately BOGUS metroAverages: the merged averages must
 // be recomputed from the features, so none of these numbers may leak into a merge.

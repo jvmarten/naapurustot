@@ -27,8 +27,8 @@ describe('computeMetroAverages — ratio-based metrics', () => {
     // Correct weighted = 150/1500 = 10.0%
     // (denominator is working-age population pt_vakiy, not total population)
     const features = [
-      makeFeature({ he_vakiy: 1200, pt_tyott: 100, pt_vakiy: 1000 }),
-      makeFeature({ pno: '00200', he_vakiy: 600, pt_tyott: 50, pt_vakiy: 500 }),
+      makeFeature({ he_vakiy: 1200, pt_tyott: 100, pt_tyoll: 900, pt_vakiy: 1000 }),
+      makeFeature({ pno: '00200', he_vakiy: 600, pt_tyott: 50, pt_tyoll: 450, pt_vakiy: 500 }),
     ];
     const avg = computeMetroAverages(features);
     expect(avg.unemployment_rate).toBeCloseTo(10.0, 1);
@@ -40,8 +40,8 @@ describe('computeMetroAverages — ratio-based metrics', () => {
     // Weighted: 250/2100 ≈ 11.9%
     // (denominator is working-age population pt_vakiy, not total population)
     const features = [
-      makeFeature({ he_vakiy: 2500, pt_tyott: 200, pt_vakiy: 2000 }),
-      makeFeature({ pno: '00200', he_vakiy: 150, pt_tyott: 50, pt_vakiy: 100 }),
+      makeFeature({ he_vakiy: 2500, pt_tyott: 200, pt_tyoll: 1800, pt_vakiy: 2000 }),
+      makeFeature({ pno: '00200', he_vakiy: 150, pt_tyott: 50, pt_tyoll: 50, pt_vakiy: 100 }),
     ];
     const avg = computeMetroAverages(features);
     expect(avg.unemployment_rate).toBeCloseTo(11.9, 1);

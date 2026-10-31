@@ -133,18 +133,18 @@ describe('filterUtils — neighborhoods with missing or invalid values', () => {
 describe('filterUtils — multiple concurrent filters', () => {
   it('all filters must match (AND logic)', () => {
     const data = makeData([
-      { pno: '00001', hr_mtu: 40000, unemployment_rate: 5 },  // both in range
-      { pno: '00002', hr_mtu: 40000, unemployment_rate: 15 }, // income ok, unemployment 15 (outlier above max stop 11)
-      { pno: '00003', hr_mtu: 10000, unemployment_rate: 3 },  // income below slider min, unemployment ok
+      { pno: '00001', hr_mtu: 40000, unemployment_rate: 11.8 },  // both in range
+      { pno: '00002', hr_mtu: 40000, unemployment_rate: 33.8 }, // income ok, unemployment 33.8 (outlier above max stop 25)
+      { pno: '00003', hr_mtu: 10000, unemployment_rate: 7.4 },  // income below slider min, unemployment ok
     ]);
     const filters: FilterCriterion[] = [
       { layerId: 'median_income', min: 20000, max: 55000 },
-      // unemployment stops: [1..11], slider at max=11 → outliers above ARE included
-      { layerId: 'unemployment', min: 1, max: 11 },
+      // unemployment stops: [3..25], slider at max=25 → outliers above ARE included
+      { layerId: 'unemployment', min: 3, max: 25 },
     ];
     const result = computeMatchingPnos(data, filters);
     expect(result.has('00001')).toBe(true);
-    // 00002: income 40k ok (in range), unemployment 15 > 11 but max slider at extreme → included
+    // 00002: income 40k ok (in range), unemployment 33.8 > 25 but max slider at extreme → included
     expect(result.has('00002')).toBe(true);
     // 00003: income 10k < 20000 slider AND min slider NOT at extreme (20000 > 15000) → excluded
     expect(result.has('00003')).toBe(false);
@@ -152,17 +152,17 @@ describe('filterUtils — multiple concurrent filters', () => {
 
   it('moving unemployment slider away from max excludes high outliers', () => {
     const data = makeData([
-      { pno: '00001', hr_mtu: 40000, unemployment_rate: 5 },
-      { pno: '00002', hr_mtu: 40000, unemployment_rate: 15 },
+      { pno: '00001', hr_mtu: 40000, unemployment_rate: 11.8 },
+      { pno: '00002', hr_mtu: 40000, unemployment_rate: 33.8 },
     ]);
     const filters: FilterCriterion[] = [
       { layerId: 'median_income', min: 15000, max: 55000 },
       // Move max slider to 8 (not at extreme 11) → outliers excluded
-      { layerId: 'unemployment', min: 1, max: 8 },
+      { layerId: 'unemployment', min: 3, max: 18.4 },
     ];
     const result = computeMatchingPnos(data, filters);
-    expect(result.has('00001')).toBe(true);  // unemployment 5 <= 8
-    expect(result.has('00002')).toBe(false);  // unemployment 15 > 8, slider not at extreme
+    expect(result.has('00001')).toBe(true);  // unemployment 11.8 <= 18.4
+    expect(result.has('00002')).toBe(false);  // unemployment 33.8 > 18.4, slider not at extreme
   });
 
   it('empty filters return empty set', () => {

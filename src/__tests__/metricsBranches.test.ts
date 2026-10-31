@@ -244,10 +244,10 @@ describe('computeChangeMetrics — edge cases', () => {
 });
 
 describe('computeMetroAverages — untested branches', () => {
-  it('falls back to he_vakiy when pt_vakiy is null for unemployment rate', () => {
+  it('unemployment rate needs no pt_vakiy: its base is the labour force', () => {
     const features = [
-      makeFeature({ he_vakiy: 1000, pt_tyott: 100, pt_vakiy: null }),
-      makeFeature({ he_vakiy: 2000, pt_tyott: 200, pt_vakiy: null }),
+      makeFeature({ he_vakiy: 1000, pt_tyott: 100, pt_tyoll: 900, pt_vakiy: null }),
+      makeFeature({ he_vakiy: 2000, pt_tyott: 200, pt_tyoll: 1800, pt_vakiy: null }),
     ];
     const avg = computeMetroAverages(features);
     // totalActPop = 1000+2000 = 3000 (fallback from he_vakiy)

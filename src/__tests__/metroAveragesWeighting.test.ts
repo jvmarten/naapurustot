@@ -138,8 +138,8 @@ describe('computeMetroAverages — ratio-based special metrics', () => {
     // Area B: pt_tyott=50, pt_vakiy=2000 → 2.5%
     // Metro: 150/3000 = 5%
     const features = [
-      makeFeature({ he_vakiy: 1000, pt_tyott: 100, pt_vakiy: 1000 }),
-      makeFeature({ he_vakiy: 2000, pt_tyott: 50, pt_vakiy: 2000 }),
+      makeFeature({ he_vakiy: 1000, pt_tyott: 100, pt_tyoll: 900, pt_vakiy: 1000 }),
+      makeFeature({ he_vakiy: 2000, pt_tyott: 50, pt_tyoll: 1950, pt_vakiy: 2000 }),
     ];
     const avg = computeMetroAverages(features);
     expect(avg.unemployment_rate).toBe(5.0);
