@@ -32,6 +32,7 @@ import { SUMMARY_METRICS } from '../src/utils/areaSummary.ts';
 import { PERCENTILE_METRICS } from '../src/utils/percentileRanks.ts';
 import { FIT_RANGE_KEYS, RADAR_METRICS } from '../src/utils/rangeKeys.ts';
 import { decodeColumnar } from './lib/columnar.mjs';
+import { HOME_COUNTRY, PREFIXED_COUNTRIES, areaCountry } from '../src/utils/countries.ts';
 
 const rootDir = resolve(import.meta.dirname, '..');
 const propertiesPath = resolve(rootDir, 'src', 'data', 'region_properties.json');
@@ -70,10 +71,11 @@ console.log('Reading region_properties.json...');
 // metrics are defined differently (docs/SWEDEN_EXPANSION.md) and must not move the
 // scale every Finnish score is normalized against.
 const allProps = decodeColumnar(JSON.parse(readFileSync(propertiesPath, 'utf-8')));
-const props = allProps.filter((p) => /^\d{5}$/.test(String(p.pno)));
-// Sweden's DeSO areas, ranged on their own: the quality index scores each area against
-// its own country (see computeQualityIndices), so these never mix with Finland's.
-const seProps = allProps.filter((p) => /^\d{4}[A-C]\d{4}$/.test(String(p.pno)));
+const props = allProps.filter((p) => areaCountry(String(p.pno)) === HOME_COUNTRY);
+// Every other country's areas, ranged on their own: the quality index scores each area
+// against its own country (see computeQualityIndices), so these never mix with Finland's.
+const OTHERS = PREFIXED_COUNTRIES.map((c) => c.id);
+const rowsOf = Object.fromEntries(OTHERS.map((c) => [c, allProps.filter((p) => areaCountry(String(p.pno)) === c)]));
 console.log(`  ${props.length} postal codes`);
 
 // Collect every finite numeric value per property, mirroring collectRange in
@@ -115,20 +117,26 @@ for (const [key, values] of valuesByProp) {
 // Only the properties the quality index reads: this file is bundled, and the rest of
 // Sweden's metrics have no client-side use for a range.
 const qiProps = new Set(QUALITY_FACTORS.flatMap((f) => [...f.properties, ...Object.values(f.byCountry ?? {}).flat()]));
-const seRanges = {};
-for (const key of [...qiProps].sort()) {
-  const values = [];
-  for (const p of seProps) {
-    const v = p[key];
-    if (typeof v === 'number' && isFinite(v) && !(key === 'economic_standard_median' && v <= 0)) values.push(v);
+// Income figures where 0 is a placeholder, not a measurement (collectRange drops them too).
+const POSITIVE_ONLY = new Set(['hr_mtu', 'economic_standard_median']);
+const rangesOf = (rows) => {
+  const out = {};
+  for (const key of [...qiProps].sort()) {
+    const values = [];
+    for (const p of rows) {
+      const v = p[key];
+      if (typeof v === 'number' && isFinite(v) && !(POSITIVE_ONLY.has(key) && v <= 0)) values.push(v);
+    }
+    if (values.length === 0) continue;
+    values.sort((a, b) => a - b);
+    const avg = values.reduce((s, v) => s + v, 0) / values.length;
+    // Four significant figures: the file is bundled, and a normalisation bound needs no more.
+    const sig = (v) => Number(v.toPrecision(4));
+    out[key] = { min: sig(percentile(values, LOWER_PCT)), max: sig(percentile(values, UPPER_PCT)), avg: sig(avg) };
   }
-  if (values.length === 0) continue;
-  values.sort((a, b) => a - b);
-  const avg = values.reduce((s, v) => s + v, 0) / values.length;
-  // Four significant figures: the file is bundled, and a normalisation bound needs no more.
-  const sig = (v) => Number(v.toPrecision(4));
-  seRanges[key] = { min: sig(percentile(values, LOWER_PCT)), max: sig(percentile(values, UPPER_PCT)), avg: sig(avg) };
-}
+  return out;
+};
+const countryRanges = Object.fromEntries(OTHERS.map((c) => [c, rangesOf(rowsOf[c])]));
 
 // The bundled file carries only what client code normalizes against: the quality index's
 // factors, the radar axes and the fit scorer. Everything else here had no reader and cost
@@ -141,13 +149,20 @@ const shippedRanges = Object.fromEntries(Object.entries(ranges).filter(([k]) => 
 // QualityCalibration). Computed from uncalibrated scores against the ranges shipped here.
 const CALIBRATION_POINTS = 21;
 const toRangeMap = (raw) => new Map(Object.entries(raw).map(([k, r]) => [k, { min: r.min, max: r.max, avg: r.avg }]));
+const rangeMaps = {
+  [HOME_COUNTRY]: toRangeMap(shippedRanges),
+  ...Object.fromEntries(OTHERS.map((c) => [c, toRangeMap(countryRanges[c])])),
+};
 const rawComposite = (rows) => {
   const feats = rows.map((p) => ({ properties: { ...p } }));
-  computeQualityIndices(feats, undefined, { fi: toRangeMap(shippedRanges), se: toRangeMap(seRanges) });
+  computeQualityIndices(feats, undefined, rangeMaps);
   const v = feats.map((f) => f.properties.quality_index).filter((x) => typeof x === 'number').sort((a, b) => a - b);
   return Array.from({ length: CALIBRATION_POINTS }, (_, i) => Math.round(percentile(v, i / (CALIBRATION_POINTS - 1)) * 10) / 10);
 };
-const calibration = { fi: rawComposite(props), se: rawComposite(seProps) };
+const calibration = {
+  [HOME_COUNTRY]: rawComposite(props),
+  ...Object.fromEntries(OTHERS.map((c) => [c, rawComposite(rowsOf[c])])),
+};
 
 const artifact = {
   // Document how the bounds were derived so the file is self-explaining.
@@ -157,13 +172,13 @@ const artifact = {
   postalCodeCount: props.length,
   rangeCount: Object.keys(shippedRanges).length,
   ranges: shippedRanges,
-  countries: { se: { areaCount: seProps.length, ranges: seRanges } },
+  countries: Object.fromEntries(OTHERS.map((c) => [c, { areaCount: rowsOf[c].length, ranges: countryRanges[c] }])),
   calibration,
 };
 
 writeFileSync(outputPath, JSON.stringify(artifact, null, 2) + '\n');
 console.log(`  → national_ranges.json (${Object.keys(shippedRanges).length} of ${count} properties over ${props.length} postal codes; `
-  + `${Object.keys(seRanges).length} quality-index properties over ${seProps.length} DeSO areas)`);
+  + OTHERS.map((c) => `${c}: ${Object.keys(countryRanges[c]).length} quality-index properties over ${rowsOf[c].length} areas`).join('; ') + ')');
 
 // CF-2: national percentile LADDERS. national_ranges.json carries only winsorized
 // min/max/avg (for QI normalization); it cannot answer "top X% nationally". This second
@@ -188,23 +203,35 @@ const requirePositiveProps = new Set([
   'hr_mtu',
   ...SUMMARY_METRICS.filter((m) => m.requirePositive).map((m) => m.prop),
 ]);
-const percentileMetrics = {};
-for (const key of ladderProps) {
-  const requirePositive = requirePositiveProps.has(key);
-  const values = [];
-  for (const p of props) {
-    if (!p) continue;
-    const v = p[key];
-    if (typeof v !== 'number' || !isFinite(v)) continue;
-    if (requirePositive && v <= 0) continue;
-    values.push(v);
+const laddersOf = (rows) => {
+  const out = {};
+  for (const key of ladderProps) {
+    const requirePositive = requirePositiveProps.has(key);
+    const values = [];
+    for (const p of rows) {
+      if (!p) continue;
+      const v = p[key];
+      if (typeof v !== 'number' || !isFinite(v)) continue;
+      if (requirePositive && v <= 0) continue;
+      values.push(v);
+    }
+    if (values.length === 0) continue;
+    values.sort((a, b) => a - b);
+    // 101 quantiles p0..p100; percentileRankSorted binary-searches this ascending ladder.
+    const ladder = Array.from({ length: 101 }, (_, i) => percentile(values, i / 100));
+    out[key] = { ladder, n: values.length };
   }
-  if (values.length === 0) continue;
-  values.sort((a, b) => a - b);
-  // 101 quantiles p0..p100; percentileRankSorted binary-searches this ascending ladder.
-  const ladder = Array.from({ length: 101 }, (_, i) => percentile(values, i / 100));
-  percentileMetrics[key] = { ladder, n: values.length };
-}
+  return out;
+};
+const percentileMetrics = laddersOf(props);
+// Every other country's own ladders, so an area there is ranked against its own country.
+// Its quality_index is the one the map shows: scored against its country's ranges, then
+// calibrated onto HOME's scale (computeQualityIndices with the calibration just built).
+const countryLadders = Object.fromEntries(OTHERS.map((c) => {
+  const feats = rowsOf[c].map((p) => ({ properties: { ...p } }));
+  computeQualityIndices(feats, undefined, { ...rangeMaps, calibration });
+  return [c, { areaCount: feats.length, metrics: laddersOf(feats.map((f) => f.properties)) }];
+}));
 const percentilesArtifact = {
   method: 'quantile-ladder',
   breakpoints: 101,
@@ -213,6 +240,12 @@ const percentilesArtifact = {
 };
 writeFileSync(percentilesPath, JSON.stringify(percentilesArtifact, null, 2) + '\n');
 console.log(`  → national_percentiles.json (${Object.keys(percentileMetrics).length} metric ladders)`);
+// One file per other country, so a Finnish panel never downloads Sweden's (and vice versa).
+for (const [c, { areaCount, metrics }] of Object.entries(countryLadders)) {
+  const out = { method: 'quantile-ladder', breakpoints: 101, areaCount, metrics };
+  writeFileSync(resolve(rootDir, 'src', 'data', `percentiles_${c}.json`), JSON.stringify(out, null, 2) + '\n');
+  console.log(`  → percentiles_${c}.json (${Object.keys(metrics).length} metric ladders over ${areaCount} areas)`);
+}
 // Surface a couple of headline metrics so the build log is auditable.
 for (const key of ['crime_index', 'hr_mtu', 'unemployment_rate', 'air_quality_index']) {
   const r = ranges[key];
