@@ -2,102 +2,74 @@ import React, { useMemo } from 'react';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { t, useI18nVersion } from '../utils/i18n';
 import { getNationalRanges } from '../utils/nationalRanges';
-import { RADAR_METRICS } from '../utils/rangeKeys';
+import { RADAR_METRICS, RADAR_METRICS_BY_COUNTRY } from '../utils/rangeKeys';
+import { countryOfId, type CountryId } from '../utils/areaId';
+import { HOME_COUNTRY } from '../utils/countries';
 
 interface RadarChartProps {
   data: NeighborhoodProperties;
   metroAverages: Record<string, number>;
 }
 
-/** Axis definition: label i18n key, extractor, source metric(s), inverted */
+/** Axis definition: label i18n key, source metric(s), inverted. A multi-metric axis is a
+ *  composite: the mean of its constituents (a missing one counts 0, all missing is null),
+ *  normalized against the mean of their bounds. */
 interface AxisSpec {
-  key: string;
-  extract: (p: NeighborhoodProperties) => number | null;
-  extractAvg: (avg: Record<string, number>) => number;
-  /** national_ranges.json properties this axis normalizes against; a multi-metric
-   *  (composite) axis averages its constituents' bounds. */
-  metrics: readonly string[];
+  key: keyof typeof RADAR_METRICS;
   inverted: boolean;
 }
 
 interface AxisDef extends AxisSpec {
+  /** national_ranges.json properties this axis reads, for the area's country. */
+  metrics: readonly string[];
   min: number;
   max: number;
 }
 
 const AXIS_SPECS: AxisSpec[] = [
-  {
-    key: 'radar.income',
-    extract: (p) => p.hr_mtu,
-    extractAvg: (a) => a.hr_mtu,
-    metrics: RADAR_METRICS['radar.income'],
-    inverted: false,
-  },
-  {
-    key: 'radar.safety',
-    extract: (p) => p.crime_index,
-    extractAvg: (a) => a.crime_index,
-    metrics: RADAR_METRICS['radar.safety'],
-    inverted: true,
-  },
-  {
-    key: 'radar.transit',
-    extract: (p) => p.transit_stop_density,
-    extractAvg: (a) => a.transit_stop_density,
-    metrics: RADAR_METRICS['radar.transit'],
-    inverted: false,
-  },
-  {
-    key: 'radar.education',
-    extract: (p) => p.higher_education_rate,
-    extractAvg: (a) => a.higher_education_rate,
-    metrics: RADAR_METRICS['radar.education'],
-    inverted: false,
-  },
-  {
-    key: 'radar.services',
-    extract: (p) => {
-      const g = p.grocery_density;
-      const h = p.healthcare_density;
-      const s = p.school_density;
-      if (g == null && h == null && s == null) return null;
-      return ((g ?? 0) + (h ?? 0) + (s ?? 0)) / 3;
-    },
-    extractAvg: (a) =>
-      ((a.grocery_density ?? 0) + (a.healthcare_density ?? 0) + (a.school_density ?? 0)) / 3,
-    metrics: RADAR_METRICS['radar.services'],
-    inverted: false,
-  },
-  {
-    key: 'radar.housing',
-    extract: (p) => p.property_price_sqm,
-    extractAvg: (a) => a.property_price_sqm,
-    metrics: RADAR_METRICS['radar.housing'],
-    inverted: true,
-  },
+  { key: 'radar.income', inverted: false },
+  { key: 'radar.safety', inverted: true },
+  { key: 'radar.transit', inverted: false },
+  { key: 'radar.education', inverted: false },
+  { key: 'radar.services', inverted: false },
+  { key: 'radar.housing', inverted: true },
 ];
+
+function axisValue(row: Record<string, unknown>, metrics: readonly string[]): number | null {
+  const vals = metrics.map((m) => row[m]).map((v) => (typeof v === 'number' && !Number.isNaN(v) ? v : null));
+  if (vals.every((v) => v == null)) return null;
+  return vals.reduce<number>((s, v) => s + (v ?? 0), 0) / vals.length;
+}
 
 // PO-1: axis bounds come from the pre-computed national distribution (winsorized
 // p2/p98 in national_ranges.json) instead of hardcoded metro-centric literals that
 // pegged most of the 3,018 areas near the floor and went stale on data refreshes.
-// A composite axis averages its constituents' bounds. normalize() treats a
-// degenerate (missing-metric) 0-width range as mid-scale, so an absent range key
-// degrades safely rather than corrupting the polygon.
-function axisBounds(metrics: readonly string[]): { min: number; max: number } {
-  const ranges = getNationalRanges();
-  let minSum = 0;
-  let maxSum = 0;
-  for (const m of metrics) {
-    const r = ranges.get(m);
-    minSum += r?.min ?? 0;
-    maxSum += r?.max ?? 0;
-  }
-  return { min: minSum / metrics.length, max: maxSum / metrics.length };
+// Each country's areas use that country's ranges. A composite axis averages its
+// constituents' bounds. normalize() treats a degenerate (missing-metric) 0-width
+// range as mid-scale, so an absent range key degrades safely rather than corrupting
+// the polygon.
+const axesCache = new Map<CountryId, AxisDef[]>();
+function axesFor(country: CountryId): AxisDef[] {
+  const hit = axesCache.get(country);
+  if (hit) return hit;
+  const ranges = getNationalRanges(country);
+  const own = country === HOME_COUNTRY ? undefined : RADAR_METRICS_BY_COUNTRY[country as 'se'];
+  const axes = AXIS_SPECS.map((spec) => {
+    const metrics = own?.[spec.key] ?? RADAR_METRICS[spec.key];
+    let minSum = 0;
+    let maxSum = 0;
+    for (const m of metrics) {
+      const r = ranges.get(m);
+      minSum += r?.min ?? 0;
+      maxSum += r?.max ?? 0;
+    }
+    return { ...spec, metrics, min: minSum / metrics.length, max: maxSum / metrics.length };
+  });
+  axesCache.set(country, axes);
+  return axes;
 }
 
-const AXES: AxisDef[] = AXIS_SPECS.map((spec) => ({ ...spec, ...axisBounds(spec.metrics) }));
-
-const NUM_AXES = AXES.length;
+const NUM_AXES = AXIS_SPECS.length;
 const SIZE = 280;
 const CENTER = SIZE / 2;
 const RADIUS = 95;
@@ -127,14 +99,16 @@ function polygonPoints(values: number[]): string {
 
 const RadarChart: React.FC<RadarChartProps> = React.memo(function RadarChart({ data, metroAverages }) {
   useI18nVersion();
+  const AXES = axesFor(countryOfId(data.pno));
+  const row = data as unknown as Record<string, unknown>;
   const dataValues = useMemo(
-    () => AXES.map((a) => normalize(a.extract(data), a.min, a.max, a.inverted)),
-    [data],
+    () => AXES.map((a) => normalize(axisValue(row, a.metrics), a.min, a.max, a.inverted)),
+    [AXES, row],
   );
 
   const avgValues = useMemo(
-    () => AXES.map((a) => normalize(a.extractAvg(metroAverages), a.min, a.max, a.inverted)),
-    [metroAverages],
+    () => AXES.map((a) => normalize(axisValue(metroAverages, a.metrics) ?? 0, a.min, a.max, a.inverted)),
+    [AXES, metroAverages],
   );
 
   // EM4: normalize() maps a missing metric to 0 (plotted at the centre — exactly
@@ -142,11 +116,8 @@ const RadarChart: React.FC<RadarChartProps> = React.memo(function RadarChart({ d
   // we can render them distinctly (hollow marker + "no data" in the aria text)
   // instead of conflating absent data with the lowest possible score.
   const missing = useMemo(
-    () => AXES.map((a) => {
-      const v = a.extract(data);
-      return v == null || Number.isNaN(v);
-    }),
-    [data],
+    () => AXES.map((a) => axisValue(row, a.metrics) == null),
+    [AXES, row],
   );
 
   // QW-4: Accessibility — build descriptive label with all axis values and the
@@ -307,20 +278,19 @@ export interface RadarSeries {
 export const ComparisonRadarChart: React.FC<{ series: RadarSeries[] }> = React.memo(
   function ComparisonRadarChart({ series }) {
     useI18nVersion();
+    // Each area on its own country's axes: the same six concepts, scaled within its country.
+    const AXES = AXIS_SPECS;
     const seriesValues = useMemo(
       () =>
         series.map((s) =>
-          AXES.map((a) => normalize(a.extract(s.data), a.min, a.max, a.inverted)),
+          axesFor(countryOfId(s.data.pno)).map((a) => normalize(axisValue(s.data as unknown as Record<string, unknown>, a.metrics), a.min, a.max, a.inverted)),
         ),
       [series],
     );
     const seriesMissing = useMemo(
       () =>
         series.map((s) =>
-          AXES.map((a) => {
-            const v = a.extract(s.data);
-            return v == null || Number.isNaN(v);
-          }),
+          axesFor(countryOfId(s.data.pno)).map((a) => axisValue(s.data as unknown as Record<string, unknown>, a.metrics) == null),
         ),
       [series],
     );

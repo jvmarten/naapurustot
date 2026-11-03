@@ -150,7 +150,14 @@ jobs:
             link_dest=(--link-dest="$root/current/")
           fi
 
-          rsync -rlcz --delete "${link_dest[@]}" -e "$ssh_cmd" dist/ "$host:$root/releases/$release.partial/"
+          # Timed and counted into the run summary: the file budget in check-dist-size.mjs is
+          # raised per country from these measured figures, not from a guess.
+          files=$(find dist -type f | wc -l)
+          start=$SECONDS
+          rsync -rlcz --delete --stats "${link_dest[@]}" -e "$ssh_cmd" dist/ "$host:$root/releases/$release.partial/" > /tmp/rsync-stats.txt
+          stats=$(grep -E '^(Number of regular files transferred|Total transferred file size)' /tmp/rsync-stats.txt || true)
+          echo "$files files synced in $((SECONDS - start)) s"; echo "$stats"
+          printf '### Deploy sync\n%s files synced in %s s\n\n```\n%s\n```\n' "$files" "$((SECONDS - start))" "$stats" >> "$GITHUB_STEP_SUMMARY"
 
           $ssh_cmd "$host" bash -s -- "$root" "$release" <<'REMOTE'
           set -euo pipefail

@@ -474,3 +474,15 @@ joins the two only where a 2025 area IS its 2018 namesake, decided from SCB's ow
   view, like crime and house-price change (§14). SCB's municipal totals would give every
   region an exact series, but the region features are built from the areas in both the
   build and the browser, and a second source would have to agree with both.
+
+## 17. Panel parity (2026-11-03)
+
+- **Strengths & weaknesses.** Ranked against Sweden's own percentile ladders
+  (`src/data/percentiles_se.json`, built by `build_national_ranges.mjs` for every country
+  other than Finland), never Finland's; economic standard is a summary metric.
+- **Radar.** On Sweden's own ranges, with income read as economic standard
+  (`RADAR_METRICS_BY_COUNTRY` in `rangeKeys.ts`). Housing is Finland's €/m², which no
+  Swedish area has, so it shows as "no data" rather than a guessed value.
+- **Still Finland-only:** the fit badge (the wizard scores Paavo-shaped metrics: daycare,
+  child share, foreign language) and region hub/ranking pages.
+

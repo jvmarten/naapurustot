@@ -1517,6 +1517,8 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
           {seRows(['economic_standard', 'unemployment', 'foreign_background'])}
         </div>
       )}
+      {/* The radar on Sweden's own ranges, income read as economic standard (rangeKeys.ts). */}
+      {isSe && <RadarChart data={d} metroAverages={avg} />}
 
       {!isSe && <>
       {/* Key stats */}
