@@ -34,7 +34,10 @@ const planningManifest = JSON.parse(readFileSync(r('src/data/planning_manifest.j
 // --- Static extraction: LAYERS triples (id, labelKey, property) ---
 const layerById = new Map();
 const idByProperty = new Map();
-const re = /\bid:\s*'([^']+)',\s*labelKey:\s*'([^']+)',\s*property:\s*'([^']+)'/g;
+// Other fields may sit between labelKey and property (a layer's crossCountryNoteKey or
+// byCountry does); requiring them adjacent silently dropped those layers. The gap may
+// not cross the next layer's `id:`.
+const re = /\bid:\s*'([^']+)',\s*labelKey:\s*'([^']+)',(?:(?!\bid:\s*')[\s\S])*?\bproperty:\s*'([^']+)'/g;
 for (let m; (m = re.exec(colorScalesSrc)); ) {
   const [, id, labelKey, property] = m;
   layerById.set(id, { id, labelKey, property, label: en[labelKey] ?? id });
