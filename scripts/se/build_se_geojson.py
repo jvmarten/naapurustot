@@ -25,6 +25,7 @@ Inputs (all produced by the fetch scripts in this directory):
   school_grades_deso.json       fetch_se_school_grades.py (Skolverket upper-secondary grade points)
   light_deso.json               fetch_se_light.py (NASA VIIRS Black Marble night-time radiance)
   transit_deso.json             fetch_se_transit.py (GTFS Sweden 3, routed to each region's centre)
+  history_deso.json             fetch_se_history.py (SCB series for DeSOs continuous with DeSO 2018)
 
 Geometry is cut at the shore first (clip_deso_land.py: SCB's polygons run out into the
 sea, Paavo's do not), then simplified ONCE here, on a shared-arc topology (geo2topo ->
@@ -354,6 +355,19 @@ def transit_props(transit: dict, deso: str) -> dict:
     return {"transit_reachability_score": transit["values"].get(deso)}
 
 
+HISTORY_KEYS = ["population_history", "economic_standard_history", "unemployment_history"]
+
+
+def history_props(history: dict, deso: str) -> dict:
+    """SCB's yearly series, only for a DeSO whose boundary moved less than 1 % between DeSO
+    2018 and 2025 (fetch_se_history.py says why); every other area gets none. Written after
+    transit_props; apply_se_history.py patches the committed file with it."""
+    s = history["series"].get(deso, {})
+    return {"population_history": s.get("population"),
+            "economic_standard_history": s.get("economic_standard"),
+            "unemployment_history": s.get("unemployment")}
+
+
 def crime_props(crime: dict, district_of: dict[str, str], deso: str) -> dict:
     """Brå's figures for the DeSO's city district in Stockholm, Göteborg and Malmö, else for
     its municipality (a DeSO code starts with its kommun code). Brå publishes nothing finer.
@@ -464,6 +478,7 @@ def main() -> None:
     grades = load("school_grades_deso.json")
     light = load("light_deso.json")
     transit = load("transit_deso.json")
+    history = load("history_deso.json")
 
     region_of = {k: r["id"] for r in fa25 for k in r["kommuner"]}
     names = display_names(index, regso)
@@ -574,6 +589,7 @@ def main() -> None:
         props.update(extra2_props(extra, grades, deso))
         props.update(light_props(light, deso))
         props.update(transit_props(transit, deso))
+        props.update(history_props(history, deso))
         features.append({"type": "Feature", "properties": props, "geometry": {
             "type": geom["type"], "coordinates": round_coords(geom["coordinates"])}})
 

@@ -1311,6 +1311,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
   const incomeHistory = useMemo(() => parseTrendSeries(d.income_history), [d.income_history]);
   const populationHistory = useMemo(() => parseTrendSeries(d.population_history), [d.population_history]);
   const unemploymentHistory = useMemo(() => parseTrendSeries(d.unemployment_history), [d.unemployment_history]);
+  const economicStandardHistory = useMemo(() => parseTrendSeries(d.economic_standard_history), [d.economic_standard_history]);
   // CF-7: property-price and crime time-series.
   const propertyPriceHistory = useMemo(() => parseTrendSeries(d.property_price_history), [d.property_price_history]);
   const crimeHistory = useMemo(() => parseTrendSeries(d.crime_index_history), [d.crime_index_history]);
@@ -1502,7 +1503,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
 
       {isSe && (
         <div className="divide-y divide-surface-200 dark:divide-surface-800/50">
-          <StatRow label={t('panel.population')} value={formatNumber(d.he_vakiy)} property="he_vakiy" />
+          <StatRow label={t('panel.population')} value={formatNumber(d.he_vakiy)} property="he_vakiy" sparkline={populationSparkline} />
           {seRows(['economic_standard', 'unemployment', 'foreign_background'])}
         </div>
       )}
@@ -1997,9 +1998,22 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
     </>
   );
 
+  // Sweden: SCB's series exist only for DeSOs whose boundary did not move in the 2025
+  // revision (scripts/se/fetch_se_history.py); the rest say why they have none.
   const sectionTrends = isSe ? (
-    // DeSO 2025 statistics start at 2024 and are not back-cast to older years.
-    <p className="text-xs text-surface-500 dark:text-surface-400">{t('panel.se_no_trends')}</p>
+    populationHistory || economicStandardHistory || unemploymentHistory ? (
+      <TrendSection
+        incomeData={economicStandardHistory}
+        incomeLabelKey="panel.trend_economic_standard"
+        incomeUnitKey="panel.trend_unit_sek"
+        populationData={populationHistory}
+        unemploymentData={unemploymentHistory}
+        propertyPriceData={null}
+        crimeData={null}
+      />
+    ) : (
+      <p className="text-xs text-surface-500 dark:text-surface-400">{t('panel.se_no_trends')}</p>
+    )
   ) : (
     <TrendSection
       incomeData={incomeHistory}

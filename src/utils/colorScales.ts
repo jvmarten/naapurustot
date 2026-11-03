@@ -746,6 +746,7 @@ export const LAYERS: LayerConfig[] = [
   {
     id: 'population_change',
     labelKey: 'layer.population_change',
+    crossCountryNoteKey: 'note.xc_population_change',
     property: 'population_change_pct',
     unit: '%',
     colors: ['#b2182b', '#d6604d', '#f4a582', '#fddbc7', '#d1e5f0', '#92c5de', '#4393c3', '#2166ac'],
@@ -1413,7 +1414,7 @@ const SE_LAYERS: ReadonlySet<LayerId> = new Set<LayerId>([
   'transit_access', 'school_density', 'healthcare_access', 'restaurant_density',
   'grocery_access', 'cycling_infra', 'air_quality', 'walkability', 'water_proximity',
   'ev_charging_density', 'tree_canopy', 'noise_pollution', 'light_pollution',
-  'construction_activity', 'population_projection', 'crime_index_change', 'political_lean',
+  'construction_activity', 'population_projection', 'crime_index_change', 'political_lean', 'population_change',
   'transit_reachability', 'employment_rate', 'foreign_lang',
   // Not comparable (own `byCountry` stops): different registers (unemployment), counting rules (Brå's
   // crime, Trafikanalys's injury-only accidents), bases (households vs residents for

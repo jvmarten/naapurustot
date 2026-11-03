@@ -142,5 +142,7 @@
   "note.se_low_economic_standard": "Alle 60 % koko Ruotsin taloudellisen standardin mediaanista (SCB).",
   "note.se_employment": "Ruotsi: työllisten osuus 20–64-vuotiaista (SCB). Suomen luku lasketaan samoin, joten maita voi verrata.",
   "note.se_unemployment": "Ruotsi: työttömien osuus 20–64-vuotiaiden työvoimasta (SCB:n rekisteri). Suomen rekisteri laskee kaikki työttömät työnhakijat, joten Suomen luvut ovat korkeampia; vertaa värejä maan sisällä.",
+  "note.xc_population_change": "Ruotsi: 2020–2025 (SCB), vain alueille, joiden raja säilyi vuoden 2025 aluejaossa (noin kolme neljästä). Ruotsin seutu näytetään vain, jos niissä asuu 95 % sen asukkaista.",
+  "note.se_population_change": "Ruotsi: asukasmäärän muutos 2020–2025 (SCB), vain DeSO-alueille, joiden raja muuttui vuoden 2025 aluejaossa alle 1 % pinta-alastaan. Muilla ei ole vertailukelpoista sarjaa.",
   "note.se_education": "Ruotsi: eftergymnasial- eli korkea-asteen koulutuksen suorittaneiden osuus 25–65-vuotiaista, joiden koulutustaso tunnetaan (SCB). Suomen luku koskee 18 vuotta täyttäneitä."
 }

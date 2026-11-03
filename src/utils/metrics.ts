@@ -187,6 +187,8 @@ export interface NeighborhoodProperties {
   property_price_history: string | null;
   crime_index_history: string | null;
   tree_canopy_history?: string | null;
+  /** Sweden: SCB's median ekonomisk standard per year (SEK), for DeSOs continuous with DeSO 2018. */
+  economic_standard_history?: string | null;
   // Foreign-language speakers time series: [[2020, real], [2021, est], ...].
   // 2020 is real postal data; later years are an is_proxy estimate (the 2020
   // distribution scaled by the StatFin vaerak 159t municipal share change).

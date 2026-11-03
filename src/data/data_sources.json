@@ -817,6 +817,15 @@
           "granularity": "deso",
           "is_proxy": false
         },
+        "population_change_pct": {
+          "source": "SCB (Folkmängden per region, DeSO 2018 and 2025)",
+          "publisher": "scb",
+          "vintage": "2020–2025",
+          "granularity": "deso",
+          "is_proxy": false,
+          "stored": false,
+          "note": "note.se_population_change"
+        },
         "population_density": {
           "source": "SCB (Folkmängd + land- och vattenareal, DeSO 2025)",
           "publisher": "scb",

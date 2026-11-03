@@ -446,3 +446,31 @@ All 6,160 DeSOs have a value: median 45.3 (Finland's 183 Helsinki-region postal 
 in Göteborg score ~80, Möllevången in Malmö 85, Stockholm's suburbs 50–75. Default
 quality-index weight is 0, so no score moved.
 
+
+## 16. History (2026-11-03)
+
+Q5's "older history, for DeSOs whose boundaries didn't change". SCB publishes every DeSO
+table under both versions: the DeSO 2018 codes hold the years up to 2023 and read 0 or
+`..` after, the DeSO 2025 codes (`…_DeSO2025`) hold 2024 on. `scripts/se/fetch_se_history.py`
+joins the two only where a 2025 area IS its 2018 namesake, decided from SCB's own polygons
+(geodata WFS `stat:DeSO_2018` / `stat:DeSO_2025`) and never from the statistics:
+
+- **Continuity.** Same code in both versions, and a symmetric difference under 1 % of the
+  2025 area. 5,835 of 6,160 codes exist in both; 4,605 pass. The threshold was measured:
+  the 2023 → 2024 population step (the one that crosses versions) has the spread of an
+  ordinary year (2022 → 2023: p95 5.1 %) for every boundary change below 1 % (p95
+  4.0–5.1 %), and widens beyond it (1–5 %: 6.3 %; ≥ 5 %: 10.0 %).
+- **Series.** Population (TAB6574, 31 Dec), median economic standard (TAB6684, fixed
+  prices) and unemployment 20–64 (TAB6680), each cut to its latest six years — Finland's
+  Paavo window — and dropped if a year is missing inside it. The last point of every
+  series equals the value already on the map (4,605 / 4,604 / 4,605 checked).
+- **Map.** `population_history`, `unemployment_history` (shared keys, SCB's definitions)
+  and `economic_standard_history` (Sweden's own) on the DeSO; the panel draws them as
+  trends, and areas without one say their boundary changed. Population change (2020 →
+  2025) joins Sweden's layers on Finland's scale, with a legend line.
+- **Regions.** A summed series is a region's total, so `aggregateTrendHistories` builds one
+  only when the areas carrying it hold 95 % of the region's residents (Finland's always
+  do). 17 of 71 Swedish regions qualify; the rest have no region figure in the national
+  view, like crime and house-price change (§14). SCB's municipal totals would give every
+  region an exact series, but the region features are built from the areas in both the
+  build and the browser, and a second source would have to agree with both.
