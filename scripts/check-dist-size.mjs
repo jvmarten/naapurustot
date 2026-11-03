@@ -69,6 +69,14 @@ const MiB = 1024 * 1024;
 // the card rasterization nor the PNG bytes grow). Measured pages profile 845 MB / 58,936
 // files. Both budgets raised to hold that with headroom; the file budget stays below the
 // ~65,000 that crossed the old 10-minute Pages timeout, and deploy-pages now has 20 minutes.
+//
+// 2026-11-03, measured on the droplet (no Pages any more): rsync -c --link-dest of the
+// 58,936-file tree took 2 min 15 s (~2.3 ms a file), and the whole deploy 4 min 44 s against
+// the job's 40-minute cap. The ~65,000 ceiling above belonged to the Pages sync and is gone,
+// so the file budget is now ONLY a ratchet detector: keep it ~10 % over the measured tree,
+// and raise it in the same commit that adds a country's pages (Norway's ~14,000 grunnkretser
+// × 3 languages would be ~42,000 pages, ~1.5 min more sync). deploy.yml writes each run's
+// file count and sync time to the run summary, so the next raise starts from a measurement.
 const PROFILES = {
   pages: {
     hard: true,
