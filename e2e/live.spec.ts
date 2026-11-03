@@ -100,8 +100,9 @@ test.describe('/live/', () => {
     // `sanitizeEnabled` keeps only ids that are real AND live, so the applied
     // count is the round trip through the registry rather than an echo of `f=`.
     // The denominator is the weather group's live-feed count: radar,
-    // observations, clouds, wind, air quality, sea level and lightning.
-    await expect(page.getByText('1/7').first()).toBeVisible();
+    // observations, clouds, wind, air quality, sea level, water temperature
+    // and lightning.
+    await expect(page.getByText('1/8').first()).toBeVisible();
   });
 
   test('gives a phone its map and keeps the clock on screen', async ({ page }) => {

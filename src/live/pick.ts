@@ -32,6 +32,7 @@ export type PickKind =
   | 'observation'
   | 'wind'
   | 'sea_level'
+  | 'water_temp'
   | 'incident'
   | 'lightning';
 
@@ -70,6 +71,7 @@ const GRAB_PX: Record<PickKind, number> = {
   // A signed centimetre label like the temperature one, so the same generous
   // target — the gauges are few and far apart on the coast, never crowded.
   sea_level: 16,
+  water_temp: 14,
   // An arrow is a broad mark but it is hit-tested at the station point it is
   // centred on, so its target is the same size as a dot's.
   wind: 14,
@@ -108,6 +110,8 @@ const PRIORITY: Record<PickKind, number> = {
   // coincides with a land feed, so its rank among the labels barely matters; it
   // sits just after the temperature labels it is drawn beside.
   sea_level: 7,
+  // Beach labels, a label like sea level's and beside it on the shore.
+  water_temp: 7,
   // LAST, which is the opposite of what its mark size would suggest. The rule
   // above is "the smaller, more precisely-placed mark wins a tie", and a flash
   // is the smallest thing here — but it is also drawn UNDER everything else and
@@ -148,6 +152,7 @@ export interface PickInput {
   observations?: Located[];
   wind?: Located[];
   seaLevel?: Located[];
+  water?: Located[];
   incidents?: LocatedLines[];
   lightning?: Located[];
 }
@@ -198,6 +203,7 @@ export function pickFeature(
   points('observation', layers.observations);
   points('wind', layers.wind);
   points('sea_level', layers.seaLevel);
+  points('water_temp', layers.water);
   points('lightning', layers.lightning);
 
   const incidents = layers.incidents;
