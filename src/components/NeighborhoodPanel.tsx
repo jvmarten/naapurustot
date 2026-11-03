@@ -511,17 +511,27 @@ const AreaSummarySection: React.FC<{
   isCustomWeights?: boolean;
 }> = React.memo(({ props, allFeatures, scope, region, isCustomWeights = false }) => {
   useI18nVersion();
-  // CF-2: for a real postal area, lazily fetch the national percentile ladders (a ?url asset,
+  // CF-2: for a real area, lazily fetch its country's percentile ladders (a ?url asset,
   // zero bundle) so the standing is a TRUE national "top X%", not a rank against the loaded
-  // region cohort. Metro aggregates (?city=all) rank against the 69 regions, so skip the ladder.
+  // region cohort. Metro aggregates (?city=all) rank against the regions, so skip the ladder.
+  // Each country is ranked against itself: its metrics are its publisher's definitions.
   const isAggregate = !!props._isMetroArea;
+  const country = countryOfId(props.pno);
   const [ladders, setLadders] = useState<Record<string, NationalLadder> | null>(null);
   useEffect(() => {
+    setLadders(null);
     if (isAggregate) return;
     let alive = true;
-    loadNationalPercentiles().then((l) => { if (alive) setLadders(l); }).catch(() => {});
+    loadNationalPercentiles(country).then((l) => { if (alive) setLadders(l); }).catch(() => {});
     return () => { alive = false; };
-  }, [isAggregate]);
+  }, [isAggregate, country]);
+  // Without a ladder, the cohort is the loaded areas of the same country.
+  const cohort = useMemo(
+    () => (allFeatures.every((f) => countryOfId((f.properties as NeighborhoodProperties).pno) === country)
+      ? allFeatures
+      : allFeatures.filter((f) => countryOfId((f.properties as NeighborhoodProperties).pno) === country)),
+    [allFeatures, country],
+  );
 
   const useNational = !!ladders && !isAggregate;
   // The national quality_index ladder is built once with the DEFAULT weights, but the
@@ -542,8 +552,8 @@ const AreaSummarySection: React.FC<{
             population: (props.he_vakiy as number | null | undefined) ?? null,
             skipProps,
           })
-        : computeAreaSummary(props as Record<string, unknown>, allFeatures),
-    [props, allFeatures, ladders, useNational, skipProps],
+        : computeAreaSummary(props as Record<string, unknown>, cohort),
+    [props, cohort, ladders, useNational, skipProps],
   );
 
   if (summary.strong.length === 0 && summary.weak.length === 0) return null;
@@ -1482,9 +1492,9 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
       {/* CF-8: Quality Index auditability — factor coverage for this area */}
       {d.quality_index != null && <QualityCoverageSection props={d} scope={qualityScope} qualityWeights={qualityWeights} />}
 
-      {/* CF-2: auto-composed plain-language strengths & weaknesses from real percentiles.
-          Finland only: its percentiles are Finland's national ladders. */}
-      {!isSe && allFeatures && allFeatures.length > 1 && (
+      {/* CF-2: auto-composed plain-language strengths & weaknesses from real percentiles,
+          each area against its own country's ladders. */}
+      {allFeatures && allFeatures.length > 1 && (
         <AreaSummarySection props={d} allFeatures={allFeatures} scope={qualityScope} region={scopeRegionName ?? regionName} isCustomWeights={isCustomWeights} />
       )}
 

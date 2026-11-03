@@ -77,7 +77,10 @@ export interface NationalLadder {
   n: number;
 }
 
-let laddersCache: Promise<Record<string, NationalLadder>> | null = null;
+// Every other country's ladders, one ?url asset each (build_national_ranges.mjs).
+const COUNTRY_PERCENTILE_URLS = import.meta.glob<string>('../data/percentiles_*.json', { query: '?url', import: 'default', eager: true });
+
+const laddersCache: Partial<Record<CountryId, Promise<Record<string, NationalLadder>>>> = {};
 
 /**
  * CF-2: lazily fetch + cache the national percentile ladders (a ?url asset, so it never
@@ -85,17 +88,21 @@ let laddersCache: Promise<Record<string, NationalLadder>> | null = null;
  * the ~12 MB national property set. Mirrors loadAdjacencyGraph: memoized promise, evicted on
  * failure so a later call retries.
  */
-export function loadNationalPercentiles(): Promise<Record<string, NationalLadder>> {
-  if (laddersCache) return laddersCache;
-  laddersCache = fetch(nationalPercentilesUrl)
+export function loadNationalPercentiles(country: CountryId = HOME_COUNTRY): Promise<Record<string, NationalLadder>> {
+  const hit = laddersCache[country];
+  if (hit) return hit;
+  const url = country === HOME_COUNTRY ? nationalPercentilesUrl : COUNTRY_PERCENTILE_URLS[`../data/percentiles_${country}.json`];
+  if (!url) return Promise.reject(new Error(`No percentile ladders for ${country}`));
+  const p = fetch(url)
     .then((res) => {
       if (!res.ok) throw new Error(`Failed to load national percentiles: ${res.status}`);
       return res.json() as Promise<{ metrics: Record<string, NationalLadder> }>;
     })
     .then((data) => data.metrics)
     .catch((err) => {
-      laddersCache = null; // evict so a later call can retry
+      delete laddersCache[country]; // evict so a later call can retry
       throw err;
     });
-  return laddersCache;
+  laddersCache[country] = p;
+  return p;
 }

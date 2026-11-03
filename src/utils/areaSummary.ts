@@ -55,6 +55,8 @@ export interface SummaryMetric {
 export const SUMMARY_METRICS: SummaryMetric[] = [
   { prop: 'quality_index', labelKey: 'layer.quality_index', higherIsBetter: true },
   { prop: 'hr_mtu', labelKey: 'layer.median_income', higherIsBetter: true, requirePositive: true },
+  // Sweden's income measure (SCB's ekonomisk standard); Finnish areas have none, and vice versa.
+  { prop: 'economic_standard_median', labelKey: 'layer.economic_standard', higherIsBetter: true, requirePositive: true },
   { prop: 'transit_reachability_score', labelKey: 'layer.transit_reachability', higherIsBetter: true },
   { prop: 'walkability_index', labelKey: 'layer.walkability', higherIsBetter: true },
   { prop: 'healthcare_density', labelKey: 'layer.healthcare_access', higherIsBetter: true },
