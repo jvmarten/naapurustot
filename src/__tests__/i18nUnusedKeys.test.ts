@@ -16,6 +16,7 @@
 import { describe, it, expect } from 'vitest';
 import fi from '../locales/fi.json';
 import fiExtra from '../locales/fi-extra.json';
+import fiDetail from '../locales/fi-detail.json';
 
 // Dynamic key families assembled at runtime — the full key never appears as a
 // literal, so a substring scan can't find it. Each entry notes its composition
@@ -67,6 +68,7 @@ describe('QW-8 fi locale unused-key drift guard', () => {
   const allKeys = [
     ...Object.keys(fi as Record<string, string>),
     ...Object.keys(fiExtra as Record<string, string>),
+    ...Object.keys(fiDetail as Record<string, string>),
   ];
 
   it('has no orphan keys (every non-dynamic fi key is referenced in source)', () => {

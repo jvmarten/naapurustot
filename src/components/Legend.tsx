@@ -215,7 +215,8 @@ export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: 
         )}
         {/* Two countries' related but differently defined measures on one scale: say so
             wherever Sweden is on the map. */}
-        {layer.crossCountryNoteKey && country !== 'fi' && (
+        {/* '' until fi-detail.json lands (i18n.ts), so no empty box before it does. */}
+        {layer.crossCountryNoteKey && country !== 'fi' && t(layer.crossCountryNoteKey) && (
           <div className="mt-2 text-[10px] text-surface-500 dark:text-surface-400 max-w-[220px] leading-snug">
             {t(layer.crossCountryNoteKey)}
           </div>

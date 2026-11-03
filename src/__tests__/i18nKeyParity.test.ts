@@ -10,15 +10,18 @@
 import { describe, it, expect } from 'vitest';
 import fi from '../locales/fi.json';
 import fiExtra from '../locales/fi-extra.json';
+import fiDetail from '../locales/fi-detail.json';
 import en from '../locales/en.json';
 import sv from '../locales/sv.json';
+import { isDetailKey } from '../utils/i18n';
 
 type Dict = Record<string, string>;
 const FI = fi as Dict;
 const FI_EXTRA = fiExtra as Dict;
+const FI_DETAIL = fiDetail as Dict;
 // IN-7: fi.json was split — page-only keys live in fi-extra.json. The source of
-// truth for parity is the UNION (fi ∪ fi-extra); en/sv keep the full key set.
-const FI_ALL: Dict = { ...FI, ...FI_EXTRA };
+// truth for parity is the UNION (fi ∪ fi-extra ∪ fi-detail); en/sv keep the full key set.
+const FI_ALL: Dict = { ...FI, ...FI_EXTRA, ...FI_DETAIL };
 const EN = en as Dict;
 const SV = sv as Dict;
 
@@ -61,6 +64,7 @@ describe.each([
 describe.each([
   ['fi.json', FI],
   ['fi-extra.json', FI_EXTRA],
+  ['fi-detail.json', FI_DETAIL],
   ['en.json', EN],
   ['sv.json', SV],
 ])('%s value integrity', (name, dict) => {
@@ -76,5 +80,17 @@ describe('fi.json / fi-extra.json split (IN-7)', () => {
   it('has no key present in both fi.json and fi-extra.json', () => {
     const both = Object.keys(FI).filter((k) => k in FI_EXTRA);
     expect(both, `keys duplicated across fi.json and fi-extra.json: ${both.join(', ')}`).toHaveLength(0);
+  });
+});
+
+describe('fi.json / fi-detail.json split', () => {
+  it('keeps every note.* and metric_explanation.* key out of the bundled fi.json', () => {
+    const bundled = Object.keys(FI).filter((k) => isDetailKey(k));
+    expect(bundled, `detail keys in the bundled fi.json: ${bundled.join(', ')}`).toHaveLength(0);
+  });
+
+  it('holds only detail keys, none duplicated in fi.json or fi-extra.json', () => {
+    const stray = Object.keys(FI_DETAIL).filter((k) => !isDetailKey(k) || k in FI || k in FI_EXTRA);
+    expect(stray, `misplaced keys in fi-detail.json: ${stray.join(', ')}`).toHaveLength(0);
   });
 });

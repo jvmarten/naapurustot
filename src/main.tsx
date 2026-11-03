@@ -7,7 +7,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { setErrorReporter } from './utils/errorReporter';
 import { installChunkReloadHandler, isChunkReloadPending } from './utils/chunkReload';
 import { isInjectedPageScriptError, isInjectedScriptSyntaxError } from './utils/sentryFilters';
-import { detectBrowserLang, getLang, setLang, loadFiExtra } from './utils/i18n';
+import { detectBrowserLang, getLang, setLang, loadFiExtra, loadFiDetail } from './utils/i18n';
 import './index.css';
 
 // O2: first-visit language auto-detection. Runs only in the browser entry (tests
@@ -43,8 +43,11 @@ const App = lazy(() => import('./App'));
 // Lazy-load route-specific pages — most users only interact with the main map.
 // NeighborhoodProfilePage (~21KB source) imports dataLoader, similarity, qualityIndex,
 // formatting, etc. Deferring it avoids downloading & parsing that code on initial load.
+// Its stat cards print source caveats (note.*), so it waits for fi-detail.json — already
+// in flight since startup — rather than painting them in a moment later.
 // eslint-disable-next-line react-refresh/only-export-components
-const NeighborhoodProfilePage = lazy(() => import('./pages/NeighborhoodProfilePage').then(m => ({ default: m.NeighborhoodProfilePage })));
+const NeighborhoodProfilePage = lazy(() =>
+  Promise.all([import('./pages/NeighborhoodProfilePage'), loadFiDetail()]).then(([m]) => ({ default: m.NeighborhoodProfilePage })));
 // eslint-disable-next-line react-refresh/only-export-components
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage').then(m => ({ default: m.NotFoundPage })));
 // CF-9: prerendered public data-sources & methodology page (FI/EN/SV).
@@ -52,7 +55,7 @@ const NotFoundPage = lazy(() => import('./pages/NotFoundPage').then(m => ({ defa
 const DataSourcesPage = lazy(() =>
   // IN-7: await the page-only fi strings (fi-extra.json) alongside the chunk so the
   // page never first-paints raw i18n keys. loadFiExtra never rejects (catch → no-op).
-  Promise.all([import('./pages/DataSourcesPage'), loadFiExtra()]).then(([m]) => ({ default: m.DataSourcesPage })));
+  Promise.all([import('./pages/DataSourcesPage'), loadFiExtra(), loadFiDetail()]).then(([m]) => ({ default: m.DataSourcesPage })));
 // PO-14: prerendered public privacy & data-handling notice (FI/EN/SV).
 // eslint-disable-next-line react-refresh/only-export-components
 const PrivacyPage = lazy(() =>

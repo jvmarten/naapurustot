@@ -11,6 +11,7 @@ import type { LayerId } from '../utils/colorScales';
 import { setLang as _setLang } from '../utils/i18n';
 import fi from '../locales/fi.json';
 import fiExtra from '../locales/fi-extra.json';
+import fiDetail from '../locales/fi-detail.json';
 import en from '../locales/en.json';
 
 describe('Layer configuration consistency', () => {
@@ -184,8 +185,8 @@ describe('Service-density stop calibration', () => {
 describe('Layer translation completeness', () => {
   it('Finnish and English translations have the same keys', () => {
     // IN-7: page-only fi keys live in fi-extra.json; the source of truth is the
-    // union (fi ∪ fi-extra). en/sv keep the full key set.
-    const fiKeys = new Set([...Object.keys(fi), ...Object.keys(fiExtra)]);
+    // union (fi ∪ fi-extra ∪ fi-detail). en/sv keep the full key set.
+    const fiKeys = new Set([...Object.keys(fi), ...Object.keys(fiExtra), ...Object.keys(fiDetail)]);
     const enKeys = new Set(Object.keys(en));
 
     const onlyInFi = [...fiKeys].filter((k) => !enKeys.has(k));

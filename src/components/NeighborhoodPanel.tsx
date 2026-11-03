@@ -259,7 +259,7 @@ const StatRow: React.FC<{
                            whitespace-normal ${tooltipPos.flipBelow ? 'top-full mt-2' : 'bottom-full mb-2'}`}
                 style={{ transform: `translateX(calc(-50% + ${tooltipPos.shiftX}px))` }}
               >
-                {hasExplanation && (
+                {hasExplanation && t(`metric_explanation.${property}`) && (
                   <span className="block mb-1.5 text-white">
                     {t(`metric_explanation.${property}`)}
                   </span>
@@ -275,7 +275,7 @@ const StatRow: React.FC<{
                   </span>
                 )}
                 {/* PO-4: registry caveat note (i18n key) — derivation/coverage/mixed-vintage details */}
-                {source.note && (
+                {source.note && t(source.note) && (
                   <span className="block mb-1.5 text-surface-200 dark:text-surface-300">
                     {t(source.note)}
                   </span>
