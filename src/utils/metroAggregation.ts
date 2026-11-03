@@ -29,7 +29,15 @@ import { HOME_COUNTRY } from './countries.ts';
  * - property_price_history: population-weighted average per year
  * - crime_index_history: population-weighted average per year
  * - tree_canopy_history: population-weighted average per year (as tree_canopy_pct)
+ *
+ * A summed series is the region's total, so it is only built when the areas carrying it
+ * hold at least SUM_MIN_COVERAGE of the region's residents. Sweden's history exists only
+ * for DeSOs whose boundaries did not move in 2025 (~75 % of them), and summing those would
+ * draw a region's population well below its own figure. Averaged series stay averages
+ * over the areas that have them, as Finland's property prices always have.
  */
+const SUM_MIN_COVERAGE = 0.95;
+
 export function aggregateTrendHistories(features: Feature[]): Record<string, string> {
   const result: Record<string, string> = {};
 
@@ -47,10 +55,12 @@ export function aggregateTrendHistories(features: Feature[]): Record<string, str
     { key: 'tree_canopy_history', mode: 'weighted', entries: [] },
   ];
 
+  let totalPop = 0;
   for (const f of features) {
     const p = f.properties as NeighborhoodProperties;
     const pop = p.he_vakiy;
     if (pop == null || pop <= 0) continue;
+    totalPop += pop;
 
     for (const sd of seriesData) {
       const series = parseTrendSeries(p[sd.key] as string | null);
@@ -62,6 +72,7 @@ export function aggregateTrendHistories(features: Feature[]): Record<string, str
 
   for (const sd of seriesData) {
     if (sd.entries.length === 0) continue;
+    if (sd.mode === 'sum' && sd.entries.reduce((n, e) => n + e.pop, 0) < SUM_MIN_COVERAGE * totalPop) continue;
 
     // Collect all years across all neighborhoods
     const yearSet = new Set<number>();

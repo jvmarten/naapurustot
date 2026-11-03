@@ -197,6 +197,10 @@ TrendChart.displayName = 'TrendChart';
 
 interface TrendSectionProps {
   incomeData: TrendDataPoint[] | null;
+  /** The income chart's title and unit keys, where the series is not Paavo's euros
+   *  (Sweden's is SCB's ekonomisk standard in SEK). */
+  incomeLabelKey?: string;
+  incomeUnitKey?: string;
   populationData: TrendDataPoint[] | null;
   unemploymentData: TrendDataPoint[] | null;
   // CF-7: property-price (€/m²) and crime (per 1,000) time-series.
@@ -226,6 +230,8 @@ const fmtCrime = (v: number) => v.toFixed(0);
 
 export const TrendSection: React.FC<TrendSectionProps> = React.memo(({
   incomeData,
+  incomeLabelKey = 'panel.trend_income',
+  incomeUnitKey = 'panel.trend_unit_euro',
   populationData,
   unemploymentData,
   propertyPriceData,
@@ -243,11 +249,11 @@ export const TrendSection: React.FC<TrendSectionProps> = React.memo(({
       <div className="space-y-4 bg-surface-50 dark:bg-surface-900/40 rounded-xl p-3">
         {incomeData && (
           <TrendChart
-            title={t('panel.trend_income')}
+            title={t(incomeLabelKey)}
             data={incomeData}
             color="#10b981"
             formatValue={fmtIncome}
-            unit={t('panel.trend_unit_euro')}
+            unit={t(incomeUnitKey)}
           />
         )}
         {populationData && (
